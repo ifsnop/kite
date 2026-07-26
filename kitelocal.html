@@ -635,7 +635,7 @@ const map = L.map("map").setView([40.4, -3.7], 6);
 
 /* Fecha de generación del código (versión): AÑOMESDIAHORAMINUTO.
    Actualizar en cada generación; se muestra junto al crédito de Leaflet. */
-const BUILD = "202607260120";
+const BUILD = "202607261130";
 map.attributionControl.setPrefix(
   `v${BUILD} | <a href="https://leafletjs.com" title="A JavaScript library for interactive maps">Leaflet</a>`);
 
@@ -948,6 +948,34 @@ function selectNode(li, on) {
   selDeselecting = !on;
 }
 
+/* Nombre legible del tipo, para poder explicar por qué algo se queda
+   fuera de una selección                                              */
+const KIND_LABEL = { marker: "marcadores", polygon: "pol\u00EDgonos", measure: "mediciones" };
+
+/* Selecciona de una vez todas las capas de la rama que cuelga de un
+   contenedor. Como solo pueden convivir capas del mismo tipo en la
+   selección, manda el tipo de la primera capa encontrada y se avisa de
+   cuántas quedan fuera en vez de marcarlas y desmarcarlas en silencio. */
+function selectFolderLayers(li) {
+  const ul = nodeUl(li);
+  if (!ul) return;
+  const layers = [...ul.querySelectorAll("li")]
+    .filter(n => n._name !== undefined && !nodeUl(n)); /* capas, no contenedores */
+  if (!layers.length) { navMessage("Esta carpeta no contiene capas."); return; }
+
+  clearSelection();
+  const kind = styleKind(layers[0]);
+  const same = layers.filter(n => styleKind(n) === kind);
+  for (const n of same) selectNode(n, true);
+  selDeselecting = false; /* lo siguiente que hagan las flechas es sumar */
+
+  const rest = layers.length - same.length;
+  if (rest) {
+    navMessage(`Seleccionadas ${same.length} capa(s) de ${KIND_LABEL[kind] || kind};`
+      + ` ${rest} de otro tipo se quedan fuera (solo caben capas del mismo tipo a la vez).`);
+  }
+}
+
 /* Rows currently reachable: those with no collapsed ancestor */
 function visibleRows() {
   return [...treeEl.querySelectorAll("li")].filter(li => {
@@ -1216,6 +1244,8 @@ function makeActions(li, sortable, styleable) {
     box.appendChild(b);
   };
   if (sortable) {
+    btn("\u2611", "Seleccionar todas las capas de esta carpeta", "", () => selectFolderLayers(li));
+    btn("\u2610", "Quitar la selecci\u00F3n (igual que Escape)", "", () => clearSelection());
     btn("AZ", "Ordenar alfab\u00E9ticamente (alterna ascendente/descendente)", "az", () => sortChildren(li));
     btn("\u229F", "Colapsar esta carpeta y las interiores", "", () => collapseDescendants(li));
     btn("\uD83D\uDCBE", "Guardar esta carpeta en un archivo para volver a cargarla despu\u00E9s", "", () => exportNode(li));
@@ -2308,10 +2338,16 @@ document.getElementById("deactivate-all").addEventListener("click", () => setAll
 document.getElementById("collapse-all").addEventListener("click", () => collapseDescendants(treeEl));
 
 /* ---------- Selección masiva con el teclado ----------
-   Shift + flechas o Av/Re Pág recorre las filas visibles seleccionando a
-   su paso, que es mucho más rápido que ir una a una con Shift+click. Se
-   repite el sentido de la última acción: si esta quitó una capa de la
-   selección, las flechas van deseleccionando.                          */
+   Shift + flechas, Av/Re Pág o Inicio/Fin recorre las filas visibles
+   seleccionando a su paso, que es mucho más rápido que ir una a una con
+   Shift+click. Se repite el sentido de la última acción: si esta quitó
+   una capa de la selección, las teclas van deseleccionando.
+
+   Al seleccionar, el recorrido SALTA las filas que no son del tipo del
+   recorrido (cabeceras de carpeta, capas de otra clase) en vez de
+   pasárselas a `selectNode`: como este aplica la regla del mismo tipo,
+   una sola cabecera de carpeta por el camino vaciaba todo lo marcado
+   hasta ese momento, y Shift+Fin parecía no hacer nada.               */
 const PAGE_STEP = 10;
 document.addEventListener("keydown", e => {
   /* Infinity simply walks until the list runs out, so Inicio/Fin need no
@@ -2319,9 +2355,13 @@ document.addEventListener("keydown", e => {
   const step = { ArrowUp: -1, ArrowDown: 1, PageUp: -PAGE_STEP, PageDown: PAGE_STEP,
                  Home: -Infinity, End: Infinity }[e.key];
   if (!e.shiftKey || step === undefined) return;
-  if (/INPUT|TEXTAREA|SELECT/.test(e.target.tagName)) return;
+  const t = e.target;
+  /* Solo estorban los campos donde Shift+Inicio/Fin selecciona texto; un
+     checkbox del árbol suele tener el foco tras pinchar una fila y no
+     debe bloquear el atajo                                             */
+  if (t.matches && t.matches("input:not([type=checkbox]), textarea, select, [contenteditable]")) return;
   /* With the map focused, Shift+arrows are Leaflet's own long pan */
-  if (e.target.closest && e.target.closest("#map")) return;
+  if (t.closest && t.closest("#map")) return;
   const rows = visibleRows();
   if (!rows.length) return;
   e.preventDefault();
@@ -2335,11 +2375,21 @@ document.addEventListener("keydown", e => {
     selDeselecting = false;
   }
   const on = !selDeselecting; /* the direction stays fixed for the whole run */
+  /* El tipo del recorrido lo fija lo ya seleccionado o, si no hay nada,
+     la primera fila sobre la que se actúa                              */
+  let kind = selection.size ? styleKind([...selection][0]) : null;
   for (let n = 0; n < Math.abs(step); n++) {
     if (i + dir < 0 || i + dir >= rows.length) break;
     i += dir;
-    selectNode(rows[i], on);
+    if (!on) { selectNode(rows[i], false); continue; } /* quitar vale para todo */
+    const k = styleKind(rows[i]);
+    if (kind === null) kind = k;
+    if (k !== kind) continue; /* otro tipo: se salta, no se pierde lo marcado */
+    selectNode(rows[i], true);
   }
+  /* El cursor avanza aunque las últimas filas se hayan saltado, para que
+     la siguiente pulsación continúe desde donde se dejó               */
+  setSelCursor(rows[i]);
   rows[i].querySelector(":scope > .node-row").scrollIntoView({ block: "nearest" });
 });
 

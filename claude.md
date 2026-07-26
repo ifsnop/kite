@@ -196,7 +196,15 @@ manteniendo los principios acordados durante el desarrollo del proyecto.
   múltiple.
 - **Selección masiva con el teclado**: Shift + flecha arriba/abajo,
   Av/Re Pág (10 filas) o Inicio/Fin (hasta el extremo de la lista)
-  recorre las filas visibles seleccionando a su paso. Inicio y Fin no
+  recorre las filas visibles seleccionando a su paso. Al **seleccionar**,
+  el recorrido salta las filas que no son del tipo del recorrido
+  (cabeceras de carpeta, capas de otra clase): si se las pasara a
+  `selectNode`, su regla del mismo tipo vaciaría lo marcado hasta ese
+  momento y Shift+Fin parecería no hacer nada. Al **deseleccionar** no se
+  filtra: quitar vale para cualquier fila. El cursor avanza aunque las
+  últimas filas se hayan saltado. El atajo solo se cede a los campos
+  donde Shift+Inicio/Fin selecciona texto; un checkbox del árbol con el
+  foco (lo normal tras pinchar una fila) no debe bloquearlo. Inicio y Fin no
   necesitan caso aparte: son un paso de ±`Infinity`, que camina hasta
   que se acaba la lista.
   Se repite el sentido de la última acción (`selDeselecting`): si esta
@@ -207,6 +215,12 @@ manteniendo los principios acordados durante el desarrollo del proyecto.
   combinación a Leaflet (es su desplazamiento largo). Toda selección debe
   pasar por `selectNode`, que centraliza la regla del mismo tipo, el
   cursor y el sentido.
+- **Botones de selección de la carpeta**: en la fila de cada contenedor,
+  a la izquierda del AZ, ☑ selecciona de golpe todas las capas de la rama
+  (`selectFolderLayers`) y ☐ quita la selección (lo mismo que Escape).
+  Como solo caben capas del mismo tipo, manda el tipo de la primera capa
+  encontrada y se avisa por `navMessage` de cuántas quedan fuera, en vez
+  de marcarlas y desmarcarlas en silencio.
 - **Selección del mismo tipo**: solo pueden coexistir en la selección
   nodos del mismo `styleKind`. Al Shift+seleccionar un nodo de tipo
   distinto (p. ej. una capa de marcadores con capas de polígonos ya
@@ -417,7 +431,9 @@ manteniendo los principios acordados durante el desarrollo del proyecto.
 6. Respetar los gestos reservados (Shift, Ctrl) y no tocar la vista del
    usuario sin que lo pida. Shift+click en la navegación respeta la regla
    de selección del mismo tipo.
-7. Actualizar la constante `BUILD` (AÑOMESDIAHORAMINUTO, junto al crédito
-   de Leaflet) en cada generación del código: es la versión visible.
+7. **Siempre** actualizar la constante `BUILD` (AAAAMMDDHHMM, junto al
+   crédito de Leaflet) en CADA generación del código, por pequeña que
+   sea: es la única versión visible y sirve para saber qué se está
+   ejecutando. Sin excepciones.
 8. `node --check` del script; test en Node de la lógica pura; `grep` de
    referencias muertas de lo que se haya retirado.
