@@ -215,6 +215,17 @@ manteniendo los principios acordados durante el desarrollo del proyecto.
   combinación a Leaflet (es su desplazamiento largo). Toda selección debe
   pasar por `selectNode`, que centraliza la regla del mismo tipo, el
   cursor y el sentido.
+- **Coste de la selección**: marcar miles de capas debe costar lo mismo
+  por capa que por una. Nada en la selección puede recorrer la selección
+  entera ni consultar el árbol una vez por nodo; hacerlo la vuelve
+  cuadrática y marcar una carpeta grande tarda segundos. De ahí
+  `selectionKind` (el tipo de la selección se guarda, no se recalcula
+  preguntando a cada miembro), que `setSelCursor` quite la marca solo al
+  cursor anterior, `nodeRow` (`li._row`, sin consulta al DOM por nodo) y
+  que `topLevelSelection` mire hacia arriba con el Set en vez de cruzar
+  la selección consigo misma. Medido con 3000 capas: de ~6,6 s a unos
+  pocos ms. Cualquier operación nueva sobre la selección debe respetar
+  esta regla.
 - **Botones de selección de la carpeta**: en la fila de cada contenedor,
   a la izquierda del AZ, ☑ selecciona de golpe todas las capas de la rama
   (`selectFolderLayers`) y ☐ quita la selección (lo mismo que Escape).
