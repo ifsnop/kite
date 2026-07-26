@@ -159,9 +159,17 @@ manteniendo los principios acordados durante el desarrollo del proyecto.
   no capas visibles. `<open>` decide el colapso inicial (ausente = 0 =
   colapsada). Los GeoJSON arrancan colapsados.
 - **La vista del usuario es sagrada**: cargar archivos NUNCA cambia el
-  zoom/encuadre, y el doble click en una fila solo desplaza la vista al
-  centro de sus capas (`panTo`), sin tocar el zoom; para encuadrar está el
-  botón de autoescalar. Única excepción:
+  zoom/encuadre, y el primer doble click en una fila solo desplaza la
+  vista al centro de sus capas (`panTo`), sin tocar el zoom; para
+  encuadrar está el botón de autoescalar.
+- **Escalera de zoom del doble click**: si la vista YA está centrada en
+  ese nodo (`isCenteredOn`, comparación en píxeles, no en grados, porque
+  un margen en grados vale distancias muy distintas según el zoom), el
+  doble click sube por peldaños fijos: 5 → 9 → zoom máximo → 3 → 5…
+  (`nextZoomStep`). Es un ciclo a propósito: al llegar al máximo se
+  vuelve abajo, para que el gesto nunca deje al usuario atrapado. La
+  escalera se arma en cada llamada porque el zoom máximo depende del mapa
+  base activo, y se descartan los peldaños duplicados. Única excepción:
   elegir un resultado del buscador de lugares, que ES pedir ir allí (se
   encuadra su `boundingbox`, o se centra en sus coordenadas si no lo trae).
 - **Buscador de lugares**: la caja de búsqueda de la cabecera consulta

@@ -635,7 +635,7 @@ const map = L.map("map").setView([40.4, -3.7], 6);
 
 /* Fecha de generación del código (versión): AÑOMESDIAHORAMINUTO.
    Actualizar en cada generación; se muestra junto al crédito de Leaflet. */
-const BUILD = "202607260015";
+const BUILD = "202607260120";
 map.attributionControl.setPrefix(
   `v${BUILD} | <a href="https://leafletjs.com" title="A JavaScript library for interactive maps">Leaflet</a>`);
 
@@ -1043,6 +1043,31 @@ function clearNavMessage() {
   document.getElementById("nav-msg").textContent = "";
 }
 
+/* ---------- Escalera de zoom del doble click ----------
+   Repetir el doble click sobre algo ya centrado va acercando por
+   peldaños fijos y, al llegar al máximo, vuelve a empezar por abajo, de
+   modo que el gesto es un ciclo y nunca deja al usuario atrapado en el
+   zoom máximo.                                                        */
+const ZOOM_STEPS = [5, 9];
+const ZOOM_RESTART = 3;
+
+function nextZoomStep(current, maxZoom) {
+  /* La escalera se arma en cada llamada porque el zoom máximo depende
+     del mapa base activo; los duplicados se descartan               */
+  const ladder = [...new Set([...ZOOM_STEPS.filter(z => z < maxZoom), maxZoom, ZOOM_RESTART])];
+  const i = ladder.indexOf(current);
+  return i < 0 ? ladder[0] : ladder[(i + 1) % ladder.length];
+}
+
+/* Centrado "a ojo": se compara en píxeles, no en grados, porque un mismo
+   margen en grados significa distancias muy distintas según el zoom.   */
+const CENTER_TOLERANCE_PX = 4;
+function isCenteredOn(latlng) {
+  const p = map.latLngToContainerPoint(latlng);
+  const c = map.getSize().divideBy(2);
+  return p.distanceTo(c) <= CENTER_TOLERANCE_PX;
+}
+
 /* Muestra u oculta en el visor la capa asociada a un checkbox */
 function applyVisibility(chk) {
   if (!chk._layer) return;
@@ -1124,12 +1149,15 @@ function makeNode({ name, layer = null, isFolder = false, isFile = false,
     e.preventDefault();
     selectNode(li, !selection.has(li));
   });
-  /* Doble click: llevar la vista a las capas del nodo SIN tocar el zoom.
-     La vista es del usuario: solo se desplaza; para encuadrar está el
-     botón de autoescalar.                                              */
+  /* Doble click: llevar la vista a las capas del nodo. El primero solo
+     desplaza, sin tocar el zoom (la vista es del usuario). Si ya está
+     centrada, los siguientes van subiendo por la escalera de zoom.     */
   row.addEventListener("dblclick", () => {
     const b = subtreeBounds(li);
-    if (b.isValid()) map.panTo(b.getCenter());
+    if (!b.isValid()) return;
+    const target = b.getCenter();
+    if (isCenteredOn(target)) map.setView(target, nextZoomStep(map.getZoom(), map.getMaxZoom()));
+    else map.panTo(target);
   });
 
   li.appendChild(row);
