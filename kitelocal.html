@@ -197,6 +197,7 @@
     gap: 6px;
     padding: 3px 4px;
     border-radius: 5px;
+    position: relative; /* referencia de los botones, que van superpuestos */
   }
   .node-row:hover { background: var(--bg); }
   .node-row.selected { background: var(--accent-soft); outline: 1px solid var(--accent); }
@@ -252,8 +253,31 @@
   }
 
   /* Botones de acción de cada fila (visibles al pasar el ratón) */
-  .actions { display: flex; gap: 2px; visibility: hidden; }
-  .node-row:hover .actions { visibility: visible; }
+  /* Los botones NO ocupan sitio en la fila: van superpuestos a la derecha
+     y solo aparecen al pasar el ratón (o al llegar con el tabulador).
+     Con `visibility: hidden` seguían reservando su ancho y el nombre
+     quedaba recortado siempre, aunque no se vieran. Ahora el nombre
+     dispone de toda la fila y solo se tapa mientras hagan falta.     */
+  .actions {
+    display: flex;
+    gap: 2px;
+    align-items: center;
+    position: absolute;
+    right: 4px;
+    top: 0;
+    bottom: 0;
+    padding-left: 12px;
+    visibility: hidden;
+    /* Fondo con desvanecido: los botones se leen sobre el texto que
+       cubren y el corte no parece abrupto                          */
+    background: linear-gradient(to right, transparent, var(--bg) 12px);
+  }
+  .node-row:hover > .actions,
+  .node-row:focus-within > .actions { visibility: visible; }
+  /* El fondo tiene que seguir al de la fila cuando esta está marcada */
+  .node-row.selected > .actions {
+    background: linear-gradient(to right, transparent, var(--accent-soft) 12px);
+  }
   .actions button {
     border: none;
     background: none;
@@ -635,7 +659,7 @@ const map = L.map("map").setView([40.4, -3.7], 6);
 
 /* Fecha de generación del código (versión): AÑOMESDIAHORAMINUTO.
    Actualizar en cada generación; se muestra junto al crédito de Leaflet. */
-const BUILD = "202607261130";
+const BUILD = "202607261620";
 map.attributionControl.setPrefix(
   `v${BUILD} | <a href="https://leafletjs.com" title="A JavaScript library for interactive maps">Leaflet</a>`);
 
@@ -912,17 +936,29 @@ let dragItems = null; /* nodos que viajan en el arrastre (la selección o uno su
 /* ---------- Selección múltiple (Shift+click en la navegación) ----------
    Shift está libre en el panel (en el visor es el box-zoom de Leaflet).
    La selección permite arrastrar y borrar varios nodos de golpe.        */
+/* ---------- Selección ----------
+   Marcar miles de capas tiene que costar lo mismo por capa que por una:
+   nada aquí puede recorrer la selección entera ni consultar el árbol en
+   cada nodo, o el coste se vuelve cuadrático y marcar una carpeta grande
+   tarda segundos. De ahí `selectionKind` (el tipo de la selección, en vez
+   de recalcularlo mirando a todos sus miembros), quitar la marca de
+   cursor solo al cursor anterior y `nodeRow`, que evita una consulta al
+   DOM por nodo.                                                        */
 const selection = new Set();
-let selCursor = null;      /* last row the selection touched */
+let selCursor = null;       /* last row the selection touched */
 let selDeselecting = false; /* the last action removed rather than added */
+let selectionKind = null;   /* tipo común de lo seleccionado, o null */
+
+const nodeRow = li => li._row || li.querySelector(":scope > .node-row");
 
 function setSelected(li, on) {
-  li.querySelector(":scope > .node-row").classList.toggle("selected", on);
+  nodeRow(li).classList.toggle("selected", on);
   li.setAttribute("aria-selected", String(on));
   if (on) selection.add(li); else selection.delete(li);
 }
 function clearSelection() {
   for (const li of [...selection]) setSelected(li, false);
+  selectionKind = null;
   setSelCursor(null);
   selDeselecting = false;
 }
@@ -930,20 +966,26 @@ function clearSelection() {
 /* The cursor is where the keyboard picks up from; it is drawn so the user
    can see which row Shift+arrows will move away from                     */
 function setSelCursor(li) {
-  for (const row of treeEl.querySelectorAll(".node-row.cursor")) row.classList.remove("cursor");
+  if (selCursor) nodeRow(selCursor).classList.remove("cursor");
   selCursor = li;
-  if (li) li.querySelector(":scope > .node-row").classList.add("cursor");
+  if (li) nodeRow(li).classList.add("cursor");
 }
 
 /* Single entry point for selecting/deselecting: enforces the same-kind
    rule, moves the cursor and records the direction of the last action
    (which is what Shift+arrows then repeat).                            */
 function selectNode(li, on) {
-  if (on && !selection.has(li)) {
+  if (on) {
     const kind = styleKind(li);
-    for (const s of [...selection]) if (styleKind(s) !== kind) setSelected(s, false);
+    /* Comprobación en O(1): basta el tipo de la selección, no hace falta
+       preguntárselo a cada uno de sus miembros                        */
+    if (selection.size && selectionKind !== kind) {
+      for (const s of [...selection]) setSelected(s, false);
+    }
+    selectionKind = kind;
   }
   setSelected(li, on);
+  if (!selection.size) selectionKind = null;
   setSelCursor(li);
   selDeselecting = !on;
 }
@@ -966,7 +1008,11 @@ function selectFolderLayers(li) {
   clearSelection();
   const kind = styleKind(layers[0]);
   const same = layers.filter(n => styleKind(n) === kind);
-  for (const n of same) selectNode(n, true);
+  /* Ruta masiva: como ya están filtradas por tipo, se marcan directas y
+     el tipo y el cursor se fijan UNA vez, no una por capa            */
+  for (const n of same) setSelected(n, true);
+  selectionKind = kind;
+  setSelCursor(same[same.length - 1] || null);
   selDeselecting = false; /* lo siguiente que hagan las flechas es sumar */
 
   const rest = layers.length - same.length;
@@ -988,9 +1034,19 @@ function visibleRows() {
 }
 /* Selección en orden de documento, excluyendo nodos contenidos en otros
    seleccionados: esos viajan (o se borran) con su ancestro              */
+/* Nodos seleccionados que NO cuelgan de otro seleccionado (esos viajan
+   con su ancestro). Se mira hacia arriba consultando el Set, en vez de
+   cruzar la selección consigo misma, que era cuadrático.             */
 function topLevelSelection() {
-  return [...treeEl.querySelectorAll("li")].filter(li =>
-    selection.has(li) && ![...selection].some(o => o !== li && o.contains(li)));
+  const out = [];
+  for (const li of selection) {
+    let covered = false;
+    for (let p = li.parentElement; p && p !== treeEl && !covered; p = p.parentElement) {
+      if (p.tagName === "LI" && selection.has(p)) covered = true;
+    }
+    if (!covered) out.push(li);
+  }
+  return out;
 }
 
 /* Encuadre combinado de todas las capas de un subárbol */
@@ -1188,6 +1244,7 @@ function makeNode({ name, layer = null, isFolder = false, isFile = false,
     else map.panTo(target);
   });
 
+  li._row = row; /* referencia directa: evita consultar el DOM por nodo */
   li.appendChild(row);
 
   if (isFolder || isFile) {
@@ -1340,7 +1397,7 @@ function highlightNode(li) {
   }
   clearSelection();
   selectNode(li, true);
-  li.querySelector(":scope > .node-row").scrollIntoView({ block: "nearest" });
+  nodeRow(li).scrollIntoView({ block: "nearest" });
 }
 
 /* ---------- Reordenación arrastrando dentro de la navegación ----------
@@ -2390,7 +2447,7 @@ document.addEventListener("keydown", e => {
   /* El cursor avanza aunque las últimas filas se hayan saltado, para que
      la siguiente pulsación continúe desde donde se dejó               */
   setSelCursor(rows[i]);
-  rows[i].querySelector(":scope > .node-row").scrollIntoView({ block: "nearest" });
+  nodeRow(rows[i]).scrollIntoView({ block: "nearest" });
 });
 
 /* Supr borra toda la selección de golpe (fuera de campos de texto) */

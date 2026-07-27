@@ -226,6 +226,15 @@ manteniendo los principios acordados durante el desarrollo del proyecto.
   la selección consigo misma. Medido con 3000 capas: de ~6,6 s a unos
   pocos ms. Cualquier operación nueva sobre la selección debe respetar
   esta regla.
+- **Los botones de fila no ocupan sitio**: `.actions` va superpuesta
+  (`position: absolute`) a la derecha de la fila y solo se muestra al
+  pasar el ratón o al llegar con el tabulador (`:focus-within`, para no
+  dejarlos inalcanzables sin ratón). Con `visibility: hidden` seguían
+  reservando su ancho y el nombre salía recortado siempre; ahora la
+  etiqueta dispone de la fila entera y solo queda tapada mientras los
+  botones están visibles. El fondo de `.actions` lleva un desvanecido y
+  debe seguir al de la fila (hay una variante para `.selected`), o los
+  iconos se leerían encima del texto.
 - **Botones de selección de la carpeta**: en la fila de cada contenedor,
   a la izquierda del AZ, ☑ selecciona de golpe todas las capas de la rama
   (`selectFolderLayers`) y ☐ quita la selección (lo mismo que Escape).
