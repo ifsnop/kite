@@ -335,6 +335,16 @@ manteniendo los principios acordados durante el desarrollo del proyecto.
   métrico **y** en millas náuticas (`METERS_PER_NM`), y la etiqueta de una
   medición se coloca en el punto medio geodésico (`midPoint`, promedio
   cartesiano 3D), que es correcto en arcos largos y al cruzar ±180°.
+- **Lectura de coordenadas del visor**: tres filas de la misma posición
+  —grados decimales, grados/minutos/segundos y UTM con su huso—, usando
+  `formatCoord`, el mismo formateo con el que se editan las coordenadas
+  de un marcador, para que visor y diálogo digan lo mismo.
+- **UTM va sobre el elipsoide WGS84** (`latLngToUtm`, serie de Snyder),
+  no sobre la esfera que usan las mediciones: con la esfera el error
+  llegaría a cientos de metros. Incluye las excepciones reales de husos
+  (sur de Noruega y Svalbard) y la banda X, que abarca 12° en vez de 8°.
+  Por encima de 84°N y por debajo de 80°S UTM no está definido y se dice
+  así en vez de dar un número falso.
 - **Retícula**: se recorta a la franja Mercator (±85°) y el paso crece
   hasta que el número de líneas cabe en `GRAT_MAX_LINES`, para que cerca
   de los polos no se generen decenas de miles de líneas.

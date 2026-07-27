@@ -355,10 +355,15 @@
     background: rgba(255,255,255,.85);
     border: 1px solid var(--border);
     border-radius: 4px;
-    padding: 2px 8px;
+    padding: 3px 8px;
     font: 12px ui-monospace, "Cascadia Mono", Consolas, monospace;
     color: var(--text);
+    line-height: 1.35;
+    white-space: nowrap;
   }
+  /* Las tres lecturas de la posición, de más a menos usada */
+  .coords-dms { color: #445; }
+  .coords-utm { color: var(--muted); }
   .grat-label {
     font: 10px ui-monospace, Consolas, monospace;
     color: #445;
@@ -659,7 +664,7 @@ const map = L.map("map").setView([40.4, -3.7], 6);
 
 /* Fecha de generación del código (versión): AÑOMESDIAHORAMINUTO.
    Actualizar en cada generación; se muestra junto al crédito de Leaflet. */
-const BUILD = "202607261620";
+const BUILD = "202607261745";
 map.attributionControl.setPrefix(
   `v${BUILD} | <a href="https://leafletjs.com" title="A JavaScript library for interactive maps">Leaflet</a>`);
 
@@ -3217,6 +3222,74 @@ function destPoint(origin, brg, dist) {
   return L.latLng(toDeg(p2), toDeg(l2));
 }
 
+/* ---------- Conversión a UTM ----------
+   Aquí SÍ hace falta el elipsoide WGS84, no la esfera que usan las
+   mediciones: UTM se define sobre el elipsoide y con la esfera el error
+   llegaría a cientos de metros. Serie de Snyder, exacta al milímetro
+   dentro del huso.                                                     */
+const UTM_A = 6378137.0;              /* semieje mayor WGS84            */
+const UTM_F = 1 / 298.257223563;      /* achatamiento                   */
+const UTM_K0 = 0.9996;                /* factor de escala del meridiano */
+const UTM_E2 = UTM_F * (2 - UTM_F);   /* primera excentricidad al cuadrado */
+const UTM_BANDS = "CDEFGHJKLMNPQRSTUVWX";
+
+/* Huso, con las excepciones reales de Noruega y Svalbard */
+function utmZone(lat, lon) {
+  let zone = Math.floor((lon + 180) / 6) + 1;
+  if (lat >= 56 && lat < 64 && lon >= 3 && lon < 12) zone = 32; /* sur de Noruega */
+  if (lat >= 72 && lat < 84) {                                  /* Svalbard      */
+    if (lon >= 0 && lon < 9) zone = 31;
+    else if (lon >= 9 && lon < 21) zone = 33;
+    else if (lon >= 21 && lon < 33) zone = 35;
+    else if (lon >= 33 && lon < 42) zone = 37;
+  }
+  return zone;
+}
+
+/* Banda de latitud (la letra que acompaña al huso). Todas miden 8°
+   menos la última, X, que llega hasta los 84° y por eso se acota.     */
+const utmBand = lat =>
+  UTM_BANDS[Math.min(Math.floor((lat + 80) / 8), UTM_BANDS.length - 1)] || "";
+
+/* {zone, band, easting, northing, north} o null fuera del ámbito de UTM */
+function latLngToUtm(lat, lon) {
+  if (!isFinite(lat) || !isFinite(lon) || lat < -80 || lat > 84) return null;
+  const zone = utmZone(lat, lon);
+  const lon0 = toRad((zone - 1) * 6 - 180 + 3); /* meridiano central del huso */
+  const p = toRad(lat), l = toRad(lon);
+  const ep2 = UTM_E2 / (1 - UTM_E2);            /* segunda excentricidad     */
+  const sinP = Math.sin(p), cosP = Math.cos(p), tanP = Math.tan(p);
+
+  const N = UTM_A / Math.sqrt(1 - UTM_E2 * sinP * sinP);
+  const T = tanP * tanP;
+  const C = ep2 * cosP * cosP;
+  /* Diferencia de longitud normalizada: evita el salto en el antimeridiano */
+  const A = (((l - lon0) + Math.PI * 3) % (Math.PI * 2) - Math.PI) * cosP;
+
+  const e2 = UTM_E2, e4 = e2 * e2, e6 = e4 * e2;
+  const M = UTM_A * (
+    (1 - e2 / 4 - 3 * e4 / 64 - 5 * e6 / 256) * p
+    - (3 * e2 / 8 + 3 * e4 / 32 + 45 * e6 / 1024) * Math.sin(2 * p)
+    + (15 * e4 / 256 + 45 * e6 / 1024) * Math.sin(4 * p)
+    - (35 * e6 / 3072) * Math.sin(6 * p));
+
+  const easting = UTM_K0 * N * (A + (1 - T + C) * A ** 3 / 6
+      + (5 - 18 * T + T * T + 72 * C - 58 * ep2) * A ** 5 / 120) + 500000;
+  let northing = UTM_K0 * (M + N * tanP * (A * A / 2
+      + (5 - T + 9 * C + 4 * C * C) * A ** 4 / 24
+      + (61 - 58 * T + T * T + 600 * C - 330 * ep2) * A ** 6 / 720));
+  if (lat < 0) northing += 10000000; /* falso norte en el hemisferio sur */
+
+  return { zone, band: utmBand(lat), easting, northing, north: lat >= 0 };
+}
+
+function fmtUtm(lat, lon) {
+  const u = latLngToUtm(lat, lon);
+  /* Sobre 84°N y bajo 80°S UTM no está definido: allí se usa UPS */
+  if (!u) return "UTM no definido en esta latitud (zona polar)";
+  return `${u.zone}${u.band} ${Math.round(u.easting)} m E ${Math.round(u.northing)} m N`;
+}
+
 const METERS_PER_NM = 1852; /* milla náutica internacional */
 
 /* Distancia métrica y náutica: la náutica es la unidad de trabajo en
@@ -3574,16 +3647,28 @@ function redrawGraticule() {
 map.on("moveend zoomend", redrawGraticule);
 
 /* ---------- Coordenadas del puntero (inferior izquierda) ---------- */
+/* Tres lecturas de la misma posición: grados decimales, grados/minutos/
+   segundos y UTM con su huso. Se reutiliza `formatCoord`, el mismo
+   formateo que edita las coordenadas de un marcador, para que lo que se
+   lee en el visor y lo que se escribe en el diálogo coincidan.        */
 const CoordsControl = L.Control.extend({
   options: { position: "bottomleft" },
   onAdd() {
     this._div = L.DomUtil.create("div", "coords-box");
-    this._div.textContent = "lat \u2014 \u00B7 lon \u2014";
+    this._rows = ["dec", "dms", "utm"].map(cls => {
+      const d = L.DomUtil.create("div", `coords-${cls}`, this._div);
+      d.textContent = "\u2014";
+      return d;
+    });
     return this._div;
   },
   update(latlng) {
-    this._div.textContent =
-      `lat ${latlng.lat.toFixed(5)}\u00B0 \u00B7 lon ${latlng.lng.toFixed(5)}\u00B0`;
+    const { lat, lng } = latlng;
+    this._rows[0].textContent =
+      `${formatCoord(lat, true, "dec")}\u00B0 ${formatCoord(lng, false, "dec")}\u00B0`;
+    this._rows[1].textContent =
+      `${formatCoord(lat, true, "dms")} ${formatCoord(lng, false, "dms")}`;
+    this._rows[2].textContent = fmtUtm(lat, lng);
   }
 });
 const coordsControl = new CoordsControl();
