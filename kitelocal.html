@@ -14,7 +14,7 @@
   default-src 'none';
   script-src 'self' 'unsafe-inline' https://unpkg.com https://cdnjs.cloudflare.com;
   style-src 'self' 'unsafe-inline' https://unpkg.com;
-  img-src 'self' data: blob: https://unpkg.com https://api.iconify.design https://tile.openstreetmap.org https://server.arcgisonline.com https://tms-pnoa-ma.idee.es https://servicios.idee.es;
+  img-src 'self' data: blob: https://unpkg.com https://api.iconify.design https://xyz-mdt.idee.es https://tile.openstreetmap.org https://server.arcgisonline.com https://tms-pnoa-ma.idee.es https://servicios.idee.es;
   connect-src 'self' https://api.iconify.design https://nominatim.openstreetmap.org;
   font-src 'self';
   base-uri 'none';
@@ -364,6 +364,8 @@
   /* Las tres lecturas de la posición, de más a menos usada */
   .coords-dms { color: #445; }
   .coords-utm { color: var(--muted); }
+  .coords-alt { color: var(--accent); font-weight: 600; }
+  .coords-alt[hidden] { display: none; }
   .grat-label {
     font: 10px ui-monospace, Consolas, monospace;
     color: #445;
@@ -664,7 +666,7 @@ const map = L.map("map").setView([40.4, -3.7], 6);
 
 /* Fecha de generación del código (versión): AÑOMESDIAHORAMINUTO.
    Actualizar en cada generación; se muestra junto al crédito de Leaflet. */
-const BUILD = "202607261745";
+const BUILD = "202607262215";
 map.attributionControl.setPrefix(
   `v${BUILD} | <a href="https://leafletjs.com" title="A JavaScript library for interactive maps">Leaflet</a>`);
 
@@ -3290,7 +3292,14 @@ function fmtUtm(lat, lon) {
   return `${u.zone}${u.band} ${Math.round(u.easting)} m E ${Math.round(u.northing)} m N`;
 }
 
-const METERS_PER_NM = 1852; /* milla náutica internacional */
+const METERS_PER_NM = 1852;   /* milla náutica internacional        */
+const METERS_PER_FOOT = 0.3048; /* pie internacional, valor exacto    */
+
+/* Altitud en metros y en pies: en aeronáutica la altitud se maneja en
+   pies, igual que las distancias en millas náuticas.                  */
+const fmtAltitude = m =>
+  `${m.toFixed(1)} m / ${Math.round(m / METERS_PER_FOOT)} ft`;
+
 
 /* Distancia métrica y náutica: la náutica es la unidad de trabajo en
    navegación aérea y marítima, y los grados de rumbo se mantienen.   */
@@ -3527,6 +3536,169 @@ function rebuildMeasurement(n, parentUl) {
   updateMeasurement(m);
 }
 
+/* ================= Modo altura (MDT del IGN) =================
+   El servicio XYZ del IGN sirve el MDT05 del PNOA en teselas PNG con
+   codificación Terrain-RGB. Como cada lectura cuesta una descarga, el
+   modo se activa a mano y todo aquí está pensado para pedir lo mínimo:
+   las teselas se cachean, el ratón se muestrea con retardo, hay tope de
+   peticiones por segundo y una tesela que falla no se vuelve a pedir.
+   La altitud es ortométrica (sobre el nivel medio del mar), no la
+   elipsoidal que da un GNSS.                                          */
+const DEM_URL = "https://xyz-mdt.idee.es/1.0.0/raster-dem/{z}/{x}/{y}.png";
+const DEM_MIN_Z = 5, DEM_MAX_Z = 15;   /* zooms publicados por el servicio */
+const DEM_CACHE_MAX = 60;              /* ~15 MB de píxeles cacheados      */
+const DEM_MAX_RPS = 4;                 /* peticiones por segundo            */
+const DEM_SAMPLE_MS = 150;             /* muestreo del ratón                */
+const DEM_STATUS_QUIET = 20000;        /* silencio entre avisos repetidos   */
+const DEM_ATTRIB = 'MDT05 PNOA \u00A9 <a href="https://www.ign.es">IGN</a> (CC BY 4.0)';
+
+let demOn = false;
+let demButton = null;
+const demCache = new Map();   /* clave z/x/y -> ImageData, o null si no hay */
+const demPending = new Map(); /* peticiones en vuelo, para no duplicarlas   */
+const demTimes = [];          /* marcas de tiempo, para el tope por segundo */
+const demStatusAt = { ok: 0, error: 0 };
+
+/* Lienzo único donde se vuelca cada tesela para leer sus píxeles */
+const demCanvas = document.createElement("canvas");
+const demCtx = demCanvas.getContext("2d", { willReadFrequently: true });
+
+/* Tesela XYZ y píxel dentro de ella para una posición */
+const MERCATOR_LAT = 85.05112878; /* borde de la proyección Web Mercator */
+
+function demTileFor(lat, lon, zoom) {
+  /* Fuera de la franja Mercator no existe la tesela: `tan` no llega a
+     infinito en coma flotante, así que hay que descartarlo a mano o se
+     pediría una tesela imposible                                     */
+  if (!isFinite(lat) || !isFinite(lon) || Math.abs(lat) > MERCATOR_LAT) return null;
+  const z = Math.min(DEM_MAX_Z, Math.max(DEM_MIN_Z, zoom));
+  const n = 2 ** z;
+  const latRad = toRad(lat);
+  /* Longitud normalizada: Leaflet la da fuera de ±180 al cruzar el
+     antimeridiano y la tesela sería otra                             */
+  const lonN = ((lon + 540) % 360) - 180;
+  const fx = (lonN + 180) / 360 * n;
+  const fy = (1 - Math.log(Math.tan(latRad) + 1 / Math.cos(latRad)) / Math.PI) / 2 * n;
+  if (!isFinite(fx) || !isFinite(fy)) return null;
+  return {
+    z, x: Math.floor(fx), y: Math.floor(fy),
+    px: Math.floor((fx - Math.floor(fx)) * 256),
+    py: Math.floor((fy - Math.floor(fy)) * 256)
+  };
+}
+
+/* Fórmula oficial de Terrain-RGB. Devuelve null donde no hay dato:
+   píxel transparente o valores imposibles (el suelo del formato).    */
+function demDecode(data, px, py) {
+  const i = (py * data.width + px) * 4;
+  const a = data.data[i + 3];
+  if (!a) return null;
+  const h = -10000 + (data.data[i] * 65536 + data.data[i + 1] * 256 + data.data[i + 2]) * 0.1;
+  return h < -500 || h > 9000 ? null : h;
+}
+
+/* Tope de peticiones por segundo: ventana deslizante */
+function demRateOk() {
+  const now = Date.now();
+  while (demTimes.length && now - demTimes[0] > 1000) demTimes.shift();
+  if (demTimes.length >= DEM_MAX_RPS) return false;
+  demTimes.push(now);
+  return true;
+}
+
+/* Estado de las descargas en el panel. Se agrupa: un aviso por racha,
+   porque moviendo el ratón se piden muchas teselas seguidas.         */
+function demStatus(kind, detail) {
+  const now = Date.now();
+  if (now - demStatusAt[kind] < DEM_STATUS_QUIET) return;
+  demStatusAt[kind] = now;
+  if (kind === "ok") navMessage("Altitud: teselas del MDT descargadas del IGN.", { tone: "info" });
+  else navMessage(`Altitud: no se pudo descargar el MDT del IGN (${detail}).`);
+}
+
+function demCacheSet(key, value) {
+  demCache.set(key, value);
+  /* Se descarta lo más antiguo: el Map conserva el orden de inserción */
+  while (demCache.size > DEM_CACHE_MAX) demCache.delete(demCache.keys().next().value);
+}
+
+/* ImageData de la tesela: del caché, o descargándola. `undefined`
+   significa "ahora no" (tope de peticiones), distinto de `null`, que es
+   "no hay cobertura aquí".                                           */
+function demTile(t) {
+  const key = `${t.z}/${t.x}/${t.y}`;
+  if (demCache.has(key)) return Promise.resolve(demCache.get(key));
+  if (demPending.has(key)) return demPending.get(key);
+  if (!demRateOk()) return Promise.resolve(undefined);
+
+  const p = new Promise(resolve => {
+    const img = new Image();
+    img.crossOrigin = "anonymous"; /* sin esto el lienzo queda contaminado */
+    img.onload = () => {
+      try {
+        demCanvas.width = img.naturalWidth || 256;
+        demCanvas.height = img.naturalHeight || 256;
+        demCtx.drawImage(img, 0, 0);
+        const data = demCtx.getImageData(0, 0, demCanvas.width, demCanvas.height);
+        demCacheSet(key, data);
+        demStatus("ok");
+        resolve(data);
+      } catch (err) {
+        demCacheSet(key, null);
+        demStatus("error", "el servicio no permite leer los p\u00EDxeles");
+        resolve(null);
+      }
+    };
+    img.onerror = () => {
+      /* Fuera de cobertura o servicio caído: se recuerda para no insistir */
+      demCacheSet(key, null);
+      demStatus("error", "tesela no disponible");
+      resolve(null);
+    };
+    img.src = DEM_URL.replace("{z}", t.z).replace("{x}", t.x).replace("{y}", t.y);
+  }).finally(() => demPending.delete(key));
+
+  demPending.set(key, p);
+  return p;
+}
+
+/* Muestreo con retardo: mover el ratón no puede disparar una descarga
+   por cada píxel recorrido                                           */
+let demTimer = null, demWanted = null;
+function demRequest(latlng) {
+  demWanted = latlng;
+  if (demTimer) return;
+  demTimer = setTimeout(() => {
+    demTimer = null;
+    demSample(demWanted);
+  }, DEM_SAMPLE_MS);
+}
+
+async function demSample(latlng) {
+  if (!demOn || !latlng) return;
+  const t = demTileFor(latlng.lat, latlng.lng, map.getZoom());
+  if (!t) { coordsControl.setElevation("\u2014"); return; }
+  const data = await demTile(t);
+  if (!demOn) return;
+  if (data === undefined) return;              /* aplazada por el tope       */
+  if (data === null) { coordsControl.setElevation("sin cobertura"); return; }
+  const h = demDecode(data, t.px, t.py);
+  coordsControl.setElevation(h === null ? "sin datos" : fmtAltitude(h));
+}
+
+function setAltitudeMode(on) {
+  demOn = on;
+  if (demButton) demButton.classList.toggle("active", on);
+  coordsControl.showElevation(on);
+  if (on) {
+    map.attributionControl.addAttribution(DEM_ATTRIB); /* CC BY 4.0 obliga */
+  } else {
+    map.attributionControl.removeAttribution(DEM_ATTRIB);
+    clearTimeout(demTimer);
+    demTimer = null;
+  }
+}
+
 /* ================= Controles de vista del visor ================= */
 
 let gratButton = null;
@@ -3565,6 +3737,16 @@ const ViewControl = L.Control.extend({
     gc.addEventListener("click", e => {
       e.preventDefault();
       map.fitBounds([[27.5, -18.3], [29.5, -13.3]]); /* archipiélago canario */
+    });
+
+    demButton = L.DomUtil.create("a", "", bar);
+    demButton.href = "#";
+    demButton.textContent = "\u26F0";
+    demButton.title = "Modo altura: consulta el MDT del IGN bajo el cursor"
+      + " (Espa\u00F1a; requiere conexi\u00F3n)";
+    demButton.addEventListener("click", e => {
+      e.preventDefault();
+      setAltitudeMode(!demOn);
     });
 
     gratButton = L.DomUtil.create("a", "", bar);
@@ -3655,13 +3837,19 @@ const CoordsControl = L.Control.extend({
   options: { position: "bottomleft" },
   onAdd() {
     this._div = L.DomUtil.create("div", "coords-box");
-    this._rows = ["dec", "dms", "utm"].map(cls => {
+    this._rows = ["dec", "dms", "utm", "alt"].map(cls => {
       const d = L.DomUtil.create("div", `coords-${cls}`, this._div);
       d.textContent = "\u2014";
       return d;
     });
+    this._rows[3].hidden = true; /* solo con el modo altura activo */
     return this._div;
   },
+  showElevation(on) {
+    this._rows[3].hidden = !on;
+    if (!on) this._rows[3].textContent = "\u2014";
+  },
+  setElevation(txt) { this._rows[3].textContent = `alt ${txt}`; },
   update(latlng) {
     const { lat, lng } = latlng;
     this._rows[0].textContent =
@@ -3673,7 +3861,10 @@ const CoordsControl = L.Control.extend({
 });
 const coordsControl = new CoordsControl();
 map.addControl(coordsControl);
-map.on("mousemove", e => coordsControl.update(e.latlng));
+map.on("mousemove", e => {
+  coordsControl.update(e.latlng);
+  if (demOn) demRequest(e.latlng);
+});
 
 /* ================= Arranque: restaurar el árbol guardado ================= */
 (async () => {

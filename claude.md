@@ -103,7 +103,7 @@ manteniendo los principios acordados durante el desarrollo del proyecto.
   descomprimirlos.
 - **CSP**: hay una `Content-Security-Policy` en el `<head>` que declara
   `default-src 'none'` y enumera los orígenes reales (unpkg, cdnjs, las
-  teselas, Iconify y Nominatim). Al añadir un origen nuevo hay que
+  teselas del mapa y del MDT, Iconify y Nominatim). Al añadir un origen nuevo hay que
   añadirlo también ahí o dejará de funcionar. `'unsafe-inline'` es
   inevitable mientras el CSS y el JS vivan en el propio archivo.
 
@@ -345,6 +345,28 @@ manteniendo los principios acordados durante el desarrollo del proyecto.
   (sur de Noruega y Svalbard) y la banda X, que abarca 12° en vez de 8°.
   Por encima de 84°N y por debajo de 80°S UTM no está definido y se dice
   así en vez de dar un número falso.
+- **Modo altura (MDT del IGN)**: el botón ⛰ del visor activa la consulta
+  de altitud bajo el cursor contra el servicio XYZ del IGN
+  (`raster-dem`, MDT05 del PNOA, codificación Terrain-RGB, zooms 5–15,
+  solo España). Es **altitud ortométrica**, sobre el nivel medio del mar,
+  no la elipsoidal de un GNSS, y se muestra en metros **y en pies**
+  (`fmtAltitude`, con el pie internacional exacto de 0,3048 m), igual que
+  las distancias se dan en métrico y en millas náuticas. Va apagado por defecto porque cada lectura
+  cuesta una descarga a un servidor ajeno, y al activarlo se añade la
+  atribución CC BY 4.0 que exige la licencia.
+- **Disciplina de peticiones al MDT**: teselas cacheadas con tope
+  (`DEM_CACHE_MAX`, se descarta lo más antiguo), muestreo del ratón con
+  retardo (`DEM_SAMPLE_MS`), tope de peticiones por segundo
+  (`DEM_MAX_RPS`, ventana deslizante), peticiones en vuelo compartidas
+  (`demPending`) y teselas fallidas recordadas para no insistir. El
+  estado se avisa en el panel agrupado por rachas (`DEM_STATUS_QUIET`):
+  moviendo el ratón se piden muchas teselas y un aviso por cada una
+  inundaría la ventana. Cualquier consulta externa nueva debe seguir el
+  mismo patrón.
+- **Distinción de tres estados**: `undefined` = aplazada por el tope,
+  `null` = no hay cobertura, y un valor = dato bueno. Un píxel
+  transparente o una altura imposible se muestran como «sin datos», no
+  como un número inventado.
 - **Retícula**: se recorta a la franja Mercator (±85°) y el paso crece
   hasta que el número de líneas cabe en `GRAT_MAX_LINES`, para que cerca
   de los polos no se generen decenas de miles de líneas.
@@ -467,3 +489,7 @@ manteniendo los principios acordados durante el desarrollo del proyecto.
    ejecutando. Sin excepciones.
 8. `node --check` del script; test en Node de la lógica pura; `grep` de
    referencias muertas de lo que se haya retirado.
+9. Cuidado con el ORDEN de las secciones: una variable que se asigna
+   dentro del `onAdd` de un control debe declararse antes que ese
+   control, o al añadirlo se cae por zona muerta temporal. `node --check`
+   no lo detecta.
