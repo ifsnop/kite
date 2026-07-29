@@ -58,6 +58,18 @@ manteniendo los principios acordados durante el desarrollo del proyecto.
    namespaces ni `getElementsByTagName("*")` y los tests del parser KML
    darían falsos negativos. Como mínimo, `node --check` antes de entregar.
 
+## Estructura del árbol al importar
+
+- **La jerarquía del archivo es intocable.** Un KML trae su propia
+  estructura de `<Document>` y `<Folder>`, así que se vuelca
+  directamente en la raíz: envolverla en una carpeta con el nombre del
+  archivo añadiría un nivel que no existe en el original.
+- Un GeoJSON, en cambio, es una lista plana sin jerarquía propia, y ahí
+  la carpeta contenedora sí aporta: agrupa lo que llegó junto. Es la
+  única importación que crea envoltorio.
+- Si la construcción falla a medias, se retira lo que hubiera entrado:
+  media importación es peor que ninguna.
+
 ## Formatos y límites de entrada
 
 - **KML namespace-agnóstico**: nada puede depender del `tagName` literal.
@@ -162,6 +174,15 @@ manteniendo los principios acordados durante el desarrollo del proyecto.
   zoom/encuadre, y el primer doble click en una fila solo desplaza la
   vista al centro de sus capas (`panTo`), sin tocar el zoom; para
   encuadrar está el botón de autoescalar.
+- **Botón 🔍 de enfoque** (`focusOnNode`, `FOCUS_ZOOM`): centra la vista
+  en el nodo y fija el zoom, siempre igual, sin depender de dónde
+  estuviera la vista. Es la vía fiable frente al doble click, que
+  encadena escalones.
+- **El nombre de la fila NO activa la casilla**: se retiró el `htmlFor`
+  del `<label>`. Pinchar el nombre selecciona la fila; un doble click
+  sobre él alternaba la visibilidad a medias y parecía «desmarcar» la
+  capa. La casilla se pulsa aparte y el espacio hace lo mismo desde el
+  teclado.
 - **Escalera de zoom del doble click**: si la vista YA está centrada en
   ese nodo (`isCenteredOn`, comparación en píxeles, no en grados, porque
   un margen en grados vale distancias muy distintas según el zoom), el
@@ -194,58 +215,55 @@ manteniendo los principios acordados durante el desarrollo del proyecto.
   fila lleva la vista a sus capas. "Activar/Desactivar" se refiere a
   los checkboxes (visibilidad); "seleccionar" se reserva para la selección
   múltiple.
-- **Selección masiva con el teclado**: Shift + flecha arriba/abajo,
-  Av/Re Pág (10 filas) o Inicio/Fin (hasta el extremo de la lista)
-  recorre las filas visibles seleccionando a su paso. Al **seleccionar**,
-  el recorrido salta las filas que no son del tipo del recorrido
-  (cabeceras de carpeta, capas de otra clase): si se las pasara a
-  `selectNode`, su regla del mismo tipo vaciaría lo marcado hasta ese
-  momento y Shift+Fin parecería no hacer nada. Al **deseleccionar** no se
-  filtra: quitar vale para cualquier fila. El cursor avanza aunque las
-  últimas filas se hayan saltado. El atajo solo se cede a los campos
-  donde Shift+Inicio/Fin selecciona texto; un checkbox del árbol con el
-  foco (lo normal tras pinchar una fila) no debe bloquearlo. Inicio y Fin no
-  necesitan caso aparte: son un paso de ±`Infinity`, que camina hasta
-  que se acaba la lista.
-  Se repite el sentido de la última acción (`selDeselecting`): si esta
-  quitó un nodo de la selección, las flechas van deseleccionando. El
-  cursor (`selCursor`, dibujado con la clase `cursor`) marca desde dónde
-  continúa el teclado, y sin cursor la primera pulsación cae en la primera
-  o la última fila y siempre selecciona. Con el foco en el mapa se cede la
-  combinación a Leaflet (es su desplazamiento largo). Toda selección debe
-  pasar por `selectNode`, que centraliza la regla del mismo tipo, el
-  cursor y el sentido.
-- **Coste de la selección**: marcar miles de capas debe costar lo mismo
-  por capa que por una. Nada en la selección puede recorrer la selección
-  entera ni consultar el árbol una vez por nodo; hacerlo la vuelve
-  cuadrática y marcar una carpeta grande tarda segundos. De ahí
-  `selectionKind` (el tipo de la selección se guarda, no se recalcula
-  preguntando a cada miembro), que `setSelCursor` quite la marca solo al
-  cursor anterior, `nodeRow` (`li._row`, sin consulta al DOM por nodo) y
-  que `topLevelSelection` mire hacia arriba con el Set en vez de cruzar
-  la selección consigo misma. Medido con 3000 capas: de ~6,6 s a unos
-  pocos ms. Cualquier operación nueva sobre la selección debe respetar
-  esta regla.
-- **Los botones de fila no ocupan sitio**: `.actions` va superpuesta
-  (`position: absolute`) a la derecha de la fila y solo se muestra al
-  pasar el ratón o al llegar con el tabulador (`:focus-within`, para no
-  dejarlos inalcanzables sin ratón). Con `visibility: hidden` seguían
-  reservando su ancho y el nombre salía recortado siempre; ahora la
-  etiqueta dispone de la fila entera y solo queda tapada mientras los
-  botones están visibles. El fondo de `.actions` lleva un desvanecido y
-  debe seguir al de la fila (hay una variante para `.selected`), o los
-  iconos se leerían encima del texto.
+- **Teclado del panel, como un árbol de Windows**: flechas arriba/abajo
+  mueven el cursor y la selección le sigue (olvidando la anterior);
+  derecha despliega y, si ya estaba abierta, entra en el primer hijo;
+  izquierda colapsa y, si ya estaba cerrada, sube a la carpeta madre;
+  Av/Re Pág saltan `PAGE_STEP` filas; **Inicio y Fin van a los extremos
+  de la carpeta actual** (`siblingRows`), no de la lista entera; espacio
+  activa o desactiva lo seleccionado; Escape limpia la selección y
+  cancela un corte pendiente; Supr borra; Ctrl+C/X/V copian, cortan y
+  pegan; Alt+Intro abre las propiedades.
+- **Moverse cuesta O(profundidad), no O(nodos)**: `nextRow`, `prevRow`,
+  `stepRows` y `selectRange` navegan mirando hermanos, hijos y madre.
+  Construir la lista completa de filas visibles en cada pulsación costaba
+  ~7 ms con 10.000 nodos y con la tecla repetida el panel se atascaba;
+  ahora son 0,08 ms. No reintroducir barridos globales del árbol en el
+  camino del teclado.
+- **El click lleva el cursor donde se pulsa** y deja ese nodo como única
+  selección, salvo si el click cae en los botones de la fila: esos actúan
+  sobre la selección existente y no deben cambiarla.
+- **Los botones de fila aparecen solo con el ratón encima.** Nada más:
+  ni la fila del cursor ni `:focus-within` los muestran, porque al pulsar
+  una fila el foco pasa a su casilla y con `:focus-within` se quedarían
+  fijos sin ratón encima. A cambio no son alcanzables con el tabulador:
+  el camino de teclado son los atajos (Alt+Intro, Supr, Ctrl+X/C/V,
+  espacio), no los botones.
+- **Ancla y rangos**: con Shift (teclado o click) se selecciona todo lo
+  que hay entre el ancla y el destino, reemplazando la selección;
+  Ctrl+Shift+click marca o desmarca un solo nodo sin arrastrar los
+  intermedios. `selAnchor` es el extremo fijo y solo lo mueven las
+  acciones sin Shift.
+- **Ya no se exige que la selección sea del mismo tipo**: se puede
+  seleccionar lo que sea y es el diálogo de propiedades quien comprueba
+  la mezcla y avisa de que no se pueden editar en bloque nodos de
+  distinto tipo. Con varios nodos seleccionados no se editan ni el nombre
+  ni la posición, que son propios de cada uno; el resto (colores,
+  grosores, relleno, tamaños) sí va en bloque.
+- **Portapapeles interno**: guarda los mismos registros de
+  `serializeNode`, así que pegar es reconstruirlos con `buildFromNodes`.
+  Cortar no borra nada hasta que se pega (y Escape lo cancela); pegar
+  entra en la carpeta del cursor si está desplegada, y si no, coloca a
+  continuación de él.
+- **El estado de colapso es de cada nodo**: colapsar una carpeta no toca
+  el de sus hijas, así que al reabrirla las subcarpetas aparecen como
+  estaban. No introducir estados de colapso "heredados".
 - **Botones de selección de la carpeta**: en la fila de cada contenedor,
   a la izquierda del AZ, ☑ selecciona de golpe todas las capas de la rama
   (`selectFolderLayers`) y ☐ quita la selección (lo mismo que Escape).
   Como solo caben capas del mismo tipo, manda el tipo de la primera capa
   encontrada y se avisa por `navMessage` de cuántas quedan fuera, en vez
   de marcarlas y desmarcarlas en silencio.
-- **Selección del mismo tipo**: solo pueden coexistir en la selección
-  nodos del mismo `styleKind`. Al Shift+seleccionar un nodo de tipo
-  distinto (p. ej. una capa de marcadores con capas de polígonos ya
-  seleccionadas), la selección anterior se descarta. Así el diálogo de
-  estilos siempre actúa sobre capas homogéneas.
 - **Estilos de capa**: el botón 🎨 abre el diálogo de estilos. Si la fila
   pertenece a una selección múltiple, los cambios se aplican a todas las
   capas seleccionadas (igual que borrar o arrastrar). Capas de marcadores:
@@ -354,6 +372,60 @@ manteniendo los principios acordados durante el desarrollo del proyecto.
   las distancias se dan en métrico y en millas náuticas. Va apagado por defecto porque cada lectura
   cuesta una descarga a un servidor ajeno, y al activarlo se añade la
   atribución CC BY 4.0 que exige la licencia.
+- **Altura de superficie (MDS)**: el MDS —terreno más edificios y
+  vegetación— **no** se publica como teselas XYZ, solo como **WCS 2.0**
+  (`wcs-mds.idee.es/mds`). Eso obliga a un diseño distinto del MDT: una
+  petición por punto en vez de una tesela que sirve para toda una
+  comarca, así que se consulta solo cuando el cursor se para
+  (`MDS_SETTLE_MS`) y se cachea por celdas de `MDS_CELL` metros.
+- **Nada del WCS se da por sabido** (`mdsDiscover` +
+  `parseMdsCoverage`): del GetCapabilities sale el identificador de
+  cobertura y del DescribeCoverage el CRS, los nombres de los ejes y la
+  extensión válida. Tres trampas comprobadas contra el servicio real:
+  `axisLabels` es un ATRIBUTO del `<Envelope>`, no un elemento; **el eje
+  se identifica por su nombre, nunca por su orden** (este servicio los
+  declara `x y`, o sea este primero, al revés de la convención GML `N E`,
+  y suponerlo produjo un `ExtentError`); y WCS exige repetir la clave
+  `subset` una vez por eje, cosa que un objeto plano no permite.
+- **El formato de salida también se descubre** (`formatSupported` del
+  GetCapabilities + `pickMdsFormat`): suponer `text/plain` produjo un
+  `InvalidParameterValue`. El servicio del IGN publica su rejilla ASCII
+  como **`ArcGrid`** y **`application/asc`**, nombres que no se parecen a
+  ninguna convención esperable, de ahí que se busque por patrón contra
+  una lista de variantes y no por igualdad. Si solo ofreciera formatos
+  binarios se dice claramente en vez de pedir a ciegas. Regla general de esta integración: **de un servicio ajeno no se
+  supone nada; se lee de sus capacidades.**
+- **Los errores OGC viajan en el CUERPO aunque el HTTP sea 400**:
+  `mdsFetch` lee el cuerpo siempre y lanza el texto de la excepción, con
+  su `exceptionCode` adjunto. Quedarse en el código HTTP tiraba justo el
+  dato que sirve para arreglar la petición.
+- **Se elige la cobertura ABSOLUTA** (`pickMdsCoverage`): el servicio
+  publica `mds05` junto a `mdsn_e025` y `mdsn_v025`, que son
+  *normalizadas* y dan la altura de edificios o vegetación **sobre el
+  suelo**, no la altitud. Quedarse con la primera de la lista sin mirar
+  habría producido una diferencia con el MDT sin ningún sentido.
+- **Se pide en latitud/longitud siempre que se pueda**: si el servicio
+  declara un CRS geográfico (`crsSupported` → `pickGeoCrs`), la consulta
+  va con `subsettingCrs` y ejes `Lat`/`Long`, sin transformar nada por
+  nuestra cuenta; así desaparece toda una clase de errores de conversión.
+  Si el servidor rechazara esa forma se pasa a las coordenadas nativas
+  **una sola vez** (`cfg.useGeo = false`) y se avisa. Quedar fuera de
+  cobertura NO cuenta como rechazo: es una respuesta legítima.
+- **El MDS está en un solo huso** (el 30 extendido para toda España), no
+  en el huso local de cada punto: `latLngToUtm` admite `forceZone` y se
+  usa el que declare el EPSG de la cobertura. En Barcelona la diferencia
+  entre el huso 31 y el 30 es de medio millón de metros, así que usar el
+  local pedía un punto que no existía.
+- **Los errores OGC llegan como XML con HTTP 200**: `parseOwsException`
+  los reconoce; sin eso, un `ExtentError` se leía como «sin datos». Salir
+  del área cubierta no se reporta como error, solo se muestra que no hay
+  dato.
+- **Se comprueba la extensión antes de pedir**: ahorra una petición
+  condenada a fallar y permite decir «fuera de cobertura» al instante.
+- **CSP**: los navegadores piden los *sourcemaps* de las librerías por
+  `connect-src`, así que unpkg y cdnjs deben figurar también ahí, y
+  `frame-ancestors` no se pone en el `<meta>` porque solo vale como
+  cabecera HTTP y Chrome avisa de que lo ignora.
 - **Disciplina de peticiones al MDT**: teselas cacheadas con tope
   (`DEM_CACHE_MAX`, se descarta lo más antiguo), muestreo del ratón con
   retardo (`DEM_SAMPLE_MS`), tope de peticiones por segundo
@@ -451,6 +523,33 @@ manteniendo los principios acordados durante el desarrollo del proyecto.
 - **Navegación completa del árbol con teclado** (flechas sin Shift para
   moverse y desplegar, Enter para activar) y monitorización de memoria y
   cuota de almacenamiento.
+
+## Rendimiento (reglas nacidas de medir)
+
+- **El mapa se dibuja en lienzo** (`preferCanvas: true`). Con miles de
+  geometrías, el renderizador SVG crea decenas de miles de nodos DOM y el
+  zoom y el pan se arrastran.
+- **La geometría serializada se cachea por nodo** (`li._geo`).
+  `toGeoJSON()` clona todas las coordenadas de la capa, y como se guarda
+  tras CUALQUIER cambio del panel, renombrar un nodo reconstruía el
+  archivo entero: 349 ms por guardado con 8.000 capas, frente a 5 ms
+  ahora. Solo se invalida donde cambia la geometría de verdad (mover un
+  marcador), vía `invalidateGeo`. Si se añade otra forma de alterar
+  geometrías, hay que invalidar ahí también.
+- **El retardo del guardado se ajusta solo** al coste medido del último
+  (`saveCost`, entre `SAVE_MIN_MS` y `SAVE_MAX_MS`): en un árbol pequeño
+  guarda casi al instante y en uno enorme no repite un trabajo caro
+  mientras el usuario sigue trabajando.
+- **La lectura de coordenadas se pinta una vez por fotograma**
+  (`requestAnimationFrame`), no una por evento de ratón: cada lectura
+  proyecta a UTM y reescribe varias filas, y llegan más de 100 eventos por
+  segundo. Se pinta siempre la última posición, nunca una atrasada.
+- **Moverse por el árbol cuesta O(profundidad)**, ver la sección del
+  teclado. Ninguna operación de selección puede recorrer la selección
+  entera ni consultar el árbol por nodo.
+- Regla general: antes de optimizar, medir; y dejar la medida escrita en
+  el comentario, que es lo que impide que alguien "simplifique" la
+  optimización sin saber lo que costaba.
 
 ## Rendimiento y progreso
 

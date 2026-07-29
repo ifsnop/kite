@@ -15,12 +15,11 @@
   script-src 'self' 'unsafe-inline' https://unpkg.com https://cdnjs.cloudflare.com;
   style-src 'self' 'unsafe-inline' https://unpkg.com;
   img-src 'self' data: blob: https://unpkg.com https://api.iconify.design https://xyz-mdt.idee.es https://tile.openstreetmap.org https://server.arcgisonline.com https://tms-pnoa-ma.idee.es https://servicios.idee.es;
-  connect-src 'self' https://api.iconify.design https://nominatim.openstreetmap.org;
+  connect-src 'self' https://api.iconify.design https://nominatim.openstreetmap.org https://wcs-mds.idee.es https://unpkg.com https://cdnjs.cloudflare.com;
   font-src 'self';
   base-uri 'none';
   form-action 'none';
-  object-src 'none';
-  frame-ancestors 'none'">
+  object-src 'none'">
 <!-- Social sharing metadata (Open Graph + Twitter cards): shown as
      name + short description when the page link is shared -->
 <meta name="description" content="KITE Local (KML Interactive Tree Explorer): visor web de archivos KML, KMZ y GeoJSON sobre Leaflet: &#225;rbol de capas, mediciones geod&#233;sicas de distancia y rumbo, y estilos personalizables de marcadores y pol&#237;gonos. Un &#250;nico archivo HTML, sin instalaci&#243;n.">
@@ -226,6 +225,7 @@
 
   /* Indicadores de arrastre para reordenar */
   .node-row.cursor { outline: 1px dashed var(--accent); outline-offset: -1px; }
+  .node-row.cut { opacity: .55; font-style: italic; } /* cortado, aún no pegado */
   .node-row.drop-before { box-shadow: inset 0 2px 0 var(--accent); }
   .node-row.drop-after  { box-shadow: inset 0 -2px 0 var(--accent); }
   .node-row.drop-into   { background: var(--accent-soft); }
@@ -272,8 +272,11 @@
        cubren y el corte no parece abrupto                          */
     background: linear-gradient(to right, transparent, var(--bg) 12px);
   }
-  .node-row:hover > .actions,
-  .node-row:focus-within > .actions { visibility: visible; }
+  /* Los botones aparecen SOLO con el ratón encima de la fila. Ni la fila
+     del cursor ni `:focus-within` los muestran: al pulsar una fila el
+     foco se va a su casilla, y con `:focus-within` se quedarían fijos
+     sin que el ratón esté encima.                                     */
+  .node-row:hover > .actions { visibility: visible; }
   /* El fondo tiene que seguir al de la fila cuando esta está marcada */
   .node-row.selected > .actions {
     background: linear-gradient(to right, transparent, var(--accent-soft) 12px);
@@ -362,10 +365,12 @@
     white-space: nowrap;
   }
   /* Las tres lecturas de la posición, de más a menos usada */
+  .coords-zoom { color: var(--muted); font-weight: 600; }
   .coords-dms { color: #445; }
   .coords-utm { color: var(--muted); }
   .coords-alt { color: var(--accent); font-weight: 600; }
-  .coords-alt[hidden] { display: none; }
+  .coords-sup { color: var(--muted); }
+  .coords-alt[hidden], .coords-sup[hidden] { display: none; }
   .grat-label {
     font: 10px ui-monospace, Consolas, monospace;
     color: #445;
@@ -662,11 +667,14 @@
 "use strict";
 
 /* ================= Visor: mapa base y capas de teselas ================= */
-const map = L.map("map").setView([40.4, -3.7], 6);
+/* `preferCanvas`: con miles de geometrías, dibujarlas como elementos SVG
+   crea decenas de miles de nodos en el DOM y el mapa se arrastra al hacer
+   zoom o pan. En lienzo se pinta todo de una vez.                      */
+const map = L.map("map", { preferCanvas: true }).setView([40.4, -3.7], 6);
 
 /* Fecha de generación del código (versión): AÑOMESDIAHORAMINUTO.
    Actualizar en cada generación; se muestra junto al crédito de Leaflet. */
-const BUILD = "202607262215";
+const BUILD = "202607271215";
 map.attributionControl.setPrefix(
   `v${BUILD} | <a href="https://leafletjs.com" title="A JavaScript library for interactive maps">Leaflet</a>`);
 
@@ -953,8 +961,7 @@ let dragItems = null; /* nodos que viajan en el arrastre (la selección o uno su
    DOM por nodo.                                                        */
 const selection = new Set();
 let selCursor = null;       /* last row the selection touched */
-let selDeselecting = false; /* the last action removed rather than added */
-let selectionKind = null;   /* tipo común de lo seleccionado, o null */
+let selAnchor = null;       /* extremo fijo de los rangos con Shift    */
 
 const nodeRow = li => li._row || li.querySelector(":scope > .node-row");
 
@@ -965,9 +972,8 @@ function setSelected(li, on) {
 }
 function clearSelection() {
   for (const li of [...selection]) setSelected(li, false);
-  selectionKind = null;
+  selAnchor = null;
   setSelCursor(null);
-  selDeselecting = false;
 }
 
 /* The cursor is where the keyboard picks up from; it is drawn so the user
@@ -978,23 +984,48 @@ function setSelCursor(li) {
   if (li) nodeRow(li).classList.add("cursor");
 }
 
-/* Single entry point for selecting/deselecting: enforces the same-kind
-   rule, moves the cursor and records the direction of the last action
-   (which is what Shift+arrows then repeat).                            */
+/* Punto único para marcar o desmarcar un nodo suelto. Ya NO se exige que
+   toda la selección sea del mismo tipo: se puede seleccionar lo que sea
+   y es el diálogo de propiedades quien avisa si la mezcla no se puede
+   editar en bloque. Así el teclado y el ratón se comportan como en
+   cualquier gestor de archivos.                                       */
 function selectNode(li, on) {
-  if (on) {
-    const kind = styleKind(li);
-    /* Comprobación en O(1): basta el tipo de la selección, no hace falta
-       preguntárselo a cada uno de sus miembros                        */
-    if (selection.size && selectionKind !== kind) {
-      for (const s of [...selection]) setSelected(s, false);
-    }
-    selectionKind = kind;
-  }
   setSelected(li, on);
-  if (!selection.size) selectionKind = null;
   setSelCursor(li);
-  selDeselecting = !on;
+  selAnchor = li;
+}
+
+/* ---------- Selección por rango (Shift) ----------
+   El ancla es el extremo fijo: Shift+click y Shift+flechas seleccionan
+   todo lo que hay entre ella y el nodo de destino, reemplazando la
+   selección anterior, como en el explorador de Windows.               */
+function selectRange(to) {
+  if (!isRow(to)) return;
+  if (!isRow(selAnchor) || !selAnchor.isConnected) { selectNode(to, true); return; }
+  /* Se camina desde el ancla hacia el destino en las dos direcciones y
+     gana la que lo encuentre: cuesta la distancia entre ambos, no el
+     tamaño del árbol                                                 */
+  const walk = step => {
+    const out = [];
+    for (let n = selAnchor; n; n = step(n)) {
+      out.push(n);
+      if (n === to) return out;
+    }
+    return null;
+  };
+  const span = walk(nextRow) || walk(prevRow);
+  if (!span) { selectNode(to, true); return; }
+  for (const li of [...selection]) setSelected(li, false);
+  for (const li of span) setSelected(li, true);
+  setSelCursor(to);
+}
+
+/* Añade (o quita) un nodo sin arrastrar los intermedios: Ctrl+Shift */
+function toggleOne(li) {
+  const on = !selection.has(li);
+  setSelected(li, on);
+  setSelCursor(li);
+  selAnchor = li;
 }
 
 /* Nombre legible del tipo, para poder explicar por qué algo se queda
@@ -1013,31 +1044,82 @@ function selectFolderLayers(li) {
   if (!layers.length) { navMessage("Esta carpeta no contiene capas."); return; }
 
   clearSelection();
-  const kind = styleKind(layers[0]);
-  const same = layers.filter(n => styleKind(n) === kind);
-  /* Ruta masiva: como ya están filtradas por tipo, se marcan directas y
-     el tipo y el cursor se fijan UNA vez, no una por capa            */
-  for (const n of same) setSelected(n, true);
-  selectionKind = kind;
-  setSelCursor(same[same.length - 1] || null);
-  selDeselecting = false; /* lo siguiente que hagan las flechas es sumar */
-
-  const rest = layers.length - same.length;
-  if (rest) {
-    navMessage(`Seleccionadas ${same.length} capa(s) de ${KIND_LABEL[kind] || kind};`
-      + ` ${rest} de otro tipo se quedan fuera (solo caben capas del mismo tipo a la vez).`);
-  }
+  /* Ruta masiva: se marcan directas y el cursor se fija UNA vez, no una
+     por capa, que era lo que hacía lento marcar una carpeta grande   */
+  for (const n of layers) setSelected(n, true);
+  setSelCursor(layers[layers.length - 1]);
+  selAnchor = layers[0];
 }
 
-/* Rows currently reachable: those with no collapsed ancestor */
-function visibleRows() {
-  return [...treeEl.querySelectorAll("li")].filter(li => {
-    if (li._name === undefined) return false; /* mensajes tipo "Sin geometrías" */
-    for (let p = li.parentElement; p && p !== treeEl; p = p.parentElement) {
-      if (p.tagName === "LI" && p.classList.contains("collapsed")) return false;
-    }
-    return true;
-  });
+/* ---------- Recorrido del árbol, nodo a nodo ----------
+   Moverse NO puede costar recorrer el árbol entero: construir la lista
+   completa de filas visibles en cada pulsación son ~9 ms con 10.000
+   nodos, y con la tecla repetida el panel se atasca. Se navega en local:
+   el siguiente y el anterior se encuentran mirando hermanos, hijos y
+   madre, o sea O(profundidad), no O(nodos).                           */
+const isRow = li => li && li.tagName === "LI" && li._name !== undefined;
+const isOpen = li => nodeUl(li) && !li.classList.contains("collapsed");
+const childRows = ul => (ul ? [...ul.children].filter(isRow) : []);
+
+function nextSiblingRow(li) {
+  for (let n = li.nextElementSibling; n; n = n.nextElementSibling) if (isRow(n)) return n;
+  return null;
+}
+function prevSiblingRow(li) {
+  for (let n = li.previousElementSibling; n; n = n.previousElementSibling) if (isRow(n)) return n;
+  return null;
+}
+const parentRow = li => {
+  const p = li.parentElement && li.parentElement.closest("li");
+  return isRow(p) ? p : null;
+};
+
+/* Fila siguiente en el orden que se ve: primer hijo, hermano, o el
+   hermano de algún ancestro                                          */
+function nextRow(li) {
+  if (isOpen(li)) {
+    const first = childRows(nodeUl(li))[0];
+    if (first) return first;
+  }
+  for (let n = li; n; n = parentRow(n)) {
+    const sib = nextSiblingRow(n);
+    if (sib) return sib;
+  }
+  return null;
+}
+
+/* Última fila visible de una rama, para poder subir "por dentro" */
+function lastVisibleIn(li) {
+  let cur = li;
+  while (isOpen(cur)) {
+    const kids = childRows(nodeUl(cur));
+    if (!kids.length) break;
+    cur = kids[kids.length - 1];
+  }
+  return cur;
+}
+function prevRow(li) {
+  const sib = prevSiblingRow(li);
+  return sib ? lastVisibleIn(sib) : parentRow(li);
+}
+
+/* Primera y última fila del árbol entero (para cuando no hay cursor) */
+const firstRow = () => childRows(rootUl)[0] || null;
+const lastRow = () => {
+  const rows = childRows(rootUl);
+  return rows.length ? lastVisibleIn(rows[rows.length - 1]) : null;
+};
+
+/* Avanza `n` filas, parándose en el extremo */
+function stepRows(li, n) {
+  const move = n > 0 ? nextRow : prevRow;
+  let cur = li;
+  for (let k = 0; k < Math.abs(n); k++) {
+    const nx = move(cur);
+    if (!nx) break;
+    cur = nx;
+  }
+  return cur;
 }
 /* Selección en orden de documento, excluyendo nodos contenidos en otros
    seleccionados: esos viajan (o se borran) con su ancestro              */
@@ -1134,6 +1216,16 @@ function clearNavMessage() {
   document.getElementById("nav-msg").textContent = "";
 }
 
+/* Centrar la vista en un nodo y acercar a un zoom de trabajo. A
+   diferencia del doble click, no depende de dónde estuviera la vista ni
+   de la escalera: siempre deja el nodo centrado y a la misma escala. */
+const FOCUS_ZOOM = 9;
+function focusOnNode(li) {
+  const b = subtreeBounds(li);
+  if (!b.isValid()) { navMessage("Esta capa no tiene geometr\u00EDa que enfocar."); return; }
+  map.setView(b.getCenter(), FOCUS_ZOOM);
+}
+
 /* ---------- Escalera de zoom del doble click ----------
    Repetir el doble click sobre algo ya centrado va acercando por
    peldaños fijos y, al llegar al máximo, vuelve a empezar por abajo, de
@@ -1224,7 +1316,10 @@ function makeNode({ name, layer = null, isFolder = false, isFile = false,
   }
 
   const label = document.createElement("label");
-  label.htmlFor = chk.id;
+  /* El nombre NO activa la casilla: pinchar en él selecciona la fila, y
+     un doble click acabaría alternando la visibilidad a medias (ese era
+     el "se desmarca" al hacer doble click). La casilla se pulsa aparte,
+     y el espacio hace lo mismo desde el teclado.                      */
   label.textContent = name;
   label.title = name;
   row.appendChild(label);
@@ -1235,10 +1330,23 @@ function makeNode({ name, layer = null, isFolder = false, isFile = false,
      Only same-kind nodes can be selected together (marker layers with
      marker layers, polygon layers with polygon layers…): picking a node
      of a different kind drops the previous selection.                  */
+  /* Ratón, como en un gestor de archivos: Shift+click extiende el rango
+     desde el ancla; Ctrl+Shift+click marca solo ese nodo sin arrastrar
+     los intermedios. Sin modificadores no se toca la selección, para no
+     estorbar a los clicks normales sobre casilla, color o botones.    */
   row.addEventListener("click", e => {
-    if (!e.shiftKey) return;
-    e.preventDefault();
-    selectNode(li, !selection.has(li));
+    /* Los botones de la fila actúan sobre la selección existente: no
+       deben cambiarla al pulsarlos                                   */
+    if (e.target.closest(".actions")) return;
+    if (e.shiftKey) {
+      e.preventDefault();
+      if (e.ctrlKey || e.metaKey) toggleOne(li);
+      else selectRange(li);
+      return;
+    }
+    /* Click normal: el cursor se va DONDE se ha pulsado y ese pasa a
+       ser el único nodo seleccionado, como en cualquier árbol         */
+    moveCursorTo(li, false);
   });
   /* Doble click: llevar la vista a las capas del nodo. El primero solo
      desplaza, sin tocar el zoom (la vista es del usuario). Si ya está
@@ -1314,7 +1422,11 @@ function makeActions(li, sortable, styleable) {
     btn("\u229F", "Colapsar esta carpeta y las interiores", "", () => collapseDescendants(li));
     btn("\uD83D\uDCBE", "Guardar esta carpeta en un archivo para volver a cargarla despu\u00E9s", "", () => exportNode(li));
   }
-  if (styleable) btn("\uD83C\uDFA8", "Estilos de la capa", "", () => openStyleDialog(li));
+  if (styleable) {
+    btn("\uD83D\uDD0D", `Centrar la vista aqu\u00ED y acercar (zoom ${FOCUS_ZOOM})`, "",
+        () => focusOnNode(li));
+    btn("\uD83C\uDFA8", "Estilos de la capa", "", () => openStyleDialog(li));
+  }
   btn("\u270E", "Renombrar", "", () => startRename(li));
   btn("\u2191", "Subir", "", () => {
     const prev = li.previousElementSibling;
@@ -1347,6 +1459,9 @@ function sortChildren(li) {
     .forEach(c => ul.appendChild(c));
   scheduleSave();
 }
+
+/* La geometría cacheada deja de valer: se recalculará al guardar */
+const invalidateGeo = li => { if (li) li._geo = null; };
 
 /* Rename a node from code: updates the label, the marker text and storage */
 function setNodeName(li, name) {
@@ -1745,7 +1860,13 @@ function serializeNode(li) {
     return [{ ...base, t: li.classList.contains("file") ? "file" : "folder",
               collapsed: li.classList.contains("collapsed"), children: serializeNodes(ul) }];
   }
-  const rec = { ...base, t: "layer", style: li._style, geo: chk._layer.toGeoJSON() };
+  /* `toGeoJSON()` clona TODAS las coordenadas de la capa. Hacerlo en cada
+     guardado (y se guarda tras cualquier cambio del panel) suponía
+     rehacer el archivo entero por renombrar un nodo. La geometría solo
+     cambia al mover un marcador, así que se calcula una vez y se
+     invalida ahí: ver `invalidateGeo`.                                */
+  if (!li._geo) li._geo = chk._layer.toGeoJSON();
+  const rec = { ...base, t: "layer", style: li._style, geo: li._geo };
   if (li._mstyle) rec.mstyle = li._mstyle; /* marker style, if customized */
   return [rec];
 }
@@ -1841,10 +1962,17 @@ async function importTreeExport(doc, fileName, insertBefore) {
 let saveTimer = null;
 let saveChain = Promise.resolve(); /* cola: los guardados nunca se solapan */
 let savePending = false;
+let saveCost = 0; /* lo que tardó el último guardado, en ms */
 
+const SAVE_MIN_MS = 400, SAVE_MAX_MS = 3000;
+
+/* El retardo se ajusta solo: en un árbol pequeño guarda casi al instante,
+   y en uno de miles de nodos espera más para no repetir un trabajo caro
+   mientras el usuario sigue navegando o escribiendo.                   */
 function scheduleSave() {
   clearTimeout(saveTimer);
-  saveTimer = setTimeout(saveTree, 400);
+  const wait = Math.min(SAVE_MAX_MS, Math.max(SAVE_MIN_MS, saveCost * 4));
+  saveTimer = setTimeout(saveTree, wait);
 }
 
 /* Serializing the writes matters because IndexedDB transactions can
@@ -1853,7 +1981,12 @@ function scheduleSave() {
    state written is always the most recent one.                       */
 function saveTree() {
   saveChain = saveChain
-    .then(() => dbSaveTree(serializeTree()))
+    .then(() => {
+      const t0 = performance.now();
+      const nodes = serializeTree();
+      saveCost = performance.now() - t0;
+      return dbSaveTree(nodes);
+    })
     .catch(err => {
       /* Un solo aviso por racha de fallos, para no inundar el panel */
       if (!savePending) {
@@ -2026,12 +2159,26 @@ function parseKmlDocument(content) {
 /* Importa un archivo: crea su sección y construye su contenido.
    Para archivos grandes muestra las fases 2 y 3 del progreso:
    "Procesando XML…" (indeterminada) y construcción de capas (por lotes) */
+/* Un KML trae su propia jerarquía de <Document> y <Folder>: envolverla en
+   otra carpeta con el nombre del archivo añadiría un nivel que no está en
+   el original, y la estructura del archivo es intocable. Se vuelca por
+   tanto directamente en la raíz. Un GeoJSON, en cambio, es una lista
+   plana de elementos sin jerarquía propia, así que ahí la carpeta
+   contenedora sí aporta: agrupa lo que llegó junto.                    */
 async function addFileNode(name, kind, content, insertBefore = null) {
   const big = content.length > SIZE_THRESHOLD;
   const report = makeImportReport(name);
-  const li = makeNode({ name, isFile: true });
   const ul = ensureRootUl();
-  ul.insertBefore(li, insertBefore && insertBefore.parentElement === ul ? insertBefore : null);
+  const wrap = kind !== "kml";
+  const li = wrap ? makeNode({ name, isFile: true }) : null;
+  /* Sin envoltorio, lo construido se cuelga de la raíz; se anota qué había
+     antes para poder colocarlo en su sitio y para poder deshacerlo si
+     algo falla a mitad                                                */
+  const before = wrap ? null : [...ul.children];
+  const target = wrap ? nodeUl(li) : ul;
+  if (wrap) {
+    ul.insertBefore(li, insertBefore && insertBefore.parentElement === ul ? insertBefore : null);
+  }
 
   try {
     if (kind === "kml") {
@@ -2053,11 +2200,12 @@ async function addFileNode(name, kind, content, insertBefore = null) {
           `Construyendo capas de ${name}\u2026 (${d}/${total})`)
       } : null;
       const styleIndex = buildStyleIndex(xml);
-      await buildKmlTree(xml.documentElement, styleIndex, nodeUl(li), true, prog, report);
+      await buildKmlTree(xml.documentElement, styleIndex, target, true, prog, report);
       if (styleIndex.externalRefs) {
         report.note(`${styleIndex.externalRefs} estilo(s) en archivos externos, no aplicados`);
       }
-      syncSubtree(li); /* carpetas marcadas según sus capas visibles */
+      /* Carpetas marcadas según sus capas visibles */
+      for (const n of ul.children) if (!before.includes(n)) syncSubtree(n);
     } else {
       if (big) {
         progress.indet(`Procesando JSON de ${name}\u2026`);
@@ -2070,19 +2218,31 @@ async function addFileNode(name, kind, content, insertBefore = null) {
         update: d => progress.set(100 * d / total,
           `Construyendo capas de ${name}\u2026 (${d}/${total})`)
       } : null;
-      await buildGeoJsonTree(gj, nodeUl(li), prog, report);
+      await buildGeoJsonTree(gj, target, prog, report);
       li.classList.add("collapsed"); /* los GeoJSON arrancan colapsados */
       syncExpanded(li);
     }
   } catch (err) {
-    li.remove();
+    /* Se retira lo que hubiera entrado: media importación es peor que ninguna */
+    if (wrap) li.remove();
+    else for (const n of [...ul.children]) if (!before.includes(n)) n.remove();
     if (rootUl && !rootUl.children.length) showEmptyMessage();
     throw err;
   } finally {
     if (big) progress.hide();
   }
-  if (!nodeUl(li).children.length) {
-    nodeUl(li).innerHTML = '<li class="empty">Sin geometr\u00EDas.</li>';
+
+  if (wrap) {
+    if (!nodeUl(li).children.length) {
+      nodeUl(li).innerHTML = '<li class="empty">Sin geometr\u00EDas.</li>';
+    }
+  } else {
+    const added = [...ul.children].filter(n => !before.includes(n));
+    if (!added.length) throw new Error("el archivo no contiene ninguna capa");
+    /* Se respeta el punto donde se soltó el archivo */
+    if (insertBefore && insertBefore.parentElement === ul) {
+      for (const n of added) ul.insertBefore(n, insertBefore);
+    }
   }
   /* Resumen de la importación: qué entró, qué se omitió y por qué.
      Si hay algo omitido o alguna advertencia, el aviso espera a que el
@@ -2091,7 +2251,7 @@ async function addFileNode(name, kind, content, insertBefore = null) {
     sticky: report.hasIssues,
     tone: report.hasIssues ? "error" : "info"
   });
-  return li;
+  return li;  /* null cuando el KML se ha volcado sin envoltorio */
 }
 
 /* Extrae el KML principal de un KMZ (zip). `onPct` recibe el porcentaje
@@ -2401,60 +2561,177 @@ document.getElementById("activate-all").addEventListener("click", () => setAllCh
 document.getElementById("deactivate-all").addEventListener("click", () => setAllChecked(false));
 document.getElementById("collapse-all").addEventListener("click", () => collapseDescendants(treeEl));
 
-/* ---------- Selección masiva con el teclado ----------
-   Shift + flechas, Av/Re Pág o Inicio/Fin recorre las filas visibles
-   seleccionando a su paso, que es mucho más rápido que ir una a una con
-   Shift+click. Se repite el sentido de la última acción: si esta quitó
-   una capa de la selección, las teclas van deseleccionando.
-
-   Al seleccionar, el recorrido SALTA las filas que no son del tipo del
-   recorrido (cabeceras de carpeta, capas de otra clase) en vez de
-   pasárselas a `selectNode`: como este aplica la regla del mismo tipo,
-   una sola cabecera de carpeta por el camino vaciaba todo lo marcado
-   hasta ese momento, y Shift+Fin parecía no hacer nada.               */
+/* ================= Teclado del panel de navegación =================
+   Se comporta como un árbol de Windows: las flechas mueven el cursor y
+   la selección le sigue; con Shift se extiende el rango desde el ancla;
+   derecha/izquierda despliegan y colapsan; Inicio/Fin van a los extremos
+   de la carpeta actual; espacio activa o desactiva; Ctrl+X/C/V mueven y
+   copian ramas; Alt+Intro abre las propiedades.                       */
 const PAGE_STEP = 10;
-document.addEventListener("keydown", e => {
-  /* Infinity simply walks until the list runs out, so Inicio/Fin need no
-     special case: they are "as many steps as there are rows"          */
-  const step = { ArrowUp: -1, ArrowDown: 1, PageUp: -PAGE_STEP, PageDown: PAGE_STEP,
-                 Home: -Infinity, End: Infinity }[e.key];
-  if (!e.shiftKey || step === undefined) return;
-  const t = e.target;
-  /* Solo estorban los campos donde Shift+Inicio/Fin selecciona texto; un
-     checkbox del árbol suele tener el foco tras pinchar una fila y no
-     debe bloquear el atajo                                             */
-  if (t.matches && t.matches("input:not([type=checkbox]), textarea, select, [contenteditable]")) return;
-  /* With the map focused, Shift+arrows are Leaflet's own long pan */
-  if (t.closest && t.closest("#map")) return;
-  const rows = visibleRows();
-  if (!rows.length) return;
-  e.preventDefault();
 
-  const dir = Math.sign(step);
-  let i = selCursor ? rows.indexOf(selCursor) : -1;
-  if (i < 0) {
-    /* Nothing to continue from: start just outside the list so the first
-       press lands on the first (or last) row, always selecting          */
-    i = dir > 0 ? -1 : rows.length;
-    selDeselecting = false;
+/* Hermanos visibles del nodo: lo que recorren Inicio y Fin, que trabajan
+   dentro de la carpeta actual y no sobre la lista entera             */
+const siblingRows = li => childRows(li ? li.parentElement : rootUl);
+
+/* Mueve el cursor a `to`. Con Shift arrastra el rango desde el ancla;
+   sin Shift, la selección pasa a ser solo ese nodo (las flechas
+   "olvidan" la selección anterior, como se pidió).                    */
+function moveCursorTo(to, extend) {
+  if (!to) return;
+  if (extend) selectRange(to);
+  else {
+    for (const li of [...selection]) setSelected(li, false);
+    selectNode(to, true);
   }
-  const on = !selDeselecting; /* the direction stays fixed for the whole run */
-  /* El tipo del recorrido lo fija lo ya seleccionado o, si no hay nada,
-     la primera fila sobre la que se actúa                              */
-  let kind = selection.size ? styleKind([...selection][0]) : null;
-  for (let n = 0; n < Math.abs(step); n++) {
-    if (i + dir < 0 || i + dir >= rows.length) break;
-    i += dir;
-    if (!on) { selectNode(rows[i], false); continue; } /* quitar vale para todo */
-    const k = styleKind(rows[i]);
-    if (kind === null) kind = k;
-    if (k !== kind) continue; /* otro tipo: se salta, no se pierde lo marcado */
-    selectNode(rows[i], true);
+  nodeRow(to).scrollIntoView({ block: "nearest" });
+}
+
+/* Despliega, o entra en el primer hijo si ya estaba desplegada */
+function expandOrEnter(li, extend) {
+  if (!nodeUl(li)) return;
+  if (li.classList.contains("collapsed")) {
+    li.classList.remove("collapsed");
+    syncExpanded(li);
+    scheduleSave();
+    return;
   }
-  /* El cursor avanza aunque las últimas filas se hayan saltado, para que
-     la siguiente pulsación continúe desde donde se dejó               */
-  setSelCursor(rows[i]);
-  nodeRow(rows[i]).scrollIntoView({ block: "nearest" });
+  const first = childRows(nodeUl(li))[0];
+  if (first) moveCursorTo(first, extend);
+}
+
+/* Colapsa, o sube a la carpeta madre si ya estaba colapsada */
+function collapseOrLeave(li, extend) {
+  if (nodeUl(li) && !li.classList.contains("collapsed")) {
+    li.classList.add("collapsed");
+    syncExpanded(li);
+    scheduleSave();
+    return;
+  }
+  const parent = li.parentElement && li.parentElement.closest("li");
+  if (parent) moveCursorTo(parent, extend);
+}
+
+/* Espacio: alterna la visibilidad de lo seleccionado (o del cursor) */
+function toggleVisibility(li) {
+  const targets = selection.has(li) && selection.size > 1 ? topLevelSelection() : [li];
+  const chk = nodeRow(targets[0]).querySelector("input[type=checkbox]");
+  if (!chk) return;
+  const on = !chk.checked;
+  for (const n of targets) {
+    const c = nodeRow(n).querySelector("input[type=checkbox]");
+    if (c && c.checked !== on) c.click(); /* reutiliza toda la lógica en cascada */
+  }
+}
+
+/* ---------- Portapapeles interno ----------
+   Se guardan los MISMOS registros con los que se serializa el árbol, así
+   que pegar no es más que reconstruirlos. Cortar no borra nada hasta que
+   se pega: si el usuario cambia de idea, no ha perdido su rama.       */
+let clipboard = null; /* { nodes, cut: [li], move: bool } */
+
+function copySelection(cut) {
+  const picked = topLevelSelection();
+  if (!picked.length) { navMessage("No hay nada seleccionado que copiar."); return; }
+  clipboard = { nodes: picked.flatMap(serializeNode), cut: cut ? picked : [], move: cut };
+  for (const li of treeEl.querySelectorAll(".node-row.cut")) li.classList.remove("cut");
+  if (cut) for (const li of picked) nodeRow(li).classList.add("cut");
+  navMessage(`${picked.length} nodo(s) ${cut ? "cortado(s)" : "copiado(s)"}.`, { tone: "info" });
+}
+
+/* Pega dentro de la carpeta del cursor, o a continuación de él si el
+   cursor no es una carpeta                                            */
+async function pasteClipboard() {
+  if (!clipboard) { navMessage("El portapapeles est\u00E1 vac\u00EDo."); return; }
+  const cur = selCursor;
+  const intoFolder = cur && nodeUl(cur) && !cur.classList.contains("collapsed");
+  const ul = intoFolder ? nodeUl(cur) : (cur ? cur.parentElement : ensureRootUl());
+  const before = [...ul.children];
+  try {
+    await buildFromNodes(clipboard.nodes, ul, null);
+  } catch (err) {
+    navMessage(`No se pudo pegar: ${err.message}`);
+    return;
+  }
+  const added = [...ul.children].filter(n => !before.includes(n));
+  if (!intoFolder && cur && cur.nextSibling) {
+    for (const n of added) ul.insertBefore(n, cur.nextSibling);
+  }
+  if (clipboard.move) {
+    for (const li of clipboard.cut) if (li.isConnected) deleteNode(li);
+    clipboard = null; /* mover es una sola vez; copiar se puede repetir */
+  }
+  if (added.length) moveCursorTo(added[0], false);
+  scheduleSave();
+}
+
+/* Alt+Intro: propiedades de lo seleccionado */
+function openPropertiesOfSelection() {
+  const picked = topLevelSelection().filter(n => !nodeUl(n));
+  if (!picked.length) { navMessage("Seleccione una o varias capas para editar sus propiedades."); return; }
+  openStyleDialog(picked[0]);
+}
+
+document.addEventListener("keydown", e => {
+  const t = e.target;
+  /* Los campos de texto se quedan con todas las teclas */
+  if (t.matches && t.matches("input:not([type=checkbox]), textarea, select, [contenteditable]")) return;
+  /* Con el mapa enfocado, las flechas son el desplazamiento de Leaflet */
+  if (t.closest && t.closest("#map")) return;
+
+  /* Sin listas: el cursor y sus vecinos se buscan en local */
+  const cur = isRow(selCursor) && selCursor.isConnected ? selCursor : null;
+
+  /* Atajos con Ctrl / Alt primero, para que no los pise la navegación */
+  if (e.ctrlKey || e.metaKey) {
+    const k = e.key.toLowerCase();
+    if (k === "c") { e.preventDefault(); copySelection(false); return; }
+    if (k === "x") { e.preventDefault(); copySelection(true); return; }
+    if (k === "v") { e.preventDefault(); pasteClipboard(); return; }
+    if (e.shiftKey) return; /* Ctrl+Shift+click se maneja en el ratón */
+  }
+  if (e.altKey && e.key === "Enter") { e.preventDefault(); openPropertiesOfSelection(); return; }
+
+  switch (e.key) {
+    case "ArrowDown":
+      e.preventDefault();
+      moveCursorTo(cur ? stepRows(cur, 1) : firstRow(), e.shiftKey);
+      return;
+    case "ArrowUp":
+      e.preventDefault();
+      moveCursorTo(cur ? stepRows(cur, -1) : lastRow(), e.shiftKey);
+      return;
+    case "PageDown":
+      e.preventDefault();
+      moveCursorTo(cur ? stepRows(cur, PAGE_STEP) : firstRow(), e.shiftKey);
+      return;
+    case "PageUp":
+      e.preventDefault();
+      moveCursorTo(cur ? stepRows(cur, -PAGE_STEP) : lastRow(), e.shiftKey);
+      return;
+    case "Home": case "End": {
+      e.preventDefault();
+      /* Extremos de la CARPETA actual, no de la lista entera */
+      const sibs = siblingRows(cur || firstRow());
+      if (!sibs.length) return;
+      moveCursorTo(e.key === "Home" ? sibs[0] : sibs[sibs.length - 1], e.shiftKey);
+      return;
+    }
+    case "ArrowRight":
+      if (!cur) return;
+      e.preventDefault();
+      expandOrEnter(cur, e.shiftKey);
+      return;
+    case "ArrowLeft":
+      if (!cur) return;
+      e.preventDefault();
+      collapseOrLeave(cur, e.shiftKey);
+      return;
+    case " ": case "Spacebar":
+      if (!cur) return;
+      e.preventDefault();
+      toggleVisibility(cur);
+      return;
+  }
 });
 
 /* Supr borra toda la selección de golpe (fuera de campos de texto) */
@@ -2939,11 +3216,20 @@ function openStyleDialog(li, { isNew = false } = {}) {
     navMessage("Esta capa no tiene estilos editables.");
     return;
   }
-  /* Like delete/drag: acting on a selected node acts on the whole
-     selection (same kind guaranteed by the selection rule)          */
-  styleTargets = (selection.has(li) && selection.size > 1)
-    ? topLevelSelection().filter(s => styleKind(s) === kind)
-    : [li];
+  /* Como borrar o arrastrar: actuar sobre un nodo seleccionado actúa
+     sobre toda la selección. Ya se puede seleccionar de todo, así que
+     aquí es donde se comprueba que la mezcla sea editable en bloque. */
+  const inSelection = selection.has(li) && selection.size > 1;
+  styleTargets = inSelection ? topLevelSelection().filter(n => !nodeUl(n)) : [li];
+  const kinds = new Set(styleTargets.map(styleKind));
+  if (kinds.size > 1) {
+    const names = [...kinds].map(k => KIND_LABEL[k] || k).join(" y ");
+    navMessage(`La selecci\u00F3n mezcla ${names}: los nodos de distinto tipo no se`
+      + " pueden editar de forma conjunta. Deje seleccionados solo los del mismo tipo.",
+      { sticky: true });
+    styleTargets = [];
+    return;
+  }
   styleKindOpen = kind;
   styleIsNew = isNew;
   $id("style-title").textContent = styleTargets.length > 1
@@ -2964,6 +3250,8 @@ function openStyleDialog(li, { isNew = false } = {}) {
 
     /* Text and position only apply to a single marker, so those rows stay
        hidden for multi-selections and for layers with several markers    */
+    /* Con varios nodos no hay nombre ni posición que editar: son propios
+       de cada uno. Lo demás (color, tamaños, texto) sí va en bloque.  */
     posMarker = styleTargets.length === 1 ? soleMarker(styleTargets[0]) : null;
     $id("mk-single").hidden = !posMarker;
     if (posMarker) {
@@ -2998,7 +3286,7 @@ function closeStyleDialog(commit = false) {
   if (posMarker) {
     posMarker.off("drag", onMarkerDragged);
     setMarkerDraggable(posMarker, false);
-    if (!commit && posOriginal) posMarker.setLatLng(posOriginal);
+    if (!commit && posOriginal) { posMarker.setLatLng(posOriginal); invalidateGeo(styleTargets[0]); }
   }
   if (!commit && styleIsNew && styleTargets.length) deleteNode(styleTargets[0]);
   const wasOpen = !styleDialog.hidden;
@@ -3033,6 +3321,7 @@ function markCoordValidity() {
   return { lat, lon };
 }
 function onMarkerDragged() {
+  invalidateGeo(styleTargets[0]); /* la posición forma parte de la geometría */
   const p = posMarker.getLatLng();
   styleDraft.lat = p.lat;
   styleDraft.lng = p.lng;
@@ -3096,6 +3385,7 @@ $id("style-accept").addEventListener("click", () => {
       styleDraft.lng = lon;
       setNodeName(styleTargets[0], $id("mk-name").value || styleTargets[0]._name);
       posMarker.setLatLng([lat, lon]);
+      invalidateGeo(styleTargets[0]);
     }
     /* lat/lng live in the draft for the dialog only; they are a property
        of the geometry, not of the style, so they never reach _mstyle    */
@@ -3254,9 +3544,12 @@ const utmBand = lat =>
   UTM_BANDS[Math.min(Math.floor((lat + 80) / 8), UTM_BANDS.length - 1)] || "";
 
 /* {zone, band, easting, northing, north} o null fuera del ámbito de UTM */
-function latLngToUtm(lat, lon) {
+/* `forceZone` sirve para coberturas publicadas en un solo huso, como el
+   MDS del IGN: fuera de él las coordenadas siguen siendo válidas, solo
+   que referidas a ese meridiano central.                             */
+function latLngToUtm(lat, lon, forceZone = null) {
   if (!isFinite(lat) || !isFinite(lon) || lat < -80 || lat > 84) return null;
-  const zone = utmZone(lat, lon);
+  const zone = forceZone || utmZone(lat, lon);
   const lon0 = toRad((zone - 1) * 6 - 180 + 3); /* meridiano central del huso */
   const p = toRad(lat), l = toRad(lon);
   const ep2 = UTM_E2 / (1 - UTM_E2);            /* segunda excentricidad     */
@@ -3379,6 +3672,11 @@ document.addEventListener("keydown", e => {
   if (!styleDialog.hidden) { closeStyleDialog(false); return; }
   setTool(null);
   clearSelection();
+  /* Un corte sin pegar se cancela: nada se ha movido todavía */
+  if (clipboard && clipboard.move) {
+    for (const li of clipboard.cut) if (li.isConnected) nodeRow(li).classList.remove("cut");
+    clipboard = null;
+  }
 });
 
 /* Creación con un solo arrastre: mousedown fija el origen y al soltar
@@ -3388,6 +3686,7 @@ map.on("mousedown", e => {
   L.DomEvent.preventDefault(e.originalEvent);
   drawing = buildMeasurement(activeTool, e.latlng, e.latlng);
 });
+map.on("zoomend", () => coordsControl.updateZoom());
 map.on("mousemove", e => {
   if (!drawing) return;
   drawing.mDest.setLatLng(e.latlng);
@@ -3550,7 +3849,7 @@ const DEM_CACHE_MAX = 60;              /* ~15 MB de píxeles cacheados      */
 const DEM_MAX_RPS = 4;                 /* peticiones por segundo            */
 const DEM_SAMPLE_MS = 150;             /* muestreo del ratón                */
 const DEM_STATUS_QUIET = 20000;        /* silencio entre avisos repetidos   */
-const DEM_ATTRIB = 'MDT05 PNOA \u00A9 <a href="https://www.ign.es">IGN</a> (CC BY 4.0)';
+const DEM_ATTRIB = 'MDT05/MDS PNOA \u00A9 <a href="https://www.ign.es">IGN</a> (CC BY 4.0)';
 
 let demOn = false;
 let demButton = null;
@@ -3677,13 +3976,307 @@ function demRequest(latlng) {
 async function demSample(latlng) {
   if (!demOn || !latlng) return;
   const t = demTileFor(latlng.lat, latlng.lng, map.getZoom());
-  if (!t) { coordsControl.setElevation("\u2014"); return; }
+  if (!t) { coordsControl.setElevation("\u2014", null); return; }
   const data = await demTile(t);
   if (!demOn) return;
   if (data === undefined) return;              /* aplazada por el tope       */
-  if (data === null) { coordsControl.setElevation("sin cobertura"); return; }
+  if (data === null) { coordsControl.setElevation("sin cobertura", null); return; }
   const h = demDecode(data, t.px, t.py);
-  coordsControl.setElevation(h === null ? "sin datos" : fmtAltitude(h));
+  coordsControl.setElevation(h === null ? "sin datos" : fmtAltitude(h), h);
+}
+
+/* ================= Altura de superficie (MDS del IGN) =================
+   El MDS (terreno + edificios y vegetación) NO se publica como teselas
+   XYZ, solo como WCS 2.0: hay que pedir una cobertura por punto en vez
+   de una tesela que sirva para toda una comarca. Por eso se consulta
+   aparte, solo cuando el cursor se detiene, y con su propio caché por
+   celdas.
+
+   Nada del servicio se da por sabido: el identificador de cobertura y
+   las etiquetas de sus ejes se leen de su GetCapabilities/DescribeCoverage
+   la primera vez, porque inventárselos daría peticiones mal formadas.
+   Se pide rejilla ASCII (texto) y no GeoTIFF para no arrastrar una
+   librería de imágenes: el valor se lee del propio texto.             */
+const MDS_BASE = "https://wcs-mds.idee.es/mds";
+const MDS_CELL = 25;        /* m: tamaño de la celda que se cachea      */
+const MDS_WINDOW = 10;      /* m: ventana pedida alrededor del punto    */
+const MDS_SETTLE_MS = 700;  /* el cursor debe pararse antes de pedir    */
+const MDS_CACHE_MAX = 200;
+const MDS_TIMEOUT = 12000;
+
+let mdsConfig = null;       /* {coverageId, axisX, axisY} descubierto    */
+let mdsConfigTry = null;    /* promesa del descubrimiento en curso       */
+const mdsCache = new Map();
+
+/* `extra` permite repetir una misma clave, que es como WCS pide los dos
+   `subset`: un objeto plano solo admitiría uno                        */
+function mdsUrl(params, extra = []) {
+  const q = new URLSearchParams({ service: "WCS", version: "2.0.1", ...params });
+  for (const [k, v] of extra) q.append(k, v);
+  return `${MDS_BASE}?${q}`;
+}
+
+/* Del GetCapabilities interesa el primer <CoverageId>; de la
+   DescribeCoverage, las etiquetas de los ejes (axisLabels).           */
+/* De varias coberturas hay que elegir la del modelo de superficie
+   ABSOLUTO. Este servicio publica además dos "normalizadas"
+   (`mdsn_e025`, `mdsn_v025`) que dan la altura de edificios o vegetación
+   SOBRE EL SUELO, no la altitud: compararlas con el MDT daría una
+   diferencia sin sentido.                                             */
+function pickMdsCoverage(ids) {
+  return ids.find(id => !/mdsn|norm/i.test(id)) || ids[0] || null;
+}
+
+function parseMdsCapabilities(xmlText) {
+  const doc = new DOMParser().parseFromString(xmlText, "text/xml");
+  if (parserErrorText(doc)) return null;
+  const ids = elsByTag(doc, "CoverageId").map(el => el.textContent.trim()).filter(Boolean);
+  const coverageId = pickMdsCoverage(ids);
+  if (!coverageId) return null;
+  return {
+    coverageId,
+    formats: elsByTag(doc, "formatSupported").map(el => el.textContent.trim()).filter(Boolean),
+    crs: elsByTag(doc, "crsSupported").map(el => el.textContent.trim()).filter(Boolean)
+  };
+}
+
+/* De todos los formatos que ofrezca el servicio hay que quedarse con uno
+   que se pueda leer sin librerías: la rejilla ASCII es texto plano. Los
+   nombres varían entre servidores (MapServer publica la suya como
+   `image/x-aaigrid`), así que se busca por patrón, no por igualdad. */
+/* Pedir en latitud/longitud evita convertir coordenadas por nuestra
+   cuenta y, con ello, toda una clase de errores (el huso equivocado ya
+   costó un ExtentError). Solo se usa si el servicio declara admitir un
+   CRS geográfico mediante la extensión de CRS de WCS 2.0.            */
+const MDS_GEO_CRS = [/EPSG\/0\/4326$/, /EPSG\/0\/4258$/];
+const pickGeoCrs = list =>
+  MDS_GEO_CRS.reduce((found, re) => found || (list || []).find(c => re.test(c)), null) || null;
+
+const MDS_TEXT_FORMATS = [
+  /arcgrid/i,            /* nombre de MapServer para la rejilla ESRI     */
+  /(^|\/)asc$/i,         /* "application/asc" del servicio del IGN       */
+  /aaigrid/i, /ascii/i,  /* otras variantes del mismo formato            */
+  /^text\/plain$/i, /^text\//i
+];
+
+function pickMdsFormat(formats) {
+  for (const pattern of MDS_TEXT_FORMATS) {
+    const found = (formats || []).find(f => pattern.test(f));
+    if (found) return found;
+  }
+  return null;
+}
+/* Del DescribeCoverage se saca TODO lo que hace falta para pedir bien:
+   sistema de referencia, nombres de los ejes y extensión válida. La
+   suposición de que el primer eje era el norte fue justo lo que provocó
+   el ExtentError: este servicio los declara al revés.                */
+function parseMdsCoverage(xmlText) {
+  const doc = new DOMParser().parseFromString(xmlText, "text/xml");
+  if (parserErrorText(doc)) return null;
+  const env = firstByTag(doc, "Envelope");
+  if (!env) return null;
+
+  const labels = (env.getAttribute("axisLabels") || text(doc, "axisLabels") || "")
+    .trim().split(/\s+/).filter(Boolean);
+  const lower = (text(env, "lowerCorner") || "").trim().split(/\s+/).map(Number);
+  const upper = (text(env, "upperCorner") || "").trim().split(/\s+/).map(Number);
+  if (labels.length < 2 || lower.length < 2 || upper.length < 2) return null;
+
+  /* Qué eje es cada cual se decide por su NOMBRE, no por el orden */
+  const isEast = l => /^(x|e|east|easting|lon|long)/i.test(l);
+  let ix = labels.findIndex(isEast);
+  let iy = labels.findIndex(l => !isEast(l));
+  if (ix < 0 || iy < 0 || ix === iy) { ix = 0; iy = 1; } /* último recurso */
+
+  /* CRS: si es geográfico las subconsultas van en grados; si es UTM, en
+     metros del huso que indique el código EPSG (el MDS usa el 30
+     extendido para toda España, pero se lee, no se supone)           */
+  const srs = env.getAttribute("srsName") || "";
+  const epsg = Number((srs.match(/(\d{4,5})(?:\D*)$/) || [])[1]);
+  const geographic = epsg === 4326 || epsg === 4258;
+  let zone = null;
+  if (!geographic) {
+    if (epsg >= 25828 && epsg <= 25838) zone = epsg - 25800;      /* ETRS89 / UTM */
+    else if (epsg >= 32601 && epsg <= 32660) zone = epsg - 32600; /* WGS84 / UTM  */
+    else zone = 30; /* el huso documentado del MDS */
+  }
+  return {
+    axisX: labels[ix], axisY: labels[iy], geographic, zone,
+    minX: Math.min(lower[ix], upper[ix]), maxX: Math.max(lower[ix], upper[ix]),
+    minY: Math.min(lower[iy], upper[iy]), maxY: Math.max(lower[iy], upper[iy])
+  };
+}
+
+/* Los servicios OGC devuelven los errores como XML, no como HTTP: sin
+   mirarlos, un ExtentError se leía como "sin datos"                  */
+function parseOwsException(txt) {
+  if (!/ExceptionReport/.test(txt)) return null;
+  const doc = new DOMParser().parseFromString(txt, "text/xml");
+  if (parserErrorText(doc)) return null;
+  const el = firstByTag(doc, "ExceptionText") || firstByTag(doc, "Exception");
+  const code = firstByTag(doc, "Exception");
+  const msg = el ? el.textContent.trim() : "error del servicio";
+  return { code: (code && code.getAttribute("exceptionCode")) || "", msg };
+}
+
+
+/* Rejilla ASCII de ESRI: cabecera de "clave valor" y luego los números.
+   Se devuelve el primer valor que no sea el NODATA declarado.         */
+function parseAsciiGrid(txt) {
+  const nodata = (txt.match(/NODATA_value\s+(-?[\d.]+)/i) || [])[1];
+  const nd = nodata === undefined ? -9999 : Number(nodata);
+  /* Se salta la cabecera: las líneas que empiezan por letra */
+  const body = txt.split(/\r?\n/).filter(l => /^\s*-?[\d.]/.test(l)).join(" ");
+  /* Se exige que el elemento sea un número de verdad: una respuesta de
+     error del servidor dejaría el cuerpo vacío y `Number("")` es 0, que
+     se colaría como "altitud cero"                                   */
+  for (const tok of body.match(/-?\d+(?:\.\d+)?/g) || []) {
+    const v = Number(tok);
+    if (isFinite(v) && v !== nd && v > -500 && v < 9000) return v;
+  }
+  return null;
+}
+
+async function mdsFetch(params, signal, extra = []) {
+  const r = await fetch(mdsUrl(params, extra), { signal });
+  const txt = await r.text();
+  /* Los servicios OGC explican el fallo en el CUERPO aunque devuelvan un
+     400: quedarse en el código HTTP tira justo el dato que sirve       */
+  const ex = parseOwsException(txt);
+  if (ex) throw Object.assign(new Error(ex.msg), { owsCode: ex.code });
+  if (!r.ok) throw new Error(describeHttp(r.status));
+  return txt;
+}
+
+/* Descubrimiento perezoso, una sola vez por sesión */
+function mdsDiscover() {
+  if (mdsConfig) return Promise.resolve(mdsConfig);
+  if (mdsConfigTry) return mdsConfigTry;
+  mdsConfigTry = (async () => {
+    const signal = AbortSignal.timeout(MDS_TIMEOUT);
+    const caps = parseMdsCapabilities(await mdsFetch({ request: "GetCapabilities" }, signal));
+    if (!caps) throw new Error("el servicio no declara ninguna cobertura");
+    const { coverageId } = caps;
+    /* Si no declarara ninguno, se prueban los habituales antes de rendirse */
+    const format = pickMdsFormat(caps.formats.length ? caps.formats
+      : ["image/x-aaigrid", "text/plain"]);
+    if (!format) {
+      throw new Error("el servicio solo ofrece formatos binarios (" +
+        caps.formats.slice(0, 3).join(", ") + "), que no se pueden leer sin una librer\u00EDa de im\u00E1genes");
+    }
+    const desc = parseMdsCoverage(
+      await mdsFetch({ request: "DescribeCoverage", coverageId }, signal));
+    if (!desc) throw new Error("no se pudo leer la descripci\u00F3n de la cobertura");
+    /* `geoCrs` manda si existe; si el servidor lo rechaza, se cae a las
+       coordenadas nativas de la cobertura (ver `mdsElevation`)      */
+    mdsConfig = { coverageId, format, geoCrs: pickGeoCrs(caps.crs), ...desc };
+    return mdsConfig;
+  })().catch(err => {
+    mdsConfigTry = null; /* un fallo puntual no debe inutilizar el modo */
+    throw err;
+  });
+  return mdsConfigTry;
+}
+
+/* Altura de superficie en un punto, o null si no hay dato */
+/* Punto en las coordenadas de la cobertura. El MDS está en un ÚNICO
+   huso (el 30 extendido) para toda la Península: usar el huso local
+   colocaría el punto a cientos de kilómetros.                        */
+function mdsPoint(cfg, lat, lon) {
+  if (cfg.geographic) return { x: lon, y: lat, half: MDS_WINDOW / 111320 };
+  const u = latLngToUtm(lat, lon, cfg.zone);
+  return u ? { x: u.easting, y: u.northing, half: MDS_WINDOW } : null;
+}
+
+/* Media ventana en grados, equivalente a MDS_WINDOW metros */
+const degHalf = lat => ({
+  lat: MDS_WINDOW / 111320,
+  lon: MDS_WINDOW / (111320 * Math.max(0.05, Math.cos(toRad(lat))))
+});
+
+async function mdsElevation(lat, lon) {
+  const cfg = await mdsDiscover();
+
+  /* Vía preferida: latitud y longitud, sin transformar nada */
+  if (cfg.geoCrs && cfg.useGeo !== false) {
+    const d = degHalf(lat);
+    try {
+      return parseAsciiGrid(await mdsFetch({
+        request: "GetCoverage",
+        coverageId: cfg.coverageId,
+        format: cfg.format,
+        subsettingCrs: cfg.geoCrs
+      }, AbortSignal.timeout(MDS_TIMEOUT), [
+        ["subset", `Long(${(lon - d.lon).toFixed(7)},${(lon + d.lon).toFixed(7)})`],
+        ["subset", `Lat(${(lat - d.lat).toFixed(7)},${(lat + d.lat).toFixed(7)})`]
+      ]));
+    } catch (err) {
+      /* Fuera de cobertura es una respuesta legítima, no un rechazo del
+         modo geográfico: solo se abandona si el servidor no entiende la
+         petición (ejes o CRS), y entonces se recuerda para no repetir */
+      if (/extent/i.test(err.owsCode || "")) throw err;
+      cfg.useGeo = false;
+      navMessage("MDS: el servicio no admite consultas en latitud/longitud;"
+        + " se usan coordenadas UTM.", { tone: "info" });
+    }
+  }
+
+  /* Respaldo: coordenadas nativas de la cobertura */
+  const p = mdsPoint(cfg, lat, lon);
+  if (!p) return null;
+  /* Comprobar la extensión antes de pedir ahorra una petición segura de
+     fallar y permite decir "fuera de cobertura" al instante          */
+  if (p.x < cfg.minX || p.x > cfg.maxX || p.y < cfg.minY || p.y > cfg.maxY) return null;
+
+  return parseAsciiGrid(await mdsFetch({
+    request: "GetCoverage",
+    coverageId: cfg.coverageId,
+    format: cfg.format
+  }, AbortSignal.timeout(MDS_TIMEOUT), [
+    /* URLSearchParams no repite claves: los dos `subset` van aparte */
+    ["subset", `${cfg.axisX}(${(p.x - p.half).toFixed(1)},${(p.x + p.half).toFixed(1)})`],
+    ["subset", `${cfg.axisY}(${(p.y - p.half).toFixed(1)},${(p.y + p.half).toFixed(1)})`]
+  ]));
+}
+
+/* Clave de caché: celdas de MDS_CELL metros, para no pedir dos veces
+   prácticamente el mismo punto                                       */
+const mdsKey = (lat, lon) => {
+  const u = latLngToUtm(lat, lon);
+  return u ? `${u.zone}/${Math.round(u.easting / MDS_CELL)}/${Math.round(u.northing / MDS_CELL)}` : null;
+};
+
+let mdsTimer = null;
+function mdsRequest(latlng) {
+  clearTimeout(mdsTimer);
+  /* Solo cuando el cursor se para: cada consulta es una petición entera */
+  mdsTimer = setTimeout(async () => {
+    if (!demOn) return;
+    const key = mdsKey(latlng.lat, latlng.lng);
+    if (!key) return;
+    if (mdsCache.has(key)) { coordsControl.setSurface(mdsCache.get(key)); return; }
+    if (!demRateOk()) return;
+    try {
+      const h = await mdsElevation(latlng.lat, latlng.lng);
+      mdsCache.set(key, h);
+      while (mdsCache.size > MDS_CACHE_MAX) mdsCache.delete(mdsCache.keys().next().value);
+      if (demOn) coordsControl.setSurface(h);
+      demStatus("ok");
+    } catch (err) {
+      /* Salirse del área cubierta no es un error que haya que reportar */
+      if (/extent/i.test(err.owsCode || "")) {
+        mdsCache.set(key, null);
+        coordsControl.setSurface(null);
+        return;
+      }
+      const why = err.name === "TimeoutError" ? "el servicio no responde"
+        : err.message === "Failed to fetch"
+          ? "el servicio no admite consultas desde el navegador (CORS)"
+          : err.message;
+      coordsControl.setSurface(undefined);
+      demStatus("error", `MDS: ${why}`);
+    }
+  }, MDS_SETTLE_MS);
 }
 
 function setAltitudeMode(on) {
@@ -3695,6 +4288,7 @@ function setAltitudeMode(on) {
   } else {
     map.attributionControl.removeAttribution(DEM_ATTRIB);
     clearTimeout(demTimer);
+    clearTimeout(mdsTimer);
     demTimer = null;
   }
 }
@@ -3837,33 +4431,74 @@ const CoordsControl = L.Control.extend({
   options: { position: "bottomleft" },
   onAdd() {
     this._div = L.DomUtil.create("div", "coords-box");
-    this._rows = ["dec", "dms", "utm", "alt"].map(cls => {
+    this._rows = ["zoom", "dec", "dms", "utm", "alt", "sup"].map(cls => {
       const d = L.DomUtil.create("div", `coords-${cls}`, this._div);
       d.textContent = "\u2014";
       return d;
     });
-    this._rows[3].hidden = true; /* solo con el modo altura activo */
+    this._rows[4].hidden = this._rows[5].hidden = true; /* solo en modo altura */
+    this.updateZoom();
     return this._div;
   },
   showElevation(on) {
-    this._rows[3].hidden = !on;
-    if (!on) this._rows[3].textContent = "\u2014";
+    for (const i of [4, 5]) {
+      this._rows[i].hidden = !on;
+      if (!on) this._rows[i].textContent = "\u2014";
+    }
+    this._terrain = null;
   },
-  setElevation(txt) { this._rows[3].textContent = `alt ${txt}`; },
+  setElevation(txt, meters) {
+    this._rows[4].textContent = `terreno ${txt}`;
+    this._terrain = meters;
+    this._paintSurface();
+  },
+  /* Superficie (terreno + edificios y vegetación) y su diferencia, que
+     es lo que hay construido o plantado sobre el suelo               */
+  setSurface(meters) {
+    this._surface = meters;
+    this._paintSurface();
+  },
+  _paintSurface() {
+    const m = this._surface;
+    if (m === undefined) { this._rows[5].textContent = "superficie no disponible"; return; }
+    if (m === null) { this._rows[5].textContent = "superficie sin datos"; return; }
+    if (m === false || m === void 0) return;
+    let txt = `superficie ${fmtAltitude(m)}`;
+    if (typeof this._terrain === "number") {
+      const d = m - this._terrain;
+      txt += ` (sobre el suelo ${d >= 0 ? "+" : ""}${d.toFixed(1)} m)`;
+    }
+    this._rows[5].textContent = txt;
+  },
+  /* El zoom no depende del cursor, así que se refresca aparte */
+  updateZoom() {
+    this._rows[0].textContent = `zoom ${map.getZoom()} de ${map.getMaxZoom()}`;
+  },
   update(latlng) {
     const { lat, lng } = latlng;
-    this._rows[0].textContent =
-      `${formatCoord(lat, true, "dec")}\u00B0 ${formatCoord(lng, false, "dec")}\u00B0`;
     this._rows[1].textContent =
+      `${formatCoord(lat, true, "dec")}\u00B0 ${formatCoord(lng, false, "dec")}\u00B0`;
+    this._rows[2].textContent =
       `${formatCoord(lat, true, "dms")} ${formatCoord(lng, false, "dms")}`;
-    this._rows[2].textContent = fmtUtm(lat, lng);
+    this._rows[3].textContent = fmtUtm(lat, lng);
   }
 });
 const coordsControl = new CoordsControl();
 map.addControl(coordsControl);
+map.on("zoomend", () => coordsControl.updateZoom());
+
+/* El ratón dispara decenas de eventos por segundo y cada lectura implica
+   proyectar a UTM y reescribir varias filas: se hace una vez por
+   fotograma, que es cuanto puede verse.                               */
+let coordsPending = null, coordsFrame = null;
 map.on("mousemove", e => {
-  coordsControl.update(e.latlng);
-  if (demOn) demRequest(e.latlng);
+  coordsPending = e.latlng;
+  if (demOn) { demRequest(e.latlng); mdsRequest(e.latlng); }
+  if (coordsFrame) return;
+  coordsFrame = requestAnimationFrame(() => {
+    coordsFrame = null;
+    coordsControl.update(coordsPending);
+  });
 });
 
 /* ================= Arranque: restaurar el árbol guardado ================= */
