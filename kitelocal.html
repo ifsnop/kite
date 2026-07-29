@@ -31,7 +31,13 @@
 <meta name="twitter:title" content="KITE Local &#8212; KML Interactive Tree Explorer">
 <meta name="twitter:description" content="KITE Local: visor de KML/KMZ/GeoJSON con &#225;rbol de capas, mediciones geod&#233;sicas y estilos personalizables. Un &#250;nico archivo HTML.">
 
-<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+<!-- Integridad de subrecursos (SRI): el navegador verifica el hash antes
+     de aplicar o ejecutar el archivo, así que un CDN comprometido no
+     puede colar otro contenido. Al cambiar de versión de una librería
+     HAY QUE cambiar su hash, o el navegador la bloqueará. -->
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+      integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY="
+      crossorigin="anonymous" referrerpolicy="no-referrer">
 <style>
   :root {
     --bg: #f7f7f5;
@@ -661,9 +667,27 @@
   </div>
 </div>
 
-<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
+        integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo="
+        crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"
+        integrity="sha512-XMVd28F1oH/O71fzwBnV7HucLxVwtxf26XV8P4wPk26EDxuGZ91N8bsOttmnomcCD3CS5ZMRL50H0GgOHvegtg=="
+        crossorigin="anonymous" referrerpolicy="no-referrer"></script>
 <script>
+/* Leaflet es imprescindible: si el CDN falla o su hash de integridad no
+   cuadra, el navegador lo bloquea, y sin este aviso quedaría una página
+   en blanco sin explicación. Se corta aquí, diciendo qué mirar.      */
+if (typeof L === "undefined") {
+  document.body.innerHTML =
+    '<div style="font:15px/1.5 system-ui,sans-serif;padding:2rem;max-width:46rem">'
+    + '<h1 style="font-size:18px">No se pudo cargar Leaflet</h1>'
+    + '<p>KITE Local necesita la librer\u00EDa de mapas Leaflet, servida desde unpkg.com. '
+    + 'Compruebe la conexi\u00F3n; si la hay, puede que el archivo servido no coincida con el '
+    + 'hash de integridad declarado en esta p\u00E1gina, en cuyo caso el navegador lo bloquea '
+    + 'a prop\u00F3sito. La consola del navegador lo indica.</p></div>';
+  throw new Error("Leaflet no disponible: se detiene el arranque");
+}
+
 "use strict";
 
 /* ================= Visor: mapa base y capas de teselas ================= */
@@ -674,7 +698,7 @@ const map = L.map("map", { preferCanvas: true }).setView([40.4, -3.7], 6);
 
 /* Fecha de generación del código (versión): AÑOMESDIAHORAMINUTO.
    Actualizar en cada generación; se muestra junto al crédito de Leaflet. */
-const BUILD = "202607271215";
+const BUILD = "202607281450";
 map.attributionControl.setPrefix(
   `v${BUILD} | <a href="https://leafletjs.com" title="A JavaScript library for interactive maps">Leaflet</a>`);
 
@@ -1826,6 +1850,47 @@ async function dbSaveTree(nodes) {
     tx.onerror = () => reject(tx.error);
   });
 }
+/* ---------- Vista guardada (centro y zoom) ----------
+   Comparte almacén con el árbol: es otra clave, no otro almacén, así que
+   no hace falta subir DB_VERSION. Lleva su propia versión de formato
+   porque su contenido no tiene nada que ver con el del árbol.        */
+const VIEW_KEY = "view";
+const VIEW_SCHEMA = 1;
+
+async function dbSaveView(rec) {
+  const db = await openDb();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(DB_TREE, "readwrite");
+    tx.objectStore(DB_TREE).put({ v: VIEW_SCHEMA, ...rec }, VIEW_KEY);
+    tx.oncomplete = resolve;
+    tx.onerror = () => reject(tx.error);
+  });
+}
+
+async function dbLoadView() {
+  const db = await openDb();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(DB_TREE, "readonly");
+    const rq = tx.objectStore(DB_TREE).get(VIEW_KEY);
+    rq.onsuccess = () => resolve(validView(rq.result));
+    rq.onerror = () => reject(rq.error);
+  });
+}
+
+/* Lo guardado puede venir de otra versión, de otra pantalla o
+   directamente corrupto: se comprueba antes de mover la vista, porque un
+   valor absurdo dejaría el mapa en un sitio del que no se sale.      */
+function validView(rec) {
+  if (!rec || rec.v !== VIEW_SCHEMA) return null;
+  const { lat, lng, zoom } = rec;
+  /* `Number.isFinite` no convierte: un "12" guardado por error se
+     rechaza en vez de colarse como número                          */
+  if (!Number.isFinite(lat) || !Number.isFinite(lng) || !Number.isFinite(zoom)) return null;
+  if (Math.abs(lat) > 85 || Math.abs(lng) > 180) return null;
+  if (zoom < 0 || zoom > 25) return null;
+  return { lat, lng, zoom };
+}
+
 async function dbLoadTree() {
   const db = await openDb();
   return new Promise((resolve, reject) => {
@@ -1835,7 +1900,9 @@ async function dbLoadTree() {
     rq.onsuccess = () => {
       const rec = rq.result;
       if (rec && rec.v === TREE_SCHEMA) { resolve(rec.nodes); return; }
-      if (rec) st.clear(); /* versión distinta: se descarta sin migrar */
+      /* Versión distinta: se descarta el árbol, pero solo el árbol; la
+         vista guardada es independiente y sigue siendo válida.      */
+      if (rec) st.delete("root");
       resolve(null);
     };
     rq.onerror = () => reject(rq.error);
@@ -4501,8 +4568,33 @@ map.on("mousemove", e => {
   });
 });
 
+/* La vista se guarda al terminar de moverla, no durante: `moveend` ya
+   llega una vez por gesto, y el retardo agrupa los encadenados.      */
+const VIEW_SAVE_MS = 800;
+let viewTimer = null;
+let viewRestoring = true; /* no guardar la vista inicial antes de restaurarla */
+
+function scheduleViewSave() {
+  if (viewRestoring) return;
+  clearTimeout(viewTimer);
+  viewTimer = setTimeout(() => {
+    const c = map.getCenter();
+    dbSaveView({ lat: c.lat, lng: c.lng, zoom: map.getZoom() })
+      .catch(() => {}); /* perder la vista no merece molestar al usuario */
+  }, VIEW_SAVE_MS);
+}
+map.on("moveend zoomend", scheduleViewSave);
+
 /* ================= Arranque: restaurar el árbol guardado ================= */
 (async () => {
+  /* La vista primero: así el mapa aparece donde se dejó mientras el
+     árbol, que puede tardar, se reconstruye por detrás.              */
+  try {
+    const view = await dbLoadView();
+    if (view) map.setView([view.lat, view.lng], view.zoom, { animate: false });
+  } catch { /* sin vista guardada se queda la de por defecto */ }
+  viewRestoring = false;
+
   let nodes = null;
   try { nodes = await dbLoadTree(); } catch { nodes = null; }
   if (nodes && nodes.length) await restoreTree(nodes);

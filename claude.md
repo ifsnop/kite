@@ -513,16 +513,51 @@ manteniendo los principios acordados durante el desarrollo del proyecto.
 
 ## Pendiente (conocido y no hecho)
 
-- **SRI en las dependencias de CDN**: no se han añadido `integrity`
-  porque no se pueden calcular ni verificar sin descargar los archivos, y
-  un hash equivocado deja la aplicación inservible. Si se añaden, hay que
-  tomar los hashes publicados por unpkg/cdnjs y probarlos.
+- ~~SRI en las dependencias de CDN~~: **hecho**. Ver la sección
+  «Dependencias externas».
 - **Antimeridiano completo**: el punto medio y las mediciones ya lo
   cruzan bien; el encuadre automático y las líneas de la retícula todavía
   no representan geometrías que cruzan ±180°.
 - **Navegación completa del árbol con teclado** (flechas sin Shift para
   moverse y desplegar, Enter para activar) y monitorización de memoria y
   cuota de almacenamiento.
+
+## Dependencias externas
+
+- Los tres archivos de librería llevan `integrity` (SRI) y
+  `crossorigin`: Leaflet 1.9.4 (CSS y JS, desde unpkg) y JSZip 3.10.1
+  (desde cdnjs). El navegador verifica el hash antes de aplicar o
+  ejecutar el archivo, de modo que un CDN comprometido no puede colar
+  otro contenido.
+- **Al subir la versión de una librería hay que sustituir su hash**, o el
+  navegador la bloqueará y la aplicación no arrancará. Se obtienen de la
+  documentación de Leaflet y del botón de copiar de cdnjs, o con
+  `curl -sL <url> | openssl dgst -sha384 -binary | openssl base64 -A`.
+- SRI introduce una forma nueva de fallar, así que el script empieza
+  comprobando que Leaflet existe y, si no, muestra un aviso explicando
+  qué mirar en vez de dejar una página en blanco. Ese guardián debe ir
+  **lo primero del script**, antes de cualquier uso de `L`.
+- Lo que NO puede llevar SRI: las teselas y los iconos PNG (los `<img>`
+  no lo admiten) y las respuestas de las APIs REST (Iconify, Nominatim,
+  IGN), que son datos, no código.
+
+## Vista guardada
+
+- El centro y el zoom se guardan en el MISMO almacén que el árbol, bajo
+  la clave `view`: es otra clave, no otro almacén, así que no toca subir
+  `DB_VERSION`. Lleva su propia versión de formato (`VIEW_SCHEMA`) porque
+  su contenido no tiene nada que ver con el del árbol.
+- Se guarda con retardo tras `moveend`/`zoomend`, nunca durante el gesto,
+  y no se guarda nada hasta haber restaurado (`viewRestoring`), o la
+  vista por defecto pisaría a la guardada en el arranque.
+- Al arrancar se restaura ANTES que el árbol: el mapa aparece donde se
+  dejó mientras la reconstrucción, que puede tardar, ocurre por detrás.
+- Lo leído se valida (`validView`) antes de mover el mapa: un registro
+  corrupto dejaría la vista en un sitio del que el usuario no sabe salir.
+  Se usa `Number.isFinite`, que no convierte, para que un `"12"` guardado
+  por error no se cuele como número.
+- Descartar un árbol de otra versión borra **solo** la clave `root`, no
+  el almacén entero: la vista es independiente y sigue siendo válida.
 
 ## Rendimiento (reglas nacidas de medir)
 
@@ -585,7 +620,10 @@ manteniendo los principios acordados durante el desarrollo del proyecto.
 7. **Siempre** actualizar la constante `BUILD` (AAAAMMDDHHMM, junto al
    crédito de Leaflet) en CADA generación del código, por pequeña que
    sea: es la única versión visible y sirve para saber qué se está
-   ejecutando. Sin excepciones.
+   ejecutando. Sin excepciones. Y **comprobar que la sustitución ha
+   surtido efecto**: editar por el valor anterior falla en silencio si no
+   es el que se creía, y la versión se queda congelada sin que nadie lo
+   note. Sustituir por patrón (`const BUILD = "\d{12}"`) y verificar.
 8. `node --check` del script; test en Node de la lógica pura; `grep` de
    referencias muertas de lo que se haya retirado.
 9. Cuidado con el ORDEN de las secciones: una variable que se asigna
