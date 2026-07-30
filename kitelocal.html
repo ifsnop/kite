@@ -14,7 +14,7 @@
   default-src 'none';
   script-src 'self' 'unsafe-inline' https://unpkg.com https://cdnjs.cloudflare.com;
   style-src 'self' 'unsafe-inline' https://unpkg.com;
-  img-src 'self' data: blob: https://unpkg.com https://api.iconify.design https://xyz-mdt.idee.es https://tile.openstreetmap.org https://server.arcgisonline.com https://tms-pnoa-ma.idee.es https://servicios.idee.es;
+  img-src 'self' data: blob: https://unpkg.com https://api.iconify.design https://xyz-mdt.idee.es https://www.ign.es https://tile.openstreetmap.org https://server.arcgisonline.com https://tms-pnoa-ma.idee.es https://servicios.idee.es;
   connect-src 'self' https://api.iconify.design https://nominatim.openstreetmap.org https://wcs-mds.idee.es https://unpkg.com https://cdnjs.cloudflare.com;
   font-src 'self';
   base-uri 'none';
@@ -371,6 +371,26 @@
     white-space: nowrap;
   }
   /* Las tres lecturas de la posición, de más a menos usada */
+  /* Panel de mapas base */
+  .base-box { background: #fff; border-radius: 4px; }
+  .base-toggle {
+    display: block;
+    width: 30px; height: 30px;
+    border: none; background: none;
+    font-size: 15px; cursor: pointer; line-height: 30px; text-align: center;
+  }
+  .base-list {
+    padding: 6px 8px;
+    border-top: 1px solid var(--border);
+    max-height: 46vh; overflow: auto;
+    font: 12px system-ui, sans-serif;
+  }
+  .base-list[hidden] { display: none; }
+  .base-row { display: grid; grid-template-columns: auto 1fr; gap: 4px 6px; align-items: center; margin: 4px 0; }
+  .base-row label { cursor: pointer; white-space: nowrap; }
+  .base-row input[type="range"] { grid-column: 2; width: 100%; height: 14px; }
+  .base-row.failed label { color: var(--danger); }
+
   .coords-zoom { color: var(--muted); font-weight: 600; }
   .coords-dms { color: #445; }
   .coords-utm { color: var(--muted); }
@@ -479,6 +499,20 @@
     border-radius: 5px;
     font: inherit;
   }
+  .keys { border-collapse: collapse; font-size: 12.5px; }
+  .keys th { text-align: left; padding: 8px 4px 3px; color: var(--muted); font-size: 11.5px; }
+  .keys td { padding: 2px 10px 2px 4px; vertical-align: top; }
+  .keys td:first-child { white-space: nowrap; font-family: ui-monospace, Consolas, monospace; }
+  .desc-body {
+    max-width: 46ch;
+    max-height: 55vh;
+    overflow: auto;
+    font-size: 12.5px;
+    line-height: 1.4;
+  }
+  .desc-body table { border-collapse: collapse; }
+  .desc-body td, .desc-body th { border: 1px solid var(--border); padding: 2px 5px; text-align: left; }
+  .desc-body img { max-width: 100%; height: auto; }
   .dlg-hint { margin: 6px 0 0; font-size: 12px; color: var(--muted); }
   .dlg-note { margin-left: auto; font-size: 12px; color: var(--muted); }
   #pos-format { padding: 1px 8px; line-height: 1.3; }
@@ -642,6 +676,49 @@
   </div>
 </div>
 
+<!-- Chuleta de atajos (tecla ?) -->
+<div id="shortcuts" class="dlg-overlay" hidden>
+  <div class="dlg-box">
+    <h2>Atajos de teclado</h2>
+    <table class="keys">
+      <tr><th colspan="2">Moverse por el &#225;rbol</th></tr>
+      <tr><td>&#8593; &#8595;</td><td>Nodo anterior / siguiente</td></tr>
+      <tr><td>&#8594; &#8592;</td><td>Desplegar y entrar / colapsar y subir</td></tr>
+      <tr><td>Re P&#225;g / Av P&#225;g</td><td>Saltar diez nodos</td></tr>
+      <tr><td>Inicio / Fin</td><td>Primero / &#250;ltimo de la carpeta actual</td></tr>
+      <tr><td>Escribir letras</td><td>Saltar al nodo que empiece as&#237;</td></tr>
+      <tr><th colspan="2">Seleccionar</th></tr>
+      <tr><td>May&#250;s + flechas</td><td>Extender la selecci&#243;n</td></tr>
+      <tr><td>May&#250;s + clic</td><td>Seleccionar hasta ah&#237;</td></tr>
+      <tr><td>Ctrl + May&#250;s + clic</td><td>A&#241;adir o quitar un nodo suelto</td></tr>
+      <tr><td>Ctrl + A</td><td>La carpeta actual; otra vez, todo el &#225;rbol</td></tr>
+      <tr><td>Esc</td><td>Quitar la selecci&#243;n</td></tr>
+      <tr><th colspan="2">Actuar</th></tr>
+      <tr><td>Espacio</td><td>Activar o desactivar la capa</td></tr>
+      <tr><td>F2</td><td>Renombrar</td></tr>
+      <tr><td>Supr</td><td>Borrar lo seleccionado</td></tr>
+      <tr><td>Ctrl + C / X / V</td><td>Copiar, cortar y pegar</td></tr>
+      <tr><td>Ctrl + Z</td><td>Deshacer</td></tr>
+      <tr><td>Alt + Intro</td><td>Propiedades de lo seleccionado</td></tr>
+      <tr><td>Ctrl + F</td><td>Ir al buscador</td></tr>
+      <tr><th colspan="2">En el visor</th></tr>
+      <tr><td>May&#250;s + arrastrar</td><td>Zoom a un rect&#225;ngulo</td></tr>
+      <tr><td>Ctrl + arrastrar</td><td>Editar una medici&#243;n</td></tr>
+      <tr><td>Doble clic en una fila</td><td>Ir a la capa; repetido, acercar</td></tr>
+    </table>
+    <div class="dlg-actions"><button class="btn" id="shortcuts-close">Cerrar</button></div>
+  </div>
+</div>
+
+<!-- Ficha original del elemento (description del KML) -->
+<div id="desc-dialog" class="dlg-float" hidden>
+  <div class="dlg-box">
+    <h2 id="desc-title">Ficha</h2>
+    <div id="desc-body" class="desc-body"></div>
+    <div class="dlg-actions"><button class="btn" id="desc-close">Cerrar</button></div>
+  </div>
+</div>
+
 <!-- Selector de color -->
 <div id="color-picker" class="dlg-overlay" hidden>
   <div class="dlg-box">
@@ -698,48 +775,142 @@ const map = L.map("map", { preferCanvas: true }).setView([40.4, -3.7], 6);
 
 /* Fecha de generación del código (versión): AÑOMESDIAHORAMINUTO.
    Actualizar en cada generación; se muestra junto al crédito de Leaflet. */
-const BUILD = "202607281450";
+const BUILD = "202607282130";
 map.attributionControl.setPrefix(
   `v${BUILD} | <a href="https://leafletjs.com" title="A JavaScript library for interactive maps">Leaflet</a>`);
 
-const baseOSM = L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", {
-  maxZoom: 19,
-  attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
-});
-/* Esri World Terrain Base: cobertura global solo hasta z9; más allá el
-   servidor devuelve teselas de "Map data not yet available". Con
-   maxNativeZoom, Leaflet reescala el último nivel recibido.           */
-const baseTerrain = L.tileLayer(
-  "https://server.arcgisonline.com/ArcGIS/rest/services/World_Terrain_Base/MapServer/tile/{z}/{y}/{x}", {
-  maxNativeZoom: 9,
-  maxZoom: 19,
-  attribution: "Tiles &copy; Esri &mdash; Source: USGS, Esri, TANA, DeLorme, NPS"
-});
-/* PNOA: ortofotografía aérea de España del Instituto Geográfico Nacional */
-const basePNOA = L.tileLayer(
-  "https://tms-pnoa-ma.idee.es/1.0.0/pnoa-ma/{z}/{x}/{y}.jpeg", {
-  tms: true,
-  maxZoom: 19,
-  attribution: "PNOA M\u00E1xima Actualidad | Cedido por &copy; Instituto Geogr\u00E1fico Nacional de Espa\u00F1a"
-});
-/* MDT: Modelo Digital del Terreno de España (WMS INSPIRE del IGN).
-   Capa ráster "EL.ElevationGridCoverage" (antes "EL.GridCoverage")   */
-const baseMDT = L.tileLayer.wms("https://servicios.idee.es/wms-inspire/mdt", {
-  layers: "EL.ElevationGridCoverage",
-  format: "image/png",
-  version: "1.3.0",
-  attribution: "MDT WMS. Cedido por &copy; Instituto Geogr\u00E1fico Nacional de Espa\u00F1a"
-});
-const baseNone = L.layerGroup(); /* opción sin mapa base */
+/* ================= Mapas base =================
+   Se pueden encender a la vez y con la opacidad que se quiera, en vez de
+   elegir uno solo: superponer, por ejemplo, el relieve bajo la ortofoto,
+   o el MTN translúcido sobre la base. El orden de la lista es el orden
+   de apilado (el primero, al fondo).                                  */
+const IGN_WMTS = (service, layer, format = "image/jpeg") =>
+  `https://www.ign.es/wmts/${service}?service=WMTS&request=GetTile&version=1.0.0`
+  + `&Layer=${layer}&Style=default&Format=${format}`
+  + "&TileMatrixSet=GoogleMapsCompatible&TileMatrix={z}&TileCol={x}&TileRow={y}";
 
-baseOSM.addTo(map);
-L.control.layers({
-  "OpenStreetMap": baseOSM,
-  "F\u00EDsico (Esri World Terrain)": baseTerrain,
-  "Ortofoto PNOA (IGN)": basePNOA,
-  "MDT de Espa\u00F1a (IGN)": baseMDT,
-  "Sin mapa base": baseNone
-}).addTo(map);
+const IGN_CREDIT = "Cedido por &copy; Instituto Geogr\u00E1fico Nacional de Espa\u00F1a";
+
+const BASE_LAYERS = [
+  { id: "osm", name: "OpenStreetMap", on: true, opacity: 1,
+    layer: () => L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", {
+      maxZoom: 19,
+      attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>' }) },
+
+  /* Esri World Terrain: cobertura global solo hasta z9; más allá el
+     servidor devuelve teselas de "Map data not yet available", así que
+     con maxNativeZoom Leaflet reescala el último nivel recibido.     */
+  { id: "terrain", name: "F\u00EDsico (Esri World Terrain)", on: false, opacity: 1,
+    layer: () => L.tileLayer(
+      "https://server.arcgisonline.com/ArcGIS/rest/services/World_Terrain_Base/MapServer/tile/{z}/{y}/{x}",
+      { maxNativeZoom: 9, maxZoom: 19,
+        attribution: "Tiles &copy; Esri &mdash; Source: USGS, Esri, TANA, DeLorme, NPS" }) },
+
+  { id: "ignbase", name: "IGN Base (IGN)", on: false, opacity: 1,
+    layer: () => L.tileLayer(IGN_WMTS("ign-base", "IGNBaseTodo"),
+      { maxZoom: 19, attribution: `IGN Base. ${IGN_CREDIT}` }) },
+
+  { id: "mtn", name: "Mapa topogr\u00E1fico MTN (IGN)", on: false, opacity: 1,
+    layer: () => L.tileLayer(IGN_WMTS("mapa-raster", "MTN"),
+      { maxZoom: 19, attribution: `MTN r\u00E1ster. ${IGN_CREDIT}` }) },
+
+  { id: "relieve", name: "Relieve sombreado (IGN)", on: false, opacity: 1,
+    layer: () => L.tileLayer(IGN_WMTS("mdt", "Relieve", "image/png"),
+      { maxZoom: 19, attribution: `Relieve MDT. ${IGN_CREDIT}` }) },
+
+  { id: "pnoa", name: "Ortofoto PNOA (IGN)", on: false, opacity: 1,
+    layer: () => L.tileLayer("https://tms-pnoa-ma.idee.es/1.0.0/pnoa-ma/{z}/{x}/{y}.jpeg",
+      { tms: true, maxZoom: 19,
+        attribution: `PNOA M\u00E1xima Actualidad. ${IGN_CREDIT}` }) },
+
+  { id: "mdt", name: "MDT de Espa\u00F1a (IGN, WMS)", on: false, opacity: 1,
+    layer: () => L.tileLayer.wms("https://servicios.idee.es/wms-inspire/mdt", {
+      layers: "EL.ElevationGridCoverage", format: "image/png", version: "1.3.0",
+      transparent: true, attribution: `MDT WMS. ${IGN_CREDIT}` }) }
+];
+
+/* Estado en vivo de cada capa base */
+const baseState = new Map(BASE_LAYERS.map((d, i) => [d.id, {
+  def: d, layer: null, on: d.on, opacity: d.opacity, zIndex: i + 1, failed: false
+}]));
+
+function applyBaseLayer(id) {
+  const st = baseState.get(id);
+  if (!st) return;
+  if (st.on) {
+    if (!st.layer) {
+      st.layer = st.def.layer();
+      st.layer.setZIndex(st.zIndex);
+      /* Una URL que no responda debe verse, no fallar en silencio */
+      let errors = 0;
+      st.layer.on("tileerror", () => {
+        if (++errors !== 8 || st.failed) return;
+        st.failed = true;
+        navMessage(`El mapa base \u00AB${st.def.name}\u00BB no responde; puede que el servicio haya cambiado.`);
+        renderBasePanel();
+      });
+    }
+    st.layer.setOpacity(st.opacity);
+    if (!map.hasLayer(st.layer)) st.layer.addTo(map);
+  } else if (st.layer && map.hasLayer(st.layer)) {
+    map.removeLayer(st.layer);
+  }
+}
+
+/* ---------- Panel de mapas base ---------- */
+const BaseControl = L.Control.extend({
+  options: { position: "topright" },
+  onAdd() {
+    const box = L.DomUtil.create("div", "base-box leaflet-bar");
+    box.innerHTML = '<button class="base-toggle" title="Mapas base">\uD83D\uDDFA</button>'
+      + '<div class="base-list" hidden></div>';
+    this._list = box.querySelector(".base-list");
+    box.querySelector(".base-toggle").addEventListener("click", () => {
+      this._list.hidden = !this._list.hidden;
+    });
+    L.DomEvent.disableClickPropagation(box);
+    L.DomEvent.disableScrollPropagation(box);
+    return box;
+  }
+});
+const baseControl = new BaseControl();
+map.addControl(baseControl);
+
+function renderBasePanel() {
+  const list = baseControl._list;
+  list.innerHTML = "";
+  for (const [id, st] of baseState) {
+    const row = document.createElement("div");
+    row.className = "base-row" + (st.failed ? " failed" : "");
+    const chk = document.createElement("input");
+    chk.type = "checkbox";
+    chk.checked = st.on;
+    chk.id = `base-${id}`;
+    const label = document.createElement("label");
+    label.htmlFor = chk.id;
+    label.textContent = st.def.name + (st.failed ? " (sin respuesta)" : "");
+    const slider = document.createElement("input");
+    slider.type = "range";
+    slider.min = 0; slider.max = 1; slider.step = 0.05;
+    slider.value = st.opacity;
+    slider.title = "Opacidad";
+    slider.disabled = !st.on;
+
+    chk.addEventListener("change", () => {
+      st.on = chk.checked;
+      slider.disabled = !st.on;
+      applyBaseLayer(id);
+      scheduleBaseSave();
+    });
+    slider.addEventListener("input", () => {
+      st.opacity = Number(slider.value);
+      if (st.layer) st.layer.setOpacity(st.opacity);
+      scheduleBaseSave();
+    });
+    row.append(chk, label, slider);
+    list.appendChild(row);
+  }
+}
 
 /* Grupo raíz del visor: cuelgan todas las capas de todos los archivos */
 const rootGroup = L.featureGroup().addTo(map);
@@ -1442,7 +1613,8 @@ function makeActions(li, sortable, styleable) {
   if (sortable) {
     btn("\u2611", "Seleccionar todas las capas de esta carpeta", "", () => selectFolderLayers(li));
     btn("\u2610", "Quitar la selecci\u00F3n (igual que Escape)", "", () => clearSelection());
-    btn("AZ", "Ordenar alfab\u00E9ticamente (alterna ascendente/descendente)", "az", () => sortChildren(li));
+    btn("AZ", "Ordenar alfab\u00E9ticamente (alterna ascendente/descendente)", "az",
+        () => withUndo(`ordenar \u00AB${li._name}\u00BB`, () => sortChildren(li)));
     btn("\u229F", "Colapsar esta carpeta y las interiores", "", () => collapseDescendants(li));
     btn("\uD83D\uDCBE", "Guardar esta carpeta en un archivo para volver a cargarla despu\u00E9s", "", () => exportNode(li));
   }
@@ -1461,6 +1633,7 @@ function makeActions(li, sortable, styleable) {
     if (next) { li.parentElement.insertBefore(next, li); scheduleSave(); }
   });
   btn("\u00D7", "Borrar", "delete", () => {
+    pushUndo(`borrar \u00AB${li._name}\u00BB`);
     /* si el nodo forma parte de la selección, se borra toda la selección */
     if (selection.has(li) && selection.size > 1) {
       for (const s of topLevelSelection()) deleteNode(s);
@@ -1574,6 +1747,7 @@ function wireDrag(li, row) {
     if (!validDrop(li)) return;
     e.preventDefault();
     e.stopPropagation();
+    pushUndo("mover nodos");
     const zone = dropZone(row, li, e.clientY);
     if (zone === "drop-into") {
       const ul = nodeUl(li);
@@ -1596,7 +1770,10 @@ function validDrop(li) {
 function dropZone(row, li, clientY) {
   const r = row.getBoundingClientRect();
   const y = clientY - r.top;
-  if (nodeUl(li) && y > r.height * 0.3 && y < r.height * 0.7) return "drop-into";
+  /* En una carpeta, casi toda la fila mete dentro: reordenar entre
+     hermanos son los bordes. Antes la franja central era del 40 % y
+     había que apuntar con precisión.                                */
+  if (nodeUl(li) && y > r.height * 0.18 && y < r.height * 0.82) return "drop-into";
   return y < r.height / 2 ? "drop-before" : "drop-after";
 }
 function clearDropMarks() {
@@ -1683,6 +1860,9 @@ async function buildKmlTree(el, styleIndex, parentUl, inheritedVisible, prog, re
         const visible = inheritedVisible && ownVisibility(child);
         if (visible) layer.addTo(rootGroup);
         const pmLi = makeNode({ name, layer, style, checked: visible });
+        /* La ficha del placemark suele traer una tabla con los datos
+           reales del elemento; se guarda para poder consultarla       */
+        pmLi._desc = text(child, "description") || null;
         parentUl.appendChild(pmLi);
         ensureMarkerDefaults(pmLi); /* imported marker icons are not honoured */
         if (report) { report.loaded++; report.kinds.add(styleKind(pmLi) || "?"); }
@@ -1850,12 +2030,107 @@ async function dbSaveTree(nodes) {
     tx.onerror = () => reject(tx.error);
   });
 }
+/* ================= Ficha del elemento =================
+   La <description> de un KML es HTML de un archivo AJENO: insertarlo tal
+   cual sería ejecutar código de terceros en la página. Se sanea con
+   lista blanca: se descartan los elementos peligrosos, todos los
+   atributos `on*` y cualquier URL que no sea http(s).                */
+const DESC_TAGS = new Set(["B","I","U","EM","STRONG","SMALL","BR","P","DIV","SPAN","HR",
+  "UL","OL","LI","TABLE","THEAD","TBODY","TFOOT","TR","TD","TH","CAPTION",
+  "H1","H2","H3","H4","H5","H6","A","IMG","PRE","CODE","FONT","CENTER"]);
+const DESC_ATTRS = new Set(["href", "src", "alt", "title", "colspan", "rowspan"]);
+/* Estos se tiran ENTEROS. Al resto de elementos no permitidos se les
+   quita la etiqueta pero se conserva su texto, que suele ser el dato;
+   con un <script> eso dejaba su código a la vista como texto suelto. */
+const DESC_DROP = new Set(["SCRIPT","STYLE","IFRAME","OBJECT","EMBED","NOSCRIPT",
+  "TEMPLATE","LINK","META","TITLE","HEAD","FORM","INPUT","BUTTON","SELECT","TEXTAREA"]);
+
+function sanitizeHtml(html) {
+  const doc = new DOMParser().parseFromString(String(html), "text/html");
+  const walk = node => {
+    for (const el of [...node.children]) {
+      if (DESC_DROP.has(el.tagName)) { el.remove(); continue; }
+      if (!DESC_TAGS.has(el.tagName)) { el.replaceWith(...el.childNodes); continue; }
+      for (const att of [...el.attributes]) {
+        const name = att.name.toLowerCase();
+        const bad = !DESC_ATTRS.has(name)
+          || (/^(href|src)$/.test(name) && !/^https?:/i.test(att.value.trim()));
+        if (bad) el.removeAttribute(att.name);
+      }
+      if (el.tagName === "A") { el.target = "_blank"; el.rel = "noopener noreferrer"; }
+      walk(el);
+    }
+  };
+  walk(doc.body);
+  return doc.body.innerHTML;
+}
+
+function showDescription(li) {
+  descTitle.textContent = li._name;
+  descBody.innerHTML = sanitizeHtml(li._desc || "");
+  descDialog.hidden = false;
+  clampToViewport(descBox);
+  focusDialog(descBox);
+}
+
+/* ================= Deshacer =================
+   Instantáneas del árbol completo. Es viable porque serializar cuesta
+   poco desde que la geometría se cachea (~5 ms con 8.000 capas) y porque
+   las instantáneas COMPARTEN esa geometría en vez de clonarla: lo que
+   ocupa es la estructura, no las coordenadas.                        */
+const UNDO_MAX = 20;
+const undoStack = [];
+
+function pushUndo(label) {
+  undoStack.push({ label, nodes: serializeTree() });
+  if (undoStack.length > UNDO_MAX) undoStack.shift();
+}
+function withUndo(label, fn) {
+  pushUndo(label);
+  return fn();
+}
+
+async function undoLast() {
+  const state = undoStack.pop();
+  if (!state) { navMessage("No hay nada que deshacer."); return; }
+  clearSelection();
+  rootGroup.clearLayers();  /* el mapa se reconstruye desde la instantánea */
+  showEmptyMessage();
+  if (state.nodes.length) await restoreTree(state.nodes);
+  navMessage(`Deshecho: ${state.label}.`, { tone: "info" });
+  scheduleSave();
+}
+
 /* ---------- Vista guardada (centro y zoom) ----------
    Comparte almacén con el árbol: es otra clave, no otro almacén, así que
    no hace falta subir DB_VERSION. Lleva su propia versión de formato
    porque su contenido no tiene nada que ver con el del árbol.        */
 const VIEW_KEY = "view";
 const VIEW_SCHEMA = 1;
+const BASE_KEY = "bases";
+const BASE_SCHEMA = 1;
+
+async function dbSaveBases(rec) {
+  const db = await openDb();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(DB_TREE, "readwrite");
+    tx.objectStore(DB_TREE).put({ v: BASE_SCHEMA, ...rec }, BASE_KEY);
+    tx.oncomplete = resolve;
+    tx.onerror = () => reject(tx.error);
+  });
+}
+async function dbLoadBases() {
+  const db = await openDb();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(DB_TREE, "readonly");
+    const rq = tx.objectStore(DB_TREE).get(BASE_KEY);
+    rq.onsuccess = () => {
+      const rec = rq.result;
+      resolve(rec && rec.v === BASE_SCHEMA && rec.bases ? rec.bases : null);
+    };
+    rq.onerror = () => reject(rq.error);
+  });
+}
 
 async function dbSaveView(rec) {
   const db = await openDb();
@@ -1935,6 +2210,7 @@ function serializeNode(li) {
   if (!li._geo) li._geo = chk._layer.toGeoJSON();
   const rec = { ...base, t: "layer", style: li._style, geo: li._geo };
   if (li._mstyle) rec.mstyle = li._mstyle; /* marker style, if customized */
+  if (li._desc) rec.desc = li._desc;       /* ficha original del archivo   */
   return [rec];
 }
 const serializeNodes = ul => [...ul.children].flatMap(serializeNode);
@@ -2095,6 +2371,7 @@ async function buildFromNodes(nodes, parentUl, prog) {
         name: n.name, layer, style: n.style || null, checked: !!n.checked
       });
       parentUl.appendChild(li);
+      if (n.desc) li._desc = n.desc;
       if (n.mstyle) {
         li._mstyle = n.mstyle;
         applyMarkerStyle(li); /* async only for MDI icons (SVG cached) */
@@ -2712,6 +2989,7 @@ async function pasteClipboard() {
   const cur = selCursor;
   const intoFolder = cur && nodeUl(cur) && !cur.classList.contains("collapsed");
   const ul = intoFolder ? nodeUl(cur) : (cur ? cur.parentElement : ensureRootUl());
+  pushUndo("pegar");
   const before = [...ul.children];
   try {
     await buildFromNodes(clipboard.nodes, ul, null);
@@ -2754,8 +3032,13 @@ document.addEventListener("keydown", e => {
     if (k === "c") { e.preventDefault(); copySelection(false); return; }
     if (k === "x") { e.preventDefault(); copySelection(true); return; }
     if (k === "v") { e.preventDefault(); pasteClipboard(); return; }
+    if (k === "z") { e.preventDefault(); undoLast(); return; }
+    if (k === "f") { e.preventDefault(); searchBox.focus(); searchBox.select(); return; }
+    if (k === "a") { e.preventDefault(); selectAllStep(cur); return; }
     if (e.shiftKey) return; /* Ctrl+Shift+click se maneja en el ratón */
   }
+  if (e.key === "F2" && cur) { e.preventDefault(); startRename(cur); return; }
+  if (e.key === "?" || (e.key === "/" && e.shiftKey)) { e.preventDefault(); toggleShortcuts(); return; }
   if (e.altKey && e.key === "Enter") { e.preventDefault(); openPropertiesOfSelection(); return; }
 
   switch (e.key) {
@@ -2799,13 +3082,69 @@ document.addEventListener("keydown", e => {
       toggleVisibility(cur);
       return;
   }
+
+  /* Escritura anticipada: teclear letras salta al siguiente nodo que
+     empiece así, como en cualquier árbol de Windows. Las teclas sueltas
+     que no son atajos llegan aquí.                                   */
+  if (e.key.length === 1 && !e.ctrlKey && !e.altKey && !e.metaKey) {
+    e.preventDefault();
+    typeAhead(e.key, cur);
+  }
 });
+
+/* ---------- Escritura anticipada ---------- */
+const TYPE_AHEAD_MS = 900;
+let typeBuffer = "", typeAt = 0;
+
+function typeAhead(ch, cur) {
+  const now = Date.now();
+  /* Tras una pausa se empieza una palabra nueva; repetir la misma letra
+     recorre los nodos que empiezan por ella, como en Windows        */
+  typeBuffer = (now - typeAt > TYPE_AHEAD_MS) ? ch : typeBuffer + ch;
+  typeAt = now;
+  const needle = typeBuffer.toLowerCase();
+  const repeat = typeBuffer.length > 1 && [...typeBuffer].every(c => c === typeBuffer[0]);
+  const target = repeat ? typeBuffer[0].toLowerCase() : needle;
+
+  const start = cur || firstRow();
+  if (!start) return;
+  /* Se busca desde el siguiente, dando la vuelta al llegar al final */
+  let n = nextRow(start) || firstRow();
+  for (let i = 0; n && i < 5000; i++) {
+    if (n._name && n._name.toLowerCase().startsWith(target)) { moveCursorTo(n, false); return; }
+    n = nextRow(n) || firstRow();
+    if (n === start) break;
+  }
+  navMessage(`Nada que empiece por \u00AB${typeBuffer}\u00BB.`, { tone: "info" });
+}
+
+/* ---------- Ctrl+A en dos pasos ----------
+   Primero la carpeta actual; si ya estaba entera seleccionada, todo el
+   árbol. Es lo que hace el explorador con contenedores anidados.    */
+function selectAllStep(cur) {
+  const sibs = siblingRows(cur || firstRow());
+  const all = [];
+  for (let n = firstRow(); n; n = nextRow(n)) all.push(n);
+  const already = sibs.length && sibs.every(n => selection.has(n));
+  const target = already ? all : sibs;
+  if (!target.length) return;
+  for (const li of [...selection]) setSelected(li, false);
+  for (const li of target) setSelected(li, true);
+  setSelCursor(target[target.length - 1]);
+  selAnchor = target[0];
+  navMessage(already
+    ? `Seleccionado todo el \u00E1rbol (${target.length} nodos).`
+    : `Seleccionada la carpeta actual (${target.length} nodos). Ctrl+A otra vez para todo.`,
+    { tone: "info" });
+}
 
 /* Supr borra toda la selección de golpe (fuera de campos de texto) */
 document.addEventListener("keydown", e => {
   if (e.key !== "Delete" || !selection.size) return;
   if (/INPUT|TEXTAREA/.test(e.target.tagName)) return;
-  for (const s of topLevelSelection()) deleteNode(s);
+  const items = topLevelSelection();
+  pushUndo(`borrar ${items.length} nodo(s)`);
+  for (const s of items) deleteNode(s);
 });
 
 /* ================= Estilos de capa (marcadores y polígonos) =================
@@ -3257,13 +3596,32 @@ const $id = id => document.getElementById(id);
 const styleBox = styleDialog.querySelector(".dlg-box");
 const iconBox = iconPicker.querySelector(".dlg-box");
 const colorBox = document.querySelector("#color-picker .dlg-box");
-for (const box of [styleBox, iconBox, colorBox]) makeDialogMovable(box);
+const shortcutsDialog = document.getElementById("shortcuts");
+const shortcutsBox = shortcutsDialog.querySelector(".dlg-box");
+function toggleShortcuts() {
+  shortcutsDialog.hidden = !shortcutsDialog.hidden;
+  if (!shortcutsDialog.hidden) { clampToViewport(shortcutsBox); focusDialog(shortcutsBox); }
+  else releaseFocus();
+}
+document.getElementById("shortcuts-close").addEventListener("click", toggleShortcuts);
+
+const descDialog = document.getElementById("desc-dialog");
+const descBox = descDialog.querySelector(".dlg-box");
+const descTitle = document.getElementById("desc-title");
+const descBody = document.getElementById("desc-body");
+document.getElementById("desc-close").addEventListener("click", () => {
+  descDialog.hidden = true;
+  releaseFocus();
+});
+for (const box of [styleBox, iconBox, colorBox, descBox, shortcutsBox]) makeDialogMovable(box);
 setupDialog(styleBox, { modal: false }); /* flotante: el mapa sigue vivo */
 setupDialog(iconBox, { modal: true });
 setupDialog(colorBox, { modal: true });
+setupDialog(descBox, { modal: false });
+setupDialog(shortcutsBox, { modal: true });
 window.addEventListener("resize", () => {
   /* a moved dialog must not fall off-screen */
-  for (const box of [styleBox, iconBox, colorBox]) clampToViewport(box);
+  for (const box of [styleBox, iconBox, colorBox, descBox, shortcutsBox]) clampToViewport(box);
 });
 let styleTargets = [];    /* nodes being edited */
 let styleKindOpen = null; /* "marker" | "polygon" */
@@ -3734,6 +4092,8 @@ function setTool(tool) {
 document.addEventListener("keydown", e => {
   if (e.key !== "Escape") return;
   /* Escape closes open dialogs first; otherwise cancels tool/selection */
+  if (!shortcutsDialog.hidden) { toggleShortcuts(); return; }
+  if (!descDialog.hidden) { descDialog.hidden = true; releaseFocus(); return; }
   if (!colorPicker.hidden) { colorPicker.hidden = true; colorTarget = null; releaseFocus(); return; }
   if (!iconPicker.hidden) { iconPicker.hidden = true; pendingIcon = null; releaseFocus(); return; }
   if (!styleDialog.hidden) { closeStyleDialog(false); return; }
@@ -4568,6 +4928,29 @@ map.on("mousemove", e => {
   });
 });
 
+/* ---------- Memoria de los mapas base ---------- */
+let baseTimer = null;
+function scheduleBaseSave() {
+  clearTimeout(baseTimer);
+  baseTimer = setTimeout(() => {
+    const bases = {};
+    for (const [id, st] of baseState) bases[id] = { on: st.on, opacity: st.opacity };
+    dbSaveBases({ bases }).catch(() => {});
+  }, 500);
+}
+
+/* Solo se aceptan capas que sigan existiendo y valores con sentido: la
+   lista puede haber cambiado entre versiones                         */
+function applySavedBases(saved) {
+  if (!saved) return;
+  for (const [id, st] of baseState) {
+    const rec = saved[id];
+    if (!rec) continue;
+    if (typeof rec.on === "boolean") st.on = rec.on;
+    if (Number.isFinite(rec.opacity)) st.opacity = Math.min(1, Math.max(0, rec.opacity));
+  }
+}
+
 /* La vista se guarda al terminar de moverla, no durante: `moveend` ya
    llega una vez por gesto, y el retardo agrupa los encadenados.      */
 const VIEW_SAVE_MS = 800;
@@ -4594,6 +4977,11 @@ map.on("moveend zoomend", scheduleViewSave);
     if (view) map.setView([view.lat, view.lng], view.zoom, { animate: false });
   } catch { /* sin vista guardada se queda la de por defecto */ }
   viewRestoring = false;
+
+  /* Mapas base: primero lo guardado, luego se pintan y se encienden */
+  try { applySavedBases(await dbLoadBases()); } catch { /* valores por defecto */ }
+  renderBasePanel();
+  for (const id of baseState.keys()) applyBaseLayer(id);
 
   let nodes = null;
   try { nodes = await dbLoadTree(); } catch { nodes = null; }

@@ -239,6 +239,11 @@ manteniendo los principios acordados durante el desarrollo del proyecto.
   fijos sin ratón encima. A cambio no son alcanzables con el tabulador:
   el camino de teclado son los atajos (Alt+Intro, Supr, Ctrl+X/C/V,
   espacio), no los botones.
+- **Teclas al estilo Windows**: F2 renombra, Ctrl+A selecciona la carpeta
+  actual y, repetido, todo el árbol; Ctrl+F lleva al buscador; `?` abre
+  la chuleta de atajos; escribir letras salta al nodo que empiece así
+  (`typeAhead`, con la misma letra repetida recorriendo coincidencias,
+  como en el explorador).
 - **Ancla y rangos**: con Shift (teclado o click) se selecciona todo lo
   que hay entre el ancla y el destino, reemplazando la selección;
   Ctrl+Shift+click marca o desmarca un solo nodo sin arrastrar los
@@ -540,6 +545,40 @@ manteniendo los principios acordados durante el desarrollo del proyecto.
 - Lo que NO puede llevar SRI: las teselas y los iconos PNG (los `<img>`
   no lo admiten) y las respuestas de las APIs REST (Iconify, Nominatim,
   IGN), que son datos, no código.
+
+## Mapas base
+
+- Son **independientes**: se encienden a la vez, en cualquier
+  combinación, cada uno con su opacidad. `BASE_LAYERS` es la lista y su
+  orden es el de apilado (el primero, al fondo); las capas se crean
+  perezosamente al encenderlas.
+- La configuración (encendidas y opacidades) se guarda en el mismo
+  almacén bajo la clave `bases`, con su propio `BASE_SCHEMA`, y al leerla
+  se descartan las capas que ya no existan y los valores fuera de rango.
+- Una capa cuya URL no responda se marca en rojo en el panel tras varios
+  errores de tesela, en vez de quedarse en blanco sin explicación. Las de
+  IGN Base, MTN y Relieve usan las URL WMTS del IGN: si alguna cambiara,
+  el aviso es lo que lo delata.
+
+## Deshacer
+
+- `pushUndo(etiqueta)` guarda una instantánea del árbol antes de cada
+  operación destructiva (borrar, pegar, mover arrastrando, ordenar).
+  Es viable porque serializar es barato desde que la geometría se cachea
+  y porque las instantáneas **comparten** esa geometría en vez de
+  clonarla: lo que ocupan es la estructura.
+- Toda operación nueva que destruya o reordene debe llamar a `pushUndo`
+  ANTES de tocar nada.
+
+## Ficha del elemento
+
+- La `<description>` del KML se guarda en `li._desc` y se serializa; el
+  botón ℹ la muestra en un diálogo.
+- Es HTML de un archivo AJENO, así que se sanea con lista blanca
+  (`sanitizeHtml`): los elementos peligrosos se tiran **enteros**
+  (`DESC_DROP`), a los desconocidos se les quita la etiqueta pero se
+  conserva el texto —que suele ser el dato—, y se eliminan todos los
+  atributos `on*` y las URL que no sean http(s).
 
 ## Vista guardada
 
