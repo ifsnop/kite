@@ -775,7 +775,7 @@ const map = L.map("map", { preferCanvas: true }).setView([40.4, -3.7], 6);
 
 /* Fecha de generación del código (versión): AÑOMESDIAHORAMINUTO.
    Actualizar en cada generación; se muestra junto al crédito de Leaflet. */
-const BUILD = "202607282130";
+const BUILD = "202607290930";
 map.attributionControl.setPrefix(
   `v${BUILD} | <a href="https://leafletjs.com" title="A JavaScript library for interactive maps">Leaflet</a>`);
 
@@ -1057,11 +1057,30 @@ function placemarkStyle(pm, styleIndex) {
 
 /* ================= Geometrías KML ================= */
 
-/* Longitud/latitud válidas: finitas y dentro de rango. Coordenadas
-   incompletas, con texto o fuera de rango se descartan en vez de
-   producir capas en posiciones absurdas.                            */
-const validLatLng = (lat, lon) =>
-  isFinite(lat) && isFinite(lon) && Math.abs(lat) <= 90 && Math.abs(lon) <= 180;
+/* ---------- Coordenadas: rango con tolerancia ----------
+   Reproyectar acumula error de coma flotante, y es corriente encontrar
+   longitudes como 180.00000044181039: se salen del rango por 4×10⁻⁷
+   grados, unos 5 cm. Descartarlas por eso hacía perder la geometría
+   entera por un redondeo. Se ajustan al límite las que se pasan por
+   menos de `COORD_EPS`, y se siguen rechazando las que se salen de
+   verdad —como las latitudes de 32400 que produce escribir las
+   coordenadas con coma decimal—.                                     */
+const COORD_EPS = 1e-5; /* grados: ~1,1 m, muy por encima del redondeo */
+let coordClamped = 0;   /* cuántas se han ajustado en la importación   */
+
+function clampDeg(v, limit) {
+  if (!isFinite(v)) return NaN;
+  if (v > limit) { if (v - limit > COORD_EPS) return NaN; coordClamped++; return limit; }
+  if (v < -limit) { if (-limit - v > COORD_EPS) return NaN; coordClamped++; return -limit; }
+  return v;
+}
+
+/* Devuelve el par ajustado, o null si alguna se sale de verdad */
+function clampLatLng(lat, lon) {
+  const la = clampDeg(lat, 90), lo = clampDeg(lon, 180);
+  return isFinite(la) && isFinite(lo) ? [la, lo] : null;
+}
+const validLatLng = (lat, lon) => clampLatLng(lat, lon) !== null;
 
 /* "lon,lat[,alt] lon,lat…" → [[lat,lon], …], descartando lo inválido */
 function parseCoords(str) {
@@ -1071,9 +1090,9 @@ function parseCoords(str) {
     if (!tuple) continue;
     const parts = tuple.split(",");
     if (parts.length < 2) { skipped++; continue; }
-    const lon = Number(parts[0]), lat = Number(parts[1]);
-    if (!validLatLng(lat, lon)) { skipped++; continue; }
-    out.push([lat, lon]);
+    const pair = clampLatLng(Number(parts[1]), Number(parts[0]));
+    if (!pair) { skipped++; continue; }
+    out.push(pair);
   }
   out.skipped = skipped;
   return out;
@@ -1921,8 +1940,17 @@ function validGeometry(geom, depth = 0) {
   const c = geom.coordinates;
   if (!Array.isArray(c) || !c.length) return false;
   /* A position is [lon, lat, alt?]; anything deeper is a list of them */
-  const checkPos = pos => Array.isArray(pos) && pos.length >= 2 &&
-    validLatLng(Number(pos[1]), Number(pos[0]));
+  /* Además de comprobar, AJUSTA la posición sobre el propio objeto: así
+     lo que se guarda y se dibuja ya está dentro de rango y no hace
+     falta recorrer la geometría por segunda vez.                    */
+  const checkPos = pos => {
+    if (!Array.isArray(pos) || pos.length < 2) return false;
+    const pair = clampLatLng(Number(pos[1]), Number(pos[0]));
+    if (!pair) return false;
+    pos[0] = pair[1];
+    pos[1] = pair[0];
+    return true;
+  };
   const walk = (node, level) => level === 0
     ? checkPos(node)
     : Array.isArray(node) && node.length > 0 && node.every(n => walk(n, level - 1));
@@ -2512,6 +2540,7 @@ function parseKmlDocument(content) {
 async function addFileNode(name, kind, content, insertBefore = null) {
   const big = content.length > SIZE_THRESHOLD;
   const report = makeImportReport(name);
+  coordClamped = 0;
   const ul = ensureRootUl();
   const wrap = kind !== "kml";
   const li = wrap ? makeNode({ name, isFile: true }) : null;
@@ -2591,6 +2620,10 @@ async function addFileNode(name, kind, content, insertBefore = null) {
   /* Resumen de la importación: qué entró, qué se omitió y por qué.
      Si hay algo omitido o alguna advertencia, el aviso espera a que el
      usuario pulse "Aceptar"; si todo ha ido bien, se va solo.        */
+  if (coordClamped) {
+    report.note(`${coordClamped} coordenada(s) fuera de rango por redondeo,`
+      + ` ajustadas al l\u00EDmite (menos de ${COORD_EPS}\u00B0)`);
+  }
   navMessage(report.summary(), {
     sticky: report.hasIssues,
     tone: report.hasIssues ? "error" : "info"

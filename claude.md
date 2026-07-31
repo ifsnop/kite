@@ -92,8 +92,18 @@ manteniendo los principios acordados durante el desarrollo del proyecto.
   (`STYLE_HOPS`) y corte de ciclos; admite `<Style>` incrustado en el
   `<Pair>`. Las referencias a archivos externos no se pueden resolver sin
   descargarlos: se cuentan (`externalRefs`) y se avisa en el resumen.
-- **Coordenadas**: `validLatLng` exige valores finitos y en rango; las
-  tuplas incompletas o con texto se descartan una a una. GeoJSON pasa
+- **Coordenadas con tolerancia de redondeo**: reproyectar acumula error
+  de coma flotante y es corriente encontrar longitudes como
+  `180.00000044181039`, fuera de rango por 4×10⁻⁷ grados (unos 5 cm).
+  Descartarlas hacía perder la geometría entera por un redondeo, así que
+  `clampDeg`/`clampLatLng` **ajustan al límite** lo que se pase por menos
+  de `COORD_EPS` (10⁻⁵°, ~1,1 m) y siguen rechazando lo que se sale de
+  verdad, como las latitudes de 32400 que produce escribir coordenadas
+  con coma decimal. Los ajustes se cuentan y se avisan en el resumen de
+  importación: corregir en silencio sería peor.
+- En GeoJSON la validación **normaliza sobre el propio objeto**, de modo
+  que lo que se dibuja y se guarda ya está dentro de rango sin recorrer
+  la geometría dos veces. GeoJSON pasa
   además por `validGeometry` (tipo conocido, anidamiento correcto, anillos
   de al menos cuatro posiciones, líneas de al menos dos).
 - **Aislamiento por entidad**: cada Placemark y cada feature se construye
