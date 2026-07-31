@@ -375,10 +375,12 @@
   .base-box { background: #fff; border-radius: 4px; }
   .base-toggle {
     display: block;
-    width: 30px; height: 30px;
+    width: 48px; height: 48px;
     border: none; background: none;
-    font-size: 15px; cursor: pointer; line-height: 30px; text-align: center;
+    cursor: pointer; color: var(--text);
+    padding: 4px;
   }
+  .base-toggle:hover { color: var(--accent); }
   .base-list {
     padding: 6px 8px;
     border-top: 1px solid var(--border);
@@ -386,9 +388,15 @@
     font: 12px system-ui, sans-serif;
   }
   .base-list[hidden] { display: none; }
-  .base-row { display: grid; grid-template-columns: auto 1fr; gap: 4px 6px; align-items: center; margin: 4px 0; }
+  .base-row { display: grid; grid-template-columns: auto 1fr auto; gap: 3px 6px; align-items: center; margin: 5px 0; }
+  .base-moves { display: flex; gap: 2px; }
+  .base-moves button {
+    border: 1px solid var(--border); background: #fff; border-radius: 4px;
+    font-size: 9px; line-height: 1; padding: 2px 3px; cursor: pointer; color: var(--muted);
+  }
+  .base-moves button:disabled { opacity: .35; cursor: default; }
   .base-row label { cursor: pointer; white-space: nowrap; }
-  .base-row input[type="range"] { grid-column: 2; width: 100%; height: 14px; }
+  .base-row input[type="range"] { grid-column: 1 / -1; width: 100%; height: 14px; }
   .base-row.failed label { color: var(--danger); }
 
   .coords-zoom { color: var(--muted); font-weight: 600; }
@@ -592,7 +600,9 @@
 <!-- ================= Ventana de navegación ================= -->
 <aside id="nav-panel">
   <header>
-    <h1 title="KML Interactive Tree Explorer">KITE Local</h1>
+    <h1 title="KML Interactive Tree Explorer">KITE Local
+      <button id="help-btn" class="btn" title="Ayuda y atajos de teclado (tecla ?)">?</button>
+    </h1>
     <div id="dropzone">Arrastre aquí sus archivos KML/KMZ/JSON o carpetas exportadas (.kite.json)</div>
     <div class="nav-actions">
       <input type="text" id="place-box" placeholder="Buscar un lugar y a&#241;adir marcador&#8230;">
@@ -641,6 +651,11 @@
 <div id="style-dialog" class="dlg-float" hidden>
   <div class="dlg-box">
     <h2 id="style-title">Estilo de capa</h2>
+    <!-- El nombre es de cada nodo, así que solo se edita con uno
+         seleccionado; sirve para capas de cualquier tipo -->
+    <div class="dlg-row" id="name-row" hidden>
+      <span>Nombre</span><input type="text" id="mk-name">
+    </div>
     <div id="style-marker" hidden>
       <div class="dlg-row"><span>Marcador</span>
         <span class="icon-preview-wrap"><img id="icon-preview" alt=""></span>
@@ -652,7 +667,6 @@
       <div class="dlg-row"><span>Color del texto</span><button type="button" class="color-btn" id="mk-text-color"></button></div>
       <div class="dlg-row"><label for="mk-text-always">Mostrar el texto siempre (si no, solo al hacer click)</label><input type="checkbox" id="mk-text-always"></div>
       <div id="mk-single" hidden>
-        <div class="dlg-row"><span>Texto</span><input type="text" id="mk-name"></div>
         <div class="dlg-row"><span>Coordenadas</span>
           <span class="dlg-note" id="pos-format-label"></span>
           <button class="btn" id="pos-format" title="Cambiar el formato de las coordenadas">&#8597;</button>
@@ -695,10 +709,10 @@
       <tr><td>Esc</td><td>Quitar la selecci&#243;n</td></tr>
       <tr><th colspan="2">Actuar</th></tr>
       <tr><td>Espacio</td><td>Activar o desactivar la capa</td></tr>
-      <tr><td>F2</td><td>Renombrar</td></tr>
+      <tr><td>F2</td><td>Renombrar (tambi&#233;n en las propiedades)</td></tr>
       <tr><td>Supr</td><td>Borrar lo seleccionado</td></tr>
       <tr><td>Ctrl + C / X / V</td><td>Copiar, cortar y pegar</td></tr>
-      <tr><td>Ctrl + Z</td><td>Deshacer</td></tr>
+      <tr><td>Ctrl + Z / Ctrl + Y</td><td>Deshacer y rehacer</td></tr>
       <tr><td>Alt + Intro</td><td>Propiedades de lo seleccionado</td></tr>
       <tr><td>Ctrl + F</td><td>Ir al buscador</td></tr>
       <tr><th colspan="2">En el visor</th></tr>
@@ -771,11 +785,14 @@ if (typeof L === "undefined") {
 /* `preferCanvas`: con miles de geometrías, dibujarlas como elementos SVG
    crea decenas de miles de nodos en el DOM y el mapa se arrastra al hacer
    zoom o pan. En lienzo se pinta todo de una vez.                      */
-const map = L.map("map", { preferCanvas: true }).setView([40.4, -3.7], 6);
+/* `maxZoom` en el mapa, no solo en cada capa: sin él `getMaxZoom()`
+   devuelve Infinity cuando no hay ninguna capa base activa, y eso salía
+   escrito en el cuadro de coordenadas y rompía la escalera de zoom.  */
+const map = L.map("map", { preferCanvas: true, maxZoom: 19 }).setView([40.4, -3.7], 6);
 
 /* Fecha de generación del código (versión): AÑOMESDIAHORAMINUTO.
    Actualizar en cada generación; se muestra junto al crédito de Leaflet. */
-const BUILD = "202607290930";
+const BUILD = "202607291320";
 map.attributionControl.setPrefix(
   `v${BUILD} | <a href="https://leafletjs.com" title="A JavaScript library for interactive maps">Leaflet</a>`);
 
@@ -814,9 +831,13 @@ const BASE_LAYERS = [
     layer: () => L.tileLayer(IGN_WMTS("mapa-raster", "MTN"),
       { maxZoom: 19, attribution: `MTN r\u00E1ster. ${IGN_CREDIT}` }) },
 
-  { id: "relieve", name: "Relieve sombreado (IGN)", on: false, opacity: 1,
-    layer: () => L.tileLayer(IGN_WMTS("mdt", "Relieve", "image/png"),
-      { maxZoom: 19, attribution: `Relieve MDT. ${IGN_CREDIT}` }) },
+  /* El WMTS del IGN no sirve ninguna capa llamada "Relieve" (devolvía
+     404 en todas las teselas). Se usa el sombreado mundial de Esri, del
+     mismo servidor que la capa física, que sí está publicado.       */
+  { id: "relieve", name: "Relieve sombreado (Esri)", on: false, opacity: 1,
+    layer: () => L.tileLayer(
+      "https://server.arcgisonline.com/ArcGIS/rest/services/Elevation/World_Hillshade/MapServer/tile/{z}/{y}/{x}",
+      { maxZoom: 19, attribution: "Hillshade &copy; Esri" }) },
 
   { id: "pnoa", name: "Ortofoto PNOA (IGN)", on: false, opacity: 1,
     layer: () => L.tileLayer("https://tms-pnoa-ma.idee.es/1.0.0/pnoa-ma/{z}/{x}/{y}.jpeg",
@@ -862,7 +883,15 @@ const BaseControl = L.Control.extend({
   options: { position: "topright" },
   onAdd() {
     const box = L.DomUtil.create("div", "base-box leaflet-bar");
-    box.innerHTML = '<button class="base-toggle" title="Mapas base">\uD83D\uDDFA</button>'
+    /* Icono de capas dibujado en SVG: el emoji anterior salía diminuto y
+       dependía de la fuente del sistema                              */
+    box.innerHTML =
+      '<button class="base-toggle" title="Mapas base" aria-label="Mapas base">'
+      + '<svg viewBox="0 0 24 24" width="40" height="40" aria-hidden="true">'
+      + '<path fill="currentColor" d="M12 2 1.5 8 12 14l10.5-6L12 2Z"/>'
+      + '<path fill="currentColor" opacity=".65" d="M12 16.2 3.7 11.4 1.5 12.7 12 18.7l10.5-6-2.2-1.3L12 16.2Z"/>'
+      + '<path fill="currentColor" opacity=".4" d="M12 20.4 3.7 15.6 1.5 16.9 12 22.9l10.5-6-2.2-1.3L12 20.4Z"/>'
+      + '</svg></button>'
       + '<div class="base-list" hidden></div>';
     this._list = box.querySelector(".base-list");
     box.querySelector(".base-toggle").addEventListener("click", () => {
@@ -876,9 +905,28 @@ const BaseControl = L.Control.extend({
 const baseControl = new BaseControl();
 map.addControl(baseControl);
 
+/* El orden del Map es el de apilado; mover una capa es reconstruirlo */
+function moveBaseLayer(id, delta) {
+  const ids = [...baseState.keys()];
+  const i = ids.indexOf(id);
+  const j = i + delta;
+  if (i < 0 || j < 0 || j >= ids.length) return;
+  ids.splice(j, 0, ids.splice(i, 1)[0]);
+  const entries = ids.map(k => [k, baseState.get(k)]);
+  baseState.clear();
+  entries.forEach(([k, st], n) => {
+    st.zIndex = n + 1;
+    if (st.layer) st.layer.setZIndex(st.zIndex);
+    baseState.set(k, st);
+  });
+  renderBasePanel();
+  scheduleBaseSave();
+}
+
 function renderBasePanel() {
   const list = baseControl._list;
   list.innerHTML = "";
+  const ids = [...baseState.keys()];
   for (const [id, st] of baseState) {
     const row = document.createElement("div");
     row.className = "base-row" + (st.failed ? " failed" : "");
@@ -907,7 +955,19 @@ function renderBasePanel() {
       if (st.layer) st.layer.setOpacity(st.opacity);
       scheduleBaseSave();
     });
-    row.append(chk, label, slider);
+    /* Subir y bajar en el apilado: la primera de la lista va al fondo */
+    const moves = document.createElement("span");
+    moves.className = "base-moves";
+    for (const [glyph, delta, title] of [["\u25B2", -1, "Bajar en el apilado"],
+                                         ["\u25BC", 1, "Subir en el apilado"]]) {
+      const b = document.createElement("button");
+      b.textContent = glyph;
+      b.title = title;
+      b.disabled = (delta < 0 && ids[0] === id) || (delta > 0 && ids[ids.length - 1] === id);
+      b.addEventListener("click", () => moveBaseLayer(id, delta));
+      moves.appendChild(b);
+    }
+    row.append(chk, label, moves, slider);
     list.appendChild(row);
   }
 }
@@ -1082,6 +1142,9 @@ function clampLatLng(lat, lon) {
 }
 const validLatLng = (lat, lon) => clampLatLng(lat, lon) !== null;
 
+/* Opciones del globo compacto, compartidas por marcadores y polígonos */
+const COMPACT_POPUP = { className: "compacto", autoClose: false, closeOnClick: false };
+
 /* "lon,lat[,alt] lon,lat…" → [[lat,lon], …], descartando lo inválido */
 function parseCoords(str) {
   const out = [];
@@ -1149,7 +1212,9 @@ function buildPlacemarkLayer(pm, style, report) {
 
   const group = L.featureGroup(layers);
   const name = text(pm, "name");
-  if (name) group.bindPopup(name);
+  /* Mismo globo ajustado al texto que en los marcadores: el de Leaflet
+     por defecto tapa media pantalla para escribir un nombre         */
+  if (name) group.bindPopup(escapeHtml(name), COMPACT_POPUP);
   return group;
 }
 
@@ -1477,12 +1542,15 @@ function applyVisibility(chk) {
    de renombrar / subir / bajar / borrar) para cualquier tipo de nodo:
    archivo, carpeta, capa (placemark / feature) o medición.            */
 function makeNode({ name, layer = null, isFolder = false, isFile = false,
-                    style = null, checked = true,
+                    style = null, checked = true, desc = null,
                     onDelete = null, onRename = null,
                     styleable = layer !== null }) {
   const li = document.createElement("li");
   if (isFile) li.className = "file";
   li._name = name;
+  /* La ficha se asigna AQUÍ, antes de crear los botones: al hacerlo
+     después, `makeActions` no la veía y el botón ℹ nunca aparecía.  */
+  li._desc = desc;
   li._style = style;
   li._onDelete = onDelete;
   li._onRename = onRename;
@@ -1642,7 +1710,6 @@ function makeActions(li, sortable, styleable) {
         () => focusOnNode(li));
     btn("\uD83C\uDFA8", "Estilos de la capa", "", () => openStyleDialog(li));
   }
-  btn("\u270E", "Renombrar", "", () => startRename(li));
   btn("\u2191", "Subir", "", () => {
     const prev = li.previousElementSibling;
     if (prev) { li.parentElement.insertBefore(li, prev); scheduleSave(); }
@@ -1758,10 +1825,9 @@ function wireDrag(li, row) {
     if (!validDrop(li)) return;
     e.preventDefault();
     e.stopPropagation();
-    clearDropMarks();
-    row.classList.add(dropZone(row, li, e.clientY));
+    markDrop(row, dropZone(row, li, e.clientY));
   });
-  row.addEventListener("dragleave", () => row.classList.remove("drop-before", "drop-after", "drop-into"));
+  row.addEventListener("dragleave", () => { if (dropMarked === row) clearDropMarks(); });
   row.addEventListener("drop", e => {
     if (!validDrop(li)) return;
     e.preventDefault();
@@ -1789,16 +1855,28 @@ function validDrop(li) {
 function dropZone(row, li, clientY) {
   const r = row.getBoundingClientRect();
   const y = clientY - r.top;
-  /* En una carpeta, casi toda la fila mete dentro: reordenar entre
-     hermanos son los bordes. Antes la franja central era del 40 % y
-     había que apuntar con precisión.                                */
-  if (nodeUl(li) && y > r.height * 0.18 && y < r.height * 0.82) return "drop-into";
-  return y < r.height / 2 ? "drop-before" : "drop-after";
+  /* Franjas en PÍXELES: con un porcentaje, en filas de 24 px el borde
+     útil quedaba en 4 px y era imposible acertar. Seis píxeles arriba y
+     abajo reordenan; el resto de una carpeta mete dentro.            */
+  const edge = Math.min(6, r.height / 3);
+  if (y < edge) return "drop-before";
+  if (y > r.height - edge) return "drop-after";
+  return nodeUl(li) ? "drop-into" : (y < r.height / 2 ? "drop-before" : "drop-after");
 }
+/* La marca de destino la lleva UNA fila cada vez. Barrer el árbol entero
+   en cada `dragover` —que se dispara decenas de veces por segundo—
+   hacía que arrastrar fuera a tirones en árboles grandes.            */
+let dropMarked = null;
 function clearDropMarks() {
-  for (const el of treeEl.querySelectorAll(".drop-before, .drop-after, .drop-into")) {
-    el.classList.remove("drop-before", "drop-after", "drop-into");
-  }
+  if (!dropMarked) return;
+  dropMarked.classList.remove("drop-before", "drop-after", "drop-into");
+  dropMarked = null;
+}
+function markDrop(row, zone) {
+  if (dropMarked === row && row.classList.contains(zone)) return;
+  clearDropMarks();
+  row.classList.add(zone);
+  dropMarked = row;
 }
 
 /* ================= Construcción del árbol desde KML / GeoJSON =================
@@ -1878,10 +1956,10 @@ async function buildKmlTree(el, styleIndex, parentUl, inheritedVisible, prog, re
         }
         const visible = inheritedVisible && ownVisibility(child);
         if (visible) layer.addTo(rootGroup);
-        const pmLi = makeNode({ name, layer, style, checked: visible });
         /* La ficha del placemark suele traer una tabla con los datos
            reales del elemento; se guarda para poder consultarla       */
-        pmLi._desc = text(child, "description") || null;
+        const pmLi = makeNode({ name, layer, style, checked: visible,
+                                desc: text(child, "description") || null });
         parentUl.appendChild(pmLi);
         ensureMarkerDefaults(pmLi); /* imported marker icons are not honoured */
         if (report) { report.loaded++; report.kinds.add(styleKind(pmLi) || "?"); }
@@ -1988,7 +2066,7 @@ async function buildGeoJsonTree(gj, parentUl, prog, report) {
       }
       const style = geojsonStyle(props);
       const layer = L.geoJSON(feature, { style });
-      layer.bindPopup(name);
+      layer.bindPopup(escapeHtml(name), COMPACT_POPUP);
       layer.addTo(rootGroup); /* GeoJSON no define visibilidad: todo activo */
       const gjLi = makeNode({ name, layer, style });
       parentUl.appendChild(gjLi);
@@ -2108,10 +2186,22 @@ function showDescription(li) {
    ocupa es la estructura, no las coordenadas.                        */
 const UNDO_MAX = 20;
 const undoStack = [];
+const redoStack = [];
 
 function pushUndo(label) {
   undoStack.push({ label, nodes: serializeTree() });
   if (undoStack.length > UNDO_MAX) undoStack.shift();
+  /* Una acción nueva invalida lo rehacible: la historia se bifurca */
+  redoStack.length = 0;
+}
+
+/* Reconstruye el árbol desde una instantánea */
+async function applySnapshot(nodes) {
+  clearSelection();
+  rootGroup.clearLayers();
+  showEmptyMessage();
+  if (nodes.length) await restoreTree(nodes);
+  scheduleSave();
 }
 function withUndo(label, fn) {
   pushUndo(label);
@@ -2121,12 +2211,19 @@ function withUndo(label, fn) {
 async function undoLast() {
   const state = undoStack.pop();
   if (!state) { navMessage("No hay nada que deshacer."); return; }
-  clearSelection();
-  rootGroup.clearLayers();  /* el mapa se reconstruye desde la instantánea */
-  showEmptyMessage();
-  if (state.nodes.length) await restoreTree(state.nodes);
+  /* Antes de retroceder se guarda el presente, que es lo que habrá que
+     recuperar al rehacer                                             */
+  redoStack.push({ label: state.label, nodes: serializeTree() });
+  await applySnapshot(state.nodes);
   navMessage(`Deshecho: ${state.label}.`, { tone: "info" });
-  scheduleSave();
+}
+
+async function redoLast() {
+  const state = redoStack.pop();
+  if (!state) { navMessage("No hay nada que rehacer."); return; }
+  undoStack.push({ label: state.label, nodes: serializeTree() });
+  await applySnapshot(state.nodes);
+  navMessage(`Rehecho: ${state.label}.`, { tone: "info" });
 }
 
 /* ---------- Vista guardada (centro y zoom) ----------
@@ -2154,7 +2251,7 @@ async function dbLoadBases() {
     const rq = tx.objectStore(DB_TREE).get(BASE_KEY);
     rq.onsuccess = () => {
       const rec = rq.result;
-      resolve(rec && rec.v === BASE_SCHEMA && rec.bases ? rec.bases : null);
+      resolve(rec && rec.v === BASE_SCHEMA && rec.bases ? rec : null);
     };
     rq.onerror = () => reject(rq.error);
   });
@@ -2396,10 +2493,10 @@ async function buildFromNodes(nodes, parentUl, prog) {
       layer.bindPopup(n.name);
       if (n.checked) layer.addTo(rootGroup);
       const li = makeNode({
-        name: n.name, layer, style: n.style || null, checked: !!n.checked
+        name: n.name, layer, style: n.style || null, checked: !!n.checked,
+        desc: n.desc || null
       });
       parentUl.appendChild(li);
-      if (n.desc) li._desc = n.desc;
       if (n.mstyle) {
         li._mstyle = n.mstyle;
         applyMarkerStyle(li); /* async only for MDI icons (SVG cached) */
@@ -3066,6 +3163,7 @@ document.addEventListener("keydown", e => {
     if (k === "x") { e.preventDefault(); copySelection(true); return; }
     if (k === "v") { e.preventDefault(); pasteClipboard(); return; }
     if (k === "z") { e.preventDefault(); undoLast(); return; }
+    if (k === "y") { e.preventDefault(); redoLast(); return; }
     if (k === "f") { e.preventDefault(); searchBox.focus(); searchBox.select(); return; }
     if (k === "a") { e.preventDefault(); selectAllStep(cur); return; }
     if (e.shiftKey) return; /* Ctrl+Shift+click se maneja en el ratón */
@@ -3116,40 +3214,7 @@ document.addEventListener("keydown", e => {
       return;
   }
 
-  /* Escritura anticipada: teclear letras salta al siguiente nodo que
-     empiece así, como en cualquier árbol de Windows. Las teclas sueltas
-     que no son atajos llegan aquí.                                   */
-  if (e.key.length === 1 && !e.ctrlKey && !e.altKey && !e.metaKey) {
-    e.preventDefault();
-    typeAhead(e.key, cur);
-  }
 });
-
-/* ---------- Escritura anticipada ---------- */
-const TYPE_AHEAD_MS = 900;
-let typeBuffer = "", typeAt = 0;
-
-function typeAhead(ch, cur) {
-  const now = Date.now();
-  /* Tras una pausa se empieza una palabra nueva; repetir la misma letra
-     recorre los nodos que empiezan por ella, como en Windows        */
-  typeBuffer = (now - typeAt > TYPE_AHEAD_MS) ? ch : typeBuffer + ch;
-  typeAt = now;
-  const needle = typeBuffer.toLowerCase();
-  const repeat = typeBuffer.length > 1 && [...typeBuffer].every(c => c === typeBuffer[0]);
-  const target = repeat ? typeBuffer[0].toLowerCase() : needle;
-
-  const start = cur || firstRow();
-  if (!start) return;
-  /* Se busca desde el siguiente, dando la vuelta al llegar al final */
-  let n = nextRow(start) || firstRow();
-  for (let i = 0; n && i < 5000; i++) {
-    if (n._name && n._name.toLowerCase().startsWith(target)) { moveCursorTo(n, false); return; }
-    n = nextRow(n) || firstRow();
-    if (n === start) break;
-  }
-  navMessage(`Nada que empiece por \u00AB${typeBuffer}\u00BB.`, { tone: "info" });
-}
 
 /* ---------- Ctrl+A en dos pasos ----------
    Primero la carpeta actual; si ya estaba entera seleccionada, todo el
@@ -3637,6 +3702,7 @@ function toggleShortcuts() {
   else releaseFocus();
 }
 document.getElementById("shortcuts-close").addEventListener("click", toggleShortcuts);
+document.getElementById("help-btn").addEventListener("click", toggleShortcuts);
 
 const descDialog = document.getElementById("desc-dialog");
 const descBox = descDialog.querySelector(".dlg-box");
@@ -3694,6 +3760,10 @@ function openStyleDialog(li, { isNew = false } = {}) {
     ? `Estilo de ${styleTargets.length} capas` : `Estilo: ${li._name}`;
   $id("style-marker").hidden = kind !== "marker";
   $id("style-polygon").hidden = kind !== "polygon";
+  /* El nombre solo tiene sentido con un único nodo: es propio de cada uno */
+  const single = styleTargets.length === 1;
+  $id("name-row").hidden = !single;
+  if (single) $id("mk-name").value = styleTargets[0]._name;
 
   /* The draft starts from the first target: with a multi-selection its
      style is the one offered as the common starting point             */
@@ -3716,7 +3786,6 @@ function openStyleDialog(li, { isNew = false } = {}) {
       posOriginal = posMarker.getLatLng();
       styleDraft.lat = posOriginal.lat;
       styleDraft.lng = posOriginal.lng;
-      $id("mk-name").value = styleTargets[0]._name;
       renderCoords();
       /* Dragging is live by nature: it moves the marker right away and
          feeds the inputs. "Cancelar" puts it back where it was.        */
@@ -3831,6 +3900,10 @@ for (const id of ["pg-weight", "pg-fill", "pg-fill-opacity"]) { /* colours: open
 $id("style-cancel").addEventListener("click", () => closeStyleDialog(false));
 $id("style-accept").addEventListener("click", () => {
   if (!styleDraft) return;
+  /* El nombre se aplica sea cual sea el tipo del nodo */
+  if (!$id("name-row").hidden && styleTargets.length === 1) {
+    setNodeName(styleTargets[0], $id("mk-name").value || styleTargets[0]._name);
+  }
   if (styleKindOpen === "marker") {
     readMarkerControls();
     if (posMarker) {
@@ -3841,7 +3914,6 @@ $id("style-accept").addEventListener("click", () => {
       }
       styleDraft.lat = lat;
       styleDraft.lng = lon;
-      setNodeName(styleTargets[0], $id("mk-name").value || styleTargets[0]._name);
       posMarker.setLatLng([lat, lon]);
       invalidateGeo(styleTargets[0]);
     }
@@ -4968,7 +5040,7 @@ function scheduleBaseSave() {
   baseTimer = setTimeout(() => {
     const bases = {};
     for (const [id, st] of baseState) bases[id] = { on: st.on, opacity: st.opacity };
-    dbSaveBases({ bases }).catch(() => {});
+    dbSaveBases({ bases, order: [...baseState.keys()] }).catch(() => {});
   }, 500);
 }
 
@@ -4976,8 +5048,18 @@ function scheduleBaseSave() {
    lista puede haber cambiado entre versiones                         */
 function applySavedBases(saved) {
   if (!saved) return;
+  /* Orden guardado, ignorando identificadores que ya no existan y
+     añadiendo al final los que sean nuevos en esta versión         */
+  if (Array.isArray(saved.order)) {
+    const known = [...baseState.keys()];
+    const ids = saved.order.filter(id => baseState.has(id));
+    for (const id of known) if (!ids.includes(id)) ids.push(id);
+    const entries = ids.map(k => [k, baseState.get(k)]);
+    baseState.clear();
+    entries.forEach(([k, st], n) => { st.zIndex = n + 1; baseState.set(k, st); });
+  }
   for (const [id, st] of baseState) {
-    const rec = saved[id];
+    const rec = saved.bases[id];
     if (!rec) continue;
     if (typeof rec.on === "boolean") st.on = rec.on;
     if (Number.isFinite(rec.opacity)) st.opacity = Math.min(1, Math.max(0, rec.opacity));

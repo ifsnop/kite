@@ -250,10 +250,14 @@ manteniendo los principios acordados durante el desarrollo del proyecto.
   el camino de teclado son los atajos (Alt+Intro, Supr, Ctrl+X/C/V,
   espacio), no los botones.
 - **Teclas al estilo Windows**: F2 renombra, Ctrl+A selecciona la carpeta
-  actual y, repetido, todo el árbol; Ctrl+F lleva al buscador; `?` abre
-  la chuleta de atajos; escribir letras salta al nodo que empiece así
-  (`typeAhead`, con la misma letra repetida recorriendo coincidencias,
-  como en el explorador).
+  actual y, repetido, todo el árbol; Ctrl+F lleva al buscador; Ctrl+Z y
+  Ctrl+Y deshacen y rehacen; `?` abre la chuleta, también accesible con
+  el botón junto al título. **Sin escritura anticipada**: se retiró
+  porque el buscador del panel ya cubre esa necesidad y capturaba todas
+  las teclas sueltas.
+- **Renombrar es F2 o el diálogo de propiedades** (fila «Nombre», visible
+  solo con un nodo seleccionado, para cualquier tipo de capa). Se retiró
+  el botón del lápiz de cada fila.
 - **Ancla y rangos**: con Shift (teclado o click) se selecciona todo lo
   que hay entre el ancla y el destino, reemplazando la selección;
   Ctrl+Shift+click marca o desmarca un solo nodo sin arrastrar los
@@ -558,6 +562,20 @@ manteniendo los principios acordados durante el desarrollo del proyecto.
 
 ## Mapas base
 
+- **Se pueden reordenar** con las flechas de cada fila: el orden del Map
+  `baseState` ES el de apilado y los `zIndex` se recalculan al moverlas.
+  El orden se guarda junto a las opacidades, ignorando al leerlo los
+  identificadores que ya no existan y añadiendo al final los nuevos.
+- **No inventar capas**: la capa «Relieve» del WMTS del IGN devolvía 404
+  en todas las teselas porque ese servicio no publica ese nombre. Se
+  sustituyó por el sombreado mundial de Esri, del mismo servidor que la
+  capa física, que sí existe. Cualquier capa nueva debe verificarse
+  contra el servicio antes de darla por buena.
+- **`maxZoom` va también en el mapa**, no solo en cada capa: sin él
+  `getMaxZoom()` devuelve `Infinity` cuando no hay ninguna capa base
+  activa, y eso salía escrito en el cuadro de coordenadas y rompía la
+  escalera de zoom del doble clic.
+
 - Son **independientes**: se encienden a la vez, en cualquier
   combinación, cada uno con su opacidad. `BASE_LAYERS` es la lista y su
   orden es el de apilado (el primero, al fondo); las capas se crean
@@ -570,7 +588,7 @@ manteniendo los principios acordados durante el desarrollo del proyecto.
   IGN Base, MTN y Relieve usan las URL WMTS del IGN: si alguna cambiara,
   el aviso es lo que lo delata.
 
-## Deshacer
+## Deshacer y rehacer
 
 - `pushUndo(etiqueta)` guarda una instantánea del árbol antes de cada
   operación destructiva (borrar, pegar, mover arrastrando, ordenar).
@@ -579,11 +597,26 @@ manteniendo los principios acordados durante el desarrollo del proyecto.
   clonarla: lo que ocupan es la estructura.
 - Toda operación nueva que destruya o reordene debe llamar a `pushUndo`
   ANTES de tocar nada.
+- Ctrl+Y rehace: `undoLast` guarda el presente en `redoStack` antes de
+  retroceder. Una acción nueva vacía esa pila, porque la historia se
+  bifurca y lo rehacible deja de tener sentido.
+
+## Arrastrar y soltar
+
+- Las franjas de destino van en **píxeles**, no en porcentaje: con filas
+  de 24 px, un porcentaje dejaba bordes de 4 px imposibles de acertar.
+  Seis píxeles arriba y abajo reordenan entre hermanos; el resto de una
+  carpeta mete dentro.
+- La marca de destino la lleva **una sola fila** (`dropMarked`). Barrer
+  el árbol con `querySelectorAll` en cada `dragover` —que se dispara
+  decenas de veces por segundo— hacía que arrastrar fuera a tirones.
 
 ## Ficha del elemento
 
 - La `<description>` del KML se guarda en `li._desc` y se serializa; el
-  botón ℹ la muestra en un diálogo.
+  botón ℹ la muestra en un diálogo. **Se pasa a `makeNode` como opción**,
+  no se asigna después: los botones se crean dentro de `makeNode`, así
+  que asignarla luego dejaba el botón sin aparecer nunca.
 - Es HTML de un archivo AJENO, así que se sanea con lista blanca
   (`sanitizeHtml`): los elementos peligrosos se tiran **enteros**
   (`DESC_DROP`), a los desconocidos se les quita la etiqueta pero se
