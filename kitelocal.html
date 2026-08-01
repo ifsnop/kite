@@ -14,8 +14,8 @@
   default-src 'none';
   script-src 'self' 'unsafe-inline' https://unpkg.com https://cdnjs.cloudflare.com;
   style-src 'self' 'unsafe-inline' https://unpkg.com;
-  img-src 'self' data: blob: https://unpkg.com https://api.iconify.design https://xyz-mdt.idee.es https://www.ign.es https://tile.openstreetmap.org https://server.arcgisonline.com https://tms-pnoa-ma.idee.es https://servicios.idee.es;
-  connect-src 'self' https://api.iconify.design https://nominatim.openstreetmap.org https://wcs-mds.idee.es https://unpkg.com https://cdnjs.cloudflare.com;
+  img-src 'self' data: blob: https://unpkg.com https://api.iconify.design https://www.ign.es https://tile.openstreetmap.org https://server.arcgisonline.com https://tms-pnoa-ma.idee.es https://servicios.idee.es;
+  connect-src 'self' https://api.iconify.design https://nominatim.openstreetmap.org https://wcs-mds.idee.es https://servicios.idee.es https://unpkg.com https://cdnjs.cloudflare.com;
   font-src 'self';
   base-uri 'none';
   form-action 'none';
@@ -361,6 +361,11 @@
   .measure-label { font-weight: 600; font-family: system-ui, sans-serif; }
 
   .coords-box {
+    /* La línea inferior del visor es SOLO para la atribución: el cuadro
+       de coordenadas vive siempre por encima de ella. Con eso no hace
+       falta limitar su ancho, y así cabe la línea de la diferencia
+       entre superficie y terreno.                                  */
+    margin-bottom: 22px;
     background: rgba(255,255,255,.85);
     border: 1px solid var(--border);
     border-radius: 4px;
@@ -400,6 +405,15 @@
   .base-row.failed label { color: var(--danger); }
 
   .coords-zoom { color: var(--muted); font-weight: 600; }
+  /* La atribución se queda en una sola línea, la de abajo del todo */
+  .leaflet-control-attribution {
+    max-width: 100%;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  /* Todo lo que se ancle abajo a la izquierda respeta esa línea */
+  .leaflet-bottom.leaflet-left { padding-bottom: 4px; }
   .coords-dms { color: #445; }
   .coords-utm { color: var(--muted); }
   .coords-alt { color: var(--accent); font-weight: 600; }
@@ -792,7 +806,7 @@ const map = L.map("map", { preferCanvas: true, maxZoom: 19 }).setView([40.4, -3.
 
 /* Fecha de generación del código (versión): AÑOMESDIAHORAMINUTO.
    Actualizar en cada generación; se muestra junto al crédito de Leaflet. */
-const BUILD = "202607291320";
+const BUILD = "202607301700";
 map.attributionControl.setPrefix(
   `v${BUILD} | <a href="https://leafletjs.com" title="A JavaScript library for interactive maps">Leaflet</a>`);
 
@@ -4367,262 +4381,111 @@ function rebuildMeasurement(n, parentUl) {
   updateMeasurement(m);
 }
 
-/* ================= Modo altura (MDT del IGN) =================
-   El servicio XYZ del IGN sirve el MDT05 del PNOA en teselas PNG con
-   codificación Terrain-RGB. Como cada lectura cuesta una descarga, el
-   modo se activa a mano y todo aquí está pensado para pedir lo mínimo:
-   las teselas se cachean, el ratón se muestrea con retardo, hay tope de
-   peticiones por segundo y una tesela que falla no se vuelve a pedir.
-   La altitud es ortométrica (sobre el nivel medio del mar), no la
-   elipsoidal que da un GNSS.                                          */
-const DEM_URL = "https://xyz-mdt.idee.es/1.0.0/raster-dem/{z}/{x}/{y}.png";
-const DEM_MIN_Z = 5, DEM_MAX_Z = 15;   /* zooms publicados por el servicio */
-const DEM_CACHE_MAX = 60;              /* ~15 MB de píxeles cacheados      */
-const DEM_MAX_RPS = 4;                 /* peticiones por segundo            */
-const DEM_SAMPLE_MS = 150;             /* muestreo del ratón                */
-const DEM_STATUS_QUIET = 20000;        /* silencio entre avisos repetidos   */
-const DEM_ATTRIB = 'MDT05/MDS PNOA \u00A9 <a href="https://www.ign.es">IGN</a> (CC BY 4.0)';
+/* ================= Modo altura (MDT y MDS del IGN) =================
+   Los dos modelos se consultan por el MISMO camino: WCS 2.0, rejilla
+   ASCII, la misma ventana y el mismo recorte. Antes el terreno venía de
+   teselas Terrain-RGB y la superficie de un WCS, y comparar sus valores
+   —o restarlos para saber qué hay construido— no era fiable: distinto
+   muestreo, distinta interpolación y distinto redondeo.
+
+   Cada consulta es una petición entera, así que se lanzan solo cuando el
+   cursor se para y se cachean por celdas.                             */
+const ELEV_WINDOW = 10;      /* m: media ventana pedida alrededor del punto */
+const ELEV_CELL = 25;        /* m: tamaño de la celda cacheada              */
+const ELEV_SETTLE_MS = 700;  /* el cursor debe pararse antes de pedir       */
+const ELEV_CACHE_MAX = 200;
+const ELEV_TIMEOUT = 12000;
+const ELEV_MAX_RPS = 4;      /* peticiones por segundo, entre las dos fuentes */
+const ELEV_STATUS_QUIET = 20000;
+const ELEV_ATTRIB = 'MDT05/MDS PNOA \u00A9 <a href="https://www.ign.es">IGN</a> (CC BY 4.0)';
 
 let demOn = false;
 let demButton = null;
-const demCache = new Map();   /* clave z/x/y -> ImageData, o null si no hay */
-const demPending = new Map(); /* peticiones en vuelo, para no duplicarlas   */
-const demTimes = [];          /* marcas de tiempo, para el tope por segundo */
+const demTimes = [];
 const demStatusAt = { ok: 0, error: 0 };
 
-/* Lienzo único donde se vuelca cada tesela para leer sus píxeles */
-const demCanvas = document.createElement("canvas");
-const demCtx = demCanvas.getContext("2d", { willReadFrequently: true });
-
-/* Tesela XYZ y píxel dentro de ella para una posición */
-const MERCATOR_LAT = 85.05112878; /* borde de la proyección Web Mercator */
-
-function demTileFor(lat, lon, zoom) {
-  /* Fuera de la franja Mercator no existe la tesela: `tan` no llega a
-     infinito en coma flotante, así que hay que descartarlo a mano o se
-     pediría una tesela imposible                                     */
-  if (!isFinite(lat) || !isFinite(lon) || Math.abs(lat) > MERCATOR_LAT) return null;
-  const z = Math.min(DEM_MAX_Z, Math.max(DEM_MIN_Z, zoom));
-  const n = 2 ** z;
-  const latRad = toRad(lat);
-  /* Longitud normalizada: Leaflet la da fuera de ±180 al cruzar el
-     antimeridiano y la tesela sería otra                             */
-  const lonN = ((lon + 540) % 360) - 180;
-  const fx = (lonN + 180) / 360 * n;
-  const fy = (1 - Math.log(Math.tan(latRad) + 1 / Math.cos(latRad)) / Math.PI) / 2 * n;
-  if (!isFinite(fx) || !isFinite(fy)) return null;
-  return {
-    z, x: Math.floor(fx), y: Math.floor(fy),
-    px: Math.floor((fx - Math.floor(fx)) * 256),
-    py: Math.floor((fy - Math.floor(fy)) * 256)
-  };
-}
-
-/* Fórmula oficial de Terrain-RGB. Devuelve null donde no hay dato:
-   píxel transparente o valores imposibles (el suelo del formato).    */
-function demDecode(data, px, py) {
-  const i = (py * data.width + px) * 4;
-  const a = data.data[i + 3];
-  if (!a) return null;
-  const h = -10000 + (data.data[i] * 65536 + data.data[i + 1] * 256 + data.data[i + 2]) * 0.1;
-  return h < -500 || h > 9000 ? null : h;
-}
-
-/* Tope de peticiones por segundo: ventana deslizante */
+/* Tope de peticiones por segundo, compartido: son el mismo servidor */
 function demRateOk() {
   const now = Date.now();
   while (demTimes.length && now - demTimes[0] > 1000) demTimes.shift();
-  if (demTimes.length >= DEM_MAX_RPS) return false;
+  if (demTimes.length >= ELEV_MAX_RPS) return false;
   demTimes.push(now);
   return true;
 }
 
-/* Estado de las descargas en el panel. Se agrupa: un aviso por racha,
-   porque moviendo el ratón se piden muchas teselas seguidas.         */
+/* Un aviso por racha: moviendo el ratón se piden muchos puntos */
 function demStatus(kind, detail) {
   const now = Date.now();
-  if (now - demStatusAt[kind] < DEM_STATUS_QUIET) return;
+  if (now - demStatusAt[kind] < ELEV_STATUS_QUIET) return;
   demStatusAt[kind] = now;
-  if (kind === "ok") navMessage("Altitud: teselas del MDT descargadas del IGN.", { tone: "info" });
-  else navMessage(`Altitud: no se pudo descargar el MDT del IGN (${detail}).`);
+  if (kind === "ok") navMessage("Altitud: datos recibidos del IGN.", { tone: "info" });
+  else navMessage(`Altitud: ${detail}.`);
 }
 
-function demCacheSet(key, value) {
-  demCache.set(key, value);
-  /* Se descarta lo más antiguo: el Map conserva el orden de inserción */
-  while (demCache.size > DEM_CACHE_MAX) demCache.delete(demCache.keys().next().value);
+/* ---------- Lectura de las respuestas del servicio ---------- */
+
+/* Pedir en latitud/longitud evita convertir coordenadas por nuestra
+   cuenta y, con ello, toda una clase de errores. Solo se usa si el
+   servicio declara admitir un CRS geográfico.                        */
+const ELEV_GEO_CRS = [/EPSG\/0\/4326$/, /EPSG\/0\/4258$/];
+const pickGeoCrs = list =>
+  ELEV_GEO_CRS.reduce((found, re) => found || (list || []).find(c => re.test(c)), null) || null;
+
+/* Web Mercator, la misma proyección en la que se dibuja el visor. Se
+   prefiere a las geográficas: así lo que se consulta está en el mismo
+   sistema que lo que se ve. La conversión la hace Leaflet con su propia
+   proyección (`map.options.crs.project`), sin cálculos nuestros.     */
+const pickWebMercator = list => (list || []).find(c => /EPSG\/0\/3857$/.test(c)) || null;
+
+/* Metros Web Mercator de una posición, exactamente como los calcula el
+   visor para colocar las teselas                                      */
+function toWebMercator(lat, lon) {
+  const p = map.options.crs.project(L.latLng(lat, lon));
+  return { x: p.x, y: p.y };
 }
 
-/* ImageData de la tesela: del caché, o descargándola. `undefined`
-   significa "ahora no" (tope de peticiones), distinto de `null`, que es
-   "no hay cobertura aquí".                                           */
-function demTile(t) {
-  const key = `${t.z}/${t.x}/${t.y}`;
-  if (demCache.has(key)) return Promise.resolve(demCache.get(key));
-  if (demPending.has(key)) return demPending.get(key);
-  if (!demRateOk()) return Promise.resolve(undefined);
-
-  const p = new Promise(resolve => {
-    const img = new Image();
-    img.crossOrigin = "anonymous"; /* sin esto el lienzo queda contaminado */
-    img.onload = () => {
-      try {
-        demCanvas.width = img.naturalWidth || 256;
-        demCanvas.height = img.naturalHeight || 256;
-        demCtx.drawImage(img, 0, 0);
-        const data = demCtx.getImageData(0, 0, demCanvas.width, demCanvas.height);
-        demCacheSet(key, data);
-        demStatus("ok");
-        resolve(data);
-      } catch (err) {
-        demCacheSet(key, null);
-        demStatus("error", "el servicio no permite leer los p\u00EDxeles");
-        resolve(null);
-      }
-    };
-    img.onerror = () => {
-      /* Fuera de cobertura o servicio caído: se recuerda para no insistir */
-      demCacheSet(key, null);
-      demStatus("error", "tesela no disponible");
-      resolve(null);
-    };
-    img.src = DEM_URL.replace("{z}", t.z).replace("{x}", t.x).replace("{y}", t.y);
-  }).finally(() => demPending.delete(key));
-
-  demPending.set(key, p);
-  return p;
-}
-
-/* Muestreo con retardo: mover el ratón no puede disparar una descarga
-   por cada píxel recorrido                                           */
-let demTimer = null, demWanted = null;
-function demRequest(latlng) {
-  demWanted = latlng;
-  if (demTimer) return;
-  demTimer = setTimeout(() => {
-    demTimer = null;
-    demSample(demWanted);
-  }, DEM_SAMPLE_MS);
-}
-
-async function demSample(latlng) {
-  if (!demOn || !latlng) return;
-  const t = demTileFor(latlng.lat, latlng.lng, map.getZoom());
-  if (!t) { coordsControl.setElevation("\u2014", null); return; }
-  const data = await demTile(t);
-  if (!demOn) return;
-  if (data === undefined) return;              /* aplazada por el tope       */
-  if (data === null) { coordsControl.setElevation("sin cobertura", null); return; }
-  const h = demDecode(data, t.px, t.py);
-  coordsControl.setElevation(h === null ? "sin datos" : fmtAltitude(h), h);
-}
-
-/* ================= Altura de superficie (MDS del IGN) =================
-   El MDS (terreno + edificios y vegetación) NO se publica como teselas
-   XYZ, solo como WCS 2.0: hay que pedir una cobertura por punto en vez
-   de una tesela que sirva para toda una comarca. Por eso se consulta
-   aparte, solo cuando el cursor se detiene, y con su propio caché por
-   celdas.
-
-   Nada del servicio se da por sabido: el identificador de cobertura y
-   las etiquetas de sus ejes se leen de su GetCapabilities/DescribeCoverage
-   la primera vez, porque inventárselos daría peticiones mal formadas.
-   Se pide rejilla ASCII (texto) y no GeoTIFF para no arrastrar una
-   librería de imágenes: el valor se lee del propio texto.             */
-const MDS_BASE = "https://wcs-mds.idee.es/mds";
-const MDS_CELL = 25;        /* m: tamaño de la celda que se cachea      */
-const MDS_WINDOW = 10;      /* m: ventana pedida alrededor del punto    */
-const MDS_SETTLE_MS = 700;  /* el cursor debe pararse antes de pedir    */
-const MDS_CACHE_MAX = 200;
-const MDS_TIMEOUT = 12000;
-
-let mdsConfig = null;       /* {coverageId, axisX, axisY} descubierto    */
-let mdsConfigTry = null;    /* promesa del descubrimiento en curso       */
-const mdsCache = new Map();
-
-/* `extra` permite repetir una misma clave, que es como WCS pide los dos
-   `subset`: un objeto plano solo admitiría uno                        */
-function mdsUrl(params, extra = []) {
-  const q = new URLSearchParams({ service: "WCS", version: "2.0.1", ...params });
-  for (const [k, v] of extra) q.append(k, v);
-  return `${MDS_BASE}?${q}`;
-}
-
-/* Del GetCapabilities interesa el primer <CoverageId>; de la
-   DescribeCoverage, las etiquetas de los ejes (axisLabels).           */
-/* De varias coberturas hay que elegir la del modelo de superficie
-   ABSOLUTO. Este servicio publica además dos "normalizadas"
-   (`mdsn_e025`, `mdsn_v025`) que dan la altura de edificios o vegetación
-   SOBRE EL SUELO, no la altitud: compararlas con el MDT daría una
-   diferencia sin sentido.                                             */
-function pickMdsCoverage(ids) {
-  return ids.find(id => !/mdsn|norm/i.test(id)) || ids[0] || null;
-}
-
-function parseMdsCapabilities(xmlText) {
-  const doc = new DOMParser().parseFromString(xmlText, "text/xml");
-  if (parserErrorText(doc)) return null;
-  const ids = elsByTag(doc, "CoverageId").map(el => el.textContent.trim()).filter(Boolean);
-  const coverageId = pickMdsCoverage(ids);
-  if (!coverageId) return null;
-  return {
-    coverageId,
-    formats: elsByTag(doc, "formatSupported").map(el => el.textContent.trim()).filter(Boolean),
-    crs: elsByTag(doc, "crsSupported").map(el => el.textContent.trim()).filter(Boolean)
-  };
-}
+/* Media ventana en metros Web Mercator equivalente a `metros` reales.
+   La proyección estira la escala con la latitud: sin corregirlo, la
+   ventana sería demasiado pequeña en el norte.                       */
+const webMercatorHalf = (lat, metros) => metros / Math.max(0.05, Math.cos(toRad(lat)));
 
 /* De todos los formatos que ofrezca el servicio hay que quedarse con uno
-   que se pueda leer sin librerías: la rejilla ASCII es texto plano. Los
-   nombres varían entre servidores (MapServer publica la suya como
-   `image/x-aaigrid`), así que se busca por patrón, no por igualdad. */
-/* Pedir en latitud/longitud evita convertir coordenadas por nuestra
-   cuenta y, con ello, toda una clase de errores (el huso equivocado ya
-   costó un ExtentError). Solo se usa si el servicio declara admitir un
-   CRS geográfico mediante la extensión de CRS de WCS 2.0.            */
-const MDS_GEO_CRS = [/EPSG\/0\/4326$/, /EPSG\/0\/4258$/];
-const pickGeoCrs = list =>
-  MDS_GEO_CRS.reduce((found, re) => found || (list || []).find(c => re.test(c)), null) || null;
-
-const MDS_TEXT_FORMATS = [
-  /arcgrid/i,            /* nombre de MapServer para la rejilla ESRI     */
-  /(^|\/)asc$/i,         /* "application/asc" del servicio del IGN       */
-  /aaigrid/i, /ascii/i,  /* otras variantes del mismo formato            */
-  /^text\/plain$/i, /^text\//i
+   legible sin librerías: la rejilla ASCII es texto plano. Los nombres
+   varían entre servidores (el IGN la publica como `ArcGrid` y
+   `application/asc`), así que se busca por patrón, no por igualdad.  */
+const ELEV_TEXT_FORMATS = [
+  /arcgrid/i, /(^|\/)asc$/i, /aaigrid/i, /ascii/i, /^text\/plain$/i, /^text\//i
 ];
-
 function pickMdsFormat(formats) {
-  for (const pattern of MDS_TEXT_FORMATS) {
+  for (const pattern of ELEV_TEXT_FORMATS) {
     const found = (formats || []).find(f => pattern.test(f));
     if (found) return found;
   }
   return null;
 }
-/* Del DescribeCoverage se saca TODO lo que hace falta para pedir bien:
-   sistema de referencia, nombres de los ejes y extensión válida. La
-   suposición de que el primer eje era el norte fue justo lo que provocó
-   el ExtentError: este servicio los declara al revés.                */
+
+/* Del DescribeCoverage sale todo lo necesario para pedir bien: sistema
+   de referencia, nombres de los ejes y extensión válida. El eje se
+   identifica por su NOMBRE, nunca por su orden: hay servicios que los
+   declaran `x y` y otros `N E`, y suponerlo produce un ExtentError. */
 function parseMdsCoverage(xmlText) {
   const doc = new DOMParser().parseFromString(xmlText, "text/xml");
   if (parserErrorText(doc)) return null;
   const env = firstByTag(doc, "Envelope");
   if (!env) return null;
 
+  /* `axisLabels` es un ATRIBUTO del <Envelope>, no un elemento */
   const labels = (env.getAttribute("axisLabels") || text(doc, "axisLabels") || "")
     .trim().split(/\s+/).filter(Boolean);
   const lower = (text(env, "lowerCorner") || "").trim().split(/\s+/).map(Number);
   const upper = (text(env, "upperCorner") || "").trim().split(/\s+/).map(Number);
   if (labels.length < 2 || lower.length < 2 || upper.length < 2) return null;
 
-  /* Qué eje es cada cual se decide por su NOMBRE, no por el orden */
   const isEast = l => /^(x|e|east|easting|lon|long)/i.test(l);
   let ix = labels.findIndex(isEast);
   let iy = labels.findIndex(l => !isEast(l));
-  if (ix < 0 || iy < 0 || ix === iy) { ix = 0; iy = 1; } /* último recurso */
+  if (ix < 0 || iy < 0 || ix === iy) { ix = 0; iy = 1; }
 
-  /* CRS: si es geográfico las subconsultas van en grados; si es UTM, en
-     metros del huso que indique el código EPSG (el MDS usa el 30
-     extendido para toda España, pero se lee, no se supone)           */
   const srs = env.getAttribute("srsName") || "";
   const epsg = Number((srs.match(/(\d{4,5})(?:\D*)$/) || [])[1]);
   const geographic = epsg === 4326 || epsg === 4258;
@@ -4630,7 +4493,7 @@ function parseMdsCoverage(xmlText) {
   if (!geographic) {
     if (epsg >= 25828 && epsg <= 25838) zone = epsg - 25800;      /* ETRS89 / UTM */
     else if (epsg >= 32601 && epsg <= 32660) zone = epsg - 32600; /* WGS84 / UTM  */
-    else zone = 30; /* el huso documentado del MDS */
+    else zone = 30;
   }
   return {
     axisX: labels[ix], axisY: labels[iy], geographic, zone,
@@ -4639,29 +4502,28 @@ function parseMdsCoverage(xmlText) {
   };
 }
 
-/* Los servicios OGC devuelven los errores como XML, no como HTTP: sin
-   mirarlos, un ExtentError se leía como "sin datos"                  */
+/* Los servicios OGC devuelven los errores como XML y a veces con HTTP
+   200: sin mirarlos, un ExtentError se leería como "sin datos".      */
 function parseOwsException(txt) {
   if (!/ExceptionReport/.test(txt)) return null;
   const doc = new DOMParser().parseFromString(txt, "text/xml");
   if (parserErrorText(doc)) return null;
   const el = firstByTag(doc, "ExceptionText") || firstByTag(doc, "Exception");
   const code = firstByTag(doc, "Exception");
-  const msg = el ? el.textContent.trim() : "error del servicio";
-  return { code: (code && code.getAttribute("exceptionCode")) || "", msg };
+  return {
+    code: (code && code.getAttribute("exceptionCode")) || "",
+    msg: el ? el.textContent.trim() : "error del servicio"
+  };
 }
 
-
 /* Rejilla ASCII de ESRI: cabecera de "clave valor" y luego los números.
-   Se devuelve el primer valor que no sea el NODATA declarado.         */
+   Se devuelve el primer valor que no sea el NODATA declarado.        */
 function parseAsciiGrid(txt) {
   const nodata = (txt.match(/NODATA_value\s+(-?[\d.]+)/i) || [])[1];
   const nd = nodata === undefined ? -9999 : Number(nodata);
-  /* Se salta la cabecera: las líneas que empiezan por letra */
   const body = txt.split(/\r?\n/).filter(l => /^\s*-?[\d.]/.test(l)).join(" ");
-  /* Se exige que el elemento sea un número de verdad: una respuesta de
-     error del servidor dejaría el cuerpo vacío y `Number("")` es 0, que
-     se colaría como "altitud cero"                                   */
+  /* Se exige un número de verdad: con el cuerpo vacío, `Number("")` es 0
+     y una respuesta de error se colaría como "altitud cero"          */
   for (const tok of body.match(/-?\d+(?:\.\d+)?/g) || []) {
     const v = Number(tok);
     if (isFinite(v) && v !== nd && v > -500 && v < 9000) return v;
@@ -4669,159 +4531,240 @@ function parseAsciiGrid(txt) {
   return null;
 }
 
-async function mdsFetch(params, signal, extra = []) {
-  const r = await fetch(mdsUrl(params, extra), { signal });
-  const txt = await r.text();
-  /* Los servicios OGC explican el fallo en el CUERPO aunque devuelvan un
-     400: quedarse en el código HTTP tira justo el dato que sirve       */
-  const ex = parseOwsException(txt);
-  if (ex) throw Object.assign(new Error(ex.msg), { owsCode: ex.code });
-  if (!r.ok) throw new Error(describeHttp(r.status));
-  return txt;
-}
+/* ---------- Cliente WCS de elevaciones ----------
+   Sirve para los dos servicios porque solo cambian la dirección y qué
+   cobertura elegir. Nada del servicio se supone: identificador de
+   cobertura, formato, sistema de referencia, ejes y extensión salen de
+   su GetCapabilities y su DescribeCoverage.                          */
+function makeElevationSource({ base, label, pickCoverage }) {
+  const cache = new Map();
+  let config = null, discovering = null;
 
-/* Descubrimiento perezoso, una sola vez por sesión */
-function mdsDiscover() {
-  if (mdsConfig) return Promise.resolve(mdsConfig);
-  if (mdsConfigTry) return mdsConfigTry;
-  mdsConfigTry = (async () => {
-    const signal = AbortSignal.timeout(MDS_TIMEOUT);
-    const caps = parseMdsCapabilities(await mdsFetch({ request: "GetCapabilities" }, signal));
-    if (!caps) throw new Error("el servicio no declara ninguna cobertura");
-    const { coverageId } = caps;
-    /* Si no declarara ninguno, se prueban los habituales antes de rendirse */
-    const format = pickMdsFormat(caps.formats.length ? caps.formats
-      : ["image/x-aaigrid", "text/plain"]);
-    if (!format) {
-      throw new Error("el servicio solo ofrece formatos binarios (" +
-        caps.formats.slice(0, 3).join(", ") + "), que no se pueden leer sin una librer\u00EDa de im\u00E1genes");
-    }
-    const desc = parseMdsCoverage(
-      await mdsFetch({ request: "DescribeCoverage", coverageId }, signal));
-    if (!desc) throw new Error("no se pudo leer la descripci\u00F3n de la cobertura");
-    /* `geoCrs` manda si existe; si el servidor lo rechaza, se cae a las
-       coordenadas nativas de la cobertura (ver `mdsElevation`)      */
-    mdsConfig = { coverageId, format, geoCrs: pickGeoCrs(caps.crs), ...desc };
-    return mdsConfig;
-  })().catch(err => {
-    mdsConfigTry = null; /* un fallo puntual no debe inutilizar el modo */
-    throw err;
-  });
-  return mdsConfigTry;
-}
+  const url = (params, extra = []) => {
+    const q = new URLSearchParams({ service: "WCS", version: "2.0.1", ...params });
+    for (const [k, v] of extra) q.append(k, v);
+    return `${base}?${q}`;
+  };
 
-/* Altura de superficie en un punto, o null si no hay dato */
-/* Punto en las coordenadas de la cobertura. El MDS está en un ÚNICO
-   huso (el 30 extendido) para toda la Península: usar el huso local
-   colocaría el punto a cientos de kilómetros.                        */
-function mdsPoint(cfg, lat, lon) {
-  if (cfg.geographic) return { x: lon, y: lat, half: MDS_WINDOW / 111320 };
-  const u = latLngToUtm(lat, lon, cfg.zone);
-  return u ? { x: u.easting, y: u.northing, half: MDS_WINDOW } : null;
-}
-
-/* Media ventana en grados, equivalente a MDS_WINDOW metros */
-const degHalf = lat => ({
-  lat: MDS_WINDOW / 111320,
-  lon: MDS_WINDOW / (111320 * Math.max(0.05, Math.cos(toRad(lat))))
-});
-
-async function mdsElevation(lat, lon) {
-  const cfg = await mdsDiscover();
-
-  /* Vía preferida: latitud y longitud, sin transformar nada */
-  if (cfg.geoCrs && cfg.useGeo !== false) {
-    const d = degHalf(lat);
-    try {
-      return parseAsciiGrid(await mdsFetch({
-        request: "GetCoverage",
-        coverageId: cfg.coverageId,
-        format: cfg.format,
-        subsettingCrs: cfg.geoCrs
-      }, AbortSignal.timeout(MDS_TIMEOUT), [
-        ["subset", `Long(${(lon - d.lon).toFixed(7)},${(lon + d.lon).toFixed(7)})`],
-        ["subset", `Lat(${(lat - d.lat).toFixed(7)},${(lat + d.lat).toFixed(7)})`]
-      ]));
-    } catch (err) {
-      /* Fuera de cobertura es una respuesta legítima, no un rechazo del
-         modo geográfico: solo se abandona si el servidor no entiende la
-         petición (ejes o CRS), y entonces se recuerda para no repetir */
-      if (/extent/i.test(err.owsCode || "")) throw err;
-      cfg.useGeo = false;
-      navMessage("MDS: el servicio no admite consultas en latitud/longitud;"
-        + " se usan coordenadas UTM.", { tone: "info" });
-    }
+  async function request(params, signal, extra = []) {
+    const r = await fetch(url(params, extra), { signal });
+    const txt = await r.text();
+    /* Los servicios OGC explican el fallo en el CUERPO aunque devuelvan
+       un 400: quedarse en el código HTTP tira el dato que sirve      */
+    const ex = parseOwsException(txt);
+    if (ex) throw Object.assign(new Error(ex.msg), { owsCode: ex.code });
+    if (!r.ok) throw new Error(describeHttp(r.status));
+    return txt;
   }
 
-  /* Respaldo: coordenadas nativas de la cobertura */
-  const p = mdsPoint(cfg, lat, lon);
-  if (!p) return null;
-  /* Comprobar la extensión antes de pedir ahorra una petición segura de
-     fallar y permite decir "fuera de cobertura" al instante          */
-  if (p.x < cfg.minX || p.x > cfg.maxX || p.y < cfg.minY || p.y > cfg.maxY) return null;
+  function discover() {
+    if (config) return Promise.resolve(config);
+    if (discovering) return discovering;
+    discovering = (async () => {
+      const signal = AbortSignal.timeout(ELEV_TIMEOUT);
+      const caps = parseWcsCapabilities(await request({ request: "GetCapabilities" }, signal));
+      if (!caps) throw new Error(`${label}: el servicio no declara coberturas`);
+      const coverageId = pickCoverage(caps.coverages);
+      if (!coverageId) throw new Error(`${label}: sin cobertura utilizable`);
+      const format = pickMdsFormat(caps.formats.length ? caps.formats
+        : ["ArcGrid", "application/asc"]);
+      if (!format) throw new Error(`${label}: solo ofrece formatos binarios`);
+      const desc = parseMdsCoverage(
+        await request({ request: "DescribeCoverage", coverageId }, signal));
+      if (!desc) throw new Error(`${label}: no se pudo leer la descripci\u00F3n`);
+      config = {
+        coverageId, format,
+        webCrs: pickWebMercator(caps.crs),
+        geoCrs: pickGeoCrs(caps.crs),
+        ...desc
+      };
+      return config;
+    })().catch(err => { discovering = null; throw err; });
+    return discovering;
+  }
 
-  return parseAsciiGrid(await mdsFetch({
-    request: "GetCoverage",
-    coverageId: cfg.coverageId,
-    format: cfg.format
-  }, AbortSignal.timeout(MDS_TIMEOUT), [
-    /* URLSearchParams no repite claves: los dos `subset` van aparte */
-    ["subset", `${cfg.axisX}(${(p.x - p.half).toFixed(1)},${(p.x + p.half).toFixed(1)})`],
-    ["subset", `${cfg.axisY}(${(p.y - p.half).toFixed(1)},${(p.y + p.half).toFixed(1)})`]
-  ]));
-}
+  /* Media ventana en grados equivalente a ELEV_WINDOW metros */
+  const degHalf = lat => ({
+    lat: ELEV_WINDOW / 111320,
+    lon: ELEV_WINDOW / (111320 * Math.max(0.05, Math.cos(toRad(lat))))
+  });
 
-/* Clave de caché: celdas de MDS_CELL metros, para no pedir dos veces
-   prácticamente el mismo punto                                       */
-const mdsKey = (lat, lon) => {
-  const u = latLngToUtm(lat, lon);
-  return u ? `${u.zone}/${Math.round(u.easting / MDS_CELL)}/${Math.round(u.northing / MDS_CELL)}` : null;
-};
+  async function fetchValue(lat, lon) {
+    const cfg = await discover();
 
-let mdsTimer = null;
-function mdsRequest(latlng) {
-  clearTimeout(mdsTimer);
-  /* Solo cuando el cursor se para: cada consulta es una petición entera */
-  mdsTimer = setTimeout(async () => {
-    if (!demOn) return;
-    const key = mdsKey(latlng.lat, latlng.lng);
-    if (!key) return;
-    if (mdsCache.has(key)) { coordsControl.setSurface(mdsCache.get(key)); return; }
-    if (!demRateOk()) return;
-    try {
-      const h = await mdsElevation(latlng.lat, latlng.lng);
-      mdsCache.set(key, h);
-      while (mdsCache.size > MDS_CACHE_MAX) mdsCache.delete(mdsCache.keys().next().value);
-      if (demOn) coordsControl.setSurface(h);
-      demStatus("ok");
-    } catch (err) {
-      /* Salirse del área cubierta no es un error que haya que reportar */
-      if (/extent/i.test(err.owsCode || "")) {
-        mdsCache.set(key, null);
-        coordsControl.setSurface(null);
-        return;
+    /* Vía preferida: Web Mercator, el sistema del visor */
+    if (cfg.webCrs && cfg.useWeb !== false) {
+      const p = toWebMercator(lat, lon);
+      const half = webMercatorHalf(lat, ELEV_WINDOW);
+      try {
+        return parseAsciiGrid(await request({
+          request: "GetCoverage", coverageId: cfg.coverageId,
+          format: cfg.format, subsettingCrs: cfg.webCrs
+        }, AbortSignal.timeout(ELEV_TIMEOUT), [
+          ["subset", `${cfg.axisX}(${(p.x - half).toFixed(2)},${(p.x + half).toFixed(2)})`],
+          ["subset", `${cfg.axisY}(${(p.y - half).toFixed(2)},${(p.y + half).toFixed(2)})`]
+        ]));
+      } catch (err) {
+        /* Salir de la cobertura es respuesta legítima; solo se abandona
+           esta vía si el servicio no entiende la petición            */
+        if (/extent/i.test(err.owsCode || "")) throw err;
+        cfg.useWeb = false;
       }
-      const why = err.name === "TimeoutError" ? "el servicio no responde"
-        : err.message === "Failed to fetch"
-          ? "el servicio no admite consultas desde el navegador (CORS)"
-          : err.message;
-      coordsControl.setSurface(undefined);
-      demStatus("error", `MDS: ${why}`);
     }
-  }, MDS_SETTLE_MS);
+
+    /* Respaldo: latitud y longitud */
+    if (cfg.geoCrs && cfg.useGeo !== false) {
+      const d = degHalf(lat);
+      try {
+        return parseAsciiGrid(await request({
+          request: "GetCoverage", coverageId: cfg.coverageId,
+          format: cfg.format, subsettingCrs: cfg.geoCrs
+        }, AbortSignal.timeout(ELEV_TIMEOUT), [
+          ["subset", `Long(${(lon - d.lon).toFixed(7)},${(lon + d.lon).toFixed(7)})`],
+          ["subset", `Lat(${(lat - d.lat).toFixed(7)},${(lat + d.lat).toFixed(7)})`]
+        ]));
+      } catch (err) {
+        /* Salir de la cobertura es respuesta legítima, no un rechazo del
+           modo geográfico: solo se abandona si no entiende la petición */
+        if (/extent/i.test(err.owsCode || "")) throw err;
+        cfg.useGeo = false;
+      }
+    }
+
+    /* Respaldo: coordenadas nativas de la cobertura */
+    const p = cfg.geographic
+      ? { x: lon, y: lat, half: ELEV_WINDOW / 111320 }
+      : (() => {
+          const u = latLngToUtm(lat, lon, cfg.zone);
+          return u ? { x: u.easting, y: u.northing, half: ELEV_WINDOW } : null;
+        })();
+    if (!p) return null;
+    if (p.x < cfg.minX || p.x > cfg.maxX || p.y < cfg.minY || p.y > cfg.maxY) return null;
+
+    return parseAsciiGrid(await request({
+      request: "GetCoverage", coverageId: cfg.coverageId, format: cfg.format
+    }, AbortSignal.timeout(ELEV_TIMEOUT), [
+      ["subset", `${cfg.axisX}(${(p.x - p.half).toFixed(1)},${(p.x + p.half).toFixed(1)})`],
+      ["subset", `${cfg.axisY}(${(p.y - p.half).toFixed(1)},${(p.y + p.half).toFixed(1)})`]
+    ]));
+  }
+
+  /* Clave de caché: celdas de ELEV_CELL metros sobre el huso local */
+  const key = (lat, lon) => {
+    const u = latLngToUtm(lat, lon);
+    return u ? `${u.zone}/${Math.round(u.easting / ELEV_CELL)}/${Math.round(u.northing / ELEV_CELL)}` : null;
+  };
+
+  return {
+    label,
+    /* `undefined` = no se pudo consultar; `null` = sin dato ahí */
+    async value(lat, lon) {
+      const k = key(lat, lon);
+      if (!k) return null;
+      if (cache.has(k)) return cache.get(k);
+      if (!demRateOk()) return undefined;
+      try {
+        const h = await fetchValue(lat, lon);
+        cache.set(k, h);
+        while (cache.size > ELEV_CACHE_MAX) cache.delete(cache.keys().next().value);
+        demStatus("ok");
+        return h;
+      } catch (err) {
+        if (/extent/i.test(err.owsCode || "")) { cache.set(k, null); return null; }
+        const why = err.name === "TimeoutError" ? "el servicio no responde"
+          : err.message === "Failed to fetch"
+            ? "el servicio no admite consultas desde el navegador (CORS)"
+            : err.message;
+        demStatus("error", `${label}: ${why}`);
+        return undefined;
+      }
+    }
+  };
 }
+
+/* Del GetCapabilities se sacan coberturas, formatos y sistemas */
+function parseWcsCapabilities(xmlText) {
+  const doc = new DOMParser().parseFromString(xmlText, "text/xml");
+  if (parserErrorText(doc)) return null;
+  const coverages = elsByTag(doc, "CoverageId").map(el => el.textContent.trim()).filter(Boolean);
+  if (!coverages.length) return null;
+  return {
+    coverages,
+    formats: elsByTag(doc, "formatSupported").map(el => el.textContent.trim()).filter(Boolean),
+    crs: elsByTag(doc, "crsSupported").map(el => el.textContent.trim()).filter(Boolean)
+  };
+}
+
+/* El MDT se publica en varias mallas y sistemas: `Elevacion<EPSG>_<paso>`.
+   Interesa el paso MÁS FINO (5 m, el mismo que el MDS) y, entre los
+   sistemas, uno geográfico, para poder preguntar en latitud/longitud. */
+function pickMdtCoverage(ids) {
+  const parsed = ids
+    .map(id => ({ id, m: /^Elevacion(\d+)_(\d+)$/i.exec(id) }))
+    .filter(x => x.m)
+    .map(x => ({ id: x.id, epsg: Number(x.m[1]), step: Number(x.m[2]) }));
+  if (!parsed.length) return ids[0] || null;
+  const geo = new Set([4326, 4258]);
+  parsed.sort((a, b) =>
+    a.step - b.step ||                                   /* malla más fina  */
+    (geo.has(b.epsg) ? 1 : 0) - (geo.has(a.epsg) ? 1 : 0) /* y geográfico    */
+  );
+  return parsed[0].id;
+}
+
+/* El MDS publica además coberturas "normalizadas" (mdsn_*), que dan la
+   altura sobre el suelo y no la altitud: no sirven para comparar.    */
+function pickMdsCoverage(ids) {
+  return ids.find(id => !/mdsn|norm/i.test(id)) || ids[0] || null;
+}
+
+const mdtSource = makeElevationSource({
+  base: "https://servicios.idee.es/wcs-inspire/mdt",
+  label: "MDT", pickCoverage: pickMdtCoverage
+});
+const mdsSource = makeElevationSource({
+  base: "https://wcs-mds.idee.es/mds",
+  label: "MDS", pickCoverage: pickMdsCoverage
+});
+
+/* ---------- Muestreo ---------- */
+let elevTimer = null, elevSeq = 0;
+
+function elevRequest(latlng) {
+  clearTimeout(elevTimer);
+  elevTimer = setTimeout(() => sampleElevations(latlng), ELEV_SETTLE_MS);
+}
+
+async function sampleElevations(latlng) {
+  if (!demOn || !latlng) return;
+  const seq = ++elevSeq;
+  /* Mientras llega la respuesta NO se deja el valor anterior: se vería
+     como si fuera de este punto                                      */
+  coordsControl.setElevation("terrain", "Consultando\u2026");
+  coordsControl.setElevation("surface", "Consultando\u2026");
+  const [terrain, surface] = await Promise.all([
+    mdtSource.value(latlng.lat, latlng.lng),
+    mdsSource.value(latlng.lat, latlng.lng)
+  ]);
+  if (!demOn || seq !== elevSeq) return; /* el cursor ya está en otro sitio */
+  coordsControl.setElevation("terrain", fmtElevation(terrain), terrain);
+  coordsControl.setElevation("surface", fmtElevation(surface), surface);
+}
+
+const fmtElevation = h => h === undefined ? "no disponible"
+  : h === null ? "sin datos" : fmtAltitude(h);
 
 function setAltitudeMode(on) {
   demOn = on;
   if (demButton) demButton.classList.toggle("active", on);
   coordsControl.showElevation(on);
   if (on) {
-    map.attributionControl.addAttribution(DEM_ATTRIB); /* CC BY 4.0 obliga */
+    map.attributionControl.addAttribution(ELEV_ATTRIB); /* CC BY 4.0 obliga */
   } else {
-    map.attributionControl.removeAttribution(DEM_ATTRIB);
-    clearTimeout(demTimer);
-    clearTimeout(mdsTimer);
-    demTimer = null;
+    map.attributionControl.removeAttribution(ELEV_ATTRIB);
+    clearTimeout(elevTimer);
+    elevTimer = null;
+    elevSeq++;
   }
 }
 
@@ -4868,8 +4811,8 @@ const ViewControl = L.Control.extend({
     demButton = L.DomUtil.create("a", "", bar);
     demButton.href = "#";
     demButton.textContent = "\u26F0";
-    demButton.title = "Modo altura: consulta el MDT del IGN bajo el cursor"
-      + " (Espa\u00F1a; requiere conexi\u00F3n)";
+    demButton.title = "Modo altura: consulta el MDT (terreno) y el MDS"
+      + " (superficie) del IGN bajo el cursor (Espa\u00F1a; requiere conexi\u00F3n)";
     demButton.addEventListener("click", e => {
       e.preventDefault();
       setAltitudeMode(!demOn);
@@ -4977,30 +4920,21 @@ const CoordsControl = L.Control.extend({
       this._rows[i].hidden = !on;
       if (!on) this._rows[i].textContent = "\u2014";
     }
-    this._terrain = null;
+    this._terrain = this._surface = null;
   },
-  setElevation(txt, meters) {
-    this._rows[4].textContent = `terreno ${txt}`;
-    this._terrain = meters;
-    this._paintSurface();
-  },
-  /* Superficie (terreno + edificios y vegetación) y su diferencia, que
-     es lo que hay construido o plantado sobre el suelo               */
-  setSurface(meters) {
-    this._surface = meters;
-    this._paintSurface();
-  },
-  _paintSurface() {
-    const m = this._surface;
-    if (m === undefined) { this._rows[5].textContent = "superficie no disponible"; return; }
-    if (m === null) { this._rows[5].textContent = "superficie sin datos"; return; }
-    if (m === false || m === void 0) return;
-    let txt = `superficie ${fmtAltitude(m)}`;
-    if (typeof this._terrain === "number") {
-      const d = m - this._terrain;
-      txt += ` (sobre el suelo ${d >= 0 ? "+" : ""}${d.toFixed(1)} m)`;
+  /* Cada fila lleva el nombre del modelo que la produce: son fuentes
+     distintas y conviene saber cuál dice qué. La diferencia solo se
+     muestra cuando los DOS valores son números de verdad.           */
+  setElevation(which, txt, meters) {
+    const i = which === "terrain" ? 4 : 5;
+    const tag = which === "terrain" ? "MDT (terreno)" : "MDS (superficie)";
+    this[which === "terrain" ? "_terrain" : "_surface"] = meters;
+    let line = `${tag}: ${txt}`;
+    if (which === "surface" && typeof meters === "number" && typeof this._terrain === "number") {
+      const d = meters - this._terrain;
+      line += ` \u00B7 sobre el suelo ${d >= 0 ? "+" : ""}${d.toFixed(1)} m`;
     }
-    this._rows[5].textContent = txt;
+    this._rows[i].textContent = line;
   },
   /* El zoom no depende del cursor, así que se refresca aparte */
   updateZoom() {
@@ -5025,7 +4959,7 @@ map.on("zoomend", () => coordsControl.updateZoom());
 let coordsPending = null, coordsFrame = null;
 map.on("mousemove", e => {
   coordsPending = e.latlng;
-  if (demOn) { demRequest(e.latlng); mdsRequest(e.latlng); }
+  if (demOn) elevRequest(e.latlng);
   if (coordsFrame) return;
   coordsFrame = requestAnimationFrame(() => {
     coordsFrame = null;

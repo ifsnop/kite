@@ -391,6 +391,18 @@ manteniendo los principios acordados durante el desarrollo del proyecto.
   las distancias se dan en métrico y en millas náuticas. Va apagado por defecto porque cada lectura
   cuesta una descarga a un servidor ajeno, y al activarlo se añade la
   atribución CC BY 4.0 que exige la licencia.
+- **MDT y MDS por el MISMO camino** (`makeElevationSource`): los dos son
+  WCS 2.0, rejilla ASCII, misma ventana y mismo recorte. Antes el terreno
+  venía de teselas Terrain-RGB y la superficie de un WCS: distinto
+  muestreo, distinta interpolación y distinto redondeo, así que restar
+  ambos valores para saber qué hay construido no era fiable. El MDT usa
+  `servicios.idee.es/wcs-inspire/mdt` y `pickMdtCoverage` elige la malla
+  **más fina** (5 m, la del MDS) y, a igualdad, un sistema geográfico
+  para poder preguntar en latitud/longitud.
+- **Mientras se consulta se escribe «Consultando…»**, no el valor
+  anterior: un número viejo junto a unas coordenadas nuevas se lee como
+  si fuera de ese punto. Cada fila lleva además el prefijo del modelo
+  (MDT/MDS) porque son fuentes distintas.
 - **Altura de superficie (MDS)**: el MDS —terreno más edificios y
   vegetación— **no** se publica como teselas XYZ, solo como **WCS 2.0**
   (`wcs-mds.idee.es/mds`). Eso obliga a un diseño distinto del MDT: una
@@ -423,7 +435,18 @@ manteniendo los principios acordados durante el desarrollo del proyecto.
   *normalizadas* y dan la altura de edificios o vegetación **sobre el
   suelo**, no la altitud. Quedarse con la primera de la lista sin mirar
   habría producido una diferencia con el MDT sin ningún sentido.
-- **Se pide en latitud/longitud siempre que se pueda**: si el servicio
+- **Se pide en EPSG:3857 (Web Mercator) siempre que se pueda**, que es
+  la proyección en la que dibuja el visor: así lo consultado está en el
+  mismo sistema que lo que se ve. La conversión la hace Leaflet con su
+  propia proyección (`map.options.crs.project`), no cálculos nuestros.
+  **La ventana hay que corregirla por latitud** (`webMercatorHalf`): Web
+  Mercator estira la escala con el coseno de la latitud, y sin corregir
+  se pediría un recorte demasiado pequeño en el norte peninsular.
+- Si el servicio no ofreciera 3857, o rechazara la petición, se cae a
+  las geográficas y luego a las coordenadas nativas, recordando el
+  descarte para no repetirlo. Salir de la cobertura NO cuenta como
+  rechazo.
+- **Se pedía en latitud/longitud siempre que se pueda** (ahora respaldo): si el servicio
   declara un CRS geográfico (`crsSupported` → `pickGeoCrs`), la consulta
   va con `subsettingCrs` y ejes `Lat`/`Long`, sin transformar nada por
   nuestra cuenta; así desaparece toda una clase de errores de conversión.
@@ -640,6 +663,26 @@ manteniendo los principios acordados durante el desarrollo del proyecto.
   por error no se cuele como número.
 - Descartar un árbol de otra versión borra **solo** la clave `root`, no
   el almacén entero: la vista es independiente y sigue siendo válida.
+
+## Comprobaciones estáticas del propio archivo
+
+Además de los tests, conviene pasar sobre `visor-kml.html`:
+- que todo recurso de librería lleve `integrity` y `crossorigin`;
+- que el guardián de Leaflet preceda a cualquier uso de `L`;
+- que haya UNA sola constante `BUILD` y con el valor esperado;
+- que todo `getElementById`/`$id` apunte a un `id` existente;
+- **que toda función llamada esté declarada**: un refactor puede
+  llevarse por delante ayudantes que siguen en uso y `node --check` no lo
+  detecta, porque sigue siendo sintácticamente válido.
+
+## Cuadro de coordenadas y atribución
+
+La línea inferior del visor queda **solo** para la atribución de
+Leaflet, que crece cada vez que se activa un mapa base o el modo altura.
+El cuadro de coordenadas vive siempre por encima de ella
+(`margin-bottom`), y por eso **no lleva ancho máximo**: limitarlo cortaba
+la línea de la diferencia entre superficie y terreno, que es larga. La
+atribución se mantiene en una sola línea con elipsis si no cabe.
 
 ## Rendimiento (reglas nacidas de medir)
 
