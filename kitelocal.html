@@ -365,7 +365,6 @@
        de coordenadas vive siempre por encima de ella. Con eso no hace
        falta limitar su ancho, y así cabe la línea de la diferencia
        entre superficie y terreno.                                  */
-    margin-bottom: 22px;
     background: rgba(255,255,255,.85);
     border: 1px solid var(--border);
     border-radius: 4px;
@@ -375,6 +374,12 @@
     line-height: 1.35;
     white-space: nowrap;
   }
+  /* Leaflet añade su propia clase "leaflet-control" al mismo div y trae
+     ".leaflet-bottom .leaflet-control { margin-bottom: 10px; }", con dos
+     clases en el selector: gana por especificidad a ".coords-box" (una
+     sola clase) sea cual sea el valor que se le ponga aquí. Hace falta
+     igualar esa especificidad para que el margen se aplique de verdad. */
+  .leaflet-bottom .leaflet-control.coords-box { margin-bottom: 20px; }
   /* Las tres lecturas de la posición, de más a menos usada */
   /* Panel de mapas base */
   .base-box { background: #fff; border-radius: 4px; }
@@ -831,7 +836,7 @@ const map = L.map("map", { preferCanvas: true, maxZoom: MAX_ZOOM }).setView([40.
 
 /* Fecha de generación del código (versión): AÑOMESDIAHORAMINUTO.
    Actualizar en cada generación; se muestra junto al crédito de Leaflet. */
-const BUILD = "202608011420";
+const BUILD = "202608021205";
 map.attributionControl.setPrefix(
   `v${BUILD} | <a href="https://leafletjs.com" title="A JavaScript library for interactive maps">Leaflet</a>`);
 
