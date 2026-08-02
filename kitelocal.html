@@ -404,6 +404,26 @@
   .base-row input[type="range"] { grid-column: 1 / -1; width: 100%; height: 14px; }
   .base-row.failed label { color: var(--danger); }
 
+  /* Celdas de la cuadrícula de elevaciones */
+  .elev-cell {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    background: none;
+    border: none;
+    /* El tamaño lo pone `cellIcon` según el zoom; aquí solo la familia */
+    font-family: ui-monospace, Consolas, monospace;
+    line-height: 1.15;
+    text-shadow: 0 0 3px #fff, 0 0 3px #fff, 0 0 3px #fff;
+    pointer-events: none;
+    white-space: nowrap;
+  }
+  .elev-cell > span { display: flex; flex-direction: column; align-items: center; }
+  .elev-cell .ec-t { color: #1b5e97; font-weight: 700; }  /* terreno    */
+  .elev-cell .ec-s { color: #2e7d32; }                    /* superficie */
+  .elev-cell .ec-d { color: #b04a3a; }                    /* diferencia */
+
   .coords-zoom { color: var(--muted); font-weight: 600; }
   /* La atribución se queda en una sola línea, la de abajo del todo */
   .leaflet-control-attribution {
@@ -799,14 +819,19 @@ if (typeof L === "undefined") {
 /* `preferCanvas`: con miles de geometrías, dibujarlas como elementos SVG
    crea decenas de miles de nodos en el DOM y el mapa se arrastra al hacer
    zoom o pan. En lienzo se pinta todo de una vez.                      */
-/* `maxZoom` en el mapa, no solo en cada capa: sin él `getMaxZoom()`
+/* `maxZoom` va en el MAPA, no solo en cada capa: sin él `getMaxZoom()`
    devuelve Infinity cuando no hay ninguna capa base activa, y eso salía
-   escrito en el cuadro de coordenadas y rompía la escalera de zoom.  */
-const map = L.map("map", { preferCanvas: true, maxZoom: 19 }).setView([40.4, -3.7], 6);
+   escrito en el cuadro de coordenadas y rompía la escalera de zoom.
+   Se fija en 25, por encima de los 19 que publican los servidores: con
+   `maxNativeZoom` en cada capa, Leaflet ESCALA la última tesela recibida
+   en vez de pedir niveles que no existen. Hace falta para poder leer la
+   cuadrícula de elevaciones, cuyas celdas de 5 m son diminutas al 19. */
+const MAX_ZOOM = 25;
+const map = L.map("map", { preferCanvas: true, maxZoom: MAX_ZOOM }).setView([40.4, -3.7], 6);
 
 /* Fecha de generación del código (versión): AÑOMESDIAHORAMINUTO.
    Actualizar en cada generación; se muestra junto al crédito de Leaflet. */
-const BUILD = "202607301700";
+const BUILD = "202608011420";
 map.attributionControl.setPrefix(
   `v${BUILD} | <a href="https://leafletjs.com" title="A JavaScript library for interactive maps">Leaflet</a>`);
 
@@ -825,7 +850,7 @@ const IGN_CREDIT = "Cedido por &copy; Instituto Geogr\u00E1fico Nacional de Espa
 const BASE_LAYERS = [
   { id: "osm", name: "OpenStreetMap", on: true, opacity: 1,
     layer: () => L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", {
-      maxZoom: 19,
+      maxNativeZoom: 19, maxZoom: MAX_ZOOM,
       attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>' }) },
 
   /* Esri World Terrain: cobertura global solo hasta z9; más allá el
@@ -834,16 +859,16 @@ const BASE_LAYERS = [
   { id: "terrain", name: "F\u00EDsico (Esri World Terrain)", on: false, opacity: 1,
     layer: () => L.tileLayer(
       "https://server.arcgisonline.com/ArcGIS/rest/services/World_Terrain_Base/MapServer/tile/{z}/{y}/{x}",
-      { maxNativeZoom: 9, maxZoom: 19,
+      { maxNativeZoom: 9, maxZoom: MAX_ZOOM,
         attribution: "Tiles &copy; Esri &mdash; Source: USGS, Esri, TANA, DeLorme, NPS" }) },
 
   { id: "ignbase", name: "IGN Base (IGN)", on: false, opacity: 1,
     layer: () => L.tileLayer(IGN_WMTS("ign-base", "IGNBaseTodo"),
-      { maxZoom: 19, attribution: `IGN Base. ${IGN_CREDIT}` }) },
+      { maxNativeZoom: 19, maxZoom: MAX_ZOOM, attribution: `IGN Base. ${IGN_CREDIT}` }) },
 
   { id: "mtn", name: "Mapa topogr\u00E1fico MTN (IGN)", on: false, opacity: 1,
     layer: () => L.tileLayer(IGN_WMTS("mapa-raster", "MTN"),
-      { maxZoom: 19, attribution: `MTN r\u00E1ster. ${IGN_CREDIT}` }) },
+      { maxNativeZoom: 19, maxZoom: MAX_ZOOM, attribution: `MTN r\u00E1ster. ${IGN_CREDIT}` }) },
 
   /* El WMTS del IGN no sirve ninguna capa llamada "Relieve" (devolvía
      404 en todas las teselas). Se usa el sombreado mundial de Esri, del
@@ -851,17 +876,17 @@ const BASE_LAYERS = [
   { id: "relieve", name: "Relieve sombreado (Esri)", on: false, opacity: 1,
     layer: () => L.tileLayer(
       "https://server.arcgisonline.com/ArcGIS/rest/services/Elevation/World_Hillshade/MapServer/tile/{z}/{y}/{x}",
-      { maxZoom: 19, attribution: "Hillshade &copy; Esri" }) },
+      { maxNativeZoom: 19, maxZoom: MAX_ZOOM, attribution: "Hillshade &copy; Esri" }) },
 
   { id: "pnoa", name: "Ortofoto PNOA (IGN)", on: false, opacity: 1,
     layer: () => L.tileLayer("https://tms-pnoa-ma.idee.es/1.0.0/pnoa-ma/{z}/{x}/{y}.jpeg",
-      { tms: true, maxZoom: 19,
+      { tms: true, maxNativeZoom: 19, maxZoom: MAX_ZOOM,
         attribution: `PNOA M\u00E1xima Actualidad. ${IGN_CREDIT}` }) },
 
   { id: "mdt", name: "MDT de Espa\u00F1a (IGN, WMS)", on: false, opacity: 1,
     layer: () => L.tileLayer.wms("https://servicios.idee.es/wms-inspire/mdt", {
       layers: "EL.ElevationGridCoverage", format: "image/png", version: "1.3.0",
-      transparent: true, attribution: `MDT WMS. ${IGN_CREDIT}` }) }
+      transparent: true, maxZoom: MAX_ZOOM, attribution: `MDT WMS. ${IGN_CREDIT}` }) }
 ];
 
 /* Estado en vivo de cada capa base */
@@ -1526,8 +1551,13 @@ function focusOnNode(li) {
    zoom máximo.                                                        */
 const ZOOM_STEPS = [5, 9];
 const ZOOM_RESTART = 3;
+/* Tope de la escalera: el último zoom con teselas reales. Más allá la
+   imagen solo se amplía, y no es a donde el usuario quiere ir de un
+   doble clic (para eso está la rueda).                              */
+const ZOOM_LADDER_TOP = 19;
 
 function nextZoomStep(current, maxZoom) {
+  maxZoom = Math.min(maxZoom, ZOOM_LADDER_TOP);
   /* La escalera se arma en cada llamada porque el zoom máximo depende
      del mapa base activo; los duplicados se descartan               */
   const ladder = [...new Set([...ZOOM_STEPS.filter(z => z < maxZoom), maxZoom, ZOOM_RESTART])];
@@ -4390,7 +4420,10 @@ function rebuildMeasurement(n, parentUl) {
 
    Cada consulta es una petición entera, así que se lanzan solo cuando el
    cursor se para y se cachean por celdas.                             */
-const ELEV_WINDOW = 10;      /* m: media ventana pedida alrededor del punto */
+const ELEV_WINDOW = 20;      /* m: media ventana pedida alrededor del punto.
+                                Más ancha que las celdas del modelo (5 m),
+                                para que una consulta cubra varias celdas y
+                                el ratón pueda recorrerlas sin volver a pedir */
 const ELEV_CELL = 25;        /* m: tamaño de la celda cacheada              */
 const ELEV_SETTLE_MS = 700;  /* el cursor debe pararse antes de pedir       */
 const ELEV_CACHE_MAX = 200;
@@ -4518,17 +4551,64 @@ function parseOwsException(txt) {
 
 /* Rejilla ASCII de ESRI: cabecera de "clave valor" y luego los números.
    Se devuelve el primer valor que no sea el NODATA declarado.        */
+/* Rejilla ASCII de ESRI completa: cabecera de "clave valor" y luego la
+   matriz de valores, por filas de norte a sur. Se devuelve entera —no
+   solo un valor— porque además de leer la altitud bajo el cursor hay que
+   dibujar la cuadrícula sobre el mapa, y para colocarla hacen falta
+   `xllcorner`, `yllcorner` y `cellsize`.                              */
 function parseAsciiGrid(txt) {
-  const nodata = (txt.match(/NODATA_value\s+(-?[\d.]+)/i) || [])[1];
-  const nd = nodata === undefined ? -9999 : Number(nodata);
-  const body = txt.split(/\r?\n/).filter(l => /^\s*-?[\d.]/.test(l)).join(" ");
-  /* Se exige un número de verdad: con el cuerpo vacío, `Number("")` es 0
-     y una respuesta de error se colaría como "altitud cero"          */
-  for (const tok of body.match(/-?\d+(?:\.\d+)?/g) || []) {
-    const v = Number(tok);
-    if (isFinite(v) && v !== nd && v > -500 && v < 9000) return v;
+  const head = {};
+  for (const m of String(txt).matchAll(/^\s*([A-Za-z_]+)\s+(-?[\d.eE+]+)\s*$/gm)) {
+    head[m[1].toLowerCase()] = Number(m[2]);
   }
-  return null;
+  const cols = head.ncols, rows = head.nrows;
+  /* Celdas RECTANGULARES: la rejilla ASCII declara `cellsize` solo si
+     son cuadradas; si no, `dx` y `dy` por separado. Exigir `cellsize`
+     hacía descartar entera la respuesta del MDT, que al pedir una
+     ventana cuadrada en metros devuelve celdas de distinta anchura y
+     altura (5x4 celdas frente a las 4x4 del MDS).                   */
+  const cellX = Number.isFinite(head.cellsize) ? head.cellsize : head.dx;
+  const cellY = Number.isFinite(head.cellsize) ? head.cellsize : head.dy;
+  if (!Number.isFinite(cols) || !Number.isFinite(rows)
+      || !Number.isFinite(cellX) || !Number.isFinite(cellY)) return null;
+  const nodata = Number.isFinite(head.nodata_value) ? head.nodata_value : -9999;
+
+  /* Cuerpo: las líneas que no son cabecera. `xllcenter`/`yllcenter` son
+     la variante centrada en la celda, no en su esquina.             */
+  const body = String(txt).split(/\r?\n/)
+    .filter(l => !/^\s*[A-Za-z_]+\s+-?[\d.eE+]/.test(l))
+    .join(" ");
+  const tokens = body.match(/-?\d+(?:\.\d+)?(?:[eE][-+]?\d+)?/g) || [];
+  if (tokens.length < cols * rows) return null;
+
+  const values = [];
+  for (let r = 0; r < rows; r++) {
+    const row = [];
+    for (let c = 0; c < cols; c++) {
+      const v = Number(tokens[r * cols + c]);
+      /* Fuera de rango o NODATA se marcan como hueco, no como altitud */
+      row.push(!isFinite(v) || v === nodata || v <= -500 || v >= 9000 ? null : v);
+    }
+    values.push(row);
+  }
+  /* Sin esquina no se puede DIBUJAR, pero los valores siguen valiendo
+     para la lectura: se devuelve la rejilla marcada como no ubicable
+     en vez de descartarla entera.                                  */
+  const xll = Number.isFinite(head.xllcorner) ? head.xllcorner
+    : Number.isFinite(head.xllcenter) ? head.xllcenter - cellX / 2 : NaN;
+  const yll = Number.isFinite(head.yllcorner) ? head.yllcorner
+    : Number.isFinite(head.yllcenter) ? head.yllcenter - cellY / 2 : NaN;
+  const located = Number.isFinite(xll) && Number.isFinite(yll);
+
+  return { cols, rows, cellX, cellY, xll, yll, located, values };
+}
+
+/* Esquinas de una celda en coordenadas del sistema de la rejilla. Las
+   filas van de norte a sur, así que la fila 0 es la de arriba.       */
+function gridCellBounds(grid, r, c) {
+  const x0 = grid.xll + c * grid.cellX;
+  const y0 = grid.yll + (grid.rows - r - 1) * grid.cellY;
+  return { x0, y0, x1: x0 + grid.cellX, y1: y0 + grid.cellY };
 }
 
 /* ---------- Cliente WCS de elevaciones ----------
@@ -4537,7 +4617,6 @@ function parseAsciiGrid(txt) {
    cobertura, formato, sistema de referencia, ejes y extensión salen de
    su GetCapabilities y su DescribeCoverage.                          */
 function makeElevationSource({ base, label, pickCoverage }) {
-  const cache = new Map();
   let config = null, discovering = null;
 
   const url = (params, extra = []) => {
@@ -4589,6 +4668,10 @@ function makeElevationSource({ base, label, pickCoverage }) {
     lon: ELEV_WINDOW / (111320 * Math.max(0.05, Math.cos(toRad(lat))))
   });
 
+  /* La rejilla viaja con el sistema en que se pidió: sin saberlo no se
+     pueden convertir sus esquinas a latitud y longitud para dibujarla */
+  const tag = (grid, crs) => (grid ? { ...grid, crs } : null);
+
   async function fetchValue(lat, lon) {
     const cfg = await discover();
 
@@ -4597,13 +4680,13 @@ function makeElevationSource({ base, label, pickCoverage }) {
       const p = toWebMercator(lat, lon);
       const half = webMercatorHalf(lat, ELEV_WINDOW);
       try {
-        return parseAsciiGrid(await request({
+        return tag(parseAsciiGrid(await request({
           request: "GetCoverage", coverageId: cfg.coverageId,
           format: cfg.format, subsettingCrs: cfg.webCrs
         }, AbortSignal.timeout(ELEV_TIMEOUT), [
           ["subset", `${cfg.axisX}(${(p.x - half).toFixed(2)},${(p.x + half).toFixed(2)})`],
           ["subset", `${cfg.axisY}(${(p.y - half).toFixed(2)},${(p.y + half).toFixed(2)})`]
-        ]));
+        ])), "web");
       } catch (err) {
         /* Salir de la cobertura es respuesta legítima; solo se abandona
            esta vía si el servicio no entiende la petición            */
@@ -4616,13 +4699,13 @@ function makeElevationSource({ base, label, pickCoverage }) {
     if (cfg.geoCrs && cfg.useGeo !== false) {
       const d = degHalf(lat);
       try {
-        return parseAsciiGrid(await request({
+        return tag(parseAsciiGrid(await request({
           request: "GetCoverage", coverageId: cfg.coverageId,
           format: cfg.format, subsettingCrs: cfg.geoCrs
         }, AbortSignal.timeout(ELEV_TIMEOUT), [
           ["subset", `Long(${(lon - d.lon).toFixed(7)},${(lon + d.lon).toFixed(7)})`],
           ["subset", `Lat(${(lat - d.lat).toFixed(7)},${(lat + d.lat).toFixed(7)})`]
-        ]));
+        ])), "geo");
       } catch (err) {
         /* Salir de la cobertura es respuesta legítima, no un rechazo del
            modo geográfico: solo se abandona si no entiende la petición */
@@ -4641,16 +4724,26 @@ function makeElevationSource({ base, label, pickCoverage }) {
     if (!p) return null;
     if (p.x < cfg.minX || p.x > cfg.maxX || p.y < cfg.minY || p.y > cfg.maxY) return null;
 
-    return parseAsciiGrid(await request({
+    return tag(parseAsciiGrid(await request({
       request: "GetCoverage", coverageId: cfg.coverageId, format: cfg.format
     }, AbortSignal.timeout(ELEV_TIMEOUT), [
       ["subset", `${cfg.axisX}(${(p.x - p.half).toFixed(1)},${(p.x + p.half).toFixed(1)})`],
       ["subset", `${cfg.axisY}(${(p.y - p.half).toFixed(1)},${(p.y + p.half).toFixed(1)})`]
-    ]));
+    ])), cfg.geographic ? "geo" : "native");
   }
 
-  /* Clave de caché: celdas de ELEV_CELL metros sobre el huso local */
-  const key = (lat, lon) => {
+  /* El caché guarda REJILLAS y se busca en él por COBERTURA: una rejilla
+     sirve si contiene el punto pedido. Antes se indexaba por celdas de
+     25 m y, como la rejilla solo abarca ±10 m alrededor del punto donde
+     se pidió, había puntos que caían dentro de la celda ya "resuelta"
+     pero fuera de la rejilla: el caché devolvía una rejilla que no los
+     cubría, no se pedía otra y quedaban huecos de hasta 22 m.       */
+  const grids = [];   /* rejillas recientes, la más nueva al final     */
+
+  /* Las zonas SIN datos sí se indexan por celda: no hay rejilla que
+     delimite su extensión, y así no se pregunta por ellas sin parar */
+  const emptyAt = new Set();
+  const emptyKey = (lat, lon) => {
     const u = latLngToUtm(lat, lon);
     return u ? `${u.zone}/${Math.round(u.easting / ELEV_CELL)}/${Math.round(u.northing / ELEV_CELL)}` : null;
   };
@@ -4659,18 +4752,27 @@ function makeElevationSource({ base, label, pickCoverage }) {
     label,
     /* `undefined` = no se pudo consultar; `null` = sin dato ahí */
     async value(lat, lon) {
-      const k = key(lat, lon);
-      if (!k) return null;
-      if (cache.has(k)) return cache.get(k);
+      for (let i = grids.length - 1; i >= 0; i--) {
+        if (gridCovers(grids[i], lat, lon)) return grids[i];
+      }
+      const ek = emptyKey(lat, lon);
+      if (ek && emptyAt.has(ek)) return null;
       if (!demRateOk()) return undefined;
       try {
-        const h = await fetchValue(lat, lon);
-        cache.set(k, h);
-        while (cache.size > ELEV_CACHE_MAX) cache.delete(cache.keys().next().value);
+        const g = await fetchValue(lat, lon);
+        if (g && g.located) {
+          grids.push(g);
+          while (grids.length > ELEV_CACHE_MAX) grids.shift();
+        } else if (ek) {
+          emptyAt.add(ek); /* sin rejilla utilizable en esta zona */
+        }
         demStatus("ok");
-        return h;
+        return g;
       } catch (err) {
-        if (/extent/i.test(err.owsCode || "")) { cache.set(k, null); return null; }
+        if (/extent/i.test(err.owsCode || "")) {
+          if (ek) emptyAt.add(ek);
+          return null;
+        }
         const why = err.name === "TimeoutError" ? "el servicio no responde"
           : err.message === "Failed to fetch"
             ? "el servicio no admite consultas desde el navegador (CORS)"
@@ -4727,10 +4829,174 @@ const mdsSource = makeElevationSource({
   label: "MDS", pickCoverage: pickMdsCoverage
 });
 
-/* ---------- Muestreo ---------- */
-let elevTimer = null, elevSeq = 0;
+/* ---------- Cuadrícula de elevaciones ----------
+   Se dibuja lo que ha devuelto el servicio, celda por celda y en su
+   sitio: la cabecera de la rejilla trae esquina y tamaño de celda. Cada
+   celda muestra el terreno (MDT), la superficie (MDS) y su diferencia.
+   La cuadrícula anterior se borra con cada respuesta nueva.          */
+const GRID_FILL_OPACITY = 0.4;   /* se ve la cartografía por debajo   */
+/* A partir del zoom 21 las celdas ya son grandes en pantalla y el texto
+   de 10 px se queda pequeño: crece un punto por nivel. Es un tamaño
+   PROPORCIONAL A LA CELDA, no absoluto, así que la etiqueta debe
+   recalcularse al cambiar el zoom, no solo al llegar datos.         */
+const GRID_FONT_BASE = 10;   /* px, hasta el zoom umbral            */
+const GRID_FONT_FROM = 21;   /* zoom a partir del cual crece        */
+const GRID_FONT_MAX = 22;    /* tope, para que quepa en la celda    */
 
+const gridFontSize = zoom =>
+  Math.min(GRID_FONT_MAX, GRID_FONT_BASE + Math.max(0, Math.round(zoom) - GRID_FONT_FROM + 1));
+
+/* La caja de la etiqueta acompaña al texto: tres líneas más margen */
+const gridIconSize = font => [Math.round(font * 5.4), Math.round(font * 3.6)];
+const elevGridLayer = L.layerGroup().addTo(map);
+
+/* Esquinas de la rejilla a latitud/longitud según el sistema en que se
+   pidió. Web Mercator lo deshace Leaflet con su propia proyección; el
+   geográfico ya son grados. El sistema nativo (UTM) no se dibuja: no
+   tenemos la conversión inversa y preferimos no colocar mal la malla. */
+function gridToLatLng(grid, x, y) {
+  if (grid.crs === "web") {
+    const p = map.options.crs.unproject(L.point(x, y));
+    return [p.lat, p.lng];
+  }
+  if (grid.crs === "geo") return [y, x];
+  return null;
+}
+
+const fmtCell = v => v === null || v === undefined ? "—" : v.toFixed(1);
+
+function clearElevGrid() {
+  elevGridLayer.clearLayers();
+}
+
+function cellIcon(html, font) {
+  const [w, h] = gridIconSize(font);
+  return L.divIcon({
+    className: "elev-cell",
+    html: `<span style="font-size:${font}px">${html}</span>`,
+    iconSize: [w, h], iconAnchor: [w / 2, h / 2]
+  });
+}
+
+/* Al cambiar el zoom solo se rehacen los iconos: la geometría de la
+   cuadrícula no depende de él, y volver a pedir datos sería absurdo  */
+function rescaleElevGrid() {
+  const font = gridFontSize(map.getZoom());
+  elevGridLayer.eachLayer(l => {
+    if (l._cellHtml) l.setIcon(cellIcon(l._cellHtml, font));
+  });
+}
+map.on("zoomend", rescaleElevGrid);
+
+/* `terrain` manda en la geometría; de `surface` se toma el valor de la
+   celda que coincide, que puede no existir si las mallas difieren.  */
+function drawElevGrid(terrain, surface) {
+  clearElevGrid();
+  /* Se dibuja la malla del MDT, que es la de referencia. Donde el MDS no
+     llega —sus mallas no coinciden: 5x4 frente a 4x4— la celda muestra
+     una raya y no se calcula diferencia: NO se inventa ni se
+     interpola.                                                       */
+  const grid = terrain || surface;
+  if (!grid || !grid.located || !gridToLatLng(grid, grid.xll, grid.yll)) return;
+
+  /* Las dos mallas pueden no empezar en el mismo punto, así que el valor
+     de la otra se busca por POSICIÓN, no por índice de celda.        */
+  const sampleAt = (g, x, y) => {
+    if (!g || !g.located || g.crs !== grid.crs) return null;
+    const c = Math.floor((x - g.xll) / g.cellX);
+    const r = g.rows - 1 - Math.floor((y - g.yll) / g.cellY);
+    return (r >= 0 && r < g.rows && c >= 0 && c < g.cols) ? g.values[r][c] : null;
+  };
+
+  for (let r = 0; r < grid.rows; r++) {
+    for (let c = 0; c < grid.cols; c++) {
+      const b = gridCellBounds(grid, r, c);
+      const sw = gridToLatLng(grid, b.x0, b.y0);
+      const ne = gridToLatLng(grid, b.x1, b.y1);
+      if (!sw || !ne) continue;
+
+      const cx = (b.x0 + b.x1) / 2, cy = (b.y0 + b.y1) / 2;
+      const mdt = terrain === grid ? grid.values[r][c] : sampleAt(terrain, cx, cy);
+      const mds = surface === grid ? grid.values[r][c] : sampleAt(surface, cx, cy);
+      const diff = (typeof mdt === "number" && typeof mds === "number") ? mds - mdt : null;
+
+      elevGridLayer.addLayer(L.rectangle([sw, ne], {
+        color: "#1b5e97", weight: 1, opacity: 0.8,
+        fillColor: "#ffffff", fillOpacity: GRID_FILL_OPACITY,
+        interactive: false
+      }));
+      /* La etiqueta va como marcador sin icono, anclado al centro de la
+         celda: así la escribe el navegador y no hay que escalar texto */
+      const label = L.marker([(sw[0] + ne[0]) / 2, (sw[1] + ne[1]) / 2], { interactive: false });
+      /* El texto se guarda en el propio marcador para poder rehacer su
+         icono al cambiar el zoom sin volver a pedir nada al servicio */
+      label._cellHtml = `<span class="ec-t">${fmtCell(mdt)}</span>`
+        + `<span class="ec-s">${fmtCell(mds)}</span>`
+        + `<span class="ec-d">${diff === null ? "\u2014" : (diff >= 0 ? "+" : "") + diff.toFixed(1)}</span>`;
+      label.setIcon(cellIcon(label._cellHtml, gridFontSize(map.getZoom())));
+      elevGridLayer.addLayer(label);
+    }
+  }
+}
+
+/* ---------- Muestreo ----------
+   Quien manda es la COBERTURA de la última rejilla, no la distancia
+   recorrida: mientras el cursor siga dentro de ella, sus valores se leen
+   directamente y no se pide nada. Se pide solo al salirse. Antes se
+   decidía por celdas de 25 m, y como la rejilla se centra donde estaba
+   el ratón al pedirla, había puntos que caían fuera de la rejilla pero
+   dentro de la celda ya "resuelta": ni se repintaba ni se volvía a
+   pedir, y quedaban zonas muertas.                                    */
+let elevTimer = null, elevSeq = 0;
+let lastCursor = null;
+const lastGrid = { terrain: null, surface: null };
+
+/* Posición del cursor en las coordenadas de una rejilla concreta */
+function gridPoint(grid, lat, lon) {
+  if (!grid || !grid.located) return null;
+  if (grid.crs === "web") {
+    const p = map.options.crs.project(L.latLng(lat, lon));
+    return { x: p.x, y: p.y };
+  }
+  if (grid.crs === "geo") return { x: lon, y: lat };
+  return null; /* nativo: sin conversión inversa, no se puede situar */
+}
+
+/* Valor de la rejilla bajo un punto.
+   `undefined` = el punto queda FUERA (o no se puede situar);
+   `null`      = dentro, pero sin dato en esa celda.                  */
+function gridSample(grid, lat, lon) {
+  const p = gridPoint(grid, lat, lon);
+  if (!p) return undefined;
+  const c = Math.floor((p.x - grid.xll) / grid.cellX);
+  const r = grid.rows - 1 - Math.floor((p.y - grid.yll) / grid.cellY);
+  if (r < 0 || r >= grid.rows || c < 0 || c >= grid.cols) return undefined;
+  return grid.values[r][c];
+}
+
+const gridCovers = (grid, lat, lon) => gridSample(grid, lat, lon) !== undefined;
+
+/* Escribe la lectura con lo que ya se tiene, sin pedir nada */
+function showElevationAt(latlng) {
+  const t = gridSample(lastGrid.terrain, latlng.lat, latlng.lng);
+  const s = gridSample(lastGrid.surface, latlng.lat, latlng.lng);
+  coordsControl.setElevation("terrain",
+    t === undefined ? "consultando\u2026" : fmtElevation(t), t === undefined ? null : t);
+  coordsControl.setElevation("surface",
+    s === undefined ? "consultando\u2026" : fmtElevation(s), s === undefined ? null : s);
+}
+
+/* Llamado en cada movimiento del ratón: barato, sin red */
 function elevRequest(latlng) {
+  lastCursor = latlng;
+  showElevationAt(latlng);
+  /* Si las dos rejillas cubren el punto, no hay nada que pedir */
+  if (gridCovers(lastGrid.terrain, latlng.lat, latlng.lng)
+      && gridCovers(lastGrid.surface, latlng.lat, latlng.lng)) {
+    clearTimeout(elevTimer);
+    elevTimer = null;
+    return;
+  }
   clearTimeout(elevTimer);
   elevTimer = setTimeout(() => sampleElevations(latlng), ELEV_SETTLE_MS);
 }
@@ -4738,17 +5004,23 @@ function elevRequest(latlng) {
 async function sampleElevations(latlng) {
   if (!demOn || !latlng) return;
   const seq = ++elevSeq;
-  /* Mientras llega la respuesta NO se deja el valor anterior: se vería
-     como si fuera de este punto                                      */
-  coordsControl.setElevation("terrain", "Consultando\u2026");
-  coordsControl.setElevation("surface", "Consultando\u2026");
   const [terrain, surface] = await Promise.all([
     mdtSource.value(latlng.lat, latlng.lng),
     mdsSource.value(latlng.lat, latlng.lng)
   ]);
   if (!demOn || seq !== elevSeq) return; /* el cursor ya está en otro sitio */
-  coordsControl.setElevation("terrain", fmtElevation(terrain), terrain);
-  coordsControl.setElevation("surface", fmtElevation(surface), surface);
+
+  /* `undefined` significa "no se pudo consultar": se conserva la rejilla
+     anterior en vez de borrar lo que ya se veía                       */
+  if (terrain !== undefined) lastGrid.terrain = terrain;
+  if (surface !== undefined) lastGrid.surface = surface;
+  drawElevGrid(lastGrid.terrain, lastGrid.surface);
+
+  if (lastCursor) showElevationAt(lastCursor);
+  /* Si el servicio no da nada, decirlo: si no, se quedaría en
+     "consultando…" para siempre                                      */
+  if (terrain === undefined) coordsControl.setElevation("terrain", "no disponible", null);
+  if (surface === undefined) coordsControl.setElevation("surface", "no disponible", null);
 }
 
 const fmtElevation = h => h === undefined ? "no disponible"
@@ -4765,6 +5037,8 @@ function setAltitudeMode(on) {
     clearTimeout(elevTimer);
     elevTimer = null;
     elevSeq++;
+    clearElevGrid();
+    lastGrid.terrain = lastGrid.surface = null;
   }
 }
 
