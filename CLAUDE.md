@@ -399,6 +399,58 @@ manteniendo los principios acordados durante el desarrollo del proyecto.
   `servicios.idee.es/wcs-inspire/mdt` y `pickMdtCoverage` elige la malla
   **más fina** (5 m, la del MDS) y, a igualdad, un sistema geográfico
   para poder preguntar en latitud/longitud.
+- **El caché guarda REJILLAS y se busca por COBERTURA**: una rejilla
+  sirve si contiene el punto pedido. Indexarlas por celdas de 25 m
+  dejaba huecos de hasta 22 m —el caché devolvía una rejilla que no
+  cubría el punto y, al darlo por resuelto, no se pedía otra—. Medido en
+  un recorrido de 400 m: 444 puntos sin cobertura frente a ninguno, por
+  20 peticiones en vez de 17. Las zonas SIN datos sí se siguen indexando
+  por celda, porque no hay rejilla que delimite su extensión.
+- **La ventana pedida es de ±20 m**, no ±10: con celdas del modelo de
+  5 m, una consulta cubre varias y el ratón las recorre sin volver a
+  pedir. Medido: a ±10 m harían falta 39 peticiones en el mismo
+  recorrido; a ±20 m, 20.
+- **Manda la COBERTURA de la rejilla, no la distancia recorrida**:
+  mientras el cursor siga dentro de la última rejilla, sus valores se
+  leen directamente (`gridSample`) y no se pide nada; se pide solo al
+  salirse. Antes se decidía por celdas de caché de 25 m y, como la
+  rejilla abarca solo ±10 m alrededor del punto donde estaba el ratón al
+  pedirla, había puntos que caían fuera de la rejilla pero dentro de la
+  celda ya «resuelta»: ni se repintaban ni se volvían a pedir. Medido:
+  9 de cada 51 puntos de esa franja quedaban muertos.
+- **La lectura muestrea bajo el CURSOR**, no la celda central de la
+  rejilla: moverse por la cuadrícula actualiza el valor sin red.
+- **Tres estados distintos** en `gridSample`: `undefined` = el punto
+  queda fuera (hay que pedir), `null` = dentro pero sin dato (no se pide
+  otra vez), y un número = dato bueno. Confundir los dos primeros es lo
+  que dejaba zonas en «consultando…» para siempre.
+- **Cuadrícula de elevaciones**: la respuesta del WCS se dibuja entera,
+  celda a celda, con los tres valores (MDT, MDS y su diferencia). El
+  disparo es la RESPUESTA, no el movimiento del ratón, y cada respuesta
+  borra la anterior. `parseAsciiGrid` devuelve por eso la matriz
+  completa con su cabecera (`xllcorner`, `yllcorner`, `cellsize`), no un
+  solo valor; `gridValue` extrae el de la celda central para la lectura.
+- **La rejilla viaja etiquetada con su CRS** (`web`, `geo` o `native`):
+  sin saber en qué sistema se pidió no se pueden convertir sus esquinas a
+  latitud y longitud. Web Mercator se deshace con la propia proyección de
+  Leaflet; el sistema nativo (UTM) no se dibuja, porque no tenemos la
+  conversión inversa y es preferible no pintar la malla a pintarla mal.
+- **El texto de las celdas escala con el zoom** (`gridFontSize`): a
+  partir del 21 crece un punto por nivel, con tope para que siga cabiendo
+  en la celda. Es un tamaño relativo a la celda, no absoluto, así que las
+  etiquetas se rehacen en `zoomend` (`rescaleElevGrid`) reutilizando el
+  texto guardado en cada marcador: el zoom no vuelve a pedir datos.
+- **Las celdas pueden ser RECTANGULARES**: la rejilla ASCII declara
+  `cellsize` solo si son cuadradas; si no, `dx` y `dy` por separado.
+  Exigir `cellsize` hacía descartar entera la respuesta del MDT, que al
+  pedir una ventana cuadrada en metros devuelve 5x4 celdas frente a las
+  4x4 del MDS. Todo el recorrido usa `cellX`/`cellY`.
+- **Las dos mallas se emparejan por POSICIÓN, no por índice**: MDT y MDS
+  pueden no empezar en el mismo punto y comparar celda con celda por su
+  número daría diferencias falsas.
+- **Sin esquina la rejilla no se dibuja pero sí se lee**: se marca
+  `located: false` en vez de descartarla, porque los valores siguen
+  siendo válidos para el cuadro de coordenadas.
 - **Mientras se consulta se escribe «Consultando…»**, no el valor
   anterior: un número viejo junto a unas coordenadas nuevas se lee como
   si fuera de ese punto. Cada fila lleva además el prefijo del modelo
@@ -674,6 +726,17 @@ Además de los tests, conviene pasar sobre `visor-kml.html`:
 - **que toda función llamada esté declarada**: un refactor puede
   llevarse por delante ayudantes que siguen en uso y `node --check` no lo
   detecta, porque sigue siendo sintácticamente válido.
+
+## Zoom por encima de las teselas
+
+`maxZoom` es 25 en el mapa y cada capa declara su `maxNativeZoom` (19
+normalmente, 9 en la física de Esri). Por encima de su último nivel
+publicado, Leaflet **escala** la última tesela recibida en vez de pedir
+niveles que no existen: la cartografía se ve borrosa, pero la cuadrícula
+de elevaciones —celdas de 5 m— se puede leer.
+
+La escalera del doble clic se corta en `ZOOM_LADDER_TOP` (19): más allá
+solo se amplía la imagen, y no es a donde se quiere ir de un doble clic.
 
 ## Cuadro de coordenadas y atribución
 
