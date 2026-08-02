@@ -57,6 +57,16 @@ manteniendo los principios acordados durante el desarrollo del proyecto.
    XML hace falta `@xmldom/xmldom`, porque linkedom no implementa
    namespaces ni `getElementsByTagName("*")` y los tests del parser KML
    darían falsos negativos. Como mínimo, `node --check` antes de entregar.
+   **Toda modificación, por pequeña que sea, termina con
+   `node tests/run-all.js` completo** (no una suite suelta): es lo único
+   que confirma que el resto del comportamiento sigue intacto. Los tests
+   se mantienen junto al código, no al margen de él: si un cambio altera
+   comportamiento cubierto, la suite correspondiente se actualiza en el
+   mismo cambio; si añade comportamiento nuevo o no cubierto, se añade su
+   test (nueva suite en `tests/` si no encaja en ninguna existente,
+   registrada en `run-all.js` y descrita en `tests/README.md`). Una
+   funcionalidad no se da por terminada con la suite en rojo ni con una
+   suite que ya no prueba lo que dice probar.
 
 ## Estructura del árbol al importar
 
@@ -812,8 +822,10 @@ atribución se mantiene en una sola línea con elipsis si no cabe.
    surtido efecto**: editar por el valor anterior falla en silencio si no
    es el que se creía, y la versión se queda congelada sin que nadie lo
    note. Sustituir por patrón (`const BUILD = "\d{12}"`) y verificar.
-8. `node --check` del script; test en Node de la lógica pura; `grep` de
-   referencias muertas de lo que se haya retirado.
+8. `node --check` del script; test en Node de la lógica pura (nuevo o
+   actualizado si el cambio lo exige); `grep` de referencias muertas de lo
+   que se haya retirado; y `node tests/run-all.js` completo antes de dar
+   el cambio por terminado.
 9. Cuidado con el ORDEN de las secciones: una variable que se asigna
    dentro del `onAdd` de un control debe declararse antes que ese
    control, o al añadirlo se cae por zona muerta temporal. `node --check`
