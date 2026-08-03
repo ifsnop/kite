@@ -1,0 +1,23 @@
+name: Tests
+
+on:
+  push:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Descargar código
+        uses: actions/checkout@v4
+
+      - name: Configurar Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+
+      - name: Instalar dependencias
+        run: npm ci
+
+      - name: Ejecutar tests
+        run: node tests/run-all.js
