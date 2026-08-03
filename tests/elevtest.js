@@ -7,14 +7,25 @@ function fn(n){ const i=script.indexOf(`function ${n}(`); let d=0;
   for(let k=script.indexOf("{",i);k<script.length;k++){ if(script[k]==="{")d++; else if(script[k]==="}"&&--d===0) return script.slice(i,k+1);} }
 const helpers = script.slice(script.indexOf("/* Nombre sin prefijo"), script.indexOf("/* KML usa color"));
 const fonts = script.slice(script.indexOf("const GRID_FONT_BASE"), script.indexOf("const elevGridLayer"));
-const consts = fonts + script.slice(script.indexOf("const ELEV_GEO_CRS"), script.indexOf("function toWebMercator"))
+/* ELEV_WINDOW se define antes del resto de constantes de elevación, pero
+   la retícula fija (ELEV_TILE_WEB/ELEV_TILE_GEO, dentro del tramo
+   webMercatorHalf→parseMdsCoverage) la necesita al evaluarse.        */
+const elevWindow = script.slice(script.indexOf("const ELEV_WINDOW"), script.indexOf("const ELEV_CELL"));
+const consts = fonts + elevWindow
+  + script.slice(script.indexOf("const ELEV_GEO_CRS"), script.indexOf("function toWebMercator"))
   + script.slice(script.indexOf("const webMercatorHalf"), script.indexOf("function parseMdsCoverage"));
+/* elevTileKey es una const de flecha, no una function declaration:
+   fn() no la encuentra, así que se extrae por rango como los `consts`. */
+const elevTileKeySrc = script.slice(script.indexOf("const elevTileKey ="),
+  script.indexOf("/* Construye las capas Leaflet"));
 const src = "const parserErrorText = () => null;\nconst toRad = d => d * Math.PI / 180;\n" + helpers + consts +
   [fn("parseWcsCapabilities"), fn("pickMdtCoverage"), fn("pickMdsCoverage"),
-   fn("parseMdsCoverage"), fn("parseOwsException"), fn("parseAsciiGrid"), fn("gridCellBounds"), fn("text")].join("\n");
+   fn("parseMdsCoverage"), fn("parseOwsException"), fn("parseAsciiGrid"), fn("gridCellBounds"),
+   fn("gridToLatLng"), fn("buildElevCells"), fn("text")].join("\n") + "\n" + elevTileKeySrc;
 const apiExports = "\nreturn {parseWcsCapabilities, pickMdtCoverage, pickMdsCoverage, pickGeoCrs," +
   " pickMdsFormat, parseMdsCoverage, parseOwsException, parseAsciiGrid," +
-  " pickWebMercator, webMercatorHalf, gridCellBounds, gridFontSize, gridIconSize};";
+  " pickWebMercator, webMercatorHalf, gridCellBounds, gridFontSize, gridIconSize," +
+  " snapTile, ELEV_TILE_WEB, ELEV_TILE_GEO, ELEV_WINDOW, gridToLatLng, buildElevCells, elevTileKey};";
 const api = new Function("DOMParser", src + apiExports)(DOMParser);
 const ok=(c,m)=>{ if(!c){ console.error("FAIL: "+m); process.exitCode=1; } };
 
@@ -251,5 +262,81 @@ ok(nuevo.peticiones < viejo.peticiones * 1.5,
 const anchoHueco = (-5.221889 + 5.222043) * 111320 * Math.cos(38.133423 * Math.PI / 180);
 ok(anchoHueco > 0 && anchoHueco < 25 / 2 + 10,
    `el hueco reportado (${anchoHueco.toFixed(1)} m) cabe en el peor caso del modelo`);
+
+/* ---- Retícula fija de peticiones: snapTile no debe solapar teselas ---- */
+ok(api.snapTile(5, 10) === 5, "el centro de la primera tesela es el propio tamaño/2: " + api.snapTile(5, 10));
+ok(api.snapTile(9.9, 10) === 5, "todavía dentro de la tesela [0,10)");
+ok(api.snapTile(10, 10) === 15, "justo en el borde, ya es la tesela siguiente");
+ok(api.snapTile(-1, 10) === -5, "también funciona con negativos: " + api.snapTile(-1, 10));
+/* Determinismo: mismo punto, mismo resultado siempre */
+ok(api.snapTile(37.42, 10) === api.snapTile(37.42, 10), "snapTile es determinista");
+/* No solapamiento: dos puntos en teselas vecinas producen ventanas
+   [centro-half, centro+half] que como mucho SE TOCAN en el borde, nunca
+   se solapan.                                                        */
+{
+  const size = 10, half = size / 2;
+  const c1 = api.snapTile(4, size), c2 = api.snapTile(11, size);
+  ok(c2 - c1 === size, "teselas vecinas separadas exactamente por el tamaño: " + (c2 - c1));
+  ok(c1 + half <= c2 - half, "las ventanas no se solapan (a lo sumo se tocan)");
+}
+
+/* ---- ELEV_TILE_WEB / ELEV_TILE_GEO: coherentes con su latitud de referencia ---- */
+ok(Math.abs(api.ELEV_TILE_WEB - 2 * api.webMercatorHalf(40, api.ELEV_WINDOW)) < 1e-9,
+   "ELEV_TILE_WEB es 2x la media ventana Web Mercator a 40°N");
+ok(Math.abs(api.ELEV_TILE_GEO.lat - 2 * (api.ELEV_WINDOW / 111320)) < 1e-12,
+   "ELEV_TILE_GEO.lat coherente con ELEV_WINDOW en metros");
+ok(api.ELEV_TILE_GEO.lon > api.ELEV_TILE_GEO.lat,
+   "a 40°N la longitud necesita más grados que la latitud para los mismos metros");
+
+/* ---- buildElevCells: registros autocontenidos, emparejados por posición ---- */
+{
+  const terrain = { ...api.parseAsciiGrid(
+    "ncols 2\nnrows 2\nxllcorner 0\nyllcorner 0\ncellsize 10\nNODATA_value -9999\n" +
+    "10 20\n30 40\n"), crs: "geo" };
+  /* La malla de superficie está DESPLAZADA: no empieza en el mismo punto,
+     así que el emparejamiento debe ser por posición, no por índice.   */
+  const surface = { ...api.parseAsciiGrid(
+    "ncols 3\nnrows 3\nxllcorner -5\nyllcorner -5\ncellsize 10\nNODATA_value -9999\n" +
+    "1 2 3\n4 5 6\n7 8 9\n"), crs: "geo" };
+
+  const built = api.buildElevCells(terrain, surface);
+  ok(built && built.cells.length === 4, "una celda por cada celda del MDT (referencia): " + (built && built.cells.length));
+  ok(built.role === "terrain", "el papel es el de la malla que manda en la geometría");
+  const cell = built.cells.find(c => c.mdt === 40); /* esquina sureste del MDT */
+  ok(cell && typeof cell.mds === "number", "el MDS se muestrea por posición, no por índice: " + JSON.stringify(cell));
+  ok(built.cells.every(c => Array.isArray(c.sw) && Array.isArray(c.ne) && Array.isArray(c.center)),
+     "cada celda trae sus esquinas y centro en lat/lng, autocontenidos");
+
+  /* Sin MDS en absoluto: diff siempre null, sin inventar nada */
+  const builtNoSurface = api.buildElevCells(terrain, null);
+  ok(builtNoSurface.cells.every(c => c.diff === null && c.mds === null),
+     "sin malla de superficie, diff y mds son null, no se interpola");
+
+  /* MDS que no llega a cubrir ninguna celda del MDT: también null */
+  const farSurface = { ...api.parseAsciiGrid(
+    "ncols 1\nnrows 1\nxllcorner 1000\nyllcorner 1000\ncellsize 10\n700\n"), crs: "geo" };
+  const builtFar = api.buildElevCells(terrain, farSurface);
+  ok(builtFar.cells.every(c => c.mds === null && c.diff === null),
+     "MDS fuera de la zona del MDT: sin dato, no falso cero");
+}
+
+/* ---- elevTileKey: exacta por esquina, no aproximada ---- */
+{
+  const gA = { crs: "geo", xll: 100, yll: 200 };
+  const gA2 = { crs: "geo", xll: 100, yll: 200 }; /* misma esquina, otra instancia */
+  const gB = { crs: "geo", xll: 100.03, yll: 200 }; /* esquina ligeramente distinta */
+  const builtT1 = { role: "terrain", grid: gA, cells: [] };
+  const builtT2 = { role: "terrain", grid: gA2, cells: [] };
+  const builtS1 = { role: "surface", grid: gA, cells: [] };
+  const builtT3 = { role: "terrain", grid: gB, cells: [] };
+
+  ok(api.elevTileKey(builtT1) === api.elevTileKey(builtT2),
+     "misma ventana (misma esquina) ⇒ misma clave, aunque sean objetos distintos");
+  ok(api.elevTileKey(builtT1) !== api.elevTileKey(builtS1),
+     "mismo punto pero distinto papel (MDT/MDS) ⇒ claves distintas, sin cruzarse");
+  ok(api.elevTileKey(builtT1) !== api.elevTileKey(builtT3),
+     "esquina distinta (aunque sea por poco) ⇒ clave distinta: " +
+     `${api.elevTileKey(builtT1)} / ${api.elevTileKey(builtT3)}`);
+}
 
 if (!process.exitCode) console.log("ELEVATION TESTS OK");

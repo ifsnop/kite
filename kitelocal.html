@@ -836,7 +836,7 @@ const map = L.map("map", { preferCanvas: true, maxZoom: MAX_ZOOM }).setView([40.
 
 /* Fecha de generación del código (versión): AÑOMESDIAHORAMINUTO.
    Actualizar en cada generación; se muestra junto al crédito de Leaflet. */
-const BUILD = "202608021205";
+const BUILD = "202608031400";
 map.attributionControl.setPrefix(
   `v${BUILD} | <a href="https://leafletjs.com" title="A JavaScript library for interactive maps">Leaflet</a>`);
 
@@ -1353,7 +1353,8 @@ function toggleOne(li) {
 
 /* Nombre legible del tipo, para poder explicar por qué algo se queda
    fuera de una selección                                              */
-const KIND_LABEL = { marker: "marcadores", polygon: "pol\u00EDgonos", measure: "mediciones" };
+const KIND_LABEL = { marker: "marcadores", polygon: "pol\u00EDgonos", measure: "mediciones",
+  elevGrid: "cuadr\u00EDculas de elevaci\u00F3n" };
 
 /* Selecciona de una vez todas las capas de la rama que cuelga de un
    contenedor. Como solo pueden convivir capas del mismo tipo en la
@@ -2142,11 +2143,13 @@ const DB_NAME = "visor-kml";
 const DB_VERSION = 3;  /* esquema de la base: un único almacén "tree".
                           Subir solo cuando cambie la estructura de almacenes;
                           la migración es simplemente borrar lo anterior.     */
-const TREE_SCHEMA = 2; /* formato del árbol serializado. Subir solo cuando
+const TREE_SCHEMA = 3; /* formato del árbol serializado. Subir solo cuando
                           cambie el formato; un árbol guardado con otra
                           versión se descarta al leer.
                           v2: los nodos de capa admiten `mstyle` (estilo de
-                          marcador: icono MDI, colores, tamaños y texto).     */
+                          marcador: icono MDI, colores, tamaños y texto).
+                          v3: nuevo tipo de nodo "elevGrid" (celdas de
+                          elevación acumuladas en una sesión de modo altura). */
 const DB_TREE = "tree";
 
 /* One connection, reused. Opening the database on every save wastes
@@ -2371,6 +2374,9 @@ function serializeNode(li) {
     return [{ ...base, t: "measure", mtype: li._measure.type,
               a: { lat: a.lat, lng: a.lng }, b: { lat: b.lat, lng: b.lng } }];
   }
+  if (li._elevGrid) {
+    return [{ ...base, t: "elevGrid", cells: li._elevGrid.cells }];
+  }
   const ul = nodeUl(li);
   if (ul) {
     return [{ ...base, t: li.classList.contains("file") ? "file" : "folder",
@@ -2519,7 +2525,7 @@ function saveTree() {
 function countLayers(nodes) {
   let n = 0;
   for (const x of nodes) {
-    if (x.t === "layer" || x.t === "measure") n++;
+    if (x.t === "layer" || x.t === "measure" || x.t === "elevGrid") n++;
     else n += countLayers(x.children || []);
   }
   return n;
@@ -2537,6 +2543,8 @@ async function buildFromNodes(nodes, parentUl, prog) {
   for (const n of nodes) {
     if (n.t === "measure") {
       rebuildMeasurement(n, parentUl);
+    } else if (n.t === "elevGrid") {
+      rebuildElevGrid(n, parentUl);
     } else if (n.t === "layer") {
       const layer = L.geoJSON(n.geo, n.style ? { style: n.style } : undefined);
       layer.bindPopup(n.name);
@@ -2563,7 +2571,7 @@ async function buildFromNodes(nodes, parentUl, prog) {
       /* la sección que contiene mediciones recupera su papel */
       if (n.t === "file" && (n.children || []).some(c => c.t === "measure")) measureLi = li;
     }
-    if (prog && (n.t === "layer" || n.t === "measure") && ++prog.done % PROGRESS_BATCH === 0) {
+    if (prog && (n.t === "layer" || n.t === "measure" || n.t === "elevGrid") && ++prog.done % PROGRESS_BATCH === 0) {
       prog.update(prog.done);
       await yieldFrame();
     }
@@ -3395,6 +3403,7 @@ function styleKind(li) {
   if (li._kind !== undefined) return li._kind;
   let kind;
   if (li._measure) kind = "measure";
+  else if (li._elevGrid) kind = "elevGrid";
   else {
     const layer = nodeLayer(li);
     if (!layer) kind = "group";
@@ -4436,6 +4445,13 @@ const ELEV_TIMEOUT = 12000;
 const ELEV_MAX_RPS = 4;      /* peticiones por segundo, entre las dos fuentes */
 const ELEV_STATUS_QUIET = 20000;
 const ELEV_ATTRIB = 'MDT05/MDS PNOA \u00A9 <a href="https://www.ign.es">IGN</a> (CC BY 4.0)';
+/* Tope de celdas acumuladas en una sesión de modo altura: cada respuesta
+   aporta ~100-120 celdas (una tesela de 40 m sobre la malla nativa de
+   5 m), así que el tope permite explorar varias decenas de teselas antes
+   de avisar. Los marcadores de Leaflet son siempre nodos del DOM (no
+   pasan por canvas como el resto del visor), así que este tope es
+   también un tope de nodos del DOM, no solo de memoria.               */
+const ELEV_ACCUM_MAX_CELLS = 4000;
 
 let demOn = false;
 let demButton = null;
@@ -4486,6 +4502,44 @@ function toWebMercator(lat, lon) {
    La proyección estira la escala con la latitud: sin corregirlo, la
    ventana sería demasiado pequeña en el norte.                       */
 const webMercatorHalf = (lat, metros) => metros / Math.max(0.05, Math.cos(toRad(lat)));
+
+/* Media ventana en grados equivalente a ELEV_WINDOW metros. Antes vivía
+   dentro de makeElevationSource; sube a ámbito de módulo porque la
+   retícula fija de peticiones (más abajo) también la necesita.       */
+const degHalf = lat => ({
+  lat: ELEV_WINDOW / 111320,
+  lon: ELEV_WINDOW / (111320 * Math.max(0.05, Math.cos(toRad(lat))))
+});
+
+/* ---------- Retícula fija de peticiones ----------
+   Para que la cuadrícula se pueda ACUMULAR sin huecos ni solapes, dos
+   peticiones sobre la misma zona deben producir la MISMA ventana. Antes
+   cada petición se centraba en el cursor, así que dos pasadas por el
+   mismo sitio en momentos distintos pedían ventanas ligeramente
+   distintas. Ahora cada petición se ajusta (`snapTile`) al mosaico de
+   teselas de 2×ELEV_WINDOW más cercano, con origen y tamaño fijos para
+   toda la vida de la página: la misma zona cae siempre en la misma
+   tesela y teselas vecinas nunca se solapan por construcción.
+   El tamaño real en metros de una tesela varía con la latitud (Web
+   Mercator la estira, y en el sistema geográfico la longitud se
+   estrecha), así que se fija una única latitud de referencia en vez de
+   recalcular con la del cursor: el error resultante ENSANCHA la ventana
+   pedida fuera de esa latitud, nunca la estrecha, así que no deja
+   huecos, solo pide un poco más de lo estrictamente necesario. 40°N cae
+   cerca del centro de España (Tarifa ~36°N, cornisa cantábrica ~43,8°N):
+   las Canarias (~28°N) quedan con una ventana algo más ancha de lo
+   necesario, el lado inofensivo del error.                            */
+const ELEV_LATTICE_REF_LAT = 40;
+const ELEV_TILE_WEB = 2 * webMercatorHalf(ELEV_LATTICE_REF_LAT, ELEV_WINDOW);
+const ELEV_TILE_GEO = (() => {
+  const d = degHalf(ELEV_LATTICE_REF_LAT);
+  return { lat: 2 * d.lat, lon: 2 * d.lon };
+})();
+
+/* Centro de la tesela de tamaño `size` (origen 0) que contiene `value`.
+   Con origen y tamaño fijos, un mismo punto cae siempre en la misma
+   tesela y las teselas vecinas nunca se solapan.                     */
+const snapTile = (value, size) => Math.floor(value / size) * size + size / 2;
 
 /* De todos los formatos que ofrezca el servicio hay que quedarse con uno
    legible sin librerías: la rejilla ASCII es texto plano. Los nombres
@@ -4667,12 +4721,6 @@ function makeElevationSource({ base, label, pickCoverage }) {
     return discovering;
   }
 
-  /* Media ventana en grados equivalente a ELEV_WINDOW metros */
-  const degHalf = lat => ({
-    lat: ELEV_WINDOW / 111320,
-    lon: ELEV_WINDOW / (111320 * Math.max(0.05, Math.cos(toRad(lat))))
-  });
-
   /* La rejilla viaja con el sistema en que se pidió: sin saberlo no se
      pueden convertir sus esquinas a latitud y longitud para dibujarla */
   const tag = (grid, crs) => (grid ? { ...grid, crs } : null);
@@ -4680,17 +4728,20 @@ function makeElevationSource({ base, label, pickCoverage }) {
   async function fetchValue(lat, lon) {
     const cfg = await discover();
 
-    /* Vía preferida: Web Mercator, el sistema del visor */
+    /* Vía preferida: Web Mercator, el sistema del visor. La ventana se
+       ajusta a la retícula fija (ELEV_TILE_WEB), no al cursor: así dos
+       peticiones sobre la misma zona piden exactamente lo mismo.      */
     if (cfg.webCrs && cfg.useWeb !== false) {
       const p = toWebMercator(lat, lon);
-      const half = webMercatorHalf(lat, ELEV_WINDOW);
+      const cx = snapTile(p.x, ELEV_TILE_WEB), cy = snapTile(p.y, ELEV_TILE_WEB);
+      const half = ELEV_TILE_WEB / 2;
       try {
         return tag(parseAsciiGrid(await request({
           request: "GetCoverage", coverageId: cfg.coverageId,
           format: cfg.format, subsettingCrs: cfg.webCrs
         }, AbortSignal.timeout(ELEV_TIMEOUT), [
-          ["subset", `${cfg.axisX}(${(p.x - half).toFixed(2)},${(p.x + half).toFixed(2)})`],
-          ["subset", `${cfg.axisY}(${(p.y - half).toFixed(2)},${(p.y + half).toFixed(2)})`]
+          ["subset", `${cfg.axisX}(${(cx - half).toFixed(2)},${(cx + half).toFixed(2)})`],
+          ["subset", `${cfg.axisY}(${(cy - half).toFixed(2)},${(cy + half).toFixed(2)})`]
         ])), "web");
       } catch (err) {
         /* Salir de la cobertura es respuesta legítima; solo se abandona
@@ -4700,16 +4751,18 @@ function makeElevationSource({ base, label, pickCoverage }) {
       }
     }
 
-    /* Respaldo: latitud y longitud */
+    /* Respaldo: latitud y longitud, también ajustado a la retícula fija
+       (ELEV_TILE_GEO), no a la latitud real del cursor.               */
     if (cfg.geoCrs && cfg.useGeo !== false) {
-      const d = degHalf(lat);
+      const tlon = snapTile(lon, ELEV_TILE_GEO.lon), tlat = snapTile(lat, ELEV_TILE_GEO.lat);
+      const halfLon = ELEV_TILE_GEO.lon / 2, halfLat = ELEV_TILE_GEO.lat / 2;
       try {
         return tag(parseAsciiGrid(await request({
           request: "GetCoverage", coverageId: cfg.coverageId,
           format: cfg.format, subsettingCrs: cfg.geoCrs
         }, AbortSignal.timeout(ELEV_TIMEOUT), [
-          ["subset", `Long(${(lon - d.lon).toFixed(7)},${(lon + d.lon).toFixed(7)})`],
-          ["subset", `Lat(${(lat - d.lat).toFixed(7)},${(lat + d.lat).toFixed(7)})`]
+          ["subset", `Long(${(tlon - halfLon).toFixed(7)},${(tlon + halfLon).toFixed(7)})`],
+          ["subset", `Lat(${(tlat - halfLat).toFixed(7)},${(tlat + halfLat).toFixed(7)})`]
         ])), "geo");
       } catch (err) {
         /* Salir de la cobertura es respuesta legítima, no un rechazo del
@@ -4727,13 +4780,22 @@ function makeElevationSource({ base, label, pickCoverage }) {
           return u ? { x: u.easting, y: u.northing, half: ELEV_WINDOW } : null;
         })();
     if (!p) return null;
+    /* El rechazo por extensión mira el punto CRUDO: si se mirara el
+       ajustado a tesela, un punto cerca del borde de cobertura podría
+       rechazarse por error aunque el punto real sí esté dentro.       */
     if (p.x < cfg.minX || p.x > cfg.maxX || p.y < cfg.minY || p.y > cfg.maxY) return null;
+
+    /* Esta rejilla no llega a dibujarse (gridToLatLng no sabe situar el
+       CRS nativo), pero se ajusta a la misma retícula por consistencia
+       con las otras dos vías y para no romper su caché por cobertura. */
+    const tileSize = p.half * 2;
+    const tx = snapTile(p.x, tileSize), ty = snapTile(p.y, tileSize);
 
     return tag(parseAsciiGrid(await request({
       request: "GetCoverage", coverageId: cfg.coverageId, format: cfg.format
     }, AbortSignal.timeout(ELEV_TIMEOUT), [
-      ["subset", `${cfg.axisX}(${(p.x - p.half).toFixed(1)},${(p.x + p.half).toFixed(1)})`],
-      ["subset", `${cfg.axisY}(${(p.y - p.half).toFixed(1)},${(p.y + p.half).toFixed(1)})`]
+      ["subset", `${cfg.axisX}(${(tx - p.half).toFixed(1)},${(tx + p.half).toFixed(1)})`],
+      ["subset", `${cfg.axisY}(${(ty - p.half).toFixed(1)},${(ty + p.half).toFixed(1)})`]
     ])), cfg.geographic ? "geo" : "native");
   }
 
@@ -4838,7 +4900,9 @@ const mdsSource = makeElevationSource({
    Se dibuja lo que ha devuelto el servicio, celda por celda y en su
    sitio: la cabecera de la rejilla trae esquina y tamaño de celda. Cada
    celda muestra el terreno (MDT), la superficie (MDS) y su diferencia.
-   La cuadrícula anterior se borra con cada respuesta nueva.          */
+   Mientras el modo altura está activo, las celdas se ACUMULAN: nada se
+   borra hasta que se desactiva, momento en el que todo lo acumulado pasa
+   a ser una capa del árbol de navegación (ver setAltitudeMode).       */
 const GRID_FILL_OPACITY = 0.4;   /* se ve la cartografía por debajo   */
 /* A partir del zoom 21 las celdas ya son grandes en pantalla y el texto
    de 10 px se queda pequeño: crece un punto por nivel. Es un tamaño
@@ -4854,6 +4918,10 @@ const gridFontSize = zoom =>
 /* La caja de la etiqueta acompaña al texto: tres líneas más margen */
 const gridIconSize = font => [Math.round(font * 5.4), Math.round(font * 3.6)];
 const elevGridLayer = L.layerGroup().addTo(map);
+/* Vista viva (elevGridLayer) + una capa por sesión ya guardada en el
+   árbol: rescaleElevGrid debe reescalar el texto de todas ellas al
+   cambiar el zoom, no solo el de la sesión en curso.                 */
+const elevGridGroups = [elevGridLayer];
 
 /* Esquinas de la rejilla a latitud/longitud según el sistema en que se
    pidió. Web Mercator lo deshace Leaflet con su propia proyección; el
@@ -4884,25 +4952,28 @@ function cellIcon(html, font) {
 }
 
 /* Al cambiar el zoom solo se rehacen los iconos: la geometría de la
-   cuadrícula no depende de él, y volver a pedir datos sería absurdo  */
+   cuadrícula no depende de él, y volver a pedir datos sería absurdo.
+   Se recorren TODOS los grupos (la vista en curso y las sesiones ya
+   guardadas en el árbol), no solo la vista en curso.                */
 function rescaleElevGrid() {
   const font = gridFontSize(map.getZoom());
-  elevGridLayer.eachLayer(l => {
-    if (l._cellHtml) l.setIcon(cellIcon(l._cellHtml, font));
-  });
+  for (const g of elevGridGroups) {
+    g.eachLayer(l => {
+      if (l._cellHtml) l.setIcon(cellIcon(l._cellHtml, font));
+    });
+  }
 }
 map.on("zoomend", rescaleElevGrid);
 
-/* `terrain` manda en la geometría; de `surface` se toma el valor de la
-   celda que coincide, que puede no existir si las mallas difieren.  */
-function drawElevGrid(terrain, surface) {
-  clearElevGrid();
-  /* Se dibuja la malla del MDT, que es la de referencia. Donde el MDS no
-     llega —sus mallas no coinciden: 5x4 frente a 4x4— la celda muestra
-     una raya y no se calcula diferencia: NO se inventa ni se
-     interpola.                                                       */
+/* Cálculo puro: convierte un par de rejillas (MDT/MDS) en registros de
+   celda autocontenidos (esquinas en lat/lng + valores), sin construir
+   nada de Leaflet. `terrain` manda en la geometría; de `surface` se toma
+   el valor de la celda que coincide, que puede no existir si las mallas
+   difieren (5x4 frente a 4x4, y donde el MDS no llega NO se inventa ni
+   se interpola).                                                      */
+function buildElevCells(terrain, surface) {
   const grid = terrain || surface;
-  if (!grid || !grid.located || !gridToLatLng(grid, grid.xll, grid.yll)) return;
+  if (!grid || !grid.located || !gridToLatLng(grid, grid.xll, grid.yll)) return null;
 
   /* Las dos mallas pueden no empezar en el mismo punto, así que el valor
      de la otra se busca por POSICIÓN, no por índice de celda.        */
@@ -4913,6 +4984,7 @@ function drawElevGrid(terrain, surface) {
     return (r >= 0 && r < g.rows && c >= 0 && c < g.cols) ? g.values[r][c] : null;
   };
 
+  const cells = [];
   for (let r = 0; r < grid.rows; r++) {
     for (let c = 0; c < grid.cols; c++) {
       const b = gridCellBounds(grid, r, c);
@@ -4924,24 +4996,86 @@ function drawElevGrid(terrain, surface) {
       const mdt = terrain === grid ? grid.values[r][c] : sampleAt(terrain, cx, cy);
       const mds = surface === grid ? grid.values[r][c] : sampleAt(surface, cx, cy);
       const diff = (typeof mdt === "number" && typeof mds === "number") ? mds - mdt : null;
-
-      elevGridLayer.addLayer(L.rectangle([sw, ne], {
-        color: "#1b5e97", weight: 1, opacity: 0.8,
-        fillColor: "#ffffff", fillOpacity: GRID_FILL_OPACITY,
-        interactive: false
-      }));
-      /* La etiqueta va como marcador sin icono, anclado al centro de la
-         celda: así la escribe el navegador y no hay que escalar texto */
-      const label = L.marker([(sw[0] + ne[0]) / 2, (sw[1] + ne[1]) / 2], { interactive: false });
-      /* El texto se guarda en el propio marcador para poder rehacer su
-         icono al cambiar el zoom sin volver a pedir nada al servicio */
-      label._cellHtml = `<span class="ec-t">${fmtCell(mdt)}</span>`
-        + `<span class="ec-s">${fmtCell(mds)}</span>`
-        + `<span class="ec-d">${diff === null ? "\u2014" : (diff >= 0 ? "+" : "") + diff.toFixed(1)}</span>`;
-      label.setIcon(cellIcon(label._cellHtml, gridFontSize(map.getZoom())));
-      elevGridLayer.addLayer(label);
+      cells.push({ sw, ne, center: [(sw[0] + ne[0]) / 2, (sw[1] + ne[1]) / 2], mdt, mds, diff });
     }
   }
+  return { grid, role: terrain === grid ? "terrain" : "surface", cells };
+}
+
+/* Clave de deduplicado EXACTA: como las peticiones se ajustan a la
+   retícula fija (ver snapTile), dos peticiones sobre la misma tesela
+   producen siempre la misma esquina xll/yll en la respuesta, así que
+   comparar por esquina + sistema + papel (MDT/MDS) basta, sin falta de
+   comparación geométrica aproximada.                                 */
+const elevTileKey = built =>
+  `${built.role}:${built.grid.crs}:${built.grid.xll.toFixed(2)}:${built.grid.yll.toFixed(2)}`;
+
+/* Construye las capas Leaflet (rectángulo + etiqueta) de UNA celda.
+   Compartido entre el dibujo en vivo y la reconstrucción de una capa
+   guardada (buildElevGridGroup), para que ambas se vean idénticas.   */
+function makeElevCellLayers(cell, font) {
+  const rect = L.rectangle([cell.sw, cell.ne], {
+    color: "#1b5e97", weight: 1, opacity: 0.8,
+    fillColor: "#ffffff", fillOpacity: GRID_FILL_OPACITY,
+    interactive: false
+  });
+  /* La etiqueta va como marcador sin icono, anclado al centro de la
+     celda: así la escribe el navegador y no hay que escalar texto */
+  const label = L.marker(cell.center, { interactive: false });
+  /* El texto se guarda en el propio marcador para poder rehacer su
+     icono al cambiar el zoom sin volver a pedir nada al servicio */
+  label._cellHtml = `<span class="ec-t">${fmtCell(cell.mdt)}</span>`
+    + `<span class="ec-s">${fmtCell(cell.mds)}</span>`
+    + `<span class="ec-d">${cell.diff === null ? "\u2014" : (cell.diff >= 0 ? "+" : "") + cell.diff.toFixed(1)}</span>`;
+  label.setIcon(cellIcon(label._cellHtml, font));
+  return [rect, label];
+}
+
+/* Dibuja una respuesta nueva SIN borrar lo anterior: mientras el modo
+   altura esté activo, las celdas se acumulan en `elevAccum` y se añaden
+   a la vista en vivo. Una tesela ya dibujada no se vuelve a dibujar
+   (deduplicado exacto, ver elevTileKey), y hay un tope de celdas por
+   sesión (ELEV_ACCUM_MAX_CELLS) para no acumular sin límite.          */
+function drawElevGrid(terrain, surface) {
+  if (!elevAccum) return; /* defensivo: no debería llamarse con el modo apagado */
+  const built = buildElevCells(terrain, surface);
+  if (!built || !built.cells.length) return;
+
+  const key = elevTileKey(built);
+  if (elevAccum.tileKeys.has(key)) return;
+  if (elevAccum.cells.length >= ELEV_ACCUM_MAX_CELLS) {
+    if (!elevAccumCapped) {
+      elevAccumCapped = true;
+      navMessage(`Cuadr\u00EDcula de elevaciones: se alcanz\u00F3 el m\u00E1ximo de `
+        + `${ELEV_ACCUM_MAX_CELLS} celdas acumuladas en esta sesi\u00F3n; la lectura `
+        + `bajo el cursor sigue funcionando, pero no se dibujan m\u00E1s celdas. `
+        + `Apague y vuelva a activar el modo altura para empezar una capa nueva.`,
+        { tone: "info" });
+    }
+    return;
+  }
+  elevAccum.tileKeys.add(key);
+
+  const font = gridFontSize(map.getZoom());
+  for (const cell of built.cells) {
+    elevAccum.cells.push(cell);
+    for (const layer of makeElevCellLayers(cell, font)) elevGridLayer.addLayer(layer);
+  }
+}
+
+/* Construye una capa completa (rectángulos + etiquetas) a partir de
+   registros de celda ya calculados: se usa tanto al cerrar una sesión
+   de modo altura como al restaurar una capa guardada desde IndexedDB.
+   Debe ser un L.featureGroup, no un L.layerGroup: subtreeBounds (usado
+   por "Autoescalar" y el doble click) necesita getBounds(), que
+   L.LayerGroup no tiene en Leaflet 1.9.4.                             */
+function buildElevGridGroup(cells) {
+  const group = L.featureGroup();
+  const font = gridFontSize(map.getZoom());
+  for (const cell of cells) {
+    for (const layer of makeElevCellLayers(cell, font)) group.addLayer(layer);
+  }
+  return group;
 }
 
 /* ---------- Muestreo ----------
@@ -4955,6 +5089,15 @@ function drawElevGrid(terrain, surface) {
 let elevTimer = null, elevSeq = 0;
 let lastCursor = null;
 const lastGrid = { terrain: null, surface: null };
+
+/* Acumulador de la sesión de modo altura en curso: null cuando el modo
+   está apagado. `tileKeys` es el mismo deduplicado exacto de drawElevGrid
+   (ver elevTileKey). `elevAccumCapped` evita repetir el aviso de tope.
+   `elevGridCount` numera "Elevación N" y se autosincroniza al restaurar
+   el árbol (igual que measureCount con las mediciones).                */
+let elevAccum = null;
+let elevAccumCapped = false;
+let elevGridCount = 0;
 
 /* Posición del cursor en las coordenadas de una rejilla concreta */
 function gridPoint(grid, lat, lon) {
@@ -5031,17 +5174,68 @@ async function sampleElevations(latlng) {
 const fmtElevation = h => h === undefined ? "no disponible"
   : h === null ? "sin datos" : fmtAltitude(h);
 
+/* Sección del árbol para las capas de elevación guardadas. Se localiza
+   por nombre (ensureNamedSection, igual que "Lugares"/"Marcadores"), no
+   con una caché de referencia como las mediciones: así sobrevive a la
+   restauración sin necesitar un enganche especial en buildFromNodes.  */
+function ensureElevSection() {
+  return ensureNamedSection("Elevaciones");
+}
+
+/* Convierte lo acumulado en una sesión de modo altura en una capa normal
+   del árbol: persistente, con checkbox, borrable. Sin pushUndo (ninguna
+   creación de nodo lo llama hoy, solo las operaciones destructivas).  */
+function finalizeElevSession(cells) {
+  const group = buildElevGridGroup(cells).addTo(rootGroup);
+  elevGridGroups.push(group);
+  const name = "Elevación " + (++elevGridCount);
+  const li = makeNode({
+    name, layer: group, styleable: false,
+    onDelete: () => {
+      const i = elevGridGroups.indexOf(group);
+      if (i >= 0) elevGridGroups.splice(i, 1);
+    }
+  });
+  li._elevGrid = { cells };
+  ensureElevSection().appendChild(li);
+  scheduleSave();
+}
+
+/* Reconstruye una capa de elevaciones guardada (usado al restaurar el
+   árbol). Sigue el patrón de las capas normales (t === "layer"): se
+   construye desconectada y solo se añade a rootGroup si está marcada. */
+function rebuildElevGrid(n, parentUl) {
+  const group = buildElevGridGroup(n.cells);
+  elevGridGroups.push(group);
+  if (n.checked) group.addTo(rootGroup);
+  const li = makeNode({
+    name: n.name, layer: group, styleable: false, checked: !!n.checked,
+    onDelete: () => {
+      const i = elevGridGroups.indexOf(group);
+      if (i >= 0) elevGridGroups.splice(i, 1);
+    }
+  });
+  li._elevGrid = { cells: n.cells };
+  parentUl.appendChild(li);
+  elevGridCount++;
+}
+
 function setAltitudeMode(on) {
   demOn = on;
   if (demButton) demButton.classList.toggle("active", on);
   coordsControl.showElevation(on);
   if (on) {
+    elevAccum = { cells: [], tileKeys: new Set() };
+    elevAccumCapped = false;
     map.attributionControl.addAttribution(ELEV_ATTRIB); /* CC BY 4.0 obliga */
   } else {
     map.attributionControl.removeAttribution(ELEV_ATTRIB);
     clearTimeout(elevTimer);
     elevTimer = null;
     elevSeq++;
+    /* La sesión se convierte en capa ANTES de limpiar la vista transitoria */
+    if (elevAccum && elevAccum.cells.length) finalizeElevSession(elevAccum.cells);
+    elevAccum = null;
     clearElevGrid();
     lastGrid.terrain = lastGrid.surface = null;
   }

@@ -143,11 +143,13 @@ manteniendo los principios acordados durante el desarrollo del proyecto.
 
 - **Ventana de navegación**: panel izquierdo con el árbol de capas.
 - **Ventana del visor**: mapa Leaflet a la derecha.
-- **Nodo**: cualquier fila del árbol — archivo, carpeta, capa o medición.
+- **Nodo**: cualquier fila del árbol — archivo, carpeta, capa, medición o
+  cuadrícula de elevación.
 - **Tipo de nodo (`styleKind`)**: clasificación usada por los estilos y la
   selección múltiple: `marker` (contiene marcadores), `polygon` (contiene
   trazos: polígonos/líneas; los mixtos cuentan como `marker`), `measure`
-  (medición), `group` (carpeta/archivo).
+  (medición), `elevGrid` (cuadrícula de elevación acumulada), `group`
+  (carpeta/archivo).
 
 ## Arquitectura (orden de secciones dentro del script)
 
@@ -436,10 +438,29 @@ manteniendo los principios acordados durante el desarrollo del proyecto.
   que dejaba zonas en «consultando…» para siempre.
 - **Cuadrícula de elevaciones**: la respuesta del WCS se dibuja entera,
   celda a celda, con los tres valores (MDT, MDS y su diferencia). El
-  disparo es la RESPUESTA, no el movimiento del ratón, y cada respuesta
-  borra la anterior. `parseAsciiGrid` devuelve por eso la matriz
-  completa con su cabecera (`xllcorner`, `yllcorner`, `cellsize`), no un
-  solo valor; `gridValue` extrae el de la celda central para la lectura.
+  disparo es la RESPUESTA, no el movimiento del ratón. `parseAsciiGrid`
+  devuelve por eso la matriz completa con su cabecera (`xllcorner`,
+  `yllcorner`, `cellsize`), no un solo valor; `gridValue` extrae el de la
+  celda central para la lectura.
+- **La cuadrícula se ACUMULA mientras el modo altura está activo**: cada
+  respuesta se añade a las anteriores (`drawElevGrid` ya no borra),
+  hasta que se desactiva el modo. Para que dos peticiones sobre la misma
+  zona pidan exactamente lo mismo —y así se puedan deduplicar sin
+  aproximaciones—, cada petición se ajusta (`snapTile`) a una retícula
+  fija de teselas de 2×`ELEV_WINDOW` en vez de centrarse en el cursor:
+  con origen y tamaño fijos para toda la vida de la página, una misma
+  zona cae siempre en la misma tesela y las teselas vecinas nunca se
+  solapan. El deduplicado de celdas dibujadas (`elevTileKey`) compara
+  por eso la esquina de la rejilla devuelta, exacta, no por proximidad.
+  Al desactivar el modo, lo acumulado en la sesión (`elevAccum`) se
+  convierte en una capa normal del árbol de navegación («Elevación N»,
+  dentro de la sección «Elevaciones»), con las mismas garantías que
+  cualquier otra capa: persistente, con checkbox, borrable. Una sesión
+  vacía (sin celdas) no crea ninguna capa. Hay un tope de celdas por
+  sesión (`ELEV_ACCUM_MAX_CELLS`) porque cada celda es un `L.rectangle` y
+  un `L.marker` con icono HTML —los marcadores de Leaflet son siempre
+  nodos del DOM, no pasan por canvas como el resto del visor—, así que
+  el tope es también un tope de nodos del DOM, no solo de memoria.
 - **La rejilla viaja etiquetada con su CRS** (`web`, `geo` o `native`):
   sin saber en qué sistema se pidió no se pueden convertir sus esquinas a
   latitud y longitud. Web Mercator se deshace con la propia proyección de
@@ -583,7 +604,9 @@ manteniendo los principios acordados durante el desarrollo del proyecto.
 - Base `visor-kml`, `DB_VERSION` versiona los almacenes (hoy: solo
   `tree`); `TREE_SCHEMA` versiona el formato del árbol serializado, que
   se guarda como `{ v, nodes }` bajo la clave `root`. `TREE_SCHEMA` actual:
-  **2** (los nodos de capa admiten `mstyle`, el estilo de marcador).
+  **3** (los nodos de capa admiten `mstyle`, el estilo de marcador; y
+  existe el tipo de nodo `elevGrid`, las celdas de elevación acumuladas
+  en una sesión de modo altura).
 - `serializeNode(li)` serializa un nodo (y sus hijos vía
   `serializeNodes`); `serializeTree()` es esa misma pasada sobre la raíz.
   Los dos consumidores son el guardado automático y la exportación de una
