@@ -2,14 +2,15 @@
 
 **KITE Local** = *KML Interactive Tree Explorer*.
 
-Instrucciones para seguir añadiendo funcionalidades a `visor-kml.html`
-(nombre de archivo histórico; el producto es KITE Local)
-manteniendo los principios acordados durante el desarrollo del proyecto.
+Instrucciones para seguir añadiendo funcionalidades a `kitelocal.html`
+(el producto es KITE Local; el archivo se llamó `visor-kml.html` en
+versiones anteriores) manteniendo los principios acordados durante el
+desarrollo del proyecto.
 
 ## Principios de base (no negociables)
 
 1. **Un único archivo HTML, sin compilación.** Todo el proyecto vive en
-   `visor-kml.html`: HTML + CSS + JavaScript plano. Nada de Vue, React,
+   `kitelocal.html`: HTML + CSS + JavaScript plano. Nada de Vue, React,
    TypeScript, bundlers ni pasos de build. El archivo debe poder abrirse
    directamente en el navegador.
 2. **Reusar librerías conocidas y estables; no reinventar.** Se cargan por
@@ -437,11 +438,10 @@ manteniendo los principios acordados durante el desarrollo del proyecto.
   otra vez), y un número = dato bueno. Confundir los dos primeros es lo
   que dejaba zonas en «consultando…» para siempre.
 - **Cuadrícula de elevaciones**: la respuesta del WCS se dibuja entera,
-  celda a celda, con los tres valores (MDT, MDS y su diferencia). El
-  disparo es la RESPUESTA, no el movimiento del ratón. `parseAsciiGrid`
-  devuelve por eso la matriz completa con su cabecera (`xllcorner`,
-  `yllcorner`, `cellsize`), no un solo valor; `gridValue` extrae el de la
-  celda central para la lectura.
+  celda a celda. El disparo es la RESPUESTA, no el movimiento del ratón.
+  `parseAsciiGrid` devuelve por eso la matriz completa con su cabecera
+  (`xllcorner`, `yllcorner`, `cellsize`), no un solo valor; `gridValue`
+  extrae el de la celda central para la lectura.
 - **La cuadrícula se ACUMULA mientras el modo altura está activo**: cada
   respuesta se añade a las anteriores (`drawElevGrid` ya no borra),
   hasta que se desactiva el modo. Para que dos peticiones sobre la misma
@@ -461,6 +461,42 @@ manteniendo los principios acordados durante el desarrollo del proyecto.
   un `L.marker` con icono HTML —los marcadores de Leaflet son siempre
   nodos del DOM, no pasan por canvas como el resto del visor—, así que
   el tope es también un tope de nodos del DOM, no solo de memoria.
+- **Qué se dibuja depende del zoom** (`elevZoomBand`): por debajo del 5
+  m de la celda nativa, tres líneas de texto dejan de leerse mucho antes
+  de que valga la pena seguir acercando. Por debajo del zoom 19
+  (`ELEV_ZOOM_MINI`) no se escribe ningún número, solo el relleno del
+  rectángulo, que se colorea en rojo pastel translúcido cuando MDS
+  supera al MDT en más de `ELEV_ALERT_DIFF` (1 m) —la única señal visible
+  de "aquí hay algo construido o vegetación"—; en blanco translúcido de
+  siempre en cualquier otro caso. En el zoom 19 justo cabe una línea:
+  solo la diferencia, en rojo (clase `.alert`) si supera el umbral. A
+  partir del 20 se ven las tres líneas de siempre (terreno, superficie,
+  diferencia), con la diferencia en rojo bajo el mismo umbral. El umbral
+  de aviso se compara siempre en METROS, nunca en la unidad de
+  visualización. `refreshElevCells` (antes `rescaleElevGrid`) recalcula
+  relleno y texto de todas las celdas —las de la sesión en curso y las
+  ya guardadas en el árbol— a partir de `_cell`, el registro crudo que
+  cada capa guarda en sus propias capas Leaflet; no hace falta volver a
+  pedir nada ni al cambiar de zoom ni al conmutar la unidad.
+- **Unidad de la cuadrícula (m/ft)**: un botón junto al de modo altura
+  conmuta `elevUnit` entre metros y pies (`toElevUnit`, con
+  `METERS_PER_FOOT`). Afecta solo a los números de la capa de
+  elevaciones, no al cuadro de coordenadas (que sigue mostrando ambas
+  unidades como siempre); no se persiste entre sesiones, arranca en
+  metros en cada carga de página, igual que `demOn`.
+- **Repetir una medición con una capa de elevaciones visible la
+  amplía en vez de crear otra**: al activar el modo altura,
+  `pickClosestElevLi(visibleElevGridNodes())` busca las capas `elevGrid`
+  con la casilla marcada; con una sola, la sesión se fusiona en ella
+  (`mergeElevSession`); con varias a la vez, en la más cercana al centro
+  de la vista (`map.distance`); con ninguna, se crea «Elevación N+1»
+  como siempre. Mientras dura la fusión, `elevRequest` no vuelve a pedir
+  un punto que la capa destino YA tiene (`coveredByPriorCells`,
+  comprobación punto-en-rectángulo sobre sus celdas guardadas: no llevan
+  la esquina de rejilla WCS que sí usa `elevTileKey`, así que ese
+  deduplicado no sirve aquí). Si la capa destino se borra mientras la
+  sesión sigue activa, se cae a crear una capa nueva en vez de perder lo
+  medido.
 - **La rejilla viaja etiquetada con su CRS** (`web`, `geo` o `native`):
   sin saber en qué sistema se pidió no se pueden convertir sus esquinas a
   latitud y longitud. Web Mercator se deshace con la propia proyección de
@@ -469,8 +505,9 @@ manteniendo los principios acordados durante el desarrollo del proyecto.
 - **El texto de las celdas escala con el zoom** (`gridFontSize`): a
   partir del 21 crece un punto por nivel, con tope para que siga cabiendo
   en la celda. Es un tamaño relativo a la celda, no absoluto, así que las
-  etiquetas se rehacen en `zoomend` (`rescaleElevGrid`) reutilizando el
-  texto guardado en cada marcador: el zoom no vuelve a pedir datos.
+  etiquetas se rehacen en `zoomend` (`refreshElevCells`) recalculando el
+  texto a partir del registro crudo (`_cell`) que guarda cada marcador:
+  el zoom no vuelve a pedir datos.
 - **Las celdas pueden ser RECTANGULARES**: la rejilla ASCII declara
   `cellsize` solo si son cuadradas; si no, `dx` y `dy` por separado.
   Exigir `cellsize` hacía descartar entera la respuesta del MDT, que al
@@ -695,6 +732,15 @@ manteniendo los principios acordados durante el desarrollo del proyecto.
   errores de tesela, en vez de quedarse en blanco sin explicación. Las de
   IGN Base, MTN y Relieve usan las URL WMTS del IGN: si alguna cambiara,
   el aviso es lo que lo delata.
+- **El icono de `.base-toggle` va con `position: absolute; right: 0`**,
+  no en flujo normal: la caja (`.base-box`) es `float: right` con ancho
+  automático dentro de la esquina `topright` de Leaflet, así que su
+  borde derecho es fijo pero el izquierdo se desplaza al desplegar
+  `.base-list`. Un icono en flujo (pegado al borde izquierdo) se alejaba
+  del punto donde el usuario lo había pulsado para desplegar, obligando
+  a mover el ratón para volver a pulsarlo y plegar. Mismo patrón que ya
+  usa `.actions` (los botones de una fila) para anclarse al borde
+  derecho de un padre `position: relative`.
 
 ## Deshacer y rehacer
 
@@ -718,6 +764,17 @@ manteniendo los principios acordados durante el desarrollo del proyecto.
 - La marca de destino la lleva **una sola fila** (`dropMarked`). Barrer
   el árbol con `querySelectorAll` en cada `dragover` —que se dispara
   decenas de veces por segundo— hacía que arrastrar fuera a tirones.
+- **Soltar un archivo externo sobre una carpeta lo importa DENTRO de
+  ella**, en vez de siempre en la raíz: `folderDropTarget` resuelve el
+  `<li>` bajo el puntero con el mismo test de "esto es un contenedor"
+  que ya usan `dropZone()` (reordenar interno) y `pasteClipboard()`
+  (pegar) —`nodeUl(li)`—, y ese destino se enhebra hasta los
+  importadores (`handleDroppedFiles` → `addFileNode`/`importTreeExport`)
+  exactamente como `pasteClipboard` ya elige entre la carpeta del cursor
+  y la raíz. Para KML esto NO añade un envoltorio (la jerarquía del
+  archivo cuelga directa de la carpeta soltada); para GeoJSON/`.kite.json`
+  es la propia carpeta envoltorio la que cuelga de ahí. El recuadro
+  `#dropzone` vive ahora bajo el árbol (`#tree`), no en la cabecera.
 
 ## Ficha del elemento
 
@@ -751,7 +808,7 @@ manteniendo los principios acordados durante el desarrollo del proyecto.
 
 ## Comprobaciones estáticas del propio archivo
 
-Además de los tests, conviene pasar sobre `visor-kml.html`:
+Además de los tests, conviene pasar sobre `kitelocal.html`:
 - que todo recurso de librería lleve `integrity` y `crossorigin`;
 - que el guardián de Leaflet preceda a cualquier uso de `L`;
 - que haya UNA sola constante `BUILD` y con el valor esperado;

@@ -18,14 +18,21 @@ const consts = fonts + elevWindow
    fn() no la encuentra, así que se extrae por rango como los `consts`. */
 const elevTileKeySrc = script.slice(script.indexOf("const elevTileKey ="),
   script.indexOf("/* Construye las capas Leaflet"));
+/* METERS_PER_FOOT vive lejos de las demás constantes de elevación (junto
+   a fmtAltitude, el formateo del cuadro de coordenadas); toElevUnit
+   (también una const de flecha) lo necesita para la conversión m/ft. */
+const meterFoot = script.slice(script.indexOf("const METERS_PER_FOOT"), script.indexOf("const fmtAltitude"));
+const toElevUnitSrc = script.slice(script.indexOf("const toElevUnit ="), script.indexOf("const fmtCell"));
 const src = "const parserErrorText = () => null;\nconst toRad = d => d * Math.PI / 180;\n" + helpers + consts +
   [fn("parseWcsCapabilities"), fn("pickMdtCoverage"), fn("pickMdsCoverage"),
    fn("parseMdsCoverage"), fn("parseOwsException"), fn("parseAsciiGrid"), fn("gridCellBounds"),
-   fn("gridToLatLng"), fn("buildElevCells"), fn("text")].join("\n") + "\n" + elevTileKeySrc;
+   fn("gridToLatLng"), fn("buildElevCells"), fn("pointInCell"), fn("text")].join("\n")
+  + "\n" + elevTileKeySrc + "\n" + meterFoot + "\n" + toElevUnitSrc;
 const apiExports = "\nreturn {parseWcsCapabilities, pickMdtCoverage, pickMdsCoverage, pickGeoCrs," +
   " pickMdsFormat, parseMdsCoverage, parseOwsException, parseAsciiGrid," +
   " pickWebMercator, webMercatorHalf, gridCellBounds, gridFontSize, gridIconSize," +
-  " snapTile, ELEV_TILE_WEB, ELEV_TILE_GEO, ELEV_WINDOW, gridToLatLng, buildElevCells, elevTileKey};";
+  " snapTile, ELEV_TILE_WEB, ELEV_TILE_GEO, ELEV_WINDOW, gridToLatLng, buildElevCells, elevTileKey," +
+  " elevZoomBand, isElevAlert, pointInCell, toElevUnit, METERS_PER_FOOT};";
 const api = new Function("DOMParser", src + apiExports)(DOMParser);
 const ok=(c,m)=>{ if(!c){ console.error("FAIL: "+m); process.exitCode=1; } };
 
@@ -337,6 +344,46 @@ ok(api.ELEV_TILE_GEO.lon > api.ELEV_TILE_GEO.lat,
   ok(api.elevTileKey(builtT1) !== api.elevTileKey(builtT3),
      "esquina distinta (aunque sea por poco) ⇒ clave distinta: " +
      `${api.elevTileKey(builtT1)} / ${api.elevTileKey(builtT3)}`);
+}
+
+/* ---- elevZoomBand: qué se dibuja según el zoom ---- */
+ok(api.elevZoomBand(18) === "mini", "18: sin texto");
+ok(api.elevZoomBand(10) === "mini", "muy alejado: también sin texto");
+ok(api.elevZoomBand(19) === "diff", "19: solo la diferencia");
+ok(api.elevZoomBand(20) === "full", "20: las tres líneas");
+ok(api.elevZoomBand(25) === "full", "zoom máximo: las tres líneas");
+/* Leaflet reporta zoom fraccionario durante animaciones; elevZoomBand
+   redondea (Math.round), no trunca, antes de comparar los umbrales   */
+ok(api.elevZoomBand(18.4) === "mini", "18.4 redondea a 18: sin texto");
+ok(api.elevZoomBand(18.6) === "diff", "18.6 redondea a 19: solo diferencia");
+
+/* ---- isElevAlert: umbral estricto, siempre en metros ---- */
+ok(api.isElevAlert({ diff: 1.01 }) === true, "1.01 m > 1 m: aviso");
+ok(api.isElevAlert({ diff: 1 }) === false, "exactamente 1 m: NO es aviso (estricto)");
+ok(api.isElevAlert({ diff: 0.99 }) === false, "0.99 m: sin aviso");
+ok(api.isElevAlert({ diff: -5 }) === false, "diferencia negativa: sin aviso");
+ok(api.isElevAlert({ diff: null }) === false, "sin dato: sin aviso");
+
+/* ---- toElevUnit: conversión pura m→ft, independiente del estado global ---- */
+ok(api.toElevUnit(10, "m") === 10, "en metros, identidad");
+ok(Math.abs(api.toElevUnit(1, "ft") - 1 / api.METERS_PER_FOOT) < 1e-12,
+   "en pies, se divide por METERS_PER_FOOT (0.3048)");
+ok(Math.abs(api.toElevUnit(0.3048, "ft") - 1) < 1e-9, "0.3048 m es 1 ft");
+ok(api.toElevUnit(-5, "m") === -5, "negativos también, sin tocar el signo");
+
+/* ---- pointInCell: punto-en-rectángulo sobre un registro de celda ---- */
+{
+  const cell = { sw: [40.0, -3.7], ne: [40.001, -3.699] };
+  ok(api.pointInCell(cell, 40.0005, -3.6995) === true, "centro de la celda: dentro");
+  ok(api.pointInCell(cell, 40.0, -3.7) === true, "esquina SW incluida (borde cerrado)");
+  ok(api.pointInCell(cell, 40.001, -3.699) === true, "esquina NE incluida (borde cerrado)");
+  ok(api.pointInCell(cell, 39.999, -3.6995) === false, "al sur, fuera");
+  ok(api.pointInCell(cell, 40.0005, -3.701) === false, "al oeste, fuera");
+  /* sw/ne no siempre vienen en el orden "menor primero": pointInCell no
+     debe asumirlo (usa Math.min/max internamente)                    */
+  const swapped = { sw: [40.001, -3.699], ne: [40.0, -3.7] };
+  ok(api.pointInCell(swapped, 40.0005, -3.6995) === true,
+     "funciona igual con sw/ne intercambiados");
 }
 
 if (!process.exitCode) console.log("ELEVATION TESTS OK");

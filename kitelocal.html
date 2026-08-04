@@ -85,7 +85,10 @@
     font-size: 12.5px;
     color: var(--muted);
     text-align: center;
-    margin-bottom: 10px;
+    /* Ahora vive bajo el árbol (antes, dentro de la cabecera, ya tenía
+       su padding lateral); sin la cabecera hace falta el margen a los
+       lados para no pegarse a los bordes del panel.                  */
+    margin: 8px 10px 10px;
   }
   #nav-panel.drop-hover #dropzone {
     border-color: var(--accent);
@@ -381,9 +384,20 @@
      igualar esa especificidad para que el margen se aplique de verdad. */
   .leaflet-bottom .leaflet-control.coords-box { margin-bottom: 20px; }
   /* Las tres lecturas de la posición, de más a menos usada */
-  /* Panel de mapas base */
-  .base-box { background: #fff; border-radius: 4px; }
+  /* Panel de mapas base. El icono va con position:absolute, anclado al
+     borde derecho de la caja (igual que .actions, ver más abajo): la
+     caja está en la esquina topright de Leaflet con float:right y
+     ancho automático, así que su borde derecho es fijo pero el
+     izquierdo se desplaza al desplegar la lista; un icono en flujo
+     normal (pegado al borde izquierdo) se alejaba del punto donde el
+     usuario lo había pulsado para desplegar.                         */
+  .base-box {
+    background: #fff; border-radius: 4px;
+    position: relative;
+    min-width: 48px; min-height: 48px; /* el icono, al salir del flujo, ya no lo garantiza */
+  }
   .base-toggle {
+    position: absolute; top: 0; right: 0;
     display: block;
     width: 48px; height: 48px;
     border: none; background: none;
@@ -392,6 +406,7 @@
   }
   .base-toggle:hover { color: var(--accent); }
   .base-list {
+    margin-top: 48px; /* hueco que dejaba el icono en flujo */
     padding: 6px 8px;
     border-top: 1px solid var(--border);
     max-height: 46vh; overflow: auto;
@@ -428,6 +443,7 @@
   .elev-cell .ec-t { color: #1b5e97; font-weight: 700; }  /* terreno    */
   .elev-cell .ec-s { color: #2e7d32; }                    /* superficie */
   .elev-cell .ec-d { color: #b04a3a; }                    /* diferencia */
+  .elev-cell .ec-d.alert { color: #d32f2f; font-weight: 700; } /* MDS > MDT + 1 m */
 
   .coords-zoom { color: var(--muted); font-weight: 600; }
   /* La atribución se queda en una sola línea, la de abajo del todo */
@@ -642,7 +658,6 @@
     <h1 title="KML Interactive Tree Explorer">KITE Local
       <button id="help-btn" class="btn" title="Ayuda y atajos de teclado (tecla ?)">?</button>
     </h1>
-    <div id="dropzone">Arrastre aquí sus archivos KML/KMZ/JSON o carpetas exportadas (.kite.json)</div>
     <div class="nav-actions">
       <input type="text" id="place-box" placeholder="Buscar un lugar y a&#241;adir marcador&#8230;">
       <button class="btn" id="place-btn">Buscar</button>
@@ -670,6 +685,7 @@
     </div>
   </header>
   <div id="tree" role="tree" aria-label="Árbol de capas" tabindex="0"></div>
+  <div id="dropzone">Arrastre aquí sus archivos KML/KMZ/JSON o carpetas exportadas (.kite.json)</div>
   <footer id="nav-search">
     <div class="nav-actions">
       <input type="text" id="search-box" placeholder="Buscar capas y carpetas&#8230;">
@@ -836,7 +852,7 @@ const map = L.map("map", { preferCanvas: true, maxZoom: MAX_ZOOM }).setView([40.
 
 /* Fecha de generación del código (versión): AÑOMESDIAHORAMINUTO.
    Actualizar en cada generación; se muestra junto al crédito de Leaflet. */
-const BUILD = "202608031400";
+const BUILD = "202608041200";
 map.attributionControl.setPrefix(
   `v${BUILD} | <a href="https://leafletjs.com" title="A JavaScript library for interactive maps">Leaflet</a>`);
 
@@ -2452,7 +2468,7 @@ const countRecords = nodes => nodes.reduce((n, r) =>
 
 /* Imported folders are always added: nothing is replaced or merged, so
    it is the user who decides which copy to keep                       */
-async function importTreeExport(doc, fileName, insertBefore) {
+async function importTreeExport(doc, fileName, insertBefore, dropTargetUl = null) {
   /* Dos comprobaciones distintas: el envoltorio y los registros */
   const format = doc.format === undefined ? 0 : doc.format;
   if (format !== EXPORT_FORMAT) {
@@ -2462,7 +2478,7 @@ async function importTreeExport(doc, fileName, insertBefore) {
     throw new Error(`formato de \u00E1rbol v${doc.schema}, incompatible con el actual v${TREE_SCHEMA}`);
   }
   if (!doc.nodes.length) throw new Error("el archivo no contiene ning\u00FAn nodo");
-  const ul = ensureRootUl();
+  const ul = dropTargetUl || ensureRootUl();
   const before = [...ul.children];
   const total = countRecords(doc.nodes);
   const prog = total > PROGRESS_BATCH ? {
@@ -2691,11 +2707,11 @@ function parseKmlDocument(content) {
    tanto directamente en la raíz. Un GeoJSON, en cambio, es una lista
    plana de elementos sin jerarquía propia, así que ahí la carpeta
    contenedora sí aporta: agrupa lo que llegó junto.                    */
-async function addFileNode(name, kind, content, insertBefore = null) {
+async function addFileNode(name, kind, content, insertBefore = null, dropTargetUl = null) {
   const big = content.length > SIZE_THRESHOLD;
   const report = makeImportReport(name);
   coordClamped = 0;
-  const ul = ensureRootUl();
+  const ul = dropTargetUl || ensureRootUl();
   const wrap = kind !== "kml";
   const li = wrap ? makeNode({ name, isFile: true }) : null;
   /* Sin envoltorio, lo construido se cuelga de la raíz; se anota qué había
@@ -2825,7 +2841,7 @@ const fmtBytes = n => n > 1024 * 1024
 
 /* Procesa archivos soltados en la navegación; `insertBefore` permite
    insertarlos justo donde se hayan arrastrado                          */
-async function handleDroppedFiles(files, insertBefore) {
+async function handleDroppedFiles(files, insertBefore, dropTargetUl = null) {
   for (const file of files) {
     const ext = (file.name.split(".").pop() || "").toLowerCase();
     const big = file.size > SIZE_THRESHOLD;
@@ -2845,7 +2861,7 @@ async function handleDroppedFiles(files, insertBefore) {
            its envelope, not by the extension                            */
         const doc = parseTreeExport(content);
         if (doc) {
-          await importTreeExport(doc, file.name, insertBefore);
+          await importTreeExport(doc, file.name, insertBefore, dropTargetUl);
           scheduleSave();
           continue;
         }
@@ -2855,7 +2871,7 @@ async function handleDroppedFiles(files, insertBefore) {
         navMessage(`\u00AB${file.name}\u00BB no est\u00E1 soportado. Formatos admitidos: KML, KMZ, JSON (GeoJSON) y carpetas exportadas (${EXPORT_EXT}).`);
         continue;
       }
-      await addFileNode(file.name, kind, content, insertBefore);
+      await addFileNode(file.name, kind, content, insertBefore, dropTargetUl);
       scheduleSave();
     } catch (err) {
       navMessage(`No se pudo cargar \u00AB${file.name}\u00BB (${ext || "sin extensi\u00F3n"}, ${fmtBytes(file.size)}): ${err.message}`);
@@ -2865,22 +2881,41 @@ async function handleDroppedFiles(files, insertBefore) {
   }
 }
 
-/* Zona de arrastre: toda la ventana de navegación acepta archivos */
+/* ¿Hay una carpeta bajo el puntero? Mismo test de "esto es un
+   contenedor" que ya usan dropZone() (reordenar interno) y
+   pasteClipboard() (pegar): nodeUl(li) solo es verdad para carpetas,
+   archivos-sección y demás nodos con hijos, nunca para capas sueltas. */
+function folderDropTarget(e) {
+  const li = e.target.closest ? e.target.closest("li[role=treeitem]") : null;
+  return li && nodeUl(li) ? li : null;
+}
+
+/* Zona de arrastre: toda la ventana de navegación acepta archivos.
+   Soltar sobre una carpeta importa AHÍ DENTRO en vez de en la raíz. */
 navPanel.addEventListener("dragover", e => {
   if (dragLi || !e.dataTransfer.types.includes("Files")) return;
   e.preventDefault();
   navPanel.classList.add("drop-hover");
+  const folderLi = folderDropTarget(e);
+  if (folderLi) markDrop(nodeRow(folderLi), "drop-into"); else clearDropMarks();
 });
 navPanel.addEventListener("dragleave", e => {
-  if (!navPanel.contains(e.relatedTarget)) navPanel.classList.remove("drop-hover");
+  if (!navPanel.contains(e.relatedTarget)) {
+    navPanel.classList.remove("drop-hover");
+    clearDropMarks();
+  }
 });
 navPanel.addEventListener("drop", e => {
   navPanel.classList.remove("drop-hover");
+  clearDropMarks();
   if (dragLi || !e.dataTransfer.files.length) return;
   e.preventDefault();
-  /* Si se suelta sobre un archivo ya cargado, el nuevo se inserta ahí */
-  const target = e.target.closest ? e.target.closest("li.file") : null;
-  handleDroppedFiles([...e.dataTransfer.files], target);
+  const folderLi = folderDropTarget(e);
+  /* Si se suelta sobre una carpeta, el contenido entra ahí; si no, sobre
+     un archivo ya cargado, el nuevo se inserta justo antes (como antes);
+     si no, a la raíz.                                                  */
+  const insertBefore = !folderLi && e.target.closest ? e.target.closest("li.file") : null;
+  handleDroppedFiles([...e.dataTransfer.files], insertBefore, folderLi ? nodeUl(folderLi) : null);
 });
 
 /* ================= Acciones del panel de navegación ================= */
@@ -4912,15 +4947,41 @@ const GRID_FONT_BASE = 10;   /* px, hasta el zoom umbral            */
 const GRID_FONT_FROM = 21;   /* zoom a partir del cual crece        */
 const GRID_FONT_MAX = 22;    /* tope, para que quepa en la celda    */
 
+/* Por debajo del zoom 19 la celda es demasiado pequeña para tres líneas
+   de texto legibles: se deja de escribir número y la propia celda se
+   colorea como aviso. En el 19 cabe justo una línea, así que se muestra
+   solo la diferencia (lo que de verdad importa: MDS por encima del MDT
+   sugiere algo construido o vegetación). A partir del 20 caben las tres
+   líneas de siempre.                                                 */
+const ELEV_ZOOM_MINI = 18;      /* <=: sin texto, solo aviso de relleno */
+const ELEV_ZOOM_DIFF_ONLY = 19; /* ==: una sola línea (la diferencia)  */
+                                 /* >=20: las tres líneas, como siempre */
+const ELEV_ALERT_DIFF = 1;      /* m: umbral de "MDS por encima del MDT" */
+const GRID_ALERT_FILL = "#ff8a80"; /* rojo pastel, relleno de aviso a zoom bajo */
+
 const gridFontSize = zoom =>
   Math.min(GRID_FONT_MAX, GRID_FONT_BASE + Math.max(0, Math.round(zoom) - GRID_FONT_FROM + 1));
+
+/* Banda de contenido según el zoom, ver comentario arriba. Pura: se
+   prueba en Node sin necesitar un mapa real.                        */
+function elevZoomBand(zoom) {
+  const z = Math.round(zoom);
+  if (z <= ELEV_ZOOM_MINI) return "mini";
+  if (z === ELEV_ZOOM_DIFF_ONLY) return "diff";
+  return "full";
+}
+
+/* El aviso se decide siempre en METROS, con independencia de la unidad
+   de visualización (ver toElevUnit): es un umbral físico fijo, no una
+   comodidad de pantalla.                                             */
+const isElevAlert = cell => typeof cell.diff === "number" && cell.diff > ELEV_ALERT_DIFF;
 
 /* La caja de la etiqueta acompaña al texto: tres líneas más margen */
 const gridIconSize = font => [Math.round(font * 5.4), Math.round(font * 3.6)];
 const elevGridLayer = L.layerGroup().addTo(map);
 /* Vista viva (elevGridLayer) + una capa por sesión ya guardada en el
-   árbol: rescaleElevGrid debe reescalar el texto de todas ellas al
-   cambiar el zoom, no solo el de la sesión en curso.                 */
+   árbol: refreshElevCells debe recalcular relleno y texto de todas
+   ellas, no solo el de la sesión en curso.                           */
 const elevGridGroups = [elevGridLayer];
 
 /* Esquinas de la rejilla a latitud/longitud según el sistema en que se
@@ -4936,7 +4997,35 @@ function gridToLatLng(grid, x, y) {
   return null;
 }
 
-const fmtCell = v => v === null || v === undefined ? "—" : v.toFixed(1);
+/* Conversión pura, parametrizada por unidad (no por el estado mutable
+   `elevUnit`) para poder probarla en Node sin depender de él.        */
+const toElevUnit = (v, unit) => unit === "ft" ? v / METERS_PER_FOOT : v;
+
+const fmtCell = v => v === null || v === undefined ? "—" : toElevUnit(v, elevUnit).toFixed(1);
+const fmtDiff = d => d === null || d === undefined ? "—"
+  : (d >= 0 ? "+" : "") + toElevUnit(d, elevUnit).toFixed(1);
+
+/* Contenido de una celda según la banda de zoom (ver elevZoomBand):
+   sin texto por debajo del 19, solo la diferencia en el 19, las tres
+   líneas de siempre a partir del 20. El aviso (`.alert`) va SIEMPRE en
+   la diferencia cuando supera ELEV_ALERT_DIFF, sea cual sea la banda. */
+function elevCellHtml(cell, band) {
+  const diffSpan = `<span class="ec-d${isElevAlert(cell) ? " alert" : ""}">${fmtDiff(cell.diff)}</span>`;
+  if (band === "mini") return "";
+  if (band === "diff") return diffSpan;
+  return `<span class="ec-t">${fmtCell(cell.mdt)}</span>`
+    + `<span class="ec-s">${fmtCell(cell.mds)}</span>`
+    + diffSpan;
+}
+
+/* El relleno del rectángulo solo avisa en la banda "mini": ahí es la
+   ÚNICA señal visible (no hay texto), así que si MDS supera al MDT en
+   más de ELEV_ALERT_DIFF se colorea en rojo pastel; el resto de bandas
+   siempre llevan el blanco translúcido de siempre.                   */
+function renderElevRect(rect, cell, zoom) {
+  const mini = elevZoomBand(zoom) === "mini";
+  rect.setStyle({ fillColor: (mini && isElevAlert(cell)) ? GRID_ALERT_FILL : "#ffffff" });
+}
 
 function clearElevGrid() {
   elevGridLayer.clearLayers();
@@ -4951,19 +5040,27 @@ function cellIcon(html, font) {
   });
 }
 
-/* Al cambiar el zoom solo se rehacen los iconos: la geometría de la
-   cuadrícula no depende de él, y volver a pedir datos sería absurdo.
-   Se recorren TODOS los grupos (la vista en curso y las sesiones ya
-   guardadas en el árbol), no solo la vista en curso.                */
-function rescaleElevGrid() {
-  const font = gridFontSize(map.getZoom());
+/* Recalcula el aspecto de todas las celdas (relleno + texto): al cambiar
+   el zoom (banda de contenido, tamaño de letra) y al conmutar la unidad
+   (m/ft, ver elevUnitButton). La geometría de la cuadrícula no depende
+   de ninguno de los dos, y volver a pedir datos sería absurdo: todo se
+   recalcula a partir de `l._cell`, los valores crudos que ya guarda
+   cada capa. Se recorren TODOS los grupos (la vista en curso y las
+   sesiones ya guardadas en el árbol), no solo la vista en curso.      */
+function refreshElevCells() {
+  const zoom = map.getZoom();
+  const band = elevZoomBand(zoom);
+  const font = gridFontSize(zoom);
   for (const g of elevGridGroups) {
     g.eachLayer(l => {
-      if (l._cellHtml) l.setIcon(cellIcon(l._cellHtml, font));
+      if (!l._cell) return;
+      if (l instanceof L.Rectangle) { renderElevRect(l, l._cell, zoom); return; }
+      l.setOpacity(band === "mini" ? 0 : 1);
+      if (band !== "mini") l.setIcon(cellIcon(elevCellHtml(l._cell, band), font));
     });
   }
 }
-map.on("zoomend", rescaleElevGrid);
+map.on("zoomend", refreshElevCells);
 
 /* Cálculo puro: convierte un par de rejillas (MDT/MDS) en registros de
    celda autocontenidos (esquinas en lat/lng + valores), sin construir
@@ -5013,21 +5110,24 @@ const elevTileKey = built =>
 /* Construye las capas Leaflet (rectángulo + etiqueta) de UNA celda.
    Compartido entre el dibujo en vivo y la reconstrucción de una capa
    guardada (buildElevGridGroup), para que ambas se vean idénticas.   */
-function makeElevCellLayers(cell, font) {
+function makeElevCellLayers(cell, zoom) {
+  const band = elevZoomBand(zoom);
+  const font = gridFontSize(zoom);
+
   const rect = L.rectangle([cell.sw, cell.ne], {
     color: "#1b5e97", weight: 1, opacity: 0.8,
     fillColor: "#ffffff", fillOpacity: GRID_FILL_OPACITY,
     interactive: false
   });
+  rect._cell = cell;
+  renderElevRect(rect, cell, zoom);
+
   /* La etiqueta va como marcador sin icono, anclado al centro de la
      celda: así la escribe el navegador y no hay que escalar texto */
   const label = L.marker(cell.center, { interactive: false });
-  /* El texto se guarda en el propio marcador para poder rehacer su
-     icono al cambiar el zoom sin volver a pedir nada al servicio */
-  label._cellHtml = `<span class="ec-t">${fmtCell(cell.mdt)}</span>`
-    + `<span class="ec-s">${fmtCell(cell.mds)}</span>`
-    + `<span class="ec-d">${cell.diff === null ? "\u2014" : (cell.diff >= 0 ? "+" : "") + cell.diff.toFixed(1)}</span>`;
-  label.setIcon(cellIcon(label._cellHtml, font));
+  label._cell = cell;
+  label.setIcon(cellIcon(elevCellHtml(cell, band), font));
+  label.setOpacity(band === "mini" ? 0 : 1); /* sin texto por debajo del zoom 19 */
   return [rect, label];
 }
 
@@ -5056,10 +5156,10 @@ function drawElevGrid(terrain, surface) {
   }
   elevAccum.tileKeys.add(key);
 
-  const font = gridFontSize(map.getZoom());
+  const zoom = map.getZoom();
   for (const cell of built.cells) {
     elevAccum.cells.push(cell);
-    for (const layer of makeElevCellLayers(cell, font)) elevGridLayer.addLayer(layer);
+    for (const layer of makeElevCellLayers(cell, zoom)) elevGridLayer.addLayer(layer);
   }
 }
 
@@ -5071,9 +5171,9 @@ function drawElevGrid(terrain, surface) {
    L.LayerGroup no tiene en Leaflet 1.9.4.                             */
 function buildElevGridGroup(cells) {
   const group = L.featureGroup();
-  const font = gridFontSize(map.getZoom());
+  const zoom = map.getZoom();
   for (const cell of cells) {
-    for (const layer of makeElevCellLayers(cell, font)) group.addLayer(layer);
+    for (const layer of makeElevCellLayers(cell, zoom)) group.addLayer(layer);
   }
   return group;
 }
@@ -5098,6 +5198,10 @@ const lastGrid = { terrain: null, surface: null };
 let elevAccum = null;
 let elevAccumCapped = false;
 let elevGridCount = 0;
+/* Unidad de visualización de la cuadrícula (no del cuadro de
+   coordenadas, que sigue mostrando siempre m y ft): arranca en metros
+   en cada carga de página, sin persistirse. Ver elevUnitButton.       */
+let elevUnit = "m";
 
 /* Posición del cursor en las coordenadas de una rejilla concreta */
 function gridPoint(grid, lat, lon) {
@@ -5124,10 +5228,42 @@ function gridSample(grid, lat, lon) {
 
 const gridCovers = (grid, lat, lon) => gridSample(grid, lat, lon) !== undefined;
 
+/* Punto-en-rectángulo sobre un registro de celda ya guardado (sw/ne en
+   lat/lng). Es lo que permite comprobar cobertura contra una capa de
+   elevaciones existente SIN tener la esquina de rejilla WCS que usa
+   elevTileKey (esa solo existe justo tras una respuesta nueva).       */
+function pointInCell(cell, lat, lng) {
+  const loLat = Math.min(cell.sw[0], cell.ne[0]), hiLat = Math.max(cell.sw[0], cell.ne[0]);
+  const loLng = Math.min(cell.sw[1], cell.ne[1]), hiLng = Math.max(cell.sw[1], cell.ne[1]);
+  return lat >= loLat && lat <= hiLat && lng >= loLng && lng <= hiLng;
+}
+
+/* ¿Ya tiene la capa destino de esta sesión (ver setAltitudeMode) un dato
+   para este punto? Barrido lineal de las celdas previas: hasta
+   ELEV_ACCUM_MAX_CELLS (4000), a lo sumo una vez cada ELEV_SETTLE_MS,
+   así que el coste es despreciable, no hace falta indexar.           */
+const coveredByPriorCells = (lat, lng) =>
+  !!elevAccum && elevAccum.priorCells.some(c => pointInCell(c, lat, lng));
+
+/* Celda previa (de la capa destino) que cubre el punto, o null. Se usa
+   para la lectura del cursor cuando ni la rejilla en vivo ni la
+   petición actual tienen el dato: sin esto, un punto ya cubierto por la
+   capa destino pero no re-pedido en esta sesión se quedaba en
+   "consultando…" para siempre.                                       */
+const priorCellAt = (lat, lng) =>
+  (elevAccum && elevAccum.priorCells.find(c => pointInCell(c, lat, lng))) || null;
+
 /* Escribe la lectura con lo que ya se tiene, sin pedir nada */
 function showElevationAt(latlng) {
-  const t = gridSample(lastGrid.terrain, latlng.lat, latlng.lng);
-  const s = gridSample(lastGrid.surface, latlng.lat, latlng.lng);
+  let t = gridSample(lastGrid.terrain, latlng.lat, latlng.lng);
+  let s = gridSample(lastGrid.surface, latlng.lat, latlng.lng);
+  if (t === undefined || s === undefined) {
+    const prior = priorCellAt(latlng.lat, latlng.lng);
+    if (prior) {
+      if (t === undefined) t = prior.mdt;
+      if (s === undefined) s = prior.mds;
+    }
+  }
   coordsControl.setElevation("terrain",
     t === undefined ? "consultando\u2026" : fmtElevation(t), t === undefined ? null : t);
   coordsControl.setElevation("surface",
@@ -5141,6 +5277,13 @@ function elevRequest(latlng) {
   /* Si las dos rejillas cubren el punto, no hay nada que pedir */
   if (gridCovers(lastGrid.terrain, latlng.lat, latlng.lng)
       && gridCovers(lastGrid.surface, latlng.lat, latlng.lng)) {
+    clearTimeout(elevTimer);
+    elevTimer = null;
+    return;
+  }
+  /* Ni tampoco si la capa destino de esta sesión ya lo tiene: fusionar
+     no debe repetir peticiones que esa capa ya resolvió.              */
+  if (coveredByPriorCells(latlng.lat, latlng.lng)) {
     clearTimeout(elevTimer);
     elevTimer = null;
     return;
@@ -5182,6 +5325,30 @@ function ensureElevSection() {
   return ensureNamedSection("Elevaciones");
 }
 
+/* Nodos "elevGrid" cuya capa está VISIBLE ahora mismo (casilla marcada,
+   la misma fuente de verdad que usa applyVisibility: pertenencia a
+   rootGroup). No hay índice por tipo de nodo, así que se recorre el
+   árbol entero como ya hacen searchMatches/subtreeBounds.             */
+function visibleElevGridNodes() {
+  return [...treeEl.querySelectorAll("li")]
+    .filter(li => li._elevGrid && rootGroup.hasLayer(nodeLayer(li)));
+}
+
+/* De varias capas visibles a la vez, la que recibe la sesión nueva es
+   la más cercana al centro actual de la vista (proxy razonable de por
+   dónde va a empezar a medir el usuario), con la misma distancia
+   geodésica que ya usan las mediciones (map.distance).                */
+function pickClosestElevLi(nodes) {
+  if (nodes.length <= 1) return nodes[0] || null;
+  const ref = map.getCenter();
+  let best = nodes[0], bestDist = Infinity;
+  for (const li of nodes) {
+    const d = map.distance(ref, nodeLayer(li).getBounds().getCenter());
+    if (d < bestDist) { bestDist = d; best = li; }
+  }
+  return best;
+}
+
 /* Convierte lo acumulado en una sesión de modo altura en una capa normal
    del árbol: persistente, con checkbox, borrable. Sin pushUndo (ninguna
    creación de nodo lo llama hoy, solo las operaciones destructivas).  */
@@ -5198,6 +5365,22 @@ function finalizeElevSession(cells) {
   });
   li._elevGrid = { cells };
   ensureElevSection().appendChild(li);
+  scheduleSave();
+}
+
+/* Añade lo acumulado en esta sesión a una capa YA EXISTENTE (la que
+   pickClosestElevLi eligió al activar el modo), en vez de crear una
+   capa nueva. Añadir capas a un featureGroup que ya está en el mapa
+   (vía rootGroup) funciona sin más: addLayer ya comprueba si su _map
+   está definido y las añade al mapa en el mismo paso — el mismo
+   mecanismo que ya usa drawElevGrid con elevGridLayer.                */
+function mergeElevSession(targetLi, newCells) {
+  const group = nodeLayer(targetLi);
+  const zoom = map.getZoom();
+  for (const cell of newCells) {
+    for (const layer of makeElevCellLayers(cell, zoom)) group.addLayer(layer);
+  }
+  targetLi._elevGrid.cells = targetLi._elevGrid.cells.concat(newCells);
   scheduleSave();
 }
 
@@ -5225,7 +5408,14 @@ function setAltitudeMode(on) {
   if (demButton) demButton.classList.toggle("active", on);
   coordsControl.showElevation(on);
   if (on) {
-    elevAccum = { cells: [], tileKeys: new Set() };
+    /* Si ya hay una (o varias) capas de elevaciones visibles, esta
+       sesión se fusiona en la más cercana en vez de crear una nueva;
+       priorCells alimenta el "no repetir peticiones" de elevRequest. */
+    const target = pickClosestElevLi(visibleElevGridNodes());
+    elevAccum = {
+      cells: [], tileKeys: new Set(),
+      targetLi: target, priorCells: target ? target._elevGrid.cells : []
+    };
     elevAccumCapped = false;
     map.attributionControl.addAttribution(ELEV_ATTRIB); /* CC BY 4.0 obliga */
   } else {
@@ -5233,8 +5423,17 @@ function setAltitudeMode(on) {
     clearTimeout(elevTimer);
     elevTimer = null;
     elevSeq++;
-    /* La sesión se convierte en capa ANTES de limpiar la vista transitoria */
-    if (elevAccum && elevAccum.cells.length) finalizeElevSession(elevAccum.cells);
+    /* La sesión se convierte en capa (o se fusiona) ANTES de limpiar la
+       vista transitoria. Si la capa destino desapareció mientras tanto
+       (el usuario la borró con el modo activo), se cae a crear una
+       capa nueva en vez de perder lo medido.                          */
+    if (elevAccum && elevAccum.cells.length) {
+      if (elevAccum.targetLi && elevAccum.targetLi.isConnected) {
+        mergeElevSession(elevAccum.targetLi, elevAccum.cells);
+      } else {
+        finalizeElevSession(elevAccum.cells);
+      }
+    }
     elevAccum = null;
     clearElevGrid();
     lastGrid.terrain = lastGrid.surface = null;
@@ -5244,6 +5443,7 @@ function setAltitudeMode(on) {
 /* ================= Controles de vista del visor ================= */
 
 let gratButton = null;
+let elevUnitButton = null;
 const ViewControl = L.Control.extend({
   options: { position: "topleft" },
   onAdd() {
@@ -5289,6 +5489,17 @@ const ViewControl = L.Control.extend({
     demButton.addEventListener("click", e => {
       e.preventDefault();
       setAltitudeMode(!demOn);
+    });
+
+    elevUnitButton = L.DomUtil.create("a", "", bar);
+    elevUnitButton.href = "#";
+    elevUnitButton.textContent = elevUnit;
+    elevUnitButton.title = "Unidad de la cuadrícula de elevaciones: metros / pies";
+    elevUnitButton.addEventListener("click", e => {
+      e.preventDefault();
+      elevUnit = elevUnit === "m" ? "ft" : "m";
+      elevUnitButton.textContent = elevUnit;
+      refreshElevCells();
     });
 
     gratButton = L.DomUtil.create("a", "", bar);

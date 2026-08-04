@@ -20,7 +20,7 @@ KITE Local focuses deliberately on that workflow:
 - **Use one self-contained HTML file.** There is no installer, package manager, compilation step or application backend.
 - **Avoid application-imposed import quotas.** The viewer sets no file-size, feature-count or vertex-count limit; practical capacity is determined by the browser and the user's available memory and storage.
 - retain the workspace locally through IndexedDB;
-- export selected folders as portable `.vkml.json` packages;
+- export selected folders as portable `.kite.json` packages;
 - provide map, marker, graticule and geodesic measurement tools.
 
 It is an independent GPL-3.0 project and is **not affiliated with or endorsed by Google, Google Earth, QGIS, OpenStreetMap, Esri, Leaflet, Iconify or Instituto Geográfico Nacional de España**.
@@ -54,7 +54,7 @@ KITE Local does not impose fixed limits on KML file size, imported features or v
 - KML files, preserving nested `Document` and `Folder` structures
 - KMZ archives containing KML
 - GeoJSON and JSON files
-- KITE Local folder exports (`.vkml.json`)
+- KITE Local folder exports (`.kite.json`)
 - drag-and-drop import
 - progress indication and batched layer construction for larger files
 
@@ -103,7 +103,7 @@ KITE Local does not impose fixed limits on KML file size, imported features or v
 
 1. Download or clone this repository.
 2. Open the application HTML file in a modern desktop browser.
-3. Drag KML, KMZ, GeoJSON or `.vkml.json` files onto the left navigation panel.
+3. Drag KML, KMZ, GeoJSON or `.kite.json` files onto the left navigation panel.
 4. Use the retained folder tree to organize, compare, show, hide and style the imported content.
 
 ```bash
@@ -117,7 +117,7 @@ No package manager, web server or build process is required. The complete applic
 
 The complete tree is serialized to GeoJSON and saved in the browser using IndexedDB. Imported source files are not required after a successful import. The application also requests persistent browser storage when the browser supports it.
 
-Browser storage is convenient, but it is **not a backup**. It may be cleared by the user, browser policy or storage pressure. Export important folders to `.vkml.json` and keep copies outside the browser profile.
+Browser storage is convenient, but it is **not a backup**. It may be cleared by the user, browser policy or storage pressure. Export important folders to `.kite.json` and keep copies outside the browser profile.
 
 ## Internet access and privacy
 
@@ -199,7 +199,7 @@ The interface is primarily designed for mouse and keyboard use. Touch support an
 - KML point altitude is currently ignored.
 - KML namespace and style handling is partial.
 - External services can change, rate-limit requests or become unavailable.
-- `.vkml.json` is application-specific and currently requires a matching tree schema version.
+- `.kite.json` is application-specific and currently requires a matching tree schema version.
 - The current interface is in Spanish.
 
 ## Security notes
@@ -216,7 +216,7 @@ Do not use public tile, geocoding or CDN services for sensitive work without an 
 4. Add input validation and configurable resource limits.
 5. Pin dependencies with Subresource Integrity or provide a fully vendored offline build.
 6. Improve keyboard navigation, focus management, ARIA labels and touch interaction.
-7. Add documented IndexedDB and `.vkml.json` migrations.
+7. Add documented IndexedDB and `.kite.json` migrations.
 8. Add optional export to standard KML and GeoJSON.
 
 ## Contributing
