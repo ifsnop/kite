@@ -445,7 +445,7 @@
   .elev-cell .ec-d { color: #b04a3a; }                    /* diferencia */
   .elev-cell .ec-d.alert { color: #d32f2f; font-weight: 700; } /* MDS > MDT + 1 m */
 
-  .coords-zoom { color: var(--muted); font-weight: 600; }
+  .coords-zoom { font-weight: 600; }
   /* La atribución se queda en una sola línea, la de abajo del todo */
   .leaflet-control-attribution {
     max-width: 100%;
@@ -455,10 +455,7 @@
   }
   /* Todo lo que se ancle abajo a la izquierda respeta esa línea */
   .leaflet-bottom.leaflet-left { padding-bottom: 4px; }
-  .coords-dms { color: #445; }
-  .coords-utm { color: var(--muted); }
-  .coords-alt { color: var(--accent); font-weight: 600; }
-  .coords-sup { color: var(--muted); }
+  .coords-alt { font-weight: 600; }
   .coords-alt[hidden], .coords-sup[hidden] { display: none; }
   .grat-label {
     font: 10px ui-monospace, Consolas, monospace;
@@ -490,6 +487,30 @@
   .dlg-float[hidden] { display: none; }
   /* Sub-dialogs of the style dialog always sit above it */
   #icon-picker, #color-picker { z-index: 2100; }
+  .ctx-menu {
+    position: fixed;
+    z-index: 2200;
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    box-shadow: 0 8px 30px rgba(0,0,0,.25);
+    padding: 4px;
+    min-width: 220px;
+    font: 13px system-ui, sans-serif;
+  }
+  .ctx-menu[hidden] { display: none; }
+  .ctx-menu-item {
+    display: block;
+    width: 100%;
+    text-align: left;
+    padding: 7px 10px;
+    border: none;
+    border-radius: 5px;
+    background: none;
+    color: var(--text);
+    cursor: pointer;
+  }
+  .ctx-menu-item:hover, .ctx-menu-item:focus { background: var(--accent); color: #fff; outline: none; }
   .color-btn {
     width: 34px;
     height: 24px;
@@ -852,7 +873,7 @@ const map = L.map("map", { preferCanvas: true, maxZoom: MAX_ZOOM }).setView([40.
 
 /* Fecha de generación del código (versión): AÑOMESDIAHORAMINUTO.
    Actualizar en cada generación; se muestra junto al crédito de Leaflet. */
-const BUILD = "202608041200";
+const BUILD = "202608051200";
 map.attributionControl.setPrefix(
   `v${BUILD} | <a href="https://leafletjs.com" title="A JavaScript library for interactive maps">Leaflet</a>`);
 
@@ -3579,19 +3600,35 @@ function normalizePathStyle(s) {
    notation regardless of the selected one, with the sign given by a
    leading minus or by a hemisphere letter (N/S/E/W, plus the Spanish O
    for oeste) — so pasting a coordinate from anywhere just works.      */
+function dmsParts(value, isLat) {
+  const hemi = isLat ? (value < 0 ? "S" : "N") : (value < 0 ? "W" : "E");
+  let rest = Math.round(Math.abs(value) * 360000) / 100; /* seconds, 2 dp */
+  let d = Math.floor(rest / 3600); rest -= d * 3600;
+  let m = Math.floor(rest / 60);
+  let sec = Math.round((rest - m * 60) * 100) / 100;
+  if (sec >= 60) { sec -= 60; m++; }        /* carries from the rounding */
+  if (m >= 60) { m -= 60; d++; }
+  return { d, m: String(m).padStart(2, "0"), sec: sec.toFixed(2).padStart(5, "0"), hemi };
+}
+
 function formatCoord(value, isLat, mode) {
   if (!isFinite(value)) return "";
   if (mode === "dms") {
-    const hemi = isLat ? (value < 0 ? "S" : "N") : (value < 0 ? "W" : "E");
-    let rest = Math.round(Math.abs(value) * 360000) / 100; /* seconds, 2 dp */
-    let d = Math.floor(rest / 3600); rest -= d * 3600;
-    let m = Math.floor(rest / 60);
-    let sec = Math.round((rest - m * 60) * 100) / 100;
-    if (sec >= 60) { sec -= 60; m++; }        /* carries from the rounding */
-    if (m >= 60) { m -= 60; d++; }
-    return `${d}\u00B0 ${String(m).padStart(2, "0")}' ${sec.toFixed(2).padStart(5, "0")}" ${hemi}`;
+    const { d, m, sec, hemi } = dmsParts(value, isLat);
+    return `${d}\u00B0 ${m}' ${sec}" ${hemi}`;
   }
   return value.toFixed(6);
+}
+
+/* Compact GMS reading for the read-only coordinate readout (bottom-left
+   box): no spaces between degrees/minutes/seconds/hemisphere, the way
+   it's read on a nautical chart, with the degree figure in bold as the
+   most-used field. HTML, not plain text \u2014 only for trusted, self-built
+   content, never for `formatCoord`'s editable dialog fields.           */
+function formatCoordCompactHtml(value, isLat) {
+  if (!isFinite(value)) return "";
+  const { d, m, sec, hemi } = dmsParts(value, isLat);
+  return `<b>${d}\u00B0</b>${m}'${sec}"${hemi}`;
 }
 
 function parseCoord(txt, isLat) {
@@ -4290,6 +4327,7 @@ function setTool(tool) {
 document.addEventListener("keydown", e => {
   if (e.key !== "Escape") return;
   /* Escape closes open dialogs first; otherwise cancels tool/selection */
+  if (!ctxMenuEl.hidden) { closeCtxMenu(); return; }
   if (!shortcutsDialog.hidden) { toggleShortcuts(); return; }
   if (!descDialog.hidden) { descDialog.hidden = true; releaseFocus(); return; }
   if (!colorPicker.hidden) { colorPicker.hidden = true; colorTarget = null; releaseFocus(); return; }
@@ -5406,6 +5444,7 @@ function rebuildElevGrid(n, parentUl) {
 function setAltitudeMode(on) {
   demOn = on;
   if (demButton) demButton.classList.toggle("active", on);
+  if (elevUnitButton) elevUnitButton.hidden = !on;
   coordsControl.showElevation(on);
   if (on) {
     /* Si ya hay una (o varias) capas de elevaciones visibles, esta
@@ -5494,6 +5533,7 @@ const ViewControl = L.Control.extend({
     elevUnitButton = L.DomUtil.create("a", "", bar);
     elevUnitButton.href = "#";
     elevUnitButton.textContent = elevUnit;
+    elevUnitButton.hidden = !demOn; /* solo tiene sentido con el modo altura activo */
     elevUnitButton.title = "Unidad de la cuadrícula de elevaciones: metros / pies";
     elevUnitButton.addEventListener("click", e => {
       e.preventDefault();
@@ -5628,8 +5668,8 @@ const CoordsControl = L.Control.extend({
     const { lat, lng } = latlng;
     this._rows[1].textContent =
       `${formatCoord(lat, true, "dec")}\u00B0 ${formatCoord(lng, false, "dec")}\u00B0`;
-    this._rows[2].textContent =
-      `${formatCoord(lat, true, "dms")} ${formatCoord(lng, false, "dms")}`;
+    this._rows[2].innerHTML =
+      `${formatCoordCompactHtml(lat, true)} ${formatCoordCompactHtml(lng, false)}`;
     this._rows[3].textContent = fmtUtm(lat, lng);
   }
 });
@@ -5649,6 +5689,59 @@ map.on("mousemove", e => {
     coordsFrame = null;
     coordsControl.update(coordsPending);
   });
+});
+
+/* ---------- Menú contextual del visor (botón derecho) ---------- */
+/* Extensible a propósito: cada entrada es {label, action(latlng)} y
+   nuevas opciones solo necesitan sumarse a este array.               */
+const CTX_MENU_ITEMS = [
+  {
+    label: "Copiar coordenadas al portapapeles",
+    action(latlng) {
+      const txt = `${formatCoord(latlng.lat, true, "dec")}, ${formatCoord(latlng.lng, false, "dec")}`;
+      navigator.clipboard.writeText(txt)
+        .then(() => navMessage("Coordenadas copiadas al portapapeles.", { tone: "info" }))
+        .catch(() => navMessage("No se pudieron copiar las coordenadas."));
+    }
+  }
+];
+const ctxMenuEl = document.createElement("div");
+ctxMenuEl.id = "map-ctxmenu";
+ctxMenuEl.className = "ctx-menu";
+ctxMenuEl.setAttribute("role", "menu");
+ctxMenuEl.setAttribute("aria-label", "Menú contextual del visor");
+ctxMenuEl.hidden = true;
+document.body.appendChild(ctxMenuEl);
+
+function closeCtxMenu() {
+  ctxMenuEl.hidden = true;
+}
+
+function openCtxMenu(latlng, x, y) {
+  ctxMenuEl.innerHTML = "";
+  for (const item of CTX_MENU_ITEMS) {
+    const btn = document.createElement("button");
+    btn.type = "button";
+    btn.className = "ctx-menu-item";
+    btn.setAttribute("role", "menuitem");
+    btn.textContent = item.label;
+    btn.addEventListener("click", () => { closeCtxMenu(); item.action(latlng); });
+    ctxMenuEl.appendChild(btn);
+  }
+  ctxMenuEl.hidden = false;
+  /* Clamp to viewport so a click near an edge doesn't open off-screen */
+  const r = ctxMenuEl.getBoundingClientRect();
+  ctxMenuEl.style.left = `${Math.max(0, Math.min(x, window.innerWidth - r.width - 4))}px`;
+  ctxMenuEl.style.top = `${Math.max(0, Math.min(y, window.innerHeight - r.height - 4))}px`;
+  ctxMenuEl.querySelector(".ctx-menu-item").focus();
+}
+map.on("contextmenu", e => {
+  L.DomEvent.preventDefault(e.originalEvent);
+  openCtxMenu(e.latlng, e.originalEvent.clientX, e.originalEvent.clientY);
+});
+map.on("movestart zoomstart", closeCtxMenu);
+document.addEventListener("mousedown", e => {
+  if (!ctxMenuEl.hidden && !ctxMenuEl.contains(e.target)) closeCtxMenu();
 });
 
 /* ---------- Memoria de los mapas base ---------- */

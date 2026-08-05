@@ -14,6 +14,7 @@ const SUITES = [
   ["repairtest.js", "Reparación de prefijos XML sin declarar"],
   ["clamptest.js",  "Coordenadas: validación y tolerancia de redondeo"],
   ["utmtest.js",    "Conversión a UTM y husos"],
+  ["coordfmt.js",   "Formato de coordenadas: decimal, GMS con espacios y GMS compacto"],
   ["elevtest.js",   "Elevaciones: WCS del IGN, coberturas, formatos, rejilla"],
   ["navtest.js",    "Navegación del árbol y selección por rangos"],
   ["selcorrect.js", "Selección: cursor y nodos de nivel superior"],
