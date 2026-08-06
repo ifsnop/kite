@@ -354,6 +354,11 @@
     user-select: none;
   }
   .measure-bar a.active { background: var(--accent); color: #fff; }
+  /* Leaflet's own CSS sets ".leaflet-bar a { display: block }"; being an
+     author rule it beats the browser's UA "[hidden] { display: none }"
+     regardless of specificity, so the `hidden` property silently does
+     nothing without this explicit override.                           */
+  .measure-bar a[hidden] { display: none; }
   .measure-handle {
     background: #fff;
     border: 2px solid #444;
@@ -873,7 +878,7 @@ const map = L.map("map", { preferCanvas: true, maxZoom: MAX_ZOOM }).setView([40.
 
 /* Fecha de generación del código (versión): AÑOMESDIAHORAMINUTO.
    Actualizar en cada generación; se muestra junto al crédito de Leaflet. */
-const BUILD = "202608051200";
+const BUILD = "202608061200";
 map.attributionControl.setPrefix(
   `v${BUILD} | <a href="https://leafletjs.com" title="A JavaScript library for interactive maps">Leaflet</a>`);
 
@@ -5533,6 +5538,8 @@ const ViewControl = L.Control.extend({
     elevUnitButton = L.DomUtil.create("a", "", bar);
     elevUnitButton.href = "#";
     elevUnitButton.textContent = elevUnit;
+    elevUnitButton.style.fontSize = "11px";
+    elevUnitButton.style.fontWeight = "600";
     elevUnitButton.hidden = !demOn; /* solo tiene sentido con el modo altura activo */
     elevUnitButton.title = "Unidad de la cuadrícula de elevaciones: metros / pies";
     elevUnitButton.addEventListener("click", e => {
