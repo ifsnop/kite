@@ -515,10 +515,12 @@
     color: var(--text);
     cursor: pointer;
   }
-  /* :focus-visible, not :focus: the first item is given real DOM focus
-     when the menu opens (for keyboard access), which with plain :focus
-     stayed highlighted even while the mouse moved over other rows.    */
-  .ctx-menu-item:hover, .ctx-menu-item:focus-visible { background: var(--accent); color: #fff; outline: none; }
+  /* Only one highlight style at a time, mouse-first: hover fills the row;
+     keyboard focus (Tab, no auto-focus on open) gets a thin outline
+     instead of the same fill, so the two never look like two competing
+     highlights when both a hovered row and a focused row exist at once. */
+  .ctx-menu-item:hover { background: var(--accent); color: #fff; }
+  .ctx-menu-item:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
   .ctx-menu-sep { height: 1px; margin: 4px 6px; background: var(--border); }
   .color-btn {
     width: 34px;
@@ -882,7 +884,7 @@ const map = L.map("map", { preferCanvas: true, maxZoom: MAX_ZOOM }).setView([40.
 
 /* Fecha de generación del código (versión): AÑOMESDIAHORAMINUTO.
    Actualizar en cada generación; se muestra junto al crédito de Leaflet. */
-const BUILD = "202608061400";
+const BUILD = "202608061500";
 map.attributionControl.setPrefix(
   `v${BUILD} | <a href="https://leafletjs.com" title="A JavaScript library for interactive maps">Leaflet</a>`);
 
@@ -5771,7 +5773,9 @@ function openCtxMenu(latlng, x, y) {
   const r = ctxMenuEl.getBoundingClientRect();
   ctxMenuEl.style.left = `${Math.max(0, Math.min(x, window.innerWidth - r.width - 4))}px`;
   ctxMenuEl.style.top = `${Math.max(0, Math.min(y, window.innerHeight - r.height - 4))}px`;
-  ctxMenuEl.querySelector(".ctx-menu-item").focus();
+  /* No autofocus on open: the menu is mouse-first (it opens from a right
+     click), and pre-focusing the first row left a lingering keyboard
+     highlight fighting the mouse's hover highlight for a different row. */
 }
 map.on("contextmenu", e => {
   L.DomEvent.preventDefault(e.originalEvent);
