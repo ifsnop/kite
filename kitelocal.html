@@ -878,7 +878,7 @@ const map = L.map("map", { preferCanvas: true, maxZoom: MAX_ZOOM }).setView([40.
 
 /* Fecha de generación del código (versión): AÑOMESDIAHORAMINUTO.
    Actualizar en cada generación; se muestra junto al crédito de Leaflet. */
-const BUILD = "202608061200";
+const BUILD = "202608061300";
 map.attributionControl.setPrefix(
   `v${BUILD} | <a href="https://leafletjs.com" title="A JavaScript library for interactive maps">Leaflet</a>`);
 
@@ -5488,6 +5488,25 @@ function setAltitudeMode(on) {
 
 let gratButton = null;
 let elevUnitButton = null;
+
+/* Named so both the toolbar buttons and the viewer's context menu can
+   trigger the same action without duplicating logic.                  */
+function fitToContent() {
+  const b = rootGroup.getBounds();
+  if (b.isValid()) map.fitBounds(b, { padding: [30, 30] });
+}
+function centerIberia() {
+  map.fitBounds([[35.9, -9.4], [43.95, 4.5]]); /* península y Baleares */
+}
+function centerCanaries() {
+  map.fitBounds([[27.5, -18.3], [29.5, -13.3]]); /* archipiélago canario */
+}
+function toggleGraticule() {
+  graticuleOn = !graticuleOn;
+  if (gratButton) gratButton.classList.toggle("active", graticuleOn);
+  redrawGraticule();
+}
+
 const ViewControl = L.Control.extend({
   options: { position: "topleft" },
   onAdd() {
@@ -5497,11 +5516,7 @@ const ViewControl = L.Control.extend({
     fit.href = "#";
     fit.textContent = "\u2922";
     fit.title = "Autoescalar: ajustar el zoom a lo cargado";
-    fit.addEventListener("click", e => {
-      e.preventDefault();
-      const b = rootGroup.getBounds();
-      if (b.isValid()) map.fitBounds(b, { padding: [30, 30] });
-    });
+    fit.addEventListener("click", e => { e.preventDefault(); fitToContent(); });
 
     const ib = L.DomUtil.create("a", "", bar);
     ib.href = "#";
@@ -5509,10 +5524,7 @@ const ViewControl = L.Control.extend({
     ib.style.fontSize = "11px";
     ib.style.fontWeight = "600";
     ib.title = "Centrar la vista en la pen\u00EDnsula y Baleares";
-    ib.addEventListener("click", e => {
-      e.preventDefault();
-      map.fitBounds([[35.9, -9.4], [43.95, 4.5]]); /* península y Baleares */
-    });
+    ib.addEventListener("click", e => { e.preventDefault(); centerIberia(); });
 
     const gc = L.DomUtil.create("a", "", bar);
     gc.href = "#";
@@ -5520,10 +5532,7 @@ const ViewControl = L.Control.extend({
     gc.style.fontSize = "11px";
     gc.style.fontWeight = "600";
     gc.title = "Centrar la vista en las islas Canarias";
-    gc.addEventListener("click", e => {
-      e.preventDefault();
-      map.fitBounds([[27.5, -18.3], [29.5, -13.3]]); /* archipiélago canario */
-    });
+    gc.addEventListener("click", e => { e.preventDefault(); centerCanaries(); });
 
     demButton = L.DomUtil.create("a", "", bar);
     demButton.href = "#";
@@ -5553,12 +5562,7 @@ const ViewControl = L.Control.extend({
     gratButton.href = "#";
     gratButton.textContent = "#";
     gratButton.title = "Mostrar / ocultar paralelos y meridianos";
-    gratButton.addEventListener("click", e => {
-      e.preventDefault();
-      graticuleOn = !graticuleOn;
-      gratButton.classList.toggle("active", graticuleOn);
-      redrawGraticule();
-    });
+    gratButton.addEventListener("click", e => { e.preventDefault(); toggleGraticule(); });
 
     L.DomEvent.disableClickPropagation(bar);
     return bar;
@@ -5700,17 +5704,28 @@ map.on("mousemove", e => {
 
 /* ---------- Menú contextual del visor (botón derecho) ---------- */
 /* Extensible a propósito: cada entrada es {label, action(latlng)} y
-   nuevas opciones solo necesitan sumarse a este array.               */
+   nuevas opciones solo necesitan sumarse a este array. Un `checked()`
+   opcional la convierte en un interruptor (se pinta con ✓ y
+   role="menuitemcheckbox"), como ya hacen los botones equivalentes de
+   la barra de herramientas.                                          */
 const CTX_MENU_ITEMS = [
   {
-    label: "Copiar coordenadas al portapapeles",
+    label: "Copiar coordenadas",
     action(latlng) {
       const txt = `${formatCoord(latlng.lat, true, "dec")}, ${formatCoord(latlng.lng, false, "dec")}`;
       navigator.clipboard.writeText(txt)
         .then(() => navMessage("Coordenadas copiadas al portapapeles.", { tone: "info" }))
         .catch(() => navMessage("No se pudieron copiar las coordenadas."));
     }
-  }
+  },
+  { label: "Modo elevación", checked: () => demOn, action: () => setAltitudeMode(!demOn) },
+  { label: "Medir línea", action: () => setTool(activeTool === "line" ? null : "line") },
+  { label: "Medir círculo", action: () => setTool(activeTool === "circle" ? null : "circle") },
+  { label: "Crear un pin", action: () => createPin() },
+  { label: "Centrar en el contenido", action: () => fitToContent() },
+  { label: "Centrar en la península y Baleares", action: () => centerIberia() },
+  { label: "Centrar en las islas Canarias", action: () => centerCanaries() },
+  { label: "Paralelos y meridianos", checked: () => graticuleOn, action: () => toggleGraticule() }
 ];
 const ctxMenuEl = document.createElement("div");
 ctxMenuEl.id = "map-ctxmenu";
@@ -5727,11 +5742,14 @@ function closeCtxMenu() {
 function openCtxMenu(latlng, x, y) {
   ctxMenuEl.innerHTML = "";
   for (const item of CTX_MENU_ITEMS) {
+    const isToggle = typeof item.checked === "function";
+    const on = isToggle && item.checked();
     const btn = document.createElement("button");
     btn.type = "button";
     btn.className = "ctx-menu-item";
-    btn.setAttribute("role", "menuitem");
-    btn.textContent = item.label;
+    btn.setAttribute("role", isToggle ? "menuitemcheckbox" : "menuitem");
+    if (isToggle) btn.setAttribute("aria-checked", String(on));
+    btn.textContent = (on ? "✓ " : "") + item.label;
     btn.addEventListener("click", () => { closeCtxMenu(); item.action(latlng); });
     ctxMenuEl.appendChild(btn);
   }
