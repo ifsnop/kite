@@ -515,7 +515,11 @@
     color: var(--text);
     cursor: pointer;
   }
-  .ctx-menu-item:hover, .ctx-menu-item:focus { background: var(--accent); color: #fff; outline: none; }
+  /* :focus-visible, not :focus: the first item is given real DOM focus
+     when the menu opens (for keyboard access), which with plain :focus
+     stayed highlighted even while the mouse moved over other rows.    */
+  .ctx-menu-item:hover, .ctx-menu-item:focus-visible { background: var(--accent); color: #fff; outline: none; }
+  .ctx-menu-sep { height: 1px; margin: 4px 6px; background: var(--border); }
   .color-btn {
     width: 34px;
     height: 24px;
@@ -878,7 +882,7 @@ const map = L.map("map", { preferCanvas: true, maxZoom: MAX_ZOOM }).setView([40.
 
 /* Fecha de generación del código (versión): AÑOMESDIAHORAMINUTO.
    Actualizar en cada generación; se muestra junto al crédito de Leaflet. */
-const BUILD = "202608061300";
+const BUILD = "202608061400";
 map.attributionControl.setPrefix(
   `v${BUILD} | <a href="https://leafletjs.com" title="A JavaScript library for interactive maps">Leaflet</a>`);
 
@@ -5721,7 +5725,9 @@ const CTX_MENU_ITEMS = [
   { label: "Modo elevación", checked: () => demOn, action: () => setAltitudeMode(!demOn) },
   { label: "Medir línea", action: () => setTool(activeTool === "line" ? null : "line") },
   { label: "Medir círculo", action: () => setTool(activeTool === "circle" ? null : "circle") },
+  { separator: true },
   { label: "Crear un pin", action: () => createPin() },
+  { separator: true },
   { label: "Centrar en el contenido", action: () => fitToContent() },
   { label: "Centrar en la península y Baleares", action: () => centerIberia() },
   { label: "Centrar en las islas Canarias", action: () => centerCanaries() },
@@ -5742,6 +5748,13 @@ function closeCtxMenu() {
 function openCtxMenu(latlng, x, y) {
   ctxMenuEl.innerHTML = "";
   for (const item of CTX_MENU_ITEMS) {
+    if (item.separator) {
+      const sep = document.createElement("div");
+      sep.className = "ctx-menu-sep";
+      sep.setAttribute("role", "separator");
+      ctxMenuEl.appendChild(sep);
+      continue;
+    }
     const isToggle = typeof item.checked === "function";
     const on = isToggle && item.checked();
     const btn = document.createElement("button");
