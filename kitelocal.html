@@ -904,7 +904,7 @@ const map = L.map("map", { preferCanvas: true, maxZoom: MAX_ZOOM }).setView([40.
 
 /* Fecha de generación del código (versión): AÑOMESDIAHORAMINUTO.
    Actualizar en cada generación; se muestra junto al crédito de Leaflet. */
-const BUILD = "202608071314";
+const BUILD = "202608071341";
 map.attributionControl.setPrefix(
   `v${BUILD} | <a href="https://leafletjs.com" title="A JavaScript library for interactive maps">Leaflet</a>`);
 
@@ -1155,7 +1155,12 @@ function parseStyleElement(styleEl) {
     const c = kmlColor(text(line, "color"));
     if (c) style.color = c.color;
     const w = parseFloat(text(line, "width"));
-    if (isFinite(w) && w > 0) style.weight = w;
+    if (isFinite(w)) {
+      if (w > 0) style.weight = w;
+      else style.stroke = false; /* width 0: a canvas lineWidth of 0 still
+        draws (the spec falls back to the previous width), so a real
+        outline needs stroke:false, not just weight left at 0 */
+    }
   }
   const poly = firstByTag(styleEl, "PolyStyle");
   if (poly) {
@@ -2241,7 +2246,13 @@ function syncSubtree(li) {
 function geojsonStyle(props) {
   const style = { color: "#3388ff", weight: 2, fillOpacity: 0.35 };
   if (props["stroke"]) style.color = props["stroke"];
-  if (props["stroke-width"] != null) style.weight = Number(props["stroke-width"]);
+  if (props["stroke-width"] != null) {
+    style.weight = Number(props["stroke-width"]);
+    /* Ancho 0: un lineWidth de canvas a 0 sigue dibujando (la especificación
+       ignora el valor y conserva el anterior), así que hace falta
+       stroke:false, igual que con un <width>0</width> de KML. */
+    if (style.weight === 0) style.stroke = false;
+  }
   /* Su opacidad se ignora (el contorno es siempre 100% opaco), pero 0 es
      la señal de "sin contorno", igual que <outline>0</outline> en KML. */
   if (Number(props["stroke-opacity"]) === 0) style.stroke = false;

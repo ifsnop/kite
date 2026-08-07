@@ -90,6 +90,18 @@ const noFillIdx = buildStyleIndex(noFillDoc);
 const noFillStyle = placemarkStyle(elsByTag(noFillDoc, "Placemark")[0], noFillIdx);
 ok(noFillStyle.fill === false && noFillStyle.fillOpacity === 0, "fill 0 -> fill false: " + JSON.stringify(noFillStyle));
 
+/* <LineStyle><width>0</width></LineStyle>: contorno declarado pero de
+   grosor 0, que a todos los efectos es "sin contorno" (un lineWidth 0 de
+   canvas no deja de dibujarse solo por poner weight:0). */
+const zeroWidthKml = `<kml><Document><Style id="zeroWidth"><LineStyle><width>0</width></LineStyle></Style>
+  <Placemark><styleUrl>#zeroWidth</styleUrl><Polygon><outerBoundaryIs><LinearRing>
+  <coordinates>0,0 1,0 1,1 0,0</coordinates></LinearRing></outerBoundaryIs></Polygon></Placemark>
+  </Document></kml>`;
+const zeroWidthDoc = new DOMParser().parseFromString(zeroWidthKml, "text/xml");
+const zeroWidthIdx = buildStyleIndex(zeroWidthDoc);
+const zeroWidthStyle = placemarkStyle(elsByTag(zeroWidthDoc, "Placemark")[0], zeroWidthIdx);
+ok(zeroWidthStyle.stroke === false, "width 0 -> stroke false: " + JSON.stringify(zeroWidthStyle));
+
 const rings = parsePolygon(elsByTag(doc,"Polygon")[0]);
 ok(rings && rings.length === 2 && rings[0].length === 4, "polygon with hole");
 ok(rings[0][1][0] === 0 && rings[0][1][1] === 1, "ring stored as [lat,lon]");
@@ -115,6 +127,7 @@ if (!process.exitCode) console.log("NAMESPACE VARIANTS OK");
    / "sin relleno", igual que <outline>0</outline>/<fill>0</fill> en KML */
 ok(geojsonStyle({ "stroke-opacity": 0 }).stroke === false, "stroke-opacity 0 -> stroke false");
 ok(geojsonStyle({ "fill-opacity": 0 }).fill === false, "fill-opacity 0 -> fill false");
+ok(geojsonStyle({ "stroke-width": 0 }).stroke === false, "stroke-width 0 -> stroke false");
 const plainGeo = geojsonStyle({});
 ok(plainGeo.stroke === undefined && plainGeo.fill === undefined, "sin señal: stroke/fill sin definir: " + JSON.stringify(plainGeo));
 

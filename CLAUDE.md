@@ -381,6 +381,14 @@ desarrollo del proyecto.
   viceversa. El renderizado usa el `stroke: false` nativo de Leaflet
   (omite el trazo por completo), no un truco de igualar color y opacidad
   del contorno con los del relleno.
+- **Un contorno de grosor 0 también es "sin contorno"**: un `lineWidth`
+  de 0 en canvas no deja de dibujar (la especificación ignora el valor y
+  conserva el anterior), así que un `<width>0</width>` de KML o un
+  `stroke-width: 0` de simplestyle no bastan por sí solos para ocultar el
+  trazo. `parseStyleElement`/`geojsonStyle` los traducen también a
+  `style.stroke = false`, no solo a `weight: 0`. El diálogo no puede
+  producir este caso (`pg-weight` tiene `min="0.5"`): solo se da al
+  importar.
 - **Los iconos importados no se respetan**: no hay equivalencia exacta con
   los pushpins de Google Earth y los `<IconStyle>` con `href` apuntan a
   URLs que el visor no carga. Toda capa de marcadores arranca con el estilo
