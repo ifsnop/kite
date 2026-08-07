@@ -120,6 +120,12 @@
   .nav-msg-line { margin: 3px 0; color: var(--danger); }
   .nav-msg-line.info { color: var(--muted); }
   .nav-msg-ok { margin: 2px 0 4px; padding: 1px 10px; }
+  #storage-usage {
+    font-size: 12px;
+    color: var(--muted);
+    padding: 6px 14px;
+    border-top: 1px solid var(--border);
+  }
 
   /* Indicador de progreso de carga de archivos grandes */
   #progress { margin-top: 6px; }
@@ -717,7 +723,7 @@
     </div>
   </header>
   <div id="tree" role="tree" aria-label="Árbol de capas" tabindex="0"></div>
-  <div id="dropzone">Arrastre aquí sus archivos KML/KMZ/JSON o carpetas exportadas (.kite.json)</div>
+  <div id="dropzone">Arrastre aquí sus archivos KML/KMZ (incl. ortofotos), JSON/TopoJSON o carpetas exportadas (.kite.json)</div>
   <footer id="nav-search">
     <div class="nav-actions">
       <input type="text" id="search-box" placeholder="Buscar capas y carpetas&#8230;">
@@ -726,6 +732,7 @@
       <span id="search-count"></span>
     </div>
   </footer>
+  <div id="storage-usage"></div>
 </aside>
 
 <div id="splitter"></div>
@@ -769,6 +776,9 @@
       <div class="dlg-row"><label for="pg-fill">Relleno (si no, solo contorno)</label><input type="checkbox" id="pg-fill"></div>
       <div class="dlg-row"><span>Color del relleno</span><button type="button" class="color-btn" id="pg-fill-color"></button></div>
       <div class="dlg-row"><span>Opacidad del relleno</span><input type="range" id="pg-fill-opacity" min="0" max="1" step="0.05"></div>
+    </div>
+    <div id="style-imageoverlay" hidden>
+      <div class="dlg-row"><span>Opacidad</span><input type="range" id="io-opacity" min="0" max="1" step="0.05"></div>
     </div>
     <div class="dlg-actions">
       <button class="btn" id="style-cancel">Cancelar</button>
@@ -851,6 +861,12 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"
         integrity="sha512-XMVd28F1oH/O71fzwBnV7HucLxVwtxf26XV8P4wPk26EDxuGZ91N8bsOttmnomcCD3CS5ZMRL50H0GgOHvegtg=="
         crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+<script src="https://unpkg.com/topojson-client@3.1.0/dist/topojson-client.min.js"
+        integrity="sha384-Ukv1p/xTma6P4/2bY5KzWBw+ydSpXmhCMtyciIQVDJ1RmOxtCYNMF1uXT9T63H67"
+        crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+<script src="https://unpkg.com/html2canvas@1.4.1/dist/html2canvas.min.js"
+        integrity="sha384-ZZ1pncU3bQe8y31yfZdMFdSpttDoPmOZg2wguVK9almUodir1PghgT0eY7Mrty8H"
+        crossorigin="anonymous" referrerpolicy="no-referrer"></script>
 <script>
 /* Leaflet es imprescindible: si el CDN falla o su hash de integridad no
    cuadra, el navegador lo bloquea, y sin este aviso quedaría una página
@@ -884,7 +900,7 @@ const map = L.map("map", { preferCanvas: true, maxZoom: MAX_ZOOM }).setView([40.
 
 /* Fecha de generación del código (versión): AÑOMESDIAHORAMINUTO.
    Actualizar en cada generación; se muestra junto al crédito de Leaflet. */
-const BUILD = "202608061500";
+const BUILD = "202608071230";
 map.attributionControl.setPrefix(
   `v${BUILD} | <a href="https://leafletjs.com" title="A JavaScript library for interactive maps">Leaflet</a>`);
 
@@ -1310,6 +1326,70 @@ function buildPlacemarkLayer(pm, style, report) {
   return group;
 }
 
+/* Maps a file extension to the MIME type L.imageOverlay needs for a data:
+   URL. Anything not in this list is treated as unresolvable, same as a
+   missing zip entry — an orthophoto in an unrecognised format is not
+   worth guessing at.                                                   */
+const KMZ_IMAGE_MIME = {
+  png: "image/png", jpg: "image/jpeg", jpeg: "image/jpeg",
+  gif: "image/gif", bmp: "image/bmp", webp: "image/webp"
+};
+
+/* Reads a <LatLonBox> into plain bounds + rotation, with the same
+   rounding tolerance as everything else that reads coordinates. Returns
+   null when the box is missing or its limits are not usable — pure and
+   DOM-only, no Leaflet involved, so it is testable on its own.        */
+function parseLatLonBox(el) {
+  const boxEl = firstByTag(el, "LatLonBox");
+  if (!boxEl) return null;
+  const north = clampDeg(Number(text(boxEl, "north")), 90);
+  const south = clampDeg(Number(text(boxEl, "south")), 90);
+  const east = clampDeg(Number(text(boxEl, "east")), 180);
+  const west = clampDeg(Number(text(boxEl, "west")), 180);
+  if (![north, south, east, west].every(isFinite)) return null;
+  const rotationRaw = Number(text(boxEl, "rotation"));
+  const rotation = isFinite(rotationRaw) ? rotationRaw : 0;
+  return { north, south, east, west, rotation };
+}
+
+/* A GroundOverlay is a single georeferenced image: LatLonBox bounds plus
+   an Icon/href pointing at an image inside the same KMZ. Only
+   axis-aligned boxes are supported — `rotation` is reported but not
+   applied, since Leaflet's imageOverlay does not rotate without an extra
+   plugin. Returns null (after warning) for anything unusable, so one bad
+   overlay never aborts the rest of the KML — same isolation as
+   buildPlacemarkLayer.                                                 */
+async function buildGroundOverlay(el, zip, report, name) {
+  const fail = why => { if (report) report.warn(`«${name}»: ${why}`); return null; };
+
+  const parsedBox = parseLatLonBox(el);
+  if (!parsedBox) return fail("sin <LatLonBox> o con límites no válidos");
+  const { north, south, east, west, rotation } = parsedBox;
+  if (rotation !== 0 && report) {
+    report.note(`«${name}» tiene rotación de ${rotation}° en el KML; se muestra sin rotar`);
+  }
+
+  const iconEl = firstByTag(el, "Icon");
+  const href = iconEl && text(iconEl, "href");
+  if (!href) return fail("sin <Icon><href>");
+  const entry = resolveKmzEntry(zip, href);
+  if (!entry) return fail(`la imagen «${href}» no está disponible`);
+  const ext = (href.split(/[?#]/)[0].split(".").pop() || "").toLowerCase();
+  const mime = KMZ_IMAGE_MIME[ext];
+  if (!mime) return fail(`formato de imagen no reconocido (${ext || "sin extensión"})`);
+
+  let dataUrl;
+  try {
+    dataUrl = `data:${mime};base64,${await entry.async("base64")}`;
+  } catch (err) {
+    return fail(`no se pudo leer la imagen del KMZ (${err.message})`);
+  }
+
+  const box = { north, south, east, west };
+  const layer = L.imageOverlay(dataUrl, L.latLngBounds([south, west], [north, east]), { opacity: 1 });
+  return { layer, box, dataUrl };
+}
+
 /* ================= Árbol de la ventana de navegación ================= */
 
 const treeEl = document.getElementById("tree");
@@ -1402,7 +1482,7 @@ function toggleOne(li) {
 /* Nombre legible del tipo, para poder explicar por qué algo se queda
    fuera de una selección                                              */
 const KIND_LABEL = { marker: "marcadores", polygon: "pol\u00EDgonos", measure: "mediciones",
-  elevGrid: "cuadr\u00EDculas de elevaci\u00F3n" };
+  elevGrid: "cuadr\u00EDculas de elevaci\u00F3n", imageOverlay: "ortofotos" };
 
 /* Selecciona de una vez todas las capas de la rama que cuelga de un
    contenedor. Como solo pueden convivir capas del mismo tipo en la
@@ -1635,6 +1715,49 @@ function applyVisibility(chk) {
   else rootGroup.removeLayer(chk._layer);
 }
 
+/* Trae una capa (de cualquier tipo) al frente de su propio pane/canvas,
+   SIN desconectarla del mapa: no cierra popups abiertos en otras capas
+   ni interrumpe un arrastre en curso, a diferencia de vaciar y
+   reconstruir rootGroup. Los grupos (placemarks mixtos, mediciones,
+   elevGrid) se resuelven recursivamente. bringToFront (L.Path) y
+   L.DomUtil.toFront sobre getElement() (Marker/ImageOverlay) son API
+   pública de Leaflet: no hay que reinventar el reordenado del DOM.    */
+function bringLayerToFront(layer) {
+  if (typeof layer.bringToFront === "function") { layer.bringToFront(); return; }
+  if (typeof layer.eachLayer === "function") { layer.eachLayer(bringLayerToFront); return; }
+  const el = typeof layer.getElement === "function" && layer.getElement();
+  if (el) L.DomUtil.toFront(el);
+}
+
+/* Recorre el árbol en su orden actual y trae cada capa activada al
+   frente, en ese orden: como bringToFront/toFront mandan al final de su
+   propia cola, procesar de arriba abajo deja el orden final igual al
+   orden del árbol. Es una resincronización completa e idempotente:
+   segura de llamar tantas veces como haga falta. Entre TIPOS de capa
+   distintos la pila queda fija por los panes nativos de Leaflet (un
+   marcador siempre por encima de polígonos/líneas/ortofotos); dentro de
+   cada tipo, el orden del árbol se respeta con exactitud.             */
+function reorderPaintOrder() {
+  for (const chk of treeEl.querySelectorAll("input[type=checkbox]")) {
+    if (chk.checked && chk._layer) bringLayerToFront(chk._layer);
+  }
+}
+
+/* Toda mutación del árbol ya llama a scheduleSave() (regla del proyecto),
+   así que enganchar aquí da cobertura automática y completa —activar o
+   desactivar con o sin cascada de carpeta, arrastrar para reordenar,
+   cortar/pegar, ordenar, soltar en mitad del árbol...— sin tener que
+   tocar cada sitio por separado. requestAnimationFrame agrupa ráfagas:
+   activar una carpeta con miles de descendientes dispara miles de
+   llamadas, pero reorderPaintOrder corre una sola vez, en el siguiente
+   frame.                                                              */
+let reorderPending = false;
+function scheduleReorder() {
+  if (reorderPending) return;
+  reorderPending = true;
+  requestAnimationFrame(() => { reorderPending = false; reorderPaintOrder(); });
+}
+
 /* ---------- Fábrica de nodos del árbol ----------
    Crea la fila completa (caret, checkbox, color, etiqueta y acciones
    de renombrar / subir / bajar / borrar) para cualquier tipo de nodo:
@@ -1730,8 +1853,11 @@ function makeNode({ name, layer = null, isFolder = false, isFile = false,
   });
   /* Doble click: llevar la vista a las capas del nodo. El primero solo
      desplaza, sin tocar el zoom (la vista es del usuario). Si ya está
-     centrada, los siguientes van subiendo por la escalera de zoom.     */
-  row.addEventListener("dblclick", () => {
+     centrada, los siguientes van subiendo por la escalera de zoom.
+     Sobre el checkbox NO debe dispararse: una sucesión rápida de
+     activar/desactivar no es un gesto de "ir a esta capa".            */
+  row.addEventListener("dblclick", e => {
+    if (e.target === chk) return;
     const b = subtreeBounds(li);
     if (!b.isValid()) return;
     const target = b.getCenter();
@@ -2031,7 +2157,7 @@ function makeImportReport(fileName) {
 
 /* Recorre Document/Folder. La visibilidad de una capa depende SOLO de su
    propio checkbox; el estado inicial hereda el <visibility> de arriba.  */
-async function buildKmlTree(el, styleIndex, parentUl, inheritedVisible, prog, report) {
+async function buildKmlTree(el, styleIndex, parentUl, inheritedVisible, prog, report, zip = null) {
   for (const child of el.children) {
     /* El prefijo es irrelevante: <kml:Folder> también es un Folder */
     const tag = bareName(child);
@@ -2042,7 +2168,7 @@ async function buildKmlTree(el, styleIndex, parentUl, inheritedVisible, prog, re
       if (directChildText(child, "open") !== "1") li.classList.add("collapsed");
       syncExpanded(li);
       parentUl.appendChild(li);
-      await buildKmlTree(child, styleIndex, nodeUl(li), visible, prog, report);
+      await buildKmlTree(child, styleIndex, nodeUl(li), visible, prog, report, zip);
     } else if (tag === "Placemark") {
       const name = text(child, "name") || "Placemark";
       try {
@@ -2064,6 +2190,26 @@ async function buildKmlTree(el, styleIndex, parentUl, inheritedVisible, prog, re
       } catch (err) {
         /* One bad entity must never abort the whole import */
         if (report) report.warn(`\u00AB${name}\u00BB: ${err.message}`);
+      }
+      if (prog && ++prog.done % PROGRESS_BATCH === 0) {
+        prog.update(prog.done);
+        await yieldFrame();
+      }
+    } else if (tag === "GroundOverlay") {
+      const name = text(child, "name") || "Ortofoto";
+      try {
+        const overlay = await buildGroundOverlay(child, zip, report, name);
+        if (overlay) {
+          const visible = inheritedVisible && ownVisibility(child);
+          if (visible) overlay.layer.addTo(rootGroup);
+          const li = makeNode({ name, layer: overlay.layer, checked: visible, styleable: true });
+          li._imageOverlay = { box: overlay.box, dataUrl: overlay.dataUrl, opacity: 1 };
+          parentUl.appendChild(li);
+          if (report) { report.loaded++; report.kinds.add("imageOverlay"); }
+        }
+      } catch (err) {
+        /* One bad entity must never abort the whole import */
+        if (report) report.warn(`«${name}»: ${err.message}`);
       }
       if (prog && ++prog.done % PROGRESS_BATCH === 0) {
         prog.update(prog.done);
@@ -2141,6 +2287,19 @@ function validGeometry(geom, depth = 0) {
   return true;
 }
 
+/* Convierte una topología TopoJSON a un FeatureCollection GeoJSON normal
+   (une los objetos con nombre en una sola lista de features), para que a
+   partir de aquí siga el proceso habitual de importar un JSON.        */
+function topologyToGeoJson(topology) {
+  if (typeof topojson === "undefined") throw new Error("no se pudo cargar el soporte de TopoJSON");
+  const features = [];
+  for (const name of Object.keys(topology.objects || {})) {
+    const fc = topojson.feature(topology, topology.objects[name]);
+    features.push(...(fc.type === "FeatureCollection" ? fc.features : [fc]));
+  }
+  return { type: "FeatureCollection", features };
+}
+
 async function buildGeoJsonTree(gj, parentUl, prog, report) {
   if (!gj || typeof gj !== "object") throw new Error("no parece un GeoJSON");
   let features;
@@ -2191,13 +2350,19 @@ const DB_NAME = "visor-kml";
 const DB_VERSION = 3;  /* esquema de la base: un único almacén "tree".
                           Subir solo cuando cambie la estructura de almacenes;
                           la migración es simplemente borrar lo anterior.     */
-const TREE_SCHEMA = 3; /* formato del árbol serializado. Subir solo cuando
+const TREE_SCHEMA = 5; /* formato del árbol serializado. Subir solo cuando
                           cambie el formato; un árbol guardado con otra
                           versión se descarta al leer.
                           v2: los nodos de capa admiten `mstyle` (estilo de
                           marcador: icono MDI, colores, tamaños y texto).
                           v3: nuevo tipo de nodo "elevGrid" (celdas de
-                          elevación acumuladas en una sesión de modo altura). */
+                          elevación acumuladas en una sesión de modo altura).
+                          v4: nuevo tipo de nodo "imageOverlay" (ortofotos
+                          georeferenciadas de KMZ, con cambio de nivel de
+                          detalle por zoom).
+                          v5: imageOverlay ya no guarda minLod/maxLod (se
+                          retira el cambio de nivel de detalle por zoom;
+                          las ortofotos se cargan y muestran todas). */
 const DB_TREE = "tree";
 
 /* One connection, reused. Opening the database on every save wastes
@@ -2425,6 +2590,10 @@ function serializeNode(li) {
   if (li._elevGrid) {
     return [{ ...base, t: "elevGrid", cells: li._elevGrid.cells }];
   }
+  if (li._imageOverlay) {
+    const o = li._imageOverlay;
+    return [{ ...base, t: "imageOverlay", box: o.box, dataUrl: o.dataUrl, opacity: o.opacity }];
+  }
   const ul = nodeUl(li);
   if (ul) {
     return [{ ...base, t: li.classList.contains("file") ? "file" : "folder",
@@ -2541,6 +2710,7 @@ const SAVE_MIN_MS = 400, SAVE_MAX_MS = 3000;
    y en uno de miles de nodos espera más para no repetir un trabajo caro
    mientras el usuario sigue navegando o escribiendo.                   */
 function scheduleSave() {
+  scheduleReorder(); /* toda mutación del árbol también puede haber cambiado el orden de pintado */
   clearTimeout(saveTimer);
   const wait = Math.min(SAVE_MAX_MS, Math.max(SAVE_MIN_MS, saveCost * 4));
   saveTimer = setTimeout(saveTree, wait);
@@ -2550,6 +2720,25 @@ function scheduleSave() {
    complete out of order: two overlapping saves could leave the older
    snapshot on disk. The tree is serialized when its turn comes, so the
    state written is always the most recent one.                       */
+/* navigator.storage.estimate() reports the whole origin's usage; this app
+   only writes to IndexedDB, so in practice it reflects what is saved
+   here. Refreshed after each save instead of on a timer: saves already
+   carry their own debounce, so this rides along for free.             */
+async function refreshStorageUsage() {
+  const el = document.getElementById("storage-usage");
+  if (!el) return;
+  if (!navigator.storage || !navigator.storage.estimate) {
+    el.textContent = "Almacenamiento usado: no disponible en este navegador.";
+    return;
+  }
+  try {
+    const { usage } = await navigator.storage.estimate();
+    el.textContent = `Almacenamiento usado: ${fmtBytes(usage || 0)}`;
+  } catch {
+    el.textContent = "Almacenamiento usado: no disponible.";
+  }
+}
+
 function saveTree() {
   saveChain = saveChain
     .then(() => {
@@ -2558,6 +2747,7 @@ function saveTree() {
       saveCost = performance.now() - t0;
       return dbSaveTree(nodes);
     })
+    .then(refreshStorageUsage)
     .catch(err => {
       /* Un solo aviso por racha de fallos, para no inundar el panel */
       if (!savePending) {
@@ -2573,7 +2763,7 @@ function saveTree() {
 function countLayers(nodes) {
   let n = 0;
   for (const x of nodes) {
-    if (x.t === "layer" || x.t === "measure" || x.t === "elevGrid") n++;
+    if (x.t === "layer" || x.t === "measure" || x.t === "elevGrid" || x.t === "imageOverlay") n++;
     else n += countLayers(x.children || []);
   }
   return n;
@@ -2593,6 +2783,8 @@ async function buildFromNodes(nodes, parentUl, prog) {
       rebuildMeasurement(n, parentUl);
     } else if (n.t === "elevGrid") {
       rebuildElevGrid(n, parentUl);
+    } else if (n.t === "imageOverlay") {
+      rebuildImageOverlay(n, parentUl);
     } else if (n.t === "layer") {
       const layer = L.geoJSON(n.geo, n.style ? { style: n.style } : undefined);
       layer.bindPopup(n.name);
@@ -2619,7 +2811,7 @@ async function buildFromNodes(nodes, parentUl, prog) {
       /* la sección que contiene mediciones recupera su papel */
       if (n.t === "file" && (n.children || []).some(c => c.t === "measure")) measureLi = li;
     }
-    if (prog && (n.t === "layer" || n.t === "measure" || n.t === "elevGrid") && ++prog.done % PROGRESS_BATCH === 0) {
+    if (prog && (n.t === "layer" || n.t === "measure" || n.t === "elevGrid" || n.t === "imageOverlay") && ++prog.done % PROGRESS_BATCH === 0) {
       prog.update(prog.done);
       await yieldFrame();
     }
@@ -2739,7 +2931,7 @@ function parseKmlDocument(content) {
    tanto directamente en la raíz. Un GeoJSON, en cambio, es una lista
    plana de elementos sin jerarquía propia, así que ahí la carpeta
    contenedora sí aporta: agrupa lo que llegó junto.                    */
-async function addFileNode(name, kind, content, insertBefore = null, dropTargetUl = null) {
+async function addFileNode(name, kind, content, insertBefore = null, dropTargetUl = null, zip = null) {
   const big = content.length > SIZE_THRESHOLD;
   const report = makeImportReport(name);
   coordClamped = 0;
@@ -2775,7 +2967,7 @@ async function addFileNode(name, kind, content, insertBefore = null, dropTargetU
           `Construyendo capas de ${name}\u2026 (${d}/${total})`)
       } : null;
       const styleIndex = buildStyleIndex(xml);
-      await buildKmlTree(xml.documentElement, styleIndex, target, true, prog, report);
+      await buildKmlTree(xml.documentElement, styleIndex, target, true, prog, report, zip);
       if (styleIndex.externalRefs) {
         report.note(`${styleIndex.externalRefs} estilo(s) en archivos externos, no aplicados`);
       }
@@ -2864,12 +3056,33 @@ async function kmzToKml(file, onPct) {
 
   const entry = zip.file(/(^|\/)doc\.kml$/i)[0] || zip.file(/\.kml$/i)[0];
   if (!entry) throw new Error("el KMZ no contiene ning\u00FAn .kml");
-  return entry.async("string", onPct ? meta => onPct(meta.percent) : undefined);
+  const kml = await entry.async("string", onPct ? meta => onPct(meta.percent) : undefined);
+  /* Se devuelve tambi\u00E9n el zip (no solo el KML) para poder resolver, m\u00E1s
+     adelante, las im\u00E1genes de los GroundOverlay que referencie el KML. */
+  return { kml, zip };
 }
 
-const fmtBytes = n => n > 1024 * 1024
-  ? `${(n / 1024 / 1024).toFixed(1)} MB`
-  : `${Math.round(n / 1024)} kB`;
+/* Resolves a GroundOverlay Icon/href against the KMZ archive: exact path
+   first, then a loose match by bare filename anywhere in the zip — same
+   fallback shape as the doc.kml lookup above, since KML authors are not
+   always consistent about leading "./" or folder prefixes.            */
+function resolveKmzEntry(zip, href) {
+  if (!zip || !href) return null;
+  const path = href.split(/[?#]/)[0].replace(/^\.?\//, "");
+  const exact = zip.file(path);
+  if (exact) return exact;
+  const fileName = path.split("/").pop();
+  if (!fileName) return null;
+  const escaped = fileName.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  return zip.file(new RegExp(`(^|/)${escaped}$`, "i"))[0] || null;
+}
+
+const fmtBytes = n => {
+  if (n < 1024) return `${n} bytes`;
+  if (n < 1024 ** 2) return `${(n / 1024).toFixed(1)} KB`;
+  if (n < 1024 ** 3) return `${(n / 1024 ** 2).toFixed(1)} MB`;
+  return `${(n / 1024 ** 3).toFixed(1)} GB`;
+};
 
 /* Procesa archivos soltados en la navegación; `insertBefore` permite
    insertarlos justo donde se hayan arrastrado                          */
@@ -2878,32 +3091,40 @@ async function handleDroppedFiles(files, insertBefore, dropTargetUl = null) {
     const ext = (file.name.split(".").pop() || "").toLowerCase();
     const big = file.size > SIZE_THRESHOLD;
     try {
-      let kind, content;
+      let kind, content, zip = null;
       if (ext === "kml") { kind = "kml"; content = await file.text(); }
       else if (ext === "kmz") {
         kind = "kml";
         /* Fase 1: descompresión, con progreso determinado de JSZip */
-        content = await kmzToKml(file, big
+        const kmz = await kmzToKml(file, big
           ? pct => progress.set(pct, `Descomprimiendo ${file.name}\u2026`)
           : null);
+        content = kmz.kml;
+        zip = kmz.zip;
       }
-      else if (ext === "json" || ext === "geojson") {
+      else if (ext === "json" || ext === "geojson" || ext === "topojson") {
         content = await file.text();
-        /* A tree exported from the viewer is JSON too: it is told apart by
-           its envelope, not by the extension                            */
-        const doc = parseTreeExport(content);
-        if (doc) {
-          await importTreeExport(doc, file.name, insertBefore, dropTargetUl);
+        /* The JSON family is told apart by its shape, not its extension:
+           an exported tree, a TopoJSON topology and plain GeoJSON can all
+           arrive with the same .json extension.                        */
+        const exported = parseTreeExport(content);
+        if (exported) {
+          await importTreeExport(exported, file.name, insertBefore, dropTargetUl);
           scheduleSave();
           continue;
+        }
+        let doc;
+        try { doc = JSON.parse(content); } catch { doc = null; }
+        if (doc && doc.type === "Topology") {
+          content = JSON.stringify(topologyToGeoJson(doc));
         }
         kind = "geojson";
       }
       else {
-        navMessage(`\u00AB${file.name}\u00BB no est\u00E1 soportado. Formatos admitidos: KML, KMZ, JSON (GeoJSON) y carpetas exportadas (${EXPORT_EXT}).`);
+        navMessage(`\u00AB${file.name}\u00BB no est\u00E1 soportado. Formatos admitidos: KML, KMZ (incl. ortofotos), JSON (GeoJSON), TopoJSON y carpetas exportadas (${EXPORT_EXT}).`);
         continue;
       }
-      await addFileNode(file.name, kind, content, insertBefore, dropTargetUl);
+      await addFileNode(file.name, kind, content, insertBefore, dropTargetUl, zip);
       scheduleSave();
     } catch (err) {
       navMessage(`No se pudo cargar \u00AB${file.name}\u00BB (${ext || "sin extensi\u00F3n"}, ${fmtBytes(file.size)}): ${err.message}`);
@@ -3471,6 +3692,7 @@ function styleKind(li) {
   let kind;
   if (li._measure) kind = "measure";
   else if (li._elevGrid) kind = "elevGrid";
+  else if (li._imageOverlay) kind = "imageOverlay";
   else {
     const layer = nodeLayer(li);
     if (!layer) kind = "group";
@@ -3877,7 +4099,7 @@ function openStyleDialog(li, { isNew = false } = {}) {
      it is open: that cancels the edit in progress before retargeting    */
   if (!styleDialog.hidden) closeStyleDialog(false);
   const kind = styleKind(li);
-  if (kind !== "marker" && kind !== "polygon") {
+  if (kind !== "marker" && kind !== "polygon" && kind !== "imageOverlay") {
     navMessage("Esta capa no tiene estilos editables.");
     return;
   }
@@ -3901,6 +4123,7 @@ function openStyleDialog(li, { isNew = false } = {}) {
     ? `Estilo de ${styleTargets.length} capas` : `Estilo: ${li._name}`;
   $id("style-marker").hidden = kind !== "marker";
   $id("style-polygon").hidden = kind !== "polygon";
+  $id("style-imageoverlay").hidden = kind !== "imageOverlay";
   /* El nombre solo tiene sentido con un único nodo: es propio de cada uno */
   const single = styleTargets.length === 1;
   $id("name-row").hidden = !single;
@@ -3935,13 +4158,16 @@ function openStyleDialog(li, { isNew = false } = {}) {
       /* A hidden layer has no icon on the map, so there is nothing to drag */
       $id("mk-drag-hint").hidden = !posMarker._map;
     }
-  } else {
+  } else if (kind === "polygon") {
     styleDraft = normalizePathStyle(styleTargets[0]._style);
     $id("pg-weight").value = styleDraft.weight;
     setColorButton($id("pg-color"), styleDraft.color);
     $id("pg-fill").checked = styleDraft.fill;
     setColorButton($id("pg-fill-color"), styleDraft.fillColor);
     $id("pg-fill-opacity").value = styleDraft.fillOpacity;
+  } else {
+    styleDraft = { opacity: styleTargets[0]._imageOverlay.opacity };
+    $id("io-opacity").value = styleDraft.opacity;
   }
   styleDialog.hidden = false;
   clampToViewport(styleBox);
@@ -4037,6 +4263,10 @@ for (const id of ["mk-size", "mk-text-size", "mk-text-always"]) { /* colours: op
 for (const id of ["pg-weight", "pg-fill", "pg-fill-opacity"]) { /* colours: openColorPicker */
   $id(id).addEventListener("input", () => { if (styleDraft) readPolygonControls(); });
 }
+function readImageOverlayControls() {
+  styleDraft.opacity = Number($id("io-opacity").value);
+}
+$id("io-opacity").addEventListener("input", () => { if (styleDraft) readImageOverlayControls(); });
 
 $id("style-cancel").addEventListener("click", () => closeStyleDialog(false));
 $id("style-accept").addEventListener("click", () => {
@@ -4065,11 +4295,18 @@ $id("style-accept").addEventListener("click", () => {
       t._mstyle = mstyle;
       applyMarkerStyle(t);
     }
-  } else {
+  } else if (styleKindOpen === "polygon") {
     readPolygonControls();
     for (const t of styleTargets) {
       t._style = { ...styleDraft };
       applyPolygonStyle(t);
+    }
+  } else {
+    readImageOverlayControls();
+    for (const t of styleTargets) {
+      t._imageOverlay.opacity = styleDraft.opacity;
+      const layer = nodeLayer(t);
+      if (layer) layer.setOpacity(styleDraft.opacity);
     }
   }
   scheduleSave();
@@ -4298,6 +4535,44 @@ let activeTool = null; /* null | "line" | "circle" */
 let drawing = null;    /* medición en curso durante el arrastre de creación */
 let toolButtons = {};
 
+/* YYYYMMDD-HHMMSS del reloj local del navegador, en el momento de generar
+   el PNG — no BUILD, que es fijo por versión del código, no por momento
+   de exportación.                                                     */
+function pngTimestamp(d = new Date()) {
+  const p = n => String(n).padStart(2, "0");
+  return `${d.getFullYear()}${p(d.getMonth() + 1)}${p(d.getDate())}`
+    + `-${p(d.getHours())}${p(d.getMinutes())}${p(d.getSeconds())}`;
+}
+
+/* Exporta el contenido del visor (mapa base incluido) como PNG. html2canvas
+   es opcional (solo hace falta para esto): se comprueba aquí, no con un
+   guardián que bloquee toda la página, igual que JSZip en kmzToKml. Los
+   proveedores de teselas pueden no enviar cabeceras CORS, en cuyo caso esas
+   teselas concretas pueden salir en blanco; no es detectable de antemano. */
+async function exportMapPng() {
+  if (typeof html2canvas === "undefined") {
+    navMessage("No se pudo cargar el soporte para exportar PNG.");
+    return;
+  }
+  let canvas;
+  try {
+    canvas = await html2canvas(document.getElementById("map"));
+  } catch (err) {
+    navMessage(`No se pudo generar la imagen: ${err.message}`);
+    return;
+  }
+  canvas.toBlob(blob => {
+    if (!blob) { navMessage("No se pudo generar la imagen."); return; }
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `kite-local-${pngTimestamp()}.png`;
+    a.click();
+    setTimeout(() => URL.revokeObjectURL(url), 60000);
+    navMessage(`Descargado «${a.download}».`);
+  }, "image/png");
+}
+
 const MeasureControl = L.Control.extend({
   options: { position: "topleft" },
   onAdd() {
@@ -4312,6 +4587,12 @@ const MeasureControl = L.Control.extend({
     pin.textContent = "\uD83D\uDCCD";
     pin.title = "Crear un marcador en el centro de la vista";
     pin.addEventListener("click", e => { e.preventDefault(); createPin(); });
+
+    const png = L.DomUtil.create("a", "", bar);
+    png.href = "#";
+    png.textContent = "\uD83D\uDCF7";
+    png.title = "Exportar el visor como imagen PNG";
+    png.addEventListener("click", e => { e.preventDefault(); exportMapPng(); });
 
     L.DomEvent.disableClickPropagation(bar);
     return bar;
@@ -5452,6 +5733,18 @@ function rebuildElevGrid(n, parentUl) {
   elevGridCount++;
 }
 
+/* Reconstruye una ortofoto guardada (usado al restaurar el árbol). Sigue
+   el patrón de las capas normales (t === "layer"): se construye
+   desconectada y solo se añade a rootGroup si está marcada.           */
+function rebuildImageOverlay(n, parentUl) {
+  const bounds = L.latLngBounds([n.box.south, n.box.west], [n.box.north, n.box.east]);
+  const layer = L.imageOverlay(n.dataUrl, bounds, { opacity: n.opacity });
+  if (n.checked) layer.addTo(rootGroup);
+  const li = makeNode({ name: n.name, layer, styleable: true, checked: !!n.checked });
+  li._imageOverlay = { box: n.box, dataUrl: n.dataUrl, opacity: n.opacity };
+  parentUl.appendChild(li);
+}
+
 function setAltitudeMode(on) {
   demOn = on;
   if (demButton) demButton.classList.toggle("active", on);
@@ -5730,6 +6023,8 @@ const CTX_MENU_ITEMS = [
   { separator: true },
   { label: "Crear un pin", action: () => createPin() },
   { separator: true },
+  { label: "Exportar PNG", action: () => exportMapPng() },
+  { separator: true },
   { label: "Centrar en el contenido", action: () => fitToContent() },
   { label: "Centrar en la península y Baleares", action: () => centerIberia() },
   { label: "Centrar en las islas Canarias", action: () => centerCanaries() },
@@ -5854,6 +6149,8 @@ map.on("moveend zoomend", scheduleViewSave);
   let nodes = null;
   try { nodes = await dbLoadTree(); } catch { nodes = null; }
   if (nodes && nodes.length) await restoreTree(nodes);
+
+  refreshStorageUsage();
 
   /* Pedir almacenamiento persistente: reduce el riesgo de que el
      navegador borre los datos si necesita liberar espacio          */

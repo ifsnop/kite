@@ -19,7 +19,12 @@ const SUITES = [
   ["navtest.js",    "Navegación del árbol y selección por rangos"],
   ["selcorrect.js", "Selección: cursor y nodos de nivel superior"],
   ["reporttest.js", "Informe de importación"],
-  ["newfeat.js",    "Saneado de fichas, Ctrl+A y zonas de arrastre"]
+  ["newfeat.js",    "Saneado de fichas, Ctrl+A y zonas de arrastre"],
+  ["topojsontest.js",     "Conversión de TopoJSON a GeoJSON"],
+  ["groundoverlaytest.js","GroundOverlay: LatLonBox y resolución de assets del KMZ"],
+  ["bytesfmt.js",         "Formato de tamaños: bytes/KB/MB/GB"],
+  ["reordertest.js",      "Orden de pintado: bringLayerToFront por tipo, reorderPaintOrder por árbol"],
+  ["pngnametest.js",      "Nombre de archivo del PNG exportado: marca de tiempo con zero-padding"]
 ];
 const BENCH = [["selbench.js", "Coste de seleccionar y de topLevelSelection"]];
 
