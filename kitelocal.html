@@ -904,7 +904,7 @@ const map = L.map("map", { preferCanvas: true, maxZoom: MAX_ZOOM }).setView([40.
 
 /* Fecha de generación del código (versión): AÑOMESDIAHORAMINUTO.
    Actualizar en cada generación; se muestra junto al crédito de Leaflet. */
-const BUILD = "202608071341";
+const BUILD = "202608071425";
 map.attributionControl.setPrefix(
   `v${BUILD} | <a href="https://leafletjs.com" title="A JavaScript library for interactive maps">Leaflet</a>`);
 
@@ -6176,6 +6176,40 @@ function scheduleViewSave() {
   }, VIEW_SAVE_MS);
 }
 map.on("moveend zoomend", scheduleViewSave);
+
+/* ================= Aviso de nueva versión en el servidor =================
+   Sondeo ligero: una petición HEAD al propio archivo cada
+   VERSION_CHECK_MS, comparando ETag (o Last-Modified si el servidor no
+   manda ETag) contra el visto la primera vez. HEAD no transfiere cuerpo
+   y nginx lo resuelve con un stat() del archivo, así que el coste por
+   sondeo es mínimo. cache: "no-store" evita que el propio navegador
+   conteste desde caché sin llegar a preguntarle al servidor. */
+const VERSION_CHECK_MS = 60000;
+let serverVersionTag = null;
+let updateNoticeShown = false;
+
+async function checkServerVersion() {
+  if (updateNoticeShown) return;
+  let res;
+  try {
+    res = await fetch(location.href, { method: "HEAD", cache: "no-store" });
+  } catch { return; } /* sin red: se reintenta en el siguiente sondeo */
+  if (!res.ok) return;
+  const tag = res.headers.get("etag") || res.headers.get("last-modified");
+  if (!tag) return; /* el servidor no expone ninguno de los dos: nada que comparar */
+  if (serverVersionTag === null) {
+    serverVersionTag = tag;
+    return;
+  }
+  if (tag !== serverVersionTag) {
+    updateNoticeShown = true;
+    navMessage(
+      "Hay una versión nueva de KITE Local en el servidor. Recarga la página cuando puedas (F5) para actualizar.",
+      { sticky: true, tone: "info" }
+    );
+  }
+}
+setInterval(checkServerVersion, VERSION_CHECK_MS);
 
 /* ================= Arranque: restaurar el árbol guardado ================= */
 (async () => {
