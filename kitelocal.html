@@ -900,7 +900,7 @@ const map = L.map("map", { preferCanvas: true, maxZoom: MAX_ZOOM }).setView([40.
 
 /* Fecha de generación del código (versión): AÑOMESDIAHORAMINUTO.
    Actualizar en cada generación; se muestra junto al crédito de Leaflet. */
-const BUILD = "202608071445";
+const BUILD = "202608071520";
 map.attributionControl.setPrefix(
   `v${BUILD} | <a href="https://leafletjs.com" title="A JavaScript library for interactive maps">Leaflet</a>`);
 
@@ -2566,8 +2566,16 @@ async function dbLoadTree() {
       const rec = rq.result;
       if (rec && rec.v === TREE_SCHEMA) { resolve(rec.nodes); return; }
       /* Versión distinta: se descarta el árbol, pero solo el árbol; la
-         vista guardada es independiente y sigue siendo válida.      */
-      if (rec) st.delete("root");
+         vista guardada es independiente y sigue siendo válida. El
+         usuario pierde lo que tuviera cargado, así que el aviso es
+         sticky (exige "Aceptar"), igual que un resumen de importación
+         con elementos omitidos.                                     */
+      if (rec) {
+        st.delete("root");
+        navMessage("El árbol guardado en este navegador es de una versión "
+          + "anterior, incompatible con esta, y se ha eliminado.",
+          { sticky: true });
+      }
       resolve(null);
     };
     rq.onerror = () => reject(rq.error);
