@@ -771,9 +771,13 @@
       </div>
     </div>
     <div id="style-polygon" hidden>
+      <div class="dlg-row"><span>Estilo</span><select id="pg-mode">
+        <option value="both">Contorno y relleno</option>
+        <option value="stroke">Solo contorno</option>
+        <option value="fill">Solo relleno</option>
+      </select></div>
       <div class="dlg-row"><span>Ancho del contorno</span><input type="number" id="pg-weight" min="0.5" max="12" step="0.5"></div>
       <div class="dlg-row"><span>Color del contorno</span><button type="button" class="color-btn" id="pg-color"></button></div>
-      <div class="dlg-row"><label for="pg-fill">Relleno (si no, solo contorno)</label><input type="checkbox" id="pg-fill"></div>
       <div class="dlg-row"><span>Color del relleno</span><button type="button" class="color-btn" id="pg-fill-color"></button></div>
       <div class="dlg-row"><span>Opacidad del relleno</span><input type="range" id="pg-fill-opacity" min="0" max="1" step="0.05"></div>
     </div>
@@ -900,7 +904,7 @@ const map = L.map("map", { preferCanvas: true, maxZoom: MAX_ZOOM }).setView([40.
 
 /* Fecha de generación del código (versión): AÑOMESDIAHORAMINUTO.
    Actualizar en cada generación; se muestra junto al crédito de Leaflet. */
-const BUILD = "202608071520";
+const BUILD = "202608071314";
 map.attributionControl.setPrefix(
   `v${BUILD} | <a href="https://leafletjs.com" title="A JavaScript library for interactive maps">Leaflet</a>`);
 
@@ -1157,7 +1161,7 @@ function parseStyleElement(styleEl) {
   if (poly) {
     const c = kmlColor(text(poly, "color"));
     if (c) { style.fillColor = c.color; style.fillOpacity = c.opacity; }
-    if (text(poly, "fill") === "0") style.fillOpacity = 0;
+    if (text(poly, "fill") === "0") { style.fillOpacity = 0; style.fill = false; }
     if (text(poly, "outline") === "0") style.stroke = false;
   }
   return style;
@@ -2238,9 +2242,14 @@ function geojsonStyle(props) {
   const style = { color: "#3388ff", weight: 2, fillOpacity: 0.35 };
   if (props["stroke"]) style.color = props["stroke"];
   if (props["stroke-width"] != null) style.weight = Number(props["stroke-width"]);
-  /* "stroke-opacity" se ignora: el contorno es siempre 100% opaco */
+  /* Su opacidad se ignora (el contorno es siempre 100% opaco), pero 0 es
+     la señal de "sin contorno", igual que <outline>0</outline> en KML. */
+  if (Number(props["stroke-opacity"]) === 0) style.stroke = false;
   if (props["fill"]) style.fillColor = props["fill"];
-  if (props["fill-opacity"] != null) style.fillOpacity = Number(props["fill-opacity"]);
+  if (props["fill-opacity"] != null) {
+    style.fillOpacity = Number(props["fill-opacity"]);
+    if (style.fillOpacity === 0) style.fill = false;
+  }
   return style;
 }
 
@@ -3830,8 +3839,18 @@ function normalizePathStyle(s) {
   s = { color: "#3388ff", weight: 2, fillOpacity: 0.35, ...(s || {}) };
   if (!s.fillColor) s.fillColor = s.color;
   s.fill = s.fill !== false; /* Leaflet default: filled */
+  s.stroke = s.stroke !== false; /* Leaflet default: outlined */
   s.opacity = 1;
   return s;
+}
+
+/* Maps the two independent booleans to the dialog's single three-way
+   selector: stroke+fill can't both be off (that's not offered as an
+   option), so a corrupted "both false" record falls back to "fill". */
+function polygonModeOf(s) {
+  if (s.stroke === false) return "fill";
+  if (s.fill === false) return "stroke";
+  return "both";
 }
 
 /* ---------- Coordinate input formats ----------
@@ -4168,9 +4187,9 @@ function openStyleDialog(li, { isNew = false } = {}) {
     }
   } else if (kind === "polygon") {
     styleDraft = normalizePathStyle(styleTargets[0]._style);
+    $id("pg-mode").value = polygonModeOf(styleDraft);
     $id("pg-weight").value = styleDraft.weight;
     setColorButton($id("pg-color"), styleDraft.color);
-    $id("pg-fill").checked = styleDraft.fill;
     setColorButton($id("pg-fill-color"), styleDraft.fillColor);
     $id("pg-fill-opacity").value = styleDraft.fillOpacity;
   } else {
@@ -4256,11 +4275,13 @@ function readMarkerControls() {
   $id("icon-preview").src = iconUrl(styleDraft.icon, styleDraft.color, 20);
 }
 function readPolygonControls() {
+  const mode = $id("pg-mode").value;
   Object.assign(styleDraft, {
     weight: Number($id("pg-weight").value) || 1,
     color: colorOf($id("pg-color")),
     opacity: 1, /* outlines are always fully opaque */
-    fill: $id("pg-fill").checked,
+    stroke: mode !== "fill",
+    fill: mode !== "stroke",
     fillColor: colorOf($id("pg-fill-color")),
     fillOpacity: Number($id("pg-fill-opacity").value)
   });
@@ -4268,9 +4289,10 @@ function readPolygonControls() {
 for (const id of ["mk-size", "mk-text-size", "mk-text-always"]) { /* colours: openColorPicker */
   $id(id).addEventListener("input", () => { if (styleDraft) readMarkerControls(); });
 }
-for (const id of ["pg-weight", "pg-fill", "pg-fill-opacity"]) { /* colours: openColorPicker */
+for (const id of ["pg-weight", "pg-fill-opacity"]) { /* colours: openColorPicker */
   $id(id).addEventListener("input", () => { if (styleDraft) readPolygonControls(); });
 }
+$id("pg-mode").addEventListener("change", () => { if (styleDraft) readPolygonControls(); });
 function readImageOverlayControls() {
   styleDraft.opacity = Number($id("io-opacity").value);
 }

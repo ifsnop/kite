@@ -301,8 +301,11 @@ desarrollo del proyecto.
   capas seleccionadas (igual que borrar o arrastrar). Capas de marcadores:
   icono, color y tamaño del marcador, tamaño y color del texto, y texto
   siempre visible (tooltip permanente) o solo al hacer click (popup). Capas
-  de polígonos: ancho y color del contorno, relleno sí/no, y color y
-  opacidad del relleno. Las mediciones no tienen diálogo de estilos
+  de polígonos: ancho y color del contorno, un selector "Contorno y
+  relleno" / "Solo contorno" / "Solo relleno" (`pg-mode`), y color y
+  opacidad del relleno. Es un selector de tres opciones, no dos casillas
+  independientes, porque "ni contorno ni relleno" no es una combinación
+  que tenga sentido ofrecer. Las mediciones no tienen diálogo de estilos
   (`styleable: false`).
 - **Texto y posición: solo para un marcador**. Cuando el objetivo es una
   única capa con exactamente un marcador (`soleMarker`), el diálogo añade
@@ -364,6 +367,20 @@ desarrollo del proyecto.
 - **El contorno no tiene opacidad**: siempre 100%. Se ignora el alfa del
   `<LineStyle>` de KML y el `stroke-opacity` de simplestyle, y el diálogo
   fuerza `opacity: 1`. Solo el relleno tiene opacidad editable.
+- **Contorno y relleno sí/no son booleanos aparte de la opacidad**
+  (`style.stroke` / `style.fill`, ambos con valor por defecto `true` vía
+  `normalizePathStyle`): que un trazo se dibuje o no es independiente de
+  que su opacidad sea siempre 100%. `<outline>0</outline>` y
+  `<fill>0</fill>` de KML, y `stroke-opacity`/`fill-opacity` a `0` en
+  simplestyle, se traducen a estos booleanos en la importación
+  (`parseStyleElement`, `geojsonStyle`). El diálogo los presenta como un
+  único selector de tres opciones (`pg-mode`: contorno y relleno / solo
+  contorno / solo relleno) en vez de dos casillas independientes, para
+  que no se pueda pedir un polígono sin ninguno de los dos;
+  `polygonModeOf` hace la traducción de los dos booleanos al selector y
+  viceversa. El renderizado usa el `stroke: false` nativo de Leaflet
+  (omite el trazo por completo), no un truco de igualar color y opacidad
+  del contorno con los del relleno.
 - **Los iconos importados no se respetan**: no hay equivalencia exacta con
   los pushpins de Google Earth y los `<IconStyle>` con `href` apuntan a
   URLs que el visor no carga. Toda capa de marcadores arranca con el estilo
