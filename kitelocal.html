@@ -900,7 +900,7 @@ const map = L.map("map", { preferCanvas: true, maxZoom: MAX_ZOOM }).setView([40.
 
 /* Fecha de generación del código (versión): AÑOMESDIAHORAMINUTO.
    Actualizar en cada generación; se muestra junto al crédito de Leaflet. */
-const BUILD = "202608071230";
+const BUILD = "202608071445";
 map.attributionControl.setPrefix(
   `v${BUILD} | <a href="https://leafletjs.com" title="A JavaScript library for interactive maps">Leaflet</a>`);
 
@@ -4546,9 +4546,14 @@ function pngTimestamp(d = new Date()) {
 
 /* Exporta el contenido del visor (mapa base incluido) como PNG. html2canvas
    es opcional (solo hace falta para esto): se comprueba aquí, no con un
-   guardián que bloquee toda la página, igual que JSZip en kmzToKml. Los
-   proveedores de teselas pueden no enviar cabeceras CORS, en cuyo caso esas
-   teselas concretas pueden salir en blanco; no es detectable de antemano. */
+   guardián que bloquee toda la página, igual que JSZip en kmzToKml.
+   `useCORS: true` es lo que permite que las teselas de mapa base entren en
+   el PNG: todos los proveedores usados (OSM, Esri, IGN, PNOA) envían
+   `Access-Control-Allow-Origin: *` (comprobado contra los servicios
+   reales), así que html2canvas puede leer sus píxeles sin dejar el canvas
+   final "tainted". Si algún proveedor no lo enviara, esa tesela concreta
+   sale en blanco (html2canvas aísla el fallo por imagen) en vez de romper
+   la exportación entera.                                              */
 async function exportMapPng() {
   if (typeof html2canvas === "undefined") {
     navMessage("No se pudo cargar el soporte para exportar PNG.");
@@ -4556,7 +4561,7 @@ async function exportMapPng() {
   }
   let canvas;
   try {
-    canvas = await html2canvas(document.getElementById("map"));
+    canvas = await html2canvas(document.getElementById("map"), { useCORS: true });
   } catch (err) {
     navMessage(`No se pudo generar la imagen: ${err.message}`);
     return;
