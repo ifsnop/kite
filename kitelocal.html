@@ -961,7 +961,7 @@ const map = L.map("map", { preferCanvas: true, maxZoom: MAX_ZOOM }).setView([40.
 
 /* Fecha de generación del código (versión): AÑOMESDIAHORAMINUTO.
    Actualizar en cada generación; se muestra junto al crédito de Leaflet. */
-const BUILD = "202608111015";
+const BUILD = "202608111145";
 map.attributionControl.setPrefix(
   `v${BUILD} | <a href="https://leafletjs.com" title="A JavaScript library for interactive maps">Leaflet</a>`);
 
@@ -2566,7 +2566,10 @@ let layerInfoDismissed = false;
    debajo, y con el diálogo ya abierto pasar a otra capa solo actualiza
    su contenido, sin recolocar la caja ni cerrarla.                   */
 function showLayerInfo(li, { focus = true } = {}) {
-  if (!focus && layerInfoDismissed) return;
+  /* Mientras el diálogo de edición (estilo/nombre) esté abierto, el
+     hover no debe reabrir este panel encima o debajo de él: recrearía
+     el mismo solape que openStyleDialog ya evita al abrirse.         */
+  if (!focus && (layerInfoDismissed || !styleDialog.hidden)) return;
   if (focus) layerInfoDismissed = false; /* apertura explícita: rearma el hover */
   const html = infoHtmlFor(li);
   if (html == null) return;
@@ -4507,6 +4510,10 @@ function openStyleDialog(li, { isNew = false } = {}) {
   /* The dialog is not modal, so another row's button may be pressed while
      it is open: that cancels the edit in progress before retargeting    */
   if (!styleDialog.hidden) closeStyleDialog(false);
+  /* El panel de información (hover) es igual de flotante y puede quedar
+     justo en el mismo sitio, tapando este diálogo sin ningún aviso de
+     que hay algo debajo: se cierra antes de mostrar el de edición.    */
+  if (!descDialog.hidden) descDialog.hidden = true;
   const kind = styleKind(li);
   if (kind !== "marker" && kind !== "polygon" && kind !== "imageOverlay") {
     navMessage("Esta capa no tiene estilos editables.");
