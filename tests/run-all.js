@@ -24,7 +24,8 @@ const SUITES = [
   ["groundoverlaytest.js","GroundOverlay: LatLonBox y resolución de assets del KMZ"],
   ["bytesfmt.js",         "Formato de tamaños: bytes/KB/MB/GB"],
   ["reordertest.js",      "Orden de pintado: bringLayerToFront por tipo, reorderPaintOrder por árbol"],
-  ["pngnametest.js",      "Nombre de archivo del PNG exportado: marca de tiempo con zero-padding"]
+  ["pngnametest.js",      "Nombre de archivo del PNG exportado: marca de tiempo con zero-padding"],
+  ["geojsonnametest.js",  "Propiedad-nombre de GeoJSON, tabla de properties y menú contextual con varias capas"]
 ];
 const BENCH = [["selbench.js", "Coste de seleccionar y de topLevelSelection"]];
 

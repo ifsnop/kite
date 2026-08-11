@@ -117,6 +117,26 @@ desarrollo del proyecto.
   la geometría dos veces. GeoJSON pasa
   además por `validGeometry` (tipo conocido, anidamiento correcto, anillos
   de al menos cuatro posiciones, líneas de al menos dos).
+- **Nombre de cada elemento de GeoJSON**: `resolveFeatureName` usa
+  `properties.name`, si no `properties.title`, si no «Elemento N». Un
+  archivo es **ambiguo** (`needsNamePicker`) cuando su primer Feature
+  trae `properties` con alguna clave pero ni `name` ni `title`: solo
+  entonces `pickNameProperty` muestra un diálogo con las claves y
+  valores de ese primer objeto (se asume que el resto comparten forma)
+  para elegir cuál usar. La elección se guarda en IndexedDB indexada por
+  `propsFingerprint` (la forma de `properties`, no sus valores), así que
+  un archivo futuro con esa misma forma —esta sesión o en otra— no
+  vuelve a preguntar; dentro de la sesión actual, la primera vez que se
+  fuera a aplicar una asociación ya guardada el diálogo se muestra
+  igualmente para confirmarla (preseleccionada), y a partir de ahí el
+  resto de archivos con esa forma en la misma sesión ya no preguntan.
+  Cancelar (o Escape) no guarda nada y usa el nombrado automático de
+  siempre para ese archivo. El botón 🏷️ de la cabecera abre un editor
+  de las asociaciones guardadas (ver, cambiar con un `<select>` —las
+  claves posibles ya están en la propia huella, no hace falta
+  guardarlas aparte— y borrar, una por una o todas), con aplicación
+  inmediata: es una lista de configuración, no una capa viva en el
+  mapa, así que no sigue el patrón de borrador con Cancelar/Aceptar.
 - **Aislamiento por entidad**: cada Placemark y cada feature se construye
   en su propio `try`; lo que falle se cuenta en el informe
   (`makeImportReport`) y el resto sigue cargando. Al terminar se muestra
@@ -690,6 +710,10 @@ desarrollo del proyecto.
   también son mutaciones del árbol.
 - Si cambias el formato serializado, sube `TREE_SCHEMA`; si cambias los
   almacenes, sube `DB_VERSION`. En ambos casos lo viejo se descarta.
+- **Nombres de GeoJSON recordados**: otra clave del mismo almacén
+  (`geojsonNameProps`, `GNP_SCHEMA`), un mapa de huella de `properties`
+  (`propsFingerprint`: el JSON de sus claves, ordenadas) a la propiedad
+  elegida como nombre. Se explica en «Formatos y límites de entrada».
 
 ## Red externa
 
@@ -801,17 +825,63 @@ desarrollo del proyecto.
   es la propia carpeta envoltorio la que cuelga de ahí. El recuadro
   `#dropzone` vive ahora bajo el árbol (`#tree`), no en la cabecera.
 
-## Ficha del elemento
+## Ficha del elemento / panel de información de la capa
 
-- La `<description>` del KML se guarda en `li._desc` y se serializa; el
-  botón ℹ la muestra en un diálogo. **Se pasa a `makeNode` como opción**,
-  no se asigna después: los botones se crean dentro de `makeNode`, así
-  que asignarla luego dejaba el botón sin aparecer nunca.
+- La `<description>` del KML se guarda en `li._desc` y se serializa.
+  **Se pasa a `makeNode` como opción**, no se asigna después: los
+  botones se crean dentro de `makeNode`, así que asignarla luego dejaba
+  el botón sin aparecer nunca.
 - Es HTML de un archivo AJENO, así que se sanea con lista blanca
   (`sanitizeHtml`): los elementos peligrosos se tiran **enteros**
   (`DESC_DROP`), a los desconocidos se les quita la etiqueta pero se
   conserva el texto —que suele ser el dato—, y se eliminan todos los
   atributos `on*` y las URL que no sean http(s).
+- **El mismo diálogo (`#desc-dialog`/`showLayerInfo`) también muestra
+  `properties` de GeoJSON**, como una tabla clave/valor
+  (`propertiesTableHtml`, con los valores completos, sin truncar: es
+  una ventana de consulta). `infoHtmlFor(li)` decide qué enseñar: la
+  ficha KML si `li._desc` existe, si no la tabla de `properties` de la
+  capa (`layerProperties`, leída de `layer.feature.properties`, que
+  sobrevive íntegro el ciclo guardar/restaurar porque todo pasa por
+  `toGeoJSON()`/`L.geoJSON()`), si no `null` (nada que mostrar). Ambas
+  fuentes son mutuamente excluyentes: una capa KML no tiene
+  `properties` de GeoJSON, y viceversa.
+- **Tres formas de abrirlo**: el botón ℹ de la fila (solo aparece si
+  `infoHtmlFor` tiene algo que enseñar); al pasar el ratón por la capa
+  en el visor (`mouseover`, con `{ focus: false }` para no robarle el
+  foco al usuario en cada hover — no se cierra solo al quitar el
+  ratón, es no modal y se cierra con «Cerrar» o Escape como siempre); y
+  «Mostrar propiedades» del menú contextual del visor (ver esa
+  sección). Con el diálogo ya abierto, pasar a otra capa solo actualiza
+  su contenido, sin recolocar la caja.
+
+## Menú contextual del visor
+
+- `CTX_MENU_ITEMS` es la lista genérica (centrar, medir, exportar PNG…)
+  que se muestra al hacer click derecho donde no hay ninguna capa.
+  Sobre una capa, se anteponen «Ir al nodo en el panel»
+  (`highlightNode`, expande ancestros, selecciona y hace scroll) y,
+  si la capa tiene algo que enseñar, «Mostrar propiedades»
+  (`showLayerInfo`).
+- **Con varias capas superpuestas bajo el cursor, esos dos ítems se
+  convierten en un submenú** con una entrada por capa
+  (`ctxItemsFor`/`openCtxSubmenu`), en vez de actuar sobre una sola.
+- **Hit-testing propio, sin punto-en-polígono**: Leaflet solo resuelve
+  UNA capa por click en su renderizador de lienzo (comprobado en el
+  propio `Canvas.js` de Leaflet 1.9.4: no hay bubbling real a las capas
+  de debajo). Para detectar varias, `layersAtPoint`/`layerHitTest`
+  recorren las capas visibles de `rootGroup` a mano, con caja
+  envolvente (`getBounds().contains(latlng)`) para trazos y distancia
+  en píxeles (`MARKER_HIT_PX`) para marcadores — a propósito, sin
+  ray-casting: más barato, y una acción puntual como un click derecho
+  no necesita la precisión exacta del borde de una forma cóncava.
+- **Se descartó "pelar" capas** (ocultar la de más arriba y volver a
+  preguntarle a Leaflet, repitiendo) por mirar el propio código:
+  `Canvas._initPath` siempre reinserta una capa reañadida al FINAL del
+  orden de pintado, así que ocultar y restaurar deja el orden alterado
+  en cuanto hay alguna capa no tocada intercalada entre las que sí lo
+  fueron. Arreglarlo habría exigido recrear el orden de pintado
+  completo tras cada click derecho.
 
 ## Vista guardada
 
@@ -861,6 +931,15 @@ El cuadro de coordenadas vive siempre por encima de ella
 (`margin-bottom`), y por eso **no lleva ancho máximo**: limitarlo cortaba
 la línea de la diferencia entre superficie y terreno, que es larga. La
 atribución se mantiene en una sola línea con elipsis si no cabe.
+
+- **Exportar PNG (`exportMapPng`) oculta los controles superpuestos**
+  (`.leaflet-control-zoom`, `.measure-bar` —cubre a la vez la barra de
+  medición/pin/📷 y la de vista, que comparten esa clase—, `.base-box`)
+  antes de llamar a `html2canvas` y los restaura en un `finally`,
+  incluso si la captura falla: son hijos del propio `#map` y no aportan
+  información en la imagen. El cuadro de coordenadas y la atribución NO
+  se ocultan a propósito: el primero sí es información del punto, y la
+  segunda es la atribución CC BY que exige la licencia del PNOA/IGN.
 
 ## Rendimiento (reglas nacidas de medir)
 

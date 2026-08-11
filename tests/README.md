@@ -37,6 +37,7 @@ si algo falla, así que sirve tal cual en un gancho de git.
 | `reordertest.js` | Orden de pintado: `bringLayerToFront` despacha por forma de la capa (`bringToFront`, `eachLayer` recursivo, `getElement`+`L.DomUtil.toFront`); `reorderPaintOrder` recorre el árbol y trae al frente solo las capas activadas, en su orden, reflejando un reordenamiento del DOM sin pasar por Leaflet real. |
 | `pngnametest.js` | `pngTimestamp`: `YYYYMMDD-HHMMSS` con zero-padding en cada campo (mes, día, hora, minuto, segundo), medianoche como `000000`, y forma correcta al usar la hora actual por defecto. |
 | `selbench.js` | Medición (no aserciones): coste de seleccionar miles de capas y de `topLevelSelection`. |
+| `geojsonnametest.js` | `geojsonFeatures`/`needsNamePicker`/`propsFingerprint`/`resolveFeatureName` (elegir y recordar la propiedad-nombre de un GeoJSON ambiguo); `stringifyPropValue`/`propertiesTableHtml` (tabla de `properties` del panel de información, con escapado de entrada hostil); `ctxItemsFor` (menú contextual con una, ninguna o varias capas bajo el cursor: ítems directos frente a submenú). |
 
 ## Dependencias
 

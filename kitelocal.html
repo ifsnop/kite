@@ -616,6 +616,35 @@
   .desc-body img { max-width: 100%; height: auto; }
   .dlg-hint { margin: 6px 0 0; font-size: 12px; color: var(--muted); }
   .dlg-note { margin-left: auto; font-size: 12px; color: var(--muted); }
+  .gnp-list, .gnp-editor-list {
+    max-height: 260px;
+    overflow-y: auto;
+    margin: 8px 0;
+  }
+  .gnp-row {
+    display: flex;
+    align-items: baseline;
+    gap: 8px;
+    padding: 4px 2px;
+    font-size: 13px;
+  }
+  .gnp-row .gnp-key { font-weight: 600; }
+  .gnp-row .gnp-val {
+    color: var(--muted);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .gnp-editor-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 5px 2px;
+    font-size: 13px;
+    border-bottom: 1px solid var(--border);
+  }
+  .gnp-editor-row .gnp-editor-keys { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .gnp-editor-row select { font: inherit; }
   #pos-format { padding: 1px 8px; line-height: 1.3; }
   .dlg-row input.bad { border-color: #c0392b; background: #fdf1ef; }
   /* The preview sits outside the button and only its height is fixed, so
@@ -694,6 +723,7 @@
 <aside id="nav-panel">
   <header>
     <h1 title="KML Interactive Tree Explorer">KITE Local
+      <button id="gnp-editor-btn" class="btn" title="Nombres recordados para GeoJSON">🏷️</button>
       <button id="help-btn" class="btn" title="Ayuda y atajos de teclado (tecla ?)">?</button>
     </h1>
     <div class="nav-actions">
@@ -859,6 +889,33 @@
   </div>
 </div>
 
+<!-- Elegir qué propiedad de un GeoJSON ambiguo se usa como nombre -->
+<div id="geojson-name-picker" class="dlg-overlay" hidden>
+  <div class="dlg-box">
+    <h2>Elegir nombre</h2>
+    <p id="gnp-intro" class="dlg-hint"></p>
+    <div class="gnp-list" id="gnp-list"></div>
+    <p class="dlg-hint">Esta elección se recuerda para futuros archivos con esta misma estructura.</p>
+    <div class="dlg-actions">
+      <button class="btn" id="gnp-cancel">Cancelar</button>
+      <button class="btn" id="gnp-accept">Aceptar</button>
+    </div>
+  </div>
+</div>
+
+<!-- Editor de las asociaciones huella-de-properties → nombre recordadas -->
+<div id="gnp-editor" class="dlg-overlay" hidden>
+  <div class="dlg-box">
+    <h2>Nombres recordados de GeoJSON</h2>
+    <p class="dlg-hint">Asociaciones guardadas entre la estructura de <code>properties</code> de un GeoJSON y la propiedad usada como nombre.</p>
+    <div class="gnp-editor-list" id="gnp-editor-list"></div>
+    <div class="dlg-actions">
+      <button class="btn" id="gnp-editor-clear">Borrar todo</button>
+      <button class="btn" id="gnp-editor-close">Cerrar</button>
+    </div>
+  </div>
+</div>
+
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
         integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo="
         crossorigin="anonymous" referrerpolicy="no-referrer"></script>
@@ -904,7 +961,7 @@ const map = L.map("map", { preferCanvas: true, maxZoom: MAX_ZOOM }).setView([40.
 
 /* Fecha de generación del código (versión): AÑOMESDIAHORAMINUTO.
    Actualizar en cada generación; se muestra junto al crédito de Leaflet. */
-const BUILD = "202608071425";
+const BUILD = "202608111015";
 map.attributionControl.setPrefix(
   `v${BUILD} | <a href="https://leafletjs.com" title="A JavaScript library for interactive maps">Leaflet</a>`);
 
@@ -1836,7 +1893,7 @@ function makeNode({ name, layer = null, isFolder = false, isFile = false,
   label.title = name;
   row.appendChild(label);
 
-  row.appendChild(makeActions(li, isFolder || isFile, styleable));
+  row.appendChild(makeActions(li, isFolder || isFile, styleable, layer));
 
   /* Shift+click toggles multi-selection without touching the checkbox.
      Only same-kind nodes can be selected together (marker layers with
@@ -1886,8 +1943,15 @@ function makeNode({ name, layer = null, isFolder = false, isFile = false,
 
   wireDrag(li, row);
 
-  /* Click en la capa dentro del visor → resaltarla en la navegación */
-  if (layer) layer.on("click", () => highlightNode(li));
+  /* Click en la capa dentro del visor → resaltarla en la navegación.
+     Al pasar el ratón, el panel de información (Ficha KML o properties
+     de GeoJSON) se muestra sin robar el foco; showLayerInfo es un no-op
+     silencioso si la capa no tiene nada que enseñar.                 */
+  if (layer) {
+    layer._li = li; /* referencia inversa: la usa el hit-testing del menú contextual */
+    layer.on("click", () => highlightNode(li));
+    layer.on("mouseover", () => showLayerInfo(li, { focus: false }));
+  }
 
   return li;
 }
@@ -1918,7 +1982,7 @@ function makeCaret(li) {
 
 /* Row action buttons: sort/collapse (containers), layer styles (layers),
    rename, move up/down and delete */
-function makeActions(li, sortable, styleable) {
+function makeActions(li, sortable, styleable, layer) {
   const box = document.createElement("span");
   box.className = "actions";
   const btn = (glyph, title, cls, fn) => {
@@ -1942,6 +2006,9 @@ function makeActions(li, sortable, styleable) {
     btn("\uD83D\uDD0D", `Centrar la vista aqu\u00ED y acercar (zoom ${FOCUS_ZOOM})`, "",
         () => focusOnNode(li));
     btn("\uD83C\uDFA8", "Estilos de la capa", "", () => openStyleDialog(li));
+  }
+  if (li._desc || layerProperties(layer)) {
+    btn("\u2139", "Ver informaci\u00F3n de la capa", "", () => showLayerInfo(li));
   }
   btn("\u2191", "Subir", "", () => {
     const prev = li.previousElementSibling;
@@ -2320,18 +2387,48 @@ function topologyToGeoJson(topology) {
   return { type: "FeatureCollection", features };
 }
 
-async function buildGeoJsonTree(gj, parentUl, prog, report) {
+/* Extrae el array de Features de cualquier forma de entrada aceptada
+   (FeatureCollection, Feature suelto o geometría suelta); factoriza la
+   detección de tipo que antes vivía inline al principio de
+   buildGeoJsonTree, y la reutiliza addFileNode para mirar el primer
+   Feature antes de construir nada (elegir la propiedad-nombre).      */
+function geojsonFeatures(gj) {
   if (!gj || typeof gj !== "object") throw new Error("no parece un GeoJSON");
-  let features;
-  if (gj.type === "FeatureCollection") features = Array.isArray(gj.features) ? gj.features : [];
-  else if (gj.type === "Feature") features = [gj];
-  else if (GEOJSON_TYPES.has(gj.type)) features = [{ type: "Feature", geometry: gj, properties: {} }];
-  else throw new Error("no parece un GeoJSON");
+  if (gj.type === "FeatureCollection") return Array.isArray(gj.features) ? gj.features : [];
+  if (gj.type === "Feature") return [gj];
+  if (GEOJSON_TYPES.has(gj.type)) return [{ type: "Feature", geometry: gj, properties: {} }];
+  throw new Error("no parece un GeoJSON");
+}
+
+/* Un archivo es ambiguo cuando trae properties pero ninguna clave con la
+   que ya sabemos nombrar (name/title): solo entonces hace falta
+   preguntar qué propiedad usar.                                     */
+function needsNamePicker(props) {
+  return !!(props && typeof props === "object" && Object.keys(props).length
+    && !props.name && !props.title);
+}
+
+/* Huella de la FORMA de properties (su conjunto de claves, no sus
+   valores ni su orden original): sirve para indexar la asociación
+   guardada, y como es el JSON de las propias claves, se puede
+   recuperar la lista de claves de una huella con JSON.parse.        */
+function propsFingerprint(props) {
+  return JSON.stringify(Object.keys(props || {}).sort());
+}
+
+/* nameProp es la clave elegida por el usuario (o recordada); si esa
+   capa concreta no la tiene, se cae en la cadena de siempre.        */
+function resolveFeatureName(props, index, nameProp) {
+  return String((nameProp && props[nameProp]) || props.name || props.title || `Elemento ${index + 1}`);
+}
+
+async function buildGeoJsonTree(gj, parentUl, prog, report, nameProp = null) {
+  const features = geojsonFeatures(gj);
 
   for (let i = 0; i < features.length; i++) {
     const feature = features[i];
     const props = (feature && typeof feature.properties === "object" && feature.properties) || {};
-    const name = String(props.name || props.title || `Elemento ${i + 1}`);
+    const name = resolveFeatureName(props, i, nameProp);
     try {
       if (!feature || !validGeometry(feature.geometry)) {
         if (report) {
@@ -2456,12 +2553,31 @@ function sanitizeHtml(html) {
   return doc.body.innerHTML;
 }
 
-function showDescription(li) {
+/* El usuario cerró el panel explícitamente (Cerrar o Escape): el hover
+   no debe reabrirlo hasta la próxima apertura explícita (botón ℹ o
+   «Mostrar propiedades» del menú contextual), o el cierre nunca "se
+   queda cerrado" mientras el ratón siga pasando por capas.           */
+let layerInfoDismissed = false;
+
+/* Panel de información de una capa: ficha KML o properties de GeoJSON,
+   por el botón ℹ de la fila, al pasar el ratón por la capa en el visor
+   (focus:false, para no robarle el foco al usuario en cada hover) o
+   desde el menú contextual. No modal (.dlg-float): el mapa sigue vivo
+   debajo, y con el diálogo ya abierto pasar a otra capa solo actualiza
+   su contenido, sin recolocar la caja ni cerrarla.                   */
+function showLayerInfo(li, { focus = true } = {}) {
+  if (!focus && layerInfoDismissed) return;
+  if (focus) layerInfoDismissed = false; /* apertura explícita: rearma el hover */
+  const html = infoHtmlFor(li);
+  if (html == null) return;
   descTitle.textContent = li._name;
-  descBody.innerHTML = sanitizeHtml(li._desc || "");
+  descBody.innerHTML = html;
+  const wasHidden = descDialog.hidden;
   descDialog.hidden = false;
-  clampToViewport(descBox);
-  focusDialog(descBox);
+  if (wasHidden) {
+    clampToViewport(descBox);
+    if (focus) focusDialog(descBox);
+  }
 }
 
 /* ================= Deshacer =================
@@ -2537,6 +2653,36 @@ async function dbLoadBases() {
     rq.onsuccess = () => {
       const rec = rq.result;
       resolve(rec && rec.v === BASE_SCHEMA && rec.bases ? rec : null);
+    };
+    rq.onerror = () => reject(rq.error);
+  });
+}
+
+/* ---------- Nombres de GeoJSON recordados por forma de properties ----------
+   Otra clave del mismo almacén: huella (JSON de las claves de properties,
+   ordenadas) → nombre de la propiedad elegida por el usuario para esa
+   forma. Así un archivo futuro con la misma forma de properties (esta
+   sesión u otra) no vuelve a preguntar.                              */
+const GNP_KEY = "geojsonNameProps";
+const GNP_SCHEMA = 1;
+
+async function dbSaveGnp(map) {
+  const db = await openDb();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(DB_TREE, "readwrite");
+    tx.objectStore(DB_TREE).put({ v: GNP_SCHEMA, map }, GNP_KEY);
+    tx.oncomplete = resolve;
+    tx.onerror = () => reject(tx.error);
+  });
+}
+async function dbLoadGnp() {
+  const db = await openDb();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(DB_TREE, "readonly");
+    const rq = tx.objectStore(DB_TREE).get(GNP_KEY);
+    rq.onsuccess = () => {
+      const rec = rq.result;
+      resolve(rec && rec.v === GNP_SCHEMA && rec.map && typeof rec.map === "object" ? rec.map : {});
     };
     rq.onerror = () => reject(rq.error);
   });
@@ -2950,6 +3096,17 @@ function parseKmlDocument(content) {
   throw new Error(`XML no v\u00E1lido: ${why}`);
 }
 
+/* Asociaciones huella-de-properties → propiedad-nombre, cargadas
+   perezosamente desde IndexedDB (ver dbLoadGnp) la primera vez que
+   hace falta. gnpSessionUsed recuerda qué huellas ya se confirmaron en
+   ESTA carga de página, para no volver a preguntar por ellas dentro de
+   la misma sesión. addFileNode tiene un único punto de llamada y
+   siempre se espera con await dentro del bucle secuencial de
+   handleDroppedFiles, así que no hay condición de carrera entre
+   importaciones concurrentes sobre este estado compartido.           */
+let gnpStore = null;
+const gnpSessionUsed = new Set();
+
 /* Importa un archivo: crea su sección y construye su contenido.
    Para archivos grandes muestra las fases 2 y 3 del progreso:
    "Procesando XML…" (indeterminada) y construcción de capas (por lotes) */
@@ -3007,13 +3164,31 @@ async function addFileNode(name, kind, content, insertBefore = null, dropTargetU
         await yieldFrame();
       }
       const gj = JSON.parse(content);
-      const total = gj.type === "FeatureCollection" ? (gj.features || []).length : 1;
+      const features = geojsonFeatures(gj);
+      const total = features.length;
+      const firstProps = (features[0] && typeof features[0].properties === "object" && features[0].properties) || {};
+      let nameProp = null;
+      if (needsNamePicker(firstProps)) {
+        if (!gnpStore) gnpStore = await dbLoadGnp();
+        const fp = propsFingerprint(firstProps);
+        const stored = gnpStore[fp] || null;
+        if (stored && gnpSessionUsed.has(fp)) {
+          nameProp = stored; /* ya confirmada esta sesi\u00f3n: se aplica sin preguntar */
+        } else {
+          nameProp = await pickNameProperty(firstProps, name, stored);
+          if (nameProp) {
+            gnpStore[fp] = nameProp;
+            gnpSessionUsed.add(fp);
+            await dbSaveGnp(gnpStore);
+          }
+        }
+      }
       const prog = big && total ? {
         done: 0,
         update: d => progress.set(100 * d / total,
           `Construyendo capas de ${name}\u2026 (${d}/${total})`)
       } : null;
-      await buildGeoJsonTree(gj, target, prog, report);
+      await buildGeoJsonTree(gj, target, prog, report, nameProp);
       li.classList.add("collapsed"); /* los GeoJSON arrancan colapsados */
       syncExpanded(li);
     }
@@ -3711,6 +3886,79 @@ function nodeLayer(li) {
   return chk ? chk._layer : null;
 }
 
+/* properties de un GeoJSON importado, si las tiene: L.geoJSON(feature,...)
+   deja `.feature.properties` en la subcapa, y ese properties sobrevive
+   íntegro el ciclo guardar/restaurar (toGeoJSON / L.geoJSON de nuevo).
+   Capas KML (marker/polyline directos, sin .feature) devuelven null:
+   su información va por li._desc, no por aquí.                       */
+function layerProperties(layer) {
+  if (!layer || typeof layer.getLayers !== "function") return null;
+  const sub = layer.getLayers()[0];
+  const props = sub && sub.feature && sub.feature.properties;
+  return (props && typeof props === "object" && Object.keys(props).length) ? props : null;
+}
+
+/* null/undefined se muestran vacíos; objetos/arrays anidados, como JSON;
+   el resto, tal cual. A diferencia del picker de la Fase 1 (que trunca
+   la vista previa), aquí se muestra el valor completo: es una ventana
+   de consulta, no una lista compacta de opciones.                    */
+function stringifyPropValue(v) {
+  if (v == null) return "";
+  return typeof v === "object" ? JSON.stringify(v) : String(v);
+}
+
+function propertiesTableHtml(props) {
+  const rows = Object.entries(props)
+    .map(([k, v]) => `<tr><td>${escapeHtml(k)}</td><td>${escapeHtml(stringifyPropValue(v))}</td></tr>`)
+    .join("");
+  return `<table class="prop-table">${rows}</table>`;
+}
+
+/* HTML a mostrar en el panel de información de la capa: la ficha KML si
+   la tiene, si no la tabla de properties de GeoJSON si las tiene, si no
+   null (nada que mostrar).                                           */
+function infoHtmlFor(li) {
+  if (li._desc) return sanitizeHtml(li._desc);
+  const props = layerProperties(nodeLayer(li));
+  return props ? propertiesTableHtml(props) : null;
+}
+
+/* ---------- Hit-testing propio para el menú contextual ----------
+   Leaflet solo resuelve UNA capa por click en su renderizador de
+   lienzo (comprobado en el propio Canvas.js de Leaflet 1.9.4:
+   _handleClick/_handleMouseHover siempre devuelven como mucho una capa,
+   la de más arriba en ese píxel; no hay bubbling real a las de abajo).
+   Por eso, para poder ofrecer varias capas superpuestas en el menú
+   contextual, se recorre a mano. A propósito NO se hace
+   punto-en-polígono: cajas envolventes (getBounds) para trazos y
+   distancia en píxeles para marcadores, más barato y suficiente para
+   un click derecho (una acción puntual, no un bucle de fotograma).   */
+const MARKER_HIT_PX = 20; /* radio de acierto en píxeles, del orden del icono de un marcador */
+
+function layerHitTest(layer, latlng, containerPoint) {
+  const subs = typeof layer.getLayers === "function" ? layer.getLayers() : [layer];
+  return subs.some(sub => {
+    if (typeof sub.getLatLng === "function") {
+      return map.latLngToContainerPoint(sub.getLatLng()).distanceTo(containerPoint) <= MARKER_HIT_PX;
+    }
+    if (typeof sub.getBounds === "function") {
+      try { return sub.getBounds().contains(latlng); } catch { return false; }
+    }
+    return false;
+  });
+}
+
+/* Solo capas VISIBLES: rootGroup ya contiene exactamente esas, porque
+   applyVisibility añade/quita de rootGroup al marcar/desmarcar la
+   casilla.                                                           */
+function layersAtPoint(latlng, containerPoint) {
+  const hits = [];
+  rootGroup.eachLayer(layer => {
+    if (layer._li && layerHitTest(layer, latlng, containerPoint)) hits.push(layer._li);
+  });
+  return hits;
+}
+
 /* Node kind, used by the style dialog AND by the same-kind selection rule.
    "marker" wins over "polygon" on mixed geometries: points sit on top and
    the marker panel is the useful one there. The result is cached because
@@ -4084,6 +4332,58 @@ for (const id of ["mk-color", "mk-text-color", "pg-color", "pg-fill-color"]) {
   });
 }
 
+/* ---------- Elegir la propiedad-nombre de un GeoJSON ambiguo ----------
+   addFileNode es async y necesita ESPERAR la elección antes de seguir
+   construyendo el árbol: es el único diálogo del proyecto envuelto en
+   una Promise en vez de eventos sueltos. Cancelar resuelve con null
+   (nombrado automático de siempre, nada se guarda); Aceptar resuelve
+   con la clave marcada.                                              */
+const gnpDialog = document.getElementById("geojson-name-picker");
+const gnpBox = gnpDialog.querySelector(".dlg-box");
+const gnpList = document.getElementById("gnp-list");
+const gnpIntro = document.getElementById("gnp-intro");
+let gnpResolve = null;
+
+function gnpPreview(v) {
+  if (v == null) return "";
+  const s = typeof v === "object" ? JSON.stringify(v) : String(v);
+  return s.length > 60 ? s.slice(0, 60) + "…" : s;
+}
+
+function closeGnpPicker(result) {
+  gnpDialog.hidden = true;
+  const resolve = gnpResolve;
+  gnpResolve = null;
+  releaseFocus();
+  if (resolve) resolve(result);
+}
+
+function pickNameProperty(props, fileName, storedKey) {
+  const keys = Object.keys(props);
+  gnpIntro.textContent = storedKey
+    ? `Para archivos con esta misma estructura de propiedades se guardó «${storedKey}» como nombre. Confirma o elige otra:`
+    : `«${fileName}» no tiene una propiedad «name» ni «title». Elige cuál usar como nombre:`;
+  gnpList.innerHTML = "";
+  keys.forEach((k, i) => {
+    const checked = storedKey ? k === storedKey : i === 0;
+    const row = document.createElement("label");
+    row.className = "gnp-row";
+    row.innerHTML = `<input type="radio" name="gnp-key" value="${escapeHtml(k)}"${checked ? " checked" : ""}>`
+      + `<span class="gnp-key">${escapeHtml(k)}</span>`
+      + `<span class="gnp-val">${escapeHtml(gnpPreview(props[k]))}</span>`;
+    gnpList.appendChild(row);
+  });
+  gnpDialog.hidden = false;
+  clampToViewport(gnpBox);
+  focusDialog(gnpBox);
+  return new Promise(resolve => { gnpResolve = resolve; });
+}
+document.getElementById("gnp-cancel").addEventListener("click", () => closeGnpPicker(null));
+document.getElementById("gnp-accept").addEventListener("click", () => {
+  const checked = gnpList.querySelector("input[name=gnp-key]:checked");
+  closeGnpPicker(checked ? checked.value : null);
+});
+
 /* ---------- Style dialog (single instance, deferred editing) ----------
    Nothing is applied to the map while the dialog is open: the controls
    write into `styleDraft`, and only "Aceptar" copies the draft into every
@@ -4105,23 +4405,94 @@ function toggleShortcuts() {
 document.getElementById("shortcuts-close").addEventListener("click", toggleShortcuts);
 document.getElementById("help-btn").addEventListener("click", toggleShortcuts);
 
+/* ---------- Editor de asociaciones de nombre de GeoJSON recordadas ----------
+   Aplicación inmediata (no hay Cancelar/Aceptar): es una lista de
+   configuración, no una capa viva en el mapa, mismo patrón que el panel
+   de mapas base (opacidades/orden se guardan al instante).           */
+const gnpEditorDialog = document.getElementById("gnp-editor");
+const gnpEditorBox = gnpEditorDialog.querySelector(".dlg-box");
+const gnpEditorList = document.getElementById("gnp-editor-list");
+
+function renderGnpEditor() {
+  gnpEditorList.innerHTML = "";
+  const entries = Object.entries(gnpStore || {});
+  if (!entries.length) {
+    const p = document.createElement("p");
+    p.className = "dlg-hint";
+    p.textContent = "Sin asociaciones guardadas todavía.";
+    gnpEditorList.appendChild(p);
+    return;
+  }
+  for (const [fp, value] of entries) {
+    let keys;
+    try { keys = JSON.parse(fp); } catch { keys = [fp]; }
+    const row = document.createElement("div");
+    row.className = "gnp-editor-row";
+    const keysSpan = document.createElement("span");
+    keysSpan.className = "gnp-editor-keys";
+    keysSpan.textContent = keys.join(", ");
+    keysSpan.title = keysSpan.textContent;
+    const select = document.createElement("select");
+    for (const k of keys) {
+      const opt = document.createElement("option");
+      opt.value = k;
+      opt.textContent = k;
+      if (k === value) opt.selected = true;
+      select.appendChild(opt);
+    }
+    select.addEventListener("change", () => {
+      gnpStore[fp] = select.value;
+      dbSaveGnp(gnpStore);
+    });
+    const del = document.createElement("button");
+    del.className = "btn";
+    del.textContent = "Borrar";
+    del.addEventListener("click", () => {
+      delete gnpStore[fp];
+      dbSaveGnp(gnpStore);
+      renderGnpEditor();
+    });
+    row.append(keysSpan, select, del);
+    gnpEditorList.appendChild(row);
+  }
+}
+
+async function toggleGnpEditor() {
+  if (!gnpEditorDialog.hidden) { gnpEditorDialog.hidden = true; releaseFocus(); return; }
+  if (!gnpStore) gnpStore = await dbLoadGnp();
+  renderGnpEditor();
+  gnpEditorDialog.hidden = false;
+  clampToViewport(gnpEditorBox);
+  focusDialog(gnpEditorBox);
+}
+document.getElementById("gnp-editor-btn").addEventListener("click", toggleGnpEditor);
+document.getElementById("gnp-editor-close").addEventListener("click", toggleGnpEditor);
+document.getElementById("gnp-editor-clear").addEventListener("click", () => {
+  gnpStore = {};
+  dbSaveGnp(gnpStore);
+  renderGnpEditor();
+});
+
 const descDialog = document.getElementById("desc-dialog");
 const descBox = descDialog.querySelector(".dlg-box");
 const descTitle = document.getElementById("desc-title");
 const descBody = document.getElementById("desc-body");
 document.getElementById("desc-close").addEventListener("click", () => {
   descDialog.hidden = true;
+  layerInfoDismissed = true;
   releaseFocus();
 });
-for (const box of [styleBox, iconBox, colorBox, descBox, shortcutsBox]) makeDialogMovable(box);
+for (const box of [styleBox, iconBox, colorBox, descBox, shortcutsBox, gnpBox, gnpEditorBox]) makeDialogMovable(box);
 setupDialog(styleBox, { modal: false }); /* flotante: el mapa sigue vivo */
 setupDialog(iconBox, { modal: true });
 setupDialog(colorBox, { modal: true });
 setupDialog(descBox, { modal: false });
 setupDialog(shortcutsBox, { modal: true });
+setupDialog(gnpBox, { modal: true });
+setupDialog(gnpEditorBox, { modal: true });
 window.addEventListener("resize", () => {
   /* a moved dialog must not fall off-screen */
-  for (const box of [styleBox, iconBox, colorBox, descBox, shortcutsBox]) clampToViewport(box);
+  for (const box of [styleBox, iconBox, colorBox, descBox, shortcutsBox, gnpBox, gnpEditorBox]) clampToViewport(box);
 });
 let styleTargets = [];    /* nodes being edited */
 let styleKindOpen = null; /* "marker" | "polygon" */
@@ -4595,17 +4966,32 @@ function pngTimestamp(d = new Date()) {
    final "tainted". Si algún proveedor no lo enviara, esa tesela concreta
    sale en blanco (html2canvas aísla el fallo por imagen) en vez de romper
    la exportación entera.                                              */
+/* Los controles superpuestos (zoom, barras de herramientas, selector de
+   mapas base) son hijos del propio #map, así que html2canvas los
+   capturaría también: no aportan información y ocupan espacio en la
+   imagen. Se ocultan justo antes de capturar y se restauran siempre,
+   incluso si la captura falla. El cuadro de coordenadas y la
+   atribución NO se ocultan: el primero sí muestra información del
+   punto bajo el cursor, y la segunda es la atribución CC BY que exige
+   la licencia del PNOA/IGN.                                          */
+const HIDE_FOR_PNG = ".leaflet-control-zoom, .measure-bar, .base-box";
+
 async function exportMapPng() {
   if (typeof html2canvas === "undefined") {
     navMessage("No se pudo cargar el soporte para exportar PNG.");
     return;
   }
   let canvas;
+  const hidden = [...document.querySelectorAll(HIDE_FOR_PNG)];
+  const prevDisplay = hidden.map(el => el.style.display);
+  hidden.forEach(el => { el.style.display = "none"; });
   try {
     canvas = await html2canvas(document.getElementById("map"), { useCORS: true });
   } catch (err) {
     navMessage(`No se pudo generar la imagen: ${err.message}`);
     return;
+  } finally {
+    hidden.forEach((el, i) => { el.style.display = prevDisplay[i]; });
   }
   canvas.toBlob(blob => {
     if (!blob) { navMessage("No se pudo generar la imagen."); return; }
@@ -4667,9 +5053,11 @@ document.addEventListener("keydown", e => {
   /* Escape closes open dialogs first; otherwise cancels tool/selection */
   if (!ctxMenuEl.hidden) { closeCtxMenu(); return; }
   if (!shortcutsDialog.hidden) { toggleShortcuts(); return; }
-  if (!descDialog.hidden) { descDialog.hidden = true; releaseFocus(); return; }
+  if (!descDialog.hidden) { descDialog.hidden = true; layerInfoDismissed = true; releaseFocus(); return; }
   if (!colorPicker.hidden) { colorPicker.hidden = true; colorTarget = null; releaseFocus(); return; }
   if (!iconPicker.hidden) { iconPicker.hidden = true; pendingIcon = null; releaseFocus(); return; }
+  if (!gnpDialog.hidden) { closeGnpPicker(null); return; }
+  if (!gnpEditorDialog.hidden) { gnpEditorDialog.hidden = true; releaseFocus(); return; }
   if (!styleDialog.hidden) { closeStyleDialog(false); return; }
   setTool(null);
   clearSelection();
@@ -6083,32 +6471,100 @@ ctxMenuEl.setAttribute("role", "menu");
 ctxMenuEl.setAttribute("aria-label", "Menú contextual del visor");
 ctxMenuEl.hidden = true;
 document.body.appendChild(ctxMenuEl);
+let ctxSubmenuEl = null; /* como mucho un submenú abierto a la vez */
+
+function closeCtxSubmenu() {
+  if (ctxSubmenuEl) { ctxSubmenuEl.remove(); ctxSubmenuEl = null; }
+}
 
 function closeCtxMenu() {
   ctxMenuEl.hidden = true;
+  closeCtxSubmenu();
 }
 
-function openCtxMenu(latlng, x, y) {
-  ctxMenuEl.innerHTML = "";
-  for (const item of CTX_MENU_ITEMS) {
+/* Ítems de UNA capa: ir al nodo, y mostrar propiedades si tiene algo
+   que enseñar (igual criterio que el botón ℹ de la fila).             */
+function layerCtxItems(li) {
+  const items = [{ label: "Ir al nodo en el panel", action: () => highlightNode(li) }];
+  if (infoHtmlFor(li) != null) items.push({ label: "Mostrar propiedades", action: () => showLayerInfo(li) });
+  return items;
+}
+
+/* Con varias capas bajo el cursor, "Ir al nodo…" y "Mostrar
+   propiedades" se convierten en disparadores de submenú (`.items`) con
+   una entrada por capa, en vez de actuar directamente.                */
+function ctxItemsFor(hits) {
+  if (!hits.length) return CTX_MENU_ITEMS;
+  if (hits.length === 1) return [...layerCtxItems(hits[0]), { separator: true }, ...CTX_MENU_ITEMS];
+  const withInfo = hits.filter(li => infoHtmlFor(li) != null);
+  const items = [{
+    label: "Ir al nodo en el panel",
+    items: hits.map(li => ({ label: li._name, action: () => highlightNode(li) }))
+  }];
+  if (withInfo.length) {
+    items.push({
+      label: "Mostrar propiedades",
+      items: withInfo.map(li => ({ label: li._name, action: () => showLayerInfo(li) }))
+    });
+  }
+  return [...items, { separator: true }, ...CTX_MENU_ITEMS];
+}
+
+/* Construye las filas de un menú (principal o submenú) dentro de
+   `container`: separadores, ítems normales/checkbox, y disparadores de
+   submenú (`.items`, con "▸" al final y aria-haspopup).               */
+function renderCtxItems(container, items, latlng) {
+  container.innerHTML = "";
+  for (const item of items) {
     if (item.separator) {
       const sep = document.createElement("div");
       sep.className = "ctx-menu-sep";
       sep.setAttribute("role", "separator");
-      ctxMenuEl.appendChild(sep);
+      container.appendChild(sep);
       continue;
     }
-    const isToggle = typeof item.checked === "function";
-    const on = isToggle && item.checked();
     const btn = document.createElement("button");
     btn.type = "button";
     btn.className = "ctx-menu-item";
-    btn.setAttribute("role", isToggle ? "menuitemcheckbox" : "menuitem");
-    if (isToggle) btn.setAttribute("aria-checked", String(on));
-    btn.textContent = (on ? "✓ " : "") + item.label;
-    btn.addEventListener("click", () => { closeCtxMenu(); item.action(latlng); });
-    ctxMenuEl.appendChild(btn);
+    if (item.items) {
+      btn.setAttribute("role", "menuitem");
+      btn.setAttribute("aria-haspopup", "true");
+      btn.textContent = item.label + " ▸";
+      btn.addEventListener("click", e => {
+        e.stopPropagation();
+        openCtxSubmenu(btn, item.items, latlng);
+      });
+    } else {
+      const isToggle = typeof item.checked === "function";
+      const on = isToggle && item.checked();
+      btn.setAttribute("role", isToggle ? "menuitemcheckbox" : "menuitem");
+      if (isToggle) btn.setAttribute("aria-checked", String(on));
+      btn.textContent = (on ? "✓ " : "") + item.label;
+      btn.addEventListener("click", () => { closeCtxMenu(); item.action(latlng); });
+    }
+    container.appendChild(btn);
   }
+}
+
+function openCtxSubmenu(triggerBtn, items, latlng) {
+  closeCtxSubmenu();
+  ctxSubmenuEl = document.createElement("div");
+  ctxSubmenuEl.className = "ctx-menu";
+  ctxSubmenuEl.setAttribute("role", "menu");
+  document.body.appendChild(ctxSubmenuEl);
+  renderCtxItems(ctxSubmenuEl, items, latlng);
+  const r = triggerBtn.getBoundingClientRect();
+  const sr = ctxSubmenuEl.getBoundingClientRect();
+  /* Se abre a la derecha del disparador; a la izquierda si no cabe */
+  let left = r.right - 2;
+  if (left + sr.width > window.innerWidth - 4) left = r.left - sr.width + 2;
+  ctxSubmenuEl.style.left = `${Math.max(0, left)}px`;
+  ctxSubmenuEl.style.top = `${Math.max(0, Math.min(r.top, window.innerHeight - sr.height - 4))}px`;
+}
+
+function openCtxMenu(latlng, x, y, hits = []) {
+  closeCtxSubmenu();
+  renderCtxItems(ctxMenuEl, ctxItemsFor(hits), latlng);
   ctxMenuEl.hidden = false;
   /* Clamp to viewport so a click near an edge doesn't open off-screen */
   const r = ctxMenuEl.getBoundingClientRect();
@@ -6120,11 +6576,14 @@ function openCtxMenu(latlng, x, y) {
 }
 map.on("contextmenu", e => {
   L.DomEvent.preventDefault(e.originalEvent);
-  openCtxMenu(e.latlng, e.originalEvent.clientX, e.originalEvent.clientY);
+  const hits = layersAtPoint(e.latlng, e.containerPoint);
+  openCtxMenu(e.latlng, e.originalEvent.clientX, e.originalEvent.clientY, hits);
 });
 map.on("movestart zoomstart", closeCtxMenu);
 document.addEventListener("mousedown", e => {
-  if (!ctxMenuEl.hidden && !ctxMenuEl.contains(e.target)) closeCtxMenu();
+  if (!ctxMenuEl.hidden && !ctxMenuEl.contains(e.target) && !(ctxSubmenuEl && ctxSubmenuEl.contains(e.target))) {
+    closeCtxMenu();
+  }
 });
 
 /* ---------- Memoria de los mapas base ---------- */
