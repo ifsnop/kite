@@ -952,7 +952,28 @@ atribución se mantiene en una sola línea con elipsis si no cabe.
   archivo entero: 349 ms por guardado con 8.000 capas, frente a 5 ms
   ahora. Solo se invalida donde cambia la geometría de verdad (mover un
   marcador), vía `invalidateGeo`. Si se añade otra forma de alterar
-  geometrías, hay que invalidar ahí también.
+  geometrías, hay que invalidar ahí también. **`buildFromNodes` también
+  rellena `li._geo` con el `n.geo` ya guardado** (en vez de dejarlo en
+  blanco y forzar un `toGeoJSON()` completo en el primer guardado
+  siguiente): sin esto, cualquier reconstrucción del árbol —deshacer,
+  rehacer, pegar, importar un `.kite.json`, incluso la carga inicial de
+  la app— pagaba otra vez el coste de 349 ms que esta caché existe para
+  evitar. Cualquier código nuevo que reconstruya nodos «layer» desde un
+  registro serializado debe seguir haciendo lo mismo. **Verificado con
+  un benchmark** (código real extraído de `kitelocal.html`, mismo
+  patrón que `tests/selbench.js`, 8.000 nodos): entre 3× y 4× más
+  rápido con la caché tibia frente a fría, incluso en un entorno
+  pesimista (DOM de Node/`linkedom`, más lento en `querySelector` que
+  un navegador real, así que el beneficio real es probablemente mayor).
+  No es overhead prescindible: sin ella, el coste se repetiría en CADA
+  guardado, no solo el primero.
+- **`serializeNode` solo consulta el `<ul class="node-list">` de un
+  nodo si `li._isContainer`** (asignado una vez en `makeNode` como
+  `isFolder || isFile`), en vez de preguntarle siempre al DOM
+  (`nodeUl(li)`) aunque el nodo sea una capa hoja que nunca puede
+  tenerlo — que es la inmensa mayoría de los nodos de un árbol grande.
+  Ese `querySelector` de más pesaba, en el mismo benchmark, tanto o más
+  que el propio `toGeoJSON()` para geometrías pequeñas/medias.
 - **El retardo del guardado se ajusta solo** al coste medido del último
   (`saveCost`, entre `SAVE_MIN_MS` y `SAVE_MAX_MS`): en un árbol pequeño
   guarda casi al instante y en uno enorme no repite un trabajo caro
@@ -960,10 +981,50 @@ atribución se mantiene en una sola línea con elipsis si no cabe.
 - **La lectura de coordenadas se pinta una vez por fotograma**
   (`requestAnimationFrame`), no una por evento de ratón: cada lectura
   proyecta a UTM y reescribe varias filas, y llegan más de 100 eventos por
-  segundo. Se pinta siempre la última posición, nunca una atrasada.
+  segundo. Se pinta siempre la última posición, nunca una atrasada. El
+  arrastre de un marcador en el diálogo de estilos (`onMarkerDragged`)
+  sigue el mismo patrón: el evento `"drag"` de Leaflet llega a la misma
+  cadencia que `mousemove`, así que solo `invalidateGeo` (una simple
+  asignación) corre en cada evento; leer la posición y repintar las
+  cajas de coordenadas (`renderCoords`) se difiere a un único
+  `requestAnimationFrame`, cancelado si el diálogo se cierra antes de
+  que llegue.
 - **Moverse por el árbol cuesta O(profundidad)**, ver la sección del
   teclado. Ninguna operación de selección puede recorrer la selección
-  entera ni consultar el árbol por nodo.
+  entera ni consultar el árbol por nodo. El buscador del panel
+  (`search-box`) sigue la misma disciplina: busca en vivo mientras se
+  teclea, pero con `SEARCH_DEBOUNCE_MS` (150 ms) y solo a partir de
+  `SEARCH_MIN_CHARS` (3) caracteres, para no recorrer el árbol completo
+  (`treeEl.querySelectorAll("li")`, ~8.000-10.000 nodos) en cada tecla
+  ni saltar de resultado mientras el término todavía se está afinando;
+  Enter/Shift+Enter y los botones ◀▶ no llevan ese mínimo, son una
+  acción explícita del usuario.
+- **Los borrados de una selección completa purgan el `Set` de selección
+  UNA SOLA VEZ**, con `clearSelection()` tras el bucle, no dentro de
+  `deleteNode` por cada nodo borrado (`deleteNode(li, {pruneSelection})`):
+  purgar la misma selección una vez por nodo era O(k²) al borrar k
+  nodos de golpe (botón × con selección múltiple, tecla Supr). El resto
+  de llamadas a `deleteNode` (cortar, cancelar un pin nuevo, limpiar una
+  carpeta de mediciones vacía) siguen purgando por defecto, que es lo
+  correcto para un borrado suelto que no vacía toda la selección.
+- **Cuidado al reconstruir una carpeta desde un snapshot previo**
+  (`before`, el `[...ul.children]`/`Set` tomado antes de mutar): buscar
+  pertenencia con `Array.includes` dentro de un bucle sobre los hijos
+  actuales es O(m²) donde m es el tamaño de la carpeta destino. Se usa
+  siempre un `Set` (`before.has(...)`), nunca un array, en
+  `importTreeExport`, `addFileNode` y `pasteClipboard`.
+- **Pendiente de medir, no confirmado**: `reorderPaintOrder`
+  (`scheduleReorder`, agrupado por `requestAnimationFrame`) se dispara
+  desde `scheduleSave()` en CUALQUIER mutación del árbol, también las
+  que no pueden cambiar el orden de pintado (renombrar, editar
+  estilos), recorriendo `treeEl.querySelectorAll("input[type=checkbox]")`
+  sobre el árbol completo. No es O(n²) (una sola pasada por frame) y
+  `bringToFront` es barato por capa en el renderer Canvas, pero nadie ha
+  medido el coste real con miles de capas activas. Separar "esto sí
+  puede afectar al orden" de "esto no puede" exigiría auditar todos los
+  sitios que llaman a `scheduleSave()`, con riesgo de dejar el z-order
+  desincronizado si se pasa por alto algún caso: no tocar sin medir
+  antes con `performance.now()` alrededor de `reorderPaintOrder()`.
 - Regla general: antes de optimizar, medir; y dejar la medida escrita en
   el comentario, que es lo que impide que alguien "simplifique" la
   optimización sin saber lo que costaba.

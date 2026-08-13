@@ -961,7 +961,7 @@ const map = L.map("map", { preferCanvas: true, maxZoom: MAX_ZOOM }).setView([40.
 
 /* Fecha de generación del código (versión): AÑOMESDIAHORAMINUTO.
    Actualizar en cada generación; se muestra junto al crédito de Leaflet. */
-const BUILD = "202608111145";
+const BUILD = "202608130940";
 map.attributionControl.setPrefix(
   `v${BUILD} | <a href="https://leafletjs.com" title="A JavaScript library for interactive maps">Leaflet</a>`);
 
@@ -1314,7 +1314,6 @@ function clampLatLng(lat, lon) {
   const la = clampDeg(lat, 90), lo = clampDeg(lon, 180);
   return isFinite(la) && isFinite(lo) ? [la, lo] : null;
 }
-const validLatLng = (lat, lon) => clampLatLng(lat, lon) !== null;
 
 /* Opciones del globo compacto, compartidas por marcadores y polígonos */
 const COMPACT_POPUP = { className: "compacto", autoClose: false, closeOnClick: false };
@@ -1835,6 +1834,7 @@ function makeNode({ name, layer = null, isFolder = false, isFile = false,
   const li = document.createElement("li");
   if (isFile) li.className = "file";
   li._name = name;
+  li._isContainer = isFolder || isFile; /* evita un querySelector redundante en serializeNode */
   /* La ficha se asigna AQUÍ, antes de crear los botones: al hacerlo
      después, `makeActions` no la veía y el botón ℹ nunca aparecía.  */
   li._desc = desc;
@@ -2022,7 +2022,8 @@ function makeActions(li, sortable, styleable, layer) {
     pushUndo(`borrar \u00AB${li._name}\u00BB`);
     /* si el nodo forma parte de la selección, se borra toda la selección */
     if (selection.has(li) && selection.size > 1) {
-      for (const s of topLevelSelection()) deleteNode(s);
+      for (const s of topLevelSelection()) deleteNode(s, { pruneSelection: false });
+      clearSelection();
     } else {
       deleteNode(li);
     }
@@ -2082,9 +2083,15 @@ function startRename(li) {
 }
 
 /* Borra un nodo: retira del visor todas las capas de su subárbol */
-function deleteNode(li) {
-  for (const s of [...selection]) {
-    if (s === li || li.contains(s)) selection.delete(s);
+/* pruneSelection:false lo usan los borrados en lote (× con selección
+   múltiple, Supr): purgar la MISMA selection una vez por nodo borrado
+   es O(k²); como esos sitios borran la selección entera, basta
+   limpiarla una sola vez con clearSelection() al final del lote.     */
+function deleteNode(li, { pruneSelection = true } = {}) {
+  if (pruneSelection) {
+    for (const s of [...selection]) {
+      if (s === li || li.contains(s)) selection.delete(s);
+    }
   }
   for (const chk of li.querySelectorAll("input[type=checkbox]")) {
     if (chk._layer) rootGroup.removeLayer(chk._layer);
@@ -2771,7 +2778,10 @@ function serializeNode(li) {
     const o = li._imageOverlay;
     return [{ ...base, t: "imageOverlay", box: o.box, dataUrl: o.dataUrl, opacity: o.opacity }];
   }
-  const ul = nodeUl(li);
+  /* li._isContainer evita este querySelector en toda capa hoja (la
+     inmensa mayoría de los nodos de un árbol grande): solo carpetas y
+     archivos pueden tener un <ul class="node-list"> de verdad.       */
+  const ul = li._isContainer ? nodeUl(li) : null;
   if (ul) {
     return [{ ...base, t: li.classList.contains("file") ? "file" : "folder",
               collapsed: li.classList.contains("collapsed"), children: serializeNodes(ul) }];
@@ -2857,7 +2867,7 @@ async function importTreeExport(doc, fileName, insertBefore, dropTargetUl = null
   }
   if (!doc.nodes.length) throw new Error("el archivo no contiene ning\u00FAn nodo");
   const ul = dropTargetUl || ensureRootUl();
-  const before = [...ul.children];
+  const before = new Set(ul.children);
   const total = countRecords(doc.nodes);
   const prog = total > PROGRESS_BATCH ? {
     done: 0,
@@ -2871,7 +2881,7 @@ async function importTreeExport(doc, fileName, insertBefore, dropTargetUl = null
   /* Honour the drop position: move whatever was just appended */
   if (insertBefore && insertBefore.parentElement === ul) {
     for (const li of [...ul.children]) {
-      if (!before.includes(li)) ul.insertBefore(li, insertBefore);
+      if (!before.has(li)) ul.insertBefore(li, insertBefore);
     }
   }
 }
@@ -2970,6 +2980,7 @@ async function buildFromNodes(nodes, parentUl, prog) {
         name: n.name, layer, style: n.style || null, checked: !!n.checked,
         desc: n.desc || null
       });
+      li._geo = n.geo; /* ya es el toGeoJSON() que serializeNode recalcularía: se reutiliza en vez de perder la caché */
       parentUl.appendChild(li);
       if (n.mstyle) {
         li._mstyle = n.mstyle;
@@ -3129,7 +3140,7 @@ async function addFileNode(name, kind, content, insertBefore = null, dropTargetU
   /* Sin envoltorio, lo construido se cuelga de la raíz; se anota qué había
      antes para poder colocarlo en su sitio y para poder deshacerlo si
      algo falla a mitad                                                */
-  const before = wrap ? null : [...ul.children];
+  const before = wrap ? null : new Set(ul.children);
   const target = wrap ? nodeUl(li) : ul;
   if (wrap) {
     ul.insertBefore(li, insertBefore && insertBefore.parentElement === ul ? insertBefore : null);
@@ -3160,7 +3171,7 @@ async function addFileNode(name, kind, content, insertBefore = null, dropTargetU
         report.note(`${styleIndex.externalRefs} estilo(s) en archivos externos, no aplicados`);
       }
       /* Carpetas marcadas según sus capas visibles */
-      for (const n of ul.children) if (!before.includes(n)) syncSubtree(n);
+      for (const n of ul.children) if (!before.has(n)) syncSubtree(n);
     } else {
       if (big) {
         progress.indet(`Procesando JSON de ${name}\u2026`);
@@ -3198,7 +3209,7 @@ async function addFileNode(name, kind, content, insertBefore = null, dropTargetU
   } catch (err) {
     /* Se retira lo que hubiera entrado: media importación es peor que ninguna */
     if (wrap) li.remove();
-    else for (const n of [...ul.children]) if (!before.includes(n)) n.remove();
+    else for (const n of [...ul.children]) if (!before.has(n)) n.remove();
     if (rootUl && !rootUl.children.length) showEmptyMessage();
     throw err;
   } finally {
@@ -3210,7 +3221,7 @@ async function addFileNode(name, kind, content, insertBefore = null, dropTargetU
       nodeUl(li).innerHTML = '<li class="empty">Sin geometr\u00EDas.</li>';
     }
   } else {
-    const added = [...ul.children].filter(n => !before.includes(n));
+    const added = [...ul.children].filter(n => !before.has(n));
     if (!added.length) throw new Error("el archivo no contiene ninguna capa");
     /* Se respeta el punto donde se soltó el archivo */
     if (insertBefore && insertBefore.parentElement === ul) {
@@ -3405,9 +3416,30 @@ function gotoMatch(dir) {
   highlightNode(matches[searchIdx]);
   updateSearchCount(matches.length);
 }
+/* Busca en vivo mientras se teclea: debounced (evita recorrer el árbol
+   completo en cada tecla, ~8.000-10.000 nodos) y solo a partir de
+   SEARCH_MIN_CHARS (evita saltar de resultado mientras el usuario
+   todavía está afinando el término). gotoMatch (Enter, botones ◀▶) no
+   lleva este mínimo: es una acción explícita, no debe quedarse callada
+   por un término corto.                                              */
+const SEARCH_DEBOUNCE_MS = 150;
+const SEARCH_MIN_CHARS = 3;
+let searchTimer = null;
+
+function runLiveSearch() {
+  if (searchBox.value.trim().length < SEARCH_MIN_CHARS) {
+    searchIdx = -1;
+    searchCount.textContent = "";
+    return;
+  }
+  const matches = searchMatches();
+  searchIdx = matches.length ? 0 : -1;
+  if (matches.length) highlightNode(matches[0]);
+  updateSearchCount(matches.length);
+}
 searchBox.addEventListener("input", () => {
-  searchIdx = -1;
-  updateSearchCount(searchMatches().length);
+  clearTimeout(searchTimer);
+  searchTimer = setTimeout(runLiveSearch, SEARCH_DEBOUNCE_MS);
 });
 searchBox.addEventListener("keydown", e => {
   if (e.key === "Enter") gotoMatch(e.shiftKey ? -1 : 1);
@@ -3671,14 +3703,14 @@ async function pasteClipboard() {
   const intoFolder = cur && nodeUl(cur) && !cur.classList.contains("collapsed");
   const ul = intoFolder ? nodeUl(cur) : (cur ? cur.parentElement : ensureRootUl());
   pushUndo("pegar");
-  const before = [...ul.children];
+  const before = new Set(ul.children);
   try {
     await buildFromNodes(clipboard.nodes, ul, null);
   } catch (err) {
     navMessage(`No se pudo pegar: ${err.message}`);
     return;
   }
-  const added = [...ul.children].filter(n => !before.includes(n));
+  const added = [...ul.children].filter(n => !before.has(n));
   if (!intoFolder && cur && cur.nextSibling) {
     for (const n of added) ul.insertBefore(n, cur.nextSibling);
   }
@@ -3793,7 +3825,8 @@ document.addEventListener("keydown", e => {
   if (/INPUT|TEXTAREA/.test(e.target.tagName)) return;
   const items = topLevelSelection();
   pushUndo(`borrar ${items.length} nodo(s)`);
-  for (const s of items) deleteNode(s);
+  for (const s of items) deleteNode(s, { pruneSelection: false });
+  clearSelection();
 });
 
 /* ================= Estilos de capa (marcadores y polígonos) =================
@@ -3914,7 +3947,7 @@ function propertiesTableHtml(props) {
   const rows = Object.entries(props)
     .map(([k, v]) => `<tr><td>${escapeHtml(k)}</td><td>${escapeHtml(stringifyPropValue(v))}</td></tr>`)
     .join("");
-  return `<table class="prop-table">${rows}</table>`;
+  return `<table>${rows}</table>`;
 }
 
 /* HTML a mostrar en el panel de información de la capa: la ficha KML si
@@ -4348,8 +4381,7 @@ const gnpIntro = document.getElementById("gnp-intro");
 let gnpResolve = null;
 
 function gnpPreview(v) {
-  if (v == null) return "";
-  const s = typeof v === "object" ? JSON.stringify(v) : String(v);
+  const s = stringifyPropValue(v);
   return s.length > 60 ? s.slice(0, 60) + "…" : s;
 }
 
@@ -4593,6 +4625,7 @@ function openStyleDialog(li, { isNew = false } = {}) {
 /* `commit` false = cancel: the dragged position goes back and a pin that
    was created just to open this dialog is removed again.               */
 function closeStyleDialog(commit = false) {
+  if (dragFrame) { cancelAnimationFrame(dragFrame); dragFrame = null; }
   if (posMarker) {
     posMarker.off("drag", onMarkerDragged);
     setMarkerDraggable(posMarker, false);
@@ -4630,12 +4663,23 @@ function markCoordValidity() {
   $id("mk-lon").classList.toggle("bad", !isFinite(lon));
   return { lat, lon };
 }
+/* El evento "drag" de Leaflet se dispara a la misma cadencia que
+   mousemove; formatear y escribir en el DOM en cada evento repite el
+   problema que ya se evitó en el cuadro de coordenadas del mapa. Mismo
+   patrón aquí: una sola pintura por fotograma. invalidateGeo es una
+   simple asignación y se queda fuera del rAF, sin esperar al frame.  */
+let dragFrame = null;
 function onMarkerDragged() {
   invalidateGeo(styleTargets[0]); /* la posición forma parte de la geometría */
-  const p = posMarker.getLatLng();
-  styleDraft.lat = p.lat;
-  styleDraft.lng = p.lng;
-  renderCoords();
+  if (dragFrame) return;
+  dragFrame = requestAnimationFrame(() => {
+    dragFrame = null;
+    if (!posMarker || !styleDraft) return; /* el diálogo pudo cerrarse antes de que llegara el frame */
+    const p = posMarker.getLatLng();
+    styleDraft.lat = p.lat;
+    styleDraft.lng = p.lng;
+    renderCoords();
+  });
 }
 /* Same idea as the notation switch of the native colour picker: one small
    ⇅ button cycles through the notations, keeping whatever is typed in and
