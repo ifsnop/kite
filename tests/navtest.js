@@ -34,8 +34,9 @@ F2.lastElementChild.append(d);
    amplios arrastraba código con efectos (showEmptyMessage) que borraba
    el árbol de prueba antes de mirarlo.                                */
 function fn(name) {
-  const i = script.indexOf(`function ${name}(`);
+  let i = script.indexOf(`function ${name}(`);
   if (i < 0) throw new Error("no encontrada: " + name);
+  if (script.slice(Math.max(0, i - 6), i) === "async ") i -= 6; /* expandOrEnter es async */
   let depth = 0, j = script.indexOf("{", i);
   for (let k = j; k < script.length; k++) {
     if (script[k] === "{") depth++;
@@ -46,6 +47,7 @@ const src = `
   const nodeUl = li => li.querySelector(':scope > ul.node-list');
   const scheduleSave = () => {}; const syncExpanded = () => {};
   const navMessage = () => {};
+  const ensureMaterialized = async () => {}; /* nada pendiente en este árbol de prueba */
   const nodeRow = li => li._row;
   const selection = new Set();
   let selCursor = null, selAnchor = null;

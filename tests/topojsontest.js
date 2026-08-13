@@ -4,7 +4,7 @@ const fs = require("fs");
 const html = fs.readFileSync(HTML_PATH, "utf8");
 const script = html.match(/<script>\n([\s\S]*?)<\/script>/)[1];
 const src = script.slice(script.indexOf("/* Convierte una topología TopoJSON"),
-                         script.indexOf("async function buildGeoJsonTree"));
+                         script.indexOf("async function buildGeoJsonRecords"));
 const { topologyToGeoJson } = new Function(src + "\nreturn {topologyToGeoJson};")();
 const ok = (c, m) => { if (!c) { console.error("FAIL: " + m); process.exitCode = 1; } };
 

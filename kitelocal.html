@@ -961,7 +961,7 @@ const map = L.map("map", { preferCanvas: true, maxZoom: MAX_ZOOM }).setView([40.
 
 /* Fecha de generación del código (versión): AÑOMESDIAHORAMINUTO.
    Actualizar en cada generación; se muestra junto al crédito de Leaflet. */
-const BUILD = "202608130940";
+const BUILD = "202608132015";
 map.attributionControl.setPrefix(
   `v${BUILD} | <a href="https://leafletjs.com" title="A JavaScript library for interactive maps">Leaflet</a>`);
 
@@ -1553,7 +1553,20 @@ const KIND_LABEL = { marker: "marcadores", polygon: "pol\u00EDgonos", measure: "
    contenedor. Como solo pueden convivir capas del mismo tipo en la
    selección, manda el tipo de la primera capa encontrada y se avisa de
    cuántas quedan fuera en vez de marcarlas y desmarcarlas en silencio. */
-function selectFolderLayers(li) {
+/* Materializa TODA la rama, carpeta a carpeta, batido de ensureMaterialized
+   (que ya cede el hilo internamente para una sola carpeta grande). Es lo
+   que necesita "seleccionar todas las capas de esta carpeta": no tiene
+   sentido pedir seleccionar filas que ni siquiera existen todavía.    */
+async function materializeSubtree(li) {
+  await ensureMaterialized(li);
+  const ul = nodeUl(li);
+  if (!ul) return;
+  for (const child of [...ul.children]) {
+    if (nodeUl(child)) await materializeSubtree(child);
+  }
+}
+async function selectFolderLayers(li) {
+  await materializeSubtree(li);
   const ul = nodeUl(li);
   if (!ul) return;
   const layers = [...ul.querySelectorAll("li")]
@@ -1656,14 +1669,32 @@ function topLevelSelection() {
 }
 
 /* Encuadre combinado de todas las capas de un subárbol */
+function extendBounds(bounds, l) {
+  if (!l) return;
+  if (l.getBounds) bounds.extend(l.getBounds());
+  else if (l.getLatLng) bounds.extend(l.getLatLng());
+}
+/* Recorre registros pendientes (li._pending) SIN materializar nada: sus
+   capas Leaflet ya existen (construidas al importar/restaurar,
+   independientemente del panel), así que sus límites se leen
+   directamente de rec._layer. Forzar la materialización de una carpeta
+   entera solo para enfocarla sería mucho más caro que esto.           */
+function extendBoundsFromRecords(bounds, records) {
+  for (const rec of records) {
+    if (rec.children) extendBoundsFromRecords(bounds, rec.children);
+    else extendBounds(bounds, rec._layer);
+  }
+}
 function subtreeBounds(li) {
   const bounds = L.latLngBounds([]);
-  for (const chk of li.querySelectorAll("input[type=checkbox]")) {
-    const l = chk._layer;
-    if (!l) continue;
-    if (l.getBounds) bounds.extend(l.getBounds());
-    else if (l.getLatLng) bounds.extend(l.getLatLng());
-  }
+  const walk = node => {
+    const chk = node.querySelector(":scope > .node-row > input[type=checkbox]");
+    if (chk) extendBounds(bounds, chk._layer);
+    const ul = nodeUl(node);
+    if (ul) for (const child of ul.children) walk(child);
+    if (node._pending) extendBoundsFromRecords(bounds, node._pending);
+  };
+  walk(li);
   return bounds;
 }
 
@@ -1773,11 +1804,69 @@ function isCenteredOn(latlng) {
   return p.distanceTo(c) <= CENTER_TOLERANCE_PX;
 }
 
+/* Alta o baja de una capa en rootGroup, la fuente de verdad de qué se
+   ve en el mapa. Compartida por applyVisibility (checkboxes reales) y
+   cascadeVisibility (también sobre registros pendientes, que no tienen
+   checkbox propio).                                                   */
+function setLayerVisible(layer, checked) {
+  if (!layer) return;
+  if (checked) rootGroup.addLayer(layer);
+  else rootGroup.removeLayer(layer);
+}
 /* Muestra u oculta en el visor la capa asociada a un checkbox */
 function applyVisibility(chk) {
-  if (!chk._layer) return;
-  if (chk.checked) rootGroup.addLayer(chk._layer);
-  else rootGroup.removeLayer(chk._layer);
+  setLayerVisible(chk._layer, chk.checked);
+}
+
+/* Interruptor masivo en cascada de una carpeta/archivo: activar o
+   desactivar unas pocas capas es instantáneo, pero una carpeta con miles
+   de descendientes bloqueaba el hilo entero en un solo tirón (a
+   diferencia de la importación, que ya cede el hilo por lotes). Cede
+   cada CASCADE_BATCH casillas con yieldFrame(), igual que el resto de
+   bucles largos del archivo. El token de generación (`li._cascadeGen`)
+   deja que una cascada obsoleta —el usuario volvió a pulsar la casilla
+   antes de que terminara la anterior— deje de tocar checkboxes en
+   cuanto una cascada más nueva sobre el MISMO nodo empieza: la nueva
+   siempre es una pasada completa e idempotente sobre el estado actual,
+   así que no hace falta fusionar resultados parciales. `li.isConnected`
+   corta la cascada si la carpeta se borra mientras sigue en marcha,
+   para no resucitar capas que deleteNode ya quitó de rootGroup.
+   Recorre el DOM materializado de forma recursiva (no un
+   querySelectorAll plano) precisamente para poder bajar también a
+   li._pending en cada carpeta que lo tenga: una capa marcada dentro de
+   una carpeta nunca desplegada sigue en el mapa (visibilidad y colapso
+   son ejes independientes), así que la cascada tiene que alcanzarla
+   igual, sin forzar su materialización solo para esto.                */
+async function cascadeVisibility(li, checked) {
+  const myGen = ++li._cascadeGen;
+  const counter = { n: 0 };
+  const yieldMaybe = async () => {
+    if (++counter.n % CASCADE_BATCH !== 0) return true;
+    await yieldFrame();
+    return li._cascadeGen === myGen && li.isConnected;
+  };
+  const walkRecords = async records => {
+    for (const rec of records) {
+      rec.checked = checked;
+      if (rec.children) { if (!(await walkRecords(rec.children))) return false; }
+      else setLayerVisible(rec._layer, checked);
+      if (!(await yieldMaybe())) return false;
+    }
+    return true;
+  };
+  const walkLi = async node => {
+    const chk = node.querySelector(":scope > .node-row > input[type=checkbox]");
+    if (chk) {
+      chk.checked = checked;
+      applyVisibility(chk);
+      if (!(await yieldMaybe())) return false;
+    }
+    const ul = nodeUl(node);
+    if (ul) for (const child of [...ul.children]) if (!(await walkLi(child))) return false;
+    if (node._pending) return walkRecords(node._pending);
+    return true;
+  };
+  if (await walkLi(li)) scheduleSave();
 }
 
 /* Trae una capa (de cualquier tipo) al frente de su propio pane/canvas,
@@ -1835,6 +1924,7 @@ function makeNode({ name, layer = null, isFolder = false, isFile = false,
   if (isFile) li.className = "file";
   li._name = name;
   li._isContainer = isFolder || isFile; /* evita un querySelector redundante en serializeNode */
+  li._cascadeGen = 0; /* ver cascadeVisibility */
   /* La ficha se asigna AQUÍ, antes de crear los botones: al hacerlo
      después, `makeActions` no la veía y el botón ℹ nunca aparecía.  */
   li._desc = desc;
@@ -1865,15 +1955,13 @@ function makeNode({ name, layer = null, isFolder = false, isFile = false,
   chk.addEventListener("change", () => {
     const ul = li.querySelector(":scope > ul.node-list");
     if (ul) {
-      /* Carpeta / archivo: interruptor masivo en cascada */
-      for (const sub of li.querySelectorAll("input[type=checkbox]")) {
-        sub.checked = chk.checked;
-        applyVisibility(sub);
-      }
+      /* Carpeta / archivo: interruptor masivo en cascada, por lotes
+         (ver cascadeVisibility) para no bloquear con miles de capas */
+      cascadeVisibility(li, chk.checked);
     } else {
       applyVisibility(chk);
+      scheduleSave();
     }
-    scheduleSave();
   });
   row.appendChild(chk);
 
@@ -1946,7 +2034,15 @@ function makeNode({ name, layer = null, isFolder = false, isFile = false,
   /* Click en la capa dentro del visor → resaltarla en la navegación.
      Al pasar el ratón, el panel de información (Ficha KML o properties
      de GeoJSON) se muestra sin robar el foco; showLayerInfo es un no-op
-     silencioso si la capa no tiene nada que enseñar.                 */
+     silencioso si la capa no tiene nada que enseñar. Estos son los
+     listeners DEFINITIVOS: una capa "layer" marcada dentro de una
+     carpeta nunca desplegada ya tiene, desde que se construyó su
+     registro, un par de listeners de espera (wirePendingLayerEvents)
+     que resuelven y materializan bajo demanda al primer clic/hover; al
+     llegar aquí (materializeRecords) esos se retiran para que solo
+     queden estos. Sigue habiendo un hueco menor y aceptado para
+     mediciones/elevaciones/ortofotos pendientes (mismo patrón, no
+     enganchado por ser casos raros).                                  */
   if (layer) {
     layer._li = li; /* referencia inversa: la usa el hit-testing del menú contextual */
     layer.on("click", () => highlightNode(li));
@@ -1966,6 +2062,25 @@ const syncAllExpanded = () => {
   for (const li of treeEl.querySelectorAll("li[role=treeitem]")) syncExpanded(li);
 };
 
+/* Construye las filas reales de una carpeta pendiente (li._pending) la
+   primera vez que se despliega. Reutiliza materializeRecords, la misma
+   función que ya construye el DOM al importar/restaurar: para ella
+   "estos registros van aquí dentro" es el mismo trabajo sea cual sea su
+   origen. `li._materializing` evita una segunda pasada si algo dispara
+   la materialización dos veces antes de que termine la primera (por
+   ejemplo, el buscador y un clic casi a la vez); `li._pending` se limpia
+   ANTES de empezar, así que una llamada reentrante ve `_materializing`
+   en vez de arrancar otra pasada sobre los mismos registros.           */
+async function ensureMaterialized(li) {
+  if (!li._pending) return;
+  if (li._materializing) return li._materializing;
+  const records = li._pending;
+  li._pending = null;
+  li._materializing = materializeRecords(records, nodeUl(li))
+    .finally(() => { li._materializing = null; });
+  return li._materializing;
+}
+
 /* Flecha que colapsa/expande el nodo */
 function makeCaret(li) {
   const caret = document.createElement("span");
@@ -1973,9 +2088,11 @@ function makeCaret(li) {
   caret.textContent = "\u25BE";
   caret.title = "Colapsar / desplegar";
   caret.addEventListener("click", () => {
+    const collapsing = !li.classList.contains("collapsed");
     li.classList.toggle("collapsed");
     syncExpanded(li);
     scheduleSave();
+    if (!collapsing) ensureMaterialized(li); /* desplegar: construye el DOM diferido, por lotes */
   });
   return caret;
 }
@@ -2032,8 +2149,11 @@ function makeActions(li, sortable, styleable, layer) {
 }
 
 /* Ordena alfabéticamente los hijos directos de una carpeta o archivo.
-   Pulsaciones sucesivas alternan ascendente ↔ descendente             */
-function sortChildren(li) {
+   Pulsaciones sucesivas alternan ascendente ↔ descendente. Solo hace
+   falta materializar el nivel directo (ensureMaterialized), no la rama
+   entera: ordenar no toca nietos.                                     */
+async function sortChildren(li) {
+  await ensureMaterialized(li);
   const ul = nodeUl(li);
   if (!ul) return;
   const dir = (li._sortAsc = li._sortAsc !== true) ? 1 : -1;
@@ -2087,15 +2207,38 @@ function startRename(li) {
    múltiple, Supr): purgar la MISMA selection una vez por nodo borrado
    es O(k²); como esos sitios borran la selección entera, basta
    limpiarla una sola vez con clearSelection() al final del lote.     */
+/* Recorre registros pendientes quitando sus capas de rootGroup: una capa
+   marcada dentro de una carpeta nunca desplegada sigue en el mapa (la
+   visibilidad no depende del panel), así que borrar esa carpeta sin
+   esto la dejaría huérfana ahí para siempre, inalcanzable ya desde
+   ningún checkbox.                                                    */
+function removeRecordsFromMap(records) {
+  for (const rec of records) {
+    if (rec.children) { removeRecordsFromMap(rec.children); continue; }
+    if (rec._layer) rootGroup.removeLayer(rec._layer);
+    if (rec.t === "elevGrid") { /* mismo onDelete que materializeRecords le habría dado */
+      const i = elevGridGroups.indexOf(rec._layer);
+      if (i >= 0) elevGridGroups.splice(i, 1);
+    }
+  }
+}
+/* Gemela recursiva del barrido anterior para lo YA materializado: cada
+   <li> de la rama (incluida la raíz) más, si alguna carpeta de camino
+   sigue pendiente, sus registros.                                     */
+function removeSubtreeFromMap(li) {
+  const chk = li.querySelector(":scope > .node-row > input[type=checkbox]");
+  if (chk && chk._layer) rootGroup.removeLayer(chk._layer);
+  const ul = nodeUl(li);
+  if (ul) for (const child of ul.children) removeSubtreeFromMap(child);
+  if (li._pending) removeRecordsFromMap(li._pending);
+}
 function deleteNode(li, { pruneSelection = true } = {}) {
   if (pruneSelection) {
     for (const s of [...selection]) {
       if (s === li || li.contains(s)) selection.delete(s);
     }
   }
-  for (const chk of li.querySelectorAll("input[type=checkbox]")) {
-    if (chk._layer) rootGroup.removeLayer(chk._layer);
-  }
+  removeSubtreeFromMap(li);
   li.remove();
   if (li._onDelete) li._onDelete();
   scheduleSave();
@@ -2135,20 +2278,31 @@ function wireDrag(li, row) {
     markDrop(row, dropZone(row, li, e.clientY));
   });
   row.addEventListener("dragleave", () => { if (dropMarked === row) clearDropMarks(); });
-  row.addEventListener("drop", e => {
+  row.addEventListener("drop", async e => {
     if (!validDrop(li)) return;
     e.preventDefault();
     e.stopPropagation();
     pushUndo("mover nodos");
+    /* Capturados ANTES del await: dragend puede llegar y limpiar
+       dragItems/dragLi mientras esperamos a ensureMaterialized (el
+       navegador no espera a un `drop` async antes de disparar
+       dragend), así que la variable compartida ya no sería fiable
+       después.                                                        */
+    const items = dragItems;
     const zone = dropZone(row, li, e.clientY);
     if (zone === "drop-into") {
+      /* Si la carpeta destino sigue pendiente, materializarla primero:
+         soltar directamente en su <ul> (vacío a propósito) dejaría su
+         contenido real escondido para siempre detrás de lo soltado, sin
+         que quitar la clase "collapsed" lo trajera de vuelta.          */
+      await ensureMaterialized(li);
       const ul = nodeUl(li);
-      for (const item of dragItems) ul.appendChild(item);
+      for (const item of items) ul.appendChild(item);
       li.classList.remove("collapsed");
     } else {
       /* insertar todos manteniendo su orden relativo */
       const ref = zone === "drop-before" ? li : li.nextSibling;
-      for (const item of dragItems) li.parentElement.insertBefore(item, ref);
+      for (const item of items) li.parentElement.insertBefore(item, ref);
     }
     clearDropMarks();
     dragLi = null;
@@ -2195,6 +2349,11 @@ function markDrop(row, zone) {
 const yieldFrame = () => new Promise(r => requestAnimationFrame(() => setTimeout(r, 0)));
 
 const PROGRESS_BATCH = 150; /* capas construidas entre cesiones del hilo */
+const CASCADE_BATCH = 300; /* casillas conmutadas entre cesiones del hilo en
+                               una cascada de visibilidad: cada iteración es
+                               más barata que construir una fila (solo un
+                               addLayer/removeLayer), de ahí un lote mayor
+                               que PROGRESS_BATCH en vez de reutilizarla    */
 
 /* ---------- Informe de importación ----------
    Errors are isolated per entity: a broken placemark or feature is
@@ -2238,20 +2397,29 @@ function makeImportReport(fileName) {
   };
 }
 
-/* Recorre Document/Folder. La visibilidad de una capa depende SOLO de su
-   propio checkbox; el estado inicial hereda el <visibility> de arriba.  */
-async function buildKmlTree(el, styleIndex, parentUl, inheritedVisible, prog, report, zip = null) {
+/* Recorre Document/Folder y devuelve REGISTROS (la misma forma que
+   serializeNode produce), nunca filas del panel: construir la capa
+   Leaflet de cada Placemark/GroundOverlay y decidir su alta en
+   rootGroup es trabajo independiente de si esa fila llega a existir en
+   el DOM del panel — ver materializeRecords, que es quien decide cuánto
+   materializar y cuándo (todo de una carpeta abierta, solo el registro
+   `_pending` de una colapsada). Un registro de carpeta lleva su propio
+   `checked` calculado aquí mismo, bottom-up (marcada solo si algún
+   descendiente lo está): sustituye al antiguo recorrido posterior
+   `syncSubtree`, que necesitaba DOM real para funcionar y ya no lo hay
+   disponible para una carpeta que empieza colapsada.                   */
+async function buildKmlRecords(el, styleIndex, inheritedVisible, prog, report, zip = null) {
+  const out = [];
   for (const child of el.children) {
     /* El prefijo es irrelevante: <kml:Folder> también es un Folder */
     const tag = bareName(child);
     if (tag === "Folder" || tag === "Document") {
       const visible = inheritedVisible && ownVisibility(child);
-      const li = makeNode({ name: text(child, "name") || "Carpeta", isFolder: true });
       /* <open>: solo desplegada si es 1 (0 o ausente → colapsada) */
-      if (directChildText(child, "open") !== "1") li.classList.add("collapsed");
-      syncExpanded(li);
-      parentUl.appendChild(li);
-      await buildKmlTree(child, styleIndex, nodeUl(li), visible, prog, report, zip);
+      const collapsed = directChildText(child, "open") !== "1";
+      const children = await buildKmlRecords(child, styleIndex, visible, prog, report, zip);
+      out.push({ t: "folder", name: text(child, "name") || "Carpeta",
+                 checked: children.some(c => c.checked), collapsed, children });
     } else if (tag === "Placemark") {
       const name = text(child, "name") || "Placemark";
       try {
@@ -2265,11 +2433,11 @@ async function buildKmlTree(el, styleIndex, parentUl, inheritedVisible, prog, re
         if (visible) layer.addTo(rootGroup);
         /* La ficha del placemark suele traer una tabla con los datos
            reales del elemento; se guarda para poder consultarla       */
-        const pmLi = makeNode({ name, layer, style, checked: visible,
-                                desc: text(child, "description") || null });
-        parentUl.appendChild(pmLi);
-        ensureMarkerDefaults(pmLi); /* imported marker icons are not honoured */
-        if (report) { report.loaded++; report.kinds.add(styleKind(pmLi) || "?"); }
+        const rec = { t: "layer", name, checked: visible, style,
+                       desc: text(child, "description") || null, _layer: layer };
+        wirePendingLayerEvents(rec);
+        out.push(rec);
+        if (report) { report.loaded++; report.kinds.add(layerKind(layer) || "?"); }
       } catch (err) {
         /* One bad entity must never abort the whole import */
         if (report) report.warn(`\u00AB${name}\u00BB: ${err.message}`);
@@ -2285,9 +2453,8 @@ async function buildKmlTree(el, styleIndex, parentUl, inheritedVisible, prog, re
         if (overlay) {
           const visible = inheritedVisible && ownVisibility(child);
           if (visible) overlay.layer.addTo(rootGroup);
-          const li = makeNode({ name, layer: overlay.layer, checked: visible, styleable: true });
-          li._imageOverlay = { box: overlay.box, dataUrl: overlay.dataUrl, opacity: 1 };
-          parentUl.appendChild(li);
+          out.push({ t: "imageOverlay", name, checked: visible,
+                     box: overlay.box, dataUrl: overlay.dataUrl, opacity: 1, _layer: overlay.layer });
           if (report) { report.loaded++; report.kinds.add("imageOverlay"); }
         }
       } catch (err) {
@@ -2300,20 +2467,7 @@ async function buildKmlTree(el, styleIndex, parentUl, inheritedVisible, prog, re
       }
     }
   }
-}
-
-/* Estado inicial de carpetas de abajo arriba: marcada solo si alguna de
-   sus capas descendientes está visible. Devuelve si hay alguna visible. */
-function syncSubtree(li) {
-  const chk = li.querySelector(":scope > .node-row > input[type=checkbox]");
-  const ul = nodeUl(li);
-  if (!ul) return chk ? chk.checked : false;
-  let anyVisible = false;
-  for (const childLi of ul.children) {
-    if (syncSubtree(childLi)) anyVisible = true;
-  }
-  if (chk) chk.checked = anyVisible;
-  return anyVisible;
+  return out;
 }
 
 /* Estilo simplestyle-spec (mapbox) para features GeoJSON */
@@ -2397,7 +2551,7 @@ function topologyToGeoJson(topology) {
 /* Extrae el array de Features de cualquier forma de entrada aceptada
    (FeatureCollection, Feature suelto o geometría suelta); factoriza la
    detección de tipo que antes vivía inline al principio de
-   buildGeoJsonTree, y la reutiliza addFileNode para mirar el primer
+   buildGeoJsonRecords, y la reutiliza addFileNode para mirar el primer
    Feature antes de construir nada (elegir la propiedad-nombre).      */
 function geojsonFeatures(gj) {
   if (!gj || typeof gj !== "object") throw new Error("no parece un GeoJSON");
@@ -2429,8 +2583,9 @@ function resolveFeatureName(props, index, nameProp) {
   return String((nameProp && props[nameProp]) || props.name || props.title || `Elemento ${index + 1}`);
 }
 
-async function buildGeoJsonTree(gj, parentUl, prog, report, nameProp = null) {
+async function buildGeoJsonRecords(gj, prog, report, nameProp = null) {
   const features = geojsonFeatures(gj);
+  const out = [];
 
   for (let i = 0; i < features.length; i++) {
     const feature = features[i];
@@ -2449,9 +2604,9 @@ async function buildGeoJsonTree(gj, parentUl, prog, report, nameProp = null) {
       const layer = L.geoJSON(feature, { style });
       layer.bindPopup(escapeHtml(name), COMPACT_POPUP);
       layer.addTo(rootGroup); /* GeoJSON no define visibilidad: todo activo */
-      const gjLi = makeNode({ name, layer, style });
-      parentUl.appendChild(gjLi);
-      ensureMarkerDefaults(gjLi);
+      const rec = { t: "layer", name, checked: true, style, _layer: layer };
+      wirePendingLayerEvents(rec);
+      out.push(rec);
       if (report) { report.loaded++; report.kinds.add(feature.geometry.type); }
     } catch (err) {
       if (report) report.warn(`\u00AB${name}\u00BB: ${err.message}`);
@@ -2461,6 +2616,7 @@ async function buildGeoJsonTree(gj, parentUl, prog, report, nameProp = null) {
       await yieldFrame();
     }
   }
+  return out;
 }
 
 /* ================= Persistencia: árbol completo en IndexedDB =================
@@ -2783,8 +2939,14 @@ function serializeNode(li) {
      archivos pueden tener un <ul class="node-list"> de verdad.       */
   const ul = li._isContainer ? nodeUl(li) : null;
   if (ul) {
+    /* Una carpeta nunca desplegada no tiene hijos reales que recorrer
+       (ul está vacío a propósito, ver materializeRecords/li._pending):
+       se serializa directamente desde los registros, sin construir ni
+       una sola fila — coste casi nulo para lo que nadie ha llegado a
+       abrir.                                                          */
+    const children = li._pending ? serializePendingRecords(li._pending) : serializeNodes(ul);
     return [{ ...base, t: li.classList.contains("file") ? "file" : "folder",
-              collapsed: li.classList.contains("collapsed"), children: serializeNodes(ul) }];
+              collapsed: li.classList.contains("collapsed"), children }];
   }
   /* `toGeoJSON()` clona TODAS las coordenadas de la capa. Hacerlo en cada
      guardado (y se guarda tras cualquier cambio del panel) suponía
@@ -2798,6 +2960,44 @@ function serializeNode(li) {
   return [rec];
 }
 const serializeNodes = ul => [...ul.children].flatMap(serializeNode);
+
+/* Gemela de serializeNode/serializeNodes, pero sobre registros pendientes
+   (li._pending) en vez de filas del DOM: misma forma de salida exacta,
+   así que un árbol restaurado nunca se distingue de uno recién
+   importado por cómo quedó serializado (test diferencial en
+   tests/lazytree.js). geo se calcula perezosamente y se cachea EN EL
+   REGISTRO (rec.geo ||= …), la misma disciplina que li._geo, para que
+   una carpeta nunca desplegada solo pague ese coste una vez, la
+   primera vez que de verdad hace falta guardarla.                     */
+function serializePendingRecords(records) {
+  return records.map(rec => {
+    if (rec.t === "folder" || rec.t === "file") {
+      return { name: rec.name, checked: rec.checked, t: rec.t,
+                collapsed: rec.collapsed, children: serializePendingRecords(rec.children) };
+    }
+    if (rec.t === "layer") {
+      if (!rec.geo) rec.geo = rec._layer.toGeoJSON();
+      const out = { name: rec.name, checked: rec.checked, t: "layer", style: rec.style, geo: rec.geo };
+      if (rec.mstyle) out.mstyle = rec.mstyle;
+      if (rec.desc) out.desc = rec.desc;
+      return out;
+    }
+    if (rec.t === "measure") {
+      /* Posición siempre en vivo: los manejadores son arrastrables con
+         Ctrl+arrastre sobre el mapa aunque la fila siga pendiente (ver
+         buildMeasureRecord), así que cachear a/b se quedaría obsoleto. */
+      const a = rec._m.mOrigin.getLatLng(), b = rec._m.mDest.getLatLng();
+      return { name: rec.name, checked: rec.checked, t: "measure", mtype: rec.mtype,
+                a: { lat: a.lat, lng: a.lng }, b: { lat: b.lat, lng: b.lng } };
+    }
+    if (rec.t === "elevGrid") {
+      return { name: rec.name, checked: rec.checked, t: "elevGrid", cells: rec.cells };
+    }
+    /* rec.t === "imageOverlay" */
+    return { name: rec.name, checked: rec.checked, t: "imageOverlay",
+              box: rec.box, dataUrl: rec.dataUrl, opacity: rec.opacity };
+  });
+}
 function serializeTree() {
   if (!rootUl || !rootUl.isConnected) return [];
   return serializeNodes(rootUl);
@@ -2806,7 +3006,8 @@ function serializeTree() {
 /* ---------- Exportar e importar carpetas ----------
    The exported file is the very same record format the tree is saved
    with, wrapped in a small envelope that states which versions produced
-   it. Importing therefore costs nothing beyond `buildFromNodes`, and a
+   it. Importing therefore costs nothing beyond `buildRecordsFromStorage`
+   + `materializeRecords`, and a
    file written by another format version can be rejected outright
    instead of migrated (see the no-backwards-compatibility principle).  */
 const EXPORT_KIND = "kite-local/tree";
@@ -2874,7 +3075,8 @@ async function importTreeExport(doc, fileName, insertBefore, dropTargetUl = null
     update: d => progress.set(100 * d / total, `Construyendo ${fileName}\u2026 (${d}/${total})`)
   } : null;
   try {
-    await buildFromNodes(doc.nodes, ul, prog);
+    const records = await buildRecordsFromStorage(doc.nodes, prog);
+    await materializeRecords(records, ul);
   } finally {
     if (prog) progress.hide();
   }
@@ -2961,48 +3163,130 @@ async function restoreTree(nodes) {
     done: 0,
     update: d => progress.set(100 * d / total, `Restaurando capas\u2026 (${d}/${total})`)
   } : null;
-  await buildFromNodes(nodes, ensureRootUl(), prog);
+  const records = await buildRecordsFromStorage(nodes, prog);
   if (prog) progress.hide();
+  await materializeRecords(records, ensureRootUl());
 }
-async function buildFromNodes(nodes, parentUl, prog) {
+
+/* Reconstruye la geometría/capas Leaflet de un árbol guardado
+   (restaurar, deshacer/rehacer, pegar, importar un .kite.json), como
+   REGISTROS — nunca filas del panel. Igual que buildKmlRecords: la
+   visibilidad de cada capa (alta en rootGroup) es independiente de si
+   su fila llega a materializarse, así que esto SIEMPRE recorre el
+   árbol entero sin mirar `collapsed` — es materializeRecords quien
+   decide cuánto DOM construir a partir de estos registros.        */
+async function buildRecordsFromStorage(nodes, prog) {
+  const out = [];
   for (const n of nodes) {
     if (n.t === "measure") {
-      rebuildMeasurement(n, parentUl);
+      out.push(buildMeasureRecord(n));
     } else if (n.t === "elevGrid") {
-      rebuildElevGrid(n, parentUl);
+      out.push(buildElevGridRecord(n));
     } else if (n.t === "imageOverlay") {
-      rebuildImageOverlay(n, parentUl);
+      out.push(buildImageOverlayRecord(n));
     } else if (n.t === "layer") {
       const layer = L.geoJSON(n.geo, n.style ? { style: n.style } : undefined);
       layer.bindPopup(n.name);
       if (n.checked) layer.addTo(rootGroup);
-      const li = makeNode({
-        name: n.name, layer, style: n.style || null, checked: !!n.checked,
-        desc: n.desc || null
-      });
-      li._geo = n.geo; /* ya es el toGeoJSON() que serializeNode recalcularía: se reutiliza en vez de perder la caché */
-      parentUl.appendChild(li);
-      if (n.mstyle) {
-        li._mstyle = n.mstyle;
-        applyMarkerStyle(li); /* async only for MDI icons (SVG cached) */
-      } else {
-        ensureMarkerDefaults(li);
-      }
+      const rec = { t: "layer", name: n.name, checked: !!n.checked, style: n.style || null,
+                    geo: n.geo, mstyle: n.mstyle, desc: n.desc || null, _layer: layer };
+      /* geo ya es el toGeoJSON() que serializeNode recalcularía: se
+         reutiliza en vez de perder la caché (ver materializeRecords) */
+      wirePendingLayerEvents(rec);
+      out.push(rec);
     } else {
-      const li = makeNode({
-        name: n.name, isFolder: n.t === "folder", isFile: n.t === "file", checked: !!n.checked
-      });
-      if (n.collapsed) li.classList.add("collapsed");
-      syncExpanded(li);
-      parentUl.appendChild(li);
-      await buildFromNodes(n.children || [], nodeUl(li), prog);
-      /* la sección que contiene mediciones recupera su papel */
-      if (n.t === "file" && (n.children || []).some(c => c.t === "measure")) measureLi = li;
+      const children = await buildRecordsFromStorage(n.children || [], prog);
+      out.push({ t: n.t, name: n.name, checked: !!n.checked, collapsed: !!n.collapsed, children });
     }
     if (prog && (n.t === "layer" || n.t === "measure" || n.t === "elevGrid" || n.t === "imageOverlay") && ++prog.done % PROGRESS_BATCH === 0) {
       prog.update(prog.done);
       await yieldFrame();
     }
+  }
+  return out;
+}
+
+/* Convierte REGISTROS (de buildKmlRecords/buildGeoJsonRecords/
+   buildRecordsFromStorage, o de li._pending) en filas reales del panel,
+   por lotes con yieldFrame — usada para la materialización inicial
+   de una importación/restauración Y para materializar una
+   carpeta al desplegarla por primera vez (ensureMaterialized): es el
+   mismo trabajo ("construir estas filas aquí dentro"), la fuente de
+   los registros es lo único que cambia. Una carpeta que empieza
+   colapsada solo recibe su PROPIA fila: sus hijos se quedan en
+   `li._pending` sin tocar el DOM, en vez de recursar — así que
+   desplegar una carpeta grande nunca materializa más que ella y la
+   cadena de subcarpetas ya abiertas, nunca el subárbol entero. No
+   lleva parámetro de progreso: el trabajo caro (parsear geometría,
+   construir capas Leaflet) ya pasó en la fase de registros, que sí
+   lo muestra; esto solo cede el hilo para no bloquear.                 */
+async function materializeRecords(records, parentUl) {
+  let n = 0;
+  for (const rec of records) {
+    if (rec.t === "folder" || rec.t === "file") {
+      const li = makeNode({
+        name: rec.name, isFolder: rec.t === "folder", isFile: rec.t === "file", checked: !!rec.checked
+      });
+      rec._li = li; /* referencia inversa: la usa resolveMatch para llegar aquí desde una búsqueda pendiente */
+      if (rec.collapsed) li.classList.add("collapsed");
+      syncExpanded(li);
+      parentUl.appendChild(li);
+      /* la sección que contiene mediciones recupera su papel, mire o no
+         esta llamada dentro de sus hijos: rec.children ya existe       */
+      if (rec.t === "file" && rec.children.some(c => c.t === "measure")) measureLi = li;
+      if (rec.collapsed) {
+        li._pending = rec.children;
+      } else {
+        await materializeRecords(rec.children, nodeUl(li));
+      }
+    } else if (rec.t === "layer") {
+      const li = makeNode({
+        name: rec.name, layer: rec._layer, style: rec.style || null, checked: !!rec.checked,
+        desc: rec.desc || null
+      });
+      rec._li = li;
+      /* makeNode ya enganchó los listeners definitivos de clic/hover
+         (ver "referencia inversa" ahí): los de espera de
+         wirePendingLayerEvents ya no hacen falta y hay que retirarlos,
+         o la capa se quedaría con dos y un clic resaltaría el nodo
+         dos veces.                                                    */
+      if (rec._pendingHandlers) {
+        rec._layer.off("click", rec._pendingHandlers.onClick);
+        rec._layer.off("mouseover", rec._pendingHandlers.onHover);
+        rec._pendingHandlers = null;
+      }
+      if (rec.geo) li._geo = rec.geo;
+      parentUl.appendChild(li);
+      if (rec.mstyle) {
+        li._mstyle = rec.mstyle;
+        applyMarkerStyle(li); /* async only for MDI icons (SVG cached) */
+      } else {
+        ensureMarkerDefaults(li);
+      }
+    } else if (rec.t === "measure") {
+      const li = makeMeasureLi(rec._m);
+      rec._li = li;
+      parentUl.appendChild(li);
+      if (!rec.checked) li.querySelector(":scope > .node-row > input").checked = false;
+      updateMeasurement(rec._m);
+    } else if (rec.t === "elevGrid") {
+      const li = makeNode({
+        name: rec.name, layer: rec._layer, styleable: false, checked: !!rec.checked,
+        onDelete: () => {
+          const i = elevGridGroups.indexOf(rec._layer);
+          if (i >= 0) elevGridGroups.splice(i, 1);
+        }
+      });
+      rec._li = li;
+      li._elevGrid = { cells: rec.cells };
+      parentUl.appendChild(li);
+    } else if (rec.t === "imageOverlay") {
+      const li = makeNode({ name: rec.name, layer: rec._layer, styleable: true, checked: !!rec.checked });
+      rec._li = li;
+      li._imageOverlay = { box: rec.box, dataUrl: rec.dataUrl, opacity: rec.opacity };
+      parentUl.appendChild(li);
+    }
+    if (++n % PROGRESS_BATCH === 0) await yieldFrame();
   }
 }
 
@@ -3166,12 +3450,11 @@ async function addFileNode(name, kind, content, insertBefore = null, dropTargetU
           `Construyendo capas de ${name}\u2026 (${d}/${total})`)
       } : null;
       const styleIndex = buildStyleIndex(xml);
-      await buildKmlTree(xml.documentElement, styleIndex, target, true, prog, report, zip);
+      const records = await buildKmlRecords(xml.documentElement, styleIndex, true, prog, report, zip);
       if (styleIndex.externalRefs) {
         report.note(`${styleIndex.externalRefs} estilo(s) en archivos externos, no aplicados`);
       }
-      /* Carpetas marcadas según sus capas visibles */
-      for (const n of ul.children) if (!before.has(n)) syncSubtree(n);
+      await materializeRecords(records, target);
     } else {
       if (big) {
         progress.indet(`Procesando JSON de ${name}\u2026`);
@@ -3202,8 +3485,11 @@ async function addFileNode(name, kind, content, insertBefore = null, dropTargetU
         update: d => progress.set(100 * d / total,
           `Construyendo capas de ${name}\u2026 (${d}/${total})`)
       } : null;
-      await buildGeoJsonTree(gj, target, prog, report, nameProp);
-      li.classList.add("collapsed"); /* los GeoJSON arrancan colapsados */
+      const records = await buildGeoJsonRecords(gj, prog, report, nameProp);
+      /* los GeoJSON arrancan colapsados SIEMPRE: nunca hace falta
+         materializar sus filas al importar, van directas a pendientes  */
+      li._pending = records;
+      li.classList.add("collapsed");
       syncExpanded(li);
     }
   } catch (err) {
@@ -3217,7 +3503,8 @@ async function addFileNode(name, kind, content, insertBefore = null, dropTargetU
   }
 
   if (wrap) {
-    if (!nodeUl(li).children.length) {
+    const count = li._pending ? li._pending.length : nodeUl(li).children.length;
+    if (!count) {
       nodeUl(li).innerHTML = '<li class="empty">Sin geometr\u00EDas.</li>';
     }
   } else {
@@ -3375,7 +3662,7 @@ navPanel.addEventListener("dragleave", e => {
     clearDropMarks();
   }
 });
-navPanel.addEventListener("drop", e => {
+navPanel.addEventListener("drop", async e => {
   navPanel.classList.remove("drop-hover");
   clearDropMarks();
   if (dragLi || !e.dataTransfer.files.length) return;
@@ -3383,8 +3670,10 @@ navPanel.addEventListener("drop", e => {
   const folderLi = folderDropTarget(e);
   /* Si se suelta sobre una carpeta, el contenido entra ahí; si no, sobre
      un archivo ya cargado, el nuevo se inserta justo antes (como antes);
-     si no, a la raíz.                                                  */
+     si no, a la raíz. Materializar antes evita que lo nuevo se cuele
+     por delante de contenido pendiente cuando la carpeta se despliegue. */
   const insertBefore = !folderLi && e.target.closest ? e.target.closest("li.file") : null;
+  if (folderLi) await ensureMaterialized(folderLi);
   handleDroppedFiles([...e.dataTransfer.files], insertBefore, folderLi ? nodeUl(folderLi) : null);
 });
 
@@ -3397,23 +3686,98 @@ const searchBox = document.getElementById("search-box");
 const searchCount = document.getElementById("search-count");
 let searchIdx = -1;
 
+/* Recorre TODO el árbol -- filas ya materializadas MÁS registros dentro
+   de carpetas pendientes (li._pending), sin materializar nada todavía --
+   devolviendo lo que cumpla `matchLi`/`matchRec`. Cada coincidencia
+   pendiente lleva su "chain", la secuencia de registros ancestros hasta
+   llegar a ella, que resolveMatch recorre materializando un nivel cada
+   vez, solo cuando de verdad hace falta alcanzarla. Generaliza lo que
+   antes era solo el buscador del panel (por nombre): resolver desde qué
+   fila real corresponde una capa concreta (por identidad) o encontrar
+   una capa de un tipo dado que ya esté en rootGroup son el MISMO
+   recorrido con un predicado distinto — ver resolveRecordLi y
+   visibleElevGridLis.                                                 */
+function findMatches(matchLi, matchRec) {
+  const out = [];
+  const scanRecords = (records, startLi, chain) => {
+    for (const rec of records) {
+      const nextChain = [...chain, rec];
+      if (matchRec(rec)) out.push({ startLi, chain: nextChain });
+      if (rec.children) scanRecords(rec.children, startLi, nextChain);
+    }
+  };
+  const scanLi = li => {
+    if (matchLi(li)) out.push({ li });
+    if (li._pending) scanRecords(li._pending, li, []);
+    const ul = nodeUl(li);
+    if (ul) for (const child of ul.children) scanLi(child);
+  };
+  if (rootUl) for (const li of rootUl.children) scanLi(li);
+  return out;
+}
 function searchMatches() {
   const term = searchBox.value.trim().toLowerCase();
   if (!term) return [];
-  return [...treeEl.querySelectorAll("li")].filter(li =>
-    li._name !== undefined && li._name.toLowerCase().includes(term));
+  return findMatches(
+    li => li._name !== undefined && li._name.toLowerCase().includes(term),
+    rec => rec.name.toLowerCase().includes(term)
+  );
+}
+/* Materializa la cadena de una coincidencia pendiente hasta obtener su
+   <li> real. `startLi`, el ancestro real más cercano cuyo _pending
+   contiene el primer eslabón, viaja aparte porque el propio chain solo
+   tiene registros (sin referencia a él). ensureMaterialized en un nodo
+   ya materializado es un no-op, así que recorrer el chain entero
+   llamándolo en cada paso es seguro aunque varios eslabones ya
+   estuvieran abiertos (se cascadearon solos en la misma pasada).      */
+async function resolveMatch(match) {
+  if (match.li) return match.li;
+  let li = match.startLi;
+  for (const rec of match.chain) {
+    await ensureMaterialized(li);
+    li = rec._li;
+    if (!li) return null; /* defensivo: no debería ocurrir */
+  }
+  return li;
+}
+
+/* Resuelve un registro de capa concreto a su <li> real, materializando
+   la cadena de carpetas ancestras si hace falta. Es lo que necesita
+   clicar/pasar el ratón sobre una capa en el mapa cuando su fila
+   todavía es pendiente: buscar por IDENTIDAD del registro en vez de por
+   nombre es el mismo findMatches que ya usa searchMatches.             */
+async function resolveRecordLi(rec) {
+  if (rec._li) return rec._li; /* ya materializada: sin recorrer nada */
+  const matches = findMatches(() => false, r => r === rec);
+  return matches.length ? resolveMatch(matches[0]) : null; /* defensivo: no debería ocurrir */
+}
+
+/* Engancha clic/hover en el momento de construir una capa "layer"
+   (buildKmlRecords/buildGeoJsonRecords/buildRecordsFromStorage), antes
+   de que tenga fila real: resolveRecordLi materializa lo necesario la
+   primera vez que se disparan. Los handlers de espera se guardan en
+   rec._pendingHandlers para que materializeRecords los retire en
+   cuanto engancha los definitivos (ver su rama "layer") — si no, la
+   capa se quedaría con dos listeners para siempre y un clic resaltaría
+   el nodo dos veces.                                                  */
+function wirePendingLayerEvents(rec) {
+  const onClick = async () => { const li = await resolveRecordLi(rec); if (li) highlightNode(li); };
+  const onHover = async () => { const li = await resolveRecordLi(rec); if (li) showLayerInfo(li, { focus: false }); };
+  rec._layer.on("click", onClick).on("mouseover", onHover);
+  rec._pendingHandlers = { onClick, onHover };
 }
 function updateSearchCount(total) {
   searchCount.textContent = searchBox.value.trim()
     ? `${searchIdx + 1}/${total}` : "";
 }
-function gotoMatch(dir) {
+async function gotoMatch(dir) {
   const matches = searchMatches(); /* recalculado: el árbol puede cambiar */
   if (!matches.length) { searchIdx = -1; updateSearchCount(0); return; }
   /* con el índice sin estrenar, "anterior" debe caer en la última ocurrencia */
   if (searchIdx === -1 && dir === -1) searchIdx = 0;
   searchIdx = ((searchIdx + dir) % matches.length + matches.length) % matches.length;
-  highlightNode(matches[searchIdx]);
+  const li = await resolveMatch(matches[searchIdx]);
+  if (li) highlightNode(li);
   updateSearchCount(matches.length);
 }
 /* Busca en vivo mientras se teclea: debounced (evita recorrer el árbol
@@ -3426,7 +3790,7 @@ const SEARCH_DEBOUNCE_MS = 150;
 const SEARCH_MIN_CHARS = 3;
 let searchTimer = null;
 
-function runLiveSearch() {
+async function runLiveSearch() {
   if (searchBox.value.trim().length < SEARCH_MIN_CHARS) {
     searchIdx = -1;
     searchCount.textContent = "";
@@ -3434,7 +3798,10 @@ function runLiveSearch() {
   }
   const matches = searchMatches();
   searchIdx = matches.length ? 0 : -1;
-  if (matches.length) highlightNode(matches[0]);
+  if (matches.length) {
+    const li = await resolveMatch(matches[0]);
+    if (li) highlightNode(li);
+  }
   updateSearchCount(matches.length);
 }
 searchBox.addEventListener("input", () => {
@@ -3606,12 +3973,35 @@ newFolderName.addEventListener("keydown", e => {
 });
 
 /* Seleccionar / deseleccionar todo: cambia visibilidad de todas las
-   capas sin alterar qué carpetas están desplegadas o colapsadas       */
-function setAllChecked(state) {
-  for (const chk of treeEl.querySelectorAll("input[type=checkbox]")) {
-    chk.checked = state;
-    applyVisibility(chk);
+   capas sin alterar qué carpetas están desplegadas o colapsadas. Cede el
+   hilo por lotes igual que cascadeVisibility: es el mismo barrido a
+   escala de árbol completo.                                            */
+/* Recorrido recursivo (no querySelectorAll plano) por la MISMA razón que
+   cascadeVisibility: hay que alcanzar también los registros pendientes
+   de cualquier carpeta nunca desplegada, en cualquier punto del árbol,
+   no solo las filas ya materializadas.                                */
+async function setPendingChecked(records, state, counter) {
+  for (const rec of records) {
+    rec.checked = state;
+    if (rec.children) await setPendingChecked(rec.children, state, counter);
+    else setLayerVisible(rec._layer, state);
+    if (++counter.n % CASCADE_BATCH === 0) await yieldFrame();
   }
+}
+async function setAllChecked(state) {
+  const counter = { n: 0 };
+  const walk = async li => {
+    const chk = li.querySelector(":scope > .node-row > input[type=checkbox]");
+    if (chk) {
+      chk.checked = state;
+      applyVisibility(chk);
+      if (++counter.n % CASCADE_BATCH === 0) await yieldFrame();
+    }
+    const ul = nodeUl(li);
+    if (ul) for (const child of [...ul.children]) await walk(child);
+    if (li._pending) await setPendingChecked(li._pending, state, counter);
+  };
+  if (rootUl) for (const li of [...rootUl.children]) await walk(li);
   scheduleSave();
 }
 document.getElementById("activate-all").addEventListener("click", () => setAllChecked(true));
@@ -3643,13 +4033,18 @@ function moveCursorTo(to, extend) {
   nodeRow(to).scrollIntoView({ block: "nearest" });
 }
 
-/* Despliega, o entra en el primer hijo si ya estaba desplegada */
-function expandOrEnter(li, extend) {
+/* Despliega, o entra en el primer hijo si ya estaba desplegada. Si el
+   primer despliegue encuentra la carpeta pendiente, materializarla es
+   asíncrono: una segunda pulsación de flecha derecha, si llega antes de
+   que termine, simplemente no encuentra hijos todavía y no hace nada —
+   se resuelve sola en cuanto la materialización acaba.                */
+async function expandOrEnter(li, extend) {
   if (!nodeUl(li)) return;
   if (li.classList.contains("collapsed")) {
     li.classList.remove("collapsed");
     syncExpanded(li);
     scheduleSave();
+    await ensureMaterialized(li);
     return;
   }
   const first = childRows(nodeUl(li))[0];
@@ -3705,7 +4100,8 @@ async function pasteClipboard() {
   pushUndo("pegar");
   const before = new Set(ul.children);
   try {
-    await buildFromNodes(clipboard.nodes, ul, null);
+    const records = await buildRecordsFromStorage(clipboard.nodes, null);
+    await materializeRecords(records, ul);
   } catch (err) {
     navMessage(`No se pudo pegar: ${err.message}`);
     return;
@@ -3995,30 +4391,34 @@ function layersAtPoint(latlng, containerPoint) {
   return hits;
 }
 
+/* "marker" wins over "polygon" on mixed geometries: points sit on top and
+   the marker panel is the useful one there. Split out of styleKind so a
+   freshly-built KML/GeoJSON layer can be classified for the import report
+   BEFORE it has an <li> (pending-record materialization, see
+   materializeRecords) — styleKind still owns the li-level cases (measure/
+   elevGrid/imageOverlay/group) and the per-node cache.                   */
+function layerKind(layer) {
+  if (!layer) return "group";
+  let hasMarker = false, hasPath = false;
+  const scan = l => {
+    if (l instanceof L.Marker) hasMarker = true;
+    else if (l instanceof L.Path) hasPath = true;
+    if (l.eachLayer) l.eachLayer(scan);
+  };
+  scan(layer);
+  return hasMarker ? "marker" : hasPath ? "polygon" : null;
+}
+
 /* Node kind, used by the style dialog AND by the same-kind selection rule.
-   "marker" wins over "polygon" on mixed geometries: points sit on top and
-   the marker panel is the useful one there. The result is cached because
-   the geometry of a layer never changes after creation.                  */
+   The result is cached because the geometry of a layer never changes
+   after creation.                                                        */
 function styleKind(li) {
   if (li._kind !== undefined) return li._kind;
   let kind;
   if (li._measure) kind = "measure";
   else if (li._elevGrid) kind = "elevGrid";
   else if (li._imageOverlay) kind = "imageOverlay";
-  else {
-    const layer = nodeLayer(li);
-    if (!layer) kind = "group";
-    else {
-      let hasMarker = false, hasPath = false;
-      const scan = l => {
-        if (l instanceof L.Marker) hasMarker = true;
-        else if (l instanceof L.Path) hasPath = true;
-        if (l.eachLayer) l.eachLayer(scan);
-      };
-      scan(layer);
-      kind = hasMarker ? "marker" : hasPath ? "polygon" : null;
-    }
-  }
+  else kind = layerKind(nodeLayer(li));
   li._kind = kind;
   return kind;
 }
@@ -5259,20 +5659,25 @@ function addMeasureNode(m) {
   scheduleSave();
 }
 
-/* Reconstruye una medición guardada (usado al restaurar el árbol) */
-function rebuildMeasurement(n, parentUl) {
+/* Reconstruye una medición guardada (usado al restaurar el árbol), como
+   registro pendiente: construye la geometría Leaflet y decide su alta en
+   rootGroup (independiente del panel), pero no toca el DOM todavía —
+   ver materializeRecords, que hace `makeMeasureLi(rec._m)` cuando la
+   fila llega a existir de verdad.                                      */
+function buildMeasureRecord(n) {
   const m = buildMeasurement(n.mtype, L.latLng(n.a.lat, n.a.lng), L.latLng(n.b.lat, n.b.lng));
   attachCtrlDrag(m, m.mOrigin, true);
   attachCtrlDrag(m, m.mDest, false);
   m.treeName = n.name;
   measureCount[n.mtype]++;
-  const li = makeMeasureLi(m);
-  parentUl.appendChild(li);
-  if (!n.checked) {
-    li.querySelector(":scope > .node-row > input").checked = false;
-    rootGroup.removeLayer(m.group);
-  }
-  updateMeasurement(m);
+  if (!n.checked) rootGroup.removeLayer(m.group); /* buildMeasurement la añade siempre */
+  /* Sin a/b propios: los manejadores son arrastrables con Ctrl+arrastre
+     directamente sobre el mapa aunque la fila siga pendiente (no hace
+     falta el diálogo de estilos ni ninguna fila para editar una
+     medición), así que la posición se lee siempre en vivo de _m
+     (ver serializePendingRecords) en vez de cachearse aquí y arriesgarse
+     a quedar obsoleta.                                                 */
+  return { t: "measure", name: n.name, checked: !!n.checked, mtype: n.mtype, _m: m, _layer: m.group };
 }
 
 /* ================= Modo altura (MDT y MDS del IGN) =================
@@ -6135,18 +6540,29 @@ const fmtElevation = h => h === undefined ? "no disponible"
 /* Sección del árbol para las capas de elevación guardadas. Se localiza
    por nombre (ensureNamedSection, igual que "Lugares"/"Marcadores"), no
    con una caché de referencia como las mediciones: así sobrevive a la
-   restauración sin necesitar un enganche especial en buildFromNodes.  */
+   restauración sin necesitar un enganche especial en materializeRecords. */
 function ensureElevSection() {
   return ensureNamedSection("Elevaciones");
 }
 
 /* Nodos "elevGrid" cuya capa está VISIBLE ahora mismo (casilla marcada,
    la misma fuente de verdad que usa applyVisibility: pertenencia a
-   rootGroup). No hay índice por tipo de nodo, así que se recorre el
-   árbol entero como ya hacen searchMatches/subtreeBounds.             */
-function visibleElevGridNodes() {
-  return [...treeEl.querySelectorAll("li")]
-    .filter(li => li._elevGrid && rootGroup.hasLayer(nodeLayer(li)));
+   rootGroup), materializados o no: findMatches ya recorre filas reales
+   Y registros pendientes (li._pending) por igual, así que una capa de
+   elevaciones dentro de una carpeta nunca desplegada se encuentra y se
+   materializa bajo demanda (resolveMatch) igual que un resultado del
+   buscador, en vez de fusionarse a ciegas por no poder alcanzarla.     */
+async function visibleElevGridNodes() {
+  const matches = findMatches(
+    li => li._elevGrid && rootGroup.hasLayer(nodeLayer(li)),
+    rec => rec.t === "elevGrid" && rec._layer && rootGroup.hasLayer(rec._layer)
+  );
+  const lis = [];
+  for (const m of matches) {
+    const li = await resolveMatch(m);
+    if (li) lis.push(li);
+  }
+  return lis;
 }
 
 /* De varias capas visibles a la vez, la que recibe la sesión nueva es
@@ -6200,37 +6616,29 @@ function mergeElevSession(targetLi, newCells) {
 }
 
 /* Reconstruye una capa de elevaciones guardada (usado al restaurar el
-   árbol). Sigue el patrón de las capas normales (t === "layer"): se
-   construye desconectada y solo se añade a rootGroup si está marcada. */
-function rebuildElevGrid(n, parentUl) {
+   árbol), como registro pendiente. Sigue el patrón de las capas
+   normales (t === "layer"): se construye desconectada y solo se añade a
+   rootGroup si está marcada; el DOM lo pone materializeRecords después. */
+function buildElevGridRecord(n) {
   const group = buildElevGridGroup(n.cells);
   elevGridGroups.push(group);
   if (n.checked) group.addTo(rootGroup);
-  const li = makeNode({
-    name: n.name, layer: group, styleable: false, checked: !!n.checked,
-    onDelete: () => {
-      const i = elevGridGroups.indexOf(group);
-      if (i >= 0) elevGridGroups.splice(i, 1);
-    }
-  });
-  li._elevGrid = { cells: n.cells };
-  parentUl.appendChild(li);
   elevGridCount++;
+  return { t: "elevGrid", name: n.name, checked: !!n.checked, cells: n.cells, _layer: group };
 }
 
-/* Reconstruye una ortofoto guardada (usado al restaurar el árbol). Sigue
-   el patrón de las capas normales (t === "layer"): se construye
-   desconectada y solo se añade a rootGroup si está marcada.           */
-function rebuildImageOverlay(n, parentUl) {
+/* Reconstruye una ortofoto guardada (usado al restaurar el árbol), como
+   registro pendiente. Sigue el patrón de las capas normales
+   (t === "layer"): se construye desconectada y solo se añade a
+   rootGroup si está marcada; el DOM lo pone materializeRecords después. */
+function buildImageOverlayRecord(n) {
   const bounds = L.latLngBounds([n.box.south, n.box.west], [n.box.north, n.box.east]);
   const layer = L.imageOverlay(n.dataUrl, bounds, { opacity: n.opacity });
   if (n.checked) layer.addTo(rootGroup);
-  const li = makeNode({ name: n.name, layer, styleable: true, checked: !!n.checked });
-  li._imageOverlay = { box: n.box, dataUrl: n.dataUrl, opacity: n.opacity };
-  parentUl.appendChild(li);
+  return { t: "imageOverlay", name: n.name, checked: !!n.checked, box: n.box, dataUrl: n.dataUrl, opacity: n.opacity, _layer: layer };
 }
 
-function setAltitudeMode(on) {
+async function setAltitudeMode(on) {
   demOn = on;
   if (demButton) demButton.classList.toggle("active", on);
   if (elevUnitButton) elevUnitButton.hidden = !on;
@@ -6239,7 +6647,7 @@ function setAltitudeMode(on) {
     /* Si ya hay una (o varias) capas de elevaciones visibles, esta
        sesión se fusiona en la más cercana en vez de crear una nueva;
        priorCells alimenta el "no repetir peticiones" de elevRequest. */
-    const target = pickClosestElevLi(visibleElevGridNodes());
+    const target = pickClosestElevLi(await visibleElevGridNodes());
     elevAccum = {
       cells: [], tileKeys: new Set(),
       targetLi: target, priorCells: target ? target._elevGrid.cells : []

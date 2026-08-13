@@ -7,7 +7,7 @@ const ok = (c, m) => { if (!c) { console.error("FAIL: " + m); process.exitCode =
 
 /* ---------- Elegir la propiedad-nombre (Fase 1) ---------- */
 const nameSrc = script.slice(script.indexOf("const GEOJSON_TYPES = new Set("),
-                              script.indexOf("async function buildGeoJsonTree"));
+                              script.indexOf("async function buildGeoJsonRecords"));
 const { geojsonFeatures, needsNamePicker, propsFingerprint, resolveFeatureName } =
   new Function(nameSrc + "\nreturn {geojsonFeatures, needsNamePicker, propsFingerprint, resolveFeatureName};")();
 

@@ -25,7 +25,9 @@ const SUITES = [
   ["bytesfmt.js",         "Formato de tamaños: bytes/KB/MB/GB"],
   ["reordertest.js",      "Orden de pintado: bringLayerToFront por tipo, reorderPaintOrder por árbol"],
   ["pngnametest.js",      "Nombre de archivo del PNG exportado: marca de tiempo con zero-padding"],
-  ["geojsonnametest.js",  "Propiedad-nombre de GeoJSON, tabla de properties y menú contextual con varias capas"]
+  ["geojsonnametest.js",  "Propiedad-nombre de GeoJSON, tabla de properties y menú contextual con varias capas"],
+  ["cascadetest.js",      "Cascada de visibilidad por lotes: cesión del hilo, doble toggle rápido, borrado a mitad"],
+  ["lazytree.js",         "Construcción perezosa de filas para carpetas colapsadas (materializeRecords/ensureMaterialized)"]
 ];
 const BENCH = [["selbench.js", "Coste de seleccionar y de topLevelSelection"]];
 

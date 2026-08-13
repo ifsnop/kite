@@ -5,7 +5,7 @@ const script = fs.readFileSync(HTML_PATH,"utf8").match(/<script>\n([\s\S]*?)<\/s
 const src = script.slice(script.indexOf("/* ---------- Coordenadas: rango con tolerancia"),
                          script.indexOf('/* "lon,lat[,alt] lon,lat…"'))
   + script.slice(script.indexOf("function parseCoords(str)"), script.indexOf("/* Un <Polygon> KML"))
-  + script.slice(script.indexOf("const GEOJSON_TYPES"), script.indexOf("async function buildGeoJsonTree"));
+  + script.slice(script.indexOf("const GEOJSON_TYPES"), script.indexOf("async function buildGeoJsonRecords"));
 const api = new Function(src + "\nreturn {clampDeg, clampLatLng, parseCoords, validGeometry, counter: () => coordClamped, reset: () => { coordClamped = 0; }};")();
 const ok=(c,m)=>{ if(!c){ console.error("FAIL: "+m); process.exitCode=1; } };
 
