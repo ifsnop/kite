@@ -961,7 +961,7 @@ const map = L.map("map", { preferCanvas: true, maxZoom: MAX_ZOOM }).setView([40.
 
 /* Fecha de generación del código (versión): AÑOMESDIAHORAMINUTO.
    Actualizar en cada generación; se muestra junto al crédito de Leaflet. */
-const BUILD = "202608140955";
+const BUILD = "202608141010";
 map.attributionControl.setPrefix(
   `v${BUILD} | <a href="https://leafletjs.com" title="A JavaScript library for interactive maps">Leaflet</a>`);
 
@@ -7147,7 +7147,7 @@ async function checkServerVersion() {
     updateNoticeShown = true;
     navMessage(
       "Hay una versión nueva de KITE Local en el servidor. Recarga la página cuando puedas (F5) para actualizar.",
-      { sticky: true, tone: "info" }
+      { sticky: true } /* tono por defecto ("error", en rojo): igual que los avisos de carga fallida, para que destaque */
     );
   }
 }
