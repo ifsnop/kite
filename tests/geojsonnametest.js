@@ -93,14 +93,21 @@ function extractFn(name) {
 const ctxSrc = script.slice(script.indexOf("const CTX_MENU_ITEMS = ["), script.indexOf("const ctxMenuEl"))
   + extractFn("layerCtxItems") + extractFn("ctxItemsFor");
 global.infoHtmlFor = li => li._info || null; /* stub: evita depender de DOM/Leaflet */
-global.highlightNode = li => { global.highlightCalls.push(li); };
+/* goToNodeAndBlink (highlightNode + el parpadeo de identificación) vive
+   FUERA de este recorte (necesita nodeLayer/setLayerVisible sobre <li>
+   reales, y aquí los "li" son objetos sueltos {_name,_info}): se stubea
+   igual que highlightNode se stubeaba antes de que layerCtxItems pasara
+   a llamarlo a él en vez de a highlightNode directamente. Lo que prueba
+   este archivo es el ENRUTADO (qué capa le llega a cada acción), no el
+   parpadeo en sí.                                                      */
+global.goToNodeAndBlink = li => { global.highlightCalls.push(li); };
 global.showLayerInfo = li => { global.showInfoCalls.push(li); };
 global.highlightCalls = [];
 global.showInfoCalls = [];
 const { CTX_MENU_ITEMS, ctxItemsFor } = new Function(
-  "infoHtmlFor", "highlightNode", "showLayerInfo",
+  "infoHtmlFor", "showLayerInfo", "goToNodeAndBlink",
   ctxSrc + "\nreturn {CTX_MENU_ITEMS, ctxItemsFor};"
-)(global.infoHtmlFor, global.highlightNode, global.showLayerInfo);
+)(global.infoHtmlFor, global.showLayerInfo, global.goToNodeAndBlink);
 
 // 0 hits: el menú genérico del mapa, sin cambios
 ok(ctxItemsFor([]) === CTX_MENU_ITEMS, "sin capas bajo el cursor: se usa CTX_MENU_ITEMS tal cual");

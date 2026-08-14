@@ -122,32 +122,33 @@ function makeNode({ name, layer = null, isFolder = false, isFile = false, checke
 
 const src = [
   "const nodeUl = li => li.querySelector(':scope > ul.node-list');",
-  fn("layerKind"), fn("styleKind"), fn("nodeLayer"), fn("ensureMarkerDefaults"),
+  fn("layerKind"), fn("styleKind"), fn("nodeLayer"), fn("setLayerVisible"), fn("ensureMarkerDefaults"),
   fn("materializeRecords"), fn("ensureMaterialized"),
   fn("serializeNode"), "const serializeNodes = ul => [...ul.children].flatMap(serializeNode);",
   fn("serializePendingRecords"),
   fn("extendBounds"), fn("extendBoundsFromRecords"), fn("subtreeBounds"),
   fn("findMatches"), fn("searchMatches"), fn("resolveMatch"),
   fn("resolveRecordLi"), fn("wirePendingLayerEvents"), fn("visibleElevGridNodes"),
+  fn("blinkLayer"),
   fn("removeRecordsFromMap"), fn("removeSubtreeFromMap"), fn("deleteNode")
 ].join("\n");
 
 const api = new Function(
   "rootGroup", "yieldFrame", "PROGRESS_BATCH", "scheduleSave", "navMessage", "showEmptyMessage",
   "syncExpanded", "measureLi", "selection", "searchBox", "treeEl", "rootUl", "makeNode",
-  "highlightNode", "showLayerInfo",
+  "highlightNode", "showLayerInfo", "BLINK_STEPS", "BLINK_INTERVAL_MS",
   src + `\nreturn {
     materializeRecords, ensureMaterialized, serializeNode, serializeNodes, serializePendingRecords,
     subtreeBounds, findMatches, searchMatches, resolveMatch, resolveRecordLi,
-    wirePendingLayerEvents, visibleElevGridNodes, deleteNode
+    wirePendingLayerEvents, visibleElevGridNodes, blinkLayer, deleteNode
   };`
 )(rootGroup, yieldFrame, PROGRESS_BATCH, scheduleSave, navMessage, showEmptyMessage,
   syncExpanded, measureLi, selection, searchBox, treeEl, rootUl, makeNode,
-  highlightNode, showLayerInfo);
+  highlightNode, showLayerInfo, 4 /* BLINK_STEPS, igual que en producción */, 2 /* BLINK_INTERVAL_MS: mínimo, para que el test no espere */);
 const {
   materializeRecords, ensureMaterialized, serializeNode, serializeNodes,
   subtreeBounds, findMatches, searchMatches, resolveMatch, resolveRecordLi,
-  wirePendingLayerEvents, visibleElevGridNodes, deleteNode
+  wirePendingLayerEvents, visibleElevGridNodes, blinkLayer, deleteNode
 } = api;
 
 const ok = (c, m) => { if (!c) { console.error("FAIL: " + m); process.exitCode = 1; } };
@@ -322,6 +323,36 @@ const folderRec = (name, collapsed, children) => ({ t: "folder", name, checked: 
   ok(foundElev.length === 1 && foundElev[0]._name === "Elevación pendiente",
      "encuentra la capa de elevaciones visible dentro de una carpeta pendiente: " + foundElev.length);
   ok(!elevOuter._pending, "y materializa lo necesario para devolver un <li> real, listo para fusionar la sesión");
+
+  /* ---------- blinkLayer: parpadeo de identificación ---------- */
+  const sleep = ms => new Promise(r => setTimeout(r, ms));
+  const BLINK_WAIT = 4 /* BLINK_STEPS pasado arriba */ * 2 /* BLINK_INTERVAL_MS pasado arriba */ + 30;
+
+  const blinkTag = { tag: "blink1" };
+  const blinkLi = makeNode({ name: "blink-target", checked: true, layer: blinkTag });
+  rootGroup.addLayer(blinkTag); /* como si ya estuviera visible (hit-testeada) */
+  calls = [];
+  blinkLayer(blinkLi);
+  await sleep(BLINK_WAIT);
+  const blinkCalls = calls.filter(c => c[1] === "blink1").map(c => c[0]);
+  ok(blinkCalls.join(",") === "remove,add,remove,add",
+     "oculta/muestra dos veces, en orden: " + blinkCalls.join(","));
+  ok(rootGroup.hasLayer(blinkTag), "termina visible, que es el estado real de su checkbox");
+
+  /* repetir antes de que termine el primero: no se solapan dos secuencias */
+  calls = [];
+  blinkLayer(blinkLi);
+  blinkLayer(blinkLi); /* cancela la anterior y empieza de cero */
+  await sleep(BLINK_WAIT);
+  const restartCalls = calls.filter(c => c[1] === "blink1");
+  ok(restartCalls.length === 4, "un parpadeo repetido cancela el anterior en vez de solaparse: " + restartCalls.length);
+
+  /* si el checkbox cambia mientras parpadea, el estado final es el suyo, no "visible" a ciegas */
+  blinkLayer(blinkLi);
+  blinkLi.querySelector(":scope > .node-row > input").checked = false;
+  await sleep(BLINK_WAIT);
+  ok(!rootGroup.hasLayer(blinkTag),
+     "si se desactiva el checkbox mientras parpadea, termina oculta (el estado real), no visible a la fuerza");
 
   if (!process.exitCode) console.log("LAZY TREE TESTS OK");
 })();

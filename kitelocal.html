@@ -961,7 +961,7 @@ const map = L.map("map", { preferCanvas: true, maxZoom: MAX_ZOOM }).setView([40.
 
 /* Fecha de generación del código (versión): AÑOMESDIAHORAMINUTO.
    Actualizar en cada generación; se muestra junto al crédito de Leaflet. */
-const BUILD = "202608141010";
+const BUILD = "202608141130";
 map.attributionControl.setPrefix(
   `v${BUILD} | <a href="https://leafletjs.com" title="A JavaScript library for interactive maps">Leaflet</a>`);
 
@@ -6943,10 +6943,53 @@ function closeCtxMenu() {
   closeCtxSubmenu();
 }
 
+/* Parpadeo de identificación: oculta y muestra la capa dos veces, para
+   que "Ir al nodo en el panel" también señale cuál es en el mapa (con
+   varias capas superpuestas, no siempre es obvio cuál se eligió). Basta
+   con alternar su alta en rootGroup, igual que applyVisibility -- sirve
+   igual para un marcador (DOM) que para un polígono (canvas), sin
+   depender de tener un elemento DOM propio que animar. `li._blinkTimer`
+   corta cualquier parpadeo anterior sobre la misma fila si se repite el
+   gesto antes de que termine, y al final se deja la capa en el estado
+   que de verdad le corresponde (el de su checkbox), por si se
+   desactivó mientras tanto.                                            */
+const BLINK_STEPS = 4; /* oculta, muestra, oculta, muestra */
+const BLINK_INTERVAL_MS = 150;
+function blinkLayer(li) {
+  const layer = nodeLayer(li);
+  if (!layer) return;
+  clearTimeout(li._blinkTimer);
+  let step = 0, shown = null; /* shown: lo último que de verdad se aplicó */
+  const tick = () => {
+    if (step >= BLINK_STEPS) {
+      li._blinkTimer = null;
+      const chk = li.querySelector(":scope > .node-row > input[type=checkbox]");
+      const want = chk ? chk.checked : true;
+      /* Solo reconciliar si el checkbox cambió DURANTE el parpadeo: el
+         último paso normal ya deja la capa en el estado correcto en el
+         caso normal, y repetir la misma llamada aquí sería redundante
+         en CADA parpadeo, no solo en ese caso raro.                   */
+      if (want !== shown) setLayerVisible(layer, want);
+      return;
+    }
+    shown = step % 2 === 1;
+    setLayerVisible(layer, shown);
+    step++;
+    li._blinkTimer = setTimeout(tick, BLINK_INTERVAL_MS);
+  };
+  /* El primer paso también va detrás de un temporizador, nunca síncrono:
+     así un segundo parpadeo disparado antes de que corra el primero
+     (mismo turno del bucle de eventos) lo cancela limpiamente con el
+     clearTimeout de arriba, en vez de dejar un "oculta" suelto ya
+     aplicado de verdad antes de reiniciar la cuenta desde cero.       */
+  li._blinkTimer = setTimeout(tick, 0);
+}
+const goToNodeAndBlink = li => { highlightNode(li); blinkLayer(li); };
+
 /* Ítems de UNA capa: ir al nodo, y mostrar propiedades si tiene algo
    que enseñar (igual criterio que el botón ℹ de la fila).             */
 function layerCtxItems(li) {
-  const items = [{ label: "Ir al nodo en el panel", action: () => highlightNode(li) }];
+  const items = [{ label: "Ir al nodo en el panel", action: () => goToNodeAndBlink(li) }];
   if (infoHtmlFor(li) != null) items.push({ label: "Mostrar propiedades", action: () => showLayerInfo(li) });
   return items;
 }
@@ -6960,7 +7003,7 @@ function ctxItemsFor(hits) {
   const withInfo = hits.filter(li => infoHtmlFor(li) != null);
   const items = [{
     label: "Ir al nodo en el panel",
-    items: hits.map(li => ({ label: li._name, action: () => highlightNode(li) }))
+    items: hits.map(li => ({ label: li._name, action: () => goToNodeAndBlink(li) }))
   }];
   if (withInfo.length) {
     items.push({
