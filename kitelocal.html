@@ -961,7 +961,7 @@ const map = L.map("map", { preferCanvas: true, maxZoom: MAX_ZOOM }).setView([40.
 
 /* Fecha de generación del código (versión): AÑOMESDIAHORAMINUTO.
    Actualizar en cada generación; se muestra junto al crédito de Leaflet. */
-const BUILD = "202608132015";
+const BUILD = "202608140955";
 map.attributionControl.setPrefix(
   `v${BUILD} | <a href="https://leafletjs.com" title="A JavaScript library for interactive maps">Leaflet</a>`);
 
@@ -6931,9 +6931,11 @@ ctxMenuEl.setAttribute("aria-label", "Menú contextual del visor");
 ctxMenuEl.hidden = true;
 document.body.appendChild(ctxMenuEl);
 let ctxSubmenuEl = null; /* como mucho un submenú abierto a la vez */
+let ctxSubmenuTrigger = null; /* qué botón abrió el submenú actual, para no reabrirlo en vano */
 
 function closeCtxSubmenu() {
   if (ctxSubmenuEl) { ctxSubmenuEl.remove(); ctxSubmenuEl = null; }
+  ctxSubmenuTrigger = null;
 }
 
 function closeCtxMenu() {
@@ -6971,9 +6973,27 @@ function ctxItemsFor(hits) {
 
 /* Construye las filas de un menú (principal o submenú) dentro de
    `container`: separadores, ítems normales/checkbox, y disparadores de
-   submenú (`.items`, con "▸" al final y aria-haspopup).               */
+   submenú (`.items`, con "▸" al final y aria-haspopup). Un disparador
+   despliega su submenú con solo pasar el ratón por encima, como un menú
+   contextual de escritorio; el clic se conserva porque es el único
+   camino para abrirlo con teclado (Tab + Enter/Espacio llega como
+   "click", nunca como "mouseenter"). No se cierra al salir del propio
+   disparador (mouseleave): el submenú es un elemento flotante aparte al
+   que hay que llegar cruzando por fuera del botón, y cerrarlo ahí
+   rompería el gesto de entrar en él. Se cierra al pasar a un ítem
+   hermano SIN submenú propio, pero SOLO dentro del menú PRINCIPAL
+   (`isTopLevel`): esta misma función también renderiza el submenú, cuyos
+   ítems son siempre hojas, así que sin distinguir el nivel, el
+   mouseenter de un ítem del propio submenú lo cerraría en el instante
+   en que el ratón entrara en él.                                       */
 function renderCtxItems(container, items, latlng) {
   container.innerHTML = "";
+  /* "Cerrar al pasar a un hermano sin submenú" solo vale en el menú
+     PRINCIPAL: esta misma función también renderiza el submenú, cuyos
+     ítems son siempre hojas (sin item.items) — sin esta distinción, el
+     mouseenter de un ítem del propio submenú cerraba el submenú en el
+     instante en que el ratón entraba en él (el bug reportado).        */
+  const isTopLevel = container === ctxMenuEl;
   for (const item of items) {
     if (item.separator) {
       const sep = document.createElement("div");
@@ -6989,16 +7009,19 @@ function renderCtxItems(container, items, latlng) {
       btn.setAttribute("role", "menuitem");
       btn.setAttribute("aria-haspopup", "true");
       btn.textContent = item.label + " ▸";
-      btn.addEventListener("click", e => {
-        e.stopPropagation();
+      const open = () => {
+        if (ctxSubmenuTrigger === btn) return; /* ya abierto: no parpadear */
         openCtxSubmenu(btn, item.items, latlng);
-      });
+      };
+      btn.addEventListener("mouseenter", open);
+      btn.addEventListener("click", e => { e.stopPropagation(); open(); });
     } else {
       const isToggle = typeof item.checked === "function";
       const on = isToggle && item.checked();
       btn.setAttribute("role", isToggle ? "menuitemcheckbox" : "menuitem");
       if (isToggle) btn.setAttribute("aria-checked", String(on));
       btn.textContent = (on ? "✓ " : "") + item.label;
+      if (isTopLevel) btn.addEventListener("mouseenter", closeCtxSubmenu);
       btn.addEventListener("click", () => { closeCtxMenu(); item.action(latlng); });
     }
     container.appendChild(btn);
@@ -7007,6 +7030,7 @@ function renderCtxItems(container, items, latlng) {
 
 function openCtxSubmenu(triggerBtn, items, latlng) {
   closeCtxSubmenu();
+  ctxSubmenuTrigger = triggerBtn;
   ctxSubmenuEl = document.createElement("div");
   ctxSubmenuEl.className = "ctx-menu";
   ctxSubmenuEl.setAttribute("role", "menu");
