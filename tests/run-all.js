@@ -16,6 +16,7 @@ const SUITES = [
   ["utmtest.js",    "Conversión a UTM y husos"],
   ["coordfmt.js",   "Formato de coordenadas: decimal, GMS con espacios y GMS compacto"],
   ["elevtest.js",   "Elevaciones: WCS del IGN, coberturas, formatos, rejilla"],
+  ["pnoahisttest.js", "PNOA histórico: descubrimiento de capas del WMS del IGN"],
   ["navtest.js",    "Navegación del árbol y selección por rangos"],
   ["selcorrect.js", "Selección: cursor y nodos de nivel superior"],
   ["reporttest.js", "Informe de importación"],

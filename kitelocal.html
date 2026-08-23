@@ -15,7 +15,7 @@
   script-src 'self' 'unsafe-inline' https://unpkg.com https://cdnjs.cloudflare.com;
   style-src 'self' 'unsafe-inline' https://unpkg.com;
   img-src 'self' data: blob: https://unpkg.com https://api.iconify.design https://www.ign.es https://tile.openstreetmap.org https://server.arcgisonline.com https://tms-pnoa-ma.idee.es https://servicios.idee.es;
-  connect-src 'self' https://api.iconify.design https://nominatim.openstreetmap.org https://wcs-mds.idee.es https://servicios.idee.es https://unpkg.com https://cdnjs.cloudflare.com;
+  connect-src 'self' https://api.iconify.design https://nominatim.openstreetmap.org https://wcs-mds.idee.es https://servicios.idee.es https://www.ign.es https://unpkg.com https://cdnjs.cloudflare.com;
   font-src 'self';
   base-uri 'none';
   form-action 'none';
@@ -432,7 +432,8 @@
   }
   .base-moves button:disabled { opacity: .35; cursor: default; }
   .base-row label { cursor: pointer; white-space: nowrap; }
-  .base-row input[type="range"] { grid-column: 1 / -1; width: 100%; height: 14px; }
+  .base-row input[type="range"], .base-row select { grid-column: 1 / -1; width: 100%; }
+  .base-row select { font: inherit; }
   .base-row.failed label { color: var(--danger); }
 
   /* Celdas de la cuadrícula de elevaciones */
@@ -961,7 +962,7 @@ const map = L.map("map", { preferCanvas: true, maxZoom: MAX_ZOOM }).setView([40.
 
 /* Fecha de generación del código (versión): AÑOMESDIAHORAMINUTO.
    Actualizar en cada generación; se muestra junto al crédito de Leaflet. */
-const BUILD = "202608141130";
+const BUILD = "202608230356";
 map.attributionControl.setPrefix(
   `v${BUILD} | <a href="https://leafletjs.com" title="A JavaScript library for interactive maps">Leaflet</a>`);
 
@@ -1016,20 +1017,35 @@ const BASE_LAYERS = [
   { id: "mdt", name: "MDT de Espa\u00F1a (IGN, WMS)", on: false, opacity: 1,
     layer: () => L.tileLayer.wms("https://servicios.idee.es/wms-inspire/mdt", {
       layers: "EL.ElevationGridCoverage", format: "image/png", version: "1.3.0",
-      transparent: true, maxZoom: MAX_ZOOM, attribution: `MDT WMS. ${IGN_CREDIT}` }) }
+      transparent: true, maxZoom: MAX_ZOOM, attribution: `MDT WMS. ${IGN_CREDIT}` }) },
+
+  /* No es una sola capa fija: `layer()` recibe el nombre de capa WMS
+     elegido en el selector (ver "PNOA hist\u00F3rico" m\u00E1s abajo), descubierto
+     contra el GetCapabilities real del servicio en vez de hardcodearlo. */
+  { id: "pnoa-hist", name: "PNOA hist\u00F3rico (IGN)", on: false, opacity: 1, dynamic: true,
+    layer: (wmsLayer) => L.tileLayer.wms(PNOA_HIST_URL, {
+      layers: wmsLayer, format: "image/jpeg", version: "1.3.0", transparent: false,
+      maxZoom: MAX_ZOOM, attribution: `PNOA hist\u00F3rico. ${IGN_CREDIT}` }) }
 ];
 
 /* Estado en vivo de cada capa base */
 const baseState = new Map(BASE_LAYERS.map((d, i) => [d.id, {
-  def: d, layer: null, on: d.on, opacity: d.opacity, zIndex: i + 1, failed: false
+  def: d, layer: null, on: d.on, opacity: d.opacity, zIndex: i + 1, failed: false, wmsLayer: null
 }]));
 
 function applyBaseLayer(id) {
   const st = baseState.get(id);
   if (!st) return;
   if (st.on) {
+    if (st.def.dynamic && !st.wmsLayer) {
+      /* Sin cat\u00E1logo todav\u00EDa no hay qu\u00E9 nombre de capa pedir: se
+         difiere y ensurePnoaHistCatalog() vuelve a llamar aqu\u00ED al
+         resolver (o al fallar, en cuyo caso se queda apagada).       */
+      if (pnoaHistCatalog) st.wmsLayer = pnoaHistDefault(pnoaHistCatalog);
+      else { ensurePnoaHistCatalog(); return; }
+    }
     if (!st.layer) {
-      st.layer = st.def.layer();
+      st.layer = st.def.dynamic ? st.def.layer(st.wmsLayer) : st.def.layer();
       st.layer.setZIndex(st.zIndex);
       /* Una URL que no responda debe verse, no fallar en silencio */
       let errors = 0;
@@ -1039,6 +1055,8 @@ function applyBaseLayer(id) {
         navMessage(`El mapa base \u00AB${st.def.name}\u00BB no responde; puede que el servicio haya cambiado.`);
         renderBasePanel();
       });
+    } else if (st.def.dynamic) {
+      st.layer.setParams({ layers: st.wmsLayer });
     }
     st.layer.setOpacity(st.opacity);
     if (!map.hasLayer(st.layer)) st.layer.addTo(map);
@@ -1065,6 +1083,7 @@ const BaseControl = L.Control.extend({
     this._list = box.querySelector(".base-list");
     box.querySelector(".base-toggle").addEventListener("click", () => {
       this._list.hidden = !this._list.hidden;
+      if (!this._list.hidden) ensurePnoaHistCatalog();
     });
     L.DomEvent.disableClickPropagation(box);
     L.DomEvent.disableScrollPropagation(box);
@@ -1112,10 +1131,16 @@ function renderBasePanel() {
     slider.value = st.opacity;
     slider.title = "Opacidad";
     slider.disabled = !st.on;
+    /* Se crea aqu\u00ED, antes del listener del checkbox, para que ese
+       listener pueda deshabilitarlo/habilitarlo igual que al slider
+       (si no, se queda con el `disabled` de la primera pintada y no
+       reacciona a encender/apagar la capa).                          */
+    const sel = st.def.dynamic ? buildDynamicLayerSelect(id, st) : null;
 
     chk.addEventListener("change", () => {
       st.on = chk.checked;
       slider.disabled = !st.on;
+      if (sel) sel.disabled = !st.on;
       applyBaseLayer(id);
       scheduleBaseSave();
     });
@@ -1137,8 +1162,195 @@ function renderBasePanel() {
       moves.appendChild(b);
     }
     row.append(chk, label, moves, slider);
+    if (sel) row.append(sel);
     list.appendChild(row);
   }
+}
+
+/* Selector de a\u00F1o/vuelo para una capa base "dynamic" (hoy solo PNOA
+   hist\u00F3rico, pero el mecanismo no depende de ella en concreto).       */
+function buildDynamicLayerSelect(id, st) {
+  const sel = document.createElement("select");
+  sel.title = "A\u00F1o / vuelo";
+  sel.disabled = !st.on;
+  if (pnoaHistError) {
+    const opt = document.createElement("option");
+    opt.disabled = true; opt.selected = true;
+    opt.textContent = `No disponible: ${pnoaHistError}`;
+    sel.appendChild(opt);
+  } else if (!pnoaHistCatalog) {
+    const opt = document.createElement("option");
+    opt.disabled = true; opt.selected = true;
+    opt.textContent = "Cargando cat\u00E1logo\u2026";
+    sel.appendChild(opt);
+  } else {
+    if (!st.wmsLayer || !pnoaHistCatalog.some(e => e.name === st.wmsLayer)) {
+      const hadSaved = !!st.wmsLayer;
+      st.wmsLayer = pnoaHistDefault(pnoaHistCatalog);
+      if (hadSaved) {
+        navMessage(`El a\u00F1o/vuelo guardado para \u00ABPNOA hist\u00F3rico\u00BB ya no est\u00E1 disponible; se usa ${st.wmsLayer}.`,
+          { tone: "info" });
+      }
+      if (st.on) applyBaseLayer(id);
+      scheduleBaseSave();
+    }
+    for (const group of groupPnoaHistEntries(pnoaHistCatalog)) {
+      const og = document.createElement("optgroup");
+      og.label = group.group;
+      for (const entry of group.items) {
+        const opt = document.createElement("option");
+        opt.value = entry.name;
+        opt.textContent = entry.title;
+        opt.selected = entry.name === st.wmsLayer;
+        og.appendChild(opt);
+      }
+      sel.appendChild(og);
+    }
+  }
+  sel.addEventListener("change", () => {
+    st.wmsLayer = sel.value;
+    applyBaseLayer(id);
+    scheduleBaseSave();
+  });
+  return sel;
+}
+
+/* ---------- PNOA histórico (WMS del IGN) ----------
+   Nada del servicio se da por sabido: el catálogo de años y vuelos
+   disponibles sale de su GetCapabilities, siguiendo el mismo principio
+   que el cliente WCS del MDT/MDS (makeElevationSource, más abajo).
+   Verificado contra el servicio real: WMS 1.3.0, CORS abierto
+   (access-control-allow-origin: *), y sirve cualquier capa reproyectada
+   a EPSG:3857 (el CRS del visor) aunque esa capa solo declare
+   EPSG:4258/CRS:84 en sus capacidades — no hace falta la negociación de
+   CRS que sí exige el WCS.                                             */
+const PNOA_HIST_URL = "https://www.ign.es/wms/pnoa-historico";
+const PNOA_HIST_TIMEOUT = 10000;
+/* infoVuelos es una capa de CONSULTA (GetFeatureInfo: fecha y
+   resolución del vuelo bajo el cursor), no una ortofoto — no pinta
+   imagen y no tiene sentido en un selector de años/vuelos.            */
+const PNOA_HIST_EXCLUDE = new Set(["infoVuelos"]);
+
+let pnoaHistCatalog = null;    /* [{name, title, group}] una vez resuelto */
+let pnoaHistError = null;      /* mensaje legible si el descubrimiento falló */
+let pnoaHistDiscovering = null;
+
+/* WMS 1.3.0 informa sus errores como <ServiceExceptionReport>, un
+   esquema distinto del <ExceptionReport> de OWS que ya cubre
+   parseOwsException (usado por el WCS de elevaciones): no reutilizarlo,
+   no reconocería este formato.                                        */
+function parseWmsServiceException(txt) {
+  if (!/ServiceExceptionReport/.test(txt)) return null;
+  const doc = new DOMParser().parseFromString(txt, "text/xml");
+  if (parserErrorText(doc)) return null;
+  const el = firstByTag(doc, "ServiceException");
+  return el ? { code: el.getAttribute("code") || "", msg: el.textContent.trim() } : null;
+}
+
+/* Recorre el árbol de <Layer> del GetCapabilities. Una capa con <Name>
+   propio (hijo DIRECTO: hay un <Style><Name>default</Name></Style>
+   anidado que no hay que confundir con el nombre de la capa) es una
+   hoja seleccionable; una capa sin <Name> pero con hijos es un grupo
+   cuyo <Title> etiqueta a esos hijos (p. ej. "PNOA anual"). Los hijos
+   directos de la raíz que no cuelgan de ningún grupo propio (los
+   vuelos sueltos: SIGPAC, AMS_1956-1957...) caen en un cajón editorial
+   fijo, no en una lista de nombres de capa esperados de antemano.     */
+function collectWmsLayers(rootLayerEl) {
+  const out = [];
+  function walk(layerEl, groupTitle) {
+    const name = directChildText(layerEl, "Name");
+    const title = directChildText(layerEl, "Title") || name;
+    const children = childrenByTag(layerEl, "Layer");
+    if (name && !PNOA_HIST_EXCLUDE.has(name)) out.push({ name, title, group: groupTitle });
+    const nextGroup = (!name && children.length) ? title : groupTitle;
+    children.forEach(child => walk(child, nextGroup));
+  }
+  childrenByTag(rootLayerEl, "Layer").forEach(child => walk(child, "Vuelos históricos"));
+  return out;
+}
+
+function parseWmsCapabilities(xmlText) {
+  const doc = new DOMParser().parseFromString(xmlText, "text/xml");
+  if (parserErrorText(doc)) return null;
+  const root = firstByTag(doc, "Layer");
+  if (!root) return null;
+  const entries = collectWmsLayers(root);
+  return entries.length ? entries : null;
+}
+
+/* El año más reciente entre las capas "PNOAaaaa" es el valor por
+   defecto más útil al activar la capa por primera vez.                */
+function pnoaHistDefault(entries) {
+  let best = null, bestYear = -Infinity;
+  for (const e of entries) {
+    const m = /^PNOA(\d{4})$/.exec(e.name);
+    if (m && Number(m[1]) > bestYear) { bestYear = Number(m[1]); best = e.name; }
+  }
+  return best || (entries[0] && entries[0].name) || null;
+}
+
+/* Agrupa para el <select>: "PNOA anual" primero (año descendente) y
+   "Vuelos históricos" segundo, que son los que pide el usuario;
+   cualquier otro grupo que el servicio publique (hoy "PNOA10") va al
+   final, en el orden en que se descubra — sin hardcodear su nombre.   */
+function groupPnoaHistEntries(entries) {
+  const byGroup = new Map();
+  for (const e of entries) {
+    if (!byGroup.has(e.group)) byGroup.set(e.group, []);
+    byGroup.get(e.group).push(e);
+  }
+  const annual = byGroup.get("PNOA anual");
+  if (annual) {
+    annual.sort((a, b) =>
+      (Number((/^PNOA(\d{4})$/.exec(b.name) || [])[1]) || 0)
+      - (Number((/^PNOA(\d{4})$/.exec(a.name) || [])[1]) || 0));
+  }
+  const groups = [];
+  for (const name of ["PNOA anual", "Vuelos históricos"]) {
+    if (byGroup.has(name)) { groups.push({ group: name, items: byGroup.get(name) }); byGroup.delete(name); }
+  }
+  for (const [name, items] of byGroup) groups.push({ group: name, items });
+  return groups;
+}
+
+async function fetchPnoaHistoricoCatalog() {
+  if (pnoaHistCatalog) return pnoaHistCatalog;
+  if (pnoaHistDiscovering) return pnoaHistDiscovering;
+  pnoaHistError = null;
+  pnoaHistDiscovering = (async () => {
+    const r = await fetch(`${PNOA_HIST_URL}?service=WMS&request=GetCapabilities&version=1.3.0`,
+      { signal: AbortSignal.timeout(PNOA_HIST_TIMEOUT) });
+    const txt = await r.text();
+    /* El error OGC puede viajar en el cuerpo aunque el HTTP sea 200 */
+    const ex = parseWmsServiceException(txt);
+    if (ex) throw new Error(ex.msg);
+    if (!r.ok) throw new Error(describeHttp(r.status));
+    const entries = parseWmsCapabilities(txt);
+    if (!entries) throw new Error("el servicio no declara capas");
+    pnoaHistCatalog = entries;
+    return entries;
+  })().catch(err => {
+    pnoaHistDiscovering = null; /* permite reintentar en la próxima llamada */
+    pnoaHistError = err.name === "TimeoutError" ? "el servicio no responde"
+      : err.message === "Failed to fetch" ? "el servicio no admite consultas desde el navegador (CORS)"
+      : err.message;
+    throw err;
+  });
+  return pnoaHistDiscovering;
+}
+
+/* Punto de entrada único: se puede llamar todas las veces que haga
+   falta (abrir el panel, encender la capa, arrancar con ella guardada
+   como encendida) sin repetir una petición ya en vuelo ni relanzarla
+   una vez resuelta con éxito.                                         */
+function ensurePnoaHistCatalog() {
+  if (pnoaHistCatalog) return;
+  fetchPnoaHistoricoCatalog().then(() => {
+    /* Capas dinámicas encendidas que se diferieron por falta de
+       catálogo (ver applyBaseLayer) ya pueden crearse.               */
+    for (const [id, st] of baseState) if (st.def.dynamic && st.on) applyBaseLayer(id);
+    renderBasePanel();
+  }).catch(() => renderBasePanel());
 }
 
 /* Grupo raíz del visor: cuelgan todas las capas de todos los archivos */
@@ -7118,7 +7330,10 @@ function scheduleBaseSave() {
   clearTimeout(baseTimer);
   baseTimer = setTimeout(() => {
     const bases = {};
-    for (const [id, st] of baseState) bases[id] = { on: st.on, opacity: st.opacity };
+    for (const [id, st] of baseState) {
+      bases[id] = { on: st.on, opacity: st.opacity };
+      if (st.wmsLayer) bases[id].wmsLayer = st.wmsLayer;
+    }
     dbSaveBases({ bases, order: [...baseState.keys()] }).catch(() => {});
   }, 500);
 }
@@ -7142,6 +7357,10 @@ function applySavedBases(saved) {
     if (!rec) continue;
     if (typeof rec.on === "boolean") st.on = rec.on;
     if (Number.isFinite(rec.opacity)) st.opacity = Math.min(1, Math.max(0, rec.opacity));
+    /* Se valida contra el catálogo real en cuanto se conoce (ver
+       ensurePnoaHistCatalog/buildDynamicLayerSelect): un año guardado
+       puede haber dejado de publicarse.                              */
+    if (typeof rec.wmsLayer === "string" && rec.wmsLayer) st.wmsLayer = rec.wmsLayer;
   }
 }
 
@@ -7210,6 +7429,10 @@ setInterval(checkServerVersion, VERSION_CHECK_MS);
   try { applySavedBases(await dbLoadBases()); } catch { /* valores por defecto */ }
   renderBasePanel();
   for (const id of baseState.keys()) applyBaseLayer(id);
+  /* PNOA histórico guardado como encendido: se valida el año/vuelo
+     restaurado contra el catálogo real en cuanto llegue (puede haber
+     dejado de publicarse), sin esperar a que se abra el panel.       */
+  if (baseState.get("pnoa-hist")?.on) ensurePnoaHistCatalog();
 
   let nodes = null;
   try { nodes = await dbLoadTree(); } catch { nodes = null; }
