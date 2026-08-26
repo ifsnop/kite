@@ -968,11 +968,44 @@ if (typeof L === "undefined") {
    en vez de pedir niveles que no existen. Hace falta para poder leer la
    cuadrícula de elevaciones, cuyas celdas de 5 m son diminutas al 19. */
 const MAX_ZOOM = 25;
-const map = L.map("map", { preferCanvas: true, maxZoom: MAX_ZOOM }).setView([40.4, -3.7], 6);
+
+/* Sondeo de aceleración por hardware: no hay API de JS para el estado de
+   Compositing/Rasterization de chrome://gpu, así que el renderer que
+   expone WebGL (WEBGL_debug_renderer_info) es el proxy más cercano
+   disponible desde la página. Verificado contra una sesión real con
+   chrome://gpu mostrando "Compositing: Software only": ahí el zoom de
+   Leaflet perdía fotogramas (190 en una traza de 12 s) porque cada paso
+   de zoom obligaba a rasterizar por CPU en vez de componer por GPU, con
+   el hilo de script de la página inactivo — el coste no dependía en
+   absoluto de cuántas capas hubiera cargadas ni activas. Si el sondeo
+   falla (sin WebGL, excepción...) se asume que SÍ hay aceleración: un
+   aviso de alarma falso es peor que no avisar.                        */
+const SOFTWARE_RENDERER_RE = /swiftshader|llvmpipe|software|basic render|mesa/i;
+function hasHardwareAcceleration() {
+  try {
+    const canvas = document.createElement("canvas");
+    const gl = canvas.getContext("webgl") || canvas.getContext("experimental-webgl");
+    if (!gl) return false;
+    const info = gl.getExtension("WEBGL_debug_renderer_info");
+    const renderer = info
+      ? gl.getParameter(info.UNMASKED_RENDERER_WEBGL)
+      : gl.getParameter(gl.RENDERER);
+    return !SOFTWARE_RENDERER_RE.test(renderer || "");
+  } catch {
+    return true;
+  }
+}
+const hwAccelerated = hasHardwareAcceleration();
+
+const map = L.map("map", {
+  preferCanvas: true,
+  maxZoom: MAX_ZOOM,
+  zoomAnimation: hwAccelerated,
+}).setView([40.4, -3.7], 6);
 
 /* Fecha de generación del código (versión): AÑOMESDIAHORAMINUTO.
    Actualizar en cada generación; se muestra junto al crédito de Leaflet. */
-const BUILD = "202608260103";
+const BUILD = "202608261530";
 map.attributionControl.setPrefix(
   `v${BUILD} | <a href="https://leafletjs.com" title="A JavaScript library for interactive maps">Leaflet</a>`);
 
@@ -1984,6 +2017,19 @@ function navMessage(txt, { sticky = false, tone = "error" } = {}) {
 
 function clearNavMessage() {
   document.getElementById("nav-msg").textContent = "";
+}
+
+/* hwAccelerated se calculó antes de crear el mapa (para poder pasar
+   zoomAnimation en sus opciones), pero el aviso no puede lanzarse hasta
+   aquí: navMessage necesita MSG_MAX_LINES/MSG_TIMEOUT, declaradas más
+   abajo en el script.                                                 */
+if (!hwAccelerated) {
+  navMessage(
+    "No se detecta aceleración por hardware en el navegador. " +
+    "Se aplica una mitigación automática (zoom sin animación), pero se recomienda " +
+    "habilitar la aceleración por hardware en el navegador (chrome://gpu) para un mejor rendimiento.",
+    { sticky: true }
+  );
 }
 
 /* Centrar la vista en un nodo y acercar a un zoom de trabajo. A
