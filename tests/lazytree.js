@@ -136,7 +136,7 @@ const src = [
 const api = new Function(
   "rootGroup", "yieldFrame", "PROGRESS_BATCH", "scheduleSave", "navMessage", "showEmptyMessage",
   "syncExpanded", "measureLi", "selection", "searchBox", "treeEl", "rootUl", "makeNode",
-  "highlightNode", "showLayerInfo", "BLINK_STEPS", "BLINK_INTERVAL_MS",
+  "highlightNode", "showLayerInfo", "BLINK_STEPS", "BLINK_INTERVAL_MS", "activeTool",
   src + `\nreturn {
     materializeRecords, ensureMaterialized, serializeNode, serializeNodes, serializePendingRecords,
     subtreeBounds, findMatches, searchMatches, resolveMatch, resolveRecordLi,
@@ -144,7 +144,8 @@ const api = new Function(
   };`
 )(rootGroup, yieldFrame, PROGRESS_BATCH, scheduleSave, navMessage, showEmptyMessage,
   syncExpanded, measureLi, selection, searchBox, treeEl, rootUl, makeNode,
-  highlightNode, showLayerInfo, 4 /* BLINK_STEPS, igual que en producción */, 2 /* BLINK_INTERVAL_MS: mínimo, para que el test no espere */);
+  highlightNode, showLayerInfo, 4 /* BLINK_STEPS, igual que en producción */, 2 /* BLINK_INTERVAL_MS: mínimo, para que el test no espere */,
+  null /* activeTool: la herramienta de dibujo no interviene en este test */);
 const {
   materializeRecords, ensureMaterialized, serializeNode, serializeNodes,
   subtreeBounds, findMatches, searchMatches, resolveMatch, resolveRecordLi,

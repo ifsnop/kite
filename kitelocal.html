@@ -811,6 +811,16 @@
       <div class="dlg-row"><span>Color del contorno</span><button type="button" class="color-btn" id="pg-color"></button></div>
       <div class="dlg-row"><span>Color del relleno</span><button type="button" class="color-btn" id="pg-fill-color"></button></div>
       <div class="dlg-row"><span>Opacidad del relleno</span><input type="range" id="pg-fill-opacity" min="0" max="1" step="0.05"></div>
+      <div id="pg-measures" hidden>
+        <div class="dlg-row"><span>Unidad</span><select id="pg-unit">
+          <option value="m">Metros</option>
+          <option value="km">Kilómetros</option>
+          <option value="ft">Pies</option>
+          <option value="nm">Millas náuticas</option>
+        </select></div>
+        <div class="dlg-row"><span>Perímetro</span><span class="dlg-note" id="pg-perimeter"></span></div>
+        <div class="dlg-row" id="pg-area-row"><span>Área</span><span class="dlg-note" id="pg-area"></span></div>
+      </div>
     </div>
     <div id="style-imageoverlay" hidden>
       <div class="dlg-row"><span>Opacidad</span><input type="range" id="io-opacity" min="0" max="1" step="0.05"></div>
@@ -962,7 +972,7 @@ const map = L.map("map", { preferCanvas: true, maxZoom: MAX_ZOOM }).setView([40.
 
 /* Fecha de generación del código (versión): AÑOMESDIAHORAMINUTO.
    Actualizar en cada generación; se muestra junto al crédito de Leaflet. */
-const BUILD = "202608230356";
+const BUILD = "202608260103";
 map.attributionControl.setPrefix(
   `v${BUILD} | <a href="https://leafletjs.com" title="A JavaScript library for interactive maps">Leaflet</a>`);
 
@@ -1980,10 +1990,25 @@ function clearNavMessage() {
    diferencia del doble click, no depende de dónde estuviera la vista ni
    de la escalera: siempre deja el nodo centrado y a la misma escala. */
 const FOCUS_ZOOM = 9;
+/* Margen relativo al tama\u00F1o del panel del visor (20% a cada lado), no
+   una cifra fija de p\u00EDxeles: as\u00ED un pol\u00EDgono peque\u00F1o y uno grande, o el
+   panel en una ventana estrecha y en una ancha, quedan igual de
+   enmarcados sin tocar los bordes.                                    */
+const FRAME_MARGIN_RATIO = 0.2;
+function fitBoundsFramed(bounds) {
+  const size = map.getSize();
+  map.fitBounds(bounds, { padding: [size.x * FRAME_MARGIN_RATIO, size.y * FRAME_MARGIN_RATIO] });
+}
+/* Los nodos de pol\u00EDgono (styleKind "polygon": tambi\u00E9n las l\u00EDneas, que
+   comparten estilo) no usan el zoom de trabajo fijo: se encuadran
+   enteros con margen (fitBoundsFramed), la misma regla tanto si se
+   llega por aqu\u00ED como por el doble click en la fila (m\u00E1s abajo) \u2014 para
+   un pol\u00EDgono no hay escalera de zoom de tres pelda\u00F1os.               */
 function focusOnNode(li) {
   const b = subtreeBounds(li);
   if (!b.isValid()) { navMessage("Esta capa no tiene geometr\u00EDa que enfocar."); return; }
-  map.setView(b.getCenter(), FOCUS_ZOOM);
+  if (styleKind(li) === "polygon") fitBoundsFramed(b);
+  else map.setView(b.getCenter(), FOCUS_ZOOM);
 }
 
 /* ---------- Escalera de zoom del doble click ----------
@@ -2219,13 +2244,19 @@ function makeNode({ name, layer = null, isFolder = false, isFile = false,
   });
   /* Doble click: llevar la vista a las capas del nodo. El primero solo
      desplaza, sin tocar el zoom (la vista es del usuario). Si ya está
-     centrada, los siguientes van subiendo por la escalera de zoom.
+     centrada, los siguientes van subiendo por la escalera de zoom —
+     salvo en un nodo de polígono/línea, que no tiene escalera: siempre
+     se encuadra entero con margen (ver focusOnNode/fitBoundsFramed).
      Sobre el checkbox NO debe dispararse: una sucesión rápida de
      activar/desactivar no es un gesto de "ir a esta capa".            */
   row.addEventListener("dblclick", e => {
     if (e.target === chk) return;
     const b = subtreeBounds(li);
     if (!b.isValid()) return;
+    /* Un nodo de polígono no sigue la escalera: se encuadra entero con
+       margen, igual que la lupa (focusOnNode), sin depender de si la
+       vista ya estaba centrada.                                       */
+    if (styleKind(li) === "polygon") { fitBoundsFramed(b); return; }
     const target = b.getCenter();
     if (isCenteredOn(target)) map.setView(target, nextZoomStep(map.getZoom(), map.getMaxZoom()));
     else map.panTo(target);
@@ -2257,7 +2288,9 @@ function makeNode({ name, layer = null, isFolder = false, isFile = false,
      enganchado por ser casos raros).                                  */
   if (layer) {
     layer._li = li; /* referencia inversa: la usa el hit-testing del menú contextual */
-    layer.on("click", () => highlightNode(li));
+    /* Mientras se dibuja un polígono, un click dentro de otra capa debe
+       fijar un vértice ahí, no resaltar esa capa en el árbol           */
+    layer.on("click", () => { if (activeTool !== "polygon") highlightNode(li); });
     layer.on("mouseover", () => showLayerInfo(li, { focus: false }));
   }
 
@@ -2943,8 +2976,11 @@ let layerInfoDismissed = false;
 function showLayerInfo(li, { focus = true } = {}) {
   /* Mientras el diálogo de edición (estilo/nombre) esté abierto, el
      hover no debe reabrir este panel encima o debajo de él: recrearía
-     el mismo solape que openStyleDialog ya evita al abrirse.         */
-  if (!focus && (layerInfoDismissed || !styleDialog.hidden)) return;
+     el mismo solape que openStyleDialog ya evita al abrirse. Tampoco
+     mientras se dibuja un polígono: el panel flotante puede quedar
+     justo donde el usuario necesita hacer click para fijar un vértice
+     dentro de otro polígono, y el hover se lo impediría.             */
+  if (!focus && (layerInfoDismissed || !styleDialog.hidden || activeTool === "polygon")) return;
   if (focus) layerInfoDismissed = false; /* apertura explícita: rearma el hover */
   const html = infoHtmlFor(li);
   if (html == null) return;
@@ -3973,7 +4009,10 @@ async function resolveRecordLi(rec) {
    capa se quedaría con dos listeners para siempre y un clic resaltaría
    el nodo dos veces.                                                  */
 function wirePendingLayerEvents(rec) {
-  const onClick = async () => { const li = await resolveRecordLi(rec); if (li) highlightNode(li); };
+  const onClick = async () => {
+    if (activeTool === "polygon") return; /* ese click fija un vértice, no resalta la capa */
+    const li = await resolveRecordLi(rec); if (li) highlightNode(li);
+  };
   const onHover = async () => { const li = await resolveRecordLi(rec); if (li) showLayerInfo(li, { focus: false }); };
   rec._layer.on("click", onClick).on("mouseover", onHover);
   rec._pendingHandlers = { onClick, onHover };
@@ -4431,6 +4470,7 @@ function selectAllStep(cur) {
 document.addEventListener("keydown", e => {
   if (e.key !== "Delete" || !selection.size) return;
   if (/INPUT|TEXTAREA/.test(e.target.tagName)) return;
+  if (activeTool === "polygon" && polyDraft) return; /* Supr es "borrar vértice" mientras se dibuja */
   const items = topLevelSelection();
   pushUndo(`borrar ${items.length} nodo(s)`);
   for (const s of items) deleteNode(s, { pruneSelection: false });
@@ -4758,6 +4798,71 @@ function polygonModeOf(s) {
   if (s.stroke === false) return "fill";
   if (s.fill === false) return "stroke";
   return "both";
+}
+
+/* Perímetro de UN anillo: distancia geodésica (map.distance, la misma
+   que usan las mediciones) entre cada vértice y el siguiente. Cerrado
+   incluye el tramo último→primero; abierto lo mide tal cual viene, sin
+   ese tramo final (un polígono ABC sin cerrar: A→B + B→C, sin C→A).    */
+function ringPerimeter(ring, closed) {
+  let d = 0;
+  const edges = closed ? ring.length : ring.length - 1;
+  for (let i = 0; i < edges; i++) d += map.distance(ring[i], ring[(i + 1) % ring.length]);
+  return d;
+}
+
+/* Anillos de una geometría GeoJSON EN CRUDO, tal como venían en el
+   archivo original (antes de que Leaflet los reescriba). Hace falta
+   comprobar el cierre ahí y no en getLatLngs(): CUALQUIER L.Polygon
+   quita el punto de cierre duplicado al construirse —lo trajera el
+   archivo original o no—, así que una vez construida la capa ya no se
+   puede distinguir un anillo que llegó cerrado de uno que no (verificado
+   contra el código fuente de Leaflet 1.9.4: Polygon._convertLatLngs
+   hace ring.pop() si el primer punto y el último son iguales, tanto si
+   el anillo venía plano como anidado). layer.feature conserva el
+   GeoJSON íntegro de origen (lo mismo que usa layerProperties para la
+   ficha), así que solo existe para capas importadas de GeoJSON.       */
+function rawPolygonRings(geometry) {
+  if (!geometry) return null;
+  if (geometry.type === "Polygon") return [geometry.coordinates];
+  if (geometry.type === "MultiPolygon") return geometry.coordinates;
+  return null;
+}
+
+/* Perímetro y área de un nodo de tipo polígono, para el diálogo de
+   propiedades. Un anillo se da por cerrado salvo que su GeoJSON
+   original (rawPolygonRings) diga lo contrario: un KML repite siempre
+   el punto de cierre de su LinearRing y un polígono dibujado a mano se
+   cierra por construcción al terminar (ninguno de los dos tiene ese
+   GeoJSON crudo con el que comprobar lo contrario). Solo un GeoJSON
+   importado cuyo archivo original no repetía el punto de cierre
+   (algunos JSON) hace que el área salga null y no se muestre; el
+   perímetro sí se calcula siempre (ver ringPerimeter).                */
+function polygonMeasures(li) {
+  const layer = nodeLayer(li);
+  if (!layer) return null;
+  const polys = [];
+  const scan = l => { if (l instanceof L.Polygon) polys.push(l); if (l.eachLayer) l.eachLayer(scan); };
+  scan(layer);
+  if (!polys.length) return null; /* "polygon" de puras líneas: nada que medir */
+  let area = 0, perim = 0, allClosed = true;
+  for (const poly of polys) {
+    const rawParts = rawPolygonRings(poly.feature && poly.feature.geometry);
+    polygonParts(poly.getLatLngs()).forEach((part, i) => {
+      const rawRings = rawParts && rawParts[i]; /* anillos [lng,lat] del mismo polígono, en crudo */
+      [part.outer, ...part.holes].forEach((ring, j) => {
+        const raw = rawRings && rawRings[j];
+        const closed = raw ? ringClosed(raw.map(([lng, lat]) => ({ lat, lng }))) : true;
+        allClosed = allClosed && closed;
+        perim += ringPerimeter(ring, closed);
+      });
+      /* El área se acumula siempre; se descarta al final si algún
+         anillo no estaba cerrado, en vez de complicar el bucle con una
+         salida anticipada.                                            */
+      area += ringArea(part.outer) - part.holes.reduce((s, h) => s + ringArea(h), 0);
+    });
+  }
+  return { area: allClosed ? area : null, perim };
 }
 
 /* ---------- Coordinate input formats ----------
@@ -5225,6 +5330,12 @@ function openStyleDialog(li, { isNew = false } = {}) {
     setColorButton($id("pg-color"), styleDraft.color);
     setColorButton($id("pg-fill-color"), styleDraft.fillColor);
     $id("pg-fill-opacity").value = styleDraft.fillOpacity;
+
+    /* Solo con un único nodo (geometría propia de cada uno, igual que la
+       posición de un marcador) y solo si hay de verdad un polígono cerrado */
+    polyMeasures = single ? polygonMeasures(styleTargets[0]) : null;
+    $id("pg-measures").hidden = !polyMeasures;
+    if (polyMeasures) { $id("pg-unit").value = polyMeasureUnit; renderPolyMeasures(); }
   } else {
     styleDraft = { opacity: styleTargets[0]._imageOverlay.opacity };
     $id("io-opacity").value = styleDraft.opacity;
@@ -5257,6 +5368,7 @@ function closeStyleDialog(commit = false) {
   posMarker = null;
   posOriginal = null;
   styleIsNew = false;
+  polyMeasures = null;
 }
 
 /* ---------- Position controls ---------- */
@@ -5338,6 +5450,25 @@ for (const id of ["pg-weight", "pg-fill-opacity"]) { /* colours: openColorPicker
   $id(id).addEventListener("input", () => { if (styleDraft) readPolygonControls(); });
 }
 $id("pg-mode").addEventListener("change", () => { if (styleDraft) readPolygonControls(); });
+
+/* ---------- Perímetro y área (solo lectura) ---------- */
+let polyMeasureUnit = "m"; /* se recuerda entre aperturas del diálogo, como posFormat; no persiste entre sesiones, como elevUnit */
+let polyMeasures = null;   /* {area, perim} en m/m² del polígono abierto, o null */
+function renderPolyMeasures() {
+  if (!polyMeasures) return;
+  const f = POLY_UNIT_FACTOR[polyMeasureUnit], u = POLY_UNIT_LABEL[polyMeasureUnit];
+  $id("pg-perimeter").textContent = `${(polyMeasures.perim / f).toFixed(2)} ${u}`;
+  /* area === null: anillo sin cerrar (algunos JSON), no hay área que mostrar */
+  $id("pg-area-row").hidden = polyMeasures.area === null;
+  if (polyMeasures.area !== null) {
+    $id("pg-area").textContent = `${(polyMeasures.area / (f * f)).toFixed(2)} ${u}²`;
+  }
+}
+$id("pg-unit").addEventListener("change", () => {
+  polyMeasureUnit = $id("pg-unit").value;
+  renderPolyMeasures();
+});
+
 function readImageOverlayControls() {
   styleDraft.opacity = Number($id("io-opacity").value);
 }
@@ -5585,6 +5716,10 @@ function fmtDist(m) {
   return `${metric} / ${nm < 10 ? nm.toFixed(2) : nm.toFixed(1)} NM`;
 }
 
+/* Unidades del perímetro/área del diálogo de propiedades (metros por unidad) */
+const POLY_UNIT_FACTOR = { m: 1, km: 1000, ft: METERS_PER_FOOT, nm: METERS_PER_NM };
+const POLY_UNIT_LABEL = { m: "m", km: "km", ft: "ft", nm: "NM" };
+
 /* Punto medio GEODÉSICO del arco a→b. Promediar latitudes y longitudes
    coloca mal la etiqueta en líneas largas y directamente en el otro lado
    del mundo cuando el arco cruza ±180°: aquí se promedia en coordenadas
@@ -5601,13 +5736,57 @@ function midPoint(a, b) {
   return L.latLng(toDeg(p3), ((toDeg(l3) + 540) % 360) - 180);
 }
 
+/* Un anillo se considera cerrado cuando su primer y último punto
+   coinciden, con la misma tolerancia de redondeo que ya usa clampDeg
+   (COORD_EPS, ~1,1 m): así se detectan los polígonos de algunos JSON
+   que no repiten el punto de cierre, sin depender del tamaño del
+   polígono.                                                            */
+function ringClosed(ring) {
+  if (ring.length < 3) return false;
+  const a = ring[0], b = ring[ring.length - 1];
+  return Math.abs(a.lat - b.lat) < COORD_EPS && Math.abs(a.lng - b.lng) < COORD_EPS;
+}
+
+/* Área geodésica de un anillo por la fórmula del exceso esférico (la
+   misma que usan Leaflet.GeometryUtil y herramientas equivalentes), con
+   el EARTH_R de este archivo para no introducir un segundo radio
+   terrestre distinto del que ya usa map.distance. El signo depende del
+   sentido de recorrido: aquí no importa, se toma en valor absoluto. Solo
+   tiene sentido si el anillo está cerrado; esa decisión la toma quien
+   llama (polygonMeasures), no esta función.                            */
+function ringArea(ring) {
+  if (ring.length < 3) return 0;
+  let area = 0;
+  for (let i = 0; i < ring.length; i++) {
+    const p1 = ring[i], p2 = ring[(i + 1) % ring.length];
+    area += toRad(p2.lng - p1.lng) * (2 + Math.sin(toRad(p1.lat)) + Math.sin(toRad(p2.lat)));
+  }
+  return Math.abs(area * EARTH_R * EARTH_R / 2);
+}
+
+/* getLatLngs() de un L.Polygon viene en dos profundidades posibles: los
+   anillos de UN polígono ([exterior, agujero1, …], el caso normal de KML
+   y de un GeoJSON Polygon) o una lista de polígonos cada uno con sus
+   propios anillos (GeoJSON MultiPolygon, que Leaflet representa como
+   L.Polygon con un nivel más de anidamiento). Se distingue mirando si el
+   primer elemento es ya un anillo (sus puntos tienen .lat) o una lista
+   de anillos.                                                          */
+function polygonParts(latlngs) {
+  if (!latlngs.length) return [];
+  const first = latlngs[0];
+  const isRing = Array.isArray(first) && first.length && typeof first[0].lat === "number";
+  if (isRing) return [{ outer: latlngs[0], holes: latlngs.slice(1) }];
+  return latlngs.flatMap(polygonParts);
+}
+
 /* ================= Herramientas de medición ================= */
 
 const MEASURE_COLORS = { line: "#d97706", circle: "#7c3aed" };
 const measureCount = { line: 0, circle: 0 };
 let measureLi = null;
-let activeTool = null; /* null | "line" | "circle" */
+let activeTool = null; /* null | "line" | "circle" | "polygon" */
 let drawing = null;    /* medición en curso durante el arrastre de creación */
+let polyDraft = null;  /* polígono en curso: { vertices, handles, poly, group } | null */
 let toolButtons = {};
 
 /* YYYYMMDD-HHMMSS del reloj local del navegador, en el momento de generar
@@ -5674,6 +5853,8 @@ const MeasureControl = L.Control.extend({
     const bar = L.DomUtil.create("div", "leaflet-bar measure-bar");
     toolButtons.line = makeToolButton(bar, "\u2571", "Medir l\u00EDnea: arrastra del origen al destino", "line");
     toolButtons.circle = makeToolButton(bar, "\u25EF", "Medir c\u00EDrculo: arrastra del centro al borde", "circle");
+    toolButtons.polygon = makeToolButton(bar, "\u2B20",
+      "Dibujar pol\u00EDgono: click para cada v\u00E9rtice, doble click para cerrar", "polygon");
 
     /* Not a drag tool like the other two: it acts on click, so it does not
        go through setTool and never disables panning                      */
@@ -5705,11 +5886,27 @@ map.addControl(new MeasureControl());
 
 function setTool(tool) {
   if (drawing) { rootGroup.removeLayer(drawing.group); drawing = null; }
+  if (polyDraft) { rootGroup.removeLayer(polyDraft.group); polyDraft = null; }
+  /* Un panel de información ya abierto (de un hover justo antes de activar
+     la herramienta) podría quedar tapando el punto donde hace falta hacer
+     click para fijar un vértice dentro de otro polígono                */
+  if (tool === "polygon" && !descDialog.hidden) { descDialog.hidden = true; layerInfoDismissed = true; releaseFocus(); }
   activeTool = tool;
   for (const [t, btn] of Object.entries(toolButtons)) btn.classList.toggle("active", t === tool);
-  map.getContainer().style.cursor = tool ? "crosshair" : "";
-  /* Con la herramienta activa, el arrastre dibuja en vez de hacer pan */
-  if (tool) map.dragging.disable(); else map.dragging.enable();
+  /* Clase de Leaflet, no estilo en línea: un estilo en línea en el
+     contenedor pierde contra el "cursor: pointer" que Leaflet pone en
+     cada capa interactiva bajo el ratón (.leaflet-interactive vive en
+     el propio elemento de la capa —canvas, icono de marcador…—, un
+     descendiente, así que su valor gana a la herencia del contenedor
+     sea cual sea su origen). .leaflet-crosshair es la clase que ya trae
+     leaflet.css con la regla ".leaflet-crosshair .leaflet-interactive"
+     pensada justo para esto: forzar el cursor de una herramienta de
+     dibujo también sobre lo que hay debajo.                           */
+  map.getContainer().classList.toggle("leaflet-crosshair", !!tool);
+  /* Con la herramienta activa, el arrastre dibuja en vez de hacer pan, y
+     el doble click de "cerrar polígono" no debe además hacer zoom      */
+  if (tool) { map.dragging.disable(); map.doubleClickZoom.disable(); }
+  else { map.dragging.enable(); map.doubleClickZoom.enable(); }
 }
 document.addEventListener("keydown", e => {
   if (e.key !== "Escape") return;
@@ -5734,7 +5931,7 @@ document.addEventListener("keydown", e => {
 /* Creación con un solo arrastre: mousedown fija el origen y al soltar
    queda fijado el destino, viendo la medición en vivo                  */
 map.on("mousedown", e => {
-  if (!activeTool || drawing) return;
+  if (drawing || (activeTool !== "line" && activeTool !== "circle")) return;
   L.DomEvent.preventDefault(e.originalEvent);
   drawing = buildMeasurement(activeTool, e.latlng, e.latlng);
 });
@@ -5891,6 +6088,128 @@ function buildMeasureRecord(n) {
      a quedar obsoleta.                                                 */
   return { t: "measure", name: n.name, checked: !!n.checked, mtype: n.mtype, _m: m, _layer: m.group };
 }
+
+/* ================= Dibujo de polígono a mano =================
+   Click añade cada vértice, doble click lo cierra. El navegador compone
+   un doble click como dos "click" seguidos de un "dblclick": el segundo
+   click de ese par también dispara el listener de "click" de más abajo,
+   pero como su objetivo es (casi siempre) el propio manejador recién
+   creado por el primer click —o uno ya existente, si se cierra haciendo
+   doble click sobre el último vértice—, el guardia ".measure-handle" de
+   ese listener ya lo descarta sin añadir nada: no hace falta (ni se debe)
+   quitar ningún vértice al recibir "dblclick". Quitar el último a ciegas
+   fue justo el bug reportado: si las dos pulsaciones del doble click
+   caían sobre un manejador ya existente, ninguna añadía vértice nuevo, y
+   aun así se borraba el último real, el que se quería conservar al
+   cerrar. A diferencia de las mediciones, no es un nuevo tipo de
+   registro serializado: al cerrar se convierte en un L.polygon normal
+   con estilo propio, así que reutiliza el camino genérico t:"layer"
+   (geo + style) sin cambios en la persistencia.                       */
+const POLY_PREVIEW_STYLE = { color: "#16a34a", weight: 2, dashArray: "6 4", fillOpacity: 0.08 };
+const POLYGONS_SECTION = "Polígonos";
+
+function addPolyVertex(latlng) {
+  if (!polyDraft) {
+    const poly = L.polygon([latlng], POLY_PREVIEW_STYLE);
+    polyDraft = { vertices: [latlng], handles: [], poly, group: L.featureGroup([poly]).addTo(rootGroup) };
+  } else {
+    polyDraft.vertices.push(latlng);
+  }
+  const h = makeHandle(latlng);
+  h.on("contextmenu", ev => { L.DomEvent.stop(ev.originalEvent); removePolyVertex(h); });
+  polyDraft.handles.push(h);
+  polyDraft.group.addLayer(h);
+  polyDraft.poly.setLatLngs(polyDraft.vertices);
+}
+
+/* Click derecho sobre un vértice (o Supr, ver el keydown más abajo) lo
+   quita del borrador en curso.                                        */
+function removePolyVertex(handle) {
+  if (!polyDraft) return;
+  const i = polyDraft.handles.indexOf(handle);
+  if (i === -1) return;
+  polyDraft.handles.splice(i, 1);
+  polyDraft.vertices.splice(i, 1);
+  polyDraft.group.removeLayer(handle);
+  if (!polyDraft.vertices.length) { rootGroup.removeLayer(polyDraft.group); polyDraft = null; return; }
+  polyDraft.poly.setLatLngs(polyDraft.vertices);
+}
+
+function finishPolygon() {
+  if (polyDraft.vertices.length < 3) {
+    navMessage("Faltan vértices para cerrar el polígono (mínimo 3).");
+    return; /* sigue dibujando: no se descarta lo ya puesto */
+  }
+  /* Solo contorno, sin relleno: se ve el mapa debajo nada más cerrarlo;
+     el relleno es cosa del diálogo de estilos si hace falta.          */
+  const style = normalizePathStyle({ fill: false });
+  /* Sin punto de cierre duplicado: L.Polygon lo quitaría de todos modos
+     al construirse (Leaflet nunca lo conserva), y polygonMeasures ya da
+     por cerrado cualquier polígono sin GeoJSON crudo con el que
+     comprobar lo contrario — este, al no venir de un archivo, no lo
+     tiene, y se cierra por construcción al terminar de dibujarlo.     */
+  const layer = L.polygon(polyDraft.vertices, style).addTo(rootGroup);
+  const li = makeNode({ name: "Polígono", layer, style });
+  ensureNamedSection(POLYGONS_SECTION).appendChild(li);
+  rootGroup.removeLayer(polyDraft.group);
+  polyDraft = null;
+  setTool(null);
+  scheduleSave();
+  highlightNode(li); /* deja el foco de la navegación en el nodo recién creado */
+}
+
+/* Un control (el propio botón ⬠, cualquier otro botón de la barra, el
+   selector de mapas base…) marca sus elementos con
+   L.DomEvent.disableClickPropagation, que en Leaflet 1.9.4 SOLO detiene
+   mousedown/dblclick/contextmenu (ver su código fuente): el "click"
+   simple sigue subiendo por el DOM tal cual, y un listener puesto a mano
+   en el contenedor —como los de aquí abajo— lo recibe igual. Sin este
+   filtro, pulsar el propio botón de la herramienta (que activa el modo
+   en su propio "click", ANTES de que el evento llegue al contenedor)
+   creaba el primer vértice justo encima del botón. Se replica el mismo
+   criterio que usa el propio Leaflet internamente (_isClickDisabled):
+   subir desde el objetivo del click marcando cualquier ascendiente con
+   _leaflet_disable_click, hasta el contenedor del mapa.               */
+function clickOnControl(el) {
+  const container = map.getContainer();
+  for (; el && el !== container; el = el.parentNode) {
+    if (el._leaflet_disable_click) return true;
+  }
+  return false;
+}
+
+/* Escuchados en el CONTENEDOR del mapa, no con map.on(...): un click
+   dentro de un polígono importado ya tiene su propio manejador ("click"
+   → resaltar su nodo en el árbol, ver makeNode), y el despacho interno
+   de Leaflet no deja llegar el evento sintético del mapa cuando el
+   punto cae sobre una capa con su propio "click" — así que aquí no se
+   pierde pase lo que pase con ese despacho. mouseEventToLatLng es la
+   misma conversión pública que usa Leaflet internamente.              */
+map.getContainer().addEventListener("click", e => {
+  if (activeTool !== "polygon" || clickOnControl(e.target)) return;
+  /* Un click sobre un manejador de vértice (propio o de una medición ya
+     terminada) no añade un vértice ahí encima                        */
+  if (e.target.closest && e.target.closest(".measure-handle")) return;
+  addPolyVertex(map.mouseEventToLatLng(e));
+});
+map.getContainer().addEventListener("dblclick", e => {
+  if (activeTool !== "polygon" || !polyDraft) return;
+  /* No se quita ningún vértice aquí: el último debe conservarse tanto si
+     lo creó el propio doble click (sobre mapa vacío: el guardia
+     ".measure-handle" del listener de "click" ya evita que el segundo
+     click añada un duplicado) como si el doble click cayó sobre un
+     vértice ya existente (ninguno de los dos clicks añade nada nuevo,
+     y el vértice sobre el que se hizo doble click sigue siendo el
+     último; no hay nada que descartar en ese caso tampoco).           */
+  finishPolygon();
+});
+/* Supr borra el último vértice mientras se dibuja un polígono. El
+   listener de Supr que borra la selección del árbol (más abajo) se
+   guarda de actuar también en este caso, ver esa sección.             */
+document.addEventListener("keydown", e => {
+  if (e.key !== "Delete" || activeTool !== "polygon" || !polyDraft) return;
+  removePolyVertex(polyDraft.handles[polyDraft.handles.length - 1]);
+});
 
 /* ================= Modo altura (MDT y MDS del IGN) =================
    Los dos modelos se consultan por el MISMO camino: WCS 2.0, rejilla
@@ -7125,6 +7444,7 @@ const CTX_MENU_ITEMS = [
   { label: "Modo elevación", checked: () => demOn, action: () => setAltitudeMode(!demOn) },
   { label: "Medir línea", action: () => setTool(activeTool === "line" ? null : "line") },
   { label: "Medir círculo", action: () => setTool(activeTool === "circle" ? null : "circle") },
+  { label: "Dibujar polígono", action: () => setTool(activeTool === "polygon" ? null : "polygon") },
   { separator: true },
   { label: "Crear un pin", action: () => createPin() },
   { separator: true },
