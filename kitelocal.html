@@ -1005,7 +1005,7 @@ const map = L.map("map", {
 
 /* Fecha de generación del código (versión): AÑOMESDIAHORAMINUTO.
    Actualizar en cada generación; se muestra junto al crédito de Leaflet. */
-const BUILD = "202608261530";
+const BUILD = "202608261900";
 map.attributionControl.setPrefix(
   `v${BUILD} | <a href="https://leafletjs.com" title="A JavaScript library for interactive maps">Leaflet</a>`);
 
@@ -1608,10 +1608,17 @@ function parsePolygon(polyEl) {
 /* Crea las capas Leaflet de un placemark (polígonos, líneas y puntos).
    Cada geometría se construye por separado: una mala no tumba al resto
    del placemark ni, por tanto, a la importación entera.              */
+/* Devuelve { group, reported }: `reported` distingue, para el llamador,
+   un placemark SIN geometría alguna (nunca se llamó a fail, el llamador
+   debe avisar con su mensaje genérico) de uno cuya única geometría
+   falló Y YA quedó contada aquí con una causa específica (avisar otra
+   vez arriba duplicaba el elemento perdido en el resumen: un placemark
+   con un único <Point> roto contaba como 2 omitidos, no 1).           */
 function buildPlacemarkLayer(pm, style, report) {
   const layers = [];
   const geomRoot = childrenByTag(pm, "MultiGeometry")[0] || pm;
-  const fail = why => { if (report) report.warn(why); };
+  let reported = false;
+  const fail = why => { reported = true; if (report) report.warn(why); };
 
   for (const polyEl of elsByTag(geomRoot, "Polygon")) {
     try {
@@ -1636,14 +1643,14 @@ function buildPlacemarkLayer(pm, style, report) {
       else fail("punto sin coordenadas válidas");
     } catch (err) { fail(`punto ilegible (${err.message})`); }
   }
-  if (!layers.length) return null;
+  if (!layers.length) return { group: null, reported };
 
   const group = L.featureGroup(layers);
   const name = text(pm, "name");
   /* Mismo globo ajustado al texto que en los marcadores: el de Leaflet
      por defecto tapa media pantalla para escribir un nombre         */
   if (name) group.bindPopup(escapeHtml(name), COMPACT_POPUP);
-  return group;
+  return { group, reported };
 }
 
 /* Maps a file extension to the MIME type L.imageOverlay needs for a data:
@@ -1753,6 +1760,14 @@ function setSelCursor(li) {
   if (selCursor) nodeRow(selCursor).classList.remove("cursor");
   selCursor = li;
   if (li) nodeRow(li).classList.add("cursor");
+  /* Único punto de paso de todo cambio de cursor (ver sus llamadas): es
+     el sitio correcto para mantener aria-activedescendant, la forma en
+     que un lector de pantalla sabe qué fila "tiene el foco" cuando todo
+     el árbol comparte un solo tabindex. Medido (linkedom, 20.000
+     llamadas seguidas): 0,38 µs de más por llamada — nada frente a una
+     flecha pulsada por una persona, ni con repetición automática.      */
+  if (li) treeEl.setAttribute("aria-activedescendant", li.id);
+  else treeEl.removeAttribute("aria-activedescendant");
 }
 
 /* Punto único para marcar o desmarcar un nodo suelto. Ya NO se exige que
@@ -1969,6 +1984,7 @@ function ensureRootUl() {
     treeEl.innerHTML = "";
     rootUl = document.createElement("ul");
     rootUl.className = "node-list";
+    rootUl.setAttribute("role", "group"); /* como el <ul> de cada carpeta: hijos de #tree, role=tree */
     treeEl.appendChild(rootUl);
   }
   return rootUl;
@@ -2221,6 +2237,11 @@ function makeNode({ name, layer = null, isFolder = false, isFile = false,
   li.setAttribute("role", "treeitem");
   li.setAttribute("aria-selected", "false");
   li.setAttribute("aria-label", name);
+  /* #tree tiene un único tabindex (patrón de foco único de la guía ARIA
+     para un tree): la fila "actual" no recibe el foco del DOM, así que
+     hace falta un id estable para que aria-activedescendant (ver
+     setSelCursor) pueda señalarla.                                    */
+  li.id = "node-" + (++nodeSeq);
 
   if (isFolder || isFile) {
     row.appendChild(makeCaret(li));
@@ -2235,6 +2256,10 @@ function makeNode({ name, layer = null, isFolder = false, isFile = false,
   chk.id = "chk-" + (++nodeSeq);
   chk.checked = checked;
   chk._layer = layer; /* null en carpetas y archivos */
+  /* Sin `for` en el <label> (ver más abajo), la casilla se queda sin
+     nombre accesible: aria-label la compensa. startRename la mantiene al
+     día si el nodo se renombra.                                        */
+  chk.setAttribute("aria-label", `Activar o desactivar «${name}»`);
   chk.addEventListener("change", () => {
     const ul = li.querySelector(":scope > ul.node-list");
     if (ul) {
@@ -2465,6 +2490,8 @@ function setNodeName(li, name) {
   li._name = name;
   const label = li.querySelector(":scope > .node-row > label");
   if (label) { label.textContent = name; label.title = name; }
+  const chk = li.querySelector(":scope > .node-row > input[type=checkbox]");
+  if (chk) chk.setAttribute("aria-label", `Activar o desactivar «${name}»`);
   if (li._onRename) li._onRename(name);
   if (li._mstyle) applyMarkerText(li); /* the marker text shows the name */
   scheduleSave();
@@ -2715,9 +2742,12 @@ async function buildKmlRecords(el, styleIndex, inheritedVisible, prog, report, z
       const name = text(child, "name") || "Placemark";
       try {
         const style = placemarkStyle(child, styleIndex);
-        const layer = buildPlacemarkLayer(child, style, report);
+        const { group: layer, reported } = buildPlacemarkLayer(child, style, report);
         if (!layer) {
-          if (report) report.warn(`\u00AB${name}\u00BB sin geometr\u00EDa utilizable`);
+          /* Ya se cont\u00F3 arriba con una causa concreta (p. ej. "punto sin
+             coordenadas v\u00E1lidas"); solo hace falta este gen\u00E9rico cuando
+             el placemark no ten\u00EDa ninguna geometr\u00EDa que intentar.      */
+          if (!reported && report) report.warn(`\u00AB${name}\u00BB sin geometr\u00EDa utilizable`);
           continue;
         }
         const visible = inheritedVisible && ownVisibility(child);

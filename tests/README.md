@@ -28,8 +28,10 @@ si algo falla, así que sirve tal cual en un gancho de git.
 | `coordfmt.js` | Formato de coordenadas: grados decimales, GMS con espacios (campos editables) y GMS compacto en negrita (caja de coordenadas del visor), acarreo de segundos/minutos e ida y vuelta con `parseCoord`. |
 | `elevtest.js` | Cliente WCS del IGN: elección de cobertura (malla de 5 m), de formato (`ArcGrid`), de CRS (3857), ejes por nombre, excepciones OGC y rejilla ASCII. |
 | `navtest.js` | Recorrido del árbol, colapsos anidados, ámbito de Inicio/Fin, rangos con Mayús y flechas laterales. |
+| `a11ytreetest.js` | Accesibilidad del árbol (hallazgos de una auditoría con axe-core sobre el navegador real): `ensureRootUl` da `role="group"` al `<ul>` raíz (si no, `#tree` con `role=tree` queda con un hijo sin tipo válido, 3 violaciones en cascada); `setNodeName` mantiene el `aria-label` de la casilla —su único nombre accesible, ya que el `<label>` no lleva `for`— sincronizado al renombrar, incluido un renombrado sin cambios; `setSelCursor` mantiene `aria-activedescendant` de `#tree` apuntando a la fila con el cursor de teclado (único tabindex del árbol) y lo retira al perder el cursor. |
 | `selcorrect.js` | Cursor único y `topLevelSelection` (lo contenido viaja con su ancestro). |
 | `reporttest.js` | Informe de importación: cargados, omitidos, agrupación de causas y cuándo exige lectura. |
+| `placemarklayertest.js` | `buildPlacemarkLayer` devuelve `{ group, reported }`: un placemark con una única geometría inválida avisa UNA vez (no dos, contando también el genérico de `buildKmlRecords`); uno sin geometría alguna deja `reported` en `false` para que ese genérico sí dispare; el caso con una geometría válida no avisa. |
 | `newfeat.js` | Saneado del HTML de las fichas, Ctrl+A en dos pasos y zonas de arrastre. |
 | `topojsontest.js` | `topologyToGeoJson`: une los objetos con nombre de una topología en un único `FeatureCollection` (la conversión de arcos la prueba topojson-client, no nosotros). |
 | `groundoverlaytest.js` | GroundOverlay: `parseLatLonBox` (límites, rotación, tolerancia de redondeo) y `resolveKmzEntry` (ruta exacta y por nombre de archivo suelto dentro del zip). |
