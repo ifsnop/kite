@@ -47,7 +47,21 @@ const src = `
   const nodeUl = li => li.querySelector(':scope > ul.node-list');
   const scheduleSave = () => {}; const syncExpanded = () => {};
   const navMessage = () => {};
-  const ensureMaterialized = async () => {}; /* nada pendiente en este árbol de prueba */
+  const materializeCalls = [];
+  const ensureMaterialized = async li => { materializeCalls.push(li); }; /* nada pendiente en este árbol de prueba */
+  const ensureRootUl = () => rootUl;
+  function makeNode({ name, isFolder }) {
+    const li = document.createElement("li");
+    li._name = name;
+    const row = document.createElement("div"); row.className = "node-row";
+    li.appendChild(row); li._row = row;
+    row.scrollIntoView = () => {};
+    if (isFolder) {
+      const ul = document.createElement("ul"); ul.className = "node-list";
+      li.appendChild(ul);
+    }
+    return li;
+  }
   const nodeRow = li => li._row;
   const selection = new Set();
   let selCursor = null, selAnchor = null;
@@ -59,10 +73,12 @@ const src = `
   const firstRow = () => childRows(rootUl)[0] || null;
 ` + ["setSelected","setSelCursor","clearSelection","selectNode","selectRange",
      "toggleOne","nextSiblingRow","prevSiblingRow","nextRow","lastVisibleIn",
-     "prevRow","stepRows","moveCursorTo","expandOrEnter","collapseOrLeave"].map(fn).join("\n");
+     "prevRow","stepRows","moveCursorTo","expandOrEnter","collapseOrLeave",
+     "createFolderNode"].map(fn).join("\n");
 const api = new Function("treeEl", "rootUl", src +
   "\nreturn {nextRow, prevRow, stepRows, siblingRows, selectRange, moveCursorTo, selectNode, toggleOne," +
-  " clearSelection, selection, expandOrEnter, collapseOrLeave, cursor:()=>selCursor};")(treeEl, rootUl);
+  " clearSelection, selection, expandOrEnter, collapseOrLeave, cursor:()=>selCursor," +
+  " createFolderNode, materializeCalls};")(treeEl, rootUl);
 
 const ok = (c,m) => { if(!c){ console.error("FAIL: "+m); process.exitCode=1; } };
 const names = set => [...set].map(n => n._name).sort().join("");
@@ -125,4 +141,35 @@ ok(api.stepRows(A, 99)._name === "E", "el salto largo se para en la última");
 ok(api.stepRows(E, -99)._name === "A", "y hacia arriba en la primera");
 ok(api.stepRows(d, 1)._name === "E", "salir de una subcarpeta al hermano del ancestro");
 ok(api.prevRow(E)._name === "d", "la anterior a E es la última visible de la rama");
-if (!process.exitCode) console.log("NAV TESTS OK");
+
+/* createFolderNode: "Nueva carpeta" cuelga SIEMPRE dentro de una carpeta
+   activa (desplegándola si hacía falta), nunca como su hermana; para
+   cualquier otro cursor (u hoja, o ninguno) se coloca como hermano
+   justo después, o en la raíz.                                        */
+(async () => {
+  const r1 = await api.createFolderNode(null, "Nueva1");
+  ok(r1.parentElement === rootUl && rootUl.lastElementChild === r1,
+     "sin cursor: a la raíz, al final");
+
+  const r2 = await api.createFolderNode(E, "Nueva2");
+  ok(r2.parentElement === rootUl && E.nextSibling === r2,
+     "cursor en una hoja: como hermano justo después");
+
+  const beforeExpanded = api.materializeCalls.length;
+  const r3 = await api.createFolderNode(F1, "Nueva3");
+  ok(r3.parentElement === F1.lastElementChild && r3.parentElement.lastElementChild === r3,
+     "cursor en carpeta ya desplegada: dentro, al final");
+  ok(api.materializeCalls.length === beforeExpanded,
+     "una carpeta ya desplegada no llama a ensureMaterialized");
+
+  F2.classList.add("collapsed");
+  const beforeCollapsed = api.materializeCalls.length;
+  const r4 = await api.createFolderNode(F2, "Nueva4");
+  ok(!F2.classList.contains("collapsed"), "cursor en carpeta colapsada: se despliega");
+  ok(api.materializeCalls.length === beforeCollapsed + 1 && api.materializeCalls.at(-1) === F2,
+     "y se materializa antes de insertar");
+  ok(r4.parentElement === F2.lastElementChild && r4.parentElement.lastElementChild === r4,
+     "y entra dentro, al final");
+
+  if (!process.exitCode) console.log("NAV TESTS OK");
+})();

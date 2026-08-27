@@ -1060,18 +1060,24 @@ atribución se mantiene en una sola línea con elipsis si no cabe.
 6. Respetar los gestos reservados (Shift, Ctrl) y no tocar la vista del
    usuario sin que lo pida. Shift+click en la navegación respeta la regla
    de selección del mismo tipo.
-7. **Siempre** actualizar la constante `BUILD` (AAAAMMDDHHMM, junto al
+7. **Toda tecla o atajo nuevo se documenta en la chuleta de atajos**
+   (`#shortcuts`, el diálogo que abre `?` o el botón de ayuda del panel
+   de navegación): una fila nueva en la tabla, en la sección que
+   corresponda (o una sección nueva si no encaja en ninguna). Un atajo
+   que solo vive en el código y no en esa tabla es, a efectos del
+   usuario, un atajo que no existe.
+8. **Siempre** actualizar la constante `BUILD` (AAAAMMDDHHMM, junto al
    crédito de Leaflet) en CADA generación del código, por pequeña que
    sea: es la única versión visible y sirve para saber qué se está
    ejecutando. Sin excepciones. Y **comprobar que la sustitución ha
    surtido efecto**: editar por el valor anterior falla en silencio si no
    es el que se creía, y la versión se queda congelada sin que nadie lo
    note. Sustituir por patrón (`const BUILD = "\d{12}"`) y verificar.
-8. `node --check` del script; test en Node de la lógica pura (nuevo o
+9. `node --check` del script; test en Node de la lógica pura (nuevo o
    actualizado si el cambio lo exige); `grep` de referencias muertas de lo
    que se haya retirado; y `node tests/run-all.js` completo antes de dar
    el cambio por terminado.
-9. Cuidado con el ORDEN de las secciones: una variable que se asigna
-   dentro del `onAdd` de un control debe declararse antes que ese
-   control, o al añadirlo se cae por zona muerta temporal. `node --check`
-   no lo detecta.
+10. Cuidado con el ORDEN de las secciones: una variable que se asigna
+    dentro del `onAdd` de un control debe declararse antes que ese
+    control, o al añadirlo se cae por zona muerta temporal. `node --check`
+    no lo detecta.

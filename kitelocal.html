@@ -861,6 +861,7 @@
       <tr><td>May&#250;s + arrastrar</td><td>Zoom a un rect&#225;ngulo</td></tr>
       <tr><td>Ctrl + arrastrar</td><td>Editar una medici&#243;n</td></tr>
       <tr><td>Doble clic en una fila</td><td>Ir a la capa; repetido, acercar</td></tr>
+      <tr><td>Re P&#225;g / Av P&#225;g (con el mapa enfocado)</td><td>Acercar / alejar un nivel de zoom</td></tr>
     </table>
     <div class="dlg-actions"><button class="btn" id="shortcuts-close">Cerrar</button></div>
   </div>
@@ -1005,7 +1006,7 @@ const map = L.map("map", {
 
 /* Fecha de generación del código (versión): AÑOMESDIAHORAMINUTO.
    Actualizar en cada generación; se muestra junto al crédito de Leaflet. */
-const BUILD = "202608261900";
+const BUILD = "202608271300";
 map.attributionControl.setPrefix(
   `v${BUILD} | <a href="https://leafletjs.com" title="A JavaScript library for interactive maps">Leaflet</a>`);
 
@@ -1479,7 +1480,15 @@ function parseStyleElement(styleEl) {
     const c = kmlColor(text(poly, "color"));
     if (c) { style.fillColor = c.color; style.fillOpacity = c.opacity; }
     if (text(poly, "fill") === "0") { style.fillOpacity = 0; style.fill = false; }
-    if (text(poly, "outline") === "0") style.stroke = false;
+    /* Only meaningful for an actual polygon: per the KML spec, PolyStyle
+       has no defined effect on a LineString. Kept apart from `stroke`
+       (which LineStyle's own width<=0 also sets) until
+       buildPlacemarkLayer knows whether this placemark has a Polygon at
+       all — folding it into `stroke` unconditionally used to also hide
+       a plain line whose shared <Style>/<StyleMap> happened to carry a
+       PolyStyle meant for an unrelated polygon (real KML observed: a
+       route line rendered invisible this way).                        */
+    if (text(poly, "outline") === "0") style.polyOutline = false;
   }
   return style;
 }
@@ -1617,10 +1626,18 @@ function parsePolygon(polyEl) {
 function buildPlacemarkLayer(pm, style, report) {
   const layers = [];
   const geomRoot = childrenByTag(pm, "MultiGeometry")[0] || pm;
+  const polygonEls = elsByTag(geomRoot, "Polygon");
+  /* Fold the polygon-only outline flag into the real `stroke` used to
+     render, but only when this placemark actually has a Polygon —
+     otherwise it's dropped instead of silently hiding a LineString.   */
+  if (style.polyOutline === false) {
+    if (polygonEls.length) style.stroke = false;
+    delete style.polyOutline;
+  }
   let reported = false;
   const fail = why => { reported = true; if (report) report.warn(why); };
 
-  for (const polyEl of elsByTag(geomRoot, "Polygon")) {
+  for (const polyEl of polygonEls) {
     try {
       const rings = parsePolygon(polyEl);
       if (rings) layers.push(L.polygon(rings, style));
@@ -2358,11 +2375,12 @@ function makeNode({ name, layer = null, isFolder = false, isFile = false,
      mediciones/elevaciones/ortofotos pendientes (mismo patrón, no
      enganchado por ser casos raros).                                  */
   if (layer) {
-    layer._li = li; /* referencia inversa: la usa el hit-testing del menú contextual */
-    /* Mientras se dibuja un polígono, un click dentro de otra capa debe
-       fijar un vértice ahí, no resaltar esa capa en el árbol           */
+    layer._li = li; /* back-reference used by the context menu's hit-testing */
+    /* While drawing a polygon, a click inside another layer must fix a
+       vertex there, not highlight that layer in the tree               */
     layer.on("click", () => { if (activeTool !== "polygon") highlightNode(li); });
     layer.on("mouseover", () => showLayerInfo(li, { focus: false }));
+    layer.on("mouseout", scheduleLayerInfoHide);
   }
 
   return li;
@@ -3043,21 +3061,58 @@ function sanitizeHtml(html) {
    queda cerrado" mientras el ratón siga pasando por capas.           */
 let layerInfoDismissed = false;
 
-/* Panel de información de una capa: ficha KML o properties de GeoJSON,
-   por el botón ℹ de la fila, al pasar el ratón por la capa en el visor
-   (focus:false, para no robarle el foco al usuario en cada hover) o
-   desde el menú contextual. No modal (.dlg-float): el mapa sigue vivo
-   debajo, y con el diálogo ya abierto pasar a otra capa solo actualiza
-   su contenido, sin recolocar la caja ni cerrarla.                   */
+/* Deferred close on mouseout: if no mouseover on some layer cancels it
+   within LAYER_INFO_HIDE_DELAY, the hover-opened panel closes. Without
+   this there was no path at all for "the mouse is no longer over
+   anything" — only explicit closes existed (Cerrar, Escape, opening the
+   style dialog, entering polygon mode), so the panel could stay open
+   indefinitely once the mouse left every layer. The short delay avoids
+   a flicker when crossing the gap between two neighbouring layers:
+   moving between layers must only update the content, never close the
+   panel in between (see showLayerInfo below). Skipped while the panel
+   holds keyboard focus (an explicit open via the ℹ button or the
+   context menu): that close stays the user's call, same as today.    */
+const LAYER_INFO_HIDE_DELAY = 200; /* ms */
+let layerInfoHideTimer = null;
+function cancelLayerInfoHide() {
+  if (layerInfoHideTimer) { clearTimeout(layerInfoHideTimer); layerInfoHideTimer = null; }
+}
+function scheduleLayerInfoHide() {
+  if (descDialog.hidden || descBox.contains(document.activeElement)) return;
+  cancelLayerInfoHide();
+  layerInfoHideTimer = setTimeout(() => { descDialog.hidden = true; layerInfoHideTimer = null; }, LAYER_INFO_HIDE_DELAY);
+}
+
+/* One-shot guard set when LEAVING a drawing tool (see setTool): the
+   double click / mouseup that finishes a polygon or a line/circle
+   measurement lands exactly where the cursor is, usually on top of
+   some layer, and the mousemove right after fires a genuine mouseover
+   there. Consumed by the very next hover, real or not, and also
+   expires on its own after TOOL_EXIT_HOVER_GUARD_MS in case no hover
+   follows soon — unlike layerInfoDismissed (which stays closed until
+   an EXPLICIT reopen), this must not silently turn hover off for the
+   rest of the session just because the user drew something once.     */
+const TOOL_EXIT_HOVER_GUARD_MS = 300; /* ms */
+let suppressNextHover = false;
+
+/* Layer info panel: a KML placemark's description or a GeoJSON
+   feature's properties, opened by the row's ℹ button, by hovering the
+   layer in the viewer (focus:false, so it never steals the user's
+   focus on every hover), or from the context menu. Non-modal
+   (.dlg-float): the map stays interactive underneath, and with the
+   dialog already open, moving to another layer only updates its
+   content, without repositioning or closing the box.                 */
 function showLayerInfo(li, { focus = true } = {}) {
-  /* Mientras el diálogo de edición (estilo/nombre) esté abierto, el
-     hover no debe reabrir este panel encima o debajo de él: recrearía
-     el mismo solape que openStyleDialog ya evita al abrirse. Tampoco
-     mientras se dibuja un polígono: el panel flotante puede quedar
-     justo donde el usuario necesita hacer click para fijar un vértice
-     dentro de otro polígono, y el hover se lo impediría.             */
+  cancelLayerInfoHide(); /* a real hover cancels any pending deferred close */
+  if (!focus && suppressNextHover) { suppressNextHover = false; return; } /* residual hover right after leaving a drawing tool */
+  /* While the edit dialog (style/name) is open, hovering must not reopen
+     this panel on top of or under it: that would recreate the same
+     overlap openStyleDialog already avoids on opening. Same while
+     drawing a polygon: the floating panel could sit exactly where the
+     user needs to click to fix a vertex inside another polygon, and
+     the hover would block it.                                        */
   if (!focus && (layerInfoDismissed || !styleDialog.hidden || activeTool === "polygon")) return;
-  if (focus) layerInfoDismissed = false; /* apertura explícita: rearma el hover */
+  if (focus) layerInfoDismissed = false; /* explicit open: re-arms the hover */
   const html = infoHtmlFor(li);
   if (html == null) return;
   descTitle.textContent = li._name;
@@ -3569,14 +3624,15 @@ async function materializeRecords(records, parentUl) {
         desc: rec.desc || null
       });
       rec._li = li;
-      /* makeNode ya enganchó los listeners definitivos de clic/hover
-         (ver "referencia inversa" ahí): los de espera de
-         wirePendingLayerEvents ya no hacen falta y hay que retirarlos,
-         o la capa se quedaría con dos y un clic resaltaría el nodo
-         dos veces.                                                    */
+      /* makeNode already wired the definitive click/hover listeners (see
+         "back-reference" there): the waiting ones from
+         wirePendingLayerEvents are no longer needed and must be
+         removed, or the layer would keep two and a click would
+         highlight the node twice.                                     */
       if (rec._pendingHandlers) {
         rec._layer.off("click", rec._pendingHandlers.onClick);
         rec._layer.off("mouseover", rec._pendingHandlers.onHover);
+        rec._layer.off("mouseout", rec._pendingHandlers.onLeave);
         rec._pendingHandlers = null;
       }
       if (rec.geo) li._geo = rec.geo;
@@ -4086,12 +4142,13 @@ async function resolveRecordLi(rec) {
    el nodo dos veces.                                                  */
 function wirePendingLayerEvents(rec) {
   const onClick = async () => {
-    if (activeTool === "polygon") return; /* ese click fija un vértice, no resalta la capa */
+    if (activeTool === "polygon") return; /* that click fixes a vertex, it doesn't highlight the layer */
     const li = await resolveRecordLi(rec); if (li) highlightNode(li);
   };
   const onHover = async () => { const li = await resolveRecordLi(rec); if (li) showLayerInfo(li, { focus: false }); };
-  rec._layer.on("click", onClick).on("mouseover", onHover);
-  rec._pendingHandlers = { onClick, onHover };
+  const onLeave = scheduleLayerInfoHide; /* doesn't need resolveRecordLi: only hides whatever is already open */
+  rec._layer.on("click", onClick).on("mouseover", onHover).on("mouseout", onLeave);
+  rec._pendingHandlers = { onClick, onHover, onLeave };
 }
 function updateSearchCount(total) {
   searchCount.textContent = searchBox.value.trim()
@@ -4286,13 +4343,41 @@ document.getElementById("place-close").addEventListener("click", () => {
   hidePlaceResults();
 });
 
-/* Crear carpeta nueva (en la raíz del árbol) */
+/* New folder: hangs from the cursor. If the cursor is a folder, the new
+   one goes INSIDE it as the last item, expanding it first if it was
+   collapsed (same "always insert inside" rule the external-file-drop
+   handler already follows, kept consistent here). Otherwise it lands
+   right after the cursor as a sibling, or at the tree root with no
+   cursor. Returns the new <li>.                                        */
+async function createFolderNode(cur, name) {
+  let ul, intoFolder = false;
+  if (cur && nodeUl(cur)) {
+    intoFolder = true;
+    if (cur.classList.contains("collapsed")) {
+      cur.classList.remove("collapsed");
+      syncExpanded(cur);
+      await ensureMaterialized(cur);
+    }
+    ul = nodeUl(cur);
+  } else {
+    ul = cur ? cur.parentElement : ensureRootUl();
+  }
+  const li = makeNode({ name, isFolder: true });
+  if (!intoFolder && cur && cur.nextSibling) ul.insertBefore(li, cur.nextSibling);
+  else ul.appendChild(li);
+  return li;
+}
+
+/* It used to always land at the tree root and was not undoable.        */
 const newFolderName = document.getElementById("new-folder-name");
-document.getElementById("new-folder-btn").addEventListener("click", () => {
+document.getElementById("new-folder-btn").addEventListener("click", async () => {
   const name = newFolderName.value.trim();
   if (!name) { navMessage("Escriba un nombre para la carpeta."); return; }
-  ensureRootUl().appendChild(makeNode({ name, isFolder: true }));
+  const cur = isRow(selCursor) && selCursor.isConnected ? selCursor : null;
+  pushUndo("crear carpeta");
+  const li = await createFolderNode(cur, name);
   newFolderName.value = "";
+  moveCursorTo(li, false);
   scheduleSave();
 });
 newFolderName.addEventListener("keydown", e => {
@@ -5963,10 +6048,18 @@ map.addControl(new MeasureControl());
 function setTool(tool) {
   if (drawing) { rootGroup.removeLayer(drawing.group); drawing = null; }
   if (polyDraft) { rootGroup.removeLayer(polyDraft.group); polyDraft = null; }
-  /* Un panel de información ya abierto (de un hover justo antes de activar
-     la herramienta) podría quedar tapando el punto donde hace falta hacer
-     click para fijar un vértice dentro de otro polígono                */
+  /* An info panel already open (from a hover right before activating the
+     tool) could sit exactly where the user needs to click to fix a
+     vertex inside another polygon                                     */
   if (tool === "polygon" && !descDialog.hidden) { descDialog.hidden = true; layerInfoDismissed = true; releaseFocus(); }
+  /* Leaving any drawing tool (polygon, line, or circle): the double
+     click / mouseup that ends it lands right where the cursor is,
+     almost always on top of some layer. See suppressNextHover above
+     for why this doesn't reuse layerInfoDismissed.                   */
+  if (activeTool && !tool) {
+    suppressNextHover = true;
+    setTimeout(() => { suppressNextHover = false; }, TOOL_EXIT_HOVER_GUARD_MS);
+  }
   activeTool = tool;
   for (const [t, btn] of Object.entries(toolButtons)) btn.classList.toggle("active", t === tool);
   /* Clase de Leaflet, no estilo en línea: un estilo en línea en el
@@ -6286,6 +6379,21 @@ document.addEventListener("keydown", e => {
   if (e.key !== "Delete" || activeTool !== "polygon" || !polyDraft) return;
   removePolyVertex(polyDraft.handles[polyDraft.handles.length - 1]);
 });
+
+/* Clicking inside an existing named layer while a drawing tool is active
+   fires Leaflet's own bound-popup-on-click for that layer (see the click
+   listener above: Leaflet's internal dispatch swallows the map-level
+   click when it lands on a layer with its own "click" handler, but that
+   layer's own click handling — including auto-opening its bound popup —
+   still runs, independently of our layer.on("click", ...) above, which
+   already no-ops in this case). Leaflet registers its own popup-opening
+   "click" listener at bindPopup time (import time), before ours, and
+   listeners for the same event on the same layer always all run in
+   registration order — stopping propagation inside a later listener
+   cannot undo an earlier one that already ran. Reacting to popupopen and
+   closing it right away is simpler and more robust than unbinding/
+   rebinding every layer's popup while a tool is active.                */
+map.on("popupopen", e => { if (activeTool) e.popup.close(); });
 
 /* ================= Modo altura (MDT y MDS del IGN) =================
    Los dos modelos se consultan por el MISMO camino: WCS 2.0, rejilla
@@ -7486,6 +7594,16 @@ const CoordsControl = L.Control.extend({
 const coordsControl = new CoordsControl();
 map.addControl(coordsControl);
 map.on("zoomend", () => coordsControl.updateZoom());
+
+/* PageUp/PageDown zoom the map while it has focus. Listening directly on
+   the map container (like the polygon-drawing click/dblclick above)
+   means this only fires with focus inside #map. preventDefault stops
+   the browser's native whole-page scroll; Leaflet's own keyboard
+   handler doesn't act on these two keys, so today they do nothing.     */
+map.getContainer().addEventListener("keydown", e => {
+  if (e.key === "PageUp") { e.preventDefault(); map.setZoom(map.getZoom() + 1); }
+  else if (e.key === "PageDown") { e.preventDefault(); map.setZoom(map.getZoom() - 1); }
+});
 
 /* El ratón dispara decenas de eventos por segundo y cada lectura implica
    proyectar a UTM y reescribir varias filas: se hace una vez por

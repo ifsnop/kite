@@ -59,6 +59,7 @@ const searchBox = { value: "" };
 let highlightCalls = [];
 const highlightNode = li => highlightCalls.push(li);
 const showLayerInfo = () => {};
+const scheduleLayerInfoHide = () => {};
 
 /* Mock Leaflet layer: just enough .on()/.off() bookkeeping to verify
    wirePendingLayerEvents wires listeners and materializeRecords removes
@@ -136,7 +137,7 @@ const src = [
 const api = new Function(
   "rootGroup", "yieldFrame", "PROGRESS_BATCH", "scheduleSave", "navMessage", "showEmptyMessage",
   "syncExpanded", "measureLi", "selection", "searchBox", "treeEl", "rootUl", "makeNode",
-  "highlightNode", "showLayerInfo", "BLINK_STEPS", "BLINK_INTERVAL_MS", "activeTool",
+  "highlightNode", "showLayerInfo", "scheduleLayerInfoHide", "BLINK_STEPS", "BLINK_INTERVAL_MS", "activeTool",
   src + `\nreturn {
     materializeRecords, ensureMaterialized, serializeNode, serializeNodes, serializePendingRecords,
     subtreeBounds, findMatches, searchMatches, resolveMatch, resolveRecordLi,
@@ -144,7 +145,7 @@ const api = new Function(
   };`
 )(rootGroup, yieldFrame, PROGRESS_BATCH, scheduleSave, navMessage, showEmptyMessage,
   syncExpanded, measureLi, selection, searchBox, treeEl, rootUl, makeNode,
-  highlightNode, showLayerInfo, 4 /* BLINK_STEPS, igual que en producción */, 2 /* BLINK_INTERVAL_MS: mínimo, para que el test no espere */,
+  highlightNode, showLayerInfo, scheduleLayerInfoHide, 4 /* BLINK_STEPS, igual que en producción */, 2 /* BLINK_INTERVAL_MS: mínimo, para que el test no espere */,
   null /* activeTool: la herramienta de dibujo no interviene en este test */);
 const {
   materializeRecords, ensureMaterialized, serializeNode, serializeNodes,
@@ -293,8 +294,8 @@ const folderRec = (name, collapsed, children) => ({ t: "folder", name, checked: 
   const clickLayer = mockLayer("clickable");
   const clickRec = { t: "layer", name: "clickable-leaf", checked: true, style: null, _layer: clickLayer };
   wirePendingLayerEvents(clickRec);
-  ok(clickLayer.count("click") === 1 && clickLayer.count("mouseover") === 1,
-     "wirePendingLayerEvents engancha un clic y un hover de espera");
+  ok(clickLayer.count("click") === 1 && clickLayer.count("mouseover") === 1 && clickLayer.count("mouseout") === 1,
+     "wirePendingLayerEvents engancha un clic, un hover y un mouseout de espera");
   clickOuter._pending = [clickRec];
 
   highlightCalls = [];
@@ -302,9 +303,9 @@ const folderRec = (name, collapsed, children) => ({ t: "folder", name, checked: 
   ok(!clickOuter._pending, "el clic sobre la capa pendiente materializa su carpeta");
   ok(highlightCalls.length === 1 && highlightCalls[0]._name === "clickable-leaf",
      "y resalta el <li> real recién creado: " + JSON.stringify(highlightCalls.map(l => l && l._name)));
-  ok(clickLayer.count("click") === 0 && clickLayer.count("mouseover") === 0,
+  ok(clickLayer.count("click") === 0 && clickLayer.count("mouseover") === 0 && clickLayer.count("mouseout") === 0,
      "materializeRecords retira los listeners de espera (si no, quedarían disparando por duplicado para siempre): "
-     + clickLayer.count("click") + "/" + clickLayer.count("mouseover"));
+     + clickLayer.count("click") + "/" + clickLayer.count("mouseover") + "/" + clickLayer.count("mouseout"));
 
   /* llamar otra vez, ya materializada: resuelve por rec._li sin recorrer nada */
   highlightCalls = [];

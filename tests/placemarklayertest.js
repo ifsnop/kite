@@ -17,10 +17,13 @@ const escapeHtmlSrc = script.slice(script.indexOf("const escapeHtml = s =>"),
 
 /* Minimal Leaflet stand-in: buildPlacemarkLayer only needs constructors
    that return a truthy object and, for the group, a bindPopup it can call
-   when the placemark has a <name>.                                     */
+   when the placemark has a <name>. polygon/polyline also capture the
+   style object they were built with, so tests can inspect what actually
+   reached Leaflet (not just the input style, which buildPlacemarkLayer
+   may mutate in place for the polyOutline fold-in).                    */
 const L = {
-  polygon: () => ({ kind: "polygon" }),
-  polyline: () => ({ kind: "polyline" }),
+  polygon: (rings, style) => ({ kind: "polygon", style }),
+  polyline: (pts, style) => ({ kind: "polyline", style }),
   marker: () => ({ kind: "marker" }),
   featureGroup: (layers) => ({ kind: "group", layers, bindPopup() {} }),
 };
@@ -86,6 +89,47 @@ function fakeReport() {
   ok(group !== null && group.kind === "group", "una geometría válida sí produce capa");
   ok(reported === false, "sin fallos, reported es false");
   ok(report.warns.length === 0, "ningún aviso para un placemark válido");
+}
+
+/* Regression for a real KML import bug (2026-08-26, air-route lines):
+   <PolyStyle><outline>0</outline></PolyStyle> means "no polygon border",
+   but a shared <Style>/<StyleMap> can also reach a Placemark that is
+   only a <LineString> — a line has no face to outline, and per the KML
+   spec PolyStyle has no defined effect outside Polygon/LinearRing.
+   parseStyleElement now reports this as `polyOutline`, not `stroke`,
+   and buildPlacemarkLayer must only fold it into `stroke` when a
+   Polygon is actually present, or an unrelated line gets rendered with
+   stroke:false and silently disappears (no error, no omitted warning —
+   it just isn't drawn).                                                */
+{
+  const pm = placemarkFrom(
+    "<Placemark><name>Ruta</name><LineString><coordinates>-3.8,40.3,0 -3.6,40.5,0</coordinates></LineString></Placemark>"
+  );
+  const style = { color: "#ffaa00", weight: 1.5, stroke: true, polyOutline: false };
+  const { group } = buildPlacemarkLayer(pm, style, fakeReport());
+  ok(group !== null && group.layers.length === 1, "la línea sí produce una capa");
+  const line = group.layers[0];
+  ok(line.kind === "polyline", "es una polilínea: " + line.kind);
+  ok(line.style.stroke !== false, "polyOutline de un Style ajeno a un polígono NO oculta la línea: " + JSON.stringify(line.style));
+  ok(!("polyOutline" in line.style), "polyOutline no se filtra al estilo final: " + JSON.stringify(line.style));
+}
+
+/* Same shared style, but the Placemark DOES have a Polygon this time:
+   here outline=0 is legitimate and must still hide the polygon's own
+   border — no regression from the fix above.                          */
+{
+  const pm = placemarkFrom(
+    `<Placemark><name>Zona</name><Polygon><outerBoundaryIs><LinearRing>
+       <coordinates>0,0 1,0 1,1 0,0</coordinates>
+     </LinearRing></outerBoundaryIs></Polygon></Placemark>`
+  );
+  const style = { color: "#ffaa00", weight: 1.5, stroke: true, polyOutline: false };
+  const { group } = buildPlacemarkLayer(pm, style, fakeReport());
+  ok(group !== null && group.layers.length === 1, "el polígono sí produce una capa");
+  const poly = group.layers[0];
+  ok(poly.kind === "polygon", "es un polígono: " + poly.kind);
+  ok(poly.style.stroke === false, "polyOutline SÍ oculta el contorno de un polígono real: " + JSON.stringify(poly.style));
+  ok(!("polyOutline" in poly.style), "polyOutline no se filtra al estilo final: " + JSON.stringify(poly.style));
 }
 
 if (!process.exitCode) console.log("PLACEMARK LAYER REPORT TESTS OK");

@@ -79,7 +79,10 @@ const outlineKml = `<kml><Document><Style id="noOutline"><PolyStyle><outline>0</
 const outlineDoc = new DOMParser().parseFromString(outlineKml, "text/xml");
 const outlineIdx = buildStyleIndex(outlineDoc);
 const noOutlineStyle = placemarkStyle(elsByTag(outlineDoc, "Placemark")[0], outlineIdx);
-ok(noOutlineStyle.stroke === false, "outline 0 -> stroke false: " + JSON.stringify(noOutlineStyle));
+/* stroke ya no se toca aquí: <PolyStyle><outline> solo tiene efecto
+   sobre un polígono real, y buildPlacemarkLayer (fuera del rango que
+   extrae este test) es quien decide si aplica — ver placemarklayertest.js */
+ok(noOutlineStyle.polyOutline === false, "outline 0 -> polyOutline false: " + JSON.stringify(noOutlineStyle));
 
 const noFillKml = `<kml><Document><Style id="noFill"><PolyStyle><fill>0</fill></PolyStyle></Style>
   <Placemark><styleUrl>#noFill</styleUrl><Polygon><outerBoundaryIs><LinearRing>
