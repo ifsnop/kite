@@ -901,6 +901,18 @@
   </div>
 </div>
 
+<!-- Confirmar si se eliminan etiquetas tipo HTML de los nombres de un KML -->
+<div id="kml-tags-picker" class="dlg-overlay" hidden>
+  <div class="dlg-box">
+    <h2>Etiquetas en los nombres</h2>
+    <p id="ktp-intro" class="dlg-hint"></p>
+    <div class="dlg-actions">
+      <button class="btn" id="ktp-cancel">Dejarlas</button>
+      <button class="btn" id="ktp-accept">Eliminarlas</button>
+    </div>
+  </div>
+</div>
+
 <!-- Elegir qué propiedad de un GeoJSON ambiguo se usa como nombre -->
 <div id="geojson-name-picker" class="dlg-overlay" hidden>
   <div class="dlg-box">
@@ -1006,7 +1018,7 @@ const map = L.map("map", {
 
 /* Fecha de generación del código (versión): AÑOMESDIAHORAMINUTO.
    Actualizar en cada generación; se muestra junto al crédito de Leaflet. */
-const BUILD = "202608271300";
+const BUILD = "202608281030";
 map.attributionControl.setPrefix(
   `v${BUILD} | <a href="https://leafletjs.com" title="A JavaScript library for interactive maps">Leaflet</a>`);
 
@@ -3759,6 +3771,34 @@ function parserErrorText(doc) {
   return err.textContent.replace(/\s+/g, " ").trim().slice(0, 200);
 }
 
+/* Some KML export tools leave literal HTML-like tags as plain text inside
+   <name> (real file seen: `A27<_bol><fnt scale="80">    </fnt></_bol>`,
+   from a "bold"/"font" markup the exporter never rendered). Detected as
+   any <...> span containing at least one letter, so a name that merely
+   uses "<"/">" as comparison symbols isn't mistaken for a tag — the user
+   asked for exactly this simple rule ("letras dentro de símbolos <>").
+   Kept as two pure string functions (no DOM) so they're easy to unit
+   test; the DOM-walking callers are just below.                       */
+const HTML_LIKE_TAG_RE = /<[^<>]*[a-zA-Z][^<>]*>/;
+function hasHtmlLikeTags(name) {
+  return HTML_LIKE_TAG_RE.test(name);
+}
+function stripHtmlLikeTags(name) {
+  return name.replace(/<[^<>]*[a-zA-Z][^<>]*>/g, "");
+}
+/* Every <name> in a KML document, regardless of whether it belongs to a
+   Placemark, Folder or Document: KML has no separate "polygon name",
+   a polygon's name IS its Placemark's <name>.                         */
+function kmlNamesHaveHtmlTags(xml) {
+  return elsByTag(xml, "name").some(el => hasHtmlLikeTags(el.textContent));
+}
+function stripHtmlTagsFromKmlNames(xml) {
+  for (const el of elsByTag(xml, "name")) {
+    const cleaned = stripHtmlLikeTags(el.textContent);
+    if (cleaned !== el.textContent) el.textContent = cleaned;
+  }
+}
+
 function parseKmlDocument(content) {
   let xml = new DOMParser().parseFromString(content, "text/xml");
   let why = parserErrorText(xml);
@@ -3821,6 +3861,12 @@ async function addFileNode(name, kind, content, insertBefore = null, dropTargetU
       const { xml, repaired } = parseKmlDocument(content);
       if (repaired.length) {
         report.note(`prefijos XML sin declarar, corregidos al vuelo: ${repaired.join(", ")}`);
+      }
+      if (kmlNamesHaveHtmlTags(xml)) {
+        if (await confirmStripHtmlTags(name)) {
+          stripHtmlTagsFromKmlNames(xml);
+          report.note("etiquetas tipo HTML eliminadas de los nombres");
+        }
       }
 
       const total = elsByTag(xml, "Placemark").length;
@@ -5246,10 +5292,37 @@ for (const id of ["mk-color", "mk-text-color", "pg-color", "pg-fill-color"]) {
   });
 }
 
+/* ---------- Confirmar la limpieza de etiquetas HTML en nombres KML ----------
+   Mismo patrón que el selector de nombre de GeoJSON justo debajo: una
+   Promise que addFileNode espera antes de seguir. "Dejarlas" resuelve
+   con false (nombres tal cual); "Eliminarlas" con true.                */
+const ktpDialog = document.getElementById("kml-tags-picker");
+const ktpBox = ktpDialog.querySelector(".dlg-box");
+const ktpIntro = document.getElementById("ktp-intro");
+let ktpResolve = null;
+function closeKtpPicker(result) {
+  ktpDialog.hidden = true;
+  const resolve = ktpResolve;
+  ktpResolve = null;
+  releaseFocus();
+  if (resolve) resolve(result);
+}
+function confirmStripHtmlTags(fileName) {
+  ktpIntro.textContent = `«${fileName}» tiene nombres con etiquetas de tipo HTML `
+    + `(texto entre «<» y «>»), probablemente restos de la herramienta que generó `
+    + `el KML. ¿Eliminarlas al importar?`;
+  ktpDialog.hidden = false;
+  clampToViewport(ktpBox);
+  focusDialog(ktpBox);
+  return new Promise(resolve => { ktpResolve = resolve; });
+}
+document.getElementById("ktp-cancel").addEventListener("click", () => closeKtpPicker(false));
+document.getElementById("ktp-accept").addEventListener("click", () => closeKtpPicker(true));
+
 /* ---------- Elegir la propiedad-nombre de un GeoJSON ambiguo ----------
    addFileNode es async y necesita ESPERAR la elección antes de seguir
-   construyendo el árbol: es el único diálogo del proyecto envuelto en
-   una Promise en vez de eventos sueltos. Cancelar resuelve con null
+   construyendo el árbol: mismo patrón que el diálogo anterior, una
+   Promise en vez de eventos sueltos. Cancelar resuelve con null
    (nombrado automático de siempre, nada se guarda); Aceptar resuelve
    con la clave marcada.                                              */
 const gnpDialog = document.getElementById("geojson-name-picker");
@@ -5395,17 +5468,18 @@ document.getElementById("desc-close").addEventListener("click", () => {
   layerInfoDismissed = true;
   releaseFocus();
 });
-for (const box of [styleBox, iconBox, colorBox, descBox, shortcutsBox, gnpBox, gnpEditorBox]) makeDialogMovable(box);
+for (const box of [styleBox, iconBox, colorBox, descBox, shortcutsBox, ktpBox, gnpBox, gnpEditorBox]) makeDialogMovable(box);
 setupDialog(styleBox, { modal: false }); /* flotante: el mapa sigue vivo */
 setupDialog(iconBox, { modal: true });
 setupDialog(colorBox, { modal: true });
 setupDialog(descBox, { modal: false });
 setupDialog(shortcutsBox, { modal: true });
+setupDialog(ktpBox, { modal: true });
 setupDialog(gnpBox, { modal: true });
 setupDialog(gnpEditorBox, { modal: true });
 window.addEventListener("resize", () => {
   /* a moved dialog must not fall off-screen */
-  for (const box of [styleBox, iconBox, colorBox, descBox, shortcutsBox, gnpBox, gnpEditorBox]) clampToViewport(box);
+  for (const box of [styleBox, iconBox, colorBox, descBox, shortcutsBox, ktpBox, gnpBox, gnpEditorBox]) clampToViewport(box);
 });
 let styleTargets = [];    /* nodes being edited */
 let styleKindOpen = null; /* "marker" | "polygon" */
@@ -6085,6 +6159,7 @@ document.addEventListener("keydown", e => {
   if (!descDialog.hidden) { descDialog.hidden = true; layerInfoDismissed = true; releaseFocus(); return; }
   if (!colorPicker.hidden) { colorPicker.hidden = true; colorTarget = null; releaseFocus(); return; }
   if (!iconPicker.hidden) { iconPicker.hidden = true; pendingIcon = null; releaseFocus(); return; }
+  if (!ktpDialog.hidden) { closeKtpPicker(false); return; }
   if (!gnpDialog.hidden) { closeGnpPicker(null); return; }
   if (!gnpEditorDialog.hidden) { gnpEditorDialog.hidden = true; releaseFocus(); return; }
   if (!styleDialog.hidden) { closeStyleDialog(false); return; }

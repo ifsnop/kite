@@ -23,6 +23,7 @@ si algo falla, así que sirve tal cual en un gancho de git.
 |---|---|
 | `kmltest.js` | Parseo de KML con prefijo, con espacio de nombres por defecto y sin ninguno; cadenas de `StyleMap` con ciclos; polígonos con agujeros; color `aabbggrr`. |
 | `repairtest.js` | Reparación de prefijos XML sin declarar (el fallo real de un KML de Google Earth), incluido el coste sobre un archivo grande. |
+| `htmltagstest.js` | `hasHtmlLikeTags`/`stripHtmlLikeTags` (regla del usuario: un `<...>` cuenta como etiqueta si tiene alguna letra dentro, para no confundir un "<"/">" usado como comparación) contra un caso real (`A27<_bol><fnt scale="80">    </fnt></_bol>`, restos de un exportador); falso positivo aceptado y documentado (`"A < B and C > D"`); `kmlNamesHaveHtmlTags`/`stripHtmlTagsFromKmlNames` sobre un documento KML completo, incluido el nombre de una carpeta, no solo de un placemark. |
 | `clamptest.js` | Validación de coordenadas y tolerancia de redondeo: se ajusta `180.00000044181039`, se rechaza una latitud de 32400. |
 | `utmtest.js` | UTM contra valores publicados, invariante del meridiano central, husos de Noruega y Svalbard, e ida y vuelta sobre una malla mundial. |
 | `coordfmt.js` | Formato de coordenadas: grados decimales, GMS con espacios (campos editables) y GMS compacto en negrita (caja de coordenadas del visor), acarreo de segundos/minutos e ida y vuelta con `parseCoord`. |
