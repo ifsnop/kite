@@ -558,6 +558,12 @@
     max-height: 85vh;
     overflow: auto;
   }
+  /* A lone <p class="dlg-hint"> with no other wide content (list, grid,
+     table…) has nothing to force an earlier wrap, so the box's
+     shrink-to-fit width ends up close to the sentence's unwrapped
+     width — capping it here keeps this one-question dialog compact
+     instead of stretching almost edge to edge.                       */
+  #kml-tags-picker .dlg-box, #kml-dup-picker .dlg-box { max-width: 42ch; }
   .dlg-box h2 {
     margin: 0 0 10px;
     font-size: 14px;
@@ -913,6 +919,18 @@
   </div>
 </div>
 
+<!-- Confirmar si se fusionan placemarks duplicados (mismo nombre y posición) -->
+<div id="kml-dup-picker" class="dlg-overlay" hidden>
+  <div class="dlg-box">
+    <h2>Marcadores duplicados</h2>
+    <p id="kdp-intro" class="dlg-hint"></p>
+    <div class="dlg-actions">
+      <button class="btn" id="kdp-cancel">Mantener todos</button>
+      <button class="btn" id="kdp-accept">Fusionar</button>
+    </div>
+  </div>
+</div>
+
 <!-- Elegir qué propiedad de un GeoJSON ambiguo se usa como nombre -->
 <div id="geojson-name-picker" class="dlg-overlay" hidden>
   <div class="dlg-box">
@@ -1018,7 +1036,7 @@ const map = L.map("map", {
 
 /* Fecha de generación del código (versión): AÑOMESDIAHORAMINUTO.
    Actualizar en cada generación; se muestra junto al crédito de Leaflet. */
-const BUILD = "202608281030";
+const BUILD = "202608281530";
 map.attributionControl.setPrefix(
   `v${BUILD} | <a href="https://leafletjs.com" title="A JavaScript library for interactive maps">Leaflet</a>`);
 
@@ -1967,6 +1985,25 @@ function topLevelSelection() {
   return out;
 }
 
+/* Where the cursor should land after deleting `items` (the top-level
+   nodes about to be removed — a single row, or topLevelSelection()):
+   the next surviving row after `anchor`, skipping anything that IS one
+   of `items` or lives inside one (nextRow would otherwise descend into
+   an open folder that's about to disappear entirely). Falls back to
+   walking backward if nothing survives forward; null if nothing is
+   left to land on at all. Call this BEFORE deleting — afterwards the
+   sibling/parent relationships it walks are gone.                      */
+function cursorAfterDelete(anchor, items) {
+  if (!isRow(anchor)) return null;
+  const isDeleted = node => items.some(it => it === node || it.contains(node));
+  let candidate = nextRow(anchor);
+  while (candidate && isDeleted(candidate)) candidate = nextRow(candidate);
+  if (candidate) return candidate;
+  candidate = prevRow(anchor);
+  while (candidate && isDeleted(candidate)) candidate = prevRow(candidate);
+  return candidate;
+}
+
 /* Encuadre combinado de todas las capas de un subárbol */
 function extendBounds(bounds, l) {
   if (!l) return;
@@ -2485,10 +2522,17 @@ function makeActions(li, sortable, styleable, layer) {
     pushUndo(`borrar \u00AB${li._name}\u00BB`);
     /* si el nodo forma parte de la selección, se borra toda la selección */
     if (selection.has(li) && selection.size > 1) {
-      for (const s of topLevelSelection()) deleteNode(s, { pruneSelection: false });
+      const items = topLevelSelection();
+      const next = cursorAfterDelete(isRow(selCursor) ? selCursor : items[0], items);
+      for (const s of items) deleteNode(s, { pruneSelection: false });
       clearSelection();
+      if (next) selectNode(next, true);
     } else {
+      /* El cursor no desaparece: se mueve a la fila que ocupe el hueco,
+         como en cualquier gestor de archivos.                        */
+      const next = cursorAfterDelete(li, [li]);
       deleteNode(li);
+      if (next) selectNode(next, true);
     }
   });
   return box;
@@ -3799,6 +3843,48 @@ function stripHtmlTagsFromKmlNames(xml) {
   }
 }
 
+/* Some sources export the same point-of-interest twice under the exact
+   same name and position (real duplicate rows, not a legitimate pair of
+   nearby places) — group Placemarks that share both, so the user can
+   choose to keep just one per group. Point-only: a line/polygon has no
+   single "position" to compare, so it never joins a group. Position
+   equality uses 5 decimal places (~1.1 m), the same tolerance COORD_EPS
+   already documents elsewhere in the file as "far above rounding noise"
+   — genuine duplicates from the same source are far closer than that;
+   two legitimately distinct nearby places never are.                   */
+const DUP_POS_DECIMALS = 5;
+function findDuplicatePlacemarks(xml) {
+  const groups = new Map(); /* "name|lat|lng" -> [<Placemark> elements] */
+  for (const pm of elsByTag(xml, "Placemark")) {
+    const name = text(pm, "name");
+    if (!name) continue;
+    const ptEl = elsByTag(pm, "Point")[0];
+    const coordsEl = ptEl && firstByTag(ptEl, "coordinates");
+    const pts = coordsEl ? parseCoords(coordsEl.textContent) : [];
+    if (!pts.length) continue;
+    const [lat, lng] = pts[0];
+    const key = `${name}|${lat.toFixed(DUP_POS_DECIMALS)}|${lng.toFixed(DUP_POS_DECIMALS)}`;
+    if (!groups.has(key)) groups.set(key, []);
+    groups.get(key).push(pm);
+  }
+  return [...groups.values()].filter(group => group.length > 1);
+}
+/* Keeps the first Placemark of each group (document order) and removes
+   the rest from the DOM, so the normal import pipeline downstream never
+   sees them — same "mutate the parsed doc before building records"
+   approach as stripHtmlTagsFromKmlNames above. Returns how many were
+   removed, for the import summary.                                    */
+function removeDuplicatePlacemarks(groups) {
+  let removed = 0;
+  for (const group of groups) {
+    for (let i = 1; i < group.length; i++) {
+      group[i].parentNode.removeChild(group[i]);
+      removed++;
+    }
+  }
+  return removed;
+}
+
 function parseKmlDocument(content) {
   let xml = new DOMParser().parseFromString(content, "text/xml");
   let why = parserErrorText(xml);
@@ -3866,6 +3952,13 @@ async function addFileNode(name, kind, content, insertBefore = null, dropTargetU
         if (await confirmStripHtmlTags(name)) {
           stripHtmlTagsFromKmlNames(xml);
           report.note("etiquetas tipo HTML eliminadas de los nombres");
+        }
+      }
+      const dupGroups = findDuplicatePlacemarks(xml);
+      if (dupGroups.length) {
+        if (await confirmMergeDuplicates(name, dupGroups)) {
+          const removed = removeDuplicatePlacemarks(dupGroups);
+          report.note(`${removed} placemark(s) duplicado(s) fusionado(s)`);
         }
       }
 
@@ -4679,9 +4772,11 @@ document.addEventListener("keydown", e => {
   if (/INPUT|TEXTAREA/.test(e.target.tagName)) return;
   if (activeTool === "polygon" && polyDraft) return; /* Supr es "borrar vértice" mientras se dibuja */
   const items = topLevelSelection();
+  const next = cursorAfterDelete(isRow(selCursor) ? selCursor : items[0], items);
   pushUndo(`borrar ${items.length} nodo(s)`);
   for (const s of items) deleteNode(s, { pruneSelection: false });
   clearSelection();
+  if (next) selectNode(next, true);
 });
 
 /* ================= Estilos de capa (marcadores y polígonos) =================
@@ -5319,6 +5414,33 @@ function confirmStripHtmlTags(fileName) {
 document.getElementById("ktp-cancel").addEventListener("click", () => closeKtpPicker(false));
 document.getElementById("ktp-accept").addEventListener("click", () => closeKtpPicker(true));
 
+/* ---------- Confirmar la fusión de placemarks duplicados ----------
+   Mismo patrón que el diálogo anterior. "Mantener todos" resuelve con
+   false; "Fusionar" con true.                                         */
+const kdpDialog = document.getElementById("kml-dup-picker");
+const kdpBox = kdpDialog.querySelector(".dlg-box");
+const kdpIntro = document.getElementById("kdp-intro");
+let kdpResolve = null;
+function closeKdpPicker(result) {
+  kdpDialog.hidden = true;
+  const resolve = kdpResolve;
+  kdpResolve = null;
+  releaseFocus();
+  if (resolve) resolve(result);
+}
+function confirmMergeDuplicates(fileName, groups) {
+  const total = groups.reduce((n, g) => n + g.length - 1, 0);
+  const plural = groups.length === 1 ? "" : "es";
+  kdpIntro.textContent = `«${fileName}» tiene ${groups.length} nombre${plural} repetido${plural} `
+    + `con la misma posición (${total} marcador(es) de más). ¿Fusionarlos y mantener solo uno de cada grupo?`;
+  kdpDialog.hidden = false;
+  clampToViewport(kdpBox);
+  focusDialog(kdpBox);
+  return new Promise(resolve => { kdpResolve = resolve; });
+}
+document.getElementById("kdp-cancel").addEventListener("click", () => closeKdpPicker(false));
+document.getElementById("kdp-accept").addEventListener("click", () => closeKdpPicker(true));
+
 /* ---------- Elegir la propiedad-nombre de un GeoJSON ambiguo ----------
    addFileNode es async y necesita ESPERAR la elección antes de seguir
    construyendo el árbol: mismo patrón que el diálogo anterior, una
@@ -5468,18 +5590,19 @@ document.getElementById("desc-close").addEventListener("click", () => {
   layerInfoDismissed = true;
   releaseFocus();
 });
-for (const box of [styleBox, iconBox, colorBox, descBox, shortcutsBox, ktpBox, gnpBox, gnpEditorBox]) makeDialogMovable(box);
+for (const box of [styleBox, iconBox, colorBox, descBox, shortcutsBox, ktpBox, kdpBox, gnpBox, gnpEditorBox]) makeDialogMovable(box);
 setupDialog(styleBox, { modal: false }); /* flotante: el mapa sigue vivo */
 setupDialog(iconBox, { modal: true });
 setupDialog(colorBox, { modal: true });
 setupDialog(descBox, { modal: false });
 setupDialog(shortcutsBox, { modal: true });
 setupDialog(ktpBox, { modal: true });
+setupDialog(kdpBox, { modal: true });
 setupDialog(gnpBox, { modal: true });
 setupDialog(gnpEditorBox, { modal: true });
 window.addEventListener("resize", () => {
   /* a moved dialog must not fall off-screen */
-  for (const box of [styleBox, iconBox, colorBox, descBox, shortcutsBox, ktpBox, gnpBox, gnpEditorBox]) clampToViewport(box);
+  for (const box of [styleBox, iconBox, colorBox, descBox, shortcutsBox, ktpBox, kdpBox, gnpBox, gnpEditorBox]) clampToViewport(box);
 });
 let styleTargets = [];    /* nodes being edited */
 let styleKindOpen = null; /* "marker" | "polygon" */
@@ -6160,6 +6283,7 @@ document.addEventListener("keydown", e => {
   if (!colorPicker.hidden) { colorPicker.hidden = true; colorTarget = null; releaseFocus(); return; }
   if (!iconPicker.hidden) { iconPicker.hidden = true; pendingIcon = null; releaseFocus(); return; }
   if (!ktpDialog.hidden) { closeKtpPicker(false); return; }
+  if (!kdpDialog.hidden) { closeKdpPicker(false); return; }
   if (!gnpDialog.hidden) { closeGnpPicker(null); return; }
   if (!gnpEditorDialog.hidden) { gnpEditorDialog.hidden = true; releaseFocus(); return; }
   if (!styleDialog.hidden) { closeStyleDialog(false); return; }

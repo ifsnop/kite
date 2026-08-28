@@ -13,6 +13,7 @@ const SUITES = [
   ["kmltest.js",    "Parseo de KML: espacios de nombres, estilos, geometrías"],
   ["repairtest.js", "Reparación de prefijos XML sin declarar"],
   ["htmltagstest.js", "Detección y limpieza de etiquetas tipo HTML en nombres de un KML"],
+  ["kmldupetest.js", "Detección y fusión de placemarks duplicados (mismo nombre y posición)"],
   ["clamptest.js",  "Coordenadas: validación y tolerancia de redondeo"],
   ["utmtest.js",    "Conversión a UTM y husos"],
   ["coordfmt.js",   "Formato de coordenadas: decimal, GMS con espacios y GMS compacto"],

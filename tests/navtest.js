@@ -74,11 +74,11 @@ const src = `
 ` + ["setSelected","setSelCursor","clearSelection","selectNode","selectRange",
      "toggleOne","nextSiblingRow","prevSiblingRow","nextRow","lastVisibleIn",
      "prevRow","stepRows","moveCursorTo","expandOrEnter","collapseOrLeave",
-     "createFolderNode"].map(fn).join("\n");
+     "createFolderNode","cursorAfterDelete"].map(fn).join("\n");
 const api = new Function("treeEl", "rootUl", src +
   "\nreturn {nextRow, prevRow, stepRows, siblingRows, selectRange, moveCursorTo, selectNode, toggleOne," +
   " clearSelection, selection, expandOrEnter, collapseOrLeave, cursor:()=>selCursor," +
-  " createFolderNode, materializeCalls};")(treeEl, rootUl);
+  " createFolderNode, materializeCalls, cursorAfterDelete};")(treeEl, rootUl);
 
 const ok = (c,m) => { if(!c){ console.error("FAIL: "+m); process.exitCode=1; } };
 const names = set => [...set].map(n => n._name).sort().join("");
@@ -141,6 +141,22 @@ ok(api.stepRows(A, 99)._name === "E", "el salto largo se para en la última");
 ok(api.stepRows(E, -99)._name === "A", "y hacia arriba en la primera");
 ok(api.stepRows(d, 1)._name === "E", "salir de una subcarpeta al hermano del ancestro");
 ok(api.prevRow(E)._name === "d", "la anterior a E es la última visible de la rama");
+
+/* cursorAfterDelete: dónde debe aterrizar el cursor de teclado tras borrar
+   (botón × o Supr), sobre el árbol AF1[bcF2[d]]E, con las relaciones
+   todavía intactas (se llama ANTES de borrar de verdad).               */
+ok(api.cursorAfterDelete(c, [c])._name === "F2",
+   "borrar una hoja: el cursor pasa a la siguiente fila visible");
+ok(api.cursorAfterDelete(E, [E])._name === "d",
+   "borrar la última fila: cae hacia atrás, a la anterior");
+ok(api.cursorAfterDelete(F1, [F1])._name === "E",
+   "borrar una carpeta entera: salta toda su rama, no entra en ella");
+ok(api.cursorAfterDelete(A, [A, F1])._name === "E",
+   "borrar varios nodos contiguos: salta todos los que desaparecen");
+ok(api.cursorAfterDelete(A, [A, F1, E]) === null,
+   "borrar el árbol entero: no queda nada donde aterrizar");
+ok(api.cursorAfterDelete(rootUl, [A]) === null,
+   "ancla que no es una fila: no hay cursor que mover");
 
 /* createFolderNode: "Nueva carpeta" cuelga SIEMPRE dentro de una carpeta
    activa (desplegándola si hacía falta), nunca como su hermana; para
