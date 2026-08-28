@@ -867,7 +867,7 @@
       <tr><td>May&#250;s + arrastrar</td><td>Zoom a un rect&#225;ngulo</td></tr>
       <tr><td>Ctrl + arrastrar</td><td>Editar una medici&#243;n</td></tr>
       <tr><td>Doble clic en una fila</td><td>Ir a la capa; repetido, acercar</td></tr>
-      <tr><td>Re P&#225;g / Av P&#225;g (con el mapa enfocado)</td><td>Acercar / alejar un nivel de zoom</td></tr>
+      <tr><td>Re P&#225;g / Av P&#225;g (con el mapa enfocado)</td><td>Acercar / alejar un nivel de zoom hacia el puntero</td></tr>
     </table>
     <div class="dlg-actions"><button class="btn" id="shortcuts-close">Cerrar</button></div>
   </div>
@@ -1036,7 +1036,7 @@ const map = L.map("map", {
 
 /* Fecha de generación del código (versión): AÑOMESDIAHORAMINUTO.
    Actualizar en cada generación; se muestra junto al crédito de Leaflet. */
-const BUILD = "202608281530";
+const BUILD = "202608281645";
 map.attributionControl.setPrefix(
   `v${BUILD} | <a href="https://leafletjs.com" title="A JavaScript library for interactive maps">Leaflet</a>`);
 
@@ -7794,16 +7794,6 @@ const coordsControl = new CoordsControl();
 map.addControl(coordsControl);
 map.on("zoomend", () => coordsControl.updateZoom());
 
-/* PageUp/PageDown zoom the map while it has focus. Listening directly on
-   the map container (like the polygon-drawing click/dblclick above)
-   means this only fires with focus inside #map. preventDefault stops
-   the browser's native whole-page scroll; Leaflet's own keyboard
-   handler doesn't act on these two keys, so today they do nothing.     */
-map.getContainer().addEventListener("keydown", e => {
-  if (e.key === "PageUp") { e.preventDefault(); map.setZoom(map.getZoom() + 1); }
-  else if (e.key === "PageDown") { e.preventDefault(); map.setZoom(map.getZoom() - 1); }
-});
-
 /* El ratón dispara decenas de eventos por segundo y cada lectura implica
    proyectar a UTM y reescribir varias filas: se hace una vez por
    fotograma, que es cuanto puede verse.                               */
@@ -7816,6 +7806,23 @@ map.on("mousemove", e => {
     coordsFrame = null;
     coordsControl.update(coordsPending);
   });
+});
+
+/* PageUp/PageDown zoom the map while it has focus. Listening directly on
+   the map container (like the polygon-drawing click/dblclick above)
+   means this only fires with focus inside #map. preventDefault stops
+   the browser's native whole-page scroll; Leaflet's own keyboard
+   handler doesn't act on these two keys, so today they do nothing.
+   Anchored on coordsPending (the last known cursor position) so the zoom
+   behaves like the mouse wheel's, which zooms toward the cursor instead
+   of the view center; without a prior mousemove (focus reached via Tab)
+   there's no known position and it falls back to zooming on the center. */
+map.getContainer().addEventListener("keydown", e => {
+  if (e.key !== "PageUp" && e.key !== "PageDown") return;
+  e.preventDefault();
+  const target = map.getZoom() + (e.key === "PageUp" ? 1 : -1);
+  if (coordsPending) map.setZoomAround(coordsPending, target);
+  else map.setZoom(target);
 });
 
 /* ---------- Menú contextual del visor (botón derecho) ---------- */
