@@ -3,7 +3,7 @@
 **KITE Local** = *KML Interactive Tree Explorer*.
 
 Instrucciones para seguir añadiendo funcionalidades a `kitelocal.html`
-(el producto es KITE Local; el archivo se llamó `visor-kml.html` en
+(el producto es KITE Local; el archivo se llamó `kitelocal.html` en
 versiones anteriores) manteniendo los principios acordados durante el
 desarrollo del proyecto.
 
@@ -683,7 +683,11 @@ desarrollo del proyecto.
 
 ## Persistencia (IndexedDB)
 
-- Base `visor-kml`, `DB_VERSION` versiona los almacenes (hoy: solo
+- Base `visor-kml` (nombre interno heredado del archivo `visor-kml.html`
+  de versiones anteriores; se mantiene así a propósito porque cambiarlo
+  dejaría inaccesibles el árbol y la vista ya guardados de cualquier
+  usuario existente — no es una referencia a actualizar).
+  `DB_VERSION` versiona los almacenes (hoy: solo
   `tree`); `TREE_SCHEMA` versiona el formato del árbol serializado, que
   se guarda como `{ v, nodes }` bajo la clave `root`. `TREE_SCHEMA` actual:
   **3** (los nodos de capa admiten `mstyle`, el estilo de marcador; y
@@ -1081,3 +1085,7 @@ atribución se mantiene en una sola línea con elipsis si no cabe.
     dentro del `onAdd` de un control debe declararse antes que ese
     control, o al añadirlo se cae por zona muerta temporal. `node --check`
     no lo detecta.
+11. **Al reportar que se han hecho cambios en el código, mostrar siempre
+    la salida de `git diff --stat`** (sobre lo modificado en esa
+    respuesta), para que quede a la vista qué archivos y cuántas líneas
+    cambiaron sin tener que ir a comprobarlo aparte.

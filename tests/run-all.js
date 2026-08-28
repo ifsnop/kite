@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 /* Lanzador de la batería de pruebas de KITE Local.
    Uso:  node tests/run-all.js  [--bench]
-   Los tests extraen las funciones del propio visor-kml.html y las
+   Los tests extraen las funciones del propio kitelocal.html y las
    ejecutan en Node, así que comprueban EL CÓDIGO QUE SE ENTREGA, no una
    copia. Los que necesitan un DOM usan linkedom (HTML) o @xmldom/xmldom
    (XML, porque linkedom no implementa espacios de nombres).          */
