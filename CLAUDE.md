@@ -760,6 +760,71 @@ desarrollo del proyecto.
 
 ## Mapas base
 
+- **Capas dinámicas: una sola maquinaria, varias fuentes**
+  (`DYNAMIC_SOURCES`, `dynSource`). Una capa base con `dynamic: true`
+  declara además un `source`, y esa fuente aporta su catálogo
+  (`get`/`error`/`ensure`), su valor por defecto (`pickDefault`) y su
+  agrupación para el `<select>` (`groups`). Hoy hay dos: `pnoa-hist` y
+  `copernicus`. Ni `applyBaseLayer` ni `buildDynamicLayerSelect` deben
+  volver a nombrar una fuente concreta.
+- **Una fuente puede estar bloqueada** (`blocked()`): devuelve el texto
+  del `<select>` (`label`) y su explicación (`hint`) cuando todavía no
+  se puede listar nada. Es lo que hace Copernicus mientras no haya
+  credencial: el selector queda deshabilitado diciendo «Requiere
+  credencial», y **no se rehabilita al encender la capa** porque no hay
+  nada que elegir. Al arrancar, una capa bloqueada guardada como
+  encendida **se apaga**, en vez de fallar tesela a tesela.
+- **Configurar una fuente es una tuerca ⚙**
+  (`buildDynamicConfigButton`), del mismo estilo que los botones de
+  acción de una fila del árbol, colocada en `.base-tools` **a la
+  izquierda de las flechas** de apilado. Está siempre que la fuente
+  tenga `configure`, haya credencial o no, y **no se deshabilita con la
+  capa apagada**: si solo apareciera cuando falta la credencial, no
+  habría forma de cambiarla ni de retirarla una vez guardada; y si se
+  deshabilitara con la capa apagada, habría que encender una capa que
+  todavía no puede funcionar para poder configurarla.
+- **Copernicus DEM va por Sentinel Hub y con la credencial DEL USUARIO**
+  (`COP_WMS_BASE`, `shWmsUrl`, `setInstanceId`, diálogo `#sh-creds`).
+  Comprobado contra los servicios reales: **no existe ningún WMS anónimo
+  de Copernicus**. El de la EEA (EU-DEM v1.1) está retirado —su
+  MapServer responde `not started` y su `WMSServer` da 404— y el mirror
+  de AWS sirve COG **sin CORS** (y su preflight `OPTIONS` da 403), así
+  que es ilegible desde el navegador. Sentinel Hub sí manda CORS
+  correctos y autentica con un *instance ID* de la cuenta de cada
+  usuario: por eso se pide y se guarda en su navegador
+  (clave `shCreds`, `SH_SCHEMA`) en lugar de incrustarse en el archivo,
+  que se distribuye. **No se serializa con el árbol ni viaja en un
+  `.kite.json` exportado.** Sus capas tampoco se fijan: cada usuario
+  decide cuáles publica su configuración, así que salen de su
+  GetCapabilities. Con un instance ID inexistente el servicio responde
+  HTTP 400 con `<ServiceException>Invalid instance id</ServiceException>`
+  en el cuerpo, y eso es lo que se muestra: quedarse en el código HTTP
+  perdería el texto útil.
+- **Copernicus DEM es un DSM, no un MDT**: incluye edificios y
+  vegetación (los archivos se llaman `Copernicus_DSM_…`). No sustituye
+  al MDT del IGN ni sirve para la resta MDT−MDS del modo altura; es una
+  capa visual más.
+- **SRTM30 de terrestris** (`srtm`) es la opción de relieve global sin
+  credencial: su GetCapabilities declara `<Fees>None</Fees>` y se
+  verificó devolviendo teselas reales en EPSG:3857 con **WMS 1.1.1**,
+  que es la versión que Leaflet manda por defecto. Exige atribución
+  (`SRTM_CREDIT`) y su cobertura es la del SRTM, **56°S–60°N**: por
+  encima del paralelo 60 no hay dato, así que no reemplaza al sombreado
+  de Esri. Lleva **`maxNativeZoom: 9`**: por encima no se le pide nada
+  al servidor y Leaflet reescala la última tesela. El servicio sí
+  responde 200 más allá (comprobado hasta z16), pero la malla es de
+  30 m y esos niveles son interpolación, no detalle.
+- **Un diálogo nuevo necesita su `max-width`**: `.dlg-box` trae
+  `max-width: 90vw`, pensado para los diálogos anchos (estilos,
+  iconos), así que una caja de texto corto se estira a casi toda la
+  pantalla si no se acota. Los de texto van en la regla de
+  `#kml-tags-picker, #kml-dup-picker, #sh-creds` con `max-width: 42ch`.
+- **`collectWmsLayers`/`parseWmsCapabilities` reciben sus opciones**
+  (`exclude`, `rootGroup`), no las llevan dentro: las comparten el PNOA
+  histórico (`PNOA_HIST_WMS_OPTS`) y Copernicus (`COP_WMS_OPTS`). Ojo:
+  **`opts` no se desestructura en la firma** porque los tests extraen
+  cada función contando llaves desde la primera `{` y un patrón de
+  desestructuración ahí la truncaría.
 - **Se pueden reordenar** con las flechas de cada fila: el orden del Map
   `baseState` ES el de apilado y los `zIndex` se recalculan al moverlas.
   El orden se guarda junto a las opacidades, ignorando al leerlo los

@@ -18,7 +18,7 @@ const src = "const parserErrorText = () => null;\n" + helpers + excludeConst +
   [fn("directChildText"), fn("collectWmsLayers"), fn("parseWmsCapabilities"), fn("parseWmsServiceException"),
    fn("pnoaHistDefault"), fn("groupPnoaHistEntries")].join("\n");
 const apiExports = "\nreturn {collectWmsLayers, parseWmsCapabilities, parseWmsServiceException," +
-  " pnoaHistDefault, groupPnoaHistEntries};";
+  " pnoaHistDefault, groupPnoaHistEntries, PNOA_HIST_WMS_OPTS};";
 const api = new Function("DOMParser", src + apiExports)(DOMParser);
 const ok = (c, m) => { if (!c) { console.error("FAIL: " + m); process.exitCode = 1; } };
 
@@ -58,7 +58,7 @@ const caps = `<?xml version="1.0" encoding="UTF-8"?>
   </Capability>
 </WMS_Capabilities>`;
 
-const entries = api.parseWmsCapabilities(caps);
+const entries = api.parseWmsCapabilities(caps, api.PNOA_HIST_WMS_OPTS);
 ok(entries && entries.length === 6, "6 capas seleccionables: " + (entries && entries.length));
 ok(!entries.some(e => e.name === "infoVuelos"), "infoVuelos queda excluida");
 ok(!entries.some(e => e.name === "default"), "el <Name> de <Style> no se confunde con el de la capa");
@@ -84,7 +84,8 @@ ok(grouped[2].group === "PNOA10", "un grupo no anticipado ('PNOA10') se coloca a
 
 /* Sin ninguna capa con <Name>, no hay nada que ofrecer */
 ok(api.parseWmsCapabilities("<WMS_Capabilities><Capability><Layer><Title>Vacío</Title></Layer>"
-  + "</Capability></WMS_Capabilities>") === null, "documento sin capas nombradas devuelve null");
+  + "</Capability></WMS_Capabilities>", api.PNOA_HIST_WMS_OPTS) === null,
+  "documento sin capas nombradas devuelve null");
 
 /* WMS 1.3.0 informa sus errores como ServiceExceptionReport, no como el
    ExceptionReport de OWS que usa el WCS de elevaciones (elevtest.js).  */

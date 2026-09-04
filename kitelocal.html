@@ -14,8 +14,8 @@
   default-src 'none';
   script-src 'self' 'unsafe-inline' https://unpkg.com https://cdnjs.cloudflare.com;
   style-src 'self' 'unsafe-inline' https://unpkg.com;
-  img-src 'self' data: blob: https://unpkg.com https://api.iconify.design https://www.ign.es https://tile.openstreetmap.org https://server.arcgisonline.com https://tms-pnoa-ma.idee.es https://servicios.idee.es;
-  connect-src 'self' https://api.iconify.design https://nominatim.openstreetmap.org https://wcs-mds.idee.es https://servicios.idee.es https://www.ign.es https://unpkg.com https://cdnjs.cloudflare.com;
+  img-src 'self' data: blob: https://unpkg.com https://api.iconify.design https://www.ign.es https://tile.openstreetmap.org https://server.arcgisonline.com https://tms-pnoa-ma.idee.es https://servicios.idee.es https://ows.terrestris.de https://sh.dataspace.copernicus.eu;
+  connect-src 'self' https://api.iconify.design https://nominatim.openstreetmap.org https://wcs-mds.idee.es https://servicios.idee.es https://www.ign.es https://unpkg.com https://cdnjs.cloudflare.com https://sh.dataspace.copernicus.eu;
   font-src 'self';
   base-uri 'none';
   form-action 'none';
@@ -435,6 +435,16 @@
   .base-row input[type="range"], .base-row select { grid-column: 1 / -1; width: 100%; }
   .base-row select { font: inherit; }
   .base-row.failed label { color: var(--danger); }
+  /* Tuerca de configuración + flechas de apilado, en ese orden: la
+     tuerca queda a la IZQUIERDA de las flechas.                       */
+  .base-tools { display: flex; gap: 4px; align-items: center; }
+  /* Icono de propiedades, como los botones de acción de una fila del
+     árbol (.actions button), no un botón de formulario.               */
+  .base-gear {
+    border: none; background: none; color: var(--muted);
+    font-size: 13px; line-height: 1; cursor: pointer; padding: 2px 3px; border-radius: 4px;
+  }
+  .base-gear:hover { color: var(--fg); }
 
   /* Celdas de la cuadrícula de elevaciones */
   .elev-cell {
@@ -563,7 +573,9 @@
      shrink-to-fit width ends up close to the sentence's unwrapped
      width — capping it here keeps this one-question dialog compact
      instead of stretching almost edge to edge.                       */
-  #kml-tags-picker .dlg-box, #kml-dup-picker .dlg-box { max-width: 42ch; }
+  /* Sin esto heredan el max-width: 90vw de .dlg-box y una caja de texto
+     corto se estira a casi toda la pantalla.                          */
+  #kml-tags-picker .dlg-box, #kml-dup-picker .dlg-box, #sh-creds .dlg-box { max-width: 42ch; }
   .dlg-box h2 {
     margin: 0 0 10px;
     font-size: 14px;
@@ -622,6 +634,12 @@
   .desc-body td, .desc-body th { border: 1px solid var(--border); padding: 2px 5px; text-align: left; }
   .desc-body img { max-width: 100%; height: auto; }
   .dlg-hint { margin: 6px 0 0; font-size: 12px; color: var(--muted); }
+  .dlg-hint.sh-bad { color: var(--danger); }
+  .sh-field { display: block; margin-top: 10px; font-size: 13px; }
+  .sh-field input {
+    display: block; width: 100%; margin-top: 4px; font: inherit; padding: 4px 6px;
+    border: 1px solid var(--border); border-radius: 4px; box-sizing: border-box;
+  }
   .dlg-note { margin-left: auto; font-size: 12px; color: var(--muted); }
   .gnp-list, .gnp-editor-list {
     max-height: 260px;
@@ -958,6 +976,31 @@
   </div>
 </div>
 
+<!-- Credencial de Sentinel Hub: el instance ID con el que Copernicus
+     autentica sus servicios OGC. Es del usuario, no de la aplicación. -->
+<div id="sh-creds" class="dlg-overlay" hidden>
+  <div class="dlg-box">
+    <h2>Credencial de Copernicus</h2>
+    <p class="dlg-hint">Copernicus no publica ning&#250;n WMS an&#243;nimo: sus capas se sirven por
+      Sentinel Hub, que identifica cada petici&#243;n con un <em>instance ID</em> de tu propia
+      cuenta. Se crea gratis en el panel de Copernicus Data Space, en
+      <em>Dashboard &#8594; Configuration Utility</em>, donde adem&#225;s eliges qu&#233; capas publica
+      esa configuraci&#243;n (por ejemplo el <em>Copernicus DEM</em>).</p>
+    <label class="sh-field">Instance ID
+      <input type="text" id="sh-instance" spellcheck="false" autocomplete="off"
+             placeholder="00000000-0000-0000-0000-000000000000">
+    </label>
+    <p class="dlg-hint">Se guarda solo en este navegador y &#250;nicamente se env&#237;a a
+      <code>sh.dataspace.copernicus.eu</code>. Puedes borrarlo cuando quieras.</p>
+    <p class="dlg-hint sh-bad" id="sh-error" hidden></p>
+    <div class="dlg-actions">
+      <button class="btn" id="sh-clear">Borrar</button>
+      <button class="btn" id="sh-cancel">Cancelar</button>
+      <button class="btn" id="sh-accept">Aceptar</button>
+    </div>
+  </div>
+</div>
+
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
         integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo="
         crossorigin="anonymous" referrerpolicy="no-referrer"></script>
@@ -1036,7 +1079,7 @@ const map = L.map("map", {
 
 /* Fecha de generación del código (versión): AÑOMESDIAHORAMINUTO.
    Actualizar en cada generación; se muestra junto al crédito de Leaflet. */
-const BUILD = "202608281645";
+const BUILD = "202609041545";
 map.attributionControl.setPrefix(
   `v${BUILD} | <a href="https://leafletjs.com" title="A JavaScript library for interactive maps">Leaflet</a>`);
 
@@ -1051,6 +1094,10 @@ const IGN_WMTS = (service, layer, format = "image/jpeg") =>
   + "&TileMatrixSet=GoogleMapsCompatible&TileMatrix={z}&TileCol={x}&TileRow={y}";
 
 const IGN_CREDIT = "Cedido por &copy; Instituto Geogr\u00E1fico Nacional de Espa\u00F1a";
+/* terrestris exige atribuci\u00F3n en sus AccessConstraints; el dato de
+   elevaci\u00F3n bajo esas teselas es el SRTM de la NASA.                 */
+const SRTM_CREDIT = "SRTM 30m &copy; NASA LP DAAC \u2014 teselas de terrestris";
+const COP_CREDIT = "Copernicus DEM \u2014 Copernicus Data Space / Sentinel Hub";
 
 const BASE_LAYERS = [
   { id: "osm", name: "OpenStreetMap", on: true, opacity: 1,
@@ -1093,10 +1140,40 @@ const BASE_LAYERS = [
       layers: "EL.ElevationGridCoverage", format: "image/png", version: "1.3.0",
       transparent: true, maxZoom: MAX_ZOOM, attribution: `MDT WMS. ${IGN_CREDIT}` }) },
 
+  /* SRTM30 de terrestris: relieve global sin credencial (su
+     GetCapabilities declara <Fees>None</Fees>), verificado contra el
+     servicio real devolviendo teselas EPSG:3857 en WMS 1.1.1 \u2014 que es
+     justo la versi\u00F3n que Leaflet manda por defecto. Su cobertura es la
+     del SRTM, 56\u00B0S\u201360\u00B0N: por encima del paralelo 60 (Escandinavia,
+     Islandia, Groenlandia) no hay dato, as\u00ED que no es un relieve
+     verdaderamente global y no sustituye al sombreado de Esri.        */
+  /* maxNativeZoom 9: por encima no se le pide NADA al servidor y Leaflet
+     reescala la última tesela recibida. El servicio sí responde 200 por
+     encima de ese nivel (comprobado hasta z16), pero la malla es de 30 m
+     y esos niveles ya son interpolación: serían peticiones que no
+     añaden detalle. Mismo trato que la capa física de Esri.           */
+  { id: "srtm", name: "Relieve SRTM30 (terrestris)", on: false, opacity: 1,
+    layer: () => L.tileLayer.wms("https://ows.terrestris.de/osm/service", {
+      layers: "SRTM30-Colored-Hillshade", format: "image/png", version: "1.1.1",
+      transparent: false, maxNativeZoom: 9, maxZoom: MAX_ZOOM,
+      attribution: SRTM_CREDIT }) },
+
+  /* Copernicus DEM. Las capas dependen de la configuraci\u00F3n del usuario
+     en Sentinel Hub, as\u00ED que se descubren igual que las del PNOA
+     hist\u00F3rico; la URL lleva su instance ID y por eso se arma en
+     `shWmsUrl()` en vez de ser una constante. Ver la secci\u00F3n
+     "Copernicus DEM" m\u00E1s abajo.                                       */
+  { id: "copernicus-dem", name: "Copernicus DEM (Sentinel Hub)", on: false, opacity: 1,
+    dynamic: true, source: "copernicus",
+    layer: (wmsLayer) => L.tileLayer.wms(shWmsUrl(), {
+      layers: wmsLayer, format: "image/png", version: "1.3.0", transparent: true,
+      maxZoom: MAX_ZOOM, attribution: COP_CREDIT }) },
+
   /* No es una sola capa fija: `layer()` recibe el nombre de capa WMS
      elegido en el selector (ver "PNOA hist\u00F3rico" m\u00E1s abajo), descubierto
      contra el GetCapabilities real del servicio en vez de hardcodearlo. */
-  { id: "pnoa-hist", name: "PNOA hist\u00F3rico (IGN)", on: false, opacity: 1, dynamic: true,
+  { id: "pnoa-hist", name: "PNOA hist\u00F3rico (IGN)", on: false, opacity: 1,
+    dynamic: true, source: "pnoa-hist",
     layer: (wmsLayer) => L.tileLayer.wms(PNOA_HIST_URL, {
       layers: wmsLayer, format: "image/jpeg", version: "1.3.0", transparent: false,
       maxZoom: MAX_ZOOM, attribution: `PNOA hist\u00F3rico. ${IGN_CREDIT}` }) }
@@ -1113,10 +1190,12 @@ function applyBaseLayer(id) {
   if (st.on) {
     if (st.def.dynamic && !st.wmsLayer) {
       /* Sin cat\u00E1logo todav\u00EDa no hay qu\u00E9 nombre de capa pedir: se
-         difiere y ensurePnoaHistCatalog() vuelve a llamar aqu\u00ED al
+         difiere y el ensure() de la fuente vuelve a llamar aqu\u00ED al
          resolver (o al fallar, en cuyo caso se queda apagada).       */
-      if (pnoaHistCatalog) st.wmsLayer = pnoaHistDefault(pnoaHistCatalog);
-      else { ensurePnoaHistCatalog(); return; }
+      const src = dynSource(st.def);
+      const cat = src && src.get();
+      if (cat) st.wmsLayer = src.pickDefault(cat);
+      else { if (src) src.ensure(); return; }
     }
     if (!st.layer) {
       st.layer = st.def.dynamic ? st.def.layer(st.wmsLayer) : st.def.layer();
@@ -1157,7 +1236,7 @@ const BaseControl = L.Control.extend({
     this._list = box.querySelector(".base-list");
     box.querySelector(".base-toggle").addEventListener("click", () => {
       this._list.hidden = !this._list.hidden;
-      if (!this._list.hidden) ensurePnoaHistCatalog();
+      if (!this._list.hidden) ensureDynamicCatalogs();
     });
     L.DomEvent.disableClickPropagation(box);
     L.DomEvent.disableScrollPropagation(box);
@@ -1210,11 +1289,18 @@ function renderBasePanel() {
        (si no, se queda con el `disabled` de la primera pintada y no
        reacciona a encender/apagar la capa).                          */
     const sel = st.def.dynamic ? buildDynamicLayerSelect(id, st) : null;
+    /* La tuerca no se deshabilita con la capa apagada a propósito: ver
+       buildDynamicConfigButton.                                       */
+    const gear = st.def.dynamic ? buildDynamicConfigButton(st) : null;
+    /* Un selector bloqueado (sin credencial) no se rehabilita al
+       encender la capa: no hay nada que elegir todavía.               */
+    const src = st.def.dynamic ? dynSource(st.def) : null;
+    const selLocked = !!(src && src.blocked && src.blocked());
 
     chk.addEventListener("change", () => {
       st.on = chk.checked;
       slider.disabled = !st.on;
-      if (sel) sel.disabled = !st.on;
+      if (sel) sel.disabled = !st.on || selLocked;
       applyBaseLayer(id);
       scheduleBaseSave();
     });
@@ -1235,40 +1321,67 @@ function renderBasePanel() {
       b.addEventListener("click", () => moveBaseLayer(id, delta));
       moves.appendChild(b);
     }
-    row.append(chk, label, moves, slider);
+    /* La tuerca va a la izquierda de las flechas, en la misma celda */
+    const tools = document.createElement("span");
+    tools.className = "base-tools";
+    if (gear) tools.appendChild(gear);
+    tools.appendChild(moves);
+    row.append(chk, label, tools, slider);
     if (sel) row.append(sel);
     list.appendChild(row);
   }
 }
 
-/* Selector de a\u00F1o/vuelo para una capa base "dynamic" (hoy solo PNOA
-   hist\u00F3rico, pero el mecanismo no depende de ella en concreto).       */
+/* Selector de capa para una capa base "dynamic". El mecanismo no sabe
+   de PNOA ni de Copernicus: cada fuente se describe en DYNAMIC_SOURCES
+   y aporta su cat\u00E1logo, su error, su valor por defecto y su
+   agrupaci\u00F3n. Una fuente puede adem\u00E1s estar "bloqueada" (Copernicus
+   sin instance ID todav\u00EDa), y entonces en lugar del <select> se
+   ofrece el bot\u00F3n que abre su configuraci\u00F3n.                          */
 function buildDynamicLayerSelect(id, st) {
+  const src = dynSource(st.def);
+  if (!src) return null;
+  const blocked = src.blocked && src.blocked();
+  if (blocked) {
+    /* Sin credencial no hay catálogo que ofrecer, pero la fila debe
+       decir por qué está vacía; configurarla es la tuerca de la
+       cabecera de la fila (ver buildDynamicConfigButton).             */
+    const sel = document.createElement("select");
+    sel.title = blocked.hint;
+    sel.disabled = true;
+    const opt = document.createElement("option");
+    opt.selected = true;
+    opt.textContent = blocked.label;
+    sel.appendChild(opt);
+    return sel;
+  }
+  const catalog = src.get();
+  const error = src.error();
   const sel = document.createElement("select");
-  sel.title = "A\u00F1o / vuelo";
+  sel.title = src.selectTitle;
   sel.disabled = !st.on;
-  if (pnoaHistError) {
+  if (error) {
     const opt = document.createElement("option");
     opt.disabled = true; opt.selected = true;
-    opt.textContent = `No disponible: ${pnoaHistError}`;
+    opt.textContent = `No disponible: ${error}`;
     sel.appendChild(opt);
-  } else if (!pnoaHistCatalog) {
+  } else if (!catalog) {
     const opt = document.createElement("option");
     opt.disabled = true; opt.selected = true;
     opt.textContent = "Cargando cat\u00E1logo\u2026";
     sel.appendChild(opt);
   } else {
-    if (!st.wmsLayer || !pnoaHistCatalog.some(e => e.name === st.wmsLayer)) {
+    if (!st.wmsLayer || !catalog.some(e => e.name === st.wmsLayer)) {
       const hadSaved = !!st.wmsLayer;
-      st.wmsLayer = pnoaHistDefault(pnoaHistCatalog);
+      st.wmsLayer = src.pickDefault(catalog);
       if (hadSaved) {
-        navMessage(`El a\u00F1o/vuelo guardado para \u00ABPNOA hist\u00F3rico\u00BB ya no est\u00E1 disponible; se usa ${st.wmsLayer}.`,
+        navMessage(`La capa guardada para \u00AB${st.def.name}\u00BB ya no est\u00E1 disponible; se usa ${st.wmsLayer}.`,
           { tone: "info" });
       }
       if (st.on) applyBaseLayer(id);
       scheduleBaseSave();
     }
-    for (const group of groupPnoaHistEntries(pnoaHistCatalog)) {
+    for (const group of src.groups(catalog)) {
       const og = document.createElement("optgroup");
       og.label = group.group;
       for (const entry of group.items) {
@@ -1289,6 +1402,26 @@ function buildDynamicLayerSelect(id, st) {
   return sel;
 }
 
+/* Tuerca de propiedades de una capa dinámica que se configura (hoy la
+   credencial de Copernicus). Va SIEMPRE que la fuente tenga
+   `configure`, con o sin credencial ya puesta: si solo apareciera
+   cuando falta, no habría forma de cambiarla ni de retirarla; y si se
+   deshabilitara con la capa apagada, habría que encender una capa que
+   todavía no puede funcionar para poder configurarla.                 */
+function buildDynamicConfigButton(st) {
+  const src = dynSource(st.def);
+  if (!src || !src.configure) return null;
+  const blocked = src.blocked && src.blocked();
+  const label = blocked ? blocked.hint : "Cambiar o borrar la credencial";
+  const gear = document.createElement("button");
+  gear.className = "base-gear";
+  gear.textContent = "⚙";
+  gear.title = label;
+  gear.setAttribute("aria-label", label);
+  gear.addEventListener("click", src.configure);
+  return gear;
+}
+
 /* ---------- PNOA histórico (WMS del IGN) ----------
    Nada del servicio se da por sabido: el catálogo de años y vuelos
    disponibles sale de su GetCapabilities, siguiendo el mismo principio
@@ -1304,6 +1437,9 @@ const PNOA_HIST_TIMEOUT = 10000;
    resolución del vuelo bajo el cursor), no una ortofoto — no pinta
    imagen y no tiene sentido en un selector de años/vuelos.            */
 const PNOA_HIST_EXCLUDE = new Set(["infoVuelos"]);
+/* Los vuelos sueltos que cuelgan de la raíz sin grupo propio (SIGPAC,
+   AMS_1956-1957…) necesitan un cajón con nombre; el servicio no lo da. */
+const PNOA_HIST_WMS_OPTS = { exclude: PNOA_HIST_EXCLUDE, rootGroup: "Vuelos históricos" };
 
 let pnoaHistCatalog = null;    /* [{name, title, group}] una vez resuelto */
 let pnoaHistError = null;      /* mensaje legible si el descubrimiento falló */
@@ -1329,26 +1465,30 @@ function parseWmsServiceException(txt) {
    directos de la raíz que no cuelgan de ningún grupo propio (los
    vuelos sueltos: SIGPAC, AMS_1956-1957...) caen en un cajón editorial
    fijo, no en una lista de nombres de capa esperados de antemano.     */
-function collectWmsLayers(rootLayerEl) {
+/* `opts` NO se desestructura en la firma a propósito: los tests extraen
+   cada función contando llaves desde la primera `{`, y un patrón de
+   desestructuración ahí la truncaría (ver tests/pnoahisttest.js).     */
+function collectWmsLayers(rootLayerEl, opts) {
+  const exclude = opts.exclude, rootGroup = opts.rootGroup;
   const out = [];
   function walk(layerEl, groupTitle) {
     const name = directChildText(layerEl, "Name");
     const title = directChildText(layerEl, "Title") || name;
     const children = childrenByTag(layerEl, "Layer");
-    if (name && !PNOA_HIST_EXCLUDE.has(name)) out.push({ name, title, group: groupTitle });
+    if (name && !exclude.has(name)) out.push({ name, title, group: groupTitle });
     const nextGroup = (!name && children.length) ? title : groupTitle;
     children.forEach(child => walk(child, nextGroup));
   }
-  childrenByTag(rootLayerEl, "Layer").forEach(child => walk(child, "Vuelos históricos"));
+  childrenByTag(rootLayerEl, "Layer").forEach(child => walk(child, rootGroup));
   return out;
 }
 
-function parseWmsCapabilities(xmlText) {
+function parseWmsCapabilities(xmlText, opts) {
   const doc = new DOMParser().parseFromString(xmlText, "text/xml");
   if (parserErrorText(doc)) return null;
   const root = firstByTag(doc, "Layer");
   if (!root) return null;
-  const entries = collectWmsLayers(root);
+  const entries = collectWmsLayers(root, opts);
   return entries.length ? entries : null;
 }
 
@@ -1399,7 +1539,7 @@ async function fetchPnoaHistoricoCatalog() {
     const ex = parseWmsServiceException(txt);
     if (ex) throw new Error(ex.msg);
     if (!r.ok) throw new Error(describeHttp(r.status));
-    const entries = parseWmsCapabilities(txt);
+    const entries = parseWmsCapabilities(txt, PNOA_HIST_WMS_OPTS);
     if (!entries) throw new Error("el servicio no declara capas");
     pnoaHistCatalog = entries;
     return entries;
@@ -1419,12 +1559,136 @@ async function fetchPnoaHistoricoCatalog() {
    una vez resuelta con éxito.                                         */
 function ensurePnoaHistCatalog() {
   if (pnoaHistCatalog) return;
-  fetchPnoaHistoricoCatalog().then(() => {
-    /* Capas dinámicas encendidas que se diferieron por falta de
-       catálogo (ver applyBaseLayer) ya pueden crearse.               */
-    for (const [id, st] of baseState) if (st.def.dynamic && st.on) applyBaseLayer(id);
-    renderBasePanel();
-  }).catch(() => renderBasePanel());
+  fetchPnoaHistoricoCatalog().then(onDynamicCatalogReady).catch(() => renderBasePanel());
+}
+
+/* Capas dinámicas encendidas que se diferieron por falta de catálogo
+   (ver applyBaseLayer) ya pueden crearse.                             */
+function onDynamicCatalogReady() {
+  for (const [id, st] of baseState) if (st.def.dynamic && st.on) applyBaseLayer(id);
+  renderBasePanel();
+}
+
+/* ---------- Copernicus DEM (Sentinel Hub del Copernicus Data Space) ----------
+   Comprobado contra los servicios reales antes de elegir esta vía:
+   Copernicus NO publica ningún WMS anónimo. El de la EEA (EU-DEM v1.1)
+   se retiró —su MapServer responde "not started" y su WMSServer da
+   404— y el mirror de AWS sirve COG sin cabeceras CORS (y rechaza el
+   preflight con 403), así que es ilegible desde el navegador. La única
+   vía viva es Sentinel Hub, que autentica sus servicios OGC con un
+   "instance ID" de la cuenta de cada usuario: es SU credencial, no una
+   nuestra, así que se pide y se guarda en este navegador en lugar de
+   incrustarse en el archivo, que se distribuye.
+   Verificado también contra el servicio real: manda CORS correctos
+   (refleja el Origin), y con un instance ID inválido responde HTTP 400
+   con <ServiceException>Invalid instance id</ServiceException>, de modo
+   que el error que ve el usuario es el del propio servicio.
+   Las capas no se pueden fijar de antemano: cada usuario decide cuáles
+   publica su configuración, así que salen de su GetCapabilities igual
+   que las del PNOA histórico.                                         */
+const COP_WMS_BASE = "https://sh.dataspace.copernicus.eu/ogc/wms/";
+const COP_TIMEOUT = 15000;
+/* La configuración del usuario puede publicar cualquier cosa, no solo
+   elevación, y no hay grupos anidados que agrupar: una sola caja.    */
+const COP_WMS_OPTS = { exclude: new Set(), rootGroup: "Capas de tu configuración" };
+
+let shInstanceId = null;       /* credencial del usuario, si la ha dado */
+let copCatalog = null;
+let copError = null;
+let copDiscovering = null;
+
+function shWmsUrl() { return COP_WMS_BASE + encodeURIComponent(shInstanceId || ""); }
+
+/* Se acepta el UUID que da el panel de Sentinel Hub. Validar la forma
+   aquí evita una petición condenada y un error críptico del servicio. */
+function validInstanceId(txt) {
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(txt.trim());
+}
+
+async function fetchCopernicusCatalog() {
+  if (copCatalog) return copCatalog;
+  if (copDiscovering) return copDiscovering;
+  copError = null;
+  copDiscovering = (async () => {
+    const r = await fetch(`${shWmsUrl()}?service=WMS&request=GetCapabilities&version=1.3.0`,
+      { signal: AbortSignal.timeout(COP_TIMEOUT) });
+    const txt = await r.text();
+    /* El error OGC viaja en el cuerpo aunque el HTTP sea 400 */
+    const ex = parseWmsServiceException(txt);
+    if (ex) throw new Error(ex.msg);
+    if (!r.ok) throw new Error(describeHttp(r.status));
+    const entries = parseWmsCapabilities(txt, COP_WMS_OPTS);
+    if (!entries) throw new Error("tu configuración de Sentinel Hub no publica ninguna capa");
+    copCatalog = entries;
+    return entries;
+  })().catch(err => {
+    copDiscovering = null; /* permite reintentar en la próxima llamada */
+    copError = err.name === "TimeoutError" ? "el servicio no responde"
+      : err.message === "Failed to fetch" ? "no se pudo conectar con Sentinel Hub"
+      : err.message;
+    throw err;
+  });
+  return copDiscovering;
+}
+
+function ensureCopernicusCatalog() {
+  if (copCatalog || !shInstanceId) return;
+  fetchCopernicusCatalog().then(onDynamicCatalogReady).catch(() => renderBasePanel());
+}
+
+/* Cambiar (o borrar) la credencial invalida el catálogo y la capa ya
+   creada, cuya URL lleva dentro el instance ID anterior.              */
+function setInstanceId(id) {
+  shInstanceId = id || null;
+  copCatalog = null; copError = null; copDiscovering = null;
+  const st = baseState.get("copernicus-dem");
+  if (st) {
+    if (st.layer && map.hasLayer(st.layer)) map.removeLayer(st.layer);
+    st.layer = null;
+    st.wmsLayer = null;
+    st.failed = false;
+    if (!shInstanceId) st.on = false;
+  }
+  (shInstanceId ? dbSaveSh({ instanceId: shInstanceId }) : dbDeleteSh()).catch(() => {});
+  scheduleBaseSave();
+  if (shInstanceId) ensureCopernicusCatalog();
+  renderBasePanel();
+  if (st && st.on) applyBaseLayer("copernicus-dem");
+}
+
+/* Registro de fuentes de capa dinámica. Se declara DESPUÉS de las
+   funciones que referencia y solo se consulta desde manejadores que
+   corren con el script ya evaluado, así que no hay zona muerta.      */
+const DYNAMIC_SOURCES = {
+  "pnoa-hist": {
+    selectTitle: "Año / vuelo",
+    get: () => pnoaHistCatalog,
+    error: () => pnoaHistError,
+    ensure: ensurePnoaHistCatalog,
+    pickDefault: pnoaHistDefault,
+    groups: groupPnoaHistEntries
+  },
+  "copernicus": {
+    selectTitle: "Capa de Copernicus",
+    get: () => copCatalog,
+    error: () => copError,
+    ensure: ensureCopernicusCatalog,
+    pickDefault: entries => entries[0] && entries[0].name,
+    groups: entries => [{ group: COP_WMS_OPTS.rootGroup, items: entries }],
+    blocked: () => shInstanceId ? null : {
+      label: "Requiere credencial",
+      hint: "Configurar la credencial de Sentinel Hub que exige Copernicus"
+    },
+    configure: () => openShCredsDialog()
+  }
+};
+function dynSource(def) { return (def && def.source && DYNAMIC_SOURCES[def.source]) || null; }
+
+function ensureDynamicCatalogs() {
+  for (const st of baseState.values()) {
+    const src = dynSource(st.def);
+    if (src) src.ensure();
+  }
 }
 
 /* Grupo raíz del visor: cuelgan todas las capas de todos los archivos */
@@ -3254,6 +3518,46 @@ async function dbLoadBases() {
     rq.onsuccess = () => {
       const rec = rq.result;
       resolve(rec && rec.v === BASE_SCHEMA && rec.bases ? rec : null);
+    };
+    rq.onerror = () => reject(rq.error);
+  });
+}
+
+/* ---------- Credencial de Sentinel Hub ----------
+   Otra clave del mismo almacén. Es del usuario y solo vive en su
+   navegador: nunca se serializa con el árbol ni viaja en un .kite.json
+   exportado, que se comparte.                                         */
+const SH_KEY = "shCreds";
+const SH_SCHEMA = 1;
+
+async function dbSaveSh(rec) {
+  const db = await openDb();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(DB_TREE, "readwrite");
+    tx.objectStore(DB_TREE).put({ v: SH_SCHEMA, ...rec }, SH_KEY);
+    tx.oncomplete = resolve;
+    tx.onerror = () => reject(tx.error);
+  });
+}
+/* Borrar la credencial RETIRA la clave, no guarda un registro vacío:
+   una credencial retirada no debe dejar rastro en el almacén.        */
+async function dbDeleteSh() {
+  const db = await openDb();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(DB_TREE, "readwrite");
+    tx.objectStore(DB_TREE).delete(SH_KEY);
+    tx.oncomplete = resolve;
+    tx.onerror = () => reject(tx.error);
+  });
+}
+async function dbLoadSh() {
+  const db = await openDb();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(DB_TREE, "readonly");
+    const rq = tx.objectStore(DB_TREE).get(SH_KEY);
+    rq.onsuccess = () => {
+      const rec = rq.result;
+      resolve(rec && rec.v === SH_SCHEMA && typeof rec.instanceId === "string" ? rec : null);
     };
     rq.onerror = () => reject(rq.error);
   });
@@ -5581,6 +5885,53 @@ document.getElementById("gnp-editor-clear").addEventListener("click", () => {
   renderGnpEditor();
 });
 
+/* ---------- Diálogo de la credencial de Copernicus ----------
+   Edición diferida como el resto: se escribe en la caja y solo
+   «Aceptar» la guarda y rearma la capa.                              */
+const shDialog = document.getElementById("sh-creds");
+const shBox = shDialog.querySelector(".dlg-box");
+const shInput = document.getElementById("sh-instance");
+const shErrorEl = document.getElementById("sh-error");
+
+function closeShCredsDialog() {
+  shDialog.hidden = true;
+  releaseFocus();
+}
+function openShCredsDialog() {
+  shInput.value = shInstanceId || "";
+  shErrorEl.hidden = true;
+  shDialog.hidden = false;
+  clampToViewport(shBox);
+  focusDialog(shBox);
+  shInput.focus();
+  shInput.select();
+}
+document.getElementById("sh-cancel").addEventListener("click", closeShCredsDialog);
+document.getElementById("sh-clear").addEventListener("click", () => {
+  /* Borrar actúa sobre el campo, no sobre el diálogo: cerrarlo obligaría
+     a reabrirlo para escribir otra credencial, que es justo lo que se
+     suele querer hacer después.                                        */
+  setInstanceId(null);
+  shInput.value = "";
+  shErrorEl.hidden = true;
+  shInput.focus();
+  navMessage("Credencial de Copernicus borrada.", { tone: "info" });
+});
+document.getElementById("sh-accept").addEventListener("click", () => {
+  const txt = shInput.value.trim();
+  if (!validInstanceId(txt)) {
+    /* No cerrar con un valor inválido: mismo criterio que las
+       coordenadas del diálogo de estilos.                            */
+    shErrorEl.textContent = "El instance ID debe ser un UUID como "
+      + "12345678-90ab-cdef-1234-567890abcdef.";
+    shErrorEl.hidden = false;
+    shInput.focus();
+    return;
+  }
+  setInstanceId(txt);
+  closeShCredsDialog();
+});
+
 const descDialog = document.getElementById("desc-dialog");
 const descBox = descDialog.querySelector(".dlg-box");
 const descTitle = document.getElementById("desc-title");
@@ -5590,7 +5941,7 @@ document.getElementById("desc-close").addEventListener("click", () => {
   layerInfoDismissed = true;
   releaseFocus();
 });
-for (const box of [styleBox, iconBox, colorBox, descBox, shortcutsBox, ktpBox, kdpBox, gnpBox, gnpEditorBox]) makeDialogMovable(box);
+for (const box of [styleBox, iconBox, colorBox, descBox, shortcutsBox, ktpBox, kdpBox, gnpBox, gnpEditorBox, shBox]) makeDialogMovable(box);
 setupDialog(styleBox, { modal: false }); /* flotante: el mapa sigue vivo */
 setupDialog(iconBox, { modal: true });
 setupDialog(colorBox, { modal: true });
@@ -5600,9 +5951,10 @@ setupDialog(ktpBox, { modal: true });
 setupDialog(kdpBox, { modal: true });
 setupDialog(gnpBox, { modal: true });
 setupDialog(gnpEditorBox, { modal: true });
+setupDialog(shBox, { modal: true });
 window.addEventListener("resize", () => {
   /* a moved dialog must not fall off-screen */
-  for (const box of [styleBox, iconBox, colorBox, descBox, shortcutsBox, ktpBox, kdpBox, gnpBox, gnpEditorBox]) clampToViewport(box);
+  for (const box of [styleBox, iconBox, colorBox, descBox, shortcutsBox, ktpBox, kdpBox, gnpBox, gnpEditorBox, shBox]) clampToViewport(box);
 });
 let styleTargets = [];    /* nodes being edited */
 let styleKindOpen = null; /* "marker" | "polygon" */
@@ -6286,6 +6638,7 @@ document.addEventListener("keydown", e => {
   if (!kdpDialog.hidden) { closeKdpPicker(false); return; }
   if (!gnpDialog.hidden) { closeGnpPicker(null); return; }
   if (!gnpEditorDialog.hidden) { gnpEditorDialog.hidden = true; releaseFocus(); return; }
+  if (!shDialog.hidden) { closeShCredsDialog(); return; }
   if (!styleDialog.hidden) { closeStyleDialog(false); return; }
   setTool(null);
   clearSelection();
@@ -8145,14 +8498,30 @@ setInterval(checkServerVersion, VERSION_CHECK_MS);
   } catch { /* sin vista guardada se queda la de por defecto */ }
   viewRestoring = false;
 
+  /* La credencial de Copernicus antes que los mapas base: sin ella la
+     capa no puede ni construir su URL (ver shWmsUrl).                */
+  try {
+    const sh = await dbLoadSh();
+    if (sh && validInstanceId(sh.instanceId)) shInstanceId = sh.instanceId.trim();
+  } catch { /* sin credencial guardada la capa pedirá configurarla */ }
+
   /* Mapas base: primero lo guardado, luego se pintan y se encienden */
   try { applySavedBases(await dbLoadBases()); } catch { /* valores por defecto */ }
+  /* Una capa que exige credencial no puede quedarse encendida sin
+     ella: se apaga en vez de fallar tesela a tesela.                 */
+  for (const [id, st] of baseState) {
+    const src = dynSource(st.def);
+    if (st.on && src && src.blocked && src.blocked()) st.on = false;
+  }
   renderBasePanel();
   for (const id of baseState.keys()) applyBaseLayer(id);
-  /* PNOA histórico guardado como encendido: se valida el año/vuelo
-     restaurado contra el catálogo real en cuanto llegue (puede haber
+  /* Capas dinámicas guardadas como encendidas: se valida la capa
+     restaurada contra el catálogo real en cuanto llegue (puede haber
      dejado de publicarse), sin esperar a que se abra el panel.       */
-  if (baseState.get("pnoa-hist")?.on) ensurePnoaHistCatalog();
+  for (const st of baseState.values()) {
+    const src = dynSource(st.def);
+    if (st.on && src) src.ensure();
+  }
 
   let nodes = null;
   try { nodes = await dbLoadTree(); } catch { nodes = null; }
