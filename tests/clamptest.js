@@ -45,6 +45,21 @@ ok(pts[0][1] === 180 && pts[2][1] === -180, "ajustados a los límites");
 ok(pts.skipped === 0, "ninguno descartado");
 ok(api.counter() === 2, "dos ajustes contabilizados: " + api.counter());
 
+/* --- La altitud del KML se conserva; sin ella la posición sigue siendo un par ---
+   Antes se partía del texto y no se leía nunca, así que la altitud se
+   perdía al importar KML mientras que la del GeoJSON sí sobrevivía. */
+ok(pts[0].length === 3 && pts[0][2] === 0, "la altitud 0 explícita se conserva: " + JSON.stringify(pts[0]));
+ok(pts[1].length === 2, "sin altitud, la posición sigue teniendo dos elementos: " + JSON.stringify(pts[1]));
+const alt = api.parseCoords("-3.7,40.4,650.5");
+ok(alt[0][2] === 650.5, "una altitud real llega intacta: " + alt[0][2]);
+ok(api.clampLatLng(40, -3, 100)[2] === 100, "clampLatLng transporta la altitud");
+ok(api.clampLatLng(40, -3).length === 2, "sin altitud no se inventa una");
+ok(api.clampLatLng(40, -3, NaN).length === 2, "una altitud no finita se ignora, no rompe el punto");
+/* La altitud no tiene rango que ajustar: no debe contar como ajuste */
+api.reset();
+api.clampLatLng(40, -3, 99999);
+ok(api.counter() === 0, "una altitud grande no cuenta como ajuste de coordenada");
+
 /* --- GeoJSON: además de validar, deja la posición dentro de rango --- */
 api.reset();
 const geom = { type: "LineString", coordinates: [[180.00000044181039, 40.4], [179.5, 40.5]] };

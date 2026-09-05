@@ -112,6 +112,18 @@ desarrollo del proyecto.
   verdad, como las latitudes de 32400 que produce escribir coordenadas
   con coma decimal. Los ajustes se cuentan y se avisan en el resumen de
   importación: corregir en silencio sería peor.
+- **La altitud se conserva**: `clampLatLng(lat, lon, alt)` la transporta
+  y `parseCoords` le pasa el tercer campo del KML. Antes ese campo se
+  partía del texto y **no se leía nunca**, así que la altitud se perdía
+  al importar KML mientras que la del GeoJSON sí sobrevivía (allí
+  `validGeometry` valida con `pos.length < 2` y solo reescribe los dos
+  primeros). La altitud **solo se añade si es finita**: sin ella la
+  posición sigue teniendo dos elementos, para no inventar un `0` que
+  nadie escribió. El resto del camino ya era transparente: Leaflet la
+  lleva en `latlng.alt` y `toGeoJSON` la reemite.
+  Sigue pendiente: `findDuplicatePlacemarks` compara solo latitud y
+  longitud, así que dos placemarks a distinta altura se siguen tratando
+  como duplicados.
 - En GeoJSON la validación **normaliza sobre el propio objeto**, de modo
   que lo que se dibuja y se guarda ya está dentro de rango sin recorrer
   la geometría dos veces. GeoJSON pasa
@@ -425,6 +437,74 @@ desarrollo del proyecto.
   cajas compactas ajustadas al texto (clases `compacto` de popup y
   tooltip) para tapar el mínimo mapa posible. Renombrar la capa actualiza
   el texto.
+- **Dibujar NO obliga a cerrar**: el doble click decide la forma. Sobre
+  el último vértice **cierra** (`L.polygon`, mínimo 3 vértices); fuera de
+  un vértice **termina abierta** (`L.polyline`, mínimo 2, el mismo umbral
+  que una `<LineString>` importada). Lo decide `finishPolygon(closed)`,
+  y **no hay una herramienta aparte**: hay nueve sitios acoplados al
+  literal `activeTool === "polygon"` y decidir al terminar los evita
+  todos. Una forma abierta ya clasifica como `styleKind "polygon"`
+  (`L.Polyline` es `L.Path`) y se serializa sola como `LineString`, así
+  que no tocó ni el diálogo ni la persistencia.
+- **Cómo se distingue el doble click**: mirando si el PRIMER click del
+  par añadió vértice (`prevClickAdded`/`lastClickAdded`). **No vale
+  `e.target`**: comprobado en Chrome, el `dblclick` se despacha sobre el
+  objetivo del SEGUNDO click, y en el caso «zona vacía» ese segundo
+  click cae sobre el manejador que acaba de crear el primero, así que
+  `e.target` es un `.measure-handle` en los dos casos.
+- **La vista previa del dibujo es una polilínea**, no un polígono con
+  relleno: la forma solo se cierra si el usuario termina sobre un
+  vértice, y una previa rellena prometía un anillo que el gesto puede no
+  producir.
+- **Medidas de una forma abierta**: `polygonMeasures` recorre también las
+  `L.Polyline` que no son `L.Polygon` y suma su longitud al perímetro,
+  pero **sin tocar `allClosed`**, que habla solo de los anillos de los
+  polígonos: un placemark KML puede traer un polígono y una línea juntos
+  y el área del polígono sigue valiendo. Sin ningún polígono el área es
+  `null` (no `0`, que anunciaría «0 m²» para una línea) y su fila se
+  oculta sola. La medida devuelve además `open`, y con ella el diálogo
+  escribe **«Longitud»** en vez de «Perímetro»: una línea no tiene
+  perímetro, que es el contorno de una superficie cerrada.
+- **Una forma abierta no puede tener relleno**. Rellenar un trazo
+  abierto obliga a Leaflet a cerrarlo por su cuenta para pintar la
+  superficie, dibujando un lado que el usuario nunca trazó. Se aplica en
+  dos sitios y hacen falta los dos:
+  - En el diálogo, cuando **todos** los nodos objetivo son abiertos
+    (`isOpenOnly`), las opciones «Contorno y relleno» y «Solo relleno» y
+    los dos controles de relleno se **deshabilitan, no se esconden**: en
+    gris se ve que existen y que ahí no aplican, que explica más que
+    hacerlas desaparecer. `pg-mode` queda además fijado en `stroke`,
+    de modo que `readPolygonControls` no pueda devolver `fill: true`
+    aunque algo se saltara la interfaz.
+  - En la capa, `clearFillOnOpenPaths` quita el relleno a toda
+    `L.Polyline` que no sea `L.Polygon`. Es imprescindible aparte del
+    diálogo porque **un placemark KML comparte un mismo objeto de estilo
+    entre todas sus geometrías**: con un polígono y una línea juntos, el
+    polígono sí quiere relleno y la línea no debe recibirlo. Por eso se
+    llama también al importar GeoJSON y al restaurar el árbol, que
+    construyen capas sin pasar por `applyPolygonStyle`.
+  - Ojo al orden de las comprobaciones: `L.Polygon` **extiende**
+    `L.Polyline`, así que hay que preguntar por `Polygon` primero o un
+    polígono contaría como línea y perdería su relleno y su área.
+- **Editor de la lista de puntos** (botón «Ver y editar…» del diálogo de
+  estilos, `#points-dialog`): texto con **un punto por línea y campos
+  separados por tabulador**, con cabecera `Lat/Lon/Alt`, para poder
+  copiarlo y pegarlo en una hoja de cálculo. Es un `<textarea>` y no una
+  tabla de campos a propósito: con 1000 puntos una tabla serían 3000
+  nodos del DOM, y aquí el scroll, la selección y el pegado son los
+  nativos del navegador (medido: aplicar 1000 puntos, 24 ms). Al leer se
+  toleran tabulador, coma, punto y coma o espacios, y se ignora la
+  cabecera aunque venga repetida en medio (pegar dos veces). Los anillos
+  y las partes van separados por una **línea en blanco**, exterior
+  primero. Sigue la edición diferida: solo «Aceptar» toca la capa, y con
+  líneas ilegibles **no cierra**, como las coordenadas del diálogo de
+  estilos. Llama a `pushUndo` antes de tocar nada y a `invalidateGeo`
+  después.
+  **Límite deliberado**: cambia los vértices, no la naturaleza
+  abierta/cerrada de la capa — eso exigiría sustituir el `L.Polygon` por
+  un `L.Polyline` (y con él `chk._layer`, la pertenencia a `rootGroup` y
+  los manejadores que ata `makeNode`). Para abrir una forma está la
+  herramienta de dibujo.
 - **Distancias y rumbos**: siempre geodésicos (esfera terrestre);
   rumbo 0° = norte, sentido horario. Las distancias se muestran en
   métrico **y** en millas náuticas (`METERS_PER_NM`), y la etiqueta de una

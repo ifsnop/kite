@@ -547,6 +547,10 @@
     border-radius: 5px;
     cursor: pointer;
   }
+  /* Un control que no aplica se deja en gris, no se esconde: así se ve
+     que existe y que aquí no vale (una línea no puede tener relleno). */
+  .color-btn:disabled { opacity: .35; cursor: default; }
+  .dlg-row.dim > span { opacity: .45; }
   .color-swatches { display: grid; grid-template-columns: repeat(8, 24px); gap: 5px; margin-top: 8px; }
   .color-swatches button {
     width: 24px;
@@ -635,6 +639,21 @@
   .desc-body img { max-width: 100%; height: auto; }
   .dlg-hint { margin: 6px 0 0; font-size: 12px; color: var(--muted); }
   .dlg-hint.sh-bad { color: var(--danger); }
+  /* La lista de puntos necesita su propio ancho: .dlg-box trae
+     max-width 90vw, pensado para los diálogos anchos.                 */
+  #points-dialog .dlg-box { max-width: min(92vw, 640px); display: flex; flex-direction: column; }
+  /* `resize: both` es el redimensionado nativo del navegador: el tirador
+     de la esquina no estorba al arrastre por el <h2> (makeDialogMovable).
+     Las medidas son del textarea, no de la caja, para que al agrandarlo
+     crezca el diálogo con él.                                         */
+  #points-text {
+    width: 60ch; height: 45vh; min-width: 32ch; min-height: 8em;
+    max-width: 88vw; max-height: 70vh;
+    resize: both; overflow: auto; white-space: pre;
+    font-family: ui-monospace, Consolas, monospace; font-size: 12.5px; line-height: 1.35;
+    border: 1px solid var(--border); border-radius: 4px; padding: 6px; box-sizing: border-box;
+  }
+  #points-text.bad { border-color: var(--danger); }
   .sh-field { display: block; margin-top: 10px; font-size: 13px; }
   .sh-field input {
     display: block; width: 100%; margin-top: 4px; font: inherit; padding: 4px 6px;
@@ -833,8 +852,8 @@
       </select></div>
       <div class="dlg-row"><span>Ancho del contorno</span><input type="number" id="pg-weight" min="0.5" max="12" step="0.5"></div>
       <div class="dlg-row"><span>Color del contorno</span><button type="button" class="color-btn" id="pg-color"></button></div>
-      <div class="dlg-row"><span>Color del relleno</span><button type="button" class="color-btn" id="pg-fill-color"></button></div>
-      <div class="dlg-row"><span>Opacidad del relleno</span><input type="range" id="pg-fill-opacity" min="0" max="1" step="0.05"></div>
+      <div class="dlg-row" id="pg-fill-color-row"><span>Color del relleno</span><button type="button" class="color-btn" id="pg-fill-color"></button></div>
+      <div class="dlg-row" id="pg-fill-opacity-row"><span>Opacidad del relleno</span><input type="range" id="pg-fill-opacity" min="0" max="1" step="0.05"></div>
       <div id="pg-measures" hidden>
         <div class="dlg-row"><span>Unidad</span><select id="pg-unit">
           <option value="m">Metros</option>
@@ -842,8 +861,11 @@
           <option value="ft">Pies</option>
           <option value="nm">Millas náuticas</option>
         </select></div>
-        <div class="dlg-row"><span>Perímetro</span><span class="dlg-note" id="pg-perimeter"></span></div>
+        <div class="dlg-row"><span id="pg-perim-label">Perímetro</span><span class="dlg-note" id="pg-perimeter"></span></div>
         <div class="dlg-row" id="pg-area-row"><span>Área</span><span class="dlg-note" id="pg-area"></span></div>
+      </div>
+      <div class="dlg-row" id="pg-points-row" hidden><span>Puntos</span>
+        <button class="btn" id="pg-points">Ver y editar&#8230;</button>
       </div>
     </div>
     <div id="style-imageoverlay" hidden>
@@ -886,6 +908,12 @@
       <tr><td>Ctrl + arrastrar</td><td>Editar una medici&#243;n</td></tr>
       <tr><td>Doble clic en una fila</td><td>Ir a la capa; repetido, acercar</td></tr>
       <tr><td>Re P&#225;g / Av P&#225;g (con el mapa enfocado)</td><td>Acercar / alejar un nivel de zoom hacia el puntero</td></tr>
+      <tr><th colspan="2">Dibujar pol&#237;gonos y l&#237;neas</th></tr>
+      <tr><td>Clic</td><td>Fijar un v&#233;rtice</td></tr>
+      <tr><td>Doble clic sobre el &#250;ltimo v&#233;rtice</td><td>Cerrar el pol&#237;gono y terminar</td></tr>
+      <tr><td>Doble clic fuera de un v&#233;rtice</td><td>Terminar la l&#237;nea sin cerrarla</td></tr>
+      <tr><td>Clic derecho sobre un v&#233;rtice</td><td>Quitar ese v&#233;rtice</td></tr>
+      <tr><td>Supr</td><td>Quitar el &#250;ltimo v&#233;rtice</td></tr>
     </table>
     <div class="dlg-actions"><button class="btn" id="shortcuts-close">Cerrar</button></div>
   </div>
@@ -972,6 +1000,26 @@
     <div class="dlg-actions">
       <button class="btn" id="gnp-editor-clear">Borrar todo</button>
       <button class="btn" id="gnp-editor-close">Cerrar</button>
+    </div>
+  </div>
+</div>
+
+<!-- Lista de puntos de una capa de trazos: texto separado por tabulador,
+     para poder copiarlo y pegarlo en una hoja de cálculo. -->
+<div id="points-dialog" class="dlg-overlay" hidden>
+  <div class="dlg-box">
+    <h2 id="points-title">Puntos de la capa</h2>
+    <p class="dlg-hint">Un punto por l&#237;nea, con <strong>latitud, longitud y altitud</strong>
+      separadas por tabulador. Se puede copiar y pegar directamente en una hoja de c&#225;lculo.
+      Al pegar tambi&#233;n se admiten comas o espacios como separador.</p>
+    <p class="dlg-hint" id="points-rings" hidden></p>
+    <textarea id="points-text" spellcheck="false" wrap="off"
+              aria-label="Lista de puntos de la capa"></textarea>
+    <p class="dlg-hint" id="points-count"></p>
+    <p class="dlg-hint sh-bad" id="points-error" hidden></p>
+    <div class="dlg-actions">
+      <button class="btn" id="points-cancel">Cancelar</button>
+      <button class="btn" id="points-accept">Aceptar</button>
     </div>
   </div>
 </div>
@@ -1079,7 +1127,7 @@ const map = L.map("map", {
 
 /* Fecha de generación del código (versión): AÑOMESDIAHORAMINUTO.
    Actualizar en cada generación; se muestra junto al crédito de Leaflet. */
-const BUILD = "202609041545";
+const BUILD = "202609061030";
 map.attributionControl.setPrefix(
   `v${BUILD} | <a href="https://leafletjs.com" title="A JavaScript library for interactive maps">Leaflet</a>`);
 
@@ -1867,16 +1915,26 @@ function clampDeg(v, limit) {
   return v;
 }
 
-/* Devuelve el par ajustado, o null si alguna se sale de verdad */
-function clampLatLng(lat, lon) {
+/* Devuelve el par ajustado, o null si alguna se sale de verdad. La
+   altitud es opcional y viaja tal cual (no tiene rango que ajustar): se
+   añade SOLO si es un número finito, para que una geometría sin altitud
+   siga produciendo posiciones de dos elementos exactamente como antes,
+   en vez de inventarse un 0 que nadie escribió. Leaflet se encarga del
+   resto: `toLatLng` lee el tercer elemento y `latLngToCoords` lo vuelve
+   a emitir en `toGeoJSON`.                                             */
+function clampLatLng(lat, lon, alt) {
   const la = clampDeg(lat, 90), lo = clampDeg(lon, 180);
-  return isFinite(la) && isFinite(lo) ? [la, lo] : null;
+  if (!isFinite(la) || !isFinite(lo)) return null;
+  return isFinite(alt) ? [la, lo, alt] : [la, lo];
 }
 
 /* Opciones del globo compacto, compartidas por marcadores y polígonos */
 const COMPACT_POPUP = { className: "compacto", autoClose: false, closeOnClick: false };
 
-/* "lon,lat[,alt] lon,lat…" → [[lat,lon], …], descartando lo inválido */
+/* "lon,lat[,alt] lon,lat…" → [[lat,lon(,alt)], …], descartando lo
+   inválido. La altitud del KML se conserva cuando viene: antes se
+   partía del texto y no se leía nunca, así que se perdía en la
+   importación mientras que la del GeoJSON sí sobrevivía.              */
 function parseCoords(str) {
   const out = [];
   let skipped = 0;
@@ -1884,7 +1942,8 @@ function parseCoords(str) {
     if (!tuple) continue;
     const parts = tuple.split(",");
     if (parts.length < 2) { skipped++; continue; }
-    const pair = clampLatLng(Number(parts[1]), Number(parts[0]));
+    const pair = clampLatLng(Number(parts[1]), Number(parts[0]),
+      parts.length > 2 ? Number(parts[2]) : undefined);
     if (!pair) { skipped++; continue; }
     out.push(pair);
   }
@@ -3261,6 +3320,7 @@ async function buildGeoJsonRecords(gj, prog, report, nameProp = null) {
       }
       const style = geojsonStyle(props);
       const layer = L.geoJSON(feature, { style });
+      clearFillOnOpenPaths(layer); /* una línea no se rellena, ver esa función */
       layer.bindPopup(escapeHtml(name), COMPACT_POPUP);
       layer.addTo(rootGroup); /* GeoJSON no define visibilidad: todo activo */
       const rec = { t: "layer", name, checked: true, style, _layer: layer };
@@ -3925,6 +3985,7 @@ async function buildRecordsFromStorage(nodes, prog) {
       out.push(buildImageOverlayRecord(n));
     } else if (n.t === "layer") {
       const layer = L.geoJSON(n.geo, n.style ? { style: n.style } : undefined);
+      clearFillOnOpenPaths(layer); /* una línea no se rellena, ver esa función */
       layer.bindPopup(n.name);
       if (n.checked) layer.addTo(rootGroup);
       const rec = { t: "layer", name: n.name, checked: !!n.checked, style: n.style || null,
@@ -5382,8 +5443,23 @@ function applyPolygonStyle(li) {
   const layer = nodeLayer(li);
   if (!layer || !li._style) return;
   layer.setStyle(li._style); /* group.setStyle only reaches paths; safe */
+  clearFillOnOpenPaths(layer);
   const sw = li.querySelector(":scope > .node-row > .swatch");
   if (sw) sw.style.background = li._style.fillColor || li._style.color;
+}
+
+/* An open path can never be filled: Leaflet would close it on its own to
+   paint the surface, drawing a side the user never traced. Enforced on
+   the layer, not just in the dialog, because one style object is shared
+   by every geometry of a KML placemark — a polygon and a line together
+   there means the polygon legitimately wants fill and the line must not
+   get it.                                                              */
+function clearFillOnOpenPaths(layer) {
+  const scan = l => {
+    if (l instanceof L.Polyline && !(l instanceof L.Polygon)) l.setStyle({ fill: false });
+    if (l.eachLayer) l.eachLayer(scan);
+  };
+  scan(layer);
 }
 
 /* Fill in defaults so every dialog control has a concrete value.
@@ -5435,23 +5511,119 @@ function rawPolygonRings(geometry) {
   return null;
 }
 
+/* ---------- Lista de puntos editable de una capa de trazos ----------
+   Formato de intercambio: una línea por punto, campos separados por
+   TABULADOR, con fila de cabecera. Es lo que una hoja de cálculo pega y
+   copia sin pedir nada, y un <textarea> lo aguanta con miles de líneas
+   sin construir DOM por punto. Los anillos y las partes (agujeros de un
+   polígono, tramos de una multigeometría) se separan con una LÍNEA EN
+   BLANCO, conservando el orden original: exterior primero, agujeros
+   después.                                                            */
+const POINTS_HEADER = "Lat\tLon\tAlt";
+const POINTS_DECIMALS = 6; /* ~0,1 m: más dígitos no dicen nada real */
+
+/* Anillos de una capa como arrays de L.LatLng, en el orden en que hay
+   que devolvérselos a setLatLngs. Devuelve también la forma para poder
+   reconstruirla: `nested` indica si la capa esperaba un array de
+   anillos o uno plano de puntos.                                      */
+function pathRings(layer) {
+  const latlngs = layer.getLatLngs();
+  if (!latlngs.length) return { rings: [], nested: false };
+  /* getLatLngs() de un polígono siempre anida (anillos); el de una
+     polilínea solo anida si es multipart.                             */
+  const nested = Array.isArray(latlngs[0]);
+  if (!nested) return { rings: [latlngs], nested: false };
+  const rings = [];
+  const walk = arr => {
+    if (!arr.length) return;
+    if (Array.isArray(arr[0])) arr.forEach(walk); else rings.push(arr);
+  };
+  latlngs.forEach(walk);
+  return { rings, nested: true };
+}
+
+function pointsToText(rings) {
+  const num = v => Number(v).toFixed(POINTS_DECIMALS);
+  return [POINTS_HEADER, ""].concat(
+    rings.map(ring => ring.map(p =>
+      /* Sin altitud se escribe 0: la columna existe siempre, y 0 es lo
+         que vale un punto dibujado a mano sobre el mapa.              */
+      `${num(p.lat)}\t${num(p.lng)}\t${num(p.alt === undefined ? 0 : p.alt)}`).join("\n"))
+      .join("\n\n")).join("\n");
+}
+
+/* Texto → { rings, errors }. Tolera tabulador, coma o espacios como
+   separador (se pega desde sitios muy distintos), se salta la cabecera
+   y no cuenta como separador de anillo las líneas en blanco del
+   principio ni del final. `errors` lleva el número de línea REAL para
+   poder señalarlas.                                                   */
+function textToPoints(text) {
+  const rings = [], errors = [];
+  let current = null;
+  const lines = String(text).split(/\r?\n/);
+  lines.forEach((raw, i) => {
+    const line = raw.trim();
+    if (!line) { if (current && current.length) { rings.push(current); current = null; } return; }
+    /* La cabecera puede venir repetida al pegar varias veces */
+    if (/^lat\b/i.test(line)) return;
+    const f = line.split(/[\t,;]+|\s+/).filter(s => s !== "");
+    if (f.length < 2) { errors.push({ line: i + 1, text: raw, why: "hacen falta al menos latitud y longitud" }); return; }
+    /* Latitud y longitud PRIMERO: en una línea de texto basura los tres
+       campos fallan, y decir "altitud no numérica" mandaría a mirar la
+       columna equivocada.                                              */
+    const lat = Number(f[0]), lng = Number(f[1]);
+    if (!isFinite(lat) || !isFinite(lng)) {
+      errors.push({ line: i + 1, text: raw, why: "latitud o longitud no numérica" });
+      return;
+    }
+    const alt = f.length > 2 ? Number(f[2]) : undefined;
+    if (f.length > 2 && !isFinite(alt)) { errors.push({ line: i + 1, text: raw, why: "altitud no numérica" }); return; }
+    const pos = clampLatLng(lat, lng, alt);
+    if (!pos) { errors.push({ line: i + 1, text: raw, why: "latitud o longitud fuera de rango" }); return; }
+    if (!current) current = [];
+    current.push(pos);
+  });
+  if (current && current.length) rings.push(current);
+  return { rings, errors };
+}
+
 /* Perímetro y área de un nodo de tipo polígono, para el diálogo de
-   propiedades. Un anillo se da por cerrado salvo que su GeoJSON
-   original (rawPolygonRings) diga lo contrario: un KML repite siempre
-   el punto de cierre de su LinearRing y un polígono dibujado a mano se
-   cierra por construcción al terminar (ninguno de los dos tiene ese
-   GeoJSON crudo con el que comprobar lo contrario). Solo un GeoJSON
-   importado cuyo archivo original no repetía el punto de cierre
-   (algunos JSON) hace que el área salga null y no se muestre; el
-   perímetro sí se calcula siempre (ver ringPerimeter).                */
+   propiedades. Un anillo DE POLÍGONO se da por cerrado salvo que su
+   GeoJSON original (rawPolygonRings) diga lo contrario: un KML repite
+   siempre el punto de cierre de su LinearRing, y un polígono dibujado a
+   mano que se cerró sobre su último vértice lo está por construcción
+   (ninguno de los dos tiene ese GeoJSON crudo con el que comprobar lo
+   contrario). Un GeoJSON importado cuyo archivo no repetía el punto de
+   cierre hace que el área salga null y no se muestre.
+   Las formas ABIERTAS (una línea importada, o una dibujada terminando
+   fuera de un vértice) no son L.Polygon: aportan longitud al perímetro
+   y nunca área. Con solo líneas, el área es null y su fila se oculta;
+   el perímetro sí se calcula siempre (ver ringPerimeter).             */
 function polygonMeasures(li) {
   const layer = nodeLayer(li);
   if (!layer) return null;
-  const polys = [];
-  const scan = l => { if (l instanceof L.Polygon) polys.push(l); if (l.eachLayer) l.eachLayer(scan); };
+  const polys = [], lines = [];
+  /* L.Polygon extiende L.Polyline, así que el orden importa: lo que no
+     es polígono pero sí polilínea es una forma ABIERTA (una línea
+     importada, o una dibujada terminando fuera de un vértice) y tiene
+     longitud aunque no tenga área.                                    */
+  const scan = l => {
+    if (l instanceof L.Polygon) polys.push(l);
+    else if (l instanceof L.Polyline) lines.push(l);
+    if (l.eachLayer) l.eachLayer(scan);
+  };
   scan(layer);
-  if (!polys.length) return null; /* "polygon" de puras líneas: nada que medir */
+  if (!polys.length && !lines.length) return null; /* nada que medir */
   let area = 0, perim = 0, allClosed = true;
+  /* Una polilínea suma longitud pero NO toca `allClosed`: eso habla solo
+     de si los anillos de los polígonos cierran. Un placemark KML puede
+     traer un polígono y una línea juntos, y el área del polígono sigue
+     siendo válida ahí.                                                */
+  for (const line of lines) {
+    const parts = line.getLatLngs();
+    const rings = Array.isArray(parts[0]) ? parts : [parts];
+    for (const ring of rings) perim += ringPerimeter(ring, false);
+  }
   for (const poly of polys) {
     const rawParts = rawPolygonRings(poly.feature && poly.feature.geometry);
     polygonParts(poly.getLatLngs()).forEach((part, i) => {
@@ -5468,7 +5640,28 @@ function polygonMeasures(li) {
       area += ringArea(part.outer) - part.holes.reduce((s, h) => s + ringArea(h), 0);
     });
   }
-  return { area: allClosed ? area : null, perim };
+  /* Sin ningún polígono no hay área que dar: devolver 0 haría que la
+     fila apareciera anunciando "0 m²" para una línea. `open` distingue
+     "esto es una línea" de "esto es un polígono cuyo anillo no cierra":
+     lo primero se mide en LONGITUD, no en perímetro.                  */
+  return { area: polys.length && allClosed ? area : null, perim, open: !polys.length };
+}
+
+/* Una capa es "abierta" si tiene trazos y ninguno es un polígono
+   cerrado. No puede tener área ni relleno: rellenar un trazo abierto
+   obliga a Leaflet a cerrarlo por su cuenta para pintar la superficie,
+   dibujando un lado que el usuario nunca trazó.                       */
+function isOpenOnly(li) {
+  const layer = nodeLayer(li);
+  if (!layer) return false;
+  let hasLine = false, hasPolygon = false;
+  const scan = l => {
+    if (l instanceof L.Polygon) hasPolygon = true;
+    else if (l instanceof L.Polyline) hasLine = true;
+    if (l.eachLayer) l.eachLayer(scan);
+  };
+  scan(layer);
+  return hasLine && !hasPolygon;
 }
 
 /* ---------- Coordinate input formats ----------
@@ -5533,6 +5726,22 @@ function soleMarker(li) {
   let found = null, count = 0;
   const scan = l => {
     if (l instanceof L.Marker) { found = l; count++; }
+    if (l.eachLayer) l.eachLayer(scan);
+  };
+  scan(layer);
+  return count === 1 ? found : null;
+}
+
+/* The single path (polygon or polyline) of a layer, or null when it has
+   none or several: the point list edits one geometry, and with two
+   shapes in the same layer there is no single list to show. Mirrors
+   soleMarker, which does the same for the position of a marker.       */
+function solePath(li) {
+  const layer = nodeLayer(li);
+  if (!layer) return null;
+  let found = null, count = 0;
+  const scan = l => {
+    if (l instanceof L.Polyline) { found = l; count++; } /* cubre L.Polygon */
     if (l.eachLayer) l.eachLayer(scan);
   };
   scan(layer);
@@ -5885,6 +6094,88 @@ document.getElementById("gnp-editor-clear").addEventListener("click", () => {
   renderGnpEditor();
 });
 
+/* ---------- Diálogo de la lista de puntos ----------
+   Edición diferida como el resto: se escribe en el área de texto y solo
+   «Aceptar» toca la capa. El nodo se guarda al abrir porque el diálogo
+   de estilos es flotante y el usuario podría cambiar de fila.         */
+const pointsDialog = document.getElementById("points-dialog");
+const pointsBox = pointsDialog.querySelector(".dlg-box");
+const pointsText = document.getElementById("points-text");
+const pointsError = document.getElementById("points-error");
+let pointsTarget = null;  /* { li, path, nested } mientras está abierto */
+
+function closePointsDialog() {
+  pointsDialog.hidden = true;
+  pointsTarget = null;
+  releaseFocus();
+}
+
+function openPointsDialog(li) {
+  const path = solePath(li);
+  if (!path) return;
+  const { rings, nested } = pathRings(path);
+  pointsTarget = { li, path, nested };
+  pointsText.value = pointsToText(rings);
+  pointsText.classList.remove("bad");
+  pointsError.hidden = true;
+  const total = rings.reduce((n, r) => n + r.length, 0);
+  $id("points-title").textContent = `Puntos de «${li._name}»`;
+  $id("points-count").textContent = `${total} punto${total === 1 ? "" : "s"}`;
+  /* Solo se explica la separación por anillos cuando de verdad hay más
+     de uno: en el caso corriente sobra el detalle.                    */
+  const ringsHint = $id("points-rings");
+  ringsHint.hidden = rings.length < 2;
+  ringsHint.textContent = rings.length < 2 ? ""
+    : `Esta capa tiene ${rings.length} trazos (contorno exterior primero, luego los `
+      + "agujeros). Van separados por una línea en blanco; mantén esa separación.";
+  pointsDialog.hidden = false;
+  clampToViewport(pointsBox);
+  focusDialog(pointsBox);
+}
+$id("pg-points").addEventListener("click", () => {
+  if (styleTargets.length === 1) openPointsDialog(styleTargets[0]);
+});
+$id("points-cancel").addEventListener("click", closePointsDialog);
+$id("points-accept").addEventListener("click", () => {
+  if (!pointsTarget) return closePointsDialog();
+  const { li, path, nested } = pointsTarget;
+  const { rings, errors } = textToPoints(pointsText.value);
+  const closed = path instanceof L.Polygon;
+  const min = closed ? 3 : 2;
+  const bad = msg => {
+    /* No se cierra con la lista rota: mismo criterio que las
+       coordenadas del diálogo de estilos.                            */
+    pointsError.textContent = msg;
+    pointsError.hidden = false;
+    pointsText.classList.add("bad");
+    pointsText.focus();
+  };
+  if (errors.length) {
+    const list = errors.slice(0, 3).map(e => `línea ${e.line} (${e.why})`).join("; ");
+    return bad(`Hay ${errors.length} línea${errors.length === 1 ? "" : "s"} que no se entienden: `
+      + list + (errors.length > 3 ? "…" : "") + ".");
+  }
+  if (!rings.length) return bad("No queda ningún punto.");
+  const short = rings.find(r => r.length < min);
+  if (short) {
+    return bad(closed
+      ? `Cada trazo de un polígono necesita al menos 3 puntos; hay uno con ${short.length}.`
+      : `Una línea necesita al menos 2 puntos; hay un trazo con ${short.length}.`);
+  }
+  pushUndo("editar puntos");
+  path.setLatLngs(nested || rings.length > 1 ? rings : rings[0]);
+  invalidateGeo(li);   /* la geometría cambió: la caché serializada ya no vale */
+  scheduleSave();
+  closePointsDialog();
+  /* El diálogo de estilos sigue abierto detrás y muestra medidas ya
+     obsoletas: se recalculan con la geometría nueva.                 */
+  if (!styleDialog.hidden && styleTargets[0] === li) {
+    polyMeasures = polygonMeasures(li);
+    $id("pg-measures").hidden = !polyMeasures;
+    if (polyMeasures) renderPolyMeasures();
+  }
+});
+
 /* ---------- Diálogo de la credencial de Copernicus ----------
    Edición diferida como el resto: se escribe en la caja y solo
    «Aceptar» la guarda y rearma la capa.                              */
@@ -5941,7 +6232,7 @@ document.getElementById("desc-close").addEventListener("click", () => {
   layerInfoDismissed = true;
   releaseFocus();
 });
-for (const box of [styleBox, iconBox, colorBox, descBox, shortcutsBox, ktpBox, kdpBox, gnpBox, gnpEditorBox, shBox]) makeDialogMovable(box);
+for (const box of [styleBox, iconBox, colorBox, descBox, shortcutsBox, ktpBox, kdpBox, gnpBox, gnpEditorBox, shBox, pointsBox]) makeDialogMovable(box);
 setupDialog(styleBox, { modal: false }); /* flotante: el mapa sigue vivo */
 setupDialog(iconBox, { modal: true });
 setupDialog(colorBox, { modal: true });
@@ -5952,9 +6243,10 @@ setupDialog(kdpBox, { modal: true });
 setupDialog(gnpBox, { modal: true });
 setupDialog(gnpEditorBox, { modal: true });
 setupDialog(shBox, { modal: true });
+setupDialog(pointsBox, { modal: true });
 window.addEventListener("resize", () => {
   /* a moved dialog must not fall off-screen */
-  for (const box of [styleBox, iconBox, colorBox, descBox, shortcutsBox, ktpBox, kdpBox, gnpBox, gnpEditorBox, shBox]) clampToViewport(box);
+  for (const box of [styleBox, iconBox, colorBox, descBox, shortcutsBox, ktpBox, kdpBox, gnpBox, gnpEditorBox, shBox, pointsBox]) clampToViewport(box);
 });
 let styleTargets = [];    /* nodes being edited */
 let styleKindOpen = null; /* "marker" | "polygon" */
@@ -6035,7 +6327,21 @@ function openStyleDialog(li, { isNew = false } = {}) {
     }
   } else if (kind === "polygon") {
     styleDraft = normalizePathStyle(styleTargets[0]._style);
-    $id("pg-mode").value = polygonModeOf(styleDraft);
+    /* Una forma abierta solo puede tener contorno. Las opciones con
+       relleno y los controles del relleno se DESHABILITAN, no se
+       esconden: en gris se ve que existen y que aquí no aplican, que es
+       más explicativo que hacerlas desaparecer. El modo queda además
+       fijado en "stroke" para que readPolygonControls no pueda devolver
+       fill:true aunque algo se saltara la interfaz.                   */
+    const openOnly = styleTargets.every(isOpenOnly);
+    for (const opt of $id("pg-mode").options) {
+      if (opt.value !== "stroke") opt.disabled = openOnly;
+    }
+    $id("pg-fill-color").disabled = openOnly;
+    $id("pg-fill-opacity").disabled = openOnly;
+    $id("pg-fill-color-row").classList.toggle("dim", openOnly);
+    $id("pg-fill-opacity-row").classList.toggle("dim", openOnly);
+    $id("pg-mode").value = openOnly ? "stroke" : polygonModeOf(styleDraft);
     $id("pg-weight").value = styleDraft.weight;
     setColorButton($id("pg-color"), styleDraft.color);
     setColorButton($id("pg-fill-color"), styleDraft.fillColor);
@@ -6046,6 +6352,9 @@ function openStyleDialog(li, { isNew = false } = {}) {
     polyMeasures = single ? polygonMeasures(styleTargets[0]) : null;
     $id("pg-measures").hidden = !polyMeasures;
     if (polyMeasures) { $id("pg-unit").value = polyMeasureUnit; renderPolyMeasures(); }
+    /* La lista de puntos es la geometría de UN nodo, como la posición de
+       un marcador: no tiene sentido en bloque.                        */
+    $id("pg-points-row").hidden = !(single && solePath(styleTargets[0]));
   } else {
     styleDraft = { opacity: styleTargets[0]._imageOverlay.opacity };
     $id("io-opacity").value = styleDraft.opacity;
@@ -6167,6 +6476,8 @@ let polyMeasures = null;   /* {area, perim} en m/m² del polígono abierto, o nu
 function renderPolyMeasures() {
   if (!polyMeasures) return;
   const f = POLY_UNIT_FACTOR[polyMeasureUnit], u = POLY_UNIT_LABEL[polyMeasureUnit];
+  /* Una línea tiene LONGITUD; solo un contorno cerrado tiene perímetro */
+  $id("pg-perim-label").textContent = polyMeasures.open ? "Longitud" : "Perímetro";
   $id("pg-perimeter").textContent = `${(polyMeasures.perim / f).toFixed(2)} ${u}`;
   /* area === null: anillo sin cerrar (algunos JSON), no hay área que mostrar */
   $id("pg-area-row").hidden = polyMeasures.area === null;
@@ -6497,6 +6808,10 @@ let measureLi = null;
 let activeTool = null; /* null | "line" | "circle" | "polygon" */
 let drawing = null;    /* medición en curso durante el arrastre de creación */
 let polyDraft = null;  /* polígono en curso: { vertices, handles, poly, group } | null */
+/* Los dos últimos clicks del dibujo: ¿añadieron vértice? El dblclick lee
+   `prevClickAdded` (el primero de su par) para decidir si termina
+   cerrada o abierta. Ver el manejador de "dblclick".                  */
+let prevClickAdded = false, lastClickAdded = false;
 let toolButtons = {};
 
 /* YYYYMMDD-HHMMSS del reloj local del navegador, en el momento de generar
@@ -6564,7 +6879,8 @@ const MeasureControl = L.Control.extend({
     toolButtons.line = makeToolButton(bar, "\u2571", "Medir l\u00EDnea: arrastra del origen al destino", "line");
     toolButtons.circle = makeToolButton(bar, "\u25EF", "Medir c\u00EDrculo: arrastra del centro al borde", "circle");
     toolButtons.polygon = makeToolButton(bar, "\u2B20",
-      "Dibujar pol\u00EDgono: click para cada v\u00E9rtice, doble click para cerrar", "polygon");
+      "Dibujar: click para cada v\u00E9rtice; doble click sobre el \u00FAltimo v\u00E9rtice cierra el "
+      + "pol\u00EDgono, doble click fuera termina la l\u00EDnea sin cerrarla", "polygon");
 
     /* Not a drag tool like the other two: it acts on click, so it does not
        go through setTool and never disables panning                      */
@@ -6597,6 +6913,7 @@ map.addControl(new MeasureControl());
 function setTool(tool) {
   if (drawing) { rootGroup.removeLayer(drawing.group); drawing = null; }
   if (polyDraft) { rootGroup.removeLayer(polyDraft.group); polyDraft = null; }
+  prevClickAdded = lastClickAdded = false; /* el historial es de un solo dibujo */
   /* An info panel already open (from a hover right before activating the
      tool) could sit exactly where the user needs to click to fix a
      vertex inside another polygon                                     */
@@ -6639,6 +6956,7 @@ document.addEventListener("keydown", e => {
   if (!gnpDialog.hidden) { closeGnpPicker(null); return; }
   if (!gnpEditorDialog.hidden) { gnpEditorDialog.hidden = true; releaseFocus(); return; }
   if (!shDialog.hidden) { closeShCredsDialog(); return; }
+  if (!pointsDialog.hidden) { closePointsDialog(); return; }
   if (!styleDialog.hidden) { closeStyleDialog(false); return; }
   setTool(null);
   clearSelection();
@@ -6826,12 +7144,15 @@ function buildMeasureRecord(n) {
    registro serializado: al cerrar se convierte en un L.polygon normal
    con estilo propio, así que reutiliza el camino genérico t:"layer"
    (geo + style) sin cambios en la persistencia.                       */
-const POLY_PREVIEW_STYLE = { color: "#16a34a", weight: 2, dashArray: "6 4", fillOpacity: 0.08 };
+/* Preview as a POLYLINE, not a polygon: the shape is only closed if the
+   user finishes on a vertex, so a filled preview drawing the closing
+   edge would promise a closed ring the gesture may never produce.     */
+const POLY_PREVIEW_STYLE = { color: "#16a34a", weight: 2, dashArray: "6 4" };
 const POLYGONS_SECTION = "Polígonos";
 
 function addPolyVertex(latlng) {
   if (!polyDraft) {
-    const poly = L.polygon([latlng], POLY_PREVIEW_STYLE);
+    const poly = L.polyline([latlng], POLY_PREVIEW_STYLE);
     polyDraft = { vertices: [latlng], handles: [], poly, group: L.featureGroup([poly]).addTo(rootGroup) };
   } else {
     polyDraft.vertices.push(latlng);
@@ -6856,21 +7177,27 @@ function removePolyVertex(handle) {
   polyDraft.poly.setLatLngs(polyDraft.vertices);
 }
 
-function finishPolygon() {
-  if (polyDraft.vertices.length < 3) {
-    navMessage("Faltan vértices para cerrar el polígono (mínimo 3).");
+/* `closed` decides the shape: finishing ON a vertex closes the ring
+   (L.polygon), finishing on empty map leaves it open (L.polyline). An
+   open shape needs only two vertices, the same threshold an imported
+   <LineString> uses; a ring still needs three.                        */
+function finishPolygon(closed) {
+  const min = closed ? 3 : 2;
+  if (polyDraft.vertices.length < min) {
+    navMessage(closed
+      ? "Faltan vértices para cerrar el polígono (mínimo 3)."
+      : "Faltan vértices para terminar la línea (mínimo 2).");
     return; /* sigue dibujando: no se descarta lo ya puesto */
   }
   /* Solo contorno, sin relleno: se ve el mapa debajo nada más cerrarlo;
      el relleno es cosa del diálogo de estilos si hace falta.          */
   const style = normalizePathStyle({ fill: false });
   /* Sin punto de cierre duplicado: L.Polygon lo quitaría de todos modos
-     al construirse (Leaflet nunca lo conserva), y polygonMeasures ya da
-     por cerrado cualquier polígono sin GeoJSON crudo con el que
-     comprobar lo contrario — este, al no venir de un archivo, no lo
-     tiene, y se cierra por construcción al terminar de dibujarlo.     */
-  const layer = L.polygon(polyDraft.vertices, style).addTo(rootGroup);
-  const li = makeNode({ name: "Polígono", layer, style });
+     al construirse (Leaflet nunca lo conserva). Una forma cerrada aquí
+     lo está por construcción; una abierta NO, y por eso polygonMeasures
+     distingue ahora ambos casos en vez de darlo por cerrado.          */
+  const layer = (closed ? L.polygon : L.polyline)(polyDraft.vertices, style).addTo(rootGroup);
+  const li = makeNode({ name: closed ? "Polígono" : "Línea", layer, style });
   ensureNamedSection(POLYGONS_SECTION).appendChild(li);
   rootGroup.removeLayer(polyDraft.group);
   polyDraft = null;
@@ -6910,7 +7237,12 @@ map.getContainer().addEventListener("click", e => {
   if (activeTool !== "polygon" || clickOnControl(e.target)) return;
   /* Un click sobre un manejador de vértice (propio o de una medición ya
      terminada) no añade un vértice ahí encima                        */
-  if (e.target.closest && e.target.closest(".measure-handle")) return;
+  const onHandle = !!(e.target.closest && e.target.closest(".measure-handle"));
+  /* Historial de los dos últimos clicks: el "dblclick" que sigue
+     necesita saber si el PRIMERO de su par añadió un vértice.        */
+  prevClickAdded = lastClickAdded;
+  lastClickAdded = !onHandle;
+  if (onHandle) return;
   addPolyVertex(map.mouseEventToLatLng(e));
 });
 map.getContainer().addEventListener("dblclick", e => {
@@ -6922,7 +7254,13 @@ map.getContainer().addEventListener("dblclick", e => {
      vértice ya existente (ninguno de los dos clicks añade nada nuevo,
      y el vértice sobre el que se hizo doble click sigue siendo el
      último; no hay nada que descartar en ese caso tampoco).           */
-  finishPolygon();
+  /* Abierta o cerrada según DÓNDE cayó el doble click, mirando si su
+     PRIMER click añadió vértice. No vale mirar `e.target`: comprobado
+     en Chrome, el dblclick se despacha sobre el objetivo del segundo
+     click, y en el caso "mapa vacío" ese segundo click cae sobre el
+     manejador que acaba de crear el primero, así que `e.target` es un
+     `.measure-handle` en los DOS casos y no los distingue.            */
+  finishPolygon(!prevClickAdded);
 });
 /* Supr borra el último vértice mientras se dibuja un polígono. El
    listener de Supr que borra la selección del árbol (más abajo) se
@@ -8197,7 +8535,7 @@ const CTX_MENU_ITEMS = [
   { label: "Modo elevación", checked: () => demOn, action: () => setAltitudeMode(!demOn) },
   { label: "Medir línea", action: () => setTool(activeTool === "line" ? null : "line") },
   { label: "Medir círculo", action: () => setTool(activeTool === "circle" ? null : "circle") },
-  { label: "Dibujar polígono", action: () => setTool(activeTool === "polygon" ? null : "polygon") },
+  { label: "Dibujar polígono o línea", action: () => setTool(activeTool === "polygon" ? null : "polygon") },
   { separator: true },
   { label: "Crear un pin", action: () => createPin() },
   { separator: true },
