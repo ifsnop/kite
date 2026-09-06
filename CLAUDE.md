@@ -437,6 +437,23 @@ desarrollo del proyecto.
   cajas compactas ajustadas al texto (clases `compacto` de popup y
   tooltip) para tapar el mínimo mapa posible. Renombrar la capa actualiza
   el texto.
+- **Las formas dibujadas y las mediciones se autonumeran**
+  («Línea 3», «Polígono 2», «Círculo 1») con `nextNumberedName`, que
+  deduce el número de **los nombres que ya hay en el árbol**, no de un
+  contador en memoria. El contador no valdría: una línea o un polígono
+  dibujados vuelven de IndexedDB por el camino genérico `t:"layer"`,
+  que no sabe que los creó la herramienta, así que se reiniciaría en
+  cada recarga y repetiría «Línea 1» — justo lo que esto evita. Las
+  mediciones comparten el mecanismo (antes llevaban `measureCount`, ya
+  retirado) para que una medición y una línea dibujada tampoco puedan
+  llamarse igual: van por la misma serie. Manda el **máximo**, no la
+  cuenta, así que borrar una no recicla su número mientras quede otra
+  mayor. Se barre el árbol entero —los nodos se pueden mover a
+  cualquier carpeta— incluidos los registros pendientes
+  (`li._pending`) de las carpetas nunca desplegadas, que existen
+  aunque no tengan fila. `elevGridCount` sigue con contador propio
+  porque `elevGrid` sí es un tipo de registro propio y lo
+  resincroniza al restaurar.
 - **Dibujar NO obliga a cerrar**: el doble click decide la forma. Sobre
   el último vértice **cierra** (`L.polygon`, mínimo 3 vértices); fuera de
   un vértice **termina abierta** (`L.polyline`, mínimo 2, el mismo umbral

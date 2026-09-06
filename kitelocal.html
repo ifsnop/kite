@@ -1127,7 +1127,7 @@ const map = L.map("map", {
 
 /* Fecha de generación del código (versión): AÑOMESDIAHORAMINUTO.
    Actualizar en cada generación; se muestra junto al crédito de Leaflet. */
-const BUILD = "202609071140";
+const BUILD = "202609061605";
 map.attributionControl.setPrefix(
   `v${BUILD} | <a href="https://leafletjs.com" title="A JavaScript library for interactive maps">Leaflet</a>`);
 
@@ -4719,6 +4719,40 @@ let placeSeq = 0; /* discards responses of superseded searches */
 /* Top-level section holding user-created nodes (searched places, pins).
    Reused across restores: the tree comes back from storage as plain file
    nodes, so the section is located by name instead of by reference.    */
+/* Siguiente nombre libre de una familia autonumerada ("Línea 3").
+   Se deduce de los nombres que YA hay en el árbol, no de un contador en
+   memoria: una línea o un polígono dibujados se restauran por el camino
+   genérico t:"layer", que no sabe que los creó esta herramienta, así
+   que un contador se reiniciaría en cada recarga y volvería a repetir
+   "Línea 1" — justo lo que esto debe evitar. Las mediciones sí podían
+   llevar contador porque tienen su propio tipo de registro y lo
+   resincronizaban al restaurar; ahora comparten este mecanismo para que
+   una medición y una línea dibujada tampoco puedan llamarse igual.
+   Se barre el árbol entero, no solo la sección de destino, porque los
+   nodos se pueden mover a cualquier carpeta. Cuesta lo que una búsqueda
+   del panel y solo ocurre al crear una forma, nunca en un bucle.
+   Cuenta también los registros PENDIENTES (li._pending) de las carpetas
+   nunca desplegadas: esos nodos existen aunque no tengan fila.        */
+function nextNumberedName(base) {
+  const re = new RegExp(`^${base} (\\d+)$`);
+  let max = 0;
+  const consider = name => {
+    const m = re.exec(name == null ? "" : String(name));
+    if (m && Number(m[1]) > max) max = Number(m[1]);
+  };
+  const walkRecords = recs => {
+    for (const r of recs) {
+      consider(r.name);
+      if (r.children) walkRecords(r.children);
+    }
+  };
+  for (const li of treeEl.querySelectorAll("li")) {
+    consider(li._name);
+    if (li._pending) walkRecords(li._pending);
+  }
+  return `${base} ${max + 1}`;
+}
+
 function ensureNamedSection(name) {
   const ul = ensureRootUl();
   for (const li of ul.children) {
@@ -6928,7 +6962,6 @@ function polygonParts(latlngs) {
 /* ================= Herramientas de medición ================= */
 
 const MEASURE_COLORS = { line: "#d97706", circle: "#7c3aed" };
-const measureCount = { line: 0, circle: 0 };
 let measureLi = null;
 let activeTool = null; /* null | "line" | "circle" | "polygon" */
 let drawing = null;    /* medición en curso durante el arrastre de creación */
@@ -7226,7 +7259,7 @@ function makeMeasureLi(m) {
 
 function addMeasureNode(m) {
   const ul = ensureMeasureSection();
-  m.treeName = (m.type === "line" ? "L\u00EDnea " : "C\u00EDrculo ") + (++measureCount[m.type]);
+  m.treeName = nextNumberedName(m.type === "line" ? "L\u00EDnea" : "C\u00EDrculo");
   ul.appendChild(makeMeasureLi(m));
   updateMeasurement(m); /* rellena el texto del árbol */
   scheduleSave();
@@ -7242,7 +7275,6 @@ function buildMeasureRecord(n) {
   attachCtrlDrag(m, m.mOrigin, true);
   attachCtrlDrag(m, m.mDest, false);
   m.treeName = n.name;
-  measureCount[n.mtype]++;
   if (!n.checked) rootGroup.removeLayer(m.group); /* buildMeasurement la añade siempre */
   /* Sin a/b propios: los manejadores son arrastrables con Ctrl+arrastre
      directamente sobre el mapa aunque la fila siga pendiente (no hace
@@ -7322,7 +7354,7 @@ function finishPolygon(closed) {
      lo está por construcción; una abierta NO, y por eso polygonMeasures
      distingue ahora ambos casos en vez de darlo por cerrado.          */
   const layer = (closed ? L.polygon : L.polyline)(polyDraft.vertices, style).addTo(rootGroup);
-  const li = makeNode({ name: closed ? "Polígono" : "Línea", layer, style });
+  const li = makeNode({ name: nextNumberedName(closed ? "Polígono" : "Línea"), layer, style });
   ensureNamedSection(POLYGONS_SECTION).appendChild(li);
   rootGroup.removeLayer(polyDraft.group);
   polyDraft = null;
@@ -8144,7 +8176,10 @@ const lastGrid = { terrain: null, surface: null };
    está apagado. `tileKeys` es el mismo deduplicado exacto de drawElevGrid
    (ver elevTileKey). `elevAccumCapped` evita repetir el aviso de tope.
    `elevGridCount` numera "Elevación N" y se autosincroniza al restaurar
-   el árbol (igual que measureCount con las mediciones).                */
+   el árbol. Lleva contador propio porque `elevGrid` es un tipo de
+   registro propio y puede resincronizarlo al restaurar; las mediciones
+   y las formas dibujadas usan `nextNumberedName`, que deduce el número
+   de los nombres existentes (ver esa función).                        */
 let elevAccum = null;
 let elevAccumCapped = false;
 let elevGridCount = 0;
