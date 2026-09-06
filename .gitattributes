@@ -1,0 +1,5 @@
+# kitelocal.html es el artefacto que se distribuye, pero se GENERA desde
+# src/ (ver build.js). Se versiona a propósito —quien clone debe tener
+# algo que abrir— y se marca como generado para que los diffs se plieguen
+# y no tapen el cambio real en src/.
+kitelocal.html linguist-generated=true -diff

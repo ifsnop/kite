@@ -9,10 +9,17 @@ desarrollo del proyecto.
 
 ## Principios de base (no negociables)
 
-1. **Un único archivo HTML, sin compilación.** Todo el proyecto vive en
-   `kitelocal.html`: HTML + CSS + JavaScript plano. Nada de Vue, React,
-   TypeScript, bundlers ni pasos de build. El archivo debe poder abrirse
-   directamente en el navegador.
+1. **Un único archivo HTML como PRODUCTO; las fuentes, repartidas.**
+   Lo que se distribuye es `kitelocal.html`: HTML + CSS + JavaScript
+   plano, un solo archivo que se abre directamente en el navegador con
+   doble clic. Eso no se negocia. Pero **ese archivo es GENERADO**: se
+   edita `src/` y se construye con `npm run build` (ver `build.js` y la
+   sección «Fuentes y construcción»). Nada de Vue, React, TypeScript ni
+   empaquetadores: el build es una concatenación literal, sin
+   minificar, sin envolver y sin transformar nada.
+   **Nunca se edita `kitelocal.html` a mano**: el cambio se perdería en
+   la siguiente construcción. `node tests/run-all.js` lo comprueba antes
+   de nada y falla si el archivo no corresponde a `src/`.
 2. **Reusar librerías conocidas y estables; no reinventar.** Se cargan por
    CDN (unpkg / cdnjs) con versión fijada. Las actuales:
    - **Leaflet 1.9.4** — mapa, zoom, pan, controles, capas, tooltips.
@@ -183,6 +190,65 @@ desarrollo del proyecto.
   trazos: polígonos/líneas; los mixtos cuentan como `marker`), `measure`
   (medición), `elevGrid` (cuadrícula de elevación acumulada), `group`
   (carpeta/archivo).
+
+## Fuentes y construcción
+
+```
+src/index.html     plantilla: <head>, CSP, diálogos, <script> de CDN.
+                   Dos marcadores: {{STYLES}} y {{SCRIPTS}}
+src/styles.css     todo el CSS
+src/js/*.js        19 archivos, en el orden del manifiesto de build.js
+build.js           concatena src/ → kitelocal.html
+kitelocal.html     GENERADO. Es el producto; se versiona (quien clone
+                   debe tener algo que abrir) y está marcado como
+                   generado en .gitattributes para que los diffs se
+                   plieguen y no tapen el cambio real en src/
+```
+
+- `npm run build` construye, `npm run watch` reconstruye al guardar
+  (quita casi toda la fricción del paso de build), `npm run check`
+  comprueba sin escribir y `npm test` lanza la batería.
+- **`kitelocal.html` SÍ se versiona**, aunque sea generado, porque es el
+  producto: quien clone el repositorio —o descargue el archivo por su
+  enlace directo en GitHub— tiene que obtener algo que funcione sin
+  instalar Node ni construir nada. La objeción clásica a versionar
+  artefactos (que se desincronicen) la cierra la comprobación de
+  frescura, que corre en local y en CI.
+- **Si `kitelocal.html` da conflicto al fusionar, no se resuelve a
+  mano**: se resuelven los conflictos de `src/`, se ejecuta
+  `npm run build` y se añade el resultado. El archivo generado no es
+  una fuente que merezca un merge, y está marcado `-diff` en
+  `.gitattributes` justamente porque su contenido no se lee.
+- **El CI (`.github/workflows/tests.yml`) comprueba, no construye**: un
+  paso propio (`npm run check`) para que el fallo se lea en el nombre
+  del paso, y luego `npm test`, que vuelve a comprobarlo por su cuenta.
+  Si el CI reconstruyera, un push con `src/` cambiado y el archivo sin
+  regenerar pasaría en verde y se publicaría la versión anterior.
+- **El orden del manifiesto (`JS` en `build.js`) es carga útil, no
+  cosmética.** Todo comparte un único ámbito de nivel superior y hay
+  dependencias de orden que ningún `node --check` detecta (ver el punto
+  10 del checklist). Antes ese contrato solo existía como «está más
+  arriba en el scroll»; ahora se lee y se revisa en el diff. Mover un
+  archivo de sitio es un cambio de comportamiento potencial.
+- `build.js` **valida el manifiesto en los dos sentidos**: un archivo
+  suelto en `src/js` que nadie declare se perdería en silencio, y un
+  nombre declarado que no exista aborta la construcción.
+- **Por qué concatenación y no módulos**: Chrome bloquea
+  `<script type="module">` sobre `file://` por CORS, y el producto tiene
+  que abrirse con doble clic. Tampoco se envuelve en un IIFE: el código
+  comparte ámbito global y las pruebas de navegador acceden a esos
+  símbolos directamente.
+- **Cuidado con `String.replace` al insertar el contenido**: con una
+  cadena de reemplazo, los `$&`, `$1`, `$'`… del texto insertado se
+  interpretan como patrones. El propio código tiene un
+  `.replace(/…/g, "\\$&")` y salía corrompido. Por eso `build.js` usa
+  una **función** de reemplazo. Lo cazó la comprobación de identidad
+  byte a byte.
+- **El criterio de cualquier reorganización de `src/` es la identidad
+  byte a byte**: si mover código no cambia ni un byte de
+  `kitelocal.html`, no hay cambio de comportamiento que discutir. Es la
+  red que se usó para el reparto inicial y la que hay que usar al
+  volver a partir un archivo grande.
 
 ## Arquitectura (orden de secciones dentro del script)
 
@@ -1257,20 +1323,28 @@ atribución se mantiene en una sola línea con elipsis si no cabe.
    que solo vive en el código y no en esa tabla es, a efectos del
    usuario, un atajo que no existe.
 8. **Siempre** actualizar la constante `BUILD` (AAAAMMDDHHMM, junto al
-   crédito de Leaflet) en CADA generación del código, por pequeña que
-   sea: es la única versión visible y sirve para saber qué se está
-   ejecutando. Sin excepciones. Y **comprobar que la sustitución ha
-   surtido efecto**: editar por el valor anterior falla en silencio si no
-   es el que se creía, y la versión se queda congelada sin que nadie lo
-   note. Sustituir por patrón (`const BUILD = "\d{12}"`) y verificar.
-9. `node --check` del script; test en Node de la lógica pura (nuevo o
-   actualizado si el cambio lo exige); `grep` de referencias muertas de lo
-   que se haya retirado; y `node tests/run-all.js` completo antes de dar
-   el cambio por terminado.
-10. Cuidado con el ORDEN de las secciones: una variable que se asigna
-    dentro del `onAdd` de un control debe declararse antes que ese
-    control, o al añadirlo se cae por zona muerta temporal. `node --check`
-    no lo detecta.
+   crédito de Leaflet, hoy en `src/js/10-map.js`) en CADA generación del
+   código, por pequeña que sea: es la única versión visible y sirve para
+   saber qué se está ejecutando. Sin excepciones. Y **comprobar que la
+   sustitución ha surtido efecto**: editar por el valor anterior falla en
+   silencio si no es el que se creía, y la versión se queda congelada sin
+   que nadie lo note. Sustituir por patrón (`const BUILD = "\d{12}"`) y
+   verificar. Se mantiene a mano a propósito: inyectarla en cada
+   construcción rompería la comprobación de identidad byte a byte, que es
+   la red de seguridad de cualquier reorganización de `src/`.
+9. **Editar en `src/`, nunca en `kitelocal.html`**, y `npm run build`
+   antes de probar. Después: `node --check` del script; test en Node de
+   la lógica pura (nuevo o actualizado si el cambio lo exige); `grep -F`
+   de referencias muertas de lo retirado (con `-F`: el `$` de `$id(...)`
+   se toma como fin de línea en un patrón normal y da falsos negativos,
+   error ya cometido aquí); y `node tests/run-all.js` completo antes de
+   dar el cambio por terminado — empieza comprobando que el archivo
+   generado corresponde a las fuentes.
+10. Cuidado con el ORDEN: dentro de un archivo y **entre archivos** (el
+    manifiesto `JS` de `build.js`). Una variable que se asigna dentro del
+    `onAdd` de un control debe declararse antes que ese control, o al
+    añadirlo se cae por zona muerta temporal. `node --check` no lo
+    detecta.
 11. **Al reportar que se han hecho cambios en el código, mostrar siempre
     la salida de `git diff --stat`** (sobre lo modificado en esa
     respuesta), para que quede a la vista qué archivos y cuántas líneas

@@ -62,6 +62,22 @@ if (missing.length) {
   process.exit(2);
 }
 
+/* kitelocal.html es GENERADO desde src/. Las suites lo leen a él, que es
+   lo que se entrega, así que hay que asegurarse de que corresponde a las
+   fuentes actuales: si no, se probaría una versión vieja y pasarían
+   pruebas que no dicen nada del código que se acaba de escribir.
+   Se COMPRUEBA, no se construye: un runner de pruebas que reescribe un
+   archivo del repo ensucia el árbol de trabajo sin avisar y, peor,
+   enmascara justo este error. La comparación es por CONTENIDO, nunca
+   por fecha: los mtime no sobreviven a un `git checkout`.            */
+try {
+  execFileSync(process.execPath, [path.join(__dirname, "..", "build.js"), "--check"], { stdio: "pipe" });
+  console.log("✓ kitelocal.html está al día respecto de src/");
+} catch (e) {
+  console.error((e.stdout || "") + (e.stderr || ""));
+  process.exit(1);
+}
+
 /* Antes que nada, lo más barato: que el script sea válido */
 const script = fs.readFileSync(html, "utf8").match(/<script>\n([\s\S]*?)<\/script>/)[1];
 const tmp = path.join(require("os").tmpdir(), "kite-script-check.js");

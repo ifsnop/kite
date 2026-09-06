@@ -19,5 +19,15 @@ jobs:
       - name: Instalar dependencias
         run: npm ci
 
+      # kitelocal.html se GENERA desde src/ y se versiona porque es el
+      # producto. Aquí se comprueba que el archivo del repositorio
+      # corresponde a las fuentes, sin reconstruirlo: si alguien empuja un
+      # cambio en src/ sin construir, lo que se publica sería la versión
+      # anterior y los tests estarían probando código viejo.
+      # Es un paso propio, y no solo la comprobación que ya hace
+      # run-all.js, para que el fallo se lea en el nombre del paso.
+      - name: Comprobar que kitelocal.html está al día respecto de src/
+        run: npm run check
+
       - name: Ejecutar tests
-        run: node tests/run-all.js
+        run: npm test

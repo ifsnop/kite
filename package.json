@@ -1,4 +1,13 @@
 {
+  "name": "kite",
+  "description": "KITE Local — KML Interactive Tree Explorer. Se edita en src/ y se distribuye como un único kitelocal.html.",
+  "private": true,
+  "scripts": {
+    "build": "node build.js",
+    "check": "node build.js --check",
+    "watch": "node build.js --watch",
+    "test": "node tests/run-all.js"
+  },
   "dependencies": {
     "@xmldom/xmldom": "^0.9.10",
     "linkedom": "^0.18.12"

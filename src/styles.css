@@ -1,0 +1,720 @@
+  :root {
+    --bg: #f7f7f5;
+    --panel: #ffffff;
+    --border: #e2e2df;
+    --text: #2b2b28;
+    --muted: #8a8a84;
+    --accent: #2f6f4f;
+    --accent-soft: #e7f0ea;
+    --danger: #b04a3a;
+    --nav-width: 320px;
+  }
+  * { box-sizing: border-box; }
+  html, body { height: 100%; margin: 0; }
+  body {
+    display: flex;
+    font: 14px/1.4 system-ui, -apple-system, "Segoe UI", sans-serif;
+    color: var(--text);
+    background: var(--bg);
+  }
+  body.resizing { user-select: none; cursor: col-resize; }
+
+  /* ================= Ventana de navegación (izquierda) ================= */
+  #nav-panel {
+    flex: 0 0 var(--nav-width);
+    display: flex;
+    flex-direction: column;
+    background: var(--panel);
+    overflow: hidden;
+  }
+  #nav-panel header {
+    padding: 12px 14px;
+    border-bottom: 1px solid var(--border);
+  }
+  #nav-panel h1 {
+    margin: 0 0 10px;
+    font-size: 15px;
+    font-weight: 600;
+    letter-spacing: 0.02em;
+  }
+  #dropzone {
+    border: 2px dashed var(--border);
+    border-radius: 8px;
+    padding: 10px;
+    font-size: 12.5px;
+    color: var(--muted);
+    text-align: center;
+    /* Ahora vive bajo el árbol (antes, dentro de la cabecera, ya tenía
+       su padding lateral); sin la cabecera hace falta el margen a los
+       lados para no pegarse a los bordes del panel.                  */
+    margin: 8px 10px 10px;
+  }
+  #nav-panel.drop-hover #dropzone {
+    border-color: var(--accent);
+    color: var(--accent);
+    background: var(--accent-soft);
+  }
+  .nav-actions { display: flex; gap: 6px; margin-bottom: 6px; }
+  .nav-actions input[type="text"] {
+    flex: 1;
+    min-width: 0;
+    padding: 5px 8px;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    font: inherit;
+    font-size: 13px;
+  }
+  .btn {
+    padding: 5px 10px;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    background: var(--bg);
+    font: inherit;
+    font-size: 13px;
+    cursor: pointer;
+    white-space: nowrap;
+  }
+  .btn:hover { border-color: var(--accent); color: var(--accent); }
+  #nav-msg { font-size: 12px; min-height: 0; }
+  .nav-msg-line { margin: 3px 0; color: var(--danger); }
+  .nav-msg-line.info { color: var(--muted); }
+  .nav-msg-ok { margin: 2px 0 4px; padding: 1px 10px; }
+  #storage-usage {
+    font-size: 12px;
+    color: var(--muted);
+    padding: 6px 14px;
+    border-top: 1px solid var(--border);
+  }
+
+  /* Indicador de progreso de carga de archivos grandes */
+  #progress { margin-top: 6px; }
+  #progress[hidden] { display: none; }
+  #progress-label {
+    font-size: 12px;
+    color: var(--muted);
+    margin-bottom: 3px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  #progress .bar {
+    height: 6px;
+    background: var(--border);
+    border-radius: 3px;
+    overflow: hidden;
+  }
+  #progress-fill {
+    height: 100%;
+    width: 0;
+    background: var(--accent);
+    transition: width 0.1s;
+  }
+  #progress-fill.indet {
+    width: 100%;
+    background: repeating-linear-gradient(
+      45deg, var(--accent) 0 10px, #6ea88b 10px 20px);
+    background-size: 28px 100%;
+    animation: indet 0.8s linear infinite;
+  }
+  @keyframes indet {
+    from { background-position: 0 0; }
+    to   { background-position: 28px 0; }
+  }
+
+  /* ---------- Resultados de búsqueda de lugares (Nominatim) ----------
+     Vive dentro de la cabecera del panel: al desplegarse empuja el árbol
+     de capas hacia abajo en vez de flotar sobre él                      */
+  #place-results {
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    margin-bottom: 6px;
+    overflow: hidden;
+  }
+  #place-results[hidden] { display: none; }
+  .place-head {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 3px 4px 3px 8px;
+    background: var(--bg);
+    border-bottom: 1px solid var(--border);
+  }
+  #place-status { flex: 1; font-size: 12px; color: var(--muted); }
+  #place-close { padding: 1px 7px; line-height: 1.2; }
+  #place-list { list-style: none; margin: 0; padding: 0; }
+  #place-list li { border-top: 1px solid var(--border); }
+  #place-list li:first-child { border-top: none; }
+  #place-list button {
+    display: block;
+    width: 100%;
+    border: none;
+    background: none;
+    font: inherit;
+    font-size: 12.5px;
+    text-align: left;
+    padding: 5px 8px;
+    cursor: pointer;
+    color: var(--text);
+  }
+  #place-list button:hover { background: var(--accent-soft); color: var(--accent); }
+
+  /* ---------- Árbol de capas ---------- */
+  #tree { flex: 1; overflow: auto; padding: 10px 8px; }
+  #tree .empty { padding: 24px 12px; color: var(--muted); text-align: center; }
+  ul.node-list { list-style: none; margin: 0; padding-left: 18px; }
+  #tree > ul.node-list { padding-left: 0; }
+
+  .node-row {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 3px 4px;
+    border-radius: 5px;
+    position: relative; /* referencia de los botones, que van superpuestos */
+  }
+  .node-row:hover { background: var(--bg); }
+  .node-row.selected { background: var(--accent-soft); outline: 1px solid var(--accent); }
+  .node-row input[type="checkbox"] { accent-color: var(--accent); margin: 0; }
+  .node-row label {
+    flex: 1;
+    min-width: 0;
+    cursor: pointer;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .node-row.folder > label { font-weight: 600; }
+  li.file > .node-row { background: var(--bg); border: 1px solid var(--border); }
+  li.file > .node-row > label { font-weight: 600; }
+  li.file { margin-bottom: 6px; }
+  .rename-input {
+    flex: 1;
+    min-width: 0;
+    font: inherit;
+    font-size: 13px;
+    padding: 1px 4px;
+    border: 1px solid var(--accent);
+    border-radius: 4px;
+  }
+
+  /* Indicadores de arrastre para reordenar */
+  .node-row.cursor { outline: 1px dashed var(--accent); outline-offset: -1px; }
+  .node-row.cut { opacity: .55; font-style: italic; } /* cortado, aún no pegado */
+  .node-row.drop-before { box-shadow: inset 0 2px 0 var(--accent); }
+  .node-row.drop-after  { box-shadow: inset 0 -2px 0 var(--accent); }
+  .node-row.drop-into   { background: var(--accent-soft); }
+
+  /* Flecha de colapso */
+  .caret {
+    width: 14px;
+    min-width: 14px;
+    text-align: center;
+    cursor: pointer;
+    color: var(--muted);
+    user-select: none;
+    transition: transform 0.15s;
+  }
+  li.collapsed > .node-row > .caret { transform: rotate(-90deg); }
+  li.collapsed > ul.node-list { display: none; }
+  .caret-spacer { width: 14px; min-width: 14px; }
+
+  .swatch {
+    width: 12px;
+    height: 12px;
+    min-width: 12px;
+    border-radius: 3px;
+    border: 1px solid rgba(0,0,0,.25);
+  }
+
+  /* Botones de acción de cada fila (visibles al pasar el ratón) */
+  /* Los botones NO ocupan sitio en la fila: van superpuestos a la derecha
+     y solo aparecen al pasar el ratón (o al llegar con el tabulador).
+     Con `visibility: hidden` seguían reservando su ancho y el nombre
+     quedaba recortado siempre, aunque no se vieran. Ahora el nombre
+     dispone de toda la fila y solo se tapa mientras hagan falta.     */
+  .actions {
+    display: flex;
+    gap: 2px;
+    align-items: center;
+    position: absolute;
+    right: 4px;
+    top: 0;
+    bottom: 0;
+    padding-left: 12px;
+    visibility: hidden;
+    /* Fondo con desvanecido: los botones se leen sobre el texto que
+       cubren y el corte no parece abrupto                          */
+    background: linear-gradient(to right, transparent, var(--bg) 12px);
+  }
+  /* Los botones aparecen SOLO con el ratón encima de la fila. Ni la fila
+     del cursor ni `:focus-within` los muestran: al pulsar una fila el
+     foco se va a su casilla, y con `:focus-within` se quedarían fijos
+     sin que el ratón esté encima.                                     */
+  .node-row:hover > .actions { visibility: visible; }
+  /* El fondo tiene que seguir al de la fila cuando esta está marcada */
+  .node-row.selected > .actions {
+    background: linear-gradient(to right, transparent, var(--accent-soft) 12px);
+  }
+  .actions button {
+    border: none;
+    background: none;
+    color: var(--muted);
+    font-size: 13px;
+    line-height: 1;
+    cursor: pointer;
+    padding: 2px 3px;
+    border-radius: 4px;
+  }
+  .actions button:hover { color: var(--accent); background: #fff; }
+  .actions button.delete:hover { color: var(--danger); }
+  .actions button.az { font-size: 10px; font-weight: 600; }
+  #nav-search {
+    padding: 8px 14px;
+    border-top: 1px solid var(--border);
+  }
+  #nav-search .nav-actions { margin-bottom: 0; }
+  #search-count {
+    font-size: 12px;
+    color: var(--muted);
+    align-self: center;
+    min-width: 34px;
+    text-align: right;
+  }
+
+  /* ================= Separador y toggle ================= */
+  #splitter {
+    flex: 0 0 5px;
+    cursor: col-resize;
+    background: var(--border);
+  }
+  #splitter:hover { background: var(--accent); }
+  #nav-toggle {
+    position: absolute;
+    top: 50%;
+    left: calc(var(--nav-width) + 5px);
+    transform: translateY(-50%);
+    z-index: 1100;
+    width: 18px;
+    height: 52px;
+    border: 1px solid var(--border);
+    border-left: none;
+    border-radius: 0 8px 8px 0;
+    background: var(--panel);
+    color: var(--muted);
+    cursor: pointer;
+    padding: 0;
+  }
+  #nav-toggle:hover { color: var(--accent); }
+  body.nav-hidden #nav-panel, body.nav-hidden #splitter { display: none; }
+  body.nav-hidden #nav-toggle { left: 0; }
+
+  /* ================= Ventana del visor (derecha) ================= */
+  #map { flex: 1; background: #dfe8ef; }
+
+  .measure-bar a {
+    font-size: 15px;
+    line-height: 30px;
+    text-align: center;
+    cursor: pointer;
+    user-select: none;
+  }
+  .measure-bar a.active { background: var(--accent); color: #fff; }
+  /* Leaflet's own CSS sets ".leaflet-bar a { display: block }"; being an
+     author rule it beats the browser's UA "[hidden] { display: none }"
+     regardless of specificity, so the `hidden` property silently does
+     nothing without this explicit override.                           */
+  .measure-bar a[hidden] { display: none; }
+  .measure-handle {
+    background: #fff;
+    border: 2px solid #444;
+    border-radius: 50%;
+    box-shadow: 0 1px 3px rgba(0,0,0,.4);
+    cursor: move;
+  }
+  .measure-label { font-weight: 600; font-family: system-ui, sans-serif; }
+
+  .coords-box {
+    /* La línea inferior del visor es SOLO para la atribución: el cuadro
+       de coordenadas vive siempre por encima de ella. Con eso no hace
+       falta limitar su ancho, y así cabe la línea de la diferencia
+       entre superficie y terreno.                                  */
+    background: rgba(255,255,255,.85);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 3px 8px;
+    font: 12px ui-monospace, "Cascadia Mono", Consolas, monospace;
+    color: var(--text);
+    line-height: 1.35;
+    white-space: nowrap;
+  }
+  /* Leaflet añade su propia clase "leaflet-control" al mismo div y trae
+     ".leaflet-bottom .leaflet-control { margin-bottom: 10px; }", con dos
+     clases en el selector: gana por especificidad a ".coords-box" (una
+     sola clase) sea cual sea el valor que se le ponga aquí. Hace falta
+     igualar esa especificidad para que el margen se aplique de verdad. */
+  .leaflet-bottom .leaflet-control.coords-box { margin-bottom: 20px; }
+  /* Las tres lecturas de la posición, de más a menos usada */
+  /* Panel de mapas base. El icono va con position:absolute, anclado al
+     borde derecho de la caja (igual que .actions, ver más abajo): la
+     caja está en la esquina topright de Leaflet con float:right y
+     ancho automático, así que su borde derecho es fijo pero el
+     izquierdo se desplaza al desplegar la lista; un icono en flujo
+     normal (pegado al borde izquierdo) se alejaba del punto donde el
+     usuario lo había pulsado para desplegar.                         */
+  .base-box {
+    background: #fff; border-radius: 4px;
+    position: relative;
+    min-width: 48px; min-height: 48px; /* el icono, al salir del flujo, ya no lo garantiza */
+  }
+  .base-toggle {
+    position: absolute; top: 0; right: 0;
+    display: block;
+    width: 48px; height: 48px;
+    border: none; background: none;
+    cursor: pointer; color: var(--text);
+    padding: 4px;
+  }
+  .base-toggle:hover { color: var(--accent); }
+  .base-list {
+    margin-top: 48px; /* hueco que dejaba el icono en flujo */
+    padding: 6px 8px;
+    border-top: 1px solid var(--border);
+    max-height: 46vh; overflow: auto;
+    font: 12px system-ui, sans-serif;
+  }
+  .base-list[hidden] { display: none; }
+  .base-row { display: grid; grid-template-columns: auto 1fr auto; gap: 3px 6px; align-items: center; margin: 5px 0; }
+  .base-moves { display: flex; gap: 2px; }
+  .base-moves button {
+    border: 1px solid var(--border); background: #fff; border-radius: 4px;
+    font-size: 9px; line-height: 1; padding: 2px 3px; cursor: pointer; color: var(--muted);
+  }
+  .base-moves button:disabled { opacity: .35; cursor: default; }
+  .base-row label { cursor: pointer; white-space: nowrap; }
+  .base-row input[type="range"], .base-row select { grid-column: 1 / -1; width: 100%; }
+  .base-row select { font: inherit; }
+  .base-row.failed label { color: var(--danger); }
+  /* Tuerca de configuración + flechas de apilado, en ese orden: la
+     tuerca queda a la IZQUIERDA de las flechas.                       */
+  .base-tools { display: flex; gap: 4px; align-items: center; }
+  /* Icono de propiedades, como los botones de acción de una fila del
+     árbol (.actions button), no un botón de formulario.               */
+  .base-gear {
+    border: none; background: none; color: var(--muted);
+    font-size: 13px; line-height: 1; cursor: pointer; padding: 2px 3px; border-radius: 4px;
+  }
+  .base-gear:hover { color: var(--fg); }
+
+  /* Celdas de la cuadrícula de elevaciones */
+  .elev-cell {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    background: none;
+    border: none;
+    /* El tamaño lo pone `cellIcon` según el zoom; aquí solo la familia */
+    font-family: ui-monospace, Consolas, monospace;
+    line-height: 1.15;
+    text-shadow: 0 0 3px #fff, 0 0 3px #fff, 0 0 3px #fff;
+    pointer-events: none;
+    white-space: nowrap;
+  }
+  .elev-cell > span { display: flex; flex-direction: column; align-items: center; }
+  .elev-cell .ec-t { color: #1b5e97; font-weight: 700; }  /* terreno    */
+  .elev-cell .ec-s { color: #2e7d32; }                    /* superficie */
+  .elev-cell .ec-d { color: #b04a3a; }                    /* diferencia */
+  .elev-cell .ec-d.alert { color: #d32f2f; font-weight: 700; } /* MDS > MDT + 1 m */
+
+  .coords-zoom { font-weight: 600; }
+  /* La atribución se queda en una sola línea, la de abajo del todo */
+  .leaflet-control-attribution {
+    max-width: 100%;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  /* Todo lo que se ancle abajo a la izquierda respeta esa línea */
+  .leaflet-bottom.leaflet-left { padding-bottom: 4px; }
+  .coords-alt { font-weight: 600; }
+  .coords-alt[hidden], .coords-sup[hidden] { display: none; }
+  .grat-label {
+    font: 10px ui-monospace, Consolas, monospace;
+    color: #445;
+    white-space: nowrap;
+    text-shadow: 0 0 3px #fff, 0 0 3px #fff;
+    pointer-events: none;
+  }
+
+  /* ================= Layer style dialog and icon picker ================= */
+  .dlg-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 2000;
+    background: rgba(0,0,0,.25);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .dlg-overlay[hidden] { display: none; }
+  /* The style dialog is NOT modal: it floats over the viewer so the map
+     stays live underneath and the marker being edited can be dragged   */
+  .dlg-float {
+    position: fixed;
+    top: 62px;
+    right: 18px;
+    z-index: 2000;
+  }
+  .dlg-float[hidden] { display: none; }
+  /* Sub-dialogs of the style dialog always sit above it */
+  #icon-picker, #color-picker { z-index: 2100; }
+  .ctx-menu {
+    position: fixed;
+    z-index: 2200;
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    box-shadow: 0 8px 30px rgba(0,0,0,.25);
+    padding: 4px;
+    min-width: 220px;
+    font: 13px system-ui, sans-serif;
+  }
+  .ctx-menu[hidden] { display: none; }
+  .ctx-menu-item {
+    display: block;
+    width: 100%;
+    text-align: left;
+    padding: 7px 10px;
+    border: none;
+    border-radius: 5px;
+    background: none;
+    color: var(--text);
+    cursor: pointer;
+  }
+  /* Only one highlight style at a time, mouse-first: hover fills the row;
+     keyboard focus (Tab, no auto-focus on open) gets a thin outline
+     instead of the same fill, so the two never look like two competing
+     highlights when both a hovered row and a focused row exist at once. */
+  .ctx-menu-item:hover { background: var(--accent); color: #fff; }
+  .ctx-menu-item:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+  .ctx-menu-sep { height: 1px; margin: 4px 6px; background: var(--border); }
+  .color-btn {
+    width: 34px;
+    height: 24px;
+    padding: 0;
+    border: 1px solid var(--border);
+    border-radius: 5px;
+    cursor: pointer;
+  }
+  /* Un control que no aplica se deja en gris, no se esconde: así se ve
+     que existe y que aquí no vale (una línea no puede tener relleno). */
+  .color-btn:disabled { opacity: .35; cursor: default; }
+  .dlg-row.dim > span { opacity: .45; }
+  .color-swatches { display: grid; grid-template-columns: repeat(8, 24px); gap: 5px; margin-top: 8px; }
+  .color-swatches button {
+    width: 24px;
+    height: 24px;
+    padding: 0;
+    border: 1px solid var(--border);
+    border-radius: 5px;
+    cursor: pointer;
+  }
+  .color-swatches button.chosen { outline: 2px solid var(--accent); outline-offset: 1px; }
+  .dlg-box {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    box-shadow: 0 8px 30px rgba(0,0,0,.25);
+    padding: 14px 16px;
+    min-width: 300px;
+    max-width: 90vw;
+    max-height: 85vh;
+    overflow: auto;
+  }
+  /* A lone <p class="dlg-hint"> with no other wide content (list, grid,
+     table…) has nothing to force an earlier wrap, so the box's
+     shrink-to-fit width ends up close to the sentence's unwrapped
+     width — capping it here keeps this one-question dialog compact
+     instead of stretching almost edge to edge.                       */
+  /* Sin esto heredan el max-width: 90vw de .dlg-box y una caja de texto
+     corto se estira a casi toda la pantalla.                          */
+  #kml-tags-picker .dlg-box, #kml-dup-picker .dlg-box, #sh-creds .dlg-box { max-width: 42ch; }
+  .dlg-box h2 {
+    margin: 0 0 10px;
+    font-size: 14px;
+    cursor: grab;          /* the title bar is the drag handle */
+    user-select: none;
+    touch-action: none;    /* the browser must not pan while dragging */
+  }
+  .dlg-box h2:active { cursor: grabbing; }
+  .dlg-box h2::before { content: "\2725\00A0"; color: var(--muted); font-weight: 400; }
+  .dlg-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    margin: 8px 0;
+    font-size: 13px;
+  }
+  .dlg-row input[type="number"] {
+    width: 64px;
+    padding: 3px 6px;
+    border: 1px solid var(--border);
+    border-radius: 5px;
+    font: inherit;
+  }
+  .dlg-row input[type="range"] { width: 120px; }
+  .dlg-row input[type="color"] {
+    width: 34px;
+    height: 24px;
+    padding: 0;
+    border: 1px solid var(--border);
+    border-radius: 5px;
+    background: none;
+  }
+  .dlg-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 12px; }
+  .dlg-row input[type="text"], .dlg-row select {
+    flex: 1;
+    min-width: 0;
+    max-width: 190px;
+    padding: 3px 6px;
+    border: 1px solid var(--border);
+    border-radius: 5px;
+    font: inherit;
+  }
+  .keys { border-collapse: collapse; font-size: 12.5px; }
+  .keys th { text-align: left; padding: 8px 4px 3px; color: var(--muted); font-size: 11.5px; }
+  .keys td { padding: 2px 10px 2px 4px; vertical-align: top; }
+  .keys td:first-child { white-space: nowrap; font-family: ui-monospace, Consolas, monospace; }
+  .desc-body {
+    max-width: 46ch;
+    max-height: 55vh;
+    overflow: auto;
+    font-size: 12.5px;
+    line-height: 1.4;
+  }
+  .desc-body table { border-collapse: collapse; }
+  .desc-body td, .desc-body th { border: 1px solid var(--border); padding: 2px 5px; text-align: left; }
+  .desc-body img { max-width: 100%; height: auto; }
+  .dlg-hint { margin: 6px 0 0; font-size: 12px; color: var(--muted); }
+  .dlg-hint.sh-bad { color: var(--danger); }
+  /* La lista de puntos necesita su propio ancho: .dlg-box trae
+     max-width 90vw, pensado para los diálogos anchos.                 */
+  #points-dialog .dlg-box { max-width: min(92vw, 640px); display: flex; flex-direction: column; }
+  /* `resize: both` es el redimensionado nativo del navegador: el tirador
+     de la esquina no estorba al arrastre por el <h2> (makeDialogMovable).
+     Las medidas son del textarea, no de la caja, para que al agrandarlo
+     crezca el diálogo con él.                                         */
+  #points-text {
+    width: 60ch; height: 45vh; min-width: 32ch; min-height: 8em;
+    max-width: 88vw; max-height: 70vh;
+    resize: both; overflow: auto; white-space: pre;
+    font-family: ui-monospace, Consolas, monospace; font-size: 12.5px; line-height: 1.35;
+    border: 1px solid var(--border); border-radius: 4px; padding: 6px; box-sizing: border-box;
+  }
+  #points-text.bad { border-color: var(--danger); }
+  .sh-field { display: block; margin-top: 10px; font-size: 13px; }
+  .sh-field input {
+    display: block; width: 100%; margin-top: 4px; font: inherit; padding: 4px 6px;
+    border: 1px solid var(--border); border-radius: 4px; box-sizing: border-box;
+  }
+  .dlg-note { margin-left: auto; font-size: 12px; color: var(--muted); }
+  .gnp-list, .gnp-editor-list {
+    max-height: 260px;
+    overflow-y: auto;
+    margin: 8px 0;
+  }
+  .gnp-row {
+    display: flex;
+    align-items: baseline;
+    gap: 8px;
+    padding: 4px 2px;
+    font-size: 13px;
+  }
+  .gnp-row .gnp-key { font-weight: 600; }
+  .gnp-row .gnp-val {
+    color: var(--muted);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .gnp-editor-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 5px 2px;
+    font-size: 13px;
+    border-bottom: 1px solid var(--border);
+  }
+  .gnp-editor-row .gnp-editor-keys { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .gnp-editor-row select { font: inherit; }
+  #pos-format { padding: 1px 8px; line-height: 1.3; }
+  .dlg-row input.bad { border-color: #c0392b; background: #fdf1ef; }
+  /* The preview sits outside the button and only its height is fixed, so
+     non-square icons (the 25×41 Leaflet pin) keep their aspect ratio */
+  .icon-preview-wrap {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 30px;
+    height: 30px;
+    margin-left: auto;
+  }
+  #icon-preview { display: block; height: 28px; width: auto; }
+  .icon-grid h3 { margin: 10px 0 4px; font-size: 12px; color: var(--muted); font-weight: 600; }
+  .icon-grid .icons { display: grid; grid-template-columns: repeat(8, 32px); gap: 4px; }
+  .icon-opt {
+    border: 1px solid transparent;
+    background: none;
+    border-radius: 6px;
+    padding: 3px;
+    cursor: pointer;
+    line-height: 0;
+  }
+  .icon-opt:hover { border-color: var(--accent); background: var(--accent-soft); }
+  .icon-opt.chosen { border-color: var(--accent); background: var(--accent-soft); }
+
+  /* Markers rendered as inline SVG inside an L.divIcon: strip the default
+     divIcon chrome (white box) and let the SVG fill the wrapper span */
+  .mdi-pin { background: none; border: none; line-height: 0; }
+  .mdi-pin svg {
+    display: block;
+    width: 100%;
+    height: 100%;
+    filter: drop-shadow(0 1px 1px rgba(0,0,0,.4));
+  }
+
+  /* Compact popup fitted to its text, so it hides as little map as possible */
+  .leaflet-popup.compacto .leaflet-popup-content-wrapper {
+    padding: 0;
+    border-radius: 5px;
+  }
+  .leaflet-popup.compacto .leaflet-popup-content {
+    margin: 5px 26px 5px 8px; /* room on the right for the close button */
+    line-height: 1.2;
+    white-space: nowrap;      /* shrink-wraps to the text */
+    width: auto !important;
+  }
+  .leaflet-popup.compacto .leaflet-popup-close-button {
+    top: 3px;
+    right: 3px;
+    width: 18px;
+    height: 18px;
+    font-size: 16px;
+    line-height: 18px;
+    padding: 0;
+    text-align: center;
+    color: #555;
+  }
+  .leaflet-popup.compacto .leaflet-popup-tip {
+    width: 8px;
+    height: 8px;
+    margin: -4px auto 0;
+  }
+  /* Same fitted look for the always-visible variant (permanent tooltip) */
+  .leaflet-tooltip.compacto {
+    padding: 3px 7px;
+    line-height: 1.2;
+    white-space: nowrap;
+    border-radius: 5px;
+  }

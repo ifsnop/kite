@@ -4,16 +4,28 @@ Los tests **extraen las funciones del propio `kitelocal.html`** y las
 ejecutan en Node, de modo que comprueban el código que se entrega, no una
 copia que pueda quedarse atrás.
 
+`kitelocal.html` es un archivo **generado** desde `src/` (ver `build.js`).
+Por eso `run-all.js` empieza comprobando que corresponde a las fuentes y
+falla si no: si no, se probaría una versión vieja y pasarían pruebas que
+no dicen nada del código recién escrito. Comprueba, no construye — un
+runner que reescribe un archivo del repo ensucia el árbol de trabajo sin
+avisar y enmascara justo ese error. Si falla: `npm run build`.
+
 ## Ejecutar
 
 ```bash
-npm install linkedom @xmldom/xmldom     # una sola vez
-node pruebas/run-all.js                   # toda la batería
-node pruebas/run-all.js --bench           # además, las mediciones
-node pruebas/navtest.js                   # una suite suelta
+npm install                 # una sola vez (linkedom, @xmldom/xmldom)
+npm run build               # src/ → kitelocal.html
+npm test                    # toda la batería
+node tests/run-all.js --bench   # además, las mediciones
+node tests/navtest.js           # una suite suelta
 ```
 
-`run-all.js` empieza por un `node --check` del script incrustado y
+Durante el desarrollo, `npm run watch` reconstruye al guardar y basta
+con recargar el navegador.
+
+`run-all.js` comprueba primero que `kitelocal.html` está al día
+respecto de `src/`, luego hace un `node --check` del script incrustado y
 después lanza cada suite. Devuelve un código de salida distinto de cero
 si algo falla, así que sirve tal cual en un gancho de git.
 

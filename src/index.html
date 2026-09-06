@@ -1,0 +1,353 @@
+<!DOCTYPE html>
+<!-- ARCHIVO GENERADO: no editar aquí. Se construye desde src/ con
+     `npm run build` (ver build.js). Cualquier cambio hecho sobre este
+     archivo se pierde en la siguiente construcción; el fuente está en
+     src/index.html, src/styles.css y src/js/. -->
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>KITE Local &#8212; KML Interactive Tree Explorer</title>
+<!-- Content Security Policy: solo se permiten los orígenes que la
+     aplicación usa de verdad (Leaflet, JSZip, teselas, Iconify y
+     Nominatim). Es un único archivo sin compilación, así que el CSS y el
+     JS propios van en línea y hacen falta 'unsafe-inline'/'unsafe-eval'
+     no: el script es inline, luego 'unsafe-inline' basta. Aun así la
+     política acota de dónde puede venir todo lo demás.               -->
+<meta http-equiv="Content-Security-Policy" content="
+  default-src 'none';
+  script-src 'self' 'unsafe-inline' https://unpkg.com https://cdnjs.cloudflare.com;
+  style-src 'self' 'unsafe-inline' https://unpkg.com;
+  img-src 'self' data: blob: https://unpkg.com https://api.iconify.design https://www.ign.es https://tile.openstreetmap.org https://server.arcgisonline.com https://tms-pnoa-ma.idee.es https://servicios.idee.es https://ows.terrestris.de https://sh.dataspace.copernicus.eu;
+  connect-src 'self' https://api.iconify.design https://nominatim.openstreetmap.org https://wcs-mds.idee.es https://servicios.idee.es https://www.ign.es https://unpkg.com https://cdnjs.cloudflare.com https://sh.dataspace.copernicus.eu;
+  font-src 'self';
+  base-uri 'none';
+  form-action 'none';
+  object-src 'none'">
+<!-- Social sharing metadata (Open Graph + Twitter cards): shown as
+     name + short description when the page link is shared -->
+<meta name="description" content="KITE Local (KML Interactive Tree Explorer): visor web de archivos KML, KMZ y GeoJSON sobre Leaflet: &#225;rbol de capas, mediciones geod&#233;sicas de distancia y rumbo, y estilos personalizables de marcadores y pol&#237;gonos. Un &#250;nico archivo HTML, sin instalaci&#243;n.">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="KITE Local">
+<meta property="og:title" content="KITE Local &#8212; KML Interactive Tree Explorer">
+<meta property="og:description" content="Carga archivos KML, KMZ y GeoJSON, organiza las capas en un &#225;rbol, mide distancias y rumbos geod&#233;sicos y personaliza marcadores y pol&#237;gonos. Funciona directamente en el navegador.">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:title" content="KITE Local &#8212; KML Interactive Tree Explorer">
+<meta name="twitter:description" content="KITE Local: visor de KML/KMZ/GeoJSON con &#225;rbol de capas, mediciones geod&#233;sicas y estilos personalizables. Un &#250;nico archivo HTML.">
+
+<!-- Integridad de subrecursos (SRI): el navegador verifica el hash antes
+     de aplicar o ejecutar el archivo, así que un CDN comprometido no
+     puede colar otro contenido. Al cambiar de versión de una librería
+     HAY QUE cambiar su hash, o el navegador la bloqueará. -->
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+      integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY="
+      crossorigin="anonymous" referrerpolicy="no-referrer">
+<style>
+{{STYLES}}
+</style>
+</head>
+<body>
+
+<!-- ================= Ventana de navegación ================= -->
+<aside id="nav-panel">
+  <header>
+    <h1 title="KML Interactive Tree Explorer">KITE Local
+      <button id="gnp-editor-btn" class="btn" title="Nombres recordados para GeoJSON">🏷️</button>
+      <button id="help-btn" class="btn" title="Ayuda y atajos de teclado (tecla ?)">?</button>
+    </h1>
+    <div class="nav-actions">
+      <input type="text" id="place-box" placeholder="Buscar un lugar y a&#241;adir marcador&#8230;">
+      <button class="btn" id="place-btn">Buscar</button>
+    </div>
+    <div id="place-results" hidden>
+      <div class="place-head">
+        <span id="place-status"></span>
+        <button class="btn" id="place-close" title="Cerrar los resultados">&#215;</button>
+      </div>
+      <ul id="place-list"></ul>
+    </div>
+    <div class="nav-actions">
+      <input type="text" id="new-folder-name" placeholder="Nombre de carpeta">
+      <button class="btn" id="new-folder-btn">Nueva carpeta</button>
+    </div>
+    <div class="nav-actions">
+      <button class="btn" id="activate-all">Activar todo</button>
+      <button class="btn" id="deactivate-all">Desactivar todo</button>
+      <button class="btn" id="collapse-all">Colapsar todo</button>
+    </div>
+    <div id="nav-msg"></div>
+    <div id="progress" hidden>
+      <div id="progress-label"></div>
+      <div class="bar"><div id="progress-fill"></div></div>
+    </div>
+  </header>
+  <div id="tree" role="tree" aria-label="Árbol de capas" tabindex="0"></div>
+  <div id="dropzone">Arrastre aquí sus archivos KML/KMZ (incl. ortofotos), JSON/TopoJSON o carpetas exportadas (.kite.json)</div>
+  <footer id="nav-search">
+    <div class="nav-actions">
+      <input type="text" id="search-box" placeholder="Buscar capas y carpetas&#8230;">
+      <button class="btn" id="search-prev" title="Ocurrencia anterior">&#8593;</button>
+      <button class="btn" id="search-next" title="Siguiente ocurrencia">&#8595;</button>
+      <span id="search-count"></span>
+    </div>
+  </footer>
+  <div id="storage-usage"></div>
+</aside>
+
+<div id="splitter"></div>
+<button id="nav-toggle" title="Mostrar / ocultar navegación">&#9664;</button>
+
+<!-- ================= Ventana del visor ================= -->
+<div id="map"></div>
+
+<!-- ================= Diálogo de estilos de capa ================= -->
+<div id="style-dialog" class="dlg-float" hidden>
+  <div class="dlg-box">
+    <h2 id="style-title">Estilo de capa</h2>
+    <!-- El nombre es de cada nodo, así que solo se edita con uno
+         seleccionado; sirve para capas de cualquier tipo -->
+    <div class="dlg-row" id="name-row" hidden>
+      <span>Nombre</span><input type="text" id="mk-name">
+    </div>
+    <div id="style-marker" hidden>
+      <div class="dlg-row"><span>Marcador</span>
+        <span class="icon-preview-wrap"><img id="icon-preview" alt=""></span>
+        <button class="btn" id="icon-preview-btn">Cambiar&#8230;</button>
+      </div>
+      <div class="dlg-row"><span>Color del marcador</span><button type="button" class="color-btn" id="mk-color"></button></div>
+      <div class="dlg-row"><span>Tama&#241;o del marcador</span><input type="number" id="mk-size" min="12" max="64" step="2"></div>
+      <div class="dlg-row"><span>Tama&#241;o del texto</span><input type="number" id="mk-text-size" min="8" max="32"></div>
+      <div class="dlg-row"><span>Color del texto</span><button type="button" class="color-btn" id="mk-text-color"></button></div>
+      <div class="dlg-row"><label for="mk-text-always">Mostrar el texto siempre (si no, solo al hacer click)</label><input type="checkbox" id="mk-text-always"></div>
+      <div id="mk-single" hidden>
+        <div class="dlg-row"><span>Coordenadas</span>
+          <span class="dlg-note" id="pos-format-label"></span>
+          <button class="btn" id="pos-format" title="Cambiar el formato de las coordenadas">&#8597;</button>
+        </div>
+        <div class="dlg-row"><span>Latitud</span><input type="text" id="mk-lat"></div>
+        <div class="dlg-row"><span>Longitud</span><input type="text" id="mk-lon"></div>
+        <p class="dlg-hint" id="mk-drag-hint">Tambi&#233;n puede arrastrar el marcador por el mapa mientras esta ventana est&#233; abierta.</p>
+      </div>
+    </div>
+    <div id="style-polygon" hidden>
+      <div class="dlg-row"><span>Estilo</span><select id="pg-mode">
+        <option value="both">Contorno y relleno</option>
+        <option value="stroke">Solo contorno</option>
+        <option value="fill">Solo relleno</option>
+      </select></div>
+      <div class="dlg-row"><span>Ancho del contorno</span><input type="number" id="pg-weight" min="0.5" max="12" step="0.5"></div>
+      <div class="dlg-row"><span>Color del contorno</span><button type="button" class="color-btn" id="pg-color"></button></div>
+      <div class="dlg-row" id="pg-fill-color-row"><span>Color del relleno</span><button type="button" class="color-btn" id="pg-fill-color"></button></div>
+      <div class="dlg-row" id="pg-fill-opacity-row"><span>Opacidad del relleno</span><input type="range" id="pg-fill-opacity" min="0" max="1" step="0.05"></div>
+      <div id="pg-measures" hidden>
+        <div class="dlg-row"><span>Unidad</span><select id="pg-unit">
+          <option value="m">Metros</option>
+          <option value="km">Kilómetros</option>
+          <option value="ft">Pies</option>
+          <option value="nm">Millas náuticas</option>
+        </select></div>
+        <div class="dlg-row"><span id="pg-perim-label">Perímetro</span><span class="dlg-note" id="pg-perimeter"></span></div>
+        <div class="dlg-row" id="pg-area-row"><span>Área</span><span class="dlg-note" id="pg-area"></span></div>
+      </div>
+      <div class="dlg-row" id="pg-points-row" hidden><span>Puntos</span>
+        <button class="btn" id="pg-points">Ver y editar&#8230;</button>
+      </div>
+    </div>
+    <div id="style-imageoverlay" hidden>
+      <div class="dlg-row"><span>Opacidad</span><input type="range" id="io-opacity" min="0" max="1" step="0.05"></div>
+    </div>
+    <div class="dlg-actions">
+      <button class="btn" id="style-cancel">Cancelar</button>
+      <button class="btn" id="style-accept">Aceptar</button>
+    </div>
+  </div>
+</div>
+
+<!-- Chuleta de atajos (tecla ?) -->
+<div id="shortcuts" class="dlg-overlay" hidden>
+  <div class="dlg-box">
+    <h2>Atajos de teclado</h2>
+    <table class="keys">
+      <tr><th colspan="2">Moverse por el &#225;rbol</th></tr>
+      <tr><td>&#8593; &#8595;</td><td>Nodo anterior / siguiente</td></tr>
+      <tr><td>&#8594; &#8592;</td><td>Desplegar y entrar / colapsar y subir</td></tr>
+      <tr><td>Re P&#225;g / Av P&#225;g</td><td>Saltar diez nodos</td></tr>
+      <tr><td>Inicio / Fin</td><td>Primero / &#250;ltimo de la carpeta actual</td></tr>
+      <tr><td>Escribir letras</td><td>Saltar al nodo que empiece as&#237;</td></tr>
+      <tr><th colspan="2">Seleccionar</th></tr>
+      <tr><td>May&#250;s + flechas</td><td>Extender la selecci&#243;n</td></tr>
+      <tr><td>May&#250;s + clic</td><td>Seleccionar hasta ah&#237;</td></tr>
+      <tr><td>Ctrl + May&#250;s + clic</td><td>A&#241;adir o quitar un nodo suelto</td></tr>
+      <tr><td>Ctrl + A</td><td>La carpeta actual; otra vez, todo el &#225;rbol</td></tr>
+      <tr><td>Esc</td><td>Quitar la selecci&#243;n</td></tr>
+      <tr><th colspan="2">Actuar</th></tr>
+      <tr><td>Espacio</td><td>Activar o desactivar la capa</td></tr>
+      <tr><td>F2</td><td>Renombrar (tambi&#233;n en las propiedades)</td></tr>
+      <tr><td>Supr</td><td>Borrar lo seleccionado</td></tr>
+      <tr><td>Ctrl + C / X / V</td><td>Copiar, cortar y pegar</td></tr>
+      <tr><td>Ctrl + Z / Ctrl + Y</td><td>Deshacer y rehacer</td></tr>
+      <tr><td>Alt + Intro</td><td>Propiedades de lo seleccionado</td></tr>
+      <tr><td>Ctrl + F</td><td>Ir al buscador</td></tr>
+      <tr><th colspan="2">En el visor</th></tr>
+      <tr><td>May&#250;s + arrastrar</td><td>Zoom a un rect&#225;ngulo</td></tr>
+      <tr><td>Ctrl + arrastrar</td><td>Editar una medici&#243;n</td></tr>
+      <tr><td>Doble clic en una fila</td><td>Ir a la capa; repetido, acercar</td></tr>
+      <tr><td>Re P&#225;g / Av P&#225;g (con el mapa enfocado)</td><td>Acercar / alejar un nivel de zoom hacia el puntero</td></tr>
+      <tr><th colspan="2">Dibujar pol&#237;gonos y l&#237;neas</th></tr>
+      <tr><td>Clic</td><td>Fijar un v&#233;rtice</td></tr>
+      <tr><td>Doble clic sobre el &#250;ltimo v&#233;rtice</td><td>Cerrar el pol&#237;gono y terminar</td></tr>
+      <tr><td>Doble clic fuera de un v&#233;rtice</td><td>Terminar la l&#237;nea sin cerrarla</td></tr>
+      <tr><td>Clic derecho sobre un v&#233;rtice</td><td>Quitar ese v&#233;rtice</td></tr>
+      <tr><td>Supr</td><td>Quitar el &#250;ltimo v&#233;rtice</td></tr>
+    </table>
+    <div class="dlg-actions"><button class="btn" id="shortcuts-close">Cerrar</button></div>
+  </div>
+</div>
+
+<!-- Ficha original del elemento (description del KML) -->
+<div id="desc-dialog" class="dlg-float" hidden>
+  <div class="dlg-box">
+    <h2 id="desc-title">Ficha</h2>
+    <div id="desc-body" class="desc-body"></div>
+    <div class="dlg-actions"><button class="btn" id="desc-close">Cerrar</button></div>
+  </div>
+</div>
+
+<!-- Selector de color -->
+<div id="color-picker" class="dlg-overlay" hidden>
+  <div class="dlg-box">
+    <h2>Elegir color</h2>
+    <div class="dlg-row"><span>Color</span><input type="color" id="color-input"></div>
+    <div class="color-swatches" id="color-swatches"></div>
+    <div class="dlg-actions">
+      <button class="btn" id="color-cancel">Cancelar</button>
+      <button class="btn" id="color-accept">Aceptar</button>
+    </div>
+  </div>
+</div>
+
+<!-- Selector de marcador (paleta de iconos, estilo Google Earth) -->
+<div id="icon-picker" class="dlg-overlay" hidden>
+  <div class="dlg-box">
+    <h2>Elegir marcador</h2>
+    <div class="icon-grid" id="icon-grid"></div>
+    <div class="dlg-actions">
+      <button class="btn" id="icon-cancel">Cancelar</button>
+      <button class="btn" id="icon-accept">Aceptar</button>
+    </div>
+  </div>
+</div>
+
+<!-- Confirmar si se eliminan etiquetas tipo HTML de los nombres de un KML -->
+<div id="kml-tags-picker" class="dlg-overlay" hidden>
+  <div class="dlg-box">
+    <h2>Etiquetas en los nombres</h2>
+    <p id="ktp-intro" class="dlg-hint"></p>
+    <div class="dlg-actions">
+      <button class="btn" id="ktp-cancel">Dejarlas</button>
+      <button class="btn" id="ktp-accept">Eliminarlas</button>
+    </div>
+  </div>
+</div>
+
+<!-- Confirmar si se fusionan placemarks duplicados (mismo nombre y posición) -->
+<div id="kml-dup-picker" class="dlg-overlay" hidden>
+  <div class="dlg-box">
+    <h2>Marcadores duplicados</h2>
+    <p id="kdp-intro" class="dlg-hint"></p>
+    <div class="dlg-actions">
+      <button class="btn" id="kdp-cancel">Mantener todos</button>
+      <button class="btn" id="kdp-accept">Fusionar</button>
+    </div>
+  </div>
+</div>
+
+<!-- Elegir qué propiedad de un GeoJSON ambiguo se usa como nombre -->
+<div id="geojson-name-picker" class="dlg-overlay" hidden>
+  <div class="dlg-box">
+    <h2>Elegir nombre</h2>
+    <p id="gnp-intro" class="dlg-hint"></p>
+    <div class="gnp-list" id="gnp-list"></div>
+    <p class="dlg-hint">Esta elección se recuerda para futuros archivos con esta misma estructura.</p>
+    <div class="dlg-actions">
+      <button class="btn" id="gnp-cancel">Cancelar</button>
+      <button class="btn" id="gnp-accept">Aceptar</button>
+    </div>
+  </div>
+</div>
+
+<!-- Editor de las asociaciones huella-de-properties → nombre recordadas -->
+<div id="gnp-editor" class="dlg-overlay" hidden>
+  <div class="dlg-box">
+    <h2>Nombres recordados de GeoJSON</h2>
+    <p class="dlg-hint">Asociaciones guardadas entre la estructura de <code>properties</code> de un GeoJSON y la propiedad usada como nombre.</p>
+    <div class="gnp-editor-list" id="gnp-editor-list"></div>
+    <div class="dlg-actions">
+      <button class="btn" id="gnp-editor-clear">Borrar todo</button>
+      <button class="btn" id="gnp-editor-close">Cerrar</button>
+    </div>
+  </div>
+</div>
+
+<!-- Lista de puntos de una capa de trazos: texto separado por tabulador,
+     para poder copiarlo y pegarlo en una hoja de cálculo. -->
+<div id="points-dialog" class="dlg-overlay" hidden>
+  <div class="dlg-box">
+    <h2 id="points-title">Puntos de la capa</h2>
+    <p class="dlg-hint">Un punto por l&#237;nea, con <strong>latitud, longitud y altitud</strong>
+      separadas por tabulador. Se puede copiar y pegar directamente en una hoja de c&#225;lculo.
+      Al pegar tambi&#233;n se admiten comas o espacios como separador.</p>
+    <p class="dlg-hint" id="points-rings" hidden></p>
+    <textarea id="points-text" spellcheck="false" wrap="off"
+              aria-label="Lista de puntos de la capa"></textarea>
+    <p class="dlg-hint" id="points-count"></p>
+    <p class="dlg-hint sh-bad" id="points-error" hidden></p>
+    <div class="dlg-actions">
+      <button class="btn" id="points-cancel">Cancelar</button>
+      <button class="btn" id="points-accept">Aceptar</button>
+    </div>
+  </div>
+</div>
+
+<!-- Credencial de Sentinel Hub: el instance ID con el que Copernicus
+     autentica sus servicios OGC. Es del usuario, no de la aplicación. -->
+<div id="sh-creds" class="dlg-overlay" hidden>
+  <div class="dlg-box">
+    <h2>Credencial de Copernicus</h2>
+    <p class="dlg-hint">Copernicus no publica ning&#250;n WMS an&#243;nimo: sus capas se sirven por
+      Sentinel Hub, que identifica cada petici&#243;n con un <em>instance ID</em> de tu propia
+      cuenta. Se crea gratis en el panel de Copernicus Data Space, en
+      <em>Dashboard &#8594; Configuration Utility</em>, donde adem&#225;s eliges qu&#233; capas publica
+      esa configuraci&#243;n (por ejemplo el <em>Copernicus DEM</em>).</p>
+    <label class="sh-field">Instance ID
+      <input type="text" id="sh-instance" spellcheck="false" autocomplete="off"
+             placeholder="00000000-0000-0000-0000-000000000000">
+    </label>
+    <p class="dlg-hint">Se guarda solo en este navegador y &#250;nicamente se env&#237;a a
+      <code>sh.dataspace.copernicus.eu</code>. Puedes borrarlo cuando quieras.</p>
+    <p class="dlg-hint sh-bad" id="sh-error" hidden></p>
+    <div class="dlg-actions">
+      <button class="btn" id="sh-clear">Borrar</button>
+      <button class="btn" id="sh-cancel">Cancelar</button>
+      <button class="btn" id="sh-accept">Aceptar</button>
+    </div>
+  </div>
+</div>
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
+        integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo="
+        crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"
+        integrity="sha512-XMVd28F1oH/O71fzwBnV7HucLxVwtxf26XV8P4wPk26EDxuGZ91N8bsOttmnomcCD3CS5ZMRL50H0GgOHvegtg=="
+        crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+<script src="https://unpkg.com/topojson-client@3.1.0/dist/topojson-client.min.js"
+        integrity="sha384-Ukv1p/xTma6P4/2bY5KzWBw+ydSpXmhCMtyciIQVDJ1RmOxtCYNMF1uXT9T63H67"
+        crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+<script src="https://unpkg.com/html2canvas@1.4.1/dist/html2canvas.min.js"
+        integrity="sha384-ZZ1pncU3bQe8y31yfZdMFdSpttDoPmOZg2wguVK9almUodir1PghgT0eY7Mrty8H"
+        crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+<script>
+{{SCRIPTS}}
+</script>
+</body>
+</html>
