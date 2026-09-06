@@ -1015,15 +1015,39 @@ desarrollo del proyecto.
 - **Con varias capas superpuestas bajo el cursor, esos dos ítems se
   convierten en un submenú** con una entrada por capa
   (`ctxItemsFor`/`openCtxSubmenu`), en vez de actuar sobre una sola.
-- **Hit-testing propio, sin punto-en-polígono**: Leaflet solo resuelve
+- **Hit-testing propio, con geometría real**: Leaflet solo resuelve
   UNA capa por click en su renderizador de lienzo (comprobado en el
   propio `Canvas.js` de Leaflet 1.9.4: no hay bubbling real a las capas
   de debajo). Para detectar varias, `layersAtPoint`/`layerHitTest`
-  recorren las capas visibles de `rootGroup` a mano, con caja
-  envolvente (`getBounds().contains(latlng)`) para trazos y distancia
-  en píxeles (`MARKER_HIT_PX`) para marcadores — a propósito, sin
-  ray-casting: más barato, y una acción puntual como un click derecho
-  no necesita la precisión exacta del borde de una forma cóncava.
+  recorren las capas visibles de `rootGroup` a mano.
+  **Antes esto probaba los trazos por caja envolvente**, como
+  simplificación deliberada, y era incorrecto: la caja de una línea
+  diagonal cubre todo el rectángulo entre sus extremos, así que el menú
+  ofrecía mediciones y polígonos lejísimos del cursor (medido en la
+  reproducción: un punto a 226 px de una diagonal la «acertaba»), y un
+  polígono cóncavo se acertaba en su escotadura, donde no hay nada
+  dibujado. Ahora se prueba la geometría: ray-casting
+  (`pointInRing`/`pointInRings`) más distancia a los segmentos
+  (`segDistSq`/`nearPolyline`), todo en **píxeles de contenedor** —un
+  margen en grados vale distancias muy distintas según latitud y zoom—
+  con `PATH_HIT_PX` (10, el `clickTolerance` de Leaflet) ensanchado por
+  el grosor del trazo. La caja envolvente sigue, pero **solo como criba
+  barata previa**: medido, 7,2 ms por click derecho con 2002 capas.
+- **Acierta un polígono el click dentro de su área o cerca de su
+  contorno**, que es lo que hace el propio renderizador de Leaflet: así
+  el menú ofrece lo mismo que la capa captura en un click normal. Un
+  punto dentro de un agujero queda fuera, salvo pegado a su borde.
+- **El lado de cierre de un anillo hay que añadirlo a mano**:
+  `getLatLngs()` de un `L.Polygon` NO repite el punto inicial (Leaflet
+  lo quita al construirse), así que sin el parámetro `closed` de
+  `nearPolyline` el último lado no se probaría y un click justo sobre
+  él no acertaría. Lo encontró su test.
+- **El despacho es POR CLASE, no por «tiene este método»**: con duck
+  typing un `L.Circle` entraba por la rama de `getLatLng` —lo hereda de
+  `L.CircleMarker`— y se probaba como un punto de 20 px en su centro,
+  sin mirar jamás su radio, así que una medición circular de kilómetros
+  solo se podía acertar en el centro. El orden importa además porque
+  `L.Polygon` extiende `L.Polyline`.
 - **Se descartó "pelar" capas** (ocultar la de más arriba y volver a
   preguntarle a Leaflet, repitiendo) por mirar el propio código:
   `Canvas._initPath` siempre reinserta una capa reañadida al FINAL del

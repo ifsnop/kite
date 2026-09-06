@@ -1127,7 +1127,7 @@ const map = L.map("map", {
 
 /* Fecha de generación del código (versión): AÑOMESDIAHORAMINUTO.
    Actualizar en cada generación; se muestra junto al crédito de Leaflet. */
-const BUILD = "202609061030";
+const BUILD = "202609071140";
 map.attributionControl.setPrefix(
   `v${BUILD} | <a href="https://leafletjs.com" title="A JavaScript library for interactive maps">Leaflet</a>`);
 
@@ -5280,23 +5280,148 @@ function infoHtmlFor(li) {
    _handleClick/_handleMouseHover siempre devuelven como mucho una capa,
    la de más arriba en ese píxel; no hay bubbling real a las de abajo).
    Por eso, para poder ofrecer varias capas superpuestas en el menú
-   contextual, se recorre a mano. A propósito NO se hace
-   punto-en-polígono: cajas envolventes (getBounds) para trazos y
-   distancia en píxeles para marcadores, más barato y suficiente para
-   un click derecho (una acción puntual, no un bucle de fotograma).   */
+   contextual, se recorre a mano.
+
+   Antes esto probaba los trazos por CAJA ENVOLVENTE, como simplificación
+   deliberada. Era incorrecto y se notaba: la caja de una línea diagonal
+   cubre todo el rectángulo entre sus extremos, así que el menú ofrecía
+   mediciones y polígonos a cientos de metros del cursor (medido en la
+   reproducción: un punto a 226 px de una diagonal la "acertaba"), y un
+   polígono cóncavo se acertaba en su escotadura, donde no hay nada
+   dibujado. Ahora se prueba la geometría de verdad; la caja queda solo
+   como criba barata previa.
+
+   Todo se mide en PÍXELES de contenedor, no en grados: un margen en
+   grados vale distancias muy distintas según la latitud y el zoom (la
+   misma razón por la que isCenteredOn compara en píxeles).            */
 const MARKER_HIT_PX = 20; /* radio de acierto en píxeles, del orden del icono de un marcador */
+const PATH_HIT_PX = 10;   /* igual que el clickTolerance por defecto de Leaflet */
+
+/* Distancia AL CUADRADO de un punto a un segmento: se evita la raíz
+   comparando contra el cuadrado de la tolerancia.                     */
+function segDistSq(p, a, b) {
+  const dx = b.x - a.x, dy = b.y - a.y;
+  const len = dx * dx + dy * dy;
+  /* Segmento degenerado (los dos extremos iguales): es un punto */
+  let t = len ? ((p.x - a.x) * dx + (p.y - a.y) * dy) / len : 0;
+  t = t < 0 ? 0 : t > 1 ? 1 : t;
+  const ex = a.x + t * dx - p.x, ey = a.y + t * dy - p.y;
+  return ex * ex + ey * ey;
+}
+
+/* ¿Hay algún segmento de la polilínea a menos de `tol` del punto?
+   `closed` añade el lado de cierre (último → primero): getLatLngs() de
+   un L.Polygon NO repite el punto inicial (Leaflet lo quita al
+   construirse), así que sin esto el último lado del anillo no se
+   probaría y un click sobre él no acertaría.                          */
+function nearPolyline(p, pts, tol, closed) {
+  const tol2 = tol * tol;
+  for (let i = 1; i < pts.length; i++) {
+    if (segDistSq(p, pts[i - 1], pts[i]) <= tol2) return true;
+  }
+  if (closed && pts.length > 2 && segDistSq(p, pts[pts.length - 1], pts[0]) <= tol2) return true;
+  /* Un "anillo" de un solo punto no tiene segmentos que recorrer */
+  return pts.length === 1 && segDistSq(p, pts[0], pts[0]) <= tol2;
+}
+
+/* Ray-casting clásico: cuenta los cruces de una semirrecta horizontal.
+   La comparación asimétrica de las latitudes (`>` en una y `<=` en la
+   otra) es lo que evita contar dos veces un vértice que cae justo a la
+   altura del rayo.                                                     */
+function pointInRing(p, ring) {
+  let inside = false;
+  for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) {
+    const yi = ring[i].y, yj = ring[j].y;
+    if ((yi > p.y) !== (yj > p.y)) {
+      const x = ring[i].x + (p.y - yi) / (yj - yi) * (ring[j].x - ring[i].x);
+      if (p.x < x) inside = !inside;
+    }
+  }
+  return inside;
+}
+
+/* Un polígono se acierta dentro de su área o cerca de su contorno, que
+   es lo que hace el propio renderizador de Leaflet: así el menú ofrece
+   lo mismo que la capa captura en un click normal. Un punto dentro de
+   un agujero queda fuera, salvo que esté pegado al borde del agujero. */
+function pointInRings(p, rings, tol) {
+  if (rings.some(ring => nearPolyline(p, ring, tol, true))) return true;
+  const [outer, ...holes] = rings;
+  return !!outer && pointInRing(p, outer) && !holes.some(h => pointInRing(p, h));
+}
+
+/* Los vértices de un trazo, proyectados a píxeles de contenedor */
+function ringToPoints(ring) {
+  return ring.map(ll => map.latLngToContainerPoint(ll));
+}
+
+/* Tolerancia de un trazo: nunca menos de PATH_HIT_PX, pero un contorno
+   grueso debe poder acertarse en todo su ancho.                       */
+function pathTolerance(sub) {
+  const w = (sub.options && sub.options.weight) || 0;
+  return Math.max(PATH_HIT_PX, w / 2 + 4);
+}
+
+/* Criba barata: la caja envolvente en píxeles, ensanchada por la
+   tolerancia. Cuesta dos proyecciones por capa y evita proyectar todos
+   los vértices de las que ni se acercan. Medido con 2002 capas en
+   rootGroup: 7,2 ms por click derecho, imperceptible en una acción
+   puntual (no es un bucle de fotograma). Sin esta criba habría que
+   proyectar cada vértice de cada capa visible.                        */
+function nearBounds(sub, containerPoint, tol) {
+  let b;
+  try { b = sub.getBounds(); } catch { return false; }
+  if (!b || !b.isValid()) return false;
+  const a = map.latLngToContainerPoint(b.getNorthWest());
+  const c = map.latLngToContainerPoint(b.getSouthEast());
+  return containerPoint.x >= Math.min(a.x, c.x) - tol && containerPoint.x <= Math.max(a.x, c.x) + tol
+      && containerPoint.y >= Math.min(a.y, c.y) - tol && containerPoint.y <= Math.max(a.y, c.y) + tol;
+}
+
+/* El despacho es POR CLASE, no por "tiene este método". Con duck typing
+   un L.Circle entraba por la rama de getLatLng —lo hereda de
+   L.CircleMarker— y se probaba como un punto de 20 px en su centro, sin
+   mirar jamás su radio: una medición circular de kilómetros solo se
+   podía acertar en el centro. El orden importa además porque L.Polygon
+   extiende L.Polyline.                                                */
+function subHitTest(sub, latlng, containerPoint) {
+  if (sub instanceof L.Marker) {
+    return map.latLngToContainerPoint(sub.getLatLng()).distanceTo(containerPoint) <= MARKER_HIT_PX;
+  }
+  if (sub instanceof L.Circle) {
+    /* En metros, que es como L.Circle define su radio. La tolerancia se
+       pasa de píxeles a metros midiendo sobre el propio mapa, para que
+       valga igual en cualquier latitud y zoom.                        */
+    const tol = pathTolerance(sub);
+    const metersPerPx = map.distance(map.containerPointToLatLng(containerPoint),
+      map.containerPointToLatLng(containerPoint.add([1, 0])));
+    return map.distance(sub.getLatLng(), latlng) <= sub.getRadius() + tol * metersPerPx;
+  }
+  if (sub instanceof L.Polyline) {
+    const tol = pathTolerance(sub);
+    if (!nearBounds(sub, containerPoint, tol)) return false;
+    const closed = sub instanceof L.Polygon;
+    const latlngs = sub.getLatLngs();
+    if (!latlngs.length) return false;
+    if (closed) {
+      return polygonParts(latlngs).some(part =>
+        pointInRings(containerPoint, [part.outer, ...part.holes].map(ringToPoints), tol));
+    }
+    /* Una polilínea puede ser multiparte: anida un nivel */
+    const parts = Array.isArray(latlngs[0]) ? latlngs : [latlngs];
+    return parts.some(part => nearPolyline(containerPoint, ringToPoints(part), tol));
+  }
+  /* Cualquier otro overlay anclado a un punto (la etiqueta L.Tooltip de
+     una medición): sigue valiendo la distancia en píxeles.            */
+  if (typeof sub.getLatLng === "function") {
+    return map.latLngToContainerPoint(sub.getLatLng()).distanceTo(containerPoint) <= MARKER_HIT_PX;
+  }
+  return false;
+}
 
 function layerHitTest(layer, latlng, containerPoint) {
   const subs = typeof layer.getLayers === "function" ? layer.getLayers() : [layer];
-  return subs.some(sub => {
-    if (typeof sub.getLatLng === "function") {
-      return map.latLngToContainerPoint(sub.getLatLng()).distanceTo(containerPoint) <= MARKER_HIT_PX;
-    }
-    if (typeof sub.getBounds === "function") {
-      try { return sub.getBounds().contains(latlng); } catch { return false; }
-    }
-    return false;
-  });
+  return subs.some(sub => subHitTest(sub, latlng, containerPoint));
 }
 
 /* Solo capas VISIBLES: rootGroup ya contiene exactamente esas, porque

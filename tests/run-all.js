@@ -35,6 +35,7 @@ const SUITES = [
   ["cascadetest.js",      "Cascada de visibilidad por lotes: cesión del hilo, doble toggle rápido, borrado a mitad"],
   ["lazytree.js",         "Construcción perezosa de filas para carpetas colapsadas (materializeRecords/ensureMaterialized)"],
   ["pointsedit.js", "Editor de la lista de puntos: formato TSV, anillos, errores"],
+  ["hittest.js", "Acierto bajo el cursor: geometría real, no caja envolvente"],
   ["openshape.js", "Formas abiertas: una línea no tiene área ni relleno"],
   ["polyarea.js",         "Perímetro y área de polígonos: anillos cerrados/sin cerrar, agujeros, multipolígono"],
   ["toolstest.js",        "showLayerInfo/setTool: el panel de información no se cuela ni queda pegado al salir de una herramienta de dibujo"]
