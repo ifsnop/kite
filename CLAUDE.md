@@ -967,6 +967,21 @@ kitelocal.html     GENERADO. Es el producto; se versiona (quien clone
   vegetación (los archivos se llaman `Copernicus_DSM_…`). No sustituye
   al MDT del IGN ni sirve para la resta MDT−MDS del modo altura; es una
   capa visual más.
+- **Copernicus no tiene imagen por debajo del zoom 7**, y lo peor es
+  cómo lo dice: responde 200 con una imagen fija de «no disponible», que
+  se dibuja como si fuera dato en vez de fallar. La capa lleva
+  `minNativeZoom: COP_MIN_NATIVE_ZOOM` (7), de modo que en el zoom 6 se
+  pide el 7 y Leaflet lo reescala, y `minZoom: COP_MIN_ZOOM` (6), que
+  corta por debajo. El corte no es arbitrario: medido con el visor a
+  1075x900, pedir el 7 cuesta **80** teselas en el zoom 6, pero **270**
+  en el 5, **986** en el 4 y **1659** en el 3 — y Sentinel Hub factura
+  por uso, así que serían miles de peticiones de la cuota del usuario
+  para rellenar un mapamundi. Consecuencia visible: por debajo del zoom
+  6 la capa no dibuja nada aunque su casilla esté marcada.
+- **`minZoom` y `minNativeZoom` se combinan, pero por un detalle del
+  orden**: `GridLayer._setView` compara `minZoom` contra el zoom REAL y
+  solo después aplica `minNativeZoom`. Si lo hiciera al revés, el zoom
+  ya vendría elevado a 7 y `minZoom` no cortaría nunca.
 - **SRTM30 de terrestris** (`srtm`) es la opción de relieve global sin
   credencial: su GetCapabilities declara `<Fees>None</Fees>` y se
   verificó devolviendo teselas reales en EPSG:3857 con **WMS 1.1.1**,

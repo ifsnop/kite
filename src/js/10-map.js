@@ -63,7 +63,7 @@ const map = L.map("map", {
 
 /* Fecha de generación del código (versión): AÑOMESDIAHORAMINUTO.
    Actualizar en cada generación; se muestra junto al crédito de Leaflet. */
-const BUILD = "202609071410";
+const BUILD = "202609071650";
 map.attributionControl.setPrefix(
   `v${BUILD} | <a href="https://leafletjs.com" title="A JavaScript library for interactive maps">Leaflet</a>`);
 
@@ -82,6 +82,11 @@ const IGN_CREDIT = "Cedido por &copy; Instituto Geogr\u00E1fico Nacional de Espa
    elevaci\u00F3n bajo esas teselas es el SRTM de la NASA.                 */
 const SRTM_CREDIT = "SRTM 30m &copy; NASA LP DAAC \u2014 teselas de terrestris";
 const COP_CREDIT = "Copernicus DEM \u2014 Copernicus Data Space / Sentinel Hub";
+/* Primer nivel con imagen real en Copernicus, y primer nivel en el que
+   se dibuja la capa (por debajo se reescalar\u00eda a un coste desmedido).
+   Ver la definici\u00f3n de la capa.                                       */
+const COP_MIN_NATIVE_ZOOM = 7;
+const COP_MIN_ZOOM = 6;
 
 const BASE_LAYERS = [
   { id: "osm", name: "OpenStreetMap", on: true, opacity: 1,
@@ -147,10 +152,22 @@ const BASE_LAYERS = [
      hist\u00F3rico; la URL lleva su instance ID y por eso se arma en
      `shWmsUrl()` en vez de ser una constante. Ver la secci\u00F3n
      "Copernicus DEM" m\u00E1s abajo.                                       */
+  /* Copernicus no sirve imagen por debajo del zoom 7: el servicio
+     responde 200 con una imagen fija de "no disponible", que es peor que
+     un error porque se dibuja como si fuera dato. `minNativeZoom` hace
+     que en el zoom 6 se pida el 7 y Leaflet lo reescale, y `minZoom`
+     corta por debajo, donde el reescalado deja de compensar: medido con
+     el visor a 1075x900, pedir el 7 cuesta 80 teselas en el zoom 6, pero
+     270 en el 5, 986 en el 4 y 1659 en el 3 — y Sentinel Hub factura por
+     uso, así que serían miles de peticiones de la cuota del usuario para
+     rellenar un mapamundi. Ojo al orden de los dos: Leaflet compara
+     `minZoom` contra el zoom REAL y solo después aplica `minNativeZoom`
+     (ver GridLayer._setView), que es lo que permite combinarlos.     */
   { id: "copernicus-dem", name: "Copernicus DEM (Sentinel Hub)", on: false, opacity: 1,
     dynamic: true, source: "copernicus",
     layer: (wmsLayer) => L.tileLayer.wms(shWmsUrl(), {
       layers: wmsLayer, format: "image/png", version: "1.3.0", transparent: true,
+      minZoom: COP_MIN_ZOOM, minNativeZoom: COP_MIN_NATIVE_ZOOM,
       maxZoom: MAX_ZOOM, attribution: COP_CREDIT }) },
 
   /* No es una sola capa fija: `layer()` recibe el nombre de capa WMS
