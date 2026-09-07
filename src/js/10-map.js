@@ -63,7 +63,7 @@ const map = L.map("map", {
 
 /* Fecha de generación del código (versión): AÑOMESDIAHORAMINUTO.
    Actualizar en cada generación; se muestra junto al crédito de Leaflet. */
-const BUILD = "202609071050";
+const BUILD = "202609071410";
 map.attributionControl.setPrefix(
   `v${BUILD} | <a href="https://leafletjs.com" title="A JavaScript library for interactive maps">Leaflet</a>`);
 
@@ -163,10 +163,28 @@ const BASE_LAYERS = [
       maxZoom: MAX_ZOOM, attribution: `PNOA hist\u00F3rico. ${IGN_CREDIT}` }) }
 ];
 
+/* Teselas fallidas seguidas (sin ninguna buena de por medio) antes de
+   marcar la capa como caída en el panel.                              */
+const BASE_FAIL_TILES = 8;
+
 /* Estado en vivo de cada capa base */
 const baseState = new Map(BASE_LAYERS.map((d, i) => [d.id, {
   def: d, layer: null, on: d.on, opacity: d.opacity, zIndex: i + 1, failed: false, wmsLayer: null
 }]));
+
+/* Al recuperar la red, Leaflet no reintenta por su cuenta las teselas
+   que fallaron: se quedan en blanco hasta que el usuario mueve el mapa,
+   y con ellas el aviso de "sin respuesta". Aquí se fuerza el redibujado
+   de las capas marcadas como caídas, que es lo que hace que el aviso se
+   retire solo. `online` no prueba que haya conectividad real —solo dice
+   que hay interfaz—, pero como aquí se usa únicamente para REINTENTAR,
+   equivocarse no cuesta nada: si sigue sin haber servicio, las teselas
+   vuelven a fallar y la capa sigue marcada.                           */
+window.addEventListener("online", () => {
+  for (const st of baseState.values()) {
+    if (st.failed && st.layer) st.layer.redraw();
+  }
+});
 
 function applyBaseLayer(id) {
   const st = baseState.get(id);
@@ -187,9 +205,24 @@ function applyBaseLayer(id) {
       /* Una URL que no responda debe verse, no fallar en silencio */
       let errors = 0;
       st.layer.on("tileerror", () => {
-        if (++errors !== 8 || st.failed) return;
+        if (++errors < BASE_FAIL_TILES || st.failed) return;
         st.failed = true;
         navMessage(`El mapa base \u00AB${st.def.name}\u00BB no responde; puede que el servicio haya cambiado.`);
+        renderBasePanel();
+      });
+      /* Y dejar de responder no es para siempre: una tesela que S\u00CD llega
+         significa que el servicio ha vuelto, as\u00ED que se retira el aviso
+         y se rearma el contador. Antes `failed` se pon\u00EDa a true y no lo
+         quitaba nadie, de modo que un corte de red dejaba la capa en
+         rojo el resto de la sesi\u00F3n aunque volviera a funcionar.
+         Contar solo los fallos SIN acierto de por medio es adem\u00E1s m\u00E1s
+         fiel: unas cuantas teselas fuera de cobertura repartidas por la
+         sesi\u00F3n no significan que el servicio est\u00E9 ca\u00EDdo.
+         El panel se repinta solo en la transici\u00F3n, no en cada tesela. */
+      st.layer.on("tileload", () => {
+        errors = 0;
+        if (!st.failed) return;
+        st.failed = false;
         renderBasePanel();
       });
     } else if (st.def.dynamic) {

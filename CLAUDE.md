@@ -1009,10 +1009,30 @@ kitelocal.html     GENERADO. Es el producto; se versiona (quien clone
 - La configuración (encendidas y opacidades) se guarda en el mismo
   almacén bajo la clave `bases`, con su propio `BASE_SCHEMA`, y al leerla
   se descartan las capas que ya no existan y los valores fuera de rango.
-- Una capa cuya URL no responda se marca en rojo en el panel tras varios
-  errores de tesela, en vez de quedarse en blanco sin explicación. Las de
-  IGN Base, MTN y Relieve usan las URL WMTS del IGN: si alguna cambiara,
-  el aviso es lo que lo delata.
+- Una capa cuya URL no responda se marca en rojo en el panel tras
+  `BASE_FAIL_TILES` errores de tesela, en vez de quedarse en blanco sin
+  explicación. Las de IGN Base, MTN y Relieve usan las URL WMTS del IGN:
+  si alguna cambiara, el aviso es lo que lo delata.
+- **Y el aviso se retira solo al volver el servicio**: una tesela que SÍ
+  llega (`tileload`) limpia `failed` y rearma el contador. Antes
+  `failed` se ponía a `true` y no lo quitaba nadie, así que un corte de
+  red dejaba la capa en rojo el resto de la sesión aunque volviera a
+  funcionar; y como el disparo era `++errors !== 8` —el 8 exacto—,
+  después de un corte tampoco podía volver a avisar nunca.
+  Contar solo los fallos **sin acierto de por medio** es además más
+  fiel: unas teselas fuera de cobertura repartidas por la sesión no
+  significan que el servicio esté caído. El panel se repinta solo en la
+  transición, no en cada tesela.
+- **Al recuperar la red hay que forzar el redibujado**: Leaflet no
+  reintenta por su cuenta las teselas que fallaron, así que sin esto se
+  quedarían en blanco —y la capa en rojo— hasta que el usuario moviera
+  el mapa. Un `window.addEventListener("online")` redibuja las capas
+  marcadas como caídas. `navigator.onLine` no prueba que haya
+  conectividad real, solo que hay interfaz, pero aquí se usa únicamente
+  para REINTENTAR: si el servicio sigue caído, las teselas vuelven a
+  fallar y la capa sigue marcada. Los dos caminos de recuperación están
+  verificados en navegador: por evento `online` (corte de red) y solo
+  moviendo el mapa (caída del servidor, donde `online` nunca llega).
 - **El icono de `.base-toggle` va con `position: absolute; right: 0`**,
   no en flujo normal: la caja (`.base-box`) es `float: right` con ancho
   automático dentro de la esquina `topright` de Leaflet, así que su
