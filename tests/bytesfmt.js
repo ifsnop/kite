@@ -1,10 +1,5 @@
-const path = require("path");
-const HTML_PATH = path.join(__dirname, "..", "kitelocal.html");
-const fs = require("fs");
-const html = fs.readFileSync(HTML_PATH, "utf8");
-const script = html.match(/<script>\n([\s\S]*?)<\/script>/)[1];
-const src = script.slice(script.indexOf("const fmtBytes ="),
-                         script.indexOf("/* Procesa archivos soltados"));
+const { between } = require("./_extract");
+const src = between("const fmtBytes =", "/* Procesa archivos soltados");
 const { fmtBytes } = new Function(src + "\nreturn {fmtBytes};")();
 const ok = (c, m) => { if (!c) { console.error("FAIL: " + m); process.exitCode = 1; } };
 

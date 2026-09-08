@@ -1,29 +1,15 @@
-const path = require("path");
-const HTML_PATH = path.join(__dirname, "..", "kitelocal.html");
 const { DOMParser } = require("@xmldom/xmldom");
-const fs = require("fs");
-const html = fs.readFileSync(HTML_PATH, "utf8");
-const script = html.match(/<script>\n([\s\S]*?)<\/script>/)[1];
-const src = script.slice(script.indexOf("/* Nombre sin prefijo"),
-                         script.indexOf("/* Crea las capas Leaflet de un placemark"));
+const { fn, between } = require("./_extract");
+const src = between("/* Nombre sin prefijo", "/* Crea las capas Leaflet de un placemark");
 const api = new Function(src + "\nreturn {elsByTag, text, directChildText, ownVisibility, buildStyleIndex, placemarkStyle, kmlColor, parseCoords, parsePolygon};")();
 const { elsByTag, text, directChildText, ownVisibility, buildStyleIndex, placemarkStyle, kmlColor, parsePolygon } = api;
 
 /* geojsonStyle / normalizePathStyle / polygonModeOf viven fuera del rango
    extraído arriba (que se corta antes de "Crea las capas Leaflet"), así
-   que se sacan por nombre con el mismo emparejador de llaves que usan
-   otras suites (ver tests/newfeat.js). Las tres son autónomas: no llaman
-   a nada fuera de sí mismas. */
-function extractFn(name) {
-  const i = script.indexOf(`function ${name}(`);
-  let d = 0;
-  for (let k = script.indexOf("{", i); k < script.length; k++) {
-    if (script[k] === "{") d++;
-    else if (script[k] === "}" && --d === 0) return script.slice(i, k + 1);
-  }
-}
+   que se sacan por nombre. Las tres son autónomas: no llaman a nada
+   fuera de sí mismas. */
 const styleApi = new Function(
-  extractFn("geojsonStyle") + extractFn("normalizePathStyle") + extractFn("polygonModeOf") +
+  fn("geojsonStyle") + fn("normalizePathStyle") + fn("polygonModeOf") +
   "\nreturn { geojsonStyle, normalizePathStyle, polygonModeOf };"
 )();
 const { geojsonStyle, normalizePathStyle, polygonModeOf } = styleApi;

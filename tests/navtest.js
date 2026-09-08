@@ -1,8 +1,5 @@
-const path = require("path");
-const HTML_PATH = path.join(__dirname, "..", "kitelocal.html");
 const { parseHTML } = require("linkedom");
-const fs = require("fs");
-const script = fs.readFileSync(HTML_PATH,"utf8").match(/<script>\n([\s\S]*?)<\/script>/)[1];
+const { fn } = require("./_extract");
 
 const { document } = parseHTML("<div id='tree'></div>");
 global.document = document;
@@ -33,16 +30,6 @@ F2.lastElementChild.append(d);
 /* Se cargan las funciones reales del panel, una a una: extraer rangos
    amplios arrastraba código con efectos (showEmptyMessage) que borraba
    el árbol de prueba antes de mirarlo.                                */
-function fn(name) {
-  let i = script.indexOf(`function ${name}(`);
-  if (i < 0) throw new Error("no encontrada: " + name);
-  if (script.slice(Math.max(0, i - 6), i) === "async ") i -= 6; /* expandOrEnter es async */
-  let depth = 0, j = script.indexOf("{", i);
-  for (let k = j; k < script.length; k++) {
-    if (script[k] === "{") depth++;
-    else if (script[k] === "}" && --depth === 0) return script.slice(i, k + 1);
-  }
-}
 const src = `
   const nodeUl = li => li.querySelector(':scope > ul.node-list');
   const scheduleSave = () => {}; const syncExpanded = () => {};

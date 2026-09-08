@@ -1,29 +1,4 @@
-const path = require("path");
-const HTML_PATH = path.join(__dirname, "..", "kitelocal.html");
-const fs = require("fs");
-const script = fs.readFileSync(HTML_PATH, "utf8").match(/<script>\n([\s\S]*?)<\/script>/)[1];
-
-/* Same isolated-function extraction as lazytree.js — parenthesis-depth
-   matching skips past the parameter list BEFORE brace-matching the
-   body: showLayerInfo(li, { focus = true } = {}) has its own {}-pairs
-   in the signature (a destructured default), and naively brace-matching
-   from the first "{" after the name matches the destructure's own
-   closing brace, truncating the extraction before the real body.      */
-function fn(name) {
-  let i = script.indexOf(`function ${name}(`);
-  if (i < 0) throw new Error("no encontrada: " + name);
-  if (script.slice(Math.max(0, i - 6), i) === "async ") i -= 6;
-  let pd = 0, p = script.indexOf("(", i);
-  for (; p < script.length; p++) {
-    if (script[p] === "(") pd++;
-    else if (script[p] === ")" && --pd === 0) break;
-  }
-  let depth = 0, j = script.indexOf("{", p);
-  for (let k = j; k < script.length; k++) {
-    if (script[k] === "{") depth++;
-    else if (script[k] === "}" && --depth === 0) return script.slice(i, k + 1);
-  }
-}
+const { fn } = require("./_extract");
 
 const ok = (c, m) => { if (!c) { console.error("FAIL: " + m); process.exitCode = 1; } };
 const wait = ms => new Promise(r => setTimeout(r, ms));

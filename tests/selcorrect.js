@@ -1,13 +1,7 @@
-const path = require("path");
-const HTML_PATH = path.join(__dirname, "..", "kitelocal.html");
 const { parseHTML } = require("linkedom");
-const fs = require("fs");
-const html = fs.readFileSync(HTML_PATH, "utf8");
-const script = html.match(/<script>\n([\s\S]*?)<\/script>/)[1];
-const src = script.slice(script.indexOf("/* ---------- Selección ----------"),
-                         script.indexOf("/* Nombre legible del tipo"));
-const top = script.slice(script.indexOf("function topLevelSelection"),
-                         script.indexOf("function topLevelSelection") + 600).split("\n}")[0] + "\n}";
+const { fn, between } = require("./_extract");
+const src = between("/* ---------- Selección ----------", "/* Nombre legible del tipo");
+const top = fn("topLevelSelection");
 
 const { document } = parseHTML("<div id='tree'><ul id='root'></ul></div>");
 global.document = document;

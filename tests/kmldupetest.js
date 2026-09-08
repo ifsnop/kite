@@ -1,25 +1,5 @@
-const path = require("path");
-const HTML_PATH = path.join(__dirname, "..", "kitelocal.html");
 const { DOMParser } = require("@xmldom/xmldom");
-const fs = require("fs");
-const html = fs.readFileSync(HTML_PATH, "utf8");
-const script = html.match(/<script>\n([\s\S]*?)<\/script>/)[1];
-
-/* Same brace-matching extraction as kmltest.js/htmltagstest.js. */
-function fn(name) {
-  const i = script.indexOf(`function ${name}(`);
-  if (i < 0) throw new Error("no encontrada: " + name);
-  let depth = 0, j = script.indexOf("{", i);
-  for (let k = j; k < script.length; k++) {
-    if (script[k] === "{") depth++;
-    else if (script[k] === "}" && --depth === 0) return script.slice(i, k + 1);
-  }
-}
-function constDecl(name) {
-  const i = script.indexOf(`const ${name}`);
-  if (i < 0) throw new Error("const no encontrada: " + name);
-  return script.slice(i, script.indexOf(";", i) + 1);
-}
+const { fn, constDecl } = require("./_extract");
 
 const src = [
   constDecl("COORD_EPS"), constDecl("DUP_POS_DECIMALS"),

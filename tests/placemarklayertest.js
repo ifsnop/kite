@@ -1,19 +1,13 @@
-const path = require("path");
-const HTML_PATH = path.join(__dirname, "..", "kitelocal.html");
 const { DOMParser } = require("@xmldom/xmldom");
-const fs = require("fs");
-const html = fs.readFileSync(HTML_PATH, "utf8");
-const script = html.match(/<script>\n([\s\S]*?)<\/script>/)[1];
+const { between } = require("./_extract");
 
 /* Same source window as kmltest.js, widened past buildPlacemarkLayer's own
    closing brace (kmltest.js stops right before it, since it only needs
    the helpers this file exercises directly). escapeHtml lives far below
    (used only for the popup label of a NAMED, successfully built
    placemark) and is pulled in separately.                              */
-const src = script.slice(script.indexOf("/* Nombre sin prefijo"),
-                         script.indexOf("/* Maps a file extension to the MIME type"));
-const escapeHtmlSrc = script.slice(script.indexOf("const escapeHtml = s =>"),
-                                   script.indexOf("/* Leaflet layer behind a tree node"));
+const src = between("/* Nombre sin prefijo", "/* Maps a file extension to the MIME type");
+const escapeHtmlSrc = between("const escapeHtml = s =>", "/* Leaflet layer behind a tree node");
 
 /* Minimal Leaflet stand-in: buildPlacemarkLayer only needs constructors
    that return a truthy object and, for the group, a bindPopup it can call

@@ -3,21 +3,14 @@
    haversine de referencia, igual de fiel al haversine real de Leaflet
    que usa map.distance en el propio visor) — perímetro y área del
    diálogo de propiedades para cualquier nodo de tipo polígono.        */
-const path = require("path");
-const HTML_PATH = path.join(__dirname, "..", "kitelocal.html");
-const fs = require("fs");
-const html = fs.readFileSync(HTML_PATH, "utf8");
-const script = html.match(/<script>\n([\s\S]*?)<\/script>/)[1];
+const { between } = require("./_extract");
 
-const coordEps = script.slice(script.indexOf("const COORD_EPS ="), script.indexOf("function clampDeg"));
-const geodesiaBase = script.slice(script.indexOf("/* ================= Geodesia"),
-                                   script.indexOf("/* Rumbo inicial de a"));
-const ringFns = script.slice(script.indexOf("/* Un anillo se considera cerrado"),
-                             script.indexOf("/* ================= Herramientas de medición"));
+const coordEps = between("const COORD_EPS =", "function clampDeg");
+const geodesiaBase = between("/* ================= Geodesia", "/* Rumbo inicial de a");
+const ringFns = between("/* Un anillo se considera cerrado", "/* ================= Herramientas de medición");
 /* Esta franja incluye de paso rawPolygonRings, que vive justo entre
    ringPerimeter y polygonMeasures.                                    */
-const ringPerimeterSrc = script.slice(script.indexOf("function ringPerimeter"),
-                                      script.indexOf("function polygonMeasures"));
+const ringPerimeterSrc = between("function ringPerimeter", "function polygonMeasures");
 
 /* map.distance de sustitución: haversine sobre la misma esfera (EARTH_R,
    toRad, ya extraídos arriba), no una reimplementación de Leaflet.     */

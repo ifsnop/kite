@@ -1,10 +1,5 @@
-const path = require("path");
-const HTML_PATH = path.join(__dirname, "..", "kitelocal.html");
 const { parseHTML } = require("linkedom");
-const fs = require("fs");
-const script = fs.readFileSync(HTML_PATH,"utf8").match(/<script>\n([\s\S]*?)<\/script>/)[1];
-function fn(name){ const i=script.indexOf(`function ${name}(`); let d=0;
-  for(let k=script.indexOf("{",i);k<script.length;k++){ if(script[k]==="{")d++; else if(script[k]==="}"&&--d===0) return script.slice(i,k+1);} }
+const { fn, between } = require("./_extract");
 const ok=(c,m)=>{ if(!c){ console.error("FAIL: "+m); process.exitCode=1; } };
 
 /* ---- saneado del HTML de las fichas ---- */
@@ -13,7 +8,7 @@ const ok=(c,m)=>{ if(!c){ console.error("FAIL: "+m); process.exitCode=1; } };
 class DOMParser {
   parseFromString(html) { return parseHTML(`<html><head></head><body>${html}</body></html>`).document; }
 }
-const tags = script.slice(script.indexOf("const DESC_TAGS"), script.indexOf("function sanitizeHtml"));
+const tags = between("const DESC_TAGS", "function sanitizeHtml");
 const sanitize = new Function("DOMParser", tags + fn("sanitizeHtml") + "\nreturn sanitizeHtml;")(DOMParser);
 
 let out = sanitize('<table><tr><td>FIR</td><td>LECM</td></tr></table>');

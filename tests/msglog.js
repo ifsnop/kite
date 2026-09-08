@@ -5,32 +5,9 @@
    deja de responder de forma intermitente) llenaba el panel con líneas
    idénticas, y al pasar MSG_TIMEOUT desaparecía sin dejar rastro, de
    modo que uno que no diera tiempo a leer se perdía para siempre.   */
-const path = require("path");
-const HTML_PATH = path.join(__dirname, "..", "kitelocal.html");
 const { parseHTML } = require("linkedom");
-const fs = require("fs");
-const script = fs.readFileSync(HTML_PATH, "utf8").match(/<script>\n([\s\S]*?)<\/script>/)[1];
-/* Extractor con la lista de parámetros saltada a propósito: `navMessage`
-   desestructura en su firma (`function navMessage(txt, { sticky … })`) y
-   el extractor corriente de las demás suites, que cuenta llaves desde la
-   PRIMERA `{`, la tomaría por el cuerpo y devolvería la función
-   truncada. Aquí se cierra antes el paréntesis de los parámetros y solo
-   después se cuentan llaves.                                          */
-function fn(name) {
-  const i = script.indexOf(`function ${name}(`);
-  if (i < 0) throw new Error("no encontrada: " + name);
-  let k = script.indexOf("(", i), paren = 0;
-  for (; k < script.length; k++) {
-    if (script[k] === "(") paren++;
-    else if (script[k] === ")" && --paren === 0) { k++; break; }
-  }
-  let depth = 0;
-  for (k = script.indexOf("{", k); k < script.length; k++) {
-    if (script[k] === "{") depth++;
-    else if (script[k] === "}" && --depth === 0) return script.slice(i, k + 1);
-  }
-}
-const consts = script.slice(script.indexOf("const MSG_TIMEOUT"), script.indexOf("function msgStamp"));
+const { fn, between } = require("./_extract");
+const consts = between("const MSG_TIMEOUT", "function msgStamp");
 
 const { document } = parseHTML("<div id='nav-msg'></div><button id='log-btn'></button>");
 global.document = document;

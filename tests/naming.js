@@ -6,20 +6,8 @@
    la herramienta de dibujo, así que un contador se reiniciaría en cada
    recarga y repetiría "Línea 1". Mediciones y formas comparten el
    mecanismo para que tampoco puedan llamarse igual entre sí.         */
-const path = require("path");
-const HTML_PATH = path.join(__dirname, "..", "kitelocal.html");
 const { parseHTML } = require("linkedom");
-const fs = require("fs");
-const script = fs.readFileSync(HTML_PATH, "utf8").match(/<script>\n([\s\S]*?)<\/script>/)[1];
-function fn(name) {
-  const i = script.indexOf(`function ${name}(`);
-  if (i < 0) throw new Error("no encontrada: " + name);
-  let depth = 0;
-  for (let k = script.indexOf("{", i); k < script.length; k++) {
-    if (script[k] === "{") depth++;
-    else if (script[k] === "}" && --depth === 0) return script.slice(i, k + 1);
-  }
-}
+const { fn } = require("./_extract");
 const { document } = parseHTML("<div id='tree'></div>");
 const treeEl = document.getElementById("tree");
 const api = new Function("treeEl", "document",

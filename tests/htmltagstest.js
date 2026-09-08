@@ -1,25 +1,8 @@
-const path = require("path");
-const HTML_PATH = path.join(__dirname, "..", "kitelocal.html");
 const { DOMParser } = require("@xmldom/xmldom");
-const fs = require("fs");
-const html = fs.readFileSync(HTML_PATH, "utf8");
-const script = html.match(/<script>\n([\s\S]*?)<\/script>/)[1];
+const { fn, constDecl } = require("./_extract");
 
-/* Same brace-matching extraction as kmltest.js/navtest.js. */
-function fn(name) {
-  const i = script.indexOf(`function ${name}(`);
-  if (i < 0) throw new Error("no encontrada: " + name);
-  let depth = 0, j = script.indexOf("{", i);
-  for (let k = j; k < script.length; k++) {
-    if (script[k] === "{") depth++;
-    else if (script[k] === "}" && --depth === 0) return script.slice(i, k + 1);
-  }
-}
 /* HTML_LIKE_TAG_RE is a const the extracted functions close over. */
-const constSrc = script.slice(
-  script.indexOf("const HTML_LIKE_TAG_RE"),
-  script.indexOf(";", script.indexOf("const HTML_LIKE_TAG_RE")) + 1
-);
+const constSrc = constDecl("HTML_LIKE_TAG_RE");
 
 const src = [constSrc, fn("elsByTag"), fn("hasHtmlLikeTags"), fn("stripHtmlLikeTags"),
              fn("kmlNamesHaveHtmlTags"), fn("stripHtmlTagsFromKmlNames")].join("\n");

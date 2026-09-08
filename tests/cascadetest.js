@@ -1,23 +1,5 @@
-const path = require("path");
-const HTML_PATH = path.join(__dirname, "..", "kitelocal.html");
 const { parseHTML } = require("linkedom");
-const fs = require("fs");
-const script = fs.readFileSync(HTML_PATH, "utf8").match(/<script>\n([\s\S]*?)<\/script>/)[1];
-
-/* Same isolated-function extraction as navtest.js/reordertest.js, plus
-   picking up an "async " prefix that indexOf("function NAME(") skips
-   over — cascadeVisibility/setAllChecked are both async, and dropping
-   the keyword would leave a stray `await` outside any async function. */
-function fn(name) {
-  let i = script.indexOf(`function ${name}(`);
-  if (i < 0) throw new Error("no encontrada: " + name);
-  if (script.slice(Math.max(0, i - 6), i) === "async ") i -= 6;
-  let depth = 0, j = script.indexOf("{", i);
-  for (let k = j; k < script.length; k++) {
-    if (script[k] === "{") depth++;
-    else if (script[k] === "}" && --depth === 0) return script.slice(i, k + 1);
-  }
-}
+const { fn } = require("./_extract");
 
 const { document } = parseHTML("<div id='tree'></div>");
 global.document = document;

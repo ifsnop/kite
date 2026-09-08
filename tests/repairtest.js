@@ -1,11 +1,6 @@
-const path = require("path");
-const HTML_PATH = path.join(__dirname, "..", "kitelocal.html");
 const { DOMParser } = require("@xmldom/xmldom");
-const fs = require("fs");
-const html = fs.readFileSync(HTML_PATH, "utf8");
-const script = html.match(/<script>\n([\s\S]*?)<\/script>/)[1];
-const src = script.slice(script.indexOf("const MAX_REPAIRED_PREFIXES"),
-                         script.indexOf("/* Mensaje legible del <parsererror>"));
+const { between } = require("./_extract");
+const src = between("const MAX_REPAIRED_PREFIXES", "/* Mensaje legible del <parsererror>");
 const { repairUndeclaredPrefixes, tagEnd } = new Function(src + "\nreturn {repairUndeclaredPrefixes, tagEnd};")();
 const ok = (c, m) => { if (!c) { console.error("FAIL: " + m); process.exitCode = 1; } };
 

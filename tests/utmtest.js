@@ -1,10 +1,5 @@
-const path = require("path");
-const HTML_PATH = path.join(__dirname, "..", "kitelocal.html");
-const fs = require("fs");
-const html = fs.readFileSync(HTML_PATH, "utf8");
-const script = html.match(/<script>\n([\s\S]*?)<\/script>/)[1];
-const src = script.slice(script.indexOf("/* ---------- Conversión a UTM"),
-                         script.indexOf("const METERS_PER_NM"));
+const { between } = require("./_extract");
+const src = between("/* ---------- Conversión a UTM", "const METERS_PER_NM");
 const helpers = "const toRad = d => d * Math.PI / 180; const toDeg = r => r * 180 / Math.PI;\n";
 const { latLngToUtm, fmtUtm, utmZone, utmBand } =
   new Function(helpers + src + "\nreturn {latLngToUtm, fmtUtm, utmZone, utmBand};")();

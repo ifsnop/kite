@@ -6,19 +6,7 @@
    en el diálogo, porque un placemark KML comparte un mismo objeto de
    estilo entre todas sus geometrías: si trae un polígono y una línea,
    el polígono sí quiere relleno y la línea no debe recibirlo.        */
-const path = require("path");
-const HTML_PATH = path.join(__dirname, "..", "kitelocal.html");
-const fs = require("fs");
-const script = fs.readFileSync(HTML_PATH, "utf8").match(/<script>\n([\s\S]*?)<\/script>/)[1];
-function fn(name) {
-  const i = script.indexOf(`function ${name}(`);
-  if (i < 0) throw new Error("no encontrada: " + name);
-  let depth = 0;
-  for (let k = script.indexOf("{", i); k < script.length; k++) {
-    if (script[k] === "{") depth++;
-    else if (script[k] === "}" && --depth === 0) return script.slice(i, k + 1);
-  }
-}
+const { fn } = require("./_extract");
 
 /* Jerarquía real de Leaflet: Polygon extiende Polyline, que es lo que
    obliga a comprobar Polygon ANTES que Polyline en cada recorrido.   */

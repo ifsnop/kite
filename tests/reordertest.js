@@ -1,21 +1,7 @@
-const path = require("path");
-const HTML_PATH = path.join(__dirname, "..", "kitelocal.html");
 const { parseHTML } = require("linkedom");
-const fs = require("fs");
-const script = fs.readFileSync(HTML_PATH, "utf8").match(/<script>\n([\s\S]*?)<\/script>/)[1];
-
-/* Same isolated-function extraction as navtest.js: pull just the named
-   function bodies instead of a wide index slice, so nothing else in the
-   surrounding code (with its own side effects) gets dragged in.       */
-function fn(name) {
-  const i = script.indexOf(`function ${name}(`);
-  if (i < 0) throw new Error("no encontrada: " + name);
-  let depth = 0, j = script.indexOf("{", i);
-  for (let k = j; k < script.length; k++) {
-    if (script[k] === "{") depth++;
-    else if (script[k] === "}" && --depth === 0) return script.slice(i, k + 1);
-  }
-}
+/* Se extraen las funciones sueltas por nombre, no un rango amplio, para
+   no arrastrar el código de alrededor con sus efectos secundarios.   */
+const { fn } = require("./_extract");
 
 const { document } = parseHTML("<div id='tree'></div>");
 global.document = document;

@@ -72,6 +72,50 @@ si algo falla, así que sirve tal cual en un gancho de git.
   ni `getElementsByTagName("*")`, y las pruebas del parser darían falsos
   negativos.
 
+## El extractor común (`_extract.js`)
+
+Toda suite saca lo que prueba del `<script>` de `kitelocal.html` por el
+**mismo** módulo. **Una suite nueva no escribe su propio extractor**:
+
+```js
+const { script, fn, constDecl, between } = require("./_extract");
+```
+
+- `fn("nombre")` — la declaración completa de una función.
+- `constDecl("NOMBRE")` — una `const NOMBRE … ;` de una sola sentencia.
+- `between("desde", "hasta")` — un tramo del script entre dos marcadores
+  literales, `desde` incluido y `hasta` excluido.
+- `script` — el texto entero, para lo que no encaje en lo anterior.
+
+Antes cada suite se traía su copia de la extracción, y el coste no era la
+duplicación: **cada copia aprendía las trampas por su cuenta, y tarde**.
+Tres funciones llegaron truncadas en silencio a la suite que las probaba
+—`collectWmsLayers`, `deleteNode`/`showLayerInfo` y `navMessage`—, cada
+una por algo que otra suite ya sabía. Las trampas, con su porqué, están
+documentadas en la cabecera de `_extract.js`; en resumen:
+
+1. `async` va **antes** de `function`, así que buscar `function NOMBRE(`
+   se lo salta y deja un `await` huérfano.
+2. Una **desestructuración en la firma** (`deleteNode(li, {
+   pruneSelection = true } = {})`) mete pares `{}` en la lista de
+   parámetros: contar llaves desde la primera `{` cierra ahí y devuelve
+   la función cortada antes de su cuerpo. Se salta la lista de
+   parámetros por profundidad de paréntesis y solo después se cuentan
+   llaves.
+3. Un marcador que ya no existe: `indexOf` devuelve `-1` y `slice` lo lee
+   como «uno desde el final», así que renombrar un comentario del código
+   dejaba a la suite con un fragmento verosímil en lugar de un error.
+   `between` y `constDecl` **lanzan**.
+
+Y la red para la trampa que aún no ha aparecido: **todo lo extraído se
+comprueba que parsea** antes de devolverlo. Es lo que convierte la
+próxima en un error nombrado ahí y no en un fallo raro en la suite.
+
+`run-all.js` no usa el módulo a propósito: también lee el script, pero
+**después** de sus propias guardas (que exista el archivo, y que
+corresponda a `src/`), y requerirlo en la cabecera cambiaría esos avisos
+por un `ENOENT` en crudo.
+
 ## Convenciones
 
 - Los mensajes de las aserciones describen **qué comportamiento** se
@@ -79,5 +123,6 @@ si algo falla, así que sirve tal cual en un gancho de git.
   entender qué se ha roto.
 - Cuando una prueba nace de un fallo real, el comentario lo dice: sirve
   para que nadie la "simplifique" sin saber qué protegía.
-- Los tests extraen funciones sueltas por nombre, no rangos amplios de
-  texto: extraer rangos arrastraba código con efectos secundarios.
+- Los tests extraen funciones sueltas por nombre (`fn`), no rangos
+  amplios de texto: extraer rangos arrastraba código con efectos
+  secundarios. Ver «El extractor común».

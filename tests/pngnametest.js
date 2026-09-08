@@ -1,10 +1,5 @@
-const path = require("path");
-const HTML_PATH = path.join(__dirname, "..", "kitelocal.html");
-const fs = require("fs");
-const html = fs.readFileSync(HTML_PATH, "utf8");
-const script = html.match(/<script>\n([\s\S]*?)<\/script>/)[1];
-const src = script.slice(script.indexOf("function pngTimestamp"),
-                         script.indexOf("/* Exporta el contenido del visor"));
+const { between } = require("./_extract");
+const src = between("function pngTimestamp", "/* Exporta el contenido del visor");
 const { pngTimestamp } = new Function(src + "\nreturn {pngTimestamp};")();
 const ok = (c, m) => { if (!c) { console.error("FAIL: " + m); process.exitCode = 1; } };
 

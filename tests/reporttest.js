@@ -1,10 +1,5 @@
-const path = require("path");
-const HTML_PATH = path.join(__dirname, "..", "kitelocal.html");
-const fs = require("fs");
-const html = fs.readFileSync(HTML_PATH, "utf8");
-const script = html.match(/<script>\n([\s\S]*?)<\/script>/)[1];
-const src = script.slice(script.indexOf("const MAX_REPORT_DETAIL"),
-                         script.indexOf("async function buildKmlRecords"));
+const { between } = require("./_extract");
+const src = between("const MAX_REPORT_DETAIL", "async function buildKmlRecords");
 const { makeImportReport } = new Function(src + "\nreturn {makeImportReport};")();
 const ok = (c, m) => { if (!c) { console.error("FAIL: " + m); process.exitCode = 1; } };
 

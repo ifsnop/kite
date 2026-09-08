@@ -1,15 +1,4 @@
-const path = require("path");
-const fs = require("fs");
-const HTML_PATH = path.join(__dirname, "..", "kitelocal.html");
-const script = fs.readFileSync(HTML_PATH, "utf8").match(/<script>\n([\s\S]*?)<\/script>/)[1];
-function fn(name) {
-  const i = script.indexOf(`function ${name}(`);
-  let d = 0;
-  for (let k = script.indexOf("{", i); k < script.length; k++) {
-    if (script[k] === "{") d++;
-    else if (script[k] === "}" && --d === 0) return script.slice(i, k + 1);
-  }
-}
+const { fn } = require("./_extract");
 const ok = (c, m) => { if (!c) { console.error("FAIL: " + m); process.exitCode = 1; } };
 
 const api = new Function(

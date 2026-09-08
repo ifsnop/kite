@@ -1,16 +1,7 @@
-const path = require("path");
-const HTML_PATH = path.join(__dirname, "..", "kitelocal.html");
 const { DOMParser } = require("@xmldom/xmldom");
-const fs = require("fs");
-const script = fs.readFileSync(HTML_PATH, "utf8").match(/<script>\n([\s\S]*?)<\/script>/)[1];
-function fn(n) {
-  const i = script.indexOf(`function ${n}(`); let d = 0;
-  for (let k = script.indexOf("{", i); k < script.length; k++) {
-    if (script[k] === "{") d++; else if (script[k] === "}" && --d === 0) return script.slice(i, k + 1);
-  }
-}
-const helpers = script.slice(script.indexOf("/* Nombre sin prefijo"), script.indexOf("/* KML usa color"));
-const excludeConst = script.slice(script.indexOf("const PNOA_HIST_EXCLUDE"), script.indexOf("let pnoaHistCatalog"));
+const { fn, between } = require("./_extract");
+const helpers = between("/* Nombre sin prefijo", "/* KML usa color");
+const excludeConst = between("const PNOA_HIST_EXCLUDE", "let pnoaHistCatalog");
 /* parserErrorText usa querySelector, que @xmldom/xmldom no implementa
    para documentos XML: se stubea igual que hace elevtest.js, ninguna
    de las fixtures de este archivo es un XML mal formado.              */

@@ -1,28 +1,22 @@
-const path = require("path");
-const HTML_PATH = path.join(__dirname, "..", "kitelocal.html");
 const { DOMParser } = require("@xmldom/xmldom");
-const fs = require("fs");
-const script = fs.readFileSync(HTML_PATH,"utf8").match(/<script>\n([\s\S]*?)<\/script>/)[1];
-function fn(n){ const i=script.indexOf(`function ${n}(`); let d=0;
-  for(let k=script.indexOf("{",i);k<script.length;k++){ if(script[k]==="{")d++; else if(script[k]==="}"&&--d===0) return script.slice(i,k+1);} }
-const helpers = script.slice(script.indexOf("/* Nombre sin prefijo"), script.indexOf("/* KML usa color"));
-const fonts = script.slice(script.indexOf("const GRID_FONT_BASE"), script.indexOf("const elevGridLayer"));
+const { fn, between } = require("./_extract");
+const helpers = between("/* Nombre sin prefijo", "/* KML usa color");
+const fonts = between("const GRID_FONT_BASE", "const elevGridLayer");
 /* ELEV_WINDOW se define antes del resto de constantes de elevación, pero
    la retícula fija (ELEV_TILE_WEB/ELEV_TILE_GEO, dentro del tramo
    webMercatorHalf→parseMdsCoverage) la necesita al evaluarse.        */
-const elevWindow = script.slice(script.indexOf("const ELEV_WINDOW"), script.indexOf("const ELEV_CELL"));
+const elevWindow = between("const ELEV_WINDOW", "const ELEV_CELL");
 const consts = fonts + elevWindow
-  + script.slice(script.indexOf("const ELEV_GEO_CRS"), script.indexOf("function toWebMercator"))
-  + script.slice(script.indexOf("const webMercatorHalf"), script.indexOf("function parseMdsCoverage"));
+  + between("const ELEV_GEO_CRS", "function toWebMercator")
+  + between("const webMercatorHalf", "function parseMdsCoverage");
 /* elevTileKey es una const de flecha, no una function declaration:
    fn() no la encuentra, así que se extrae por rango como los `consts`. */
-const elevTileKeySrc = script.slice(script.indexOf("const elevTileKey ="),
-  script.indexOf("/* Construye las capas Leaflet"));
+const elevTileKeySrc = between("const elevTileKey =", "/* Construye las capas Leaflet");
 /* METERS_PER_FOOT vive lejos de las demás constantes de elevación (junto
    a fmtAltitude, el formateo del cuadro de coordenadas); toElevUnit
    (también una const de flecha) lo necesita para la conversión m/ft. */
-const meterFoot = script.slice(script.indexOf("const METERS_PER_FOOT"), script.indexOf("const fmtAltitude"));
-const toElevUnitSrc = script.slice(script.indexOf("const toElevUnit ="), script.indexOf("const fmtCell"));
+const meterFoot = between("const METERS_PER_FOOT", "const fmtAltitude");
+const toElevUnitSrc = between("const toElevUnit =", "const fmtCell");
 const src = "const parserErrorText = () => null;\nconst toRad = d => d * Math.PI / 180;\n" + helpers + consts +
   [fn("parseWcsCapabilities"), fn("pickMdtCoverage"), fn("pickMdsCoverage"),
    fn("parseMdsCoverage"), fn("parseOwsException"), fn("parseAsciiGrid"), fn("gridCellBounds"),

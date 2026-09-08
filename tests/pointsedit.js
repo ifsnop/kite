@@ -5,19 +5,10 @@
    contorno exterior primero, luego los agujeros). Se eligió así porque
    es lo que una hoja de cálculo pega y copia sin pedir nada, y porque un
    <textarea> aguanta miles de líneas sin construir DOM por punto.     */
-const path = require("path");
-const HTML_PATH = path.join(__dirname, "..", "kitelocal.html");
-const fs = require("fs");
-const script = fs.readFileSync(HTML_PATH, "utf8").match(/<script>\n([\s\S]*?)<\/script>/)[1];
-function fn(n) {
-  const i = script.indexOf(`function ${n}(`); let d = 0;
-  for (let k = script.indexOf("{", i); k < script.length; k++) {
-    if (script[k] === "{") d++; else if (script[k] === "}" && --d === 0) return script.slice(i, k + 1);
-  }
-}
+const { fn, between } = require("./_extract");
 /* clampLatLng valida cada punto, y arrastra COORD_EPS/clampDeg */
-const clampSrc = script.slice(script.indexOf("const COORD_EPS ="), script.indexOf("/* Opciones del globo compacto"));
-const constsSrc = script.slice(script.indexOf("const POINTS_HEADER"), script.indexOf("/* Anillos de una capa"));
+const clampSrc = between("const COORD_EPS =", "/* Opciones del globo compacto");
+const constsSrc = between("const POINTS_HEADER", "/* Anillos de una capa");
 const src = clampSrc + constsSrc +
   [fn("pointsToText"), fn("textToPoints")].join("\n");
 const api = new Function(src +

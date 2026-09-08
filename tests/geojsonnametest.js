@@ -1,13 +1,8 @@
-const path = require("path");
-const HTML_PATH = path.join(__dirname, "..", "kitelocal.html");
-const fs = require("fs");
-const html = fs.readFileSync(HTML_PATH, "utf8");
-const script = html.match(/<script>\n([\s\S]*?)<\/script>/)[1];
+const { fn, between } = require("./_extract");
 const ok = (c, m) => { if (!c) { console.error("FAIL: " + m); process.exitCode = 1; } };
 
 /* ---------- Elegir la propiedad-nombre (Fase 1) ---------- */
-const nameSrc = script.slice(script.indexOf("const GEOJSON_TYPES = new Set("),
-                              script.indexOf("async function buildGeoJsonRecords"));
+const nameSrc = between("const GEOJSON_TYPES = new Set(", "async function buildGeoJsonRecords");
 const { geojsonFeatures, needsNamePicker, propsFingerprint, resolveFeatureName } =
   new Function(nameSrc + "\nreturn {geojsonFeatures, needsNamePicker, propsFingerprint, resolveFeatureName};")();
 
@@ -56,8 +51,7 @@ ok(resolveFeatureName({}, 4, null) === "Elemento 5",
   "sin nada, cae en Elemento N (1-based)");
 
 /* ---------- Tabla de properties (Fase 3) ---------- */
-const propSrc = script.slice(script.indexOf("const escapeHtml = s =>"),
-                              script.indexOf("function infoHtmlFor"));
+const propSrc = between("const escapeHtml = s =>", "function infoHtmlFor");
 const { stringifyPropValue, propertiesTableHtml } =
   new Function(propSrc + "\nreturn {stringifyPropValue, propertiesTableHtml};")();
 
@@ -80,18 +74,9 @@ ok(!tableHtml.includes("<b>"), "escapa entrada hostil en la clave: " + tableHtml
 /* ---------- Menú contextual con varias capas (Fase 4) ---------- */
 /* CTX_MENU_ITEMS y layerCtxItems/ctxItemsFor NO son contiguos en el
    archivo (entre medias hay creación de DOM: ctxMenuEl, closeCtxMenu…),
-   así que se extraen por separado con el mismo emparejador de llaves
-   que usa tests/kmltest.js para geojsonStyle/normalizePathStyle.      */
-function extractFn(name) {
-  const i = script.indexOf(`function ${name}(`);
-  let d = 0;
-  for (let k = script.indexOf("{", i); k < script.length; k++) {
-    if (script[k] === "{") d++;
-    else if (script[k] === "}" && --d === 0) return script.slice(i, k + 1);
-  }
-}
-const ctxSrc = script.slice(script.indexOf("const CTX_MENU_ITEMS = ["), script.indexOf("const ctxMenuEl"))
-  + extractFn("layerCtxItems") + extractFn("ctxItemsFor");
+   así que se extraen por separado.                                    */
+const ctxSrc = between("const CTX_MENU_ITEMS = [", "const ctxMenuEl")
+  + fn("layerCtxItems") + fn("ctxItemsFor");
 global.infoHtmlFor = li => li._info || null; /* stub: evita depender de DOM/Leaflet */
 /* goToNodeAndBlink (highlightNode + el parpadeo de identificación) vive
    FUERA de este recorte (necesita nodeLayer/setLayerVisible sobre <li>

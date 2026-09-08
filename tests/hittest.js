@@ -6,19 +6,7 @@
    Estas pruebas fijan la geometría real. Trabajan en píxeles de
    contenedor ({x, y}), que es como mide el código: un margen en grados
    vale distancias muy distintas según la latitud y el zoom.          */
-const path = require("path");
-const HTML_PATH = path.join(__dirname, "..", "kitelocal.html");
-const fs = require("fs");
-const script = fs.readFileSync(HTML_PATH, "utf8").match(/<script>\n([\s\S]*?)<\/script>/)[1];
-function fn(name) {
-  const i = script.indexOf(`function ${name}(`);
-  if (i < 0) throw new Error("no encontrada: " + name);
-  let depth = 0;
-  for (let k = script.indexOf("{", i); k < script.length; k++) {
-    if (script[k] === "{") depth++;
-    else if (script[k] === "}" && --depth === 0) return script.slice(i, k + 1);
-  }
-}
+const { fn } = require("./_extract");
 const src = [fn("segDistSq"), fn("nearPolyline"), fn("pointInRing"), fn("pointInRings")].join("\n");
 const api = new Function(src + "\nreturn {segDistSq, nearPolyline, pointInRing, pointInRings};")();
 const ok = (c, m) => { if (!c) { console.error("FAIL: " + m); process.exitCode = 1; } };

@@ -7,20 +7,11 @@
    su WMSServer da 404— y el mirror de AWS sirve COG sin cabeceras CORS,
    ilegible desde el navegador. Sentinel Hub es la única vía viva y
    autentica con el instance ID de la cuenta del usuario.              */
-const path = require("path");
-const HTML_PATH = path.join(__dirname, "..", "kitelocal.html");
 const { DOMParser } = require("@xmldom/xmldom");
-const fs = require("fs");
-const script = fs.readFileSync(HTML_PATH, "utf8").match(/<script>\n([\s\S]*?)<\/script>/)[1];
-function fn(n) {
-  const i = script.indexOf(`function ${n}(`); let d = 0;
-  for (let k = script.indexOf("{", i); k < script.length; k++) {
-    if (script[k] === "{") d++; else if (script[k] === "}" && --d === 0) return script.slice(i, k + 1);
-  }
-}
-const helpers = script.slice(script.indexOf("/* Nombre sin prefijo"), script.indexOf("/* KML usa color"));
+const { fn, between } = require("./_extract");
+const helpers = between("/* Nombre sin prefijo", "/* KML usa color");
 /* Las constantes de la sección de Copernicus (COP_WMS_BASE..COP_WMS_OPTS) */
-const copConsts = script.slice(script.indexOf("const COP_WMS_BASE"), script.indexOf("let shInstanceId"));
+const copConsts = between("const COP_WMS_BASE", "let shInstanceId");
 /* parserErrorText usa querySelector, que @xmldom/xmldom no implementa
    para documentos XML: se stubea igual que en pnoahisttest.js.        */
 const src = "const parserErrorText = () => null;\n" + helpers + copConsts +

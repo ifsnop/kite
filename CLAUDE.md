@@ -1045,10 +1045,13 @@ kitelocal.html     GENERADO. Es el producto; se versiona (quien clone
   `#kml-tags-picker, #kml-dup-picker, #sh-creds` con `max-width: 42ch`.
 - **`collectWmsLayers`/`parseWmsCapabilities` reciben sus opciones**
   (`exclude`, `rootGroup`), no las llevan dentro: las comparten el PNOA
-  histórico (`PNOA_HIST_WMS_OPTS`) y Copernicus (`COP_WMS_OPTS`). Ojo:
-  **`opts` no se desestructura en la firma** porque los tests extraen
-  cada función contando llaves desde la primera `{` y un patrón de
-  desestructuración ahí la truncaría.
+  histórico (`PNOA_HIST_WMS_OPTS`) y Copernicus (`COP_WMS_OPTS`).
+  `opts` no se desestructura en la firma, pero **ya no por obligación**:
+  lo imponía el extractor de los tests, que contaba llaves desde la
+  primera `{` y truncaba ahí la función. Desde que todas las suites usan
+  `tests/_extract.js`, que salta la lista de parámetros, una
+  desestructuración en la firma no rompe nada aquí ni en ninguna otra
+  función.
 - **Se pueden reordenar** con las flechas de cada fila: el orden del Map
   `baseState` ES el de apilado y los `zIndex` se recalculan al moverlas.
   El orden se guarda junto a las opacidades, ignorando al leerlo los

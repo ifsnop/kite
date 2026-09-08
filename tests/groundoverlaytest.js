@@ -1,20 +1,14 @@
-const path = require("path");
-const HTML_PATH = path.join(__dirname, "..", "kitelocal.html");
 const { DOMParser } = require("@xmldom/xmldom");
-const fs = require("fs");
-const html = fs.readFileSync(HTML_PATH, "utf8");
-const script = html.match(/<script>\n([\s\S]*?)<\/script>/)[1];
+const { between } = require("./_extract");
 
 /* parseLatLonBox lives in the KML geometry section, after the namespace
    helpers and coordinate clamping it depends on, and before
    buildGroundOverlay (which needs Leaflet + an async zip read and is
    therefore not exercised in Node — same boundary kmltest.js draws
    around buildPlacemarkLayer).                                         */
-const geomSrc = script.slice(script.indexOf("/* Nombre sin prefijo"),
-                             script.indexOf("/* A GroundOverlay is a single georeferenced image"));
+const geomSrc = between("/* Nombre sin prefijo", "/* A GroundOverlay is a single georeferenced image");
 /* resolveKmzEntry: standalone, next to kmzToKml */
-const zipSrc = script.slice(script.indexOf("/* Resolves a GroundOverlay Icon/href"),
-                            script.indexOf("const fmtBytes ="));
+const zipSrc = between("/* Resolves a GroundOverlay Icon/href", "const fmtBytes =");
 
 const api = new Function(geomSrc + zipSrc
   + "\nreturn {parseLatLonBox, resolveKmzEntry};")();
