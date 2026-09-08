@@ -53,6 +53,7 @@
   <header>
     <h1 title="KML Interactive Tree Explorer">KITE Local
       <button id="gnp-editor-btn" class="btn" title="Nombres recordados para GeoJSON">🏷️</button>
+      <button id="log-btn" class="btn" title="Registro de avisos">📋</button>
       <button id="help-btn" class="btn" title="Ayuda y atajos de teclado (tecla ?)">?</button>
     </h1>
     <div class="nav-actions">
@@ -305,6 +306,23 @@
     <div class="dlg-actions">
       <button class="btn" id="points-cancel">Cancelar</button>
       <button class="btn" id="points-accept">Aceptar</button>
+    </div>
+  </div>
+</div>
+
+<!-- Registro de avisos de la sesión: los que se ocultan solos y los que
+     exigen confirmación, para poder consultarlos aunque ya no estén en
+     el panel. Solo en memoria; se pierde al cerrar la página. -->
+<div id="log-dialog" class="dlg-overlay" hidden>
+  <div class="dlg-box">
+    <h2>Registro de avisos</h2>
+    <p class="dlg-hint">Avisos de esta sesi&#243;n, del m&#225;s antiguo al m&#225;s reciente. Los
+      marcados con <strong>!</strong> exig&#237;an confirmaci&#243;n. Al cerrar la p&#225;gina se pierde.</p>
+    <div class="log-list" id="log-list"></div>
+    <div class="dlg-actions">
+      <button class="btn" id="log-copy">Copiar</button>
+      <button class="btn" id="log-clear">Borrar</button>
+      <button class="btn" id="log-close">Cerrar</button>
     </div>
   </div>
 </div>

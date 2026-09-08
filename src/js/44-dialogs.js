@@ -1,3 +1,88 @@
+/* ---------- Registro de avisos ----------
+   Ventana al `msgLog` de la sesión (ver navMessage). Existe porque un
+   aviso transitorio se va a los MSG_TIMEOUT y antes no quedaba rastro
+   de él.                                                              */
+const logDialog = document.getElementById("log-dialog");
+const logBox = logDialog.querySelector(".dlg-box");
+
+/* Se busca el botón por id en cada llamada, no con una constante de
+   módulo: navMessage llama aquí y hay un aviso a nivel de módulo en un
+   archivo ANTERIOR (el de aceleración por hardware), cuando una `const`
+   de este archivo estaría todavía en su zona muerta temporal.        */
+function refreshLogButton() {
+  const btn = document.getElementById("log-btn");
+  if (!btn) return;
+  btn.classList.toggle("unseen", msgLogUnseen > 0);
+  btn.title = msgLogUnseen
+    ? `Registro de avisos (${msgLogUnseen} sin ver)`
+    : "Registro de avisos";
+}
+
+function renderLog() {
+  const list = document.getElementById("log-list");
+  list.textContent = "";
+  if (!msgLog.length) {
+    const p = document.createElement("p");
+    p.className = "log-empty";
+    p.textContent = "No hay avisos en esta sesión.";
+    list.appendChild(p);
+    return;
+  }
+  /* Orden cronológico, lo más reciente al final: se lee como un fichero
+     de log, y como el propio panel, donde los avisos nuevos se añaden
+     debajo de los anteriores.                                         */
+  for (const e of msgLog) {
+    const row = document.createElement("div");
+    row.className = `log-row ${e.tone}`;
+    const time = document.createElement("time");
+    time.className = "log-time";
+    time.textContent = msgStamp(e.first);
+    const mark = document.createElement("span");
+    mark.className = "log-mark";
+    if (e.sticky) { mark.textContent = "!"; mark.title = "Exigía confirmación"; }
+    const text = document.createElement("span");
+    text.className = "log-text";
+    text.textContent = e.text;
+    if (e.count > 1) {
+      const rep = document.createElement("span");
+      rep.className = "log-rep";
+      rep.textContent = ` ×${e.count}, última ${msgStamp(e.last)}`;
+      text.appendChild(rep);
+    }
+    row.append(time, mark, text);
+    list.appendChild(row);
+  }
+}
+
+function toggleLog() {
+  if (!logDialog.hidden) { logDialog.hidden = true; releaseFocus(); return; }
+  renderLog();
+  msgLogUnseen = 0;
+  refreshLogButton();
+  logDialog.hidden = false;
+  clampToViewport(logBox);
+  focusDialog(logBox);
+  /* Con lo más reciente abajo, hay que bajar el scroll o habría que
+     desplazarse a mano justo a lo que se viene a consultar.          */
+  const list = document.getElementById("log-list");
+  list.scrollTop = list.scrollHeight;
+}
+document.getElementById("log-btn").addEventListener("click", toggleLog);
+document.getElementById("log-close").addEventListener("click", toggleLog);
+document.getElementById("log-clear").addEventListener("click", () => {
+  msgLog.length = 0;
+  msgLogUnseen = 0;
+  refreshLogButton();
+  renderLog();
+});
+document.getElementById("log-copy").addEventListener("click", () => {
+  const txt = logText();
+  if (!txt) { navMessage("El registro está vacío.", { tone: "info" }); return; }
+  navigator.clipboard.writeText(txt)
+    .then(() => navMessage("Registro copiado al portapapeles.", { tone: "info" }))
+    .catch(() => navMessage("No se pudo copiar al portapapeles."));
+});
+
 /* ---------- Diálogo de la credencial de Copernicus ----------
    Edición diferida como el resto: se escribe en la caja y solo
    «Aceptar» la guarda y rearma la capa.                              */
@@ -54,7 +139,7 @@ document.getElementById("desc-close").addEventListener("click", () => {
   layerInfoDismissed = true;
   releaseFocus();
 });
-for (const box of [styleBox, iconBox, colorBox, descBox, shortcutsBox, ktpBox, kdpBox, gnpBox, gnpEditorBox, shBox, pointsBox]) makeDialogMovable(box);
+for (const box of [styleBox, iconBox, colorBox, descBox, shortcutsBox, ktpBox, kdpBox, gnpBox, gnpEditorBox, shBox, pointsBox, logBox]) makeDialogMovable(box);
 setupDialog(styleBox, { modal: false }); /* flotante: el mapa sigue vivo */
 setupDialog(iconBox, { modal: true });
 setupDialog(colorBox, { modal: true });
@@ -66,9 +151,10 @@ setupDialog(gnpBox, { modal: true });
 setupDialog(gnpEditorBox, { modal: true });
 setupDialog(shBox, { modal: true });
 setupDialog(pointsBox, { modal: true });
+setupDialog(logBox, { modal: true });
 window.addEventListener("resize", () => {
   /* a moved dialog must not fall off-screen */
-  for (const box of [styleBox, iconBox, colorBox, descBox, shortcutsBox, ktpBox, kdpBox, gnpBox, gnpEditorBox, shBox, pointsBox]) clampToViewport(box);
+  for (const box of [styleBox, iconBox, colorBox, descBox, shortcutsBox, ktpBox, kdpBox, gnpBox, gnpEditorBox, shBox, pointsBox, logBox]) clampToViewport(box);
 });
 let styleTargets = [];    /* nodes being edited */
 let styleKindOpen = null; /* "marker" | "polygon" */

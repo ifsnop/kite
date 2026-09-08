@@ -170,6 +170,52 @@ desarrollo del proyecto.
   que soltar varios archivos a la vez no haga que uno pise a otro, con
   tope `MSG_MAX_LINES` que solo retira los transitorios. Un resumen
   limpio se muestra en tono `info` y se cierra solo, como antes.
+- **Un aviso repetido no añade línea: la funde y cuenta.** Se funde con
+  una línea que **siga visible** y tenga el mismo texto y tono
+  (`line._msgKey`); se incrementa el contador (`×3`), se **reinicia su
+  temporizador** —mientras siga ocurriendo, sigue a la vista— y **no se
+  mueve de sitio**, porque reordenar haría saltar el texto bajo el
+  cursor. Sin esto, una capa base con conexión intermitente llenaba el
+  panel de líneas idénticas. Buscar recorriendo las líneas (como mucho
+  `MSG_MAX_LINES`) evita tener que escapar el texto para un selector.
+- **Cada aviso lleva fecha y hora completas** (`msgStamp`,
+  `2026-09-08 13:02:11`). En una línea fundida el panel muestra la marca
+  de la **última** repetición: es una vista en vivo y ahí «cuándo se
+  produjo» significa cuándo ha vuelto a pasar; el registro guarda la
+  primera y la última. Ojo al relleno con ceros, que ya falló una vez en
+  otra marca de tiempo (`pngTimestamp`).
+- **Registro de la sesión** (`msgLog`, tope `MSG_LOG_MAX`): un aviso
+  transitorio desaparecía a los `MSG_TIMEOUT` sin dejar rastro, así que
+  el que no daba tiempo a leer se perdía. Ahora todos —los que se
+  ocultan solos y los `sticky`— quedan consultables desde el botón 📋 de
+  la cabecera del panel, que muestra un punto cuando hay entradas sin
+  ver. **Solo en memoria**: no se guarda en IndexedDB y se pierde al
+  cerrar la página. El diálogo lista en **orden cronológico, lo más
+  reciente abajo**, como un fichero de log y como el propio panel, y por
+  eso al abrirlo **baja el scroll del todo**. `logText()` serializa lo
+  mismo para el portapapeles.
+- **La ventana del registro se redimensiona** con `resize: both`, el
+  mismo recurso nativo que el editor de puntos. Las medidas van en la
+  LISTA, no en la caja, para que al agrandarla crezca el diálogo con
+  ella, y explícitas porque `resize` necesita una base de la que partir.
+  El tirador de la esquina no estorba al arrastre por el `<h2>`.
+  **Trampa medida**: el párrafo de ayuda prefiere ir en una línea
+  (764 px) y con eso fijaba el ancho mínimo del diálogo, de modo que
+  estrechar la lista no estrechaba la ventana. Se neutraliza con
+  `width: 0; min-width: 100%`, que le quita el ancho preferido sin
+  quitarle el ancho real.
+- `msgLog` y `navMessage` viven juntos en `30-tree-walk.js` porque hay
+  un aviso a nivel de módulo justo debajo (el de aceleración por
+  hardware). Por eso `refreshLogButton`, que está en un archivo
+  posterior, busca su botón con `getElementById` en cada llamada y no
+  con una `const` de módulo, que estaría en zona muerta temporal en ese
+  momento.
+- **Los cuatro frenos ad hoc siguen ahí** (`ELEV_STATUS_QUIET`,
+  `savePending`, `elevAccumCapped`, `updateNoticeShown`). La fusión los
+  hace menos necesarios, pero el de `demStatus` cumple otra función
+  —limitar una fuente de altísima frecuencia, el ratón sobre el MDT— y
+  quitarlo dejaría esa línea viva indefinidamente reiniciando su
+  temporizador.
 - **Cotas de KMZ**: `KMZ_MAX_ENTRIES`, `KMZ_MAX_UNCOMPRESSED` y
   `KMZ_MAX_RATIO` frenan zips desproporcionados u hostiles antes de
   descomprimirlos.

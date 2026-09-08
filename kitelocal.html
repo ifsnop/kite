@@ -124,6 +124,21 @@
   .nav-msg-line { margin: 3px 0; color: var(--danger); }
   .nav-msg-line.info { color: var(--muted); }
   .nav-msg-ok { margin: 2px 0 4px; padding: 1px 10px; }
+  /* La marca de tiempo va atenuada y algo menor: el área de avisos es
+     estrecha y no debe competir con el mensaje.                       */
+  .nav-msg-time {
+    color: var(--muted); font-size: 10.5px;
+    font-family: ui-monospace, Consolas, monospace; margin-right: 5px;
+  }
+  .nav-msg-count { margin-left: 5px; font-weight: 600; font-variant-numeric: tabular-nums; }
+  .nav-msg-count:empty { display: none; }
+  /* Punto sobre el botón del registro cuando hay avisos sin ver: es lo
+     que permite enterarse de los que se ocultaron solos.              */
+  #log-btn { position: relative; }
+  #log-btn.unseen::after {
+    content: ""; position: absolute; top: 0; right: 0;
+    width: 6px; height: 6px; border-radius: 50%; background: var(--danger);
+  }
   #storage-usage {
     font-size: 12px;
     color: var(--muted);
@@ -646,6 +661,45 @@
   /* La lista de puntos necesita su propio ancho: .dlg-box trae
      max-width 90vw, pensado para los diálogos anchos.                 */
   #points-dialog .dlg-box { max-width: min(92vw, 640px); display: flex; flex-direction: column; }
+  /* Sin esto hereda el max-width: 90vw de .dlg-box y los avisos, que son
+     largos, estirarían el diálogo a casi toda la pantalla.            */
+  /* La caja no fija ancho: lo pone la lista, que es lo que el usuario
+     redimensiona. El tope en vw evita que un tirón la saque de la
+     pantalla.                                                         */
+  #log-dialog .dlg-box { max-width: 94vw; }
+  /* El párrafo de ayuda prefiere ir en una línea (764 px medidos) y con
+     eso marcaba el ancho mínimo del diálogo: al estrechar la lista, la
+     ventana se quedaba igual de ancha. Con `width: 0` deja de aportar
+     ancho preferido y `min-width: 100%` lo devuelve a ocupar la caja
+     entera, así que manda la lista, que es lo que se redimensiona.   */
+  #log-dialog .dlg-hint { width: 0; min-width: 100%; }
+  /* `resize: both` es el redimensionado nativo del navegador, el mismo
+     recurso que el editor de puntos: el tirador de la esquina no estorba
+     al arrastre por el <h2> (makeDialogMovable). Las medidas van en la
+     LISTA, no en la caja, para que al agrandarla crezca el diálogo con
+     ella; hacen falta explícitas porque `resize` necesita una base de la
+     que partir.                                                        */
+  .log-list {
+    width: 640px; height: 45vh;
+    min-width: 260px; min-height: 6em;
+    max-width: 90vw; max-height: 75vh;
+    overflow: auto; resize: both; margin-top: 8px;
+    border: 1px solid var(--border); border-radius: 4px; padding: 6px 8px;
+    font-size: 12.5px; line-height: 1.4; box-sizing: border-box;
+  }
+  .log-row { display: flex; gap: 8px; padding: 3px 0; align-items: baseline; }
+  .log-row + .log-row { border-top: 1px solid var(--border); }
+  .log-time {
+    flex: 0 0 auto; color: var(--muted);
+    font-family: ui-monospace, Consolas, monospace; font-size: 11.5px;
+  }
+  /* El tono se hereda del panel, para que el registro se lea igual que
+     se leyó el aviso original.                                        */
+  .log-text { flex: 1 1 auto; color: var(--danger); }
+  .log-row.info .log-text { color: var(--muted); }
+  .log-mark { flex: 0 0 auto; width: 1ch; font-weight: 700; color: var(--danger); }
+  .log-rep { color: var(--muted); font-size: 11.5px; white-space: nowrap; }
+  .log-empty { color: var(--muted); font-style: italic; }
   /* `resize: both` es el redimensionado nativo del navegador: el tirador
      de la esquina no estorba al arrastre por el <h2> (makeDialogMovable).
      Las medidas son del textarea, no de la caja, para que al agrandarlo
@@ -772,6 +826,7 @@
   <header>
     <h1 title="KML Interactive Tree Explorer">KITE Local
       <button id="gnp-editor-btn" class="btn" title="Nombres recordados para GeoJSON">🏷️</button>
+      <button id="log-btn" class="btn" title="Registro de avisos">📋</button>
       <button id="help-btn" class="btn" title="Ayuda y atajos de teclado (tecla ?)">?</button>
     </h1>
     <div class="nav-actions">
@@ -1028,6 +1083,23 @@
   </div>
 </div>
 
+<!-- Registro de avisos de la sesión: los que se ocultan solos y los que
+     exigen confirmación, para poder consultarlos aunque ya no estén en
+     el panel. Solo en memoria; se pierde al cerrar la página. -->
+<div id="log-dialog" class="dlg-overlay" hidden>
+  <div class="dlg-box">
+    <h2>Registro de avisos</h2>
+    <p class="dlg-hint">Avisos de esta sesi&#243;n, del m&#225;s antiguo al m&#225;s reciente. Los
+      marcados con <strong>!</strong> exig&#237;an confirmaci&#243;n. Al cerrar la p&#225;gina se pierde.</p>
+    <div class="log-list" id="log-list"></div>
+    <div class="dlg-actions">
+      <button class="btn" id="log-copy">Copiar</button>
+      <button class="btn" id="log-clear">Borrar</button>
+      <button class="btn" id="log-close">Cerrar</button>
+    </div>
+  </div>
+</div>
+
 <!-- Credencial de Sentinel Hub: el instance ID con el que Copernicus
      autentica sus servicios OGC. Es del usuario, no de la aplicación. -->
 <div id="sh-creds" class="dlg-overlay" hidden>
@@ -1131,7 +1203,7 @@ const map = L.map("map", {
 
 /* Fecha de generación del código (versión): AÑOMESDIAHORAMINUTO.
    Actualizar en cada generación; se muestra junto al crédito de Leaflet. */
-const BUILD = "202609071650";
+const BUILD = "202609081445";
 map.attributionControl.setPrefix(
   `v${BUILD} | <a href="https://leafletjs.com" title="A JavaScript library for interactive maps">Leaflet</a>`);
 
@@ -2446,12 +2518,92 @@ showEmptyMessage();
    archivos a la vez no haga que un aviso pise al anterior.           */
 const MSG_TIMEOUT = 6000;
 const MSG_MAX_LINES = 8;
+/* Tope del registro de la sesión. Solo vive en memoria: no se guarda en
+   IndexedDB, así que se pierde al cerrar la página.                   */
+const MSG_LOG_MAX = 200;
+
+/* Registro de la sesión: sobrevive a que la línea del panel se vaya a
+   los MSG_TIMEOUT, que es lo que antes hacía imposible leer un aviso
+   que pasó desapercibido. Entradas en orden cronológico, la más
+   reciente al final, como las líneas de un fichero de log.           */
+const msgLog = [];
+let msgLogUnseen = 0; /* entradas desde la última apertura del registro */
+
+/* "2026-09-08 13:02:11". Cuidado con el relleno de ceros: el proyecto ya
+   tuvo ese fallo en otra marca de tiempo (pngTimestamp, ver
+   tests/pngnametest.js). Se usa la hora LOCAL, que es la que el usuario
+   reconoce como "cuándo pasó".                                       */
+function msgStamp(ms) {
+  const d = new Date(ms);
+  const p = n => String(n).padStart(2, "0");
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())} `
+    + `${p(d.getHours())}:${p(d.getMinutes())}:${p(d.getSeconds())}`;
+}
+
+/* El registro entero como texto plano, para el portapapeles. Mismo orden
+   que en pantalla y marca completa en cada línea, para que lo pegado se
+   parezca a un log de verdad y no dependa del contexto.              */
+function logText() {
+  if (!msgLog.length) return "";
+  return msgLog.map(e => {
+    const rep = e.count > 1 ? ` [x${e.count}, última ${msgStamp(e.last)}]` : "";
+    return `${msgStamp(e.first)}\t${e.tone === "info" ? "INFO " : "AVISO"}\t${e.text}${rep}`;
+  }).join("\n");
+}
+
+/* Pinta la marca de tiempo y el contador de una línea ya existente. En
+   el panel se muestra la marca de la ÚLTIMA repetición: es una vista en
+   vivo, y ahí "cuándo se produjo" significa cuándo ha vuelto a pasar.
+   El detalle completo (primera y última) lo da el registro.          */
+function paintMsgLine(line, entry) {
+  line.querySelector(".nav-msg-time").textContent = msgStamp(entry.last);
+  const count = line.querySelector(".nav-msg-count");
+  count.textContent = entry.count > 1 ? `×${entry.count}` : "";
+}
 
 function navMessage(txt, { sticky = false, tone = "error" } = {}) {
   const el = document.getElementById("nav-msg");
+  const now = Date.now();
+  const key = `${tone} ${txt}`;
+
+  /* Un aviso se FUNDE con una línea que siga visible y diga lo mismo, en
+     vez de añadir otra: es lo que evita que una racha llene el panel.
+     Se busca recorriendo las líneas (como mucho MSG_MAX_LINES) en vez de
+     con un selector de atributo, que obligaría a escapar el texto.    */
+  for (const old of el.querySelectorAll(".nav-msg-line")) {
+    if (old._msgKey !== key) continue;
+    old._logEntry.count++;
+    old._logEntry.last = now;
+    paintMsgLine(old, old._logEntry);
+    /* Se reinicia el temporizador —mientras siga ocurriendo, la línea
+       sigue a la vista— y NO se mueve de sitio: reordenar haría saltar
+       el texto bajo el cursor.                                        */
+    if (old._timer) {
+      clearTimeout(old._timer);
+      old._timer = setTimeout(() => old.remove(), MSG_TIMEOUT);
+    }
+    return;
+  }
+
+  const entry = { text: txt, tone, sticky, count: 1, first: now, last: now };
+  msgLog.push(entry);
+  if (msgLog.length > MSG_LOG_MAX) msgLog.shift();
+  msgLogUnseen++;
+  refreshLogButton();
+
   const line = document.createElement("p");
   line.className = `nav-msg-line ${tone}`;
-  line.textContent = txt;
+  line._msgKey = key;
+  line._logEntry = entry;
+  const time = document.createElement("time");
+  time.className = "nav-msg-time";
+  const body = document.createElement("span");
+  body.className = "nav-msg-text";
+  body.textContent = txt;
+  const count = document.createElement("span");
+  count.className = "nav-msg-count";
+  line.append(time, body, count);
+  paintMsgLine(line, entry);
   el.insertBefore(line, el.querySelector(".nav-msg-ok"));
 
   /* Tope de líneas: se retiran las más antiguas que no exijan lectura */
@@ -2470,7 +2622,7 @@ function navMessage(txt, { sticky = false, tone = "error" } = {}) {
       el.appendChild(ok);
     }
   } else {
-    setTimeout(() => line.remove(), MSG_TIMEOUT);
+    line._timer = setTimeout(() => line.remove(), MSG_TIMEOUT);
   }
 }
 
@@ -6389,6 +6541,91 @@ $id("points-accept").addEventListener("click", () => {
   }
 });
 
+/* ---------- Registro de avisos ----------
+   Ventana al `msgLog` de la sesión (ver navMessage). Existe porque un
+   aviso transitorio se va a los MSG_TIMEOUT y antes no quedaba rastro
+   de él.                                                              */
+const logDialog = document.getElementById("log-dialog");
+const logBox = logDialog.querySelector(".dlg-box");
+
+/* Se busca el botón por id en cada llamada, no con una constante de
+   módulo: navMessage llama aquí y hay un aviso a nivel de módulo en un
+   archivo ANTERIOR (el de aceleración por hardware), cuando una `const`
+   de este archivo estaría todavía en su zona muerta temporal.        */
+function refreshLogButton() {
+  const btn = document.getElementById("log-btn");
+  if (!btn) return;
+  btn.classList.toggle("unseen", msgLogUnseen > 0);
+  btn.title = msgLogUnseen
+    ? `Registro de avisos (${msgLogUnseen} sin ver)`
+    : "Registro de avisos";
+}
+
+function renderLog() {
+  const list = document.getElementById("log-list");
+  list.textContent = "";
+  if (!msgLog.length) {
+    const p = document.createElement("p");
+    p.className = "log-empty";
+    p.textContent = "No hay avisos en esta sesión.";
+    list.appendChild(p);
+    return;
+  }
+  /* Orden cronológico, lo más reciente al final: se lee como un fichero
+     de log, y como el propio panel, donde los avisos nuevos se añaden
+     debajo de los anteriores.                                         */
+  for (const e of msgLog) {
+    const row = document.createElement("div");
+    row.className = `log-row ${e.tone}`;
+    const time = document.createElement("time");
+    time.className = "log-time";
+    time.textContent = msgStamp(e.first);
+    const mark = document.createElement("span");
+    mark.className = "log-mark";
+    if (e.sticky) { mark.textContent = "!"; mark.title = "Exigía confirmación"; }
+    const text = document.createElement("span");
+    text.className = "log-text";
+    text.textContent = e.text;
+    if (e.count > 1) {
+      const rep = document.createElement("span");
+      rep.className = "log-rep";
+      rep.textContent = ` ×${e.count}, última ${msgStamp(e.last)}`;
+      text.appendChild(rep);
+    }
+    row.append(time, mark, text);
+    list.appendChild(row);
+  }
+}
+
+function toggleLog() {
+  if (!logDialog.hidden) { logDialog.hidden = true; releaseFocus(); return; }
+  renderLog();
+  msgLogUnseen = 0;
+  refreshLogButton();
+  logDialog.hidden = false;
+  clampToViewport(logBox);
+  focusDialog(logBox);
+  /* Con lo más reciente abajo, hay que bajar el scroll o habría que
+     desplazarse a mano justo a lo que se viene a consultar.          */
+  const list = document.getElementById("log-list");
+  list.scrollTop = list.scrollHeight;
+}
+document.getElementById("log-btn").addEventListener("click", toggleLog);
+document.getElementById("log-close").addEventListener("click", toggleLog);
+document.getElementById("log-clear").addEventListener("click", () => {
+  msgLog.length = 0;
+  msgLogUnseen = 0;
+  refreshLogButton();
+  renderLog();
+});
+document.getElementById("log-copy").addEventListener("click", () => {
+  const txt = logText();
+  if (!txt) { navMessage("El registro está vacío.", { tone: "info" }); return; }
+  navigator.clipboard.writeText(txt)
+    .then(() => navMessage("Registro copiado al portapapeles.", { tone: "info" }))
+    .catch(() => navMessage("No se pudo copiar al portapapeles."));
+});
+
 /* ---------- Diálogo de la credencial de Copernicus ----------
    Edición diferida como el resto: se escribe en la caja y solo
    «Aceptar» la guarda y rearma la capa.                              */
@@ -6445,7 +6682,7 @@ document.getElementById("desc-close").addEventListener("click", () => {
   layerInfoDismissed = true;
   releaseFocus();
 });
-for (const box of [styleBox, iconBox, colorBox, descBox, shortcutsBox, ktpBox, kdpBox, gnpBox, gnpEditorBox, shBox, pointsBox]) makeDialogMovable(box);
+for (const box of [styleBox, iconBox, colorBox, descBox, shortcutsBox, ktpBox, kdpBox, gnpBox, gnpEditorBox, shBox, pointsBox, logBox]) makeDialogMovable(box);
 setupDialog(styleBox, { modal: false }); /* flotante: el mapa sigue vivo */
 setupDialog(iconBox, { modal: true });
 setupDialog(colorBox, { modal: true });
@@ -6457,9 +6694,10 @@ setupDialog(gnpBox, { modal: true });
 setupDialog(gnpEditorBox, { modal: true });
 setupDialog(shBox, { modal: true });
 setupDialog(pointsBox, { modal: true });
+setupDialog(logBox, { modal: true });
 window.addEventListener("resize", () => {
   /* a moved dialog must not fall off-screen */
-  for (const box of [styleBox, iconBox, colorBox, descBox, shortcutsBox, ktpBox, kdpBox, gnpBox, gnpEditorBox, shBox, pointsBox]) clampToViewport(box);
+  for (const box of [styleBox, iconBox, colorBox, descBox, shortcutsBox, ktpBox, kdpBox, gnpBox, gnpEditorBox, shBox, pointsBox, logBox]) clampToViewport(box);
 });
 let styleTargets = [];    /* nodes being edited */
 let styleKindOpen = null; /* "marker" | "polygon" */
@@ -7160,6 +7398,7 @@ document.addEventListener("keydown", e => {
   /* Escape closes open dialogs first; otherwise cancels tool/selection */
   if (!ctxMenuEl.hidden) { closeCtxMenu(); return; }
   if (!shortcutsDialog.hidden) { toggleShortcuts(); return; }
+  if (!logDialog.hidden) { toggleLog(); return; }
   if (!descDialog.hidden) { descDialog.hidden = true; layerInfoDismissed = true; releaseFocus(); return; }
   if (!colorPicker.hidden) { colorPicker.hidden = true; colorTarget = null; releaseFocus(); return; }
   if (!iconPicker.hidden) { iconPicker.hidden = true; pendingIcon = null; releaseFocus(); return; }

@@ -79,6 +79,21 @@
   .nav-msg-line { margin: 3px 0; color: var(--danger); }
   .nav-msg-line.info { color: var(--muted); }
   .nav-msg-ok { margin: 2px 0 4px; padding: 1px 10px; }
+  /* La marca de tiempo va atenuada y algo menor: el área de avisos es
+     estrecha y no debe competir con el mensaje.                       */
+  .nav-msg-time {
+    color: var(--muted); font-size: 10.5px;
+    font-family: ui-monospace, Consolas, monospace; margin-right: 5px;
+  }
+  .nav-msg-count { margin-left: 5px; font-weight: 600; font-variant-numeric: tabular-nums; }
+  .nav-msg-count:empty { display: none; }
+  /* Punto sobre el botón del registro cuando hay avisos sin ver: es lo
+     que permite enterarse de los que se ocultaron solos.              */
+  #log-btn { position: relative; }
+  #log-btn.unseen::after {
+    content: ""; position: absolute; top: 0; right: 0;
+    width: 6px; height: 6px; border-radius: 50%; background: var(--danger);
+  }
   #storage-usage {
     font-size: 12px;
     color: var(--muted);
@@ -601,6 +616,45 @@
   /* La lista de puntos necesita su propio ancho: .dlg-box trae
      max-width 90vw, pensado para los diálogos anchos.                 */
   #points-dialog .dlg-box { max-width: min(92vw, 640px); display: flex; flex-direction: column; }
+  /* Sin esto hereda el max-width: 90vw de .dlg-box y los avisos, que son
+     largos, estirarían el diálogo a casi toda la pantalla.            */
+  /* La caja no fija ancho: lo pone la lista, que es lo que el usuario
+     redimensiona. El tope en vw evita que un tirón la saque de la
+     pantalla.                                                         */
+  #log-dialog .dlg-box { max-width: 94vw; }
+  /* El párrafo de ayuda prefiere ir en una línea (764 px medidos) y con
+     eso marcaba el ancho mínimo del diálogo: al estrechar la lista, la
+     ventana se quedaba igual de ancha. Con `width: 0` deja de aportar
+     ancho preferido y `min-width: 100%` lo devuelve a ocupar la caja
+     entera, así que manda la lista, que es lo que se redimensiona.   */
+  #log-dialog .dlg-hint { width: 0; min-width: 100%; }
+  /* `resize: both` es el redimensionado nativo del navegador, el mismo
+     recurso que el editor de puntos: el tirador de la esquina no estorba
+     al arrastre por el <h2> (makeDialogMovable). Las medidas van en la
+     LISTA, no en la caja, para que al agrandarla crezca el diálogo con
+     ella; hacen falta explícitas porque `resize` necesita una base de la
+     que partir.                                                        */
+  .log-list {
+    width: 640px; height: 45vh;
+    min-width: 260px; min-height: 6em;
+    max-width: 90vw; max-height: 75vh;
+    overflow: auto; resize: both; margin-top: 8px;
+    border: 1px solid var(--border); border-radius: 4px; padding: 6px 8px;
+    font-size: 12.5px; line-height: 1.4; box-sizing: border-box;
+  }
+  .log-row { display: flex; gap: 8px; padding: 3px 0; align-items: baseline; }
+  .log-row + .log-row { border-top: 1px solid var(--border); }
+  .log-time {
+    flex: 0 0 auto; color: var(--muted);
+    font-family: ui-monospace, Consolas, monospace; font-size: 11.5px;
+  }
+  /* El tono se hereda del panel, para que el registro se lea igual que
+     se leyó el aviso original.                                        */
+  .log-text { flex: 1 1 auto; color: var(--danger); }
+  .log-row.info .log-text { color: var(--muted); }
+  .log-mark { flex: 0 0 auto; width: 1ch; font-weight: 700; color: var(--danger); }
+  .log-rep { color: var(--muted); font-size: 11.5px; white-space: nowrap; }
+  .log-empty { color: var(--muted); font-style: italic; }
   /* `resize: both` es el redimensionado nativo del navegador: el tirador
      de la esquina no estorba al arrastre por el <h2> (makeDialogMovable).
      Las medidas son del textarea, no de la caja, para que al agrandarlo

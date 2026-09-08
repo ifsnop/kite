@@ -303,12 +303,92 @@ showEmptyMessage();
    archivos a la vez no haga que un aviso pise al anterior.           */
 const MSG_TIMEOUT = 6000;
 const MSG_MAX_LINES = 8;
+/* Tope del registro de la sesión. Solo vive en memoria: no se guarda en
+   IndexedDB, así que se pierde al cerrar la página.                   */
+const MSG_LOG_MAX = 200;
+
+/* Registro de la sesión: sobrevive a que la línea del panel se vaya a
+   los MSG_TIMEOUT, que es lo que antes hacía imposible leer un aviso
+   que pasó desapercibido. Entradas en orden cronológico, la más
+   reciente al final, como las líneas de un fichero de log.           */
+const msgLog = [];
+let msgLogUnseen = 0; /* entradas desde la última apertura del registro */
+
+/* "2026-09-08 13:02:11". Cuidado con el relleno de ceros: el proyecto ya
+   tuvo ese fallo en otra marca de tiempo (pngTimestamp, ver
+   tests/pngnametest.js). Se usa la hora LOCAL, que es la que el usuario
+   reconoce como "cuándo pasó".                                       */
+function msgStamp(ms) {
+  const d = new Date(ms);
+  const p = n => String(n).padStart(2, "0");
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())} `
+    + `${p(d.getHours())}:${p(d.getMinutes())}:${p(d.getSeconds())}`;
+}
+
+/* El registro entero como texto plano, para el portapapeles. Mismo orden
+   que en pantalla y marca completa en cada línea, para que lo pegado se
+   parezca a un log de verdad y no dependa del contexto.              */
+function logText() {
+  if (!msgLog.length) return "";
+  return msgLog.map(e => {
+    const rep = e.count > 1 ? ` [x${e.count}, última ${msgStamp(e.last)}]` : "";
+    return `${msgStamp(e.first)}\t${e.tone === "info" ? "INFO " : "AVISO"}\t${e.text}${rep}`;
+  }).join("\n");
+}
+
+/* Pinta la marca de tiempo y el contador de una línea ya existente. En
+   el panel se muestra la marca de la ÚLTIMA repetición: es una vista en
+   vivo, y ahí "cuándo se produjo" significa cuándo ha vuelto a pasar.
+   El detalle completo (primera y última) lo da el registro.          */
+function paintMsgLine(line, entry) {
+  line.querySelector(".nav-msg-time").textContent = msgStamp(entry.last);
+  const count = line.querySelector(".nav-msg-count");
+  count.textContent = entry.count > 1 ? `×${entry.count}` : "";
+}
 
 function navMessage(txt, { sticky = false, tone = "error" } = {}) {
   const el = document.getElementById("nav-msg");
+  const now = Date.now();
+  const key = `${tone} ${txt}`;
+
+  /* Un aviso se FUNDE con una línea que siga visible y diga lo mismo, en
+     vez de añadir otra: es lo que evita que una racha llene el panel.
+     Se busca recorriendo las líneas (como mucho MSG_MAX_LINES) en vez de
+     con un selector de atributo, que obligaría a escapar el texto.    */
+  for (const old of el.querySelectorAll(".nav-msg-line")) {
+    if (old._msgKey !== key) continue;
+    old._logEntry.count++;
+    old._logEntry.last = now;
+    paintMsgLine(old, old._logEntry);
+    /* Se reinicia el temporizador —mientras siga ocurriendo, la línea
+       sigue a la vista— y NO se mueve de sitio: reordenar haría saltar
+       el texto bajo el cursor.                                        */
+    if (old._timer) {
+      clearTimeout(old._timer);
+      old._timer = setTimeout(() => old.remove(), MSG_TIMEOUT);
+    }
+    return;
+  }
+
+  const entry = { text: txt, tone, sticky, count: 1, first: now, last: now };
+  msgLog.push(entry);
+  if (msgLog.length > MSG_LOG_MAX) msgLog.shift();
+  msgLogUnseen++;
+  refreshLogButton();
+
   const line = document.createElement("p");
   line.className = `nav-msg-line ${tone}`;
-  line.textContent = txt;
+  line._msgKey = key;
+  line._logEntry = entry;
+  const time = document.createElement("time");
+  time.className = "nav-msg-time";
+  const body = document.createElement("span");
+  body.className = "nav-msg-text";
+  body.textContent = txt;
+  const count = document.createElement("span");
+  count.className = "nav-msg-count";
+  line.append(time, body, count);
+  paintMsgLine(line, entry);
   el.insertBefore(line, el.querySelector(".nav-msg-ok"));
 
   /* Tope de líneas: se retiran las más antiguas que no exijan lectura */
@@ -327,7 +407,7 @@ function navMessage(txt, { sticky = false, tone = "error" } = {}) {
       el.appendChild(ok);
     }
   } else {
-    setTimeout(() => line.remove(), MSG_TIMEOUT);
+    line._timer = setTimeout(() => line.remove(), MSG_TIMEOUT);
   }
 }
 
