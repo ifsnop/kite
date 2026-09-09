@@ -1,0 +1,33 @@
+<svg xmlns="http://www.w3.org/2000/svg"
+     width="32" height="32" viewBox="0 0 24 24"
+     fill="none"
+     stroke-width="2"
+     stroke-linecap="round"
+     stroke-linejoin="round"
+     role="img" aria-labelledby="kite-favicon-title">
+  <title id="kite-favicon-title">KITE Local</title>
+
+  <!-- Same artwork as kite-icon.svg, scaled up to fill the tile: including
+       the stroke width the drawing spans x 2..21 / y 4..21 of the 24 box,
+       so at 16 px the plain icon reads as a small mark lost in its square.
+       The transform recentres that box (11.5, 12.5) on (12, 12) and scales
+       by 1.15, which leaves ~1 unit of margin on every side and thickens
+       the strokes — welcome at favicon size. If the artwork changes, both
+       numbers have to be recomputed from its new bounding box. -->
+  <g transform="translate(12,12) scale(1.15) translate(-11.5,-12.5)">
+    <!-- compartir -->
+    <circle cx="16" cy="7" r="2" fill="#4CAF50" stroke="#4CAF50"/>
+    <circle cx="18" cy="18" r="2" fill="#4CAF50" stroke="#4CAF50"/>
+
+    <path d="M8 11l6-3"
+          stroke="#4CAF50"/>
+
+    <path d="M8 13l8 4"
+          stroke="#4CAF50"/>
+
+    <!-- pin -->
+    <path d="M5.5 16s-2.5-3.25-2.5-6.5a2.5 2.5 0 1 1 5 0c0 3.25-2.5 6.5-2.5 6.5z"
+          stroke="#3388ff"/>
+  </g>
+
+</svg>

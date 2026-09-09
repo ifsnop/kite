@@ -31,9 +31,29 @@
 <meta property="og:site_name" content="KITE Local">
 <meta property="og:title" content="KITE Local &#8212; KML Interactive Tree Explorer">
 <meta property="og:description" content="Carga archivos KML, KMZ y GeoJSON, organiza las capas en un &#225;rbol, mide distancias y rumbos geod&#233;sicos y personaliza marcadores y pol&#237;gonos. Funciona directamente en el navegador.">
-<meta name="twitter:card" content="summary">
+<meta name="twitter:card" content="summary_large_image">
 <meta name="twitter:title" content="KITE Local &#8212; KML Interactive Tree Explorer">
 <meta name="twitter:description" content="KITE Local: visor de KML/KMZ/GeoJSON con &#225;rbol de capas, mediciones geod&#233;sicas y estilos personalizables. Un &#250;nico archivo HTML.">
+<!-- The preview image MUST be an absolute URL and a raster format: no
+     social scraper renders SVG, and none resolves a relative path (they
+     fetch the image from their own servers, not from this page). It is
+     therefore served from the repository, generated from media/ -->
+<meta property="og:image" content="https://raw.githubusercontent.com/ifsnop/kite/main/media/kite-social.png">
+<meta property="og:image:type" content="image/png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:image:alt" content="KITE Local &#8212; KML Interactive Tree Explorer">
+<meta name="twitter:image" content="https://raw.githubusercontent.com/ifsnop/kite/main/media/kite-social.png">
+<meta name="twitter:image:alt" content="KITE Local &#8212; KML Interactive Tree Explorer">
+
+<!-- Favicon, embedded as a data URI instead of linked from media/: the
+     product is one file opened by double click, and a file:// page next
+     to no media/ directory would show the browser's blank icon. The SVG
+     covers every current browser; the 32 px PNG is the fallback for the
+     few that ignore SVG icons. media/favicon.ico is for whoever serves
+     this page from a web root, where /favicon.ico is requested anyway. -->
+<link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg%20xmlns=%22http://www.w3.org/2000/svg%22%20viewBox=%220%200%2024%2024%22%20fill=%22none%22%20stroke-width=%222%22%20stroke-linecap=%22round%22%20stroke-linejoin=%22round%22%3E%3Cg%20transform=%22translate(12,12)%20scale(1.15)%20translate(-11.5,-12.5)%22%3E%3Ccircle%20cx=%2216%22%20cy=%227%22%20r=%222%22%20fill=%22%234CAF50%22%20stroke=%22%234CAF50%22/%3E%3Ccircle%20cx=%2218%22%20cy=%2218%22%20r=%222%22%20fill=%22%234CAF50%22%20stroke=%22%234CAF50%22/%3E%3Cpath%20d=%22M8%2011l6-3%22%20stroke=%22%234CAF50%22/%3E%3Cpath%20d=%22M8%2013l8%204%22%20stroke=%22%234CAF50%22/%3E%3Cpath%20d=%22M5.5%2016s-2.5-3.25-2.5-6.5a2.5%202.5%200%201%201%205%200c0%203.25-2.5%206.5-2.5%206.5z%22%20stroke=%22%233388ff%22/%3E%3C/g%3E%3C/svg%3E">
+<link rel="alternate icon" type="image/png" sizes="32x32" href="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAACAAAAAgCAYAAABzenr0AAAAAXNSR0IArs4c6QAABJ1JREFUWEfdVm1Mm1UUfs59+zFAxS4DJYqauWWLH8lo/ZjGZDPuw0E/BgH+uM0sRoiaobCFlS3L5sKg3eYCLnG6+Uv9YWQWVqAE4uJ+GI26VuLCL+I/dcHhGJDx0dL3yPv2fUsppVtcyaL3R3N773nP85zznHvPJdzlQXcZH/8/AiU+ZwVI7Ad4LQGTzLjCEtcHXP7LqbKd0QyUtG8/RMDRBUCMKEtyWbfL70/eyxgB+9d2KwvpMoEW8cnDUXP48Z7inrFEEvONmcnqxWsElIPxEgNDRLgYFTjdX0+D6Qq2xOdqJKKDig2rhrFfZZBWajKTI1DW3pWSwNPNbDEBPSA8nyKFM0w4HHJT02IkSnyuNhCVq8AMUDwRChEtTpb3dpX5T6UkYPNwBwBXuihlwqZf9tPFRJsXvqrIWm6MvA3w+wTKUcBlAoi1DCjzW2VgXTM/KxF+0h0zY/eMAQExg0clQj0USZSkMn4ONdBzynxL75Yc482stwCqJ0JeIikGx0Hn1nlICF7td/nHF2TA2sxVRPhEk+7HYAOt141sx9kKGUGNQFh+cPcDD+WO1ABUR4TcJOBpAGY94vgeIyqDtifrH6sPAFYPewlqpEoGW0Juqk10bPXwFAFmZS1vZfWYwfjXfUlS/Q2gRQi5lWXxCoM9AK2J+ePvGfROoLSjP5W8OoEDBBzTovSHGiheC7ZjXAAJf+of56/aAUm6qf3lYWZ4IzmTZ/q29umL6t7WC85VJsE3Oh2dw+nqSiVQ5OU3BONTzfD3oJsK9Y+sTWwngc7Y/ygK1pQrtXCVwScmLKNnLr18aSodwK32VALJRRg1w9JfSzdUebx8mBhHlLnB/Fsk77F9dVHz9Lme4h5F7zsesQMau4CuE3C/VgevhtzUq9WHnwCHMjdlh3rDL1Y5gs8EI3eMrDmI34Q2D7fpxw3A+aCbKp5q5EKTAYN6AS4vPART1pU/GDg+YRk9e6fpVzjECaxr4mJJoFuPTAY2CGCPTkoYriF/ZTVoVo/Y4CEGnbgeMX70Q2Xb5L/NyLxeYGvmEAhFejECeFh3nG1p787N+2wDCPfMB1NPQosk8YfJl8ztkJpHoMjL5YKhSJGEgavBaTyy6YnKnGXGyHsMfpdAlkSj2bWR2bXWqYix5ZvKtlF9z9HpyOYwr5UlKTKROzqYLNuC1mnzcB+AzUkU7EE3xeVxXnDeG2XaQ4xagFYkERkD47SR6OQMsAOMFhCkmGoIM+TXu8v8X+rfLCRwklcggl9BKNCMTgXdtDdVOtVGZArXEGNfMhGAwwCZUvUFBnZ2l3Z8Ma8IEwGsXl5PjLMMDISmsBNHaCadnhu/3bgseyS3SoAOgpCflJFUjWlce5xcy9iLSAHdFthmlqbNb8rMjYJIbVSstGUdhefeSzKwK1Da8XlGCeiRl/hcH4NQHUNOaM0qmThkY1dph/KGzPyw+5x1IPFBrO60e0ONfu51tKQZsJ+3r2ZhGCCCMXV4PK49ToaWJAMKaLHPVSOIWhdeKaoOu9KegkyJUuxzbhagoyA8yUwREA8QiwNdZe3fLXoPZAr8dv0smQT/GQL/AGXlwjBmmVxfAAAAAElFTkSuQmCC">
 
 <!-- Integridad de subrecursos (SRI): el navegador verifica el hash antes
      de aplicar o ejecutar el archivo, así que un CDN comprometido no
@@ -1203,7 +1223,7 @@ const map = L.map("map", {
 
 /* Fecha de generación del código (versión): AÑOMESDIAHORAMINUTO.
    Actualizar en cada generación; se muestra junto al crédito de Leaflet. */
-const BUILD = "202609081445";
+const BUILD = "202609091115";
 map.attributionControl.setPrefix(
   `v${BUILD} | <a href="https://leafletjs.com" title="A JavaScript library for interactive maps">Leaflet</a>`);
 
