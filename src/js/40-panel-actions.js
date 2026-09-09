@@ -296,8 +296,11 @@ function addPlaceMarker(r) {
 const PINS_SECTION = "Marcadores";
 function createPin() {
   const marker = L.marker(map.getCenter()).addTo(rootGroup);
+  /* Autonumerado como las formas dibujadas y las mediciones: con un
+     nombre fijo, veinte pines se llamaban todos "Marcador" y no había
+     forma de distinguirlos en el árbol.                              */
   const li = makeNode({
-    name: "Marcador", layer: marker, style: { color: DEFAULT_MARKER_STYLE.color }
+    name: nextNumberedName("Marcador"), layer: marker, style: { color: DEFAULT_MARKER_STYLE.color }
   });
   ensureNamedSection(PINS_SECTION).appendChild(li);
   ensureMarkerDefaults(li);

@@ -174,7 +174,7 @@ function openStyleDialog(li, { isNew = false } = {}) {
      que hay algo debajo: se cierra antes de mostrar el de edición.    */
   if (!descDialog.hidden) descDialog.hidden = true;
   const kind = styleKind(li);
-  if (kind !== "marker" && kind !== "polygon" && kind !== "imageOverlay") {
+  if (kind !== "marker" && kind !== "polygon" && kind !== "measure" && kind !== "imageOverlay") {
     navMessage("Esta capa no tiene estilos editables.");
     return;
   }
@@ -198,6 +198,7 @@ function openStyleDialog(li, { isNew = false } = {}) {
     ? `Estilo de ${styleTargets.length} capas` : `Estilo: ${li._name}`;
   $id("style-marker").hidden = kind !== "marker";
   $id("style-polygon").hidden = kind !== "polygon";
+  $id("style-measure").hidden = kind !== "measure";
   $id("style-imageoverlay").hidden = kind !== "imageOverlay";
   /* El nombre solo tiene sentido con un único nodo: es propio de cada uno */
   const single = styleTargets.length === 1;
@@ -259,10 +260,30 @@ function openStyleDialog(li, { isNew = false } = {}) {
        posición de un marcador) y solo si hay de verdad un polígono cerrado */
     polyMeasures = single ? polygonMeasures(styleTargets[0]) : null;
     $id("pg-measures").hidden = !polyMeasures;
-    if (polyMeasures) { $id("pg-unit").value = polyMeasureUnit; renderPolyMeasures(); }
+    if (polyMeasures) { $id("pg-unit").value = measureUnit; renderPolyMeasures(); }
     /* La lista de puntos es la geometría de UN nodo, como la posición de
        un marcador: no tiene sentido en bloque.                        */
     $id("pg-points-row").hidden = !(single && solePath(styleTargets[0]));
+  } else if (kind === "measure") {
+    styleDraft = normalizePathStyle(styleTargets[0]._style);
+    /* Solo un círculo encierra superficie: para una línea el relleno no
+       existe. Se DESHABILITA, no se esconde, igual que en las formas
+       abiertas del diálogo de polígonos. Con una selección mixta manda
+       el caso restrictivo: basta una línea para que no haya relleno que
+       editar en bloque.                                               */
+    const noFill = !styleTargets.every(t => t._measure && t._measure.type === "circle");
+    $id("ms-fill-color").disabled = noFill;
+    $id("ms-fill-opacity").disabled = noFill;
+    $id("ms-fill-color-row").classList.toggle("dim", noFill);
+    $id("ms-fill-opacity-row").classList.toggle("dim", noFill);
+    $id("ms-weight").value = styleDraft.weight;
+    setColorButton($id("ms-color"), styleDraft.color);
+    setColorButton($id("ms-fill-color"), styleDraft.fillColor);
+    $id("ms-fill-opacity").value = styleDraft.fillOpacity;
+    /* Las medidas son de UNA medición, como la posición de un marcador */
+    msMeasures = single ? measurementValues(styleTargets[0]._measure) : null;
+    $id("ms-values").hidden = !msMeasures;
+    if (msMeasures) { $id("ms-unit").value = measureUnit; renderMeasureValues(); }
   } else {
     styleDraft = { opacity: styleTargets[0]._imageOverlay.opacity };
     $id("io-opacity").value = styleDraft.opacity;
@@ -296,6 +317,7 @@ function closeStyleDialog(commit = false) {
   posOriginal = null;
   styleIsNew = false;
   polyMeasures = null;
+  msMeasures = null;
 }
 
 /* ---------- Position controls ---------- */
@@ -370,33 +392,93 @@ function readPolygonControls() {
     fillOpacity: Number($id("pg-fill-opacity").value)
   });
 }
+function readMeasureControls() {
+  /* `fill` no se lee de ningún control: no hay selector de modo. Sale
+     del estilo de la medición (un círculo se rellena, una línea no) y
+     se vuelve a decidir POR CAPA al aceptar, porque la selección puede
+     mezclar líneas y círculos.                                        */
+  Object.assign(styleDraft, {
+    weight: Number($id("ms-weight").value) || 1,
+    color: colorOf($id("ms-color")),
+    opacity: 1, /* el contorno siempre opaco, como en los polígonos */
+    fillColor: colorOf($id("ms-fill-color")),
+    fillOpacity: Number($id("ms-fill-opacity").value)
+  });
+}
+/* Un único punto de reparto de "vuelca los controles en el borrador":
+   el selector de color y el botón Aceptar tenían cada uno el suyo, y
+   añadir un tipo de nodo obligaba a acordarse de tocar los dos.      */
+function readStyleControls() {
+  if (styleKindOpen === "marker") readMarkerControls();
+  else if (styleKindOpen === "polygon") readPolygonControls();
+  else if (styleKindOpen === "measure") readMeasureControls();
+  else readImageOverlayControls();
+}
 for (const id of ["mk-size", "mk-text-size", "mk-text-always"]) { /* colours: openColorPicker */
   $id(id).addEventListener("input", () => { if (styleDraft) readMarkerControls(); });
 }
 for (const id of ["pg-weight", "pg-fill-opacity"]) { /* colours: openColorPicker */
   $id(id).addEventListener("input", () => { if (styleDraft) readPolygonControls(); });
 }
+for (const id of ["ms-weight", "ms-fill-opacity"]) { /* colours: openColorPicker */
+  $id(id).addEventListener("input", () => { if (styleDraft) readMeasureControls(); });
+}
 $id("pg-mode").addEventListener("change", () => { if (styleDraft) readPolygonControls(); });
 
 /* ---------- Perímetro y área (solo lectura) ---------- */
-let polyMeasureUnit = "m"; /* se recuerda entre aperturas del diálogo, como posFormat; no persiste entre sesiones, como elevUnit */
+/* Unidad de TODA medida de distancia y área: el perímetro y el área de
+   un polígono, las medidas de una medición y —desde que el usuario lo
+   pidió— las etiquetas que la medición pinta en el visor y en su fila
+   del árbol. Arranca en millas náuticas, que es la unidad de trabajo en
+   navegación aérea y marítima; se recuerda entre aperturas del diálogo,
+   como posFormat, y no persiste entre sesiones, como elevUnit.
+   Es UNA sola preferencia a propósito: hay dos <select> (uno por bloque
+   del diálogo) pero una única pregunta, "¿en qué unidad quiero leer
+   esto?", y dos respuestas distintas a la vez solo sorprenderían.    */
+let measureUnit = "nm";
 let polyMeasures = null;   /* {area, perim} en m/m² del polígono abierto, o null */
 function renderPolyMeasures() {
   if (!polyMeasures) return;
-  const f = POLY_UNIT_FACTOR[polyMeasureUnit], u = POLY_UNIT_LABEL[polyMeasureUnit];
   /* Una línea tiene LONGITUD; solo un contorno cerrado tiene perímetro */
   $id("pg-perim-label").textContent = polyMeasures.open ? "Longitud" : "Perímetro";
-  $id("pg-perimeter").textContent = `${(polyMeasures.perim / f).toFixed(2)} ${u}`;
+  $id("pg-perimeter").textContent = fmtUnitDist(polyMeasures.perim, measureUnit);
   /* area === null: anillo sin cerrar (algunos JSON), no hay área que mostrar */
   $id("pg-area-row").hidden = polyMeasures.area === null;
   if (polyMeasures.area !== null) {
-    $id("pg-area").textContent = `${(polyMeasures.area / (f * f)).toFixed(2)} ${u}²`;
+    $id("pg-area").textContent = fmtUnitArea(polyMeasures.area, measureUnit);
   }
 }
-$id("pg-unit").addEventListener("change", () => {
-  polyMeasureUnit = $id("pg-unit").value;
+/* Cambiar la unidad en CUALQUIERA de los dos bloques repinta también las
+   etiquetas de las mediciones del visor: la preferencia es única, así
+   que dejar el mapa con la unidad anterior lo pondría en desacuerdo con
+   la ventana que se acaba de tocar.                                   */
+function setMeasureUnit(unit) {
+  measureUnit = unit;
+  $id("pg-unit").value = unit;
+  $id("ms-unit").value = unit;
   renderPolyMeasures();
-});
+  renderMeasureValues();
+  refreshMeasureLabels();
+}
+$id("pg-unit").addEventListener("change", () => setMeasureUnit($id("pg-unit").value));
+
+/* ---------- Medidas de una medición (solo lectura) ---------- */
+let msMeasures = null; /* {circle, dist, area, brg} de la medición abierta, o null */
+function renderMeasureValues() {
+  if (!msMeasures) return;
+  /* Un círculo se describe por su RADIO; una línea, por su distancia */
+  $id("ms-dist-label").textContent = msMeasures.circle ? "Radio" : "Distancia";
+  $id("ms-dist").textContent = fmtUnitDist(msMeasures.dist, measureUnit);
+  $id("ms-area-row").hidden = msMeasures.area === null;
+  if (msMeasures.area !== null) {
+    $id("ms-area").textContent = fmtUnitArea(msMeasures.area, measureUnit);
+  }
+  /* El rumbo va SIEMPRE en grados: no es una distancia y la unidad
+     elegida no le afecta.                                            */
+  $id("ms-bearing-row").hidden = msMeasures.brg === null;
+  if (msMeasures.brg !== null) $id("ms-bearing").textContent = `${msMeasures.brg.toFixed(1)}°`;
+}
+$id("ms-unit").addEventListener("change", () => setMeasureUnit($id("ms-unit").value));
 
 function readImageOverlayControls() {
   styleDraft.opacity = Number($id("io-opacity").value);
@@ -435,6 +517,17 @@ $id("style-accept").addEventListener("click", () => {
     for (const t of styleTargets) {
       t._style = { ...styleDraft };
       applyPolygonStyle(t);
+    }
+  } else if (styleKindOpen === "measure") {
+    readMeasureControls();
+    for (const t of styleTargets) {
+      /* El relleno se decide por capa, no en el diálogo: una selección
+         puede mezclar líneas y círculos, y un trazo abierto relleno
+         obliga a Leaflet a cerrarlo por su cuenta (misma regla que
+         clearFillOnOpenPaths aplica en la propia capa).              */
+      t._style = { ...styleDraft, fill: t._measure.type === "circle" && styleDraft.fill !== false };
+      applyPolygonStyle(t); /* una medición es un trazo más: mismo camino */
+      t._measure.style = t._style; /* el registro pendiente lo serializa desde aquí */
     }
   } else {
     readImageOverlayControls();

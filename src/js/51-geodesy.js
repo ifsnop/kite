@@ -101,17 +101,23 @@ const fmtAltitude = m =>
   `${m.toFixed(1)} m / ${Math.round(m / METERS_PER_FOOT)} ft`;
 
 
-/* Distancia métrica y náutica: la náutica es la unidad de trabajo en
-   navegación aérea y marítima, y los grados de rumbo se mantienen.   */
-function fmtDist(m) {
-  const metric = m < 1000 ? `${m.toFixed(1)} m` : `${(m / 1000).toFixed(2)} km`;
-  const nm = m / METERS_PER_NM;
-  return `${metric} / ${nm < 10 ? nm.toFixed(2) : nm.toFixed(1)} NM`;
-}
-
-/* Unidades del perímetro/área del diálogo de propiedades (metros por unidad) */
+/* Unidades de las distancias y las áreas medidas (metros por unidad).
+   Las elige el usuario en el diálogo de propiedades (`measureUnit`) y
+   mandan también sobre las etiquetas del visor.                      */
 const POLY_UNIT_FACTOR = { m: 1, km: 1000, ft: METERS_PER_FOOT, nm: METERS_PER_NM };
 const POLY_UNIT_LABEL = { m: "m", km: "km", ft: "ft", nm: "NM" };
+
+/* Una medida en la unidad elegida. La MISMA función para el diálogo de
+   propiedades y para las etiquetas del visor y del árbol: son la misma
+   medida, y verla escrita de dos formas distintas solo hace dudar de si
+   de verdad lo es. Sustituye a `fmtDist`, que daba siempre métrico Y
+   náutico a la vez sin dejar elegir.                                  */
+const fmtUnitDist = (m, unit) =>
+  `${(m / POLY_UNIT_FACTOR[unit]).toFixed(2)} ${POLY_UNIT_LABEL[unit]}`;
+/* El factor va AL CUADRADO: un área no se convierte con el mismo número
+   que una distancia.                                                  */
+const fmtUnitArea = (m2, unit) =>
+  `${(m2 / POLY_UNIT_FACTOR[unit] ** 2).toFixed(2)} ${POLY_UNIT_LABEL[unit]}²`;
 
 /* Punto medio GEODÉSICO del arco a→b. Promediar latitudes y longitudes
    coloca mal la etiqueta en líneas largas y directamente en el otro lado
@@ -156,6 +162,13 @@ function ringArea(ring) {
   }
   return Math.abs(area * EARTH_R * EARTH_R / 2);
 }
+
+/* Área encerrada por un círculo de radio geodésico `r` (metros medidos
+   SOBRE la superficie, que es lo que da map.distance): el casquete
+   esférico 2πR²(1−cos(r/R)), no πr². Para un círculo de metros las dos
+   coinciden, pero una medición de decenas de kilómetros ya se separa, y
+   el resto del proyecto mide sobre la misma esfera (EARTH_R).         */
+const capArea = r => 2 * Math.PI * EARTH_R * EARTH_R * (1 - Math.cos(r / EARTH_R));
 
 /* getLatLngs() de un L.Polygon viene en dos profundidades posibles: los
    anillos de UN polígono ([exterior, agujero1, …], el caso normal de KML

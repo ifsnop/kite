@@ -76,8 +76,13 @@
   }
   .btn:hover { border-color: var(--accent); color: var(--accent); }
   #nav-msg { font-size: 12px; min-height: 0; }
+  /* Solo hay DOS niveles de aviso: notificación (`info`) y alerta
+     (`error`, el de por defecto). La notificación va en el color normal
+     del texto, no en gris: en gris —que aquí es el color de lo
+     secundario— un aviso perfectamente legible se leía como
+     deshabilitado.                                                    */
   .nav-msg-line { margin: 3px 0; color: var(--danger); }
-  .nav-msg-line.info { color: var(--muted); }
+  .nav-msg-line.info { color: var(--text); }
   .nav-msg-ok { margin: 2px 0 4px; padding: 1px 10px; }
   /* La marca de tiempo va atenuada y algo menor: el área de avisos es
      estrecha y no debe competir con el mensaje.                       */
@@ -554,12 +559,28 @@
   /* Sin esto heredan el max-width: 90vw de .dlg-box y una caja de texto
      corto se estira a casi toda la pantalla.                          */
   #kml-tags-picker .dlg-box, #kml-dup-picker .dlg-box, #sh-creds .dlg-box { max-width: 42ch; }
+  /* El título del diálogo de propiedades lleva el nombre del nodo, y un
+     nombre de KML puede tener cientos de caracteres: con la anchura de
+     ajuste al contenido de .dlg-box (tope 90vw) la ventana crecía con el
+     texto hasta ocupar casi la pantalla. Un ANCHO propio la hace
+     independiente de lo que se esté editando; el título envuelve (ver el
+     `overflow-wrap` de .dlg-box h2, que parte también un nombre sin
+     espacios).                                                        */
+  #style-dialog .dlg-box { width: min(92vw, 24rem); }
+  /* Y la caja de edición del nombre ocupa lo que dé esa ventana, no los
+     190 px de un control corto: el nombre es el campo más largo del
+     diálogo, así que es el que debe crecer con ella.                  */
+  #name-row input { max-width: none; }
   .dlg-box h2 {
     margin: 0 0 10px;
     font-size: 14px;
     cursor: grab;          /* the title bar is the drag handle */
     user-select: none;
     touch-action: none;    /* the browser must not pan while dragging */
+    /* Un título puede llevar el nombre de un nodo, y un nombre de KML
+       puede ser una sola "palabra" larguísima: sin esto desbordaría la
+       caja en vez de partirse.                                        */
+    overflow-wrap: anywhere;
   }
   .dlg-box h2:active { cursor: grabbing; }
   .dlg-box h2::before { content: "\2725\00A0"; color: var(--muted); font-weight: 400; }
@@ -651,7 +672,7 @@
   /* El tono se hereda del panel, para que el registro se lea igual que
      se leyó el aviso original.                                        */
   .log-text { flex: 1 1 auto; color: var(--danger); }
-  .log-row.info .log-text { color: var(--muted); }
+  .log-row.info .log-text { color: var(--text); }
   .log-mark { flex: 0 0 auto; width: 1ch; font-weight: 700; color: var(--danger); }
   .log-rep { color: var(--muted); font-size: 11.5px; white-space: nowrap; }
   .log-empty { color: var(--muted); font-style: italic; }

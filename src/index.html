@@ -174,6 +174,26 @@
         <button class="btn" id="pg-points">Ver y editar&#8230;</button>
       </div>
     </div>
+    <!-- Medición (línea o círculo). El relleno solo aplica al círculo:
+         una línea no encierra ninguna superficie. Los valores son de
+         solo lectura, como el perímetro y el área de un polígono. -->
+    <div id="style-measure" hidden>
+      <div class="dlg-row"><span>Ancho del trazo</span><input type="number" id="ms-weight" min="0.5" max="12" step="0.5"></div>
+      <div class="dlg-row"><span>Color del trazo</span><button type="button" class="color-btn" id="ms-color"></button></div>
+      <div class="dlg-row" id="ms-fill-color-row"><span>Color del relleno</span><button type="button" class="color-btn" id="ms-fill-color"></button></div>
+      <div class="dlg-row" id="ms-fill-opacity-row"><span>Opacidad del relleno</span><input type="range" id="ms-fill-opacity" min="0" max="1" step="0.05"></div>
+      <div id="ms-values" hidden>
+        <div class="dlg-row"><span>Unidad</span><select id="ms-unit">
+          <option value="m">Metros</option>
+          <option value="km">Kilómetros</option>
+          <option value="ft">Pies</option>
+          <option value="nm">Millas náuticas</option>
+        </select></div>
+        <div class="dlg-row"><span id="ms-dist-label">Distancia</span><span class="dlg-note" id="ms-dist"></span></div>
+        <div class="dlg-row" id="ms-area-row"><span>Área</span><span class="dlg-note" id="ms-area"></span></div>
+        <div class="dlg-row" id="ms-bearing-row"><span>Rumbo</span><span class="dlg-note" id="ms-bearing"></span></div>
+      </div>
+    </div>
     <div id="style-imageoverlay" hidden>
       <div class="dlg-row"><span>Opacidad</span><input type="range" id="io-opacity" min="0" max="1" step="0.05"></div>
     </div>

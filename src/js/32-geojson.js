@@ -137,7 +137,7 @@ const DB_NAME = "visor-kml";
 const DB_VERSION = 3;  /* esquema de la base: un único almacén "tree".
                           Subir solo cuando cambie la estructura de almacenes;
                           la migración es simplemente borrar lo anterior.     */
-const TREE_SCHEMA = 5; /* formato del árbol serializado. Subir solo cuando
+const TREE_SCHEMA = 6; /* formato del árbol serializado. Subir solo cuando
                           cambie el formato; un árbol guardado con otra
                           versión se descarta al leer.
                           v2: los nodos de capa admiten `mstyle` (estilo de
@@ -149,7 +149,10 @@ const TREE_SCHEMA = 5; /* formato del árbol serializado. Subir solo cuando
                           detalle por zoom).
                           v5: imageOverlay ya no guarda minLod/maxLod (se
                           retira el cambio de nivel de detalle por zoom;
-                          las ortofotos se cargan y muestran todas). */
+                          las ortofotos se cargan y muestran todas).
+                          v6: los nodos "measure" guardan su `style`
+                          (color, grosor y relleno del círculo), ahora
+                          editable desde el diálogo de propiedades. */
 const DB_TREE = "tree";
 
 /* One connection, reused. Opening the database on every save wastes
@@ -511,7 +514,7 @@ function serializeNode(li) {
   const base = { name: li._name, checked: chk ? chk.checked : true };
   if (li._measure) {
     const a = li._measure.mOrigin.getLatLng(), b = li._measure.mDest.getLatLng();
-    return [{ ...base, t: "measure", mtype: li._measure.type,
+    return [{ ...base, t: "measure", mtype: li._measure.type, style: li._style,
               a: { lat: a.lat, lng: a.lng }, b: { lat: b.lat, lng: b.lng } }];
   }
   if (li._elevGrid) {
@@ -575,7 +578,7 @@ function serializePendingRecords(records) {
          buildMeasureRecord), así que cachear a/b se quedaría obsoleto. */
       const a = rec._m.mOrigin.getLatLng(), b = rec._m.mDest.getLatLng();
       return { name: rec.name, checked: rec.checked, t: "measure", mtype: rec.mtype,
-                a: { lat: a.lat, lng: a.lng }, b: { lat: b.lat, lng: b.lng } };
+                style: rec.style, a: { lat: a.lat, lng: a.lng }, b: { lat: b.lat, lng: b.lng } };
     }
     if (rec.t === "elevGrid") {
       return { name: rec.name, checked: rec.checked, t: "elevGrid", cells: rec.cells };
@@ -628,7 +631,7 @@ function exportNode(li) {
   /* Algunos navegadores leen el blob después de volver de click():
      revocarlo en el acto cancela la descarga. Se libera más tarde.  */
   setTimeout(() => URL.revokeObjectURL(url), 60000);
-  navMessage(`Descargado \u00AB${a.download}\u00BB.`);
+  navMessage(`Descargado \u00AB${a.download}\u00BB.`, { tone: "info" }); /* confirma lo pedido: notificación, no alerta */
 }
 
 /* Recognizes an exported tree among the dropped .json files; anything

@@ -372,15 +372,14 @@ document.getElementById("color-accept").addEventListener("click", () => {
   if (colorTarget) {
     setColorButton(colorTarget, colorInput.value);
     /* feed the change into the draft of whichever dialog is open */
-    if (styleDraft) {
-      if (styleKindOpen === "marker") readMarkerControls(); else readPolygonControls();
-    }
+    if (styleDraft) readStyleControls();
   }
   colorPicker.hidden = true;
   colorTarget = null;
   releaseFocus();
 });
-for (const id of ["mk-color", "mk-text-color", "pg-color", "pg-fill-color"]) {
+for (const id of ["mk-color", "mk-text-color", "pg-color", "pg-fill-color",
+                  "ms-color", "ms-fill-color"]) {
   document.getElementById(id).addEventListener("click", e => {
     e.preventDefault();
     openColorPicker(e.currentTarget);

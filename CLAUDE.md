@@ -170,6 +170,17 @@ desarrollo del proyecto.
   que soltar varios archivos a la vez no haga que uno pise a otro, con
   tope `MSG_MAX_LINES` que solo retira los transitorios. Un resumen
   limpio se muestra en tono `info` y se cierra solo, como antes.
+- **Solo hay DOS niveles de aviso, y no se añade un tercero**:
+  `info` es una **notificación** (algo ha ocurrido o ha salido bien: una
+  descarga terminada, una selección, un dato recibido) y se pinta en el
+  color normal del texto —no en gris, que es el color de lo secundario y
+  hacía que un aviso perfectamente vigente se leyera como
+  deshabilitado—; `error` es una **alerta** (algo ha fallado, falta o no
+  se puede hacer) y va en rojo. Es el tono por defecto a propósito: si
+  se olvida, un fallo nunca pasa por notificación. «Exige lectura» no es
+  un nivel: eso es `sticky`, ortogonal al tono. Al escribir un aviso
+  nuevo, la pregunta es solo «¿esto es algo que ha fallado?»; confirmar
+  lo que el usuario acaba de pedir (`Descargado «…»`) no lo es.
 - **Un aviso repetido no añade línea: la funde y cuenta.** Se funde con
   una línea que **siga visible** y tenga el mismo texto y tono
   (`line._msgKey`); se incrementa el contador (`×3`), se **reinicia su
@@ -415,6 +426,15 @@ kitelocal.html     GENERADO. Es el producto; se versiona (quien clone
 - **Renombrar es F2 o el diálogo de propiedades** (fila «Nombre», visible
   solo con un nodo seleccionado, para cualquier tipo de capa). Se retiró
   el botón del lápiz de cada fila.
+- **El texto de una fila NO siempre es su nombre**: una medición muestra
+  «Nombre — 85,18 km / 46,0 NM · 89,7°», y ese texto lo repinta
+  `updateMeasurement` desde `_onRename`. Por eso `startRename` devuelve
+  la etiqueta **tal cual estaba** en vez de reescribirla con `li._name`:
+  hacerlo borraba la medida, y se veía justo cuando el nombre no
+  cambiaba (o al cancelar con Escape), porque entonces `setNodeName`
+  sale antes de llamar a `_onRename` y ya no había quien la repintara.
+  Cualquier fila nueva cuyo texto no sea el nombre a secas depende de
+  esto.
 - **Ancla y rangos**: con Shift (teclado o click) se selecciona todo lo
   que hay entre el ancla y el destino, reemplazando la selección;
   Ctrl+Shift+click marca o desmarca un solo nodo sin arrastrar los
@@ -449,8 +469,41 @@ kitelocal.html     GENERADO. Es el producto; se versiona (quien clone
   relleno" / "Solo contorno" / "Solo relleno" (`pg-mode`), y color y
   opacidad del relleno. Es un selector de tres opciones, no dos casillas
   independientes, porque "ni contorno ni relleno" no es una combinación
-  que tenga sentido ofrecer. Las mediciones no tienen diálogo de estilos
-  (`styleable: false`).
+  que tenga sentido ofrecer.
+- **Las mediciones SÍ tienen diálogo de estilos** (antes iban con
+  `styleable: false` y un color fijo por tipo). Una medición es un trazo
+  más: su estilo se guarda en `li._style`, se aplica con el mismo
+  `applyPolygonStyle` que un polígono y se serializa con el nodo
+  (`TREE_SCHEMA` 6). El diálogo (`#style-measure`) ofrece ancho y color
+  del trazo, color y opacidad del relleno, y las **medidas en solo
+  lectura**, como el perímetro y el área de un polígono: una línea da
+  **distancia y rumbo**; un círculo, **radio y área**, con el mismo
+  selector de unidad y la misma preferencia única (`measureUnit`) que el
+  diálogo de polígonos y que las etiquetas del visor — ver «Una sola
+  unidad de medida» más abajo.
+- **El relleno de una medición es cosa del círculo**: una línea no
+  encierra ninguna superficie, así que sus dos controles de relleno se
+  **deshabilitan, no se esconden** (mismo criterio que las formas
+  abiertas), y con una selección que mezcle líneas y círculos manda el
+  caso restrictivo. La decisión se repite **por capa** al aceptar
+  (`fill: t._measure.type === "circle" && …`) además de en el diálogo,
+  por la misma razón que `clearFillOnOpenPaths`: la selección puede ser
+  mixta y un trazo abierto relleno obliga a Leaflet a cerrarlo por su
+  cuenta.
+- **El guion de la línea de medición (`MEASURE_DASH`) no es estilo
+  editable**: es lo que la distingue de una línea dibujada a mano.
+  Sobrevive a `setStyle` porque Leaflet fusiona opciones en vez de
+  reemplazarlas.
+- **El área de un círculo es la del casquete esférico** (`capArea`,
+  2πR²(1−cos r/R)), no πr². Para un círculo de metros coinciden, pero
+  uno de decenas de kilómetros ya se separa y el resto del proyecto mide
+  sobre la misma esfera (`EARTH_R`).
+- **Los valores por defecto del diálogo caen en la rejilla de sus
+  controles**: la opacidad de relleno del círculo es 0,10 y no 0,08
+  porque `#ms-fill-opacity` va a pasos de 0,05 y el navegador redondea
+  al asignar, de modo que abrir el diálogo y aceptar sin tocar nada
+  cambiaba la opacidad por su cuenta. Al añadir un control numérico
+  nuevo, comprobar que su valor por defecto es asignable tal cual.
 - **Texto y posición: solo para un marcador**. Cuando el objetivo es una
   única capa con exactamente un marcador (`soleMarker`), el diálogo añade
   el texto del marcador y su posición; con selección múltiple o con varios
@@ -549,8 +602,9 @@ kitelocal.html     GENERADO. Es el producto; se versiona (quien clone
   cajas compactas ajustadas al texto (clases `compacto` de popup y
   tooltip) para tapar el mínimo mapa posible. Renombrar la capa actualiza
   el texto.
-- **Las formas dibujadas y las mediciones se autonumeran**
-  («Línea 3», «Polígono 2», «Círculo 1») con `nextNumberedName`, que
+- **Las formas dibujadas, las mediciones y los pines se autonumeran**
+  («Línea 3», «Polígono 2», «Círculo 1», «Marcador 4») con
+  `nextNumberedName`, que
   deduce el número de **los nombres que ya hay en el árbol**, no de un
   contador en memoria. El contador no valdría: una línea o un polígono
   dibujados vuelven de IndexedDB por el camino genérico `t:"layer"`,
@@ -563,7 +617,11 @@ kitelocal.html     GENERADO. Es el producto; se versiona (quien clone
   mayor. Se barre el árbol entero —los nodos se pueden mover a
   cualquier carpeta— incluidos los registros pendientes
   (`li._pending`) de las carpetas nunca desplegadas, que existen
-  aunque no tengan fila. `elevGridCount` sigue con contador propio
+  aunque no tengan fila. El pin del botón 📍 (`createPin`) entró tarde
+  en esta regla: llevaba el nombre fijo «Marcador», así que veinte pines
+  se llamaban todos igual y no había forma de distinguirlos en el árbol.
+  Los marcadores del buscador de lugares NO se numeran: ya traen el
+  nombre del lugar. `elevGridCount` sigue con contador propio
   porque `elevGrid` sí es un tipo de registro propio y lo
   resincroniza al restaurar.
 - **Dibujar NO obliga a cerrar**: el doble click decide la forma. Sobre
@@ -635,10 +693,32 @@ kitelocal.html     GENERADO. Es el producto; se versiona (quien clone
   los manejadores que ata `makeNode`). Para abrir una forma está la
   herramienta de dibujo.
 - **Distancias y rumbos**: siempre geodésicos (esfera terrestre);
-  rumbo 0° = norte, sentido horario. Las distancias se muestran en
-  métrico **y** en millas náuticas (`METERS_PER_NM`), y la etiqueta de una
-  medición se coloca en el punto medio geodésico (`midPoint`, promedio
-  cartesiano 3D), que es correcto en arcos largos y al cruzar ±180°.
+  rumbo 0° = norte, sentido horario. La etiqueta de una medición se
+  coloca en el punto medio geodésico (`midPoint`, promedio cartesiano
+  3D), que es correcto en arcos largos y al cruzar ±180°.
+- **Una sola unidad de medida, elegida por el usuario** (`measureUnit`,
+  m/km/ft/NM, **por defecto NM**, la unidad de trabajo en navegación
+  aérea y marítima). Manda a la vez sobre el perímetro/área de un
+  polígono, sobre las medidas de una medición y sobre las **etiquetas
+  que la medición pinta en el visor y en su fila del árbol**. Antes esas
+  etiquetas iban por su cuenta en métrico **y** náutico a la vez
+  (`fmtDist`, ya retirado), sin relación con lo que dijera el diálogo.
+  Formatean `fmtUnitDist`/`fmtUnitArea`, las MISMAS funciones que usa el
+  diálogo: es la misma medida y verla escrita de dos formas distintas
+  solo hace dudar de si de verdad lo es. El área usa el factor **al
+  cuadrado**. El rumbo va siempre en grados: no es una distancia.
+- **Cambiar la unidad repinta TODAS las mediciones**
+  (`setMeasureUnit` → `refreshMeasureLabels`), desde cualquiera de los
+  dos `<select>` —hay dos porque hay dos bloques del diálogo, pero una
+  sola preferencia, y `setMeasureUnit` los mantiene sincronizados—.
+  El barrido alcanza también los registros pendientes (`li._pending`) de
+  las carpetas nunca desplegadas: su capa está en el mapa con su
+  etiqueta aunque no tenga fila. Mismo barrido y mismo motivo que
+  `nextNumberedName`.
+- **La unidad NO es parte del borrador del diálogo**: «Cancelar» no la
+  revierte, igual que no revierte `posFormat`. Es una preferencia de
+  lectura, no un estilo de la capa; se recuerda entre aperturas y no
+  persiste entre sesiones, como `elevUnit`.
 - **Lectura de coordenadas del visor**: tres filas de la misma posición
   —grados decimales, grados/minutos/segundos y UTM con su huso—, usando
   `formatCoord`, el mismo formateo con el que se editan las coordenadas
@@ -899,9 +979,12 @@ kitelocal.html     GENERADO. Es el producto; se versiona (quien clone
   `DB_VERSION` versiona los almacenes (hoy: solo
   `tree`); `TREE_SCHEMA` versiona el formato del árbol serializado, que
   se guarda como `{ v, nodes }` bajo la clave `root`. `TREE_SCHEMA` actual:
-  **3** (los nodos de capa admiten `mstyle`, el estilo de marcador; y
-  existe el tipo de nodo `elevGrid`, las celdas de elevación acumuladas
-  en una sesión de modo altura).
+  **6** — los nodos de capa admiten `mstyle` (el estilo de marcador),
+  existen los tipos `elevGrid` (celdas de elevación de una sesión de
+  modo altura) e `imageOverlay` (ortofotos de KMZ), y los nodos
+  `measure` guardan su `style`. La lista completa por versión está en el
+  comentario de la propia constante, que es donde hay que anotar la
+  siguiente.
 - `serializeNode(li)` serializa un nodo (y sus hijos vía
   `serializeNodes`); `serializeTree()` es esa misma pasada sobre la raíz.
   Los dos consumidores son el guardado automático y la exportación de una
@@ -1043,6 +1126,17 @@ kitelocal.html     GENERADO. Es el producto; se versiona (quien clone
   iconos), así que una caja de texto corto se estira a casi toda la
   pantalla si no se acota. Los de texto van en la regla de
   `#kml-tags-picker, #kml-dup-picker, #sh-creds` con `max-width: 42ch`.
+- **La ventana de propiedades tiene ANCHO propio, no de ajuste al
+  contenido**: `#style-dialog .dlg-box { width: min(92vw, 24rem) }`. Su
+  título lleva el nombre del nodo, y un nombre de KML puede tener
+  cientos de caracteres, así que con la anchura de ajuste al contenido
+  (tope 90vw) la ventana crecía con el texto hasta ocupar casi la
+  pantalla: lo que se está editando no puede decidir el tamaño de la
+  ventana. El nombre envuelve (`overflow-wrap: anywhere` en
+  `.dlg-box h2`, que parte también un nombre sin espacios), y la caja de
+  edición del nombre ocupa lo que dé la ventana (`#name-row input` sin
+  los 190 px de `max-width` de un control corto): es el campo más largo
+  del diálogo, así que es el que debe crecer con él.
 - **`collectWmsLayers`/`parseWmsCapabilities` reciben sus opciones**
   (`exclude`, `rootGroup`), no las llevan dentro: las comparten el PNOA
   histórico (`PNOA_HIST_WMS_OPTS`) y Copernicus (`COP_WMS_OPTS`).

@@ -346,6 +346,13 @@ function paintMsgLine(line, entry) {
   count.textContent = entry.count > 1 ? `×${entry.count}` : "";
 }
 
+/* DOS tonos, no más: `info` es una NOTIFICACIÓN (algo salió bien o
+   simplemente ha ocurrido: una descarga terminada, una selección, un
+   dato recibido) y se pinta en el color normal del texto; `error` —el
+   de por defecto, para que olvidarlo nunca calle una alerta— es una
+   ALERTA (algo ha fallado, falta o no se puede hacer) y va en rojo.
+   No hacen falta más niveles: el que exige lectura ya se distingue con
+   `sticky`, que es ortogonal al tono.                                */
 function navMessage(txt, { sticky = false, tone = "error" } = {}) {
   const el = document.getElementById("nav-msg");
   const now = Date.now();

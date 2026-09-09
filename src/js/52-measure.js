@@ -65,7 +65,9 @@ async function exportMapPng() {
     a.download = `kite-local-${pngTimestamp()}.png`;
     a.click();
     setTimeout(() => URL.revokeObjectURL(url), 60000);
-    navMessage(`Descargado «${a.download}».`);
+    /* Una descarga que ha ido bien es una NOTIFICACIÓN, no una alerta:
+       solo confirma lo que el usuario acaba de pedir.                 */
+    navMessage(`Descargado «${a.download}».`, { tone: "info" });
   }, "image/png");
 }
 
@@ -198,16 +200,35 @@ function makeHandle(latlng) {
   });
 }
 
-function buildMeasurement(type, a, b) {
-  const color = MEASURE_COLORS[type];
+/* Estilo de partida de una medición nueva. Una línea nunca se rellena
+   (no encierra ninguna superficie); un círculo sí, muy translúcido para
+   no tapar el mapa. A partir de aquí es un estilo de trazo normal y
+   corriente, editable desde el diálogo de propiedades como el de
+   cualquier polígono, y por eso se guarda con el nodo.               */
+/* 0,10 y no 0,08: el control del diálogo va de 0 a 1 a pasos de 0,05, y
+   un valor fuera de esa rejilla lo redondea el propio navegador al
+   asignarlo, así que abrir el diálogo y aceptar sin tocar nada cambiaba
+   la opacidad por su cuenta. La diferencia no se ve; el cambio
+   silencioso sí molestaba.                                            */
+const defaultMeasureStyle = type => type === "circle"
+  ? { color: MEASURE_COLORS.circle, weight: 2, fillOpacity: 0.1 }
+  : { color: MEASURE_COLORS.line, weight: 3, fill: false };
+
+/* El guion de la línea de medición no es estilo editable: es lo que la
+   distingue de una línea dibujada a mano. setStyle no lo toca (Leaflet
+   fusiona opciones), así que sobrevive a cualquier cambio del diálogo. */
+const MEASURE_DASH = "6 4";
+
+function buildMeasurement(type, a, b, style = null) {
+  const s = normalizePathStyle(style || defaultMeasureStyle(type));
   const mOrigin = makeHandle(a);
   const mDest = makeHandle(b);
   const geom = type === "line"
-    ? L.polyline([a, b], { color, weight: 3, dashArray: "6 4" })
-    : L.circle(a, { radius: Math.max(map.distance(a, b), 0.1), color, weight: 2, fillOpacity: 0.08 });
+    ? L.polyline([a, b], { ...s, dashArray: MEASURE_DASH })
+    : L.circle(a, { ...s, radius: Math.max(map.distance(a, b), 0.1) });
   const label = L.tooltip({ permanent: true, direction: "top", className: "measure-label" });
 
-  const m = { type, geom, label, mOrigin, mDest, treeLabel: null, treeName: null };
+  const m = { type, geom, label, mOrigin, mDest, style: s, treeLabel: null, treeName: null };
   /* La etiqueta debe tener posición y contenido ANTES de ir al mapa */
   updateMeasurement(m);
   m.group = L.featureGroup([geom, label, mOrigin, mDest]).addTo(rootGroup);
@@ -259,7 +280,11 @@ function updateMeasurement(m) {
   const a = m.mOrigin.getLatLng(), b = m.mDest.getLatLng();
   const dist = map.distance(a, b); /* haversine sobre la esfera terrestre */
   const brg = bearingDeg(a, b);
-  const txt = `${fmtDist(dist)} \u00B7 ${brg.toFixed(1)}\u00B0`;
+  /* En la unidad que el usuario tenga elegida en el diálogo de
+     propiedades (measureUnit), no en métrico Y náutico a la vez: la
+     etiqueta del visor y la fila del árbol dicen lo mismo que el
+     diálogo. El rumbo va siempre en grados.                          */
+  const txt = `${fmtUnitDist(dist, measureUnit)} \u00B7 ${brg.toFixed(1)}\u00B0`;
 
   if (m.type === "line") {
     m.geom.setLatLngs([a, b]);
@@ -271,6 +296,26 @@ function updateMeasurement(m) {
   }
   m.label.setContent(txt);
   if (m.treeLabel) m.treeLabel.textContent = `${m.treeName} \u2014 ${txt}`;
+}
+
+/* Repinta la etiqueta de TODAS las mediciones tras cambiar la unidad en
+   el diálogo de propiedades. Alcanza también los registros pendientes
+   (li._pending) de las carpetas nunca desplegadas: su capa está en el
+   mapa con su etiqueta aunque no tenga fila —la visibilidad no depende
+   del panel—, así que sin esto quedarían escritas en la unidad anterior
+   hasta que alguien las desplegara. Mismo barrido que nextNumberedName,
+   y por el mismo motivo.                                              */
+function refreshMeasureLabels() {
+  const walkRecords = recs => {
+    for (const r of recs) {
+      if (r.children) walkRecords(r.children);
+      else if (r.t === "measure") updateMeasurement(r._m);
+    }
+  };
+  for (const li of treeEl.querySelectorAll("li")) {
+    if (li._measure) updateMeasurement(li._measure);
+    if (li._pending) walkRecords(li._pending);
+  }
 }
 
 /* Sección "Mediciones" y nodo de cada medición en la navegación */
@@ -285,8 +330,10 @@ function makeMeasureLi(m) {
   const li = makeNode({
     name: m.treeName,
     layer: m.group,
-    styleable: false, /* measurements have their own fixed look */
-    style: { color: MEASURE_COLORS[m.type] },
+    /* Sí tiene diálogo de propiedades: color, grosor, relleno del
+       círculo y la lectura de sus medidas (ver openStyleDialog). El
+       estilo va al nodo, que es quien lo serializa.                  */
+    style: m.style,
     onRename: v => { m.treeName = v; updateMeasurement(m); },
     onDelete: () => {
       if (measureLi && !nodeUl(measureLi).children.length) deleteNode(measureLi);
@@ -311,7 +358,7 @@ function addMeasureNode(m) {
    ver materializeRecords, que hace `makeMeasureLi(rec._m)` cuando la
    fila llega a existir de verdad.                                      */
 function buildMeasureRecord(n) {
-  const m = buildMeasurement(n.mtype, L.latLng(n.a.lat, n.a.lng), L.latLng(n.b.lat, n.b.lng));
+  const m = buildMeasurement(n.mtype, L.latLng(n.a.lat, n.a.lng), L.latLng(n.b.lat, n.b.lng), n.style);
   attachCtrlDrag(m, m.mOrigin, true);
   attachCtrlDrag(m, m.mDest, false);
   m.treeName = n.name;
@@ -322,7 +369,20 @@ function buildMeasureRecord(n) {
      medición), así que la posición se lee siempre en vivo de _m
      (ver serializePendingRecords) en vez de cachearse aquí y arriesgarse
      a quedar obsoleta.                                                 */
-  return { t: "measure", name: n.name, checked: !!n.checked, mtype: n.mtype, _m: m, _layer: m.group };
+  return { t: "measure", name: n.name, checked: !!n.checked, mtype: n.mtype,
+           style: m.style, _m: m, _layer: m.group };
+}
+
+/* Lo que el diálogo de propiedades enseña de una medición. Una línea
+   tiene distancia y rumbo; un círculo, radio y área. Se lee en vivo de
+   los manejadores, que son arrastrables con Ctrl mientras el diálogo
+   está abierto.                                                       */
+function measurementValues(m) {
+  const a = m.mOrigin.getLatLng(), b = m.mDest.getLatLng();
+  const dist = map.distance(a, b);
+  return m.type === "circle"
+    ? { circle: true, dist, area: capArea(dist), brg: null }
+    : { circle: false, dist, area: null, brg: bearingDeg(a, b) };
 }
 
 /* ================= Dibujo de polígono a mano =================

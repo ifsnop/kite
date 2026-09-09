@@ -37,6 +37,7 @@ const SUITES = [
   ["pointsedit.js", "Editor de la lista de puntos: formato TSV, anillos, errores"],
   ["msglog.js", "Avisos: fusión de repetidos con contador y registro de sesión"],
   ["naming.js", "Autonumerado de formas dibujadas y mediciones"],
+  ["measure.js", "Mediciones: estilo propio, medidas del diálogo y renombrado sin perder la medida"],
   ["hittest.js", "Acierto bajo el cursor: geometría real, no caja envolvente"],
   ["openshape.js", "Formas abiertas: una línea no tiene área ni relleno"],
   ["polyarea.js",         "Perímetro y área de polígonos: anillos cerrados/sin cerrar, agujeros, multipolígono"],

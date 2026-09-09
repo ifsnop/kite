@@ -308,8 +308,11 @@ function startRename(li) {
   });
   input.addEventListener("blur", () => {
     const v = input.value.trim() || li._name;
-    label.textContent = li._name;
-    label.title = li._name;
+    /* La etiqueta se devuelve TAL CUAL estaba: su texto no siempre es el
+       nombre a secas —una medición muestra "Línea 1 — 1,20 km · 45,0°"—
+       y reescribirlo con li._name borraba la medida. Se veía al dejar el
+       nombre igual (o cancelar con Escape), porque entonces setNodeName
+       sale antes de llamar a _onRename, que es quien la vuelve a pintar. */
     input.replaceWith(label);
     setNodeName(li, v);
   });

@@ -141,8 +141,13 @@
   }
   .btn:hover { border-color: var(--accent); color: var(--accent); }
   #nav-msg { font-size: 12px; min-height: 0; }
+  /* Solo hay DOS niveles de aviso: notificación (`info`) y alerta
+     (`error`, el de por defecto). La notificación va en el color normal
+     del texto, no en gris: en gris —que aquí es el color de lo
+     secundario— un aviso perfectamente legible se leía como
+     deshabilitado.                                                    */
   .nav-msg-line { margin: 3px 0; color: var(--danger); }
-  .nav-msg-line.info { color: var(--muted); }
+  .nav-msg-line.info { color: var(--text); }
   .nav-msg-ok { margin: 2px 0 4px; padding: 1px 10px; }
   /* La marca de tiempo va atenuada y algo menor: el área de avisos es
      estrecha y no debe competir con el mensaje.                       */
@@ -619,12 +624,28 @@
   /* Sin esto heredan el max-width: 90vw de .dlg-box y una caja de texto
      corto se estira a casi toda la pantalla.                          */
   #kml-tags-picker .dlg-box, #kml-dup-picker .dlg-box, #sh-creds .dlg-box { max-width: 42ch; }
+  /* El título del diálogo de propiedades lleva el nombre del nodo, y un
+     nombre de KML puede tener cientos de caracteres: con la anchura de
+     ajuste al contenido de .dlg-box (tope 90vw) la ventana crecía con el
+     texto hasta ocupar casi la pantalla. Un ANCHO propio la hace
+     independiente de lo que se esté editando; el título envuelve (ver el
+     `overflow-wrap` de .dlg-box h2, que parte también un nombre sin
+     espacios).                                                        */
+  #style-dialog .dlg-box { width: min(92vw, 24rem); }
+  /* Y la caja de edición del nombre ocupa lo que dé esa ventana, no los
+     190 px de un control corto: el nombre es el campo más largo del
+     diálogo, así que es el que debe crecer con ella.                  */
+  #name-row input { max-width: none; }
   .dlg-box h2 {
     margin: 0 0 10px;
     font-size: 14px;
     cursor: grab;          /* the title bar is the drag handle */
     user-select: none;
     touch-action: none;    /* the browser must not pan while dragging */
+    /* Un título puede llevar el nombre de un nodo, y un nombre de KML
+       puede ser una sola "palabra" larguísima: sin esto desbordaría la
+       caja en vez de partirse.                                        */
+    overflow-wrap: anywhere;
   }
   .dlg-box h2:active { cursor: grabbing; }
   .dlg-box h2::before { content: "\2725\00A0"; color: var(--muted); font-weight: 400; }
@@ -716,7 +737,7 @@
   /* El tono se hereda del panel, para que el registro se lea igual que
      se leyó el aviso original.                                        */
   .log-text { flex: 1 1 auto; color: var(--danger); }
-  .log-row.info .log-text { color: var(--muted); }
+  .log-row.info .log-text { color: var(--text); }
   .log-mark { flex: 0 0 auto; width: 1ch; font-weight: 700; color: var(--danger); }
   .log-rep { color: var(--muted); font-size: 11.5px; white-space: nowrap; }
   .log-empty { color: var(--muted); font-style: italic; }
@@ -945,6 +966,26 @@
       </div>
       <div class="dlg-row" id="pg-points-row" hidden><span>Puntos</span>
         <button class="btn" id="pg-points">Ver y editar&#8230;</button>
+      </div>
+    </div>
+    <!-- Medición (línea o círculo). El relleno solo aplica al círculo:
+         una línea no encierra ninguna superficie. Los valores son de
+         solo lectura, como el perímetro y el área de un polígono. -->
+    <div id="style-measure" hidden>
+      <div class="dlg-row"><span>Ancho del trazo</span><input type="number" id="ms-weight" min="0.5" max="12" step="0.5"></div>
+      <div class="dlg-row"><span>Color del trazo</span><button type="button" class="color-btn" id="ms-color"></button></div>
+      <div class="dlg-row" id="ms-fill-color-row"><span>Color del relleno</span><button type="button" class="color-btn" id="ms-fill-color"></button></div>
+      <div class="dlg-row" id="ms-fill-opacity-row"><span>Opacidad del relleno</span><input type="range" id="ms-fill-opacity" min="0" max="1" step="0.05"></div>
+      <div id="ms-values" hidden>
+        <div class="dlg-row"><span>Unidad</span><select id="ms-unit">
+          <option value="m">Metros</option>
+          <option value="km">Kilómetros</option>
+          <option value="ft">Pies</option>
+          <option value="nm">Millas náuticas</option>
+        </select></div>
+        <div class="dlg-row"><span id="ms-dist-label">Distancia</span><span class="dlg-note" id="ms-dist"></span></div>
+        <div class="dlg-row" id="ms-area-row"><span>Área</span><span class="dlg-note" id="ms-area"></span></div>
+        <div class="dlg-row" id="ms-bearing-row"><span>Rumbo</span><span class="dlg-note" id="ms-bearing"></span></div>
       </div>
     </div>
     <div id="style-imageoverlay" hidden>
@@ -1223,7 +1264,7 @@ const map = L.map("map", {
 
 /* Fecha de generación del código (versión): AÑOMESDIAHORAMINUTO.
    Actualizar en cada generación; se muestra junto al crédito de Leaflet. */
-const BUILD = "202609091115";
+const BUILD = "202609091625";
 map.attributionControl.setPrefix(
   `v${BUILD} | <a href="https://leafletjs.com" title="A JavaScript library for interactive maps">Leaflet</a>`);
 
@@ -2581,6 +2622,13 @@ function paintMsgLine(line, entry) {
   count.textContent = entry.count > 1 ? `×${entry.count}` : "";
 }
 
+/* DOS tonos, no más: `info` es una NOTIFICACIÓN (algo salió bien o
+   simplemente ha ocurrido: una descarga terminada, una selección, un
+   dato recibido) y se pinta en el color normal del texto; `error` —el
+   de por defecto, para que olvidarlo nunca calle una alerta— es una
+   ALERTA (algo ha fallado, falta o no se puede hacer) y va en rojo.
+   No hacen falta más niveles: el que exige lectura ya se distingue con
+   `sticky`, que es ortogonal al tono.                                */
 function navMessage(txt, { sticky = false, tone = "error" } = {}) {
   const el = document.getElementById("nav-msg");
   const now = Date.now();
@@ -3136,8 +3184,11 @@ function startRename(li) {
   });
   input.addEventListener("blur", () => {
     const v = input.value.trim() || li._name;
-    label.textContent = li._name;
-    label.title = li._name;
+    /* La etiqueta se devuelve TAL CUAL estaba: su texto no siempre es el
+       nombre a secas —una medición muestra "Línea 1 — 1,20 km · 45,0°"—
+       y reescribirlo con li._name borraba la medida. Se veía al dejar el
+       nombre igual (o cancelar con Escape), porque entonces setNodeName
+       sale antes de llamar a _onRename, que es quien la vuelve a pintar. */
     input.replaceWith(label);
     setNodeName(li, v);
   });
@@ -3575,7 +3626,7 @@ const DB_NAME = "visor-kml";
 const DB_VERSION = 3;  /* esquema de la base: un único almacén "tree".
                           Subir solo cuando cambie la estructura de almacenes;
                           la migración es simplemente borrar lo anterior.     */
-const TREE_SCHEMA = 5; /* formato del árbol serializado. Subir solo cuando
+const TREE_SCHEMA = 6; /* formato del árbol serializado. Subir solo cuando
                           cambie el formato; un árbol guardado con otra
                           versión se descarta al leer.
                           v2: los nodos de capa admiten `mstyle` (estilo de
@@ -3587,7 +3638,10 @@ const TREE_SCHEMA = 5; /* formato del árbol serializado. Subir solo cuando
                           detalle por zoom).
                           v5: imageOverlay ya no guarda minLod/maxLod (se
                           retira el cambio de nivel de detalle por zoom;
-                          las ortofotos se cargan y muestran todas). */
+                          las ortofotos se cargan y muestran todas).
+                          v6: los nodos "measure" guardan su `style`
+                          (color, grosor y relleno del círculo), ahora
+                          editable desde el diálogo de propiedades. */
 const DB_TREE = "tree";
 
 /* One connection, reused. Opening the database on every save wastes
@@ -3949,7 +4003,7 @@ function serializeNode(li) {
   const base = { name: li._name, checked: chk ? chk.checked : true };
   if (li._measure) {
     const a = li._measure.mOrigin.getLatLng(), b = li._measure.mDest.getLatLng();
-    return [{ ...base, t: "measure", mtype: li._measure.type,
+    return [{ ...base, t: "measure", mtype: li._measure.type, style: li._style,
               a: { lat: a.lat, lng: a.lng }, b: { lat: b.lat, lng: b.lng } }];
   }
   if (li._elevGrid) {
@@ -4013,7 +4067,7 @@ function serializePendingRecords(records) {
          buildMeasureRecord), así que cachear a/b se quedaría obsoleto. */
       const a = rec._m.mOrigin.getLatLng(), b = rec._m.mDest.getLatLng();
       return { name: rec.name, checked: rec.checked, t: "measure", mtype: rec.mtype,
-                a: { lat: a.lat, lng: a.lng }, b: { lat: b.lat, lng: b.lng } };
+                style: rec.style, a: { lat: a.lat, lng: a.lng }, b: { lat: b.lat, lng: b.lng } };
     }
     if (rec.t === "elevGrid") {
       return { name: rec.name, checked: rec.checked, t: "elevGrid", cells: rec.cells };
@@ -4066,7 +4120,7 @@ function exportNode(li) {
   /* Algunos navegadores leen el blob después de volver de click():
      revocarlo en el acto cancela la descarga. Se libera más tarde.  */
   setTimeout(() => URL.revokeObjectURL(url), 60000);
-  navMessage(`Descargado \u00AB${a.download}\u00BB.`);
+  navMessage(`Descargado \u00AB${a.download}\u00BB.`, { tone: "info" }); /* confirma lo pedido: notificación, no alerta */
 }
 
 /* Recognizes an exported tree among the dropped .json files; anything
@@ -5085,8 +5139,11 @@ function addPlaceMarker(r) {
 const PINS_SECTION = "Marcadores";
 function createPin() {
   const marker = L.marker(map.getCenter()).addTo(rootGroup);
+  /* Autonumerado como las formas dibujadas y las mediciones: con un
+     nombre fijo, veinte pines se llamaban todos "Marcador" y no había
+     forma de distinguirlos en el árbol.                              */
   const li = makeNode({
-    name: "Marcador", layer: marker, style: { color: DEFAULT_MARKER_STYLE.color }
+    name: nextNumberedName("Marcador"), layer: marker, style: { color: DEFAULT_MARKER_STYLE.color }
   });
   ensureNamedSection(PINS_SECTION).appendChild(li);
   ensureMarkerDefaults(li);
@@ -6270,15 +6327,14 @@ document.getElementById("color-accept").addEventListener("click", () => {
   if (colorTarget) {
     setColorButton(colorTarget, colorInput.value);
     /* feed the change into the draft of whichever dialog is open */
-    if (styleDraft) {
-      if (styleKindOpen === "marker") readMarkerControls(); else readPolygonControls();
-    }
+    if (styleDraft) readStyleControls();
   }
   colorPicker.hidden = true;
   colorTarget = null;
   releaseFocus();
 });
-for (const id of ["mk-color", "mk-text-color", "pg-color", "pg-fill-color"]) {
+for (const id of ["mk-color", "mk-text-color", "pg-color", "pg-fill-color",
+                  "ms-color", "ms-fill-color"]) {
   document.getElementById(id).addEventListener("click", e => {
     e.preventDefault();
     openColorPicker(e.currentTarget);
@@ -6737,7 +6793,7 @@ function openStyleDialog(li, { isNew = false } = {}) {
      que hay algo debajo: se cierra antes de mostrar el de edición.    */
   if (!descDialog.hidden) descDialog.hidden = true;
   const kind = styleKind(li);
-  if (kind !== "marker" && kind !== "polygon" && kind !== "imageOverlay") {
+  if (kind !== "marker" && kind !== "polygon" && kind !== "measure" && kind !== "imageOverlay") {
     navMessage("Esta capa no tiene estilos editables.");
     return;
   }
@@ -6761,6 +6817,7 @@ function openStyleDialog(li, { isNew = false } = {}) {
     ? `Estilo de ${styleTargets.length} capas` : `Estilo: ${li._name}`;
   $id("style-marker").hidden = kind !== "marker";
   $id("style-polygon").hidden = kind !== "polygon";
+  $id("style-measure").hidden = kind !== "measure";
   $id("style-imageoverlay").hidden = kind !== "imageOverlay";
   /* El nombre solo tiene sentido con un único nodo: es propio de cada uno */
   const single = styleTargets.length === 1;
@@ -6822,10 +6879,30 @@ function openStyleDialog(li, { isNew = false } = {}) {
        posición de un marcador) y solo si hay de verdad un polígono cerrado */
     polyMeasures = single ? polygonMeasures(styleTargets[0]) : null;
     $id("pg-measures").hidden = !polyMeasures;
-    if (polyMeasures) { $id("pg-unit").value = polyMeasureUnit; renderPolyMeasures(); }
+    if (polyMeasures) { $id("pg-unit").value = measureUnit; renderPolyMeasures(); }
     /* La lista de puntos es la geometría de UN nodo, como la posición de
        un marcador: no tiene sentido en bloque.                        */
     $id("pg-points-row").hidden = !(single && solePath(styleTargets[0]));
+  } else if (kind === "measure") {
+    styleDraft = normalizePathStyle(styleTargets[0]._style);
+    /* Solo un círculo encierra superficie: para una línea el relleno no
+       existe. Se DESHABILITA, no se esconde, igual que en las formas
+       abiertas del diálogo de polígonos. Con una selección mixta manda
+       el caso restrictivo: basta una línea para que no haya relleno que
+       editar en bloque.                                               */
+    const noFill = !styleTargets.every(t => t._measure && t._measure.type === "circle");
+    $id("ms-fill-color").disabled = noFill;
+    $id("ms-fill-opacity").disabled = noFill;
+    $id("ms-fill-color-row").classList.toggle("dim", noFill);
+    $id("ms-fill-opacity-row").classList.toggle("dim", noFill);
+    $id("ms-weight").value = styleDraft.weight;
+    setColorButton($id("ms-color"), styleDraft.color);
+    setColorButton($id("ms-fill-color"), styleDraft.fillColor);
+    $id("ms-fill-opacity").value = styleDraft.fillOpacity;
+    /* Las medidas son de UNA medición, como la posición de un marcador */
+    msMeasures = single ? measurementValues(styleTargets[0]._measure) : null;
+    $id("ms-values").hidden = !msMeasures;
+    if (msMeasures) { $id("ms-unit").value = measureUnit; renderMeasureValues(); }
   } else {
     styleDraft = { opacity: styleTargets[0]._imageOverlay.opacity };
     $id("io-opacity").value = styleDraft.opacity;
@@ -6859,6 +6936,7 @@ function closeStyleDialog(commit = false) {
   posOriginal = null;
   styleIsNew = false;
   polyMeasures = null;
+  msMeasures = null;
 }
 
 /* ---------- Position controls ---------- */
@@ -6933,33 +7011,93 @@ function readPolygonControls() {
     fillOpacity: Number($id("pg-fill-opacity").value)
   });
 }
+function readMeasureControls() {
+  /* `fill` no se lee de ningún control: no hay selector de modo. Sale
+     del estilo de la medición (un círculo se rellena, una línea no) y
+     se vuelve a decidir POR CAPA al aceptar, porque la selección puede
+     mezclar líneas y círculos.                                        */
+  Object.assign(styleDraft, {
+    weight: Number($id("ms-weight").value) || 1,
+    color: colorOf($id("ms-color")),
+    opacity: 1, /* el contorno siempre opaco, como en los polígonos */
+    fillColor: colorOf($id("ms-fill-color")),
+    fillOpacity: Number($id("ms-fill-opacity").value)
+  });
+}
+/* Un único punto de reparto de "vuelca los controles en el borrador":
+   el selector de color y el botón Aceptar tenían cada uno el suyo, y
+   añadir un tipo de nodo obligaba a acordarse de tocar los dos.      */
+function readStyleControls() {
+  if (styleKindOpen === "marker") readMarkerControls();
+  else if (styleKindOpen === "polygon") readPolygonControls();
+  else if (styleKindOpen === "measure") readMeasureControls();
+  else readImageOverlayControls();
+}
 for (const id of ["mk-size", "mk-text-size", "mk-text-always"]) { /* colours: openColorPicker */
   $id(id).addEventListener("input", () => { if (styleDraft) readMarkerControls(); });
 }
 for (const id of ["pg-weight", "pg-fill-opacity"]) { /* colours: openColorPicker */
   $id(id).addEventListener("input", () => { if (styleDraft) readPolygonControls(); });
 }
+for (const id of ["ms-weight", "ms-fill-opacity"]) { /* colours: openColorPicker */
+  $id(id).addEventListener("input", () => { if (styleDraft) readMeasureControls(); });
+}
 $id("pg-mode").addEventListener("change", () => { if (styleDraft) readPolygonControls(); });
 
 /* ---------- Perímetro y área (solo lectura) ---------- */
-let polyMeasureUnit = "m"; /* se recuerda entre aperturas del diálogo, como posFormat; no persiste entre sesiones, como elevUnit */
+/* Unidad de TODA medida de distancia y área: el perímetro y el área de
+   un polígono, las medidas de una medición y —desde que el usuario lo
+   pidió— las etiquetas que la medición pinta en el visor y en su fila
+   del árbol. Arranca en millas náuticas, que es la unidad de trabajo en
+   navegación aérea y marítima; se recuerda entre aperturas del diálogo,
+   como posFormat, y no persiste entre sesiones, como elevUnit.
+   Es UNA sola preferencia a propósito: hay dos <select> (uno por bloque
+   del diálogo) pero una única pregunta, "¿en qué unidad quiero leer
+   esto?", y dos respuestas distintas a la vez solo sorprenderían.    */
+let measureUnit = "nm";
 let polyMeasures = null;   /* {area, perim} en m/m² del polígono abierto, o null */
 function renderPolyMeasures() {
   if (!polyMeasures) return;
-  const f = POLY_UNIT_FACTOR[polyMeasureUnit], u = POLY_UNIT_LABEL[polyMeasureUnit];
   /* Una línea tiene LONGITUD; solo un contorno cerrado tiene perímetro */
   $id("pg-perim-label").textContent = polyMeasures.open ? "Longitud" : "Perímetro";
-  $id("pg-perimeter").textContent = `${(polyMeasures.perim / f).toFixed(2)} ${u}`;
+  $id("pg-perimeter").textContent = fmtUnitDist(polyMeasures.perim, measureUnit);
   /* area === null: anillo sin cerrar (algunos JSON), no hay área que mostrar */
   $id("pg-area-row").hidden = polyMeasures.area === null;
   if (polyMeasures.area !== null) {
-    $id("pg-area").textContent = `${(polyMeasures.area / (f * f)).toFixed(2)} ${u}²`;
+    $id("pg-area").textContent = fmtUnitArea(polyMeasures.area, measureUnit);
   }
 }
-$id("pg-unit").addEventListener("change", () => {
-  polyMeasureUnit = $id("pg-unit").value;
+/* Cambiar la unidad en CUALQUIERA de los dos bloques repinta también las
+   etiquetas de las mediciones del visor: la preferencia es única, así
+   que dejar el mapa con la unidad anterior lo pondría en desacuerdo con
+   la ventana que se acaba de tocar.                                   */
+function setMeasureUnit(unit) {
+  measureUnit = unit;
+  $id("pg-unit").value = unit;
+  $id("ms-unit").value = unit;
   renderPolyMeasures();
-});
+  renderMeasureValues();
+  refreshMeasureLabels();
+}
+$id("pg-unit").addEventListener("change", () => setMeasureUnit($id("pg-unit").value));
+
+/* ---------- Medidas de una medición (solo lectura) ---------- */
+let msMeasures = null; /* {circle, dist, area, brg} de la medición abierta, o null */
+function renderMeasureValues() {
+  if (!msMeasures) return;
+  /* Un círculo se describe por su RADIO; una línea, por su distancia */
+  $id("ms-dist-label").textContent = msMeasures.circle ? "Radio" : "Distancia";
+  $id("ms-dist").textContent = fmtUnitDist(msMeasures.dist, measureUnit);
+  $id("ms-area-row").hidden = msMeasures.area === null;
+  if (msMeasures.area !== null) {
+    $id("ms-area").textContent = fmtUnitArea(msMeasures.area, measureUnit);
+  }
+  /* El rumbo va SIEMPRE en grados: no es una distancia y la unidad
+     elegida no le afecta.                                            */
+  $id("ms-bearing-row").hidden = msMeasures.brg === null;
+  if (msMeasures.brg !== null) $id("ms-bearing").textContent = `${msMeasures.brg.toFixed(1)}°`;
+}
+$id("ms-unit").addEventListener("change", () => setMeasureUnit($id("ms-unit").value));
 
 function readImageOverlayControls() {
   styleDraft.opacity = Number($id("io-opacity").value);
@@ -6998,6 +7136,17 @@ $id("style-accept").addEventListener("click", () => {
     for (const t of styleTargets) {
       t._style = { ...styleDraft };
       applyPolygonStyle(t);
+    }
+  } else if (styleKindOpen === "measure") {
+    readMeasureControls();
+    for (const t of styleTargets) {
+      /* El relleno se decide por capa, no en el diálogo: una selección
+         puede mezclar líneas y círculos, y un trazo abierto relleno
+         obliga a Leaflet a cerrarlo por su cuenta (misma regla que
+         clearFillOnOpenPaths aplica en la propia capa).              */
+      t._style = { ...styleDraft, fill: t._measure.type === "circle" && styleDraft.fill !== false };
+      applyPolygonStyle(t); /* una medición es un trazo más: mismo camino */
+      t._measure.style = t._style; /* el registro pendiente lo serializa desde aquí */
     }
   } else {
     readImageOverlayControls();
@@ -7200,17 +7349,23 @@ const fmtAltitude = m =>
   `${m.toFixed(1)} m / ${Math.round(m / METERS_PER_FOOT)} ft`;
 
 
-/* Distancia métrica y náutica: la náutica es la unidad de trabajo en
-   navegación aérea y marítima, y los grados de rumbo se mantienen.   */
-function fmtDist(m) {
-  const metric = m < 1000 ? `${m.toFixed(1)} m` : `${(m / 1000).toFixed(2)} km`;
-  const nm = m / METERS_PER_NM;
-  return `${metric} / ${nm < 10 ? nm.toFixed(2) : nm.toFixed(1)} NM`;
-}
-
-/* Unidades del perímetro/área del diálogo de propiedades (metros por unidad) */
+/* Unidades de las distancias y las áreas medidas (metros por unidad).
+   Las elige el usuario en el diálogo de propiedades (`measureUnit`) y
+   mandan también sobre las etiquetas del visor.                      */
 const POLY_UNIT_FACTOR = { m: 1, km: 1000, ft: METERS_PER_FOOT, nm: METERS_PER_NM };
 const POLY_UNIT_LABEL = { m: "m", km: "km", ft: "ft", nm: "NM" };
+
+/* Una medida en la unidad elegida. La MISMA función para el diálogo de
+   propiedades y para las etiquetas del visor y del árbol: son la misma
+   medida, y verla escrita de dos formas distintas solo hace dudar de si
+   de verdad lo es. Sustituye a `fmtDist`, que daba siempre métrico Y
+   náutico a la vez sin dejar elegir.                                  */
+const fmtUnitDist = (m, unit) =>
+  `${(m / POLY_UNIT_FACTOR[unit]).toFixed(2)} ${POLY_UNIT_LABEL[unit]}`;
+/* El factor va AL CUADRADO: un área no se convierte con el mismo número
+   que una distancia.                                                  */
+const fmtUnitArea = (m2, unit) =>
+  `${(m2 / POLY_UNIT_FACTOR[unit] ** 2).toFixed(2)} ${POLY_UNIT_LABEL[unit]}²`;
 
 /* Punto medio GEODÉSICO del arco a→b. Promediar latitudes y longitudes
    coloca mal la etiqueta en líneas largas y directamente en el otro lado
@@ -7255,6 +7410,13 @@ function ringArea(ring) {
   }
   return Math.abs(area * EARTH_R * EARTH_R / 2);
 }
+
+/* Área encerrada por un círculo de radio geodésico `r` (metros medidos
+   SOBRE la superficie, que es lo que da map.distance): el casquete
+   esférico 2πR²(1−cos(r/R)), no πr². Para un círculo de metros las dos
+   coinciden, pero una medición de decenas de kilómetros ya se separa, y
+   el resto del proyecto mide sobre la misma esfera (EARTH_R).         */
+const capArea = r => 2 * Math.PI * EARTH_R * EARTH_R * (1 - Math.cos(r / EARTH_R));
 
 /* getLatLngs() de un L.Polygon viene en dos profundidades posibles: los
    anillos de UN polígono ([exterior, agujero1, …], el caso normal de KML
@@ -7338,7 +7500,9 @@ async function exportMapPng() {
     a.download = `kite-local-${pngTimestamp()}.png`;
     a.click();
     setTimeout(() => URL.revokeObjectURL(url), 60000);
-    navMessage(`Descargado «${a.download}».`);
+    /* Una descarga que ha ido bien es una NOTIFICACIÓN, no una alerta:
+       solo confirma lo que el usuario acaba de pedir.                 */
+    navMessage(`Descargado «${a.download}».`, { tone: "info" });
   }, "image/png");
 }
 
@@ -7471,16 +7635,35 @@ function makeHandle(latlng) {
   });
 }
 
-function buildMeasurement(type, a, b) {
-  const color = MEASURE_COLORS[type];
+/* Estilo de partida de una medición nueva. Una línea nunca se rellena
+   (no encierra ninguna superficie); un círculo sí, muy translúcido para
+   no tapar el mapa. A partir de aquí es un estilo de trazo normal y
+   corriente, editable desde el diálogo de propiedades como el de
+   cualquier polígono, y por eso se guarda con el nodo.               */
+/* 0,10 y no 0,08: el control del diálogo va de 0 a 1 a pasos de 0,05, y
+   un valor fuera de esa rejilla lo redondea el propio navegador al
+   asignarlo, así que abrir el diálogo y aceptar sin tocar nada cambiaba
+   la opacidad por su cuenta. La diferencia no se ve; el cambio
+   silencioso sí molestaba.                                            */
+const defaultMeasureStyle = type => type === "circle"
+  ? { color: MEASURE_COLORS.circle, weight: 2, fillOpacity: 0.1 }
+  : { color: MEASURE_COLORS.line, weight: 3, fill: false };
+
+/* El guion de la línea de medición no es estilo editable: es lo que la
+   distingue de una línea dibujada a mano. setStyle no lo toca (Leaflet
+   fusiona opciones), así que sobrevive a cualquier cambio del diálogo. */
+const MEASURE_DASH = "6 4";
+
+function buildMeasurement(type, a, b, style = null) {
+  const s = normalizePathStyle(style || defaultMeasureStyle(type));
   const mOrigin = makeHandle(a);
   const mDest = makeHandle(b);
   const geom = type === "line"
-    ? L.polyline([a, b], { color, weight: 3, dashArray: "6 4" })
-    : L.circle(a, { radius: Math.max(map.distance(a, b), 0.1), color, weight: 2, fillOpacity: 0.08 });
+    ? L.polyline([a, b], { ...s, dashArray: MEASURE_DASH })
+    : L.circle(a, { ...s, radius: Math.max(map.distance(a, b), 0.1) });
   const label = L.tooltip({ permanent: true, direction: "top", className: "measure-label" });
 
-  const m = { type, geom, label, mOrigin, mDest, treeLabel: null, treeName: null };
+  const m = { type, geom, label, mOrigin, mDest, style: s, treeLabel: null, treeName: null };
   /* La etiqueta debe tener posición y contenido ANTES de ir al mapa */
   updateMeasurement(m);
   m.group = L.featureGroup([geom, label, mOrigin, mDest]).addTo(rootGroup);
@@ -7532,7 +7715,11 @@ function updateMeasurement(m) {
   const a = m.mOrigin.getLatLng(), b = m.mDest.getLatLng();
   const dist = map.distance(a, b); /* haversine sobre la esfera terrestre */
   const brg = bearingDeg(a, b);
-  const txt = `${fmtDist(dist)} \u00B7 ${brg.toFixed(1)}\u00B0`;
+  /* En la unidad que el usuario tenga elegida en el diálogo de
+     propiedades (measureUnit), no en métrico Y náutico a la vez: la
+     etiqueta del visor y la fila del árbol dicen lo mismo que el
+     diálogo. El rumbo va siempre en grados.                          */
+  const txt = `${fmtUnitDist(dist, measureUnit)} \u00B7 ${brg.toFixed(1)}\u00B0`;
 
   if (m.type === "line") {
     m.geom.setLatLngs([a, b]);
@@ -7544,6 +7731,26 @@ function updateMeasurement(m) {
   }
   m.label.setContent(txt);
   if (m.treeLabel) m.treeLabel.textContent = `${m.treeName} \u2014 ${txt}`;
+}
+
+/* Repinta la etiqueta de TODAS las mediciones tras cambiar la unidad en
+   el diálogo de propiedades. Alcanza también los registros pendientes
+   (li._pending) de las carpetas nunca desplegadas: su capa está en el
+   mapa con su etiqueta aunque no tenga fila —la visibilidad no depende
+   del panel—, así que sin esto quedarían escritas en la unidad anterior
+   hasta que alguien las desplegara. Mismo barrido que nextNumberedName,
+   y por el mismo motivo.                                              */
+function refreshMeasureLabels() {
+  const walkRecords = recs => {
+    for (const r of recs) {
+      if (r.children) walkRecords(r.children);
+      else if (r.t === "measure") updateMeasurement(r._m);
+    }
+  };
+  for (const li of treeEl.querySelectorAll("li")) {
+    if (li._measure) updateMeasurement(li._measure);
+    if (li._pending) walkRecords(li._pending);
+  }
 }
 
 /* Sección "Mediciones" y nodo de cada medición en la navegación */
@@ -7558,8 +7765,10 @@ function makeMeasureLi(m) {
   const li = makeNode({
     name: m.treeName,
     layer: m.group,
-    styleable: false, /* measurements have their own fixed look */
-    style: { color: MEASURE_COLORS[m.type] },
+    /* Sí tiene diálogo de propiedades: color, grosor, relleno del
+       círculo y la lectura de sus medidas (ver openStyleDialog). El
+       estilo va al nodo, que es quien lo serializa.                  */
+    style: m.style,
     onRename: v => { m.treeName = v; updateMeasurement(m); },
     onDelete: () => {
       if (measureLi && !nodeUl(measureLi).children.length) deleteNode(measureLi);
@@ -7584,7 +7793,7 @@ function addMeasureNode(m) {
    ver materializeRecords, que hace `makeMeasureLi(rec._m)` cuando la
    fila llega a existir de verdad.                                      */
 function buildMeasureRecord(n) {
-  const m = buildMeasurement(n.mtype, L.latLng(n.a.lat, n.a.lng), L.latLng(n.b.lat, n.b.lng));
+  const m = buildMeasurement(n.mtype, L.latLng(n.a.lat, n.a.lng), L.latLng(n.b.lat, n.b.lng), n.style);
   attachCtrlDrag(m, m.mOrigin, true);
   attachCtrlDrag(m, m.mDest, false);
   m.treeName = n.name;
@@ -7595,7 +7804,20 @@ function buildMeasureRecord(n) {
      medición), así que la posición se lee siempre en vivo de _m
      (ver serializePendingRecords) en vez de cachearse aquí y arriesgarse
      a quedar obsoleta.                                                 */
-  return { t: "measure", name: n.name, checked: !!n.checked, mtype: n.mtype, _m: m, _layer: m.group };
+  return { t: "measure", name: n.name, checked: !!n.checked, mtype: n.mtype,
+           style: m.style, _m: m, _layer: m.group };
+}
+
+/* Lo que el diálogo de propiedades enseña de una medición. Una línea
+   tiene distancia y rumbo; un círculo, radio y área. Se lee en vivo de
+   los manejadores, que son arrastrables con Ctrl mientras el diálogo
+   está abierto.                                                       */
+function measurementValues(m) {
+  const a = m.mOrigin.getLatLng(), b = m.mDest.getLatLng();
+  const dist = map.distance(a, b);
+  return m.type === "circle"
+    ? { circle: true, dist, area: capArea(dist), brg: null }
+    : { circle: false, dist, area: null, brg: bearingDeg(a, b) };
 }
 
 /* ================= Dibujo de polígono a mano =================
