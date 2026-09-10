@@ -345,6 +345,22 @@ kitelocal.html     GENERADO. Es el producto; se versiona (quien clone
 11. **Arranque**: restauración del árbol guardado. Va al final para que
     todo esté definido.
 
+- **«No hay capas cargadas» es una CONCLUSIÓN, y hasta leer IndexedDB no
+  se puede sacar.** El panel arranca en «Inicializando…»
+  (`showLoadingMessage`, a nivel de módulo en `30-tree-walk.js`) y es
+  `99-boot.js`, ya con `dbLoadTree()` resuelto, quien decide si de
+  verdad no hay nada. Antes el aviso de vacío se pintaba de entrada y
+  se quedaba ahí durante toda la restauración, **contradiciendo a la
+  barra de progreso**, que a la vez decía «Restaurando capas…»: el
+  usuario veía las dos cosas al recargar. Los dos textos salen de
+  `showTreePlaceholder`, que escribe por `textContent` y deja `rootUl`
+  a null.
+- **El arranque concluye mirando `rootUl`, no `nodes`**
+  (`if (!rootUl) showEmptyMessage();`): leer IndexedDB es asíncrono y el
+  usuario puede soltar un archivo mientras tanto; para entonces
+  `ensureRootUl` ya sustituyó el aviso, y volver a pintarlo dejaría esa
+  importación colgando de un `<ul>` desconectado del documento.
+
 ## Reglas de comportamiento acordadas
 
 - **Visibilidad**: una capa se muestra si y solo si SU checkbox está

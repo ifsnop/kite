@@ -289,11 +289,24 @@ function ensureRootUl() {
   }
   return rootUl;
 }
-function showEmptyMessage() {
-  treeEl.innerHTML = '<div class="empty">No hay capas cargadas.</div>';
+/* Dos textos para el mismo hueco del panel. «No hay capas cargadas» es
+   una CONCLUSIÓN, y al arrancar todavía no se puede sacar: el árbol
+   guardado está en IndexedDB y leerlo es asíncrono. Anunciarla mientras
+   se restauraba era además contradecir a la barra de progreso, que a la
+   vez decía «Restaurando capas…».                                     */
+function showTreePlaceholder(txt) {
+  treeEl.innerHTML = "";
+  const div = document.createElement("div");
+  div.className = "empty";
+  div.textContent = txt;
+  treeEl.appendChild(div);
   rootUl = null;
 }
-showEmptyMessage();
+function showEmptyMessage() { showTreePlaceholder("No hay capas cargadas."); }
+function showLoadingMessage() { showTreePlaceholder("Inicializando…"); }
+/* Se arranca en «Inicializando…»; es el arranque (99-boot.js) quien
+   concluye, ya con el árbol guardado leído, si de verdad no hay nada. */
+showLoadingMessage();
 
 /* Mensajes informativos/de error del panel de navegación */
 /* Avisos del panel. Los transitorios se van solos a los 6 s; los que el

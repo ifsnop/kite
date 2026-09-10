@@ -36,6 +36,12 @@
   let nodes = null;
   try { nodes = await dbLoadTree(); } catch { nodes = null; }
   if (nodes && nodes.length) await restoreTree(nodes);
+  /* Hasta aquí el panel decía «Inicializando…». Ahora sí se sabe si no
+     hay nada que enseñar. Se mira `rootUl`, no `nodes`: si el usuario
+     ha soltado un archivo mientras se leía IndexedDB, ensureRootUl ya
+     sustituyó el aviso y borrarlo dejaría su importación colgando de un
+     <ul> desconectado.                                                */
+  if (!rootUl) showEmptyMessage();
 
   refreshStorageUsage();
 
