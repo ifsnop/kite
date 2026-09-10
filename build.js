@@ -27,6 +27,9 @@ const OUT = path.join(ROOT, "kitelocal.html");
    contrato solo existía como "está más arriba en el scroll"; aquí se
    lee y se revisa en el diff. Al mover un archivo de sitio, pensarlo. */
 const JS = [
+  "05-mdi-icons.js",      /* GENERADO por fetch-icons.js: cuerpos SVG empotrados.
+                             Va el primero por ser datos puros, sin ninguna
+                             dependencia, y para que nada pueda usarlo antes  */
   "10-map.js",            /* mapa, capas de teselas, constantes globales */
   "11-base-panel.js",     /* panel de mapas base */
   "12-copernicus.js",     /* Copernicus DEM vía Sentinel Hub */

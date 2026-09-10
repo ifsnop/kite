@@ -24,14 +24,16 @@ desarrollo del proyecto.
    CDN (unpkg / cdnjs) con versión fijada. Las actuales:
    - **Leaflet 1.9.4** — mapa, zoom, pan, controles, capas, tooltips.
    - **JSZip 3.10.1** — descompresión de KMZ.
-   - **Iconify (API REST) + Material Design Icons** — SVG de los iconos de
-     marcador. No es una librería JS: los SVG se piden a
-     `https://api.iconify.design/mdi/<icono>.svg` (coloreados por URL con
-     `?color=%23rrggbb` para las vistas previas, o en crudo —dibujados con
-     `currentColor`— para incrustarlos en `L.divIcon` y colorearlos por CSS).
-     Los SVG en crudo se cachean por nombre de icono (`svgCache`).
-     Excepción: el icono `leaflet-pin` (gota de Leaflet) es el PNG de la
-     propia distribución de Leaflet, no pasa por Iconify y no es coloreable.
+   - **Material Design Icons — EMPOTRADOS, sin red en ejecución.** Los
+     cuerpos SVG viven en `src/js/05-mdi-icons.js` (`MDI_ICON_BODIES`),
+     un archivo GENERADO por `fetch-icons.js` (`npm run icons`) desde la
+     API en bloque de Iconify. Ese script es la ÚNICA parte del proyecto
+     que habla con Iconify, corre a mano y **no forma parte del build**:
+     construir tiene que ser reproducible y sin red. Ver «Iconos de
+     marcador» más abajo para el porqué (medido) y para cómo ampliar el
+     catálogo. Excepción: `leaflet-pin` (gota de Leaflet) es el PNG de la
+     propia distribución de Leaflet, no es un SVG de MDI y no es
+     coloreable.
    - **Nominatim (API REST de OSM)** — geocodificación del buscador de
      lugares. Su política de uso limita el tráfico automatizado a ~1
      petición por segundo: se consulta solo al pulsar Enter o el botón
@@ -254,8 +256,12 @@ desarrollo del proyecto.
 src/index.html     plantilla: <head>, CSP, diálogos, <script> de CDN.
                    Dos marcadores: {{STYLES}} y {{SCRIPTS}}
 src/styles.css     todo el CSS
-src/js/*.js        19 archivos, en el orden del manifiesto de build.js
+src/js/*.js        20 archivos, en el orden del manifiesto de build.js
+                   (el primero, 05-mdi-icons.js, es GENERADO)
 build.js           concatena src/ → kitelocal.html
+fetch-icons.js     GENERA src/js/05-mdi-icons.js (npm run icons). A mano,
+                   NO forma parte del build: es lo único que habla con
+                   Iconify y construir debe ser reproducible y sin red
 kitelocal.html     GENERADO. Es el producto; se versiona (quien clone
                    debe tener algo que abrir) y está marcado como
                    generado en .gitattributes para que los diffs se
@@ -602,6 +608,55 @@ kitelocal.html     GENERADO. Es el producto; se versiona (quien clone
   cajas compactas ajustadas al texto (clases `compacto` de popup y
   tooltip) para tapar el mínimo mapa posible. Renombrar la capa actualiza
   el texto.
+
+### Iconos de marcador: por qué van EMPOTRADOS
+
+- **Ningún icono se pide por red en ejecución.** `MDI_ICON_BODIES`
+  (`src/js/05-mdi-icons.js`) trae los cuerpos SVG dentro del propio
+  archivo; `mdiSvg(name, color?, size?)` los envuelve en un `<svg>`.
+  Sin `color` deja el `currentColor` con el que vienen dibujados —lo
+  tiñe el CSS de `.mdi-pin` en el mapa—; con `color` lo sustituye,
+  porque una vista previa suelta en un `<img>` no hereda ningún CSS del
+  que sacarlo. `iconUrl` devuelve un `data:` URI construido ahí mismo.
+- **El motivo es medido, no estético.** Antes cada vista previa era un
+  `<img>` contra `api.iconify.design`: abrir el selector costaba **79
+  peticiones simultáneas**, y aplicar un icono a un marcador costaba
+  otra más — con una URL DISTINTA (`?color=&height=` frente a la
+  desnuda), así que ni siquiera compartían caché de HTTP. Pasado el
+  límite del servicio, la respuesta era `429 text/plain` y se
+  disfrazaba de dos maneras que no decían la verdad: en el `<img>`,
+  Chrome la bloquea (`ERR_BLOCKED_BY_ORB`) y deja un **cuadro en blanco
+  sin ningún aviso**; en el `fetch`, el 429 no lleva cabeceras CORS y
+  llega como `TypeError: Failed to fetch`, de modo que `describeHttp`
+  —que sí sabía decir «el servicio ha limitado las consultas»— nunca
+  llegaba a ejecutarse. Con `retry-after: 236` medido, eran minutos de
+  iconos rotos, y cuáles caían dependía de dónde cortara el limitador:
+  parecía que «habían quitado» unos iconos concretos. Comprobado
+  aparte que **no faltaba ninguno**: los 79 existen en el set `mdi`.
+- **Coste**: ~21 KB de datos de trazado. A cambio, con la red externa
+  bloqueada del todo: 80/80 iconos pintados, rejilla construida en
+  8,5 ms y `applyMarkerStyle` en 0,9 ms.
+- **`applyMarkerStyle` es SÍNCRONA.** Al desaparecer la red desapareció
+  con ella el contador de secuencia por nodo (`_mseq`) que descartaba
+  aplicaciones obsoletas durante la edición en vivo, y el aviso de «no
+  se pudo cargar el icono». No volver a hacerla asíncrona sin una razón
+  nueva.
+- **Un icono desconocido no deja el marcador invisible**: `mdiSvg`
+  devuelve `null` y `buildMarkerIcon` cae en la gota de Leaflet. Es lo
+  que salva a un árbol guardado con un catálogo distinto del actual.
+- **Para ampliar el catálogo**: añadir el nombre a `MDI_ICONS`
+  (`41-selection.js`, que es la lista que ve el usuario y no se
+  duplica) y ejecutar `npm run icons`, que lee esa lista del propio
+  fuente, pide los cuerpos en UNA sola petición y regenera
+  `05-mdi-icons.js`. Si el nombre no existe en `mdi`, el script falla
+  ahí mismo en vez de dejarlo romperse en ejecución.
+  `tests/icons.js` comprueba **sin tocar la red** que catálogo y tabla
+  no se han desincronizado (olvidar `npm run icons` es el fallo humano
+  que queda), que los cuerpos son dibujables y que en el archivo
+  entregado no queda ninguna mención a `api.iconify.design`.
+- `src/js/05-mdi-icons.js` se versiona y va marcado como generado en
+  `.gitattributes`, igual que `kitelocal.html`: su contenido no se lee
+  y en un diff solo taparía el cambio real.
 - **Las formas dibujadas, las mediciones y los pines se autonumeran**
   («Línea 3», «Polígono 2», «Círculo 1», «Marcador 4») con
   `nextNumberedName`, que
@@ -1013,12 +1068,15 @@ kitelocal.html     GENERADO. Es el producto; se versiona (quien clone
 
 ## Red externa
 
-- Nominatim e Iconify se consultan con `AbortController` /
-  `AbortSignal.timeout`: una búsqueda nueva o cerrar los resultados
-  cancela la anterior y libera la conexión.
+- Nominatim se consulta con `AbortController` / `AbortSignal.timeout`:
+  una búsqueda nueva o cerrar los resultados cancela la anterior y
+  libera la conexión.
 - `describeHttp` traduce el estado HTTP a algo accionable (429 = límite
-  del servicio, 5xx = no disponible…), y los fallos de icono no quedan
-  cacheados para que un corte puntual no inutilice ese icono.
+  del servicio, 5xx = no disponible…).
+- **Los iconos ya NO son tráfico de ejecución**: van empotrados en el
+  archivo (ver «Iconos de marcador»). Fue la única consulta externa que
+  no seguía la disciplina de peticiones —79 a la vez, sin tope ni
+  caché compartida— y por eso es la que reventó.
 
 ## Pendiente (conocido y no hecho)
 
@@ -1474,10 +1532,8 @@ atribución se mantiene en una sola línea con elipsis si no cabe.
   Cualquier bucle nuevo que cree muchas capas debe seguir el mismo patrón.
 - Sin Web Workers: el tamaño objetivo (6–20 MB) no los justifica y
   complicarían el código (sin `DOMParser` ni Leaflet en el worker).
-- Los SVG de iconos se piden una sola vez por nombre (`svgCache` guarda la
-  promesa); `applyMarkerStyle` es asíncrona y usa un contador de secuencia
-  por nodo para descartar aplicaciones obsoletas durante la edición en
-  vivo.
+- Los iconos de marcador no cuestan ninguna petición: están empotrados
+  y `applyMarkerStyle` es síncrona (ver «Iconos de marcador»).
 
 ## Cómo añadir una funcionalidad (checklist)
 

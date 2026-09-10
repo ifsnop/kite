@@ -84,36 +84,34 @@ const MDI_ICONS = [
     "traffic-light", "road-variant", "alert", "alert-octagon", "map-marker-alert"]]
 ];
 
-/* Preview URL of an icon. MDI icons come coloured from the Iconify REST
-   API ("#" must be URL-encoded as %23); the Leaflet pin is a fixed PNG. */
+/* Un nombre que la tabla no conozca (un árbol guardado con un catálogo
+   distinto) cae en la gota de Leaflet, que no depende de la tabla: es
+   preferible un marcador con otro icono a un marcador invisible.      */
+const knownIcon = name => name === LEAFLET_PIN || !!MDI_ICON_BODIES[name];
+
+/* SVG completo de un icono MDI, a partir del cuerpo empotrado. El
+   cuerpo se dibuja con `currentColor`; sin `color` se deja tal cual
+   (lo colorea el CSS de .mdi-pin en el mapa) y con `color` se
+   sustituye, que es lo que necesita una vista previa suelta en un
+   `<img>`, donde no hay CSS que herede.                              */
+/* `size` da al SVG un tamaño intrínseco. Hace falta en una vista previa
+   suelta (`#icon-preview` es `height:28px; width:auto`, y `auto` sin
+   proporción intrínseca no tiene de dónde salir); en el marcador del
+   mapa no, porque .mdi-pin lo estira al 100% de su envoltorio.       */
+function mdiSvg(name, color = null, size = null) {
+  const body = MDI_ICON_BODIES[name];
+  if (!body) return null;
+  const dim = size ? ` width="${size}" height="${size}"` : "";
+  return `<svg xmlns="http://www.w3.org/2000/svg"${dim} viewBox="${MDI_VIEWBOX}">`
+    + (color ? body.replace(/currentColor/g, color) : body) + "</svg>";
+}
+
+/* Preview URL of an icon. Los MDI son un data: URI construido aquí
+   mismo —sin red, sin espera y sin depender de un servicio ajeno—; la
+   gota de Leaflet sigue siendo su PNG.                               */
 const iconUrl = (name, color, size) => name === LEAFLET_PIN
   ? LEAFLET_PIN_URL
-  : `https://api.iconify.design/mdi/${name}.svg?color=${encodeURIComponent(color)}&height=${size}`;
-
-/* Raw SVG sources (drawn with currentColor) cached per icon name, so the
-   final markers embed the SVG inline and re-color instantly via CSS      */
-const svgCache = new Map();
-const ICON_TIMEOUT = 8000;
-function fetchIconSvg(name) {
-  if (!svgCache.has(name)) {
-    const req = fetch(`https://api.iconify.design/mdi/${name}.svg`,
-                      { signal: AbortSignal.timeout(ICON_TIMEOUT) })
-      .then(r => {
-        if (!r.ok) throw new Error(describeHttp(r.status));
-        return r.text();
-      })
-      .then(svg => {
-        if (!/^\s*<svg[\s>]/i.test(svg)) throw new Error("respuesta que no es un SVG");
-        return svg;
-      })
-      .catch(err => {
-        svgCache.delete(name); /* un fallo puntual no debe quedar cacheado */
-        throw err;
-      });
-    svgCache.set(name, req);
-  }
-  return svgCache.get(name);
-}
+  : "data:image/svg+xml," + encodeURIComponent(mdiSvg(name, color, size) || "");
 
 const escapeHtml = s => String(s).replace(/[&<>"']/g,
   c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));

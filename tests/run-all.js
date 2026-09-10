@@ -38,6 +38,7 @@ const SUITES = [
   ["msglog.js", "Avisos: fusión de repetidos con contador y registro de sesión"],
   ["naming.js", "Autonumerado de formas dibujadas y mediciones"],
   ["measure.js", "Mediciones: estilo propio, medidas del diálogo y renombrado sin perder la medida"],
+  ["icons.js", "Iconos MDI empotrados: catálogo y tabla sincronizados, sin red en ejecución"],
   ["hittest.js", "Acierto bajo el cursor: geometría real, no caja envolvente"],
   ["openshape.js", "Formas abiertas: una línea no tiene área ni relleno"],
   ["polyarea.js",         "Perímetro y área de polígonos: anillos cerrados/sin cerrar, agujeros, multipolígono"],

@@ -196,7 +196,7 @@ function styleKind(li) {
    as in stock Leaflet), while MDI glyphs are symmetric and sit centred
    on the coordinate, like Google Earth pushpins.                        */
 function buildMarkerIcon(s, svg) {
-  if (s.icon === LEAFLET_PIN) {
+  if (s.icon === LEAFLET_PIN || !svg) {
     const h = s.size, w = Math.round(h * LEAFLET_PIN_RATIO);
     return {
       icon: L.icon({
@@ -222,22 +222,18 @@ function buildMarkerIcon(s, svg) {
   };
 }
 
-/* Apply icon + text + tree swatch of a marker-styled node. The sequence
-   counter discards stale async applications when styles change quickly. */
-async function applyMarkerStyle(li) {
+/* Apply icon + text + tree swatch of a marker-styled node.
+   S\u00CDNCRONA desde que los iconos van empotrados (MDI_ICON_BODIES): no
+   hay red que esperar, as\u00ED que tampoco hace falta el contador de
+   secuencia que descartaba aplicaciones obsoletas durante la edici\u00F3n
+   en vivo, ni el aviso de "no se pudo cargar el icono". Un icono
+   desconocido (un \u00E1rbol guardado con otro cat\u00E1logo) devuelve null y
+   buildMarkerIcon cae en la gota de Leaflet.                         */
+function applyMarkerStyle(li) {
   const s = li._mstyle;
   const layer = nodeLayer(li);
   if (!s || !layer) return;
-  const seq = li._mseq = (li._mseq || 0) + 1;
-  let svg = null;
-  if (s.icon !== LEAFLET_PIN) { /* the Leaflet pin needs no network at all */
-    try { svg = await fetchIconSvg(s.icon); }
-    catch (err) {
-      navMessage(`No se pudo cargar el icono \u00AB${s.icon}\u00BB: ${err.name === "TimeoutError" ? "el servicio de iconos no responde" : err.message}.`);
-      return;
-    }
-    if (seq !== li._mseq) return; /* a newer application superseded this one */
-  }
+  const svg = s.icon === LEAFLET_PIN ? null : mdiSvg(s.icon);
 
   const { icon, textOffset } = buildMarkerIcon(s, svg);
   const each = l => {

@@ -3,3 +3,9 @@
 # algo que abrir— y se marca como generado para que los diffs se plieguen
 # y no tapen el cambio real en src/.
 kitelocal.html linguist-generated=true -diff
+
+# src/js/05-mdi-icons.js son ~21 KB de datos de trazado GENERADOS por
+# fetch-icons.js (npm run icons): su contenido no se lee ni se edita, y
+# en un diff solo taparía el cambio real. Mismo criterio que el archivo
+# de arriba; se versiona igual, porque el build no pide nada por red.
+src/js/05-mdi-icons.js linguist-generated=true -diff

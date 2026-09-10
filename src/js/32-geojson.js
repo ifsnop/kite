@@ -851,7 +851,7 @@ async function materializeRecords(records, parentUl) {
       parentUl.appendChild(li);
       if (rec.mstyle) {
         li._mstyle = rec.mstyle;
-        applyMarkerStyle(li); /* async only for MDI icons (SVG cached) */
+        applyMarkerStyle(li); /* síncrona: los iconos van empotrados */
       } else {
         ensureMarkerDefaults(li);
       }
