@@ -1371,9 +1371,30 @@ const map = L.map("map", {
 
 /* Fecha de generación del código (versión): AÑOMESDIAHORAMINUTO.
    Actualizar en cada generación; se muestra junto al crédito de Leaflet. */
-const BUILD = "202609102145";
+const BUILD = "202609102310";
+/* El enlace al repositorio va junto a la versión, que es lo que hace
+   accionable saber qué build se está ejecutando: desde ahí se llega al
+   código de esa versión. `target="_blank"` a propósito —salir de la
+   página en la misma pestaña abandonaría la sesión de trabajo— y con
+   `rel="noopener"`, que es lo que impide que la página destino toque
+   `window.opener`.                                                    */
+const REPO_URL = "https://github.com/ifsnop/kite";
 map.attributionControl.setPrefix(
-  `v${BUILD} | <a href="https://leafletjs.com" title="A JavaScript library for interactive maps">Leaflet</a>`);
+  `v${BUILD} | <a href="${REPO_URL}" target="_blank" rel="noopener"`
+  + ' title="Código fuente del proyecto en GitHub">GitHub</a>'
+  + ' | <a href="https://leafletjs.com" title="A JavaScript library for interactive maps">Leaflet</a>');
+
+/* Escala del mapa: la de Leaflet (L.control.scale), no una propia —
+   antes de escribir código hay que mirar si la librería ya lo resuelve,
+   y esto lo resuelve entero: barra que se reescala en cada zoom y
+   redondeo a cifras legibles. Se dejan sus valores por defecto
+   (métrico e imperial, 100 px de ancho máximo), que además encajan con
+   la costumbre del visor de dar siempre dos unidades.
+   Va en la MISMA esquina que la atribución, y queda encima de ella sin
+   colocarla a mano: Leaflet inserta cada control nuevo de una esquina
+   INFERIOR delante de los que ya hubiera (insertBefore, no
+   appendChild), y la atribución se creó con el mapa.                 */
+L.control.scale({ position: "bottomright" }).addTo(map);
 
 /* ================= Mapas base =================
    Se pueden encender a la vez y con la opacidad que se quiera, en vez de

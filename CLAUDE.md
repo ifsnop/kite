@@ -316,7 +316,10 @@ kitelocal.html     GENERADO. Es el producto; se versiona (quien clone
 ## Arquitectura (orden de secciones dentro del script)
 
 1. **Mapa base**: capas de teselas (OSM, Esri Terrain, PNOA, sin fondo) y
-   `rootGroup`, el `featureGroup` del que cuelga TODO lo cargado.
+   `rootGroup`, el `featureGroup` del que cuelga TODO lo cargado. Ahí
+   mismo van el prefijo de la atribución (versión + repositorio) y la
+   escala, porque su posición depende del orden entre las dos (ver
+   «Cuadro de coordenadas y atribución»).
 2. **Parseo KML**: estilos (`aabbggrr` → color+opacidad, `StyleMap` par
    *normal*), `<visibility>`, `<open>`, geometrías (MultiGeometry,
    polígonos con agujeros). GeoJSON con estilos simplestyle.
@@ -1440,14 +1443,38 @@ El cuadro de coordenadas vive siempre por encima de ella
 la línea de la diferencia entre superficie y terreno, que es larga. La
 atribución se mantiene en una sola línea con elipsis si no cabe.
 
+- **La atribución lleva la versión y el enlace al repositorio**
+  (`v<BUILD> | GitHub | Leaflet`, vía `setPrefix`). Van juntos a
+  propósito: la versión dice QUÉ se está ejecutando y el enlace es lo
+  que hace ese dato accionable. La URL sale de `REPO_URL`, no repetida
+  a mano. El enlace abre en otra pestaña (`target="_blank"`) porque
+  navegar fuera en la misma abandonaría la sesión de trabajo, y lleva
+  `rel="noopener"`, que es lo que impide que el destino toque
+  `window.opener`. El crédito de Leaflet se mantiene: lo pide su
+  licencia.
+- **La escala es la de Leaflet** (`L.control.scale`), no una propia:
+  antes de escribir código hay que comprobar si la librería ya lo
+  resuelve, y esto lo resuelve entero (barra que se reescala en cada
+  zoom y redondeo a cifras legibles). Con sus valores por defecto
+  —métrico e imperial, 100 px—, que además encajan con la costumbre del
+  visor de dar siempre dos unidades; Leaflet no ofrece millas náuticas.
+- **Queda encima de la atribución sin colocarla a mano**: va en
+  `bottomright`, la misma esquina, y Leaflet inserta cada control nuevo
+  de una esquina **inferior** delante de los que ya hubiera
+  (`insertBefore`, no `appendChild`, ver `Control.addTo`). La
+  atribución se crea con el mapa, así que **el orden de esas dos líneas
+  en `10-map.js` ES la posición en pantalla**: invertirlo dejaría la
+  escala debajo. Medido: escala 844–878 px, atribución 883–900, y el
+  cuadro de coordenadas (izquierda, 335–440) no la alcanza.
 - **Exportar PNG (`exportMapPng`) oculta los controles superpuestos**
   (`.leaflet-control-zoom`, `.measure-bar` —cubre a la vez la barra de
   medición/pin/📷 y la de vista, que comparten esa clase—, `.base-box`)
   antes de llamar a `html2canvas` y los restaura en un `finally`,
   incluso si la captura falla: son hijos del propio `#map` y no aportan
-  información en la imagen. El cuadro de coordenadas y la atribución NO
-  se ocultan a propósito: el primero sí es información del punto, y la
-  segunda es la atribución CC BY que exige la licencia del PNOA/IGN.
+  información en la imagen. El cuadro de coordenadas, la atribución y
+  **la escala** NO se ocultan a propósito: el primero es información del
+  punto, la segunda es la atribución CC BY que exige la licencia del
+  PNOA/IGN, y una imagen de un mapa sin escala no se puede medir.
 
 ## Rendimiento (reglas nacidas de medir)
 

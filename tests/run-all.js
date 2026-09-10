@@ -40,6 +40,7 @@ const SUITES = [
   ["measure.js", "Mediciones: estilo propio, medidas del diálogo y renombrado sin perder la medida"],
   ["icons.js", "Iconos MDI empotrados: catálogo y tabla sincronizados, sin red en ejecución"],
   ["boot.js", "Arranque: el panel no concluye «no hay capas» antes de leer IndexedDB"],
+  ["attribution.js", "Línea inferior del visor: versión, enlace al repositorio y escala"],
   ["hittest.js", "Acierto bajo el cursor: geometría real, no caja envolvente"],
   ["openshape.js", "Formas abiertas: una línea no tiene área ni relleno"],
   ["polyarea.js",         "Perímetro y área de polígonos: anillos cerrados/sin cerrar, agujeros, multipolígono"],
