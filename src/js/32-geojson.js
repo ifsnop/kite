@@ -611,10 +611,13 @@ const EXPORT_FORMAT = 1;
 const safeFileName = name =>
   String(name).replace(/[\\/:*?"<>|]+/g, "_").trim().slice(0, 80) || "carpeta";
 
-function exportNode(li) {
-  const nodes = serializeNode(li);
-  if (!nodes.length) { navMessage("No hay nada que descargar en este nodo."); return; }
-  const doc = {
+/* El envoltorio, en un solo sitio: lo comparten guardar una carpeta en
+   un archivo y copiar al portapapeles del sistema. Son el mismo
+   formato a propósito — pegar en otra pestaña cuesta entonces lo mismo
+   que importar un .kite.json, y las comprobaciones de versión ya
+   escritas valen para los dos.                                       */
+function treeExportDoc(nodes) {
+  return {
     app: EXPORT_KIND,
     format: EXPORT_FORMAT,
     db: DB_VERSION,
@@ -623,6 +626,12 @@ function exportNode(li) {
     exported: new Date().toISOString(),
     nodes
   };
+}
+
+function exportNode(li) {
+  const nodes = serializeNode(li);
+  if (!nodes.length) { navMessage("No hay nada que descargar en este nodo."); return; }
+  const doc = treeExportDoc(nodes);
   const url = URL.createObjectURL(new Blob([JSON.stringify(doc)], { type: "application/json" }));
   const a = document.createElement("a");
   a.href = url;

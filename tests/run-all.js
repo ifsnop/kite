@@ -45,6 +45,7 @@ const SUITES = [
   ["statics.js", "Comprobaciones estáticas: todo id referido existe y toda función llamada está declarada"],
   ["tristate.js", "Tercer estado de la casilla: indeterminada cuando la carpeta está a medias"],
   ["usage.js", "Pie del panel: la línea de memoria se esconde si no hay cifra que dar"],
+  ["clipboard.js", "Portapapeles del sistema: copiar y pegar entre instancias de distinto dominio"],
   ["hittest.js", "Acierto bajo el cursor: geometría real, no caja envolvente"],
   ["openshape.js", "Formas abiertas: una línea no tiene área ni relleno"],
   ["polyarea.js",         "Perímetro y área de polígonos: anillos cerrados/sin cerrar, agujeros, multipolígono"],

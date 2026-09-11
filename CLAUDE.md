@@ -530,7 +530,39 @@ index.html         redirección de la raíz del sitio al minificado
   `serializeNode`, así que pegar es reconstruirlos con `buildFromNodes`.
   Cortar no borra nada hasta que se pega (y Escape lo cancela); pegar
   entra en la carpeta del cursor si está desplegada, y si no, coloca a
-  continuación de él.
+  continuación de él. Es el camino rápido DENTRO de una pestaña: no
+  serializa a texto ni pasa por el sistema.
+- **Y el portapapeles DEL SISTEMA, para cruzar entre instancias**
+  —incluso servidas desde dominios distintos—. Al copiar se escribe
+  además el MISMO envoltorio `.kite.json` que usa guardar una carpeta
+  (`treeExportDoc`, compartido con `exportNode`): pegar cuesta entonces
+  lo mismo que importar ese archivo, y las comprobaciones de versión ya
+  escritas valen igual. El portapapeles es del USUARIO, no del origen,
+  así que no hace falta CORS, ni `postMessage`, ni que las dos
+  instancias se conozcan.
+- **Copiar y pegar NO son simétricos, y no por gusto.** Comprobado
+  contra el navegador: `navigator.clipboard.writeText` funciona porque
+  Ctrl+C trae activación transitoria del usuario, pero `readText()` está
+  tras un permiso que hay que conceder —una prueba se quedó colgada dos
+  minutos esperándolo— y que Firefox ni siquiera ofrece a la página. Por
+  eso LEER va por el evento `paste`, que entrega el contenido sin pedir
+  nada porque lo ha provocado el usuario.
+- **Ctrl+V no pega en el acto, y el keydown NO llama a
+  `preventDefault`.** Es lo que evita pegar dos veces: `preventDefault`
+  cancelaría el evento `paste`, así que el keydown solo deja un respaldo
+  pendiente (`pasteFallback`, un `setTimeout(0)`) y el evento lo cancela
+  si trae un árbol nuestro. El orden está garantizado porque `paste` es
+  la acción por defecto de esa misma pulsación. Si lo pegado no es
+  nuestro —texto cualquiera, un GeoJSON—, el escucha se va sin tocar
+  nada y el respaldo pega el portapapeles interno, como siempre.
+- **Lo que llega de fuera nunca MUEVE**: cortar en otra pestaña no puede
+  borrar nada aquí, así que `pasteClipboard(foreign)` lo trata siempre
+  como copia (`move: false`, sin lista de cortados).
+- **Tope de tamaño** (`CLIPBOARD_MAX`, 5 MB de texto): un árbol grande
+  serializado son decenas de MB y el navegador puede rechazarlo. Por
+  encima se avisa y se sigue —el portapapeles interno aún funciona en
+  esa pestaña— y se remite al botón 💾. Un `writeText` rechazado se
+  captura: no puede tumbar el copiado interno.
 - **El estado de colapso es de cada nodo**: colapsar una carpeta no toca
   el de sus hijas, así que al reabrirla las subcarpetas aparecen como
   estaban. No introducir estados de colapso "heredados".

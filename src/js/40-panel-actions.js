@@ -474,26 +474,72 @@ function toggleVisibility(li) {
    se pega: si el usuario cambia de idea, no ha perdido su rama.       */
 let clipboard = null; /* { nodes, cut: [li], move: bool } */
 
+/* ---------- Y el portapapeles DEL SISTEMA ----------
+   El interno de arriba no cruza a otra pestaña, y menos a otro dominio.
+   Al copiar se escribe ADEMÁS el mismo envoltorio `.kite.json` que usa
+   guardar una carpeta, como texto: así pegar en otra instancia de KITE
+   —servida desde donde sea— cuesta lo mismo que importar ese archivo, y
+   las comprobaciones de versión que ya existen valen igual.
+
+   Escribir exige activación transitoria del usuario, y Ctrl+C la tiene.
+   LEER no se puede: `navigator.clipboard.readText()` está tras un
+   permiso que hay que conceder (y Firefox no lo expone a la página),
+   así que pegar va por el evento `paste`, que entrega el contenido sin
+   pedir nada. De ahí que copiar y pegar no sean simétricos aquí.
+
+   El portapapeles del sistema es del USUARIO, no del origen: no hace
+   falta CORS, ni postMessage, ni que las dos instancias se conozcan. */
+const CLIPBOARD_MAX = 5 * 1024 * 1024; /* texto; por encima solo va el interno */
+
+function copyToSystemClipboard(nodes) {
+  if (!navigator.clipboard || !navigator.clipboard.writeText) return;
+  const txt = JSON.stringify(treeExportDoc(nodes));
+  /* Un árbol grande serializado son decenas de MB: escribirlo bloquea y
+     el navegador puede rechazarlo. El portapapeles interno sigue
+     funcionando dentro de esta pestaña, así que se avisa y se sigue. */
+  if (txt.length > CLIPBOARD_MAX) {
+    navMessage(`La selección ocupa ${fmtBytes(txt.length)} y no cabe en el portapapeles del `
+      + "sistema: se podrá pegar en esta pestaña, pero no en otra. Use el botón 💾 para "
+      + "llevarla a otra instancia.");
+    return;
+  }
+  navigator.clipboard.writeText(txt).catch(err => {
+    navMessage("No se pudo copiar al portapapeles del sistema "
+      + `(${err && err.message ? err.message : "permiso denegado"}): `
+      + "se podrá pegar en esta pestaña, pero no en otra.");
+  });
+}
+
 function copySelection(cut) {
   const picked = topLevelSelection();
   if (!picked.length) { navMessage("No hay nada seleccionado que copiar."); return; }
-  clipboard = { nodes: picked.flatMap(serializeNode), cut: cut ? picked : [], move: cut };
+  const nodes = picked.flatMap(serializeNode);
+  clipboard = { nodes, cut: cut ? picked : [], move: cut };
+  copyToSystemClipboard(nodes);
   for (const li of treeEl.querySelectorAll(".node-row.cut")) li.classList.remove("cut");
   if (cut) for (const li of picked) nodeRow(li).classList.add("cut");
   navMessage(`${picked.length} nodo(s) ${cut ? "cortado(s)" : "copiado(s)"}.`, { tone: "info" });
 }
 
+/* Respaldo pendiente de Ctrl+V: lo arma el keydown y lo cancela el
+   evento `paste` si trae un árbol de fuera. Ver los dos sitios.     */
+let pasteFallback = null;
+
 /* Pega dentro de la carpeta del cursor, o a continuación de él si el
    cursor no es una carpeta                                            */
-async function pasteClipboard() {
-  if (!clipboard) { navMessage("El portapapeles est\u00E1 vac\u00EDo."); return; }
+/* `foreign` son nodos llegados del portapapeles del sistema (otra
+   pestaña, quizá de otro dominio). Nunca MUEVEN: cortar allí no puede
+   borrar nada aquí, así que pegar lo de fuera es siempre copiar.    */
+async function pasteClipboard(foreign = null) {
+  const source = foreign ? { nodes: foreign, cut: [], move: false } : clipboard;
+  if (!source) { navMessage("El portapapeles est\u00E1 vac\u00EDo."); return; }
   const cur = selCursor;
   const intoFolder = cur && nodeUl(cur) && !cur.classList.contains("collapsed");
   const ul = intoFolder ? nodeUl(cur) : (cur ? cur.parentElement : ensureRootUl());
   pushUndo("pegar");
   const before = new Set(ul.children);
   try {
-    const records = await buildRecordsFromStorage(clipboard.nodes, null);
+    const records = await buildRecordsFromStorage(source.nodes, null);
     await materializeRecords(records, ul);
   } catch (err) {
     navMessage(`No se pudo pegar: ${err.message}`);
@@ -503,8 +549,8 @@ async function pasteClipboard() {
   if (!intoFolder && cur && cur.nextSibling) {
     for (const n of added) ul.insertBefore(n, cur.nextSibling);
   }
-  if (clipboard.move) {
-    for (const li of clipboard.cut) if (li.isConnected) deleteNode(li);
+  if (source.move) {
+    for (const li of source.cut) if (li.isConnected) deleteNode(li);
     clipboard = null; /* mover es una sola vez; copiar se puede repetir */
   }
   if (added.length) moveCursorTo(added[0], false);
@@ -533,7 +579,18 @@ document.addEventListener("keydown", e => {
     const k = e.key.toLowerCase();
     if (k === "c") { e.preventDefault(); copySelection(false); return; }
     if (k === "x") { e.preventDefault(); copySelection(true); return; }
-    if (k === "v") { e.preventDefault(); pasteClipboard(); return; }
+    if (k === "v") {
+      /* NO se pega aquí, y NO se llama a preventDefault: el navegador
+         todavía tiene que disparar el evento `paste`, que puede traer
+         un árbol copiado en OTRA pestaña, y preventDefault lo
+         cancelaría. Se deja pendiente un tic; si ese evento llega y
+         trae algo nuestro, cancela este respaldo. El orden está
+         garantizado: `paste` es la acción por defecto de esta misma
+         pulsación, así que ocurre antes que un setTimeout(0).       */
+      clearTimeout(pasteFallback);
+      pasteFallback = setTimeout(() => { pasteFallback = null; pasteClipboard(); }, 0);
+      return;
+    }
     if (k === "z") { e.preventDefault(); undoLast(); return; }
     if (k === "y") { e.preventDefault(); redoLast(); return; }
     if (k === "f") { e.preventDefault(); searchBox.focus(); searchBox.select(); return; }
@@ -588,3 +645,47 @@ document.addEventListener("keydown", e => {
 
 });
 
+
+/* ---------- Pegar desde el portapapeles del sistema ----------
+   Es la mitad de LEER del copiar/pegar entre instancias. Va por el
+   evento `paste` y no por `navigator.clipboard.readText()` a propósito:
+   readText está tras un permiso que el usuario tiene que conceder y que
+   Firefox ni siquiera ofrece a la página, mientras que este evento
+   entrega el contenido sin pedir nada — es el usuario quien lo ha
+   provocado con Ctrl+V.
+
+   Si lo pegado no es un árbol de KITE (texto cualquiera, una imagen),
+   no se toca nada y el respaldo que armó el keydown pega el
+   portapapeles interno, que es el comportamiento de siempre.        */
+document.addEventListener("paste", e => {
+  /* En un campo de texto manda el pegado normal del navegador */
+  const t = e.target;
+  if (t && t.matches && t.matches("input, textarea, [contenteditable]")) return;
+  if (!e.clipboardData) return;
+  const doc = parseTreeExport(e.clipboardData.getData("text/plain") || "");
+  if (!doc) return; /* no es nuestro: que siga el respaldo del keydown */
+
+  e.preventDefault();
+  clearTimeout(pasteFallback);
+  pasteFallback = null;
+
+  /* Las mismas dos comprobaciones de versión que al importar un
+     archivo: dos instancias de builds distintos no se entienden, y es
+     mejor decirlo que reconstruir a medias.                         */
+  const format = doc.format === undefined ? 0 : doc.format;
+  if (format !== EXPORT_FORMAT) {
+    navMessage(`Lo pegado es de un formato de archivo v${format}, incompatible con el actual `
+      + `v${EXPORT_FORMAT}. Actualice las dos instancias de KITE Local a la misma versión.`);
+    return;
+  }
+  if (doc.schema !== TREE_SCHEMA) {
+    navMessage(`Lo pegado usa un formato de árbol v${doc.schema}, incompatible con el actual `
+      + `v${TREE_SCHEMA}. Actualice las dos instancias de KITE Local a la misma versión.`);
+    return;
+  }
+  if (!doc.nodes.length) { navMessage("Lo pegado no contiene ning\u00FAn nodo."); return; }
+
+  pasteClipboard(doc.nodes).then(() => {
+    navMessage(`Pegado(s) ${doc.nodes.length} nodo(s) desde el portapapeles.`, { tone: "info" });
+  });
+});
