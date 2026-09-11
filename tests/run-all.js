@@ -41,6 +41,7 @@ const SUITES = [
   ["icons.js", "Iconos MDI empotrados: catálogo y tabla sincronizados, sin red en ejecución"],
   ["boot.js", "Arranque: el panel no concluye «no hay capas» antes de leer IndexedDB"],
   ["attribution.js", "Línea inferior del visor: versión, enlace al repositorio y escala"],
+  ["minified.js", "kitelocal.min.html: el minificado que sirve Pages no viene roto del proceso"],
   ["hittest.js", "Acierto bajo el cursor: geometría real, no caja envolvente"],
   ["openshape.js", "Formas abiertas: una línea no tiene área ni relleno"],
   ["polyarea.js",         "Perímetro y área de polígonos: anillos cerrados/sin cerrar, agujeros, multipolígono"],
@@ -74,10 +75,12 @@ if (missing.length) {
    Se COMPRUEBA, no se construye: un runner de pruebas que reescribe un
    archivo del repo ensucia el árbol de trabajo sin avisar y, peor,
    enmascara justo este error. La comparación es por CONTENIDO, nunca
-   por fecha: los mtime no sobreviven a un `git checkout`.            */
+   por fecha: los mtime no sobreviven a un `git checkout`.
+   Cubre también kitelocal.min.html, la derivada que sirve Pages: es el
+   artefacto que nadie mira, así que es justo el que se queda atrás.  */
 try {
   execFileSync(process.execPath, [path.join(__dirname, "..", "build.js"), "--check"], { stdio: "pipe" });
-  console.log("✓ kitelocal.html está al día respecto de src/");
+  console.log("✓ kitelocal.html y kitelocal.min.html están al día respecto de src/");
 } catch (e) {
   console.error((e.stdout || "") + (e.stderr || ""));
   process.exit(1);

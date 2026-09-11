@@ -9,3 +9,10 @@ kitelocal.html linguist-generated=true -diff
 # en un diff solo taparía el cambio real. Mismo criterio que el archivo
 # de arriba; se versiona igual, porque el build no pide nada por red.
 src/js/05-mdi-icons.js linguist-generated=true -diff
+
+# kitelocal.min.html es la derivada minificada de kitelocal.html que
+# sirve GitHub Pages (66 KB comprimidos frente a 151). GENERADA por
+# build.js; no se edita ni se lee, y en un diff solo taparía el cambio
+# real. Se versiona por lo mismo que el legible: Pages publica lo que
+# hay en el repositorio, sin construir nada.
+kitelocal.min.html linguist-generated=true -diff

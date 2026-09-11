@@ -15,11 +15,17 @@ desarrollo del proyecto.
    doble clic. Eso no se negocia. Pero **ese archivo es GENERADO**: se
    edita `src/` y se construye con `npm run build` (ver `build.js` y la
    sección «Fuentes y construcción»). Nada de Vue, React, TypeScript ni
-   empaquetadores: el build es una concatenación literal, sin
-   minificar, sin envolver y sin transformar nada.
-   **Nunca se edita `kitelocal.html` a mano**: el cambio se perdería en
-   la siguiente construcción. `node tests/run-all.js` lo comprueba antes
-   de nada y falla si el archivo no corresponde a `src/`.
+   empaquetadores: el build es una concatenación literal, sin envolver y
+   sin transformar nada. **El producto que se lee, se prueba y se
+   depura sigue siendo ese**, sin minificar.
+   El build escribe ADEMÁS `kitelocal.min.html`, que es lo que sirve
+   GitHub Pages. Es una **derivada**, nunca una fuente: no se edita, no
+   se lee, y las suites de extracción no la tocan (quitarle los
+   comentarios las dejaría sin marcadores). Ver «Minificado para el
+   despliegue».
+   **Nunca se edita a mano un archivo generado**: el cambio se perdería
+   en la siguiente construcción. `node tests/run-all.js` lo comprueba
+   antes de nada y falla si alguno de los dos no corresponde a `src/`.
 2. **Reusar librerías conocidas y estables; no reinventar.** Se cargan por
    CDN (unpkg / cdnjs) con versión fijada. Las actuales:
    - **Leaflet 1.9.4** — mapa, zoom, pan, controles, capas, tooltips.
@@ -258,7 +264,8 @@ src/index.html     plantilla: <head>, CSP, diálogos, <script> de CDN.
 src/styles.css     todo el CSS
 src/js/*.js        20 archivos, en el orden del manifiesto de build.js
                    (el primero, 05-mdi-icons.js, es GENERADO)
-build.js           concatena src/ → kitelocal.html
+build.js           concatena src/ → kitelocal.html, y minifica ese
+                   resultado → kitelocal.min.html
 fetch-icons.js     GENERA src/js/05-mdi-icons.js (npm run icons). A mano,
                    NO forma parte del build: es lo único que habla con
                    Iconify y construir debe ser reproducible y sin red
@@ -266,6 +273,11 @@ kitelocal.html     GENERADO. Es el producto; se versiona (quien clone
                    debe tener algo que abrir) y está marcado como
                    generado en .gitattributes para que los diffs se
                    plieguen y no tapen el cambio real en src/
+kitelocal.min.html GENERADO a partir del anterior. Es lo que sirve
+                   GitHub Pages (index.html redirige ahí). Se versiona
+                   por lo mismo: Pages publica lo que hay en el
+                   repositorio, sin construir nada
+index.html         redirección de la raíz del sitio al minificado
 ```
 
 - `npm run build` construye, `npm run watch` reconstruye al guardar
@@ -1107,6 +1119,53 @@ kitelocal.html     GENERADO. Es el producto; se versiona (quien clone
 - **Navegación completa del árbol con teclado** (flechas sin Shift para
   moverse y desplegar, Enter para activar) y monitorización de memoria y
   cuota de almacenamiento.
+
+## Minificado para el despliegue
+
+`build.js` escribe dos archivos: `kitelocal.html` (legible, el producto)
+y `kitelocal.min.html` (su derivada minificada, lo que sirve Pages).
+
+- **El motivo es medido.** La aplicación se sirve por GitHub Pages, y
+  Pages **ya comprime**: lo que viajaba no eran los 460 KB del disco
+  sino 152,9 KB (`content-encoding: gzip`, comprobado contra el sitio
+  real). Sobre esa base, minificar solo HTML y CSS baja a 144,8 KB —un
+  5 %, ruido contra gzip—. Lo único que mueve la aguja es minificar
+  **también el JavaScript**: 460.123 → 213.605 bytes en disco y
+  **150.765 → 66.285 comprimidos, un 56 % menos**. Brotli no entra en la
+  cuenta: Pages responde `gzip` aunque se pida `br`.
+- **Por qué no se minifica en su sitio, que sería más simple.** Las
+  suites extraen el código del archivo ENTREGADO, y 22 de ellas usan
+  **comentarios como marcadores** (`between("/* ===== Geodesia", …)`).
+  `removeComments` los borra. Reescribirlas para leer `src/` les quitaría
+  justo la propiedad que las hace valer: que prueban lo que se entrega.
+- **Dos opciones del minificador son decisiones, no ajustes finos**
+  (`MINIFY_OPTS` en `build.js`):
+  - `conservativeCollapse: true` colapsa los espacios a UNO, nunca a
+    cero. El colapso normal recorta también el espacio entre etiquetas
+    en línea y pega dos palabras; hay texto así en los diálogos (el
+    `<strong>latitud, longitud y altitud</strong>` de `src/index.html`).
+    Contra gzip, conservar ese espacio no cuesta nada.
+  - **No** se activan `removeAttributeQuotes` ni parientes: aquí los
+    atributos son carga útil —los cinco `integrity` con su
+    `crossorigin`, y el `<meta>` de la CSP—.
+  - `minifyJS` va por terser con `mangle.toplevel` en `false` (su valor
+    por defecto): los nombres de nivel superior sobreviven, y de eso
+    depende el ámbito global compartido del producto. `tests/minified.js`
+    lo fija, para que activarlo no pase inadvertido.
+- **La versión del minificador va EXACTA en `package.json`, sin `^`.**
+  No es una manía: `build.js --check` compara byte a byte, así que un
+  cambio menor que altere la salida haría fallar el CI sin que nadie
+  haya tocado `src/`.
+- **`npm run watch` NO minifica**, y lo dice al arrancar: su razón de ser
+  es quitar fricción al guardar. Quien lo use tiene que pasar por
+  `npm run build` antes de empujar; si se olvida, lo caza `npm run check`.
+- **Lo que `tests/minified.js` NO demuestra es que la aplicación
+  funcione**: para eso hace falta un navegador y aquí el CI es solo
+  Node. Esa comprobación es MANUAL y obligatoria al tocar el minificado
+  o sus opciones: cargar los dos archivos en el Chromium headless de la
+  VM y comparar arranque, selector de iconos, aplicación de un icono,
+  una medición con su diálogo, escala y atribución. La última vez dieron
+  resultados idénticos, sin errores de página ni violaciones de CSP.
 
 ## Dependencias externas
 

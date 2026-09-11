@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-/* Construye kitelocal.html a partir de src/.
+/* Construye kitelocal.html (y su derivada minificada) a partir de src/.
 
    El producto es UN SOLO archivo que se abre con doble clic: por eso el
    build es una CONCATENACIÓN literal, no un empaquetador. No minifica,
@@ -8,17 +8,28 @@
    a esos símbolos directamente; envolverlo lo rompería. Los módulos ES
    tampoco valen: Chrome los bloquea por CORS sobre file://.
 
-   Uso:  node build.js            construye
+   Además se escribe kitelocal.min.html, que es lo que sirve GitHub
+   Pages. Es una DERIVADA del anterior, nunca una fuente: no se edita, no
+   se lee y las suites de extracción no la tocan (borrar los comentarios
+   las dejaría sin marcadores). Medido contra el sitio real, Pages ya
+   envía gzip —152,9 KB hoy—, y minificar solo HTML y CSS apenas baja a
+   144,8; lo que de verdad reduce la transmisión es minificar también el
+   JavaScript, que la deja en 66,7 KB.
+
+   Uso:  node build.js            construye los dos
          node build.js --check    no escribe; falla si lo construido no
-                                  coincide con el kitelocal.html del disco
+                                  coincide con lo que hay en el disco
          node build.js --watch    reconstruye al guardar cualquier fuente
+                                  (sin minificar: ver más abajo)
 */
 const fs = require("fs");
 const path = require("path");
+const { minify } = require("html-minifier-terser");
 
 const ROOT = __dirname;
 const SRC = path.join(ROOT, "src");
 const OUT = path.join(ROOT, "kitelocal.html");
+const OUT_MIN = path.join(ROOT, "kitelocal.min.html");
 
 /* ORDEN DE CARGA. No es cosmético: todo comparte un mismo ámbito y hay
    dependencias de orden que ningún `node --check` detecta — una
@@ -84,17 +95,39 @@ function build() {
   return tpl.replace("{{STYLES}}\n", () => css).replace("{{SCRIPTS}}\n", () => js);
 }
 
-/* Escribe y avisa. Devuelve el tamaño para el mensaje. */
-function write() {
-  const out = build();
-  fs.writeFileSync(OUT, out);
-  return Buffer.byteLength(out, "utf8");
-}
+/* Opciones del minificado. Dos elecciones deliberadas:
+
+   - `conservativeCollapse` colapsa los espacios a UNO, nunca a cero. Sin
+     él, el colapso normal recorta también el espacio entre etiquetas en
+     línea y pega dos palabras: hay texto así en los diálogos (ver el
+     <strong>latitud, longitud y altitud</strong> de src/index.html).
+     Contra gzip, conservar ese espacio no cuesta nada.
+   - NO se activan `removeAttributeQuotes` ni `removeRedundantAttributes`
+     ni parientes: aquí los atributos son carga útil — los cinco
+     `integrity` con su `crossorigin` (sin SRI el navegador bloquea
+     Leaflet y la página queda en blanco) y el <meta> de la CSP.
+
+   `minifyJS` pasa por terser con `mangle.toplevel` en false, su valor
+   por defecto: los nombres de nivel superior sobreviven, y de eso
+   depende el ámbito global compartido del producto.                  */
+const MINIFY_OPTS = {
+  collapseWhitespace: true,
+  conservativeCollapse: true,
+  removeComments: true,
+  minifyCSS: true,
+  minifyJS: true
+};
+const minifyHtml = html => minify(html, MINIFY_OPTS);
 
 /* El paso de build es la fricción que este reparto introduce; --watch la
    quita casi entera: se deja corriendo y basta recargar el navegador.
    El retardo agrupa el guardado de varios archivos seguidos y evita
-   reconstruir a medias.                                              */
+   reconstruir a medias.
+   AQUÍ NO SE MINIFICA, a propósito: minificar en cada pulsación devuelve
+   la fricción que este modo existe para quitar, y lo que se recarga
+   mientras se trabaja es el archivo legible. Quien use watch tiene que
+   pasar por `npm run build` antes de empujar; si se olvida, lo caza
+   `npm run check` —en local y en el CI—, que es para lo que está.    */
 if (process.argv.includes("--watch")) {
   let timer = null;
   const rebuild = () => {
@@ -102,7 +135,10 @@ if (process.argv.includes("--watch")) {
     timer = setTimeout(() => {
       try {
         const stamp = new Date().toTimeString().slice(0, 8);
-        console.log(`[${stamp}] ✓ kitelocal.html reconstruido (${write()} bytes)`);
+        const out = build();
+        fs.writeFileSync(OUT, out);
+        console.log(`[${stamp}] ✓ kitelocal.html reconstruido `
+          + `(${Buffer.byteLength(out, "utf8")} bytes, sin minificar)`);
       } catch (err) {
         console.error(`✗ ${err.message}`);
       }
@@ -113,31 +149,44 @@ if (process.argv.includes("--watch")) {
   }
   rebuild();
   console.log("Vigilando src/ — Ctrl+C para parar");
+  console.log("  (no se genera kitelocal.min.html: haz `npm run build` antes de empujar)");
   return;
 }
 
-/* Un fallo de configuración (manifiesto descuadrado, marcador perdido)
-   debe leerse de un vistazo, no como una traza de pila.              */
-let out;
-try {
-  out = build();
-} catch (err) {
-  console.error(`✗ ${err.message}`);
-  process.exit(2);
-}
-
-if (process.argv.includes("--check")) {
-  const current = fs.existsSync(OUT) ? read(OUT) : null;
-  if (current === out) {
-    console.log("✓ kitelocal.html está al día respecto de src/");
-    process.exit(0);
+/* minify() es asíncrona, así que a partir de aquí todo va dentro de una
+   función async. Un fallo de configuración (manifiesto descuadrado,
+   marcador perdido) debe leerse de un vistazo, no como una traza.    */
+(async () => {
+  let out, min;
+  try {
+    out = build();
+    min = await minifyHtml(out);
+  } catch (err) {
+    console.error(`✗ ${err.message}`);
+    process.exit(2);
   }
-  console.error("✗ kitelocal.html NO coincide con src/: hay cambios sin construir.\n"
-    + "  Ejecuta:  npm run build\n"
-    + "  (si has editado kitelocal.html a mano, ese cambio se perderá: el fuente es src/)");
-  process.exit(1);
-}
 
-fs.writeFileSync(OUT, out);
-console.log(`✓ kitelocal.html generado desde src/ (${JS.length} archivos JS, `
-  + `${Buffer.byteLength(out, "utf8")} bytes)`);
+  if (process.argv.includes("--check")) {
+    /* Se comprueban LOS DOS y se dice cuál está desfasado: con un solo
+       mensaje genérico habría que ir a mirar cuál de ellos falla.    */
+    const stale = [[OUT, out], [OUT_MIN, min]]
+      .filter(([file, built]) => (fs.existsSync(file) ? read(file) : null) !== built)
+      .map(([file]) => path.basename(file));
+    if (!stale.length) {
+      console.log("✓ kitelocal.html y kitelocal.min.html están al día respecto de src/");
+      process.exit(0);
+    }
+    console.error(`✗ ${stale.join(" y ")} NO coincide${stale.length > 1 ? "n" : ""} con src/: `
+      + "hay cambios sin construir.\n"
+      + "  Ejecuta:  npm run build\n"
+      + "  (si has editado un archivo generado a mano, ese cambio se perderá: el fuente es src/)");
+    process.exit(1);
+  }
+
+  fs.writeFileSync(OUT, out);
+  fs.writeFileSync(OUT_MIN, min);
+  const b = Buffer.byteLength(out, "utf8"), mb = Buffer.byteLength(min, "utf8");
+  console.log(`✓ kitelocal.html generado desde src/ (${JS.length} archivos JS, ${b} bytes)`);
+  console.log(`✓ kitelocal.min.html (${mb} bytes, ${(100 - 100 * mb / b).toFixed(0)}% menos) `
+    + "— es lo que sirve GitHub Pages");
+})();
