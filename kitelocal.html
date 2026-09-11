@@ -1378,7 +1378,7 @@ const map = L.map("map", {
 
 /* Fecha de generación del código (versión): AÑOMESDIAHORAMINUTO.
    Actualizar en cada generación; se muestra junto al crédito de Leaflet. */
-const BUILD = "202609120140";
+const BUILD = "202609120235";
 /* El enlace al repositorio va junto a la versión, que es lo que hace
    accionable saber qué build se está ejecutando: desde ahí se llega al
    código de esa versión. `target="_blank"` a propósito —salir de la
@@ -5831,9 +5831,21 @@ document.addEventListener("keydown", e => {
    no se toca nada y el respaldo que armó el keydown pega el
    portapapeles interno, que es el comportamiento de siempre.        */
 document.addEventListener("paste", e => {
-  /* En un campo de texto manda el pegado normal del navegador */
   const t = e.target;
-  if (t && t.matches && t.matches("input, textarea, [contenteditable]")) return;
+  /* SOLO se importa si el pegado ocurre EN EL ÁRBOL. En cualquier otro
+     sitio el navegador pega como siempre y la aplicación no interpreta
+     nada: si alguien pega un árbol en la lista de puntos de un
+     polígono, se le queda el JSON en el cuadro de texto y es cosa suya
+     arreglarlo. Acotarlo así es lo que hace que "pegar aquí importa"
+     sea una regla que el usuario puede tener en la cabeza.
+     Ojo con el guardia: NO vale descartar todo `input`. Al pulsar una
+     fila el foco pasa a SU CASILLA, que es un <input type=checkbox>
+     dentro del árbol, o sea justo el estado normal desde el que se
+     pega — descartarlo dejaba el pegado entre pestañas sin funcionar
+     nunca (comprobado). El único campo de texto que vive dentro del
+     árbol es el de renombrar.                                        */
+  if (!t || !t.closest || !t.closest("#tree")) return;
+  if (t.matches("input.rename-input")) return;
   if (!e.clipboardData) return;
   const doc = parseTreeExport(e.clipboardData.getData("text/plain") || "");
   if (!doc) return; /* no es nuestro: que siga el respaldo del keydown */

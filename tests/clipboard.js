@@ -71,8 +71,23 @@ ok(/clearTimeout\(pasteFallback\)/.test(listener),
   "el evento paste cancela ese respaldo cuando trae algo nuestro");
 ok(/if \(!doc\) return;/.test(listener),
   "y si NO es nuestro se va sin tocar nada, dejando que el respaldo pegue lo interno");
-ok(/matches\("input, textarea, \[contenteditable\]"\)/.test(listener),
-  "en un campo de texto manda el pegado normal del navegador");
+/* ---------- Solo importa si se pega EN EL ÁRBOL ----------
+   En cualquier otro sitio el navegador pega como siempre y la
+   aplicación no interpreta nada; quien pegue un árbol en la lista de
+   puntos de un polígono se queda el JSON en el cuadro de texto y es
+   cosa suya. Acotarlo así es lo que hace que "pegar aquí importa" sea
+   una regla que el usuario puede tener en la cabeza.               */
+ok(/if \(!t \|\| !t\.closest \|\| !t\.closest\("#tree"\)\) return;/.test(listener),
+  "el pegado solo se interpreta dentro de #tree");
+/* Y el guardia NO puede descartar todo `input`: al pulsar una fila el
+   foco pasa a SU CASILLA, un <input type=checkbox> dentro del árbol,
+   que es justo el estado normal desde el que se pega. Descartarlo
+   dejaba el pegado entre pestañas sin funcionar NUNCA (comprobado en
+   navegador: foco "checkbox", no importaba nada).                  */
+ok(!/matches\("input, textarea/.test(listener),
+  "no se descarta todo <input>: la casilla de una fila es uno, y es el foco normal");
+ok(/if \(t\.matches\("input\.rename-input"\)\) return;/.test(listener),
+  "solo se aparta el único campo de texto que vive dentro del árbol: el de renombrar");
 /* Las mismas dos comprobaciones de versión que al importar un archivo */
 ok(/format !== EXPORT_FORMAT/.test(listener) && /doc\.schema !== TREE_SCHEMA/.test(listener),
   "comprueba las dos versiones antes de reconstruir nada");

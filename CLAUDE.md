@@ -555,9 +555,26 @@ index.html         redirección de la raíz del sitio al minificado
   la acción por defecto de esa misma pulsación. Si lo pegado no es
   nuestro —texto cualquiera, un GeoJSON—, el escucha se va sin tocar
   nada y el respaldo pega el portapapeles interno, como siempre.
+- **Pegar solo IMPORTA si se hace sobre el árbol** (`closest("#tree")`).
+  En cualquier otro sitio el navegador pega como siempre y la aplicación
+  no interpreta nada: quien pegue un árbol en la lista de puntos de un
+  polígono se queda el JSON en el cuadro de texto, y arreglarlo es cosa
+  suya. Acotarlo así es lo que convierte «pegar aquí importa» en una
+  regla que el usuario puede tener en la cabeza.
+- **Cuidado con ese guardia: NO vale descartar todo `input`.** Al pulsar
+  una fila el foco pasa a SU CASILLA, que es un `<input type=checkbox>`
+  dentro del árbol — o sea, el estado normal desde el que se pega.
+  Descartar todos los `input` dejaba el pegado entre pestañas sin
+  funcionar NUNCA, y no se vio antes porque la prueba lanzaba el evento
+  sobre `#tree` directamente. El único campo de texto que vive dentro
+  del árbol es el de renombrar (`input.rename-input`), y ese sí se
+  aparta.
 - **Lo que llega de fuera nunca MUEVE**: cortar en otra pestaña no puede
   borrar nada aquí, así que `pasteClipboard(foreign)` lo trata siempre
   como copia (`move: false`, sin lista de cortados).
+- **Ctrl+V sigue pegando el portapapeles INTERNO desde cualquier sitio**
+  (fuera de campos de texto), como siempre: acotar al árbol es cosa de
+  lo que llega de FUERA, que es lo que se «importa».
 - **Tope de tamaño** (`CLIPBOARD_MAX`, 5 MB de texto): un árbol grande
   serializado son decenas de MB y el navegador puede rechazarlo. Por
   encima se avisa y se sigue —el portapapeles interno aún funciona en
