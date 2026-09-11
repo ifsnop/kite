@@ -1111,14 +1111,39 @@ index.html         redirección de la raíz del sitio al minificado
 
 ## Pendiente (conocido y no hecho)
 
-- ~~SRI en las dependencias de CDN~~: **hecho**. Ver la sección
-  «Dependencias externas».
+Lo hecho se BORRA de esta lista en cuanto se hace: una lista que anuncia
+como pendiente algo ya resuelto deja de merecer confianza entera, y
+entonces tampoco sirve para lo que de verdad falta.
+
 - **Antimeridiano completo**: el punto medio y las mediciones ya lo
   cruzan bien; el encuadre automático y las líneas de la retícula todavía
   no representan geometrías que cruzan ±180°.
-- **Navegación completa del árbol con teclado** (flechas sin Shift para
-  moverse y desplegar, Enter para activar) y monitorización de memoria y
-  cuota de almacenamiento.
+- **Memoria de la pestaña sobre `file://`**: el indicador funciona
+  servido por http(s) —el demo, cualquier despliegue— pero sobre
+  `file://` Chromium congela `performance.memory` y por eso ahí se dice
+  que no se mide (ver `refreshMemoryUsage`). No hay forma conocida de
+  arreglarlo desde la página: la API normalizada exige COOP/COEP, que
+  ni un archivo local ni GitHub Pages pueden dar.
+- **`findDuplicatePlacemarks` ignora la altitud**: compara solo latitud
+  y longitud, así que dos placemarks a distinta altura se siguen
+  fusionando como duplicados. Es el único sitio donde la altitud, que
+  ya se conserva en todo el recorrido, no se tiene en cuenta.
+- **`reorderPaintOrder` está pendiente de MEDIR, no de arreglar.** Ver
+  el detalle en «Rendimiento»: no tocarlo sin medir antes.
+- **La comprobación en navegador del archivo minificado es manual.**
+  Automatizarla exige meter un navegador en el CI, que hoy es solo Node.
+
+Parcialmente hecho, para que no se confunda con pendiente:
+
+- **Navegación del árbol con teclado**: hecha (flechas sin Shift para
+  moverse y desplegar, Inicio/Fin, Re/Av Pág, espacio, Supr, F2,
+  Ctrl+A/C/X/V/Z/Y/F, Alt+Intro). Lo que no hay es soporte TÁCTIL, que
+  es otra cosa y sigue abierto.
+- **Comprobaciones estáticas del archivo**: las cinco están
+  automatizadas — SRI, guardián de Leaflet y valor de `BUILD` en
+  `tests/minified.js` y `tests/attribution.js`; `$id`/`getElementById`
+  contra un `id` existente y «toda función llamada está declarada» en
+  `tests/statics.js`.
 
 ## Minificado para el despliegue
 
@@ -1471,16 +1496,59 @@ y `kitelocal.min.html` (su derivada minificada, lo que sirve Pages).
 - Descartar un árbol de otra versión borra **solo** la clave `root`, no
   el almacén entero: la vista es independiente y sigue siendo válida.
 
+## Lo que consume el visor
+
+Dos cotas, una al lado de otra bajo el árbol (`#usage`), porque son las
+dos con las que se topa un árbol grande y hasta ahora solo se veía una:
+
+- **Almacenamiento** (`refreshStorageUsage`): `navigator.storage.estimate()`
+  informa del origen entero, pero esta aplicación solo escribe en
+  IndexedDB, así que en la práctica es lo que hay guardado aquí. Se
+  refresca **tras cada guardado**, que ya trae su propio retardo, en vez
+  de con un temporizador propio.
+- **Memoria de la pestaña** (`refreshMemoryUsage`): lleva temporizador
+  propio (`MEMORY_REFRESH_MS`), porque cambia sin que el árbol se toque.
+  Puede permitírselo justamente porque leer `performance.memory` es un
+  captador (0,005 ms medidos) y no una consulta al disco como
+  `estimate()`.
+- **Sobre `file://` no se muestra el número.** Medido con Chromium 129:
+  reservando 600.000 objetos, `usedJSHeapSize` no se movió de 9,54 MB ni
+  a los 35 s abriendo el archivo con doble clic, mientras que la MISMA
+  página servida por http pasó de 4,38 a 54,33 MB al instante. Un número
+  congelado con aspecto de medida en vivo engaña más que no poner nada,
+  así que ahí se dice que no se mide. No es un fallo que se pueda
+  arreglar desde la página: la API normalizada
+  (`measureUserAgentSpecificMemory`) exige COOP/COEP, y ni un archivo
+  local ni GitHub Pages pueden enviar esas cabeceras.
+- `performance.memory` no está en ninguna norma y solo existe en
+  Chromium; en el resto se dice «no disponible» en vez de inventar nada.
+
 ## Comprobaciones estáticas del propio archivo
 
-Además de los tests, conviene pasar sobre `kitelocal.html`:
-- que todo recurso de librería lleve `integrity` y `crossorigin`;
-- que el guardián de Leaflet preceda a cualquier uso de `L`;
-- que haya UNA sola constante `BUILD` y con el valor esperado;
-- que todo `getElementById`/`$id` apunte a un `id` existente;
-- **que toda función llamada esté declarada**: un refactor puede
+Estas cinco cosas se comprueban sobre `kitelocal.html`, y ya no a mano:
+
+- que todo recurso de librería lleve `integrity` y `crossorigin`
+  (`tests/minified.js`);
+- que el guardián de Leaflet preceda a cualquier uso de `L` (íd.);
+- que `BUILD` tenga la forma esperada y el mismo valor en los dos
+  artefactos (`tests/attribution.js`, `tests/minified.js`);
+- que todo `getElementById`/`$id` apunte a un `id` existente
+  (`tests/statics.js`);
+- **que toda función llamada esté declarada** (íd.): un refactor puede
   llevarse por delante ayudantes que siguen en uso y `node --check` no lo
   detecta, porque sigue siendo sintácticamente válido.
+
+Las dos últimas obligan a mirar el código de verdad, no el texto en
+bruto: los comentarios de este proyecto están en castellano y llenos de
+paréntesis, y un barrido ingenuo daba **369 falsos positivos**. Por eso
+`tests/statics.js` lleva su propio `maskCode`, que borra comentarios,
+cadenas, plantillas y expresiones regulares conservando las posiciones.
+Cuidado con dos trampas que ya costaron: un `${…}` dentro de una
+plantilla CONTIENE código, con sus propias cadenas dentro (sin recorrer
+eso, `"cortado(s)"` se leía como una llamada a `cortado`), y un getter
+(`get hasIssues()`) liga un nombre igual que una declaración. Los
+globales del navegador van en una lista explícita (`GLOBALS`) para que
+depender de una API nueva sea una decisión, no un descuido.
 
 ## Zoom por encima de las teselas
 

@@ -44,6 +44,10 @@
   if (!rootUl) showEmptyMessage();
 
   refreshStorageUsage();
+  /* La memoria cambia sin que el árbol se toque, así que lleva su
+     propio temporizador; el almacenamiento viaja con cada guardado. */
+  refreshMemoryUsage();
+  setInterval(refreshMemoryUsage, MEMORY_REFRESH_MS);
 
   /* Pedir almacenamiento persistente: reduce el riesgo de que el
      navegador borre los datos si necesita liberar espacio          */

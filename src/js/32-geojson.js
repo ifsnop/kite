@@ -718,6 +718,50 @@ async function refreshStorageUsage() {
   }
 }
 
+/* Memoria de la pestaña, al lado de lo que ocupa en disco: son las dos
+   cotas con las que se topa un árbol grande, y hasta ahora solo se veía
+   una.
+
+   `performance.memory` es una extensión de Chromium: no está en ninguna
+   norma y en el resto de navegadores no existe, así que ahí se dice «no
+   disponible» en vez de inventar un número. La alternativa normalizada,
+   `measureUserAgentSpecificMemory()`, exige aislamiento de origen
+   cruzado (COOP/COEP): ni una página abierta con doble clic ni GitHub
+   Pages pueden dar esas cabeceras, así que no es una opción.
+
+   SOBRE file:// EL VALOR SE QUEDA CONGELADO, y por eso ahí no se
+   muestra: un número fijo con aspecto de medida en vivo engaña más que
+   no poner nada. Medido con Chromium 129: reservando 600.000 objetos,
+   `usedJSHeapSize` no se movió de 9,54 MB ni a los 35 s con el archivo
+   abierto por file://, mientras que la MISMA página servida por http
+   pasó de 4,38 a 54,33 MB al instante. O sea que el indicador sirve
+   en el demo y en cualquier despliegue servido, que es donde el
+   consumo importa de verdad.
+
+   A diferencia del almacenamiento, que se refresca tras cada guardado
+   porque ya viaja con su propio retardo, la memoria cambia sin que el
+   árbol se toque —navegar el mapa, abrir diálogos—, así que lleva su
+   propio temporizador. Leer `performance.memory` es un captador, no una
+   consulta al disco como `navigator.storage.estimate()`, y por eso este
+   temporizador puede permitirse ser periódico y aquel no: medido, 0,005
+   ms por lectura.                                                     */
+const MEMORY_REFRESH_MS = 5000;
+function refreshMemoryUsage() {
+  const el = document.getElementById("memory-usage");
+  if (!el) return;
+  const m = performance.memory;
+  if (!m || !isFinite(m.usedJSHeapSize)) {
+    el.textContent = "Memoria de la pestaña: no disponible en este navegador.";
+    return;
+  }
+  if (location.protocol === "file:") {
+    el.textContent = "Memoria de la pestaña: no se mide al abrir el archivo directamente.";
+    return;
+  }
+  el.textContent = `Memoria de la pestaña: ${fmtBytes(m.usedJSHeapSize)}`
+    + ` de ${fmtBytes(m.jsHeapSizeLimit)}`;
+}
+
 function saveTree() {
   saveChain = saveChain
     .then(() => {
