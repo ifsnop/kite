@@ -4,6 +4,10 @@
 
 A privacy-first, browser-based viewer and organizer for **KML, KMZ and GeoJSON** files. It preserves nested KML folder structures as an interactive layer tree, runs from one self-contained HTML file, and keeps imported data inside the user's browser.
 
+### ▶ [Try the live demo](https://ifsnop.github.io/kite/)
+
+The demo is the application itself, not a hosted service: the page is served from GitHub Pages and everything then runs in the browser. Files dropped onto it are **not uploaded anywhere** — the same guarantee as opening the downloaded file locally. Drop a KML, KMZ or GeoJSON file onto the left panel and it opens straight away.
+
 > **In short:** if a KML is used as a conventional collection of folders, placemarks, lines and polygons in Google Earth, KITE Local is designed to open it directly while retaining its folder hierarchy. Advanced Google Earth features such as 3D models, tours, overlays and network links are outside the current scope.
 
 ## Why this project exists
@@ -101,8 +105,12 @@ KITE Local does not impose fixed limits on KML file size, imported features or v
 
 ## Quick start
 
+The fastest way is **[the live demo](https://ifsnop.github.io/kite/)** — nothing to download, and the files still never leave the browser.
+
+To keep a local copy:
+
 1. Download or clone this repository.
-2. Open the application HTML file in a modern desktop browser.
+2. Open `kitelocal.html` in a modern desktop browser — double-clicking the file is enough.
 3. Drag KML, KMZ, GeoJSON or `.kite.json` files onto the left navigation panel.
 4. Use the retained folder tree to organize, compare, show, hide and style the imported content.
 
@@ -111,7 +119,12 @@ git clone <repository-url>
 cd <repository-directory>
 ```
 
-No package manager, web server or build process is required. The complete application is distributed as one HTML file.
+No package manager, web server or build process is required to *use* the viewer. The complete application is distributed as one HTML file.
+
+Two copies of that file are published, and they are the same application:
+
+- **`kitelocal.html`** — the readable build, with the source and its comments intact. This is the one to download, read or debug.
+- **`kitelocal.min.html`** — a minified derivative, and what the demo link serves: 67 KB over the wire instead of 152 KB.
 
 ## Local persistence and backups
 
@@ -127,9 +140,10 @@ The current build is not fully offline and makes external requests:
 
 - Leaflet CSS, JavaScript and default marker images are loaded from `unpkg.com`;
 - JSZip is loaded from `cdnjs.cloudflare.com`;
-- Material Design marker SVGs are loaded from `api.iconify.design`;
 - place searches are sent to the public Nominatim service;
 - base-map tiles and WMS images are requested from their respective providers.
+
+Material Design marker icons are **embedded in the file** and cost no request at all. They used to be fetched one by one from `api.iconify.design`, which meant 79 simultaneous requests every time the icon picker was opened; past the service's rate limit the icons silently went blank. They are now baked in at build time.
 
 These providers receive ordinary request metadata, and text entered in the place search is sent to Nominatim. The imported KML geometry itself is not sent by the application to these services.
 
@@ -204,7 +218,7 @@ The interface is primarily designed for mouse and keyboard use. Touch support an
 
 ## Security notes
 
-Treat imported files as untrusted input. The viewer uses text insertion and explicit HTML escaping for marker labels, but a public deployment should also add a restrictive Content Security Policy, validate imported sizes and numeric values, and pin or self-host external dependencies. Remote SVG responses should be considered untrusted until sanitized or replaced with locally reviewed assets.
+Treat imported files as untrusted input. The viewer uses text insertion and explicit HTML escaping for marker labels, sanitizes KML `description` HTML against an allow-list, ships a restrictive `Content-Security-Policy` (`default-src 'none'` plus the specific origins it needs), and pins its CDN dependencies with Subresource Integrity. Marker icons are embedded rather than fetched, so no remote SVG is executed.
 
 Do not use public tile, geocoding or CDN services for sensitive work without an appropriate security and privacy review.
 
@@ -237,7 +251,7 @@ This application currently uses or accesses:
 
 - [Leaflet](https://leafletjs.com/)
 - [JSZip](https://stuk.github.io/jszip/)
-- [Material Design Icons through Iconify](https://iconify.design/)
+- [Material Design Icons](https://pictogrammers.com/library/mdi/) (Pictogrammers, Apache-2.0) — embedded at build time through [Iconify](https://iconify.design/); not requested at runtime
 - [OpenStreetMap](https://www.openstreetmap.org/)
 - [Nominatim](https://nominatim.org/)
 - Esri World Terrain
