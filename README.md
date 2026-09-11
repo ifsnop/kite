@@ -41,11 +41,11 @@ General-purpose GIS importers commonly translate KML folders into separate geome
 
 Imported files are parsed locally. Their geometries and workspace remain in the browser and are stored locally through IndexedDB. No application account or backend upload is required.
 
-External requests are still made for libraries, map tiles, WMS imagery, marker icons and optional place searches; see [Internet access and privacy](#internet-access-and-privacy).
+External requests are still made for libraries, map tiles, WMS imagery and optional place searches; see [Internet access and privacy](#internet-access-and-privacy).
 
 ### One portable HTML file
 
-The complete application—interface, styles and program logic—is contained in one HTML file. Download it and open it in a modern browser. No build, installation or server is needed.
+The complete application—interface, styles and program logic—is contained in one HTML file. Download it and open it in a modern browser. No build, installation or server is needed **to use it**. Developing it is another matter: the sources live in `src/` and are concatenated into that file by `build.js` (see the roadmap), but nobody running the viewer ever needs that step.
 
 ### No artificial KML import quota
 
@@ -171,13 +171,16 @@ The viewer handles the core structures used by many conventional KML files:
 - node `visibility` and folder/document `open`
 - shared and inline `Style` for basic line and polygon appearance
 - resolvable `StyleMap` normal-style references
+- `GroundOverlay` georeferenced images, including those bundled in a KMZ
+  (axis-aligned `LatLonBox` only: a `rotation` is read and reported, but
+  not applied)
 
 KML is a broad specification. The following are not fully supported or are intentionally simplified:
 
 - Google Earth icon styles and arbitrary remote/local icon resources
 - altitude rendering and altitude modes
 - extrusions and 3D geometry
-- ground and screen overlays
+- screen overlays
 - network links and refresh behavior
 - tracks, tours, models and time primitives
 - balloon templates and rich KML descriptions
@@ -210,7 +213,7 @@ The interface is primarily designed for mouse and keyboard use. Touch support an
 - The simple compatibility statement applies to conventional folder/placemark/line/polygon KML, not every feature in the full KML specification.
 - `DOMParser` and `JSON.parse` are synchronous and can briefly block the interface on large inputs.
 - The application sets no explicit KML-size or feature-count limit, but the browser, RAM, IndexedDB quota and rendering performance impose practical limits.
-- KML point altitude is currently ignored.
+- Altitude is carried through import, storage and export, but it is not rendered: this is a 2D viewer. Two placemarks at the same latitude and longitude but different altitudes are still treated as duplicates.
 - KML namespace and style handling is partial.
 - External services can change, rate-limit requests or become unavailable.
 - `.kite.json` is application-specific and currently requires a matching tree schema version.
@@ -224,14 +227,47 @@ Do not use public tile, geocoding or CDN services for sensitive work without an 
 
 ## Development roadmap
 
-1. Split the application into modules for parsing, state, persistence, rendering, dialogs and measurements.
-2. Add automated tests for coordinate parsing, KML colours, hierarchy preservation, geometry conversion, serialization and schema validation.
-3. Run KML/GeoJSON parsing in Web Workers.
-4. Add input validation and configurable resource limits.
-5. Pin dependencies with Subresource Integrity or provide a fully vendored offline build.
-6. Improve keyboard navigation, focus management, ARIA labels and touch interaction.
-7. Add documented IndexedDB and `.kite.json` migrations.
-8. Add optional export to standard KML and GeoJSON.
+### Done
+
+- **The sources are split.** The application is edited as `src/index.html`,
+  `src/styles.css` and twenty JavaScript files, concatenated into the shipped
+  file by `build.js`. The single-file product is the output, not the source.
+- **There are automated tests.** Thirty-six suites run under Node against the
+  shipped file, covering coordinate parsing and formatting, UTM, KML
+  namespaces and styles, geometry conversion, serialization, tree navigation
+  and selection, hit-testing, geodesic area and perimeter, and more. Run them
+  with `npm test`.
+- **CDN dependencies carry Subresource Integrity**, so a compromised CDN
+  cannot substitute other content, and marker icons are now embedded in the
+  file rather than fetched.
+- **Input validation and preventive limits.** Everything arriving from outside
+  is treated as hostile: geometry is validated before layers are built,
+  failures are isolated per entity so one bad placemark cannot abort an
+  import, KMZ archives have entry/size/ratio caps, and the user always gets a
+  summary of what loaded and what was skipped, with the reason.
+- **Keyboard navigation, focus management and ARIA labels.** The tree is a
+  proper `role="tree"` with roving focus, dialogs trap and restore focus, and
+  the panel is driven entirely from the keyboard.
+
+### Still open
+
+- Touch interaction, which remains weak: the interface is built for mouse and
+  keyboard.
+- Optional export to standard KML and GeoJSON. Today the only export format is
+  the application's own `.kite.json`.
+- A fully vendored offline build. Leaflet and JSZip are still loaded from a CDN.
+- Configurable resource limits; the current caps are constants in the source.
+- An English interface. The UI is in Spanish.
+
+### Deliberately not planned
+
+- **Web Workers for parsing.** The target file sizes do not justify them, and
+  a worker has neither `DOMParser` nor Leaflet, so the work would have to be
+  split awkwardly across the boundary.
+- **IndexedDB and `.kite.json` migrations.** Storage is versioned, and data
+  from a different version is discarded rather than migrated. The version is
+  only raised when a change requires it, and the user is told when a saved
+  workspace is dropped.
 
 ## Contributing
 
