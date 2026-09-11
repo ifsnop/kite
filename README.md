@@ -8,7 +8,7 @@ A privacy-first, browser-based viewer and organizer for **KML, KMZ and GeoJSON**
 
 The demo is the application itself, not a hosted service: the page is served from GitHub Pages and everything then runs in the browser. Files dropped onto it are **not uploaded anywhere** — the same guarantee as opening the downloaded file locally. Drop a KML, KMZ or GeoJSON file onto the left panel and it opens straight away.
 
-> **In short:** if a KML is used as a conventional collection of folders, placemarks, lines and polygons in Google Earth, KITE Local is designed to open it directly while retaining its folder hierarchy. Advanced Google Earth features such as 3D models, tours, overlays and network links are outside the current scope.
+> **In short:** if a KML is used as a conventional collection of folders, placemarks, lines and polygons in Google Earth, KITE Local is designed to open it directly while retaining its folder hierarchy. Advanced Google Earth features such as 3D models, tours, screen overlays and network links are outside the current scope; georeferenced ground overlays are supported.
 
 ## Why this project exists
 
@@ -23,9 +23,11 @@ KITE Local focuses deliberately on that workflow:
 - **Keep data local.** KML, KMZ and GeoJSON files are read and processed in the browser. They are not uploaded to an application server.
 - **Use one self-contained HTML file.** There is no installer, package manager, compilation step or application backend.
 - **Avoid application-imposed import quotas.** The viewer sets no file-size, feature-count or vertex-count limit; practical capacity is determined by the browser and the user's available memory and storage.
-- retain the workspace locally through IndexedDB;
-- export selected folders as portable `.kite.json` packages;
-- provide map, marker, graticule and geodesic measurement tools.
+- **Keep the workspace between sessions.** The tree, its styles, the saved view
+  and the measurements are stored locally through IndexedDB, so closing the tab
+  does not mean starting over.
+- **Take work out again.** Any folder can be exported as a portable
+  `.kite.json` package, and the current view as a PNG image.
 
 It is an independent GPL-3.0 project and is **not affiliated with or endorsed by Google, Google Earth, QGIS, OpenStreetMap, Esri, Leaflet, Iconify or Instituto Geográfico Nacional de España**.
 
@@ -56,10 +58,21 @@ KITE Local does not impose fixed limits on KML file size, imported features or v
 ### File support
 
 - KML files, preserving nested `Document` and `Folder` structures
-- KMZ archives containing KML
-- GeoJSON and JSON files
+- KMZ archives, including the images referenced by their ground overlays
+- GeoJSON, TopoJSON and plain JSON
 - KITE Local folder exports (`.kite.json`)
-- drag-and-drop import
+- drag-and-drop import; dropping onto a folder imports inside it
+- tolerant XML parsing: a namespace prefix that a file uses but never
+  declares — accepted by Google Earth, rejected by any XML parser — is
+  repaired once and reported, instead of losing the whole file
+- per-entity error isolation: one broken geometry cannot abort an import,
+  and every load ends with a summary of what came in, what was skipped
+  and why
+- optional removal of HTML-like tags left in names by some exporters
+- optional merging of duplicate placemarks (same name and position)
+- for a GeoJSON whose features carry no `name` or `title`, a prompt to
+  choose which property to use as the name, remembered for future files
+  with the same property structure
 - progress indication and batched layer construction for larger files
 
 ### Layer workspace
@@ -68,39 +81,87 @@ KITE Local does not impose fixed limits on KML file size, imported features or v
 - global, file, folder, subtree and individual visibility controls
 - rename, delete, reorder and alphabetically sort nodes
 - drag layers and folders within the tree
-- multi-selection for compatible layer types
-- collapse and expand folders
-- search by layer or folder name
-- pan to a node and fit the map to loaded content
+- multi-selection, including Shift ranges and single-node toggles
+- cut, copy and paste; undo and redo
+- keyboard navigation modelled on a file-explorer tree, with a shortcut
+  cheat sheet built in
+- collapse and expand folders; deep collapse of a whole branch
+- search by layer or folder name, with previous/next match
+- pan to a node, zoom to a node, and fit the map to loaded content
+- an information panel per layer: the original KML `description`
+  (sanitized against an allow-list) or a table of the GeoJSON
+  `properties`
+- right-click menu on the map, which resolves overlapping layers into a
+  submenu instead of guessing one
+- export any folder or file as a portable `.kite.json` package
+- local storage usage indicator, and a session log of every notice shown
 
 ### Styling and editing
 
-- Leaflet and Material Design marker icons
+- Leaflet and Material Design marker icons, embedded in the file
 - marker size, colour, label size and label colour
 - optional permanent marker labels
 - marker renaming and coordinate editing in decimal degrees or DMS
 - marker repositioning by dragging
 - polygon and line outline width and colour
-- polygon fill colour and opacity
+- polygon fill colour and opacity, with an outline/fill/both selector
+- read-only perimeter (or length) and area, in metres, kilometres, feet
+  or nautical miles
+- a point-list editor: one vertex per line, tab-separated, so a geometry
+  can be copied into a spreadsheet and pasted back
+- ground-overlay image opacity
 - batch style changes for selected compatible layers
+- every dialog edits a draft: nothing reaches the map until Accept
 
-### Mapping tools
+### Base maps
 
-- OpenStreetMap base map
-- Esri World Terrain base map
-- Spanish PNOA orthophotography
-- Spanish IGN terrain WMS
+Several can be enabled at once, each with its own opacity, and their
+stacking order can be changed:
+
+- OpenStreetMap
+- Esri World Terrain and Esri hillshade
+- IGN Base and MTN topographic maps (Spain)
+- PNOA orthophotography, current and historical (Spain)
+- IGN terrain WMS (Spain)
+- SRTM30 relief (terrestris, 56°S–60°N)
+- Copernicus DEM through Sentinel Hub, which needs the user's own
+  instance ID; it is stored in that browser only and never travels with
+  an export
 - optional blank base map
+
+A base layer whose service stops answering is flagged in the panel, and
+the flag clears by itself when the tiles come back.
+
+### Map tools
+
 - place search through Nominatim
-- pointer coordinates
+- pointer coordinates in decimal degrees, degrees/minutes/seconds and UTM
+- scale bar
 - latitude/longitude graticule
 - shortcuts for the Iberian Peninsula/Balearic Islands and Canary Islands
+- drop a marker at the centre of the view
+- draw polygons and open lines vertex by vertex
+- export the current view as a PNG image
+
+### Elevation (Spain)
+
+- terrain (MDT) and surface (MDS) elevation under the pointer, queried
+  from the IGN's WCS services, with the difference between them — the
+  visible sign of buildings or vegetation
+- the answers accumulate as a readable grid of cells, which becomes an
+  ordinary layer of the tree when the mode is switched off: persistent,
+  toggleable and deletable like any other
+- metres or feet
+- coverage is Spain only, and each reading costs a request to a third
+  party, so the mode is off by default
 
 ### Measurements
 
 - geodesic line distance and initial bearing
-- geodesic circle radius and bearing
+- geodesic circle radius and area
 - editable measurement handles
+- stroke and fill styling, and values shown in metres, kilometres, feet
+  or nautical miles — the same unit the map labels use
 - persistent measurements stored with the workspace
 
 ## Quick start
@@ -138,10 +199,15 @@ Imported KML/KMZ/GeoJSON content is parsed locally and is **not uploaded to an a
 
 The current build is not fully offline and makes external requests:
 
-- Leaflet CSS, JavaScript and default marker images are loaded from `unpkg.com`;
+- Leaflet CSS, JavaScript and default marker images, topojson-client and
+  html2canvas are loaded from `unpkg.com`;
 - JSZip is loaded from `cdnjs.cloudflare.com`;
 - place searches are sent to the public Nominatim service;
-- base-map tiles and WMS images are requested from their respective providers.
+- base-map tiles and WMS images are requested from their respective providers;
+- elevation readings are requested from the IGN's WCS services, and only while
+  elevation mode is switched on;
+- the Copernicus DEM base layer, if enabled, is requested from Sentinel Hub
+  with the user's own instance ID.
 
 Material Design marker icons are **embedded in the file** and cost no request at all. They used to be fetched one by one from `api.iconify.design`, which meant 79 simultaneous requests every time the icon picker was opened; past the service's rate limit the icons silently went blank. They are now baked in at build time.
 
@@ -214,7 +280,7 @@ The interface is primarily designed for mouse and keyboard use. Touch support an
 - `DOMParser` and `JSON.parse` are synchronous and can briefly block the interface on large inputs.
 - The application sets no explicit KML-size or feature-count limit, but the browser, RAM, IndexedDB quota and rendering performance impose practical limits.
 - Altitude is carried through import, storage and export, but it is not rendered: this is a 2D viewer. Two placemarks at the same latitude and longitude but different altitudes are still treated as duplicates.
-- KML namespace and style handling is partial.
+- KML style handling is partial: shared and inline styles for basic line and polygon appearance, and `StyleMap` normal-style references. (Namespaces are not a limitation — elements are matched by local name, so prefixed, default-namespaced and namespace-less KML all work.)
 - External services can change, rate-limit requests or become unavailable.
 - `.kite.json` is application-specific and currently requires a matching tree schema version.
 - The current interface is in Spanish.
@@ -287,11 +353,15 @@ This application currently uses or accesses:
 
 - [Leaflet](https://leafletjs.com/)
 - [JSZip](https://stuk.github.io/jszip/)
+- [topojson-client](https://github.com/topojson/topojson-client)
+- [html2canvas](https://html2canvas.hertzen.com/)
 - [Material Design Icons](https://pictogrammers.com/library/mdi/) (Pictogrammers, Apache-2.0) — embedded at build time through [Iconify](https://iconify.design/); not requested at runtime
 - [OpenStreetMap](https://www.openstreetmap.org/)
 - [Nominatim](https://nominatim.org/)
-- Esri World Terrain
-- Spanish PNOA and IGN WMS services
+- Esri World Terrain and hillshade
+- Spanish PNOA, IGN WMTS, WMS and WCS services
+- [SRTM30 tiles from terrestris](https://ows.terrestris.de/) (SRTM data © NASA LP DAAC)
+- [Copernicus DEM through Sentinel Hub](https://dataspace.copernicus.eu/)
 
 Their licenses, attribution requirements, acceptable-use policies and service limits apply independently.
 
