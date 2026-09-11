@@ -57,6 +57,10 @@ function makeNode({ name, layer = null, isFolder = false, isFile = false,
       applyVisibility(chk);
       scheduleSave();
     }
+    /* Una hoja no cascadea, pero sus carpetas madre pueden pasar a
+       indeterminadas; una carpeta ya se ha recalculado por dentro y
+       aquí le tocan sus ancestros. Ver refreshAncestorChecks.      */
+    if (!ul) refreshAncestorChecks(li);
   });
   row.appendChild(chk);
 
@@ -355,7 +359,12 @@ function deleteNode(li, { pruneSelection = true } = {}) {
     }
   }
   removeSubtreeFromMap(li);
+  /* Se guarda el contenedor ANTES de quitarlo: después ya no tiene
+     padre, y los hermanos que quedan pueden dejar a la carpeta entera
+     o indeterminada.                                                 */
+  const parentUl = li.parentElement;
   li.remove();
+  refreshChecksFrom(parentUl);
   if (li._onDelete) li._onDelete();
   scheduleSave();
   if (rootUl && !rootUl.children.length) showEmptyMessage();

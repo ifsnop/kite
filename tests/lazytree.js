@@ -104,7 +104,11 @@ const src = [
   fn("findMatches"), fn("searchMatches"), fn("resolveMatch"),
   fn("resolveRecordLi"), fn("wirePendingLayerEvents"), fn("visibleElevGridNodes"),
   fn("blinkLayer"),
-  fn("removeRecordsFromMap"), fn("removeSubtreeFromMap"), fn("deleteNode")
+  fn("removeRecordsFromMap"), fn("removeSubtreeFromMap"), fn("deleteNode"),
+  /* materializeRecords y deleteNode recalculan el estado de los
+     contenedores de arriba (tercer estado de la casilla); este test no
+     construye casillas, así que solo hace falta que exista.          */
+  "function refreshChecksFrom() {}", "function applyContainerState() {}"
 ].join("\n");
 
 const api = new Function(

@@ -831,6 +831,7 @@ function finalizeElevSession(cells) {
   });
   li._elevGrid = { cells };
   ensureElevSection().appendChild(li);
+  refreshAncestorChecks(li);
   scheduleSave();
 }
 

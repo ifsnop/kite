@@ -274,6 +274,7 @@ function addPlaceMarker(r) {
   const layer = L.marker([lat, lon]).addTo(rootGroup);
   const li = makeNode({ name, layer, style: { color: DEFAULT_MARKER_STYLE.color } });
   ensureNamedSection(PLACES_SECTION).appendChild(li);
+  refreshAncestorChecks(li);
   ensureMarkerDefaults(li);
   hidePlaceResults();
   placeBox.value = "";
@@ -303,6 +304,7 @@ function createPin() {
     name: nextNumberedName("Marcador"), layer: marker, style: { color: DEFAULT_MARKER_STYLE.color }
   });
   ensureNamedSection(PINS_SECTION).appendChild(li);
+  refreshAncestorChecks(li);
   ensureMarkerDefaults(li);
   scheduleSave();
   openStyleDialog(li, { isNew: true });
@@ -343,6 +345,7 @@ async function createFolderNode(cur, name) {
   const li = makeNode({ name, isFolder: true });
   if (!intoFolder && cur && cur.nextSibling) ul.insertBefore(li, cur.nextSibling);
   else ul.appendChild(li);
+  refreshAncestorChecks(li);
   return li;
 }
 

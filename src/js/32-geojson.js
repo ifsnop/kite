@@ -674,6 +674,7 @@ async function importTreeExport(doc, fileName, insertBefore, dropTargetUl = null
   if (insertBefore && insertBefore.parentElement === ul) {
     for (const li of [...ul.children]) {
       if (!before.has(li)) ul.insertBefore(li, insertBefore);
+      refreshChecksFrom(ul);
     }
   }
 }
@@ -871,6 +872,11 @@ async function materializeRecords(records, parentUl) {
       if (rec.t === "file" && rec.children.some(c => c.t === "measure")) measureLi = li;
       if (rec.collapsed) {
         li._pending = rec.children;
+        /* Sus hijos no llegan a ser filas, así que la pasada recursiva
+           no va a recalcular esta casilla por ellos: se hace aquí, con
+           los registros. Sin esto, una carpeta colapsada a medias volvía
+           de IndexedDB diciendo "entera".                             */
+        applyContainerState(li);
       } else {
         await materializeRecords(rec.children, nodeUl(li));
       }
@@ -924,6 +930,9 @@ async function materializeRecords(records, parentUl) {
     }
     if (++n % PROGRESS_BATCH === 0) await yieldFrame();
   }
+  /* Una sola vez al final, no por nodo: el conjunto de hijos cambia una
+     vez por lote y recalcular por cada uno costaría k × profundidad. */
+  refreshChecksFrom(parentUl);
 }
 
 /* ---------- Indicador de progreso (tres fases) ----------

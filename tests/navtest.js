@@ -61,7 +61,11 @@ const src = `
 ` + ["setSelected","setSelCursor","clearSelection","selectNode","selectRange",
      "toggleOne","nextSiblingRow","prevSiblingRow","nextRow","lastVisibleIn",
      "prevRow","stepRows","moveCursorTo","expandOrEnter","collapseOrLeave",
-     "createFolderNode","cursorAfterDelete"].map(fn).join("\n");
+     "createFolderNode","cursorAfterDelete"].map(fn).join("\n")
+/* createFolderNode recalcula ahora el estado de los contenedores por
+   encima (tercer estado de la casilla). Aquí no es lo que se prueba —el
+   árbol de este test no tiene casillas—, así que basta con que exista. */
+  + "\nfunction refreshAncestorChecks() {}";
 const api = new Function("treeEl", "rootUl", src +
   "\nreturn {nextRow, prevRow, stepRows, siblingRows, selectRange, moveCursorTo, selectNode, toggleOne," +
   " clearSelection, selection, expandOrEnter, collapseOrLeave, cursor:()=>selCursor," +

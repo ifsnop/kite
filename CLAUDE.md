@@ -381,6 +381,49 @@ index.html         redirección de la raíz del sitio al minificado
 - **Visibilidad**: una capa se muestra si y solo si SU checkbox está
   marcado. El checkbox de una carpeta/archivo es solo un interruptor
   masivo en cascada; no filtra por sí mismo.
+- **La casilla de un contenedor tiene TRES estados**: marcada, sin
+  marcar e **indeterminada** cuando unas capas de dentro están activas y
+  otras no. Se usa el `indeterminate` nativo, que el navegador dibuja
+  como un guion: no hay estilo propio, y `aria-checked="mixed"` es lo
+  que espera un lector de pantalla.
+- **La regla mira SOLO a los hijos directos** (`containerState`). Puede
+  permitírselo porque el invariante se mantiene de abajo arriba: un hijo
+  contenedor cuenta como «entero» únicamente si está marcado y NO
+  indeterminado, así que su estado ya resume su rama. Subir por los
+  ancestros (`refreshAncestorChecks`) cuesta profundidad × hermanos, no
+  un recorrido del árbol, y **corta en cuanto un ancestro no cambia**:
+  por encima tampoco puede haber cambiado nada. Medido en el caso peor
+  (carpeta de 5.000 hermanos a 5 niveles de hondo): **5,4 ms por clic**,
+  dominados por recorrer esos 5.000 hermanos, que es irreducible con
+  esta regla y cabe de sobra en un fotograma.
+- **El disparador NO es solo «han tocado una casilla», es también
+  «cambió el conjunto de hijos».** Comprobado en el visor: con la
+  carpeta colapsada no hay forma de conmutar un descendiente —no hay
+  fila que pulsar, el botón ☑ selecciona sin activar, y el espacio
+  cascadea uniforme porque `topLevelSelection` devuelve solo el
+  ancestro—, pero sí se pueden AÑADIR hijos sin desplegarla: soltar un
+  archivo encima importa dentro (`folderDropTarget` acepta una
+  colapsada) y `ensureNamedSection` mete capas en una sección colapsada.
+  Ahí estaba un fallo real que esto arregla: una sección apagada se
+  quedaba diciendo «apagada» después de recibir un pin visible. Por eso
+  `refreshAncestorChecks` se llama también al importar dentro de una
+  carpeta, pegar, crear pin/lugar/polígono/medición/elevación y crear
+  carpeta; y `refreshChecksFrom` al borrar, con el `<ul>` guardado ANTES
+  de quitar la fila, que después ya no tiene padre.
+- **Los hijos pueden estar en DOS sitios a la vez.** Una carpeta
+  colapsada restaurada de IndexedDB llega con 0 filas y sus hijos solo
+  como registros `_pending`; si además se le suelta un archivo dentro,
+  conviven 1 fila y 3 registros (medido). `containerState` mira los dos.
+  Y `materializeRecords` recalcula la casilla de la carpeta que se queda
+  pendiente: sus hijos no llegan a ser filas, así que la pasada
+  recursiva no lo haría por ellos, y volvía de IndexedDB diciendo
+  «entera». El estado agregado de un registro se memoriza en él
+  (`rec._state`) porque una rama colapsada puede tener miles de nodos y
+  se consulta al recalcular al padre; quien toque `checked` lo invalida
+  (lo hace `cascadeVisibility`).
+- **La cascada limpia el indeterminado a su paso**: deja la rama
+  uniforme, así que nada de dentro puede seguir a medias; lo que puede
+  cambiar es el estado de los ancestros de la carpeta tocada.
 - **Estado inicial desde KML**: `<visibility>` hereda hacia abajo para el
   estado inicial; después `syncSubtree` marca cada carpeta según tenga o
   no capas visibles. `<open>` decide el colapso inicial (ausente = 0 =

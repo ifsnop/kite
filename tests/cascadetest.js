@@ -1,5 +1,5 @@
 const { parseHTML } = require("linkedom");
-const { fn } = require("./_extract");
+const { fn, constDecl } = require("./_extract");
 
 const { document } = parseHTML("<div id='tree'></div>");
 global.document = document;
@@ -24,11 +24,17 @@ const scheduleSave = () => { saveCalls++; };
 
 const CASCADE_BATCH = 3; /* small on purpose: exercise the yield path with a manageable tree */
 
+/* Las funciones del TERCER ESTADO van de verdad, no como stub: la
+   cascada tiene que dejar la rama uniforme —ningún contenedor de dentro
+   indeterminado— y eso es comportamiento suyo, no de otro sitio.     */
 const src = "const nodeUl = li => li.querySelector(':scope > ul.node-list');\n"
   + fn("setLayerVisible") + "\n" + fn("applyVisibility") + "\n"
+  + constDecl("nodeCheckbox") + "\n" + fn("recordState") + "\n"
+  + fn("containerState") + "\n" + fn("applyContainerState") + "\n"
+  + fn("refreshChecksFrom") + "\n" + constDecl("refreshAncestorChecks") + "\n"
   + fn("cascadeVisibility") + "\n" + fn("setPendingChecked") + "\n" + fn("setAllChecked");
 const api = new Function("rootGroup", "yieldFrame", "CASCADE_BATCH", "scheduleSave", "treeEl", "rootUl",
-  src + "\nreturn {applyVisibility, cascadeVisibility, setAllChecked};"
+  src + "\nreturn {applyVisibility, cascadeVisibility, setAllChecked, applyContainerState, containerState};"
 )(rootGroup, yieldFrame, CASCADE_BATCH, scheduleSave, treeEl, rootUl);
 const { cascadeVisibility, setAllChecked } = api;
 

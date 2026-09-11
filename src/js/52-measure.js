@@ -347,7 +347,9 @@ function makeMeasureLi(m) {
 function addMeasureNode(m) {
   const ul = ensureMeasureSection();
   m.treeName = nextNumberedName(m.type === "line" ? "L\u00EDnea" : "C\u00EDrculo");
-  ul.appendChild(makeMeasureLi(m));
+  const mli = makeMeasureLi(m);
+  ul.appendChild(mli);
+  refreshAncestorChecks(mli);
   updateMeasurement(m); /* rellena el texto del árbol */
   scheduleSave();
 }
@@ -456,6 +458,7 @@ function finishPolygon(closed) {
   const layer = (closed ? L.polygon : L.polyline)(polyDraft.vertices, style).addTo(rootGroup);
   const li = makeNode({ name: nextNumberedName(closed ? "Polígono" : "Línea"), layer, style });
   ensureNamedSection(POLYGONS_SECTION).appendChild(li);
+  refreshAncestorChecks(li);
   rootGroup.removeLayer(polyDraft.group);
   polyDraft = null;
   setTool(null);

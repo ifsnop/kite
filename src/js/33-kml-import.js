@@ -178,6 +178,9 @@ async function addFileNode(name, kind, content, insertBefore = null, dropTargetU
   const target = wrap ? nodeUl(li) : ul;
   if (wrap) {
     ul.insertBefore(li, insertBefore && insertBefore.parentElement === ul ? insertBefore : null);
+    /* Importar DENTRO de una carpeta cambia su conjunto de hijos, y se
+       puede hacer sobre una colapsada sin desplegarla.              */
+    refreshAncestorChecks(li);
   }
 
   try {

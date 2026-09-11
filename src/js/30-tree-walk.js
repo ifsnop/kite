@@ -517,6 +517,98 @@ function applyVisibility(chk) {
   setLayerVisible(chk._layer, chk.checked);
 }
 
+/* ---------- Tercer estado de la casilla de un contenedor ----------
+   Marcada, sin marcar, o INDETERMINADA cuando unas capas de dentro
+   están activas y otras no. Se usa el `indeterminate` nativo: el
+   navegador lo dibuja como un guion y no hay que inventar ningún
+   estilo.
+
+   La regla mira SOLO a los hijos directos. Puede permitírselo porque el
+   invariante se mantiene de abajo arriba: un hijo contenedor cuenta como
+   "entero" únicamente si está marcado y NO indeterminado, así que su
+   propio estado ya resume su rama. Subir por los ancestros cuesta
+   profundidad × hermanos, no un recorrido del árbol.
+
+   Los hijos pueden estar en DOS sitios a la vez: las filas del DOM y
+   los registros `_pending` de una carpeta nunca desplegada. Comprobado
+   que conviven — una carpeta colapsada restaurada de IndexedDB llega
+   con 0 filas y 3 registros, y soltar un archivo dentro (que sí se
+   puede, sin desplegarla) la deja con 1 fila y 3 registros. Mirar solo
+   el DOM la leería como vacía.                                       */
+const nodeCheckbox = li => li.querySelector(":scope > .node-row > input[type=checkbox]");
+
+/* Estado agregado de un registro pendiente. Se memoriza en el propio
+   registro porque un contenedor colapsado puede tener miles de
+   descendientes y esto se consulta al recalcular a su padre: sin la
+   caché, conmutar un hermano recorrería toda esa rama. La invalida
+   quien toca `checked` (ver cascadeVisibility).                      */
+function recordState(rec) {
+  if (rec._state) return rec._state;
+  let st;
+  if (!rec.children || !rec.children.length) st = rec.checked ? "on" : "off";
+  else {
+    const kids = rec.children.map(recordState);
+    st = kids.every(k => k === "on") ? "on"
+       : kids.every(k => k === "off") ? "off" : "mixed";
+  }
+  return (rec._state = st);
+}
+
+/* Estado que le corresponde a un contenedor por sus hijos directos.
+   Sin hijos devuelve null: no hay nada que agregar y se deja la casilla
+   como esté (una carpeta recién creada y vacía la marca quien la crea). */
+function containerState(li) {
+  const kids = [];
+  const ul = nodeUl(li);
+  if (ul) {
+    for (const c of ul.children) {
+      if (c._name === undefined) continue; /* filas de mensaje, no nodos */
+      const chk = nodeCheckbox(c);
+      if (chk) kids.push(chk.indeterminate ? "mixed" : (chk.checked ? "on" : "off"));
+    }
+  }
+  if (li._pending) for (const rec of li._pending) kids.push(recordState(rec));
+  if (!kids.length) return null;
+  return kids.every(k => k === "on") ? "on"
+       : kids.every(k => k === "off") ? "off" : "mixed";
+}
+
+/* Aplica ese estado a la casilla. Devuelve si CAMBIÓ algo, que es lo
+   que deja cortar la subida por los ancestros en cuanto uno se queda
+   igual: por encima tampoco puede haber cambiado nada.               */
+function applyContainerState(li) {
+  const chk = nodeCheckbox(li);
+  const st = containerState(li);
+  if (!chk || st === null) return false;
+  const checked = st !== "off", indeterminate = st === "mixed";
+  if (chk.checked === checked && chk.indeterminate === indeterminate) return false;
+  chk.checked = checked;
+  chk.indeterminate = indeterminate;
+  /* Un lector de pantalla espera "mixed", no una casilla a medias */
+  li.setAttribute("aria-checked", indeterminate ? "mixed" : String(checked));
+  return true;
+}
+
+/* Recalcula los contenedores por encima de un nodo que acaba de
+   cambiar. Se llama también cuando cambia el CONJUNTO de hijos —
+   importar dentro de una carpeta, pegar, borrar, o que
+   ensureNamedSection meta una capa—, no solo al conmutar una casilla:
+   comprobado que una sección colapsada y apagada se quedaba diciendo
+   "apagada" después de recibir un pin visible.                       */
+function refreshChecksFrom(ul) {
+  while (ul && ul.classList && ul.classList.contains("node-list")) {
+    const parent = ul.parentElement;
+    if (!parent || parent.tagName !== "LI") break;
+    if (!applyContainerState(parent)) break;
+    ul = parent.parentElement;
+  }
+}
+/* Desde un nodo. Arranca en su contenedor, así que vale igual para "he
+   cambiado" que para "me han añadido aquí". Para un BORRADO hay que
+   usar refreshChecksFrom con el <ul> guardado antes de quitarlo: ya no
+   tiene padre del que partir.                                        */
+const refreshAncestorChecks = li => refreshChecksFrom(li && li.parentElement);
+
 /* Interruptor masivo en cascada de una carpeta/archivo: activar o
    desactivar unas pocas capas es instantáneo, pero una carpeta con miles
    de descendientes bloqueaba el hilo entero en un solo tirón (a
@@ -547,6 +639,7 @@ async function cascadeVisibility(li, checked) {
   const walkRecords = async records => {
     for (const rec of records) {
       rec.checked = checked;
+      rec._state = checked ? "on" : "off"; /* la rama queda uniforme */
       if (rec.children) { if (!(await walkRecords(rec.children))) return false; }
       else setLayerVisible(rec._layer, checked);
       if (!(await yieldMaybe())) return false;
@@ -557,6 +650,10 @@ async function cascadeVisibility(li, checked) {
     const chk = node.querySelector(":scope > .node-row > input[type=checkbox]");
     if (chk) {
       chk.checked = checked;
+      /* Toda la rama queda uniforme, así que nada de dentro puede
+         seguir indeterminado: la cascada lo limpia a su paso.      */
+      chk.indeterminate = false;
+      node.setAttribute("aria-checked", String(checked));
       applyVisibility(chk);
       if (!(await yieldMaybe())) return false;
     }
@@ -565,7 +662,12 @@ async function cascadeVisibility(li, checked) {
     if (node._pending) return walkRecords(node._pending);
     return true;
   };
-  if (await walkLi(li)) scheduleSave();
+  if (await walkLi(li)) {
+    /* La carpeta tocada ya está uniforme; lo que puede haber cambiado
+       es el estado de sus ANCESTROS.                                 */
+    refreshAncestorChecks(li);
+    scheduleSave();
+  }
 }
 
 /* Trae una capa (de cualquier tipo) al frente de su propio pane/canvas,
