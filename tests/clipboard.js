@@ -14,7 +14,16 @@
    `readText()` está tras un permiso que hay que conceder —una prueba se
    quedó colgada dos minutos esperándolo— y que Firefox ni siquiera
    ofrece a la página. Por eso pegar va por el evento `paste`, que
-   entrega el contenido sin pedir nada.                               */
+   entrega el contenido sin pedir nada.
+
+   OJO: el portapapeles del sistema NO se puede probar en el Chromium
+   headless de la VM — no lo tiene. `writeText` responde
+   `NotAllowedError` incluso desde un clic auténtico y con los permisos
+   concedidos, y un Ctrl+V real no dispara ningún `paste`. Por eso esta
+   suite comprueba el CONTRATO sobre el archivo entregado, y la prueba
+   de navegador intercepta `writeText` y lanza un `ClipboardEvent`
+   sintético: valida nuestro código, no la entrega del navegador. El
+   viaje completo se prueba a mano.                                   */
 const { fn, script, constDecl } = require("./_extract");
 const ok = (c, m) => { if (!c) { console.error("FAIL: " + m); process.exitCode = 1; } };
 

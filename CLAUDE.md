@@ -547,6 +547,19 @@ index.html         redirección de la raíz del sitio al minificado
   minutos esperándolo— y que Firefox ni siquiera ofrece a la página. Por
   eso LEER va por el evento `paste`, que entrega el contenido sin pedir
   nada porque lo ha provocado el usuario.
+- **El portapapeles del sistema NO se puede probar en el Chromium
+  headless de la VM**, así que no se pierda el rato buscando el fallo en
+  el código: ese navegador no tiene portapapeles. `writeText` responde
+  `NotAllowedError: Write permission denied` incluso desde un clic
+  auténtico y con `clipboard-read`/`clipboard-write` concedidos por CDP,
+  y una pulsación real de Ctrl+V no dispara ningún evento `paste`. Lo
+  que sí se puede hacer ahí, y es lo que hacen las pruebas: interceptar
+  `navigator.clipboard.writeText` para quedarse con el texto, y lanzar
+  un `ClipboardEvent` sintético con su `DataTransfer` para el pegado.
+  Eso valida NUESTRO código —incluido el viaje entre dos orígenes, que
+  son dos puertos distintos— pero no la entrega del navegador. El viaje
+  completo por el portapapeles real hay que probarlo a mano en un
+  navegador normal; verificado así y funcionando.
 - **Ctrl+V no pega en el acto, y el keydown NO llama a
   `preventDefault`.** Es lo que evita pegar dos veces: `preventDefault`
   cancelaría el evento `paste`, así que el keydown solo deja un respaldo
