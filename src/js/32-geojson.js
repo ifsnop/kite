@@ -747,20 +747,26 @@ async function refreshStorageUsage() {
    temporizador puede permitirse ser periódico y aquel no: medido, 0,005
    ms por lectura.                                                     */
 const MEMORY_REFRESH_MS = 5000;
+/* Sin cifra que dar, la línea NO se pinta: se esconde. Una línea fija
+   diciendo "no disponible" es ruido permanente, y las dos razones por
+   las que puede faltar son casos raros frente al uso normal, que es la
+   página servida — `file://` (valor congelado) y un navegador que no
+   sea Chromium (`performance.memory` no está en ninguna norma). Quien
+   abre el archivo con doble clic no necesita leer cada vez por qué no
+   hay un dato que probablemente no esperaba.                         */
+function memoryUsageText() {
+  if (location.protocol === "file:") return null;
+  const m = performance.memory;
+  if (!m || !isFinite(m.usedJSHeapSize)) return null;
+  return `Memoria de la pestaña: ${fmtBytes(m.usedJSHeapSize)}`
+    + ` de ${fmtBytes(m.jsHeapSizeLimit)}`;
+}
 function refreshMemoryUsage() {
   const el = document.getElementById("memory-usage");
   if (!el) return;
-  const m = performance.memory;
-  if (!m || !isFinite(m.usedJSHeapSize)) {
-    el.textContent = "Memoria de la pestaña: no disponible en este navegador.";
-    return;
-  }
-  if (location.protocol === "file:") {
-    el.textContent = "Memoria de la pestaña: no se mide al abrir el archivo directamente.";
-    return;
-  }
-  el.textContent = `Memoria de la pestaña: ${fmtBytes(m.usedJSHeapSize)}`
-    + ` de ${fmtBytes(m.jsHeapSizeLimit)}`;
+  const txt = memoryUsageText();
+  el.hidden = txt === null;
+  if (txt !== null) el.textContent = txt;
 }
 
 function saveTree() {

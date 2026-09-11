@@ -47,7 +47,10 @@
   /* La memoria cambia sin que el árbol se toque, así que lleva su
      propio temporizador; el almacenamiento viaja con cada guardado. */
   refreshMemoryUsage();
-  setInterval(refreshMemoryUsage, MEMORY_REFRESH_MS);
+  /* Sin cifra que refrescar —file://, o un navegador sin
+     performance.memory— no se arma el temporizador: no hay nada que
+     actualizar cada cinco segundos.                                 */
+  if (memoryUsageText() !== null) setInterval(refreshMemoryUsage, MEMORY_REFRESH_MS);
 
   /* Pedir almacenamiento persistente: reduce el riesgo de que el
      navegador borre los datos si necesita liberar espacio          */

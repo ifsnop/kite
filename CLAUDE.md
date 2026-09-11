@@ -1554,6 +1554,11 @@ dos con las que se topa un árbol grande y hasta ahora solo se veía una:
   Puede permitírselo justamente porque leer `performance.memory` es un
   captador (0,005 ms medidos) y no una consulta al disco como
   `estimate()`.
+- **Sin cifra, la línea NO se pinta: se esconde.** Ni un «no
+  disponible» fijo, que sería ruido permanente. Son dos los casos y los
+  dos son raros frente al uso normal, que es la página servida: abrir el
+  archivo con doble clic, y un navegador que no sea Chromium. El
+  arranque tampoco arma el temporizador si no hay nada que refrescar.
 - **Sobre `file://` no se muestra el número.** Medido con Chromium 129:
   reservando 600.000 objetos, `usedJSHeapSize` no se movió de 9,54 MB ni
   a los 35 s abriendo el archivo con doble clic, mientras que la MISMA
@@ -1564,7 +1569,7 @@ dos con las que se topa un árbol grande y hasta ahora solo se veía una:
   (`measureUserAgentSpecificMemory`) exige COOP/COEP, y ni un archivo
   local ni GitHub Pages pueden enviar esas cabeceras.
 - `performance.memory` no está en ninguna norma y solo existe en
-  Chromium; en el resto se dice «no disponible» en vez de inventar nada.
+  Chromium; en el resto no se inventa nada, simplemente no hay línea.
 
 ## Comprobaciones estáticas del propio archivo
 
