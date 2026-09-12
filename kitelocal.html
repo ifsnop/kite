@@ -1083,7 +1083,7 @@
 <!-- Confirmar si se eliminan etiquetas tipo HTML de los nombres de un KML -->
 <div id="kml-tags-picker" class="dlg-overlay" hidden>
   <div class="dlg-box">
-    <h2>Etiquetas en los nombres</h2>
+    <h2 id="ktp-title">Etiquetas en los nombres</h2>
     <p id="ktp-intro" class="dlg-hint"></p>
     <div class="dlg-actions">
       <button class="btn" id="ktp-cancel">Dejarlas</button>
@@ -1378,7 +1378,7 @@ const map = L.map("map", {
 
 /* Fecha de generación del código (versión): AÑOMESDIAHORAMINUTO.
    Actualizar en cada generación; se muestra junto al crédito de Leaflet. */
-const BUILD = "202609120235";
+const BUILD = "202609121540";
 /* El enlace al repositorio va junto a la versión, que es lo que hace
    accionable saber qué build se está ejecutando: desde ahí se llega al
    código de esa versión. `target="_blank"` a propósito —salir de la
@@ -4802,6 +4802,63 @@ function hasHtmlLikeTags(name) {
 function stripHtmlLikeTags(name) {
   return name.replace(/<[^<>]*[a-zA-Z][^<>]*>/g, "");
 }
+/* Lo mismo para las `properties` de un GeoJSON, que llegan con el mismo
+   problema: valores con etiquetas literales que afean la tabla del panel
+   de información, el nombre del árbol, el texto del marcador y el globo.
+
+   OJO con una idea equivocada que cuesta una tarde: que un archivo
+   escriba `\u003cb\u003e` en vez de `<b>` NO cambia nada. En un literal
+   de cadena JSON eso es solo otra forma de escribir el mismo carácter, y
+   `JSON.parse` las normaliza: aquí llegan indistinguibles. No hay, por
+   tanto, ninguna validación que burlar por esa vía.
+
+   Se recorre también dentro de objetos y arrays: una `property` no tiene
+   por qué ser plana, y dejar ese hueco sería justo lo que esto viene a
+   cerrar. Se muta SOBRE EL PROPIO OBJETO a propósito: geojsonFeatures
+   devuelve los mismos objetos que cuelgan de `gj` (para un
+   FeatureCollection y para un Feature suelto), así que limpiar aquí deja
+   limpio lo que después recibe buildGeoJsonRecords. El tercer caso —una
+   geometría suelta— se envuelve con `properties: {}`, donde no hay nada
+   que limpiar.                                                        */
+const propsOf = f => (f && typeof f.properties === "object" && f.properties) || null;
+
+function valueHasHtmlTags(v) {
+  if (typeof v === "string") return hasHtmlLikeTags(v);
+  if (Array.isArray(v)) return v.some(valueHasHtmlTags);
+  if (v && typeof v === "object") return Object.values(v).some(valueHasHtmlTags);
+  return false;
+}
+function geojsonPropsHaveHtmlTags(features) {
+  return features.some(f => {
+    const p = propsOf(f);
+    return p ? Object.values(p).some(valueHasHtmlTags) : false;
+  });
+}
+
+/* Devuelve cuántos valores se han tocado, para poder decirlo en el
+   resumen de importación en vez de limpiar en silencio.              */
+function stripHtmlTagsFromGeojsonProps(features) {
+  let changed = 0;
+  const clean = v => {
+    if (typeof v === "string") {
+      const out = stripHtmlLikeTags(v);
+      if (out !== v) changed++;
+      return out;
+    }
+    if (Array.isArray(v)) return v.map(clean);
+    if (v && typeof v === "object") {
+      for (const k of Object.keys(v)) v[k] = clean(v[k]);
+      return v;
+    }
+    return v;
+  };
+  for (const f of features) {
+    const p = propsOf(f);
+    if (p) for (const k of Object.keys(p)) p[k] = clean(p[k]);
+  }
+  return changed;
+}
+
 /* Every <name> in a KML document, regardless of whether it belongs to a
    Placemark, Folder or Document: KML has no separate "polygon name",
    a polygon's name IS its Placemark's <name>.                         */
@@ -4956,6 +5013,15 @@ async function addFileNode(name, kind, content, insertBefore = null, dropTargetU
       }
       const gj = JSON.parse(content);
       const features = geojsonFeatures(gj);
+      /* ANTES de leer firstProps, para que la vista previa del selector
+         de propiedad-nombre salga ya limpia. Mismo diálogo que para los
+         nombres de un KML: es el mismo problema y la misma decisión. */
+      if (geojsonPropsHaveHtmlTags(features)) {
+        if (await confirmStripHtmlTags(name, "properties")) {
+          const n = stripHtmlTagsFromGeojsonProps(features);
+          report.note(`etiquetas tipo HTML eliminadas de ${n} propiedad(es)`);
+        }
+      }
       const total = features.length;
       const firstProps = (features[0] && typeof features[0].properties === "object" && features[0].properties) || {};
       let nameProp = null;
@@ -6788,6 +6854,7 @@ for (const id of ["mk-color", "mk-text-color", "pg-color", "pg-fill-color",
 const ktpDialog = document.getElementById("kml-tags-picker");
 const ktpBox = ktpDialog.querySelector(".dlg-box");
 const ktpIntro = document.getElementById("ktp-intro");
+const ktpTitle = document.getElementById("ktp-title");
 let ktpResolve = null;
 function closeKtpPicker(result) {
   ktpDialog.hidden = true;
@@ -6796,10 +6863,19 @@ function closeKtpPicker(result) {
   releaseFocus();
   if (resolve) resolve(result);
 }
-function confirmStripHtmlTags(fileName) {
-  ktpIntro.textContent = `«${fileName}» tiene nombres con etiquetas de tipo HTML `
+/* `kind` distingue los dos llamantes: los <name> de un KML y las
+   `properties` de un GeoJSON. El diálogo es el mismo —mismo problema,
+   misma decisión del usuario— y solo cambia de qué habla.            */
+const KTP_WORDING = {
+  names: { titulo: "Etiquetas en los nombres", donde: "nombres", origen: "el KML" },
+  properties: { titulo: "Etiquetas en las propiedades", donde: "propiedades", origen: "el archivo" }
+};
+function confirmStripHtmlTags(fileName, kind = "names") {
+  const w = KTP_WORDING[kind] || KTP_WORDING.names;
+  ktpTitle.textContent = w.titulo;
+  ktpIntro.textContent = `«${fileName}» tiene ${w.donde} con etiquetas de tipo HTML `
     + `(texto entre «<» y «>»), probablemente restos de la herramienta que generó `
-    + `el KML. ¿Eliminarlas al importar?`;
+    + `${w.origen}. ¿Eliminarlas al importar?`;
   ktpDialog.hidden = false;
   clampToViewport(ktpBox);
   focusDialog(ktpBox);

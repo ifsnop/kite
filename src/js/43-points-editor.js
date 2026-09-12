@@ -393,6 +393,7 @@ for (const id of ["mk-color", "mk-text-color", "pg-color", "pg-fill-color",
 const ktpDialog = document.getElementById("kml-tags-picker");
 const ktpBox = ktpDialog.querySelector(".dlg-box");
 const ktpIntro = document.getElementById("ktp-intro");
+const ktpTitle = document.getElementById("ktp-title");
 let ktpResolve = null;
 function closeKtpPicker(result) {
   ktpDialog.hidden = true;
@@ -401,10 +402,19 @@ function closeKtpPicker(result) {
   releaseFocus();
   if (resolve) resolve(result);
 }
-function confirmStripHtmlTags(fileName) {
-  ktpIntro.textContent = `«${fileName}» tiene nombres con etiquetas de tipo HTML `
+/* `kind` distingue los dos llamantes: los <name> de un KML y las
+   `properties` de un GeoJSON. El diálogo es el mismo —mismo problema,
+   misma decisión del usuario— y solo cambia de qué habla.            */
+const KTP_WORDING = {
+  names: { titulo: "Etiquetas en los nombres", donde: "nombres", origen: "el KML" },
+  properties: { titulo: "Etiquetas en las propiedades", donde: "propiedades", origen: "el archivo" }
+};
+function confirmStripHtmlTags(fileName, kind = "names") {
+  const w = KTP_WORDING[kind] || KTP_WORDING.names;
+  ktpTitle.textContent = w.titulo;
+  ktpIntro.textContent = `«${fileName}» tiene ${w.donde} con etiquetas de tipo HTML `
     + `(texto entre «<» y «>»), probablemente restos de la herramienta que generó `
-    + `el KML. ¿Eliminarlas al importar?`;
+    + `${w.origen}. ¿Eliminarlas al importar?`;
   ktpDialog.hidden = false;
   clampToViewport(ktpBox);
   focusDialog(ktpBox);

@@ -74,6 +74,63 @@ function hasHtmlLikeTags(name) {
 function stripHtmlLikeTags(name) {
   return name.replace(/<[^<>]*[a-zA-Z][^<>]*>/g, "");
 }
+/* Lo mismo para las `properties` de un GeoJSON, que llegan con el mismo
+   problema: valores con etiquetas literales que afean la tabla del panel
+   de información, el nombre del árbol, el texto del marcador y el globo.
+
+   OJO con una idea equivocada que cuesta una tarde: que un archivo
+   escriba `\u003cb\u003e` en vez de `<b>` NO cambia nada. En un literal
+   de cadena JSON eso es solo otra forma de escribir el mismo carácter, y
+   `JSON.parse` las normaliza: aquí llegan indistinguibles. No hay, por
+   tanto, ninguna validación que burlar por esa vía.
+
+   Se recorre también dentro de objetos y arrays: una `property` no tiene
+   por qué ser plana, y dejar ese hueco sería justo lo que esto viene a
+   cerrar. Se muta SOBRE EL PROPIO OBJETO a propósito: geojsonFeatures
+   devuelve los mismos objetos que cuelgan de `gj` (para un
+   FeatureCollection y para un Feature suelto), así que limpiar aquí deja
+   limpio lo que después recibe buildGeoJsonRecords. El tercer caso —una
+   geometría suelta— se envuelve con `properties: {}`, donde no hay nada
+   que limpiar.                                                        */
+const propsOf = f => (f && typeof f.properties === "object" && f.properties) || null;
+
+function valueHasHtmlTags(v) {
+  if (typeof v === "string") return hasHtmlLikeTags(v);
+  if (Array.isArray(v)) return v.some(valueHasHtmlTags);
+  if (v && typeof v === "object") return Object.values(v).some(valueHasHtmlTags);
+  return false;
+}
+function geojsonPropsHaveHtmlTags(features) {
+  return features.some(f => {
+    const p = propsOf(f);
+    return p ? Object.values(p).some(valueHasHtmlTags) : false;
+  });
+}
+
+/* Devuelve cuántos valores se han tocado, para poder decirlo en el
+   resumen de importación en vez de limpiar en silencio.              */
+function stripHtmlTagsFromGeojsonProps(features) {
+  let changed = 0;
+  const clean = v => {
+    if (typeof v === "string") {
+      const out = stripHtmlLikeTags(v);
+      if (out !== v) changed++;
+      return out;
+    }
+    if (Array.isArray(v)) return v.map(clean);
+    if (v && typeof v === "object") {
+      for (const k of Object.keys(v)) v[k] = clean(v[k]);
+      return v;
+    }
+    return v;
+  };
+  for (const f of features) {
+    const p = propsOf(f);
+    if (p) for (const k of Object.keys(p)) p[k] = clean(p[k]);
+  }
+  return changed;
+}
+
 /* Every <name> in a KML document, regardless of whether it belongs to a
    Placemark, Folder or Document: KML has no separate "polygon name",
    a polygon's name IS its Placemark's <name>.                         */
@@ -228,6 +285,15 @@ async function addFileNode(name, kind, content, insertBefore = null, dropTargetU
       }
       const gj = JSON.parse(content);
       const features = geojsonFeatures(gj);
+      /* ANTES de leer firstProps, para que la vista previa del selector
+         de propiedad-nombre salga ya limpia. Mismo diálogo que para los
+         nombres de un KML: es el mismo problema y la misma decisión. */
+      if (geojsonPropsHaveHtmlTags(features)) {
+        if (await confirmStripHtmlTags(name, "properties")) {
+          const n = stripHtmlTagsFromGeojsonProps(features);
+          report.note(`etiquetas tipo HTML eliminadas de ${n} propiedad(es)`);
+        }
+      }
       const total = features.length;
       const firstProps = (features[0] && typeof features[0].properties === "object" && features[0].properties) || {};
       let nameProp = null;

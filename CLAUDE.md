@@ -144,6 +144,27 @@ desarrollo del proyecto.
   la geometría dos veces. GeoJSON pasa
   además por `validGeometry` (tipo conocido, anidamiento correcto, anillos
   de al menos cuatro posiciones, líneas de al menos dos).
+- **Etiquetas tipo HTML en las `properties` de un GeoJSON**: mismo
+  problema y mismo tratamiento que en los `<name>` de un KML —
+  `geojsonPropsHaveHtmlTags` / `stripHtmlTagsFromGeojsonProps`, que
+  reutilizan `hasHtmlLikeTags`/`stripHtmlLikeTags` y su regla («un
+  `<…>` cuenta como etiqueta si tiene alguna letra dentro»), con el
+  MISMO diálogo de confirmación (`confirmStripHtmlTags`, que ahora
+  recibe de qué habla). Se limpia **al importar**, antes de leer
+  `firstProps`, para que hasta la vista previa del selector de
+  propiedad-nombre salga limpia; se muta sobre el propio objeto, que es
+  lo que deja limpio el `gj` que después recibe `buildGeoJsonRecords`;
+  y se recorre dentro de objetos y arrays, porque una `property` no
+  tiene por qué ser plana.
+- **Ojo a una idea equivocada que ya costó una investigación**: que un
+  archivo escriba `\u003cb\u003e` en vez de `<b>` **no cambia
+  absolutamente nada**. En un literal de cadena JSON eso es solo otra
+  forma de escribir el mismo carácter, y `JSON.parse` las normaliza: a
+  la aplicación llegan indistinguibles (comprobado, y con una prueba en
+  `tests/htmltagstest.js` que existe para eso). No hay ninguna
+  validación que se pueda burlar por ahí. Lo que sí había era un
+  síntoma cosmético: `propertiesTableHtml` escapa todo, así que las
+  etiquetas se veían literales.
 - **Nombre de cada elemento de GeoJSON**: `resolveFeatureName` usa
   `properties.name`, si no `properties.title`, si no «Elemento N». Un
   archivo es **ambiguo** (`needsNamePicker`) cuando su primer Feature
@@ -1231,6 +1252,17 @@ entonces tampoco sirve para lo que de verdad falta.
   ya se conserva en todo el recorrido, no se tiene en cuenta.
 - **`reorderPaintOrder` está pendiente de MEDIR, no de arreglar.** Ver
   el detalle en «Rendimiento»: no tocarlo sin medir antes.
+- **Decisión de diseño a revisar: preguntar por ARCHIVO si se filtran
+  las etiquetas HTML.** Hoy el diálogo sale una vez por cada archivo que
+  las traiga —tanto para los `<name>` de un KML como para las
+  `properties` de un GeoJSON—, así que soltar cincuenta de golpe son
+  cincuenta preguntas. Alternativas si molesta: recordar la respuesta
+  **durante la sesión** (como ya hace el selector de propiedad-nombre
+  con `gnpSessionUsed`), recordarla por huella de archivo, o quitar la
+  pregunta y limpiar siempre dejando constancia en el resumen. No se
+  cambia ahora porque afecta también al camino de KML y la pregunta por
+  archivo es lo que hay acordado; queda anotado para poder decidirlo con
+  la cabeza fría.
 - **La comprobación en navegador del archivo minificado es manual.**
   Automatizarla exige meter un navegador en el CI, que hoy es solo Node.
 

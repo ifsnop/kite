@@ -8,7 +8,7 @@
     "watch": "node build.js --watch",
     "test": "node tests/run-all.js",
     "icons": "node fetch-icons.js",
-    "test:browser": "node tests/browser/app.mjs && node tests/browser/clipboard.mjs",
+    "test:browser": "node tests/browser/app.mjs && node tests/browser/clipboard.mjs && node tests/browser/geojson-html.mjs",
     "browser": "playwright install chromium"
   },
   "dependencies": {

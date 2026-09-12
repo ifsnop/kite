@@ -61,7 +61,8 @@ const BENCH = [["selbench.js", "Coste de seleccionar y de topLevelSelection"]];
    casi nunca.                                                        */
 const BROWSER = [
   ["browser/app.mjs", "Navegador: la aplicación arranca y funciona, en los DOS artefactos"],
-  ["browser/clipboard.mjs", "Navegador: copiar y pegar entre instancias de distinto origen, con el portapapeles real"]
+  ["browser/clipboard.mjs", "Navegador: copiar y pegar entre instancias de distinto origen, con el portapapeles real"],
+  ["browser/geojson-html.mjs", "Navegador: etiquetas tipo HTML en properties de GeoJSON, de punta a punta"]
 ];
 
 const html = path.join(__dirname, "..", "kitelocal.html");
