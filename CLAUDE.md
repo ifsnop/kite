@@ -684,6 +684,40 @@ index.html         redirección de la raíz del sitio al minificado
   `dataset.color`) y abre el selector de color, que tiene su espectro, la
   paleta `COLOR_PRESETS` y sus botones Cancelar/Aceptar; solo al aceptar
   llega al borrador.
+- **Cabecera y pie de TODA ventana van fijos; lo único que scrollea es
+  el contenido.** `.dlg-box` tiene `max-height: 85vh; overflow: auto`, y
+  sin esto scrollea ENTERA: los botones de Aceptar/Cancelar se van con
+  el contenido. Medido antes del arreglo, a 1280×620: en el selector de
+  iconos los botones caían **358 px por debajo** del borde y en la
+  chuleta de atajos **233 px**; las otras diez se salvaban por caber o
+  por tener un contenedor interior con `overflow: auto`, no por diseño.
+  Se resuelve con `position: sticky` sobre el `<h2>` y `.dlg-actions`,
+  que ya existen en las doce, **sin tocar el marcado de ninguna**. Tres
+  detalles que no son adorno: los **márgenes negativos** compensan el
+  `padding: 14px 16px` de la caja (sin ellos el contenido se ve pasar
+  por el hueco del relleno), el **fondo y el `z-index`** hacen que la
+  barra tape lo que scrollea detrás, y **el `<h2>` se fija también
+  porque es el ASA de arrastre**: si se va con el scroll, la ventana
+  deja de poder moverse. Una ventana nueva hereda todo esto sin hacer
+  nada, siempre que use `<h2>` y `.dlg-actions`.
+- **Se redimensionan las ocho que tienen contenido que revelar**
+  (`resize: both` en su `.dlg-box`): estilos, selector de iconos,
+  chuleta de atajos, ficha de la capa, selector de nombre de GeoJSON,
+  editor de nombres recordados, lista de puntos y registro de avisos.
+  Las otras cuatro —selector de color, etiquetas HTML, duplicados y
+  credenciales— son confirmaciones de dos líneas (92–336 px medidos,
+  ancho fijo de 42ch): ahí un tirador no descubre nada y solo ensucia la
+  esquina. `max-width`/`max-height` de `.dlg-box` siguen siendo el tope:
+  por mucho que se estire, la ventana no se sale.
+- **Un solo tirador por ventana.** El registro y el editor de puntos lo
+  llevaban ANTES en su elemento interior (`.log-list`, `#points-text`),
+  con la idea de que «al agrandarlo crezca el diálogo con él». Ese
+  objetivo se cumple ahora de forma directa con el tirador en la caja, y
+  mantener los dos pondría dos asas a dos centímetros una de otra: el
+  interior pasa a LLENAR la caja (`flex: 1 1 auto; min-height: 0`) y
+  esas dos cajas llevan una **altura de partida explícita**, porque un
+  hijo en `flex: 1` sobre un contenedor de altura automática se queda en
+  nada. Medido: estirar la caja 35 px estira la lista otros 35.
 - **Diálogos movibles**: los diálogos de propiedades se arrastran por su
   título (`makeDialogMovable`, con eventos de puntero para ratón, lápiz y
   táctil) para despejar la zona del mapa que interese. Al primer arrastre

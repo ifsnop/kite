@@ -627,6 +627,23 @@
   /* Sin esto heredan el max-width: 90vw de .dlg-box y una caja de texto
      corto se estira a casi toda la pantalla.                          */
   #kml-tags-picker .dlg-box, #kml-dup-picker .dlg-box, #sh-creds .dlg-box { max-width: 42ch; }
+  /* ---------- Ventanas redimensionables ----------
+     `resize: both` es el redimensionado nativo del navegador; su tirador
+     va en la esquina inferior derecha y no estorba al arrastre por el
+     <h2> (makeDialogMovable), como ya se comprobó con el editor de
+     puntos y el registro de avisos.
+
+     Solo lo llevan las que tienen contenido QUE REVELAR. Las cuatro que
+     faltan —#color-picker, #kml-tags-picker, #kml-dup-picker y
+     #sh-creds— son confirmaciones de dos líneas (92-336 px de alto
+     medidos, ancho fijo de 42ch): ahí un tirador no descubre nada y
+     solo ensucia la esquina.
+
+     max-width/max-height de .dlg-box siguen valiendo como topes de
+     cordura: por mucho que se estire, la ventana no se sale.         */
+  #style-dialog .dlg-box, #icon-picker .dlg-box, #shortcuts .dlg-box,
+  #desc-dialog .dlg-box, #geojson-name-picker .dlg-box, #gnp-editor .dlg-box,
+  #points-dialog .dlg-box, #log-dialog .dlg-box { resize: both; }
   /* El título del diálogo de propiedades lleva el nombre del nodo, y un
      nombre de KML puede tener cientos de caracteres: con la anchura de
      ajuste al contenido de .dlg-box (tope 90vw) la ventana crecía con el
@@ -639,8 +656,31 @@
      190 px de un control corto: el nombre es el campo más largo del
      diálogo, así que es el que debe crecer con ella.                  */
   #name-row input { max-width: none; }
+  /* ---------- Cabecera y pie FIJOS dentro de la ventana ----------
+     .dlg-box scrollea (max-height: 85vh; overflow: auto), y sin esto
+     scrollea ENTERA: los botones de Aceptar/Cancelar se van con el
+     contenido y quedan fuera de la vista. Medido antes del arreglo, a
+     1280x620: en el selector de iconos los botones caían 358 px por
+     debajo del borde, y en la chuleta de atajos 233 px.
+
+     Se resuelve con `position: sticky` sobre los dos elementos que YA
+     existen en las doce ventanas, sin tocar el marcado de ninguna.
+     Tres detalles que no son adorno:
+     - Los MÁRGENES NEGATIVOS compensan el `padding: 14px 16px` de la
+       caja: sin ellos el contenido se ve pasar por el hueco del
+       relleno, por encima y por debajo de las barras.
+     - `background` y `z-index` hacen que la barra TAPE lo que scrollea
+       detrás, en vez de superponerse ilegible.
+     - El <h2> se fija también porque es el ASA de arrastre
+       (makeDialogMovable): si se va con el scroll, la ventana deja de
+       poder moverse.                                                  */
   .dlg-box h2 {
-    margin: 0 0 10px;
+    position: sticky;
+    top: 0;
+    z-index: 2;
+    background: var(--panel);
+    margin: -14px -16px 10px;
+    padding: 14px 16px 8px;
     font-size: 14px;
     cursor: grab;          /* the title bar is the drag handle */
     user-select: none;
@@ -676,7 +716,18 @@
     border-radius: 5px;
     background: none;
   }
-  .dlg-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 12px; }
+  .dlg-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 8px;
+    position: sticky;
+    bottom: 0;
+    z-index: 2;
+    background: var(--panel);
+    margin: 12px -16px -14px;
+    padding: 10px 16px 14px;
+    border-top: 1px solid var(--border);
+  }
   .dlg-row input[type="text"], .dlg-row select {
     flex: 1;
     min-width: 0;
@@ -704,30 +755,40 @@
   .dlg-hint.sh-bad { color: var(--danger); }
   /* La lista de puntos necesita su propio ancho: .dlg-box trae
      max-width 90vw, pensado para los diálogos anchos.                 */
-  #points-dialog .dlg-box { max-width: min(92vw, 640px); display: flex; flex-direction: column; }
+  /* Ahora que el textarea llena la caja y no al revés, la MEDIDA DE
+     PARTIDA es de la caja: sin ella, un hijo en `flex: 1` sobre un
+     contenedor de altura automática se queda en nada. Los valores
+     equivalen a lo que antes daba el propio textarea (60ch x 45vh).  */
+  #points-dialog .dlg-box {
+    display: flex; flex-direction: column;
+    width: min(92vw, 640px); height: min(80vh, 560px);
+    max-width: min(92vw, 640px);
+  }
   /* Sin esto hereda el max-width: 90vw de .dlg-box y los avisos, que son
      largos, estirarían el diálogo a casi toda la pantalla.            */
   /* La caja no fija ancho: lo pone la lista, que es lo que el usuario
      redimensiona. El tope en vw evita que un tirón la saque de la
      pantalla.                                                         */
-  #log-dialog .dlg-box { max-width: 94vw; }
+  #log-dialog .dlg-box {
+    display: flex; flex-direction: column;
+    width: min(94vw, 680px); height: min(80vh, 560px);
+    max-width: 94vw;
+  }
   /* El párrafo de ayuda prefiere ir en una línea (764 px medidos) y con
-     eso marcaba el ancho mínimo del diálogo: al estrechar la lista, la
-     ventana se quedaba igual de ancha. Con `width: 0` deja de aportar
-     ancho preferido y `min-width: 100%` lo devuelve a ocupar la caja
-     entera, así que manda la lista, que es lo que se redimensiona.   */
+     eso marcaba el ancho mínimo del diálogo. Ya no puede: la caja lleva
+     su propio `width`, así que nada de dentro la estira. Se conserva
+     `width: 0; min-width: 100%` igualmente, que es lo que impide que
+     vuelva a aportar ancho preferido si algún día se le quita.       */
   #log-dialog .dlg-hint { width: 0; min-width: 100%; }
-  /* `resize: both` es el redimensionado nativo del navegador, el mismo
-     recurso que el editor de puntos: el tirador de la esquina no estorba
-     al arrastre por el <h2> (makeDialogMovable). Las medidas van en la
-     LISTA, no en la caja, para que al agrandarla crezca el diálogo con
-     ella; hacen falta explícitas porque `resize` necesita una base de la
-     que partir.                                                        */
+  /* El tirador está en la CAJA, no aquí. Antes lo llevaba esta lista,
+     con sus medidas propias, «para que al agrandarla crezca el diálogo
+     con ella»: el objetivo era ese y ahora se consigue de forma
+     directa. Dejar los dos sería poner dos tiradores a dos centímetros
+     uno del otro. La lista pasa a LLENAR la caja (flex: 1 1 auto, con
+     min-height: 0 para que pueda encoger dentro del flex).           */
   .log-list {
-    width: 640px; height: 45vh;
-    min-width: 260px; min-height: 6em;
-    max-width: 90vw; max-height: 75vh;
-    overflow: auto; resize: both; margin-top: 8px;
+    flex: 1 1 auto; min-height: 0;
+    overflow: auto; margin-top: 8px;
     border: 1px solid var(--border); border-radius: 4px; padding: 6px 8px;
     font-size: 12.5px; line-height: 1.4; box-sizing: border-box;
   }
@@ -744,14 +805,12 @@
   .log-mark { flex: 0 0 auto; width: 1ch; font-weight: 700; color: var(--danger); }
   .log-rep { color: var(--muted); font-size: 11.5px; white-space: nowrap; }
   .log-empty { color: var(--muted); font-style: italic; }
-  /* `resize: both` es el redimensionado nativo del navegador: el tirador
-     de la esquina no estorba al arrastre por el <h2> (makeDialogMovable).
-     Las medidas son del textarea, no de la caja, para que al agrandarlo
-     crezca el diálogo con él.                                         */
+  /* Mismo cambio que en .log-list: el tirador es de la caja, y el
+     textarea la llena. `resize: none` explícito porque un <textarea>
+     trae `resize: both` de fábrica.                                  */
   #points-text {
-    width: 60ch; height: 45vh; min-width: 32ch; min-height: 8em;
-    max-width: 88vw; max-height: 70vh;
-    resize: both; overflow: auto; white-space: pre;
+    flex: 1 1 auto; min-height: 8em; width: 100%;
+    resize: none; overflow: auto; white-space: pre;
     font-family: ui-monospace, Consolas, monospace; font-size: 12.5px; line-height: 1.35;
     border: 1px solid var(--border); border-radius: 4px; padding: 6px; box-sizing: border-box;
   }
@@ -1378,7 +1437,7 @@ const map = L.map("map", {
 
 /* Fecha de generación del código (versión): AÑOMESDIAHORAMINUTO.
    Actualizar en cada generación; se muestra junto al crédito de Leaflet. */
-const BUILD = "202609121540";
+const BUILD = "202609122320";
 /* El enlace al repositorio va junto a la versión, que es lo que hace
    accionable saber qué build se está ejecutando: desde ahí se llega al
    código de esa versión. `target="_blank"` a propósito —salir de la
