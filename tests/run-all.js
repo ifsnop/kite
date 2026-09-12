@@ -53,6 +53,17 @@ const SUITES = [
 ];
 const BENCH = [["selbench.js", "Coste de seleccionar y de topLevelSelection"]];
 
+/* Suites que necesitan un NAVEGADOR de verdad. Prueban lo que Node no
+   puede decir: que la aplicación arranque, que los iconos empotrados se
+   pinten, que el minificado se comporte igual que el legible y que el
+   portapapeles del sistema lleve un árbol de una instancia a otra.
+   Todo eso se comprobaba a mano, fuera del repositorio, y por tanto
+   casi nunca.                                                        */
+const BROWSER = [
+  ["browser/app.mjs", "Navegador: la aplicación arranca y funciona, en los DOS artefactos"],
+  ["browser/clipboard.mjs", "Navegador: copiar y pegar entre instancias de distinto origen, con el portapapeles real"]
+];
+
 const html = path.join(__dirname, "..", "kitelocal.html");
 if (!fs.existsSync(html)) {
   console.error(`No se encuentra ${html}. Los tests deben ir junto al visor.`);
@@ -114,10 +125,39 @@ const run = list => list.reduce((failed, [file, desc]) => {
   }
 }, 0);
 
+/* El navegador es OPCIONAL en local y OBLIGATORIO en el CI.
+   Opcional para que `npm test` funcione en cualquier entorno: quien no
+   pueda o no quiera descargar 300 MB sigue teniendo las suites de Node.
+   Obligatorio en el CI (KITE_REQUIRE_BROWSER=1) para que esa cobertura
+   no se pierda en silencio, que es lo que pasaría si saltarse las
+   pruebas fuera gratis en todas partes.                              */
+function runBrowserSuites() {
+  let detail = "";
+  try {
+    execFileSync(process.execPath, [path.join(__dirname, "browser", "_detect.mjs")], { stdio: "pipe" });
+  } catch (e) {
+    detail = String(e.stderr || "").trim();
+    const msg = "No hay navegador disponible para las pruebas de navegador.\n"
+      + (detail ? `  Motivo: ${detail}\n` : "")
+      + "  Instálelo con:  npx playwright install chromium\n"
+      + "  O apunte a uno ya instalado:  KITE_BROWSER=/ruta/al/chrome npm test";
+    if (process.env.KITE_REQUIRE_BROWSER) {
+      console.error(`\n✗ ${msg}\n  (KITE_REQUIRE_BROWSER está puesto: esto es un fallo, no un salto)`);
+      return { failed: 1, ran: 0 };
+    }
+    console.log(`\n⚠ ${msg}\n  Se SALTAN ${BROWSER.length} suite(s) de navegador.`);
+    return { failed: 0, ran: 0 };
+  }
+  return { failed: run(BROWSER), ran: BROWSER.length };
+}
+
 const failed = run(SUITES);
+const browser = runBrowserSuites();
 if (process.argv.includes("--bench")) run(BENCH);
 
-console.log(failed
-  ? `\n${failed} suite(s) con fallos.`
-  : `\nTodas las suites (${SUITES.length}) han pasado.`);
-process.exit(failed ? 1 : 0);
+const total = SUITES.length + browser.ran;
+console.log(failed + browser.failed
+  ? `\n${failed + browser.failed} suite(s) con fallos.`
+  : `\nTodas las suites (${total}) han pasado.`
+    + (browser.ran ? "" : " (sin las de navegador)"));
+process.exit(failed + browser.failed ? 1 : 0);

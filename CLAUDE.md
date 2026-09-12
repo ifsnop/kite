@@ -547,19 +547,15 @@ index.html         redirección de la raíz del sitio al minificado
   minutos esperándolo— y que Firefox ni siquiera ofrece a la página. Por
   eso LEER va por el evento `paste`, que entrega el contenido sin pedir
   nada porque lo ha provocado el usuario.
-- **El portapapeles del sistema NO se puede probar en el Chromium
-  headless de la VM**, así que no se pierda el rato buscando el fallo en
-  el código: ese navegador no tiene portapapeles. `writeText` responde
-  `NotAllowedError: Write permission denied` incluso desde un clic
-  auténtico y con `clipboard-read`/`clipboard-write` concedidos por CDP,
-  y una pulsación real de Ctrl+V no dispara ningún evento `paste`. Lo
-  que sí se puede hacer ahí, y es lo que hacen las pruebas: interceptar
-  `navigator.clipboard.writeText` para quedarse con el texto, y lanzar
-  un `ClipboardEvent` sintético con su `DataTransfer` para el pegado.
-  Eso valida NUESTRO código —incluido el viaje entre dos orígenes, que
-  son dos puertos distintos— pero no la entrega del navegador. El viaje
-  completo por el portapapeles real hay que probarlo a mano en un
-  navegador normal; verificado así y funcionando.
+- **El portapapeles SÍ se prueba solo**, de punta a punta:
+  `tests/browser/clipboard.mjs` copia con Ctrl+C en un origen y pega con
+  Ctrl+V en otro, con el portapapeles de verdad del sistema. Conviene
+  saber por qué hizo falta Playwright para esto: con puppeteer y un
+  Chromium 129, `writeText` respondía `NotAllowedError` incluso desde un
+  clic auténtico con `clipboard-read`/`clipboard-write` concedidos, y un
+  Ctrl+V real no disparaba ningún `paste` — de ahí que durante un tiempo
+  esto se diera por imposible de automatizar y se comprobara a mano. No
+  era un límite del modo headless: era ese cliente y ese navegador.
 - **Ctrl+V no pega en el acto, y el keydown NO llama a
   `preventDefault`.** Es lo que evita pegar dos veces: `preventDefault`
   cancelaría el evento `paste`, así que el keydown solo deja un respaldo
@@ -1632,6 +1628,59 @@ dos con las que se topa un árbol grande y hasta ahora solo se veía una:
   local ni GitHub Pages pueden enviar esas cabeceras.
 - `performance.memory` no está en ninguna norma y solo existe en
   Chromium; en el resto no se inventa nada, simplemente no hay línea.
+
+## Pruebas con navegador
+
+Las suites de Node comprueban el archivo entregado extrayendo funciones
+de su `<script>`, pero hay cosas que no pueden decir: que la aplicación
+ARRANQUE, que los iconos empotrados se pinten, que el minificado se
+comporte igual que el legible, o que el portapapeles del sistema lleve
+un árbol de una instancia a otra. Todo eso se comprobaba a mano, fuera
+del repositorio, y por tanto casi nunca. Viven en `tests/browser/`.
+
+- **Playwright, y no puppeteer**, por dos razones medidas:
+  - Es el único que conduce el portapapeles de punta a punta (ver
+    arriba).
+  - **`npm install` NO se trae ningún navegador** (puppeteer sí): son
+    12 MB en `node_modules`, y el navegador —unos 300 MB— va aparte, a
+    `~/.cache/ms-playwright`, solo si alguien ejecuta
+    `npx playwright install chromium` (o `npm run browser`). Quien solo
+    quiera las suites de Node no paga nada.
+- **La versión va EXACTA, sin `^`: `playwright@1.61.1`.** Es la última
+  que se ejecuta en **Node 18**, que es el que trae Ubuntu 24 LTS; la
+  1.62 se niega en seco («Playwright requires Node.js 20 or higher»).
+  Un salto de versión menor rompería la máquina de quien no pueda
+  actualizar Node sin que nadie haya tocado nada. Comprobado
+  EJECUTÁNDOLAS: el campo `engines` dice `>=18` en versiones que luego
+  se niegan, así que no sirve para decidir.
+- **Opcionales en local, OBLIGATORIAS en el CI.** `npm test` detecta si
+  hay navegador lanzándolo de verdad (`_detect.mjs`: un binario presente
+  al que le falte una librería del sistema pasaría cualquier
+  comprobación de ruta y fallaría luego en cada suite). Si no lo hay, se
+  SALTAN con el comando para habilitarlas y `npm test` sigue en verde:
+  así funciona en cualquier entorno. En el CI se instala el navegador y
+  `KITE_REQUIRE_BROWSER=1` convierte ese salto en FALLO, para que la
+  cobertura no se pierda en silencio.
+- **Si no se puede descargar Chromium**: `KITE_BROWSER=/ruta/al/chrome`
+  usa cualquier Chromium ya instalado. Playwright admite además
+  `channel: "chrome"`/`"msedge"` y Firefox/WebKit, si alguna vez hace
+  falta.
+- **La aplicación se sirve por `http://`, nunca se abre por `file://`**:
+  es como se usa de verdad, IndexedDB necesita un origen real para
+  persistir entre recargas, y **dos puertos son dos orígenes**, que es
+  justo lo que hace falta para probar el copiar y pegar entre
+  instancias.
+- **`tests/browser/app.mjs` pasa las MISMAS comprobaciones sobre los dos
+  artefactos**, así que ES la comprobación de paridad legible/minificado
+  que antes estaba documentada como manual y obligatoria. Si terser
+  rompiera algo, el legible pasaría y el minificado no.
+- **Se espera por CONDICIÓN, no por tiempo** (`openApp` aguarda a que
+  `map` exista y el árbol esté resuelto): un `waitForTimeout` fijo es lo
+  que produce una prueba que falla una vez de cada veinte en una máquina
+  cargada.
+- Coste medido: lanzar el navegador 99 ms, cargar la aplicación 528 ms,
+  un `evaluate` 9 ms. Las dos suites completas no llegan a unos pocos
+  segundos.
 
 ## Comprobaciones estáticas del propio archivo
 

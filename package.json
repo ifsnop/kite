@@ -7,11 +7,14 @@
     "check": "node build.js --check",
     "watch": "node build.js --watch",
     "test": "node tests/run-all.js",
-    "icons": "node fetch-icons.js"
+    "icons": "node fetch-icons.js",
+    "test:browser": "node tests/browser/app.mjs && node tests/browser/clipboard.mjs",
+    "browser": "playwright install chromium"
   },
   "dependencies": {
     "@xmldom/xmldom": "^0.9.10",
     "html-minifier-terser": "7.2.0",
-    "linkedom": "^0.18.12"
+    "linkedom": "^0.18.12",
+    "playwright": "1.61.1"
   }
 }

@@ -14,12 +14,23 @@ avisar y enmascara justo ese error. Si falla: `npm run build`.
 ## Ejecutar
 
 ```bash
-npm install                 # una sola vez (linkedom, @xmldom/xmldom)
-npm run build               # src/ → kitelocal.html
+npm install                 # una sola vez (linkedom, @xmldom/xmldom, playwright)
+npm run browser             # una sola vez, OPCIONAL: descarga el navegador (~300 MB)
+npm run build               # src/ → kitelocal.html + kitelocal.min.html
 npm test                    # toda la batería
+npm run test:browser        # solo las de navegador
 node tests/run-all.js --bench   # además, las mediciones
 node tests/navtest.js           # una suite suelta
 ```
+
+Las pruebas de **navegador** (`tests/browser/`) son opcionales en local
+y obligatorias en el CI. `npm install` no descarga ningún navegador: si
+no lo hay, esas suites se SALTAN con el comando para habilitarlas y
+`npm test` sigue en verde, de modo que la batería funciona en cualquier
+entorno. En el CI se instala y `KITE_REQUIRE_BROWSER=1` convierte ese
+salto en fallo, para que la cobertura no se pierda en silencio. Si no se
+puede descargar Chromium, `KITE_BROWSER=/ruta/al/chrome` usa cualquiera
+que ya esté instalado.
 
 Durante el desarrollo, `npm run watch` reconstruye al guardar y basta
 con recargar el navegador.
@@ -69,6 +80,8 @@ si algo falla, así que sirve tal cual en un gancho de git.
 | `tristate.js` | Tercer estado de la casilla de un contenedor (`indeterminate` nativo, dibujado como guion): `containerState` sobre los HIJOS DIRECTOS (todos/ninguno/mezcla, contenedor vacío y hoja devuelven null, una fila de mensaje no cuenta), el invariante que permite no bajar más de un nivel —un hijo mixto hace mixto al abuelo—, `aria-checked="mixed"`, que `applyContainerState` diga si cambió algo (es lo que corta la subida), `refreshAncestorChecks` propagando y deshaciendo la mezcla por toda la rama, los registros `_pending` de una carpeta colapsada (solos y conviviendo con filas, que es el estado real tras soltar un archivo dentro), la caché `rec._state` y el borrado recalculando desde el `<ul>` guardado antes de quitar la fila. Más un contrato de orden sobre el archivo entregado: `materializeRecords` recalcula la casilla de la carpeta que se queda pendiente. |
 | `usage.js` | La línea de memoria del pie del panel: `memoryUsageText` da cifra servida por http(s) y devuelve null en los dos casos en que no la hay —`file://`, donde Chromium deja `performance.memory` congelada, y un navegador sin esa API, que no está en ninguna norma—, más un `usedJSHeapSize` no finito. `refreshMemoryUsage` ESCONDE la línea cuando no hay cifra en vez de escribir «no disponible» (sería ruido permanente en dos casos raros) y la devuelve al haberla. Y que el arranque no arme el temporizador si no hay nada que refrescar. |
 | `clipboard.js` | Copiar y pegar entre instancias de KITE de dominios distintos, por el portapapeles del sistema: que el envoltorio sea el MISMO que el de exportar (`treeExportDoc`, con sus tres versiones) y que `exportNode` lo comparta en vez de duplicarlo; `parseTreeExport` reconociendo lo nuestro y descartando texto suelto, JSON ajeno y un GeoJSON; que lo pegado de fuera nunca MUEVA (cortar en otra pestaña no puede borrar aquí); el orden que evita pegar dos veces —Ctrl+V deja un respaldo con `setTimeout(0)` y NO llama a `preventDefault`, que cancelaría el evento `paste`, y el evento cancela ese respaldo solo si trae algo nuestro—; las dos comprobaciones de versión; y el tope de tamaño, con el fallo de escritura capturado para que no tumbe el portapapeles interno. |
+| `browser/app.mjs` | **Navegador.** Que la aplicación ARRANQUE y funcione, pasando las mismas comprobaciones sobre `kitelocal.html` **y** `kitelocal.min.html` — o sea, ES la comprobación de paridad legible/minificado que antes era manual y obligatoria: si terser rompiera algo, el legible pasaría y el minificado no. Cubre el aviso con que concluye el arranque, las dos barras de la escala y que quede por encima de la atribución, la versión y el enlace al repositorio, aplicar un icono MDI empotrado a un marcador, que los 80 iconos del selector se PINTEN (no solo que estén en una tabla), la etiqueta y el diálogo de una medición en la misma unidad, el tercer estado de una carpeta con su `aria-checked="mixed"`, y cero violaciones de CSP y cero errores de página. |
+| `browser/clipboard.mjs` | **Navegador.** El viaje que ninguna suite de Node puede dar: copiar con **Ctrl+C de verdad** en un origen y pegar con **Ctrl+V de verdad** en otro (dos puertos son dos orígenes), por el portapapeles real del sistema. Comprueba que Ctrl+C deja el envoltorio de KITE en el portapapeles, que el segundo origen recibe la carpeta con sus tres puntos y sus tres capas en el mapa, y que pegar FUERA del árbol —en el editor de puntos— no importa nada y deja el JSON en el cuadro de texto, como se acordó. |
 | `hittest.js` | Acierto bajo el cursor del menú contextual, en píxeles de contenedor: `segDistSq` (perpendicular, más allá de los extremos, segmento degenerado), `nearPolyline` (el falso positivo reportado —un punto dentro de la caja envolvente de una diagonal y a 56 px de ella no acierta—, tolerancia inclusiva a tol y no a tol+1, y el **lado de cierre** del anillo, que `getLatLngs()` no repite y sin el cual el último lado no se probaba), `pointInRing` (ray-casting: escotadura de un polígono en L, alturas de vértice) y `pointInRings` (agujeros: el centro de uno queda fuera, su borde acierta por cercanía; por fuera del contorno acierta dentro de la tolerancia). |
 | `openshape.js` | Formas abiertas: `isOpenOnly` (una polilínea sí, un polígono no —incluido el orden de comprobación, que importa porque `L.Polygon` extiende `L.Polyline`—, un grupo con línea Y polígono tampoco, y el polígono se encuentra anidado) y `clearFillOnOpenPaths` (quita el relleno a la línea, respeta el del polígono del mismo grupo —el caso del placemark KML que comparte objeto de estilo—, no toca el resto del estilo, y llega a una capa suelta y a través de grupos anidados). |
 | `polyarea.js` | Perímetro y área de polígonos (diálogo de propiedades): `ringArea` (fórmula del exceso esférico) contra la aproximación plana de un cuadrado pequeño, invariante al sentido de recorrido, cero con menos de 3 puntos; `ringClosed` (primer y último punto iguales, con tolerancia `COORD_EPS`) distingue un anillo ABC sin repetir el punto de cierre (el caso de algunos JSON) de uno que sí lo repite; `ringPerimeter` con un anillo abierto suma solo los tramos consecutivos (sin el de cierre), con uno cerrado sí lo incluye; `polygonParts` separa exterior/agujeros tanto en un polígono simple como en un multipolígono anidado; área con agujero, calculada a mano y vía `polygonParts`, menor que sin él y próxima a la resta exterior−agujero. |

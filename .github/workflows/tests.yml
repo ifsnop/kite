@@ -29,5 +29,17 @@ jobs:
       - name: Comprobar que kitelocal.html está al día respecto de src/
         run: npm run check
 
+      # El navegador NO lo descarga `npm ci` (Playwright no lo trae en
+      # node_modules a propósito): hay que pedirlo. `--with-deps` añade
+      # las librerías de sistema que el runner no trae de fábrica.
+      - name: Instalar el navegador de las pruebas
+        run: npx playwright install --with-deps chromium
+
+      # KITE_REQUIRE_BROWSER convierte en FALLO el salto de las pruebas
+      # de navegador. En local saltárselas es legítimo —no todo el mundo
+      # puede o quiere descargar 300 MB—, pero aquí esa cobertura no
+      # puede perderse en silencio.
       - name: Ejecutar tests
         run: npm test
+        env:
+          KITE_REQUIRE_BROWSER: "1"

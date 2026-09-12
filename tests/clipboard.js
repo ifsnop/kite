@@ -16,14 +16,11 @@
    ofrece a la página. Por eso pegar va por el evento `paste`, que
    entrega el contenido sin pedir nada.
 
-   OJO: el portapapeles del sistema NO se puede probar en el Chromium
-   headless de la VM — no lo tiene. `writeText` responde
-   `NotAllowedError` incluso desde un clic auténtico y con los permisos
-   concedidos, y un Ctrl+V real no dispara ningún `paste`. Por eso esta
-   suite comprueba el CONTRATO sobre el archivo entregado, y la prueba
-   de navegador intercepta `writeText` y lanza un `ClipboardEvent`
-   sintético: valida nuestro código, no la entrega del navegador. El
-   viaje completo se prueba a mano.                                   */
+   Esta suite comprueba el CONTRATO sobre el archivo entregado: qué se
+   declara, con qué guardias y en qué orden. El viaje de verdad —copiar
+   con Ctrl+C en un origen y pegar con Ctrl+V en otro, por el
+   portapapeles del sistema— lo prueba `tests/browser/clipboard.mjs`,
+   que necesita un navegador.                                         */
 const { fn, script, constDecl } = require("./_extract");
 const ok = (c, m) => { if (!c) { console.error("FAIL: " + m); process.exitCode = 1; } };
 
