@@ -159,7 +159,7 @@ const GLOBALS = new Set([
   "Promise", "RegExp", "Set", "String", "URLSearchParams",
   "cancelAnimationFrame", "clearTimeout", "encodeURIComponent", "fetch",
   "isFinite", "parseFloat", "parseInt", "requestAnimationFrame",
-  "setInterval", "setTimeout",
+  "setInterval", "setTimeout", "getComputedStyle",
   "html2canvas"
 ]);
 

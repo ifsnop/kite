@@ -1544,7 +1544,7 @@ const map = L.map("map", {
 
 /* Fecha de generación del código (versión): AÑOMESDIAHORAMINUTO.
    Actualizar en cada generación; se muestra junto al crédito de Leaflet. */
-const BUILD = "202609140130";
+const BUILD = "202609140215";
 /* El enlace al repositorio va junto a la versión, que es lo que hace
    accionable saber qué build se está ejecutando: desde ahí se llega al
    código de esa versión. `target="_blank"` a propósito —salir de la
@@ -10865,14 +10865,104 @@ function startWatchdog() {
     + "abra el registro 📋 y copie su contenido.", { tone: "info" });
 }
 
+/* ---------- Segunda vuelta: "colgado" SIN el hilo parado ----------
+   La primera captura del usuario vino con `bloqueos: []`: el hilo
+   principal no estuvo quieto ni 1,2 s en toda la sesión y aun así la
+   aplicación se quedó sin responder. Eso descarta el bucle desbocado y
+   deja dos sospechosos muy distintos, que es lo que hay que separar:
+
+   - Que lo parado sea el PINTADO y no el script. Se ve porque los
+     `requestAnimationFrame` dejan de llegar mientras los `setInterval`
+     siguen puntuales: si el hilo estuviera bloqueado fallarían los dos.
+   - Que los clics SÍ lleguen pero se los coma algo por encima: un
+     diálogo, el recuadro de soltar archivos o la barra de progreso
+     que se quedaron visibles. Ahí el ratón funciona y la aplicación
+     parece muerta. Por eso se anota, en cada pulsación, qué elemento
+     hay REALMENTE bajo el puntero (elementFromPoint) y qué capas de
+     encima están abiertas.                                          */
+let wdRafGaps = [];
+let wdClicks = [];
+
+/* Lo que tapa la pantalla, si es que hay algo. Se anota CUÁNTO tapa
+   (porcentaje del área de la ventana): el recuadro de soltar archivos
+   vive siempre visible bajo el árbol y saldría en la lista sin tapar
+   nada, mientras que lo que convierte la aplicación en un ladrillo es
+   una capa a pantalla completa. Sin esa cifra la lista es ruido.   */
+function wdOverlays() {
+  const area = window.innerWidth * window.innerHeight;
+  const visibles = [];
+  for (const el of document.querySelectorAll(".dlg-overlay, .dlg-float, #progress, #dropzone")) {
+    if (el.hidden || getComputedStyle(el).display === "none") continue;
+    const r = el.getBoundingClientRect();
+    const pct = Math.round(100 * (r.width * r.height) / area);
+    visibles.push(`${el.id || el.className} (${pct}% de la pantalla)`);
+  }
+  return visibles;
+}
+/* Ruta corta de un elemento, para reconocerlo sin volcar el DOM */
+function wdPath(el) {
+  const partes = [];
+  for (let n = el; n && n !== document.body && partes.length < 4; n = n.parentElement) {
+    partes.unshift(n.id ? "#" + n.id : n.tagName.toLowerCase()
+      + (n.className && typeof n.className === "string" ? "." + n.className.trim().split(/\s+/)[0] : ""));
+  }
+  return partes.join(" ");
+}
+
+function startUiWatchdog() {
+  /* Fotogramas: el hueco entre dos rAF. Se guardan los diez peores. */
+  let ultimoRaf = performance.now();
+  const tick = ahora => {
+    const hueco = ahora - ultimoRaf;
+    ultimoRaf = ahora;
+    if (hueco > 500) {
+      wdRafGaps.push({ ms: Math.round(hueco), cuando: new Date().toLocaleTimeString() });
+      wdRafGaps = wdRafGaps.sort((a, b) => b.ms - a.ms).slice(0, 10);
+    }
+    requestAnimationFrame(tick);
+  };
+  requestAnimationFrame(tick);
+
+  /* Cada pulsación: dónde cayó, qué había debajo de verdad y qué
+     estaba abierto. En captura, para verlo aunque alguien pare el
+     evento después.                                                */
+  for (const tipo of ["pointerdown", "click"]) {
+    document.addEventListener(tipo, e => {
+      const arriba = document.elementFromPoint(e.clientX, e.clientY);
+      wdClicks.push({
+        tipo,
+        destino: wdPath(e.target),
+        bajoElPuntero: arriba ? wdPath(arriba) : "(nada)",
+        tapado: arriba !== e.target && !(arriba && arriba.contains(e.target)),
+        abiertos: wdOverlays(),
+        cuando: new Date().toLocaleTimeString()
+      });
+      if (wdClicks.length > 40) wdClicks.shift();
+    }, true);
+  }
+}
+
 /* Informe completo para la consola, por si hace falta más detalle del
    que cabe en una línea del registro.                                */
 window.__kiteDiag = () => ({
   bloqueos: wdBlocks,
+  /* Fotogramas perdidos SIN bloqueo del hilo = el pintado, no el script */
+  fotogramas: wdRafGaps,
+  /* Las últimas pulsaciones: si `tapado` es true, el clic no llegó a
+     donde el usuario creía, y `abiertos` dice qué lo tapaba.        */
+  pulsaciones: wdClicks.slice(-12),
+  abiertosAhora: wdOverlays(),
+  herramienta: typeof activeTool !== "undefined" ? activeTool : null,
+  arrastrando: typeof dragItems !== "undefined" && !!dragItems,
   llamadas: Object.fromEntries([...wdStats].map(([k, s]) => [k, s.n])),
   filas: document.querySelectorAll("#tree li[role=treeitem]").length,
   capas: rootGroup.getLayers().length,
-  memoria: performance.memory
+  nodosDOM: document.getElementsByTagName("*").length,
+  /* Ojo: usedJSHeapSize NO está recolectado, así que un número alto no
+     significa memoria viva. Medido aquí: el mismo árbol que dio 240 MB
+     en el navegador del usuario ocupa 15,3 MB de heap VIVO tras forzar
+     la recolección.                                                  */
+  memoriaSinRecolectar: performance.memory
     ? Math.round(performance.memory.usedJSHeapSize / 1048576) + " MB" : "no medible"
 });
 /* ================= Arranque: restaurar el árbol guardado ================= */
@@ -10947,6 +11037,7 @@ window.__kiteDiag = () => ({
      del arranque a propósito: envuelve funciones por su nombre y antes
      de aquí muchas siguen en su zona muerta temporal.               */
   startWatchdog();
+  startUiWatchdog();
 })();
 </script>
 </body>

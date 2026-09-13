@@ -70,4 +70,5 @@
      del arranque a propósito: envuelve funciones por su nombre y antes
      de aquí muchas siguen en su zona muerta temporal.               */
   startWatchdog();
+  startUiWatchdog();
 })();
