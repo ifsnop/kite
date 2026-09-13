@@ -443,7 +443,9 @@ function closeKdpPicker(result) {
 }
 function confirmMergeDuplicates(fileName, groups) {
   const total = groups.reduce((n, g) => n + g.length - 1, 0);
-  const plural = groups.length === 1 ? "" : "es";
+  /* "s", no "es": el plural se pega a «nombre» y a «repetido», no a
+     «marcador(es)». Decía «2 nombrees repetidoes».                    */
+  const plural = groups.length === 1 ? "" : "s";
   kdpIntro.textContent = `«${fileName}» tiene ${groups.length} nombre${plural} repetido${plural} `
     + `con la misma posición (${total} marcador(es) de más). ¿Fusionarlos y mantener solo uno de cada grupo?`;
   kdpDialog.hidden = false;

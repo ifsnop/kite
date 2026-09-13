@@ -186,6 +186,65 @@ function removeDuplicatePlacemarks(groups) {
   return removed;
 }
 
+/* Lo mismo para un GeoJSON, que hasta ahora se importaba sin mirar los
+   duplicados aunque el problema es idéntico: un exportador que repite la
+   misma ficha. Solo cambia de dónde salen el nombre y la posición, así
+   que la clave de agrupación, la tolerancia (DUP_POS_DECIMALS) y el
+   diálogo son los MISMOS.
+
+   Tres cosas que no son evidentes:
+   - En GeoJSON las coordenadas van **[lng, lat]**, al revés que en el
+     resto del proyecto.
+   - Solo cuenta `Point`, como en KML: una línea o un polígono no tienen
+     una posición única que comparar.
+   - Se agrupa por el nombre que sale de las PROPIEDADES, nunca por el
+     «Elemento N» de respaldo: ese lo da el índice, así que es distinto
+     para cada elemento por definición y agruparía por casualidad o no
+     agruparía nunca. Es el mismo criterio que el `if (!name) continue`
+     del KML, donde un Placemark sin `<name>` tampoco entra en ningún
+     grupo.                                                             */
+function featureDupName(props, nameProp) {
+  const name = (nameProp && props[nameProp]) || props.name || props.title;
+  return name ? String(name) : null;
+}
+function findDuplicateFeatures(features, nameProp) {
+  const groups = new Map(); /* "name|lat|lng" -> [Feature] */
+  for (const f of features) {
+    const geom = f && f.geometry;
+    if (!geom || geom.type !== "Point") continue;
+    const [lng, lat] = geom.coordinates || [];
+    if (!Number.isFinite(lat) || !Number.isFinite(lng)) continue;
+    const props = (typeof f.properties === "object" && f.properties) || {};
+    const name = featureDupName(props, nameProp);
+    if (!name) continue;
+    const key = `${name}|${lat.toFixed(DUP_POS_DECIMALS)}|${lng.toFixed(DUP_POS_DECIMALS)}`;
+    if (!groups.has(key)) groups.set(key, []);
+    groups.get(key).push(f);
+  }
+  return [...groups.values()].filter(group => group.length > 1);
+}
+/* Se queda el primero de cada grupo y los demás salen del ARRAY, que es
+   el equivalente de quitarlos del DOM en el camino del KML: así
+   buildGeoJsonRecords, que vuelve a sacar los features de `gj`, no
+   llega a verlos. Solo hay array que tocar en una FeatureCollection, y
+   es también el único caso en el que puede haber duplicados: un
+   `Feature` suelto o una geometría pelada son un solo elemento.      */
+function removeDuplicateFeatures(gj, groups) {
+  if (!gj || gj.type !== "FeatureCollection" || !Array.isArray(gj.features)) return 0;
+  const drop = new Set();
+  for (const group of groups) for (let i = 1; i < group.length; i++) drop.add(group[i]);
+  if (!drop.size) return 0;
+  /* EN EL SITIO, no `gj.features = filtrados`: quien llamó tiene ya en
+     la mano el array que devolvió geojsonFeatures —es el mismo objeto—
+     y sustituirlo dejaría esa referencia apuntando a la lista vieja,
+     con los duplicados dentro. Se recorre hacia atrás para que los
+     índices no se muevan bajo los pies.                              */
+  for (let i = gj.features.length - 1; i >= 0; i--) {
+    if (drop.has(gj.features[i])) gj.features.splice(i, 1);
+  }
+  return drop.size;
+}
+
 function parseKmlDocument(content) {
   let xml = new DOMParser().parseFromString(content, "text/xml");
   let why = parserErrorText(xml);
@@ -294,7 +353,6 @@ async function addFileNode(name, kind, content, insertBefore = null, dropTargetU
           report.note(`etiquetas tipo HTML eliminadas de ${n} propiedad(es)`);
         }
       }
-      const total = features.length;
       const firstProps = (features[0] && typeof features[0].properties === "object" && features[0].properties) || {};
       let nameProp = null;
       if (needsNamePicker(firstProps)) {
@@ -312,6 +370,21 @@ async function addFileNode(name, kind, content, insertBefore = null, dropTargetU
           }
         }
       }
+      /* DESPU\u00c9S del selector de propiedad-nombre: el nombre es media
+         clave del duplicado, as\u00ed que preguntarlo antes agrupar\u00eda por un
+         nombre que el usuario todav\u00eda no ha elegido. Misma pregunta y
+         mismo di\u00e1logo que en KML, una sola vez por archivo y v\u00e1lida
+         para todos sus grupos.                                        */
+      const dupGroups = findDuplicateFeatures(features, nameProp);
+      if (dupGroups.length) {
+        if (await confirmMergeDuplicates(name, dupGroups)) {
+          const removed = removeDuplicateFeatures(gj, dupGroups);
+          report.note(`${removed} elemento(s) duplicado(s) fusionado(s)`);
+        }
+      }
+      /* Se cuenta AQU\u00cd, no antes de fusionar: si no, la barra de
+         progreso prometer\u00eda m\u00e1s capas de las que van a construirse. */
+      const total = features.length;
       const prog = big && total ? {
         done: 0,
         update: d => progress.set(100 * d / total,

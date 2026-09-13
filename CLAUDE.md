@@ -156,6 +156,28 @@ desarrollo del proyecto.
   lo que deja limpio el `gj` que después recibe `buildGeoJsonRecords`;
   y se recorre dentro de objetos y arrays, porque una `property` no
   tiene por qué ser plana.
+- **Marcadores duplicados: la misma pregunta en los DOS formatos.**
+  Un exportador que repite la misma ficha —mismo nombre y misma
+  posición— produce el mismo problema venga de un KML o de un GeoJSON,
+  así que hay un único diálogo (`confirmMergeDuplicates`), una sola
+  pregunta por archivo y la misma tolerancia de posición
+  (`DUP_POS_DECIMALS`, 5 decimales ≈ 1,1 m). Cambia solo de dónde salen
+  el nombre y la posición: `findDuplicatePlacemarks` sobre el XML y
+  `findDuplicateFeatures` sobre la lista de features. Tres detalles del
+  lado GeoJSON que no son evidentes:
+  - Las coordenadas van **`[lng, lat]`**, al revés que en el resto del
+    proyecto.
+  - Se agrupa por el nombre que sale de las PROPIEDADES
+    (`featureDupName`), nunca por el «Elemento N» de respaldo: ese lo
+    da el índice, así que no dice nada sobre si dos fichas son la
+    misma. Es el mismo criterio que el `if (!name) continue` del KML.
+  - La pregunta va **después** del selector de propiedad-nombre: el
+    nombre es media clave del duplicado, y preguntarlo antes agruparía
+    por un nombre que el usuario todavía no ha elegido.
+  Y el array se filtra **en el sitio** (`splice` hacia atrás), no
+  sustituyendo `gj.features`: quien llamó tiene ya ese mismo array en
+  la mano —es el que devolvió `geojsonFeatures`— y reemplazarlo le
+  dejaría delante la lista con los duplicados dentro.
 - **Ojo a una idea equivocada que ya costó una investigación**: que un
   archivo escriba `\u003cb\u003e` en vez de `<b>` **no cambia
   absolutamente nada**. En un literal de cadena JSON eso es solo otra
