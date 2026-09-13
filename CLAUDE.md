@@ -480,6 +480,24 @@ index.html         redirección de la raíz del sitio al minificado
   (`rec._state`) porque una rama colapsada puede tener miles de nodos y
   se consulta al recalcular al padre; quien toque `checked` lo invalida
   (lo hace `cascadeVisibility`).
+- **Desplegar y marcar a la vez NO puede repartirse los nodos.** Son dos
+  pasadas por lotes sobre el mismo subárbol —`materializeRecords`
+  construye las filas que faltan, `cascadeVisibility` enciende o apaga—
+  y cada una miraba su propia foto: `materializeRecords` construye su
+  primer lote (150) de forma SÍNCRONA y vacía `_pending` al arrancar,
+  así que una cascada que llegara justo después fotografiaba esas 150
+  filas y ningún registro pendiente, y las que faltaban nacían con su
+  estado GUARDADO. Medido con una carpeta de 466 capas: 150 encendidas,
+  316 apagadas y la carpeta en indeterminado; el usuario marca una
+  carpeta y se le enciende un tercio. Se arregla por los dos extremos:
+  `walkLi` espera a la materialización EN VUELO de ese nodo antes de
+  mirar a sus hijos (sin forzar ninguna que no estuviera ya en marcha,
+  que es lo que el diseño evita), y la cascada **repite la pasada**
+  mientras `materializingNow` o `materializeSeq` digan que el conjunto
+  de nodos sigue moviéndose. Repetir es gratis porque una pasada es
+  completa e idempotente, y termina porque la cascada no materializa
+  nada: eso solo lo dispara el usuario. El `yieldFrame` entre vueltas es
+  lo que impide girar en vacío contra una materialización larga.
 - **La cascada limpia el indeterminado a su paso**: deja la rama
   uniforme, así que nada de dentro puede seguir a medias; lo que puede
   cambiar es el estado de los ancestros de la carpeta tocada.

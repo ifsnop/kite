@@ -184,8 +184,14 @@ async function ensureMaterialized(li) {
   if (li._materializing) return li._materializing;
   const records = li._pending;
   li._pending = null;
+  /* Las dos cuentas son lo que deja a una cascada en curso saber que
+     el conjunto de nodos todavía se está moviendo (ver
+     cascadeVisibility). Se suma ANTES de arrancar: materializeRecords
+     construye su primer lote de forma síncrona, así que una cascada
+     que llegue después tiene que ver ya que hay trabajo en vuelo.  */
+  materializingNow++;
   li._materializing = materializeRecords(records, nodeUl(li))
-    .finally(() => { li._materializing = null; });
+    .finally(() => { li._materializing = null; materializingNow--; materializeSeq++; });
   return li._materializing;
 }
 

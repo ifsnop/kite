@@ -1544,7 +1544,7 @@ const map = L.map("map", {
 
 /* Fecha de generación del código (versión): AÑOMESDIAHORAMINUTO.
    Actualizar en cada generación; se muestra junto al crédito de Leaflet. */
-const BUILD = "202609132200";
+const BUILD = "202609140030";
 /* El enlace al repositorio va junto a la versión, que es lo que hace
    accionable saber qué build se está ejecutando: desde ahí se llega al
    código de esa versión. `target="_blank"` a propósito —salir de la
@@ -3216,6 +3216,13 @@ const refreshAncestorChecks = li => refreshChecksFrom(li && li.parentElement);
    una carpeta nunca desplegada sigue en el mapa (visibilidad y colapso
    son ejes independientes), así que la cascada tiene que alcanzarla
    igual, sin forzar su materialización solo para esto.                */
+/* Dos cuentas que lleva ensureMaterialized y que mira la cascada para
+   saber si el conjunto de nodos puede cambiar bajo sus pies mientras
+   recorre: cuántas materializaciones hay EN VUELO y cuántas han
+   TERMINADO (el contador solo sube).                                  */
+let materializingNow = 0;
+let materializeSeq = 0;
+
 async function cascadeVisibility(li, checked) {
   const myGen = ++li._cascadeGen;
   const counter = { n: 0 };
@@ -3235,6 +3242,17 @@ async function cascadeVisibility(li, checked) {
     return true;
   };
   const walkLi = async node => {
+    /* Si ese nodo se está materializando AHORA MISMO, se espera a que
+       termine antes de mirar a sus hijos. Sin esto, desplegar y marcar
+       una carpeta grande casi a la vez dejaba la mitad apagada:
+       materializeRecords construye su primer lote de 150 filas de forma
+       SÍNCRONA y vacía `_pending` al arrancar, así que la cascada
+       llegaba a fotografiar 150 filas y ningún registro pendiente, y
+       las que faltaban nacían después con su estado guardado. Medido
+       con una carpeta de 466: 150 encendidas, 316 apagadas y la
+       carpeta en indeterminado. No fuerza ninguna materialización que
+       no estuviera ya en marcha, que es lo que el diseño evita.      */
+    if (node._materializing) await node._materializing;
     const chk = node.querySelector(":scope > .node-row > input[type=checkbox]");
     if (chk) {
       chk.checked = checked;
@@ -3250,12 +3268,30 @@ async function cascadeVisibility(li, checked) {
     if (node._pending) return walkRecords(node._pending);
     return true;
   };
-  if (await walkLi(li)) {
-    /* La carpeta tocada ya está uniforme; lo que puede haber cambiado
-       es el estado de sus ANCESTROS.                                 */
-    refreshAncestorChecks(li);
-    scheduleSave();
-  }
+  /* Se repite la pasada mientras el conjunto de nodos siga moviéndose:
+     o hay una materialización en vuelo (las filas que faltan van a
+     nacer con su estado GUARDADO, no con el que se acaba de pedir), o
+     ha terminado alguna mientras recorríamos. Una pasada es completa e
+     idempotente, así que repetirla no cuesta más que recorrer.
+
+     Termina, y conviene ver por qué: la cascada no materializa nada
+     —eso solo lo dispara el usuario al desplegar, importar o buscar—,
+     así que en cuanto deja de haber trabajo en vuelo la última pasada
+     encuentra el contador igual y sale. El `yieldFrame` entre vueltas
+     es lo que impide que esto gire en vacío contra una materialización
+     larga: una pasada por fotograma, no un bucle cerrado.           */
+  let seqAlEmpezar;
+  do {
+    seqAlEmpezar = materializeSeq;
+    if (!(await walkLi(li))) return;
+    if (!li.isConnected || li._cascadeGen !== myGen) return;
+    if (!materializingNow && materializeSeq === seqAlEmpezar) break;
+    await yieldFrame();
+  } while (true);
+  /* La carpeta tocada ya está uniforme; lo que puede haber cambiado
+     es el estado de sus ANCESTROS.                                 */
+  refreshAncestorChecks(li);
+  scheduleSave();
 }
 
 /* Trae una capa (de cualquier tipo) al frente de su propio pane/canvas,
@@ -3487,8 +3523,14 @@ async function ensureMaterialized(li) {
   if (li._materializing) return li._materializing;
   const records = li._pending;
   li._pending = null;
+  /* Las dos cuentas son lo que deja a una cascada en curso saber que
+     el conjunto de nodos todavía se está moviendo (ver
+     cascadeVisibility). Se suma ANTES de arrancar: materializeRecords
+     construye su primer lote de forma síncrona, así que una cascada
+     que llegue después tiene que ver ya que hay trabajo en vuelo.  */
+  materializingNow++;
   li._materializing = materializeRecords(records, nodeUl(li))
-    .finally(() => { li._materializing = null; });
+    .finally(() => { li._materializing = null; materializingNow--; materializeSeq++; });
   return li._materializing;
 }
 
