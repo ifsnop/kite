@@ -1744,6 +1744,22 @@ y `kitelocal.min.html` (su derivada minificada, lo que sirve Pages).
 
 ## Arrastrar y soltar
 
+- **El asa es el NOMBRE de la fila, no la fila entera.** El `<li>` es
+  `draggable` —tiene que serlo para poder moverlo—, así que el navegador
+  abría una sesión de arrastre aunque la pulsación empezara en el caret,
+  en la casilla o en un botón de acción: basta apretar y moverse unos
+  píxeles. Y **una sesión de arrastre HTML5 es un bucle de eventos
+  ANIDADO del navegador**: mientras dura, la página no recibe
+  temporizadores, ni fotogramas, ni entrada, así que un arrastre
+  empezado sin querer deja la aplicación aparentemente colgada sin que
+  se ejecute una sola línea de código propio. Medido en la sesión que lo
+  destapó, con el vigilante de la rama `debug`: bloqueos de **27 s y
+  33 s** con `durante: {}` y `enVuelo: []` —ni una función del visor ni
+  de Leaflet—, la memoria plana (236 → 236 MB, o sea tampoco recolección
+  de basura), un hueco de fotogramas de **119 s** y `arrastrando: true`.
+  Se anota en `pointerdown` dónde empezó la pulsación
+  (`DRAG_NOT_HANDLE`) y `dragstart` se cancela si no fue sobre el
+  nombre.
 - Las franjas de destino van en **píxeles**, no en porcentaje: con filas
   de 24 px, un porcentaje dejaba bordes de 4 px imposibles de acertar.
   Seis píxeles arriba y abajo reordenan entre hermanos; el resto de una

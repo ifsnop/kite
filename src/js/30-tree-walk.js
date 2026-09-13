@@ -6,6 +6,11 @@ let rootUl = null;
 let nodeSeq = 0;
 let dragLi = null;    /* nodo representativo del arrastre en curso */
 let dragItems = null; /* nodos que viajan en el arrastre (la selección o uno suelto) */
+/* Dónde empezó la pulsación que podría convertirse en arrastre. Ver
+   wireDrag: el <li> entero es `draggable`, así que sin esto apretar el
+   caret o la casilla y moverse tres píxeles abre una sesión de
+   arrastre del navegador.                                            */
+let dragFromBlocked = false;
 
 /* ---------- Selección múltiple (Shift+click en la navegación) ----------
    Shift está libre en el panel (en el visor es el box-zoom de Leaflet).

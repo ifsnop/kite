@@ -392,9 +392,30 @@ function highlightNode(li) {
 /* ---------- Reordenación arrastrando dentro de la navegación ----------
    Arrastrar una fila sobre otra la coloca antes/después según la mitad
    de la fila; sobre el centro de una carpeta/archivo, la mete dentro.   */
+/* Lo que NO es un asa de arrastre: el caret, la casilla y los botones
+   de la fila. Son controles que se PULSAN, y pulsarlos incluye
+   moverse unos píxeles sin querer.                                   */
+const DRAG_NOT_HANDLE = ".caret, input, button, .actions";
+
 function wireDrag(li, row) {
   li.draggable = true;
+  /* El <li> entero es arrastrable —tiene que serlo para poder moverlo—,
+     así que el navegador abre una sesión de arrastre aunque la
+     pulsación empezara en un control. Y una sesión de arrastre HTML5
+     es un bucle de eventos ANIDADO del navegador: mientras dura, la
+     página no recibe temporizadores, ni fotogramas, ni entrada. Un
+     arrastre empezado sin querer sobre un caret deja la aplicación
+     aparentemente colgada hasta que esa sesión termina, sin que se
+     ejecute una sola línea de código nuestro — que es exactamente lo
+     que midió el vigilante: 27 s y 33 s de hilo parado con `durante:
+     {}`, la memoria plana y `arrastrando: true`.
+     Se anota dónde empezó la pulsación y se cancela el arrastre si no
+     fue sobre un asa legítima (el nombre de la fila).                */
+  row.addEventListener("pointerdown", e => {
+    dragFromBlocked = !!(e.target.closest && e.target.closest(DRAG_NOT_HANDLE));
+  });
   li.addEventListener("dragstart", e => {
+    if (dragFromBlocked) { e.preventDefault(); return; }
     e.stopPropagation();
     /* arrastrar un nodo seleccionado arrastra toda la selección;
        arrastrar uno no seleccionado la descarta y lo lleva solo   */

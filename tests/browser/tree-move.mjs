@@ -172,6 +172,40 @@ await page.evaluate(async () => {
 });
 await comprobar("copiando y pegando", { origen: "mixed", destino: "mixed" });
 
+/* ---------- Un arrastre solo empieza desde el NOMBRE ----------
+   El <li> entero es `draggable` —tiene que serlo para poder moverlo—,
+   así que el navegador abría una sesión de arrastre aunque la pulsación
+   empezara en el caret, en la casilla o en un botón de la fila: basta
+   apretar y moverse unos píxeles. Y una sesión de arrastre HTML5 es un
+   bucle de eventos ANIDADO del navegador: mientras dura, la página no
+   recibe temporizadores, ni fotogramas, ni entrada, y parece colgada
+   sin que se ejecute una línea de código propio. Medido en la sesión
+   real que lo destapó: 27 s y 33 s de hilo parado sin una sola función
+   del visor en marcha, la memoria plana y un arrastre en curso.     */
+const asas = await page.evaluate(() => {
+  const ul = ensureRootUl();
+  const f = makeNode({ name: "Carpeta", isFolder: true });
+  ul.appendChild(f);
+  nodeUl(f).appendChild(makeNode({ name: "capa", layer: L.marker([40, -3]) }));
+  const fila = f.querySelector(":scope > .node-row");
+  const prueba = sel => {
+    dragItems = null;
+    dragFromBlocked = false;
+    (fila.querySelector(sel) || fila).dispatchEvent(new PointerEvent("pointerdown", { bubbles: true }));
+    const ev = new DragEvent("dragstart", { bubbles: true, cancelable: true, dataTransfer: new DataTransfer() });
+    f.dispatchEvent(ev);
+    return { cancelado: ev.defaultPrevented, arrastra: !!dragItems };
+  };
+  return { caret: prueba(".caret"), casilla: prueba("input[type=checkbox]"),
+    nombre: prueba("label"), boton: prueba(".actions button") };
+});
+for (const [donde, r] of [["el caret", asas.caret], ["la casilla", asas.casilla], ["un botón", asas.boton]]) {
+  ok(r.cancelado && !r.arrastra,
+    `apretar ${donde} NO puede empezar un arrastre: ` + JSON.stringify(r));
+}
+ok(!asas.nombre.cancelado && asas.nombre.arrastra,
+  "y desde el nombre sí se arrastra, que es el gesto de siempre: " + JSON.stringify(asas.nombre));
+
 ok(errors.length === 0, "sin errores de página: " + JSON.stringify(errors));
 
 await browser.close();
