@@ -465,8 +465,23 @@ function openStyleDialog(li, { isNew = false } = {}) {
     $id("pg-measures").hidden = !polyMeasures;
     if (polyMeasures) { $id("pg-unit").value = measureUnit; renderPolyMeasures(); }
     /* La lista de puntos es la geometría de UN nodo, como la posición de
-       un marcador: no tiene sentido en bloque.                        */
-    $id("pg-points-row").hidden = !(single && solePath(styleTargets[0]));
+       un marcador: no tiene sentido en bloque, y con varios
+       seleccionados NO se puede abrir. Pero la fila ya no desaparece:
+       el resto del diálogo resuelve este mismo caso al revés
+       —deshabilitar en gris, que se vea que la opción está y que aquí
+       no aplica—, y esconderla dejaba al usuario sin saber siquiera si
+       existe. El botón dice además POR QUÉ, que es la mitad que un gris
+       a secas no cuenta: son dos motivos distintos y el usuario no
+       tiene por qué adivinar cuál le toca.                            */
+    const pointsWhy = !single
+      ? "Los puntos son la geometría de cada capa: deje seleccionada una sola para editarlos."
+      : (solePath(styleTargets[0])
+        ? ""
+        : "Esta capa tiene varios trazos: el editor trabaja sobre uno solo.");
+    $id("pg-points-row").hidden = false;
+    $id("pg-points-row").classList.toggle("dim", !!pointsWhy);
+    $id("pg-points").disabled = !!pointsWhy;
+    $id("pg-points").title = pointsWhy;
   } else if (kind === "measure") {
     const styles = styleTargets.map(t => normalizePathStyle(t._style));
     styleDraft = { ...styles[0] };

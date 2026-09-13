@@ -140,6 +140,12 @@
     white-space: nowrap;
   }
   .btn:hover { border-color: var(--accent); color: var(--accent); }
+  /* Un botón deshabilitado tiene que NOTARSE deshabilitado: sin esto se
+     ve idéntico a uno vivo y encima responde al hover —:hover se aplica
+     igual a un elemento deshabilitado—, con lo que invita a pulsarlo
+     para no hacer nada. Mismos valores que .color-btn:disabled.      */
+  .btn:disabled { opacity: .35; cursor: default; }
+  .btn:disabled:hover { border-color: var(--border); color: inherit; }
   #nav-msg { font-size: 12px; min-height: 0; }
   /* Solo hay DOS niveles de aviso: notificación (`info`) y alerta
      (`error`, el de por defecto). La notificación va en el color normal
@@ -1538,7 +1544,7 @@ const map = L.map("map", {
 
 /* Fecha de generación del código (versión): AÑOMESDIAHORAMINUTO.
    Actualizar en cada generación; se muestra junto al crédito de Leaflet. */
-const BUILD = "202609131915";
+const BUILD = "202609132030";
 /* El enlace al repositorio va junto a la versión, que es lo que hace
    accionable saber qué build se está ejecutando: desde ahí se llega al
    código de esa versión. `target="_blank"` a propósito —salir de la
@@ -7908,8 +7914,23 @@ function openStyleDialog(li, { isNew = false } = {}) {
     $id("pg-measures").hidden = !polyMeasures;
     if (polyMeasures) { $id("pg-unit").value = measureUnit; renderPolyMeasures(); }
     /* La lista de puntos es la geometría de UN nodo, como la posición de
-       un marcador: no tiene sentido en bloque.                        */
-    $id("pg-points-row").hidden = !(single && solePath(styleTargets[0]));
+       un marcador: no tiene sentido en bloque, y con varios
+       seleccionados NO se puede abrir. Pero la fila ya no desaparece:
+       el resto del diálogo resuelve este mismo caso al revés
+       —deshabilitar en gris, que se vea que la opción está y que aquí
+       no aplica—, y esconderla dejaba al usuario sin saber siquiera si
+       existe. El botón dice además POR QUÉ, que es la mitad que un gris
+       a secas no cuenta: son dos motivos distintos y el usuario no
+       tiene por qué adivinar cuál le toca.                            */
+    const pointsWhy = !single
+      ? "Los puntos son la geometría de cada capa: deje seleccionada una sola para editarlos."
+      : (solePath(styleTargets[0])
+        ? ""
+        : "Esta capa tiene varios trazos: el editor trabaja sobre uno solo.");
+    $id("pg-points-row").hidden = false;
+    $id("pg-points-row").classList.toggle("dim", !!pointsWhy);
+    $id("pg-points").disabled = !!pointsWhy;
+    $id("pg-points").title = pointsWhy;
   } else if (kind === "measure") {
     const styles = styleTargets.map(t => normalizePathStyle(t._style));
     styleDraft = { ...styles[0] };

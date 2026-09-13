@@ -1052,6 +1052,20 @@ index.html         redirección de la raíz del sitio al minificado
   - Ojo al orden de las comprobaciones: `L.Polygon` **extiende**
     `L.Polyline`, así que hay que preguntar por `Polygon` primero o un
     polígono contaría como línea y perdería su relleno y su área.
+- **El editor de puntos no trabaja en bloque, y se VE que no.** La lista
+  de puntos es la geometría de un nodo, como la posición de un
+  marcador, así que con varios seleccionados no se puede abrir (la
+  guardia está además en el propio botón, no solo en la interfaz).
+  Antes la fila DESAPARECÍA; ahora se queda deshabilitada y en gris,
+  que es lo que ya hacen el relleno de una forma abierta y el de una
+  línea en una medición: esconderla dejaba al usuario sin saber si la
+  opción existe siquiera. El botón dice **por qué** en su `title`,
+  porque son dos motivos distintos —varios nodos seleccionados, o una
+  capa con varios trazos— y un gris a secas no distingue cuál.
+  Cuidado: `.btn` no tenía regla de `:disabled`, así que deshabilitar
+  sin más se veía **idéntico** a un botón vivo y encima respondía al
+  hover (`:hover` se aplica igual a un elemento deshabilitado). Un
+  botón deshabilitado tiene que notarse.
 - **Editor de la lista de puntos** (botón «Ver y editar…» del diálogo de
   estilos, `#points-dialog`): texto con **un punto por línea y campos
   separados por tabulador**, con cabecera `Lat/Lon/Alt`, para poder

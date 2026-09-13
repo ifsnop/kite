@@ -75,6 +75,12 @@
     white-space: nowrap;
   }
   .btn:hover { border-color: var(--accent); color: var(--accent); }
+  /* Un botón deshabilitado tiene que NOTARSE deshabilitado: sin esto se
+     ve idéntico a uno vivo y encima responde al hover —:hover se aplica
+     igual a un elemento deshabilitado—, con lo que invita a pulsarlo
+     para no hacer nada. Mismos valores que .color-btn:disabled.      */
+  .btn:disabled { opacity: .35; cursor: default; }
+  .btn:disabled:hover { border-color: var(--border); color: inherit; }
   #nav-msg { font-size: 12px; min-height: 0; }
   /* Solo hay DOS niveles de aviso: notificación (`info`) y alerta
      (`error`, el de por defecto). La notificación va en el color normal

@@ -128,6 +128,41 @@ ok(renombrado.every(n => n.nombre === "Zona única" && n.fila === "Zona única")
 ok(renombrado.every(n => n.tip === "Zona única"),
   "y la etiqueta permanente se repinta con él: " + JSON.stringify(renombrado.map(n => n.tip)));
 
+/* ---------- Los puntos no se editan en bloque ----------
+   Ya no se podían —la fila se escondía y el botón estaba guardado—,
+   pero esconderla dejaba al usuario sin saber si la opción existe. Se
+   comprueba lo que importa de las dos formas: que el editor NO abra, y
+   que la fila se vea deshabilitada y diciendo por qué.               */
+const puntos = await page.evaluate(() => {
+  const btn = document.getElementById("pg-points");
+  const mira = () => {
+    const v = { fila: !document.getElementById("pg-points-row").hidden,
+      desactivado: btn.disabled, porQue: btn.title,
+      opacidad: getComputedStyle(btn).opacity };
+    btn.click();
+    v.abre = !document.getElementById("points-dialog").hidden;
+    if (v.abre) closePointsDialog();
+    return v;
+  };
+  __abrir([__n[0]]);
+  const uno = mira();
+  closeStyleDialog(false);
+  __abrir(__n);
+  const varios = mira();
+  closeStyleDialog(false);
+  return { uno, varios };
+});
+ok(puntos.uno.abre && !puntos.uno.desactivado,
+  "con un polígono el editor de puntos abre: " + JSON.stringify(puntos.uno));
+ok(!puntos.varios.abre, "con varios NO abre, ni pulsándolo a propósito");
+ok(puntos.varios.fila && puntos.varios.desactivado,
+  "y la fila se VE, deshabilitada, en vez de desaparecer: " + JSON.stringify(puntos.varios));
+ok(Number(puntos.varios.opacidad) < 0.5,
+  "el botón se nota apagado: sin regla de :disabled se vería igual que uno vivo — opacidad "
+  + puntos.varios.opacidad);
+ok(/una sola/.test(puntos.varios.porQue),
+  "y dice por qué, que es lo que un gris a secas no cuenta: " + puntos.varios.porQue);
+
 /* ---------- Con UN nodo, todo sigue igual que siempre ---------- */
 const uno = await page.evaluate(() => {
   const ul = __limpiar();
