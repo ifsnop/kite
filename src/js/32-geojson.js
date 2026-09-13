@@ -288,6 +288,7 @@ function showLayerInfo(li, { focus = true } = {}) {
   if (html == null) return;
   descTitle.textContent = li._name;
   descBody.innerHTML = html;
+  applyPropsSplit(); /* el reparto elegido sobrevive al cambio de capa */
   const wasHidden = descDialog.hidden;
   descDialog.hidden = false;
   if (wasHidden) {

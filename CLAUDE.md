@@ -714,12 +714,40 @@ index.html         redirección de la raíz del sitio al minificado
   clavada en 366×341 px con la ventana a 900 (medido). El ancho cómodo
   de lectura pasa a ser el ancho DE PARTIDA de la caja, que el usuario
   ya puede cambiar, en vez de un tope que no se puede.
-- **Las tablas de dentro van al 100%** (`.desc-body table`, `.keys`).
+- **La tabla de properties tiene el separador central móvil.** Las
+  properties son siempre clave/valor, o sea DOS columnas fijas, y ningún
+  reparto sirve para todos los archivos: hay nombres cortos con valores
+  larguísimos y al revés. El tirador (`.props-grip`) va en un envoltorio
+  con `position: relative`, no dentro de una celda, porque tiene que
+  abarcar la ALTURA ENTERA de la tabla y una celda solo abarca su fila.
+  Tres cosas que hacen falta y no son obvias:
+  - **`table-layout: fixed`** en la tabla: con el automático, el
+    navegador reparte según el contenido e **ignora** el ancho que se le
+    pida a la columna, así que el separador no movería nada.
+  - El reparto se guarda como **FRACCIÓN**, no en píxeles: la ficha se
+    redimensiona, y un ancho en píxeles quedaría desproporcionado en
+    cuanto la ventana cambiara de tamaño. Se recuerda entre aperturas
+    (como `posFormat` o `measureUnit`) y no persiste entre sesiones.
+  - Tope por los dos lados (`PROPS_MIN_FRAC`) para que ninguna columna
+    pueda desaparecer.
+  Solo lo lleva NUESTRA tabla (clase `props`): en la misma ficha puede
+  haber tablas que vengan de la `<description>` de un KML, que son HTML
+  del archivo y tienen las columnas que su autor quiso — imponerles un
+  reparto de dos columnas sería estropeárselo.
+- **Ese código vive en `44-dialogs.js`, no junto a `showLayerInfo`**, y
+  no por gusto: el listener se registra al evaluar el archivo y
+  `descBody` se declara en el 44, que carga DESPUÉS del 32. Ponerlo allí
+  reventaba por zona muerta temporal al cargar la página, y encima sin
+  ruido: el síntoma era que `escapeHtml` —de otro archivo posterior— «no
+  estaba inicializado». Es el punto 10 del checklist, en vivo.
+- **Las tablas de dentro van al 100%** (`.desc-body .props`, `.keys`).
   Es lo que hace que ensanchar la ventana ponga cada propiedad de un
   GeoJSON en UNA línea en vez de partirla: medido con 25 propiedades de
   valor largo, a 544 px se partían las 25 y a 1100 px ninguna. Sin el
   `width: 100%` la tabla se queda en su ancho natural y ensanchar la
-  ventana solo añade hueco a la derecha.
+  ventana solo añade hueco a la derecha. Se acota a `.props` y no a
+  cualquier `table` de la ficha, para no estirar tampoco las tablas que
+  vengan de un KML.
 - **La rejilla de iconos ajusta sus columnas al ancho**
   (`repeat(auto-fill, minmax(32px, 1fr))` en vez de `repeat(8, 32px)`):
   si no, ensanchar esa ventana tampoco serviría de nada.

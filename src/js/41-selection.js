@@ -143,11 +143,28 @@ function stringifyPropValue(v) {
   return typeof v === "object" ? JSON.stringify(v) : String(v);
 }
 
+/* Las properties son siempre clave/valor, o sea DOS columnas fijas, y
+   por eso el reparto entre ellas se puede mover: hay nombres cortos con
+   valores larguísimos y al revés, y ningún reparto fijo sirve para los
+   dos casos.
+
+   El tirador va en un envoltorio con `position: relative` y no dentro de
+   una celda: tiene que abarcar la ALTURA ENTERA de la tabla, y una celda
+   solo abarca su fila. El envoltorio mide lo que la tabla, así que un
+   hijo absoluto con `top: 0; bottom: 0` la cubre de arriba abajo y
+   scrollea con ella.
+
+   Lleva clase propia (`props`) a propósito: en esta misma ficha puede
+   haber tablas que vengan de la <description> de un KML, que son HTML
+   del archivo y pueden tener las columnas que quieran. Imponerles un
+   reparto de dos columnas sería estropearles el suyo.               */
 function propertiesTableHtml(props) {
   const rows = Object.entries(props)
     .map(([k, v]) => `<tr><td>${escapeHtml(k)}</td><td>${escapeHtml(stringifyPropValue(v))}</td></tr>`)
     .join("");
-  return `<table>${rows}</table>`;
+  return `<div class="props-wrap"><table class="props">${rows}</table>`
+    + '<div class="props-grip" role="separator" aria-orientation="vertical"'
+    + ' title="Arrastre para repartir el ancho entre clave y valor"></div></div>';
 }
 
 /* HTML a mostrar en el panel de información de la capa: la ficha KML si

@@ -187,6 +187,77 @@ ok(crecimiento.antes.partidas > 0 && crecimiento.ancha.partidas === 0,
 ok(crecimiento.alta.alto > crecimiento.baja.alto + 150,
   `y darle altura se la da al contenido: ${crecimiento.baja.alto} → ${crecimiento.alta.alto} px`);
 
+/* ---------- Separador móvil de las dos columnas de la ficha ----------
+   Las properties son clave/valor, o sea dos columnas fijas, y el
+   reparto entre ellas se arrastra. Se prueba con un arrastre REAL del
+   ratón: es lo único que ejercita la captura de puntero y el cálculo
+   contra el ancho del envoltorio.                                     */
+await page.evaluate(() => {
+  document.getElementById("desc-dialog").hidden = true;
+  const grupo = L.geoJSON({ type: "Feature",
+    properties: Object.fromEntries(Array.from({ length: 12 },
+      (_, i) => ["nombre_de_propiedad_" + i, "valor de la propiedad numero " + i])),
+    geometry: { type: "Point", coordinates: [-3, 40] } }).addTo(rootGroup);
+  const li = makeNode({ name: "Con properties", layer: grupo, style: { color: "#1b5e97" } });
+  ensureRootUl().appendChild(li);
+  /* La ficha se ensancha para que quepa el arrastre */
+  showLayerInfo(li);
+  document.querySelector("#desc-dialog .dlg-box").style.width = "620px";
+});
+
+const anchos = () => page.evaluate(() => ({
+  clave: Math.round(document.querySelector(".props td").getBoundingClientRect().width),
+  valor: Math.round(document.querySelectorAll(".props td")[1].getBoundingClientRect().width),
+  frac: document.getElementById("desc-body").style.getPropertyValue("--props-key"),
+  layout: getComputedStyle(document.querySelector(".props")).tableLayout
+}));
+
+const inicial = await anchos();
+ok(inicial.layout === "fixed",
+  "la tabla es de reparto FIJO: con el automático el ancho pedido se ignora y el separador no movería nada");
+ok(await page.locator(".props-grip").count() === 1, "hay un tirador entre las dos columnas");
+/* Y NO en una tabla que venga de la <description> de un KML, que es
+   HTML del archivo y puede tener las columnas que quiera.           */
+const enKml = await page.evaluate(() => {
+  document.getElementById("desc-body").innerHTML = "<table><tr><td>a</td><td>b</td><td>c</td></tr></table>";
+  return document.querySelectorAll(".props-grip").length;
+});
+ok(enKml === 0, "una tabla de una ficha KML no lleva separador: sus columnas son del autor");
+
+/* Vuelta a la tabla de properties para arrastrar de verdad */
+await page.evaluate(() => showLayerInfo(
+  [...document.querySelectorAll("#tree li")].find(x => x._name === "Con properties")));
+const grip = await page.locator(".props-grip").boundingBox();
+await page.mouse.move(grip.x + grip.width / 2, grip.y + 30);
+await page.mouse.down();
+await page.mouse.move(grip.x + grip.width / 2 + 150, grip.y + 30, { steps: 10 });
+await page.mouse.up();
+const trasArrastrar = await anchos();
+ok(trasArrastrar.clave > inicial.clave + 100,
+  `arrastrar a la derecha ensancha la clave: ${inicial.clave} → ${trasArrastrar.clave} px`);
+ok(trasArrastrar.valor < inicial.valor - 100,
+  `y estrecha el valor: ${inicial.valor} → ${trasArrastrar.valor} px`);
+
+/* Al extremo: ninguna columna puede desaparecer */
+const g2 = await page.locator(".props-grip").boundingBox();
+await page.mouse.move(g2.x + g2.width / 2, g2.y + 30);
+await page.mouse.down();
+await page.mouse.move(g2.x - 3000, g2.y + 30, { steps: 8 });
+await page.mouse.up();
+const alTope = await anchos();
+ok(alTope.clave > 20 && alTope.valor > 20,
+  `arrastrado al extremo, ninguna columna desaparece: ${alTope.clave} / ${alTope.valor} px`);
+
+/* El reparto se recuerda al abrir otra capa: si no, habría que
+   recolocarlo en cada consulta.                                     */
+const trasReabrir = await page.evaluate(() => {
+  document.getElementById("desc-dialog").hidden = true;
+  showLayerInfo([...document.querySelectorAll("#tree li")].find(x => x._name === "Con properties"));
+  return document.getElementById("desc-body").style.getPropertyValue("--props-key");
+});
+ok(trasReabrir === alTope.frac,
+  `el reparto elegido sobrevive al cambio de capa: ${alTope.frac} → ${trasReabrir}`);
+
 ok(errors.length === 0, "sin errores de página: " + JSON.stringify(errors));
 
 await ctx.close();

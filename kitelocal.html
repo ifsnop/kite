@@ -768,11 +768,53 @@
     font-size: 12.5px;
     line-height: 1.4;
   }
-  /* Al 100% del ancho disponible: es lo que hace que ensanchar la
+  .desc-body table { border-collapse: collapse; }
+  /* ---------- Tabla de properties: dos columnas con separador móvil ----------
+     Al 100% del ancho disponible: es lo que hace que ensanchar la
      ventana ponga cada propiedad en una línea en vez de partirla en
      varias. Sin esto la tabla se queda en su ancho natural y agrandar
-     la ventana solo añade hueco vacío a la derecha.                  */
-  .desc-body table { border-collapse: collapse; width: 100%; }
+     la ventana solo añade hueco vacío a la derecha.
+
+     Solo a NUESTRA tabla (`.props`), no a cualquier `table` de la
+     ficha: en esta misma caja puede haber tablas que vengan de la
+     <description> de un KML, que son HTML del archivo y tienen las
+     columnas que su autor quiso.                                     */
+  .props-wrap { position: relative; }
+  .desc-body .props {
+    width: 100%;
+    /* `table-layout: fixed` es IMPRESCINDIBLE: con el automático, el
+       navegador reparte según el contenido e ignora el ancho que se le
+       pida a la columna, así que el separador no movería nada.      */
+    table-layout: fixed;
+  }
+  .desc-body .props td {
+    /* Con ancho fijo, un valor sin espacios desbordaría la celda */
+    overflow-wrap: anywhere;
+  }
+  .desc-body .props td:first-child { width: var(--props-key, 38%); }
+  /* El tirador cubre la tabla de arriba abajo (el envoltorio mide lo
+     que ella) y se centra sobre la línea divisoria. Ancho generoso para
+     poder agarrarlo, pero transparente: lo que se ve es el borde de la
+     propia tabla.                                                    */
+  .props-grip {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    left: var(--props-key, 38%);
+    width: 9px;
+    margin-left: -4px;
+    cursor: col-resize;
+    /* El navegador no puede desplazar la ficha mientras se arrastra */
+    touch-action: none;
+  }
+  /* Al pasar por encima se dibuja una LÍNEA del color de acento en el
+     centro del tirador, no un relleno pálido: el relleno de
+     --accent-soft sobre blanco casi no se distingue, y el tirador hay
+     que poder encontrarlo. El `col-resize` del cursor acompaña.      */
+  .props-grip:hover, .props-grip.dragging {
+    background: linear-gradient(to right,
+      transparent 0 3px, var(--accent) 3px 6px, transparent 6px);
+  }
   .desc-body td, .desc-body th { border: 1px solid var(--border); padding: 2px 5px; text-align: left; }
   .desc-body img { max-width: 100%; height: auto; }
   .dlg-hint { margin: 6px 0 0; font-size: 12px; color: var(--muted); }
@@ -1476,7 +1518,7 @@ const map = L.map("map", {
 
 /* Fecha de generación del código (versión): AÑOMESDIAHORAMINUTO.
    Actualizar en cada generación; se muestra junto al crédito de Leaflet. */
-const BUILD = "202609131210";
+const BUILD = "202609131635";
 /* El enlace al repositorio va junto a la versión, que es lo que hace
    accionable saber qué build se está ejecutando: desde ahí se llega al
    código de esa versión. `target="_blank"` a propósito —salir de la
@@ -4134,6 +4176,7 @@ function showLayerInfo(li, { focus = true } = {}) {
   if (html == null) return;
   descTitle.textContent = li._name;
   descBody.innerHTML = html;
+  applyPropsSplit(); /* el reparto elegido sobrevive al cambio de capa */
   const wasHidden = descDialog.hidden;
   descDialog.hidden = false;
   if (wasHidden) {
@@ -6183,11 +6226,28 @@ function stringifyPropValue(v) {
   return typeof v === "object" ? JSON.stringify(v) : String(v);
 }
 
+/* Las properties son siempre clave/valor, o sea DOS columnas fijas, y
+   por eso el reparto entre ellas se puede mover: hay nombres cortos con
+   valores larguísimos y al revés, y ningún reparto fijo sirve para los
+   dos casos.
+
+   El tirador va en un envoltorio con `position: relative` y no dentro de
+   una celda: tiene que abarcar la ALTURA ENTERA de la tabla, y una celda
+   solo abarca su fila. El envoltorio mide lo que la tabla, así que un
+   hijo absoluto con `top: 0; bottom: 0` la cubre de arriba abajo y
+   scrollea con ella.
+
+   Lleva clase propia (`props`) a propósito: en esta misma ficha puede
+   haber tablas que vengan de la <description> de un KML, que son HTML
+   del archivo y pueden tener las columnas que quieran. Imponerles un
+   reparto de dos columnas sería estropearles el suyo.               */
 function propertiesTableHtml(props) {
   const rows = Object.entries(props)
     .map(([k, v]) => `<tr><td>${escapeHtml(k)}</td><td>${escapeHtml(stringifyPropValue(v))}</td></tr>`)
     .join("");
-  return `<table>${rows}</table>`;
+  return `<div class="props-wrap"><table class="props">${rows}</table>`
+    + '<div class="props-grip" role="separator" aria-orientation="vertical"'
+    + ' title="Arrastre para repartir el ancho entre clave y valor"></div></div>';
 }
 
 /* HTML a mostrar en el panel de información de la capa: la ficha KML si
@@ -7372,6 +7432,63 @@ document.getElementById("desc-close").addEventListener("click", () => {
   layerInfoDismissed = true;
   releaseFocus();
 });
+/* ---------- Separador de las dos columnas de la ficha ----------
+   Las properties son siempre clave/valor, así que la tabla tiene DOS
+   columnas y el reparto entre ellas se puede mover: hay nombres cortos
+   con valores larguísimos y al revés.
+
+   VIVE AQUÍ, no junto a showLayerInfo, por una razón de ORDEN: el
+   listener se registra al evaluar el archivo y `descBody` se declara
+   en ESTE, que carga después de 32-geojson.js. Registrarlo allí
+   reventaba por zona muerta temporal al cargar la página —y sin
+   ruido: lo que se veía era que `escapeHtml`, de un archivo
+   posterior, «no estaba inicializado»—. `node --check` no lo
+   detecta. Ver el punto 10 del checklist.
+
+   Se guarda como FRACCIÓN, no en píxeles: la ficha se redimensiona, y
+   un ancho en píxeles quedaría desproporcionado en cuanto la ventana
+   cambiara de tamaño. Se recuerda entre aperturas —como posFormat o
+   measureUnit— y no persiste entre sesiones.                         */
+let propsKeyFrac = 0.38;
+const PROPS_MIN_FRAC = 0.12; /* que ninguna de las dos columnas desaparezca */
+
+function applyPropsSplit() {
+  descBody.style.setProperty("--props-key", (propsKeyFrac * 100).toFixed(2) + "%");
+}
+
+/* Delegado en el cuerpo de la ficha, no atado a cada tabla: el HTML se
+   reemplaza entero cada vez que se abre otra capa, y un listener por
+   tabla habría que volver a poner en cada apertura.
+   Eventos de PUNTERO, como el arrastre de los diálogos: valen igual
+   para ratón, lápiz y dedo.                                          */
+descBody.addEventListener("pointerdown", e => {
+  const grip = e.target.closest && e.target.closest(".props-grip");
+  if (!grip) return;
+  const wrap = grip.parentElement;
+  e.preventDefault();
+  grip.classList.add("dragging");
+  /* La captura mantiene los eventos aquí aunque el puntero se salga de
+     la ficha, que es lo que evita que el arrastre se quede pegado.  */
+  grip.setPointerCapture(e.pointerId);
+  const onMove = ev => {
+    const r = wrap.getBoundingClientRect();
+    if (!r.width) return;
+    const f = (ev.clientX - r.left) / r.width;
+    propsKeyFrac = Math.min(1 - PROPS_MIN_FRAC, Math.max(PROPS_MIN_FRAC, f));
+    applyPropsSplit();
+  };
+  const onUp = () => {
+    grip.removeEventListener("pointermove", onMove);
+    grip.removeEventListener("pointerup", onUp);
+    grip.removeEventListener("pointercancel", onUp);
+    grip.classList.remove("dragging");
+  };
+  grip.addEventListener("pointermove", onMove);
+  grip.addEventListener("pointerup", onUp);
+  grip.addEventListener("pointercancel", onUp);
+});
+
+
 for (const box of [styleBox, iconBox, colorBox, descBox, shortcutsBox, ktpBox, kdpBox, gnpBox, gnpEditorBox, shBox, pointsBox, logBox]) makeDialogMovable(box);
 setupDialog(styleBox, { modal: false }); /* flotante: el mapa sigue vivo */
 setupDialog(iconBox, { modal: true });

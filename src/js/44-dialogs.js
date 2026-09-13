@@ -139,6 +139,63 @@ document.getElementById("desc-close").addEventListener("click", () => {
   layerInfoDismissed = true;
   releaseFocus();
 });
+/* ---------- Separador de las dos columnas de la ficha ----------
+   Las properties son siempre clave/valor, así que la tabla tiene DOS
+   columnas y el reparto entre ellas se puede mover: hay nombres cortos
+   con valores larguísimos y al revés.
+
+   VIVE AQUÍ, no junto a showLayerInfo, por una razón de ORDEN: el
+   listener se registra al evaluar el archivo y `descBody` se declara
+   en ESTE, que carga después de 32-geojson.js. Registrarlo allí
+   reventaba por zona muerta temporal al cargar la página —y sin
+   ruido: lo que se veía era que `escapeHtml`, de un archivo
+   posterior, «no estaba inicializado»—. `node --check` no lo
+   detecta. Ver el punto 10 del checklist.
+
+   Se guarda como FRACCIÓN, no en píxeles: la ficha se redimensiona, y
+   un ancho en píxeles quedaría desproporcionado en cuanto la ventana
+   cambiara de tamaño. Se recuerda entre aperturas —como posFormat o
+   measureUnit— y no persiste entre sesiones.                         */
+let propsKeyFrac = 0.38;
+const PROPS_MIN_FRAC = 0.12; /* que ninguna de las dos columnas desaparezca */
+
+function applyPropsSplit() {
+  descBody.style.setProperty("--props-key", (propsKeyFrac * 100).toFixed(2) + "%");
+}
+
+/* Delegado en el cuerpo de la ficha, no atado a cada tabla: el HTML se
+   reemplaza entero cada vez que se abre otra capa, y un listener por
+   tabla habría que volver a poner en cada apertura.
+   Eventos de PUNTERO, como el arrastre de los diálogos: valen igual
+   para ratón, lápiz y dedo.                                          */
+descBody.addEventListener("pointerdown", e => {
+  const grip = e.target.closest && e.target.closest(".props-grip");
+  if (!grip) return;
+  const wrap = grip.parentElement;
+  e.preventDefault();
+  grip.classList.add("dragging");
+  /* La captura mantiene los eventos aquí aunque el puntero se salga de
+     la ficha, que es lo que evita que el arrastre se quede pegado.  */
+  grip.setPointerCapture(e.pointerId);
+  const onMove = ev => {
+    const r = wrap.getBoundingClientRect();
+    if (!r.width) return;
+    const f = (ev.clientX - r.left) / r.width;
+    propsKeyFrac = Math.min(1 - PROPS_MIN_FRAC, Math.max(PROPS_MIN_FRAC, f));
+    applyPropsSplit();
+  };
+  const onUp = () => {
+    grip.removeEventListener("pointermove", onMove);
+    grip.removeEventListener("pointerup", onUp);
+    grip.removeEventListener("pointercancel", onUp);
+    grip.classList.remove("dragging");
+  };
+  grip.addEventListener("pointermove", onMove);
+  grip.addEventListener("pointerup", onUp);
+  grip.addEventListener("pointercancel", onUp);
+});
+
+
 for (const box of [styleBox, iconBox, colorBox, descBox, shortcutsBox, ktpBox, kdpBox, gnpBox, gnpEditorBox, shBox, pointsBox, logBox]) makeDialogMovable(box);
 setupDialog(styleBox, { modal: false }); /* flotante: el mapa sigue vivo */
 setupDialog(iconBox, { modal: true });

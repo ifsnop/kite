@@ -703,11 +703,53 @@
     font-size: 12.5px;
     line-height: 1.4;
   }
-  /* Al 100% del ancho disponible: es lo que hace que ensanchar la
+  .desc-body table { border-collapse: collapse; }
+  /* ---------- Tabla de properties: dos columnas con separador móvil ----------
+     Al 100% del ancho disponible: es lo que hace que ensanchar la
      ventana ponga cada propiedad en una línea en vez de partirla en
      varias. Sin esto la tabla se queda en su ancho natural y agrandar
-     la ventana solo añade hueco vacío a la derecha.                  */
-  .desc-body table { border-collapse: collapse; width: 100%; }
+     la ventana solo añade hueco vacío a la derecha.
+
+     Solo a NUESTRA tabla (`.props`), no a cualquier `table` de la
+     ficha: en esta misma caja puede haber tablas que vengan de la
+     <description> de un KML, que son HTML del archivo y tienen las
+     columnas que su autor quiso.                                     */
+  .props-wrap { position: relative; }
+  .desc-body .props {
+    width: 100%;
+    /* `table-layout: fixed` es IMPRESCINDIBLE: con el automático, el
+       navegador reparte según el contenido e ignora el ancho que se le
+       pida a la columna, así que el separador no movería nada.      */
+    table-layout: fixed;
+  }
+  .desc-body .props td {
+    /* Con ancho fijo, un valor sin espacios desbordaría la celda */
+    overflow-wrap: anywhere;
+  }
+  .desc-body .props td:first-child { width: var(--props-key, 38%); }
+  /* El tirador cubre la tabla de arriba abajo (el envoltorio mide lo
+     que ella) y se centra sobre la línea divisoria. Ancho generoso para
+     poder agarrarlo, pero transparente: lo que se ve es el borde de la
+     propia tabla.                                                    */
+  .props-grip {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    left: var(--props-key, 38%);
+    width: 9px;
+    margin-left: -4px;
+    cursor: col-resize;
+    /* El navegador no puede desplazar la ficha mientras se arrastra */
+    touch-action: none;
+  }
+  /* Al pasar por encima se dibuja una LÍNEA del color de acento en el
+     centro del tirador, no un relleno pálido: el relleno de
+     --accent-soft sobre blanco casi no se distingue, y el tirador hay
+     que poder encontrarlo. El `col-resize` del cursor acompaña.      */
+  .props-grip:hover, .props-grip.dragging {
+    background: linear-gradient(to right,
+      transparent 0 3px, var(--accent) 3px 6px, transparent 6px);
+  }
   .desc-body td, .desc-body th { border: 1px solid var(--border); padding: 2px 5px; text-align: left; }
   .desc-body img { max-width: 100%; height: auto; }
   .dlg-hint { margin: 6px 0 0; font-size: 12px; color: var(--muted); }
