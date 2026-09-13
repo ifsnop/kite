@@ -560,9 +560,52 @@ index.html         redirección de la raíz del sitio al minificado
 - **Ya no se exige que la selección sea del mismo tipo**: se puede
   seleccionar lo que sea y es el diálogo de propiedades quien comprueba
   la mezcla y avisa de que no se pueden editar en bloque nodos de
-  distinto tipo. Con varios nodos seleccionados no se editan ni el nombre
-  ni la posición, que son propios de cada uno; el resto (colores,
-  grosores, relleno, tamaños) sí va en bloque.
+  distinto tipo. Con varios nodos seleccionados no se edita la posición,
+  que es de cada uno; el resto (nombre, colores, grosores, relleno,
+  tamaños) sí va en bloque, con las reglas de «Editar varios a la vez».
+
+### Editar varios a la vez
+
+- **Un valor que no es igual en todos NO se aplica si el usuario no lo
+  toca.** Es la regla de la que cuelga todo lo demás: abrir el diálogo
+  para cambiar un color y aceptar igualaba de paso los grosores, los
+  rellenos y el resto, en silencio y sin que nada lo anunciara. Lo
+  llevan dos conjuntos: `styleMixed` (las propiedades que no coinciden,
+  calculadas al abrir con `mixedProps`) y `styleTouched` (las que el
+  usuario ha movido). `draftProps` aplica una propiedad solo si no
+  estaba mezclada o si se tocó; el resto se queda como estaba **en cada
+  nodo** (`{ ...normalizePathStyle(t._style), ...pick }`). Con un solo
+  nodo `styleMixed` queda vacío y se aplica todo, que es el
+  comportamiento de siempre.
+- **Se marca la FILA, no el control** (`.dlg-row.mixed`, que añade
+  «(varios)» a la etiqueta): es lo único común a un número, un color,
+  un selector y una casilla, así que cada tipo de control no necesita
+  su propio disfraz. Y donde el control sí puede quedarse sin valor, se
+  queda: un número se vacía y lo dice en su marcador de posición;
+  enseñar el del primero como si fuera el de todos sería mentir. Un
+  rango y un selector no pueden vaciarse y enseñan el del primero, que
+  es además el que se aplicaría al tocarlos. Una casilla usa el
+  **mismo tercer estado nativo** que una carpeta a medias del árbol.
+- **Tocar un control lo saca de la mezcla al momento**: pierde la marca
+  y desde ahí su valor va a todos. Se registra por delegación sobre la
+  caja del diálogo (`CONTROL_PROP` dice qué propiedad toca cada
+  control), de modo que un control nuevo queda cubierto con solo
+  aparecer en esa tabla. Los colores y el icono **no disparan `input`**
+  y avisan a mano desde sus selectores; olvidarlo dejaría un cambio de
+  color sin aplicar.
+- **El nombre ya NO se esconde con varios seleccionados**: el campo
+  enseña los nombres que hay (`joinNames`, que junta los que quepan y
+  cuenta el resto) y escribir uno los renombra todos. Va de **marcador
+  de posición y no de valor** a propósito: así «no lo he tocado» es
+  exactamente «el campo está vacío», sin ninguna bandera que mantener,
+  y aceptar sin escribir no puede renombrarlo todo con el resumen.
+  El gris y la cursiva salen de ahí sin CSS propio para el caso.
+- **Un campo vacío no es un valor** (`numOr`): leerlo como un cero o
+  como el valor por defecto metería en el borrador algo que nadie ha
+  escrito.
+- **`pg-mode` vale por DOS propiedades** (`stroke` y `fill`): se aplican
+  las dos juntas o ninguna, o un nodo podría quedarse sin contorno ni
+  relleno, que es justo la combinación que el selector no ofrece.
 - **Portapapeles interno**: guarda los mismos registros de
   `serializeNode`, así que pegar es reconstruirlos con `buildFromNodes`.
   Cortar no borra nada hasta que se pega (y Escape lo cancela); pegar
@@ -656,7 +699,15 @@ index.html         redirección de la raíz del sitio al minificado
   relleno" / "Solo contorno" / "Solo relleno" (`pg-mode`), y color y
   opacidad del relleno. Es un selector de tres opciones, no dos casillas
   independientes, porque "ni contorno ni relleno" no es una combinación
-  que tenga sentido ofrecer.
+  que tenga sentido ofrecer. Y **el nombre siempre a la vista**, la
+  misma opción que el texto de un marcador y con la misma casilla: un
+  tooltip permanente en la caja ajustada al texto en vez del globo que
+  sale al hacer click (`applyPolygonText`). Leaflet lo coloca en el
+  centro de la primera geometría del grupo, que es donde ya salía el
+  globo. Apagada **no se toca nada**: quien nunca haya usado la opción
+  conserva el globo que le ató la importación —un KML sin `<name>` no
+  tenía ninguno—, y solo al apagarla desde el diálogo se repone. Una
+  medición se queda fuera (`li._measure`): ya pinta su medida.
 - **Las mediciones SÍ tienen diálogo de estilos** (antes iban con
   `styleable: false` y un color fijo por tipo). Una medición es un trazo
   más: su estilo se guarda en `li._style`, se aplica con el mismo
@@ -1313,6 +1364,15 @@ index.html         redirección de la raíz del sitio al minificado
   `measure` guardan su `style`. La lista completa por versión está en el
   comentario de la propia constante, que es donde hay que anotar la
   siguiente.
+- **`style` es un saco ABIERTO, y por eso añadirle una clave no sube la
+  versión.** `normalizePathStyle` completa con valores por defecto lo
+  que falte —ya ocurre con `fill`, `stroke` y `fillColor`—, así que
+  `textAlways` (el nombre siempre a la vista de un trazo) se lee como
+  `false` en un árbol anterior y no rompe nada. Subir `TREE_SCHEMA` por
+  eso habría borrado el árbol guardado de todo el mundo a cambio de
+  nada, que es lo contrario de lo que la versión existe para evitar.
+  Lo que sí la sube es cambiar la forma del REGISTRO: un tipo de nodo
+  nuevo, un campo que desaparece, un campo que cambia de significado.
 - `serializeNode(li)` serializa un nodo (y sus hijos vía
   `serializeNodes`); `serializeTree()` es esa misma pasada sobre la raíz.
   Los dos consumidores son el guardado automático y la exportación de una

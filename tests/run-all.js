@@ -44,6 +44,7 @@ const SUITES = [
   ["minified.js", "kitelocal.min.html: el minificado que sirve Pages no viene roto del proceso"],
   ["statics.js", "Comprobaciones estáticas: todo id referido existe y toda función llamada está declarada"],
   ["tristate.js", "Tercer estado de la casilla: indeterminada cuando la carpeta está a medias"],
+  ["multiedit.js", "Edición en bloque: qué se aplica a todos cuando los nodos no coinciden"],
   ["usage.js", "Pie del panel: la línea de memoria se esconde si no hay cifra que dar"],
   ["clipboard.js", "Portapapeles del sistema: copiar y pegar entre instancias de distinto dominio"],
   ["hittest.js", "Acierto bajo el cursor: geometría real, no caja envolvente"],
@@ -64,7 +65,8 @@ const BROWSER = [
   ["browser/clipboard.mjs", "Navegador: copiar y pegar entre instancias de distinto origen, con el portapapeles real"],
   ["browser/geojson-html.mjs", "Navegador: etiquetas tipo HTML en properties de GeoJSON, de punta a punta"],
   ["browser/dialogs.mjs", "Navegador: las ventanas fijan cabecera y pie, y se redimensionan"],
-  ["browser/tree-move.mjs", "Navegador: mover un nodo de rama recalcula la casilla de los dos extremos"]
+  ["browser/tree-move.mjs", "Navegador: mover un nodo de rama recalcula la casilla de los dos extremos"],
+  ["browser/multiedit.mjs", "Navegador: editar varios nodos a la vez y el nombre siempre a la vista de un trazo"]
 ];
 
 const html = path.join(__dirname, "..", "kitelocal.html");

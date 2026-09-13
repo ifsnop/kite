@@ -234,6 +234,117 @@ let posFormat = "dms";    /* coordinate notation, toggled with the ⇅ button */
 let posMarker = null;     /* sole marker whose position is being edited */
 let posOriginal = null;   /* its position when the dialog opened */
 let styleIsNew = false;   /* pin just created: cancelling removes it again */
+/* Con varios nodos seleccionados casi nada tiene por qué coincidir. Dos
+   conjuntos llevan la cuenta: `styleMixed` son las propiedades que NO
+   valen lo mismo en todos (el diálogo lo enseña y NO las aplica si el
+   usuario no las toca, o pulsar Aceptar igualaría en silencio lo que
+   solo se estaba mirando), y `styleTouched` las que el usuario ha movido
+   de verdad, que son las únicas que se aplican en bloque. Con un solo
+   nodo `styleMixed` queda vacío y todo se aplica como siempre.        */
+let styleMixed = new Set();
+let styleTouched = new Set();
+
+/* Qué propiedad del borrador toca cada control. Sirve para lo mismo en
+   los dos sentidos: marcar el control cuando los nodos no coinciden y
+   anotar lo que el usuario toca. `pg-mode` vale por DOS propiedades
+   (stroke y fill), así que viaja con nombre propio.                   */
+const CONTROL_PROP = {
+  "mk-color": "color", "mk-size": "size", "mk-text-size": "textSize",
+  "mk-text-color": "textColor", "mk-text-always": "textAlways",
+  "pg-mode": "mode", "pg-weight": "weight", "pg-color": "color",
+  "pg-fill-color": "fillColor", "pg-fill-opacity": "fillOpacity",
+  "pg-text-always": "textAlways",
+  "ms-weight": "weight", "ms-color": "color", "ms-fill-color": "fillColor",
+  "ms-fill-opacity": "fillOpacity",
+  "io-opacity": "opacity"
+};
+
+const dlgRowOf = el => el.closest(".dlg-row");
+function markMixedRow(el, mixed) {
+  const row = dlgRowOf(el);
+  if (row) row.classList.toggle("mixed", mixed);
+}
+/* Un número puede quedarse vacío, y es lo más honesto: sin valor común
+   no hay número que enseñar. Lo dice su marcador de posición.        */
+function setNumberControl(el, value, mixed) {
+  el.value = mixed ? "" : value;
+  el.placeholder = mixed ? "varios" : "";
+  markMixedRow(el, mixed);
+}
+/* Un rango y un selector no pueden quedarse en blanco, así que enseñan
+   el valor del primero y la marca de la fila avisa de que no es el de
+   todos.                                                             */
+function setValueControl(el, value, mixed) {
+  el.value = value;
+  markMixedRow(el, mixed);
+}
+/* Una casilla sí tiene tercer estado, y es exactamente este: el mismo
+   guion nativo con el que una carpeta del árbol dice "unos sí y otros
+   no".                                                               */
+function setCheckControl(el, on, mixed) {
+  el.checked = !!on;
+  el.indeterminate = mixed;
+  markMixedRow(el, mixed);
+}
+function setColorControl(btn, hex, mixed) {
+  setColorButton(btn, hex);
+  markMixedRow(btn, mixed);
+}
+
+/* Tocar un control lo saca de la mezcla: deja de estar marcado y, desde
+   ese momento, su valor se aplicará a TODOS los nodos. Se registra por
+   delegación para que un control nuevo no dependa de acordarse de
+   añadirlo aquí; los colores no pasan por `input` y avisan a mano
+   desde el selector de color, y el icono desde su selector.          */
+function touchControl(el) {
+  if (!el || !styleDraft) return;
+  const prop = CONTROL_PROP[el.id];
+  if (!prop) return;
+  styleTouched.add(prop);
+  if (el.type === "checkbox") el.indeterminate = false;
+  if (el.placeholder) el.placeholder = "";
+  markMixedRow(el, false);
+}
+/* Lo que de verdad se escribe en cada nodo: una propiedad que no era
+   igual en todos y que nadie ha tocado se queda como estaba en CADA
+   uno. Con un solo nodo (o con varios que ya coincidían) esto devuelve
+   el borrador entero, que es el comportamiento de siempre.           */
+function draftProps(props) {
+  const out = {};
+  for (const k of props) {
+    if (!styleMixed.has(k) || styleTouched.has(k)) out[k] = styleDraft[k];
+  }
+  return out;
+}
+/* Las propiedades en las que los nodos NO coinciden. `read` saca el
+   valor comparable de cada nodo; se compara con === porque todas son
+   números, cadenas o booleanos.                                      */
+function mixedProps(values, props) {
+  const out = new Set();
+  for (const k of props) {
+    if (values.some(v => v[k] !== values[0][k])) out.add(k);
+  }
+  return out;
+}
+
+/* Nombres de varios nodos en una sola línea. Un árbol puede traer
+   nombres larguísimos —los de un KML llegan a tener cientos de
+   caracteres— y el campo es estrecho, así que se van juntando mientras
+   quepan y el resto se resume contándolo.                            */
+const NAMES_PREVIEW_MAX = 40;
+function joinNames(names, max = NAMES_PREVIEW_MAX) {
+  const clip = s => (s.length > max ? s.slice(0, max - 1) + "…" : s);
+  const out = [];
+  let len = 0;
+  for (const n of names) {
+    const add = (out.length ? 2 : 0) + Math.min(n.length, max);
+    if (out.length && len + add > max) break;
+    out.push(clip(n));
+    len += add;
+  }
+  const rest = names.length - out.length;
+  return rest ? `${out.join(", ")} y ${rest} más` : out.join(", ");
+}
 
 function openStyleDialog(li, { isNew = false } = {}) {
   /* The dialog is not modal, so another row's button may be pressed while
@@ -270,20 +381,34 @@ function openStyleDialog(li, { isNew = false } = {}) {
   $id("style-polygon").hidden = kind !== "polygon";
   $id("style-measure").hidden = kind !== "measure";
   $id("style-imageoverlay").hidden = kind !== "imageOverlay";
-  /* El nombre solo tiene sentido con un único nodo: es propio de cada uno */
   const single = styleTargets.length === 1;
-  $id("name-row").hidden = !single;
-  if (single) $id("mk-name").value = styleTargets[0]._name;
+  styleMixed = new Set();
+  styleTouched = new Set();
+  /* El nombre es propio de cada nodo, pero con varios el campo NO se
+     deja en blanco: enseña los que hay, en gris y cursiva porque no es
+     un valor sino una lista de lo que hay dentro. Va de marcador de
+     posición y no de valor a propósito — así "no lo he tocado" es
+     exactamente "el campo está vacío", sin ninguna bandera que
+     mantener, y aceptar sin escribir no puede renombrarlo todo con el
+     resumen.                                                          */
+  $id("name-row").hidden = false;
+  $id("mk-name").value = single ? styleTargets[0]._name : "";
+  $id("mk-name").placeholder = single ? "" : joinNames(styleTargets.map(t => t._name));
+  markMixedRow($id("mk-name"), !single);
 
   /* The draft starts from the first target: with a multi-selection its
      style is the one offered as the common starting point             */
   if (kind === "marker") {
-    styleDraft = { ...DEFAULT_MARKER_STYLE, ...(styleTargets[0]._mstyle || {}) };
-    setColorButton($id("mk-color"), styleDraft.color);
-    $id("mk-size").value = styleDraft.size;
-    $id("mk-text-size").value = styleDraft.textSize;
-    setColorButton($id("mk-text-color"), styleDraft.textColor);
-    $id("mk-text-always").checked = styleDraft.textAlways;
+    const mstyles = styleTargets.map(t => ({ ...DEFAULT_MARKER_STYLE, ...(t._mstyle || {}) }));
+    styleDraft = { ...mstyles[0] };
+    styleMixed = mixedProps(mstyles,
+      ["icon", "color", "size", "textSize", "textColor", "textAlways"]);
+    setColorControl($id("mk-color"), styleDraft.color, styleMixed.has("color"));
+    setNumberControl($id("mk-size"), styleDraft.size, styleMixed.has("size"));
+    setNumberControl($id("mk-text-size"), styleDraft.textSize, styleMixed.has("textSize"));
+    setColorControl($id("mk-text-color"), styleDraft.textColor, styleMixed.has("textColor"));
+    setCheckControl($id("mk-text-always"), styleDraft.textAlways, styleMixed.has("textAlways"));
+    markMixedRow($id("icon-preview-btn"), styleMixed.has("icon"));
     $id("icon-preview").src = iconUrl(styleDraft.icon, styleDraft.color, 20);
 
     /* Text and position only apply to a single marker, so those rows stay
@@ -305,7 +430,13 @@ function openStyleDialog(li, { isNew = false } = {}) {
       $id("mk-drag-hint").hidden = !posMarker._map;
     }
   } else if (kind === "polygon") {
-    styleDraft = normalizePathStyle(styleTargets[0]._style);
+    const styles = styleTargets.map(t => normalizePathStyle(t._style));
+    styleDraft = { ...styles[0] };
+    styleMixed = mixedProps(styles,
+      ["weight", "color", "fillColor", "fillOpacity", "textAlways"]);
+    /* El modo son DOS booleanos en un solo selector: la mezcla se
+       calcula sobre lo que el selector muestra, no sobre cada uno.   */
+    if (styles.some(s => polygonModeOf(s) !== polygonModeOf(styles[0]))) styleMixed.add("mode");
     /* Una forma abierta solo puede tener contorno. Las opciones con
        relleno y los controles del relleno se DESHABILITAN, no se
        esconden: en gris se ve que existen y que aquí no aplican, que es
@@ -320,11 +451,13 @@ function openStyleDialog(li, { isNew = false } = {}) {
     $id("pg-fill-opacity").disabled = openOnly;
     $id("pg-fill-color-row").classList.toggle("dim", openOnly);
     $id("pg-fill-opacity-row").classList.toggle("dim", openOnly);
-    $id("pg-mode").value = openOnly ? "stroke" : polygonModeOf(styleDraft);
-    $id("pg-weight").value = styleDraft.weight;
-    setColorButton($id("pg-color"), styleDraft.color);
-    setColorButton($id("pg-fill-color"), styleDraft.fillColor);
-    $id("pg-fill-opacity").value = styleDraft.fillOpacity;
+    setValueControl($id("pg-mode"), openOnly ? "stroke" : polygonModeOf(styleDraft),
+      !openOnly && styleMixed.has("mode"));
+    setNumberControl($id("pg-weight"), styleDraft.weight, styleMixed.has("weight"));
+    setColorControl($id("pg-color"), styleDraft.color, styleMixed.has("color"));
+    setColorControl($id("pg-fill-color"), styleDraft.fillColor, styleMixed.has("fillColor"));
+    setValueControl($id("pg-fill-opacity"), styleDraft.fillOpacity, styleMixed.has("fillOpacity"));
+    setCheckControl($id("pg-text-always"), styleDraft.textAlways, styleMixed.has("textAlways"));
 
     /* Solo con un único nodo (geometría propia de cada uno, igual que la
        posición de un marcador) y solo si hay de verdad un polígono cerrado */
@@ -335,7 +468,9 @@ function openStyleDialog(li, { isNew = false } = {}) {
        un marcador: no tiene sentido en bloque.                        */
     $id("pg-points-row").hidden = !(single && solePath(styleTargets[0]));
   } else if (kind === "measure") {
-    styleDraft = normalizePathStyle(styleTargets[0]._style);
+    const styles = styleTargets.map(t => normalizePathStyle(t._style));
+    styleDraft = { ...styles[0] };
+    styleMixed = mixedProps(styles, ["weight", "color", "fillColor", "fillOpacity"]);
     /* Solo un círculo encierra superficie: para una línea el relleno no
        existe. Se DESHABILITA, no se esconde, igual que en las formas
        abiertas del diálogo de polígonos. Con una selección mixta manda
@@ -346,17 +481,19 @@ function openStyleDialog(li, { isNew = false } = {}) {
     $id("ms-fill-opacity").disabled = noFill;
     $id("ms-fill-color-row").classList.toggle("dim", noFill);
     $id("ms-fill-opacity-row").classList.toggle("dim", noFill);
-    $id("ms-weight").value = styleDraft.weight;
-    setColorButton($id("ms-color"), styleDraft.color);
-    setColorButton($id("ms-fill-color"), styleDraft.fillColor);
-    $id("ms-fill-opacity").value = styleDraft.fillOpacity;
+    setNumberControl($id("ms-weight"), styleDraft.weight, styleMixed.has("weight"));
+    setColorControl($id("ms-color"), styleDraft.color, styleMixed.has("color"));
+    setColorControl($id("ms-fill-color"), styleDraft.fillColor, styleMixed.has("fillColor"));
+    setValueControl($id("ms-fill-opacity"), styleDraft.fillOpacity, styleMixed.has("fillOpacity"));
     /* Las medidas son de UNA medición, como la posición de un marcador */
     msMeasures = single ? measurementValues(styleTargets[0]._measure) : null;
     $id("ms-values").hidden = !msMeasures;
     if (msMeasures) { $id("ms-unit").value = measureUnit; renderMeasureValues(); }
   } else {
-    styleDraft = { opacity: styleTargets[0]._imageOverlay.opacity };
-    $id("io-opacity").value = styleDraft.opacity;
+    const ops = styleTargets.map(t => ({ opacity: t._imageOverlay.opacity }));
+    styleDraft = { ...ops[0] };
+    styleMixed = mixedProps(ops, ["opacity"]);
+    setValueControl($id("io-opacity"), styleDraft.opacity, styleMixed.has("opacity"));
   }
   styleDialog.hidden = false;
   clampToViewport(styleBox);
@@ -388,6 +525,8 @@ function closeStyleDialog(commit = false) {
   styleIsNew = false;
   polyMeasures = null;
   msMeasures = null;
+  styleMixed = new Set();
+  styleTouched = new Set();
 }
 
 /* ---------- Position controls ---------- */
@@ -439,12 +578,17 @@ for (const id of ["mk-lat", "mk-lon"]) {
   $id(id).addEventListener("input", () => { if (styleDraft && posMarker) markCoordValidity(); });
 }
 
+/* Un campo VACÍO no es un valor: con varios nodos es la marca de "no
+   coinciden", y leerlo como un cero o como el valor por defecto metería
+   en el borrador algo que nadie ha escrito. Se conserva lo que hubiera. */
+const numOr = (el, fallback) => (el.value === "" ? fallback : Number(el.value) || fallback);
+
 /* Controls only touch the draft; the preview reflects it immediately */
 function readMarkerControls() {
   Object.assign(styleDraft, {
     color: colorOf($id("mk-color")),
-    size: Number($id("mk-size").value) || DEFAULT_MARKER_STYLE.size,
-    textSize: Number($id("mk-text-size").value) || DEFAULT_MARKER_STYLE.textSize,
+    size: numOr($id("mk-size"), styleDraft.size || DEFAULT_MARKER_STYLE.size),
+    textSize: numOr($id("mk-text-size"), styleDraft.textSize || DEFAULT_MARKER_STYLE.textSize),
     textColor: colorOf($id("mk-text-color")),
     textAlways: $id("mk-text-always").checked
   });
@@ -453,13 +597,17 @@ function readMarkerControls() {
 function readPolygonControls() {
   const mode = $id("pg-mode").value;
   Object.assign(styleDraft, {
-    weight: Number($id("pg-weight").value) || 1,
+    weight: numOr($id("pg-weight"), styleDraft.weight || 1),
     color: colorOf($id("pg-color")),
     opacity: 1, /* outlines are always fully opaque */
     stroke: mode !== "fill",
     fill: mode !== "stroke",
     fillColor: colorOf($id("pg-fill-color")),
-    fillOpacity: Number($id("pg-fill-opacity").value)
+    fillOpacity: Number($id("pg-fill-opacity").value),
+    /* El nombre siempre a la vista, como el texto de un marcador: aquí
+       es un tooltip permanente en vez del globo que sale al hacer
+       click. Viaja dentro del estilo del trazo y se guarda con él.   */
+    textAlways: $id("pg-text-always").checked
   });
 }
 function readMeasureControls() {
@@ -468,7 +616,7 @@ function readMeasureControls() {
      se vuelve a decidir POR CAPA al aceptar, porque la selección puede
      mezclar líneas y círculos.                                        */
   Object.assign(styleDraft, {
-    weight: Number($id("ms-weight").value) || 1,
+    weight: numOr($id("ms-weight"), styleDraft.weight || 1),
     color: colorOf($id("ms-color")),
     opacity: 1, /* el contorno siempre opaco, como en los polígonos */
     fillColor: colorOf($id("ms-fill-color")),
@@ -494,6 +642,15 @@ for (const id of ["ms-weight", "ms-fill-opacity"]) { /* colours: openColorPicker
   $id(id).addEventListener("input", () => { if (styleDraft) readMeasureControls(); });
 }
 $id("pg-mode").addEventListener("change", () => { if (styleDraft) readPolygonControls(); });
+$id("pg-text-always").addEventListener("input", () => { if (styleDraft) readPolygonControls(); });
+
+/* Qué ha tocado el usuario, por delegación sobre la caja entera: así un
+   control nuevo queda cubierto con solo aparecer en CONTROL_PROP, sin
+   depender de acordarse de añadirle su escucha. Los colores y el icono
+   no disparan `input` y avisan desde sus propios selectores.         */
+for (const ev of ["input", "change"]) {
+  styleBox.addEventListener(ev, e => touchControl(e.target));
+}
 
 /* ---------- Perímetro y área (solo lectura) ---------- */
 /* Unidad de TODA medida de distancia y área: el perímetro y el área de
@@ -558,9 +715,16 @@ $id("io-opacity").addEventListener("input", () => { if (styleDraft) readImageOve
 $id("style-cancel").addEventListener("click", () => closeStyleDialog(false));
 $id("style-accept").addEventListener("click", () => {
   if (!styleDraft) return;
-  /* El nombre se aplica sea cual sea el tipo del nodo */
-  if (!$id("name-row").hidden && styleTargets.length === 1) {
-    setNodeName(styleTargets[0], $id("mk-name").value || styleTargets[0]._name);
+  /* El nombre se aplica sea cual sea el tipo del nodo. Con varios, el
+     campo va vacío y solo renombra si el usuario escribe algo: lo que
+     se ve entonces es su marcador de posición, el resumen de los
+     nombres que hay, y aceptar sin tocarlo no puede convertirlo en el
+     nombre de todos.                                                 */
+  const nombre = $id("mk-name").value.trim();
+  if (styleTargets.length === 1) {
+    setNodeName(styleTargets[0], nombre || styleTargets[0]._name);
+  } else if (nombre) {
+    for (const t of styleTargets) setNodeName(t, nombre);
   }
   if (styleKindOpen === "marker") {
     readMarkerControls();
@@ -576,35 +740,50 @@ $id("style-accept").addEventListener("click", () => {
       invalidateGeo(styleTargets[0]);
     }
     /* lat/lng live in the draft for the dialog only; they are a property
-       of the geometry, not of the style, so they never reach _mstyle    */
+       of the geometry, not of the style, so they never reach _mstyle.
+       Lo que no coincidía entre los nodos y nadie ha tocado se queda
+       como estaba en cada uno (draftProps).                           */
+    const pick = draftProps(["icon", "color", "size", "textSize", "textColor", "textAlways"]);
     for (const t of styleTargets) {
-      const { lat, lng, ...mstyle } = styleDraft;
-      t._mstyle = mstyle;
+      t._mstyle = { ...DEFAULT_MARKER_STYLE, ...(t._mstyle || {}), ...pick };
       applyMarkerStyle(t);
     }
   } else if (styleKindOpen === "polygon") {
     readPolygonControls();
+    const pick = draftProps(["weight", "color", "fillColor", "fillOpacity", "textAlways"]);
+    /* El modo son dos booleanos que viajan juntos: o se aplican los dos
+       o no se toca ninguno, o un nodo podría quedarse sin contorno NI
+       relleno, que es la combinación que el selector no ofrece.       */
+    if (!styleMixed.has("mode") || styleTouched.has("mode")) {
+      pick.stroke = styleDraft.stroke;
+      pick.fill = styleDraft.fill;
+    }
     for (const t of styleTargets) {
-      t._style = { ...styleDraft };
+      t._style = { ...normalizePathStyle(t._style), ...pick };
       applyPolygonStyle(t);
     }
   } else if (styleKindOpen === "measure") {
     readMeasureControls();
+    const pick = draftProps(["weight", "color", "fillColor", "fillOpacity"]);
     for (const t of styleTargets) {
       /* El relleno se decide por capa, no en el diálogo: una selección
          puede mezclar líneas y círculos, y un trazo abierto relleno
          obliga a Leaflet a cerrarlo por su cuenta (misma regla que
          clearFillOnOpenPaths aplica en la propia capa).              */
-      t._style = { ...styleDraft, fill: t._measure.type === "circle" && styleDraft.fill !== false };
+      t._style = { ...normalizePathStyle(t._style), ...pick,
+        fill: t._measure.type === "circle" && styleDraft.fill !== false };
       applyPolygonStyle(t); /* una medición es un trazo más: mismo camino */
       t._measure.style = t._style; /* el registro pendiente lo serializa desde aquí */
     }
   } else {
     readImageOverlayControls();
-    for (const t of styleTargets) {
-      t._imageOverlay.opacity = styleDraft.opacity;
-      const layer = nodeLayer(t);
-      if (layer) layer.setOpacity(styleDraft.opacity);
+    const pick = draftProps(["opacity"]);
+    if ("opacity" in pick) {
+      for (const t of styleTargets) {
+        t._imageOverlay.opacity = pick.opacity;
+        const layer = nodeLayer(t);
+        if (layer) layer.setOpacity(pick.opacity);
+      }
     }
   }
   scheduleSave();
@@ -662,6 +841,10 @@ $id("icon-cancel").addEventListener("click", () => {
 $id("icon-accept").addEventListener("click", () => {
   if (styleDraft && pendingIcon) {
     styleDraft.icon = pendingIcon;
+    /* El icono tampoco pasa por un control con `input`: se anota aquí,
+       que es donde el usuario lo elige de verdad.                    */
+    styleTouched.add("icon");
+    markMixedRow($id("icon-preview-btn"), false);
     $id("icon-preview").src = iconUrl(pendingIcon, colorOf($id("mk-color")), 20);
   }
   iconPicker.hidden = true;

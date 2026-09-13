@@ -371,6 +371,10 @@ document.getElementById("color-cancel").addEventListener("click", () => {
 document.getElementById("color-accept").addEventListener("click", () => {
   if (colorTarget) {
     setColorButton(colorTarget, colorInput.value);
+    /* Un color no dispara `input` en su fila, así que avisa a mano de
+       que el usuario lo ha tocado: con varios nodos es lo que decide
+       si ese color se aplica a todos o cada uno conserva el suyo.   */
+    touchControl(colorTarget);
     /* feed the change into the draft of whichever dialog is open */
     if (styleDraft) readStyleControls();
   }

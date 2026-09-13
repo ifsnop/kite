@@ -152,7 +152,13 @@ const TREE_SCHEMA = 6; /* formato del árbol serializado. Subir solo cuando
                           las ortofotos se cargan y muestran todas).
                           v6: los nodos "measure" guardan su `style`
                           (color, grosor y relleno del círculo), ahora
-                          editable desde el diálogo de propiedades. */
+                          editable desde el diálogo de propiedades.
+                          `style` es un saco ABIERTO de opciones que
+                          normalizePathStyle completa con sus valores
+                          por defecto, así que añadirle una clave
+                          (textAlways) NO sube esta versión: un árbol
+                          anterior se lee igual y subirla habría
+                          borrado el de todo el mundo a cambio de nada. */
 const DB_TREE = "tree";
 
 /* One connection, reused. Opening the database on every save wastes
@@ -869,7 +875,7 @@ async function buildRecordsFromStorage(nodes, prog) {
     } else if (n.t === "layer") {
       const layer = L.geoJSON(n.geo, n.style ? { style: n.style } : undefined);
       clearFillOnOpenPaths(layer); /* una línea no se rellena, ver esa función */
-      layer.bindPopup(n.name);
+      layer.bindPopup(escapeHtml(n.name), COMPACT_POPUP);
       if (n.checked) layer.addTo(rootGroup);
       const rec = { t: "layer", name: n.name, checked: !!n.checked, style: n.style || null,
                     geo: n.geo, mstyle: n.mstyle, desc: n.desc || null, _layer: layer };
@@ -952,6 +958,10 @@ async function materializeRecords(records, parentUl) {
       } else {
         ensureMarkerDefaults(li);
       }
+      /* Un trazo con el nombre siempre a la vista recupera su etiqueta:
+         la capa se construyó con el globo de siempre, sin mirar el
+         estilo, porque ahí todavía no hay nodo del que sacar el nombre. */
+      if (rec.style && rec.style.textAlways) applyPolygonText(li);
     } else if (rec.t === "measure") {
       const li = makeMeasureLi(rec._m);
       rec._li = li;

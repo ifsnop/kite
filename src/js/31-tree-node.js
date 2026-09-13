@@ -293,6 +293,9 @@ function setNodeName(li, name) {
   if (chk) chk.setAttribute("aria-label", `Activar o desactivar «${name}»`);
   if (li._onRename) li._onRename(name);
   if (li._mstyle) applyMarkerText(li); /* the marker text shows the name */
+  /* Y la etiqueta permanente de un trazo, por lo mismo: enseña el
+     nombre, así que renombrar tiene que repintarla.                  */
+  if (li._style && li._style.textAlways) applyPolygonText(li);
   scheduleSave();
 }
 

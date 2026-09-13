@@ -105,12 +105,16 @@ KITE Local does not impose fixed limits on KML file size, imported features or v
 - marker repositioning by dragging
 - polygon and line outline width and colour
 - polygon fill colour and opacity, with an outline/fill/both selector
+- optional permanent polygon and line labels, like the marker ones
 - read-only perimeter (or length) and area, in metres, kilometres, feet
   or nautical miles
 - a point-list editor: one vertex per line, tab-separated, so a geometry
   can be copied into a spreadsheet and pasted back
 - ground-overlay image opacity
-- batch style changes for selected compatible layers
+- batch style changes for selected compatible layers, including renaming.
+  A value that differs across the selection is shown as such and is left
+  alone unless it is edited, so accepting the dialog never quietly
+  levels the settings that were only being looked at
 - every dialog edits a draft: nothing reaches the map until Accept
 
 ### Base maps

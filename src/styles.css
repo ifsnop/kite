@@ -533,6 +533,23 @@
      que existe y que aquí no vale (una línea no puede tener relleno). */
   .color-btn:disabled { opacity: .35; cursor: default; }
   .dlg-row.dim > span { opacity: .45; }
+  /* Con varios nodos seleccionados, un valor que no coincide en todos.
+     La marca va en la ETIQUETA de la fila y no en el control, que es lo
+     único común a un número, un color, un selector y una casilla; así
+     cada tipo de control no necesita su propio disfraz. El control
+     enseña además el valor del primero, que es el que se aplicaría si
+     el usuario lo toca.                                              */
+  .dlg-row.mixed > span::after,
+  .dlg-row.mixed > label::after {
+    content: " (varios)";
+    font-style: italic;
+    color: var(--muted);
+  }
+  /* Y donde el control SÍ puede quedarse sin valor, se queda: enseñar el
+     del primero como si fuera el de todos sería mentir. Un número se
+     vacía y lo dice en su marcador de posición; el nombre, con varios
+     nodos, hace lo mismo con la lista de nombres.                     */
+  .dlg-row input::placeholder { font-style: italic; color: var(--muted); opacity: 1; }
   .color-swatches { display: grid; grid-template-columns: repeat(8, 24px); gap: 5px; margin-top: 8px; }
   .color-swatches button {
     width: 24px;

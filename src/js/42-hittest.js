@@ -289,8 +289,33 @@ function applyPolygonStyle(li) {
   if (!layer || !li._style) return;
   layer.setStyle(li._style); /* group.setStyle only reaches paths; safe */
   clearFillOnOpenPaths(layer);
+  applyPolygonText(li);
   const sw = li.querySelector(":scope > .node-row > .swatch");
   if (sw) sw.style.background = li._style.fillColor || li._style.color;
+}
+
+/* El nombre del trazo siempre a la vista, como el texto de un marcador:
+   un tooltip permanente en la misma caja ajustada al texto en vez del
+   globo que sale al hacer click. Leaflet lo coloca en el centro de la
+   primera geometría del grupo, que es donde ya salía el globo.
+   Apagado NO se toca nada: quien nunca haya usado la opción conserva
+   exactamente el globo que le ató la importación —un KML sin <name> no
+   tenía ninguno—, y solo al apagarla desde el diálogo se repone el
+   globo, que es de donde se viene.                                    */
+function applyPolygonText(li) {
+  const layer = nodeLayer(li);
+  if (!layer || li._measure) return;  /* una medición ya pinta su medida */
+  const always = !!(li._style && li._style.textAlways);
+  const tip = layer.getTooltip && layer.getTooltip();
+  if (always) {
+    layer.unbindPopup();
+    layer.unbindTooltip();
+    layer.bindTooltip(escapeHtml(li._name),
+      { permanent: true, direction: "center", className: "compacto" });
+  } else if (tip && tip.options.permanent) {
+    layer.unbindTooltip();
+    layer.bindPopup(escapeHtml(li._name), COMPACT_POPUP);
+  }
 }
 
 /* An open path can never be filled: Leaflet would close it on its own to

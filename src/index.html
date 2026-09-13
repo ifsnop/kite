@@ -130,8 +130,10 @@
 <div id="style-dialog" class="dlg-float" hidden>
   <div class="dlg-box">
     <h2 id="style-title">Estilo de capa</h2>
-    <!-- El nombre es de cada nodo, así que solo se edita con uno
-         seleccionado; sirve para capas de cualquier tipo -->
+    <!-- El nombre es de cada nodo, pero con varios seleccionados el campo
+         no se deja en blanco: enseña los nombres que hay (en gris y
+         cursiva, como marca de "esto no es un valor") y escribir uno
+         renombra todos. Sirve para capas de cualquier tipo. -->
     <div class="dlg-row" id="name-row" hidden>
       <span>Nombre</span><input type="text" id="mk-name">
     </div>
@@ -165,6 +167,7 @@
       <div class="dlg-row"><span>Color del contorno</span><button type="button" class="color-btn" id="pg-color"></button></div>
       <div class="dlg-row" id="pg-fill-color-row"><span>Color del relleno</span><button type="button" class="color-btn" id="pg-fill-color"></button></div>
       <div class="dlg-row" id="pg-fill-opacity-row"><span>Opacidad del relleno</span><input type="range" id="pg-fill-opacity" min="0" max="1" step="0.05"></div>
+      <div class="dlg-row"><label for="pg-text-always">Mostrar el nombre siempre (si no, solo al hacer click)</label><input type="checkbox" id="pg-text-always"></div>
       <div id="pg-measures" hidden>
         <div class="dlg-row"><span>Unidad</span><select id="pg-unit">
           <option value="m">Metros</option>
