@@ -52,13 +52,28 @@ const wdRing = [];
 function wdWrap(name) {
   const orig = window[name];
   if (typeof orig !== "function") return false;
-  const st = { n: 0 };
+  const st = { n: 0, dentro: 0 };
   wdStats.set(name, st);
   window[name] = function (...args) {
     st.n++;
+    st.dentro++;
     wdRing.push([name, performance.now()]);
     if (wdRing.length > WD_RING) wdRing.shift();
-    return orig.apply(this, args);
+    try {
+      const r = orig.apply(this, args);
+      /* Una async devuelve al primer `await` con su trabajo a medias:
+         sigue "en vuelo" hasta que su promesa se resuelve, y es
+         justo el caso que interesa no perder.                      */
+      if (r && typeof r.then === "function") {
+        r.then(() => { st.dentro--; }, () => { st.dentro--; });
+        return r;
+      }
+      st.dentro--;
+      return r;
+    } catch (e) {
+      st.dentro--;
+      throw e;
+    }
   };
   return true;
 }
@@ -99,13 +114,22 @@ function startWatchdog() {
         if (resumen.length && resumen[resumen.length - 1][0] === k) resumen[resumen.length - 1][1]++;
         else resumen.push([k, 1]);
       }
-      const bloque = { ms: Math.round(hueco), durante,
+      /* Lo que sigue SIN TERMINAR al recuperar el hilo. La diferencia
+         de contadores no basta: una llamada que empezó antes del
+         latido anterior y sigue dentro no aparece en ella, y es
+         precisamente el caso de "bloqueado dentro de algo largo". */
+      const enVuelo = [...wdStats].filter(([, s2]) => s2.dentro > 0).map(([k]) => k);
+      const bloque = { ms: Math.round(hueco), durante, enVuelo,
         secuencia: resumen.slice(-12).map(([k, n]) => (n > 1 ? `${k}×${n}` : k)) };
       wdBlocks.push(bloque);
+      /* NO sticky: un bloqueo que se repite llenaba el panel de líneas
+         que hay que cerrar una a una, y con la ventana ya pesada eso
+         la remataba. El registro (📋) las guarda igual, que es donde
+         se van a leer.                                               */
       navMessage(`Hilo bloqueado ${bloque.ms} ms — durante: `
         + (bloque.secuencia.length ? bloque.secuencia.join(" → ")
-          : "ninguna función vigilada (el bloqueo está FUERA de ellas)"),
-        { sticky: true });
+          : "ninguna función vigilada (el bloqueo está FUERA de ellas)")
+        + (bloque.enVuelo.length ? ` | en vuelo: ${bloque.enVuelo.join(", ")}` : ""));
     }
     previa = actual;
     ultimo = ahora;
