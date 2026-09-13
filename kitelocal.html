@@ -1518,7 +1518,7 @@ const map = L.map("map", {
 
 /* Fecha de generación del código (versión): AÑOMESDIAHORAMINUTO.
    Actualizar en cada generación; se muestra junto al crédito de Leaflet. */
-const BUILD = "202609131635";
+const BUILD = "202609132115";
 /* El enlace al repositorio va junto a la versión, que es lo que hace
    accionable saber qué build se está ejecutando: desde ahí se llega al
    código de esa versión. `target="_blank"` a propósito —salir de la
@@ -4240,6 +4240,37 @@ const VIEW_KEY = "view";
 const VIEW_SCHEMA = 1;
 const BASE_KEY = "bases";
 const BASE_SCHEMA = 1;
+/* Reparto de las dos columnas de la ficha de properties. Otra clave del
+   MISMO almacén, con su propia versión: no toca subir DB_VERSION.   */
+const PROPS_KEY = "propsSplit";
+const PROPS_SCHEMA = 1;
+
+async function dbSaveProps(frac) {
+  const db = await openDb();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(DB_TREE, "readwrite");
+    tx.objectStore(DB_TREE).put({ v: PROPS_SCHEMA, frac }, PROPS_KEY);
+    tx.oncomplete = resolve;
+    tx.onerror = () => reject(tx.error);
+  });
+}
+
+/* Lo leído se valida antes de usarse, como la vista guardada: un
+   registro corrupto dejaría una columna invisible y sin forma obvia de
+   recuperarla. `Number.isFinite` no convierte, así que un "0.4" guardado
+   por error no se cuela como número.                                 */
+async function dbLoadProps() {
+  const db = await openDb();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(DB_TREE, "readonly");
+    const rq = tx.objectStore(DB_TREE).get(PROPS_KEY);
+    rq.onsuccess = () => {
+      const r = rq.result;
+      resolve(r && r.v === PROPS_SCHEMA && Number.isFinite(r.frac) ? r.frac : null);
+    };
+    rq.onerror = () => reject(rq.error);
+  });
+}
 
 async function dbSaveBases(rec) {
   const db = await openDb();
@@ -5871,6 +5902,12 @@ let clipboard = null; /* { nodes, cut: [li], move: bool } */
    falta CORS, ni postMessage, ni que las dos instancias se conozcan. */
 const CLIPBOARD_MAX = 5 * 1024 * 1024; /* texto; por encima solo va el interno */
 
+/* Lo último que ESTA pestaña escribió en el portapapeles del sistema.
+   Sirve para reconocer nuestra propia copia al pegarla: ver el escucha
+   de `paste`, donde se decide entre el portapapeles interno y el del
+   sistema.                                                            */
+let clipboardText = null;
+
 function copyToSystemClipboard(nodes) {
   if (!navigator.clipboard || !navigator.clipboard.writeText) return;
   const txt = JSON.stringify(treeExportDoc(nodes));
@@ -5883,6 +5920,11 @@ function copyToSystemClipboard(nodes) {
       + "llevarla a otra instancia.");
     return;
   }
+  /* Se anota ANTES de escribir, no en el `then`: un Ctrl+V inmediato no
+     puede quedarse esperando a que resuelva la promesa. Si la escritura
+     falla, el portapapeles del sistema no tendrá ese texto y no habrá
+     nada que reconocer, así que anotarlo de más no hace daño.        */
+  clipboardText = txt;
   navigator.clipboard.writeText(txt).catch(err => {
     navMessage("No se pudo copiar al portapapeles del sistema "
       + `(${err && err.message ? err.message : "permiso denegado"}): `
@@ -6054,7 +6096,26 @@ document.addEventListener("paste", e => {
   if (!t || !t.closest || !t.closest("#tree")) return;
   if (t.matches("input.rename-input")) return;
   if (!e.clipboardData) return;
-  const doc = parseTreeExport(e.clipboardData.getData("text/plain") || "");
+  const texto = e.clipboardData.getData("text/plain") || "";
+
+  /* Si es EXACTAMENTE lo que esta pestaña acaba de copiar, manda el
+     portapapeles INTERNO. No es una optimización: el interno es el
+     único que sabe si aquello fue un CORTE, y tratarlo como ajeno
+     convertía cada Ctrl+X en una copia — las carpetas de origen se
+     quedaban marcadas como cortadas para siempre y su contenido
+     aparecía duplicado en el mapa. Se resuelve aquí y no dejando correr
+     el respaldo del keydown porque un pegado puede llegar sin
+     pulsación (el menú del navegador), y entonces no habría respaldo
+     que lo recogiera.                                                */
+  if (clipboard && texto === clipboardText) {
+    e.preventDefault();
+    clearTimeout(pasteFallback);
+    pasteFallback = null;
+    pasteClipboard();
+    return;
+  }
+
+  const doc = parseTreeExport(texto);
   if (!doc) return; /* no es nuestro: que siga el respaldo del keydown */
 
   e.preventDefault();
@@ -7456,6 +7517,20 @@ function applyPropsSplit() {
   descBody.style.setProperty("--props-key", (propsKeyFrac * 100).toFixed(2) + "%");
 }
 
+/* El reparto SÍ persiste entre sesiones, a diferencia de la unidad de
+   medida o del formato de coordenadas: aquellos se cambian sobre la
+   marcha para mirar un dato y se vuelven a cambiar, mientras que este
+   depende de cómo son los archivos con los que uno trabaja —nombres
+   cortos y valores largos, o al revés— y sería el mismo ajuste en cada
+   arranque. Va en otra clave del MISMO almacén.                      */
+function setPropsSplit(frac, { save = false } = {}) {
+  propsKeyFrac = Math.min(1 - PROPS_MIN_FRAC, Math.max(PROPS_MIN_FRAC, frac));
+  applyPropsSplit();
+  /* Solo al soltar: guardar en cada pixel del arrastre castigaría a
+     IndexedDB para nada.                                             */
+  if (save) dbSaveProps(propsKeyFrac).catch(() => {});
+}
+
 /* Delegado en el cuerpo de la ficha, no atado a cada tabla: el HTML se
    reemplaza entero cada vez que se abre otra capa, y un listener por
    tabla habría que volver a poner en cada apertura.
@@ -7473,11 +7548,10 @@ descBody.addEventListener("pointerdown", e => {
   const onMove = ev => {
     const r = wrap.getBoundingClientRect();
     if (!r.width) return;
-    const f = (ev.clientX - r.left) / r.width;
-    propsKeyFrac = Math.min(1 - PROPS_MIN_FRAC, Math.max(PROPS_MIN_FRAC, f));
-    applyPropsSplit();
+    setPropsSplit((ev.clientX - r.left) / r.width);
   };
   const onUp = () => {
+    setPropsSplit(propsKeyFrac, { save: true });
     grip.removeEventListener("pointermove", onMove);
     grip.removeEventListener("pointerup", onUp);
     grip.removeEventListener("pointercancel", onUp);
@@ -10265,6 +10339,14 @@ setInterval(checkServerVersion, VERSION_CHECK_MS);
     if (view) map.setView([view.lat, view.lng], view.zoom, { animate: false });
   } catch { /* sin vista guardada se queda la de por defecto */ }
   viewRestoring = false;
+
+  /* El reparto de columnas de la ficha: si no se restaura, habría que
+     reajustarlo en cada arranque. Antes del árbol porque no depende de
+     él y es una lectura mínima.                                      */
+  try {
+    const frac = await dbLoadProps();
+    if (frac !== null) setPropsSplit(frac);
+  } catch { /* sin reparto guardado se usa el de por defecto */ }
 
   /* La credencial de Copernicus antes que los mapas base: sin ella la
      capa no puede ni construir su URL (ver shWmsUrl).                */

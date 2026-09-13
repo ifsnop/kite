@@ -8,6 +8,14 @@
   } catch { /* sin vista guardada se queda la de por defecto */ }
   viewRestoring = false;
 
+  /* El reparto de columnas de la ficha: si no se restaura, habría que
+     reajustarlo en cada arranque. Antes del árbol porque no depende de
+     él y es una lectura mínima.                                      */
+  try {
+    const frac = await dbLoadProps();
+    if (frac !== null) setPropsSplit(frac);
+  } catch { /* sin reparto guardado se usa el de por defecto */ }
+
   /* La credencial de Copernicus antes que los mapas base: sin ella la
      capa no puede ni construir su URL (ver shWmsUrl).                */
   try {

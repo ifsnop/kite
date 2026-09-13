@@ -602,6 +602,18 @@ index.html         redirección de la raíz del sitio al minificado
 - **Lo que llega de fuera nunca MUEVE**: cortar en otra pestaña no puede
   borrar nada aquí, así que `pasteClipboard(foreign)` lo trata siempre
   como copia (`move: false`, sin lista de cortados).
+- **Pero NUESTRA propia copia tiene que ir por el camino INTERNO**, y
+  esto costó un fallo serio. Al escribir también en el portapapeles del
+  sistema, Ctrl+V leía de vuelta el envoltorio que esta misma pestaña
+  acababa de poner y lo trataba como ajeno — o sea, como copia—: **cada
+  Ctrl+X se convertía en un duplicado**, las carpetas de origen se
+  quedaban marcadas como cortadas para siempre (en gris, `opacity: .55`)
+  y sus capas aparecían dos veces en el mapa. Se reconoce comparando el
+  texto pegado con `clipboardText`, lo último que esta pestaña escribió:
+  si coinciden, manda el portapapeles interno, que es el único que sabe
+  si aquello fue un corte. Se resuelve en el propio escucha y no dejando
+  correr el respaldo del keydown, porque un pegado puede llegar sin
+  pulsación (el menú del navegador) y entonces no habría respaldo.
 - **Ctrl+V sigue pegando el portapapeles INTERNO desde cualquier sitio**
   (fuera de campos de texto), como siempre: acotar al árbol es cosa de
   lo que llega de FUERA, que es lo que se «importa».
@@ -726,8 +738,15 @@ index.html         redirección de la raíz del sitio al minificado
     pida a la columna, así que el separador no movería nada.
   - El reparto se guarda como **FRACCIÓN**, no en píxeles: la ficha se
     redimensiona, y un ancho en píxeles quedaría desproporcionado en
-    cuanto la ventana cambiara de tamaño. Se recuerda entre aperturas
-    (como `posFormat` o `measureUnit`) y no persiste entre sesiones.
+    cuanto la ventana cambiara de tamaño.
+  - **Y sí PERSISTE entre sesiones** (clave `propsSplit` del mismo
+    almacén, con su `PROPS_SCHEMA`), a diferencia de `posFormat` o
+    `measureUnit`: aquellos se cambian sobre la marcha para mirar un
+    dato, mientras que este depende de cómo son los archivos con los que
+    uno trabaja —nombres cortos y valores largos, o al revés— y sin
+    guardarlo habría que reajustarlo en cada arranque. Se guarda **al
+    soltar**, no en cada píxel del arrastre, y lo leído se valida con
+    `Number.isFinite` y se acota, como la vista guardada.
   - Tope por los dos lados (`PROPS_MIN_FRAC`) para que ninguna columna
     pueda desaparecer.
   Solo lo lleva NUESTRA tabla (clase `props`): en la misma ficha puede

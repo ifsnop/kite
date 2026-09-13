@@ -352,6 +352,37 @@ const VIEW_KEY = "view";
 const VIEW_SCHEMA = 1;
 const BASE_KEY = "bases";
 const BASE_SCHEMA = 1;
+/* Reparto de las dos columnas de la ficha de properties. Otra clave del
+   MISMO almacén, con su propia versión: no toca subir DB_VERSION.   */
+const PROPS_KEY = "propsSplit";
+const PROPS_SCHEMA = 1;
+
+async function dbSaveProps(frac) {
+  const db = await openDb();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(DB_TREE, "readwrite");
+    tx.objectStore(DB_TREE).put({ v: PROPS_SCHEMA, frac }, PROPS_KEY);
+    tx.oncomplete = resolve;
+    tx.onerror = () => reject(tx.error);
+  });
+}
+
+/* Lo leído se valida antes de usarse, como la vista guardada: un
+   registro corrupto dejaría una columna invisible y sin forma obvia de
+   recuperarla. `Number.isFinite` no convierte, así que un "0.4" guardado
+   por error no se cuela como número.                                 */
+async function dbLoadProps() {
+  const db = await openDb();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(DB_TREE, "readonly");
+    const rq = tx.objectStore(DB_TREE).get(PROPS_KEY);
+    rq.onsuccess = () => {
+      const r = rq.result;
+      resolve(r && r.v === PROPS_SCHEMA && Number.isFinite(r.frac) ? r.frac : null);
+    };
+    rq.onerror = () => reject(rq.error);
+  });
+}
 
 async function dbSaveBases(rec) {
   const db = await openDb();

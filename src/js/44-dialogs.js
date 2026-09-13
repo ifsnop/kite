@@ -163,6 +163,20 @@ function applyPropsSplit() {
   descBody.style.setProperty("--props-key", (propsKeyFrac * 100).toFixed(2) + "%");
 }
 
+/* El reparto SÍ persiste entre sesiones, a diferencia de la unidad de
+   medida o del formato de coordenadas: aquellos se cambian sobre la
+   marcha para mirar un dato y se vuelven a cambiar, mientras que este
+   depende de cómo son los archivos con los que uno trabaja —nombres
+   cortos y valores largos, o al revés— y sería el mismo ajuste en cada
+   arranque. Va en otra clave del MISMO almacén.                      */
+function setPropsSplit(frac, { save = false } = {}) {
+  propsKeyFrac = Math.min(1 - PROPS_MIN_FRAC, Math.max(PROPS_MIN_FRAC, frac));
+  applyPropsSplit();
+  /* Solo al soltar: guardar en cada pixel del arrastre castigaría a
+     IndexedDB para nada.                                             */
+  if (save) dbSaveProps(propsKeyFrac).catch(() => {});
+}
+
 /* Delegado en el cuerpo de la ficha, no atado a cada tabla: el HTML se
    reemplaza entero cada vez que se abre otra capa, y un listener por
    tabla habría que volver a poner en cada apertura.
@@ -180,11 +194,10 @@ descBody.addEventListener("pointerdown", e => {
   const onMove = ev => {
     const r = wrap.getBoundingClientRect();
     if (!r.width) return;
-    const f = (ev.clientX - r.left) / r.width;
-    propsKeyFrac = Math.min(1 - PROPS_MIN_FRAC, Math.max(PROPS_MIN_FRAC, f));
-    applyPropsSplit();
+    setPropsSplit((ev.clientX - r.left) / r.width);
   };
   const onUp = () => {
+    setPropsSplit(propsKeyFrac, { save: true });
     grip.removeEventListener("pointermove", onMove);
     grip.removeEventListener("pointerup", onUp);
     grip.removeEventListener("pointercancel", onUp);

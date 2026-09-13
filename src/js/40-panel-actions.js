@@ -491,6 +491,12 @@ let clipboard = null; /* { nodes, cut: [li], move: bool } */
    falta CORS, ni postMessage, ni que las dos instancias se conozcan. */
 const CLIPBOARD_MAX = 5 * 1024 * 1024; /* texto; por encima solo va el interno */
 
+/* Lo último que ESTA pestaña escribió en el portapapeles del sistema.
+   Sirve para reconocer nuestra propia copia al pegarla: ver el escucha
+   de `paste`, donde se decide entre el portapapeles interno y el del
+   sistema.                                                            */
+let clipboardText = null;
+
 function copyToSystemClipboard(nodes) {
   if (!navigator.clipboard || !navigator.clipboard.writeText) return;
   const txt = JSON.stringify(treeExportDoc(nodes));
@@ -503,6 +509,11 @@ function copyToSystemClipboard(nodes) {
       + "llevarla a otra instancia.");
     return;
   }
+  /* Se anota ANTES de escribir, no en el `then`: un Ctrl+V inmediato no
+     puede quedarse esperando a que resuelva la promesa. Si la escritura
+     falla, el portapapeles del sistema no tendrá ese texto y no habrá
+     nada que reconocer, así que anotarlo de más no hace daño.        */
+  clipboardText = txt;
   navigator.clipboard.writeText(txt).catch(err => {
     navMessage("No se pudo copiar al portapapeles del sistema "
       + `(${err && err.message ? err.message : "permiso denegado"}): `
@@ -674,7 +685,26 @@ document.addEventListener("paste", e => {
   if (!t || !t.closest || !t.closest("#tree")) return;
   if (t.matches("input.rename-input")) return;
   if (!e.clipboardData) return;
-  const doc = parseTreeExport(e.clipboardData.getData("text/plain") || "");
+  const texto = e.clipboardData.getData("text/plain") || "";
+
+  /* Si es EXACTAMENTE lo que esta pestaña acaba de copiar, manda el
+     portapapeles INTERNO. No es una optimización: el interno es el
+     único que sabe si aquello fue un CORTE, y tratarlo como ajeno
+     convertía cada Ctrl+X en una copia — las carpetas de origen se
+     quedaban marcadas como cortadas para siempre y su contenido
+     aparecía duplicado en el mapa. Se resuelve aquí y no dejando correr
+     el respaldo del keydown porque un pegado puede llegar sin
+     pulsación (el menú del navegador), y entonces no habría respaldo
+     que lo recogiera.                                                */
+  if (clipboard && texto === clipboardText) {
+    e.preventDefault();
+    clearTimeout(pasteFallback);
+    pasteFallback = null;
+    pasteClipboard();
+    return;
+  }
+
+  const doc = parseTreeExport(texto);
   if (!doc) return; /* no es nuestro: que siga el respaldo del keydown */
 
   e.preventDefault();

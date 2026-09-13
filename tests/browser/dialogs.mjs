@@ -258,6 +258,27 @@ const trasReabrir = await page.evaluate(() => {
 ok(trasReabrir === alTope.frac,
   `el reparto elegido sobrevive al cambio de capa: ${alTope.frac} → ${trasReabrir}`);
 
+/* El reparto PERSISTE entre sesiones. No es como la unidad de medida o
+   el formato de coordenadas, que se cambian para mirar un dato: este
+   depende de cómo son los archivos con los que uno trabaja, y sin
+   guardarlo habría que reajustarlo en cada arranque.
+   Se recarga en el MISMO contexto: cada contexto de navegador tiene su
+   propio IndexedDB, así que en uno nuevo no habría nada que restaurar y
+   la comprobación no diría nada.                                      */
+const guardado = await page.evaluate(() => dbLoadProps());
+ok(guardado !== null && Math.abs(guardado - parseFloat(alTope.frac) / 100) < 0.001,
+  `el reparto queda guardado en IndexedDB: ${guardado} vs ${alTope.frac}`);
+
+const recargada = await ctx.newPage();
+await recargada.goto(srv.url);
+await recargada.waitForFunction(() => typeof map === "object" && !!document.getElementById("tree"));
+await recargada.waitForFunction(() => window.__arranqueListo === undefined || true);
+await recargada.waitForTimeout(1500); /* el arranque restaura antes del árbol */
+const trasRecargar = await recargada.evaluate(() => propsKeyFrac);
+ok(Math.abs(trasRecargar - guardado) < 0.001,
+  `y se restaura al recargar: ${guardado} → ${trasRecargar}`);
+await recargada.close();
+
 ok(errors.length === 0, "sin errores de página: " + JSON.stringify(errors));
 
 await ctx.close();
