@@ -40,7 +40,39 @@ const WD_WATCHED = [
   "topLevelSelection", "recordState", "containerState", "refreshChecksFrom",
   "buildRecordsFromStorage", "materializeSubtree", "selectFolderLayers",
   "pushUndo", "undoLast", "applyMarkerStyle", "applyPolygonStyle",
-  "showLayerInfo", "layersAtPoint", "setAllChecked", "createFolderNode"
+  "showLayerInfo", "layersAtPoint", "setAllChecked", "createFolderNode",
+  /* El camino de conmutar UNA capa suelta, que faltaba: la casilla de
+     una hoja no pasa por cascadeVisibility, va directa a applyVisibility
+     → setLayerVisible → rootGroup. Con esto sin vigilar, un bloqueo ahí
+     se reportaba como "fuera de ellas", que es justo lo que contó la
+     primera captura del cuelgue mientras el usuario activaba y
+     desactivaba nodos.                                               */
+  "applyVisibility", "setLayerVisible", "scheduleSave", "scheduleReorder",
+  "bringLayerToFront", "makeNode", "syncExpanded", "invalidateGeo",
+  "refreshStorageUsage", "refreshMemoryUsage", "navMessage"
+];
+
+/* Y lo que NO es nuestro. "Fuera de las funciones vigiladas" con la
+   aceleración por hardware activa y memoria de sobra apunta a la
+   librería o al navegador, así que se envuelven también los métodos de
+   Leaflet por los que pasa todo esto: añadir y quitar capas, el
+   renderizador de lienzo y el alta de un marcador en el DOM. Son
+   prototipos, así que se envuelven una vez y valen para todas las
+   instancias.                                                        */
+const WD_LEAFLET = [
+  ["L.LayerGroup.addLayer", () => L.LayerGroup.prototype, "addLayer"],
+  ["L.LayerGroup.removeLayer", () => L.LayerGroup.prototype, "removeLayer"],
+  ["L.Map.addLayer", () => L.Map.prototype, "addLayer"],
+  ["L.Map.removeLayer", () => L.Map.prototype, "removeLayer"],
+  ["L.Marker.onAdd", () => L.Marker.prototype, "onAdd"],
+  ["L.Marker.onRemove", () => L.Marker.prototype, "onRemove"],
+  ["L.Marker._initIcon", () => L.Marker.prototype, "_initIcon"],
+  ["L.Canvas._redraw", () => L.Canvas.prototype, "_redraw"],
+  ["L.Canvas._update", () => L.Canvas.prototype, "_update"],
+  ["L.Canvas._updatePaths", () => L.Canvas.prototype, "_updatePaths"],
+  ["L.Path.bringToFront", () => L.Path.prototype, "bringToFront"],
+  ["L.Popup.onAdd", () => L.Popup.prototype, "onAdd"],
+  ["L.Tooltip.onAdd", () => L.Tooltip.prototype, "onAdd"]
 ];
 
 const wdStats = new Map();   /* nombre -> { n } */
@@ -82,9 +114,35 @@ function wdWrap(name) {
    existen (zona muerta temporal de los `const` de archivos posteriores),
    y envolver lo que aún no está declarado no haría nada.             */
 let wdBlocks = [];
+/* Mismo envoltorio, pero sobre un método de un objeto (un prototipo de
+   Leaflet) en vez de sobre un global.                                */
+function wdWrapMethod(etiqueta, getObj, metodo) {
+  let obj;
+  try { obj = getObj(); } catch { return false; }
+  if (!obj || typeof obj[metodo] !== "function") return false;
+  const orig = obj[metodo];
+  const st = { n: 0, dentro: 0 };
+  wdStats.set(etiqueta, st);
+  obj[metodo] = function (...args) {
+    st.n++;
+    st.dentro++;
+    wdRing.push([etiqueta, performance.now()]);
+    if (wdRing.length > WD_RING) wdRing.shift();
+    try {
+      return orig.apply(this, args);
+    } finally {
+      st.dentro--;
+    }
+  };
+  return true;
+}
+
 function startWatchdog() {
   let envueltas = 0;
   for (const name of WD_WATCHED) if (wdWrap(name)) envueltas++;
+  for (const [etiqueta, getObj, metodo] of WD_LEAFLET) {
+    if (wdWrapMethod(etiqueta, getObj, metodo)) envueltas++;
+  }
 
   /* La foto de los contadores en el latido ANTERIOR. La diferencia
      contra la de ahora es lo que se ejecutó mientras el hilo estuvo
@@ -96,11 +154,15 @@ function startWatchdog() {
   const foto = () => new Map([...wdStats].map(([k, s]) => [k, s.n]));
   previa = foto();
 
+  const memMB = () => (performance.memory
+    ? Math.round(performance.memory.usedJSHeapSize / 1048576) : null);
+  let memPrevia = memMB();
   let ultimo = performance.now();
   setInterval(() => {
     const ahora = performance.now();
     const hueco = ahora - ultimo;
     const actual = foto();
+    const memAhora = memMB();
     if (hueco >= WD_BLOCK_MS) {
       const durante = {};
       for (const [k, n] of actual) {
@@ -119,7 +181,12 @@ function startWatchdog() {
          latido anterior y sigue dentro no aparece en ella, y es
          precisamente el caso de "bloqueado dentro de algo largo". */
       const enVuelo = [...wdStats].filter(([, s2]) => s2.dentro > 0).map(([k]) => k);
+      /* La memoria antes y después del hueco DISTINGUE una recolección
+         de basura de cualquier otra cosa: una recolección grande libera
+         de golpe y el número BAJA. Si se queda igual (o sube), el
+         tiempo se fue en otra cosa.                                  */
       const bloque = { ms: Math.round(hueco), durante, enVuelo,
+        memoriaMB: memPrevia === null ? null : `${memPrevia} → ${memAhora}`,
         secuencia: resumen.slice(-12).map(([k, n]) => (n > 1 ? `${k}×${n}` : k)) };
       wdBlocks.push(bloque);
       /* NO sticky: un bloqueo que se repite llenaba el panel de líneas
@@ -129,9 +196,11 @@ function startWatchdog() {
       navMessage(`Hilo bloqueado ${bloque.ms} ms — durante: `
         + (bloque.secuencia.length ? bloque.secuencia.join(" → ")
           : "ninguna función vigilada (el bloqueo está FUERA de ellas)")
-        + (bloque.enVuelo.length ? ` | en vuelo: ${bloque.enVuelo.join(", ")}` : ""));
+        + (bloque.enVuelo.length ? ` | en vuelo: ${bloque.enVuelo.join(", ")}` : "")
+        + (bloque.memoriaMB ? ` | memoria ${bloque.memoriaMB} MB` : ""));
     }
     previa = actual;
+    memPrevia = memAhora;
     ultimo = ahora;
   }, WD_HEARTBEAT_MS);
 
