@@ -59,6 +59,8 @@ const JS = [
   "52-measure.js",        /* herramientas de medición */
   "60-elevation.js",      /* elevaciones: WCS, cuadrícula */
   "70-view-controls.js",  /* controles de vista y menú contextual */
+  "98-watchdog.js",       /* DIAGNÓSTICO de la rama `debug`: vigilante del
+                             hilo principal. NO fusionar en main */
   "99-boot.js"            /* arranque: restaurar el árbol guardado */
 ];
 

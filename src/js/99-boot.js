@@ -65,4 +65,9 @@
   if (navigator.storage && navigator.storage.persist) {
     navigator.storage.persist().catch(() => {});
   }
+
+  /* DIAGNÓSTICO de la rama `debug` (ver 98-watchdog.js). Va al FINAL
+     del arranque a propósito: envuelve funciones por su nombre y antes
+     de aquí muchas siguen en su zona muerta temporal.               */
+  startWatchdog();
 })();
