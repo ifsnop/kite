@@ -694,12 +694,35 @@ index.html         redirección de la raíz del sitio al minificado
   Se resuelve con `position: sticky` sobre el `<h2>` y `.dlg-actions`,
   que ya existen en las doce, **sin tocar el marcado de ninguna**. Tres
   detalles que no son adorno: los **márgenes negativos** compensan el
-  `padding: 14px 16px` de la caja (sin ellos el contenido se ve pasar
-  por el hueco del relleno), el **fondo y el `z-index`** hacen que la
-  barra tape lo que scrollea detrás, y **el `<h2>` se fija también
+  relleno horizontal de la caja, el **fondo y el `z-index`** hacen que
+  la barra tape lo que scrollea detrás, y **el `<h2>` se fija también
   porque es el ASA de arrastre**: si se va con el scroll, la ventana
   deja de poder moverse. Una ventana nueva hereda todo esto sin hacer
   nada, siempre que use `<h2>` y `.dlg-actions`.
+- **El relleno VERTICAL lo ponen las barras, no la caja**
+  (`.dlg-box { padding: 0 16px }`). Si lo pone la caja, queda una franja
+  de 14 px por encima del título y otra por debajo de los botones **por
+  la que se ve pasar el contenido** al scrollear: era el fallo
+  reportado, medido en 15 px con el borde. Con el relleno en las barras
+  el hueco baja a 1 px, que es el borde de la caja y nada más.
+- **Redimensionar tiene que dar espacio AL CONTENIDO**, que es para lo
+  que se redimensiona. Con el tirador en la caja, el elemento interior
+  tiene que LLENARLA (`flex: 1 1 auto; min-height: 0`, con la caja en
+  `display: flex; flex-direction: column`) o agrandar la ventana solo
+  añade hueco vacío. Por eso se retiraron los topes que lo impedían:
+  `.desc-body` tenía `max-width: 46ch; max-height: 55vh` y se quedaba
+  clavada en 366×341 px con la ventana a 900 (medido). El ancho cómodo
+  de lectura pasa a ser el ancho DE PARTIDA de la caja, que el usuario
+  ya puede cambiar, en vez de un tope que no se puede.
+- **Las tablas de dentro van al 100%** (`.desc-body table`, `.keys`).
+  Es lo que hace que ensanchar la ventana ponga cada propiedad de un
+  GeoJSON en UNA línea en vez de partirla: medido con 25 propiedades de
+  valor largo, a 544 px se partían las 25 y a 1100 px ninguna. Sin el
+  `width: 100%` la tabla se queda en su ancho natural y ensanchar la
+  ventana solo añade hueco a la derecha.
+- **La rejilla de iconos ajusta sus columnas al ancho**
+  (`repeat(auto-fill, minmax(32px, 1fr))` en vez de `repeat(8, 32px)`):
+  si no, ensanchar esa ventana tampoco serviría de nada.
 - **Se redimensionan las ocho que tienen contenido que revelar**
   (`resize: both` en su `.dlg-box`): estilos, selector de iconos,
   chuleta de atajos, ficha de la capa, selector de nombre de GeoJSON,

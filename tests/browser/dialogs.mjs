@@ -75,11 +75,22 @@ const medidas = await page.evaluate(() => {
     const arriba = recorte();
     box.scrollTop = box.scrollHeight;
     const abajo = recorte();
-    out.push({
-      id, arriba, abajo,
-      scrollea: box.scrollHeight - box.clientHeight > 1,
-      resize: getComputedStyle(box).resize
-    });
+    /* El desbordamiento puede vivir en la caja O en un contenedor
+       interior: desde que el cuerpo LLENA la caja (flex: 1), es él
+       quien scrollea. Lo que importa es que haya contenido que no
+       cabe, no dónde está la barra de scroll.                       */
+    const desborda = box.scrollHeight - box.clientHeight > 1
+      || [...box.querySelectorAll("*")].some(e => e.scrollHeight - e.clientHeight > 1);
+    /* Y el hueco sin cubrir por las barras, arriba y abajo: solo puede
+       quedar el borde de la caja (1 px). Más significa que el contenido
+       se ve pasar por la franja del relleno.                        */
+    box.scrollTop = Math.max(1, Math.floor((box.scrollHeight - box.clientHeight) / 2));
+    const rb2 = box.getBoundingClientRect();
+    const huecos = {
+      abajo: Math.round(rb2.bottom - acc.getBoundingClientRect().bottom),
+      arriba: Math.round(h2.getBoundingClientRect().top - rb2.top)
+    };
+    out.push({ id, arriba, abajo, huecos, desborda, resize: getComputedStyle(box).resize });
     document.getElementById(id).hidden = true;
     document.getElementById("style-dialog").hidden = true;
     document.getElementById("icon-picker").hidden = true;
@@ -99,6 +110,11 @@ for (const m of medidas) {
      deja de poder moverse.                                           */
   ok(m.arriba.titulo <= 0, `${m.id}: título visible con el scroll arriba (se sale ${m.arriba.titulo} px)`);
   ok(m.abajo.titulo <= 0, `${m.id}: título visible con el scroll abajo (se sale ${m.abajo.titulo} px)`);
+  /* Las barras cubren hasta el borde: si dejan franja, por ahí se ve
+     pasar el contenido al scrollear. Medido antes del arreglo: 15 px
+     arriba y abajo, que es el relleno de la caja más su borde.     */
+  ok(m.huecos.abajo <= 1, `${m.id}: la barra de botones cubre hasta abajo (quedan ${m.huecos.abajo} px)`);
+  ok(m.huecos.arriba <= 1, `${m.id}: el título cubre hasta arriba (quedan ${m.huecos.arriba} px)`);
   /* Y el tirador, donde toca y solo donde toca */
   const esperado = CON_RESIZE.has(m.id);
   ok((m.resize === "both") === esperado,
@@ -110,7 +126,7 @@ for (const m of medidas) {
    sería esconder el problema en vez de resolverlo.                   */
 for (const id of ["icon-picker", "shortcuts"]) {
   const m = medidas.find(x => x.id === id);
-  ok(m && m.scrollea, `${id}: su contenido sigue desbordando, y aun así los botones se ven`);
+  ok(m && m.desborda, `${id}: su contenido sigue sin caber, y aun así los botones se ven`);
 }
 
 /* Redimensionar a mano no puede descolgar los botones */
@@ -131,6 +147,45 @@ const trasEstirar = await page.evaluate(() => {
 ok(trasEstirar.scrollea, "encogida a 200 px, la ventana de propiedades desborda: " + trasEstirar.alto);
 ok(trasEstirar.botones <= 0,
   "y sus botones siguen dentro (sobresalen " + trasEstirar.botones + " px)");
+
+/* ---------- Agrandar la ventana agranda el CONTENIDO ----------
+   Es para lo que se redimensiona. Antes el tirador estaba en el
+   elemento interior y crecía él; con el tirador en la caja, el interior
+   tiene que llenarla o agrandar la ventana solo añade hueco vacío.
+   Medido antes del arreglo: la ficha se quedaba clavada en 366 px de
+   ancho con la ventana a 900.                                        */
+const crecimiento = await page.evaluate(() => {
+  document.getElementById("desc-body").innerHTML =
+    "<table>" + Array.from({ length: 25 }, (_, i) =>
+      `<tr><td>nombre_de_propiedad_largo_${i}</td>`
+      + `<td>un valor de propiedad razonablemente largo que se parte si no hay sitio ${i}</td></tr>`).join("")
+    + "</table>";
+  document.getElementById("desc-dialog").hidden = false;
+  const box = document.querySelector("#desc-dialog .dlg-box");
+  const body = document.getElementById("desc-body");
+  const filas = () => [...body.querySelectorAll("tr")].map(tr => tr.getBoundingClientRect().height);
+  const mide = () => ({
+    ancho: Math.round(body.getBoundingClientRect().width),
+    alto: Math.round(body.getBoundingClientRect().height),
+    partidas: filas().filter(h => h > 30).length
+  });
+  const antes = mide();
+  box.style.width = "1100px";
+  const ancha = mide();
+  /* Se parte de una altura MENOR que el tope (85vh = 527 px en este
+     viewport) y se crece desde ahí: pedir más del tope no crece nada y
+     la comprobación no diría nada.                                  */
+  box.style.height = "300px";
+  const baja = mide();
+  box.style.height = "500px";
+  return { antes, ancha, baja, alta: mide() };
+});
+ok(crecimiento.ancha.ancho > crecimiento.antes.ancho + 200,
+  `ensanchar la ventana ensancha la ficha: ${crecimiento.antes.ancho} → ${crecimiento.ancha.ancho} px`);
+ok(crecimiento.antes.partidas > 0 && crecimiento.ancha.partidas === 0,
+  `y las filas dejan de partirse en varias líneas: ${crecimiento.antes.partidas} → ${crecimiento.ancha.partidas}`);
+ok(crecimiento.alta.alto > crecimiento.baja.alto + 150,
+  `y darle altura se la da al contenido: ${crecimiento.baja.alto} → ${crecimiento.alta.alto} px`);
 
 ok(errors.length === 0, "sin errores de página: " + JSON.stringify(errors));
 

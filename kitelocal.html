@@ -613,7 +613,13 @@
     border: 1px solid var(--border);
     border-radius: 10px;
     box-shadow: 0 8px 30px rgba(0,0,0,.25);
-    padding: 14px 16px;
+    /* El relleno VERTICAL lo ponen las barras fija de arriba y abajo, no
+       la caja: si lo pusiera la caja, quedaría una franja de 14 px por
+       encima del título y otra por debajo de los botones por la que se
+       ve pasar el contenido al scrollear (medido: 15 px con el borde).
+       El horizontal sí es de la caja, y las barras lo compensan con
+       márgenes negativos para ocupar todo el ancho.                  */
+    padding: 0 16px;
     min-width: 300px;
     max-width: 90vw;
     max-height: 85vh;
@@ -679,7 +685,7 @@
     top: 0;
     z-index: 2;
     background: var(--panel);
-    margin: -14px -16px 10px;
+    margin: 0 -16px 10px;
     padding: 14px 16px 8px;
     font-size: 14px;
     cursor: grab;          /* the title bar is the drag handle */
@@ -724,7 +730,7 @@
     bottom: 0;
     z-index: 2;
     background: var(--panel);
-    margin: 12px -16px -14px;
+    margin: 12px -16px 0;
     padding: 10px 16px 14px;
     border-top: 1px solid var(--border);
   }
@@ -737,18 +743,36 @@
     border-radius: 5px;
     font: inherit;
   }
-  .keys { border-collapse: collapse; font-size: 12.5px; }
+  .keys { border-collapse: collapse; font-size: 12.5px; width: 100%; }
   .keys th { text-align: left; padding: 8px 4px 3px; color: var(--muted); font-size: 11.5px; }
   .keys td { padding: 2px 10px 2px 4px; vertical-align: top; }
   .keys td:first-child { white-space: nowrap; font-family: ui-monospace, Consolas, monospace; }
+  /* Redimensionar la ventana tiene que dar espacio AL CONTENIDO, que es
+     para lo que se redimensiona. Antes el tirador estaba en el elemento
+     interior y crecía él; ahora está en la caja, así que el interior
+     tiene que LLENARLA (`flex: 1 1 auto`, con `min-height: 0` para que
+     pueda encoger dentro del flex).
+
+     Por eso se van el `max-width: 46ch` y el `max-height: 55vh`: eran
+     los que dejaban la ficha clavada en 366x341 px por mucho que se
+     estirara la ventana (medido). El ancho cómodo de lectura pasa a ser
+     el ANCHO DE PARTIDA de la caja, que el usuario ya puede cambiar,
+     en vez de un tope que no se puede.                               */
+  #desc-dialog .dlg-box {
+    display: flex; flex-direction: column;
+    width: min(92vw, 34rem);
+  }
   .desc-body {
-    max-width: 46ch;
-    max-height: 55vh;
+    flex: 1 1 auto; min-height: 0;
     overflow: auto;
     font-size: 12.5px;
     line-height: 1.4;
   }
-  .desc-body table { border-collapse: collapse; }
+  /* Al 100% del ancho disponible: es lo que hace que ensanchar la
+     ventana ponga cada propiedad en una línea en vez de partirla en
+     varias. Sin esto la tabla se queda en su ancho natural y agrandar
+     la ventana solo añade hueco vacío a la derecha.                  */
+  .desc-body table { border-collapse: collapse; width: 100%; }
   .desc-body td, .desc-body th { border: 1px solid var(--border); padding: 2px 5px; text-align: left; }
   .desc-body img { max-width: 100%; height: auto; }
   .dlg-hint { margin: 6px 0 0; font-size: 12px; color: var(--muted); }
@@ -821,8 +845,14 @@
     border: 1px solid var(--border); border-radius: 4px; box-sizing: border-box;
   }
   .dlg-note { margin-left: auto; font-size: 12px; color: var(--muted); }
+  /* Mismo criterio que .desc-body: llenan la caja en vez de quedarse en
+     un tope fijo que ignoraba el redimensionado.                     */
+  #geojson-name-picker .dlg-box, #gnp-editor .dlg-box {
+    display: flex; flex-direction: column;
+    width: min(92vw, 32rem);
+  }
   .gnp-list, .gnp-editor-list {
-    max-height: 260px;
+    flex: 1 1 auto; min-height: 4em;
     overflow-y: auto;
     margin: 8px 0;
   }
@@ -864,7 +894,16 @@
   }
   #icon-preview { display: block; height: 28px; width: auto; }
   .icon-grid h3 { margin: 10px 0 4px; font-size: 12px; color: var(--muted); font-weight: 600; }
-  .icon-grid .icons { display: grid; grid-template-columns: repeat(8, 32px); gap: 4px; }
+  /* La rejilla llena la caja para que agrandarla enseñe más iconos, y
+     las columnas se ajustan al ancho en vez de quedarse en ocho: así
+     ensanchar la ventana también sirve de algo.                      */
+  #icon-picker .dlg-box { display: flex; flex-direction: column; }
+  .icon-grid { flex: 1 1 auto; min-height: 0; overflow: auto; }
+  .icon-grid .icons {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(32px, 1fr));
+    gap: 4px;
+  }
   .icon-opt {
     border: 1px solid transparent;
     background: none;
@@ -1437,7 +1476,7 @@ const map = L.map("map", {
 
 /* Fecha de generación del código (versión): AÑOMESDIAHORAMINUTO.
    Actualizar en cada generación; se muestra junto al crédito de Leaflet. */
-const BUILD = "202609122320";
+const BUILD = "202609131210";
 /* El enlace al repositorio va junto a la versión, que es lo que hace
    accionable saber qué build se está ejecutando: desde ahí se llega al
    código de esa versión. `target="_blank"` a propósito —salir de la
