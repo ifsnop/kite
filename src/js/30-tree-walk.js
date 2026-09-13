@@ -579,7 +579,18 @@ function containerState(li) {
 function applyContainerState(li) {
   const chk = nodeCheckbox(li);
   const st = containerState(li);
-  if (!chk || st === null) return false;
+  if (!chk) return false;
+  /* Sin hijos no hay nada que agregar y la casilla se deja como esté
+     —una carpeta recién creada y vacía la marca quien la crea—, pero el
+     guion NO puede quedarse: dice "unas dentro están activas y otras
+     no" de una carpeta donde ya no hay ninguna. Pasa al vaciar una
+     carpeta a medias, sacando su último hijo a otra rama.             */
+  if (st === null) {
+    if (!chk.indeterminate) return false;
+    chk.indeterminate = false;
+    li.setAttribute("aria-checked", String(chk.checked));
+    return true;
+  }
   const checked = st !== "off", indeterminate = st === "mixed";
   if (chk.checked === checked && chk.indeterminate === indeterminate) return false;
   chk.checked = checked;

@@ -63,7 +63,8 @@ const BROWSER = [
   ["browser/app.mjs", "Navegador: la aplicación arranca y funciona, en los DOS artefactos"],
   ["browser/clipboard.mjs", "Navegador: copiar y pegar entre instancias de distinto origen, con el portapapeles real"],
   ["browser/geojson-html.mjs", "Navegador: etiquetas tipo HTML en properties de GeoJSON, de punta a punta"],
-  ["browser/dialogs.mjs", "Navegador: las ventanas fijan cabecera y pie, y se redimensionan"]
+  ["browser/dialogs.mjs", "Navegador: las ventanas fijan cabecera y pie, y se redimensionan"],
+  ["browser/tree-move.mjs", "Navegador: mover un nodo de rama recalcula la casilla de los dos extremos"]
 ];
 
 const html = path.join(__dirname, "..", "kitelocal.html");

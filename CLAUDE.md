@@ -431,6 +431,22 @@ index.html         redirección de la raíz del sitio al minificado
   carpeta, pegar, crear pin/lugar/polígono/medición/elevación y crear
   carpeta; y `refreshChecksFrom` al borrar, con el `<ul>` guardado ANTES
   de quitar la fila, que después ya no tiene padre.
+- **Y MOVER cambia ese conjunto en los DOS extremos.** Pegar ya lo
+  cubría sin saberlo —`materializeRecords` recalcula el destino al
+  terminar su lote y `deleteNode` el origen al retirar lo cortado—, pero
+  **arrastrar no crea ni borra ningún nodo**: solo los cambia de sitio,
+  así que no había nadie que lo hiciera y las dos carpetas se quedaban
+  diciendo lo que eran antes del arrastre. El `drop` de `wireDrag`
+  recalcula ahora el destino y **los contenedores de origen, capturados
+  ANTES de mover nada** (un `Set`: una selección múltiple suele salir
+  toda de la misma carpeta), porque después los nodos ya cuelgan del
+  destino y no queda desde dónde subir.
+- **Vaciar una carpeta a medias le quita el guion.** Sin hijos
+  `containerState` devuelve `null` y la casilla se deja como esté —una
+  carpeta recién creada y vacía la marca quien la crea—, pero el
+  indeterminado afirma «unas de dentro están activas y otras no» de una
+  carpeta donde ya no hay ninguna. Se da al sacar el último hijo de una
+  carpeta mixta a otra rama.
 - **Los hijos pueden estar en DOS sitios a la vez.** Una carpeta
   colapsada restaurada de IndexedDB llega con 0 filas y sus hijos solo
   como registros `_pending`; si además se le suelta un archivo dentro,

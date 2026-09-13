@@ -414,6 +414,11 @@ function wireDrag(li, row) {
        dragend), así que la variable compartida ya no sería fiable
        después.                                                        */
     const items = dragItems;
+    /* Los contenedores de ORIGEN, antes de tocar nada: en cuanto los
+       nodos se mueven ya cuelgan del destino y no queda desde dónde
+       recalcular la rama que los pierde. Un Set porque una selección
+       múltiple suele salir toda de la misma carpeta.                  */
+    const origins = new Set(items.map(item => item.parentElement));
     const zone = dropZone(row, li, e.clientY);
     if (zone === "drop-into") {
       /* Si la carpeta destino sigue pendiente, materializarla primero:
@@ -430,6 +435,17 @@ function wireDrag(li, row) {
       for (const item of items) li.parentElement.insertBefore(item, ref);
     }
     clearDropMarks();
+    /* Mover cambia el CONJUNTO de hijos en los DOS extremos, que es el
+       otro disparador de la casilla de tres estados: la carpeta que
+       pierde nodos puede quedarse apagada o entera, y la que los recibe
+       pasar a indeterminada. Pegar ya lo hacía —materializeRecords
+       recalcula el destino y deleteNode el origen—, pero aquí no se
+       crea ni se borra ningún nodo, solo se cambian de sitio, así que
+       no había nadie que lo hiciera y los dos extremos se quedaban
+       diciendo lo que eran antes del arrastre.                         */
+    const destUl = zone === "drop-into" ? nodeUl(li) : li.parentElement;
+    for (const ul of origins) if (ul !== destUl) refreshChecksFrom(ul);
+    refreshChecksFrom(destUl);
     dragLi = null;
     dragItems = null;
     scheduleSave();

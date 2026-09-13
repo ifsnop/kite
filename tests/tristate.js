@@ -184,6 +184,27 @@ api.refreshChecksFrom(ulGuardado);
 ok(state(delF) === "on",
   "al irse el que estaba apagado, la carpeta queda entera: " + state(delF));
 
+/* ---------- Y si se va el último, el guion no puede quedarse ----------
+   Sin hijos no hay nada que agregar (containerState devuelve null) y la
+   casilla se deja como esté, pero el indeterminado dice "unas activas y
+   otras no" de una carpeta donde ya no hay ninguna. Ocurre al sacar el
+   último hijo de una carpeta a medias a otra rama.                    */
+const vaciar = node("Vaciar", { container: true });
+raiz.appendChild(vaciar);
+const v1 = add(vaciar, node("v1", { checked: true }));
+const v2 = add(vaciar, node("v2", { checked: false }));
+api.applyContainerState(vaciar);
+ok(state(vaciar) === "mixed", "a medias antes de vaciarla: " + state(vaciar));
+const ulVaciado = v1.parentElement;
+v1.remove(); v2.remove();
+ok(api.applyContainerState(vaciar) === true,
+  "vaciarla SÍ cambia la casilla, aunque no haya nada que agregar");
+ok(state(vaciar) !== "mixed" && vaciar.getAttribute("aria-checked") !== "mixed",
+  "y pierde el guion: " + state(vaciar) + " / " + vaciar.getAttribute("aria-checked"));
+api.refreshChecksFrom(ulVaciado);
+ok(api.applyContainerState(vaciar) === false,
+  "aplicarlo de nuevo ya no cambia nada (no se sube por los ancestros en balde)");
+
 /* ---------- Restaurar una carpeta colapsada ----------
    Sus hijos no llegan a ser filas, así que la pasada recursiva de
    materializeRecords no recalcula esa casilla por ellos. Es un contrato
