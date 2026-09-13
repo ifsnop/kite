@@ -76,23 +76,27 @@ ok(!tableHtml.includes("<b>"), "escapa entrada hostil en la clave: " + tableHtml
    archivo (entre medias hay creación de DOM: ctxMenuEl, closeCtxMenu…),
    así que se extraen por separado.                                    */
 const ctxSrc = between("const CTX_MENU_ITEMS = [", "const ctxMenuEl")
+  + fn("goToNodeAndBlink") + fn("showLayerInfoAndBlink")
   + fn("layerCtxItems") + fn("ctxItemsFor");
 global.infoHtmlFor = li => li._info || null; /* stub: evita depender de DOM/Leaflet */
-/* goToNodeAndBlink (highlightNode + el parpadeo de identificación) vive
-   FUERA de este recorte (necesita nodeLayer/setLayerVisible sobre <li>
-   reales, y aquí los "li" son objetos sueltos {_name,_info}): se stubea
-   igual que highlightNode se stubeaba antes de que layerCtxItems pasara
-   a llamarlo a él en vez de a highlightNode directamente. Lo que prueba
-   este archivo es el ENRUTADO (qué capa le llega a cada acción), no el
-   parpadeo en sí.                                                      */
-global.goToNodeAndBlink = li => { global.highlightCalls.push(li); };
-global.showLayerInfo = li => { global.showInfoCalls.push(li); };
+/* Se stubea lo que NO se está probando —highlightNode, showLayerInfo y
+   el parpadeo en sí, que necesitan nodeLayer/setLayerVisible sobre <li>
+   reales y aquí los "li" son objetos sueltos {_name,_info}— pero las
+   dos envolturas del menú se extraen DE VERDAD: lo que se comprueba es
+   el enrutado (qué capa le llega a cada acción) y que las dos hagan
+   parpadear la capa, que es lo único que dice CUÁL de las que hay bajo
+   el cursor se ha elegido.                                            */
 global.highlightCalls = [];
 global.showInfoCalls = [];
-const { CTX_MENU_ITEMS, ctxItemsFor } = new Function(
-  "infoHtmlFor", "showLayerInfo", "goToNodeAndBlink",
+global.blinkCalls = [];
+const api = new Function(
+  "infoHtmlFor", "showLayerInfo", "highlightNode", "blinkLayer",
   ctxSrc + "\nreturn {CTX_MENU_ITEMS, ctxItemsFor};"
-)(global.infoHtmlFor, global.showLayerInfo, global.goToNodeAndBlink);
+)(global.infoHtmlFor,
+  li => { global.showInfoCalls.push(li); },
+  li => { global.highlightCalls.push(li); },
+  li => { global.blinkCalls.push(li); });
+const { CTX_MENU_ITEMS, ctxItemsFor } = api;
 
 // 0 hits: el menú genérico del mapa, sin cambios
 ok(ctxItemsFor([]) === CTX_MENU_ITEMS, "sin capas bajo el cursor: se usa CTX_MENU_ITEMS tal cual");
@@ -126,11 +130,26 @@ ok(items[items.length - 1] === CTX_MENU_ITEMS[CTX_MENU_ITEMS.length - 1],
 
 // invocar una entrada del submenú llama a la función correcta con la capa correcta
 global.highlightCalls.length = 0;
+global.blinkCalls.length = 0;
 goTo.items[1].action();
 ok(global.highlightCalls[0] === liB, "el submenú de 'Ir al nodo' pasa la capa correcta");
+ok(global.blinkCalls[0] === liB, "y hace parpadear ESA capa, no otra");
 global.showInfoCalls.length = 0;
+global.blinkCalls.length = 0;
 showInfo.items[0].action();
 ok(global.showInfoCalls[0] === liB, "el submenú de 'Mostrar propiedades' pasa la capa correcta");
+/* Lo pedido: con varias capas superpuestas, la ficha sale con un nombre
+   y unos datos que no dicen cuál de ellas es. El parpadeo sí.        */
+ok(global.blinkCalls[0] === liB,
+  "y la hace parpadear igual que 'Ir al nodo': es lo único que identifica cuál se eligió");
+
+/* Con UNA sola capa el ítem es directo, y parpadea lo mismo: la regla
+   es la misma para los dos caminos, no una para cada uno.            */
+global.showInfoCalls.length = 0;
+global.blinkCalls.length = 0;
+ctxItemsFor([liConInfo]).find(it => it.label === "Mostrar propiedades").action();
+ok(global.showInfoCalls[0] === liConInfo && global.blinkCalls[0] === liConInfo,
+  "con una sola capa, 'Mostrar propiedades' también parpadea");
 
 // ninguna capa con info: no aparece "Mostrar propiedades"
 items = ctxItemsFor([liA, { _name: "Parcela D", _info: null }]);

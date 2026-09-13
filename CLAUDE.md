@@ -1764,6 +1764,18 @@ y `kitelocal.min.html` (su derivada minificada, lo que sirve Pages).
 - **Con varias capas superpuestas bajo el cursor, esos dos ítems se
   convierten en un submenú** con una entrada por capa
   (`ctxItemsFor`/`openCtxSubmenu`), en vez de actuar sobre una sola.
+- **Elegir una capa la hace PARPADEAR** (`blinkLayer`, cuatro pasos de
+  `BLINK_INTERVAL_MS` alternando su alta en `rootGroup`, que sirve igual
+  para un marcador del DOM que para un polígono en lienzo). Lo llevan
+  las dos acciones, no solo «Ir al nodo»: la ficha de propiedades sale
+  con un nombre y unos datos que **no dicen cuál** de las capas de
+  debajo del cursor es, que es justo el problema que el submenú
+  plantea. Va en las envolturas del menú (`goToNodeAndBlink`,
+  `showLayerInfoAndBlink`) y **no dentro de `showLayerInfo`**, que se
+  abre también al pasar el ratón por encima: parpadear ahí dejaría el
+  mapa temblando todo el rato. Parpadea también con una sola capa
+  debajo, como ya hacía «Ir al nodo»: una regla, no una para cada
+  camino.
 - **Hit-testing propio, con geometría real**: Leaflet solo resuelve
   UNA capa por click en su renderizador de lienzo (comprobado en el
   propio `Canvas.js` de Leaflet 1.9.4: no hay bubbling real a las capas

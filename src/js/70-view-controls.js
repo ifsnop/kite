@@ -324,13 +324,21 @@ function blinkLayer(li) {
      aplicado de verdad antes de reiniciar la cuenta desde cero.       */
   li._blinkTimer = setTimeout(tick, 0);
 }
-const goToNodeAndBlink = li => { highlightNode(li); blinkLayer(li); };
+function goToNodeAndBlink(li) { highlightNode(li); blinkLayer(li); }
+/* Y lo mismo al abrir la ficha: con varias capas superpuestas, elegir
+   una en el submenú abre una ficha con un nombre y unos datos que no
+   dicen CUÁL de las que hay bajo el cursor es. El parpadeo es lo que lo
+   dice, igual que en "Ir al nodo en el panel".
+   Va aquí y no dentro de showLayerInfo porque la ficha se abre también
+   al pasar el ratón por encima: parpadear ahí sería un mapa
+   temblando todo el rato.                                            */
+function showLayerInfoAndBlink(li) { showLayerInfo(li); blinkLayer(li); }
 
 /* Ítems de UNA capa: ir al nodo, y mostrar propiedades si tiene algo
    que enseñar (igual criterio que el botón ℹ de la fila).             */
 function layerCtxItems(li) {
   const items = [{ label: "Ir al nodo en el panel", action: () => goToNodeAndBlink(li) }];
-  if (infoHtmlFor(li) != null) items.push({ label: "Mostrar propiedades", action: () => showLayerInfo(li) });
+  if (infoHtmlFor(li) != null) items.push({ label: "Mostrar propiedades", action: () => showLayerInfoAndBlink(li) });
   return items;
 }
 
@@ -348,7 +356,7 @@ function ctxItemsFor(hits) {
   if (withInfo.length) {
     items.push({
       label: "Mostrar propiedades",
-      items: withInfo.map(li => ({ label: li._name, action: () => showLayerInfo(li) }))
+      items: withInfo.map(li => ({ label: li._name, action: () => showLayerInfoAndBlink(li) }))
     });
   }
   return [...items, { separator: true }, ...CTX_MENU_ITEMS];
