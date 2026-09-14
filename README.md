@@ -339,11 +339,44 @@ Do not use public tile, geocoding or CDN services for sensitive work without an 
   only raised when a change requires it, and the user is told when a saved
   workspace is dropped.
 
+## Diagnosing a freeze or a slowdown (`debug` branch)
+
+There is a second branch, [`debug`](https://github.com/ifsnop/kite/tree/debug), which is `main` plus a main-thread watchdog. The released product on `main` does not carry it, and is not meant to: it is diagnostic code, it wraps several dozen functions to count and time them, and it has no business running in something people use. The two branches are otherwise the same, and this README is kept identical on both so the instructions are wherever you happen to be looking.
+
+The watchdog exists because a reported freeze could not be reproduced under test automation: the page was dead to the user while, from the inside, nothing seemed to be running. The instrument is what eventually named the cause — a native HTML5 drag session, which is a nested event loop in the browser, so the page receives no timers, no frames and no input while it lasts, without executing a line of its own code.
+
+Keep it for the next time something hangs or drags its feet.
+
+**How to use it**
+
+1. `git checkout debug && git pull`, then open `kitelocal.html` from that branch. It is already built — no `npm run build` needed.
+2. Work normally. On startup it says `Vigilante activo (N funciones)`.
+3. When something freezes or stalls, run `__kiteDiag()` in the browser console **before reloading**, and keep the output.
+
+**How to read it**
+
+| Field | What it answers |
+|---|---|
+| `bloqueos` | The main thread stopped. Each entry says for how long, which functions ran during the gap, which were still in flight, and the heap before and after — if that number drops sharply, the pause was garbage collection. |
+| `fotogramas` | Gaps between animation frames. Frames stalling while `bloqueos` stays empty means painting is stuck, not scripting: look at the browser, not at the code. |
+| `pulsaciones` | The last presses, each with what was really under the pointer and which layers were open. `tapado: true` is a click eaten by something on top. A `pointerdown` with no matching `click` is a press that turned into a drag — that was the signature of the freeze. |
+| `llamadas` | Cumulative call counts, useful for spotting something called a thousand times more than it should be. |
+| `memoriaSinRecolectar` | `usedJSHeapSize`, which is **not** collected memory: a large number here is not proof of a leak. Measured once at 240 MB where the live heap, after forcing collection, was 15 MB. |
+
+**Two things it taught us, worth remembering before trusting a reading**
+
+- "None of the watched functions" only means what it says if the right functions are watched. The first version did not cover the single-layer toggle path (`applyVisibility` → `setLayerVisible` → `rootGroup`) nor any of Leaflet's, so it reported an idle app during a 30-second block.
+- Asking "what is running now" is useless. For the timer to fire again the thread must already be free, so the stack is always unwound by then. What tells the truth is the difference in call counters between two heartbeats.
+
+To bring the branch up to date after `main` moves: `git checkout debug && git merge main`, then `npm run build` and `node tests/run-all.js`.
+
 ## Contributing
 
 Issues and pull requests are welcome. Include the browser/version, a minimal non-sensitive sample, the expected result, and the actual result or console error.
 
 Do not attach operational, confidential or personally identifiable geospatial data to a public issue.
+
+If what you hit is a freeze or a slowdown rather than a wrong result, the [`debug` branch](https://github.com/ifsnop/kite/tree/debug) carries an instrumented build that answers questions a console error cannot — see [Diagnosing a freeze or a slowdown](#diagnosing-a-freeze-or-a-slowdown-debug-branch). Its output pastes straight into an issue.
 
 ## License
 
