@@ -17,8 +17,11 @@ const { ok, done } = reporter("BROWSER DIALOG LAYOUT TESTS OK");
 
 /* Las ocho con contenido que revelar llevan tirador; las cuatro
    confirmaciones cortas, no (ver el comentario de styles.css).      */
+/* Las que tienen contenido QUE REVELAR. `url-dialog` entró aquí por una
+   razón concreta: una dirección de descarga pasa de mil caracteres con
+   facilidad, y en una caja fija no se ve más que un trozo.          */
 const CON_RESIZE = new Set(["style-dialog", "icon-picker", "shortcuts", "desc-dialog",
-  "geojson-name-picker", "gnp-editor", "points-dialog", "log-dialog"]);
+  "geojson-name-picker", "gnp-editor", "points-dialog", "log-dialog", "url-dialog"]);
 
 const browser = await launch();
 const srv = await serve(READABLE, 8871);
@@ -48,6 +51,12 @@ const medidas = await page.evaluate(() => {
     "color-picker": () => { openStyleDialog(liM); openColorPicker(document.getElementById("mk-color")); },
     "kml-tags-picker": () => confirmStripHtmlTags("archivo.kml"),
     "kml-dup-picker": () => { document.getElementById("kml-dup-picker").hidden = false; },
+    /* Con una dirección larguísima dentro, que es su caso real */
+    "url-dialog": () => {
+      document.getElementById("url-btn").click();
+      document.getElementById("url-input").value =
+        "https://ejemplo.com/descargas/" + "a".repeat(950) + "/datos.geojson";
+    },
     "geojson-name-picker": () => pickNameProperty(
       Object.fromEntries(Array.from({ length: 60 }, (_, i) => ["clave" + i, "valor " + i])), "a.geojson", null),
     "gnp-editor": () => { document.getElementById("gnp-editor").hidden = false; },
@@ -98,7 +107,7 @@ const medidas = await page.evaluate(() => {
   return out;
 });
 
-ok(medidas.length === 12, "se han abierto las doce ventanas: " + medidas.length);
+ok(medidas.length === 13, "se han abierto las trece ventanas: " + medidas.length);
 
 for (const m of medidas) {
   if (m.error) { ok(false, `${m.id}: no se pudo abrir — ${m.error}`); continue; }

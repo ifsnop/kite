@@ -9,17 +9,25 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>KITE Local &#8212; KML Interactive Tree Explorer</title>
 <!-- Content Security Policy: solo se permiten los orígenes que la
-     aplicación usa de verdad (Leaflet, JSZip, teselas, Iconify y
-     Nominatim). Es un único archivo sin compilación, así que el CSS y el
-     JS propios van en línea y hacen falta 'unsafe-inline'/'unsafe-eval'
-     no: el script es inline, luego 'unsafe-inline' basta. Aun así la
-     política acota de dónde puede venir todo lo demás.               -->
+     aplicación usa de verdad (Leaflet, JSZip, teselas). Es un único
+     archivo sin compilación, así que el CSS y el JS propios van en
+     línea y por eso hace falta 'unsafe-inline'. Aun así la política
+     acota de dónde puede venir todo lo demás.
+
+     `connect-src` es la excepción, y es deliberada: desde que se puede
+     añadir contenido desde una dirección que escribe el usuario (botón
+     🔗 de la cabecera), enumerar orígenes es imposible por definición —
+     el origen ES lo que el usuario elige. Se abre a cualquier `https:`
+     y NADA MÁS: `default-src 'none'` sigue en pie, script/style/img
+     conservan sus listas cerradas (un origen ajeno puede dar datos,
+     nunca código ni estilos) y `http:` queda fuera a propósito, así que
+     una página servida por https no puede degradarse.              -->
 <meta http-equiv="Content-Security-Policy" content="
   default-src 'none';
   script-src 'self' 'unsafe-inline' https://unpkg.com https://cdnjs.cloudflare.com;
   style-src 'self' 'unsafe-inline' https://unpkg.com;
   img-src 'self' data: blob: https://unpkg.com https://www.ign.es https://tile.openstreetmap.org https://server.arcgisonline.com https://tms-pnoa-ma.idee.es https://servicios.idee.es https://ows.terrestris.de https://sh.dataspace.copernicus.eu;
-  connect-src 'self' https://nominatim.openstreetmap.org https://wcs-mds.idee.es https://servicios.idee.es https://www.ign.es https://unpkg.com https://cdnjs.cloudflare.com https://sh.dataspace.copernicus.eu;
+  connect-src 'self' https:;
   font-src 'self';
   base-uri 'none';
   form-action 'none';
@@ -676,7 +684,7 @@
      cordura: por mucho que se estire, la ventana no se sale.         */
   #style-dialog .dlg-box, #icon-picker .dlg-box, #shortcuts .dlg-box,
   #desc-dialog .dlg-box, #geojson-name-picker .dlg-box, #gnp-editor .dlg-box,
-  #points-dialog .dlg-box, #log-dialog .dlg-box { resize: both; }
+  #points-dialog .dlg-box, #log-dialog .dlg-box, #url-dialog .dlg-box { resize: both; }
   /* El título del diálogo de propiedades lleva el nombre del nodo, y un
      nombre de KML puede tener cientos de caracteres: con la anchura de
      ajuste al contenido de .dlg-box (tope 90vw) la ventana crecía con el
@@ -846,6 +854,12 @@
   .desc-body img { max-width: 100%; height: auto; }
   .dlg-hint { margin: 6px 0 0; font-size: 12px; color: var(--muted); }
   .dlg-hint.sh-bad { color: var(--danger); }
+  /* El resultado de la descarga NO es una nota al pie: es lo que se ha
+     venido a leer, así que va en el color normal del texto y solo se
+     pone en rojo cuando de verdad ha fallado algo. Mismo criterio que
+     los dos tonos de aviso del panel, donde `info` tampoco va en gris. */
+  #url-status { color: var(--text); }
+  #url-status.sh-bad { color: var(--danger); }
   /* La lista de puntos necesita su propio ancho: .dlg-box trae
      max-width 90vw, pensado para los diálogos anchos.                 */
   /* Ahora que el textarea llena la caja y no al revés, la MEDIDA DE
@@ -867,6 +881,28 @@
     width: min(94vw, 680px); height: min(80vh, 560px);
     max-width: 94vw;
   }
+  /* El campo de la dirección LLENA la caja, en las dos direcciones: con
+     el tirador en la caja, un hijo que no crece con ella convierte
+     agrandar la ventana en añadir hueco vacío (la misma lección que la
+     lista de puntos y el registro). Y la caja necesita una altura de
+     partida explícita, porque un hijo en `flex: 1` sobre un contenedor
+     de altura automática se queda en nada.                           */
+  #url-dialog .dlg-box {
+    display: flex; flex-direction: column;
+    width: min(92vw, 560px); max-width: 94vw;
+  }
+  #url-dialog .url-field {
+    display: flex; flex-direction: column;
+    flex: 1 1 auto; min-height: 0;
+  }
+  #url-dialog .url-field textarea {
+    flex: 1 1 auto; min-height: 3.2em; resize: none;
+    /* Una dirección no lleva espacios, así que sin esto una URL larga
+       sin barras no partiría por ningún sitio y se saldría de la caja. */
+    overflow-wrap: anywhere;
+    font-family: ui-monospace, Consolas, monospace; font-size: 12.5px;
+  }
+
   /* El párrafo de ayuda prefiere ir en una línea (764 px medidos) y con
      eso marcaba el ancho mínimo del diálogo. Ya no puede: la caja lleva
      su propio `width`, así que nada de dentro la estira. Se conserva
@@ -908,8 +944,8 @@
     border: 1px solid var(--border); border-radius: 4px; padding: 6px; box-sizing: border-box;
   }
   #points-text.bad { border-color: var(--danger); }
-  .sh-field { display: block; margin-top: 10px; font-size: 13px; }
-  .sh-field input {
+  .sh-field, .url-field { display: block; margin-top: 10px; font-size: 13px; }
+  .sh-field input, .url-field input, .url-field textarea {
     display: block; width: 100%; margin-top: 4px; font: inherit; padding: 4px 6px;
     border: 1px solid var(--border); border-radius: 4px; box-sizing: border-box;
   }
@@ -1036,6 +1072,8 @@
 <aside id="nav-panel">
   <header>
     <h1 title="KML Interactive Tree Explorer">KITE Local
+      <button id="url-btn" class="btn" title="A&#241;adir contenido desde una direcci&#243;n (URL)"
+              aria-label="A&#241;adir contenido desde una direcci&#243;n (URL)">🔗</button>
       <button id="gnp-editor-btn" class="btn" title="Nombres recordados para GeoJSON">🏷️</button>
       <button id="log-btn" class="btn" title="Registro de avisos">📋</button>
       <button id="help-btn" class="btn" title="Ayuda y atajos de teclado (tecla ?)">?</button>
@@ -1339,6 +1377,36 @@
   </div>
 </div>
 
+<!-- Añadir contenido desde una dirección (URL). En DOS PASOS: primero se
+     descarga y el diálogo dice QUÉ ha llegado; solo entonces aparece
+     «Añadir al árbol». Lo que llega de una dirección arbitraria puede ser
+     cualquier cosa, así que el usuario confirma qué es antes de que toque
+     el árbol. Mientras descarga, «Descargar» pasa a «Cancelar descarga»:
+     esperar a que venza el tope de 20 s no es una salida.            -->
+<div id="url-dialog" class="dlg-overlay" hidden>
+  <div class="dlg-box">
+    <h2>A&#241;adir desde una direcci&#243;n</h2>
+    <p class="dlg-hint">Direcci&#243;n de un archivo KML, KMZ, JSON/GeoJSON, TopoJSON o de una
+      carpeta exportada (.kite.json). Se descarga primero y se a&#241;ade despu&#233;s, cuando
+      vea qu&#233; ha llegado.</p>
+    <!-- Un <textarea> y no un <input>: una dirección de descarga pasa de
+         mil caracteres con facilidad (tokens de firma, parámetros de
+         una API) y en una sola línea no se ve más que un trozo. Aquí
+         envuelve, y al agrandar la ventana se ve más. Intro sigue
+         disparando la acción, no metiendo un salto de línea. -->
+    <label class="url-field">Direcci&#243;n
+      <textarea id="url-input" rows="2" spellcheck="false" autocomplete="off"
+                placeholder="https://ejemplo.com/rutas.kml"></textarea>
+    </label>
+    <p class="dlg-hint" id="url-status" hidden></p>
+    <div class="dlg-actions">
+      <button class="btn" id="url-close">Cerrar</button>
+      <button class="btn" id="url-fetch">Descargar</button>
+      <button class="btn" id="url-add" hidden>A&#241;adir al &#225;rbol</button>
+    </div>
+  </div>
+</div>
+
 <!-- Credencial de Sentinel Hub: el instance ID con el que Copernicus
      autentica sus servicios OGC. Es del usuario, no de la aplicación. -->
 <div id="sh-creds" class="dlg-overlay" hidden>
@@ -1599,7 +1667,7 @@ map.on("resize", fitWorldMinZoom);
 
 /* Fecha de generación del código (versión): AÑOMESDIAHORAMINUTO.
    Actualizar en cada generación; se muestra junto al crédito de Leaflet. */
-const BUILD = "202609141700";
+const BUILD = "202609142245";
 /* El enlace al repositorio va junto a la versión, que es lo que hace
    accionable saber qué build se está ejecutando: desde ahí se llega al
    código de esa versión. `target="_blank"` a propósito —salir de la
@@ -5727,6 +5795,119 @@ navPanel.addEventListener("drop", async e => {
   handleDroppedFiles([...e.dataTransfer.files], insertBefore, folderLi ? nodeUl(folderLi) : null);
 });
 
+
+/* ---------- Reconocimiento de lo descargado de una dirección ----------
+   Gemelo de handleDroppedFiles: mismos formatos y mismo contrato (un
+   `File` con nombre), pero aquí el nombre lo pone una URL y el
+   contenido llega sin que nadie prometa qué es.
+
+   Todo esto es PURO —ni DOM, ni red— justamente para poder probarlo en
+   Node, que es donde se comprueba lo comprobable.
+
+   La regla de fondo es la que el proyecto ya aplica a la familia JSON:
+   manda la FORMA del contenido, no la extensión. Aquí es aún más
+   necesario, porque media web sirve un GeoJSON desde una ruta que no
+   termina en nada.                                                     */
+
+/* Ramas vivas de handleDroppedFiles. Los tres tipos JSON comparten
+   extensión a propósito: esa rama vuelve a distinguirlos por su forma,
+   así que inventarles `.geojson` o `.topojson` no aportaría nada y sí
+   daría un nombre que el servidor no puso.                            */
+const URL_KIND_EXT = {
+  kml: ".kml", kmz: ".kmz", geojson: ".json", topojson: ".json", kite: EXPORT_EXT
+};
+/* Lo que se le dice al usuario que ha llegado */
+const URL_KIND_LABEL = {
+  kml: "KML", kmz: "KMZ (KML comprimido)", geojson: "GeoJSON", topojson: "TopoJSON",
+  kite: "carpeta exportada de KITE (.kite.json)"
+};
+
+/* Nombre de archivo que sugiere una dirección: el último segmento de su
+   ruta. Sin ruta útil (la raíz de un sitio) se usa el host, que al
+   menos dice de dónde salió; si no es una URL en absoluto, cadena
+   vacía y que decida quien llama.                                     */
+function fileNameFromUrl(url) {
+  let u;
+  try { u = new URL(String(url)); } catch { return ""; }
+  const last = u.pathname.split("/").filter(Boolean).pop() || "";
+  let name = last;
+  /* Una ruta puede traer %20 y compañía; si viene mal codificada, se
+     usa tal cual en vez de perder el nombre entero.                   */
+  try { name = decodeURIComponent(last); } catch { /* se queda como está */ }
+  return safeFileName(name || u.hostname || "");
+}
+
+/* Firma de un zip. Se mira ANTES de decodificar nada: un KMZ es binario
+   y pasar 100 MB de zip por TextDecoder no sirve para nada.           */
+function isZipSignature(bytes) {
+  return !!bytes && bytes.length >= 4
+    && bytes[0] === 0x50 && bytes[1] === 0x4B && bytes[2] === 0x03 && bytes[3] === 0x04;
+}
+
+/* Un JSON ya parseado: los MISMOS criterios que usa handleDroppedFiles
+   para repartir la familia JSON, y en el mismo orden.                 */
+const GEOJSON_DOC_TYPES = new Set([
+  "FeatureCollection", "Feature", "Point", "MultiPoint", "LineString",
+  "MultiLineString", "Polygon", "MultiPolygon", "GeometryCollection"
+]);
+function sniffJsonKind(doc) {
+  if (!doc || typeof doc !== "object") return null;
+  if (doc.app === EXPORT_KIND && Array.isArray(doc.nodes)) return "kite";
+  if (doc.type === "Topology") return "topojson";
+  if (GEOJSON_DOC_TYPES.has(doc.type)) return "geojson";
+  return null;
+}
+
+/* Texto ya decodificado. Devuelve además "html", que NO es un formato
+   admitido pero sí el diagnóstico más útil de todos: es lo que llega
+   cuando alguien pega la página de GitHub en vez del enlace «Raw».    */
+const SNIFF_HEAD = 4096; /* mirar el principio basta; no es un barrido */
+function sniffTextKind(text) {
+  /* Fuera el BOM y los blancos: un XML con BOM empieza por "﻿<"  */
+  const head = String(text || "").replace(/^﻿/, "").trimStart().slice(0, SNIFF_HEAD);
+  if (!head) return null;
+  if (head[0] === "<") {
+    if (/^<!doctype\s+html|^<html[\s>]/i.test(head)) return "html";
+    /* Namespace-agnóstico, como todo el parseo de KML de este archivo:
+       <kml>, <kml:kml> y cualquier otro prefijo valen igual.          */
+    if (/<\s*(?:[A-Za-z_][\w.-]*:)?kml[\s>]/i.test(head)) return "kml";
+    return null; /* otro XML (un GPX, una excepción OGC): no es nuestro */
+  }
+  if (head[0] === "{" || head[0] === "[") {
+    let doc;
+    try { doc = JSON.parse(text); } catch { return null; }
+    return sniffJsonKind(doc);
+  }
+  return null;
+}
+
+/* El de verdad: bytes primero (zip), texto después */
+function sniffContentKind(bytes, text) {
+  if (isZipSignature(bytes)) return "kmz";
+  return sniffTextKind(text);
+}
+
+/* Nombre final del `File` que se le pasa a handleDroppedFiles, que
+   despacha por EXTENSIÓN. Es el puente entre "sé lo que es" y "la
+   importación lo reconoce": si el nombre de la URL ya trae una
+   extensión de la misma rama se respeta —es el nombre que puso el
+   servidor—, y si no se le añade la que toca. Una dirección sin
+   extensión (`…/descarga?id=7`) acaba en `descarga.json` o
+   `descarga.kml`; una con extensión ajena (`export.php`) en
+   `export.php.json`, que es honesto y entra por la rama correcta.    */
+function downloadFileName(url, kind) {
+  const ext = URL_KIND_EXT[kind];
+  if (!ext) return "";
+  const base = fileNameFromUrl(url) || "descarga";
+  const lower = base.toLowerCase();
+  if (kind === "kite") return lower.endsWith(EXPORT_EXT) ? base : base + ext;
+  /* Misma RAMA, no misma extensión: un .geojson y un .topojson entran
+     los dos por la rama json, así que ninguno necesita renombrarse.  */
+  const same = kind === "kml" ? [".kml"]
+    : kind === "kmz" ? [".kmz"]
+    : [".json", ".geojson", ".topojson"];
+  return same.some(e => lower.endsWith(e)) ? base : base + ext;
+}
 /* ================= Acciones del panel de navegación ================= */
 
 /* ---------- Búsqueda entre capas y carpetas ----------
@@ -5940,6 +6121,8 @@ let placeAbort = null; /* petición en vuelo, para poder cancelarla */
 
 /* Traduce el fallo a algo accionable en vez de "error de red" */
 function describeHttp(status) {
+  if (status === 404) return "la dirección no existe (HTTP 404)";
+  if (status === 401) return "hace falta autenticación (HTTP 401)";
   if (status === 429) return "el servicio ha limitado las consultas; espere unos segundos";
   if (status === 403) return "el servicio ha rechazado la consulta";
   if (status >= 500) return `el servicio no est\u00E1 disponible (HTTP ${status})`;
@@ -7786,6 +7969,289 @@ document.getElementById("log-copy").addEventListener("click", () => {
     .catch(() => navMessage("No se pudo copiar al portapapeles."));
 });
 
+/* ---------- Añadir contenido desde una dirección (URL) ----------
+   Dos pasos, y son dos a propósito: lo que llega de una dirección
+   arbitraria puede ser cualquier cosa —una página de error, un HTML, un
+   formato que no entendemos—, así que primero se descarga y se dice QUÉ
+   ha llegado, y solo entonces el usuario decide meterlo en el árbol. Es
+   la misma edición diferida del resto de diálogos: hasta «Añadir al
+   árbol» no se toca nada.
+
+   Lo descargado se envuelve en un `File` y se entrega a
+   handleDroppedFiles, así que no se duplica ni una línea del camino de
+   importación: mismos formatos, mismos diálogos (etiquetas HTML,
+   propiedad-nombre, duplicados), mismo informe y mismo guardado.
+
+   VA AQUÍ, por encima del registro de diálogos del final del archivo:
+   `urlBox` se usa en ese bucle, que corre al EVALUAR el archivo, y
+   declararlo por debajo reventaría al cargar por zona muerta temporal
+   —el mismo tropiezo que ya costó una tarde con `descBody`—.        */
+const URL_TIMEOUT = 20000;                 /* tope de respuesta        */
+const URL_MAX_BYTES = 100 * 1024 * 1024;   /* tope de descarga         */
+
+const urlDialog = document.getElementById("url-dialog");
+const urlBox = urlDialog.querySelector(".dlg-box");
+const urlInput = document.getElementById("url-input");
+const urlStatus = document.getElementById("url-status");
+const urlFetchBtn = document.getElementById("url-fetch");
+const urlAddBtn = document.getElementById("url-add");
+
+let urlAbort = null;   /* descarga en vuelo, para poder cancelarla     */
+let urlSeq = 0;        /* descarta respuestas superadas, como placeSeq */
+let urlReady = null;   /* el borrador: { file, kind, size } o null     */
+
+/* Un único punto que mueve TODOS los controles: nadie toca `disabled`
+   ni `hidden` por su cuenta, que es como se acaba con un botón activo
+   en un estado que no lo admite.                                     */
+function setUrlState(state, text = "", bad = false) {
+  const descargando = state === "descargando";
+  urlInput.disabled = descargando;
+  /* Durante la descarga el botón primario CAMBIA DE PAPEL en vez de
+     deshabilitarse: esperar a que venza el tope de 20 s no es una
+     salida aceptable para quien acaba de pegar una dirección enorme. */
+  urlFetchBtn.textContent = descargando ? "Cancelar descarga" : "Descargar";
+  /* Con el resultado ya en la mano, volver a descargar la MISMA
+     dirección no hace nada que no esté hecho: quedan las dos salidas
+     que sí significan algo, añadirlo o cerrar. Y no es un callejón:
+     tocar la dirección invalida ese resultado y devuelve el diálogo al
+     estado inicial, con «Descargar» otra vez activo.                 */
+  urlFetchBtn.disabled = state === "listo";
+  urlAddBtn.hidden = state !== "listo";
+  urlStatus.hidden = !text;
+  urlStatus.textContent = text;
+  urlStatus.classList.toggle("sh-bad", bad);
+}
+
+/* Aborta lo que haya en vuelo. `motivo` viaja al `catch` para poder
+   distinguir el tope de tiempo de una cancelación del usuario.       */
+function abortUrlFetch(motivo) {
+  urlSeq++;
+  if (urlAbort) { urlAbort.abort(motivo); urlAbort = null; }
+}
+
+function closeUrlDialog() {
+  /* Cerrar aborta: una descarga cuyo resultado ya no tiene dónde
+     mostrarse solo ocupa conexión.                                   */
+  abortUrlFetch("cerrado");
+  urlReady = null;
+  urlDialog.hidden = true;
+  releaseFocus();
+}
+
+function openUrlDialog() {
+  urlReady = null;
+  setUrlState("inicial");
+  urlDialog.hidden = false;
+  clampToViewport(urlBox);
+  focusDialog(urlBox);
+  urlInput.focus();
+  /* Seleccionado, no borrado: lo normal al reabrir es corregir una
+     errata de la dirección anterior.                                 */
+  urlInput.select();
+}
+
+/* La descarga. Devuelve los bytes o lanza con un mensaje ya redactado.
+
+   La petición es deliberadamente SIMPLE: sin cabeceras propias y sin
+   credenciales. Cualquier cabecera no simple obliga al navegador a un
+   preflight OPTIONS que la mayoría de los alojamientos estáticos no
+   contesta, y convertiría en fallo lo que ahora funciona; y las cookies
+   del usuario no tienen nada que hacer en una descarga hacia un tercero.
+   Es justo el cambio «inocente» que alguien haría más adelante.      */
+async function fetchRemoteFile(url, signal, onBytes) {
+  const resp = await fetch(url, { signal, credentials: "omit", redirect: "follow" });
+  if (!resp.ok) throw new Error(`No se pudo descargar: ${describeHttp(resp.status)}.`);
+
+  /* Lo que el servidor DICE que ocupa, antes de traerse nada: es la
+     comprobación barata y evita empezar una descarga condenada.      */
+  const declarado = Number(resp.headers.get("content-length"));
+  if (Number.isFinite(declarado) && declarado > URL_MAX_BYTES) {
+    throw new Error(`El archivo ocupa ${fmtBytes(declarado)} y supera el tope de `
+      + `${fmtBytes(URL_MAX_BYTES)}.`);
+  }
+
+  /* Y lo que ocupa DE VERDAD, mientras llega: content-length puede
+     faltar (respuesta troceada) o mentir. Leer por trozos es además lo
+     que hace que cancelar surta efecto en el acto y lo que permite ir
+     diciendo cuánto lleva descargado.                                */
+  if (!resp.body || !resp.body.getReader) {
+    const buf = await resp.arrayBuffer();
+    if (buf.byteLength > URL_MAX_BYTES) {
+      throw new Error(`La descarga ocupa ${fmtBytes(buf.byteLength)} y supera el tope de `
+        + `${fmtBytes(URL_MAX_BYTES)}.`);
+    }
+    return new Uint8Array(buf);
+  }
+  const reader = resp.body.getReader();
+  const trozos = [];
+  let total = 0;
+  for (;;) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    total += value.length;
+    if (total > URL_MAX_BYTES) {
+      reader.cancel();
+      throw new Error(`La descarga ya supera el tope de ${fmtBytes(URL_MAX_BYTES)} `
+        + "y se ha interrumpido.");
+    }
+    trozos.push(value);
+    if (onBytes) onBytes(total);
+  }
+  const out = new Uint8Array(total);
+  let pos = 0;
+  for (const t of trozos) { out.set(t, pos); pos += t.length; }
+  return out;
+}
+
+/* Paso 1: descargar y reconocer. No toca el árbol. */
+async function runUrlFetch() {
+  /* Se quitan TODOS los blancos, no solo los de los extremos: una
+     dirección no puede llevarlos, y copiarla de un correo o de un PDF
+     arrastra saltos de línea con una facilidad pasmosa. Antes eso daba
+     un «no parece una dirección válida» que el usuario no entendía,
+     porque lo que él veía pegado estaba bien.                        */
+  const url = urlInput.value.replace(/\s+/g, "");
+  if (!url) { setUrlState("error", "Escriba la dirección del archivo que quiere descargar.", true); return; }
+  let parsed;
+  try { parsed = new URL(url); } catch { parsed = null; }
+  if (!parsed || (parsed.protocol !== "http:" && parsed.protocol !== "https:")) {
+    setUrlState("error", `«${url}» no parece una dirección válida. Debe empezar por `
+      + "http:// o https://.", true);
+    return;
+  }
+  /* La CSP admite https: y nada más. Sin este aviso, el rechazo llega
+     como el mismo TypeError sin detalle que un fallo de CORS y el
+     usuario se pondría a buscar por donde no es.                     */
+  if (parsed.protocol === "http:" && location.protocol === "https:") {
+    setUrlState("error", "La dirección usa http://. Desde una página servida por https "
+      + "solo se pueden descargar direcciones https://.", true);
+    return;
+  }
+
+  abortUrlFetch("reemplazada");
+  urlReady = null;
+  const seq = ++urlSeq;
+  const ctrl = urlAbort = new AbortController();
+  const timer = setTimeout(() => ctrl.abort("timeout"), URL_TIMEOUT);
+  setUrlState("descargando", "Descargando…");
+  try {
+    const bytes = await fetchRemoteFile(url, ctrl.signal,
+      n => { if (seq === urlSeq) setUrlState("descargando", `Descargando… ${fmtBytes(n)}`); });
+    if (seq !== urlSeq) return; /* superada o cancelada: no pinta nada */
+    if (!bytes.length) { setUrlState("error", "La descarga ha llegado vacía (0 bytes).", true); return; }
+
+    /* Los bytes primero (un zip no se decodifica), el texto después */
+    let texto = "";
+    try { texto = new TextDecoder("utf-8").decode(bytes); } catch { texto = ""; }
+    const kind = sniffContentKind(bytes, texto);
+    if (kind === "html") {
+      setUrlState("error", "Lo descargado es una página web (HTML), no un archivo de datos. "
+        + "Compruebe que la dirección apunta al archivo en crudo (en GitHub, el enlace «Raw»).", true);
+      return;
+    }
+    if (!kind) {
+      setUrlState("error", `No se reconoce el contenido descargado (${fmtBytes(bytes.length)}). `
+        + "Formatos admitidos: KML, KMZ, JSON (GeoJSON), TopoJSON y carpetas "
+        + `exportadas (${EXPORT_EXT}).`, true);
+      return;
+    }
+    const name = downloadFileName(url, kind);
+    urlReady = { file: new File([bytes], name), kind, size: bytes.length };
+    setUrlState("listo", `«${name}» — ${URL_KIND_LABEL[kind]}, ${fmtBytes(bytes.length)}. `
+      + "Pulse «Añadir al árbol» para insertarlo en una carpeta nueva.");
+    urlAddBtn.focus();
+  } catch (err) {
+    if (seq !== urlSeq) return;
+    /* Cancelar NO es un fallo: no se pinta en rojo ni se registra. El
+       tope de tiempo sí, y llega por el mismo camino, así que se
+       distinguen por el motivo del abort.                            */
+    if (err.name === "AbortError") {
+      if (ctrl.signal.reason === "timeout") {
+        setUrlState("error", `El servidor ha tardado más de ${URL_TIMEOUT / 1000} s en responder.`, true);
+      } else {
+        setUrlState("inicial", "Descarga cancelada.");
+      }
+      return;
+    }
+    /* Un fallo de red llega como TypeError SIN ningún detalle: el
+       navegador no le cuenta a la página por qué. Con diferencia, la
+       causa más frecuente es que el servidor no mande cabeceras CORS,
+       así que el mensaje lo dice y ofrece la salida que siempre
+       funciona en vez de dejar al usuario mirando «Failed to fetch». */
+    const msg = err instanceof TypeError
+      ? "No se ha podido conectar. Lo más probable es que el servidor no autorice la "
+        + "descarga desde otra página (CORS); el navegador no da más detalle. También "
+        + "puede ser que la dirección no exista o que no haya conexión. Si puede abrir "
+        + "el archivo en el navegador, descárguelo y arrástrelo al recuadro."
+      : err.message;
+    setUrlState("error", msg, true);
+    navMessage(`No se pudo descargar «${url}»: ${msg}`);
+  } finally {
+    clearTimeout(timer);
+    if (urlAbort === ctrl) urlAbort = null;
+  }
+}
+
+document.getElementById("url-btn").addEventListener("click", openUrlDialog);
+document.getElementById("url-close").addEventListener("click", closeUrlDialog);
+urlFetchBtn.addEventListener("click", () => {
+  /* El mismo botón hace las dos cosas según el estado: descargar, o
+     cancelar lo que esté descargando.                                */
+  if (urlFetchBtn.textContent === "Cancelar descarga") {
+    abortUrlFetch("cancelada");
+    setUrlState("inicial", "Descarga cancelada.");
+    urlInput.focus();
+    return;
+  }
+  runUrlFetch();
+});
+urlAddBtn.addEventListener("click", async () => {
+  if (!urlReady) return;
+  const { file } = urlReady;
+  /* Se cierra ANTES de importar: la importación abre sus propios
+     modales (etiquetas HTML, propiedad-nombre, duplicados) y no deben
+     apilarse sobre este. Del resumen, el progreso y el guardado se
+     encarga ya handleDroppedFiles, como con cualquier archivo.       */
+  closeUrlDialog();
+  /* Todo lo descargado cuelga de UNA sección «Descargas», como
+     «Lugares», «Marcadores», «Polígonos» o «Elevaciones»: se localiza
+     por nombre con ensureNamedSection, así que se reutiliza entre
+     descargas y sobrevive a la restauración sin enganche especial.
+
+     Y dentro, cada descarga en su propia «Descarga N», numerada con el
+     mismo nextNumberedName que las formas dibujadas, las mediciones y
+     los pines: deduce el número de los nombres que ya hay en el árbol
+     —pendientes incluidos—, así que sobrevive a una recarga y manda el
+     máximo, no la cuenta. Es exactamente la forma de «Elevaciones» con
+     sus «Elevación N» dentro.
+
+     La carpeta hace falta: sin ella el resultado depende del formato
+     —un GeoJSON crea su envoltorio y un KML vuelca su jerarquía tal
+     cual—, de modo que dos descargas se mezclarían dentro de la
+     sección sin saberse cuál trajo qué.                             */
+  pushUndo("añadir desde una dirección");
+  const seccion = ensureNamedSection("Descargas");
+  const carpeta = await createFolderNode(seccion.parentElement,
+    nextNumberedName("Descarga"));
+  await handleDroppedFiles([file], null, nodeUl(carpeta));
+  /* El conjunto de hijos de la carpeta nueva ha cambiado: su casilla
+     tiene que recalcularse, como en cualquier importación dentro de
+     una carpeta.                                                     */
+  refreshAncestorChecks(carpeta);
+  scheduleSave();
+});
+/* Editar la dirección invalida una descarga ya lista: si no, se podría
+   descargar A, escribir B y pulsar «Añadir» insertando A.           */
+urlInput.addEventListener("input", () => {
+  if (urlReady) { urlReady = null; setUrlState("inicial"); }
+});
+urlInput.addEventListener("keydown", e => {
+  if (e.key !== "Enter") return;
+  e.preventDefault();
+  /* Enter dispara la acción primaria VISIBLE */
+  if (!urlAddBtn.hidden) urlAddBtn.click(); else urlFetchBtn.click();
+});
+
 /* ---------- Diálogo de la credencial de Copernicus ----------
    Edición diferida como el resto: se escribe en la caja y solo
    «Aceptar» la guarda y rearma la capa.                              */
@@ -7912,7 +8378,7 @@ descBody.addEventListener("pointerdown", e => {
 });
 
 
-for (const box of [styleBox, iconBox, colorBox, descBox, shortcutsBox, ktpBox, kdpBox, gnpBox, gnpEditorBox, shBox, pointsBox, logBox]) makeDialogMovable(box);
+for (const box of [styleBox, iconBox, colorBox, descBox, shortcutsBox, ktpBox, kdpBox, gnpBox, gnpEditorBox, shBox, pointsBox, logBox, urlBox]) makeDialogMovable(box);
 setupDialog(styleBox, { modal: false }); /* flotante: el mapa sigue vivo */
 setupDialog(iconBox, { modal: true });
 setupDialog(colorBox, { modal: true });
@@ -7925,9 +8391,10 @@ setupDialog(gnpEditorBox, { modal: true });
 setupDialog(shBox, { modal: true });
 setupDialog(pointsBox, { modal: true });
 setupDialog(logBox, { modal: true });
+setupDialog(urlBox, { modal: true });
 window.addEventListener("resize", () => {
   /* a moved dialog must not fall off-screen */
-  for (const box of [styleBox, iconBox, colorBox, descBox, shortcutsBox, ktpBox, kdpBox, gnpBox, gnpEditorBox, shBox, pointsBox, logBox]) clampToViewport(box);
+  for (const box of [styleBox, iconBox, colorBox, descBox, shortcutsBox, ktpBox, kdpBox, gnpBox, gnpEditorBox, shBox, pointsBox, logBox, urlBox]) clampToViewport(box);
 });
 let styleTargets = [];    /* nodes being edited */
 let styleKindOpen = null; /* "marker" | "polygon" */
@@ -8935,6 +9402,7 @@ document.addEventListener("keydown", e => {
   if (!ctxMenuEl.hidden) { closeCtxMenu(); return; }
   if (!shortcutsDialog.hidden) { toggleShortcuts(); return; }
   if (!logDialog.hidden) { toggleLog(); return; }
+  if (!urlDialog.hidden) { closeUrlDialog(); return; }
   if (!descDialog.hidden) { descDialog.hidden = true; layerInfoDismissed = true; releaseFocus(); return; }
   if (!colorPicker.hidden) { colorPicker.hidden = true; colorTarget = null; releaseFocus(); return; }
   if (!iconPicker.hidden) { iconPicker.hidden = true; pendingIcon = null; releaseFocus(); return; }

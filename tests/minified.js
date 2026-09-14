@@ -71,12 +71,42 @@ ok(count(min, /crossorigin=/g) === count(full, /crossorigin=/g),
   `y sus crossorigin=: ${count(min, /crossorigin=/g)}`);
 
 /* CSP: con default-src 'none', perder un origen deja muda a media
-   aplicación sin más síntoma que peticiones bloqueadas.             */
+   aplicación sin más síntoma que peticiones bloqueadas.
+
+   Se comprueba sobre el CONTENIDO del <meta>, no sobre el archivo
+   entero. Antes se buscaba cada origen con `min.includes(...)`, y eso
+   pasaba por casualidad: `nominatim.openstreetmap.org` y compañía
+   aparecen también en el JavaScript, así que la comprobación decía «la
+   CSP conserva X» sin haber mirado nunca la CSP. Se vio al abrir
+   `connect-src`: el origen desapareció de la política y la prueba
+   siguió en verde.                                                   */
 ok(/http-equiv="Content-Security-Policy"/.test(min), "la CSP sigue declarada");
-for (const origin of ["unpkg.com", "cdnjs.cloudflare.com", "nominatim.openstreetmap.org",
-                      "www.ign.es", "sh.dataspace.copernicus.eu", "default-src 'none'"]) {
-  ok(min.includes(origin), `la CSP conserva ${origin}`);
+const cspMatch = min.match(/http-equiv="Content-Security-Policy"\s+content="([^"]*)"/);
+ok(!!cspMatch, "y se puede leer su contenido");
+const csp = cspMatch ? cspMatch[1].replace(/\s+/g, " ").trim() : "";
+const directiva = nombre => {
+  const m = csp.match(new RegExp(`(?:^|;)\\s*${nombre}\\s([^;]*)`));
+  return m ? m[1].trim() : null;
+};
+ok(/default-src 'none'/.test(csp), "sigue cerrada por defecto: " + csp.slice(0, 40));
+/* Las listas de CÓDIGO siguen cerradas. Es lo que no se relajó al
+   permitir descargar datos de cualquier sitio: un origen ajeno puede
+   dar datos, nunca scripts ni estilos.                               */
+for (const [nombre, origen] of [["script-src", "https://unpkg.com"],
+                                ["script-src", "https://cdnjs.cloudflare.com"],
+                                ["style-src", "https://unpkg.com"],
+                                ["img-src", "https://www.ign.es"]]) {
+  const d = directiva(nombre);
+  ok(!!d && d.includes(origen), `${nombre} conserva ${origen}: ${d}`);
+  ok(!!d && !/(^|\s)https:(\s|$)/.test(d), `y ${nombre} NO admite cualquier https: ${d}`);
 }
+/* connect-src sí es abierta, y a propósito: la dirección de la que se
+   descarga la elige el usuario (botón 🔗), así que enumerar orígenes es
+   imposible por definición. Que esté aquí escrito es lo que convierte
+   abrirla en una decisión visible y no en algo que se cuela en un diff. */
+ok(directiva("connect-src") === "'self' https:",
+  "connect-src admite cualquier https, y nada más: " + directiva("connect-src"));
+ok(!/http:/.test(csp), "sin http: en ninguna directiva: una página https no se degrada");
 /* Y lo que se quitó al empotrar los iconos sigue fuera también aquí */
 ok(!min.includes("api.iconify.design"), "sin resucitar api.iconify.design");
 

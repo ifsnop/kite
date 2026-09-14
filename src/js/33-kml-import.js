@@ -582,3 +582,116 @@ navPanel.addEventListener("drop", async e => {
   handleDroppedFiles([...e.dataTransfer.files], insertBefore, folderLi ? nodeUl(folderLi) : null);
 });
 
+
+/* ---------- Reconocimiento de lo descargado de una dirección ----------
+   Gemelo de handleDroppedFiles: mismos formatos y mismo contrato (un
+   `File` con nombre), pero aquí el nombre lo pone una URL y el
+   contenido llega sin que nadie prometa qué es.
+
+   Todo esto es PURO —ni DOM, ni red— justamente para poder probarlo en
+   Node, que es donde se comprueba lo comprobable.
+
+   La regla de fondo es la que el proyecto ya aplica a la familia JSON:
+   manda la FORMA del contenido, no la extensión. Aquí es aún más
+   necesario, porque media web sirve un GeoJSON desde una ruta que no
+   termina en nada.                                                     */
+
+/* Ramas vivas de handleDroppedFiles. Los tres tipos JSON comparten
+   extensión a propósito: esa rama vuelve a distinguirlos por su forma,
+   así que inventarles `.geojson` o `.topojson` no aportaría nada y sí
+   daría un nombre que el servidor no puso.                            */
+const URL_KIND_EXT = {
+  kml: ".kml", kmz: ".kmz", geojson: ".json", topojson: ".json", kite: EXPORT_EXT
+};
+/* Lo que se le dice al usuario que ha llegado */
+const URL_KIND_LABEL = {
+  kml: "KML", kmz: "KMZ (KML comprimido)", geojson: "GeoJSON", topojson: "TopoJSON",
+  kite: "carpeta exportada de KITE (.kite.json)"
+};
+
+/* Nombre de archivo que sugiere una dirección: el último segmento de su
+   ruta. Sin ruta útil (la raíz de un sitio) se usa el host, que al
+   menos dice de dónde salió; si no es una URL en absoluto, cadena
+   vacía y que decida quien llama.                                     */
+function fileNameFromUrl(url) {
+  let u;
+  try { u = new URL(String(url)); } catch { return ""; }
+  const last = u.pathname.split("/").filter(Boolean).pop() || "";
+  let name = last;
+  /* Una ruta puede traer %20 y compañía; si viene mal codificada, se
+     usa tal cual en vez de perder el nombre entero.                   */
+  try { name = decodeURIComponent(last); } catch { /* se queda como está */ }
+  return safeFileName(name || u.hostname || "");
+}
+
+/* Firma de un zip. Se mira ANTES de decodificar nada: un KMZ es binario
+   y pasar 100 MB de zip por TextDecoder no sirve para nada.           */
+function isZipSignature(bytes) {
+  return !!bytes && bytes.length >= 4
+    && bytes[0] === 0x50 && bytes[1] === 0x4B && bytes[2] === 0x03 && bytes[3] === 0x04;
+}
+
+/* Un JSON ya parseado: los MISMOS criterios que usa handleDroppedFiles
+   para repartir la familia JSON, y en el mismo orden.                 */
+const GEOJSON_DOC_TYPES = new Set([
+  "FeatureCollection", "Feature", "Point", "MultiPoint", "LineString",
+  "MultiLineString", "Polygon", "MultiPolygon", "GeometryCollection"
+]);
+function sniffJsonKind(doc) {
+  if (!doc || typeof doc !== "object") return null;
+  if (doc.app === EXPORT_KIND && Array.isArray(doc.nodes)) return "kite";
+  if (doc.type === "Topology") return "topojson";
+  if (GEOJSON_DOC_TYPES.has(doc.type)) return "geojson";
+  return null;
+}
+
+/* Texto ya decodificado. Devuelve además "html", que NO es un formato
+   admitido pero sí el diagnóstico más útil de todos: es lo que llega
+   cuando alguien pega la página de GitHub en vez del enlace «Raw».    */
+const SNIFF_HEAD = 4096; /* mirar el principio basta; no es un barrido */
+function sniffTextKind(text) {
+  /* Fuera el BOM y los blancos: un XML con BOM empieza por "﻿<"  */
+  const head = String(text || "").replace(/^﻿/, "").trimStart().slice(0, SNIFF_HEAD);
+  if (!head) return null;
+  if (head[0] === "<") {
+    if (/^<!doctype\s+html|^<html[\s>]/i.test(head)) return "html";
+    /* Namespace-agnóstico, como todo el parseo de KML de este archivo:
+       <kml>, <kml:kml> y cualquier otro prefijo valen igual.          */
+    if (/<\s*(?:[A-Za-z_][\w.-]*:)?kml[\s>]/i.test(head)) return "kml";
+    return null; /* otro XML (un GPX, una excepción OGC): no es nuestro */
+  }
+  if (head[0] === "{" || head[0] === "[") {
+    let doc;
+    try { doc = JSON.parse(text); } catch { return null; }
+    return sniffJsonKind(doc);
+  }
+  return null;
+}
+
+/* El de verdad: bytes primero (zip), texto después */
+function sniffContentKind(bytes, text) {
+  if (isZipSignature(bytes)) return "kmz";
+  return sniffTextKind(text);
+}
+
+/* Nombre final del `File` que se le pasa a handleDroppedFiles, que
+   despacha por EXTENSIÓN. Es el puente entre "sé lo que es" y "la
+   importación lo reconoce": si el nombre de la URL ya trae una
+   extensión de la misma rama se respeta —es el nombre que puso el
+   servidor—, y si no se le añade la que toca. Una dirección sin
+   extensión (`…/descarga?id=7`) acaba en `descarga.json` o
+   `descarga.kml`; una con extensión ajena (`export.php`) en
+   `export.php.json`, que es honesto y entra por la rama correcta.    */
+function downloadFileName(url, kind) {
+  const ext = URL_KIND_EXT[kind];
+  if (!ext) return "";
+  const base = fileNameFromUrl(url) || "descarga";
+  const lower = base.toLowerCase();
+  if (kind === "kite") return lower.endsWith(EXPORT_EXT) ? base : base + ext;
+  /* Misma RAMA, no misma extensión: un .geojson y un .topojson entran
+     los dos por la rama json, así que ninguno necesita renombrarse.  */
+  const same = kind === "kml" ? [".kml"]
+    : kind === "kmz" ? [".kmz"]
+    : [".json", ".geojson", ".topojson"];
+  return same.some(e => lower.endsWith(e)) ? base : base + ext;
+}

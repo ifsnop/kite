@@ -283,9 +283,22 @@ desarrollo del proyecto.
   descomprimirlos.
 - **CSP**: hay una `Content-Security-Policy` en el `<head>` que declara
   `default-src 'none'` y enumera los orígenes reales (unpkg, cdnjs, las
-  teselas del mapa y del MDT, Iconify y Nominatim). Al añadir un origen nuevo hay que
+  teselas del mapa y del MDT). Al añadir un origen nuevo hay que
   añadirlo también ahí o dejará de funcionar. `'unsafe-inline'` es
   inevitable mientras el CSS y el JS vivan en el propio archivo.
+- **`connect-src` es la excepción, y es DELIBERADA**: desde que se puede
+  añadir contenido desde una dirección que escribe el usuario (botón 🔗),
+  enumerar orígenes es imposible por definición — el origen ES lo que el
+  usuario elige. Está abierta a cualquier `https:` y **a nada más**:
+  `default-src 'none'` sigue en pie, `script-src`/`style-src`/`img-src`
+  conservan sus listas cerradas (un origen ajeno puede dar datos, nunca
+  código ni estilos) y `http:` queda fuera a propósito, así que una
+  página servida por https no puede degradarse. `tests/minified.js` lo
+  comprueba **sobre el contenido del `<meta>`**, no sobre el archivo
+  entero: antes buscaba cada origen con `includes` y pasaba por
+  casualidad, porque esos mismos nombres aparecen en el JavaScript —se
+  vio justo al abrir `connect-src`, que borró un origen de la política
+  sin que la prueba se inmutara—.
 
 ## Vocabulario del proyecto
 
@@ -877,10 +890,12 @@ index.html         redirección de la raíz del sitio al minificado
 - **La rejilla de iconos ajusta sus columnas al ancho**
   (`repeat(auto-fill, minmax(32px, 1fr))` en vez de `repeat(8, 32px)`):
   si no, ensanchar esa ventana tampoco serviría de nada.
-- **Se redimensionan las ocho que tienen contenido que revelar**
+- **Se redimensionan las nueve que tienen contenido que revelar**
   (`resize: both` en su `.dlg-box`): estilos, selector de iconos,
   chuleta de atajos, ficha de la capa, selector de nombre de GeoJSON,
-  editor de nombres recordados, lista de puntos y registro de avisos.
+  editor de nombres recordados, lista de puntos, registro de avisos y
+  **el de añadir desde una dirección** —una URL de descarga pasa de mil
+  caracteres con facilidad, y en una caja fija solo se ve un trozo—.
   Las otras cuatro —selector de color, etiquetas HTML, duplicados y
   credenciales— son confirmaciones de dos líneas (92–336 px medidos,
   ancho fijo de 42ch): ahí un tirador no descubre nada y solo ensucia la
@@ -1021,9 +1036,9 @@ index.html         redirección de la raíz del sitio al minificado
 - `src/js/05-mdi-icons.js` se versiona y va marcado como generado en
   `.gitattributes`, igual que `kitelocal.html`: su contenido no se lee
   y en un diff solo taparía el cambio real.
-- **Las formas dibujadas, las mediciones y los pines se autonumeran**
-  («Línea 3», «Polígono 2», «Círculo 1», «Marcador 4») con
-  `nextNumberedName`, que
+- **Las formas dibujadas, las mediciones, los pines y las descargas se
+  autonumeran** («Línea 3», «Polígono 2», «Círculo 1», «Marcador 4»,
+  «Descarga 5») con `nextNumberedName`, que
   deduce el número de **los nombres que ya hay en el árbol**, no de un
   contador en memoria. El contador no valdría: una línea o un polígono
   dibujados vuelven de IndexedDB por el camino genérico `t:"layer"`,
@@ -1458,8 +1473,12 @@ index.html         redirección de la raíz del sitio al minificado
 - Nominatim se consulta con `AbortController` / `AbortSignal.timeout`:
   una búsqueda nueva o cerrar los resultados cancela la anterior y
   libera la conexión.
-- `describeHttp` traduce el estado HTTP a algo accionable (429 = límite
-  del servicio, 5xx = no disponible…).
+- `describeHttp` traduce el estado HTTP a algo accionable (404 = la
+  dirección no existe, 401 = hace falta autenticación, 429 = límite del
+  servicio, 5xx = no disponible…).
+- La descarga por URL sigue la misma disciplina, con lo suyo propio:
+  tope de tiempo y de tamaño, aborto por cancelación o cierre, y lectura
+  por trozos. Ver «Añadir desde una dirección (URL)».
 - **Los iconos ya NO son tráfico de ejecución**: van empotrados en el
   archivo (ver «Iconos de marcador»). Fue la única consulta externa que
   no seguía la disciplina de peticiones —79 a la vez, sin tope ni
@@ -1793,6 +1812,94 @@ y `kitelocal.min.html` (su derivada minificada, lo que sirve Pages).
   llegan del sistema operativo y no hay otra forma. Es un camino
   distinto (`navPanel`, `folderDropTarget`) y no abre ninguna sesión de
   arrastre de la página: la abre el escritorio.
+
+## Añadir desde una dirección (URL)
+
+El botón 🔗 de la cabecera abre un diálogo que descarga lo que haya en
+una dirección y lo mete en el árbol. Es el camino hermano del de
+arrastrar, y admite exactamente los mismos formatos.
+
+- **Son DOS pasos, y es la decisión de fondo.** Lo que llega de una
+  dirección arbitraria puede ser cualquier cosa —una página de error, un
+  HTML, un formato que no entendemos—, así que primero se descarga y el
+  diálogo dice QUÉ ha llegado (tipo y tamaño), y solo entonces aparece
+  «Añadir al árbol». Hasta ese botón no se toca nada: la misma edición
+  diferida que el resto de diálogos.
+- **Con la descarga hecha, «Descargar» se deshabilita**: repetirla sobre
+  la misma dirección no hace nada que no esté hecho, así que quedan las
+  dos salidas que sí significan algo, añadirlo o cerrar. Y no es un
+  callejón: tocar la dirección invalida ese resultado —si no, se podría
+  descargar A, escribir B y añadir A— y devuelve el diálogo al estado
+  inicial, con el botón otra vez activo.
+- **Una descarga en curso se cancela en el acto.** El botón primario
+  pasa a «Cancelar descarga» mientras descarga: esperar a que venza el
+  tope de 20 s no es una salida para quien acaba de pegar una dirección
+  equivocada. Cancelar deja el diálogo abierto con la dirección puesta
+  —lo normal es corregirla y reintentar—, lo dice en tono normal y **no
+  genera aviso**: el usuario acaba de hacerlo. Cerrar el diálogo (o
+  Escape) también aborta: una descarga cuyo resultado ya no tiene dónde
+  mostrarse solo ocupa conexión.
+- **Todo lo descargado cuelga de una sección «Descargas»**, igual que
+  «Lugares», «Marcadores», «Polígonos» o «Elevaciones»: se localiza por
+  nombre con `ensureNamedSection`, así que se reutiliza entre descargas
+  y sobrevive a la restauración sin ningún enganche especial.
+- **Y dentro, cada descarga en su «Descarga N»**, numerada con el mismo
+  `nextNumberedName` que las formas dibujadas, las mediciones y los
+  pines: deduce el número de los nombres que ya hay en el árbol
+  —pendientes incluidos—, así que sobrevive a una recarga y manda el
+  máximo, no la cuenta (borrar «Descarga 2» no recicla ese número
+  mientras quede una mayor). Es exactamente la forma de «Elevaciones»
+  con sus «Elevación N» dentro.
+  La carpeta hace falta, no es adorno: sin ella el resultado depende del
+  formato —un GeoJSON crea su envoltorio y un KML vuelca su jerarquía
+  tal cual—, así que dos descargas se mezclarían dentro de la sección
+  sin saberse cuál trajo qué. La importación va DENTRO de esa carpeta
+  (el `dropTargetUl` que `handleDroppedFiles` ya acepta), y todo tras un
+  `pushUndo`, así que una descarga se deshace de una vez.
+- **Lo descargado se envuelve en un `File` y se entrega a
+  `handleDroppedFiles`**, así que no se duplica una línea del camino de
+  importación: mismos formatos, mismos diálogos (etiquetas HTML,
+  propiedad-nombre, duplicados), mismo informe y mismo guardado. Se
+  cierra el diálogo ANTES de llamarla, porque esos diálogos suyos no
+  pueden apilarse sobre este.
+- **El tipo se reconoce por el CONTENIDO, no por la extensión**
+  (`sniffContentKind`), que es obligado: media web sirve un GeoJSON
+  desde una ruta que no termina en nada. Los bytes primero —un zip es
+  KMZ y no se decodifica: pasar 100 MB de zip por `TextDecoder` no sirve
+  de nada—, y después el texto: `<kml>` con o sin prefijo de namespace,
+  y la familia JSON por su FORMA, con los mismos criterios que ya usa
+  `handleDroppedFiles`.
+- **`html` es un tipo que se reconoce solo para poder RECHAZARLO bien.**
+  Es lo que llega cuando alguien pega la página de GitHub en vez del
+  enlace «Raw», y decirlo con ese nombre ahorra la búsqueda a ciegas.
+- **La extensión sintetizada es el puente** (`downloadFileName`):
+  `handleDroppedFiles` despacha por `file.name`, así que un nombre sin
+  extensión útil haría que lo descargado **se rechazara a sí mismo**. Se
+  respeta la extensión que ya traiga si cae en la misma rama, y si no se
+  le añade la que toca; los tres tipos JSON comparten `.json` porque esa
+  rama vuelve a distinguirlos por su forma. La suite de Node comprueba
+  el invariante: la extensión resultante siempre cae en una rama viva.
+- **El fallo más probable es CORS**, y llega como un `TypeError` **sin
+  ningún detalle**: el navegador no le cuenta a la página por qué. Por
+  eso el mensaje nombra la causa probable, aclara que no es culpa de la
+  dirección y ofrece la salida que siempre funciona (descargar y
+  arrastrar). Mismo criterio que `describeHttp`: traducir a algo
+  accionable en vez de repetir «error de red».
+- **Dos cotas**: 20 s de respuesta y 100 MB, este comprobado por los dos
+  lados —el `content-length` antes de leer nada, que es lo barato, y la
+  cuenta real mientras llega, porque puede faltar o mentir—. Se lee por
+  trozos (`resp.body.getReader()`), que es lo que a la vez permite
+  cortar al pasarse, ir diciendo cuánto lleva y que cancelar surta
+  efecto de inmediato.
+- **La petición es deliberadamente SIMPLE**: `credentials: "omit"` —las
+  cookies del usuario no pintan nada en una descarga hacia un tercero— y
+  **sin cabeceras propias**, porque cualquier cabecera no simple obliga
+  a un *preflight* `OPTIONS` que la mayoría de los alojamientos
+  estáticos no contesta, y convertiría en fallo lo que hoy funciona. Es
+  justo el cambio «inocente» que alguien haría más adelante.
+- **No se tocó el pegado del árbol.** La URL se pega dentro del campo
+  del diálogo; el escucha de `paste` tiene una semántica delicada —el
+  corte, `clipboardText`, sus dos guardias— que ya costó un fallo serio.
 
 ## Ficha del elemento / panel de información de la capa
 

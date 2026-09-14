@@ -160,6 +160,11 @@ const GLOBALS = new Set([
   "cancelAnimationFrame", "clearTimeout", "encodeURIComponent", "fetch",
   "isFinite", "parseFloat", "parseInt", "requestAnimationFrame",
   "setInterval", "setTimeout",
+  /* `URL` y `decodeURIComponent`: reconocer una dirección pegada por el
+     usuario (ver fileNameFromUrl). Van en la lista explícita por lo
+     mismo que el resto: depender de una API del navegador tiene que ser
+     una decisión, no un descuido.                                      */
+  "URL", "decodeURIComponent", "TextDecoder", "File", "Uint8Array",
   "html2canvas"
 ]);
 

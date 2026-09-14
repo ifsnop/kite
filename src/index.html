@@ -9,17 +9,25 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>KITE Local &#8212; KML Interactive Tree Explorer</title>
 <!-- Content Security Policy: solo se permiten los orígenes que la
-     aplicación usa de verdad (Leaflet, JSZip, teselas, Iconify y
-     Nominatim). Es un único archivo sin compilación, así que el CSS y el
-     JS propios van en línea y hacen falta 'unsafe-inline'/'unsafe-eval'
-     no: el script es inline, luego 'unsafe-inline' basta. Aun así la
-     política acota de dónde puede venir todo lo demás.               -->
+     aplicación usa de verdad (Leaflet, JSZip, teselas). Es un único
+     archivo sin compilación, así que el CSS y el JS propios van en
+     línea y por eso hace falta 'unsafe-inline'. Aun así la política
+     acota de dónde puede venir todo lo demás.
+
+     `connect-src` es la excepción, y es deliberada: desde que se puede
+     añadir contenido desde una dirección que escribe el usuario (botón
+     🔗 de la cabecera), enumerar orígenes es imposible por definición —
+     el origen ES lo que el usuario elige. Se abre a cualquier `https:`
+     y NADA MÁS: `default-src 'none'` sigue en pie, script/style/img
+     conservan sus listas cerradas (un origen ajeno puede dar datos,
+     nunca código ni estilos) y `http:` queda fuera a propósito, así que
+     una página servida por https no puede degradarse.              -->
 <meta http-equiv="Content-Security-Policy" content="
   default-src 'none';
   script-src 'self' 'unsafe-inline' https://unpkg.com https://cdnjs.cloudflare.com;
   style-src 'self' 'unsafe-inline' https://unpkg.com;
   img-src 'self' data: blob: https://unpkg.com https://www.ign.es https://tile.openstreetmap.org https://server.arcgisonline.com https://tms-pnoa-ma.idee.es https://servicios.idee.es https://ows.terrestris.de https://sh.dataspace.copernicus.eu;
-  connect-src 'self' https://nominatim.openstreetmap.org https://wcs-mds.idee.es https://servicios.idee.es https://www.ign.es https://unpkg.com https://cdnjs.cloudflare.com https://sh.dataspace.copernicus.eu;
+  connect-src 'self' https:;
   font-src 'self';
   base-uri 'none';
   form-action 'none';
@@ -72,6 +80,8 @@
 <aside id="nav-panel">
   <header>
     <h1 title="KML Interactive Tree Explorer">KITE Local
+      <button id="url-btn" class="btn" title="A&#241;adir contenido desde una direcci&#243;n (URL)"
+              aria-label="A&#241;adir contenido desde una direcci&#243;n (URL)">🔗</button>
       <button id="gnp-editor-btn" class="btn" title="Nombres recordados para GeoJSON">🏷️</button>
       <button id="log-btn" class="btn" title="Registro de avisos">📋</button>
       <button id="help-btn" class="btn" title="Ayuda y atajos de teclado (tecla ?)">?</button>
@@ -371,6 +381,36 @@
       <button class="btn" id="log-copy">Copiar</button>
       <button class="btn" id="log-clear">Borrar</button>
       <button class="btn" id="log-close">Cerrar</button>
+    </div>
+  </div>
+</div>
+
+<!-- Añadir contenido desde una dirección (URL). En DOS PASOS: primero se
+     descarga y el diálogo dice QUÉ ha llegado; solo entonces aparece
+     «Añadir al árbol». Lo que llega de una dirección arbitraria puede ser
+     cualquier cosa, así que el usuario confirma qué es antes de que toque
+     el árbol. Mientras descarga, «Descargar» pasa a «Cancelar descarga»:
+     esperar a que venza el tope de 20 s no es una salida.            -->
+<div id="url-dialog" class="dlg-overlay" hidden>
+  <div class="dlg-box">
+    <h2>A&#241;adir desde una direcci&#243;n</h2>
+    <p class="dlg-hint">Direcci&#243;n de un archivo KML, KMZ, JSON/GeoJSON, TopoJSON o de una
+      carpeta exportada (.kite.json). Se descarga primero y se a&#241;ade despu&#233;s, cuando
+      vea qu&#233; ha llegado.</p>
+    <!-- Un <textarea> y no un <input>: una dirección de descarga pasa de
+         mil caracteres con facilidad (tokens de firma, parámetros de
+         una API) y en una sola línea no se ve más que un trozo. Aquí
+         envuelve, y al agrandar la ventana se ve más. Intro sigue
+         disparando la acción, no metiendo un salto de línea. -->
+    <label class="url-field">Direcci&#243;n
+      <textarea id="url-input" rows="2" spellcheck="false" autocomplete="off"
+                placeholder="https://ejemplo.com/rutas.kml"></textarea>
+    </label>
+    <p class="dlg-hint" id="url-status" hidden></p>
+    <div class="dlg-actions">
+      <button class="btn" id="url-close">Cerrar</button>
+      <button class="btn" id="url-fetch">Descargar</button>
+      <button class="btn" id="url-add" hidden>A&#241;adir al &#225;rbol</button>
     </div>
   </div>
 </div>
