@@ -1541,15 +1541,65 @@ function hasHardwareAcceleration() {
 }
 const hwAccelerated = hasHardwareAcceleration();
 
+/* UNA sola Tierra, no infinitas copias en horizontal. Son tres cosas
+   distintas y hacen falta las tres: sin `noWrap` las teselas se repiten
+   a izquierda y derecha (ver createBaseLayer), sin `maxBounds` el
+   arrastre sigue sin tope aunque no haya nada que dibujar, y sin el
+   suelo de zoom de fitWorldMinZoom el mundo se queda más estrecho que
+   la ventana y vuelve a haber sitio a los lados.
+
+   El rectángulo NO llega a ±90: Web Mercator no proyecta más allá de
+   ±85,051…° (la latitud donde la tangente se va al infinito), así que
+   pedir ±90 sería pedir un límite que la proyección no tiene y el tope
+   vertical quedaría fuera del mundo dibujable. Es la misma constante
+   que ya recorta la retícula a la franja Mercator.                    */
+const WORLD_BOUNDS = L.latLngBounds([-85.05112878, -180], [85.05112878, 180]);
+
 const map = L.map("map", {
   preferCanvas: true,
   maxZoom: MAX_ZOOM,
+  maxBounds: WORLD_BOUNDS,
+  /* 1 = el borde no cede nada. Con el valor por defecto (0) el mundo se
+     puede arrastrar fuera y vuelve solo al soltar, que es justo el
+     efecto elástico que aquí no se quiere.                           */
+  maxBoundsViscosity: 1,
   zoomAnimation: hwAccelerated,
 }).setView([40.4, -3.7], 6);
 
+/* Suelo de zoom: el nivel en el que el mundo ya LLENA la ventana
+   (`inside: true`). Por debajo, el mapa cabría entero con hueco a los
+   lados y ahí es donde volvían a verse las copias; además `maxBounds`
+   no se puede satisfacer con la vista más ancha que el mundo y Leaflet
+   se pone a dar tirones contra el tope.
+
+   Depende del TAMAÑO de la ventana, así que se recalcula al
+   redimensionar: a 600 px de ancho el mundo llena la vista en el zoom
+   1, pero a 2500 px hace falta el 3. Fijar un número a mano dejaría
+   pantallas grandes con hueco y pantallas pequeñas sin poder alejar
+   todo lo que da el mundo.                                           */
+/* Trampa medida: `getBoundsZoom` termina con
+   `Math.max(this.getMinZoom(), …)`, o sea que usa el suelo ACTUAL como
+   suelo de su propia respuesta. Preguntándole sin más, el número solo
+   puede subir: tras agrandar la ventana y volver a encogerla, el suelo
+   se quedaba clavado en el de la ventana más ancha que hubiera habido
+   —medido: 4 con el mapa ya en 275 px, donde corresponde 2— y el
+   usuario no podía alejar. Se aparta el suelo antes de preguntar y se
+   pone después el que conteste. Se le pregunta a Leaflet en vez de
+   calcular el logaritmo a mano porque el redondeo a `zoomSnap` es suyo
+   y tiene su propia letra pequeña.                                    */
+function fitWorldMinZoom() {
+  const previo = map.options.minZoom;
+  map.options.minZoom = 0;
+  const z = map.getBoundsZoom(WORLD_BOUNDS, true);
+  map.options.minZoom = previo;
+  if (Number.isFinite(z) && z !== previo) map.setMinZoom(z);
+}
+fitWorldMinZoom();
+map.on("resize", fitWorldMinZoom);
+
 /* Fecha de generación del código (versión): AÑOMESDIAHORAMINUTO.
    Actualizar en cada generación; se muestra junto al crédito de Leaflet. */
-const BUILD = "202609141530";
+const BUILD = "202609141800";
 /* El enlace al repositorio va junto a la versión, que es lo que hace
    accionable saber qué build se está ejecutando: desde ahí se llega al
    código de esa versión. `target="_blank"` a propósito —salir de la
@@ -1725,6 +1775,15 @@ function applyBaseLayer(id) {
     }
     if (!st.layer) {
       st.layer = st.def.dynamic ? st.def.layer(st.wmsLayer) : st.def.layer();
+      /* `noWrap` va AQUÍ y no repetido en las diez definiciones de
+         BASE_LAYERS: es una decisión del visor —una sola Tierra— y no
+         una propiedad de cada servicio, y puesta en un único sitio la
+         hereda cualquier capa que se añada después sin que nadie tenga
+         que acordarse. Se puede escribir sobre las opciones ya creadas
+         porque GridLayer las consulta al construir la rejilla
+         (`_resetGrid`, al añadirse al mapa y en cada cambio de zoom),
+         no en su constructor.                                         */
+      st.layer.options.noWrap = true;
       st.layer.setZIndex(st.zIndex);
       /* Una URL que no responda debe verse, no fallar en silencio */
       let errors = 0;

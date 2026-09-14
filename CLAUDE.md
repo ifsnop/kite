@@ -2018,6 +2018,49 @@ eso, `"cortado(s)"` se leía como una llamada a `cortado`), y un getter
 globales del navegador van en una lista explícita (`GLOBALS`) para que
 depender de una API nueva sea una decisión, no un descuido.
 
+## Una sola Tierra
+
+No hay desplazamiento infinito: el mundo se ve una vez y no se puede
+salir de él. Son TRES piezas y hacen falta las tres, cada una tapa un
+agujero distinto:
+
+- **`noWrap` en cada capa de teselas**, puesto en `applyBaseLayer` —el
+  único sitio donde se instancia una capa base— y no repetido en las
+  diez definiciones de `BASE_LAYERS`: es una decisión del visor, no una
+  propiedad de cada servicio, y así la hereda cualquier capa que se
+  añada después sin que nadie tenga que acordarse. Se escribe sobre las
+  opciones ya construidas porque `GridLayer` las consulta al armar la
+  rejilla (`_resetGrid`, al añadirse al mapa y en cada cambio de zoom),
+  no en su constructor.
+- **`maxBounds` con viscosidad 1**, o el arrastre seguiría sin tope
+  aunque no hubiera nada que dibujar. El rectángulo (`WORLD_BOUNDS`) no
+  llega a ±90: Web Mercator no proyecta más allá de ±85,051…°, la misma
+  franja a la que ya se recorta la retícula. Viscosidad 1 = el borde no
+  cede; con el valor por defecto el mundo se arrastra fuera y vuelve
+  solo al soltar, que es el efecto elástico que aquí no se quiere.
+- **Un suelo de zoom que sigue al tamaño de la ventana**
+  (`fitWorldMinZoom`, recalculado en `resize`): por debajo del nivel en
+  el que el mundo LLENA la vista vuelve a haber hueco a los lados —y
+  `maxBounds` no se puede satisfacer con la vista más ancha que el
+  mundo, así que Leaflet da tirones contra el tope—. Depende del
+  tamaño: con el mapa a 2075 px hace falta el zoom 4; a 275 px basta el
+  2. Un número fijo dejaría pantallas grandes con hueco y pequeñas sin
+  poder alejar.
+
+**Trampa medida, y no es evidente**: `getBoundsZoom` termina en
+`Math.max(this.getMinZoom(), …)`, o sea que usa el suelo ACTUAL como
+suelo de su propia respuesta. Preguntándole sin más, el suelo solo puede
+SUBIR: tras agrandar la ventana y volver a encogerla se quedaba clavado
+en el de la ventana más ancha que hubiera habido (medido: 4 con el mapa
+ya en 275 px, donde toca 2) y el usuario no podía alejar. `fitWorldMinZoom`
+aparta el suelo antes de preguntar y pone después el que conteste. Se le
+sigue preguntando a Leaflet en vez de calcular el logaritmo a mano
+porque el redondeo a `zoomSnap` es suyo y tiene su propia letra pequeña.
+
+Consecuencia: una geometría con longitud fuera de ±180 queda fuera del
+área alcanzable. No es un caso nuevo —la importación ya ajusta a ±180
+con `clampLatLng`— pero conviene saberlo.
+
 ## Zoom por encima de las teselas
 
 `maxZoom` es 25 en el mapa y cada capa declara su `maxNativeZoom` (19

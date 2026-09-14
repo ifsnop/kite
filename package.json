@@ -8,7 +8,7 @@
     "watch": "node build.js --watch",
     "test": "node tests/run-all.js",
     "icons": "node fetch-icons.js",
-    "test:browser": "node tests/browser/app.mjs && node tests/browser/clipboard.mjs && node tests/browser/geojson-html.mjs && node tests/browser/dialogs.mjs && node tests/browser/tree-move.mjs && node tests/browser/multiedit.mjs && node tests/browser/lazy-cascade.mjs",
+    "test:browser": "node tests/browser/app.mjs && node tests/browser/clipboard.mjs && node tests/browser/geojson-html.mjs && node tests/browser/dialogs.mjs && node tests/browser/tree-move.mjs && node tests/browser/multiedit.mjs && node tests/browser/lazy-cascade.mjs && node tests/browser/oneworld.mjs",
     "browser": "playwright install chromium"
   },
   "dependencies": {

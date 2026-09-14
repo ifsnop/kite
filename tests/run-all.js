@@ -67,7 +67,8 @@ const BROWSER = [
   ["browser/dialogs.mjs", "Navegador: las ventanas fijan cabecera y pie, y se redimensionan"],
   ["browser/tree-move.mjs", "Navegador: mover un nodo de rama recalcula la casilla de los dos extremos"],
   ["browser/multiedit.mjs", "Navegador: editar varios nodos a la vez y el nombre siempre a la vista de un trazo"],
-  ["browser/lazy-cascade.mjs", "Navegador: desplegar y marcar una carpeta grande a la vez no la deja a medio encender"]
+  ["browser/lazy-cascade.mjs", "Navegador: desplegar y marcar una carpeta grande a la vez no la deja a medio encender"],
+  ["browser/oneworld.mjs", "Navegador: una sola Tierra — sin copias en horizontal, con tope de arrastre y suelo de zoom"]
 ];
 
 const html = path.join(__dirname, "..", "kitelocal.html");
