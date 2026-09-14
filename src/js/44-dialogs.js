@@ -214,7 +214,12 @@ async function fetchRemoteFile(url, signal, onBytes) {
 
 /* Paso 1: descargar y reconocer. No toca el árbol. */
 async function runUrlFetch() {
-  const url = urlInput.value.trim();
+  /* Se quitan TODOS los blancos, no solo los de los extremos: una
+     dirección no puede llevarlos, y copiarla de un correo o de un PDF
+     arrastra saltos de línea con una facilidad pasmosa. Antes eso daba
+     un «no parece una dirección válida» que el usuario no entendía,
+     porque lo que él veía pegado estaba bien.                        */
+  const url = urlInput.value.replace(/\s+/g, "");
   if (!url) { setUrlState("error", "Escriba la dirección del archivo que quiere descargar.", true); return; }
   let parsed;
   try { parsed = new URL(url); } catch { parsed = null; }

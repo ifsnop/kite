@@ -594,8 +594,7 @@
      instead of stretching almost edge to edge.                       */
   /* Sin esto heredan el max-width: 90vw de .dlg-box y una caja de texto
      corto se estira a casi toda la pantalla.                          */
-  #kml-tags-picker .dlg-box, #kml-dup-picker .dlg-box, #sh-creds .dlg-box,
-  #url-dialog .dlg-box { max-width: 42ch; }
+  #kml-tags-picker .dlg-box, #kml-dup-picker .dlg-box, #sh-creds .dlg-box { max-width: 42ch; }
   /* ---------- Ventanas redimensionables ----------
      `resize: both` es el redimensionado nativo del navegador; su tirador
      va en la esquina inferior derecha y no estorba al arrastre por el
@@ -612,7 +611,7 @@
      cordura: por mucho que se estire, la ventana no se sale.         */
   #style-dialog .dlg-box, #icon-picker .dlg-box, #shortcuts .dlg-box,
   #desc-dialog .dlg-box, #geojson-name-picker .dlg-box, #gnp-editor .dlg-box,
-  #points-dialog .dlg-box, #log-dialog .dlg-box { resize: both; }
+  #points-dialog .dlg-box, #log-dialog .dlg-box, #url-dialog .dlg-box { resize: both; }
   /* El título del diálogo de propiedades lleva el nombre del nodo, y un
      nombre de KML puede tener cientos de caracteres: con la anchura de
      ajuste al contenido de .dlg-box (tope 90vw) la ventana crecía con el
@@ -809,6 +808,28 @@
     width: min(94vw, 680px); height: min(80vh, 560px);
     max-width: 94vw;
   }
+  /* El campo de la dirección LLENA la caja, en las dos direcciones: con
+     el tirador en la caja, un hijo que no crece con ella convierte
+     agrandar la ventana en añadir hueco vacío (la misma lección que la
+     lista de puntos y el registro). Y la caja necesita una altura de
+     partida explícita, porque un hijo en `flex: 1` sobre un contenedor
+     de altura automática se queda en nada.                           */
+  #url-dialog .dlg-box {
+    display: flex; flex-direction: column;
+    width: min(92vw, 560px); max-width: 94vw;
+  }
+  #url-dialog .url-field {
+    display: flex; flex-direction: column;
+    flex: 1 1 auto; min-height: 0;
+  }
+  #url-dialog .url-field textarea {
+    flex: 1 1 auto; min-height: 3.2em; resize: none;
+    /* Una dirección no lleva espacios, así que sin esto una URL larga
+       sin barras no partiría por ningún sitio y se saldría de la caja. */
+    overflow-wrap: anywhere;
+    font-family: ui-monospace, Consolas, monospace; font-size: 12.5px;
+  }
+
   /* El párrafo de ayuda prefiere ir en una línea (764 px medidos) y con
      eso marcaba el ancho mínimo del diálogo. Ya no puede: la caja lleva
      su propio `width`, así que nada de dentro la estira. Se conserva
@@ -851,7 +872,7 @@
   }
   #points-text.bad { border-color: var(--danger); }
   .sh-field, .url-field { display: block; margin-top: 10px; font-size: 13px; }
-  .sh-field input, .url-field input {
+  .sh-field input, .url-field input, .url-field textarea {
     display: block; width: 100%; margin-top: 4px; font: inherit; padding: 4px 6px;
     border: 1px solid var(--border); border-radius: 4px; box-sizing: border-box;
   }

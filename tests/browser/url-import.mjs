@@ -261,7 +261,52 @@ e = await estado();
 ok(!e.puedeAnadir && !e.visible, "al reabrir, estado inicial: " + JSON.stringify(e));
 await page.click("#url-close");
 
-/* ---------- 11. La CSP permite todo esto ----------
+/* ---------- 11. Una dirección larguísima cabe si se agranda ----------
+   Es la razón de que esta ventana se redimensione: mil caracteres no
+   se ven en una caja fija. Lo que se mide es lo que el usuario nota —
+   cuánto del campo queda sin ver— antes y después de agrandarla, y que
+   los botones sigan dentro al encogerla.                            */
+await abrir();
+const LARGA = "https://ejemplo.com/descargas/" + "a".repeat(950) + "/datos.geojson";
+await escribir(LARGA);
+const caja = tam => page.evaluate(t => {
+  const box = document.querySelector("#url-dialog .dlg-box");
+  if (t) { box.style.width = t[0] + "px"; box.style.height = t[1] + "px"; }
+  const ta = document.getElementById("url-input");
+  const rb = box.getBoundingClientRect();
+  const acc = document.querySelector("#url-dialog .dlg-actions").getBoundingClientRect();
+  return { sinVer: Math.round(ta.scrollHeight - ta.clientHeight),
+    botonesDentro: Math.round(rb.bottom - acc.bottom) >= 0 && acc.top >= rb.top,
+    resize: getComputedStyle(box).resize };
+}, tam);
+const normal = await caja(null);
+ok(normal.resize === "both", "la ventana se redimensiona: " + normal.resize);
+ok(normal.sinVer > 0, "y al tamaño de partida la dirección no cabe entera: "
+  + normal.sinVer + " px sin ver");
+const grande = await caja([900, 520]);
+ok(grande.sinVer === 0,
+  "agrandándola se ve entera, que es para lo que sirve el tirador: "
+  + grande.sinVer + " px sin ver");
+const pequena = await caja([300, 200]);
+ok(pequena.botonesDentro, "y encogida a 300×200 los botones siguen dentro de la caja");
+/* El asa de arrastre es el título: mover la ventana no puede depender
+   de que el contenido no haya scrolleado.                           */
+const movida = await page.evaluate(async () => {
+  const box = document.querySelector("#url-dialog .dlg-box");
+  const antes = Math.round(box.getBoundingClientRect().x);
+  const h2 = box.querySelector("h2").getBoundingClientRect();
+  const ev = (t, x, y) => box.querySelector("h2").dispatchEvent(
+    new PointerEvent(t, { bubbles: true, clientX: x, clientY: y, pointerId: 1 }));
+  ev("pointerdown", h2.x + 30, h2.y + 8);
+  ev("pointermove", h2.x - 90, h2.y + 48);
+  ev("pointerup", h2.x - 90, h2.y + 48);
+  return { antes, despues: Math.round(box.getBoundingClientRect().x) };
+});
+ok(movida.antes !== movida.despues,
+  `y la ventana se mueve arrastrando su título: x ${movida.antes} → ${movida.despues}`);
+await page.click("#url-close");
+
+/* ---------- 12. La CSP permite todo esto ----------
    Ninguna violación ANTES del caso que la provoca a propósito: es lo
    que demuestra que la política nueva deja pasar las descargas buenas.
    Y una sola después, la del segundo origen.                         */

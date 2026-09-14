@@ -397,9 +397,14 @@
     <p class="dlg-hint">Direcci&#243;n de un archivo KML, KMZ, JSON/GeoJSON, TopoJSON o de una
       carpeta exportada (.kite.json). Se descarga primero y se a&#241;ade despu&#233;s, cuando
       vea qu&#233; ha llegado.</p>
+    <!-- Un <textarea> y no un <input>: una dirección de descarga pasa de
+         mil caracteres con facilidad (tokens de firma, parámetros de
+         una API) y en una sola línea no se ve más que un trozo. Aquí
+         envuelve, y al agrandar la ventana se ve más. Intro sigue
+         disparando la acción, no metiendo un salto de línea. -->
     <label class="url-field">Direcci&#243;n
-      <input type="url" id="url-input" spellcheck="false" autocomplete="off"
-             placeholder="https://ejemplo.com/rutas.kml">
+      <textarea id="url-input" rows="2" spellcheck="false" autocomplete="off"
+                placeholder="https://ejemplo.com/rutas.kml"></textarea>
     </label>
     <p class="dlg-hint" id="url-status" hidden></p>
     <div class="dlg-actions">

@@ -890,10 +890,12 @@ index.html         redirección de la raíz del sitio al minificado
 - **La rejilla de iconos ajusta sus columnas al ancho**
   (`repeat(auto-fill, minmax(32px, 1fr))` en vez de `repeat(8, 32px)`):
   si no, ensanchar esa ventana tampoco serviría de nada.
-- **Se redimensionan las ocho que tienen contenido que revelar**
+- **Se redimensionan las nueve que tienen contenido que revelar**
   (`resize: both` en su `.dlg-box`): estilos, selector de iconos,
   chuleta de atajos, ficha de la capa, selector de nombre de GeoJSON,
-  editor de nombres recordados, lista de puntos y registro de avisos.
+  editor de nombres recordados, lista de puntos, registro de avisos y
+  **el de añadir desde una dirección** —una URL de descarga pasa de mil
+  caracteres con facilidad, y en una caja fija solo se ve un trozo—.
   Las otras cuatro —selector de color, etiquetas HTML, duplicados y
   credenciales— son confirmaciones de dos líneas (92–336 px medidos,
   ancho fijo de 42ch): ahí un tirador no descubre nada y solo ensucia la
