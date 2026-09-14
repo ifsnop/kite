@@ -594,7 +594,8 @@
      instead of stretching almost edge to edge.                       */
   /* Sin esto heredan el max-width: 90vw de .dlg-box y una caja de texto
      corto se estira a casi toda la pantalla.                          */
-  #kml-tags-picker .dlg-box, #kml-dup-picker .dlg-box, #sh-creds .dlg-box { max-width: 42ch; }
+  #kml-tags-picker .dlg-box, #kml-dup-picker .dlg-box, #sh-creds .dlg-box,
+  #url-dialog .dlg-box { max-width: 42ch; }
   /* ---------- Ventanas redimensionables ----------
      `resize: both` es el redimensionado nativo del navegador; su tirador
      va en la esquina inferior derecha y no estorba al arrastre por el
@@ -781,6 +782,12 @@
   .desc-body img { max-width: 100%; height: auto; }
   .dlg-hint { margin: 6px 0 0; font-size: 12px; color: var(--muted); }
   .dlg-hint.sh-bad { color: var(--danger); }
+  /* El resultado de la descarga NO es una nota al pie: es lo que se ha
+     venido a leer, así que va en el color normal del texto y solo se
+     pone en rojo cuando de verdad ha fallado algo. Mismo criterio que
+     los dos tonos de aviso del panel, donde `info` tampoco va en gris. */
+  #url-status { color: var(--text); }
+  #url-status.sh-bad { color: var(--danger); }
   /* La lista de puntos necesita su propio ancho: .dlg-box trae
      max-width 90vw, pensado para los diálogos anchos.                 */
   /* Ahora que el textarea llena la caja y no al revés, la MEDIDA DE
@@ -843,8 +850,8 @@
     border: 1px solid var(--border); border-radius: 4px; padding: 6px; box-sizing: border-box;
   }
   #points-text.bad { border-color: var(--danger); }
-  .sh-field { display: block; margin-top: 10px; font-size: 13px; }
-  .sh-field input {
+  .sh-field, .url-field { display: block; margin-top: 10px; font-size: 13px; }
+  .sh-field input, .url-field input {
     display: block; width: 100%; margin-top: 4px; font: inherit; padding: 4px 6px;
     border: 1px solid var(--border); border-radius: 4px; box-sizing: border-box;
   }

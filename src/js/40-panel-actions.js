@@ -211,6 +211,8 @@ let placeAbort = null; /* petición en vuelo, para poder cancelarla */
 
 /* Traduce el fallo a algo accionable en vez de "error de red" */
 function describeHttp(status) {
+  if (status === 404) return "la dirección no existe (HTTP 404)";
+  if (status === 401) return "hace falta autenticación (HTTP 401)";
   if (status === 429) return "el servicio ha limitado las consultas; espere unos segundos";
   if (status === 403) return "el servicio ha rechazado la consulta";
   if (status >= 500) return `el servicio no est\u00E1 disponible (HTTP ${status})`;

@@ -96,6 +96,15 @@ KITE Local does not impose fixed limits on KML file size, imported features or v
 - export any folder or file as a portable `.kite.json` package
 - local storage usage indicator, and a session log of every notice shown
 
+### Loading
+
+- drag KML, KMZ, GeoJSON, TopoJSON and exported `.kite.json` folders onto
+  the panel, or drop them straight into a folder
+- **open a URL**: paste an address, download it, see what actually
+  arrived — the format is recognised from the content, not the
+  extension — and only then add it to the tree. A download in progress
+  can be cancelled without waiting for the timeout.
+
 ### Styling and editing
 
 - Leaflet and Material Design marker icons, embedded in the file
@@ -219,6 +228,8 @@ These providers receive ordinary request metadata, and text entered in the place
 
 For controlled or offline deployments, vendor the JavaScript, CSS, image and icon dependencies locally, disable or replace the geocoder, and configure approved tile/WMS services.
 
+Opening a URL downloads exactly the address you paste, with no credentials attached, and the content is then processed locally like any dropped file. Nothing is sent anywhere: the download is the only request, and it goes to the server you named.
+
 ## Why not just use QGIS or Google Earth on the web?
 
 These tools solve different problems:
@@ -286,10 +297,13 @@ The interface is primarily designed for mouse and keyboard use. Touch support an
 - Altitude is carried through import, storage and export, but it is not rendered: this is a 2D viewer. Two placemarks at the same latitude and longitude but different altitudes are still treated as duplicates.
 - KML style handling is partial: shared and inline styles for basic line and polygon appearance, and `StyleMap` normal-style references. (Namespaces are not a limitation — elements are matched by local name, so prefixed, default-namespaced and namespace-less KML all work.)
 - External services can change, rate-limit requests or become unavailable.
+- Opening a URL only works if that server allows other pages to read it (CORS headers). Most static hosts do; many portals do not, and the browser gives the page no detail about why. For those, download the file and drop it in — the dialog says so when it happens.
 - `.kite.json` is application-specific and currently requires a matching tree schema version.
 - The current interface is in Spanish.
 
 ## Security notes
+
+`connect-src` accepts any https origin, which is the one directive that had to be opened: the address a URL import downloads from is chosen by the user, so enumerating origins is impossible by definition. Nothing else was relaxed — `default-src 'none'` stands, and `script-src`, `style-src` and `img-src` keep their closed lists, so a remote origin can supply data but never code or styles. `http:` is deliberately excluded.
 
 Treat imported files as untrusted input. The viewer uses text insertion and explicit HTML escaping for marker labels, sanitizes KML `description` HTML against an allow-list, ships a restrictive `Content-Security-Policy` (`default-src 'none'` plus the specific origins it needs), and pins its CDN dependencies with Subresource Integrity. Marker icons are embedded rather than fetched, so no remote SVG is executed.
 

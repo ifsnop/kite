@@ -83,6 +83,254 @@ document.getElementById("log-copy").addEventListener("click", () => {
     .catch(() => navMessage("No se pudo copiar al portapapeles."));
 });
 
+/* ---------- Añadir contenido desde una dirección (URL) ----------
+   Dos pasos, y son dos a propósito: lo que llega de una dirección
+   arbitraria puede ser cualquier cosa —una página de error, un HTML, un
+   formato que no entendemos—, así que primero se descarga y se dice QUÉ
+   ha llegado, y solo entonces el usuario decide meterlo en el árbol. Es
+   la misma edición diferida del resto de diálogos: hasta «Añadir al
+   árbol» no se toca nada.
+
+   Lo descargado se envuelve en un `File` y se entrega a
+   handleDroppedFiles, así que no se duplica ni una línea del camino de
+   importación: mismos formatos, mismos diálogos (etiquetas HTML,
+   propiedad-nombre, duplicados), mismo informe y mismo guardado.
+
+   VA AQUÍ, por encima del registro de diálogos del final del archivo:
+   `urlBox` se usa en ese bucle, que corre al EVALUAR el archivo, y
+   declararlo por debajo reventaría al cargar por zona muerta temporal
+   —el mismo tropiezo que ya costó una tarde con `descBody`—.        */
+const URL_TIMEOUT = 20000;                 /* tope de respuesta        */
+const URL_MAX_BYTES = 100 * 1024 * 1024;   /* tope de descarga         */
+
+const urlDialog = document.getElementById("url-dialog");
+const urlBox = urlDialog.querySelector(".dlg-box");
+const urlInput = document.getElementById("url-input");
+const urlStatus = document.getElementById("url-status");
+const urlFetchBtn = document.getElementById("url-fetch");
+const urlAddBtn = document.getElementById("url-add");
+
+let urlAbort = null;   /* descarga en vuelo, para poder cancelarla     */
+let urlSeq = 0;        /* descarta respuestas superadas, como placeSeq */
+let urlReady = null;   /* el borrador: { file, kind, size } o null     */
+
+/* Un único punto que mueve TODOS los controles: nadie toca `disabled`
+   ni `hidden` por su cuenta, que es como se acaba con un botón activo
+   en un estado que no lo admite.                                     */
+function setUrlState(state, text = "", bad = false) {
+  const descargando = state === "descargando";
+  urlInput.disabled = descargando;
+  /* Durante la descarga el botón primario CAMBIA DE PAPEL en vez de
+     deshabilitarse: esperar a que venza el tope de 20 s no es una
+     salida aceptable para quien acaba de pegar una dirección enorme. */
+  urlFetchBtn.textContent = descargando ? "Cancelar descarga" : "Descargar";
+  urlFetchBtn.disabled = false;
+  urlAddBtn.hidden = state !== "listo";
+  urlStatus.hidden = !text;
+  urlStatus.textContent = text;
+  urlStatus.classList.toggle("sh-bad", bad);
+}
+
+/* Aborta lo que haya en vuelo. `motivo` viaja al `catch` para poder
+   distinguir el tope de tiempo de una cancelación del usuario.       */
+function abortUrlFetch(motivo) {
+  urlSeq++;
+  if (urlAbort) { urlAbort.abort(motivo); urlAbort = null; }
+}
+
+function closeUrlDialog() {
+  /* Cerrar aborta: una descarga cuyo resultado ya no tiene dónde
+     mostrarse solo ocupa conexión.                                   */
+  abortUrlFetch("cerrado");
+  urlReady = null;
+  urlDialog.hidden = true;
+  releaseFocus();
+}
+
+function openUrlDialog() {
+  urlReady = null;
+  setUrlState("inicial");
+  urlDialog.hidden = false;
+  clampToViewport(urlBox);
+  focusDialog(urlBox);
+  urlInput.focus();
+  /* Seleccionado, no borrado: lo normal al reabrir es corregir una
+     errata de la dirección anterior.                                 */
+  urlInput.select();
+}
+
+/* La descarga. Devuelve los bytes o lanza con un mensaje ya redactado.
+
+   La petición es deliberadamente SIMPLE: sin cabeceras propias y sin
+   credenciales. Cualquier cabecera no simple obliga al navegador a un
+   preflight OPTIONS que la mayoría de los alojamientos estáticos no
+   contesta, y convertiría en fallo lo que ahora funciona; y las cookies
+   del usuario no tienen nada que hacer en una descarga hacia un tercero.
+   Es justo el cambio «inocente» que alguien haría más adelante.      */
+async function fetchRemoteFile(url, signal, onBytes) {
+  const resp = await fetch(url, { signal, credentials: "omit", redirect: "follow" });
+  if (!resp.ok) throw new Error(`No se pudo descargar: ${describeHttp(resp.status)}.`);
+
+  /* Lo que el servidor DICE que ocupa, antes de traerse nada: es la
+     comprobación barata y evita empezar una descarga condenada.      */
+  const declarado = Number(resp.headers.get("content-length"));
+  if (Number.isFinite(declarado) && declarado > URL_MAX_BYTES) {
+    throw new Error(`El archivo ocupa ${fmtBytes(declarado)} y supera el tope de `
+      + `${fmtBytes(URL_MAX_BYTES)}.`);
+  }
+
+  /* Y lo que ocupa DE VERDAD, mientras llega: content-length puede
+     faltar (respuesta troceada) o mentir. Leer por trozos es además lo
+     que hace que cancelar surta efecto en el acto y lo que permite ir
+     diciendo cuánto lleva descargado.                                */
+  if (!resp.body || !resp.body.getReader) {
+    const buf = await resp.arrayBuffer();
+    if (buf.byteLength > URL_MAX_BYTES) {
+      throw new Error(`La descarga ocupa ${fmtBytes(buf.byteLength)} y supera el tope de `
+        + `${fmtBytes(URL_MAX_BYTES)}.`);
+    }
+    return new Uint8Array(buf);
+  }
+  const reader = resp.body.getReader();
+  const trozos = [];
+  let total = 0;
+  for (;;) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    total += value.length;
+    if (total > URL_MAX_BYTES) {
+      reader.cancel();
+      throw new Error(`La descarga ya supera el tope de ${fmtBytes(URL_MAX_BYTES)} `
+        + "y se ha interrumpido.");
+    }
+    trozos.push(value);
+    if (onBytes) onBytes(total);
+  }
+  const out = new Uint8Array(total);
+  let pos = 0;
+  for (const t of trozos) { out.set(t, pos); pos += t.length; }
+  return out;
+}
+
+/* Paso 1: descargar y reconocer. No toca el árbol. */
+async function runUrlFetch() {
+  const url = urlInput.value.trim();
+  if (!url) { setUrlState("error", "Escriba la dirección del archivo que quiere descargar.", true); return; }
+  let parsed;
+  try { parsed = new URL(url); } catch { parsed = null; }
+  if (!parsed || (parsed.protocol !== "http:" && parsed.protocol !== "https:")) {
+    setUrlState("error", `«${url}» no parece una dirección válida. Debe empezar por `
+      + "http:// o https://.", true);
+    return;
+  }
+  /* La CSP admite https: y nada más. Sin este aviso, el rechazo llega
+     como el mismo TypeError sin detalle que un fallo de CORS y el
+     usuario se pondría a buscar por donde no es.                     */
+  if (parsed.protocol === "http:" && location.protocol === "https:") {
+    setUrlState("error", "La dirección usa http://. Desde una página servida por https "
+      + "solo se pueden descargar direcciones https://.", true);
+    return;
+  }
+
+  abortUrlFetch("reemplazada");
+  urlReady = null;
+  const seq = ++urlSeq;
+  const ctrl = urlAbort = new AbortController();
+  const timer = setTimeout(() => ctrl.abort("timeout"), URL_TIMEOUT);
+  setUrlState("descargando", "Descargando…");
+  try {
+    const bytes = await fetchRemoteFile(url, ctrl.signal,
+      n => { if (seq === urlSeq) setUrlState("descargando", `Descargando… ${fmtBytes(n)}`); });
+    if (seq !== urlSeq) return; /* superada o cancelada: no pinta nada */
+    if (!bytes.length) { setUrlState("error", "La descarga ha llegado vacía (0 bytes).", true); return; }
+
+    /* Los bytes primero (un zip no se decodifica), el texto después */
+    let texto = "";
+    try { texto = new TextDecoder("utf-8").decode(bytes); } catch { texto = ""; }
+    const kind = sniffContentKind(bytes, texto);
+    if (kind === "html") {
+      setUrlState("error", "Lo descargado es una página web (HTML), no un archivo de datos. "
+        + "Compruebe que la dirección apunta al archivo en crudo (en GitHub, el enlace «Raw»).", true);
+      return;
+    }
+    if (!kind) {
+      setUrlState("error", `No se reconoce el contenido descargado (${fmtBytes(bytes.length)}). `
+        + "Formatos admitidos: KML, KMZ, JSON (GeoJSON), TopoJSON y carpetas "
+        + `exportadas (${EXPORT_EXT}).`, true);
+      return;
+    }
+    const name = downloadFileName(url, kind);
+    urlReady = { file: new File([bytes], name), kind, size: bytes.length };
+    setUrlState("listo", `«${name}» — ${URL_KIND_LABEL[kind]}, ${fmtBytes(bytes.length)}. `
+      + "Pulse «Añadir al árbol» para insertarlo.");
+    urlAddBtn.focus();
+  } catch (err) {
+    if (seq !== urlSeq) return;
+    /* Cancelar NO es un fallo: no se pinta en rojo ni se registra. El
+       tope de tiempo sí, y llega por el mismo camino, así que se
+       distinguen por el motivo del abort.                            */
+    if (err.name === "AbortError") {
+      if (ctrl.signal.reason === "timeout") {
+        setUrlState("error", `El servidor ha tardado más de ${URL_TIMEOUT / 1000} s en responder.`, true);
+      } else {
+        setUrlState("inicial", "Descarga cancelada.");
+      }
+      return;
+    }
+    /* Un fallo de red llega como TypeError SIN ningún detalle: el
+       navegador no le cuenta a la página por qué. Con diferencia, la
+       causa más frecuente es que el servidor no mande cabeceras CORS,
+       así que el mensaje lo dice y ofrece la salida que siempre
+       funciona en vez de dejar al usuario mirando «Failed to fetch». */
+    const msg = err instanceof TypeError
+      ? "No se ha podido conectar. Lo más probable es que el servidor no autorice la "
+        + "descarga desde otra página (CORS); el navegador no da más detalle. También "
+        + "puede ser que la dirección no exista o que no haya conexión. Si puede abrir "
+        + "el archivo en el navegador, descárguelo y arrástrelo al recuadro."
+      : err.message;
+    setUrlState("error", msg, true);
+    navMessage(`No se pudo descargar «${url}»: ${msg}`);
+  } finally {
+    clearTimeout(timer);
+    if (urlAbort === ctrl) urlAbort = null;
+  }
+}
+
+document.getElementById("url-btn").addEventListener("click", openUrlDialog);
+document.getElementById("url-close").addEventListener("click", closeUrlDialog);
+urlFetchBtn.addEventListener("click", () => {
+  /* El mismo botón hace las dos cosas según el estado: descargar, o
+     cancelar lo que esté descargando.                                */
+  if (urlFetchBtn.textContent === "Cancelar descarga") {
+    abortUrlFetch("cancelada");
+    setUrlState("inicial", "Descarga cancelada.");
+    urlInput.focus();
+    return;
+  }
+  runUrlFetch();
+});
+urlAddBtn.addEventListener("click", () => {
+  if (!urlReady) return;
+  const { file } = urlReady;
+  /* Se cierra ANTES de importar: la importación abre sus propios
+     modales (etiquetas HTML, propiedad-nombre, duplicados) y no deben
+     apilarse sobre este. Del resumen, el progreso y el guardado se
+     encarga ya handleDroppedFiles, como con cualquier archivo.       */
+  closeUrlDialog();
+  handleDroppedFiles([file]);
+});
+/* Editar la dirección invalida una descarga ya lista: si no, se podría
+   descargar A, escribir B y pulsar «Añadir» insertando A.           */
+urlInput.addEventListener("input", () => {
+  if (urlReady) { urlReady = null; setUrlState("inicial"); }
+});
+urlInput.addEventListener("keydown", e => {
+  if (e.key !== "Enter") return;
+  e.preventDefault();
+  /* Enter dispara la acción primaria VISIBLE */
+  if (!urlAddBtn.hidden) urlAddBtn.click(); else urlFetchBtn.click();
+});
+
 /* ---------- Diálogo de la credencial de Copernicus ----------
    Edición diferida como el resto: se escribe en la caja y solo
    «Aceptar» la guarda y rearma la capa.                              */
@@ -209,7 +457,7 @@ descBody.addEventListener("pointerdown", e => {
 });
 
 
-for (const box of [styleBox, iconBox, colorBox, descBox, shortcutsBox, ktpBox, kdpBox, gnpBox, gnpEditorBox, shBox, pointsBox, logBox]) makeDialogMovable(box);
+for (const box of [styleBox, iconBox, colorBox, descBox, shortcutsBox, ktpBox, kdpBox, gnpBox, gnpEditorBox, shBox, pointsBox, logBox, urlBox]) makeDialogMovable(box);
 setupDialog(styleBox, { modal: false }); /* flotante: el mapa sigue vivo */
 setupDialog(iconBox, { modal: true });
 setupDialog(colorBox, { modal: true });
@@ -222,9 +470,10 @@ setupDialog(gnpEditorBox, { modal: true });
 setupDialog(shBox, { modal: true });
 setupDialog(pointsBox, { modal: true });
 setupDialog(logBox, { modal: true });
+setupDialog(urlBox, { modal: true });
 window.addEventListener("resize", () => {
   /* a moved dialog must not fall off-screen */
-  for (const box of [styleBox, iconBox, colorBox, descBox, shortcutsBox, ktpBox, kdpBox, gnpBox, gnpEditorBox, shBox, pointsBox, logBox]) clampToViewport(box);
+  for (const box of [styleBox, iconBox, colorBox, descBox, shortcutsBox, ktpBox, kdpBox, gnpBox, gnpEditorBox, shBox, pointsBox, logBox, urlBox]) clampToViewport(box);
 });
 let styleTargets = [];    /* nodes being edited */
 let styleKindOpen = null; /* "marker" | "polygon" */
