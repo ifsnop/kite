@@ -124,7 +124,12 @@ function setUrlState(state, text = "", bad = false) {
      deshabilitarse: esperar a que venza el tope de 20 s no es una
      salida aceptable para quien acaba de pegar una dirección enorme. */
   urlFetchBtn.textContent = descargando ? "Cancelar descarga" : "Descargar";
-  urlFetchBtn.disabled = false;
+  /* Con el resultado ya en la mano, volver a descargar la MISMA
+     dirección no hace nada que no esté hecho: quedan las dos salidas
+     que sí significan algo, añadirlo o cerrar. Y no es un callejón:
+     tocar la dirección invalida ese resultado y devuelve el diálogo al
+     estado inicial, con «Descargar» otra vez activo.                 */
+  urlFetchBtn.disabled = state === "listo";
   urlAddBtn.hidden = state !== "listo";
   urlStatus.hidden = !text;
   urlStatus.textContent = text;

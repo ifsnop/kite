@@ -1825,6 +1825,12 @@ arrastrar, y admite exactamente los mismos formatos.
   diálogo dice QUÉ ha llegado (tipo y tamaño), y solo entonces aparece
   «Añadir al árbol». Hasta ese botón no se toca nada: la misma edición
   diferida que el resto de diálogos.
+- **Con la descarga hecha, «Descargar» se deshabilita**: repetirla sobre
+  la misma dirección no hace nada que no esté hecho, así que quedan las
+  dos salidas que sí significan algo, añadirlo o cerrar. Y no es un
+  callejón: tocar la dirección invalida ese resultado —si no, se podría
+  descargar A, escribir B y añadir A— y devuelve el diálogo al estado
+  inicial, con el botón otra vez activo.
 - **Una descarga en curso se cancela en el acto.** El botón primario
   pasa a «Cancelar descarga» mientras descarga: esperar a que venza el
   tope de 20 s no es una salida para quien acaba de pegar una dirección

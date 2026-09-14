@@ -86,6 +86,7 @@ const estado = () => page.evaluate(() => ({
   mal: document.getElementById("url-status").classList.contains("sh-bad"),
   puedeAnadir: !document.getElementById("url-add").hidden,
   boton: document.getElementById("url-fetch").textContent,
+  botonActivo: !document.getElementById("url-fetch").disabled,
   abierto: !document.getElementById("url-dialog").hidden
 }));
 const esperarResultado = () => page.waitForFunction(() => {
@@ -116,7 +117,21 @@ ok(e.puedeAnadir, "tras descargar aparece «Añadir al árbol»: " + JSON.string
 ok(/GeoJSON/.test(e.texto) && /datos\.geojson/.test(e.texto),
   "y el diálogo dice QUÉ ha llegado: " + e.texto);
 ok(!e.mal, "en tono normal, que no es un fallo");
+/* Con el resultado en la mano, «Descargar» deja de tener sentido:
+   quedan las dos salidas que sí significan algo.                    */
+ok(!e.botonActivo, "y «Descargar» queda deshabilitado: " + JSON.stringify(e));
 ok((await raiz()).length === 0, "y el árbol sigue intacto: el paso 1 no toca nada");
+
+/* Pero no es un callejón: tocar la dirección lo reactiva */
+await escribir(base + "/fix/datos.geojson?otra=1");
+let tras = await estado();
+ok(tras.botonActivo && !tras.puedeAnadir,
+  "cambiar la dirección invalida el resultado y reactiva «Descargar»: " + JSON.stringify(tras));
+await escribir(base + "/fix/datos.geojson");
+await descargar();
+await esperarResultado();
+e = await estado();
+ok(e.puedeAnadir && !e.botonActivo, "y descargando otra vez se vuelve al mismo sitio");
 await page.click("#url-add");
 await page.waitForTimeout(800);
 /* Todo lo descargado entra en SU carpeta numerada: sin ella el
