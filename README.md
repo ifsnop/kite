@@ -341,7 +341,9 @@ Do not use public tile, geocoding or CDN services for sensitive work without an 
 
 ## Diagnosing a freeze or a slowdown (`debug` branch)
 
-The `debug` branch carries a main-thread watchdog that `main` deliberately does not. It exists because a reported freeze could not be reproduced under test automation: the page was dead to the user while, from the inside, nothing seemed to be running. The instrument is what eventually named the cause — a native HTML5 drag session, which is a nested event loop in the browser, so the page receives no timers, no frames and no input while it lasts, without executing a line of its own code.
+There is a second branch, [`debug`](https://github.com/ifsnop/kite/tree/debug), which is `main` plus a main-thread watchdog. The released product on `main` does not carry it, and is not meant to: it is diagnostic code, it wraps several dozen functions to count and time them, and it has no business running in something people use. The two branches are otherwise the same, and this README is kept identical on both so the instructions are wherever you happen to be looking.
+
+The watchdog exists because a reported freeze could not be reproduced under test automation: the page was dead to the user while, from the inside, nothing seemed to be running. The instrument is what eventually named the cause — a native HTML5 drag session, which is a nested event loop in the browser, so the page receives no timers, no frames and no input while it lasts, without executing a line of its own code.
 
 Keep it for the next time something hangs or drags its feet.
 
@@ -373,6 +375,8 @@ To bring the branch up to date after `main` moves: `git checkout debug && git me
 Issues and pull requests are welcome. Include the browser/version, a minimal non-sensitive sample, the expected result, and the actual result or console error.
 
 Do not attach operational, confidential or personally identifiable geospatial data to a public issue.
+
+If what you hit is a freeze or a slowdown rather than a wrong result, the [`debug` branch](https://github.com/ifsnop/kite/tree/debug) carries an instrumented build that answers questions a console error cannot — see [Diagnosing a freeze or a slowdown](#diagnosing-a-freeze-or-a-slowdown-debug-branch). Its output pastes straight into an issue.
 
 ## License
 
