@@ -7,6 +7,7 @@ let nodeSeq = 0;
 let dragLi = null;    /* nodo representativo del arrastre en curso */
 let dragItems = null; /* nodos que viajan en el arrastre (la selección o uno suelto) */
 
+
 /* ---------- Selección múltiple (Shift+click en la navegación) ----------
    Shift está libre en el panel (en el visor es el box-zoom de Leaflet).
    La selección permite arrastrar y borrar varios nodos de golpe.        */
@@ -639,6 +640,13 @@ const refreshAncestorChecks = li => refreshChecksFrom(li && li.parentElement);
    una carpeta nunca desplegada sigue en el mapa (visibilidad y colapso
    son ejes independientes), así que la cascada tiene que alcanzarla
    igual, sin forzar su materialización solo para esto.                */
+/* Dos cuentas que lleva ensureMaterialized y que mira la cascada para
+   saber si el conjunto de nodos puede cambiar bajo sus pies mientras
+   recorre: cuántas materializaciones hay EN VUELO y cuántas han
+   TERMINADO (el contador solo sube).                                  */
+let materializingNow = 0;
+let materializeSeq = 0;
+
 async function cascadeVisibility(li, checked) {
   const myGen = ++li._cascadeGen;
   const counter = { n: 0 };
@@ -658,6 +666,17 @@ async function cascadeVisibility(li, checked) {
     return true;
   };
   const walkLi = async node => {
+    /* Si ese nodo se está materializando AHORA MISMO, se espera a que
+       termine antes de mirar a sus hijos. Sin esto, desplegar y marcar
+       una carpeta grande casi a la vez dejaba la mitad apagada:
+       materializeRecords construye su primer lote de 150 filas de forma
+       SÍNCRONA y vacía `_pending` al arrancar, así que la cascada
+       llegaba a fotografiar 150 filas y ningún registro pendiente, y
+       las que faltaban nacían después con su estado guardado. Medido
+       con una carpeta de 466: 150 encendidas, 316 apagadas y la
+       carpeta en indeterminado. No fuerza ninguna materialización que
+       no estuviera ya en marcha, que es lo que el diseño evita.      */
+    if (node._materializing) await node._materializing;
     const chk = node.querySelector(":scope > .node-row > input[type=checkbox]");
     if (chk) {
       chk.checked = checked;
@@ -673,12 +692,30 @@ async function cascadeVisibility(li, checked) {
     if (node._pending) return walkRecords(node._pending);
     return true;
   };
-  if (await walkLi(li)) {
-    /* La carpeta tocada ya está uniforme; lo que puede haber cambiado
-       es el estado de sus ANCESTROS.                                 */
-    refreshAncestorChecks(li);
-    scheduleSave();
-  }
+  /* Se repite la pasada mientras el conjunto de nodos siga moviéndose:
+     o hay una materialización en vuelo (las filas que faltan van a
+     nacer con su estado GUARDADO, no con el que se acaba de pedir), o
+     ha terminado alguna mientras recorríamos. Una pasada es completa e
+     idempotente, así que repetirla no cuesta más que recorrer.
+
+     Termina, y conviene ver por qué: la cascada no materializa nada
+     —eso solo lo dispara el usuario al desplegar, importar o buscar—,
+     así que en cuanto deja de haber trabajo en vuelo la última pasada
+     encuentra el contador igual y sale. El `yieldFrame` entre vueltas
+     es lo que impide que esto gire en vacío contra una materialización
+     larga: una pasada por fotograma, no un bucle cerrado.           */
+  let seqAlEmpezar;
+  do {
+    seqAlEmpezar = materializeSeq;
+    if (!(await walkLi(li))) return;
+    if (!li.isConnected || li._cascadeGen !== myGen) return;
+    if (!materializingNow && materializeSeq === seqAlEmpezar) break;
+    await yieldFrame();
+  } while (true);
+  /* La carpeta tocada ya está uniforme; lo que puede haber cambiado
+     es el estado de sus ANCESTROS.                                 */
+  refreshAncestorChecks(li);
+  scheduleSave();
 }
 
 /* Trae una capa (de cualquier tipo) al frente de su propio pane/canvas,

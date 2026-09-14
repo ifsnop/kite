@@ -184,8 +184,14 @@ async function ensureMaterialized(li) {
   if (li._materializing) return li._materializing;
   const records = li._pending;
   li._pending = null;
+  /* Las dos cuentas son lo que deja a una cascada en curso saber que
+     el conjunto de nodos todavía se está moviendo (ver
+     cascadeVisibility). Se suma ANTES de arrancar: materializeRecords
+     construye su primer lote de forma síncrona, así que una cascada
+     que llegue después tiene que ver ya que hay trabajo en vuelo.  */
+  materializingNow++;
   li._materializing = materializeRecords(records, nodeUl(li))
-    .finally(() => { li._materializing = null; });
+    .finally(() => { li._materializing = null; materializingNow--; materializeSeq++; });
   return li._materializing;
 }
 
@@ -385,78 +391,150 @@ function highlightNode(li) {
 
 /* ---------- Reordenación arrastrando dentro de la navegación ----------
    Arrastrar una fila sobre otra la coloca antes/después según la mitad
-   de la fila; sobre el centro de una carpeta/archivo, la mete dentro.   */
-function wireDrag(li, row) {
-  li.draggable = true;
-  li.addEventListener("dragstart", e => {
-    e.stopPropagation();
-    /* arrastrar un nodo seleccionado arrastra toda la selección;
-       arrastrar uno no seleccionado la descarta y lo lleva solo   */
-    if (selection.has(li)) dragItems = topLevelSelection();
-    else { clearSelection(); dragItems = [li]; }
-    dragLi = li;
-    e.dataTransfer.effectAllowed = "move";
-  });
-  li.addEventListener("dragend", () => { dragLi = null; dragItems = null; clearDropMarks(); });
+   de la fila; sobre el centro de una carpeta/archivo, la mete dentro.
 
-  row.addEventListener("dragover", e => {
-    if (!validDrop(li)) return;
-    e.preventDefault();
-    e.stopPropagation();
-    markDrop(row, dropZone(row, li, e.clientY));
-  });
-  row.addEventListener("dragleave", () => { if (dropMarked === row) clearDropMarks(); });
-  row.addEventListener("drop", async e => {
-    if (!validDrop(li)) return;
-    e.preventDefault();
-    e.stopPropagation();
-    pushUndo("mover nodos");
-    /* Capturados ANTES del await: dragend puede llegar y limpiar
-       dragItems/dragLi mientras esperamos a ensureMaterialized (el
-       navegador no espera a un `drop` async antes de disparar
-       dragend), así que la variable compartida ya no sería fiable
-       después.                                                        */
-    const items = dragItems;
-    /* Los contenedores de ORIGEN, antes de tocar nada: en cuanto los
-       nodos se mueven ya cuelgan del destino y no queda desde dónde
-       recalcular la rama que los pierde. Un Set porque una selección
-       múltiple suele salir toda de la misma carpeta.                  */
-    const origins = new Set(items.map(item => item.parentElement));
-    const zone = dropZone(row, li, e.clientY);
-    if (zone === "drop-into") {
-      /* Si la carpeta destino sigue pendiente, materializarla primero:
-         soltar directamente en su <ul> (vacío a propósito) dejaría su
-         contenido real escondido para siempre detrás de lo soltado, sin
-         que quitar la clase "collapsed" lo trajera de vuelta.          */
-      await ensureMaterialized(li);
-      const ul = nodeUl(li);
-      for (const item of items) ul.appendChild(item);
-      li.classList.remove("collapsed");
-    } else {
-      /* insertar todos manteniendo su orden relativo */
-      const ref = zone === "drop-before" ? li : li.nextSibling;
-      for (const item of items) li.parentElement.insertBefore(item, ref);
-    }
-    clearDropMarks();
-    /* Mover cambia el CONJUNTO de hijos en los DOS extremos, que es el
-       otro disparador de la casilla de tres estados: la carpeta que
-       pierde nodos puede quedarse apagada o entera, y la que los recibe
-       pasar a indeterminada. Pegar ya lo hacía —materializeRecords
-       recalcula el destino y deleteNode el origen—, pero aquí no se
-       crea ni se borra ningún nodo, solo se cambian de sitio, así que
-       no había nadie que lo hiciera y los dos extremos se quedaban
-       diciendo lo que eran antes del arrastre.                         */
-    const destUl = zone === "drop-into" ? nodeUl(li) : li.parentElement;
-    for (const ul of origins) if (ul !== destUl) refreshChecksFrom(ul);
-    refreshChecksFrom(destUl);
-    dragLi = null;
-    dragItems = null;
-    scheduleSave();
+   NO se usa el arrastre nativo de HTML5, y esa es la decisión
+   importante de esta sección. Una sesión de arrastre nativa es un
+   BUCLE DE EVENTOS ANIDADO del navegador: mientras dura, la página no
+   recibe temporizadores, ni fotogramas, ni entrada. Medido en la
+   sesión del usuario con el vigilante de la rama `debug`: bloqueos de
+   27 s y 33 s con `durante: {}` —ni una función del visor ni de
+   Leaflet—, la memoria plana (236 → 236 MB, tampoco recolección) y un
+   hueco de fotogramas de 119 s; la firma en el registro de pulsaciones
+   era siempre la misma, un `pointerdown` sobre una fila SIN su `click`.
+   O sea: la aplicación parecía muerta sin ejecutar una línea de código
+   propio.
+
+   Y el disparador no se puede evitar acotando el asa. Se intentó dos
+   veces: primero prohibiendo empezar sobre el caret, la casilla y los
+   botones; luego exigiendo mantener pulsado. Un clic normal lleva unos
+   píxeles de temblor —que es lo que el navegador toma por principio de
+   arrastre— y basta con apretar, pensar un segundo y mover para volver
+   a abrir la sesión. La única solución robusta es no usarla.
+
+   Con eventos de puntero no hay bucle anidado, el arrastre se puede
+   cancelar con Escape y el coste en escuchas BAJA: una por fila en vez
+   de cinco, más dos globales para todo el árbol.                     */
+
+/* Lo que NO es asa: controles que se PULSAN, no se arrastran */
+const DRAG_NOT_HANDLE = ".caret, input, button, .actions";
+/* Píxeles que hay que recorrer para que esto sea un arrastre y no un
+   clic con pulso. Por debajo, el gesto sigue siendo un clic.        */
+const DRAG_THRESHOLD_PX = 6;
+
+let dragPress = null;   /* pulsación en curso que podría ser arrastre */
+let dropTarget = null;  /* { row, li, zone } bajo el puntero ahora */
+
+function wireDrag(li, row) {
+  row.addEventListener("pointerdown", e => {
+    if (e.button !== 0 || (e.target.closest && e.target.closest(DRAG_NOT_HANDLE))) return;
+    dragPress = { x: e.clientX, y: e.clientY, li, id: e.pointerId };
   });
 }
+
+/* Cancela el arrastre en curso sin mover nada */
+function cancelTreeDrag() {
+  dragPress = null;
+  dropTarget = null;
+  dragLi = null;
+  dragItems = null;
+  treeEl.classList.remove("dragging");
+  clearDropMarks();
+}
+
+/* Las dos escuchas globales del arrastre: una sola pareja para todo el
+   árbol, en vez de repetirlas por fila.                              */
+document.addEventListener("pointermove", e => {
+  if (!dragPress) return;
+  if (!dragItems) {
+    if (Math.hypot(e.clientX - dragPress.x, e.clientY - dragPress.y) < DRAG_THRESHOLD_PX) return;
+    /* Arrastrar un nodo seleccionado arrastra toda la selección;
+       arrastrar uno no seleccionado la descarta y lo lleva solo.    */
+    if (selection.has(dragPress.li)) dragItems = topLevelSelection();
+    else { clearSelection(); dragItems = [dragPress.li]; }
+    dragLi = dragPress.li;
+    treeEl.classList.add("dragging");
+    /* Capturar el puntero es lo que mantiene vivo el gesto aunque el
+       cursor salga del árbol o de la ventana: sin esto, soltar fuera
+       no traería ningún `pointerup` y el arrastre se quedaría colgado
+       —que es justo el estado en el que el arrastre nativo dejaba
+       `dragItems` puesto para siempre—.                             */
+    try { treeEl.setPointerCapture(dragPress.id); } catch { /* sin captura, se sigue igual */ }
+  }
+  /* El destino se resuelve por geometría, no por el objetivo del
+     evento: con el puntero capturado, todos los eventos apuntan al
+     árbol y `e.target` ya no dice nada de dónde está el cursor.    */
+  const bajo = document.elementFromPoint(e.clientX, e.clientY);
+  const destRow = bajo && bajo.closest ? bajo.closest(".node-row") : null;
+  const destLi = destRow && destRow.closest("li[role=treeitem]");
+  if (destRow && destLi && validDrop(destLi)) {
+    const zone = dropZone(destRow, destLi, e.clientY);
+    dropTarget = { row: destRow, li: destLi, zone };
+    markDrop(destRow, zone);
+  } else {
+    dropTarget = null;
+    clearDropMarks();
+  }
+  e.preventDefault(); /* sin esto el gesto selecciona texto por el camino */
+});
+
+document.addEventListener("pointerup", async e => {
+  const press = dragPress;
+  const destino = dropTarget;
+  const items = dragItems;
+  dragPress = null;
+  dropTarget = null;
+  if (!press || !items) { cancelTreeDrag(); return; }
+  try { treeEl.releasePointerCapture(press.id); } catch { /* ya liberado */ }
+  treeEl.classList.remove("dragging");
+  clearDropMarks();
+  dragLi = null;
+  dragItems = null;
+  if (!destino) return;   /* soltado fuera de cualquier fila válida */
+
+  pushUndo("mover nodos");
+  /* Los contenedores de ORIGEN, antes de tocar nada: en cuanto los
+     nodos se mueven ya cuelgan del destino y no queda desde dónde
+     recalcular la rama que los pierde. Un Set porque una selección
+     múltiple suele salir toda de la misma carpeta.                  */
+  const origins = new Set(items.map(item => item.parentElement));
+  const { li, zone } = destino;
+  if (zone === "drop-into") {
+    /* Si la carpeta destino sigue pendiente, materializarla primero:
+       soltar directamente en su <ul> (vacío a propósito) dejaría su
+       contenido real escondido para siempre detrás de lo soltado, sin
+       que quitar la clase "collapsed" lo trajera de vuelta.          */
+    await ensureMaterialized(li);
+    const ul = nodeUl(li);
+    for (const item of items) ul.appendChild(item);
+    li.classList.remove("collapsed");
+  } else {
+    /* insertar todos manteniendo su orden relativo */
+    const ref = zone === "drop-before" ? li : li.nextSibling;
+    for (const item of items) li.parentElement.insertBefore(item, ref);
+  }
+  /* Mover cambia el CONJUNTO de hijos en los DOS extremos, que es el
+     otro disparador de la casilla de tres estados: la carpeta que
+     pierde nodos puede quedarse apagada o entera, y la que los recibe
+     pasar a indeterminada. No se crea ni se borra ningún nodo, solo
+     cambian de sitio, así que si no se hace aquí no lo hace nadie.  */
+  const destUl = zone === "drop-into" ? nodeUl(li) : li.parentElement;
+  for (const ul of origins) if (ul !== destUl) refreshChecksFrom(ul);
+  refreshChecksFrom(destUl);
+  scheduleSave();
+});
+
+/* No se puede soltar un nodo dentro de sí mismo ni de su propia rama */
 function validDrop(li) {
   return dragItems && dragItems.every(item => item !== li && !item.contains(li));
 }
+
+document.addEventListener("pointercancel", () => cancelTreeDrag());
+/* Escape cancela el arrastre, que con el nativo no era posible */
+document.addEventListener("keydown", e => {
+  if (e.key === "Escape" && dragItems) { e.stopPropagation(); cancelTreeDrag(); }
+}, true);
+
 function dropZone(row, li, clientY) {
   const r = row.getBoundingClientRect();
   const y = clientY - r.top;

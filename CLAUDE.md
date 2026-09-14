@@ -480,6 +480,24 @@ index.html         redirección de la raíz del sitio al minificado
   (`rec._state`) porque una rama colapsada puede tener miles de nodos y
   se consulta al recalcular al padre; quien toque `checked` lo invalida
   (lo hace `cascadeVisibility`).
+- **Desplegar y marcar a la vez NO puede repartirse los nodos.** Son dos
+  pasadas por lotes sobre el mismo subárbol —`materializeRecords`
+  construye las filas que faltan, `cascadeVisibility` enciende o apaga—
+  y cada una miraba su propia foto: `materializeRecords` construye su
+  primer lote (150) de forma SÍNCRONA y vacía `_pending` al arrancar,
+  así que una cascada que llegara justo después fotografiaba esas 150
+  filas y ningún registro pendiente, y las que faltaban nacían con su
+  estado GUARDADO. Medido con una carpeta de 466 capas: 150 encendidas,
+  316 apagadas y la carpeta en indeterminado; el usuario marca una
+  carpeta y se le enciende un tercio. Se arregla por los dos extremos:
+  `walkLi` espera a la materialización EN VUELO de ese nodo antes de
+  mirar a sus hijos (sin forzar ninguna que no estuviera ya en marcha,
+  que es lo que el diseño evita), y la cascada **repite la pasada**
+  mientras `materializingNow` o `materializeSeq` digan que el conjunto
+  de nodos sigue moviéndose. Repetir es gratis porque una pasada es
+  completa e idempotente, y termina porque la cascada no materializa
+  nada: eso solo lo dispara el usuario. El `yieldFrame` entre vueltas es
+  lo que impide girar en vacío contra una materialización larga.
 - **La cascada limpia el indeterminado a su paso**: deja la rama
   uniforme, así que nada de dentro puede seguir a medias; lo que puede
   cambiar es el estado de los ancestros de la carpeta tocada.
@@ -1726,24 +1744,55 @@ y `kitelocal.min.html` (su derivada minificada, lo que sirve Pages).
 
 ## Arrastrar y soltar
 
+- **NO se usa el arrastre nativo de HTML5, y esa es la decisión de esta
+  sección.** Una sesión de arrastre nativa es un **bucle de eventos
+  ANIDADO del navegador**: mientras dura, la página no recibe
+  temporizadores, ni fotogramas, ni entrada. Un arrastre empezado sin
+  querer deja la aplicación aparentemente muerta sin que se ejecute una
+  línea de código propio — que es exactamente el cuelgue que se estuvo
+  persiguiendo. Medido con el vigilante de la rama `debug` sobre la
+  sesión real: bloqueos de **27 s y 33 s** con `durante: {}` y
+  `enVuelo: []` (ni una función del visor ni de Leaflet), la memoria
+  **plana** (236 → 236 MB, luego tampoco recolección de basura), un
+  hueco de fotogramas de **119 s**, `__sonda` sin recibir un solo
+  evento y, en el registro de pulsaciones, siempre la misma firma: un
+  `pointerdown` sobre una fila **sin su `click`**.
+- **Acotar el asa NO lo arregla, y se intentó dos veces**: primero
+  prohibiendo empezar sobre el caret, la casilla y los botones; luego
+  exigiendo mantener pulsado 350 ms. Un clic normal lleva unos píxeles
+  de temblor —justo lo que el navegador toma por principio de
+  arrastre— y basta con apretar, pensar un segundo y mover para volver
+  a abrir la sesión. La única solución robusta es no usarla: no queda
+  ningún `draggable` en el árbol.
+- **A cambio se gana de todo**: el gesto se puede CANCELAR con Escape,
+  no puede quedarse colgado (el puntero se captura, así que soltar
+  fuera de la ventana también termina), cuesta **una escucha por fila
+  en vez de cinco** más dos globales, y —lo que más vale— **se puede
+  probar de punta a punta con el ratón de verdad**: ningún cliente de
+  automatización abre la sesión de arrastre del navegador, así que
+  antes solo se podían despachar `DragEvent` a mano, que probaban media
+  cosa.
+- **El destino se resuelve por GEOMETRÍA** (`elementFromPoint`), no por
+  el objetivo del evento: con el puntero capturado, todos los eventos
+  apuntan al árbol y `e.target` ya no dice dónde está el cursor.
+- **Ojo al probarlo con el ratón real**: una fila fuera del área visible
+  del panel no está bajo ningún píxel y `elementFromPoint` devuelve el
+  panel. Hay que desplazarla a la vista antes de medir, y medir el
+  destino con el arrastre YA empezado, porque ese desplazamiento mueve
+  las filas. Con los eventos sintéticos de antes esto daba igual y por
+  eso no aparecía.
 - Las franjas de destino van en **píxeles**, no en porcentaje: con filas
   de 24 px, un porcentaje dejaba bordes de 4 px imposibles de acertar.
   Seis píxeles arriba y abajo reordenan entre hermanos; el resto de una
   carpeta mete dentro.
 - La marca de destino la lleva **una sola fila** (`dropMarked`). Barrer
-  el árbol con `querySelectorAll` en cada `dragover` —que se dispara
+  el árbol con `querySelectorAll` en cada movimiento —que se dispara
   decenas de veces por segundo— hacía que arrastrar fuera a tirones.
 - **Soltar un archivo externo sobre una carpeta lo importa DENTRO de
-  ella**, en vez de siempre en la raíz: `folderDropTarget` resuelve el
-  `<li>` bajo el puntero con el mismo test de "esto es un contenedor"
-  que ya usan `dropZone()` (reordenar interno) y `pasteClipboard()`
-  (pegar) —`nodeUl(li)`—, y ese destino se enhebra hasta los
-  importadores (`handleDroppedFiles` → `addFileNode`/`importTreeExport`)
-  exactamente como `pasteClipboard` ya elige entre la carpeta del cursor
-  y la raíz. Para KML esto NO añade un envoltorio (la jerarquía del
-  archivo cuelga directa de la carpeta soltada); para GeoJSON/`.kite.json`
-  es la propia carpeta envoltorio la que cuelga de ahí. El recuadro
-  `#dropzone` vive ahora bajo el árbol (`#tree`), no en la cabecera.
+  ella**: eso SÍ sigue siendo arrastre nativo, porque los archivos
+  llegan del sistema operativo y no hay otra forma. Es un camino
+  distinto (`navPanel`, `folderDropTarget`) y no abre ninguna sesión de
+  arrastre de la página: la abre el escritorio.
 
 ## Ficha del elemento / panel de información de la capa
 

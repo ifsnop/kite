@@ -108,7 +108,13 @@ const src = [
   /* materializeRecords y deleteNode recalculan el estado de los
      contenedores de arriba (tercer estado de la casilla); este test no
      construye casillas, así que solo hace falta que exista.          */
-  "function refreshChecksFrom() {}", "function applyContainerState() {}"
+  "function refreshChecksFrom() {}", "function applyContainerState() {}",
+  /* Las dos cuentas que ensureMaterialized lleva para que una cascada
+     en curso sepa que todavía se están construyendo filas (ver
+     cascadeVisibility). Aquí no hay cascada, pero sí se comprueba que
+     las mueva: dejarlas descuadradas haría que una cascada repitiera
+     su pasada para siempre.                                        */
+  "let materializingNow = 0; let materializeSeq = 0;"
 ].join("\n");
 
 const api = new Function(
@@ -118,7 +124,8 @@ const api = new Function(
   src + `\nreturn {
     materializeRecords, ensureMaterialized, serializeNode, serializeNodes, serializePendingRecords,
     subtreeBounds, findMatches, searchMatches, resolveMatch, resolveRecordLi,
-    wirePendingLayerEvents, visibleElevGridNodes, blinkLayer, deleteNode
+    wirePendingLayerEvents, visibleElevGridNodes, blinkLayer, deleteNode,
+    cuentas: () => ({ enVuelo: materializingNow, terminadas: materializeSeq })
   };`
 )(rootGroup, yieldFrame, PROGRESS_BATCH, scheduleSave, navMessage, showEmptyMessage,
   syncExpanded, measureLi, selection, searchBox, treeEl, rootUl, makeNode,
@@ -203,6 +210,15 @@ const folderRec = (name, collapsed, children) => ({ t: "folder", name, checked: 
   await Promise.all([p1, p2]);
   ok(li2.querySelector(":scope > ul.node-list").children.length === 2,
      "una segunda llamada mientras la primera está en marcha no duplica filas");
+  /* Las cuentas que mira una cascada en curso tienen que quedar
+     cuadradas: si `materializingNow` se quedara por encima de cero,
+     una cascada repetiría su pasada indefinidamente esperando a un
+     trabajo que ya terminó. Y la reentrante no puede contar dos veces,
+     porque solo una construye de verdad.                            */
+  ok(api.cuentas().enVuelo === 0,
+     "sin materializaciones en vuelo al terminar: " + api.cuentas().enVuelo);
+  ok(api.cuentas().terminadas > 0,
+     "y las terminadas se cuentan, que es lo que avisa a la cascada: " + api.cuentas().terminadas);
 
   /* ---------- subtreeBounds: mismo resultado pendiente que materializado ---------- */
   const boundsTree = [layerRec("p1"), folderRec("nested", true, [layerRec("p2")])];
