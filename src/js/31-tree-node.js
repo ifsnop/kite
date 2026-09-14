@@ -396,6 +396,14 @@ function highlightNode(li) {
    de la fila. Son controles que se PULSAN, y pulsarlos incluye
    moverse unos píxeles sin querer.                                   */
 const DRAG_NOT_HANDLE = ".caret, input, button, .actions";
+/* Y ni siquiera sobre el nombre basta con pulsar: hay que MANTENER
+   pulsado este tiempo antes de arrastrar. Un clic normal dura bastante
+   menos —y lleva su temblor de unos píxeles, que es lo que el navegador
+   interpreta como principio de arrastre—, así que este umbral es lo que
+   separa "quería pulsar" de "quiero mover esto". 350 ms es del orden
+   de lo que usa el propio navegador para la pulsación larga táctil y no
+   se nota al arrastrar a propósito.                                  */
+const DRAG_ARM_MS = 350;
 
 function wireDrag(li, row) {
   li.draggable = true;
@@ -413,9 +421,29 @@ function wireDrag(li, row) {
      fue sobre un asa legítima (el nombre de la fila).                */
   row.addEventListener("pointerdown", e => {
     dragFromBlocked = !!(e.target.closest && e.target.closest(DRAG_NOT_HANDLE));
+    /* Un arrastre anterior que nunca recibió su `dragend` —pasa cuando
+       la sesión termina fuera de la ventana— dejaba `dragItems` puesto
+       para siempre. Se limpia al empezar una pulsación nueva.       */
+    if (!dragArmTimer) { dragLi = null; dragItems = null; }
+    dragArmed = false;
+    clearTimeout(dragArmTimer);
+    dragArmTimer = setTimeout(() => { dragArmed = true; dragArmTimer = null; }, DRAG_ARM_MS);
   });
+  for (const fin of ["pointerup", "pointercancel", "pointerleave"]) {
+    row.addEventListener(fin, () => {
+      clearTimeout(dragArmTimer);
+      dragArmTimer = null;
+      dragArmed = false;
+    });
+  }
   li.addEventListener("dragstart", e => {
-    if (dragFromBlocked) { e.preventDefault(); return; }
+    /* Cancelar el `dragstart` impide que el navegador llegue a abrir su
+       sesión de arrastre, que es lo que hay que evitar: esa sesión es
+       un bucle de eventos ANIDADO y mientras dura la página no recibe
+       temporizadores, ni fotogramas, ni entrada. Un arrastre que
+       empieza sin querer deja la aplicación colgada sin ejecutar una
+       línea de código propio.                                       */
+    if (dragFromBlocked || !dragArmed) { e.preventDefault(); return; }
     e.stopPropagation();
     /* arrastrar un nodo seleccionado arrastra toda la selección;
        arrastrar uno no seleccionado la descarta y lo lleva solo   */
@@ -424,7 +452,9 @@ function wireDrag(li, row) {
     dragLi = li;
     e.dataTransfer.effectAllowed = "move";
   });
-  li.addEventListener("dragend", () => { dragLi = null; dragItems = null; clearDropMarks(); });
+  li.addEventListener("dragend", () => {
+    dragLi = null; dragItems = null; dragArmed = false; clearDropMarks();
+  });
 
   row.addEventListener("dragover", e => {
     if (!validDrop(li)) return;

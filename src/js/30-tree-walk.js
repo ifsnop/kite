@@ -11,6 +11,10 @@ let dragItems = null; /* nodos que viajan en el arrastre (la selección o uno su
    caret o la casilla y moverse tres píxeles abre una sesión de
    arrastre del navegador.                                            */
 let dragFromBlocked = false;
+/* Un arrastre nativo solo se permite tras mantener pulsado (ver
+   DRAG_ARM_MS): un clic normal no puede abrir esa sesión.           */
+let dragArmed = false;
+let dragArmTimer = null;
 
 /* ---------- Selección múltiple (Shift+click en la navegación) ----------
    Shift está libre en el panel (en el visor es el box-zoom de Leaflet).

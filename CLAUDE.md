@@ -1760,6 +1760,19 @@ y `kitelocal.min.html` (su derivada minificada, lo que sirve Pages).
   Se anota en `pointerdown` dónde empezó la pulsación
   (`DRAG_NOT_HANDLE`) y `dragstart` se cancela si no fue sobre el
   nombre.
+- **Y ni sobre el nombre basta con pulsar: hay que MANTENER pulsado**
+  (`DRAG_ARM_MS`, 350 ms). Acotarlo al nombre no fue suficiente —la
+  segunda captura del cuelgue llegó con la última pulsación sobre un
+  `label` y **sin su `click`**, que es la firma de un clic convertido en
+  arrastre—, porque un clic normal lleva su temblor de unos píxeles y
+  eso es justo lo que el navegador toma por principio de arrastre. El
+  umbral es lo que separa «quería pulsar» de «quiero mover esto»;
+  soltar el botón desarma. Reordenar no depende de este gesto: cada
+  fila tiene ↑ y ↓, y están Ctrl+X / Ctrl+V.
+- **Un `dragend` que no llega deja `dragItems` puesto para siempre**
+  (pasa cuando la sesión termina fuera de la ventana), y con él la
+  aplicación cree que sigue arrastrando. Se limpia al empezar la
+  siguiente pulsación.
 - Las franjas de destino van en **píxeles**, no en porcentaje: con filas
   de 24 px, un porcentaje dejaba bordes de 4 px imposibles de acertar.
   Seis píxeles arriba y abajo reordenan entre hermanos; el resto de una

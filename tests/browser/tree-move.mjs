@@ -74,6 +74,12 @@ await page.evaluate(() => {
     clearSelection();
     for (const it of items) setSelected(it, true);
     setSelCursor(items[0]);
+    /* El gesto completo, como lo hace una persona: pulsar sobre el
+       NOMBRE y mantener. Sin esto el navegador tampoco abriría su
+       sesión de arrastre (ver DRAG_ARM_MS), así que saltárselo probaría
+       un camino que en la aplicación real no existe.               */
+    fila(items[0]).querySelector("label").dispatchEvent(new PointerEvent("pointerdown", { bubbles: true }));
+    await new Promise(listo => setTimeout(listo, 450));
     fila(items[0]).dispatchEvent(new DragEvent("dragstart", { bubbles: true, dataTransfer: dt }));
     const r = fila(destino).getBoundingClientRect();
     const y = donde === "dentro" ? r.top + r.height / 2 : r.top + 1;
@@ -182,29 +188,39 @@ await comprobar("copiando y pegando", { origen: "mixed", destino: "mixed" });
    sin que se ejecute una línea de código propio. Medido en la sesión
    real que lo destapó: 27 s y 33 s de hilo parado sin una sola función
    del visor en marcha, la memoria plana y un arrastre en curso.     */
-const asas = await page.evaluate(() => {
+const asas = await page.evaluate(async () => {
   const ul = ensureRootUl();
   const f = makeNode({ name: "Carpeta", isFolder: true });
   ul.appendChild(f);
   nodeUl(f).appendChild(makeNode({ name: "capa", layer: L.marker([40, -3]) }));
   const fila = f.querySelector(":scope > .node-row");
-  const prueba = sel => {
+  /* `mantener` decide si se espera al umbral de pulsación larga: sin
+     esperar, ni siquiera el nombre abre un arrastre.               */
+  const prueba = async (sel, mantener = true) => {
     dragItems = null;
     dragFromBlocked = false;
+    dragArmed = false;
     (fila.querySelector(sel) || fila).dispatchEvent(new PointerEvent("pointerdown", { bubbles: true }));
+    if (mantener) await new Promise(listo => setTimeout(listo, 450));
     const ev = new DragEvent("dragstart", { bubbles: true, cancelable: true, dataTransfer: new DataTransfer() });
     f.dispatchEvent(ev);
     return { cancelado: ev.defaultPrevented, arrastra: !!dragItems };
   };
-  return { caret: prueba(".caret"), casilla: prueba("input[type=checkbox]"),
-    nombre: prueba("label"), boton: prueba(".actions button") };
+  return { caret: await prueba(".caret"), casilla: await prueba("input[type=checkbox]"),
+    nombre: await prueba("label"), boton: await prueba(".actions button"),
+    /* El clic de verdad: pulsar y que el temblor dispare el arrastre
+       en el acto, que es como se colgaba la aplicación.            */
+    clicNormal: await prueba("label", false) };
 });
 for (const [donde, r] of [["el caret", asas.caret], ["la casilla", asas.casilla], ["un botón", asas.boton]]) {
   ok(r.cancelado && !r.arrastra,
     `apretar ${donde} NO puede empezar un arrastre: ` + JSON.stringify(r));
 }
 ok(!asas.nombre.cancelado && asas.nombre.arrastra,
-  "y desde el nombre sí se arrastra, que es el gesto de siempre: " + JSON.stringify(asas.nombre));
+  "manteniendo pulsado el nombre sí se arrastra: " + JSON.stringify(asas.nombre));
+ok(asas.clicNormal.cancelado && !asas.clicNormal.arrastra,
+  "pero un CLIC en el nombre no abre ninguna sesión de arrastre, que es "
+  + "por donde se colgaba: " + JSON.stringify(asas.clicNormal));
 
 ok(errors.length === 0, "sin errores de página: " + JSON.stringify(errors));
 
