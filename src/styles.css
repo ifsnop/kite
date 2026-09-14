@@ -228,6 +228,10 @@
 
   /* Indicadores de arrastre para reordenar */
   .node-row.cursor { outline: 1px dashed var(--accent); outline-offset: -1px; }
+  /* Arrastre propio (eventos de puntero, no el nativo): sin imagen
+     fantasma del navegador, la pista visual la da la propia fila. */
+  #tree.dragging { user-select: none; cursor: grabbing; }
+  #tree.dragging .node-row.selected { opacity: .55; }
   .node-row.cut { opacity: .55; font-style: italic; } /* cortado, aún no pegado */
   .node-row.drop-before { box-shadow: inset 0 2px 0 var(--accent); }
   .node-row.drop-after  { box-shadow: inset 0 -2px 0 var(--accent); }

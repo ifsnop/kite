@@ -33,8 +33,16 @@ const src = "const nodeUl = li => li.querySelector(':scope > ul.node-list');\n"
   + fn("containerState") + "\n" + fn("applyContainerState") + "\n"
   + fn("refreshChecksFrom") + "\n" + constDecl("refreshAncestorChecks") + "\n"
   + fn("cascadeVisibility") + "\n" + fn("setPendingChecked") + "\n" + fn("setAllChecked");
+/* Las dos cuentas de materialización van DENTRO del recorte, no como
+   parámetros: la cascada las lee en cada vuelta para saber si el
+   conjunto de nodos sigue moviéndose, y `materializar()` las mueve
+   desde fuera para simular lo que hace ensureMaterialized.          */
 const api = new Function("rootGroup", "yieldFrame", "CASCADE_BATCH", "scheduleSave", "treeEl", "rootUl",
-  src + "\nreturn {applyVisibility, cascadeVisibility, setAllChecked, applyContainerState, containerState};"
+  "let materializingNow = 0; let materializeSeq = 0;\n" + src
+  + "\nreturn {applyVisibility, cascadeVisibility, setAllChecked, applyContainerState, containerState,"
+  + " empiezaMaterializacion: () => { materializingNow++; },"
+  + " terminaMaterializacion: () => { materializingNow--; materializeSeq++; },"
+  + " enVuelo: () => materializingNow };"
 )(rootGroup, yieldFrame, CASCADE_BATCH, scheduleSave, treeEl, rootUl);
 const { cascadeVisibility, setAllChecked } = api;
 
@@ -169,5 +177,35 @@ function makeFolder(name, count) {
   ok(leafRec2.checked === true, "setAllChecked: reaches a pending record anywhere in the tree, not just materialized rows");
   ok(calls.some(c => c[0] === "add" && c[1] === "pending-leaf-2"), "setAllChecked: adds the pending leaf's layer to rootGroup");
 
-  if (!process.exitCode) console.log("CASCADE TESTS OK");
+  /* ---------- Repetir la pasada mientras el árbol se mueva ----------
+   Es lo que arregla "desplegar y marcar a la vez": si mientras la
+   cascada recorre se están construyendo filas, las que nazcan después
+   traen su estado GUARDADO, no el que el usuario acaba de pedir. La
+   cascada repite hasta que nadie está construyendo nada.
+
+   Aquí se simula desde fuera lo que hace ensureMaterialized: una
+   materialización en vuelo que añade una fila apagada a mitad de la
+   cascada y termina después.                                         */
+  {
+  const { li, boxes } = makeFolder("Aerovías", 4);
+  rootUl.appendChild(li);
+  api.empiezaMaterializacion();          /* alguien está construyendo filas */
+  const p = cascadeVisibility(li, true);
+  /* La fila que "nace" a mitad, apagada, como saldría de un registro */
+  const tarde = document.createElement("li");
+  const row = document.createElement("div"); row.className = "node-row";
+  const chk = document.createElement("input"); chk.type = "checkbox"; chk.checked = false;
+  chk._layer = { tag: "tardía" };
+  row.appendChild(chk); tarde.appendChild(row);
+  li.querySelector(":scope > ul.node-list").appendChild(tarde);
+  api.terminaMaterializacion();
+  await p;
+  ok(chk.checked === true,
+    "una fila construida a mitad de la cascada acaba encendida igual que las demás");
+  ok(boxes.every(b => b.checked), "y las que ya estaban, también");
+  ok(api.enVuelo() === 0, "sin materializaciones en vuelo al terminar");
+  li.remove();
+  }
+
+if (!process.exitCode) console.log("CASCADE TESTS OK");
 })();
