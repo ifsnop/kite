@@ -1034,9 +1034,9 @@ index.html         redirección de la raíz del sitio al minificado
 - `src/js/05-mdi-icons.js` se versiona y va marcado como generado en
   `.gitattributes`, igual que `kitelocal.html`: su contenido no se lee
   y en un diff solo taparía el cambio real.
-- **Las formas dibujadas, las mediciones y los pines se autonumeran**
-  («Línea 3», «Polígono 2», «Círculo 1», «Marcador 4») con
-  `nextNumberedName`, que
+- **Las formas dibujadas, las mediciones, los pines y las descargas se
+  autonumeran** («Línea 3», «Polígono 2», «Círculo 1», «Marcador 4»,
+  «Descarga 5») con `nextNumberedName`, que
   deduce el número de **los nombres que ya hay en el árbol**, no de un
   contador en memoria. El contador no valdría: una línea o un polígono
   dibujados vuelven de IndexedDB por el camino genérico `t:"layer"`,
@@ -1831,6 +1831,19 @@ arrastrar, y admite exactamente los mismos formatos.
   genera aviso**: el usuario acaba de hacerlo. Cerrar el diálogo (o
   Escape) también aborta: una descarga cuyo resultado ya no tiene dónde
   mostrarse solo ocupa conexión.
+- **Cada descarga entra en SU carpeta, «Descarga N»**, numerada con el
+  mismo `nextNumberedName` que las formas dibujadas, las mediciones y
+  los pines: deduce el número de los nombres que ya hay en el árbol
+  —incluidos los registros pendientes de las carpetas nunca
+  desplegadas—, así que sobrevive a una recarga y manda el máximo, no la
+  cuenta (borrar «Descarga 2» no recicla ese número mientras quede una
+  mayor). Es lo que hace uniforme el resultado, que si no depende del
+  formato: un GeoJSON crea su carpeta envoltorio y un KML vuelca su
+  jerarquía directamente en la raíz, de modo que lo descargado se
+  mezclaba con lo que ya había sin dejar rastro de dónde vino. La
+  importación va DENTRO de esa carpeta (el `dropTargetUl` que
+  `handleDroppedFiles` ya acepta), y todo ello tras un `pushUndo`, así
+  que una descarga se deshace de una vez.
 - **Lo descargado se envuelve en un `File` y se entrega a
   `handleDroppedFiles`**, así que no se duplica una línea del camino de
   importación: mismos formatos, mismos diálogos (etiquetas HTML,

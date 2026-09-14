@@ -262,7 +262,7 @@ async function runUrlFetch() {
     const name = downloadFileName(url, kind);
     urlReady = { file: new File([bytes], name), kind, size: bytes.length };
     setUrlState("listo", `«${name}» — ${URL_KIND_LABEL[kind]}, ${fmtBytes(bytes.length)}. `
-      + "Pulse «Añadir al árbol» para insertarlo.");
+      + "Pulse «Añadir al árbol» para insertarlo en una carpeta nueva.");
     urlAddBtn.focus();
   } catch (err) {
     if (seq !== urlSeq) return;
@@ -309,7 +309,7 @@ urlFetchBtn.addEventListener("click", () => {
   }
   runUrlFetch();
 });
-urlAddBtn.addEventListener("click", () => {
+urlAddBtn.addEventListener("click", async () => {
   if (!urlReady) return;
   const { file } = urlReady;
   /* Se cierra ANTES de importar: la importación abre sus propios
@@ -317,7 +317,23 @@ urlAddBtn.addEventListener("click", () => {
      apilarse sobre este. Del resumen, el progreso y el guardado se
      encarga ya handleDroppedFiles, como con cualquier archivo.       */
   closeUrlDialog();
-  handleDroppedFiles([file]);
+  /* Todo lo descargado entra en SU carpeta, «Descarga N», numerada con
+     el mismo nextNumberedName que las formas dibujadas, las mediciones
+     y los pines: deduce el número de los nombres que ya hay en el
+     árbol, así que sobrevive a una recarga y no recicla números.
+
+     Es lo que hace uniforme el resultado, que si no depende del
+     formato: un GeoJSON crea su carpeta envoltorio y un KML vuelca su
+     jerarquía directamente en la raíz, de modo que lo descargado se
+     mezclaba con lo que ya había sin dejar rastro de dónde vino.    */
+  pushUndo("añadir desde una dirección");
+  const carpeta = await createFolderNode(null, nextNumberedName("Descarga"));
+  await handleDroppedFiles([file], null, nodeUl(carpeta));
+  /* El conjunto de hijos de la carpeta nueva ha cambiado: su casilla
+     tiene que recalcularse, como en cualquier importación dentro de
+     una carpeta.                                                     */
+  refreshAncestorChecks(carpeta);
+  scheduleSave();
 });
 /* Editar la dirección invalida una descarga ya lista: si no, se podría
    descargar A, escribir B y pulsar «Añadir» insertando A.           */

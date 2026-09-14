@@ -94,6 +94,17 @@ const esperarResultado = () => page.waitForFunction(() => {
 }, null, { timeout: 15000 });
 const raiz = () => page.evaluate(() =>
   [...document.querySelectorAll("#tree > ul > li")].map(li => li._name));
+/* Lo que hay DENTRO de la última carpeta «Descarga N» */
+const dentroDeLaUltima = () => page.evaluate(() => {
+  const carpetas = [...document.querySelectorAll("#tree > ul > li")]
+    .filter(li => /^Descarga \d+$/.test(li._name || ""));
+  const ultima = carpetas[carpetas.length - 1];
+  if (!ultima) return null;
+  const ul = ultima.querySelector(":scope > ul.node-list");
+  return { carpeta: ultima._name,
+    hijos: ul ? [...ul.children].map(li => li._name) : [],
+    pendientes: ultima._pending ? ultima._pending.map(r => r.name) : [] };
+});
 
 /* ---------- 1. Camino feliz: GeoJSON ---------- */
 await abrir();
@@ -108,8 +119,15 @@ ok(!e.mal, "en tono normal, que no es un fallo");
 ok((await raiz()).length === 0, "y el árbol sigue intacto: el paso 1 no toca nada");
 await page.click("#url-add");
 await page.waitForTimeout(800);
-ok((await raiz()).includes("datos.geojson"),
-  "«Añadir al árbol» sí lo inserta: " + JSON.stringify(await raiz()));
+/* Todo lo descargado entra en SU carpeta numerada: sin ella el
+   resultado depende del formato —un GeoJSON crea envoltorio y un KML
+   vuelca su jerarquía en la raíz— y lo traído se mezcla con lo que ya
+   había sin dejar rastro de dónde vino.                             */
+let dentro = await dentroDeLaUltima();
+ok((await raiz()).includes("Descarga 1"),
+  "«Añadir al árbol» crea la carpeta «Descarga 1»: " + JSON.stringify(await raiz()));
+ok(dentro && [...dentro.hijos, ...dentro.pendientes].includes("datos.geojson"),
+  "y el archivo queda dentro de ella: " + JSON.stringify(dentro));
 ok(!(await estado()).abierto, "y el diálogo se cierra, para no tapar los suyos");
 
 /* ---------- 2. Una URL SIN extensión ----------
@@ -130,8 +148,17 @@ await page.waitForTimeout(800);
    es justo lo que interesa: la extensión sintetizada acertó de rama, y
    por eso la importación lo entendió como KML en vez de rechazarlo por
    formato no admitido.                                               */
-ok((await raiz()).includes("Torre"),
-  "y entra en el árbol con su propia jerarquía: " + JSON.stringify(await raiz()));
+dentro = await dentroDeLaUltima();
+ok(dentro && dentro.carpeta === "Descarga 2",
+  "la segunda descarga numera sola, como las mediciones y los pines: "
+  + JSON.stringify(await raiz()));
+/* OJO: dentro NO hay ningún «descarga.kml». Un KML vuelca su propia
+   jerarquía —envolverlo añadiría un nivel que el archivo no tiene—, así
+   que lo que aparece es su placemark, ahora bajo la carpeta. Que esté
+   ahí es lo que demuestra que la extensión sintetizada acertó de rama:
+   con otra, la importación lo habría rechazado por formato.        */
+ok(dentro && [...dentro.hijos, ...dentro.pendientes].includes("Torre"),
+  "y el KML entra con su jerarquía dentro de la carpeta: " + JSON.stringify(dentro));
 
 /* ---------- 3. KMZ: solo el paso 1 ----------
    Basta la firma del zip; construir uno válido aquí no probaría nada

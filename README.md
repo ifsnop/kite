@@ -102,8 +102,10 @@ KITE Local does not impose fixed limits on KML file size, imported features or v
   the panel, or drop them straight into a folder
 - **open a URL**: paste an address, download it, see what actually
   arrived — the format is recognised from the content, not the
-  extension — and only then add it to the tree. A download in progress
-  can be cancelled without waiting for the timeout.
+  extension — and only then add it to the tree. Each download lands in
+  its own numbered folder, so where it came from stays visible whatever
+  the format. A download in progress can be cancelled without waiting
+  for the timeout.
 
 ### Styling and editing
 
