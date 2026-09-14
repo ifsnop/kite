@@ -1744,53 +1744,55 @@ y `kitelocal.min.html` (su derivada minificada, lo que sirve Pages).
 
 ## Arrastrar y soltar
 
-- **El asa es el NOMBRE de la fila, no la fila entera.** El `<li>` es
-  `draggable` —tiene que serlo para poder moverlo—, así que el navegador
-  abría una sesión de arrastre aunque la pulsación empezara en el caret,
-  en la casilla o en un botón de acción: basta apretar y moverse unos
-  píxeles. Y **una sesión de arrastre HTML5 es un bucle de eventos
+- **NO se usa el arrastre nativo de HTML5, y esa es la decisión de esta
+  sección.** Una sesión de arrastre nativa es un **bucle de eventos
   ANIDADO del navegador**: mientras dura, la página no recibe
-  temporizadores, ni fotogramas, ni entrada, así que un arrastre
-  empezado sin querer deja la aplicación aparentemente colgada sin que
-  se ejecute una sola línea de código propio. Medido en la sesión que lo
-  destapó, con el vigilante de la rama `debug`: bloqueos de **27 s y
-  33 s** con `durante: {}` y `enVuelo: []` —ni una función del visor ni
-  de Leaflet—, la memoria plana (236 → 236 MB, o sea tampoco recolección
-  de basura), un hueco de fotogramas de **119 s** y `arrastrando: true`.
-  Se anota en `pointerdown` dónde empezó la pulsación
-  (`DRAG_NOT_HANDLE`) y `dragstart` se cancela si no fue sobre el
-  nombre.
-- **Y ni sobre el nombre basta con pulsar: hay que MANTENER pulsado**
-  (`DRAG_ARM_MS`, 350 ms). Acotarlo al nombre no fue suficiente —la
-  segunda captura del cuelgue llegó con la última pulsación sobre un
-  `label` y **sin su `click`**, que es la firma de un clic convertido en
-  arrastre—, porque un clic normal lleva su temblor de unos píxeles y
-  eso es justo lo que el navegador toma por principio de arrastre. El
-  umbral es lo que separa «quería pulsar» de «quiero mover esto»;
-  soltar el botón desarma. Reordenar no depende de este gesto: cada
-  fila tiene ↑ y ↓, y están Ctrl+X / Ctrl+V.
-- **Un `dragend` que no llega deja `dragItems` puesto para siempre**
-  (pasa cuando la sesión termina fuera de la ventana), y con él la
-  aplicación cree que sigue arrastrando. Se limpia al empezar la
-  siguiente pulsación.
+  temporizadores, ni fotogramas, ni entrada. Un arrastre empezado sin
+  querer deja la aplicación aparentemente muerta sin que se ejecute una
+  línea de código propio — que es exactamente el cuelgue que se estuvo
+  persiguiendo. Medido con el vigilante de la rama `debug` sobre la
+  sesión real: bloqueos de **27 s y 33 s** con `durante: {}` y
+  `enVuelo: []` (ni una función del visor ni de Leaflet), la memoria
+  **plana** (236 → 236 MB, luego tampoco recolección de basura), un
+  hueco de fotogramas de **119 s**, `__sonda` sin recibir un solo
+  evento y, en el registro de pulsaciones, siempre la misma firma: un
+  `pointerdown` sobre una fila **sin su `click`**.
+- **Acotar el asa NO lo arregla, y se intentó dos veces**: primero
+  prohibiendo empezar sobre el caret, la casilla y los botones; luego
+  exigiendo mantener pulsado 350 ms. Un clic normal lleva unos píxeles
+  de temblor —justo lo que el navegador toma por principio de
+  arrastre— y basta con apretar, pensar un segundo y mover para volver
+  a abrir la sesión. La única solución robusta es no usarla: no queda
+  ningún `draggable` en el árbol.
+- **A cambio se gana de todo**: el gesto se puede CANCELAR con Escape,
+  no puede quedarse colgado (el puntero se captura, así que soltar
+  fuera de la ventana también termina), cuesta **una escucha por fila
+  en vez de cinco** más dos globales, y —lo que más vale— **se puede
+  probar de punta a punta con el ratón de verdad**: ningún cliente de
+  automatización abre la sesión de arrastre del navegador, así que
+  antes solo se podían despachar `DragEvent` a mano, que probaban media
+  cosa.
+- **El destino se resuelve por GEOMETRÍA** (`elementFromPoint`), no por
+  el objetivo del evento: con el puntero capturado, todos los eventos
+  apuntan al árbol y `e.target` ya no dice dónde está el cursor.
+- **Ojo al probarlo con el ratón real**: una fila fuera del área visible
+  del panel no está bajo ningún píxel y `elementFromPoint` devuelve el
+  panel. Hay que desplazarla a la vista antes de medir, y medir el
+  destino con el arrastre YA empezado, porque ese desplazamiento mueve
+  las filas. Con los eventos sintéticos de antes esto daba igual y por
+  eso no aparecía.
 - Las franjas de destino van en **píxeles**, no en porcentaje: con filas
   de 24 px, un porcentaje dejaba bordes de 4 px imposibles de acertar.
   Seis píxeles arriba y abajo reordenan entre hermanos; el resto de una
   carpeta mete dentro.
 - La marca de destino la lleva **una sola fila** (`dropMarked`). Barrer
-  el árbol con `querySelectorAll` en cada `dragover` —que se dispara
+  el árbol con `querySelectorAll` en cada movimiento —que se dispara
   decenas de veces por segundo— hacía que arrastrar fuera a tirones.
 - **Soltar un archivo externo sobre una carpeta lo importa DENTRO de
-  ella**, en vez de siempre en la raíz: `folderDropTarget` resuelve el
-  `<li>` bajo el puntero con el mismo test de "esto es un contenedor"
-  que ya usan `dropZone()` (reordenar interno) y `pasteClipboard()`
-  (pegar) —`nodeUl(li)`—, y ese destino se enhebra hasta los
-  importadores (`handleDroppedFiles` → `addFileNode`/`importTreeExport`)
-  exactamente como `pasteClipboard` ya elige entre la carpeta del cursor
-  y la raíz. Para KML esto NO añade un envoltorio (la jerarquía del
-  archivo cuelga directa de la carpeta soltada); para GeoJSON/`.kite.json`
-  es la propia carpeta envoltorio la que cuelga de ahí. El recuadro
-  `#dropzone` vive ahora bajo el árbol (`#tree`), no en la cabecera.
+  ella**: eso SÍ sigue siendo arrastre nativo, porque los archivos
+  llegan del sistema operativo y no hay otra forma. Es un camino
+  distinto (`navPanel`, `folderDropTarget`) y no abre ninguna sesión de
+  arrastre de la página: la abre el escritorio.
 
 ## Ficha del elemento / panel de información de la capa
 

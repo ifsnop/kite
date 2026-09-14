@@ -19,6 +19,9 @@ const { ok, done } = reporter("BROWSER TREE MOVE TESTS OK");
 const browser = await launch();
 const srv = await serve(READABLE, 8845);
 const { page, errors } = await openApp(browser, srv.url);
+/* Panel alto: el gesto necesita ver a la vez el nodo que se agarra y el
+   destino, y con la ventana por defecto el árbol se queda corto.    */
+await page.setViewportSize({ width: 1280, height: 1000 });
 
 await page.evaluate(() => {
   /* Carpeta con dos capas; `marcadas` decide si van activas */
@@ -63,32 +66,50 @@ await page.evaluate(() => {
     origenDebe: containerState(__n.origen), destinoDebe: containerState(__n.destino)
   });
 
-  /* Arrastre real: los mismos eventos que dispara el navegador, con su
-     DataTransfer. `dragstart` es el que llena dragItems/dragLi, y el
-     clientY del `drop` decide entre soltar DENTRO de la carpeta y
-     reordenar entre hermanos (franjas de 6 px arriba y abajo).      */
-  window.__arrastrar = async (origen, destino, donde) => {
-    const items = Array.isArray(origen) ? origen : [origen];
-    const fila = li => li.querySelector(":scope > .node-row");
-    const dt = new DataTransfer();
-    clearSelection();
-    for (const it of items) setSelected(it, true);
-    setSelCursor(items[0]);
-    /* El gesto completo, como lo hace una persona: pulsar sobre el
-       NOMBRE y mantener. Sin esto el navegador tampoco abriría su
-       sesión de arrastre (ver DRAG_ARM_MS), así que saltárselo probaría
-       un camino que en la aplicación real no existe.               */
-    fila(items[0]).querySelector("label").dispatchEvent(new PointerEvent("pointerdown", { bubbles: true }));
-    await new Promise(listo => setTimeout(listo, 450));
-    fila(items[0]).dispatchEvent(new DragEvent("dragstart", { bubbles: true, dataTransfer: dt }));
-    const r = fila(destino).getBoundingClientRect();
-    const y = donde === "dentro" ? r.top + r.height / 2 : r.top + 1;
-    const ev = t => new DragEvent(t, { bubbles: true, cancelable: true, dataTransfer: dt, clientY: y });
-    fila(destino).dispatchEvent(ev("dragover"));
-    fila(destino).dispatchEvent(ev("drop"));
-    await new Promise(listo => setTimeout(listo, 150));  /* el manejador es async */
+  /* Dónde agarrar y dónde soltar, en coordenadas de pantalla: el
+     arrastre lo conduce Playwright con el ratón DE VERDAD (ver
+     `arrastrar`). Desde que no se usa el arrastre nativo de HTML5, el
+     gesto completo se puede automatizar; antes no, porque ningún
+     cliente abre la sesión de arrastre del navegador y había que
+     despachar DragEvents a mano, que probaban media cosa.
+     Se agarra por el NOMBRE (45 px desde el borde): el centro de la
+     fila cae sobre los botones de acción, que aparecen al pasar el
+     ratón y NO son asa.                                             */
+  window.__punto = (nombre, donde) => {
+    const li = [...document.querySelectorAll("#tree li")].find(x => x._name === nombre);
+    /* A la vista antes de medir: con el ratón DE VERDAD, una fila fuera
+       del área visible del panel no está bajo ningún píxel, y
+       elementFromPoint devuelve el panel en vez de la fila. Con los
+       eventos sintéticos de antes esto daba igual, y por eso no
+       aparecía.                                                      */
+    li.scrollIntoView({ block: "nearest" });
+    const r = li.querySelector(":scope > .node-row").getBoundingClientRect();
+    return { x: Math.round(r.x + 45),
+      y: Math.round(donde === "antes" ? r.y + 2 : r.y + r.height / 2) };
   };
 });
+
+/* El gesto entero: agarrar por el nombre, moverse lo justo para que
+   deje de ser un clic, llevar al destino y soltar.                  */
+const arrastrar = async (origenes, destino, donde) => {
+  const nombres = Array.isArray(origenes) ? origenes : [origenes];
+  await page.evaluate(ns => {
+    clearSelection();
+    const buscar = n => [...document.querySelectorAll("#tree li")].find(x => x._name === n);
+    for (const n of ns) setSelected(buscar(n), true);
+    setSelCursor(buscar(ns[0]));
+  }, nombres);
+  const a = await page.evaluate(n => __punto(n, "dentro"), nombres[0]);
+  await page.mouse.move(a.x, a.y);
+  await page.mouse.down();
+  await page.mouse.move(a.x + 20, a.y + 4, { steps: 3 });
+  /* El destino se mide con el arrastre ya empezado: `scrollIntoView`
+     puede haber movido las filas, y el punto de antes ya no valdría. */
+  const b = await page.evaluate(([n, d]) => __punto(n, d), [destino, donde]);
+  await page.mouse.move(b.x, b.y, { steps: 8 });
+  await page.mouse.up();
+  await page.waitForTimeout(350);
+};
 
 const comprobar = async (etiqueta, esperado) => {
   const r = await page.evaluate(() => __leer());
@@ -106,33 +127,28 @@ await page.evaluate(() => __montar());
 await comprobar("de partida", { origen: "mixed", destino: "off" });
 
 /* ---------- Arrastrar DENTRO de una carpeta ---------- */
-await page.evaluate(async () => { __montar(); await __arrastrar(__n.viajera, __n.destino, "dentro"); });
+await page.evaluate(() => __montar());
+await arrastrar("Viajera", "Destino", "dentro");
 await comprobar("arrastrando dentro de la carpeta", { origen: "off", destino: "mixed" });
 
 /* ---------- Arrastrar ENTRE hermanos de otra rama ----------
    Otra zona del mismo manejador: aquí el destino no es la carpeta que
    se señala, sino la que la contiene.                                */
-await page.evaluate(async () => {
-  __montar();
-  await __arrastrar(__n.viajera, nodeUl(__n.destino).children[0], "antes");
-});
+await page.evaluate(() => __montar());
+await arrastrar("Viajera", "Destino capa 0", "antes");
 await comprobar("arrastrando entre hermanos", { origen: "off", destino: "mixed" });
 
 /* ---------- Varias a la vez, de la misma rama ----------
    Los contenedores de origen se capturan ANTES de mover: después los
    nodos ya cuelgan del destino y no habría desde dónde recalcular.  */
-await page.evaluate(async () => {
-  __montar();
-  const otra = __mk(__n.origen, "Otra", true);
-  applyContainerState(__n.origen);
-  await __arrastrar([__n.viajera, otra], __n.destino, "dentro");
-});
+await page.evaluate(() => { __montar(); __mk(__n.origen, "Otra", true); applyContainerState(__n.origen); });
+await arrastrar(["Viajera", "Otra"], "Destino", "dentro");
 await comprobar("arrastrando dos carpetas de golpe", { origen: "off", destino: "mixed" });
 
 /* ---------- Vaciar una carpeta a medias no puede dejar el guion ----------
    Sin hijos no hay nada que agregar y la casilla se deja como esté,
    pero "unas activas y otras no" es mentira cuando no queda ninguna. */
-const vaciada = await page.evaluate(async () => {
+const antesDeVaciar = await page.evaluate(() => {
   document.getElementById("tree").innerHTML = "";
   rootUl = null;
   rootGroup.clearLayers();
@@ -145,11 +161,15 @@ const vaciada = await page.evaluate(async () => {
   const destino = __mk(null, "Destino", false);
   destino.classList.remove("collapsed");
   window.__n = { origen: padre, viajera: hija, destino };
-  const antes = __estado(padre);
-  await __arrastrar(hija, destino, "dentro");
-  return { antes, despues: __estado(padre), aria: padre.getAttribute("aria-checked"),
-    hijos: nodeUl(padre).children.length };
+  return __estado(padre);
 });
+await arrastrar("Hija", "Destino", "dentro");
+const vaciada = await page.evaluate(() => ({
+  antes: null, despues: __estado(__n.origen),
+  aria: __n.origen.getAttribute("aria-checked"),
+  hijos: nodeUl(__n.origen).children.length
+}));
+vaciada.antes = antesDeVaciar;
 ok(vaciada.antes === "mixed", "la carpeta estaba a medias antes: " + vaciada.antes);
 ok(vaciada.hijos === 0, "y se queda sin hijos al llevarse el único: " + vaciada.hijos);
 ok(vaciada.despues !== "mixed" && vaciada.aria !== "mixed",
@@ -178,49 +198,56 @@ await page.evaluate(async () => {
 });
 await comprobar("copiando y pegando", { origen: "mixed", destino: "mixed" });
 
-/* ---------- Un arrastre solo empieza desde el NOMBRE ----------
-   El <li> entero es `draggable` —tiene que serlo para poder moverlo—,
-   así que el navegador abría una sesión de arrastre aunque la pulsación
-   empezara en el caret, en la casilla o en un botón de la fila: basta
-   apretar y moverse unos píxeles. Y una sesión de arrastre HTML5 es un
-   bucle de eventos ANIDADO del navegador: mientras dura, la página no
-   recibe temporizadores, ni fotogramas, ni entrada, y parece colgada
-   sin que se ejecute una línea de código propio. Medido en la sesión
-   real que lo destapó: 27 s y 33 s de hilo parado sin una sola función
-   del visor en marcha, la memoria plana y un arrastre en curso.     */
-const asas = await page.evaluate(async () => {
-  const ul = ensureRootUl();
-  const f = makeNode({ name: "Carpeta", isFolder: true });
-  ul.appendChild(f);
-  nodeUl(f).appendChild(makeNode({ name: "capa", layer: L.marker([40, -3]) }));
-  const fila = f.querySelector(":scope > .node-row");
-  /* `mantener` decide si se espera al umbral de pulsación larga: sin
-     esperar, ni siquiera el nombre abre un arrastre.               */
-  const prueba = async (sel, mantener = true) => {
-    dragItems = null;
-    dragFromBlocked = false;
-    dragArmed = false;
-    (fila.querySelector(sel) || fila).dispatchEvent(new PointerEvent("pointerdown", { bubbles: true }));
-    if (mantener) await new Promise(listo => setTimeout(listo, 450));
-    const ev = new DragEvent("dragstart", { bubbles: true, cancelable: true, dataTransfer: new DataTransfer() });
-    f.dispatchEvent(ev);
-    return { cancelado: ev.defaultPrevented, arrastra: !!dragItems };
-  };
-  return { caret: await prueba(".caret"), casilla: await prueba("input[type=checkbox]"),
-    nombre: await prueba("label"), boton: await prueba(".actions button"),
-    /* El clic de verdad: pulsar y que el temblor dispare el arrastre
-       en el acto, que es como se colgaba la aplicación.            */
-    clicNormal: await prueba("label", false) };
+/* ---------- Un clic NO puede convertirse en arrastre ----------
+   Aquí estaba el cuelgue. El arrastre nativo de HTML5 abre un BUCLE DE
+   EVENTOS ANIDADO en el navegador: mientras dura, la página no recibe
+   temporizadores, ni fotogramas, ni entrada, y parece muerta sin
+   ejecutar una línea de código propio. Medido en la sesión real: 27 s
+   y 33 s de hilo parado sin una sola función del visor en marcha, la
+   memoria plana y un hueco de fotogramas de 119 s; la firma era
+   siempre un `pointerdown` sobre una fila SIN su `click`.
+
+   Y no bastaba con acotar el asa: un clic normal lleva unos píxeles de
+   temblor —justo lo que el navegador toma por principio de arrastre—.
+   Por eso ya no se usa el arrastre nativo, y esto lo comprueba con el
+   ratón de verdad: pulsar y moverse dos o tres píxeles tiene que
+   seguir siendo un clic.                                            */
+await page.evaluate(() => {
+  document.getElementById("tree").innerHTML = "";
+  rootUl = null;
+  rootGroup.clearLayers();
+  __mk(null, "Uno", false);
+  __mk(null, "Dos", false);
 });
-for (const [donde, r] of [["el caret", asas.caret], ["la casilla", asas.casilla], ["un botón", asas.boton]]) {
-  ok(r.cancelado && !r.arrastra,
-    `apretar ${donde} NO puede empezar un arrastre: ` + JSON.stringify(r));
-}
-ok(!asas.nombre.cancelado && asas.nombre.arrastra,
-  "manteniendo pulsado el nombre sí se arrastra: " + JSON.stringify(asas.nombre));
-ok(asas.clicNormal.cancelado && !asas.clicNormal.arrastra,
-  "pero un CLIC en el nombre no abre ninguna sesión de arrastre, que es "
-  + "por donde se colgaba: " + JSON.stringify(asas.clicNormal));
+const temblor = await page.evaluate(() => __punto("Uno", "dentro"));
+await page.mouse.move(temblor.x, temblor.y);
+await page.mouse.down();
+await page.mouse.move(temblor.x + 3, temblor.y + 2);
+const duranteElClic = await page.evaluate(() => !!dragItems);
+await page.mouse.up();
+await page.waitForTimeout(150);
+ok(!duranteElClic,
+  "un clic con tres píxeles de temblor NO empieza ningún arrastre");
+ok((await page.evaluate(() => [...document.querySelectorAll("#tree > ul > li")].map(li => li._name)))
+  .join() === "Uno,Dos", "y no mueve nada");
+
+/* Ni un solo elemento del árbol es arrastrable por el navegador: es lo
+   que garantiza que esa sesión no pueda abrirse por ningún camino.  */
+ok(await page.evaluate(() => document.querySelectorAll("#tree [draggable=true]").length) === 0,
+  "no queda ningún draggable nativo en el árbol");
+
+/* Escape cancela a mitad, que con el arrastre nativo no se podía */
+await page.mouse.move(temblor.x, temblor.y);
+await page.mouse.down();
+await page.mouse.move(temblor.x + 30, temblor.y + 4, { steps: 3 });
+const duranteArrastre = await page.evaluate(() => !!dragItems);
+await page.keyboard.press("Escape");
+const trasEscape = await page.evaluate(() => ({ arrastrando: !!dragItems,
+  marcas: document.querySelectorAll(".drop-into,.drop-before,.drop-after").length }));
+await page.mouse.up();
+ok(duranteArrastre, "moviendo de verdad sí arranca el arrastre");
+ok(!trasEscape.arrastrando && trasEscape.marcas === 0,
+  "y Escape lo cancela sin dejar marcas: " + JSON.stringify(trasEscape));
 
 ok(errors.length === 0, "sin errores de página: " + JSON.stringify(errors));
 
