@@ -95,14 +95,18 @@ const esperarResultado = () => page.waitForFunction(() => {
 }, null, { timeout: 15000 });
 const raiz = () => page.evaluate(() =>
   [...document.querySelectorAll("#tree > ul > li")].map(li => li._name));
-/* Lo que hay DENTRO de la última carpeta «Descarga N» */
+/* Todo cuelga de UNA sección «Descargas», como «Lugares» o
+   «Elevaciones», y dentro va una «Descarga N» por descarga.        */
 const dentroDeLaUltima = () => page.evaluate(() => {
-  const carpetas = [...document.querySelectorAll("#tree > ul > li")]
-    .filter(li => /^Descarga \d+$/.test(li._name || ""));
+  const seccion = [...document.querySelectorAll("#tree > ul > li")]
+    .find(li => li._name === "Descargas");
+  if (!seccion) return null;
+  const sul = seccion.querySelector(":scope > ul.node-list");
+  const carpetas = sul ? [...sul.children].filter(li => /^Descarga \d+$/.test(li._name || "")) : [];
   const ultima = carpetas[carpetas.length - 1];
-  if (!ultima) return null;
+  if (!ultima) return { seccion: seccion._name, carpetas: [], carpeta: null, hijos: [], pendientes: [] };
   const ul = ultima.querySelector(":scope > ul.node-list");
-  return { carpeta: ultima._name,
+  return { seccion: seccion._name, carpetas: carpetas.map(li => li._name), carpeta: ultima._name,
     hijos: ul ? [...ul.children].map(li => li._name) : [],
     pendientes: ultima._pending ? ultima._pending.map(r => r.name) : [] };
 });
@@ -139,8 +143,10 @@ await page.waitForTimeout(800);
    vuelca su jerarquía en la raíz— y lo traído se mezcla con lo que ya
    había sin dejar rastro de dónde vino.                             */
 let dentro = await dentroDeLaUltima();
-ok((await raiz()).includes("Descarga 1"),
-  "«Añadir al árbol» crea la carpeta «Descarga 1»: " + JSON.stringify(await raiz()));
+ok((await raiz()).includes("Descargas") && !(await raiz()).includes("Descarga 1"),
+  "todo cuelga de la sección «Descargas», no de la raíz: " + JSON.stringify(await raiz()));
+ok(dentro && dentro.carpeta === "Descarga 1",
+  "y dentro va «Descarga 1»: " + JSON.stringify(dentro.carpetas));
 ok(dentro && [...dentro.hijos, ...dentro.pendientes].includes("datos.geojson"),
   "y el archivo queda dentro de ella: " + JSON.stringify(dentro));
 ok(!(await estado()).abierto, "y el diálogo se cierra, para no tapar los suyos");
@@ -164,9 +170,9 @@ await page.waitForTimeout(800);
    por eso la importación lo entendió como KML en vez de rechazarlo por
    formato no admitido.                                               */
 dentro = await dentroDeLaUltima();
-ok(dentro && dentro.carpeta === "Descarga 2",
-  "la segunda descarga numera sola, como las mediciones y los pines: "
-  + JSON.stringify(await raiz()));
+ok(dentro && dentro.carpeta === "Descarga 2" && dentro.carpetas.length === 2,
+  "la segunda numera sola y REUTILIZA la sección, no crea otra: "
+  + JSON.stringify({ raiz: await raiz(), dentro: dentro.carpetas }));
 /* OJO: dentro NO hay ningún «descarga.kml». Un KML vuelca su propia
    jerarquía —envolverlo añadiría un nivel que el archivo no tiene—, así
    que lo que aparece es su placemark, ahora bajo la carpeta. Que esté

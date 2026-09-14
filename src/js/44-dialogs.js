@@ -327,17 +327,26 @@ urlAddBtn.addEventListener("click", async () => {
      apilarse sobre este. Del resumen, el progreso y el guardado se
      encarga ya handleDroppedFiles, como con cualquier archivo.       */
   closeUrlDialog();
-  /* Todo lo descargado entra en SU carpeta, «Descarga N», numerada con
-     el mismo nextNumberedName que las formas dibujadas, las mediciones
-     y los pines: deduce el número de los nombres que ya hay en el
-     árbol, así que sobrevive a una recarga y no recicla números.
+  /* Todo lo descargado cuelga de UNA sección «Descargas», como
+     «Lugares», «Marcadores», «Polígonos» o «Elevaciones»: se localiza
+     por nombre con ensureNamedSection, así que se reutiliza entre
+     descargas y sobrevive a la restauración sin enganche especial.
 
-     Es lo que hace uniforme el resultado, que si no depende del
-     formato: un GeoJSON crea su carpeta envoltorio y un KML vuelca su
-     jerarquía directamente en la raíz, de modo que lo descargado se
-     mezclaba con lo que ya había sin dejar rastro de dónde vino.    */
+     Y dentro, cada descarga en su propia «Descarga N», numerada con el
+     mismo nextNumberedName que las formas dibujadas, las mediciones y
+     los pines: deduce el número de los nombres que ya hay en el árbol
+     —pendientes incluidos—, así que sobrevive a una recarga y manda el
+     máximo, no la cuenta. Es exactamente la forma de «Elevaciones» con
+     sus «Elevación N» dentro.
+
+     La carpeta hace falta: sin ella el resultado depende del formato
+     —un GeoJSON crea su envoltorio y un KML vuelca su jerarquía tal
+     cual—, de modo que dos descargas se mezclarían dentro de la
+     sección sin saberse cuál trajo qué.                             */
   pushUndo("añadir desde una dirección");
-  const carpeta = await createFolderNode(null, nextNumberedName("Descarga"));
+  const seccion = ensureNamedSection("Descargas");
+  const carpeta = await createFolderNode(seccion.parentElement,
+    nextNumberedName("Descarga"));
   await handleDroppedFiles([file], null, nodeUl(carpeta));
   /* El conjunto de hijos de la carpeta nueva ha cambiado: su casilla
      tiene que recalcularse, como en cualquier importación dentro de

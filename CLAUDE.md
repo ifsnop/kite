@@ -1839,19 +1839,23 @@ arrastrar, y admite exactamente los mismos formatos.
   genera aviso**: el usuario acaba de hacerlo. Cerrar el diálogo (o
   Escape) también aborta: una descarga cuyo resultado ya no tiene dónde
   mostrarse solo ocupa conexión.
-- **Cada descarga entra en SU carpeta, «Descarga N»**, numerada con el
-  mismo `nextNumberedName` que las formas dibujadas, las mediciones y
-  los pines: deduce el número de los nombres que ya hay en el árbol
-  —incluidos los registros pendientes de las carpetas nunca
-  desplegadas—, así que sobrevive a una recarga y manda el máximo, no la
-  cuenta (borrar «Descarga 2» no recicla ese número mientras quede una
-  mayor). Es lo que hace uniforme el resultado, que si no depende del
-  formato: un GeoJSON crea su carpeta envoltorio y un KML vuelca su
-  jerarquía directamente en la raíz, de modo que lo descargado se
-  mezclaba con lo que ya había sin dejar rastro de dónde vino. La
-  importación va DENTRO de esa carpeta (el `dropTargetUl` que
-  `handleDroppedFiles` ya acepta), y todo ello tras un `pushUndo`, así
-  que una descarga se deshace de una vez.
+- **Todo lo descargado cuelga de una sección «Descargas»**, igual que
+  «Lugares», «Marcadores», «Polígonos» o «Elevaciones»: se localiza por
+  nombre con `ensureNamedSection`, así que se reutiliza entre descargas
+  y sobrevive a la restauración sin ningún enganche especial.
+- **Y dentro, cada descarga en su «Descarga N»**, numerada con el mismo
+  `nextNumberedName` que las formas dibujadas, las mediciones y los
+  pines: deduce el número de los nombres que ya hay en el árbol
+  —pendientes incluidos—, así que sobrevive a una recarga y manda el
+  máximo, no la cuenta (borrar «Descarga 2» no recicla ese número
+  mientras quede una mayor). Es exactamente la forma de «Elevaciones»
+  con sus «Elevación N» dentro.
+  La carpeta hace falta, no es adorno: sin ella el resultado depende del
+  formato —un GeoJSON crea su envoltorio y un KML vuelca su jerarquía
+  tal cual—, así que dos descargas se mezclarían dentro de la sección
+  sin saberse cuál trajo qué. La importación va DENTRO de esa carpeta
+  (el `dropTargetUl` que `handleDroppedFiles` ya acepta), y todo tras un
+  `pushUndo`, así que una descarga se deshace de una vez.
 - **Lo descargado se envuelve en un `File` y se entrega a
   `handleDroppedFiles`**, así que no se duplica una línea del camino de
   importación: mismos formatos, mismos diálogos (etiquetas HTML,
