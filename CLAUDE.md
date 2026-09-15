@@ -813,32 +813,64 @@ index.html         redirección de la raíz del sitio al minificado
 - **Los colores no usan el `<input type="color">` EN LÍNEA como control de
   la fila**: cada color es un botón que muestra su valor (`setColorButton`
   / `colorOf`, con el hex en `dataset.color`) y abre un **popover** —
-  espectro nativo más la paleta `COLOR_PRESETS` — anclado justo debajo de
+  espectro propio más la paleta `COLOR_PRESETS` — anclado justo debajo de
   ese botón (`openColorPicker`/`positionColorPicker`,
-  `src/js/43-points-editor.js`). **No es una segunda ventana**: antes sí
-  lo era —un `.dlg-overlay` centrado de verdad, con su propio Cancelar y
-  Aceptar—, y el fallo reportado era exactamente ese: centrada sobre el
-  viewport en vez de sobre el diálogo que la abría, tapaba sus propios
-  botones. Elegir un color —una muestra, o confirmar el selector nativo
-  (evento `change`, no `input`, que dispara en cada tirón del arrastre)—
-  aplica y cierra en el mismo gesto.
+  `src/js/43-points-editor.js`). **No es una segunda ventana**: al
+  principio sí lo era, dos veces seguidas, y las dos por el mismo motivo
+  de fondo — algo fuera de nuestro control abriéndose ENCIMA de lo que el
+  usuario ya tenía delante, sin que ningún script pudiera cerrarlo:
+  1. Primero, un `.dlg-overlay` modal de verdad, con su propio título,
+     Cancelar y Aceptar, CENTRADO SOBRE EL VIEWPORT en vez de sobre el
+     diálogo que lo abría — tapaba sus propios botones. Se resolvió
+     convirtiéndolo en este popover anclado.
+  2. Pero seguía llevando un `<input type="color">` para el espectro
+     completo, y ESE es un control que al pulsarlo abre el panel NATIVO
+     del propio navegador — fuera del DOM de la página, fuera del
+     alcance de cualquier script. Ni reposicionarlo, ni cerrarlo, ni
+     hacer que "un solo diálogo integrado" fuera cierto mientras una
+     parte de él fuera un `popup` que el navegador controla en exclusiva.
+     El espectro es ahora dos `<canvas>` propios —saturación/valor y
+     matiz, `drawSv`/`drawHue`, con su conversión HSV↔RGB↔hex a mano,
+     ver `hsvToRgb`/`rgbToHsv`— más un campo de texto hexadecimal
+     (`colorHex`): nada de esto sale nunca de nuestro DOM.
+  Elegir un color —una muestra, un punto del espectro (confirmado al
+  SOLTAR el arrastre, no en cada tirón, igual que hacía el `change` del
+  input nativo que sustituye) o el hexadecimal (Intro, o dejar el
+  campo)— aplica y cierra en el mismo gesto.
   **Cerrarlo SIN elegir nada tiene un gesto fiable y uno de cortesía, y
   no son intercambiables.** El fiable es **volver a pulsar el mismo
   botón grande que lo abrió** (`toggleColorPicker`): cierra siempre,
   haya cambiado el color o no, sin depender de qué contenedor rodee a
-  ese botón. Es el que hace falta documentar porque dos intentos previos
-  de "cerrar con un clic fuera" resultaron insuficientes: (1) un cierre
-  por `mousedown` en `document` no veía los clics dados DENTRO de un
-  control marcado con `L.DomEvent.disableClickPropagation` (el panel de
-  mapas base, las barras de medición/vista…) — en Leaflet 1.9.4 eso
-  detiene `mousedown`/`dblclick`/`contextmenu` pero NO `click` (mismo
-  hallazgo que ya deja escrito `clickOnControl` en `52-measure.js`); (2)
-  cambiarlo a escuchar `click` arregló ESE contenedor concreto, pero
-  "un clic en algún otro sitio" sigue sin ser el primer gesto que nadie
-  prueba, y el propio botón que abrió el popover estaba explícitamente
-  EXCLUIDO de cerrarlo (volver a pulsarlo solo lo refrescaba). Ahora
-  pulsar ese mismo botón cierra primero; el clic en cualquier otro sitio
-  del documento (o Escape) lo sigue cerrando también, como red de
+  ese botón. Es el que hace falta documentar porque tres intentos
+  previos de cerrarlo de otra forma resultaron insuficientes:
+  1. Un cierre por `mousedown` en `document` no veía los clics dados
+     DENTRO de un control marcado con `L.DomEvent.disableClickPropagation`
+     (el panel de mapas base, las barras de medición/vista…) — en
+     Leaflet 1.9.4 eso detiene `mousedown`/`dblclick`/`contextmenu` pero
+     NO `click` (mismo hallazgo que ya deja escrito `clickOnControl` en
+     `52-measure.js`).
+  2. Cambiarlo a escuchar `click` arregló ESE contenedor concreto, pero
+     "un clic en algún otro sitio" nunca fue el primer gesto que nadie
+     prueba, y el propio botón que abrió el popover estaba
+     explícitamente EXCLUIDO de cerrarlo (volver a pulsarlo solo lo
+     refrescaba).
+  3. **El más esquivo, ya con `toggleColorPicker` puesto**: escribir un
+     hexadecimal y pulsar Intro parecía no hacer nada. `commitColor`
+     termina devolviendo el foco al botón que abrió el popover
+     (`releaseFocus`) — y hacerlo de forma SÍNCRONA dentro del propio
+     `keydown` de Intro deja ese `<button>` enfocado antes de que el
+     navegador termine de procesar esa misma pulsación; su acción por
+     defecto sobre un botón enfocado es activarlo, así que Intro
+     reabría el popover que acababa de cerrar, en el mismo evento.
+     `preventDefault()` en el propio `input` no alcanza a suprimir esa
+     activación posterior sobre un elemento distinto: el arreglo fue no
+     provocar el cambio de foco en absoluto (el `keydown` de Intro llama
+     a `commitColorHex()` directamente, sin pasar por un `.blur()` que
+     dispare la cascada). Verificado en rojo: revertir solo esta pieza
+     hace fallar la prueba correspondiente en `tests/browser/dialogs.mjs`
+     con el síntoma exacto.
+  Ahora pulsar ese mismo botón cierra primero; el clic en cualquier otro
+  sitio del documento (o Escape) lo sigue cerrando también, como red de
   seguridad, pero ya no es el único camino.
   Nada de esto choca con la edición diferida del diálogo de estilos
   porque el commit por defecto (`defaultColorCommit`) solo toca el

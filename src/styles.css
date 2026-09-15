@@ -527,13 +527,34 @@
     box-shadow: 0 8px 30px rgba(0,0,0,.25);
   }
   .color-popover[hidden] { display: none; }
-  .color-popover input[type="color"] {
+  /* Espectro propio: dos <canvas> (saturación/valor y matiz), en vez de
+     <input type="color">, que abriría el panel NATIVO del navegador —
+     imposible de cerrar o integrar por script (ver el comentario en
+     src/index.html). `touch-action: none` es lo que impide que arrastrar
+     sobre ellos haga scroll de la página en un dispositivo táctil.    */
+  .color-popover canvas {
+    display: block;
     width: 100%;
-    height: 32px;
-    padding: 0;
+    border-radius: 5px;
+    border: 1px solid var(--border);
+    cursor: crosshair;
+    touch-action: none;
+  }
+  .color-hexrow { display: flex; gap: 6px; align-items: center; }
+  .color-preview {
+    width: 24px;
+    height: 24px;
+    flex: none;
+    border-radius: 5px;
+    border: 1px solid var(--border);
+  }
+  .color-hexrow input {
+    flex: 1;
+    min-width: 0;
+    font: inherit;
+    padding: 3px 6px;
     border: 1px solid var(--border);
     border-radius: 5px;
-    cursor: pointer;
   }
   .ctx-menu {
     position: fixed;
