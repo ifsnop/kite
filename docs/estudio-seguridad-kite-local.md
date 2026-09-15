@@ -27,7 +27,7 @@ El documento está dirigido a personal auditor y experto en seguridad, no a pers
 
 ## 2. Objeto y alcance
 
-Este estudio tiene por objeto proporcionar a AESA/EASA, o a cualquier auditoría de seguridad que lo requiera, evidencia documental sobre:
+Este estudio tiene por objeto proporcionar a cualquier auditoría de seguridad que lo requiera, evidencia documental sobre:
 
 - de dónde procede la información cartográfica y geoespacial que KITE Local pone a disposición del usuario;
 - qué garantías existen de que esa información no se altera, se pierde ni se malinterpreta entre que se carga y se consulta;
