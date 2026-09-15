@@ -163,6 +163,56 @@ const solapeColor = await page.evaluate(() => {
 ok(!solapeColor.solapa, "el popover de color no tapa los botones del diálogo de estilos: "
   + JSON.stringify(solapeColor.pop) + " vs " + JSON.stringify(solapeColor.acc));
 
+/* Otro fallo reportado, en el mismo popover: abrirlo desde la fila
+   «Color de fondo» del panel de mapas base y luego pulsar en cualquier
+   otro sitio DEL MISMO PANEL no lo cerraba — solo Escape, o un clic
+   fuera del panel entero, funcionaban. La causa: el cierre escuchaba
+   "mousedown" en document, pero L.DomEvent.disableClickPropagation
+   (aplicado a `.base-box`, como a cualquier control de Leaflet) en
+   Leaflet 1.9.4 solo detiene mousedown/dblclick/contextmenu — NO
+   "click" (mismo hallazgo que ya deja escrito el comentario de
+   clickOnControl en 52-measure.js) —, así que ese mousedown nunca
+   llegaba a document. Hace falta un CLIC real del ratón (no un
+   `.click()` sintético vía evaluate, que no dispara mousedown) para
+   ejercitar de verdad ese camino.                                     */
+await page.click(".base-toggle");
+await page.waitForTimeout(150);
+await page.click(".base-row-bg .color-btn");
+const abiertoTrasBoton = !(await page.evaluate(() => document.getElementById("color-picker").hidden));
+/* Su propia etiqueta de texto («Color de fondo»): vecina del botón en la
+   misma fila y el mismo panel, pero fuera del popover y fuera del botón
+   — y sin `for`, así que pulsarla no activa ni cambia nada por su
+   cuenta, y el clic prueba solo lo que hace falta probar.             */
+await page.click(".base-row-bg label");
+await page.waitForTimeout(150);
+const cerradoTrasClicEnPanel = await page.evaluate(() => document.getElementById("color-picker").hidden);
+ok(abiertoTrasBoton, "el popover de color se abre desde la fila «Color de fondo»");
+ok(cerradoTrasClicEnPanel,
+  "y se cierra al pulsar en otro punto del MISMO panel de mapas base, no solo fuera de él");
+await page.click(".base-toggle"); /* deja el panel como estaba para el resto de la suite */
+
+/* El fallo seguía sin arreglar del todo: cerrar «con un clic fuera»
+   depende de en qué contenedor se esté (el chequeo anterior), y no es
+   el gesto que alguien prueba primero de todos modos — lo natural es
+   volver a pulsar el mismo botón grande que lo abrió. Antes eso lo
+   REABRÍA (a propósito, para poder "refrescarlo"); ahora debe CERRARLO,
+   haya cambiado el color o no. Se comprueba en el propio diálogo de
+   estilos, sin depender de ningún control de Leaflet.                 */
+const toggleBoton = await page.evaluate(() => {
+  const liM = [...document.querySelectorAll("#tree li")].find(x => x._mstyle);
+  openStyleDialog(liM);
+  const btn = document.getElementById("mk-color");
+  btn.click();
+  const abierto1 = !document.getElementById("color-picker").hidden;
+  btn.click(); /* mismo botón, sin tocar el color: debe cerrar */
+  const cerrado = document.getElementById("color-picker").hidden;
+  document.getElementById("style-dialog").hidden = true;
+  return { abierto1, cerrado };
+});
+ok(toggleBoton.abierto1, "el popover se abre al pulsar el botón de color");
+ok(toggleBoton.cerrado,
+  "y se cierra al volver a pulsar EL MISMO botón, sin haber cambiado el color");
+
 /* Redimensionar a mano no puede descolgar los botones */
 const trasEstirar = await page.evaluate(() => {
   openStyleDialog([...document.querySelectorAll("#tree li")].find(x => x._mstyle));

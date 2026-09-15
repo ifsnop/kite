@@ -401,6 +401,18 @@ function closeColorPicker() {
   colorCommit = null;
   releaseFocus();
 }
+/* The button itself is the reliable close gesture: pulsing the same
+   swatch that opened the popover closes it again, whether or not the
+   colour changed. "Click outside" (below) is a convenience on top of
+   this, not a replacement for it — reported bug: from inside a
+   container that swallows outside clicks in some way not yet
+   accounted for, or simply because clicking the big colour button one
+   pulsed is the first thing anyone tries, there was no reliable way to
+   close the popover with the mouse without this.                     */
+function toggleColorPicker(btn, onCommit = defaultColorCommit) {
+  if (!colorPicker.hidden && colorTarget === btn) { closeColorPicker(); return; }
+  openColorPicker(btn, onCommit);
+}
 function commitColor(hex) {
   if (colorTarget) colorCommit(colorTarget, hex);
   closeColorPicker();
@@ -412,8 +424,18 @@ colorInput.addEventListener("input", () => buildColorSwatches(colorInput.value))
 colorInput.addEventListener("change", () => commitColor(colorInput.value));
 /* Closing without picking anything: click outside the popover and
    outside the button that opened it (so re-clicking that same button
-   just refreshes it instead of closing-then-reopening).              */
-document.addEventListener("mousedown", e => {
+   just refreshes it instead of closing-then-reopening).
+   "click", not "mousedown": a control marked with
+   L.DomEvent.disableClickPropagation (the base-maps panel, the
+   measure/view toolbars…) stops mousedown/dblclick/contextmenu from
+   reaching the map — but NOT plain click, which Leaflet leaves alone
+   (see clickOnControl's comment in 52-measure.js for the same trap hit
+   before). The colour button of the map-background row lives inside
+   exactly such a panel, so a mousedown listener here never saw a click
+   anywhere in that panel — reported bug: opening the popover from that
+   button and then clicking elsewhere in the SAME panel couldn't close
+   it with the mouse at all, only Escape did.                          */
+document.addEventListener("click", e => {
   if (colorPicker.hidden) return;
   if (colorPicker.contains(e.target)) return;
   if (colorTarget && colorTarget.contains(e.target)) return;
@@ -423,7 +445,7 @@ for (const id of ["mk-color", "mk-text-color", "pg-color", "pg-fill-color",
                   "ms-color", "ms-fill-color"]) {
   document.getElementById(id).addEventListener("click", e => {
     e.preventDefault();
-    openColorPicker(e.currentTarget);
+    toggleColorPicker(e.currentTarget);
   });
 }
 

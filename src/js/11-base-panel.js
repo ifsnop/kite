@@ -117,7 +117,7 @@ function renderBasePanel() {
    DETRÁS de las teselas (huecos sin cobertura, o el borde del mundo —
    no hay desplazamiento infinito, ver «Una sola Tierra»), no una capa
    de mapa en sí. No lleva casilla propia porque no es algo que se
-   "encienda o apague"; comparte el mismo `openColorPicker` popover que
+   "encienda o apague"; comparte el mismo `toggleColorPicker` popover que
    los colores del diálogo de estilos, con su propio `onCommit`: aquí
    SÍ se aplica al instante (setMapBackground) y se persiste, porque no
    hay ningún diálogo exterior con Cancelar/Aceptar que lo diferido.   */
@@ -137,7 +137,7 @@ function buildMapBackgroundRow() {
   setColorButton(btn, mapBgColor);
   btn.addEventListener("click", e => {
     e.preventDefault();
-    openColorPicker(btn, (target, hex) => {
+    toggleColorPicker(btn, (target, hex) => {
       setColorButton(target, hex);
       setMapBackground(hex);
       dbSaveMapBackground(hex).catch(() => {});
