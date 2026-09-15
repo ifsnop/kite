@@ -394,6 +394,18 @@ Do not attach operational, confidential or personally identifiable geospatial da
 
 If what you hit is a freeze or a slowdown rather than a wrong result, the [`debug` branch](https://github.com/ifsnop/kite/tree/debug) carries an instrumented build that answers questions a console error cannot — see [Diagnosing a freeze or a slowdown](#diagnosing-a-freeze-or-a-slowdown-debug-branch). Its output pastes straight into an issue.
 
+## Releasing
+
+Feature work and fixes land on branches, each through its own pull request into `main`. Cutting a release once every intended PR is merged:
+
+1. Bump `package.json`'s `"version"`, update `BUILD` in `src/js/10-map.js`, update the version shown in the two documents under `docs/` (the user manual and the security study), run `npm run build`, and commit — this is the release's final commit.
+2. Tag that exact commit and push the tag: `git tag vX.Y.Z && git push origin vX.Y.Z`. The tag **must** match `package.json`'s version precisely (with a leading `v`).
+3. [`.github/workflows/release.yml`](.github/workflows/release.yml) takes it from there: it verifies the tag matches `package.json` and that `kitelocal.html`/`kitelocal.min.html` are up to date with `src/`, then publishes the GitHub Release itself — auto-generated release notes from the merged PRs, with both artifacts attached as downloadable assets for that exact version.
+
+If either check fails, the workflow fails and **no Release is published**. Fix what's missing (the version bump or `npm run build`), delete the bad tag (`git push --delete origin vX.Y.Z`), and tag the corrected commit.
+
+`package.json`'s `"version"` is the single source of truth: `build.js` bakes it into the app's attribution line (`v<version> (<build>) | GitHub | Leaflet`, bottom-right of the map) at build time, the same way it already inlines the page's CSS and JS.
+
 ## License
 
 This project is licensed under the **GNU General Public License v3.0 (GPL-3.0)**.

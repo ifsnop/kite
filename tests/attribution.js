@@ -13,15 +13,24 @@ const ok = (c, m) => { if (!c) { console.error("FAIL: " + m); process.exitCode =
 const build = constDecl("BUILD");
 const m = /const BUILD = "(\d{12})";/.exec(build);
 ok(!!m, "BUILD es AAAAMMDDHHMM, doce dígitos: " + build.trim());
+/* VERSION la hornea build.js desde package.json (marcador {{VERSION}}
+   en el fuente): en el archivo ENTREGADO debe quedar un semver real,
+   nunca el marcador sin sustituir.                                   */
+const version = constDecl("VERSION");
+const vm = /const VERSION = "(\d+\.\d+\.\d+)";/.exec(version);
+ok(!!vm, "VERSION es un semver X.Y.Z, horneado desde package.json: " + version.trim());
 const repo = constDecl("REPO_URL");
 ok(/https:\/\/github\.com\/[\w.-]+\/[\w.-]+/.test(repo),
   "REPO_URL apunta a un repositorio de GitHub: " + repo.trim());
 
-/* El prefijo de la atribución lleva las dos cosas juntas: la versión es
-   lo que dice QUÉ se está ejecutando, y el enlace es lo que hace ese
-   dato accionable (desde ahí se llega al código de esa versión).     */
+/* El prefijo de la atribución lleva las tres cosas juntas: la versión
+   semántica dice A QUÉ RELEASE corresponde, el BUILD entre paréntesis
+   dice el instante exacto de esta generación, y el enlace es lo que
+   hace ese dato accionable (desde ahí se llega al código de esa
+   versión).                                                          */
 const prefix = between("map.attributionControl.setPrefix(", "\n\n");
-ok(prefix.includes("v${BUILD}"), "el prefijo muestra la versión: " + prefix.slice(0, 60));
+ok(prefix.includes("v${VERSION} (${BUILD})"),
+  "el prefijo muestra la versión delante del build: " + prefix.slice(0, 60));
 ok(prefix.includes("${REPO_URL}"), "y enlaza al repositorio, sin repetir la URL a mano");
 ok(/>GitHub<\/a>/.test(prefix), "con un texto que dice a dónde va");
 ok(prefix.includes("Leaflet"), "sin perder el crédito de Leaflet, que su licencia pide");

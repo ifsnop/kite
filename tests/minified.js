@@ -60,6 +60,16 @@ if (build) {
   ok(min.includes(build[1]),
     `el minificado lleva la misma versión (${build[1]}); si no, está sin regenerar`);
 }
+/* Mismo criterio con VERSION (la que hornea build.js desde
+   package.json): si el minificado quedara con un semver distinto,
+   sería la señal de un kitelocal.min.html regenerado a partir de un
+   package.json que ya no es el actual.                              */
+const version = /const VERSION = "(\d+\.\d+\.\d+)"/.exec(readable);
+ok(!!version, "el legible declara VERSION");
+if (version) {
+  ok(min.includes(version[1]),
+    `el minificado lleva la misma versión semántica (${version[1]}); si no, está sin regenerar`);
+}
 
 /* ---------- Sobrevive lo que no puede perderse ---------- */
 /* SRI: sin `integrity` el navegador bloquea Leaflet y la página queda

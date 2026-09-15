@@ -113,7 +113,14 @@ map.on("resize", fitWorldMinZoom);
 
 /* Fecha de generación del código (versión): AÑOMESDIAHORAMINUTO.
    Actualizar en cada generación; se muestra junto al crédito de Leaflet. */
-const BUILD = "202609150030";
+const BUILD = "202609151429";
+/* Versión de release (la de package.json, horneada aquí por build.js
+   al construir — ver «Versión y releases de GitHub» en CLAUDE.md): a
+   diferencia de BUILD, que cambia en CADA generación, esta solo cambia
+   al preparar un release, y debe coincidir con el tag de GitHub que se
+   crea justo después del commit que la sube. Lo comprueba
+   .github/workflows/release.yml antes de publicar el Release.        */
+const VERSION = "{{VERSION}}";
 /* El enlace al repositorio va junto a la versión, que es lo que hace
    accionable saber qué build se está ejecutando: desde ahí se llega al
    código de esa versión. `target="_blank"` a propósito —salir de la
@@ -122,7 +129,7 @@ const BUILD = "202609150030";
    `window.opener`.                                                    */
 const REPO_URL = "https://github.com/ifsnop/kite";
 map.attributionControl.setPrefix(
-  `v${BUILD} | <a href="${REPO_URL}" target="_blank" rel="noopener"`
+  `v${VERSION} (${BUILD}) | <a href="${REPO_URL}" target="_blank" rel="noopener"`
   + ' title="Código fuente del proyecto en GitHub">GitHub</a>'
   + ' | <a href="https://leafletjs.com" title="A JavaScript library for interactive maps">Leaflet</a>');
 
