@@ -2323,6 +2323,34 @@ atribución se mantiene en una sola línea con elipsis si no cabe.
 - Los iconos de marcador no cuestan ninguna petición: están empotrados
   y `applyMarkerStyle` es síncrona (ver «Iconos de marcador»).
 
+## Documentación complementaria
+
+Además de este archivo (para quien programa) hay dos documentos en
+`docs/`, para quien usa o audita la aplicación:
+
+- `docs/manual-usuario-kite-local.md` — manual de usuario, con capturas
+  reales de la aplicación (`docs/img/`), pensado para quien ya tiene
+  KITE Local desplegado y quiere aprender a manejarlo: recorre los dos
+  paneles, la estructura del árbol, los diálogos de estilo, el menú
+  contextual, los atajos de teclado y las tareas habituales (importar,
+  medir, copiar capas entre dos instancias…).
+- `docs/estudio-seguridad-kite-local.md` — estudio de seguridad,
+  redactado como evidencia ante una auditoría (AESA/EASA): de dónde
+  procede cada capa cartográfica y cada servicio auxiliar, por qué la
+  aplicación no modifica los datos que carga y muestra (con sus únicas
+  excepciones controladas), y qué batería de pruebas automatizadas lo
+  respalda.
+
+**Mantenerlos al día no es un aparte, es parte del cambio.** Un manual
+que enseña una pantalla que ya no existe, un atajo que ya no hace lo que
+dice, o un estudio de seguridad que promete una garantía que el código
+ya ha dejado de cumplir, es peor que no tener ningún documento: activamente
+induce a error a quien lo lee confiando en que describe la aplicación
+actual. Por eso, **antes de dar por terminado cualquier cambio que
+toque algo que estos documentos describen, es obligatorio revisarlos y
+actualizarlos** — texto, tablas y, en el manual, las capturas afectadas
+—. Ver el punto 12 del checklist siguiente para cuándo aplica.
+
 ## Cómo añadir una funcionalidad (checklist)
 
 1. ¿Lo resuelve Leaflet u otra librería estable por CDN? Úsala.
@@ -2371,3 +2399,12 @@ atribución se mantiene en una sola línea con elipsis si no cabe.
     la salida de `git diff --stat`** (sobre lo modificado en esa
     respuesta), para que quede a la vista qué archivos y cuántas líneas
     cambiaron sin tener que ir a comprobarlo aparte.
+12. **Revisar la documentación complementaria** (`docs/`, ver la sección
+    anterior) siempre que el cambio afecte a algo que ella describe: una
+    opción, un diálogo, un atajo o un flujo de uso nuevo o modificado
+    (`docs/manual-usuario-kite-local.md`, con sus capturas si la
+    interfaz cambió de aspecto); o el origen de una capa, la política de
+    red, una transformación sobre los datos importados o el alcance de
+    la batería de pruebas (`docs/estudio-seguridad-kite-local.md`). Si
+    ninguno de los dos documentos habla de lo que ha cambiado, no hace
+    falta tocarlos — pero comprobarlo es parte del cambio, no un extra.
