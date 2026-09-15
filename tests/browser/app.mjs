@@ -67,6 +67,10 @@ for (const [nombre, archivo, puerto] of [["legible", READABLE, 8821], ["minifica
     const mli = [...document.querySelectorAll("#tree li")].find(x => x._measure);
     openStyleDialog(mli);
     out.dlgMedida = document.getElementById("ms-dist").textContent;
+    /* Una línea no tiene área: la fila debe estar REALMENTE oculta
+       (display: none), no solo marcada con la propiedad `hidden` sin
+       efecto visual — ver ".dlg-row[hidden]" en styles.css. */
+    out.areaOculta = getComputedStyle(document.getElementById("ms-area-row")).display === "none";
     document.getElementById("style-cancel").click();
 
     /* --- Tercer estado: una carpeta a medias --- */
@@ -102,6 +106,7 @@ for (const [nombre, archivo, puerto] of [["legible", READABLE, 8821], ["minifica
     et("todos los iconos del selector se pintan: " + r.iconos));
   ok(/NM · \d/.test(r.etiquetaMedida), et("la medición se etiqueta en NM: " + r.etiquetaMedida));
   ok(r.dlgMedida.endsWith("NM"), et("y el diálogo dice lo mismo: " + r.dlgMedida));
+  ok(r.areaOculta, et("y la fila de área, sin sentido en una línea, está REALMENTE oculta"));
   ok(r.carpetaEntera === "on", et("carpeta con todo activo: " + r.carpetaEntera));
   ok(r.carpetaAMedias === "gris", et("y a medias queda indeterminada: " + r.carpetaAMedias));
   ok(r.aria === "mixed", et("con aria-checked=mixed: " + r.aria));

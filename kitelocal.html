@@ -741,6 +741,12 @@
     margin: 8px 0;
     font-size: 13px;
   }
+  /* Same trap as ".measure-bar a[hidden]" above: an author rule (this
+     "display: flex") beats the UA "[hidden] { display: none }" regardless
+     of specificity, so rows meant to disappear (perimeter/area on an open
+     shape, area/bearing on a line measurement) stayed visible and empty
+     instead of hidden. */
+  .dlg-row[hidden] { display: none; }
   .dlg-row input[type="number"] {
     width: 64px;
     padding: 3px 6px;
@@ -1667,7 +1673,7 @@ map.on("resize", fitWorldMinZoom);
 
 /* Fecha de generación del código (versión): AÑOMESDIAHORAMINUTO.
    Actualizar en cada generación; se muestra junto al crédito de Leaflet. */
-const BUILD = "202609142245";
+const BUILD = "202609150030";
 /* El enlace al repositorio va junto a la versión, que es lo que hace
    accionable saber qué build se está ejecutando: desde ahí se llega al
    código de esa versión. `target="_blank"` a propósito —salir de la
