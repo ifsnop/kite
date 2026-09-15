@@ -2221,13 +2221,15 @@ El cuadro de coordenadas vive siempre por encima de ella
 la línea de la diferencia entre superficie y terreno, que es larga. La
 atribución se mantiene en una sola línea con elipsis si no cabe.
 
-- **La atribución lleva la versión y el enlace al repositorio**
-  (`v<BUILD> | GitHub | Leaflet`, vía `setPrefix`). Van juntos a
-  propósito: la versión dice QUÉ se está ejecutando y el enlace es lo
-  que hace ese dato accionable. La URL sale de `REPO_URL`, no repetida
-  a mano. El enlace abre en otra pestaña (`target="_blank"`) porque
-  navegar fuera en la misma abandonaría la sesión de trabajo, y lleva
-  `rel="noopener"`, que es lo que impide que el destino toque
+- **La atribución lleva la versión, el build y el enlace al repositorio**
+  (`v<VERSION> (<BUILD>) | GitHub | Leaflet`, vía `setPrefix`). Son dos
+  números con un porqué distinto cada uno —`VERSION` dice A QUÉ RELEASE
+  corresponde, `BUILD` dice el INSTANTE EXACTO de esta generación— y el
+  enlace es lo que hace ese dato accionable. Ver «Versión y releases de
+  GitHub» para de dónde sale cada uno. La URL sale de `REPO_URL`, no
+  repetida a mano. El enlace abre en otra pestaña (`target="_blank"`)
+  porque navegar fuera en la misma abandonaría la sesión de trabajo, y
+  lleva `rel="noopener"`, que es lo que impide que el destino toque
   `window.opener`. El crédito de Leaflet se mantiene: lo pide su
   licencia.
 - **La escala es la de Leaflet** (`L.control.scale`), no una propia:
@@ -2253,6 +2255,59 @@ atribución se mantiene en una sola línea con elipsis si no cabe.
   **la escala** NO se ocultan a propósito: el primero es información del
   punto, la segunda es la atribución CC BY que exige la licencia del
   PNOA/IGN, y una imagen de un mapa sin escala no se puede medir.
+
+## Versión y releases de GitHub
+
+Dos números, con una cadencia y un origen distintos cada uno:
+
+- **`BUILD`** (`src/js/10-map.js`) es el instante exacto de esta
+  generación (`AAAAMMDDHHMM`). Se actualiza **a mano en cada cambio**
+  (checklist, punto 8) y nunca se hornea desde ningún otro archivo:
+  inyectarlo en cada `build.js` rompería la comprobación de identidad
+  byte a byte, que es la red de seguridad de cualquier reorganización de
+  `src/` (ver «Fuentes y construcción»).
+- **`VERSION`** (mismo archivo, junto a `BUILD`) es la versión semántica
+  del release al que corresponde este código (`1.4.0`, sin la `v`). A
+  diferencia de `BUILD`, **no se escribe a mano en el JS**: el fuente
+  lleva un marcador (`const VERSION = "{{VERSION}}";`) que `build.js`
+  sustituye por `package.json.version` al construir —el mismo mecanismo
+  que ya usa para `{{STYLES}}`/`{{SCRIPTS}}` sobre `src/index.html`,
+  aplicado ahora también sobre el JS concatenado—. Sigue siendo
+  determinista (misma entrada, mismo resultado), así que `npm run
+  check` lo sigue cazando igual que cualquier otra fuente desincronizada.
+  **`package.json` es la ÚNICA fuente de la versión**: no hay una
+  segunda copia a mano que se pueda desincronizar aparte de él.
+
+El proceso de release, acordado explícitamente (no se automatiza la
+creación del release en sí, que sigue siendo una decisión humana):
+
+1. Se trabaja en ramas, cada una con su PR a `main` (features o fixes).
+2. Al reunir en `main` todos los PR de un release: **a mano**, subir
+   `package.json.version`, actualizar `BUILD`, actualizar la versión en
+   la cabecera de los dos documentos de `docs/` (ver «Documentación
+   complementaria»), `npm run build`, y commitear — es el commit final
+   del release.
+3. Crear el tag sobre ESE commit y empujarlo: `git tag vX.Y.Z && git
+   push origin vX.Y.Z`. El tag debe coincidir EXACTAMENTE con
+   `package.json.version` (con la `v` delante).
+4. `.github/workflows/release.yml`, disparado por ese `push` de tag,
+   comprueba que el tag coincide con `package.json` y que
+   `kitelocal.html`/`kitelocal.min.html` están reconstruidos
+   (`npm run check`), y si todo cuadra publica el Release de GitHub por
+   su cuenta —notas generadas automáticamente a partir de los PR/commits
+   desde el tag anterior, con los dos artefactos adjuntos como assets de
+   esa versión exacta—. Si algo no cuadra, el workflow falla en rojo y
+   NO se publica ningún Release: hay que arreglarlo, borrar el tag mal
+   puesto y volver a crearlo sobre el commit correcto.
+
+**Por qué el bump es a mano y no una Action que reescribe
+`package.json` tras crear el tag**: se valoró y se descartó. El tag se
+crea sobre la punta de `main`, así que si el bump fuera posterior el tag
+acabaría apuntando a un commit cuyo código TODAVÍA no llevaría esa
+versión — habría que mover el tag después (`git tag -f` + `push -f`),
+lo que complica más de lo que resuelve. Bumpear a mano ANTES de tagear
+evita el problema por completo: el tag punta, desde el primer momento,
+a un commit que ya es coherente consigo mismo.
 
 ## Rendimiento (reglas nacidas de medir)
 
@@ -2415,24 +2470,32 @@ actualizarlos** — texto, tablas y, en el manual, las capturas afectadas
    verificar. Se mantiene a mano a propósito: inyectarla en cada
    construcción rompería la comprobación de identidad byte a byte, que es
    la red de seguridad de cualquier reorganización de `src/`.
-9. **Editar en `src/`, nunca en `kitelocal.html`**, y `npm run build`
-   antes de probar. Después: `node --check` del script; test en Node de
-   la lógica pura (nuevo o actualizado si el cambio lo exige); `grep -F`
-   de referencias muertas de lo retirado (con `-F`: el `$` de `$id(...)`
-   se toma como fin de línea en un patrón normal y da falsos negativos,
-   error ya cometido aquí); y `node tests/run-all.js` completo antes de
-   dar el cambio por terminado — empieza comprobando que el archivo
-   generado corresponde a las fuentes.
-10. Cuidado con el ORDEN: dentro de un archivo y **entre archivos** (el
+9. **`VERSION` es distinta: solo se toca al preparar un release**, no en
+   cada cambio. Subir `package.json.version` a mano (ver «Versión y
+   releases de GitHub»), actualizar también `BUILD`, actualizar la
+   versión en la cabecera de los dos documentos de `docs/` (punto 13),
+   `npm run build`, commitear, y SOLO ENTONCES crear y empujar el tag
+   `vX.Y.Z` sobre ese commit — debe coincidir EXACTAMENTE con
+   `package.json.version`, o `.github/workflows/release.yml` lo
+   rechazará y no publicará el Release.
+10. **Editar en `src/`, nunca en `kitelocal.html`**, y `npm run build`
+    antes de probar. Después: `node --check` del script; test en Node de
+    la lógica pura (nuevo o actualizado si el cambio lo exige); `grep -F`
+    de referencias muertas de lo retirado (con `-F`: el `$` de `$id(...)`
+    se toma como fin de línea en un patrón normal y da falsos negativos,
+    error ya cometido aquí); y `node tests/run-all.js` completo antes de
+    dar el cambio por terminado — empieza comprobando que el archivo
+    generado corresponde a las fuentes.
+11. Cuidado con el ORDEN: dentro de un archivo y **entre archivos** (el
     manifiesto `JS` de `build.js`). Una variable que se asigna dentro del
     `onAdd` de un control debe declararse antes que ese control, o al
     añadirlo se cae por zona muerta temporal. `node --check` no lo
     detecta.
-11. **Al reportar que se han hecho cambios en el código, mostrar siempre
+12. **Al reportar que se han hecho cambios en el código, mostrar siempre
     la salida de `git diff --stat`** (sobre lo modificado en esa
     respuesta), para que quede a la vista qué archivos y cuántas líneas
     cambiaron sin tener que ir a comprobarlo aparte.
-12. **Revisar la documentación complementaria** (`docs/`, ver la sección
+13. **Revisar la documentación complementaria** (`docs/`, ver la sección
     anterior) siempre que el cambio afecte a algo que ella describe: una
     opción, un diálogo, un atajo o un flujo de uso nuevo o modificado
     (`docs/manual-usuario-kite-local.md`, con sus capturas si la

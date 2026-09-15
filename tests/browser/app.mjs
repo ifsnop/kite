@@ -35,7 +35,7 @@ for (const [nombre, archivo, puerto] of [["legible", READABLE, 8821], ["minifica
     /* --- Escala y atribución --- */
     out.escala = [...document.querySelectorAll(".leaflet-control-scale div")].map(d => d.textContent);
     const attr = document.querySelector(".leaflet-control-attribution");
-    out.version = (attr.textContent.match(/v\d{12}/) || [])[0] || null;
+    out.version = (attr.textContent.match(/v\d+\.\d+\.\d+ \(\d{12}\)/) || [])[0] || null;
     out.enlaceGitHub = !!attr.querySelector('a[href*="github.com"]');
     /* La escala va ENCIMA de la atribución, en su misma esquina */
     out.escalaEncima = document.querySelector(".leaflet-control-scale")
@@ -98,7 +98,8 @@ for (const [nombre, archivo, puerto] of [["legible", READABLE, 8821], ["minifica
 
   ok(r.avisoInicial === "No hay capas cargadas.", et("el panel concluye el arranque: " + r.avisoInicial));
   ok(r.escala.length === 2, et("la escala pinta sus dos barras: " + JSON.stringify(r.escala)));
-  ok(/^v\d{12}$/.test(r.version || ""), et("la atribución lleva la versión: " + r.version));
+  ok(/^v\d+\.\d+\.\d+ \(\d{12}\)$/.test(r.version || ""),
+    et("la atribución lleva la versión delante del build: " + r.version));
   ok(r.enlaceGitHub, et("y el enlace al repositorio"));
   ok(r.escalaEncima, et("con la escala por encima de ella"));
   ok(r.iconoAplicado, et("un icono MDI empotrado llega al marcador"));

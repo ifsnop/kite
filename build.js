@@ -83,6 +83,26 @@ function build() {
   for (const mark of ["{{STYLES}}", "{{SCRIPTS}}"]) {
     if (!tpl.includes(mark)) throw new Error(`src/index.html no tiene el marcador ${mark}`);
   }
+  /* La versión semántica es la de package.json, no un valor a mano
+     duplicado en el JS: se hornea aquí en un marcador dentro del propio
+     texto de 10-map.js, igual que STYLES/SCRIPTS se hornean en la
+     plantilla. Sigue siendo determinista (misma entrada, mismo
+     resultado) porque package.json es, desde aquí, otra fuente más que
+     build.js lee — la comprobación de identidad byte a byte no se ve
+     afectada. Al contrario que BUILD (que cambia en cada generación),
+     esta solo cambia cuando alguien sube package.json.version a mano,
+     al preparar un release (ver «Versión y releases de GitHub»).     */
+  /* JSON.parse(read(...)), no require(): require() cachea el módulo, y
+     --watch llama a build() una y otra vez sin reiniciar el proceso —
+     con require() un cambio de versión mientras watch sigue abierto se
+     quedaría sin ver hasta reiniciarlo, justo lo que build() evita para
+     el resto de fuentes releyéndolas del disco en cada build().       */
+  const pkg = JSON.parse(read(path.join(ROOT, "package.json")));
+  if (!/^\d+\.\d+\.\d+$/.test(pkg.version)) {
+    throw new Error(`package.json tiene una versión con forma rara: "${pkg.version}"`);
+  }
+  if (!js.includes("{{VERSION}}")) throw new Error("src/js/10-map.js no tiene el marcador {{VERSION}}");
+  const jsVersioned = js.replace("{{VERSION}}", () => pkg.version);
   /* Se sustituye la LÍNEA entera del marcador (incluido su \n) por el
      contenido, que ya trae el suyo: así la salida no gana ni pierde
      saltos respecto del archivo original.
@@ -92,7 +112,7 @@ function build() {
      un `.replace(/…/g, "\\$&")` para escapar expresiones regulares, y
      con la forma de cadena salía convertido en el marcador entero.
      Lo cazó la comprobación de identidad byte a byte.                 */
-  return tpl.replace("{{STYLES}}\n", () => css).replace("{{SCRIPTS}}\n", () => js);
+  return tpl.replace("{{STYLES}}\n", () => css).replace("{{SCRIPTS}}\n", () => jsVersioned);
 }
 
 /* Opciones del minificado. Dos elecciones deliberadas:
