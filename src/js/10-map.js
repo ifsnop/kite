@@ -80,6 +80,20 @@ const map = L.map("map", {
   zoomAnimation: hwAccelerated,
 }).setView([40.4, -3.7], 6);
 
+/* Color de fondo del mapa: el que se ve fuera de las teselas (huecos
+   sin cobertura, o el borde del mundo — no hay desplazamiento infinito,
+   ver «Una sola Tierra»). Configurable desde la primera fila del panel
+   de mapas base (11-base-panel.js); MAP_BG_DEFAULT debe coincidir con
+   el `#dfe8ef` de styles.css, que es adonde cae `var(--map-bg, …)`
+   cuando nadie ha elegido otro — así el botón de esa fila puede mostrar
+   el color vigente sin tener que leerlo del DOM.                     */
+const MAP_BG_DEFAULT = "#dfe8ef";
+let mapBgColor = MAP_BG_DEFAULT;
+function setMapBackground(hex) {
+  mapBgColor = hex;
+  document.documentElement.style.setProperty("--map-bg", hex);
+}
+
 /* Suelo de zoom: el nivel en el que el mundo ya LLENA la ventana
    (`inside: true`). Por debajo, el mapa cabría entero con hueco a los
    lados y ahí es donde volvían a verse las copias; además `maxBounds`
@@ -113,7 +127,7 @@ map.on("resize", fitWorldMinZoom);
 
 /* Fecha de generación del código (versión): AÑOMESDIAHORAMINUTO.
    Actualizar en cada generación; se muestra junto al crédito de Leaflet. */
-const BUILD = "202609151429";
+const BUILD = "202609151722";
 /* Versión de release (la de package.json, horneada aquí por build.js
    al construir — ver «Versión y releases de GitHub» en CLAUDE.md): a
    diferencia de BUILD, que cambia en CADA generación, esta solo cambia

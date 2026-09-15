@@ -317,12 +317,18 @@ function makeDialogMovable(box) {
   }
 }
 
-/* ---------- Colour picker (with Cancelar / Aceptar) ----------
-   The native <input type="color"> commits as soon as it changes, which
-   clashes with the deferred editing of the dialogs. Each colour is
-   therefore a button showing its value; pressing it opens this small
-   dialog — full spectrum plus the palette used across the app — and the
-   choice only reaches the draft when "Aceptar" is pressed.            */
+/* ---------- Colour picker (popover, one gesture) ----------
+   Used to be a full second modal window (its own Cancelar/Aceptar),
+   stacked as a centred .dlg-overlay regardless of where the style
+   dialog was — reported bug: it landed on top of the style dialog,
+   nearly covering its own buttons. Picking a colour here does NOT need
+   a confirm step of its own: the native <input type="color"> firing
+   early only updates THIS button's swatch (and, for the style dialog,
+   its draft) — never the live layer, which still waits for the outer
+   dialog's own "Aceptar". So one popover, one click, done.
+   `openColorPicker`'s second argument lets a caller outside the style
+   dialog (the base-map background colour, see 11-base-panel.js) supply
+   its own commit behaviour instead of touching styleDraft.            */
 const COLOR_PRESETS = [
   "#000000", "#4d4d4d", "#8c8c8c", "#ffffff", "#1b5e97", "#3388ff", "#00a3c4", "#00897b",
   "#2e7d32", "#8bc34a", "#f9a825", "#ef6c00", "#b04a3a", "#d32f2f", "#8e24aa", "#5e35b1"
@@ -330,12 +336,24 @@ const COLOR_PRESETS = [
 const colorPicker = document.getElementById("color-picker");
 const colorInput = document.getElementById("color-input");
 let colorTarget = null; /* colour button being edited */
+let colorCommit = null; /* (btn, hex) => void — what "picking a colour" does */
 
 function setColorButton(btn, hex) {
   btn.dataset.color = hex;
   btn.style.background = hex;
 }
 const colorOf = btn => btn.dataset.color || "#000000";
+
+/* Default commit, for the six style-dialog buttons: only the button and
+   the draft change, never the layer — same as the old "Aceptar" did. */
+function defaultColorCommit(btn, hex) {
+  setColorButton(btn, hex);
+  /* Un color no dispara `input` en su fila, así que avisa a mano de que
+     el usuario lo ha tocado: con varios nodos es lo que decide si ese
+     color se aplica a todos o cada uno conserva el suyo.             */
+  touchControl(btn);
+  if (styleDraft) readStyleControls();
+}
 
 function buildColorSwatches(current) {
   const box = document.getElementById("color-swatches");
@@ -346,41 +364,60 @@ function buildColorSwatches(current) {
     b.title = hex;
     b.style.background = hex;
     if (hex.toLowerCase() === current.toLowerCase()) b.classList.add("chosen");
-    b.addEventListener("click", () => {
-      colorInput.value = hex;
-      for (const o of box.children) o.classList.toggle("chosen", o === b);
-    });
+    b.addEventListener("click", () => commitColor(hex));
     box.appendChild(b);
   }
 }
 
-function openColorPicker(btn) {
+/* Anchored to the button that opened it, not centred on the viewport:
+   below it by default, flipped above when there is no room below, and
+   clamped so it never runs off either edge. Measuring offsetWidth/Height
+   needs the element laid out first, so `hidden` comes off before this
+   runs — same tick, so nothing visibly flashes at the wrong spot.    */
+function positionColorPicker(btn) {
+  const r = btn.getBoundingClientRect();
+  const w = colorPicker.offsetWidth, h = colorPicker.offsetHeight;
+  let left = Math.min(r.left, window.innerWidth - w - 8);
+  left = Math.max(left, 8);
+  let top = r.bottom + 6;
+  if (top + h > window.innerHeight - 8) top = r.top - h - 6;
+  top = Math.max(top, 8);
+  colorPicker.style.left = `${left}px`;
+  colorPicker.style.top = `${top}px`;
+}
+
+function openColorPicker(btn, onCommit = defaultColorCommit) {
   colorTarget = btn;
+  colorCommit = onCommit;
   colorInput.value = colorOf(btn);
   buildColorSwatches(colorOf(btn));
   colorPicker.hidden = false;
-  clampToViewport(colorBox);
-  focusDialog(colorBox);
+  positionColorPicker(btn);
+  focusDialog(colorPicker);
+}
+function closeColorPicker() {
+  colorPicker.hidden = true;
+  colorTarget = null;
+  colorCommit = null;
+  releaseFocus();
+}
+function commitColor(hex) {
+  if (colorTarget) colorCommit(colorTarget, hex);
+  closeColorPicker();
 }
 colorInput.addEventListener("input", () => buildColorSwatches(colorInput.value));
-document.getElementById("color-cancel").addEventListener("click", () => {
-  colorPicker.hidden = true;
-  colorTarget = null;
-  releaseFocus();
-});
-document.getElementById("color-accept").addEventListener("click", () => {
-  if (colorTarget) {
-    setColorButton(colorTarget, colorInput.value);
-    /* Un color no dispara `input` en su fila, así que avisa a mano de
-       que el usuario lo ha tocado: con varios nodos es lo que decide
-       si ese color se aplica a todos o cada uno conserva el suyo.   */
-    touchControl(colorTarget);
-    /* feed the change into the draft of whichever dialog is open */
-    if (styleDraft) readStyleControls();
-  }
-  colorPicker.hidden = true;
-  colorTarget = null;
-  releaseFocus();
+/* "change" is the native picker's own confirm (fires once, on release —
+   not on every drag tick like "input"), so it plays the same role the
+   old "Aceptar" button did. */
+colorInput.addEventListener("change", () => commitColor(colorInput.value));
+/* Closing without picking anything: click outside the popover and
+   outside the button that opened it (so re-clicking that same button
+   just refreshes it instead of closing-then-reopening).              */
+document.addEventListener("mousedown", e => {
+  if (colorPicker.hidden) return;
+  if (colorPicker.contains(e.target)) return;
+  if (colorTarget && colorTarget.contains(e.target)) return;
+  closeColorPicker();
 });
 for (const id of ["mk-color", "mk-text-color", "pg-color", "pg-fill-color",
                   "ms-color", "ms-fill-color"]) {
@@ -517,7 +554,8 @@ const iconPicker = document.getElementById("icon-picker");
 const $id = id => document.getElementById(id);
 const styleBox = styleDialog.querySelector(".dlg-box");
 const iconBox = iconPicker.querySelector(".dlg-box");
-const colorBox = document.querySelector("#color-picker .dlg-box");
+/* No colorBox: the colour popover (#color-picker) IS its own box now,
+   not a wrapper around a nested .dlg-box — see openColorPicker.      */
 const shortcutsDialog = document.getElementById("shortcuts");
 const shortcutsBox = shortcutsDialog.querySelector(".dlg-box");
 function toggleShortcuts() {

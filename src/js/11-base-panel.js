@@ -47,6 +47,7 @@ function moveBaseLayer(id, delta) {
 function renderBasePanel() {
   const list = baseControl._list;
   list.innerHTML = "";
+  list.appendChild(buildMapBackgroundRow());
   const ids = [...baseState.keys()];
   for (const [id, st] of baseState) {
     const row = document.createElement("div");
@@ -110,6 +111,41 @@ function renderBasePanel() {
     if (sel) row.append(sel);
     list.appendChild(row);
   }
+}
+
+/* Primera fila del panel, antes de cualquier capa: el color que se ve
+   DETRÁS de las teselas (huecos sin cobertura, o el borde del mundo —
+   no hay desplazamiento infinito, ver «Una sola Tierra»), no una capa
+   de mapa en sí. No lleva casilla propia porque no es algo que se
+   "encienda o apague"; comparte el mismo `openColorPicker` popover que
+   los colores del diálogo de estilos, con su propio `onCommit`: aquí
+   SÍ se aplica al instante (setMapBackground) y se persiste, porque no
+   hay ningún diálogo exterior con Cancelar/Aceptar que lo diferido.   */
+function buildMapBackgroundRow() {
+  const row = document.createElement("div");
+  row.className = "base-row base-row-bg";
+  row.appendChild(document.createElement("span")); /* alinea con la columna de las casillas */
+  const label = document.createElement("label");
+  label.textContent = "Color de fondo";
+  const tools = document.createElement("span");
+  tools.className = "base-tools";
+  const btn = document.createElement("button");
+  btn.type = "button";
+  btn.className = "color-btn";
+  btn.title = "Color de fondo del mapa";
+  btn.setAttribute("aria-label", "Color de fondo del mapa");
+  setColorButton(btn, mapBgColor);
+  btn.addEventListener("click", e => {
+    e.preventDefault();
+    openColorPicker(btn, (target, hex) => {
+      setColorButton(target, hex);
+      setMapBackground(hex);
+      dbSaveMapBackground(hex).catch(() => {});
+    });
+  });
+  tools.appendChild(btn);
+  row.append(label, tools);
+  return row;
 }
 
 /* Selector de capa para una capa base "dynamic". El mecanismo no sabe

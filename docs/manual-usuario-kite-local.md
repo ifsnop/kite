@@ -130,8 +130,10 @@ Arrastrar una fila con el ratón la mueve de carpeta o cambia su orden entre her
 
 Un icono de capas, en la esquina superior derecha del mapa, despliega el panel de cartografías de fondo: OpenStreetMap, varias capas del Instituto Geográfico Nacional (mapa base, topográfico, ortofoto PNOA actual e histórica, modelo digital del terreno), un par de opciones de relieve sombreado y, bajo credencial propia del usuario, el modelo de superficie de Copernicus. Se pueden combinar varias a la vez, cada una con su propio control de opacidad, y reordenarse con las flechas de cada fila (el orden de la lista es el orden de apilado en el mapa).
 
+La primera fila del panel no es un mapa, sino el color de fondo del propio visor: el que se ve detrás de las teselas, en un hueco sin cobertura o en el borde del mundo. Por defecto es el mismo azul claro de siempre; su muestra de color abre el mismo selector integrado que los colores de una capa (apartado 6.1) y el cambio se recuerda entre sesiones.
+
 ![Panel de mapas base desplegado, con OpenStreetMap activa y el resto disponibles](img/07-mapas-base.png)
-*Figura 9. Panel de mapas base: casilla de activación, control de opacidad y flechas de orden en cada fila. La rueda dentada junto a Copernicus DEM abre su configuración de credencial.*
+*Figura 9. Panel de mapas base: primera fila para el color de fondo, y debajo cada mapa con su casilla de activación, control de opacidad y flechas de orden. La rueda dentada junto a Copernicus DEM abre su configuración de credencial.*
 
 ### 4.2 Barra de herramientas de dibujo y medición
 
@@ -180,6 +182,8 @@ Si el clic derecho cae sobre una capa, el menú antepone «Ir al nodo en el pane
 ## 6. Estilos de capa
 
 El botón 🎨 de una fila (o de cualquiera de una selección múltiple) abre un diálogo flotante con el estilo de esa capa. El diálogo no aplica nada hasta que se pulsa «Aceptar»; «Cancelar» descarta cualquier cambio probado, incluido un icono distinto. El diálogo se puede arrastrar por su título para apartarlo de la zona del mapa que interese, y no bloquea el resto de la interfaz: se puede seguir trabajando en el mapa mientras está abierto.
+
+Cada muestra de color del diálogo (marcador, texto, contorno, relleno…) abre, justo debajo de sí misma, un selector con el espectro y una paleta de colores habituales; elegir uno lo aplica y lo cierra en el mismo gesto, sin una ventana aparte que tapar ni un «Aceptar» propio que pulsar. Escape o un clic fuera lo cierran sin cambiar nada.
 
 ### 6.1 Estilo de un marcador
 

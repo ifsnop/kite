@@ -342,7 +342,10 @@
   body.nav-hidden #nav-toggle { left: 0; }
 
   /* ================= Ventana del visor (derecha) ================= */
-  #map { flex: 1; background: #dfe8ef; }
+  /* --map-bg: por defecto NO está definida, así que var() cae en el
+     #dfe8ef de aquí; setMapBackground (10-map.js) la fija cuando el
+     usuario elige otro color desde el panel de mapas base.            */
+  #map { flex: 1; background: var(--map-bg, #dfe8ef); }
 
   .measure-bar a {
     font-size: 15px;
@@ -417,6 +420,9 @@
   }
   .base-list[hidden] { display: none; }
   .base-row { display: grid; grid-template-columns: auto 1fr auto; gap: 3px 6px; align-items: center; margin: 5px 0; }
+  /* No es una capa que se apague: separada del resto con una línea, no
+     con una casilla que no significaría nada aquí.                   */
+  .base-row-bg { padding-bottom: 6px; margin-bottom: 6px; border-bottom: 1px solid var(--border); }
   .base-moves { display: flex; gap: 2px; }
   .base-moves button {
     border: 1px solid var(--border); background: #fff; border-radius: 4px;
@@ -499,8 +505,36 @@
     z-index: 2000;
   }
   .dlg-float[hidden] { display: none; }
-  /* Sub-dialogs of the style dialog always sit above it */
-  #icon-picker, #color-picker { z-index: 2100; }
+  /* Sub-dialog of the style dialog always sits above it */
+  #icon-picker { z-index: 2100; }
+  /* The colour picker is a POPOVER anchored to whichever button opened
+     it (openColorPicker positions it in JS), not a second modal window
+     stacked on top of the first — that was the bug: a full-screen
+     .dlg-overlay centred itself regardless of where the style dialog
+     was, and ended up covering its own Cancelar/Aceptar buttons. Sized
+     to its content (the 8-column swatch grid decides the width), not a
+     fixed guess. */
+  .color-popover {
+    position: fixed;
+    z-index: 2100;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    padding: 10px;
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    box-shadow: 0 8px 30px rgba(0,0,0,.25);
+  }
+  .color-popover[hidden] { display: none; }
+  .color-popover input[type="color"] {
+    width: 100%;
+    height: 32px;
+    padding: 0;
+    border: 1px solid var(--border);
+    border-radius: 5px;
+    cursor: pointer;
+  }
   .ctx-menu {
     position: fixed;
     z-index: 2200;
@@ -560,7 +594,7 @@
      vacía y lo dice en su marcador de posición; el nombre, con varios
      nodos, hace lo mismo con la lista de nombres.                     */
   .dlg-row input::placeholder { font-style: italic; color: var(--muted); opacity: 1; }
-  .color-swatches { display: grid; grid-template-columns: repeat(8, 24px); gap: 5px; margin-top: 8px; }
+  .color-swatches { display: grid; grid-template-columns: repeat(8, 24px); gap: 5px; }
   .color-swatches button {
     width: 24px;
     height: 24px;

@@ -810,12 +810,26 @@ index.html         redirección de la raíz del sitio al minificado
 - **La posición no es estilo**: `lat`/`lng` viven en el borrador solo
   mientras el diálogo está abierto y nunca llegan a `_mstyle` (son
   geometría; se guardan con el GeoJSON de la capa).
-- **Los colores no usan el `<input type="color">` en línea**: el nativo
-  aplica al instante y eso choca con la edición diferida. Cada color es un
-  botón que muestra su valor (`setColorButton` / `colorOf`, con el hex en
-  `dataset.color`) y abre el selector de color, que tiene su espectro, la
-  paleta `COLOR_PRESETS` y sus botones Cancelar/Aceptar; solo al aceptar
-  llega al borrador.
+- **Los colores no usan el `<input type="color">` EN LÍNEA como control de
+  la fila**: cada color es un botón que muestra su valor (`setColorButton`
+  / `colorOf`, con el hex en `dataset.color`) y abre un **popover** —
+  espectro nativo más la paleta `COLOR_PRESETS` — anclado justo debajo de
+  ese botón (`openColorPicker`/`positionColorPicker`,
+  `src/js/43-points-editor.js`). **No es una segunda ventana**: antes sí
+  lo era —un `.dlg-overlay` centrado de verdad, con su propio Cancelar y
+  Aceptar—, y el fallo reportado era exactamente ese: centrada sobre el
+  viewport en vez de sobre el diálogo que la abría, tapaba sus propios
+  botones. Elegir un color —una muestra, o confirmar el selector nativo
+  (evento `change`, no `input`, que dispara en cada tirón del arrastre)—
+  aplica y cierra en el mismo gesto; Escape o un clic fuera cierran sin
+  aplicar nada. Esto sigue sin chocar con la edición diferida del diálogo
+  de estilos porque el commit por defecto (`defaultColorCommit`) solo
+  toca el BOTÓN y el borrador (`styleDraft`, vía `readStyleControls`),
+  nunca la capa en vivo: quien decide si eso llega a la capa sigue siendo
+  el Aceptar del diálogo exterior. `openColorPicker(btn, onCommit)` acepta
+  un commit distinto para quien no esté dentro de ese diálogo — el color
+  de fondo del mapa (ver «Mapas base») aplica y guarda al instante, porque
+  ahí no hay ningún Aceptar exterior que lo difiera.
 - **Cabecera y pie de TODA ventana van fijos; lo único que scrollea es
   el contenido.** `.dlg-box` tiene `max-height: 85vh; overflow: auto`, y
   sin esto scrollea ENTERA: los botones de Aceptar/Cancelar se van con
@@ -1599,6 +1613,25 @@ y `kitelocal.min.html` (su derivada minificada, lo que sirve Pages).
 
 ## Mapas base
 
+- **Primera fila del panel: el color de fondo del mapa, no una capa**
+  (`buildMapBackgroundRow`, `src/js/11-base-panel.js`). Es el color que
+  se ve DETRÁS de las teselas —huecos sin cobertura, o el borde del
+  mundo, ya que no hay desplazamiento infinito (ver «Una sola Tierra»)—,
+  fijo hasta ahora en el CSS (`#dfe8ef`) y ahora configurable. No lleva
+  casilla propia (no es algo que se «encienda o apague», siempre está
+  puesto) y se separa del resto con una línea (`.base-row-bg`), no con
+  una casilla que no significaría nada ahí. Reutiliza el MISMO popover
+  de color que el diálogo de estilos (ver «Estilos de capa»), con su
+  propio `onCommit`: aquí SÍ aplica al instante y guarda, porque no hay
+  ningún diálogo exterior con Cancelar/Aceptar que lo difiera. Aplicar
+  es fijar la variable CSS `--map-bg` (`setMapBackground`, `10-map.js`;
+  la regla es `#map { background: var(--map-bg, #dfe8ef) }`), así que
+  sin ningún color guardado el `var()` cae solo en el `#dfe8ef` de
+  siempre. Se guarda bajo su propia clave del mismo almacén de
+  IndexedDB (`mapBackground`, ver «Persistencia»); sin valor guardado
+  —el caso normal, y también el de un árbol de antes de este cambio—
+  se queda con `MAP_BG_DEFAULT`, que debe coincidir con ese mismo
+  `#dfe8ef` del CSS.
 - **Capas dinámicas: una sola maquinaria, varias fuentes**
   (`DYNAMIC_SOURCES`, `dynSource`). Una capa base con `dynamic: true`
   declara además un `source`, y esa fuente aporta su catálogo

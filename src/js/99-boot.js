@@ -23,6 +23,14 @@
     if (sh && validInstanceId(sh.instanceId)) shInstanceId = sh.instanceId.trim();
   } catch { /* sin credencial guardada la capa pedirá configurarla */ }
 
+  /* Color de fondo del mapa: antes de pintar el panel de mapas base,
+     cuya primera fila lo muestra. Sin valor guardado se queda con el
+     de por defecto (MAP_BG_DEFAULT, el mismo que ya trae el CSS).    */
+  try {
+    const bg = await dbLoadMapBackground();
+    if (bg) setMapBackground(bg);
+  } catch { /* color por defecto */ }
+
   /* Mapas base: primero lo guardado, luego se pintan y se encienden */
   try { applySavedBases(await dbLoadBases()); } catch { /* valores por defecto */ }
   /* Una capa que exige credencial no puede quedarse encendida sin
