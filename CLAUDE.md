@@ -822,7 +822,17 @@ index.html         redirección de la raíz del sitio al minificado
   botones. Elegir un color —una muestra, o confirmar el selector nativo
   (evento `change`, no `input`, que dispara en cada tirón del arrastre)—
   aplica y cierra en el mismo gesto; Escape o un clic fuera cierran sin
-  aplicar nada. Esto sigue sin chocar con la edición diferida del diálogo
+  aplicar nada. **Ese cierre escucha `click`, no `mousedown`, y no es un
+  detalle menor**: un control marcado con
+  `L.DomEvent.disableClickPropagation` (el panel de mapas base, las
+  barras de medición/vista…) detiene, en Leaflet 1.9.4,
+  `mousedown`/`dblclick`/`contextmenu` pero NO `click` (mismo hallazgo
+  que ya deja escrito `clickOnControl` en `52-measure.js`); el botón de
+  color de fondo vive dentro de ese panel, así que un cierre por
+  `mousedown` nunca veía los clics dados DENTRO del propio panel —
+  fallo reportado: se podía abrir el popover desde ahí, pero no cerrarlo
+  con el ratón salvo pulsando fuera del panel entero o con Escape.
+  Esto sigue sin chocar con la edición diferida del diálogo
   de estilos porque el commit por defecto (`defaultColorCommit`) solo
   toca el BOTÓN y el borrador (`styleDraft`, vía `readStyleControls`),
   nunca la capa en vivo: quien decide si eso llega a la capa sigue siendo
