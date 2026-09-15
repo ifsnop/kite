@@ -272,17 +272,15 @@
   </div>
 </div>
 
-<!-- Selector de color -->
-<div id="color-picker" class="dlg-overlay" hidden>
-  <div class="dlg-box">
-    <h2>Elegir color</h2>
-    <div class="dlg-row"><span>Color</span><input type="color" id="color-input"></div>
-    <div class="color-swatches" id="color-swatches"></div>
-    <div class="dlg-actions">
-      <button class="btn" id="color-cancel">Cancelar</button>
-      <button class="btn" id="color-accept">Aceptar</button>
-    </div>
-  </div>
+<!-- Selector de color: un POPOVER anclado al botón que lo abre, no una
+     segunda ventana modal aparte. Elegir un color (una muestra, o
+     confirmar el selector nativo) aplica y cierra en el mismo gesto: no
+     hace falta Cancelar/Aceptar propios, porque el diálogo que lo
+     contiene (estilos, o el que sea) sigue teniendo los suyos y es quien
+     de verdad decide si el cambio llega a la capa. -->
+<div id="color-picker" class="color-popover" role="dialog" aria-label="Elegir color" hidden>
+  <input type="color" id="color-input">
+  <div class="color-swatches" id="color-swatches"></div>
 </div>
 
 <!-- Selector de marcador (paleta de iconos, estilo Google Earth) -->

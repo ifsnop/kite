@@ -415,7 +415,10 @@
   body.nav-hidden #nav-toggle { left: 0; }
 
   /* ================= Ventana del visor (derecha) ================= */
-  #map { flex: 1; background: #dfe8ef; }
+  /* --map-bg: por defecto NO está definida, así que var() cae en el
+     #dfe8ef de aquí; setMapBackground (10-map.js) la fija cuando el
+     usuario elige otro color desde el panel de mapas base.            */
+  #map { flex: 1; background: var(--map-bg, #dfe8ef); }
 
   .measure-bar a {
     font-size: 15px;
@@ -490,6 +493,9 @@
   }
   .base-list[hidden] { display: none; }
   .base-row { display: grid; grid-template-columns: auto 1fr auto; gap: 3px 6px; align-items: center; margin: 5px 0; }
+  /* No es una capa que se apague: separada del resto con una línea, no
+     con una casilla que no significaría nada aquí.                   */
+  .base-row-bg { padding-bottom: 6px; margin-bottom: 6px; border-bottom: 1px solid var(--border); }
   .base-moves { display: flex; gap: 2px; }
   .base-moves button {
     border: 1px solid var(--border); background: #fff; border-radius: 4px;
@@ -572,8 +578,36 @@
     z-index: 2000;
   }
   .dlg-float[hidden] { display: none; }
-  /* Sub-dialogs of the style dialog always sit above it */
-  #icon-picker, #color-picker { z-index: 2100; }
+  /* Sub-dialog of the style dialog always sits above it */
+  #icon-picker { z-index: 2100; }
+  /* The colour picker is a POPOVER anchored to whichever button opened
+     it (openColorPicker positions it in JS), not a second modal window
+     stacked on top of the first — that was the bug: a full-screen
+     .dlg-overlay centred itself regardless of where the style dialog
+     was, and ended up covering its own Cancelar/Aceptar buttons. Sized
+     to its content (the 8-column swatch grid decides the width), not a
+     fixed guess. */
+  .color-popover {
+    position: fixed;
+    z-index: 2100;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    padding: 10px;
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    box-shadow: 0 8px 30px rgba(0,0,0,.25);
+  }
+  .color-popover[hidden] { display: none; }
+  .color-popover input[type="color"] {
+    width: 100%;
+    height: 32px;
+    padding: 0;
+    border: 1px solid var(--border);
+    border-radius: 5px;
+    cursor: pointer;
+  }
   .ctx-menu {
     position: fixed;
     z-index: 2200;
@@ -633,7 +667,7 @@
      vacía y lo dice en su marcador de posición; el nombre, con varios
      nodos, hace lo mismo con la lista de nombres.                     */
   .dlg-row input::placeholder { font-style: italic; color: var(--muted); opacity: 1; }
-  .color-swatches { display: grid; grid-template-columns: repeat(8, 24px); gap: 5px; margin-top: 8px; }
+  .color-swatches { display: grid; grid-template-columns: repeat(8, 24px); gap: 5px; }
   .color-swatches button {
     width: 24px;
     height: 24px;
@@ -1270,17 +1304,15 @@
   </div>
 </div>
 
-<!-- Selector de color -->
-<div id="color-picker" class="dlg-overlay" hidden>
-  <div class="dlg-box">
-    <h2>Elegir color</h2>
-    <div class="dlg-row"><span>Color</span><input type="color" id="color-input"></div>
-    <div class="color-swatches" id="color-swatches"></div>
-    <div class="dlg-actions">
-      <button class="btn" id="color-cancel">Cancelar</button>
-      <button class="btn" id="color-accept">Aceptar</button>
-    </div>
-  </div>
+<!-- Selector de color: un POPOVER anclado al botón que lo abre, no una
+     segunda ventana modal aparte. Elegir un color (una muestra, o
+     confirmar el selector nativo) aplica y cierra en el mismo gesto: no
+     hace falta Cancelar/Aceptar propios, porque el diálogo que lo
+     contiene (estilos, o el que sea) sigue teniendo los suyos y es quien
+     de verdad decide si el cambio llega a la capa. -->
+<div id="color-picker" class="color-popover" role="dialog" aria-label="Elegir color" hidden>
+  <input type="color" id="color-input">
+  <div class="color-swatches" id="color-swatches"></div>
 </div>
 
 <!-- Selector de marcador (paleta de iconos, estilo Google Earth) -->
@@ -1640,6 +1672,20 @@ const map = L.map("map", {
   zoomAnimation: hwAccelerated,
 }).setView([40.4, -3.7], 6);
 
+/* Color de fondo del mapa: el que se ve fuera de las teselas (huecos
+   sin cobertura, o el borde del mundo — no hay desplazamiento infinito,
+   ver «Una sola Tierra»). Configurable desde la primera fila del panel
+   de mapas base (11-base-panel.js); MAP_BG_DEFAULT debe coincidir con
+   el `#dfe8ef` de styles.css, que es adonde cae `var(--map-bg, …)`
+   cuando nadie ha elegido otro — así el botón de esa fila puede mostrar
+   el color vigente sin tener que leerlo del DOM.                     */
+const MAP_BG_DEFAULT = "#dfe8ef";
+let mapBgColor = MAP_BG_DEFAULT;
+function setMapBackground(hex) {
+  mapBgColor = hex;
+  document.documentElement.style.setProperty("--map-bg", hex);
+}
+
 /* Suelo de zoom: el nivel en el que el mundo ya LLENA la ventana
    (`inside: true`). Por debajo, el mapa cabría entero con hueco a los
    lados y ahí es donde volvían a verse las copias; además `maxBounds`
@@ -1673,7 +1719,7 @@ map.on("resize", fitWorldMinZoom);
 
 /* Fecha de generación del código (versión): AÑOMESDIAHORAMINUTO.
    Actualizar en cada generación; se muestra junto al crédito de Leaflet. */
-const BUILD = "202609150030";
+const BUILD = "202609151722";
 /* El enlace al repositorio va junto a la versión, que es lo que hace
    accionable saber qué build se está ejecutando: desde ahí se llega al
    código de esa versión. `target="_blank"` a propósito —salir de la
@@ -1941,6 +1987,7 @@ function moveBaseLayer(id, delta) {
 function renderBasePanel() {
   const list = baseControl._list;
   list.innerHTML = "";
+  list.appendChild(buildMapBackgroundRow());
   const ids = [...baseState.keys()];
   for (const [id, st] of baseState) {
     const row = document.createElement("div");
@@ -2004,6 +2051,41 @@ function renderBasePanel() {
     if (sel) row.append(sel);
     list.appendChild(row);
   }
+}
+
+/* Primera fila del panel, antes de cualquier capa: el color que se ve
+   DETRÁS de las teselas (huecos sin cobertura, o el borde del mundo —
+   no hay desplazamiento infinito, ver «Una sola Tierra»), no una capa
+   de mapa en sí. No lleva casilla propia porque no es algo que se
+   "encienda o apague"; comparte el mismo `openColorPicker` popover que
+   los colores del diálogo de estilos, con su propio `onCommit`: aquí
+   SÍ se aplica al instante (setMapBackground) y se persiste, porque no
+   hay ningún diálogo exterior con Cancelar/Aceptar que lo diferido.   */
+function buildMapBackgroundRow() {
+  const row = document.createElement("div");
+  row.className = "base-row base-row-bg";
+  row.appendChild(document.createElement("span")); /* alinea con la columna de las casillas */
+  const label = document.createElement("label");
+  label.textContent = "Color de fondo";
+  const tools = document.createElement("span");
+  tools.className = "base-tools";
+  const btn = document.createElement("button");
+  btn.type = "button";
+  btn.className = "color-btn";
+  btn.title = "Color de fondo del mapa";
+  btn.setAttribute("aria-label", "Color de fondo del mapa");
+  setColorButton(btn, mapBgColor);
+  btn.addEventListener("click", e => {
+    e.preventDefault();
+    openColorPicker(btn, (target, hex) => {
+      setColorButton(target, hex);
+      setMapBackground(hex);
+      dbSaveMapBackground(hex).catch(() => {});
+    });
+  });
+  tools.appendChild(btn);
+  row.append(label, tools);
+  return row;
 }
 
 /* Selector de capa para una capa base "dynamic". El mecanismo no sabe
@@ -4604,6 +4686,39 @@ async function dbLoadBases() {
     rq.onsuccess = () => {
       const rec = rq.result;
       resolve(rec && rec.v === BASE_SCHEMA && rec.bases ? rec : null);
+    };
+    rq.onerror = () => reject(rq.error);
+  });
+}
+
+/* ---------- Color de fondo del mapa ----------
+   Otra clave del mismo almacén: no hace falta subir DB_VERSION. Sin
+   valor guardado (nunca se tocó, o el árbol viene de antes de este
+   cambio) `dbLoadMapBackground` devuelve null y el mapa se queda con el
+   color por defecto que ya trae el CSS (`#dfe8ef`) — compatibilidad
+   hacia atrás sin migrar nada.                                       */
+const MAPBG_KEY = "mapBackground";
+const MAPBG_SCHEMA = 1;
+
+async function dbSaveMapBackground(color) {
+  const db = await openDb();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(DB_TREE, "readwrite");
+    tx.objectStore(DB_TREE).put({ v: MAPBG_SCHEMA, color }, MAPBG_KEY);
+    tx.oncomplete = resolve;
+    tx.onerror = () => reject(tx.error);
+  });
+}
+/* Validado como cualquier otro valor leído (ver la vista guardada):
+   un registro corrupto no debe colar un `background` inválido.       */
+async function dbLoadMapBackground() {
+  const db = await openDb();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(DB_TREE, "readonly");
+    const rq = tx.objectStore(DB_TREE).get(MAPBG_KEY);
+    rq.onsuccess = () => {
+      const rec = rq.result;
+      resolve(rec && rec.v === MAPBG_SCHEMA && /^#[0-9a-f]{6}$/i.test(rec.color) ? rec.color : null);
     };
     rq.onerror = () => reject(rq.error);
   });
@@ -7529,12 +7644,18 @@ function makeDialogMovable(box) {
   }
 }
 
-/* ---------- Colour picker (with Cancelar / Aceptar) ----------
-   The native <input type="color"> commits as soon as it changes, which
-   clashes with the deferred editing of the dialogs. Each colour is
-   therefore a button showing its value; pressing it opens this small
-   dialog — full spectrum plus the palette used across the app — and the
-   choice only reaches the draft when "Aceptar" is pressed.            */
+/* ---------- Colour picker (popover, one gesture) ----------
+   Used to be a full second modal window (its own Cancelar/Aceptar),
+   stacked as a centred .dlg-overlay regardless of where the style
+   dialog was — reported bug: it landed on top of the style dialog,
+   nearly covering its own buttons. Picking a colour here does NOT need
+   a confirm step of its own: the native <input type="color"> firing
+   early only updates THIS button's swatch (and, for the style dialog,
+   its draft) — never the live layer, which still waits for the outer
+   dialog's own "Aceptar". So one popover, one click, done.
+   `openColorPicker`'s second argument lets a caller outside the style
+   dialog (the base-map background colour, see 11-base-panel.js) supply
+   its own commit behaviour instead of touching styleDraft.            */
 const COLOR_PRESETS = [
   "#000000", "#4d4d4d", "#8c8c8c", "#ffffff", "#1b5e97", "#3388ff", "#00a3c4", "#00897b",
   "#2e7d32", "#8bc34a", "#f9a825", "#ef6c00", "#b04a3a", "#d32f2f", "#8e24aa", "#5e35b1"
@@ -7542,12 +7663,24 @@ const COLOR_PRESETS = [
 const colorPicker = document.getElementById("color-picker");
 const colorInput = document.getElementById("color-input");
 let colorTarget = null; /* colour button being edited */
+let colorCommit = null; /* (btn, hex) => void — what "picking a colour" does */
 
 function setColorButton(btn, hex) {
   btn.dataset.color = hex;
   btn.style.background = hex;
 }
 const colorOf = btn => btn.dataset.color || "#000000";
+
+/* Default commit, for the six style-dialog buttons: only the button and
+   the draft change, never the layer — same as the old "Aceptar" did. */
+function defaultColorCommit(btn, hex) {
+  setColorButton(btn, hex);
+  /* Un color no dispara `input` en su fila, así que avisa a mano de que
+     el usuario lo ha tocado: con varios nodos es lo que decide si ese
+     color se aplica a todos o cada uno conserva el suyo.             */
+  touchControl(btn);
+  if (styleDraft) readStyleControls();
+}
 
 function buildColorSwatches(current) {
   const box = document.getElementById("color-swatches");
@@ -7558,41 +7691,60 @@ function buildColorSwatches(current) {
     b.title = hex;
     b.style.background = hex;
     if (hex.toLowerCase() === current.toLowerCase()) b.classList.add("chosen");
-    b.addEventListener("click", () => {
-      colorInput.value = hex;
-      for (const o of box.children) o.classList.toggle("chosen", o === b);
-    });
+    b.addEventListener("click", () => commitColor(hex));
     box.appendChild(b);
   }
 }
 
-function openColorPicker(btn) {
+/* Anchored to the button that opened it, not centred on the viewport:
+   below it by default, flipped above when there is no room below, and
+   clamped so it never runs off either edge. Measuring offsetWidth/Height
+   needs the element laid out first, so `hidden` comes off before this
+   runs — same tick, so nothing visibly flashes at the wrong spot.    */
+function positionColorPicker(btn) {
+  const r = btn.getBoundingClientRect();
+  const w = colorPicker.offsetWidth, h = colorPicker.offsetHeight;
+  let left = Math.min(r.left, window.innerWidth - w - 8);
+  left = Math.max(left, 8);
+  let top = r.bottom + 6;
+  if (top + h > window.innerHeight - 8) top = r.top - h - 6;
+  top = Math.max(top, 8);
+  colorPicker.style.left = `${left}px`;
+  colorPicker.style.top = `${top}px`;
+}
+
+function openColorPicker(btn, onCommit = defaultColorCommit) {
   colorTarget = btn;
+  colorCommit = onCommit;
   colorInput.value = colorOf(btn);
   buildColorSwatches(colorOf(btn));
   colorPicker.hidden = false;
-  clampToViewport(colorBox);
-  focusDialog(colorBox);
+  positionColorPicker(btn);
+  focusDialog(colorPicker);
+}
+function closeColorPicker() {
+  colorPicker.hidden = true;
+  colorTarget = null;
+  colorCommit = null;
+  releaseFocus();
+}
+function commitColor(hex) {
+  if (colorTarget) colorCommit(colorTarget, hex);
+  closeColorPicker();
 }
 colorInput.addEventListener("input", () => buildColorSwatches(colorInput.value));
-document.getElementById("color-cancel").addEventListener("click", () => {
-  colorPicker.hidden = true;
-  colorTarget = null;
-  releaseFocus();
-});
-document.getElementById("color-accept").addEventListener("click", () => {
-  if (colorTarget) {
-    setColorButton(colorTarget, colorInput.value);
-    /* Un color no dispara `input` en su fila, así que avisa a mano de
-       que el usuario lo ha tocado: con varios nodos es lo que decide
-       si ese color se aplica a todos o cada uno conserva el suyo.   */
-    touchControl(colorTarget);
-    /* feed the change into the draft of whichever dialog is open */
-    if (styleDraft) readStyleControls();
-  }
-  colorPicker.hidden = true;
-  colorTarget = null;
-  releaseFocus();
+/* "change" is the native picker's own confirm (fires once, on release —
+   not on every drag tick like "input"), so it plays the same role the
+   old "Aceptar" button did. */
+colorInput.addEventListener("change", () => commitColor(colorInput.value));
+/* Closing without picking anything: click outside the popover and
+   outside the button that opened it (so re-clicking that same button
+   just refreshes it instead of closing-then-reopening).              */
+document.addEventListener("mousedown", e => {
+  if (colorPicker.hidden) return;
+  if (colorPicker.contains(e.target)) return;
+  if (colorTarget && colorTarget.contains(e.target)) return;
+  closeColorPicker();
 });
 for (const id of ["mk-color", "mk-text-color", "pg-color", "pg-fill-color",
                   "ms-color", "ms-fill-color"]) {
@@ -7729,7 +7881,8 @@ const iconPicker = document.getElementById("icon-picker");
 const $id = id => document.getElementById(id);
 const styleBox = styleDialog.querySelector(".dlg-box");
 const iconBox = iconPicker.querySelector(".dlg-box");
-const colorBox = document.querySelector("#color-picker .dlg-box");
+/* No colorBox: the colour popover (#color-picker) IS its own box now,
+   not a wrapper around a nested .dlg-box — see openColorPicker.      */
 const shortcutsDialog = document.getElementById("shortcuts");
 const shortcutsBox = shortcutsDialog.querySelector(".dlg-box");
 function toggleShortcuts() {
@@ -8384,10 +8537,13 @@ descBody.addEventListener("pointerdown", e => {
 });
 
 
-for (const box of [styleBox, iconBox, colorBox, descBox, shortcutsBox, ktpBox, kdpBox, gnpBox, gnpEditorBox, shBox, pointsBox, logBox, urlBox]) makeDialogMovable(box);
+/* colorPicker is NOT in this list: it is a popover anchored to whichever
+   button opened it (see openColorPicker/positionColorPicker), not a
+   draggable window with its own dialog role — that separate-window
+   treatment is exactly what the popover replaced.                    */
+for (const box of [styleBox, iconBox, descBox, shortcutsBox, ktpBox, kdpBox, gnpBox, gnpEditorBox, shBox, pointsBox, logBox, urlBox]) makeDialogMovable(box);
 setupDialog(styleBox, { modal: false }); /* flotante: el mapa sigue vivo */
 setupDialog(iconBox, { modal: true });
-setupDialog(colorBox, { modal: true });
 setupDialog(descBox, { modal: false });
 setupDialog(shortcutsBox, { modal: true });
 setupDialog(ktpBox, { modal: true });
@@ -8400,7 +8556,10 @@ setupDialog(logBox, { modal: true });
 setupDialog(urlBox, { modal: true });
 window.addEventListener("resize", () => {
   /* a moved dialog must not fall off-screen */
-  for (const box of [styleBox, iconBox, colorBox, descBox, shortcutsBox, ktpBox, kdpBox, gnpBox, gnpEditorBox, shBox, pointsBox, logBox, urlBox]) clampToViewport(box);
+  for (const box of [styleBox, iconBox, descBox, shortcutsBox, ktpBox, kdpBox, gnpBox, gnpEditorBox, shBox, pointsBox, logBox, urlBox]) clampToViewport(box);
+  /* the popover's anchor button may have moved too; closing is simpler
+     and less confusing than reclamping a stale position              */
+  if (!colorPicker.hidden) closeColorPicker();
 });
 let styleTargets = [];    /* nodes being edited */
 let styleKindOpen = null; /* "marker" | "polygon" */
@@ -8704,8 +8863,9 @@ function closeStyleDialog(commit = false) {
   const wasOpen = !styleDialog.hidden;
   styleDialog.hidden = true;
   iconPicker.hidden = true;
-  colorPicker.hidden = true;
-  colorTarget = null;
+  /* Guarded: closeColorPicker() itself pops a focusReturn entry, and it
+     would be the wrong one if the popover was already closed.        */
+  if (!colorPicker.hidden) closeColorPicker();
   if (wasOpen) { focusReturn = focusReturn.slice(0, -1); releaseFocus(); }
   styleTargets = [];
   styleKindOpen = null;
@@ -9410,7 +9570,7 @@ document.addEventListener("keydown", e => {
   if (!logDialog.hidden) { toggleLog(); return; }
   if (!urlDialog.hidden) { closeUrlDialog(); return; }
   if (!descDialog.hidden) { descDialog.hidden = true; layerInfoDismissed = true; releaseFocus(); return; }
-  if (!colorPicker.hidden) { colorPicker.hidden = true; colorTarget = null; releaseFocus(); return; }
+  if (!colorPicker.hidden) { closeColorPicker(); return; }
   if (!iconPicker.hidden) { iconPicker.hidden = true; pendingIcon = null; releaseFocus(); return; }
   if (!ktpDialog.hidden) { closeKtpPicker(false); return; }
   if (!kdpDialog.hidden) { closeKdpPicker(false); return; }
@@ -11383,6 +11543,14 @@ setInterval(checkServerVersion, VERSION_CHECK_MS);
     const sh = await dbLoadSh();
     if (sh && validInstanceId(sh.instanceId)) shInstanceId = sh.instanceId.trim();
   } catch { /* sin credencial guardada la capa pedirá configurarla */ }
+
+  /* Color de fondo del mapa: antes de pintar el panel de mapas base,
+     cuya primera fila lo muestra. Sin valor guardado se queda con el
+     de por defecto (MAP_BG_DEFAULT, el mismo que ya trae el CSS).    */
+  try {
+    const bg = await dbLoadMapBackground();
+    if (bg) setMapBackground(bg);
+  } catch { /* color por defecto */ }
 
   /* Mapas base: primero lo guardado, luego se pintan y se encienden */
   try { applySavedBases(await dbLoadBases()); } catch { /* valores por defecto */ }

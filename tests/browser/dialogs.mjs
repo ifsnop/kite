@@ -48,7 +48,10 @@ const medidas = await page.evaluate(() => {
         "<table>" + "<tr><td>clave</td><td>un valor bastante largo</td></tr>".repeat(80) + "</table>";
       document.getElementById("desc-dialog").hidden = false;
     },
-    "color-picker": () => { openStyleDialog(liM); openColorPicker(document.getElementById("mk-color")); },
+    /* El selector de color YA NO pasa por aquí: dejó de ser una ventana
+       con caja/cabecera/botones propios (era justo el problema — ver el
+       chequeo de solape más abajo), así que el marco de "botones
+       siempre a la vista al hacer scroll" no le aplica.               */
     "kml-tags-picker": () => confirmStripHtmlTags("archivo.kml"),
     "kml-dup-picker": () => { document.getElementById("kml-dup-picker").hidden = false; },
     /* Con una dirección larguísima dentro, que es su caso real */
@@ -107,7 +110,7 @@ const medidas = await page.evaluate(() => {
   return out;
 });
 
-ok(medidas.length === 13, "se han abierto las trece ventanas: " + medidas.length);
+ok(medidas.length === 12, "se han abierto las doce ventanas: " + medidas.length);
 
 for (const m of medidas) {
   if (m.error) { ok(false, `${m.id}: no se pudo abrir — ${m.error}`); continue; }
@@ -137,6 +140,28 @@ for (const id of ["icon-picker", "shortcuts"]) {
   const m = medidas.find(x => x.id === id);
   ok(m && m.desborda, `${id}: su contenido sigue sin caber, y aun así los botones se ven`);
 }
+
+/* El fallo reportado: el selector de color se abría como una segunda
+   ventana CENTRADA en el viewport, sin mirar dónde estaba el diálogo de
+   estilos ni el botón que lo había abierto — con el diálogo desplazado
+   hacia el centro (o en un viewport pequeño), acababa tapando sus
+   propios Cancelar/Aceptar. Ahora es un popover anclado al botón, así
+   que comprobar que NO se solapa con los botones del diálogo de
+   estilos es la prueba directa del arreglo.                          */
+const solapeColor = await page.evaluate(() => {
+  const liM = [...document.querySelectorAll("#tree li")].find(x => x._mstyle);
+  openStyleDialog(liM);
+  openColorPicker(document.getElementById("mk-color"));
+  const pop = document.getElementById("color-picker").getBoundingClientRect();
+  const acc = document.querySelector("#style-dialog .dlg-box .dlg-actions").getBoundingClientRect();
+  const solapaX = pop.left < acc.right && pop.right > acc.left;
+  const solapaY = pop.top < acc.bottom && pop.bottom > acc.top;
+  document.getElementById("color-picker").hidden = true;
+  document.getElementById("style-dialog").hidden = true;
+  return { solapa: solapaX && solapaY, pop, acc };
+});
+ok(!solapeColor.solapa, "el popover de color no tapa los botones del diálogo de estilos: "
+  + JSON.stringify(solapeColor.pop) + " vs " + JSON.stringify(solapeColor.acc));
 
 /* Redimensionar a mano no puede descolgar los botones */
 const trasEstirar = await page.evaluate(() => {

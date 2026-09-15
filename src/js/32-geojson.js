@@ -412,6 +412,39 @@ async function dbLoadBases() {
   });
 }
 
+/* ---------- Color de fondo del mapa ----------
+   Otra clave del mismo almacén: no hace falta subir DB_VERSION. Sin
+   valor guardado (nunca se tocó, o el árbol viene de antes de este
+   cambio) `dbLoadMapBackground` devuelve null y el mapa se queda con el
+   color por defecto que ya trae el CSS (`#dfe8ef`) — compatibilidad
+   hacia atrás sin migrar nada.                                       */
+const MAPBG_KEY = "mapBackground";
+const MAPBG_SCHEMA = 1;
+
+async function dbSaveMapBackground(color) {
+  const db = await openDb();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(DB_TREE, "readwrite");
+    tx.objectStore(DB_TREE).put({ v: MAPBG_SCHEMA, color }, MAPBG_KEY);
+    tx.oncomplete = resolve;
+    tx.onerror = () => reject(tx.error);
+  });
+}
+/* Validado como cualquier otro valor leído (ver la vista guardada):
+   un registro corrupto no debe colar un `background` inválido.       */
+async function dbLoadMapBackground() {
+  const db = await openDb();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(DB_TREE, "readonly");
+    const rq = tx.objectStore(DB_TREE).get(MAPBG_KEY);
+    rq.onsuccess = () => {
+      const rec = rq.result;
+      resolve(rec && rec.v === MAPBG_SCHEMA && /^#[0-9a-f]{6}$/i.test(rec.color) ? rec.color : null);
+    };
+    rq.onerror = () => reject(rq.error);
+  });
+}
+
 /* ---------- Credencial de Sentinel Hub ----------
    Otra clave del mismo almacén. Es del usuario y solo vive en su
    navegador: nunca se serializa con el árbol ni viaja en un .kite.json

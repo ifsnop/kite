@@ -492,10 +492,13 @@ descBody.addEventListener("pointerdown", e => {
 });
 
 
-for (const box of [styleBox, iconBox, colorBox, descBox, shortcutsBox, ktpBox, kdpBox, gnpBox, gnpEditorBox, shBox, pointsBox, logBox, urlBox]) makeDialogMovable(box);
+/* colorPicker is NOT in this list: it is a popover anchored to whichever
+   button opened it (see openColorPicker/positionColorPicker), not a
+   draggable window with its own dialog role — that separate-window
+   treatment is exactly what the popover replaced.                    */
+for (const box of [styleBox, iconBox, descBox, shortcutsBox, ktpBox, kdpBox, gnpBox, gnpEditorBox, shBox, pointsBox, logBox, urlBox]) makeDialogMovable(box);
 setupDialog(styleBox, { modal: false }); /* flotante: el mapa sigue vivo */
 setupDialog(iconBox, { modal: true });
-setupDialog(colorBox, { modal: true });
 setupDialog(descBox, { modal: false });
 setupDialog(shortcutsBox, { modal: true });
 setupDialog(ktpBox, { modal: true });
@@ -508,7 +511,10 @@ setupDialog(logBox, { modal: true });
 setupDialog(urlBox, { modal: true });
 window.addEventListener("resize", () => {
   /* a moved dialog must not fall off-screen */
-  for (const box of [styleBox, iconBox, colorBox, descBox, shortcutsBox, ktpBox, kdpBox, gnpBox, gnpEditorBox, shBox, pointsBox, logBox, urlBox]) clampToViewport(box);
+  for (const box of [styleBox, iconBox, descBox, shortcutsBox, ktpBox, kdpBox, gnpBox, gnpEditorBox, shBox, pointsBox, logBox, urlBox]) clampToViewport(box);
+  /* the popover's anchor button may have moved too; closing is simpler
+     and less confusing than reclamping a stale position              */
+  if (!colorPicker.hidden) closeColorPicker();
 });
 let styleTargets = [];    /* nodes being edited */
 let styleKindOpen = null; /* "marker" | "polygon" */
@@ -812,8 +818,9 @@ function closeStyleDialog(commit = false) {
   const wasOpen = !styleDialog.hidden;
   styleDialog.hidden = true;
   iconPicker.hidden = true;
-  colorPicker.hidden = true;
-  colorTarget = null;
+  /* Guarded: closeColorPicker() itself pops a focusReturn entry, and it
+     would be the wrong one if the popover was already closed.        */
+  if (!colorPicker.hidden) closeColorPicker();
   if (wasOpen) { focusReturn = focusReturn.slice(0, -1); releaseFocus(); }
   styleTargets = [];
   styleKindOpen = null;

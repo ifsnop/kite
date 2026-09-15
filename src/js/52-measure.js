@@ -150,7 +150,7 @@ document.addEventListener("keydown", e => {
   if (!logDialog.hidden) { toggleLog(); return; }
   if (!urlDialog.hidden) { closeUrlDialog(); return; }
   if (!descDialog.hidden) { descDialog.hidden = true; layerInfoDismissed = true; releaseFocus(); return; }
-  if (!colorPicker.hidden) { colorPicker.hidden = true; colorTarget = null; releaseFocus(); return; }
+  if (!colorPicker.hidden) { closeColorPicker(); return; }
   if (!iconPicker.hidden) { iconPicker.hidden = true; pendingIcon = null; releaseFocus(); return; }
   if (!ktpDialog.hidden) { closeKtpPicker(false); return; }
   if (!kdpDialog.hidden) { closeKdpPicker(false); return; }
