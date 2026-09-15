@@ -1,0 +1,61 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Descargar código en el commit del tag
+        uses: actions/checkout@v4
+
+      - name: Configurar Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+
+      - name: Instalar dependencias
+        run: npm ci
+
+      # El tag es la única señal de que "esto es un release", así que
+      # tiene que coincidir con package.json.version o el propio commit
+      # no dice la verdad sobre qué versión es. El flujo acordado es
+      # bumpear package.json A MANO antes de tagear (ver «Versión y
+      # releases de GitHub» en CLAUDE.md); esto es la red de seguridad
+      # que caza el olvido, en vez de reescribir nada por su cuenta.
+      - name: Comprobar que el tag coincide con package.json
+        run: |
+          TAG="${GITHUB_REF_NAME#v}"
+          PKG_VERSION=$(node -p "require('./package.json').version")
+          if [ "$TAG" != "$PKG_VERSION" ]; then
+            echo "::error::El tag $GITHUB_REF_NAME no coincide con package.json (versión $PKG_VERSION)."
+            exit 1
+          fi
+
+      # Mismo paso que ya usa tests.yml: kitelocal.html/.min.html son
+      # GENERADOS, y el commit tageado tiene que llevarlos YA construidos
+      # con esta versión — no reconstruirlos aquí y publicar algo que
+      # nunca pasó por el mismo camino que cualquier otro cambio.
+      - name: Comprobar que kitelocal.html está al día respecto de src/
+        run: npm run check
+
+      # gh viene preinstalado en los runners de GitHub Actions.
+      # --generate-notes usa los PR y commits desde el tag anterior, que
+      # es justo el flujo acordado: ramas con PR, y el tag al reunirlas
+      # todas en main. Los dos artefactos se adjuntan como assets de
+      # esta versión exacta, descargables sin tener que clonar nada.
+      - name: Publicar el Release de GitHub
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "$GITHUB_REF_NAME" \
+            --title "$GITHUB_REF_NAME" \
+            --generate-notes \
+            kitelocal.html kitelocal.min.html
