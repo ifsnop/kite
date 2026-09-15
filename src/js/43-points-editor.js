@@ -401,6 +401,18 @@ function closeColorPicker() {
   colorCommit = null;
   releaseFocus();
 }
+/* The button itself is the reliable close gesture: pulsing the same
+   swatch that opened the popover closes it again, whether or not the
+   colour changed. "Click outside" (below) is a convenience on top of
+   this, not a replacement for it — reported bug: from inside a
+   container that swallows outside clicks in some way not yet
+   accounted for, or simply because clicking the big colour button one
+   pulsed is the first thing anyone tries, there was no reliable way to
+   close the popover with the mouse without this.                     */
+function toggleColorPicker(btn, onCommit = defaultColorCommit) {
+  if (!colorPicker.hidden && colorTarget === btn) { closeColorPicker(); return; }
+  openColorPicker(btn, onCommit);
+}
 function commitColor(hex) {
   if (colorTarget) colorCommit(colorTarget, hex);
   closeColorPicker();
@@ -433,7 +445,7 @@ for (const id of ["mk-color", "mk-text-color", "pg-color", "pg-fill-color",
                   "ms-color", "ms-fill-color"]) {
   document.getElementById(id).addEventListener("click", e => {
     e.preventDefault();
-    openColorPicker(e.currentTarget);
+    toggleColorPicker(e.currentTarget);
   });
 }
 

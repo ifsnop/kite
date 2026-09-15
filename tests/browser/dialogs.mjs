@@ -191,6 +191,28 @@ ok(cerradoTrasClicEnPanel,
   "y se cierra al pulsar en otro punto del MISMO panel de mapas base, no solo fuera de él");
 await page.click(".base-toggle"); /* deja el panel como estaba para el resto de la suite */
 
+/* El fallo seguía sin arreglar del todo: cerrar «con un clic fuera»
+   depende de en qué contenedor se esté (el chequeo anterior), y no es
+   el gesto que alguien prueba primero de todos modos — lo natural es
+   volver a pulsar el mismo botón grande que lo abrió. Antes eso lo
+   REABRÍA (a propósito, para poder "refrescarlo"); ahora debe CERRARLO,
+   haya cambiado el color o no. Se comprueba en el propio diálogo de
+   estilos, sin depender de ningún control de Leaflet.                 */
+const toggleBoton = await page.evaluate(() => {
+  const liM = [...document.querySelectorAll("#tree li")].find(x => x._mstyle);
+  openStyleDialog(liM);
+  const btn = document.getElementById("mk-color");
+  btn.click();
+  const abierto1 = !document.getElementById("color-picker").hidden;
+  btn.click(); /* mismo botón, sin tocar el color: debe cerrar */
+  const cerrado = document.getElementById("color-picker").hidden;
+  document.getElementById("style-dialog").hidden = true;
+  return { abierto1, cerrado };
+});
+ok(toggleBoton.abierto1, "el popover se abre al pulsar el botón de color");
+ok(toggleBoton.cerrado,
+  "y se cierra al volver a pulsar EL MISMO botón, sin haber cambiado el color");
+
 /* Redimensionar a mano no puede descolgar los botones */
 const trasEstirar = await page.evaluate(() => {
   openStyleDialog([...document.querySelectorAll("#tree li")].find(x => x._mstyle));

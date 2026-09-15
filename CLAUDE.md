@@ -821,25 +821,33 @@ index.html         redirección de la raíz del sitio al minificado
   viewport en vez de sobre el diálogo que la abría, tapaba sus propios
   botones. Elegir un color —una muestra, o confirmar el selector nativo
   (evento `change`, no `input`, que dispara en cada tirón del arrastre)—
-  aplica y cierra en el mismo gesto; Escape o un clic fuera cierran sin
-  aplicar nada. **Ese cierre escucha `click`, no `mousedown`, y no es un
-  detalle menor**: un control marcado con
-  `L.DomEvent.disableClickPropagation` (el panel de mapas base, las
-  barras de medición/vista…) detiene, en Leaflet 1.9.4,
-  `mousedown`/`dblclick`/`contextmenu` pero NO `click` (mismo hallazgo
-  que ya deja escrito `clickOnControl` en `52-measure.js`); el botón de
-  color de fondo vive dentro de ese panel, así que un cierre por
-  `mousedown` nunca veía los clics dados DENTRO del propio panel —
-  fallo reportado: se podía abrir el popover desde ahí, pero no cerrarlo
-  con el ratón salvo pulsando fuera del panel entero o con Escape.
-  Esto sigue sin chocar con la edición diferida del diálogo
-  de estilos porque el commit por defecto (`defaultColorCommit`) solo
-  toca el BOTÓN y el borrador (`styleDraft`, vía `readStyleControls`),
-  nunca la capa en vivo: quien decide si eso llega a la capa sigue siendo
-  el Aceptar del diálogo exterior. `openColorPicker(btn, onCommit)` acepta
-  un commit distinto para quien no esté dentro de ese diálogo — el color
-  de fondo del mapa (ver «Mapas base») aplica y guarda al instante, porque
-  ahí no hay ningún Aceptar exterior que lo difiera.
+  aplica y cierra en el mismo gesto.
+  **Cerrarlo SIN elegir nada tiene un gesto fiable y uno de cortesía, y
+  no son intercambiables.** El fiable es **volver a pulsar el mismo
+  botón grande que lo abrió** (`toggleColorPicker`): cierra siempre,
+  haya cambiado el color o no, sin depender de qué contenedor rodee a
+  ese botón. Es el que hace falta documentar porque dos intentos previos
+  de "cerrar con un clic fuera" resultaron insuficientes: (1) un cierre
+  por `mousedown` en `document` no veía los clics dados DENTRO de un
+  control marcado con `L.DomEvent.disableClickPropagation` (el panel de
+  mapas base, las barras de medición/vista…) — en Leaflet 1.9.4 eso
+  detiene `mousedown`/`dblclick`/`contextmenu` pero NO `click` (mismo
+  hallazgo que ya deja escrito `clickOnControl` en `52-measure.js`); (2)
+  cambiarlo a escuchar `click` arregló ESE contenedor concreto, pero
+  "un clic en algún otro sitio" sigue sin ser el primer gesto que nadie
+  prueba, y el propio botón que abrió el popover estaba explícitamente
+  EXCLUIDO de cerrarlo (volver a pulsarlo solo lo refrescaba). Ahora
+  pulsar ese mismo botón cierra primero; el clic en cualquier otro sitio
+  del documento (o Escape) lo sigue cerrando también, como red de
+  seguridad, pero ya no es el único camino.
+  Nada de esto choca con la edición diferida del diálogo de estilos
+  porque el commit por defecto (`defaultColorCommit`) solo toca el
+  BOTÓN y el borrador (`styleDraft`, vía `readStyleControls`), nunca la
+  capa en vivo: quien decide si eso llega a la capa sigue siendo el
+  Aceptar del diálogo exterior. `toggleColorPicker(btn, onCommit)`
+  acepta un commit distinto para quien no esté dentro de ese diálogo —
+  el color de fondo del mapa (ver «Mapas base») aplica y guarda al
+  instante, porque ahí no hay ningún Aceptar exterior que lo difiera.
 - **Cabecera y pie de TODA ventana van fijos; lo único que scrollea es
   el contenido.** `.dlg-box` tiene `max-height: 85vh; overflow: auto`, y
   sin esto scrollea ENTERA: los botones de Aceptar/Cancelar se van con
