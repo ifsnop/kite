@@ -331,31 +331,66 @@ function makeDialogMovable(box) {
    panel was never ours to begin with. "One integrated dialog" cannot
    be true while part of it is a browser-native popup we don't control.
    So the spectrum is now two <canvas> elements (saturation/value, and
-   hue) that we draw and handle ourselves, plus a hex field — nothing
+   hue) that we draw and handle ourselves, plus a text field — nothing
    here ever leaves our own DOM, so every close gesture (repeat the
    opening button, click outside, Escape) works on it exactly like on
    the rest of the popover.
 
-   Picking a colour does NOT need a confirm step of its own: it only
-   updates THIS button's swatch (and, for the style dialog, its draft)
-   — never the live layer, which still waits for the outer dialog's own
-   "Aceptar". `openColorPicker`'s second argument lets a caller outside
-   the style dialog (the base-map background colour, see
-   11-base-panel.js) supply its own commit behaviour instead of
-   touching styleDraft.                                                */
+   Reported bug (round 2): the popover had NO Cancelar/Aceptar of its
+   own, so every gesture — a drag release, a swatch click, Enter in the
+   text field — committed AND closed in one step. That contradicts the
+   project's own deferred-editing rule: a change must never be final
+   without the user choosing to make it so. Now dragging the spectrum,
+   clicking a swatch or typing a value only PREVIEWS live on the actual
+   edited element (`colorOnPreview`: the button's swatch, and for a
+   marker's colour, its icon preview too) — nothing is saved. Saving
+   only happens in `acceptColorPicker` (`colorOnCommit`), and every other
+   way of leaving the popover (Cancelar, a click outside, repeating the
+   opening button, Escape) is a discard: `cancelColorPicker` restores
+   `colorOriginal`, the hex the target had when the popover opened.
+   `openColorPicker`'s second argument lets a caller outside the style
+   dialog (the base-map background colour, see 11-base-panel.js) supply
+   its own preview/commit behaviour instead of touching styleDraft.    */
 const COLOR_PRESETS = [
   "#000000", "#4d4d4d", "#8c8c8c", "#ffffff", "#1b5e97", "#3388ff", "#00a3c4", "#00897b",
   "#2e7d32", "#8bc34a", "#f9a825", "#ef6c00", "#b04a3a", "#d32f2f", "#8e24aa", "#5e35b1"
 ];
+/* The four numeric notations the value fields can show, cycled with the
+   ‹ › arrows — same idea as the ⇅ button that toggles a marker's
+   coordinates between "dec" and "dms", generalised to more than two
+   states. Purely a display/input preference: it does not change what
+   gets picked, only how the current colour is split into fields.
+   Each mode lists its channels: `label` (shown above the field and used
+   in its `aria-label`) plus `min`/`max` for a numeric spinner, or
+   `text: true` for Hex, which isn't a channel value. ONE INPUT PER
+   CHANNEL on purpose — no separator ("255, 0, 0") to parse, so there is
+   no parsing logic to keep in sync with what the fields can contain,
+   and the browser's own number spinner (arrows, wheel, drag) works on
+   each channel for free.                                              */
+const COLOR_MODES = ["hex", "rgb", "cmyk", "hsv"];
+const COLOR_MODE_LABELS = { hex: "HEX", rgb: "RGB", cmyk: "CMYK", hsv: "HSV" };
+const COLOR_MODE_FIELDS = {
+  hex: [{ label: "Hex", text: true }],
+  rgb: [{ label: "R", min: 0, max: 255 }, { label: "G", min: 0, max: 255 }, { label: "B", min: 0, max: 255 }],
+  cmyk: [{ label: "C", min: 0, max: 100 }, { label: "M", min: 0, max: 100 },
+         { label: "Y", min: 0, max: 100 }, { label: "K", min: 0, max: 100 }],
+  hsv: [{ label: "H", min: 0, max: 360 }, { label: "S", min: 0, max: 100 }, { label: "V", min: 0, max: 100 }]
+};
 const colorPicker = document.getElementById("color-picker");
 const svCanvas = document.getElementById("color-sv");
 const hueCanvas = document.getElementById("color-hue");
 const svCtx = svCanvas.getContext("2d");
 const hueCtx = hueCanvas.getContext("2d");
 const colorPreview = document.getElementById("color-preview");
-const colorHex = document.getElementById("color-hex");
-let colorTarget = null; /* colour button being edited */
-let colorCommit = null; /* (btn, hex) => void — what "picking a colour" does */
+const colorModeLabel = document.getElementById("color-mode-label");
+const colorFieldWraps = [0, 1, 2, 3].map(i => document.getElementById(`color-field-${i}`));
+const colorFieldLabels = colorFieldWraps.map(w => w.querySelector(".color-field-label"));
+const colorFieldEls = colorFieldWraps.map(w => w.querySelector("input"));
+let colorTarget = null;    /* colour button being edited */
+let colorOriginal = null;  /* its hex when the popover opened: what Cancelar restores */
+let colorOnPreview = null; /* (btn, hex) => void — live, never persisted */
+let colorOnCommit = null;  /* (btn, hex) => void — the actual save, only on Aceptar */
+let colorMode = "hex";     /* current notation of the value fields; not persisted, like posFormat */
 let pickH = 210, pickS = 1, pickV = 1; /* current spectrum position, HSV */
 
 function setColorButton(btn, hex) {
@@ -364,13 +399,21 @@ function setColorButton(btn, hex) {
 }
 const colorOf = btn => btn.dataset.color || "#000000";
 
-/* Default commit, for the six style-dialog buttons: only the button and
-   the draft change, never the layer — same as the old "Aceptar" did. */
-function defaultColorCommit(btn, hex) {
+/* Default preview, for the six style-dialog buttons: only the button's
+   swatch (and, for a marker's colour, its icon preview) changes — never
+   styleDraft and never the live layer, which still waits for the outer
+   dialog's own "Aceptar".                                             */
+function defaultColorPreview(btn, hex) {
   setColorButton(btn, hex);
-  /* Un color no dispara `input` en su fila, así que avisa a mano de que
-     el usuario lo ha tocado: con varios nodos es lo que decide si ese
-     color se aplica a todos o cada uno conserva el suyo.             */
+  if (btn.id === "mk-color" && styleDraft) {
+    document.getElementById("icon-preview").src = iconUrl(styleDraft.icon, hex, 20);
+  }
+}
+/* Default commit: the visual value is already there (defaultColorPreview
+   put it there), so this only makes it part of the draft for real — the
+   same touchControl()+readStyleControls() the old immediate commit did,
+   just gated behind Aceptar instead of behind any single gesture.      */
+function defaultColorCommit(btn) {
   touchControl(btn);
   if (styleDraft) readStyleControls();
 }
@@ -384,7 +427,7 @@ function buildColorSwatches(current) {
     b.title = hex;
     b.style.background = hex;
     if (hex.toLowerCase() === current.toLowerCase()) b.classList.add("chosen");
-    b.addEventListener("click", () => commitColor(hex));
+    b.addEventListener("click", () => pickHex(hex));
     box.appendChild(b);
   }
 }
@@ -413,6 +456,22 @@ function rgbToHsv(r, g, b) {
     else h = 60 * ((r - g) / d + 4);
   }
   return [h < 0 ? h + 360 : h, max ? d / max : 0, max];
+}
+/* CMYK, the fourth notation offered in the text field: subtractive, and
+   only meaningful for print — nothing downstream of the picker uses it,
+   it exists purely as an input/reading convenience. The 0-100 range
+   (not 0-1) matches how it is always quoted (e.g. "0, 100, 100, 0").  */
+function rgbToCmyk(r, g, b) {
+  r /= 255; g /= 255; b /= 255;
+  const k = 1 - Math.max(r, g, b);
+  if (k >= 1) return [0, 0, 0, 100];
+  return [(1 - r - k) / (1 - k), (1 - g - k) / (1 - k), (1 - b - k) / (1 - k), k]
+    .map(v => Math.round(v * 100));
+}
+function cmykToRgb(c, m, y, k) {
+  c /= 100; m /= 100; y /= 100; k /= 100;
+  return [255 * (1 - c) * (1 - k), 255 * (1 - m) * (1 - k), 255 * (1 - y) * (1 - k)]
+    .map(v => Math.round(v));
 }
 const clamp01 = n => Math.min(1, Math.max(0, n));
 
@@ -447,23 +506,72 @@ function drawSv() {
   svCtx.strokeStyle = "rgba(0,0,0,.4)"; svCtx.lineWidth = 1; svCtx.stroke();
 }
 function currentHex() { return rgbToHex(...hsvToRgb(pickH, pickS, pickV)); }
+/* Writes the current HSV position into whichever fields the active mode
+   uses. Kept apart from the fields' OWN `input` handler (below) because
+   an external pick (a swatch, a spectrum drag, switching mode) is the
+   only time the fields should be overwritten wholesale — doing it on
+   every keystroke while the user is typing INTO one of them would fight
+   the caret (see the comment on `colorFieldEls` `input` below).       */
+function writeFieldsToMode() {
+  const [r, g, b] = hsvToRgb(pickH, pickS, pickV);
+  const values = colorMode === "hex" ? [rgbToHex(r, g, b)]
+    : colorMode === "rgb" ? [r, g, b]
+    : colorMode === "cmyk" ? rgbToCmyk(r, g, b)
+    : [Math.round(pickH), Math.round(pickS * 100), Math.round(pickV * 100)]; /* hsv */
+  values.forEach((v, i) => { colorFieldEls[i].value = v; });
+}
 function refreshPreview() {
   const hex = currentHex();
   colorPreview.style.background = hex;
-  colorHex.value = hex;
+  writeFieldsToMode();
   return hex;
 }
 function setFromHex(hex) {
   [pickH, pickS, pickV] = rgbToHsv(...hexToRgb(hex));
   drawHue(); drawSv(); refreshPreview();
 }
+/* ‹ › cycle through COLOR_MODES; wraps both ways. Switching notation
+   never changes the colour, only how many fields show and what they
+   mean — same "preference, not state" role as posFormat. Fields the
+   mode doesn't use are hidden, not removed: `COLOR_MODE_FIELDS` always
+   describes the first N of the four, so the rest just stay `hidden`.  */
+function setColorMode(mode) {
+  colorMode = mode;
+  colorModeLabel.textContent = COLOR_MODE_LABELS[mode];
+  const fields = COLOR_MODE_FIELDS[mode];
+  colorFieldWraps.forEach((wrap, i) => {
+    const f = fields[i];
+    wrap.hidden = !f;
+    if (!f) return;
+    colorFieldLabels[i].textContent = f.label;
+    const el = colorFieldEls[i];
+    el.setAttribute("aria-label", `${f.label} (${COLOR_MODE_LABELS[mode]})`);
+    if (f.text) { el.type = "text"; el.removeAttribute("min"); el.removeAttribute("max"); el.maxLength = 7; }
+    else { el.type = "number"; el.min = f.min; el.max = f.max; el.step = 1; el.removeAttribute("maxlength"); }
+  });
+  writeFieldsToMode();
+}
+function cycleColorMode(delta) {
+  const i = COLOR_MODES.indexOf(colorMode);
+  setColorMode(COLOR_MODES[(i + delta + COLOR_MODES.length) % COLOR_MODES.length]);
+}
+document.getElementById("color-mode-prev").addEventListener("click", () => cycleColorMode(-1));
+document.getElementById("color-mode-next").addEventListener("click", () => cycleColorMode(1));
+
+/* Picking a colour (a swatch, a spectrum drag, a confirmed field value)
+   only moves the spectrum position and PREVIEWS on the actual target —
+   see the comment atop this section. It never closes the popover and
+   never calls `colorOnCommit`: that only happens in `acceptColorPicker`. */
+function pickHex(hex) {
+  setFromHex(hex);
+  if (colorTarget && colorOnPreview) colorOnPreview(colorTarget, hex);
+}
 
 /* Drag on either canvas: pointer capture so the gesture keeps tracking
    even if the cursor leaves the small canvas mid-drag (same technique
-   as makeDialogMovable's title-bar drag). Only the release COMMITS —
-   same role "change" played for the native input it replaces — so
-   dragging around to preview shades doesn't close the popover on the
-   very first pixel.                                                  */
+   as makeDialogMovable's title-bar drag). Every move previews live —
+   there is no separate "commit on release" step any more, since NO
+   gesture on the spectrum commits: only Aceptar does.                */
 function wireSpectrumDrag(canvas, onMove) {
   let dragging = false;
   const step = e => {
@@ -476,88 +584,149 @@ function wireSpectrumDrag(canvas, onMove) {
     step(e);
   });
   canvas.addEventListener("pointermove", e => { if (dragging) step(e); });
-  const stop = () => { if (dragging) { dragging = false; commitColor(refreshPreview()); } };
+  const stop = () => { dragging = false; };
   canvas.addEventListener("pointerup", stop);
   canvas.addEventListener("pointercancel", stop);
 }
-wireSpectrumDrag(svCanvas, (x, y) => { pickS = x; pickV = 1 - y; drawSv(); refreshPreview(); });
-wireSpectrumDrag(hueCanvas, x => { pickH = x * 360; drawHue(); drawSv(); refreshPreview(); });
-
-/* Shared by Enter and by leaving the field (blur → native "change").
-   Returns whether the text was a usable hex, so the caller can decide
-   whether to swallow the keystroke.                                  */
-function commitColorHex() {
-  const v = colorHex.value.trim().toLowerCase();
-  const hex = /^#?[0-9a-f]{6}$/.test(v) ? (v[0] === "#" ? v : "#" + v) : null;
-  if (hex) { setFromHex(hex); commitColor(hex); } else colorHex.value = currentHex();
-  return !!hex;
+function livePreview() {
+  const hex = refreshPreview();
+  if (colorTarget && colorOnPreview) colorOnPreview(colorTarget, hex);
+  return hex;
 }
-/* Enter commits DIRECTLY — it does not call .blur() to force the
-   native "change" event, on purpose. `commitColor` ends by returning
-   focus to the button that opened the popover (`releaseFocus`), and
-   doing that SYNCHRONOUSLY inside this same keydown would hand focus
-   to a <button> before the browser has finished processing this very
-   "Enter" keystroke — whose default action, on a focused button, is to
-   click it. That reopened the popover we had just closed: pressing
-   Enter looked like it did nothing, because closing and reopening
-   happened inside the same keystroke. preventDefault() only stops
-   OUR OWN input's default (irrelevant here); it can't reach into a
-   focus change made afterwards, which is why avoiding that change
-   entirely — not suppressing its consequences — is the actual fix. */
-colorHex.addEventListener("keydown", e => {
-  if (e.key !== "Enter") return;
-  e.preventDefault();
-  commitColorHex();
+wireSpectrumDrag(svCanvas, (x, y) => { pickS = x; pickV = 1 - y; drawSv(); livePreview(); });
+wireSpectrumDrag(hueCanvas, x => { pickH = x * 360; drawHue(); drawSv(); livePreview(); });
+
+/* Reads the CURRENTLY VISIBLE fields for the active mode straight into a
+   hex colour — no separator to split, each channel comes from its own
+   `<input>.value`. `null` means "incomplete or out of range", which is
+   the normal state of a field mid-edit (e.g. empty right after
+   Ctrl+A+Delete) and is not an error to report, just "not ready yet". */
+function readFieldsToHex() {
+  const fields = COLOR_MODE_FIELDS[colorMode];
+  if (colorMode === "hex") {
+    const v = colorFieldEls[0].value.trim().toLowerCase();
+    return /^#?[0-9a-f]{6}$/.test(v) ? (v[0] === "#" ? v : "#" + v) : null;
+  }
+  const nums = fields.map((f, i) => {
+    const n = Number(colorFieldEls[i].value);
+    return colorFieldEls[i].value !== "" && isFinite(n) && n >= f.min && n <= f.max ? n : null;
+  });
+  if (nums.some(n => n === null)) return null;
+  if (colorMode === "rgb") return rgbToHex(...nums);
+  if (colorMode === "cmyk") return rgbToHex(...cmykToRgb(...nums));
+  return rgbToHex(...hsvToRgb(nums[0], nums[1] / 100, nums[2] / 100)); /* hsv */
+}
+/* Fires on every keystroke, arrow-key nudge and wheel/drag tick of a
+   number field's native spinner: previews the SPECTRUM AND SWATCH from
+   whatever is currently typed, but deliberately does NOT call
+   `writeFieldsToMode()` (unlike every other pick above) — that would
+   overwrite the very field the user is mid-typing with a "cleaned up"
+   value on each keystroke, which resets the caret to the end and makes
+   typing a multi-digit number fight the input. The fields only get
+   rewritten wholesale by an EXTERNAL pick (swatch, drag, mode switch).  */
+function onFieldInput() {
+  const hex = readFieldsToHex();
+  if (!hex) return;
+  [pickH, pickS, pickV] = rgbToHsv(...hexToRgb(hex));
+  drawHue(); drawSv();
+  colorPreview.style.background = hex;
+  if (colorTarget && colorOnPreview) colorOnPreview(colorTarget, hex);
+}
+/* Enter (or leaving the field) normalises what's shown — e.g. filling in
+   a leading "#", or snapping an out-of-range/incomplete value back to
+   the last good one — same role `commitColorHex` used to play for the
+   single text field. Nothing here closes the popover: only Aceptar does,
+   so there is no `.blur()`-triggered reentrancy to worry about either. */
+function commitFields() {
+  const hex = readFieldsToHex();
+  if (hex) pickHex(hex); else writeFieldsToMode();
+}
+colorFieldEls.forEach(el => {
+  el.addEventListener("input", onFieldInput);
+  el.addEventListener("change", commitFields);
+  el.addEventListener("keydown", e => {
+    if (e.key !== "Enter") return;
+    e.preventDefault();
+    commitFields();
+  });
 });
-colorHex.addEventListener("change", commitColorHex);
 
 /* Anchored to the button that opened it, not centred on the viewport:
    below it by default, flipped above when there is no room below, and
    clamped so it never runs off either edge. Measuring offsetWidth/Height
    needs the element laid out first, so `hidden` comes off before this
-   runs — same tick, so nothing visibly flashes at the wrong spot.    */
+   runs — same tick, so nothing visibly flashes at the wrong spot.
+   Gaining its own Cancelar/Aceptar (and the notation row) made the
+   popover tall enough to reach down past the WINDOW edge check and
+   into the host dialog's own sticky Aceptar/Cancelar bar — the exact
+   overlap this popover exists to avoid (see the original centred-modal
+   bug in CLAUDE.md). So "room below" is capped not just by the window
+   but by that bar's top too, when the button lives inside one.       */
 function positionColorPicker(btn) {
   const r = btn.getBoundingClientRect();
   const w = colorPicker.offsetWidth, h = colorPicker.offsetHeight;
   let left = Math.min(r.left, window.innerWidth - w - 8);
   left = Math.max(left, 8);
+  const hostBox = btn.closest(".dlg-box");
+  const hostActions = hostBox && hostBox.querySelector(".dlg-actions");
+  const limit = Math.min(window.innerHeight - 8,
+    hostActions ? hostActions.getBoundingClientRect().top - 6 : Infinity);
   let top = r.bottom + 6;
-  if (top + h > window.innerHeight - 8) top = r.top - h - 6;
+  if (top + h > limit) top = r.top - h - 6;
   top = Math.max(top, 8);
   colorPicker.style.left = `${left}px`;
   colorPicker.style.top = `${top}px`;
 }
 
-function openColorPicker(btn, onCommit = defaultColorCommit) {
+function openColorPicker(btn, { onPreview = defaultColorPreview, onCommit = defaultColorCommit } = {}) {
   colorTarget = btn;
-  colorCommit = onCommit;
-  setFromHex(colorOf(btn));
-  buildColorSwatches(colorOf(btn));
+  colorOriginal = colorOf(btn);
+  colorOnPreview = onPreview;
+  colorOnCommit = onCommit;
+  setFromHex(colorOriginal);
+  buildColorSwatches(colorOriginal);
+  setColorMode(colorMode); /* re-format the field for whatever notation was left selected */
   colorPicker.hidden = false;
   positionColorPicker(btn);
   focusDialog(colorPicker);
 }
+/* Pure cleanup: hides the popover and drops its state. Never decides by
+   itself whether the pending colour is kept or discarded — that is
+   `acceptColorPicker`'s or `cancelColorPicker`'s job, always called
+   first.                                                              */
 function closeColorPicker() {
   colorPicker.hidden = true;
   colorTarget = null;
-  colorCommit = null;
+  colorOnPreview = null;
+  colorOnCommit = null;
   releaseFocus();
 }
-/* The button itself is the reliable close gesture: pulsing the same
-   swatch that opened the popover closes it again, whether or not the
-   colour changed. "Click outside" (below) is a convenience on top of
-   this, not a replacement for it.                                    */
-function toggleColorPicker(btn, onCommit = defaultColorCommit) {
-  if (!colorPicker.hidden && colorTarget === btn) { closeColorPicker(); return; }
-  openColorPicker(btn, onCommit);
-}
-function commitColor(hex) {
-  if (colorTarget) colorCommit(colorTarget, hex);
+/* The only gesture that makes a colour final. */
+function acceptColorPicker() {
+  if (colorTarget && colorOnCommit) colorOnCommit(colorTarget, currentHex());
   closeColorPicker();
 }
-/* Closing without picking anything: click outside the popover and
-   outside the button that opened it (so re-clicking that same button
-   just refreshes it instead of closing-then-reopening).
+/* Every other way of leaving the popover is a discard: restore the hex
+   the target had when it opened (`colorOnPreview`, the same function
+   that applied every live preview, undoes them the same way) and close
+   without ever calling `colorOnCommit`.                               */
+function cancelColorPicker() {
+  if (colorTarget && colorOnPreview) colorOnPreview(colorTarget, colorOriginal);
+  closeColorPicker();
+}
+document.getElementById("color-accept").addEventListener("click", acceptColorPicker);
+document.getElementById("color-cancel").addEventListener("click", cancelColorPicker);
+/* The button itself is a close gesture too: pulsing the same swatch
+   that opened the popover closes it again — as a CANCEL, same as
+   Escape or a click outside, not as an accept. "Click outside" (below)
+   is a convenience on top of this, not a replacement for it.          */
+function toggleColorPicker(btn, opts) {
+  if (!colorPicker.hidden && colorTarget === btn) { cancelColorPicker(); return; }
+  openColorPicker(btn, opts);
+}
+/* Closing without accepting: click outside the popover and outside the
+   button that opened it (so re-clicking that same button hits the
+   toggle branch above instead of closing-then-reopening).
    "click", not "mousedown": a control marked with
    L.DomEvent.disableClickPropagation (the base-maps panel, the
    measure/view toolbars…) stops mousedown/dblclick/contextmenu from
@@ -572,7 +741,7 @@ document.addEventListener("click", e => {
   if (colorPicker.hidden) return;
   if (colorPicker.contains(e.target)) return;
   if (colorTarget && colorTarget.contains(e.target)) return;
-  closeColorPicker();
+  cancelColorPicker();
 });
 for (const id of ["mk-color", "mk-text-color", "pg-color", "pg-fill-color",
                   "ms-color", "ms-fill-color"]) {
