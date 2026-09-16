@@ -2341,14 +2341,29 @@ creación del release en sí, que sigue siendo una decisión humana):
    push origin vX.Y.Z`. El tag debe coincidir EXACTAMENTE con
    `package.json.version` (con la `v` delante).
 4. `.github/workflows/release.yml`, disparado por ese `push` de tag,
-   comprueba que el tag coincide con `package.json` y que
+   comprueba que el tag coincide con `package.json`, que
    `kitelocal.html`/`kitelocal.min.html` están reconstruidos
-   (`npm run check`), y si todo cuadra publica el Release de GitHub por
-   su cuenta —notas generadas automáticamente a partir de los PR/commits
-   desde el tag anterior, con los dos artefactos adjuntos como assets de
-   esa versión exacta—. Si algo no cuadra, el workflow falla en rojo y
-   NO se publica ningún Release: hay que arreglarlo, borrar el tag mal
-   puesto y volver a crearlo sobre el commit correcto.
+   (`npm run check`) y **que las 51 suites de `npm test` pasan** —el
+   propio job las ejecuta, con navegador incluido
+   (`KITE_REQUIRE_BROWSER=1`, igual que `tests.yml`)—, y si todo cuadra
+   publica el Release de GitHub por su cuenta —notas generadas
+   automáticamente a partir de los PR/commits desde el tag anterior, con
+   los dos artefactos adjuntos como assets de esa versión exacta—. Si
+   algo no cuadra, el workflow falla en rojo y NO se publica ningún
+   Release: hay que arreglarlo, borrar el tag mal puesto y volver a
+   crearlo sobre el commit correcto.
+   **Los tests corren AQUÍ, no en un `tests.yml` del que este workflow
+   dependa**: `tests.yml` también se dispara con el mismo `push` de tag
+   (no filtra por rama), pero como workflow aparte, sin relación
+   `needs` con este — publicar no esperaba a que esa batería pasara, y
+   antes de que se corrigiera, un tag con las 51 suites en rojo se
+   podía publicar igual, porque `release.yml` nunca llegó a ejecutar
+   `npm test`. Correr la batería dentro del propio job es lo que hace
+   que un fallo PARE la ejecución antes de llegar al paso que publica
+   (los pasos de un job se detienen en el primer fallo). Se descartó
+   encadenar con `workflow_run` (reaccionar a que `tests.yml` termine)
+   por más frágil: exige resolver a mano el SHA/tag del run que lo
+   disparó, y no ahorra nada frente a repetir aquí los mismos pasos.
 
 **Por qué el bump es a mano y no una Action que reescribe
 `package.json` tras crear el tag**: se valoró y se descartó. El tag se

@@ -46,6 +46,28 @@ jobs:
       - name: Comprobar que kitelocal.html está al día respecto de src/
         run: npm run check
 
+      # Este workflow y tests.yml disparan los DOS con el push de un tag
+      # (tests.yml no filtra por rama/tag), pero corren en paralelo y sin
+      # relación entre sí: publicar aquí no esperaba a que la batería
+      # completa pasara en el otro. Antes de este cambio, un tag con las
+      # 51 suites en rojo podía publicarse igual — release.yml solo
+      # comprobaba el tag y que el build estuviera al día, nunca
+      # `npm test`. La forma más simple de que un release dependa de
+      # verdad de los tests es correrlos aquí mismo, en el mismo job: los
+      # pasos de un job se paran en el primer fallo, así que si esto
+      # falla, "Publicar el Release" ni siquiera llega a ejecutarse. Se
+      # descarta encadenar con `workflow_run` (dispara sobre la
+      # finalización de tests.yml) por ser más frágil: exige resolver a
+      # mano el SHA/tag del run original y duplica igual la lista de
+      # pasos, sin ganar nada a cambio salvo no repetir este bloque.
+      - name: Instalar el navegador de las pruebas
+        run: npx playwright install --with-deps chromium
+
+      - name: Ejecutar la batería completa de tests
+        run: npm test
+        env:
+          KITE_REQUIRE_BROWSER: "1"
+
       # gh viene preinstalado en los runners de GitHub Actions.
       # --generate-notes usa los PR y commits desde el tag anterior, que
       # es justo el flujo acordado: ramas con PR, y el tag al reunirlas

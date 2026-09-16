@@ -400,9 +400,9 @@ Feature work and fixes land on branches, each through its own pull request into 
 
 1. Bump `package.json`'s `"version"`, update `BUILD` in `src/js/10-map.js`, update the version shown in the two documents under `docs/` (the user manual and the security study), run `npm run build`, and commit — this is the release's final commit.
 2. Tag that exact commit and push the tag: `git tag vX.Y.Z && git push origin vX.Y.Z`. The tag **must** match `package.json`'s version precisely (with a leading `v`).
-3. [`.github/workflows/release.yml`](.github/workflows/release.yml) takes it from there: it verifies the tag matches `package.json` and that `kitelocal.html`/`kitelocal.min.html` are up to date with `src/`, then publishes the GitHub Release itself — auto-generated release notes from the merged PRs, with both artifacts attached as downloadable assets for that exact version.
+3. [`.github/workflows/release.yml`](.github/workflows/release.yml) takes it from there: it verifies the tag matches `package.json`, that `kitelocal.html`/`kitelocal.min.html` are up to date with `src/`, and runs the full test suite (`npm test`, with the browser suites required) — only then does it publish the GitHub Release itself, with auto-generated release notes from the merged PRs and both artifacts attached as downloadable assets for that exact version.
 
-If either check fails, the workflow fails and **no Release is published**. Fix what's missing (the version bump or `npm run build`), delete the bad tag (`git push --delete origin vX.Y.Z`), and tag the corrected commit.
+If any of those checks fail, the workflow fails and **no Release is published** — the test run happens inside this same job specifically so a red suite stops it before the publish step ever runs, rather than racing independently against the separate `tests.yml` workflow that the same tag push also triggers. Fix what's missing (the version bump, `npm run build`, or the failing test), delete the bad tag (`git push --delete origin vX.Y.Z`), and tag the corrected commit.
 
 `package.json`'s `"version"` is the single source of truth: `build.js` bakes it into the app's attribution line (`v<version> (<build>) | GitHub | Leaflet`, bottom-right of the map) at build time, the same way it already inlines the page's CSS and JS.
 
