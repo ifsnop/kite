@@ -213,6 +213,61 @@ ok(toggleBoton.abierto1, "el popover se abre al pulsar el botón de color");
 ok(toggleBoton.cerrado,
   "y se cierra al volver a pulsar EL MISMO botón, sin haber cambiado el color");
 
+/* El espectro es NUESTRO, no <input type="color">: ese control abre el
+   panel NATIVO del navegador, que vive fuera del DOM de la página y no
+   se puede cerrar, reposicionar ni tratar como parte de un único
+   diálogo integrado por ningún script — el motivo de fondo por el que
+   "un solo diálogo" no podía cumplirse mientras siguiera ahí. Guarda
+   estructural para que no vuelva a colarse.                          */
+ok(!(await page.$("#color-picker input[type=color]")),
+  "el popover no lleva ningún <input type=\"color\">: el espectro es propio");
+
+/* Arrastrar de verdad en el cuadrado de saturación/valor: confirma y
+   cierra al soltar (no en cada tick de arrastre, para poder recorrer el
+   cuadrado buscando el tono antes de decidir).                       */
+await page.evaluate(() => {
+  const li = [...document.querySelectorAll("#tree li")].find(x => x._mstyle);
+  openStyleDialog(li);
+});
+await page.click("#mk-color");
+await page.waitForTimeout(150);
+let box = await (await page.$("#color-sv")).boundingBox();
+await page.mouse.move(box.x + box.width * 0.7, box.y + box.height * 0.3);
+await page.mouse.down();
+await page.mouse.move(box.x + box.width * 0.8, box.y + box.height * 0.2);
+await page.waitForTimeout(80);
+ok(!(await page.evaluate(() => document.getElementById("color-picker").hidden)),
+  "arrastrar en el cuadrado NO cierra a mitad de gesto");
+await page.mouse.up();
+await page.waitForTimeout(150);
+ok(await page.evaluate(() => document.getElementById("color-picker").hidden),
+  "y sí cierra al soltar, con el color aplicado al botón");
+
+/* El fallo más esquivo de todos: escribir un hexadecimal y pulsar
+   Intro. `commitColor` cierra el popover devolviendo el foco al botón
+   que lo abrió (releaseFocus) — SI eso ocurre de forma síncrona dentro
+   del propio keydown de Intro, el botón queda enfocado antes de que el
+   navegador termine de procesar esa misma pulsación, y su acción por
+   defecto sobre un <button> enfocado (activarlo) reabre el popover que
+   se acababa de cerrar: parecía que Intro «no hacía nada». Hace falta
+   un Intro de teclado REAL para ejercitarlo.                          */
+await page.evaluate(() => {
+  const li = [...document.querySelectorAll("#tree li")].find(x => x._mstyle);
+  openStyleDialog(li);
+});
+await page.click("#mk-color");
+await page.waitForTimeout(150);
+await page.click("#color-hex");
+await page.keyboard.press("Control+A");
+await page.keyboard.type("#ff00aa");
+await page.keyboard.press("Enter");
+await page.waitForTimeout(200);
+ok(await page.evaluate(() => document.getElementById("color-picker").hidden),
+  "escribir un hex y pulsar Intro cierra el popover (no lo reabre)");
+ok((await page.evaluate(() => document.getElementById("mk-color").dataset.color)) === "#ff00aa",
+  "y el color escrito llega al botón");
+await page.click("#style-cancel");
+
 /* Redimensionar a mano no puede descolgar los botones */
 const trasEstirar = await page.evaluate(() => {
   openStyleDialog([...document.querySelectorAll("#tree li")].find(x => x._mstyle));

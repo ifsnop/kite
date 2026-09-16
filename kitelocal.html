@@ -600,13 +600,34 @@
     box-shadow: 0 8px 30px rgba(0,0,0,.25);
   }
   .color-popover[hidden] { display: none; }
-  .color-popover input[type="color"] {
+  /* Espectro propio: dos <canvas> (saturación/valor y matiz), en vez de
+     <input type="color">, que abriría el panel NATIVO del navegador —
+     imposible de cerrar o integrar por script (ver el comentario en
+     src/index.html). `touch-action: none` es lo que impide que arrastrar
+     sobre ellos haga scroll de la página en un dispositivo táctil.    */
+  .color-popover canvas {
+    display: block;
     width: 100%;
-    height: 32px;
-    padding: 0;
+    border-radius: 5px;
+    border: 1px solid var(--border);
+    cursor: crosshair;
+    touch-action: none;
+  }
+  .color-hexrow { display: flex; gap: 6px; align-items: center; }
+  .color-preview {
+    width: 24px;
+    height: 24px;
+    flex: none;
+    border-radius: 5px;
+    border: 1px solid var(--border);
+  }
+  .color-hexrow input {
+    flex: 1;
+    min-width: 0;
+    font: inherit;
+    padding: 3px 6px;
     border: 1px solid var(--border);
     border-radius: 5px;
-    cursor: pointer;
   }
   .ctx-menu {
     position: fixed;
@@ -1305,13 +1326,22 @@
 </div>
 
 <!-- Selector de color: un POPOVER anclado al botón que lo abre, no una
-     segunda ventana modal aparte. Elegir un color (una muestra, o
-     confirmar el selector nativo) aplica y cierra en el mismo gesto: no
-     hace falta Cancelar/Aceptar propios, porque el diálogo que lo
-     contiene (estilos, o el que sea) sigue teniendo los suyos y es quien
-     de verdad decide si el cambio llega a la capa. -->
+     segunda ventana modal aparte. NO usa <input type="color">: ese
+     control abre el panel NATIVO del navegador, que vive fuera de
+     nuestro DOM y de nuestro control — no se puede cerrar, reposicionar
+     ni tratar como parte de un solo diálogo integrado por script alguno.
+     El espectro es en cambio dos <canvas> propios (saturación/valor y
+     matiz) más un campo hexadecimal; elegir un color —una muestra, un
+     punto del espectro, o confirmar el hexadecimal— aplica y cierra en
+     el mismo gesto, con nuestros propios medios de cierre (repetir el
+     botón que lo abrió, un clic fuera, o Escape) siempre disponibles. -->
 <div id="color-picker" class="color-popover" role="dialog" aria-label="Elegir color" hidden>
-  <input type="color" id="color-input">
+  <canvas id="color-sv" width="227" height="140"></canvas>
+  <canvas id="color-hue" width="227" height="16"></canvas>
+  <div class="color-hexrow">
+    <span class="color-preview" id="color-preview"></span>
+    <input type="text" id="color-hex" maxlength="7" spellcheck="false" autocomplete="off" aria-label="Código hexadecimal del color">
+  </div>
   <div class="color-swatches" id="color-swatches"></div>
 </div>
 
@@ -1719,14 +1749,14 @@ map.on("resize", fitWorldMinZoom);
 
 /* Fecha de generación del código (versión): AÑOMESDIAHORAMINUTO.
    Actualizar en cada generación; se muestra junto al crédito de Leaflet. */
-const BUILD = "202609151943";
+const BUILD = "202609161212";
 /* Versión de release (la de package.json, horneada aquí por build.js
    al construir — ver «Versión y releases de GitHub» en CLAUDE.md): a
    diferencia de BUILD, que cambia en CADA generación, esta solo cambia
    al preparar un release, y debe coincidir con el tag de GitHub que se
    crea justo después del commit que la sube. Lo comprueba
    .github/workflows/release.yml antes de publicar el Release.        */
-const VERSION = "1.3.0";
+const VERSION = "1.3.1";
 /* El enlace al repositorio va junto a la versión, que es lo que hace
    accionable saber qué build se está ejecutando: desde ahí se llega al
    código de esa versión. `target="_blank"` a propósito —salir de la
@@ -7651,26 +7681,46 @@ function makeDialogMovable(box) {
   }
 }
 
-/* ---------- Colour picker (popover, one gesture) ----------
+/* ---------- Colour picker (popover, one gesture, fully ours) ----------
    Used to be a full second modal window (its own Cancelar/Aceptar),
    stacked as a centred .dlg-overlay regardless of where the style
    dialog was — reported bug: it landed on top of the style dialog,
-   nearly covering its own buttons. Picking a colour here does NOT need
-   a confirm step of its own: the native <input type="color"> firing
-   early only updates THIS button's swatch (and, for the style dialog,
-   its draft) — never the live layer, which still waits for the outer
-   dialog's own "Aceptar". So one popover, one click, done.
-   `openColorPicker`'s second argument lets a caller outside the style
-   dialog (the base-map background colour, see 11-base-panel.js) supply
-   its own commit behaviour instead of touching styleDraft.            */
+   nearly covering its own buttons. Fixed by turning it into a popover.
+
+   That popover still used a native <input type="color"> for the full
+   spectrum, and THAT was its own unfixable version of the same
+   complaint: clicking it opens the browser's OWN colour panel, which
+   lives outside our DOM entirely — no script can close it, reposition
+   it, or make pressing "the big button" again dismiss it, because that
+   panel was never ours to begin with. "One integrated dialog" cannot
+   be true while part of it is a browser-native popup we don't control.
+   So the spectrum is now two <canvas> elements (saturation/value, and
+   hue) that we draw and handle ourselves, plus a hex field — nothing
+   here ever leaves our own DOM, so every close gesture (repeat the
+   opening button, click outside, Escape) works on it exactly like on
+   the rest of the popover.
+
+   Picking a colour does NOT need a confirm step of its own: it only
+   updates THIS button's swatch (and, for the style dialog, its draft)
+   — never the live layer, which still waits for the outer dialog's own
+   "Aceptar". `openColorPicker`'s second argument lets a caller outside
+   the style dialog (the base-map background colour, see
+   11-base-panel.js) supply its own commit behaviour instead of
+   touching styleDraft.                                                */
 const COLOR_PRESETS = [
   "#000000", "#4d4d4d", "#8c8c8c", "#ffffff", "#1b5e97", "#3388ff", "#00a3c4", "#00897b",
   "#2e7d32", "#8bc34a", "#f9a825", "#ef6c00", "#b04a3a", "#d32f2f", "#8e24aa", "#5e35b1"
 ];
 const colorPicker = document.getElementById("color-picker");
-const colorInput = document.getElementById("color-input");
+const svCanvas = document.getElementById("color-sv");
+const hueCanvas = document.getElementById("color-hue");
+const svCtx = svCanvas.getContext("2d");
+const hueCtx = hueCanvas.getContext("2d");
+const colorPreview = document.getElementById("color-preview");
+const colorHex = document.getElementById("color-hex");
 let colorTarget = null; /* colour button being edited */
 let colorCommit = null; /* (btn, hex) => void — what "picking a colour" does */
+let pickH = 210, pickS = 1, pickV = 1; /* current spectrum position, HSV */
 
 function setColorButton(btn, hex) {
   btn.dataset.color = hex;
@@ -7703,6 +7753,128 @@ function buildColorSwatches(current) {
   }
 }
 
+/* ---- HSV <-> RGB <-> hex, just enough for the two canvases ---- */
+function hsvToRgb(h, s, v) {
+  const c = v * s, x = c * (1 - Math.abs((h / 60) % 2 - 1)), m = v - c;
+  const [r, g, b] = h < 60 ? [c, x, 0] : h < 120 ? [x, c, 0] : h < 180 ? [0, c, x]
+    : h < 240 ? [0, x, c] : h < 300 ? [x, 0, c] : [c, 0, x];
+  return [Math.round((r + m) * 255), Math.round((g + m) * 255), Math.round((b + m) * 255)];
+}
+function rgbToHex(r, g, b) {
+  return "#" + [r, g, b].map(n => n.toString(16).padStart(2, "0")).join("");
+}
+function hexToRgb(hex) {
+  const m = /^#([0-9a-f]{2})([0-9a-f]{2})([0-9a-f]{2})$/i.exec(hex);
+  return m ? [1, 2, 3].map(i => parseInt(m[i], 16)) : [0, 0, 0];
+}
+function rgbToHsv(r, g, b) {
+  r /= 255; g /= 255; b /= 255;
+  const max = Math.max(r, g, b), min = Math.min(r, g, b), d = max - min;
+  let h = 0;
+  if (d) {
+    if (max === r) h = 60 * (((g - b) / d) % 6);
+    else if (max === g) h = 60 * ((b - r) / d + 2);
+    else h = 60 * ((r - g) / d + 4);
+  }
+  return [h < 0 ? h + 360 : h, max ? d / max : 0, max];
+}
+const clamp01 = n => Math.min(1, Math.max(0, n));
+
+function drawHue() {
+  const w = hueCanvas.width, h = hueCanvas.height;
+  const grad = hueCtx.createLinearGradient(0, 0, w, 0);
+  for (let i = 0; i <= 6; i++) grad.addColorStop(i / 6, `hsl(${i * 60}, 100%, 50%)`);
+  hueCtx.fillStyle = grad;
+  hueCtx.fillRect(0, 0, w, h);
+  const x = (pickH / 360) * w;
+  hueCtx.strokeStyle = "#fff"; hueCtx.lineWidth = 2; hueCtx.strokeRect(x - 2, 0, 4, h);
+  hueCtx.strokeStyle = "rgba(0,0,0,.4)"; hueCtx.lineWidth = 1; hueCtx.strokeRect(x - 2.5, 0.5, 5, h - 1);
+}
+/* The square's own base colour is the pure hue at full saturation/value;
+   a white-to-transparent wash left-to-right gives saturation, a
+   transparent-to-black wash top-to-bottom gives value — the standard
+   construction for this widget, done with two overlaid gradients.    */
+function drawSv() {
+  const w = svCanvas.width, h = svCanvas.height;
+  const [r, g, b] = hsvToRgb(pickH, 1, 1);
+  svCtx.fillStyle = `rgb(${r},${g},${b})`;
+  svCtx.fillRect(0, 0, w, h);
+  let grad = svCtx.createLinearGradient(0, 0, w, 0);
+  grad.addColorStop(0, "#fff"); grad.addColorStop(1, "rgba(255,255,255,0)");
+  svCtx.fillStyle = grad; svCtx.fillRect(0, 0, w, h);
+  grad = svCtx.createLinearGradient(0, 0, 0, h);
+  grad.addColorStop(0, "rgba(0,0,0,0)"); grad.addColorStop(1, "#000");
+  svCtx.fillStyle = grad; svCtx.fillRect(0, 0, w, h);
+  const mx = pickS * w, my = (1 - pickV) * h;
+  svCtx.beginPath(); svCtx.arc(mx, my, 5, 0, Math.PI * 2);
+  svCtx.strokeStyle = "#fff"; svCtx.lineWidth = 2; svCtx.stroke();
+  svCtx.strokeStyle = "rgba(0,0,0,.4)"; svCtx.lineWidth = 1; svCtx.stroke();
+}
+function currentHex() { return rgbToHex(...hsvToRgb(pickH, pickS, pickV)); }
+function refreshPreview() {
+  const hex = currentHex();
+  colorPreview.style.background = hex;
+  colorHex.value = hex;
+  return hex;
+}
+function setFromHex(hex) {
+  [pickH, pickS, pickV] = rgbToHsv(...hexToRgb(hex));
+  drawHue(); drawSv(); refreshPreview();
+}
+
+/* Drag on either canvas: pointer capture so the gesture keeps tracking
+   even if the cursor leaves the small canvas mid-drag (same technique
+   as makeDialogMovable's title-bar drag). Only the release COMMITS —
+   same role "change" played for the native input it replaces — so
+   dragging around to preview shades doesn't close the popover on the
+   very first pixel.                                                  */
+function wireSpectrumDrag(canvas, onMove) {
+  let dragging = false;
+  const step = e => {
+    const r = canvas.getBoundingClientRect();
+    onMove(clamp01((e.clientX - r.left) / r.width), clamp01((e.clientY - r.top) / r.height));
+  };
+  canvas.addEventListener("pointerdown", e => {
+    dragging = true;
+    canvas.setPointerCapture(e.pointerId);
+    step(e);
+  });
+  canvas.addEventListener("pointermove", e => { if (dragging) step(e); });
+  const stop = () => { if (dragging) { dragging = false; commitColor(refreshPreview()); } };
+  canvas.addEventListener("pointerup", stop);
+  canvas.addEventListener("pointercancel", stop);
+}
+wireSpectrumDrag(svCanvas, (x, y) => { pickS = x; pickV = 1 - y; drawSv(); refreshPreview(); });
+wireSpectrumDrag(hueCanvas, x => { pickH = x * 360; drawHue(); drawSv(); refreshPreview(); });
+
+/* Shared by Enter and by leaving the field (blur → native "change").
+   Returns whether the text was a usable hex, so the caller can decide
+   whether to swallow the keystroke.                                  */
+function commitColorHex() {
+  const v = colorHex.value.trim().toLowerCase();
+  const hex = /^#?[0-9a-f]{6}$/.test(v) ? (v[0] === "#" ? v : "#" + v) : null;
+  if (hex) { setFromHex(hex); commitColor(hex); } else colorHex.value = currentHex();
+  return !!hex;
+}
+/* Enter commits DIRECTLY — it does not call .blur() to force the
+   native "change" event, on purpose. `commitColor` ends by returning
+   focus to the button that opened the popover (`releaseFocus`), and
+   doing that SYNCHRONOUSLY inside this same keydown would hand focus
+   to a <button> before the browser has finished processing this very
+   "Enter" keystroke — whose default action, on a focused button, is to
+   click it. That reopened the popover we had just closed: pressing
+   Enter looked like it did nothing, because closing and reopening
+   happened inside the same keystroke. preventDefault() only stops
+   OUR OWN input's default (irrelevant here); it can't reach into a
+   focus change made afterwards, which is why avoiding that change
+   entirely — not suppressing its consequences — is the actual fix. */
+colorHex.addEventListener("keydown", e => {
+  if (e.key !== "Enter") return;
+  e.preventDefault();
+  commitColorHex();
+});
+colorHex.addEventListener("change", commitColorHex);
+
 /* Anchored to the button that opened it, not centred on the viewport:
    below it by default, flipped above when there is no room below, and
    clamped so it never runs off either edge. Measuring offsetWidth/Height
@@ -7723,7 +7895,7 @@ function positionColorPicker(btn) {
 function openColorPicker(btn, onCommit = defaultColorCommit) {
   colorTarget = btn;
   colorCommit = onCommit;
-  colorInput.value = colorOf(btn);
+  setFromHex(colorOf(btn));
   buildColorSwatches(colorOf(btn));
   colorPicker.hidden = false;
   positionColorPicker(btn);
@@ -7738,11 +7910,7 @@ function closeColorPicker() {
 /* The button itself is the reliable close gesture: pulsing the same
    swatch that opened the popover closes it again, whether or not the
    colour changed. "Click outside" (below) is a convenience on top of
-   this, not a replacement for it — reported bug: from inside a
-   container that swallows outside clicks in some way not yet
-   accounted for, or simply because clicking the big colour button one
-   pulsed is the first thing anyone tries, there was no reliable way to
-   close the popover with the mouse without this.                     */
+   this, not a replacement for it.                                    */
 function toggleColorPicker(btn, onCommit = defaultColorCommit) {
   if (!colorPicker.hidden && colorTarget === btn) { closeColorPicker(); return; }
   openColorPicker(btn, onCommit);
@@ -7751,11 +7919,6 @@ function commitColor(hex) {
   if (colorTarget) colorCommit(colorTarget, hex);
   closeColorPicker();
 }
-colorInput.addEventListener("input", () => buildColorSwatches(colorInput.value));
-/* "change" is the native picker's own confirm (fires once, on release —
-   not on every drag tick like "input"), so it plays the same role the
-   old "Aceptar" button did. */
-colorInput.addEventListener("change", () => commitColor(colorInput.value));
 /* Closing without picking anything: click outside the popover and
    outside the button that opened it (so re-clicking that same button
    just refreshes it instead of closing-then-reopening).

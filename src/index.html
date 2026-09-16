@@ -273,13 +273,22 @@
 </div>
 
 <!-- Selector de color: un POPOVER anclado al botón que lo abre, no una
-     segunda ventana modal aparte. Elegir un color (una muestra, o
-     confirmar el selector nativo) aplica y cierra en el mismo gesto: no
-     hace falta Cancelar/Aceptar propios, porque el diálogo que lo
-     contiene (estilos, o el que sea) sigue teniendo los suyos y es quien
-     de verdad decide si el cambio llega a la capa. -->
+     segunda ventana modal aparte. NO usa <input type="color">: ese
+     control abre el panel NATIVO del navegador, que vive fuera de
+     nuestro DOM y de nuestro control — no se puede cerrar, reposicionar
+     ni tratar como parte de un solo diálogo integrado por script alguno.
+     El espectro es en cambio dos <canvas> propios (saturación/valor y
+     matiz) más un campo hexadecimal; elegir un color —una muestra, un
+     punto del espectro, o confirmar el hexadecimal— aplica y cierra en
+     el mismo gesto, con nuestros propios medios de cierre (repetir el
+     botón que lo abrió, un clic fuera, o Escape) siempre disponibles. -->
 <div id="color-picker" class="color-popover" role="dialog" aria-label="Elegir color" hidden>
-  <input type="color" id="color-input">
+  <canvas id="color-sv" width="227" height="140"></canvas>
+  <canvas id="color-hue" width="227" height="16"></canvas>
+  <div class="color-hexrow">
+    <span class="color-preview" id="color-preview"></span>
+    <input type="text" id="color-hex" maxlength="7" spellcheck="false" autocomplete="off" aria-label="Código hexadecimal del color">
+  </div>
   <div class="color-swatches" id="color-swatches"></div>
 </div>
 
