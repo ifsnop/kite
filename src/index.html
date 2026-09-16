@@ -278,9 +278,12 @@
      nuestro DOM y de nuestro control — no se puede cerrar, reposicionar
      ni tratar como parte de un solo diálogo integrado por script alguno.
      El espectro es en cambio dos <canvas> propios (saturación/valor y
-     matiz) más un campo de texto con el valor numérico, que se puede
-     leer en varias notaciones (Hex/RGB/CMYK/HSV, con las flechas ‹ ›
-     para cambiar entre ellas, igual que el botón ⇅ de las coordenadas).
+     matiz) más hasta cuatro campos NUMÉRICOS, uno por componente —Hex
+     usa uno solo, RGB y HSV tres, CMYK los cuatro—, con las flechas ‹ ›
+     para cambiar de notación, igual que el botón ⇅ de las coordenadas.
+     Un campo por componente evita tener que parsear separadores de un
+     único campo de texto («255, 0, 0»): cada valor se lee directo de su
+     propio `<input>`.
      Mover el espectro, tocar una muestra o escribir un valor solo
      PREVISUALIZA sobre el elemento editado (el botón, y para un color de
      marcador también su icono); nada se guarda de verdad hasta pulsar
@@ -298,7 +301,12 @@
   </div>
   <div class="color-hexrow">
     <span class="color-preview" id="color-preview"></span>
-    <input type="text" id="color-hex" spellcheck="false" autocomplete="off" aria-label="Valor del color">
+    <div class="color-fields" id="color-fields">
+      <label class="color-field" id="color-field-0"><span class="color-field-label"></span><input id="color-f0" spellcheck="false" autocomplete="off"></label>
+      <label class="color-field" id="color-field-1"><span class="color-field-label"></span><input id="color-f1" autocomplete="off"></label>
+      <label class="color-field" id="color-field-2"><span class="color-field-label"></span><input id="color-f2" autocomplete="off"></label>
+      <label class="color-field" id="color-field-3"><span class="color-field-label"></span><input id="color-f3" autocomplete="off"></label>
+    </div>
   </div>
   <div class="color-swatches" id="color-swatches"></div>
   <div class="color-actions">
@@ -364,8 +372,8 @@
     <p class="dlg-hint">Asociaciones guardadas entre la estructura de <code>properties</code> de un GeoJSON y la propiedad usada como nombre.</p>
     <div class="gnp-editor-list" id="gnp-editor-list"></div>
     <div class="dlg-actions">
-      <button class="btn" id="gnp-editor-clear">Borrar todo</button>
       <button class="btn" id="gnp-editor-close">Cerrar</button>
+      <button class="btn" id="gnp-editor-clear">Borrar todo</button>
     </div>
   </div>
 </div>
@@ -400,9 +408,9 @@
       marcados con <strong>!</strong> exig&#237;an confirmaci&#243;n. Al cerrar la p&#225;gina se pierde.</p>
     <div class="log-list" id="log-list"></div>
     <div class="dlg-actions">
+      <button class="btn" id="log-close">Cerrar</button>
       <button class="btn" id="log-copy">Copiar</button>
       <button class="btn" id="log-clear">Borrar</button>
-      <button class="btn" id="log-close">Cerrar</button>
     </div>
   </div>
 </div>
@@ -455,8 +463,8 @@
       <code>sh.dataspace.copernicus.eu</code>. Puedes borrarlo cuando quieras.</p>
     <p class="dlg-hint sh-bad" id="sh-error" hidden></p>
     <div class="dlg-actions">
-      <button class="btn" id="sh-clear">Borrar</button>
       <button class="btn" id="sh-cancel">Cancelar</button>
+      <button class="btn" id="sh-clear">Borrar</button>
       <button class="btn" id="sh-accept">Aceptar</button>
     </div>
   </div>

@@ -355,7 +355,7 @@ await page.evaluate(() => {
 });
 await page.click("#mk-color");
 await page.waitForTimeout(150);
-await page.click("#color-hex");
+await page.click("#color-f0");
 await page.keyboard.press("Control+A");
 await page.keyboard.type("#ff00aa");
 await page.keyboard.press("Enter");
@@ -371,10 +371,12 @@ ok((await page.evaluate(() => document.getElementById("mk-color").dataset.color)
   "con el color escrito ya aplicado de verdad");
 await page.click("#style-cancel");
 
-/* Las flechas ‹ › ciclan la notación del campo de texto (Hex/RGB/CMYK/
-   HSV) sin cambiar el color: mismo papel que el botón ⇅ de las
-   coordenadas, con más de dos estados. Se comprueba escribiendo el
-   MISMO rojo puro en cada notación y viendo que el botón coincide.   */
+/* Las flechas ‹ › ciclan la notación (Hex/RGB/CMYK/HSV) sin cambiar el
+   color: mismo papel que el botón ⇅ de las coordenadas, con más de dos
+   estados. Cada notación es UN CAMPO POR CANAL, no un texto con
+   separadores: Hex usa `#color-f0` en solitario, RGB/HSV los tres
+   primeros, CMYK los cuatro. Se comprueba escribiendo el MISMO rojo
+   puro en RGB, campo a campo, y leyéndolo de vuelta en CMYK.          */
 await page.evaluate(() => {
   const li = [...document.querySelectorAll("#tree li")].find(x => x._mstyle);
   openStyleDialog(li);
@@ -383,26 +385,54 @@ await page.click("#mk-color");
 await page.waitForTimeout(150);
 const etiquetaInicial = await page.evaluate(() => document.getElementById("color-mode-label").textContent);
 ok(etiquetaInicial === "HEX", `la notación por defecto es HEX: era «${etiquetaInicial}»`);
+const camposHex = await page.evaluate(() =>
+  [0, 1, 2, 3].map(i => !document.getElementById(`color-field-${i}`).hidden));
+ok(JSON.stringify(camposHex) === JSON.stringify([true, false, false, false]),
+  `en HEX solo se ve un campo: ${JSON.stringify(camposHex)}`);
 await page.click("#color-mode-next");
-const enRgb = await page.evaluate(() => ({
-  etiqueta: document.getElementById("color-mode-label").textContent,
-  valor: document.getElementById("color-hex").value
-}));
-ok(enRgb.etiqueta === "RGB", `la flecha › avanza a RGB: era «${enRgb.etiqueta}»`);
-await page.click("#color-hex");
-await page.keyboard.press("Control+A");
-await page.keyboard.type("255, 0, 0");
-await page.keyboard.press("Enter");
+const etiquetaRgb = await page.evaluate(() => document.getElementById("color-mode-label").textContent);
+ok(etiquetaRgb === "RGB", `la flecha › avanza a RGB: era «${etiquetaRgb}»`);
+const camposRgb = await page.evaluate(() =>
+  [0, 1, 2, 3].map(i => !document.getElementById(`color-field-${i}`).hidden));
+ok(JSON.stringify(camposRgb) === JSON.stringify([true, true, true, false]),
+  `en RGB se ven tres campos: ${JSON.stringify(camposRgb)}`);
+await page.fill("#color-f0", "255");
+await page.fill("#color-f1", "0");
+await page.fill("#color-f2", "0");
 await page.waitForTimeout(100);
 ok((await page.evaluate(() => document.getElementById("mk-color").dataset.color)) === "#ff0000",
-  "escribir «255, 0, 0» en notación RGB aplica el rojo puro");
+  "escribir 255/0/0 en los tres campos RGB aplica el rojo puro");
 await page.click("#color-mode-next");
-const enCmyk = await page.evaluate(() => document.getElementById("color-hex").value);
+const camposCmyk = await page.evaluate(() =>
+  [0, 1, 2, 3].map(i => !document.getElementById(`color-field-${i}`).hidden));
+ok(JSON.stringify(camposCmyk) === JSON.stringify([true, true, true, true]),
+  `en CMYK se ven los cuatro campos: ${JSON.stringify(camposCmyk)}`);
+const enCmyk = await page.evaluate(() =>
+  [0, 1, 2, 3].map(i => document.getElementById(`color-f${i}`).value).join(", "));
+ok(/^0,\s*100,\s*100,\s*0$/.test(enCmyk),
+  `y CMYK lee el mismo rojo como cian 0 / magenta 100 / amarillo 100 / negro 0: «${enCmyk}»`);
 await page.click("#color-mode-prev");
 await page.click("#color-mode-prev"); /* CMYK → RGB → HEX: vuelve a la de partida */
 const etiquetaTrasCiclo = await page.evaluate(() => document.getElementById("color-mode-label").textContent);
 ok(etiquetaTrasCiclo === "HEX", `‹ retrocede igual, ciclando: llegó a «${etiquetaTrasCiclo}»`);
-ok(/^0,\s*100,\s*100,\s*0$/.test(enCmyk), `y CMYK lee el mismo rojo como cian 0 / magenta 100 / amarillo 100 / negro 0: «${enCmyk}»`);
+await page.click("#color-cancel");
+await page.click("#style-cancel");
+
+/* La rampa de matiz es un deslizador de una dimensión, no un plano de
+   selección: debe mostrar una mano (`grab`), no una cruz (`crosshair`,
+   que sí corresponde al cuadrado de saturación/valor, un plano real). */
+await page.evaluate(() => {
+  const li = [...document.querySelectorAll("#tree li")].find(x => x._mstyle);
+  openStyleDialog(li);
+});
+await page.click("#mk-color");
+await page.waitForTimeout(150);
+const cursores = await page.evaluate(() => ({
+  sv: getComputedStyle(document.getElementById("color-sv")).cursor,
+  hue: getComputedStyle(document.getElementById("color-hue")).cursor
+}));
+ok(cursores.sv === "crosshair", `el cuadrado de saturación/valor sigue en cruz: era «${cursores.sv}»`);
+ok(cursores.hue === "grab", `la rampa de matiz es una mano, no una cruz: era «${cursores.hue}»`);
 await page.click("#color-cancel");
 await page.click("#style-cancel");
 

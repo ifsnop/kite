@@ -355,27 +355,42 @@ const COLOR_PRESETS = [
   "#000000", "#4d4d4d", "#8c8c8c", "#ffffff", "#1b5e97", "#3388ff", "#00a3c4", "#00897b",
   "#2e7d32", "#8bc34a", "#f9a825", "#ef6c00", "#b04a3a", "#d32f2f", "#8e24aa", "#5e35b1"
 ];
-/* The four numeric notations the text field can show, cycled with the
+/* The four numeric notations the value fields can show, cycled with the
    ‹ › arrows — same idea as the ⇅ button that toggles a marker's
    coordinates between "dec" and "dms", generalised to more than two
    states. Purely a display/input preference: it does not change what
-   gets picked, only how the current colour reads and how typed text is
-   parsed.                                                              */
+   gets picked, only how the current colour is split into fields.
+   Each mode lists its channels: `label` (shown above the field and used
+   in its `aria-label`) plus `min`/`max` for a numeric spinner, or
+   `text: true` for Hex, which isn't a channel value. ONE INPUT PER
+   CHANNEL on purpose — no separator ("255, 0, 0") to parse, so there is
+   no parsing logic to keep in sync with what the fields can contain,
+   and the browser's own number spinner (arrows, wheel, drag) works on
+   each channel for free.                                              */
 const COLOR_MODES = ["hex", "rgb", "cmyk", "hsv"];
 const COLOR_MODE_LABELS = { hex: "HEX", rgb: "RGB", cmyk: "CMYK", hsv: "HSV" };
+const COLOR_MODE_FIELDS = {
+  hex: [{ label: "Hex", text: true }],
+  rgb: [{ label: "R", min: 0, max: 255 }, { label: "G", min: 0, max: 255 }, { label: "B", min: 0, max: 255 }],
+  cmyk: [{ label: "C", min: 0, max: 100 }, { label: "M", min: 0, max: 100 },
+         { label: "Y", min: 0, max: 100 }, { label: "K", min: 0, max: 100 }],
+  hsv: [{ label: "H", min: 0, max: 360 }, { label: "S", min: 0, max: 100 }, { label: "V", min: 0, max: 100 }]
+};
 const colorPicker = document.getElementById("color-picker");
 const svCanvas = document.getElementById("color-sv");
 const hueCanvas = document.getElementById("color-hue");
 const svCtx = svCanvas.getContext("2d");
 const hueCtx = hueCanvas.getContext("2d");
 const colorPreview = document.getElementById("color-preview");
-const colorHex = document.getElementById("color-hex");
 const colorModeLabel = document.getElementById("color-mode-label");
+const colorFieldWraps = [0, 1, 2, 3].map(i => document.getElementById(`color-field-${i}`));
+const colorFieldLabels = colorFieldWraps.map(w => w.querySelector(".color-field-label"));
+const colorFieldEls = colorFieldWraps.map(w => w.querySelector("input"));
 let colorTarget = null;    /* colour button being edited */
 let colorOriginal = null;  /* its hex when the popover opened: what Cancelar restores */
 let colorOnPreview = null; /* (btn, hex) => void — live, never persisted */
 let colorOnCommit = null;  /* (btn, hex) => void — the actual save, only on Aceptar */
-let colorMode = "hex";     /* current notation of the text field; not persisted, like posFormat */
+let colorMode = "hex";     /* current notation of the value fields; not persisted, like posFormat */
 let pickH = 210, pickS = 1, pickV = 1; /* current spectrum position, HSV */
 
 function setColorButton(btn, hex) {
@@ -491,45 +506,24 @@ function drawSv() {
   svCtx.strokeStyle = "rgba(0,0,0,.4)"; svCtx.lineWidth = 1; svCtx.stroke();
 }
 function currentHex() { return rgbToHex(...hsvToRgb(pickH, pickS, pickV)); }
-/* Text-field formatting/parsing for the four notations. Kept apart from
-   `refreshPreview` (which always drives the swatch from HSV) because the
-   text field is the only part of the popover whose CONTENT depends on
-   `colorMode` — the canvases and the swatch preview do not.           */
-function formatColorValue(mode) {
+/* Writes the current HSV position into whichever fields the active mode
+   uses. Kept apart from the fields' OWN `input` handler (below) because
+   an external pick (a swatch, a spectrum drag, switching mode) is the
+   only time the fields should be overwritten wholesale — doing it on
+   every keystroke while the user is typing INTO one of them would fight
+   the caret (see the comment on `colorFieldEls` `input` below).       */
+function writeFieldsToMode() {
   const [r, g, b] = hsvToRgb(pickH, pickS, pickV);
-  if (mode === "rgb") return `${r}, ${g}, ${b}`;
-  if (mode === "cmyk") return rgbToCmyk(r, g, b).join(", ");
-  if (mode === "hsv") return `${Math.round(pickH)}, ${Math.round(pickS * 100)}, ${Math.round(pickV * 100)}`;
-  return rgbToHex(r, g, b);
-}
-/* Permissive on purpose, like parseCoord: comma, semicolon or plain
-   whitespace as separator, any of which shows up depending on where the
-   value was copied from.                                              */
-function parseColorValue(text, mode) {
-  if (mode === "hex") {
-    const v = String(text).trim().toLowerCase();
-    return /^#?[0-9a-f]{6}$/.test(v) ? (v[0] === "#" ? v : "#" + v) : null;
-  }
-  const nums = String(text).split(/[,;\s]+/).filter(Boolean).map(Number);
-  const inRange = (n, max) => isFinite(n) && n >= 0 && n <= max;
-  if (mode === "rgb") {
-    if (nums.length !== 3 || !nums.every(n => inRange(n, 255))) return null;
-    return rgbToHex(...nums.map(Math.round));
-  }
-  if (mode === "cmyk") {
-    if (nums.length !== 4 || !nums.every(n => inRange(n, 100))) return null;
-    return rgbToHex(...cmykToRgb(...nums));
-  }
-  if (mode === "hsv") {
-    if (nums.length !== 3 || !inRange(nums[0], 360) || !inRange(nums[1], 100) || !inRange(nums[2], 100)) return null;
-    return rgbToHex(...hsvToRgb(nums[0], nums[1] / 100, nums[2] / 100));
-  }
-  return null;
+  const values = colorMode === "hex" ? [rgbToHex(r, g, b)]
+    : colorMode === "rgb" ? [r, g, b]
+    : colorMode === "cmyk" ? rgbToCmyk(r, g, b)
+    : [Math.round(pickH), Math.round(pickS * 100), Math.round(pickV * 100)]; /* hsv */
+  values.forEach((v, i) => { colorFieldEls[i].value = v; });
 }
 function refreshPreview() {
   const hex = currentHex();
   colorPreview.style.background = hex;
-  colorHex.value = formatColorValue(colorMode);
+  writeFieldsToMode();
   return hex;
 }
 function setFromHex(hex) {
@@ -537,13 +531,25 @@ function setFromHex(hex) {
   drawHue(); drawSv(); refreshPreview();
 }
 /* ‹ › cycle through COLOR_MODES; wraps both ways. Switching notation
-   never changes the colour, only how it reads and how typed text is
-   parsed — same "preference, not state" role as posFormat.           */
+   never changes the colour, only how many fields show and what they
+   mean — same "preference, not state" role as posFormat. Fields the
+   mode doesn't use are hidden, not removed: `COLOR_MODE_FIELDS` always
+   describes the first N of the four, so the rest just stay `hidden`.  */
 function setColorMode(mode) {
   colorMode = mode;
   colorModeLabel.textContent = COLOR_MODE_LABELS[mode];
-  colorHex.setAttribute("aria-label", `Valor del color en ${COLOR_MODE_LABELS[mode]}`);
-  colorHex.value = formatColorValue(mode);
+  const fields = COLOR_MODE_FIELDS[mode];
+  colorFieldWraps.forEach((wrap, i) => {
+    const f = fields[i];
+    wrap.hidden = !f;
+    if (!f) return;
+    colorFieldLabels[i].textContent = f.label;
+    const el = colorFieldEls[i];
+    el.setAttribute("aria-label", `${f.label} (${COLOR_MODE_LABELS[mode]})`);
+    if (f.text) { el.type = "text"; el.removeAttribute("min"); el.removeAttribute("max"); el.maxLength = 7; }
+    else { el.type = "number"; el.min = f.min; el.max = f.max; el.step = 1; el.removeAttribute("maxlength"); }
+  });
+  writeFieldsToMode();
 }
 function cycleColorMode(delta) {
   const i = COLOR_MODES.indexOf(colorMode);
@@ -552,10 +558,10 @@ function cycleColorMode(delta) {
 document.getElementById("color-mode-prev").addEventListener("click", () => cycleColorMode(-1));
 document.getElementById("color-mode-next").addEventListener("click", () => cycleColorMode(1));
 
-/* Picking a colour (a swatch, a spectrum drag, a typed value) only moves
-   the spectrum position and PREVIEWS on the actual target — see the
-   comment atop this section. It never closes the popover and never
-   calls `colorOnCommit`: that only happens in `acceptColorPicker`.    */
+/* Picking a colour (a swatch, a spectrum drag, a confirmed field value)
+   only moves the spectrum position and PREVIEWS on the actual target —
+   see the comment atop this section. It never closes the popover and
+   never calls `colorOnCommit`: that only happens in `acceptColorPicker`. */
 function pickHex(hex) {
   setFromHex(hex);
   if (colorTarget && colorOnPreview) colorOnPreview(colorTarget, hex);
@@ -590,23 +596,60 @@ function livePreview() {
 wireSpectrumDrag(svCanvas, (x, y) => { pickS = x; pickV = 1 - y; drawSv(); livePreview(); });
 wireSpectrumDrag(hueCanvas, x => { pickH = x * 360; drawHue(); drawSv(); livePreview(); });
 
-/* Shared by Enter and by leaving the field (blur → native "change").
-   Returns whether the text was usable, so the caller can decide
-   whether to swallow the keystroke. Just a preview, like every other
-   gesture in the popover — no more reason to avoid `.blur()`-triggered
-   reentrancy here, since nothing in this path closes the popover any
-   more (that used to be the fix for a focus bug now moot by construction). */
-function commitColorHex() {
-  const hex = parseColorValue(colorHex.value, colorMode);
-  if (hex) pickHex(hex); else colorHex.value = formatColorValue(colorMode);
-  return !!hex;
+/* Reads the CURRENTLY VISIBLE fields for the active mode straight into a
+   hex colour — no separator to split, each channel comes from its own
+   `<input>.value`. `null` means "incomplete or out of range", which is
+   the normal state of a field mid-edit (e.g. empty right after
+   Ctrl+A+Delete) and is not an error to report, just "not ready yet". */
+function readFieldsToHex() {
+  const fields = COLOR_MODE_FIELDS[colorMode];
+  if (colorMode === "hex") {
+    const v = colorFieldEls[0].value.trim().toLowerCase();
+    return /^#?[0-9a-f]{6}$/.test(v) ? (v[0] === "#" ? v : "#" + v) : null;
+  }
+  const nums = fields.map((f, i) => {
+    const n = Number(colorFieldEls[i].value);
+    return colorFieldEls[i].value !== "" && isFinite(n) && n >= f.min && n <= f.max ? n : null;
+  });
+  if (nums.some(n => n === null)) return null;
+  if (colorMode === "rgb") return rgbToHex(...nums);
+  if (colorMode === "cmyk") return rgbToHex(...cmykToRgb(...nums));
+  return rgbToHex(...hsvToRgb(nums[0], nums[1] / 100, nums[2] / 100)); /* hsv */
 }
-colorHex.addEventListener("keydown", e => {
-  if (e.key !== "Enter") return;
-  e.preventDefault();
-  commitColorHex();
+/* Fires on every keystroke, arrow-key nudge and wheel/drag tick of a
+   number field's native spinner: previews the SPECTRUM AND SWATCH from
+   whatever is currently typed, but deliberately does NOT call
+   `writeFieldsToMode()` (unlike every other pick above) — that would
+   overwrite the very field the user is mid-typing with a "cleaned up"
+   value on each keystroke, which resets the caret to the end and makes
+   typing a multi-digit number fight the input. The fields only get
+   rewritten wholesale by an EXTERNAL pick (swatch, drag, mode switch).  */
+function onFieldInput() {
+  const hex = readFieldsToHex();
+  if (!hex) return;
+  [pickH, pickS, pickV] = rgbToHsv(...hexToRgb(hex));
+  drawHue(); drawSv();
+  colorPreview.style.background = hex;
+  if (colorTarget && colorOnPreview) colorOnPreview(colorTarget, hex);
+}
+/* Enter (or leaving the field) normalises what's shown — e.g. filling in
+   a leading "#", or snapping an out-of-range/incomplete value back to
+   the last good one — same role `commitColorHex` used to play for the
+   single text field. Nothing here closes the popover: only Aceptar does,
+   so there is no `.blur()`-triggered reentrancy to worry about either. */
+function commitFields() {
+  const hex = readFieldsToHex();
+  if (hex) pickHex(hex); else writeFieldsToMode();
+}
+colorFieldEls.forEach(el => {
+  el.addEventListener("input", onFieldInput);
+  el.addEventListener("change", commitFields);
+  el.addEventListener("keydown", e => {
+    if (e.key !== "Enter") return;
+    e.preventDefault();
+    commitFields();
+  });
 });
-colorHex.addEventListener("change", commitColorHex);
 
 /* Anchored to the button that opened it, not centred on the viewport:
    below it by default, flipped above when there is no room below, and

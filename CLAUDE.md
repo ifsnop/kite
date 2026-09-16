@@ -907,17 +907,40 @@ index.html         redirección de la raíz del sitio al minificado
   también —cancelando igual—, como red de seguridad, pero ya no es el
   único camino: el camino que SÍ guarda es, siempre, el botón «Aceptar»
   del propio popover.
-- **El campo de valor admite cuatro notaciones —Hex, RGB, CMYK y HSV—,
-  cicladas con las flechas ‹ › (`color-mode-prev`/`color-mode-next`,
-  `COLOR_MODES`)**: el mismo papel que el botón ⇅ de las coordenadas
-  (ver más arriba), generalizado a más de dos estados porque aquí hay
-  cuatro. Cambiar de notación no cambia el color, solo cómo se LEE
-  (`formatColorValue`, a partir de `pickH`/`pickS`/`pickV`) y cómo se
-  INTERPRETA lo que se teclee (`parseColorValue`, con la misma tolerancia
-  a coma/punto y coma/espacios que `parseCoord`); no se recuerda entre
-  sesiones, como `posFormat`. RGB va en 0-255, HSV en grados/porcentaje y
-  CMYK en 0-100 (`rgbToCmyk`/`cmykToRgb`) porque así es como se citan
-  siempre estos valores fuera de la aplicación.
+- **Cuatro notaciones —Hex, RGB, CMYK y HSV—, cicladas con las flechas
+  ‹ › (`color-mode-prev`/`color-mode-next`, `COLOR_MODES`)**: el mismo
+  papel que el botón ⇅ de las coordenadas (ver más arriba), generalizado
+  a más de dos estados porque aquí hay cuatro. Cambiar de notación no
+  cambia el color, solo cuántos campos se ven y qué significan
+  (`setColorMode`, `COLOR_MODE_FIELDS`); no se recuerda entre sesiones,
+  como `posFormat`. RGB va en 0-255, HSV en grados/porcentaje y CMYK en
+  0-100 (`rgbToCmyk`/`cmykToRgb`) porque así es como se citan siempre
+  estos valores fuera de la aplicación.
+- **UN `<input>` NUMÉRICO POR CANAL, no un solo campo de texto con
+  separadores** (`color-f0`…`color-f3`, `colorFieldEls`): Hex usa uno,
+  RGB y HSV tres, CMYK los cuatro; `COLOR_MODE_FIELDS` dice cuántos y
+  con qué rango (`min`/`max`) y `setColorMode` esconde los que sobran —
+  cuidado, `[hidden]` en un elemento que además lleva `display: flex`
+  por su clase necesita su propia regla `.color-field[hidden]`, mismo
+  caso que `.measure-bar a[hidden]`: un `display` de autor con la MISMA
+  especificidad que `[hidden]` gana porque autor siempre le gana a
+  agente de usuario, orden aparte. Reportado explícitamente: parsear
+  "255, 0, 0" desde un único campo no aporta nada que un `<input
+  type="number">` por canal no dé ya gratis (flechas, rueda del ratón,
+  arrastre) y sí exige mantener el propio analizador. `readFieldsToHex`
+  lee cada canal de su `.value` sin partir ninguna cadena; `null` marca
+  "todavía incompleto", el estado normal de un campo a medio escribir,
+  no un error que reportar. **Los campos NO se reescriben en cada
+  pulsación** (`onFieldInput` solo mueve el espectro y previsualiza):
+  hacerlo pondría el propio valor "limpio" de vuelta en el campo que se
+  está tecleando en cada tecla, saltando el cursor al final y peleando
+  con quien intenta escribir un número de varias cifras. Solo una
+  elección EXTERNA —una muestra, un arrastre del espectro, cambiar de
+  notación— reescribe los campos de golpe (`writeFieldsToMode`).
+- **La rampa de matiz lleva cursor de MANO (`grab`/`grabbing`), no de
+  cruz.** `crosshair` implica elegir un punto exacto en DOS ejes, y la
+  rampa es un deslizador de UNO solo (izquierda-derecha); el cuadrado de
+  saturación/valor sí es un plano de verdad y conserva la cruz.
 - **Cabecera y pie de TODA ventana van fijos; lo único que scrollea es
   el contenido.** `.dlg-box` tiene `max-height: 85vh; overflow: auto`, y
   sin esto scrollea ENTERA: los botones de Aceptar/Cancelar se van con
@@ -1048,6 +1071,23 @@ index.html         redirección de la raíz del sitio al minificado
   incluido el icono. El selector de iconos funciona igual: al pulsar un
   icono solo se marca (`pendingIcon`), y llega al borrador al aceptar.
   Cualquier diálogo nuevo debe seguir este patrón.
+- **Orden de los botones de `.dlg-actions`, siempre el mismo lado para
+  el mismo papel.** No importa CUÁL sea el orden (se fijó Cancelar a la
+  izquierda y Aceptar a la derecha porque es donde ya estaba la mayoría,
+  no por ninguna convención de sistema operativo), sino que sea el
+  MISMO en las trece ventanas que llevan botones de acción: lo que
+  confirma, guarda, inserta, finaliza o borra algo —Aceptar, Fusionar,
+  Eliminarlas, Añadir al árbol, y también Borrar/Copiar cuando la
+  ventana no tiene un borrador que aceptar o cancelar, como el registro
+  de avisos o el editor de nombres recordados— va siempre al MISMO lado
+  (la derecha), y lo que cierra sin comprometerse —Cancelar, Cerrar,
+  Dejarlas, Mantener todos— va siempre al otro (la izquierda). Se
+  encontraron dos ventanas que lo rompían (`gnp-editor`: «Borrar todo»
+  antes que «Cerrar»; `log-dialog`: «Copiar»/«Borrar» antes que
+  «Cerrar»; `sh-creds`: «Cancelar» en medio en vez de a la izquierda) y
+  se corrigieron por ser la excepción, no la regla. Un botón nuevo en
+  cualquier `.dlg-actions` se coloca según este mismo criterio, no según
+  lo que quede más cómodo en el marcado.
 - **El contorno no tiene opacidad**: siempre 100%. Se ignora el alfa del
   `<LineStyle>` de KML y el `stroke-opacity` de simplestyle, y el diálogo
   fuerza `opacity: 1`. Solo el relleno tiene opacidad editable.
