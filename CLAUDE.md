@@ -813,12 +813,13 @@ index.html         redirección de la raíz del sitio al minificado
 - **Los colores no usan el `<input type="color">` EN LÍNEA como control de
   la fila**: cada color es un botón que muestra su valor (`setColorButton`
   / `colorOf`, con el hex en `dataset.color`) y abre un **popover** —
-  espectro propio más la paleta `COLOR_PRESETS` — anclado justo debajo de
-  ese botón (`openColorPicker`/`positionColorPicker`,
-  `src/js/43-points-editor.js`). **No es una segunda ventana**: al
-  principio sí lo era, dos veces seguidas, y las dos por el mismo motivo
-  de fondo — algo fuera de nuestro control abriéndose ENCIMA de lo que el
-  usuario ya tenía delante, sin que ningún script pudiera cerrarlo:
+  espectro propio más la paleta `COLOR_PRESETS`, y sus PROPIOS Cancelar y
+  Aceptar — anclado justo debajo de ese botón
+  (`openColorPicker`/`positionColorPicker`, `src/js/43-points-editor.js`).
+  **No es una segunda ventana**: al principio sí lo era, dos veces
+  seguidas, y las dos por el mismo motivo de fondo — algo fuera de
+  nuestro control abriéndose ENCIMA de lo que el usuario ya tenía
+  delante, sin que ningún script pudiera cerrarlo:
   1. Primero, un `.dlg-overlay` modal de verdad, con su propio título,
      Cancelar y Aceptar, CENTRADO SOBRE EL VIEWPORT en vez de sobre el
      diálogo que lo abría — tapaba sus propios botones. Se resolvió
@@ -831,18 +832,53 @@ index.html         redirección de la raíz del sitio al minificado
      parte de él fuera un `popup` que el navegador controla en exclusiva.
      El espectro es ahora dos `<canvas>` propios —saturación/valor y
      matiz, `drawSv`/`drawHue`, con su conversión HSV↔RGB↔hex a mano,
-     ver `hsvToRgb`/`rgbToHsv`— más un campo de texto hexadecimal
-     (`colorHex`): nada de esto sale nunca de nuestro DOM.
-  Elegir un color —una muestra, un punto del espectro (confirmado al
-  SOLTAR el arrastre, no en cada tirón, igual que hacía el `change` del
-  input nativo que sustituye) o el hexadecimal (Intro, o dejar el
-  campo)— aplica y cierra en el mismo gesto.
-  **Cerrarlo SIN elegir nada tiene un gesto fiable y uno de cortesía, y
-  no son intercambiables.** El fiable es **volver a pulsar el mismo
-  botón grande que lo abrió** (`toggleColorPicker`): cierra siempre,
-  haya cambiado el color o no, sin depender de qué contenedor rodee a
-  ese botón. Es el que hace falta documentar porque tres intentos
-  previos de cerrarlo de otra forma resultaron insuficientes:
+     ver `hsvToRgb`/`rgbToHsv`— más un campo de texto: nada de esto sale
+     nunca de nuestro DOM.
+  3. **Y al convertirlo en popover propio le seguía faltando lo que hace
+     a la edición "diferida" ser diferida de verdad**: ni un Cancelar ni
+     un Aceptar propios. Cada gesto —soltar un arrastre, tocar una
+     muestra, teclear Intro en el hexadecimal— aplicaba Y CERRABA a la
+     vez, así que no había forma de probar un color y echarse atrás. Va
+     contra la regla de «Edición diferida» de todo el resto de la
+     aplicación, y era el fallo reportado: el selector nunca tuvo botón
+     de Cancelar/Aceptar propio, a pesar de que este mismo documento ya
+     lo daba por hecho.
+  **El diseño actual separa PREVISUALIZAR de GUARDAR, con dos funciones
+  que recibe `openColorPicker(btn, { onPreview, onCommit })`:**
+  - `onPreview(btn, hex)` se llama en CADA gesto —arrastrar por el
+    espectro (en cada `pointermove`, no solo al soltar), tocar una
+    muestra, teclear un valor y confirmarlo— y aplica el color al
+    ELEMENTO real que se está editando: el botón (`setColorButton`,
+    siempre) y, si es el color de un marcador (`mk-color`), también su
+    icono de vista previa (`icon-preview`, vía `iconUrl`). Nunca toca
+    `styleDraft` ni la capa: es una previsualización, no un guardado.
+  - `onCommit(btn, hex)` solo se llama UNA VEZ, al pulsar el «Aceptar»
+    del PROPIO popover, y es lo único que hace el cambio permanente
+    (`defaultColorCommit`: `touchControl` + `readStyleControls`, que es
+    justo lo que el commit inmediato de antes hacía, solo que ahora
+    detrás de un Aceptar en vez de detrás de cualquier gesto).
+  - **Cualquier otra forma de salir del popover es un DESCARTE**:
+    Cancelar, un clic fuera, Escape, o volver a pulsar el mismo botón
+    grande que lo abrió (`toggleColorPicker`, que ahora trata su propio
+    "ya está abierto para este botón" como un Cancelar, no como un
+    cierre neutro). Los cuatro llaman a `cancelColorPicker`, que
+    restaura `colorOriginal` —el hex que tenía el botón al abrir el
+    popover— llamando a `onPreview(btn, colorOriginal)`, el MISMO
+    camino que aplicó cada previsualización: deshacerlas es aplicar la
+    de vuelta.
+  Nada de esto choca con la edición diferida del diálogo de estilos:
+  `defaultColorCommit` sigue sin tocar la capa en vivo, solo el
+  borrador — quien decide si eso llega a la capa sigue siendo el
+  Aceptar del diálogo EXTERIOR. `toggleColorPicker(btn, opts)` acepta un
+  `onPreview`/`onCommit` distintos para quien no esté dentro de ese
+  diálogo — el color de fondo del mapa (ver «Mapas base») aplica en vivo
+  al mapa desde su propio `onPreview` (sin guardar) y solo persiste en
+  IndexedDB desde su `onCommit`, porque ahí no hay ningún Aceptar
+  exterior que lo difiera: el Aceptar de ESTE popover pasa a ser ese
+  punto de guardado.
+  **Cerrarlo con el ratón, la otra mitad del fallo original**: antes de
+  llegar aquí hicieron falta tres intentos, documentados porque cada uno
+  pareció suficiente y no lo era:
   1. Un cierre por `mousedown` en `document` no veía los clics dados
      DENTRO de un control marcado con `L.DomEvent.disableClickPropagation`
      (el panel de mapas base, las barras de medición/vista…) — en
@@ -854,32 +890,34 @@ index.html         redirección de la raíz del sitio al minificado
      prueba, y el propio botón que abrió el popover estaba
      explícitamente EXCLUIDO de cerrarlo (volver a pulsarlo solo lo
      refrescaba).
-  3. **El más esquivo, ya con `toggleColorPicker` puesto**: escribir un
-     hexadecimal y pulsar Intro parecía no hacer nada. `commitColor`
-     termina devolviendo el foco al botón que abrió el popover
-     (`releaseFocus`) — y hacerlo de forma SÍNCRONA dentro del propio
-     `keydown` de Intro deja ese `<button>` enfocado antes de que el
-     navegador termine de procesar esa misma pulsación; su acción por
-     defecto sobre un botón enfocado es activarlo, así que Intro
-     reabría el popover que acababa de cerrar, en el mismo evento.
-     `preventDefault()` en el propio `input` no alcanza a suprimir esa
-     activación posterior sobre un elemento distinto: el arreglo fue no
-     provocar el cambio de foco en absoluto (el `keydown` de Intro llama
-     a `commitColorHex()` directamente, sin pasar por un `.blur()` que
-     dispare la cascada). Verificado en rojo: revertir solo esta pieza
-     hace fallar la prueba correspondiente en `tests/browser/dialogs.mjs`
-     con el síntoma exacto.
-  Ahora pulsar ese mismo botón cierra primero; el clic en cualquier otro
-  sitio del documento (o Escape) lo sigue cerrando también, como red de
-  seguridad, pero ya no es el único camino.
-  Nada de esto choca con la edición diferida del diálogo de estilos
-  porque el commit por defecto (`defaultColorCommit`) solo toca el
-  BOTÓN y el borrador (`styleDraft`, vía `readStyleControls`), nunca la
-  capa en vivo: quien decide si eso llega a la capa sigue siendo el
-  Aceptar del diálogo exterior. `toggleColorPicker(btn, onCommit)`
-  acepta un commit distinto para quien no esté dentro de ese diálogo —
-  el color de fondo del mapa (ver «Mapas base») aplica y guarda al
-  instante, porque ahí no hay ningún Aceptar exterior que lo difiera.
+  3. **El más esquivo, con el toggle ya puesto pero SIN Aceptar/Cancelar
+     propios**: escribir un hexadecimal y pulsar Intro parecía no hacer
+     nada, porque el commit de entonces cerraba el popover y devolvía el
+     foco al botón que lo abrió (`releaseFocus`) de forma SÍNCRONA
+     dentro del propio `keydown` de Intro — antes de que el navegador
+     terminara de procesar esa misma pulsación, cuya acción por defecto
+     sobre un botón recién enfocado es activarlo, así que Intro reabría
+     el popover que acababa de cerrar, en el mismo evento. Este fallo
+     desapareció por construcción al quitarle a Intro la potestad de
+     cerrar nada: ahora solo previsualiza (`commitColorHex` llama a
+     `pickHex`, nunca a un cierre), así que no hay ningún cambio de foco
+     que provocar durante ese `keydown`.
+  Ahora pulsar ese mismo botón cierra (cancelando) primero; el clic en
+  cualquier otro sitio del documento (o Escape) lo sigue cerrando
+  también —cancelando igual—, como red de seguridad, pero ya no es el
+  único camino: el camino que SÍ guarda es, siempre, el botón «Aceptar»
+  del propio popover.
+- **El campo de valor admite cuatro notaciones —Hex, RGB, CMYK y HSV—,
+  cicladas con las flechas ‹ › (`color-mode-prev`/`color-mode-next`,
+  `COLOR_MODES`)**: el mismo papel que el botón ⇅ de las coordenadas
+  (ver más arriba), generalizado a más de dos estados porque aquí hay
+  cuatro. Cambiar de notación no cambia el color, solo cómo se LEE
+  (`formatColorValue`, a partir de `pickH`/`pickS`/`pickV`) y cómo se
+  INTERPRETA lo que se teclee (`parseColorValue`, con la misma tolerancia
+  a coma/punto y coma/espacios que `parseCoord`); no se recuerda entre
+  sesiones, como `posFormat`. RGB va en 0-255, HSV en grados/porcentaje y
+  CMYK en 0-100 (`rgbToCmyk`/`cmykToRgb`) porque así es como se citan
+  siempre estos valores fuera de la aplicación.
 - **Cabecera y pie de TODA ventana van fijos; lo único que scrollea es
   el contenido.** `.dlg-box` tiene `max-height: 85vh; overflow: auto`, y
   sin esto scrollea ENTERA: los botones de Aceptar/Cancelar se van con
@@ -1671,10 +1709,14 @@ y `kitelocal.min.html` (su derivada minificada, lo que sirve Pages).
   casilla propia (no es algo que se «encienda o apague», siempre está
   puesto) y se separa del resto con una línea (`.base-row-bg`), no con
   una casilla que no significaría nada ahí. Reutiliza el MISMO popover
-  de color que el diálogo de estilos (ver «Estilos de capa»), con su
-  propio `onCommit`: aquí SÍ aplica al instante y guarda, porque no hay
-  ningún diálogo exterior con Cancelar/Aceptar que lo difiera. Aplicar
-  es fijar la variable CSS `--map-bg` (`setMapBackground`, `10-map.js`;
+  de color que el diálogo de estilos (ver «Estilos de capa»), con sus
+  propios `onPreview`/`onCommit`: no hay ningún diálogo exterior con
+  Cancelar/Aceptar que lo difiera, así que aquí lo hace el propio
+  popover — `onPreview` aplica el fondo al mapa EN VIVO mientras se
+  elige (se deshace llamándolo otra vez con el color original si se
+  cancela) y solo `onCommit`, al Aceptar del popover, lo persiste en
+  IndexedDB. Aplicar es fijar la variable CSS `--map-bg`
+  (`setMapBackground`, `10-map.js`;
   la regla es `#map { background: var(--map-bg, #dfe8ef) }`), así que
   sin ningún color guardado el `var()` cae solo en el `#dfe8ef` de
   siempre. Se guarda bajo su propia clave del mismo almacén de

@@ -183,7 +183,7 @@ Si el clic derecho cae sobre una capa, el menú antepone «Ir al nodo en el pane
 
 El botón 🎨 de una fila (o de cualquiera de una selección múltiple) abre un diálogo flotante con el estilo de esa capa. El diálogo no aplica nada hasta que se pulsa «Aceptar»; «Cancelar» descarta cualquier cambio probado, incluido un icono distinto. El diálogo se puede arrastrar por su título para apartarlo de la zona del mapa que interese, y no bloquea el resto de la interfaz: se puede seguir trabajando en el mapa mientras está abierto.
 
-Cada muestra de color del diálogo (marcador, texto, contorno, relleno…) abre, justo debajo de sí misma, un selector con el espectro y una paleta de colores habituales; elegir uno lo aplica y lo cierra en el mismo gesto, sin una ventana aparte que tapar ni un «Aceptar» propio que pulsar. Escape o un clic fuera lo cierran sin cambiar nada.
+Cada muestra de color del diálogo (marcador, texto, contorno, relleno…) abre, justo debajo de sí misma, un selector con el espectro, una paleta de colores habituales y sus propios botones «Cancelar»/«Aceptar». Mover el espectro, tocar una muestra o escribir un valor previsualiza el color al momento sobre el elemento editado (el marcador y su icono, o el fondo del mapa en el panel de mapas base), pero no lo confirma: solo «Aceptar» lo deja hecho, y «Cancelar» —igual que repetir la muestra que abrió el selector, un clic fuera o Escape— lo devuelve al color que tenía al abrirlo. El campo de valor admite cuatro notaciones —hexadecimal, RGB, CMYK y HSV—, intercambiables con las flechas ‹ › junto a su nombre, igual que el botón ⇅ de las coordenadas.
 
 ### 6.1 Estilo de un marcador
 

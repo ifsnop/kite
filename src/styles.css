@@ -540,6 +540,25 @@
     cursor: crosshair;
     touch-action: none;
   }
+  /* Notación numérica del color (Hex/RGB/CMYK/HSV): mismo patrón que el
+     botón ⇅ de las coordenadas, pero con dos flechas porque aquí hay
+     más de dos formatos entre los que ciclar. */
+  .color-moderow {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+  }
+  .color-mode-arrow {
+    padding: 1px 8px;
+    line-height: 1.3;
+    border: 1px solid var(--border);
+    border-radius: 5px;
+    background: none;
+    color: var(--text);
+    cursor: pointer;
+  }
+  #color-mode-label { font-size: 12px; color: var(--muted); min-width: 4ch; text-align: center; }
   .color-hexrow { display: flex; gap: 6px; align-items: center; }
   .color-preview {
     width: 24px;
@@ -615,6 +634,11 @@
      vacía y lo dice en su marcador de posición; el nombre, con varios
      nodos, hace lo mismo con la lista de nombres.                     */
   .dlg-row input::placeholder { font-style: italic; color: var(--muted); opacity: 1; }
+  /* Fila de Cancelar/Aceptar propia del popover, no `.dlg-actions`: esa
+     clase lleva un `position: sticky` y un margen negativo pensados
+     para compensar el relleno horizontal de `.dlg-box` (16px), que el
+     popover no tiene (aquí el relleno es 10px por todos los lados). */
+  .color-actions { display: flex; justify-content: flex-end; gap: 8px; }
   .color-swatches { display: grid; grid-template-columns: repeat(8, 24px); gap: 5px; }
   .color-swatches button {
     width: 24px;

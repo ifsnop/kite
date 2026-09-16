@@ -118,9 +118,12 @@ function renderBasePanel() {
    no hay desplazamiento infinito, ver «Una sola Tierra»), no una capa
    de mapa en sí. No lleva casilla propia porque no es algo que se
    "encienda o apague"; comparte el mismo `toggleColorPicker` popover que
-   los colores del diálogo de estilos, con su propio `onCommit`: aquí
-   SÍ se aplica al instante (setMapBackground) y se persiste, porque no
-   hay ningún diálogo exterior con Cancelar/Aceptar que lo diferido.   */
+   los colores del diálogo de estilos, con sus propios `onPreview`/
+   `onCommit`: no hay ningún diálogo exterior con Cancelar/Aceptar que
+   lo diferido, así que aquí ES el propio selector de color quien lo
+   hace — `onPreview` aplica el fondo al mapa EN VIVO mientras se elige
+   (sin guardarlo: es lo que se deshace si se cancela) y `onCommit`,
+   que solo se llama al pulsar «Aceptar» del selector, lo persiste.   */
 function buildMapBackgroundRow() {
   const row = document.createElement("div");
   row.className = "base-row base-row-bg";
@@ -137,10 +140,9 @@ function buildMapBackgroundRow() {
   setColorButton(btn, mapBgColor);
   btn.addEventListener("click", e => {
     e.preventDefault();
-    toggleColorPicker(btn, (target, hex) => {
-      setColorButton(target, hex);
-      setMapBackground(hex);
-      dbSaveMapBackground(hex).catch(() => {});
+    toggleColorPicker(btn, {
+      onPreview: (target, hex) => { setColorButton(target, hex); setMapBackground(hex); },
+      onCommit: (target, hex) => { dbSaveMapBackground(hex).catch(() => {}); }
     });
   });
   tools.appendChild(btn);

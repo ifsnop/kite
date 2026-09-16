@@ -278,18 +278,33 @@
      nuestro DOM y de nuestro control — no se puede cerrar, reposicionar
      ni tratar como parte de un solo diálogo integrado por script alguno.
      El espectro es en cambio dos <canvas> propios (saturación/valor y
-     matiz) más un campo hexadecimal; elegir un color —una muestra, un
-     punto del espectro, o confirmar el hexadecimal— aplica y cierra en
-     el mismo gesto, con nuestros propios medios de cierre (repetir el
-     botón que lo abrió, un clic fuera, o Escape) siempre disponibles. -->
+     matiz) más un campo de texto con el valor numérico, que se puede
+     leer en varias notaciones (Hex/RGB/CMYK/HSV, con las flechas ‹ ›
+     para cambiar entre ellas, igual que el botón ⇅ de las coordenadas).
+     Mover el espectro, tocar una muestra o escribir un valor solo
+     PREVISUALIZA sobre el elemento editado (el botón, y para un color de
+     marcador también su icono); nada se guarda de verdad hasta pulsar
+     Aceptar. Cerrar de cualquier otra forma (Cancelar, un clic fuera,
+     repetir el botón que lo abrió o Escape) es un DESCARTE: se vuelve al
+     color que había al abrir el selector. Ver el comentario de
+     `openColorPicker` en 43-points-editor.js. -->
 <div id="color-picker" class="color-popover" role="dialog" aria-label="Elegir color" hidden>
   <canvas id="color-sv" width="227" height="140"></canvas>
   <canvas id="color-hue" width="227" height="16"></canvas>
+  <div class="color-moderow">
+    <button type="button" class="color-mode-arrow" id="color-mode-prev" title="Notación anterior" aria-label="Notación anterior">&#8249;</button>
+    <span id="color-mode-label"></span>
+    <button type="button" class="color-mode-arrow" id="color-mode-next" title="Notación siguiente" aria-label="Notación siguiente">&#8250;</button>
+  </div>
   <div class="color-hexrow">
     <span class="color-preview" id="color-preview"></span>
-    <input type="text" id="color-hex" maxlength="7" spellcheck="false" autocomplete="off" aria-label="Código hexadecimal del color">
+    <input type="text" id="color-hex" spellcheck="false" autocomplete="off" aria-label="Valor del color">
   </div>
   <div class="color-swatches" id="color-swatches"></div>
+  <div class="color-actions">
+    <button class="btn" id="color-cancel">Cancelar</button>
+    <button class="btn" id="color-accept">Aceptar</button>
+  </div>
 </div>
 
 <!-- Selector de marcador (paleta de iconos, estilo Google Earth) -->

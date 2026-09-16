@@ -189,6 +189,64 @@ const cerradoTrasClicEnPanel = await page.evaluate(() => document.getElementById
 ok(abiertoTrasBoton, "el popover de color se abre desde la fila «Color de fondo»");
 ok(cerradoTrasClicEnPanel,
   "y se cierra al pulsar en otro punto del MISMO panel de mapas base, no solo fuera de él");
+
+/* El fallo central reportado: el color de fondo del mapa aplicaba Y
+   GUARDABA en el mismo gesto, sin ninguna forma de probarlo y echarse
+   atrás. Ahora "aplicar" (`onPreview`, en vivo sobre el mapa) y
+   "guardar" (`onCommit`, en IndexedDB) son pasos distintos, y solo
+   Aceptar hace el segundo — Cancelar deshace el primero.              */
+const bgAntes = await page.evaluate(async () => ({
+  css: getComputedStyle(document.documentElement).getPropertyValue("--map-bg").trim(),
+  guardado: await dbLoadMapBackground()
+}));
+await page.click(".base-row-bg .color-btn");
+await page.waitForTimeout(150);
+let box = await (await page.$("#color-sv")).boundingBox();
+await page.mouse.move(box.x + box.width * 0.2, box.y + box.height * 0.8);
+await page.mouse.down();
+await page.mouse.move(box.x + box.width * 0.35, box.y + box.height * 0.65, { steps: 5 });
+await page.mouse.up();
+await page.waitForTimeout(80);
+const bgDurante = await page.evaluate(async () => ({
+  css: getComputedStyle(document.documentElement).getPropertyValue("--map-bg").trim(),
+  guardado: await dbLoadMapBackground()
+}));
+ok(bgDurante.css !== bgAntes.css,
+  `arrastrar en el espectro aplica el fondo del mapa EN VIVO, sin cerrar: ${bgAntes.css} → ${bgDurante.css}`);
+ok(JSON.stringify(bgDurante.guardado) === JSON.stringify(bgAntes.guardado),
+  "pero todavía no se ha guardado nada en IndexedDB: eso solo lo hace Aceptar");
+await page.click("#color-cancel");
+await page.waitForTimeout(80);
+const bgTrasCancelar = await page.evaluate(async () => ({
+  css: getComputedStyle(document.documentElement).getPropertyValue("--map-bg").trim(),
+  guardado: await dbLoadMapBackground()
+}));
+ok(bgTrasCancelar.css === bgAntes.css,
+  `Cancelar revierte el fondo del mapa al color que tenía al abrir el selector: ${bgDurante.css} → ${bgTrasCancelar.css}`);
+ok(JSON.stringify(bgTrasCancelar.guardado) === JSON.stringify(bgAntes.guardado),
+  "y sigue sin haberse guardado nada en IndexedDB");
+
+/* Repitiendo el mismo gesto pero con Aceptar: ahora sí debe persistir */
+await page.click(".base-row-bg .color-btn");
+await page.waitForTimeout(150);
+box = await (await page.$("#color-sv")).boundingBox();
+await page.mouse.move(box.x + box.width * 0.2, box.y + box.height * 0.8);
+await page.mouse.down();
+await page.mouse.move(box.x + box.width * 0.35, box.y + box.height * 0.65, { steps: 5 });
+await page.mouse.up();
+await page.waitForTimeout(80);
+const bgElegido = await page.evaluate(() =>
+  getComputedStyle(document.documentElement).getPropertyValue("--map-bg").trim());
+await page.click("#color-accept");
+await page.waitForTimeout(80);
+const bgTrasAceptar = await page.evaluate(async () => ({
+  css: getComputedStyle(document.documentElement).getPropertyValue("--map-bg").trim(),
+  guardado: await dbLoadMapBackground()
+}));
+ok(bgTrasAceptar.css === bgElegido, "Aceptar deja aplicado el color que se estaba previsualizando");
+ok(!!bgTrasAceptar.guardado && bgTrasAceptar.guardado.toLowerCase() === bgElegido.toLowerCase(),
+  `y esta vez SÍ queda guardado en IndexedDB: ${JSON.stringify(bgTrasAceptar.guardado)}`);
+
 await page.click(".base-toggle"); /* deja el panel como estaba para el resto de la suite */
 
 /* El fallo seguía sin arreglar del todo: cerrar «con un clic fuera»
@@ -222,16 +280,20 @@ ok(toggleBoton.cerrado,
 ok(!(await page.$("#color-picker input[type=color]")),
   "el popover no lleva ningún <input type=\"color\">: el espectro es propio");
 
-/* Arrastrar de verdad en el cuadrado de saturación/valor: confirma y
-   cierra al soltar (no en cada tick de arrastre, para poder recorrer el
-   cuadrado buscando el tono antes de decidir).                       */
-await page.evaluate(() => {
+/* Arrastrar de verdad en el cuadrado de saturación/valor. El fallo
+   reportado: ningún gesto del popover cerraba nada por sí mismo salvo
+   uno que además GUARDABA, sin dar opción a echarse atrás. Ahora
+   arrastrar solo PREVISUALIZA sobre el botón —ni a mitad de gesto ni al
+   soltar cierra el popover— y Cancelar debe devolver el botón a como
+   estaba antes de tocar nada.                                        */
+const colorOriginalMk = await page.evaluate(() => {
   const li = [...document.querySelectorAll("#tree li")].find(x => x._mstyle);
   openStyleDialog(li);
+  return document.getElementById("mk-color").dataset.color;
 });
 await page.click("#mk-color");
 await page.waitForTimeout(150);
-let box = await (await page.$("#color-sv")).boundingBox();
+box = await (await page.$("#color-sv")).boundingBox();
 await page.mouse.move(box.x + box.width * 0.7, box.y + box.height * 0.3);
 await page.mouse.down();
 await page.mouse.move(box.x + box.width * 0.8, box.y + box.height * 0.2);
@@ -240,17 +302,53 @@ ok(!(await page.evaluate(() => document.getElementById("color-picker").hidden)),
   "arrastrar en el cuadrado NO cierra a mitad de gesto");
 await page.mouse.up();
 await page.waitForTimeout(150);
-ok(await page.evaluate(() => document.getElementById("color-picker").hidden),
-  "y sí cierra al soltar, con el color aplicado al botón");
+const trasSoltarMk = await page.evaluate(() => ({
+  hidden: document.getElementById("color-picker").hidden,
+  boton: document.getElementById("mk-color").dataset.color
+}));
+ok(!trasSoltarMk.hidden, "y tampoco cierra al soltar: hace falta Aceptar para confirmar el cambio");
+ok(trasSoltarMk.boton !== colorOriginalMk,
+  `pero SÍ previsualiza en vivo sobre el botón mientras se arrastra: seguía en ${colorOriginalMk}`);
+await page.click("#color-cancel");
+const trasCancelarMk = await page.evaluate(() => ({
+  hidden: document.getElementById("color-picker").hidden,
+  boton: document.getElementById("mk-color").dataset.color
+}));
+ok(trasCancelarMk.hidden, "Cancelar cierra el popover");
+ok(trasCancelarMk.boton === colorOriginalMk,
+  `y Cancelar restaura el color ORIGINAL del botón: ${trasSoltarMk.boton} → ${trasCancelarMk.boton} (era ${colorOriginalMk})`);
 
-/* El fallo más esquivo de todos: escribir un hexadecimal y pulsar
-   Intro. `commitColor` cierra el popover devolviendo el foco al botón
-   que lo abrió (releaseFocus) — SI eso ocurre de forma síncrona dentro
-   del propio keydown de Intro, el botón queda enfocado antes de que el
-   navegador termine de procesar esa misma pulsación, y su acción por
-   defecto sobre un <button> enfocado (activarlo) reabre el popover que
-   se acababa de cerrar: parecía que Intro «no hacía nada». Hace falta
-   un Intro de teclado REAL para ejercitarlo.                          */
+/* Repitiendo el arrastre pero Aceptando: el color previsualizado debe
+   quedarse, y solo entonces llega al borrador del diálogo de estilos —
+   la edición del diálogo exterior sigue diferida hasta SU propio
+   Aceptar, que aquí no se pulsa (se cierra con Cancelar al final).    */
+const colorAntesDelBorrador = await page.evaluate(() => styleDraft.color);
+await page.click("#mk-color");
+await page.waitForTimeout(150);
+box = await (await page.$("#color-sv")).boundingBox();
+await page.mouse.move(box.x + box.width * 0.7, box.y + box.height * 0.3);
+await page.mouse.down();
+await page.mouse.move(box.x + box.width * 0.8, box.y + box.height * 0.2);
+await page.mouse.up();
+await page.waitForTimeout(80);
+const previsualizadoMk = await page.evaluate(() => document.getElementById("mk-color").dataset.color);
+ok((await page.evaluate(() => styleDraft.color)) === colorAntesDelBorrador,
+  "mientras el popover sigue abierto, el borrador del diálogo de estilos NO ha cambiado todavía");
+await page.click("#color-accept");
+const trasAceptarMk = await page.evaluate(() => ({
+  hidden: document.getElementById("color-picker").hidden,
+  boton: document.getElementById("mk-color").dataset.color,
+  borrador: styleDraft.color
+}));
+ok(trasAceptarMk.hidden, "Aceptar cierra el popover");
+ok(trasAceptarMk.boton === previsualizadoMk, "y deja el color que se estaba previsualizando");
+ok(trasAceptarMk.borrador === previsualizadoMk,
+  "que ahora sí ha llegado al borrador del diálogo de estilos (aún no a la capa: falta el Aceptar exterior)");
+
+/* El antiguo fallo más esquivo: escribir un hexadecimal y pulsar Intro.
+   Ya no puede reabrir nada porque ya no CIERRA nada — Intro solo
+   previsualiza, igual que el resto de gestos del popover.             */
+await page.click("#style-cancel");
 await page.evaluate(() => {
   const li = [...document.querySelectorAll("#tree li")].find(x => x._mstyle);
   openStyleDialog(li);
@@ -262,10 +360,50 @@ await page.keyboard.press("Control+A");
 await page.keyboard.type("#ff00aa");
 await page.keyboard.press("Enter");
 await page.waitForTimeout(200);
-ok(await page.evaluate(() => document.getElementById("color-picker").hidden),
-  "escribir un hex y pulsar Intro cierra el popover (no lo reabre)");
+ok(!(await page.evaluate(() => document.getElementById("color-picker").hidden)),
+  "escribir un hex y pulsar Intro solo previsualiza: el popover sigue abierto");
 ok((await page.evaluate(() => document.getElementById("mk-color").dataset.color)) === "#ff00aa",
-  "y el color escrito llega al botón");
+  "y el color escrito ya se ve en el botón, antes de Aceptar");
+await page.click("#color-accept");
+ok(await page.evaluate(() => document.getElementById("color-picker").hidden),
+  "y Aceptar (no Intro) es lo que cierra el popover");
+ok((await page.evaluate(() => document.getElementById("mk-color").dataset.color)) === "#ff00aa",
+  "con el color escrito ya aplicado de verdad");
+await page.click("#style-cancel");
+
+/* Las flechas ‹ › ciclan la notación del campo de texto (Hex/RGB/CMYK/
+   HSV) sin cambiar el color: mismo papel que el botón ⇅ de las
+   coordenadas, con más de dos estados. Se comprueba escribiendo el
+   MISMO rojo puro en cada notación y viendo que el botón coincide.   */
+await page.evaluate(() => {
+  const li = [...document.querySelectorAll("#tree li")].find(x => x._mstyle);
+  openStyleDialog(li);
+});
+await page.click("#mk-color");
+await page.waitForTimeout(150);
+const etiquetaInicial = await page.evaluate(() => document.getElementById("color-mode-label").textContent);
+ok(etiquetaInicial === "HEX", `la notación por defecto es HEX: era «${etiquetaInicial}»`);
+await page.click("#color-mode-next");
+const enRgb = await page.evaluate(() => ({
+  etiqueta: document.getElementById("color-mode-label").textContent,
+  valor: document.getElementById("color-hex").value
+}));
+ok(enRgb.etiqueta === "RGB", `la flecha › avanza a RGB: era «${enRgb.etiqueta}»`);
+await page.click("#color-hex");
+await page.keyboard.press("Control+A");
+await page.keyboard.type("255, 0, 0");
+await page.keyboard.press("Enter");
+await page.waitForTimeout(100);
+ok((await page.evaluate(() => document.getElementById("mk-color").dataset.color)) === "#ff0000",
+  "escribir «255, 0, 0» en notación RGB aplica el rojo puro");
+await page.click("#color-mode-next");
+const enCmyk = await page.evaluate(() => document.getElementById("color-hex").value);
+await page.click("#color-mode-prev");
+await page.click("#color-mode-prev"); /* CMYK → RGB → HEX: vuelve a la de partida */
+const etiquetaTrasCiclo = await page.evaluate(() => document.getElementById("color-mode-label").textContent);
+ok(etiquetaTrasCiclo === "HEX", `‹ retrocede igual, ciclando: llegó a «${etiquetaTrasCiclo}»`);
+ok(/^0,\s*100,\s*100,\s*0$/.test(enCmyk), `y CMYK lee el mismo rojo como cian 0 / magenta 100 / amarillo 100 / negro 0: «${enCmyk}»`);
+await page.click("#color-cancel");
 await page.click("#style-cancel");
 
 /* Redimensionar a mano no puede descolgar los botones */
