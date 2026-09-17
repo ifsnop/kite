@@ -493,6 +493,27 @@ index.html         redirección de la raíz del sitio al minificado
   (`rec._state`) porque una rama colapsada puede tener miles de nodos y
   se consulta al recalcular al padre; quien toque `checked` lo invalida
   (lo hace `cascadeVisibility`).
+- **Un registro pendiente necesita su icono de marcador ya puesto, no
+  prestado de una fila que puede no llegar a existir nunca.**
+  `cascadeVisibility` enciende un marcador dentro de una carpeta
+  colapsada llamando a `setLayerVisible(rec._layer, checked)` — la
+  MISMA capa cruda que `buildRecordsFromStorage` construyó con
+  `L.geoJSON`, que sin `pointToLayer` usa el icono NATIVO de Leaflet.
+  Antes, el icono personalizado (`mstyle`) solo se aplicaba en
+  `materializeRecords`, al construir la fila — y una carpeta nunca
+  desplegada no llega a construir ninguna. Reportado: un marcador con
+  un icono MDI (no la gota por defecto), desactivado y dentro de una
+  carpeta así, volvía a la gota de Leaflet al activarlo tras recargar.
+  Se arregla aplicando el icono a la capa cruda en el momento en que
+  `buildRecordsFromStorage` la construye (`styleMarkerIcon`, extraído de
+  `applyMarkerStyle` en `42-hittest.js` para poder llamarlo sin que
+  exista ningún `<li>` todavía) — antes de mirar siquiera si está
+  marcada, porque el fallo es independiente de su estado inicial:
+  vuelve a aplicarse igual, sin coste real, si la fila SÍ llega a
+  construirse más tarde (`setIcon` con el mismo icono no hace nada).
+  Este camino —`buildRecordsFromStorage`— es compartido por restaurar de
+  IndexedDB, deshacer/rehacer, pegar e importar un `.kite.json`, así que
+  el arreglo cubre los cuatro a la vez.
 - **Desplegar y marcar a la vez NO puede repartirse los nodos.** Son dos
   pasadas por lotes sobre el mismo subárbol —`materializeRecords`
   construye las filas que faltan, `cascadeVisibility` enciende o apaga—

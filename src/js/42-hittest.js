@@ -222,25 +222,37 @@ function buildMarkerIcon(s, svg) {
   };
 }
 
-/* Apply icon + text + tree swatch of a marker-styled node.
+/* Sets a marker layer's ICON only (not its text/tooltip, which needs a
+   node name, or the tree swatch, which needs a row) \u2014 split out of
+   applyMarkerStyle so a RAW layer can be styled before any <li> exists
+   for it. See buildRecordsFromStorage: a marker inside a collapsed
+   folder that never gets expanded can still go straight from "pending"
+   to "visible" through a folder-level checkbox cascade
+   (cascadeVisibility's walkRecords), which only calls setLayerVisible on
+   rec._layer and never builds a row \u2014 so the icon has to already be
+   right on that raw layer, not wait for a row that may never come.
    S\u00CDNCRONA desde que los iconos van empotrados (MDI_ICON_BODIES): no
    hay red que esperar, as\u00ED que tampoco hace falta el contador de
    secuencia que descartaba aplicaciones obsoletas durante la edici\u00F3n
    en vivo, ni el aviso de "no se pudo cargar el icono". Un icono
    desconocido (un \u00E1rbol guardado con otro cat\u00E1logo) devuelve null y
    buildMarkerIcon cae en la gota de Leaflet.                         */
-function applyMarkerStyle(li) {
-  const s = li._mstyle;
-  const layer = nodeLayer(li);
-  if (!s || !layer) return;
+function styleMarkerIcon(layer, s) {
   const svg = s.icon === LEAFLET_PIN ? null : mdiSvg(s.icon);
-
   const { icon, textOffset } = buildMarkerIcon(s, svg);
   const each = l => {
     if (l instanceof L.Marker) l.setIcon(icon);
     if (l.eachLayer) l.eachLayer(each);
   };
   each(layer);
+  return textOffset;
+}
+/* Apply icon + text + tree swatch of a marker-styled node. */
+function applyMarkerStyle(li) {
+  const s = li._mstyle;
+  const layer = nodeLayer(li);
+  if (!s || !layer) return;
+  const textOffset = styleMarkerIcon(layer, s);
   applyMarkerText(li, textOffset);
   const sw = li.querySelector(":scope > .node-row > .swatch");
   if (sw) sw.style.background = s.color;

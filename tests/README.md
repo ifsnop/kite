@@ -557,6 +557,7 @@ BROWSER LAZY CASCADE TESTS OK
 ```
 
 **Qué cubre:** Desplegar y marcar una carpeta grande casi a la vez, en los dos órdenes y también apagando. Las dos pasadas van por lotes (`materializeRecords` construye filas, `cascadeVisibility` enciende) y cada una miraba su propia foto del árbol, así que se repartían los nodos sin saberlo: medido con un archivo real, 150 encendidas de 466 y la carpeta en indeterminado. La suite usa 400 capas —más que el lote de 150, o no hay carrera que provocar— y comprueba además que ninguna fila diga una cosa y el mapa otra, y que la repetición de la cascada no gire en vacío.
+Y el icono de un marcador dentro de una carpeta NUNCA desplegada: `buildRecordsFromStorage` debe dejarlo puesto en la capa cruda desde el momento en que la construye (comprobado con `mstyle.icon: "star"` antes de crear ninguna fila), y ese icono debe sobrevivir a activarlo por la cascada del checkbox de la carpeta sin que la carpeta llegue a desplegarse — el bug que esto prueba: un marcador con icono MDI, desactivado y en una carpeta colapsada, volvía a la gota de Leaflet por defecto al activarlo tras recargar.
 
 ### `browser/url-import.mjs`
 
