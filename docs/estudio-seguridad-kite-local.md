@@ -200,6 +200,7 @@ En la fecha de este documento, la batería está compuesta por 51 conjuntos de p
 - Recalculo correcto del estado de una carpeta al mover un elemento de una rama a otra del árbol.
 - Edición conjunta de varios elementos en un navegador real.
 - Comportamiento correcto al desplegar y activar a la vez una carpeta con un gran número de elementos.
+- Conservación del icono personalizado de un marcador, restaurado desde el almacenamiento local, al activarlo dentro de una carpeta que nunca ha llegado a desplegarse.
 - Comportamiento correcto de la función de añadir contenido desde una dirección web, incluida su cancelación.
 - Límite del desplazamiento del mapa a una única representación del planeta, sin duplicados horizontales.
 
