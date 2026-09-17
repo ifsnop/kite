@@ -909,6 +909,19 @@ async function buildRecordsFromStorage(nodes, prog) {
       const layer = L.geoJSON(n.geo, n.style ? { style: n.style } : undefined);
       clearFillOnOpenPaths(layer); /* una línea no se rellena, ver esa función */
       layer.bindPopup(escapeHtml(n.name), COMPACT_POPUP);
+      /* El icono personalizado se aplica AQUÍ, sobre la capa cruda, no
+         solo cuando materializeRecords construya su fila más adelante:
+         un marcador dentro de una carpeta colapsada puede pasar de
+         "pendiente" a "visible" con la cascada de la casilla de la
+         carpeta (cascadeVisibility → walkRecords) sin que su fila
+         llegue a crearse nunca — ese camino solo hace
+         setLayerVisible(rec._layer, checked), sin tocar el icono.
+         Reportado: un marcador con icono MDI (no la gota por defecto),
+         desactivado y dentro de una carpeta nunca desplegada, volvía a
+         la gota de Leaflet al activarlo tras recargar. Aplicarlo dos
+         veces (otra vez en materializeRecords, si la fila sí llega a
+         crearse) es inocuo: setIcon con el mismo icono no hace nada.  */
+      if (n.mstyle) styleMarkerIcon(layer, n.mstyle);
       if (n.checked) layer.addTo(rootGroup);
       const rec = { t: "layer", name: n.name, checked: !!n.checked, style: n.style || null,
                     geo: n.geo, mstyle: n.mstyle, desc: n.desc || null, _layer: layer };
