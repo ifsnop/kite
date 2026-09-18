@@ -404,11 +404,11 @@ MINIFIED BUILD TESTS OK
 
 **Salida de `npm test`:**
 ```
-── Comprobaciones estáticas: todo id referido existe y toda función llamada está declarada
+── Comprobaciones estáticas: sin bytes NUL, todo id referido existe y toda función llamada está declarada
 STATIC CHECKS OK
 ```
 
-**Qué cubre:** Las dos comprobaciones estáticas que antes se hacían a mano (y por eso casi nunca): que todo `$id`/`getElementById` apunte a un `id` que exista en el HTML, y que TODA FUNCIÓN LLAMADA ESTÉ DECLARADA — un refactor puede borrar un ayudante que sigue en uso y `node --check` no lo ve, porque el archivo sigue siendo válido. La segunda exige mirar código y no texto: los comentarios en castellano llenos de paréntesis daban 369 falsos positivos, así que la suite lleva su propio `maskCode` (borra comentarios, cadenas, plantillas y regex conservando posiciones, y recorre los `${…}`, que SÍ contienen código). Cuenta como declarado todo lo que liga un nombre: declaraciones, claves de objeto, métodos abreviados, getters y parámetros; los globales del navegador van en una lista explícita. Verificado que falla con un `id` mal escrito y con un ayudante borrado.
+**Qué cubre:** Las tres comprobaciones estáticas que antes se hacían a mano (y por eso casi nunca): que el archivo entregado no contenga ningún byte NUL — encontrado uno real, colado sin querer en un separador de un template literal de `navMessage` (`` `${tone}\0${txt}` `` en vez de un espacio), que no rompía nada en el navegador pero hacía que `grep` sin `-a` tratara el archivo como binario y dejara de encontrar nada en él; que todo `$id`/`getElementById` apunte a un `id` que exista en el HTML; y que TODA FUNCIÓN LLAMADA ESTÉ DECLARADA — un refactor puede borrar un ayudante que sigue en uso y `node --check` no lo ve, porque el archivo sigue siendo válido. La de las funciones exige mirar código y no texto: los comentarios en castellano llenos de paréntesis daban 369 falsos positivos, así que la suite lleva su propio `maskCode` (borra comentarios, cadenas, plantillas y regex conservando posiciones, y recorre los `${…}`, que SÍ contienen código). Cuenta como declarado todo lo que liga un nombre: declaraciones, claves de objeto, métodos abreviados, getters y parámetros; los globales del navegador van en una lista explícita. Verificado que falla con un `id` mal escrito y con un ayudante borrado.
 
 ### `tristate.js`
 

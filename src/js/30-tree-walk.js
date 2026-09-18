@@ -392,7 +392,7 @@ function paintMsgLine(line, entry) {
 function navMessage(txt, { sticky = false, tone = "error" } = {}) {
   const el = document.getElementById("nav-msg");
   const now = Date.now();
-  const key = `${tone} ${txt}`;
+  const key = `${tone} ${txt}`;
 
   /* Un aviso se FUNDE con una línea que siga visible y diga lo mismo, en
      vez de añadir otra: es lo que evita que una racha llene el panel.

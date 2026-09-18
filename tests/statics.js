@@ -2,7 +2,7 @@
 
    CLAUDE.md lleva una lista de cosas que «conviene pasar» sobre
    kitelocal.html. Tres ya las cubren otras suites (SRI, el guardián de
-   Leaflet, el valor de BUILD). Las dos que quedaban se hacían a mano —y
+   Leaflet, el valor de BUILD). Las tres que quedaban se hacían a mano —y
    por eso no se hacían casi nunca— son las de aquí:
 
    1. Que todo `$id("x")` / `getElementById("x")` apunte a un `id` que
@@ -13,6 +13,14 @@
       llevarse por delante un ayudante que sigue en uso y `node --check`
       no lo detecta, porque el archivo sigue siendo válido: el error solo
       sale al ejecutar esa rama.
+   3. Que no se haya colado ningún byte NUL. Encontrado uno de verdad,
+      dentro de un template literal de `navMessage`
+      (`` `${tone}\0${txt}` `` en vez de `` `${tone} ${txt}` ``, un
+      separador que no se ve al leer el código): no rompía nada en el
+      navegador —un `\0` es un carácter Unicode válido dentro de una
+      cadena— pero hacía que `grep` sin `-a` tratara el archivo como
+      binario y dejara de encontrar nada en él, incluido lo que buscan
+      el punto 10 del checklist y el resto de suites de esta lista.
 
    La segunda exige mirar el código de verdad, no con una expresión
    regular sobre el texto en bruto: los comentarios de este proyecto
@@ -30,8 +38,12 @@ const path = require("path");
 const { script, HTML_PATH } = require("./_extract");
 const ok = (c, m) => { if (!c) { console.error("FAIL: " + m); process.exitCode = 1; } };
 
-/* ---------- 1. Todo id referido existe ---------- */
+/* ---------- 3. Ningún byte NUL colado en el archivo ---------- */
 const html = fs.readFileSync(HTML_PATH, "utf8");
+ok(!html.includes("\0"), "el archivo entregado contiene un byte NUL: "
+  + "revisar plantillas de texto (ver el caso real de navMessage arriba)");
+
+/* ---------- 1. Todo id referido existe ---------- */
 const ids = new Set([...html.matchAll(/\sid="([^"]+)"/g)].map(m => m[1]));
 const used = [...html.matchAll(/(?:\$id|getElementById)\(\s*"([^"]+)"\s*\)/g)].map(m => m[1]);
 ok(used.length > 50, `se han encontrado referencias a id que revisar: ${used.length}`);
