@@ -76,4 +76,13 @@ reset();
 addRow(null); addRow(undefined); addRow("Línea 2");
 ok(api.nextNumberedName("Línea") === "Línea 3", "un nodo sin nombre no rompe el barrido");
 
+/* ---------- «Ruta» (medición multi-waypoint): una familia más, con
+   su propia serie independiente, igual que Línea/Círculo/Polígono --- */
+reset();
+ok(api.nextNumberedName("Ruta") === "Ruta 1", "la primera ruta es la 1");
+addRow("Ruta 1"); addRow("Línea 1");
+ok(api.nextNumberedName("Ruta") === "Ruta 2", "sigue su propia secuencia: " + api.nextNumberedName("Ruta"));
+ok(api.nextNumberedName("Línea") === "Línea 2",
+  "y no se mezcla con la de línea aunque compartan mecanismo");
+
 if (!process.exitCode) console.log("NAMING TESTS OK");

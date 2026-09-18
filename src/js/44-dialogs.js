@@ -772,6 +772,11 @@ function openStyleDialog(li, { isNew = false } = {}) {
     $id("pg-points-row").classList.toggle("dim", !!pointsWhy);
     $id("pg-points").disabled = !!pointsWhy;
     $id("pg-points").title = pointsWhy;
+    /* Edición interactiva de vértices (arrastrar/borrar en el mapa):
+       mismo caso que la lista de puntos, un único trazo propio — y por
+       debajo del tope medido (VERTEX_EDIT_MAX), o solo queda el editor
+       de texto de arriba.                                             */
+    if (single && !pointsWhy) beginVertexEdit(styleTargets[0]);
   } else if (kind === "measure") {
     const styles = styleTargets.map(t => normalizePathStyle(t._style));
     styleDraft = { ...styles[0] };
@@ -814,6 +819,7 @@ function closeStyleDialog(commit = false) {
     setMarkerDraggable(posMarker, false);
     if (!commit && posOriginal) { posMarker.setLatLng(posOriginal); invalidateGeo(styleTargets[0]); }
   }
+  endVertexEdit(commit);
   if (!commit && styleIsNew && styleTargets.length) deleteNode(styleTargets[0]);
   const wasOpen = !styleDialog.hidden;
   styleDialog.hidden = true;
@@ -996,20 +1002,33 @@ function setMeasureUnit(unit) {
 $id("pg-unit").addEventListener("change", () => setMeasureUnit($id("pg-unit").value));
 
 /* ---------- Medidas de una medición (solo lectura) ---------- */
-let msMeasures = null; /* {circle, dist, area, brg} de la medición abierta, o null */
+let msMeasures = null; /* {circle, route, dist, area, brg, legs} de la medición abierta, o null */
 function renderMeasureValues() {
   if (!msMeasures) return;
-  /* Un círculo se describe por su RADIO; una línea, por su distancia */
-  $id("ms-dist-label").textContent = msMeasures.circle ? "Radio" : "Distancia";
+  /* Un círculo se describe por su RADIO, una ruta por su TOTAL, una
+     línea por su distancia sin más.                                  */
+  $id("ms-dist-label").textContent = msMeasures.circle ? "Radio" : msMeasures.route ? "Distancia total" : "Distancia";
   $id("ms-dist").textContent = fmtUnitDist(msMeasures.dist, measureUnit);
   $id("ms-area-row").hidden = msMeasures.area === null;
   if (msMeasures.area !== null) {
     $id("ms-area").textContent = fmtUnitArea(msMeasures.area, measureUnit);
   }
   /* El rumbo va SIEMPRE en grados: no es una distancia y la unidad
-     elegida no le afecta.                                            */
+     elegida no le afecta. Una ruta no tiene un único rumbo: esa fila
+     se oculta y en su lugar se desglosa por tramo, más abajo.        */
   $id("ms-bearing-row").hidden = msMeasures.brg === null;
   if (msMeasures.brg !== null) $id("ms-bearing").textContent = `${msMeasures.brg.toFixed(1)}°`;
+  $id("ms-legs-row").hidden = !msMeasures.route;
+  if (msMeasures.route) {
+    const legs = $id("ms-legs");
+    legs.textContent = "";
+    msMeasures.legs.forEach((leg, i) => {
+      const row = document.createElement("div");
+      row.className = "dlg-note";
+      row.textContent = `Tramo ${i + 1}: ${fmtUnitDist(leg.dist, measureUnit)} · ${leg.brg.toFixed(1)}°`;
+      legs.appendChild(row);
+    });
+  }
 }
 $id("ms-unit").addEventListener("change", () => setMeasureUnit($id("ms-unit").value));
 

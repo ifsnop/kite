@@ -348,17 +348,37 @@ MESSAGE LOG TESTS OK
 NAMING TESTS OK
 ```
 
-**Qué cubre:** `nextNumberedName`: autonumerado de las formas dibujadas y las mediciones deducido de los nombres existentes (no de un contador, que se reiniciaría al recargar porque una forma vuelve por el camino genérico `t:"layer"`). Cubre la secuencia, que manda el máximo y no la cuenta (huecos), que cada familia va por su cuenta, que una línea dibujada no reutiliza el número de una medición, el anclaje exacto del patrón (`Mi Línea 9` no cuenta como 9), los registros pendientes de carpetas nunca desplegadas —incluidos los anidados— y los nodos sin nombre.
+**Qué cubre:** `nextNumberedName`: autonumerado de las formas dibujadas y las mediciones deducido de los nombres existentes (no de un contador, que se reiniciaría al recargar porque una forma vuelve por el camino genérico `t:"layer"`). Cubre la secuencia, que manda el máximo y no la cuenta (huecos), que cada familia va por su cuenta —incluida «Ruta», la medición multi-waypoint, con su propia serie independiente de «Línea»—, que una línea dibujada no reutiliza el número de una medición, el anclaje exacto del patrón (`Mi Línea 9` no cuenta como 9), los registros pendientes de carpetas nunca desplegadas —incluidos los anidados— y los nodos sin nombre.
 
 ### `measure.js`
 
 **Salida de `npm test`:**
 ```
-── Mediciones: estilo propio, medidas del diálogo y renombrado sin perder la medida
+── Mediciones: estilo propio, medidas del diálogo, ruta multi-waypoint y renombrado sin perder la medida
 MEASURE TESTS OK
 ```
 
-**Qué cubre:** Mediciones: `defaultMeasureStyle` (una línea nunca se rellena, un círculo sí y con relleno muy translúcido; cada tipo conserva su color y el contorno va siempre opaco); `capArea` —el área de un círculo es la del CASQUETE esférico, no πr²— coincidiendo con πr² a 1 km, quedando por debajo a 1000 km y dando medio globo para un cuarto de vuelta; `measurementValues` (una línea da distancia y rumbo y ninguna área, un círculo radio y área y ningún rumbo); `fmtUnitDist`/`fmtUnitArea` (las mismas funciones para el diálogo y para las etiquetas del visor; el área con el factor AL CUADRADO); `renderMeasureValues` (etiqueta Radio/Distancia, conversión de unidad, rumbo siempre en grados y filas de área/rumbo que se ocultan solas); `updateMeasurement`, que escribe la etiqueta en la unidad elegida —NM por defecto— y con el mismo formato que el diálogo, y `refreshMeasureLabels`, que al cambiar de unidad repinta tanto las filas del árbol como las mediciones de una carpeta nunca desplegada (`li._pending`), que están en el mapa sin fila; y `startRename` sobre una fila cuyo texto no es el nombre a secas —la regresión reportada: dejar el nombre igual, o cancelar con Escape, borraba la distancia de la fila—, más el caso normal de una capa sin medida.
+**Qué cubre:** Mediciones: `defaultMeasureStyle` (una línea nunca se rellena, un círculo sí y con relleno muy translúcido; cada tipo conserva su color y el contorno va siempre opaco); `capArea` —el área de un círculo es la del CASQUETE esférico, no πr²— coincidiendo con πr² a 1 km, quedando por debajo a 1000 km y dando medio globo para un cuarto de vuelta; `measurementValues` (una línea da distancia y rumbo y ninguna área, un círculo radio y área y ningún rumbo, una ruta el total y el desglose por tramo sin un único rumbo); `fmtUnitDist`/`fmtUnitArea` (las mismas funciones para el diálogo y para las etiquetas del visor; el área con el factor AL CUADRADO); `renderMeasureValues` (etiqueta Radio/Distancia/Distancia total, conversión de unidad, rumbo siempre en grados, filas de área/rumbo que se ocultan solas, y la fila de tramos de una ruta con un `<div>` por tramo que desaparece de nuevo al volver a una línea); `updateMeasurement`/`updateRouteMeasurement`, que escriben la etiqueta —o una por tramo, en una ruta— en la unidad elegida y con el mismo formato que el diálogo (el total de una ruta es la SUMA de los tramos, no la distancia origen-fin), y `refreshMeasureLabels`, que al cambiar de unidad repinta tanto las filas del árbol como las mediciones de una carpeta nunca desplegada (`li._pending`), que están en el mapa sin fila; y `startRename` sobre una fila cuyo texto no es el nombre a secas —la regresión reportada: dejar el nombre igual, o cancelar con Escape, borraba la distancia de la fila—, más el caso normal de una capa sin medida.
+
+### `schemaupgrade.js`
+
+**Salida de `npm test`:**
+```
+── Subida silenciosa de TREE_SCHEMA v6 a v7: measure.a/b a measure.waypoints
+SCHEMA UPGRADE TESTS OK
+```
+
+**Qué cubre:** `upgradeMeasuresV6`, la única excepción a «lo que no corresponda a la versión actual se borra, no se migra»: una medición v6 con `a`/`b` sueltos sube a `waypoints` (array de 2, en el mismo orden) sin dejar los dos formatos a la vez, igual para línea que para círculo (no mira `mtype`); el resto del registro (nombre, `checked`, estilo) no se toca; alcanza mediciones anidadas dentro de carpetas colapsadas a varios niveles; un nodo `t:"layer"` no se altera; un registro que YA tiene `waypoints` (v7, o una ruta con más de 2) se deja tal cual sin inventar `a`/`b`; y un árbol vacío o sin mediciones no rompe nada.
+
+### `vertexedit.js`
+
+**Salida de `npm test`:**
+```
+── Edición interactiva de vértices de un polígono: arrastrar, borrar, mínimo por anillo, tope
+VERTEX EDIT TESTS OK
+```
+
+**Qué cubre:** La edición de vértices de un polígono ya creado desde su diálogo de propiedades (`beginVertexEdit`/`endVertexEdit`/`removeVertexEditPoint`), con un Leaflet de mentira mínimo (`L.Polygon`/`L.Polyline` de verdad, para que `instanceof` distinga cerrado de abierto). Cubre: por debajo del tope se construye un manejador por vértice reutilizando `pathRings` (el mismo recorrido de anillos/partes que ya usa el editor de texto); el mínimo de borrado es 3 en un anillo cerrado y 2 en una forma abierta, con aviso al bloquearlo; en una geometría con agujero, el mínimo se exige POR ANILLO —el agujero no baja de 3 sin que el borrado del anillo exterior se vea afectado—; «Cancelar» (`endVertexEdit(false)`) restaura la capa real a sus vértices originales exactos, byte a byte; «Aceptar» conserva el borrado; y por encima de `VERTEX_EDIT_MAX` no se construye ningún manejador (solo queda el editor de texto).
 
 ### `icons.js`
 

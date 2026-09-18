@@ -95,7 +95,8 @@ ok(circVals.dist === lineVals.dist, "y el radio se mide igual que la distancia")
 const { document } = parseHTML(`
   <span id="ms-dist-label"></span><span id="ms-dist"></span>
   <div id="ms-area-row"><span id="ms-area"></span></div>
-  <div id="ms-bearing-row"><span id="ms-bearing"></span></div>`);
+  <div id="ms-bearing-row"><span id="ms-bearing"></span></div>
+  <div id="ms-legs-row"><div id="ms-legs"></div></div>`);
 const units = constDecl("METERS_PER_NM") + "\n" + constDecl("METERS_PER_FOOT") + "\n"
   + constDecl("POLY_UNIT_FACTOR") + "\n" + constDecl("POLY_UNIT_LABEL") + "\n"
   + constDecl("fmtUnitDist") + "\n" + constDecl("fmtUnitArea");
@@ -140,6 +141,22 @@ ok($("ms-area-row").hidden === false, "pero sí área");
 ok($("ms-area").textContent === "3.14 km²",
   "el área se convierte con el factor al cuadrado: " + $("ms-area").textContent);
 
+/* Ruta: «Distancia total», sin fila de rumbo (no hay uno solo) y un
+   tramo por línea en #ms-legs.                                       */
+render.render({ circle: false, route: true, dist: 100000, area: null, brg: null,
+  legs: [{ dist: 50000, brg: 90 }, { dist: 50000, brg: 180 }] }, "km");
+ok($("ms-dist-label").textContent === "Distancia total", "una ruta mide DISTANCIA TOTAL: " + $("ms-dist-label").textContent);
+ok($("ms-dist").textContent === "100.00 km", "el total en km: " + $("ms-dist").textContent);
+ok($("ms-bearing-row").hidden === true, "una ruta no tiene un único rumbo");
+ok($("ms-legs-row").hidden === false, "y sí una fila de tramos");
+ok($("ms-legs").children.length === 2, "un div por tramo: " + $("ms-legs").children.length);
+ok($("ms-legs").children[0].textContent === "Tramo 1: 50.00 km · 90.0°",
+  "cada tramo con su distancia y su rumbo: " + $("ms-legs").children[0].textContent);
+ok($("ms-legs").children[1].textContent === "Tramo 2: 50.00 km · 180.0°", "y el segundo tramo");
+/* Volver a una línea limpia la fila de tramos de la ruta anterior */
+render.render({ circle: false, dist: 1852, area: null, brg: 45 }, "m");
+ok($("ms-legs-row").hidden === true, "una línea no enseña tramos");
+
 /* ============ 3. La etiqueta va en la unidad elegida ============
    Antes la etiqueta del visor y la de la fila del árbol iban siempre en
    métrico Y náutico a la vez (`fmtDist`, ya retirado), sin relación con
@@ -150,8 +167,9 @@ const Lstub = { latLng: (lat, lng) => ({ lat, lng }) };
 const labelApi = new Function("treeEl", "L", "document",
   geoSrc.replace(constDecl("capArea"), "") + mapStub + "\n" + units
   + "\nlet measureUnit = 'nm';\n"
-  + fn("midPoint") + "\n" + fn("updateMeasurement") + "\n" + fn("refreshMeasureLabels")
-  + "\nreturn {updateMeasurement, refreshMeasureLabels,"
+  + fn("midPoint") + "\n" + fn("updateMeasurement") + "\n" + fn("updateRouteMeasurement")
+  + "\n" + fn("refreshMeasureLabels") + "\n" + fn("measurementValues")
+  + "\nreturn {updateMeasurement, refreshMeasureLabels, measurementValues,"
   + " setUnit: u => { measureUnit = u; }};")(doc3.getElementById("tree"), Lstub, doc3);
 
 /* Una medición de mentira con lo justo que toca updateMeasurement */
@@ -199,6 +217,38 @@ labelApi.setUnit("m");
 labelApi.refreshMeasureLabels();
 ok(/ m ·/.test(pendM.label.content) && / m ·/.test(rowM.label.content),
   "y vuelven a cambiar juntas: " + pendM.label.content);
+
+/* ---------- Ruta: tramo a tramo y el total ---------- */
+function fakeRoute(waypoints, name, treeLabel) {
+  return {
+    type: "route", treeName: name, treeLabel,
+    handles: waypoints.map(w => ({ getLatLng: () => w })),
+    legLabels: waypoints.slice(1).map(() => ({ setLatLng() {}, setContent(t) { this.content = t; } })),
+    geom: { setLatLngs() {} },
+    legs: [], totalDist: 0
+  };
+}
+const C = { lat: 41, lng: -2 }; /* tercer waypoint, para tener DOS tramos distintos */
+labelApi.setUnit("nm");
+const route = fakeRoute([A, B, C], "Ruta 1", null);
+labelApi.updateMeasurement(route); /* despacha a updateRouteMeasurement */
+ok(route.legs.length === 2, "dos tramos para tres waypoints: " + route.legs.length);
+ok(route.totalDist === route.legs[0].dist + route.legs[1].dist,
+  "el total es la suma de los tramos, no la distancia origen-fin");
+ok(/NM/.test(route.legLabels[0].content) && /NM/.test(route.legLabels[1].content),
+  "cada tramo lleva su propia etiqueta, en la unidad elegida: " + route.legLabels.map(l => l.content));
+
+const routeRowLabel = { textContent: "" };
+route.treeLabel = routeRowLabel;
+labelApi.updateMeasurement(route);
+ok(routeRowLabel.textContent === `Ruta 1 — ${render.fmtUnitDist(route.totalDist, "nm")} total, 2 tramos`,
+  "la fila del árbol muestra el TOTAL, no un tramo suelto: " + routeRowLabel.textContent);
+
+const routeVals = labelApi.measurementValues(route);
+ok(routeVals.route === true && routeVals.circle === false && routeVals.brg === null,
+  "measurementValues marca route, no circle, y sin un único rumbo");
+ok(routeVals.dist === route.totalDist, "y su \"distancia\" es el total");
+ok(routeVals.legs === route.legs, "con el desglose por tramo tal cual lo calculó updateRouteMeasurement");
 
 /* ================= 4. Renombrar sin perder la medida ================= */
 const { document: doc2 } = parseHTML("<ul id='tree'></ul>");

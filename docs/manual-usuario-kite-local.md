@@ -147,7 +147,8 @@ La primera reúne las herramientas que dibujan sobre el mapa:
 
 - **Medir línea** (╱): arrastrar de un punto a otro traza una línea y calcula su distancia y su rumbo.
 - **Medir círculo** (◯): arrastrar del centro al borde calcula el radio y la superficie.
-- **Dibujar polígono o línea** (⬠): un clic por cada vértice; un doble clic sobre el último vértice cierra la figura, y un doble clic fuera de un vértice la deja como una línea abierta.
+- **Medir ruta** (⤳): un clic por cada waypoint, doble clic para terminar — como varias líneas encadenadas, con la distancia y el rumbo de cada tramo por separado y el total. Pensada para planificar una ruta con varias escalas, no solo un tramo suelto.
+- **Dibujar polígono o línea** (⬠): un clic por cada vértice; un doble clic sobre el último vértice cierra la figura, y un doble clic fuera de un vértice la deja como una línea abierta. Mientras se dibuja, un vértice ya puesto se puede arrastrar a otra posición antes de cerrar la figura, y quitar con el botón derecho.
 - **Crear un pin** (📍): añade un marcador en el centro de la vista actual y abre directamente su diálogo de estilo.
 - **Exportar PNG** (📷): guarda una imagen del mapa tal como se ve, sin los controles superpuestos, pero con el cuadro de coordenadas, la escala y la atribución (que la licencia de la cartografía exige conservar).
 
@@ -213,9 +214,11 @@ Ancho y color del contorno; un selector de tres opciones —contorno y relleno, 
 
 Una figura abierta (una línea, no un polígono cerrado) no tiene superficie que rellenar: sus controles de relleno aparecen entonces deshabilitados en vez de ocultos, para que se note que existen pero no aplican a ese caso.
 
+Además del editor de texto, mientras este diálogo está abierto sus vértices se pueden mover y borrar directamente sobre el mapa: manteniendo `Ctrl` se arrastra uno a una nueva posición, y con el botón derecho se quita (sin poder bajar de 3 vértices en un contorno cerrado, o de 2 en una línea abierta). Es una edición diferida como el resto del diálogo: «Cancelar» devuelve los vértices a como estaban, «Aceptar» los deja como estén. Con una figura de muchísimos vértices (más de unos cientos) esta edición interactiva no se activa, y solo queda disponible el editor de texto.
+
 ### 6.3 Estilo de una medición
 
-Igual que un polígono en cuanto a trazo y relleno, pero con sus medidas propias en modo de solo lectura: una línea muestra distancia y rumbo; un círculo, radio y área.
+Igual que un polígono en cuanto a trazo y relleno, pero con sus medidas propias en modo de solo lectura: una línea muestra distancia y rumbo; un círculo, radio y área; una ruta, la distancia total y la de cada uno de sus tramos por separado.
 
 ![Diálogo de estilo de una medición, con distancia y rumbo de solo lectura](img/16-estilo-medicion.png)
 *Figura 17. Estilo de «Línea 1»: mismo tipo de controles que un polígono, con la distancia y el rumbo de la medición debajo.*
@@ -254,6 +257,8 @@ Se pulsa la herramienta «Medir línea» (╱) de la barra de dibujo, y se arras
 *Figura 20. Medición entre «Base» y «Punto de control»: 1,92 millas náuticas a un rumbo de 108,2°, con su fila correspondiente en el árbol.*
 
 Para editar una medición ya creada basta con mantener pulsado `Ctrl` y arrastrar uno de sus extremos. La unidad de medida (metros, kilómetros, pies o millas náuticas —la unidad por defecto, la habitual en navegación aérea y marítima—) se elige una sola vez y se aplica a la vez a todas las mediciones y a todos los polígonos, tanto en su diálogo de estilo como en las etiquetas que se ven sobre el mapa.
+
+Para una ruta con varias escalas, en vez de un solo tramo, se usa la herramienta «Medir ruta» (⤳): un clic marca cada waypoint y un doble clic termina la ruta (siempre queda abierta; no se puede cerrar en anillo). Cada tramo lleva su propia etiqueta de distancia y rumbo sobre el mapa, y la fila del árbol muestra la distancia total. Igual que una línea, cualquier waypoint ya creado se mueve con `Ctrl` + arrastre, y se quita con el botón derecho (sin poder bajar de 2 waypoints).
 
 ### 7.3 Medir una superficie, o dibujar una figura propia
 

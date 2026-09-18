@@ -240,6 +240,125 @@ function setMarkerDraggable(mk, on) {
   if (mk.dragging) { if (on) mk.dragging.enable(); else mk.dragging.disable(); }
 }
 
+/* ---------- Edición interactiva de vértices (arrastrar y borrar) ----------
+   Complementa al editor de texto («Ver y editar…», sigue existiendo
+   para listas grandes o ediciones masivas): mientras el diálogo de
+   estilos edita UN polígono, sus vértices se pueden arrastrar
+   (Ctrl+arrastre, el mismo gesto reservado que ya usan las mediciones)
+   y borrar (clic derecho), directamente sobre el mapa. Mismo patrón que
+   la posición de un marcador (posMarker/onMarkerDragged): en vivo sobre
+   la capa REAL, pero diferido de verdad — «Cancelar» restaura los
+   vértices originales, «Aceptar» los deja como estén.
+
+   Por debajo de VERTEX_EDIT_MAX vértices se construyen manejadores; por
+   encima, ninguno — demasiados manejadores son otros tantos nodos del
+   DOM (los marcadores de Leaflet siempre lo son, nunca van por canvas,
+   como ya advierte ELEV_ACCUM_MAX_CELLS) y el editor de texto ya cubre
+   ese caso sin problema. Medido en el navegador (Chromium, construir
+   los manejadores de un anillo sintético, sin la caché de geometría de
+   por medio): 500 vértices, 12-30 ms según la ejecución; 2000, ~85 ms;
+   4000, ~213 ms — el coste crece con N, y 500 se queda cómodamente por
+   debajo del umbral de "se siente instantáneo" (~100 ms) incluso con
+   margen para un equipo más lento que esta VM de desarrollo.         */
+const VERTEX_EDIT_MAX = 500;
+
+let vertexEdit = null; /* { li, layer, rings, handleRings, nested, closed, group, originalLatLngs } o null */
+
+/* Copia independiente de una estructura de anillos (array de L.LatLng, o
+   array de arrays): ni `rings` ni `originalLatLngs` deben compartir los
+   objetos que Leaflet tiene en su _latlngs interno, o "cancelar" no
+   tendría a qué volver.                                                */
+function cloneLatLngRings(rings) {
+  return rings.map(r => r.map(p => L.latLng(p.lat, p.lng)));
+}
+
+function beginVertexEdit(li) {
+  const layer = solePath(li);
+  if (!layer) return;
+  const { rings: liveRings, nested } = pathRings(layer);
+  const total = liveRings.reduce((n, r) => n + r.length, 0);
+  if (!total || total > VERTEX_EDIT_MAX) return;
+  const rings = cloneLatLngRings(liveRings);
+  const originalLatLngs = cloneLatLngRings(liveRings);
+  const group = L.featureGroup().addTo(rootGroup);
+  const handleRings = rings.map(ring => ring.map(pos => {
+    const h = makeHandle(pos);
+    wireVertexEditHandle(h);
+    group.addLayer(h);
+    return h;
+  }));
+  vertexEdit = { li, layer, rings, handleRings, nested,
+                 closed: layer instanceof L.Polygon, group, originalLatLngs };
+}
+
+/* Vuelca vertexEdit.rings a la capa real y recalcula lo que enseña el
+   diálogo (perímetro/área): las mismas dos funciones que ya usa el
+   editor de texto al aceptar, aquí en cada arrastre/borrado.          */
+function applyVertexEditRings() {
+  const { layer, rings, nested } = vertexEdit;
+  layer.setLatLngs(nested || rings.length > 1 ? rings : rings[0]);
+  invalidateGeo(vertexEdit.li);
+  polyMeasures = polygonMeasures(vertexEdit.li);
+  renderPolyMeasures();
+}
+
+/* Busca en qué anillo/posición vive un manejador AHORA MISMO: no se
+   captura el índice al crearlo porque borrar uno de en medio desplaza
+   los que le siguen (mismo motivo que ya explica addPolyVertex).      */
+function findVertexEditPos(handle) {
+  for (let ri = 0; ri < vertexEdit.handleRings.length; ri++) {
+    const pi = vertexEdit.handleRings[ri].indexOf(handle);
+    if (pi !== -1) return [ri, pi];
+  }
+  return null;
+}
+
+function wireVertexEditHandle(handle) {
+  attachVertexDrag(handle, true, latlng => {
+    const pos = findVertexEditPos(handle);
+    if (!pos) return;
+    vertexEdit.rings[pos[0]][pos[1]] = latlng;
+    applyVertexEditRings();
+  }, null);
+  handle.on("contextmenu", ev => {
+    L.DomEvent.stop(ev.originalEvent);
+    removeVertexEditPoint(handle);
+  });
+}
+
+/* Mismo mínimo que ya exige el editor de texto y el dibujo a mano: 3
+   vértices por anillo cerrado, 2 en una forma abierta.                */
+function removeVertexEditPoint(handle) {
+  const pos = findVertexEditPos(handle);
+  if (!pos) return;
+  const [ri, pi] = pos;
+  const min = vertexEdit.closed ? 3 : 2;
+  if (vertexEdit.rings[ri].length <= min) {
+    navMessage(vertexEdit.closed
+      ? "Faltan vértices para seguir siendo un polígono (mínimo 3 por anillo)."
+      : "Faltan vértices para seguir siendo una línea (mínimo 2).");
+    return;
+  }
+  vertexEdit.rings[ri].splice(pi, 1);
+  vertexEdit.handleRings[ri].splice(pi, 1);
+  vertexEdit.group.removeLayer(handle);
+  applyVertexEditRings();
+}
+
+/* Cierra la edición interactiva: `commit` false restaura los vértices
+   originales (edición diferida, igual que la posición de un marcador);
+   en los dos casos se retiran los manejadores temporales.             */
+function endVertexEdit(commit) {
+  if (!vertexEdit) return;
+  if (!commit) {
+    const { layer, originalLatLngs, nested } = vertexEdit;
+    layer.setLatLngs(nested || originalLatLngs.length > 1 ? originalLatLngs : originalLatLngs[0]);
+    invalidateGeo(vertexEdit.li);
+  }
+  rootGroup.removeLayer(vertexEdit.group);
+  vertexEdit = null;
+}
+
 /* ---------- Moving the dialogs ----------
    Both property dialogs can be dragged by their title so they stop
    covering the part of the map being worked on. On the first drag the box
