@@ -1,5 +1,5 @@
 const { parseHTML } = require("linkedom");
-const { fn } = require("./_extract");
+const { fn, constDecl } = require("./_extract");
 
 const { document } = parseHTML("<div id='tree'></div>");
 global.document = document;
@@ -23,7 +23,8 @@ const PROGRESS_BATCH = 3; /* small on purpose: exercise the yield path with a ma
 
 let saveCalls = 0;
 const scheduleSave = () => { saveCalls++; };
-const navMessage = () => {};
+let navCalls = [];
+const navMessage = (txt, opts) => { navCalls.push({ txt, opts }); };
 const showEmptyMessage = () => {};
 const syncExpanded = () => {};
 let measureLi = null;
@@ -96,8 +97,12 @@ function makeNode({ name, layer = null, isFolder = false, isFile = false, checke
 
 const src = [
   "const nodeUl = li => li.querySelector(':scope > ul.node-list');",
+  "const nodeRow = li => li._row || li.querySelector(':scope > .node-row');",
+  "let selCursor = null; let selAnchor = null; let selCountTimer = null;",
+  fn("setSelected"), fn("clearSelection"), fn("setSelCursor"),
+  constDecl("SEL_COUNT_DEBOUNCE_MS"), fn("announceSelectionCount"),
   fn("layerKind"), fn("styleKind"), fn("nodeLayer"), fn("setLayerVisible"), fn("ensureMarkerDefaults"),
-  fn("materializeRecords"), fn("ensureMaterialized"),
+  fn("materializeRecords"), fn("ensureMaterialized"), fn("materializeSubtree"), fn("selectFolderLayers"),
   fn("serializeNode"), "const serializeNodes = ul => [...ul.children].flatMap(serializeNode);",
   fn("serializePendingRecords"),
   fn("extendBounds"), fn("extendBoundsFromRecords"), fn("subtreeBounds"),
@@ -124,7 +129,8 @@ const api = new Function(
   src + `\nreturn {
     materializeRecords, ensureMaterialized, serializeNode, serializeNodes, serializePendingRecords,
     subtreeBounds, findMatches, searchMatches, resolveMatch, resolveRecordLi,
-    wirePendingLayerEvents, visibleElevGridNodes, blinkLayer, deleteNode,
+    wirePendingLayerEvents, visibleElevGridNodes, blinkLayer, deleteNode, selectFolderLayers,
+    clearSelection, SEL_COUNT_DEBOUNCE_MS,
     cuentas: () => ({ enVuelo: materializingNow, terminadas: materializeSeq })
   };`
 )(rootGroup, yieldFrame, PROGRESS_BATCH, scheduleSave, navMessage, showEmptyMessage,
@@ -134,7 +140,8 @@ const api = new Function(
 const {
   materializeRecords, ensureMaterialized, serializeNode, serializeNodes,
   subtreeBounds, findMatches, searchMatches, resolveMatch, resolveRecordLi,
-  wirePendingLayerEvents, visibleElevGridNodes, blinkLayer, deleteNode
+  wirePendingLayerEvents, visibleElevGridNodes, blinkLayer, deleteNode, selectFolderLayers,
+  clearSelection, SEL_COUNT_DEBOUNCE_MS
 } = api;
 
 const ok = (c, m) => { if (!c) { console.error("FAIL: " + m); process.exitCode = 1; } };
@@ -144,6 +151,8 @@ const layerRec = (name, checked = true) =>
 const folderRec = (name, collapsed, children) => ({ t: "folder", name, checked: children.some(c => c.checked), collapsed, children });
 
 (async () => {
+  const sleep = ms => new Promise(r => setTimeout(r, ms));
+
   /* ---------- test diferencial: el formato serializado no cambia ----------
      El mismo árbol construido dos veces: una vez con TODO abierto (ruta
      materializada de siempre) y otra con una subcarpeta colapsada (ruta
@@ -319,8 +328,30 @@ const folderRec = (name, collapsed, children) => ({ t: "folder", name, checked: 
      "encuentra la capa de elevaciones visible dentro de una carpeta pendiente: " + foundElev.length);
   ok(!elevOuter._pending, "y materializa lo necesario para devolver un <li> real, listo para fusionar la sesión");
 
+  /* ---------- selectFolderLayers: el botón ☑ de una carpeta ----------
+     Selecciona de una vez todas las capas de la rama, incluidas las de
+     una subcarpeta nunca desplegada (materializeSubtree se encarga), y
+     avisa con el recuento (announceSelectionCount) — es literalmente
+     "saber cuántos elementos hay en una carpeta" sin desplegarla entera. */
+  const sflTree = [folderRec("multi", false, [
+    layerRec("x"), layerRec("y"),
+    folderRec("inner", true, [layerRec("z")]) /* colapsada: sigue pendiente */
+  ])];
+  const sflUl = document.createElement("ul");
+  await materializeRecords(sflTree, sflUl);
+  const multiLi = [...sflUl.children].find(li => li._name === "multi");
+
+  navCalls = [];
+  await selectFolderLayers(multiLi);
+  ok(selection.size === 3,
+     "selecciona las tres capas, incluida la de la subcarpeta colapsada: " + selection.size);
+  await sleep(SEL_COUNT_DEBOUNCE_MS + 60); /* announceSelectionCount debate con setTimeout */
+  ok(navCalls.length === 1 && navCalls[0].txt === "3 nodos seleccionados.",
+     "avisa con el recuento, igual que Mayús+click o Ctrl+Mayús+click: " + JSON.stringify(navCalls));
+  ok(navCalls[0].opts.tone === "info", "el aviso es informativo, no un error: " + navCalls[0].opts.tone);
+  clearSelection();
+
   /* ---------- blinkLayer: parpadeo de identificación ---------- */
-  const sleep = ms => new Promise(r => setTimeout(r, ms));
   const BLINK_WAIT = 4 /* BLINK_STEPS pasado arriba */ * 2 /* BLINK_INTERVAL_MS pasado arriba */ + 30;
 
   const blinkTag = { tag: "blink1" };

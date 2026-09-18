@@ -153,6 +153,44 @@ const d = await page.evaluate(async () => {
 });
 ok(d < 5000, "una cascada sobre el árbol ya materializado termina en seguida: " + d + " ms");
 
+/* ---------- Feedback inmediato: spinner, fila que parpadea y aviso ----------
+   El bug reportado: sin feedback, el usuario no ve ningún cambio durante
+   los fotogramas que cascadeVisibility tarda en una carpeta grande y
+   vuelve a pulsar la misma casilla, con el resultado de que las capas
+   se encienden y se apagan solas de golpe. beginCascadeFeedback es la
+   PRIMERA línea de cascadeVisibility, así que debe verse YA en el mismo
+   evento "change" que dispara el click, sin esperar ni un fotograma.  */
+const feedback = await page.evaluate(async () => {
+  const li = [...document.querySelectorAll("#tree > ul > li")][0];
+  const fila = li.querySelector(":scope > .node-row");
+  const chk = fila.querySelector("input[type=checkbox]");
+  const status = document.querySelector(".cascade-status");
+  const snapshot = () => ({
+    chkHidden: chk.hidden, chkDisabled: chk.disabled,
+    spinnerVisible: !!(li._spinner && !li._spinner.hidden),
+    filaCascando: fila.classList.contains("cascading"),
+    ariaBusy: li.getAttribute("aria-busy"),
+    statusVisible: !!(status && !status.hidden)
+  });
+  chk.click();
+  const enElActo = snapshot(); /* sin ningún await de por medio */
+  await __reposo();
+  return { enElActo, alTerminar: snapshot() };
+});
+ok(feedback.enElActo.chkHidden === true && feedback.enElActo.chkDisabled === true,
+  "la casilla se oculta y deshabilita en el mismo evento change, antes de ceder el hilo: "
+  + JSON.stringify(feedback.enElActo));
+ok(feedback.enElActo.spinnerVisible === true, "el spinner que la sustituye aparece en el acto");
+ok(feedback.enElActo.filaCascando === true, "la fila se marca .cascading en el acto (el nombre parpadea)");
+ok(feedback.enElActo.ariaBusy === "true", "aria-busy se fija en el acto");
+ok(feedback.enElActo.statusVisible === true, "el aviso «Actualizando…» sobre el visor aparece en el acto");
+ok(feedback.alTerminar.chkHidden === false && feedback.alTerminar.chkDisabled === false,
+  "la casilla vuelve en cuanto la cascada termina");
+ok(feedback.alTerminar.spinnerVisible === false, "el spinner se oculta al terminar");
+ok(feedback.alTerminar.filaCascando === false, ".cascading se quita al terminar");
+ok(feedback.alTerminar.ariaBusy === null, "aria-busy se retira al terminar");
+ok(feedback.alTerminar.statusVisible === false, "el aviso del visor se oculta al terminar");
+
 /* ---------- Icono personalizado de un marcador aún sin fila ----------
    Bug reportado: un marcador con un icono MDI (no la gota de Leaflet por
    defecto), desactivado y dentro de una carpeta nunca desplegada, volvía

@@ -97,6 +97,8 @@ La casilla de una carpeta o un archivo puede estar marcada, sin marcar o **indet
 ![Una carpeta con la casilla indeterminada porque una de sus capas está desactivada](img/05-checkbox-indeterminado.png)
 *Figura 6. La carpeta «Zonas» y la carpeta raíz quedan en su tercer estado (guion) al haber desactivado solo «Zona B».*
 
+Al activar o desactivar una carpeta con muchas capas dentro, la casilla se sustituye brevemente por un pequeño indicador giratorio y el nombre parpadea mientras el cambio se aplica a todas; sobre el visor aparece además un aviso «Actualizando capas…», junto al control de zoom. Es solo para que quede claro que el cambio está en marcha —con una carpeta pequeña ni se llega a notar— y evita tener que pulsar otra vez pensando que no ha pasado nada.
+
 ### 3.3 Botones de acción por tipo de fila
 
 Al pasar el ratón por una fila aparecen, según lo que sea:
@@ -117,6 +119,8 @@ Adem del clic normal (que selecciona una única fila y mueve el cursor del tecla
 *Figura 8. «Base» y «Punto de control» seleccionadas juntas con `Mayús + clic`. Los cambios de estilo, el borrado o el arrastre se aplican después a las dos a la vez.*
 
 Con una selección múltiple, borrar, arrastrar y cambiar el estilo actúan sobre todas las filas a la vez. Solo la posición de un marcador queda fuera de la edición conjunta, por ser un dato propio de cada uno.
+
+Al quedar seleccionados varios nodos —con `Mayús + clic`, `Ctrl + Mayús + clic` o el botón ☑ de una carpeta— aparece en la ventana de avisos cuántos son en total. Es solo informativo (no es ningún error) y sirve, por ejemplo, para saber de un vistazo cuántas capas hay dentro de una carpeta al marcarla entera con ☑.
 
 ### 3.5 Mover capas de sitio
 

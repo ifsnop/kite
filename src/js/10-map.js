@@ -127,7 +127,7 @@ map.on("resize", fitWorldMinZoom);
 
 /* Fecha de generación del código (versión): AÑOMESDIAHORAMINUTO.
    Actualizar en cada generación; se muestra junto al crédito de Leaflet. */
-const BUILD = "202609172225";
+const BUILD = "202609180032";
 /* Versión de release (la de package.json, horneada aquí por build.js
    al construir — ver «Versión y releases de GitHub» en CLAUDE.md): a
    diferencia de BUILD, que cambia en CADA generación, esta solo cambia
@@ -158,6 +158,31 @@ map.attributionControl.setPrefix(
    INFERIOR delante de los que ya hubiera (insertBefore, no
    appendChild), y la atribución se creó con el mapa.                 */
 L.control.scale({ position: "bottomright" }).addTo(map);
+
+/* Aviso "Actualizando…" sobre el visor mientras una cascada de checkbox
+   (activar/desactivar una carpeta grande, ver cascadeVisibility en
+   30-tree-walk.js) sigue en marcha. Va en topleft, apilado bajo el
+   control de zoom y las barras de medición/vista que ya viven ahí: es
+   donde el resto de controles del visor se agrupan, y solo se ve
+   mientras dura la cascada. Se expone como dos funciones de módulo en
+   vez de la instancia del control para que quien las llame no necesite
+   saber nada de Leaflet; 10-map.js carga antes que 30-tree-walk.js en
+   el manifiesto de build.js, así que no hay problema de orden aunque
+   solo se invoquen en tiempo de ejecución, nunca al evaluar el módulo. */
+const CascadeStatusControl = L.Control.extend({
+  options: { position: "topleft" },
+  onAdd() {
+    this._div = L.DomUtil.create("div", "cascade-status");
+    this._div.hidden = true;
+    this._div.setAttribute("role", "status");
+    this._div.setAttribute("aria-live", "polite");
+    this._div.innerHTML = '<span class="spinner" aria-hidden="true"></span> Actualizando capas…';
+    return this._div;
+  }
+});
+const cascadeStatusControl = new CascadeStatusControl().addTo(map);
+function showCascadeStatus() { cascadeStatusControl.getContainer().hidden = false; }
+function hideCascadeStatus() { cascadeStatusControl.getContainer().hidden = true; }
 
 /* ================= Mapas base =================
    Se pueden encender a la vez y con la opacidad que se quiera, en vez de

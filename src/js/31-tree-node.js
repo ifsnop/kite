@@ -11,6 +11,7 @@ function makeNode({ name, layer = null, isFolder = false, isFile = false,
   li._name = name;
   li._isContainer = isFolder || isFile; /* evita un querySelector redundante en serializeNode */
   li._cascadeGen = 0; /* ver cascadeVisibility */
+  li._cascadeActive = 0; /* ver beginCascadeFeedback/endCascadeFeedback */
   /* La ficha se asigna AQUÍ, antes de crear los botones: al hacerlo
      después, `makeActions` no la veía y el botón ℹ nunca aparecía.  */
   li._desc = desc;
@@ -63,6 +64,21 @@ function makeNode({ name, layer = null, isFolder = false, isFile = false,
     if (!ul) refreshAncestorChecks(li);
   });
   row.appendChild(chk);
+
+  /* Solo los contenedores disparan cascadeVisibility, así que solo ellos
+     necesitan el spinner que la sustituye mientras dura (ver
+     beginCascadeFeedback/endCascadeFeedback en 30-tree-walk.js): sin
+     feedback inmediato, una carpeta con muchos marcadores tarda varios
+     fotogramas en mostrar algo y el usuario vuelve a pulsar, dejando la
+     rama encendida y apagada de golpe cuando por fin termina.        */
+  if (isFolder || isFile) {
+    const spin = document.createElement("span");
+    spin.className = "spinner";
+    spin.hidden = true;
+    spin.setAttribute("aria-hidden", "true");
+    li._spinner = spin;
+    row.appendChild(spin);
+  }
 
   if (style) {
     const swatch = document.createElement("span");

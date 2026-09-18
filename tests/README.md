@@ -62,6 +62,17 @@ este documento se puedan seguir la pista una a la otra:
   necesitan un navegador de verdad (ver «Ejecutar»): son las últimas
   en correr y las que se saltan, sin fallar, cuando no hay ninguno.
 
+**Este documento se actualiza en el MISMO cambio que la suite.** Casi
+ningún cambio crea una suite desde cero: lo normal es ampliar una ya
+existente con aserciones nuevas, y eso también cambia lo que esa suite
+prueba. El apartado «Qué cubre» de abajo se actualiza a la vez —y el
+bloque «Salida de `npm test`» también, si la salida por consola
+cambia—, no en una pasada aparte ni solo si alguien lo pide
+expresamente (ver el punto 6 de los principios en `CLAUDE.md`). Un
+apartado que describe una suite más vieja que su código deja de servir
+para lo que sirve este documento: que alguien pueda leer aquí qué
+prueba una suite sin tener que abrirla.
+
 ### `kmltest.js`
 
 **Salida de `npm test`:**
@@ -195,7 +206,7 @@ A11Y TREE TESTS OK
 SELECTION CORRECTNESS OK
 ```
 
-**Qué cubre:** Cursor único y `topLevelSelection` (lo contenido viaja con su ancestro).
+**Qué cubre:** Cursor único y `topLevelSelection` (lo contenido viaja con su ancestro). También `announceSelectionCount` (el aviso informativo con el número de nodos seleccionados, disparado por `toggleOne` igual que por `selectRange` o el botón ☑ de una carpeta): sin aviso con un solo nodo, aviso con el recuento al pasar a dos o más, un aviso nuevo por cada cambio de recuento mientras queden varios, ningún aviso al volver a uno solo, el tono siempre `"info"` (nunca un error), y que varios toques rápidos (Mayús+flecha mantenido) se funden en un único aviso con el recuento FINAL en vez de uno por toque — `announceSelectionCount` debate con `setTimeout` (`SEL_COUNT_DEBOUNCE_MS`) y el test controla el temporizador a mano, como `tests/msglog.js`.
 
 ### `reporttest.js`
 
@@ -296,6 +307,7 @@ CASCADE TESTS OK
 ```
 
 **Qué cubre:** `cascadeVisibility`/`setAllChecked`: cede el hilo cada `CASCADE_BATCH` casillas en carpetas grandes y no en las pequeñas, un doble toggle rápido sobre la misma carpeta deja el estado de la ÚLTIMA intención y llama a `scheduleSave` una sola vez, una carpeta borrada a mitad de cascada deja de tocar `rootGroup` en vez de resucitar capas, y ambas alcanzan también los registros pendientes (`li._pending`) de una carpeta nunca desplegada, no solo las filas ya materializadas.
+También `beginCascadeFeedback`/`endCascadeFeedback` (el feedback inmediato que evita que el usuario, al no ver ningún cambio todavía, vuelva a pulsar la misma casilla): la casilla queda `disabled`+`hidden`, el spinner visible y la fila marcada `.cascading` de forma SÍNCRONA, en el mismo tick que la llamada a `cascadeVisibility` y antes de la primera cesión del hilo; se avisa al visor (`showCascadeStatus`) una sola vez aunque el nodo tenga varias cascadas superpuestas (el doble toggle rápido) y se deja de avisar (`hideCascadeStatus`) solo cuando la ÚLTIMA de ellas termina — verificado con el contador `_cascadeActive`, no con un booleano, que se rompería con la segunda cascada reentrante.
 
 ### `lazytree.js`
 
@@ -306,6 +318,7 @@ LAZY TREE TESTS OK
 ```
 
 **Qué cubre:** Construcción perezosa de filas para carpetas colapsadas: test diferencial (el mismo árbol construido con todo abierto y con una subcarpeta colapsada serializa exactamente igual); `ensureMaterialized` cede el hilo por lotes, cascada a una subcarpeta ya abierta y difiere una colapsada sin materializarla de más; una llamada reentrante no duplica filas; `subtreeBounds`/`findMatches` (`searchMatches`) + `resolveMatch` alcanzan capas dentro de una carpeta pendiente sin forzar su materialización salvo cuando hace falta llegar hasta una coincidencia; `serializeNode` sobre una carpeta pendiente no construye ninguna fila; `deleteNode` quita del mapa las capas marcadas que una carpeta pendiente escondía; `resolveRecordLi`/`wirePendingLayerEvents` resuelven un clic/hover sobre una capa pendiente a su `<li>` real y retiran el listener de espera al materializar (sin quedarse disparando por duplicado); `visibleElevGridNodes` encuentra una capa de elevaciones marcada dentro de una carpeta pendiente; `blinkLayer` (el parpadeo de identificación de "Ir al nodo en el panel") oculta/muestra la capa dos veces en orden, un parpadeo repetido cancela el anterior en vez de solaparse, y si el checkbox cambia mientras parpadea termina en su estado real en vez de forzarla visible.
+También `selectFolderLayers` (el botón ☑ de una carpeta): selecciona de una vez las capas de la rama, incluida la de una subcarpeta colapsada que `materializeSubtree` tiene que materializar primero, y avisa con el recuento (`announceSelectionCount`, tono `"info"`) igual que Mayús+clic o Ctrl+Mayús+clic — con una espera real (no un temporizador simulado, para no pisar los `setTimeout` de verdad que ya usa `blinkLayer` en esta misma suite) de `SEL_COUNT_DEBOUNCE_MS` antes de comprobar el aviso.
 
 ### `pointsedit.js`
 
@@ -558,6 +571,7 @@ BROWSER LAZY CASCADE TESTS OK
 
 **Qué cubre:** Desplegar y marcar una carpeta grande casi a la vez, en los dos órdenes y también apagando. Las dos pasadas van por lotes (`materializeRecords` construye filas, `cascadeVisibility` enciende) y cada una miraba su propia foto del árbol, así que se repartían los nodos sin saberlo: medido con un archivo real, 150 encendidas de 466 y la carpeta en indeterminado. La suite usa 400 capas —más que el lote de 150, o no hay carrera que provocar— y comprueba además que ninguna fila diga una cosa y el mapa otra, y que la repetición de la cascada no gire en vacío.
 Y el icono de un marcador dentro de una carpeta NUNCA desplegada: `buildRecordsFromStorage` debe dejarlo puesto en la capa cruda desde el momento en que la construye (comprobado con `mstyle.icon: "star"` antes de crear ninguna fila), y ese icono debe sobrevivir a activarlo por la cascada del checkbox de la carpeta sin que la carpeta llegue a desplegarse — el bug que esto prueba: un marcador con icono MDI, desactivado y en una carpeta colapsada, volvía a la gota de Leaflet por defecto al activarlo tras recargar.
+Y el feedback inmediato de esa misma cascada, de punta a punta en el navegador real: al pulsar la casilla, EN EL ACTO (sin ningún `await` de por medio) la casilla queda oculta y deshabilitada, su spinner visible, la fila con la clase `.cascading` (el nombre parpadea), `aria-busy="true"` y el aviso «Actualizando capas…» visible sobre el visor; al terminar la cascada, los cinco se restauran. Es la comprobación en navegador de `beginCascadeFeedback`/`endCascadeFeedback`, que `tests/cascadetest.js` ya prueba por dentro con stubs.
 
 ### `browser/url-import.mjs`
 
