@@ -42,7 +42,7 @@ const SUITES = [
   ["boot.js", "Arranque: el panel no concluye «no hay capas» antes de leer IndexedDB"],
   ["attribution.js", "Línea inferior del visor: versión, enlace al repositorio y escala"],
   ["minified.js", "kitelocal.min.html: el minificado que sirve Pages no viene roto del proceso"],
-  ["statics.js", "Comprobaciones estáticas: todo id referido existe y toda función llamada está declarada"],
+  ["statics.js", "Comprobaciones estáticas: sin bytes NUL, todo id referido existe y toda función llamada está declarada"],
   ["tristate.js", "Tercer estado de la casilla: indeterminada cuando la carpeta está a medias"],
   ["urlimport.js", "Reconocer lo descargado de una URL: nombre, tipo por contenido y extensión sintetizada"],
   ["multiedit.js", "Edición en bloque: qué se aplica a todos cuando los nodos no coinciden"],

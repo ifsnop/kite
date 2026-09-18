@@ -1818,7 +1818,7 @@ map.on("resize", fitWorldMinZoom);
 
 /* Fecha de generación del código (versión): AÑOMESDIAHORAMINUTO.
    Actualizar en cada generación; se muestra junto al crédito de Leaflet. */
-const BUILD = "202609172225";
+const BUILD = "202609181337";
 /* Versión de release (la de package.json, horneada aquí por build.js
    al construir — ver «Versión y releases de GitHub» en CLAUDE.md): a
    diferencia de BUILD, que cambia en CADA generación, esta solo cambia
@@ -3275,7 +3275,7 @@ function paintMsgLine(line, entry) {
 function navMessage(txt, { sticky = false, tone = "error" } = {}) {
   const el = document.getElementById("nav-msg");
   const now = Date.now();
-  const key = `${tone} ${txt}`;
+  const key = `${tone} ${txt}`;
 
   /* Un aviso se FUNDE con una línea que siga visible y diga lo mismo, en
      vez de añadir otra: es lo que evita que una racha llene el panel.

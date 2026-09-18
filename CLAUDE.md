@@ -1688,11 +1688,11 @@ Parcialmente hecho, para que no se confunda con pendiente:
   moverse y desplegar, Inicio/Fin, Re/Av Pág, espacio, Supr, F2,
   Ctrl+A/C/X/V/Z/Y/F, Alt+Intro). Lo que no hay es soporte TÁCTIL, que
   es otra cosa y sigue abierto.
-- **Comprobaciones estáticas del archivo**: las cinco están
+- **Comprobaciones estáticas del archivo**: las seis están
   automatizadas — SRI, guardián de Leaflet y valor de `BUILD` en
-  `tests/minified.js` y `tests/attribution.js`; `$id`/`getElementById`
-  contra un `id` existente y «toda función llamada está declarada» en
-  `tests/statics.js`.
+  `tests/minified.js` y `tests/attribution.js`; ningún byte NUL colado,
+  `$id`/`getElementById` contra un `id` existente y «toda función
+  llamada está declarada» en `tests/statics.js`.
 
 ## Minificado para el despliegue
 
@@ -2286,15 +2286,22 @@ del repositorio, y por tanto casi nunca. Viven en `tests/browser/`.
 
 ## Comprobaciones estáticas del propio archivo
 
-Estas cinco cosas se comprueban sobre `kitelocal.html`, y ya no a mano:
+Estas seis cosas se comprueban sobre `kitelocal.html`, y ya no a mano:
 
 - que todo recurso de librería lleve `integrity` y `crossorigin`
   (`tests/minified.js`);
 - que el guardián de Leaflet preceda a cualquier uso de `L` (íd.);
 - que `BUILD` tenga la forma esperada y el mismo valor en los dos
   artefactos (`tests/attribution.js`, `tests/minified.js`);
+- **que el archivo no contenga ningún byte NUL** (`tests/statics.js`):
+  se coló uno de verdad en un separador de un template literal de
+  `navMessage` (`` `${tone}\0${txt}` `` en vez de un espacio). No
+  rompía nada en el navegador —un `\0` es un carácter Unicode válido
+  dentro de una cadena— pero hacía que `grep` sin `-a` tratara el
+  archivo entero como binario y dejara de encontrar nada en él,
+  incluidas las propias comprobaciones `grep -F` de este checklist.
 - que todo `getElementById`/`$id` apunte a un `id` existente
-  (`tests/statics.js`);
+  (íd.);
 - **que toda función llamada esté declarada** (íd.): un refactor puede
   llevarse por delante ayudantes que siguen en uso y `node --check` no lo
   detecta, porque sigue siendo sintácticamente válido.
