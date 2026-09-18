@@ -392,13 +392,22 @@ Issues and pull requests are welcome. Include the browser/version, a minimal non
 
 Do not attach operational, confidential or personally identifiable geospatial data to a public issue.
 
+**One-time setup after cloning**, alongside `npm install`: link the pre-commit hook that keeps `BUILD` and the generated artifacts in sync automatically.
+
+```bash
+ln -s ../../scripts/hooks/pre-commit .git/hooks/pre-commit
+chmod +x scripts/hooks/pre-commit
+```
+
+`.git/hooks/` isn't tracked by git, so this symlink has to be created once per clone — the script itself lives at `scripts/hooks/pre-commit`, a normal tracked file, reviewable like anything else. Once linked, any commit that touches `src/` or `package.json` bumps `BUILD` (`src/js/10-map.js`) to the current timestamp, runs `npm run build`, and stages the regenerated `kitelocal.html`/`kitelocal.min.html` before the commit is created — a commit that only touches `docs/`, `tests/` or this file is left untouched. If the hook's own build or syntax check fails, the commit is aborted and the working tree is restored to exactly how it was, so the actual error (whatever broke `src/`) is the only thing left to look at. Without the symlink, nothing breaks — `BUILD` just stays whatever it was until someone bumps it (or the hook gets linked), and `npm run check`/CI still catch a stale artifact the same way they always have.
+
 If what you hit is a freeze or a slowdown rather than a wrong result, the [`debug` branch](https://github.com/ifsnop/kite/tree/debug) carries an instrumented build that answers questions a console error cannot — see [Diagnosing a freeze or a slowdown](#diagnosing-a-freeze-or-a-slowdown-debug-branch). Its output pastes straight into an issue.
 
 ## Releasing
 
 Feature work and fixes land on branches, each through its own pull request into `main`. Cutting a release once every intended PR is merged:
 
-1. Bump `package.json`'s `"version"`, update `BUILD` in `src/js/10-map.js`, update the version shown in the two documents under `docs/` (the user manual and the security study), run `npm run build`, and commit — this is the release's final commit.
+1. Bump `package.json`'s `"version"` and update the version shown in the two documents under `docs/` (the user manual and the security study), then commit — this is the release's final commit. The pre-commit hook (see "Contributing") notices `package.json` changing, bumps `BUILD` and runs `npm run build` on its own, so there's no separate manual build step here anymore.
 2. Tag that exact commit and push the tag: `git tag vX.Y.Z && git push origin vX.Y.Z`. The tag **must** match `package.json`'s version precisely (with a leading `v`).
 3. [`.github/workflows/release.yml`](.github/workflows/release.yml) takes it from there: it verifies the tag matches `package.json`, that `kitelocal.html`/`kitelocal.min.html` are up to date with `src/`, and runs the full test suite (`npm test`, with the browser suites required) — only then does it publish the GitHub Release itself, with auto-generated release notes from the merged PRs and both artifacts attached as downloadable assets for that exact version.
 
