@@ -237,6 +237,32 @@
   .node-row.drop-after  { box-shadow: inset 0 -2px 0 var(--accent); }
   .node-row.drop-into   { background: var(--accent-soft); }
 
+  /* El nombre "respira" mientras dura una cascada de checkbox (activar
+     o desactivar una carpeta grande): junto con el spinner que sustituye
+     a la casilla (ver .spinner), es la segunda señal de que algo sigue
+     en curso. Ver beginCascadeFeedback/endCascadeFeedback.             */
+  @keyframes cascade-pulse { 0%, 100% { opacity: 1; } 50% { opacity: .45; } }
+  .node-row.cascading > label { animation: cascade-pulse 1.1s ease-in-out infinite; }
+
+  /* Spinner genérico: sustituye a la casilla de una carpeta/archivo
+     mientras cascadeVisibility sigue en marcha, y se reutiliza en el
+     aviso "Actualizando…" del visor (ver #cascade-status).            */
+  .spinner {
+    display: inline-block;
+    width: 12px;
+    height: 12px;
+    min-width: 12px;
+    border: 2px solid var(--border);
+    border-top-color: var(--accent);
+    border-radius: 50%;
+    animation: spin .7s linear infinite;
+  }
+  /* Misma trampa que .measure-bar a[hidden] y .color-field[hidden]: al
+     fijar `display` arriba, una regla de autor le gana a la UA
+     "[hidden] { display: none }" por especificidad, orden aparte.     */
+  .spinner[hidden] { display: none; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
   /* Flecha de colapso */
   .caret {
     width: 14px;
@@ -346,6 +372,26 @@
      #dfe8ef de aquí; setMapBackground (10-map.js) la fija cuando el
      usuario elige otro color desde el panel de mapas base.            */
   #map { flex: 1; background: var(--map-bg, #dfe8ef); }
+
+  /* Aviso "Actualizando…" mientras dura una cascada de checkbox (ver
+     CascadeStatusControl, 10-map.js): tarjeta pequeña y no modal, no
+     tapa el mapa ni compite con los diálogos.                         */
+  .cascade-status {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 5px 10px;
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 999px;
+    font-size: 12.5px;
+    color: var(--text);
+    box-shadow: 0 1px 4px rgba(0,0,0,.15);
+  }
+  /* Misma trampa que .measure-bar a[hidden]: el `display: flex` de
+     arriba es una regla de autor y le gana a la UA "[hidden] { display:
+     none }" por especificidad, así que hace falta esta regla explícita. */
+  .cascade-status[hidden] { display: none; }
 
   .measure-bar a {
     font-size: 15px;

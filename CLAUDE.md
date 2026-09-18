@@ -83,6 +83,17 @@ desarrollo del proyecto.
    registrada en `run-all.js` y descrita en `tests/README.md`). Una
    funcionalidad no se da por terminada con la suite en rojo ni con una
    suite que ya no prueba lo que dice probar.
+   **`tests/README.md` se actualiza en el MISMO cambio que la suite, no
+   solo al crear una nueva.** Ampliar una suite existente con
+   aserciones nuevas (el caso normal: casi ningún cambio crea una suite
+   desde cero) también cambia lo que esa suite prueba, así que su
+   apartado «Qué cubre» —y, si la salida por consola cambia, también el
+   bloque «Salida de `npm test`»— se actualiza a la vez, no en una
+   pasada aparte ni solo cuando alguien lo pide expresamente. Un
+   `tests/README.md` que describe una suite más vieja que su código es
+   el mismo problema que un `docs/` desactualizado (ver «Documentación
+   complementaria»): activamente induce a error a quien lo lee
+   confiando en que describe las pruebas actuales.
 
 ## Estructura del árbol al importar
 

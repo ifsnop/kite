@@ -22,28 +22,38 @@ const yieldFrame = () => { yieldCount++; return Promise.resolve(); };
 let saveCalls = 0;
 const scheduleSave = () => { saveCalls++; };
 
+/* Feedback inmediato (spinner + aviso sobre el visor): showCascadeStatus/
+   hideCascadeStatus normalmente viven en 10-map.js, así que aquí se
+   estiban como el resto de dependencias externas (rootGroup, scheduleSave…). */
+let showCalls = 0, hideCalls = 0;
+const showCascadeStatus = () => { showCalls++; };
+const hideCascadeStatus = () => { hideCalls++; };
+
 const CASCADE_BATCH = 3; /* small on purpose: exercise the yield path with a manageable tree */
 
 /* Las funciones del TERCER ESTADO van de verdad, no como stub: la
    cascada tiene que dejar la rama uniforme —ningún contenedor de dentro
    indeterminado— y eso es comportamiento suyo, no de otro sitio.     */
 const src = "const nodeUl = li => li.querySelector(':scope > ul.node-list');\n"
+  + constDecl("nodeRow") + "\n"
   + fn("setLayerVisible") + "\n" + fn("applyVisibility") + "\n"
   + constDecl("nodeCheckbox") + "\n" + fn("recordState") + "\n"
   + fn("containerState") + "\n" + fn("applyContainerState") + "\n"
   + fn("refreshChecksFrom") + "\n" + constDecl("refreshAncestorChecks") + "\n"
+  + constDecl("cascadingNodes") + "\n" + fn("beginCascadeFeedback") + "\n" + fn("endCascadeFeedback") + "\n"
   + fn("cascadeVisibility") + "\n" + fn("setPendingChecked") + "\n" + fn("setAllChecked");
 /* Las dos cuentas de materialización van DENTRO del recorte, no como
    parámetros: la cascada las lee en cada vuelta para saber si el
    conjunto de nodos sigue moviéndose, y `materializar()` las mueve
    desde fuera para simular lo que hace ensureMaterialized.          */
 const api = new Function("rootGroup", "yieldFrame", "CASCADE_BATCH", "scheduleSave", "treeEl", "rootUl",
+  "showCascadeStatus", "hideCascadeStatus",
   "let materializingNow = 0; let materializeSeq = 0;\n" + src
   + "\nreturn {applyVisibility, cascadeVisibility, setAllChecked, applyContainerState, containerState,"
   + " empiezaMaterializacion: () => { materializingNow++; },"
   + " terminaMaterializacion: () => { materializingNow--; materializeSeq++; },"
   + " enVuelo: () => materializingNow };"
-)(rootGroup, yieldFrame, CASCADE_BATCH, scheduleSave, treeEl, rootUl);
+)(rootGroup, yieldFrame, CASCADE_BATCH, scheduleSave, treeEl, rootUl, showCascadeStatus, hideCascadeStatus);
 const { cascadeVisibility, setAllChecked } = api;
 
 const ok = (c, m) => { if (!c) { console.error("FAIL: " + m); process.exitCode = 1; } };
@@ -58,9 +68,16 @@ const ok = (c, m) => { if (!c) { console.error("FAIL: " + m); process.exitCode =
 function makeFolder(name, count) {
   const li = document.createElement("li");
   li._cascadeGen = 0; /* makeNode() sets this in the real app */
+  li._cascadeActive = 0; /* ver beginCascadeFeedback/endCascadeFeedback */
   const row = document.createElement("div"); row.className = "node-row";
+  li._row = row;
   const chk = document.createElement("input"); chk.type = "checkbox";
   row.appendChild(chk);
+  /* Mismo spinner que crea makeNode() para un contenedor real */
+  const spin = document.createElement("span");
+  spin.hidden = true;
+  li._spinner = spin;
+  row.appendChild(spin);
   li.appendChild(row);
   const ul = document.createElement("ul"); ul.className = "node-list";
   li.appendChild(ul);
@@ -77,7 +94,7 @@ function makeFolder(name, count) {
     ul.appendChild(sub);
     boxes.push(subChk);
   }
-  return { li, boxes };
+  return { li, boxes, chk };
 }
 
 /* ---------- small folder: no yielding needed ---------- */
@@ -94,22 +111,47 @@ function makeFolder(name, count) {
   /* ---------- large folder: yields, still ends up fully correct ---------- */
   const big = makeFolder("big", CASCADE_BATCH * 3 - 1); // +1 own checkbox = 9 items, batch 3 -> 3 yields
   rootUl.appendChild(big.li);
-  yieldCount = 0; saveCalls = 0; calls = [];
-  await cascadeVisibility(big.li, true);
+  yieldCount = 0; saveCalls = 0; calls = []; showCalls = 0; hideCalls = 0;
+  const bigProm = cascadeVisibility(big.li, true);
+  /* beginCascadeFeedback es la PRIMERA línea de la función: se ejecuta
+     de forma síncrona, antes de que la promesa se resuelva siquiera una
+     vez — es el feedback inmediato que arregla el bug reportado.      */
+  ok(big.chk.hidden === true && big.chk.disabled === true,
+    "large folder: la casilla se oculta y deshabilita en el acto, antes de ceder el hilo");
+  ok(big.li._spinner.hidden === false, "large folder: el spinner aparece en el acto");
+  ok(big.li._row.classList.contains("cascading"), "large folder: la fila se marca .cascading");
+  ok(big.li.getAttribute("aria-busy") === "true", "large folder: aria-busy mientras dura");
+  ok(showCalls === 1 && hideCalls === 0, "large folder: se avisa al visor una sola vez, todavía sin ocultarlo");
+  await bigProm;
   ok(big.boxes.every(b => b.checked), "large folder: every descendant ends up checked");
   ok(calls.length === CASCADE_BATCH * 3 - 1, "large folder: rootGroup received one call per descendant: " + calls.length);
   ok(yieldCount === 3, "large folder: yields exactly floor(9/CASCADE_BATCH) times: " + yieldCount);
   ok(saveCalls === 1, "large folder: scheduleSave called exactly once, not once per chunk");
+  ok(big.chk.hidden === false && big.chk.disabled === false, "large folder: la casilla vuelve al terminar");
+  ok(big.li._spinner.hidden === true, "large folder: el spinner se oculta al terminar");
+  ok(!big.li._row.classList.contains("cascading"), "large folder: .cascading se quita al terminar");
+  ok(big.li.hasAttribute("aria-busy") === false, "large folder: aria-busy se retira al terminar");
+  ok(showCalls === 1 && hideCalls === 1, "large folder: el aviso del visor se oculta exactamente una vez");
 
   /* ---------- rapid re-toggle mid-cascade: last intent wins ---------- */
   const rt = makeFolder("rt", CASCADE_BATCH * 3 - 1);
   rootUl.appendChild(rt.li);
-  yieldCount = 0; saveCalls = 0; calls = [];
+  yieldCount = 0; saveCalls = 0; calls = []; showCalls = 0; hideCalls = 0;
   const p1 = cascadeVisibility(rt.li, true);   // starts, suspends at first yield
   const p2 = cascadeVisibility(rt.li, false);  // fired before p1 resumes: bumps the generation
+  /* Dos cascadas superpuestas sobre el MISMO nodo: la casilla debe
+     seguir oculta mientras cualquiera de las dos siga en marcha, no
+     solo mientras la primera lo esté (ver el contador _cascadeActive). */
+  ok(rt.chk.hidden === true && rt.chk.disabled === true,
+    "rapid re-toggle: la casilla sigue oculta con las dos cascadas en vuelo");
+  ok(showCalls === 1, "rapid re-toggle: el aviso del visor se muestra una sola vez, no dos");
   await Promise.all([p1, p2]);
   ok(rt.boxes.every(b => !b.checked), "rapid re-toggle: final state matches the SECOND (winning) call's intent");
   ok(saveCalls === 1, "rapid re-toggle: scheduleSave fires once, from the winning generation only: " + saveCalls);
+  ok(rt.chk.hidden === false && rt.chk.disabled === false,
+    "rapid re-toggle: la casilla se restaura solo cuando la ÚLTIMA de las dos cascadas termina");
+  ok(showCalls === 1 && hideCalls === 1,
+    "rapid re-toggle: el aviso del visor se muestra y oculta una sola vez, no una por cascada");
 
   /* ---------- folder removed mid-cascade: stops touching rootGroup ---------- */
   const del = makeFolder("del", CASCADE_BATCH * 3 - 1);

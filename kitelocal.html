@@ -310,6 +310,32 @@
   .node-row.drop-after  { box-shadow: inset 0 -2px 0 var(--accent); }
   .node-row.drop-into   { background: var(--accent-soft); }
 
+  /* El nombre "respira" mientras dura una cascada de checkbox (activar
+     o desactivar una carpeta grande): junto con el spinner que sustituye
+     a la casilla (ver .spinner), es la segunda señal de que algo sigue
+     en curso. Ver beginCascadeFeedback/endCascadeFeedback.             */
+  @keyframes cascade-pulse { 0%, 100% { opacity: 1; } 50% { opacity: .45; } }
+  .node-row.cascading > label { animation: cascade-pulse 1.1s ease-in-out infinite; }
+
+  /* Spinner genérico: sustituye a la casilla de una carpeta/archivo
+     mientras cascadeVisibility sigue en marcha, y se reutiliza en el
+     aviso "Actualizando…" del visor (ver #cascade-status).            */
+  .spinner {
+    display: inline-block;
+    width: 12px;
+    height: 12px;
+    min-width: 12px;
+    border: 2px solid var(--border);
+    border-top-color: var(--accent);
+    border-radius: 50%;
+    animation: spin .7s linear infinite;
+  }
+  /* Misma trampa que .measure-bar a[hidden] y .color-field[hidden]: al
+     fijar `display` arriba, una regla de autor le gana a la UA
+     "[hidden] { display: none }" por especificidad, orden aparte.     */
+  .spinner[hidden] { display: none; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
   /* Flecha de colapso */
   .caret {
     width: 14px;
@@ -419,6 +445,26 @@
      #dfe8ef de aquí; setMapBackground (10-map.js) la fija cuando el
      usuario elige otro color desde el panel de mapas base.            */
   #map { flex: 1; background: var(--map-bg, #dfe8ef); }
+
+  /* Aviso "Actualizando…" mientras dura una cascada de checkbox (ver
+     CascadeStatusControl, 10-map.js): tarjeta pequeña y no modal, no
+     tapa el mapa ni compite con los diálogos.                         */
+  .cascade-status {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 5px 10px;
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 999px;
+    font-size: 12.5px;
+    color: var(--text);
+    box-shadow: 0 1px 4px rgba(0,0,0,.15);
+  }
+  /* Misma trampa que .measure-bar a[hidden]: el `display: flex` de
+     arriba es una regla de autor y le gana a la UA "[hidden] { display:
+     none }" por especificidad, así que hace falta esta regla explícita. */
+  .cascade-status[hidden] { display: none; }
 
   .measure-bar a {
     font-size: 15px;
@@ -1818,7 +1864,7 @@ map.on("resize", fitWorldMinZoom);
 
 /* Fecha de generación del código (versión): AÑOMESDIAHORAMINUTO.
    Actualizar en cada generación; se muestra junto al crédito de Leaflet. */
-const BUILD = "202609181337";
+const BUILD = "202609181512";
 /* Versión de release (la de package.json, horneada aquí por build.js
    al construir — ver «Versión y releases de GitHub» en CLAUDE.md): a
    diferencia de BUILD, que cambia en CADA generación, esta solo cambia
@@ -1849,6 +1895,31 @@ map.attributionControl.setPrefix(
    INFERIOR delante de los que ya hubiera (insertBefore, no
    appendChild), y la atribución se creó con el mapa.                 */
 L.control.scale({ position: "bottomright" }).addTo(map);
+
+/* Aviso "Actualizando…" sobre el visor mientras una cascada de checkbox
+   (activar/desactivar una carpeta grande, ver cascadeVisibility en
+   30-tree-walk.js) sigue en marcha. Va en topleft, apilado bajo el
+   control de zoom y las barras de medición/vista que ya viven ahí: es
+   donde el resto de controles del visor se agrupan, y solo se ve
+   mientras dura la cascada. Se expone como dos funciones de módulo en
+   vez de la instancia del control para que quien las llame no necesite
+   saber nada de Leaflet; 10-map.js carga antes que 30-tree-walk.js en
+   el manifiesto de build.js, así que no hay problema de orden aunque
+   solo se invoquen en tiempo de ejecución, nunca al evaluar el módulo. */
+const CascadeStatusControl = L.Control.extend({
+  options: { position: "topleft" },
+  onAdd() {
+    this._div = L.DomUtil.create("div", "cascade-status");
+    this._div.hidden = true;
+    this._div.setAttribute("role", "status");
+    this._div.setAttribute("aria-live", "polite");
+    this._div.innerHTML = '<span class="spinner" aria-hidden="true"></span> Actualizando capas…';
+    return this._div;
+  }
+});
+const cascadeStatusControl = new CascadeStatusControl().addTo(map);
+function showCascadeStatus() { cascadeStatusControl.getContainer().hidden = false; }
+function hideCascadeStatus() { cascadeStatusControl.getContainer().hidden = true; }
 
 /* ================= Mapas base =================
    Se pueden encender a la vez y con la opacidad que se quiera, en vez de
@@ -2991,6 +3062,7 @@ function selectRange(to) {
   for (const li of [...selection]) setSelected(li, false);
   for (const li of span) setSelected(li, true);
   setSelCursor(to);
+  announceSelectionCount();
 }
 
 /* Añade (o quita) un nodo sin arrastrar los intermedios: Ctrl+Shift */
@@ -2999,6 +3071,26 @@ function toggleOne(li) {
   setSelected(li, on);
   setSelCursor(li);
   selAnchor = li;
+  announceSelectionCount();
+}
+
+/* ---------- Aviso del número de nodos seleccionados ----------
+   Puramente informativo: es la forma rápida de saber, por ejemplo,
+   cuántos elementos hay dentro de una carpeta al seleccionarla entera
+   (ver selectFolderLayers). Con Mayús+flecha mantenido pulsado,
+   selectRange se dispara muchas veces por segundo con un recuento
+   distinto cada vez —y navMessage no funde líneas con texto distinto—,
+   así que se debate como el buscador del panel (SEARCH_DEBOUNCE_MS) en
+   vez de avisar en cada pulsación.                                    */
+const SEL_COUNT_DEBOUNCE_MS = 200;
+let selCountTimer = null;
+function announceSelectionCount() {
+  clearTimeout(selCountTimer);
+  selCountTimer = setTimeout(() => {
+    if (selection.size > 1) {
+      navMessage(`${selection.size} nodos seleccionados.`, { tone: "info" });
+    }
+  }, SEL_COUNT_DEBOUNCE_MS);
 }
 
 /* Nombre legible del tipo, para poder explicar por qué algo se queda
@@ -3036,6 +3128,7 @@ async function selectFolderLayers(li) {
   for (const n of layers) setSelected(n, true);
   setSelCursor(layers[layers.length - 1]);
   selAnchor = layers[0];
+  announceSelectionCount();
 }
 
 /* ---------- Recorrido del árbol, nodo a nodo ----------
@@ -3552,75 +3645,123 @@ const refreshAncestorChecks = li => refreshChecksFrom(li && li.parentElement);
 let materializingNow = 0;
 let materializeSeq = 0;
 
-async function cascadeVisibility(li, checked) {
-  const myGen = ++li._cascadeGen;
-  const counter = { n: 0 };
-  const yieldMaybe = async () => {
-    if (++counter.n % CASCADE_BATCH !== 0) return true;
-    await yieldFrame();
-    return li._cascadeGen === myGen && li.isConnected;
-  };
-  const walkRecords = async records => {
-    for (const rec of records) {
-      rec.checked = checked;
-      rec._state = checked ? "on" : "off"; /* la rama queda uniforme */
-      if (rec.children) { if (!(await walkRecords(rec.children))) return false; }
-      else setLayerVisible(rec._layer, checked);
-      if (!(await yieldMaybe())) return false;
-    }
-    return true;
-  };
-  const walkLi = async node => {
-    /* Si ese nodo se está materializando AHORA MISMO, se espera a que
-       termine antes de mirar a sus hijos. Sin esto, desplegar y marcar
-       una carpeta grande casi a la vez dejaba la mitad apagada:
-       materializeRecords construye su primer lote de 150 filas de forma
-       SÍNCRONA y vacía `_pending` al arrancar, así que la cascada
-       llegaba a fotografiar 150 filas y ningún registro pendiente, y
-       las que faltaban nacían después con su estado guardado. Medido
-       con una carpeta de 466: 150 encendidas, 316 apagadas y la
-       carpeta en indeterminado. No fuerza ninguna materialización que
-       no estuviera ya en marcha, que es lo que el diseño evita.      */
-    if (node._materializing) await node._materializing;
-    const chk = node.querySelector(":scope > .node-row > input[type=checkbox]");
-    if (chk) {
-      chk.checked = checked;
-      /* Toda la rama queda uniforme, así que nada de dentro puede
-         seguir indeterminado: la cascada lo limpia a su paso.      */
-      chk.indeterminate = false;
-      node.setAttribute("aria-checked", String(checked));
-      applyVisibility(chk);
-      if (!(await yieldMaybe())) return false;
-    }
-    const ul = nodeUl(node);
-    if (ul) for (const child of [...ul.children]) if (!(await walkLi(child))) return false;
-    if (node._pending) return walkRecords(node._pending);
-    return true;
-  };
-  /* Se repite la pasada mientras el conjunto de nodos siga moviéndose:
-     o hay una materialización en vuelo (las filas que faltan van a
-     nacer con su estado GUARDADO, no con el que se acaba de pedir), o
-     ha terminado alguna mientras recorríamos. Una pasada es completa e
-     idempotente, así que repetirla no cuesta más que recorrer.
+/* ---------- Feedback inmediato mientras dura una cascada ----------
+   Con miles de capas, cascadeVisibility cede el hilo entre lotes (ver
+   yieldMaybe más abajo) y eso deja una ventana de varios fotogramas sin
+   ningún cambio visible: el usuario cree que no ha pasado nada y vuelve
+   a pulsar la misma casilla, con el resultado de que las capas que la
+   primera pasada ya había encendido aparecen de golpe y la segunda
+   pasada las apaga acto seguido. La casilla se sustituye por un spinner
+   —que, al no ser una casilla, bloquea el reintento por sí solo— y el
+   nombre parpadea; un contador por nodo (no un booleano) porque una
+   cascada puede reentrar sobre el MISMO li (el reintento a mitad que ya
+   cubre tests/navtest.js): la casilla solo debe volver cuando la ÚLTIMA
+   de las cascadas en vuelo para ese nodo termine.                     */
+const cascadingNodes = new Set();
 
-     Termina, y conviene ver por qué: la cascada no materializa nada
-     —eso solo lo dispara el usuario al desplegar, importar o buscar—,
-     así que en cuanto deja de haber trabajo en vuelo la última pasada
-     encuentra el contador igual y sale. El `yieldFrame` entre vueltas
-     es lo que impide que esto gire en vacío contra una materialización
-     larga: una pasada por fotograma, no un bucle cerrado.           */
-  let seqAlEmpezar;
-  do {
-    seqAlEmpezar = materializeSeq;
-    if (!(await walkLi(li))) return;
-    if (!li.isConnected || li._cascadeGen !== myGen) return;
-    if (!materializingNow && materializeSeq === seqAlEmpezar) break;
-    await yieldFrame();
-  } while (true);
-  /* La carpeta tocada ya está uniforme; lo que puede haber cambiado
-     es el estado de sus ANCESTROS.                                 */
-  refreshAncestorChecks(li);
-  scheduleSave();
+function beginCascadeFeedback(li) {
+  li._cascadeActive = (li._cascadeActive || 0) + 1;
+  if (li._cascadeActive > 1) return; /* ya se está mostrando el spinner */
+  cascadingNodes.add(li);
+  li.setAttribute("aria-busy", "true");
+  const row = nodeRow(li);
+  row.classList.add("cascading");
+  const chk = row.querySelector("input[type=checkbox]");
+  if (chk) { chk.disabled = true; chk.hidden = true; }
+  if (li._spinner) li._spinner.hidden = false;
+  if (cascadingNodes.size === 1) showCascadeStatus();
+}
+
+function endCascadeFeedback(li) {
+  if (--li._cascadeActive > 0) return;
+  cascadingNodes.delete(li);
+  li.removeAttribute("aria-busy");
+  const row = nodeRow(li);
+  row.classList.remove("cascading");
+  const chk = row.querySelector("input[type=checkbox]");
+  if (chk) { chk.disabled = false; chk.hidden = false; }
+  if (li._spinner) li._spinner.hidden = true;
+  if (!cascadingNodes.size) hideCascadeStatus();
+}
+
+async function cascadeVisibility(li, checked) {
+  /* Primera línea de la función: se ejecuta de forma SÍNCRONA, en el
+     mismo evento "change" que dispara la cascada, antes de ceder el
+     hilo por primera vez. Es lo que hace el feedback inmediato de
+     verdad, no solo "más rápido".                                    */
+  beginCascadeFeedback(li);
+  try {
+    const myGen = ++li._cascadeGen;
+    const counter = { n: 0 };
+    const yieldMaybe = async () => {
+      if (++counter.n % CASCADE_BATCH !== 0) return true;
+      await yieldFrame();
+      return li._cascadeGen === myGen && li.isConnected;
+    };
+    const walkRecords = async records => {
+      for (const rec of records) {
+        rec.checked = checked;
+        rec._state = checked ? "on" : "off"; /* la rama queda uniforme */
+        if (rec.children) { if (!(await walkRecords(rec.children))) return false; }
+        else setLayerVisible(rec._layer, checked);
+        if (!(await yieldMaybe())) return false;
+      }
+      return true;
+    };
+    const walkLi = async node => {
+      /* Si ese nodo se está materializando AHORA MISMO, se espera a que
+         termine antes de mirar a sus hijos. Sin esto, desplegar y marcar
+         una carpeta grande casi a la vez dejaba la mitad apagada:
+         materializeRecords construye su primer lote de 150 filas de forma
+         SÍNCRONA y vacía `_pending` al arrancar, así que la cascada
+         llegaba a fotografiar 150 filas y ningún registro pendiente, y
+         las que faltaban nacían después con su estado guardado. Medido
+         con una carpeta de 466: 150 encendidas, 316 apagadas y la
+         carpeta en indeterminado. No fuerza ninguna materialización que
+         no estuviera ya en marcha, que es lo que el diseño evita.      */
+      if (node._materializing) await node._materializing;
+      const chk = node.querySelector(":scope > .node-row > input[type=checkbox]");
+      if (chk) {
+        chk.checked = checked;
+        /* Toda la rama queda uniforme, así que nada de dentro puede
+           seguir indeterminado: la cascada lo limpia a su paso.      */
+        chk.indeterminate = false;
+        node.setAttribute("aria-checked", String(checked));
+        applyVisibility(chk);
+        if (!(await yieldMaybe())) return false;
+      }
+      const ul = nodeUl(node);
+      if (ul) for (const child of [...ul.children]) if (!(await walkLi(child))) return false;
+      if (node._pending) return walkRecords(node._pending);
+      return true;
+    };
+    /* Se repite la pasada mientras el conjunto de nodos siga moviéndose:
+       o hay una materialización en vuelo (las filas que faltan van a
+       nacer con su estado GUARDADO, no con el que se acaba de pedir), o
+       ha terminado alguna mientras recorríamos. Una pasada es completa e
+       idempotente, así que repetirla no cuesta más que recorrer.
+
+       Termina, y conviene ver por qué: la cascada no materializa nada
+       —eso solo lo dispara el usuario al desplegar, importar o buscar—,
+       así que en cuanto deja de haber trabajo en vuelo la última pasada
+       encuentra el contador igual y sale. El `yieldFrame` entre vueltas
+       es lo que impide que esto gire en vacío contra una materialización
+       larga: una pasada por fotograma, no un bucle cerrado.           */
+    let seqAlEmpezar;
+    do {
+      seqAlEmpezar = materializeSeq;
+      if (!(await walkLi(li))) return;
+      if (!li.isConnected || li._cascadeGen !== myGen) return;
+      if (!materializingNow && materializeSeq === seqAlEmpezar) break;
+      await yieldFrame();
+    } while (true);
+    /* La carpeta tocada ya está uniforme; lo que puede haber cambiado
+       es el estado de sus ANCESTROS.                                 */
+    refreshAncestorChecks(li);
+    scheduleSave();
+  } finally {
+    endCascadeFeedback(li);
+  }
 }
 
 /* Trae una capa (de cualquier tipo) al frente de su propio pane/canvas,
@@ -3679,6 +3820,7 @@ function makeNode({ name, layer = null, isFolder = false, isFile = false,
   li._name = name;
   li._isContainer = isFolder || isFile; /* evita un querySelector redundante en serializeNode */
   li._cascadeGen = 0; /* ver cascadeVisibility */
+  li._cascadeActive = 0; /* ver beginCascadeFeedback/endCascadeFeedback */
   /* La ficha se asigna AQUÍ, antes de crear los botones: al hacerlo
      después, `makeActions` no la veía y el botón ℹ nunca aparecía.  */
   li._desc = desc;
@@ -3731,6 +3873,21 @@ function makeNode({ name, layer = null, isFolder = false, isFile = false,
     if (!ul) refreshAncestorChecks(li);
   });
   row.appendChild(chk);
+
+  /* Solo los contenedores disparan cascadeVisibility, así que solo ellos
+     necesitan el spinner que la sustituye mientras dura (ver
+     beginCascadeFeedback/endCascadeFeedback en 30-tree-walk.js): sin
+     feedback inmediato, una carpeta con muchos marcadores tarda varios
+     fotogramas en mostrar algo y el usuario vuelve a pulsar, dejando la
+     rama encendida y apagada de golpe cuando por fin termina.        */
+  if (isFolder || isFile) {
+    const spin = document.createElement("span");
+    spin.className = "spinner";
+    spin.hidden = true;
+    spin.setAttribute("aria-hidden", "true");
+    li._spinner = spin;
+    row.appendChild(spin);
+  }
 
   if (style) {
     const swatch = document.createElement("span");
