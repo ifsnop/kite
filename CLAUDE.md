@@ -336,6 +336,14 @@ build.js           concatena src/ → kitelocal.html, y minifica ese
 fetch-icons.js     GENERA src/js/05-mdi-icons.js (npm run icons). A mano,
                    NO forma parte del build: es lo único que habla con
                    Iconify y construir debe ser reproducible y sin red
+scripts/hooks/
+  pre-commit       Sube BUILD y reconstruye SOLO cuando el commit toca
+                   src/ o package.json. Tampoco forma parte de build.js
+                   ni corre dentro de él: se instala con un symlink en
+                   .git/hooks/pre-commit (ver «Versión y releases de
+                   GitHub» y README.md, «Contributing»), que no se
+                   versiona, así que hace falta enlazarlo a mano una vez
+                   por clon
 kitelocal.html     GENERADO. Es el producto; se versiona (quien clone
                    debe tener algo que abrir) y está marcado como
                    generado en .gitattributes para que los diffs se
@@ -2432,19 +2440,44 @@ atribución se mantiene en una sola línea con elipsis si no cabe.
 Dos números, con una cadencia y un origen distintos cada uno:
 
 - **`BUILD`** (`src/js/10-map.js`) es el instante exacto de esta
-  generación (`AAAAMMDDHHMM`). Se actualiza **a mano en cada cambio**
-  (checklist, punto 8) y nunca se hornea desde ningún otro archivo:
-  inyectarlo en cada `build.js` rompería la comprobación de identidad
-  byte a byte, que es la red de seguridad de cualquier reorganización de
-  `src/` (ver «Fuentes y construcción»).
+  generación (`AAAAMMDDHHMM`). **Ya no se edita a mano**: un hook de
+  `pre-commit` (`scripts/hooks/pre-commit`) sustituye el literal justo
+  antes de invocar `build.js`, cada vez que el commit toca `src/` o
+  `package.json` (un commit de solo `docs/`/`tests/` lo deja intacto).
+  Sigue sin hornearse DESDE DENTRO de `build.js`: eso convertiría
+  `build()` en una función que da un resultado distinto en cada
+  ejecución —dependiente de "ahora", no de `src/`— y rompería la
+  comprobación de identidad byte a byte de `build.js --check`, que es
+  la red de seguridad de cualquier reorganización de `src/` (ver
+  «Fuentes y construcción»). El hook resuelve esa tensión escribiendo el
+  nuevo valor en el ARCHIVO FUENTE antes de que `build()` lo lea, no
+  dentro de la propia función: `build()` sigue siendo, en todo momento,
+  una función pura de lo que haya en disco.
+  **`.git/hooks/` no se versiona**, así que el hook en sí es un symlink
+  (uno por clon, ver README.md «Contributing») a este archivo trackeado
+  — sin ese symlink instalado, `BUILD` simplemente se queda quieto
+  hasta que alguien lo enlace o lo suba a mano, y `npm run check`/CI lo
+  siguen cazando igual que a cualquier otra fuente desincronizada.
+  El hook también reconstruye (`npm run build`) y valida la sintaxis del
+  `<script>` resultante (`node --check`, lo mismo que hace
+  `tests/run-all.js` como primer paso) antes de dejar pasar el commit:
+  `build.js` solo concatena, así que un `src/` con un error de sintaxis
+  se "construiría" igual sin ese paso — abortar ahí es lo que impide
+  comitear una página rota con un "todo ha ido bien".
 - **`VERSION`** (mismo archivo, junto a `BUILD`) es la versión semántica
-  del release al que corresponde este código (`1.4.0`, sin la `v`). A
-  diferencia de `BUILD`, **no se escribe a mano en el JS**: el fuente
-  lleva un marcador (`const VERSION = "{{VERSION}}";`) que `build.js`
-  sustituye por `package.json.version` al construir —el mismo mecanismo
-  que ya usa para `{{STYLES}}`/`{{SCRIPTS}}` sobre `src/index.html`,
-  aplicado ahora también sobre el JS concatenado—. Sigue siendo
-  determinista (misma entrada, mismo resultado), así que `npm run
+  del release al que corresponde este código (`1.4.0`, sin la `v`). Se
+  parece a `BUILD` en que tampoco la escribe una persona directamente en
+  el JS, pero por un mecanismo distinto: el fuente lleva un marcador
+  (`const VERSION = "{{VERSION}}";`) que `build.js` sustituye por
+  `package.json.version` AL CONSTRUIR —el mismo mecanismo que ya usa
+  para `{{STYLES}}`/`{{SCRIPTS}}` sobre `src/index.html`, aplicado ahora
+  también sobre el JS concatenado—, mientras que `BUILD` es un literal
+  de verdad en `src/js/10-map.js` que el hook de pre-commit reescribe
+  ANTES de invocar `build.js`, no un marcador que `build()` resuelva por
+  su cuenta. Y cambia con otra cadencia: `VERSION` solo se toca al
+  preparar un release (subiendo `package.json.version` a mano), `BUILD`
+  en cada commit que toque `src/`. `VERSION` sigue siendo determinista
+  (misma entrada, mismo resultado), así que `npm run
   check` lo sigue cazando igual que cualquier otra fuente desincronizada.
   **`package.json` es la ÚNICA fuente de la versión**: no hay una
   segunda copia a mano que se pueda desincronizar aparte de él.
@@ -2454,10 +2487,11 @@ creación del release en sí, que sigue siendo una decisión humana):
 
 1. Se trabaja en ramas, cada una con su PR a `main` (features o fixes).
 2. Al reunir en `main` todos los PR de un release: **a mano**, subir
-   `package.json.version`, actualizar `BUILD`, actualizar la versión en
-   la cabecera de los dos documentos de `docs/` (ver «Documentación
-   complementaria»), `npm run build`, y commitear — es el commit final
-   del release.
+   `package.json.version` y actualizar la versión en la cabecera de los
+   dos documentos de `docs/` (ver «Documentación complementaria»), y
+   commitear — es el commit final del release. El hook de pre-commit ve
+   `package.json` en el commit y se encarga solo de subir `BUILD` y de
+   `npm run build`; ya no hace falta ninguno de los dos a mano.
 3. Crear el tag sobre ESE commit y empujarlo: `git tag vX.Y.Z && git
    push origin vX.Y.Z`. El tag debe coincidir EXACTAMENTE con
    `package.json.version` (con la `v` delante).
@@ -2646,24 +2680,24 @@ actualizarlos** — texto, tablas y, en el manual, las capturas afectadas
    corresponda (o una sección nueva si no encaja en ninguna). Un atajo
    que solo vive en el código y no en esa tabla es, a efectos del
    usuario, un atajo que no existe.
-8. **Siempre** actualizar la constante `BUILD` (AAAAMMDDHHMM, junto al
-   crédito de Leaflet, hoy en `src/js/10-map.js`) en CADA generación del
-   código, por pequeña que sea: es la única versión visible y sirve para
-   saber qué se está ejecutando. Sin excepciones. Y **comprobar que la
-   sustitución ha surtido efecto**: editar por el valor anterior falla en
-   silencio si no es el que se creía, y la versión se queda congelada sin
-   que nadie lo note. Sustituir por patrón (`const BUILD = "\d{12}"`) y
-   verificar. Se mantiene a mano a propósito: inyectarla en cada
-   construcción rompería la comprobación de identidad byte a byte, que es
-   la red de seguridad de cualquier reorganización de `src/`.
+8. La constante `BUILD` (AAAAMMDDHHMM, junto al crédito de Leaflet, hoy
+   en `src/js/10-map.js`) **ya no se toca a mano**: el hook de
+   pre-commit (`scripts/hooks/pre-commit`, ver «Versión y releases de
+   GitHub») la sube sola y reconstruye en cuanto el commit toca `src/`
+   o `package.json`. Lo único que sigue siendo responsabilidad de quien
+   comitea es tener el hook instalado (el symlink de una sola vez,
+   README.md «Contributing») — si no lo está, `BUILD` se queda quieto y
+   `npm run check`/CI lo detectan igual que cualquier otra fuente
+   desincronizada, así que no hay forma silenciosa de que se cuele.
 9. **`VERSION` es distinta: solo se toca al preparar un release**, no en
    cada cambio. Subir `package.json.version` a mano (ver «Versión y
-   releases de GitHub»), actualizar también `BUILD`, actualizar la
-   versión en la cabecera de los dos documentos de `docs/` (punto 13),
-   `npm run build`, commitear, y SOLO ENTONCES crear y empujar el tag
-   `vX.Y.Z` sobre ese commit — debe coincidir EXACTAMENTE con
-   `package.json.version`, o `.github/workflows/release.yml` lo
-   rechazará y no publicará el Release.
+   releases de GitHub»), actualizar la versión en la cabecera de los dos
+   documentos de `docs/` (punto 13), commitear —el hook se encarga de
+   `BUILD` y de `npm run build` al ver `package.json` en el commit— y
+   SOLO ENTONCES crear y empujar el tag `vX.Y.Z` sobre ese commit — debe
+   coincidir EXACTAMENTE con `package.json.version`, o
+   `.github/workflows/release.yml` lo rechazará y no publicará el
+   Release.
 10. **Editar en `src/`, nunca en `kitelocal.html`**, y `npm run build`
     antes de probar. Después: `node --check` del script; test en Node de
     la lógica pura (nuevo o actualizado si el cambio lo exige); `grep -F`

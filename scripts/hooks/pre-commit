@@ -1,0 +1,133 @@
+#!/usr/bin/env node
+/* Hook de pre-commit: sube BUILD y reconstruye SOLO cuando el commit
+   toca src/ o package.json (los dos únicos insumos de build.js).
+
+   No vive en .git/hooks/ porque esa carpeta no se versiona: nadie más
+   la tendría al clonar. Este archivo SÍ está trackeado, y cada clon
+   enlaza .git/hooks/pre-commit aquí con un symlink (ver README.md,
+   «Contributing»). Git invoca los hooks con el directorio de trabajo
+   en la raíz del repositorio, así que todas las rutas de abajo son
+   relativas a ahí — sin necesidad de resolver __dirname a través del
+   symlink, que apuntaría al sitio equivocado si se hiciera mal.
+
+   CommonJS a propósito, sin extensión .js/.mjs: es lo que hace falta
+   para que el propio archivo sea ejecutable como hook (el symlink
+   necesita que el nombre sea literalmente "pre-commit"), y CommonJS es
+   el que usa el resto de scripts de este repositorio (build.js,
+   fetch-icons.js) — nada de módulos ES aquí para no depender de
+   "type": "module" en package.json, que rompería esos otros scripts.
+
+   build.js en sí SIGUE sin saber la hora: sigue siendo una función
+   pura de lo que haya en disco en src/, que es lo que hace que
+   `build.js --check` (recompila y compara byte a byte) tenga sentido.
+   Lo único que hace este hook es escribir el nuevo BUILD en el propio
+   src/js/10-map.js ANTES de invocar build.js — el mismo paso que antes
+   hacía una persona a mano.                                          */
+"use strict";
+const { execFileSync } = require("child_process");
+const { readFileSync, writeFileSync, existsSync } = require("fs");
+const os = require("os");
+const path = require("path");
+
+const BUILD_FILE = "src/js/10-map.js";
+const BUILD_RE = /const BUILD = "\d{12}";/;
+const TOUCHED = [BUILD_FILE, "kitelocal.html", "kitelocal.min.html"];
+
+function stagedFiles() {
+  const out = execFileSync("git", ["diff", "--cached", "--name-only"], { encoding: "utf8" });
+  return out.split("\n").filter(Boolean);
+}
+
+function touchesBuildInputs(files) {
+  return files.some(f => f.startsWith("src/") || f === "package.json");
+}
+
+/* AAAAMMDDHHMM en hora local, mismo formato que ya usa el proyecto
+   (ver CLAUDE.md, «Versión y releases de GitHub»).                    */
+function buildStamp(d = new Date()) {
+  const p2 = n => String(n).padStart(2, "0");
+  return `${d.getFullYear()}${p2(d.getMonth() + 1)}${p2(d.getDate())}`
+    + `${p2(d.getHours())}${p2(d.getMinutes())}`;
+}
+
+/* Foto de los tres archivos que este hook puede llegar a escribir,
+   tomada ANTES de tocar nada: si algo falla a mitad (build.js, la
+   comprobación de sintaxis, --check), restore() los deja exactamente
+   como estaban, sin un BUILD a medio subir ni un kitelocal.html a
+   medio reconstruir estorbando en el próximo `git status`. El error
+   de quien causó el fallo real debe ser lo único que quede a la vista. */
+function snapshot() {
+  const files = {};
+  for (const f of TOUCHED) files[f] = existsSync(f) ? readFileSync(f, "utf8") : null;
+  return files;
+}
+function restore(files) {
+  for (const [f, content] of Object.entries(files)) {
+    if (content !== null) { try { writeFileSync(f, content); } catch { /* mejor esto que ocultar el error real */ } }
+  }
+}
+
+function bumpBuild() {
+  const content = readFileSync(BUILD_FILE, "utf8");
+  if (!BUILD_RE.test(content)) {
+    /* Mismo cuidado que el checklist ya pide para la sustitución a
+       mano: si el patrón no encuentra nada, avisar en vez de seguir
+       en silencio con un BUILD congelado.                            */
+    throw new Error(`${BUILD_FILE} no tiene un "const BUILD = \\"NNNNNNNNNNNN\\";" que sustituir `
+      + "(¿se ha movido o renombrado la constante?)");
+  }
+  const stamp = buildStamp();
+  writeFileSync(BUILD_FILE, content.replace(BUILD_RE, `const BUILD = "${stamp}";`));
+  return stamp;
+}
+
+function run(args) {
+  execFileSync(process.execPath, args, { stdio: "inherit" });
+}
+
+/* build.js SOLO concatena: no valida sintaxis de JS (no es su trabajo,
+   y así lo dice su propio comentario de cabecera). Un `src/` con un
+   error de sintaxis se "construye" igual —el texto roto simplemente
+   viaja tal cual dentro de kitelocal.html— y build.js --check tampoco
+   lo detecta, porque compara el texto reconstruido contra sí mismo, no
+   contra ninguna gramática. Sin este paso, el hook dejaría comitear
+   una página rota con un "todo ha ido bien". Mismo mecanismo que ya
+   usa tests/run-all.js como su primera comprobación: extraer el
+   <script> del HTML entregado y pasarlo por `node --check`.          */
+function checkScriptSyntax() {
+  const html = readFileSync("kitelocal.html", "utf8");
+  const m = html.match(/<script>\n([\s\S]*?)<\/script>/);
+  if (!m) throw new Error("no se encuentra el <script> incrustado en kitelocal.html recién construido");
+  const tmp = path.join(os.tmpdir(), "kite-precommit-check.js");
+  writeFileSync(tmp, m[1]);
+  try {
+    execFileSync(process.execPath, ["--check", tmp], { stdio: "pipe" });
+  } catch (err) {
+    throw new Error(`el script incrustado no es válido tras reconstruir\n${err.stderr}`);
+  }
+}
+
+function main() {
+  const files = stagedFiles();
+  if (!touchesBuildInputs(files)) return; /* nada que reconstruir */
+
+  const before = snapshot();
+  try {
+    const stamp = bumpBuild();
+    run(["build.js"]);
+    checkScriptSyntax();
+    run(["build.js", "--check"]); /* comprobación barata de que el propio hook no se ha equivocado */
+    execFileSync("git", ["add", "--", "kitelocal.html", "kitelocal.min.html", BUILD_FILE]);
+    console.log(`✓ BUILD → ${stamp}; kitelocal.html/kitelocal.min.html reconstruidos y añadidos al commit.`);
+  } catch (err) {
+    restore(before);
+    throw err;
+  }
+}
+
+try {
+  main();
+} catch (err) {
+  console.error(`✗ pre-commit: ${err.message}`);
+  process.exit(1);
+}
