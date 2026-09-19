@@ -323,9 +323,16 @@ function attachCtrlDrag(m, handle, isOrigin) {
   });
 }
 
-/* Recalcula geometría y etiqueta (distancia geodésica + rumbo) */
+/* Recalcula geometría y etiqueta (distancia geodésica + rumbo). Único
+   punto de paso de todo recálculo de una medición (línea/círculo aquí,
+   ruta vía updateRouteMeasurement), así que es también el sitio
+   correcto para refrescar su diálogo de propiedades si está abierto
+   mostrando ESTA medición — ver refreshOpenMeasureDialog más abajo:
+   sin esto, arrastrar un extremo con el diálogo abierto solo se veía
+   reflejado en el mapa, no en las cifras del propio diálogo, hasta
+   cerrarlo y volver a abrirlo.                                        */
 function updateMeasurement(m) {
-  if (m.type === "route") { updateRouteMeasurement(m); return; }
+  if (m.type === "route") { updateRouteMeasurement(m); refreshOpenMeasureDialog(m); return; }
   const a = m.mOrigin.getLatLng(), b = m.mDest.getLatLng();
   const dist = map.distance(a, b); /* haversine sobre la esfera terrestre */
   const brg = bearingDeg(a, b);
@@ -345,6 +352,7 @@ function updateMeasurement(m) {
   }
   m.label.setContent(txt);
   if (m.treeLabel) m.treeLabel.textContent = `${m.treeName} \u2014 ${txt}`;
+  refreshOpenMeasureDialog(m);
 }
 
 /* Ruta: una l\u00ednea de N waypoints, con distancia y rumbo por TRAMO \u2014no

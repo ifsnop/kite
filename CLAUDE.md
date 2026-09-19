@@ -574,7 +574,14 @@ index.html         redirección de la raíz del sitio al minificado
 - **Botón 🔍 de enfoque** (`focusOnNode`, `FOCUS_ZOOM`): centra la vista
   en el nodo y fija el zoom, siempre igual, sin depender de dónde
   estuviera la vista. Es la vía fiable frente al doble click, que
-  encadena escalones.
+  encadena escalones. **Salvo para un polígono o una medición**
+  (`styleKind` "polygon" o "measure"): ninguno de los dos usa el zoom
+  fijo, se encuadran enteros con margen (`fitBoundsFramed`, 20%) — una
+  ruta de varios tramos puede ser mucho más ancha que alta, y un zoom
+  centrado la dejaría cortada por un lado o perdida en un encuadre
+  demasiado abierto según su tamaño real. El doble click sobre la fila
+  sigue la escalera de siempre para una medición (solo el botón 🔍
+  cambió; no se pidió tocar el otro camino).
 - **El nombre de la fila NO activa la casilla**: se retiró el `htmlFor`
   del `<label>`. Pinchar el nombre selecciona la fila; un doble click
   sobre él alternaba la visibilidad a medias y parecía «desmarcar» la
@@ -1167,6 +1174,16 @@ index.html         redirección de la raíz del sitio al minificado
   necesariamente en vivo—, pero «Cancelar» lo devuelve a su posición
   original. Si la capa está oculta no hay icono en el mapa que arrastrar y
   se esconde el aviso.
+- **Y lo mismo para las CIFRAS de una medición**: arrastrar un extremo o
+  un waypoint con el diálogo de estilos abierto repinta sus valores de
+  solo lectura (distancia, rumbo, tramos de una ruta) EN VIVO, no solo
+  la etiqueta sobre el mapa. `updateMeasurement` llama a
+  `refreshOpenMeasureDialog(m)` en cada recálculo —mismo patrón que
+  `applyVertexEditRings` ya usa para el perímetro/área de un
+  polígono—, que no hace nada si el diálogo no está mostrando
+  precisamente esa medición (cerrado, otro nodo, o una selección
+  múltiple, donde la posición no se edita en bloque). Antes había que
+  cerrar el diálogo y volver a abrirlo para ver las cifras al día.
 - **Crear un pin**: el botón 📍 de la barra de herramientas del visor crea
   un marcador en el centro de la vista, dentro de la sección «Marcadores»,
   y abre su diálogo de estilos para ajustar icono, texto, coordenadas y

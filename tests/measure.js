@@ -164,13 +164,20 @@ ok($("ms-legs-row").hidden === true, "una línea no enseña tramos");
    arrancan en NM.                                                     */
 const { document: doc3 } = parseHTML("<ul id='tree'></ul>");
 const Lstub = { latLng: (lat, lng) => ({ lat, lng }) };
-const labelApi = new Function("treeEl", "L", "document",
+/* Registra cada llamada en vez de tocar ningún diálogo real: lo que
+   importa aquí es que updateMeasurement/updateRouteMeasurement SIEMPRE
+   la invoquen (una sola vez cada una), no lo que ella misma haga —
+   eso lo prueba tests/browser/measure-dialog-live.mjs contra el
+   diálogo de verdad, en un navegador real.                           */
+let refreshCalls = [];
+const refreshOpenMeasureDialog = m => refreshCalls.push(m);
+const labelApi = new Function("treeEl", "L", "document", "refreshOpenMeasureDialog",
   geoSrc.replace(constDecl("capArea"), "") + mapStub + "\n" + units
   + "\nlet measureUnit = 'nm';\n"
   + fn("midPoint") + "\n" + fn("updateMeasurement") + "\n" + fn("updateRouteMeasurement")
   + "\n" + fn("refreshMeasureLabels") + "\n" + fn("measurementValues")
   + "\nreturn {updateMeasurement, refreshMeasureLabels, measurementValues,"
-  + " setUnit: u => { measureUnit = u; }};")(doc3.getElementById("tree"), Lstub, doc3);
+  + " setUnit: u => { measureUnit = u; }};")(doc3.getElementById("tree"), Lstub, doc3, refreshOpenMeasureDialog);
 
 /* Una medición de mentira con lo justo que toca updateMeasurement */
 function fakeMeasure(type, a, b, name, treeLabel) {
@@ -182,9 +189,12 @@ function fakeMeasure(type, a, b, name, treeLabel) {
   };
 }
 const mLbl = fakeMeasure("line", A, B, "Línea 1", null);
+refreshCalls = [];
 labelApi.updateMeasurement(mLbl);
 ok(/^45\.99 NM · 89\.\d°$/.test(mLbl.label.content),
   "por defecto, NM y rumbo en grados: " + mLbl.label.content);
+ok(refreshCalls.length === 1 && refreshCalls[0] === mLbl,
+  "updateMeasurement avisa al diálogo (si estuviera abierto) de que hay valores nuevos: " + refreshCalls.length);
 labelApi.setUnit("km");
 labelApi.updateMeasurement(mLbl);
 ok(/^85\.18 km · /.test(mLbl.label.content),
@@ -231,8 +241,11 @@ function fakeRoute(waypoints, name, treeLabel) {
 const C = { lat: 41, lng: -2 }; /* tercer waypoint, para tener DOS tramos distintos */
 labelApi.setUnit("nm");
 const route = fakeRoute([A, B, C], "Ruta 1", null);
+refreshCalls = [];
 labelApi.updateMeasurement(route); /* despacha a updateRouteMeasurement */
 ok(route.legs.length === 2, "dos tramos para tres waypoints: " + route.legs.length);
+ok(refreshCalls.length === 1 && refreshCalls[0] === route,
+  "una ruta también avisa al diálogo en cada recálculo, no solo línea/círculo: " + refreshCalls.length);
 ok(route.totalDist === route.legs[0].dist + route.legs[1].dist,
   "el total es la suma de los tramos, no la distancia origen-fin");
 ok(/NM/.test(route.legLabels[0].content) && /NM/.test(route.legLabels[1].content),

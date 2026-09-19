@@ -104,7 +104,7 @@ Al activar o desactivar una carpeta con muchas capas dentro, la casilla se susti
 Al pasar el ratón por una fila aparecen, según lo que sea:
 
 - **En una carpeta o un archivo**: seleccionar todas sus capas (☑) o quitar la selección (☐), ordenar alfabéticamente (AZ, que alterna ascendente y descendente), colapsar la carpeta y todas las de dentro, y guardarla en un archivo aparte (💾).
-- **En una capa**: centrar la vista y acercar el zoom a un nivel fijo (🔍), y abrir su diálogo de estilos (🎨).
+- **En una capa**: centrar la vista y acercar el zoom a un nivel fijo (🔍), y abrir su diálogo de estilos (🎨). Sobre un polígono o una medición, en vez de un zoom fijo, encuadra toda su geometría con un margen alrededor —más útil para una figura o una ruta que puede ser mucho más grande, o más alargada, que lo que cabría en un solo nivel de zoom centrado.
 - **Si la capa tiene una ficha o propiedades que enseñar**: un botón adicional (ℹ) para verlas.
 - **En cualquier fila**: subir (↑) y bajar (↓) un puesto entre sus hermanas, y borrar (×).
 
@@ -218,7 +218,7 @@ Además del editor de texto, mientras este diálogo está abierto sus vértices 
 
 ### 6.3 Estilo de una medición
 
-Igual que un polígono en cuanto a trazo y relleno, pero con sus medidas propias en modo de solo lectura: una línea muestra distancia y rumbo; un círculo, radio y área; una ruta, la distancia total y la de cada uno de sus tramos por separado.
+Igual que un polígono en cuanto a trazo y relleno, pero con sus medidas propias en modo de solo lectura: una línea muestra distancia y rumbo; un círculo, radio y área; una ruta, la distancia total y la de cada uno de sus tramos por separado. Con el diálogo abierto, arrastrar un extremo o un waypoint (manteniendo `Ctrl`) actualiza estas cifras al momento, sin necesidad de cerrar el diálogo y volver a abrirlo.
 
 ![Diálogo de estilo de una medición, con distancia y rumbo de solo lectura](img/16-estilo-medicion.png)
 *Figura 17. Estilo de «Línea 1»: mismo tipo de controles que un polígono, con la distancia y el rumbo de la medición debajo.*

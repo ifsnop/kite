@@ -1867,7 +1867,7 @@ map.on("resize", fitWorldMinZoom);
 
 /* Fecha de generación del código (versión): AÑOMESDIAHORAMINUTO.
    Actualizar en cada generación; se muestra junto al crédito de Leaflet. */
-const BUILD = "202609182353";
+const BUILD = "202609190847";
 /* Versión de release (la de package.json, horneada aquí por build.js
    al construir — ver «Versión y releases de GitHub» en CLAUDE.md): a
    diferencia de BUILD, que cambia en CADA generación, esta solo cambia
@@ -3464,14 +3464,17 @@ function fitBoundsFramed(bounds) {
   map.fitBounds(bounds, { padding: [size.x * FRAME_MARGIN_RATIO, size.y * FRAME_MARGIN_RATIO] });
 }
 /* Los nodos de pol\u00EDgono (styleKind "polygon": tambi\u00E9n las l\u00EDneas, que
-   comparten estilo) no usan el zoom de trabajo fijo: se encuadran
-   enteros con margen (fitBoundsFramed), la misma regla tanto si se
-   llega por aqu\u00ED como por el doble click en la fila (m\u00E1s abajo) \u2014 para
-   un pol\u00EDgono no hay escalera de zoom de tres pelda\u00F1os.               */
+   comparten estilo) y las mediciones no usan el zoom de trabajo fijo:
+   se encuadran enteros con margen (fitBoundsFramed) \u2014 para ninguno de
+   los dos hay escalera de zoom de tres pelda\u00F1os. Una medici\u00F3n en
+   particular puede ser mucho m\u00E1s larga que ancha (una ruta de varios
+   tramos), y un zoom fijo la dejar\u00EDa cortada por los lados o perdida
+   en medio de un encuadre demasiado abierto seg\u00FAn su tama\u00F1o real.   */
 function focusOnNode(li) {
   const b = subtreeBounds(li);
   if (!b.isValid()) { navMessage("Esta capa no tiene geometr\u00EDa que enfocar."); return; }
-  if (styleKind(li) === "polygon") fitBoundsFramed(b);
+  const kind = styleKind(li);
+  if (kind === "polygon" || kind === "measure") fitBoundsFramed(b);
   else map.setView(b.getCenter(), FOCUS_ZOOM);
 }
 
@@ -9824,6 +9827,23 @@ $id("pg-unit").addEventListener("change", () => setMeasureUnit($id("pg-unit").va
 
 /* ---------- Medidas de una medición (solo lectura) ---------- */
 let msMeasures = null; /* {circle, route, dist, area, brg, legs} de la medición abierta, o null */
+
+/* Refresca el diálogo de propiedades EN VIVO mientras se arrastra un
+   extremo/waypoint de la medición que tiene abierta —el mismo patrón
+   que applyVertexEditRings ya usa para el perímetro/área de un
+   polígono—. Llamado desde updateMeasurement en cada recálculo; sin
+   esto, arrastrar con el diálogo abierto solo se veía en el mapa,
+   nunca en las cifras de la propia ventana, hasta cerrarla y volver a
+   abrirla. No hace nada si el diálogo no está mostrando ESTA medición
+   (cerrado, mostrando otro nodo, o una selección múltiple — la
+   posición no se edita en bloque, así que ahí tampoco hay nada vivo
+   que mostrar).                                                       */
+function refreshOpenMeasureDialog(m) {
+  if (styleDialog.hidden || styleTargets.length !== 1 || styleTargets[0]._measure !== m) return;
+  msMeasures = measurementValues(m);
+  renderMeasureValues();
+}
+
 function renderMeasureValues() {
   if (!msMeasures) return;
   /* Un círculo se describe por su RADIO, una ruta por su TOTAL, una
@@ -10538,9 +10558,16 @@ function attachCtrlDrag(m, handle, isOrigin) {
   });
 }
 
-/* Recalcula geometría y etiqueta (distancia geodésica + rumbo) */
+/* Recalcula geometría y etiqueta (distancia geodésica + rumbo). Único
+   punto de paso de todo recálculo de una medición (línea/círculo aquí,
+   ruta vía updateRouteMeasurement), así que es también el sitio
+   correcto para refrescar su diálogo de propiedades si está abierto
+   mostrando ESTA medición — ver refreshOpenMeasureDialog más abajo:
+   sin esto, arrastrar un extremo con el diálogo abierto solo se veía
+   reflejado en el mapa, no en las cifras del propio diálogo, hasta
+   cerrarlo y volver a abrirlo.                                        */
 function updateMeasurement(m) {
-  if (m.type === "route") { updateRouteMeasurement(m); return; }
+  if (m.type === "route") { updateRouteMeasurement(m); refreshOpenMeasureDialog(m); return; }
   const a = m.mOrigin.getLatLng(), b = m.mDest.getLatLng();
   const dist = map.distance(a, b); /* haversine sobre la esfera terrestre */
   const brg = bearingDeg(a, b);
@@ -10560,6 +10587,7 @@ function updateMeasurement(m) {
   }
   m.label.setContent(txt);
   if (m.treeLabel) m.treeLabel.textContent = `${m.treeName} \u2014 ${txt}`;
+  refreshOpenMeasureDialog(m);
 }
 
 /* Ruta: una l\u00ednea de N waypoints, con distancia y rumbo por TRAMO \u2014no

@@ -1003,6 +1003,23 @@ $id("pg-unit").addEventListener("change", () => setMeasureUnit($id("pg-unit").va
 
 /* ---------- Medidas de una medición (solo lectura) ---------- */
 let msMeasures = null; /* {circle, route, dist, area, brg, legs} de la medición abierta, o null */
+
+/* Refresca el diálogo de propiedades EN VIVO mientras se arrastra un
+   extremo/waypoint de la medición que tiene abierta —el mismo patrón
+   que applyVertexEditRings ya usa para el perímetro/área de un
+   polígono—. Llamado desde updateMeasurement en cada recálculo; sin
+   esto, arrastrar con el diálogo abierto solo se veía en el mapa,
+   nunca en las cifras de la propia ventana, hasta cerrarla y volver a
+   abrirla. No hace nada si el diálogo no está mostrando ESTA medición
+   (cerrado, mostrando otro nodo, o una selección múltiple — la
+   posición no se edita en bloque, así que ahí tampoco hay nada vivo
+   que mostrar).                                                       */
+function refreshOpenMeasureDialog(m) {
+  if (styleDialog.hidden || styleTargets.length !== 1 || styleTargets[0]._measure !== m) return;
+  msMeasures = measurementValues(m);
+  renderMeasureValues();
+}
+
 function renderMeasureValues() {
   if (!msMeasures) return;
   /* Un círculo se describe por su RADIO, una ruta por su TOTAL, una
