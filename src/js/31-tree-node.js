@@ -167,8 +167,19 @@ function makeNode({ name, layer = null, isFolder = false, isFile = false,
   if (layer) {
     layer._li = li; /* back-reference used by the context menu's hit-testing */
     /* While drawing a polygon, a click inside another layer must fix a
-       vertex there, not highlight that layer in the tree               */
-    layer.on("click", () => { if (activeTool !== "polygon") highlightNode(li); });
+       vertex there, not highlight that layer in the tree. And for a
+       medición de ruta, `layer` ES el featureGroup que además contiene
+       sus manejadores de waypoint: Leaflet reenvía el "click" de un hijo
+       al grupo (_propagateEvent), así que sin este guardia, seleccionar
+       un vértice (ver wireRouteHandle, 52-measure.js) se deshacía justo
+       después — highlightNode volvía a limpiar y rehacer la selección
+       del árbol, y con ella el owner de vértice recién elegido.        */
+    layer.on("click", e => {
+      if (activeTool === "polygon") return;
+      const t = e.originalEvent && e.originalEvent.target;
+      if (t && t.closest && t.closest(".measure-handle")) return;
+      highlightNode(li);
+    });
     layer.on("mouseover", () => showLayerInfo(li, { focus: false }));
     layer.on("mouseout", scheduleLayerInfoHide);
   }
@@ -383,6 +394,12 @@ function deleteNode(li, { pruneSelection = true } = {}) {
       if (s === li || li.contains(s)) selection.delete(s);
     }
   }
+  /* Borrar directamente por el botón × de la fila no pasa por
+     clearSelection/selectNode (pruneSelection quita del Set a mano, sin
+     el punto único de setSelCursor), así que si el owner activo era este
+     nodo —o colgaba de él— hay que retirarlo aparte: si no, sus
+     manejadores (un polígono) quedarían huérfanos en el mapa.          */
+  if (vertexOwner && (vertexOwner.li === li || li.contains(vertexOwner.li))) teardownVertexOwner();
   removeSubtreeFromMap(li);
   /* Se guarda el contenedor ANTES de quitarlo: después ya no tiene
      padre, y los hermanos que quedan pueden dejar a la carpeta entera

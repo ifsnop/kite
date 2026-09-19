@@ -72,6 +72,7 @@ const BROWSER = [
   ["browser/multiedit.mjs", "Navegador: editar varios nodos a la vez y el nombre siempre a la vista de un trazo"],
   ["browser/lazy-cascade.mjs", "Navegador: desplegar y marcar una carpeta grande a la vez no la deja a medio encender"],
   ["browser/measure-dialog-live.mjs", "Navegador: el diálogo de una medición se repinta en vivo al arrastrar, y 🔍 la encuadra con margen"],
+  ["browser/vertex-select.mjs", "Navegador: seleccionar un vértice, Mayús+clic para insertar y Supr para borrar — en rutas y polígonos, sin diálogo"],
   ["browser/url-import.mjs", "Navegador: añadir desde una dirección, en dos pasos y con cancelación"],
   ["browser/oneworld.mjs", "Navegador: una sola Tierra — sin copias en horizontal, con tope de arrastre y suelo de zoom"]
 ];

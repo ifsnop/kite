@@ -18,11 +18,27 @@ function selectAllStep(cur) {
     { tone: "info" });
 }
 
+/* Supr borra el vértice seleccionado de una ruta o un polígono, con
+   PRIORIDAD sobre el borrado de nodos del árbol de abajo — "seleccionar
+   vértice" es un concepto más fino que "seleccionar nodo", y Supr debe
+   entenderse primero como referido a él. Ver 43-points-editor.js.
+   `stopImmediatePropagation` (no basta con no actuar) porque
+   deleteSelectedVertex ya deja `vertexSelHandle` en null al borrar: sin
+   cortar aquí, el SEGUNDO listener de más abajo volvería a comprobar la
+   selección de vértice DESPUÉS de que esta ya no exista y, al no
+   encontrar ninguna, borraría también el nodo del árbol en la misma
+   pulsación — justo lo que "prioridad" pretende evitar.               */
+document.addEventListener("keydown", e => {
+  if (e.key !== "Delete" || !vertexOwner || !vertexSelHandle) return;
+  if (/INPUT|TEXTAREA/.test(e.target.tagName)) return;
+  deleteSelectedVertex();
+  e.stopImmediatePropagation();
+});
 /* Supr borra toda la selección de golpe (fuera de campos de texto) */
 document.addEventListener("keydown", e => {
   if (e.key !== "Delete" || !selection.size) return;
   if (/INPUT|TEXTAREA/.test(e.target.tagName)) return;
-  if (activeTool === "polygon" && polyDraft) return; /* Supr es "borrar vértice" mientras se dibuja */
+  if ((activeTool === "polygon" || activeTool === "route") && polyDraft) return; /* Supr es "borrar vértice" mientras se dibuja */
   const items = topLevelSelection();
   const next = cursorAfterDelete(isRow(selCursor) ? selCursor : items[0], items);
   pushUndo(`borrar ${items.length} nodo(s)`);

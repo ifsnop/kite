@@ -240,15 +240,18 @@ function setMarkerDraggable(mk, on) {
   if (mk.dragging) { if (on) mk.dragging.enable(); else mk.dragging.disable(); }
 }
 
-/* ---------- Edición interactiva de vértices (arrastrar y borrar) ----------
+/* ---------- Edición interactiva de vértices (arrastrar, borrar,
+   seleccionar e insertar) ----------
    Complementa al editor de texto («Ver y editar…», sigue existiendo
-   para listas grandes o ediciones masivas): mientras el diálogo de
-   estilos edita UN polígono, sus vértices se pueden arrastrar
-   (Ctrl+arrastre, el mismo gesto reservado que ya usan las mediciones)
-   y borrar (clic derecho), directamente sobre el mapa. Mismo patrón que
-   la posición de un marcador (posMarker/onMarkerDragged): en vivo sobre
-   la capa REAL, pero diferido de verdad — «Cancelar» restaura los
-   vértices originales, «Aceptar» los deja como estén.
+   para listas grandes o ediciones masivas): mientras un ÚNICO polígono
+   está seleccionado en el árbol —sin que haga falta abrir su diálogo de
+   propiedades—, sus vértices se pueden arrastrar (Ctrl+arrastre, el
+   mismo gesto reservado que ya usan las mediciones) y borrar (clic
+   derecho), directamente sobre el mapa. A diferencia de la posición de
+   un marcador, esto YA NO es edición diferida: cada arrastre o borrado
+   se guarda al momento (scheduleSave), igual que ya hacía un waypoint
+   de ruta — el diálogo de estilos, si está abierto a la vez, solo
+   refleja los cambios (ver refreshOpenPolygonDialog más abajo).
 
    Por debajo de VERTEX_EDIT_MAX vértices se construyen manejadores; por
    encima, ninguno — demasiados manejadores son otros tantos nodos del
@@ -259,27 +262,43 @@ function setMarkerDraggable(mk, on) {
    por medio): 500 vértices, 12-30 ms según la ejecución; 2000, ~85 ms;
    4000, ~213 ms — el coste crece con N, y 500 se queda cómodamente por
    debajo del umbral de "se siente instantáneo" (~100 ms) incluso con
-   margen para un equipo más lento que esta VM de desarrollo.         */
+   margen para un equipo más lento que esta VM de desarrollo.
+
+   ---------- Selección de vértice (rutas Y polígonos) ----------
+   Un único modelo para cualquier geometría de varios puntos: un clic
+   (sin Ctrl) sobre un manejador lo SELECCIONA (`vertexOwner`/
+   `vertexSelHandle`, más abajo); Mayús+clic en cualquier otro punto del
+   mapa INSERTA un vértice justo después del seleccionado —o al final,
+   si no hay ninguno—; Supr BORRA el seleccionado (con prioridad sobre
+   el borrado de nodos del árbol, ver 41-selection.js). `vertexOwner` es
+   quién decide qué significa "insertar"/"borrar" para su tipo de
+   geometría (una ruta ya tiene sus manejadores siempre puestos; un
+   polígono los construye/destruye aquí mismo, según la selección del
+   árbol): ver syncVertexOwner, llamada desde selectNode/selectRange/
+   toggleOne/clearSelection (30-tree-walk.js) y desde deleteNode
+   (31-tree-node.js).                                                  */
 const VERTEX_EDIT_MAX = 500;
 
-let vertexEdit = null; /* { li, layer, rings, handleRings, nested, closed, group, originalLatLngs } o null */
+let vertexEdit = null;   /* { li, layer, rings, handleRings, nested, closed, group } o null */
+let vertexOwner = null;  /* { kind: "route"|"polygon", li, hasHandle, insertAfter, removeVertex } o null */
+let vertexSelHandle = null; /* manejador seleccionado dentro de vertexOwner, o null */
 
 /* Copia independiente de una estructura de anillos (array de L.LatLng, o
-   array de arrays): ni `rings` ni `originalLatLngs` deben compartir los
-   objetos que Leaflet tiene en su _latlngs interno, o "cancelar" no
-   tendría a qué volver.                                                */
+   array de arrays): `rings` no debe compartir los objetos que Leaflet
+   tiene en su _latlngs interno, o mutarlos aquí mutaría la capa a medias. */
 function cloneLatLngRings(rings) {
   return rings.map(r => r.map(p => L.latLng(p.lat, p.lng)));
 }
 
+/* true si pudo construir los manejadores (y por tanto activar la
+   edición interactiva), false si no hay trazo propio o supera el tope. */
 function beginVertexEdit(li) {
   const layer = solePath(li);
-  if (!layer) return;
+  if (!layer) return false;
   const { rings: liveRings, nested } = pathRings(layer);
   const total = liveRings.reduce((n, r) => n + r.length, 0);
-  if (!total || total > VERTEX_EDIT_MAX) return;
+  if (!total || total > VERTEX_EDIT_MAX) return false;
   const rings = cloneLatLngRings(liveRings);
-  const originalLatLngs = cloneLatLngRings(liveRings);
   const group = L.featureGroup().addTo(rootGroup);
   const handleRings = rings.map(ring => ring.map(pos => {
     const h = makeHandle(pos);
@@ -288,18 +307,19 @@ function beginVertexEdit(li) {
     return h;
   }));
   vertexEdit = { li, layer, rings, handleRings, nested,
-                 closed: layer instanceof L.Polygon, group, originalLatLngs };
+                 closed: layer instanceof L.Polygon, group };
+  return true;
 }
 
 /* Vuelca vertexEdit.rings a la capa real y recalcula lo que enseña el
-   diálogo (perímetro/área): las mismas dos funciones que ya usa el
-   editor de texto al aceptar, aquí en cada arrastre/borrado.          */
+   diálogo (perímetro/área) SI está abierto mostrando este nodo — las
+   mismas dos funciones que ya usa el editor de texto al aceptar, aquí
+   en cada arrastre/borrado/inserción.                                 */
 function applyVertexEditRings() {
   const { layer, rings, nested } = vertexEdit;
   layer.setLatLngs(nested || rings.length > 1 ? rings : rings[0]);
   invalidateGeo(vertexEdit.li);
-  polyMeasures = polygonMeasures(vertexEdit.li);
-  renderPolyMeasures();
+  refreshOpenPolygonDialog(vertexEdit.li);
 }
 
 /* Busca en qué anillo/posición vive un manejador AHORA MISMO: no se
@@ -319,15 +339,17 @@ function wireVertexEditHandle(handle) {
     if (!pos) return;
     vertexEdit.rings[pos[0]][pos[1]] = latlng;
     applyVertexEditRings();
-  }, null);
+  }, scheduleSave);
   handle.on("contextmenu", ev => {
     L.DomEvent.stop(ev.originalEvent);
     removeVertexEditPoint(handle);
   });
+  handle.on("click", () => selectVertex(handle));
 }
 
 /* Mismo mínimo que ya exige el editor de texto y el dibujo a mano: 3
-   vértices por anillo cerrado, 2 en una forma abierta.                */
+   vértices por anillo cerrado, 2 en una forma abierta. En vivo: se
+   guarda al momento, no hay ningún "Aceptar" que lo difiera.          */
 function removeVertexEditPoint(handle) {
   const pos = findVertexEditPos(handle);
   if (!pos) return;
@@ -339,24 +361,135 @@ function removeVertexEditPoint(handle) {
       : "Faltan vértices para seguir siendo una línea (mínimo 2).");
     return;
   }
+  if (vertexSelHandle === handle) clearVertexSelection();
   vertexEdit.rings[ri].splice(pi, 1);
   vertexEdit.handleRings[ri].splice(pi, 1);
   vertexEdit.group.removeLayer(handle);
   applyVertexEditRings();
+  scheduleSave();
 }
 
-/* Cierra la edición interactiva: `commit` false restaura los vértices
-   originales (edición diferida, igual que la posición de un marcador);
-   en los dos casos se retiran los manejadores temporales.             */
-function endVertexEdit(commit) {
-  if (!vertexEdit) return;
-  if (!commit) {
-    const { layer, originalLatLngs, nested } = vertexEdit;
-    layer.setLatLngs(nested || originalLatLngs.length > 1 ? originalLatLngs : originalLatLngs[0]);
-    invalidateGeo(vertexEdit.li);
+/* Inserta un vértice nuevo justo después de `handle` (o al final del
+   primer anillo si `handle` es null: el caso normal de un polígono de
+   un único anillo, sin agujeros — con varios, ambiguo por diseño, se
+   escoge el primero). Devuelve el manejador nuevo, ya seleccionable. */
+function insertVertexEditPoint(handle, latlng) {
+  if (!vertexEdit) return null;
+  let ri = 0, pi = vertexEdit.rings[0].length;
+  if (handle) {
+    const pos = findVertexEditPos(handle);
+    if (pos) { ri = pos[0]; pi = pos[1] + 1; }
   }
+  const pos2 = L.latLng(latlng.lat, latlng.lng);
+  const h = makeHandle(pos2);
+  wireVertexEditHandle(h);
+  vertexEdit.rings[ri].splice(pi, 0, pos2);
+  vertexEdit.handleRings[ri].splice(pi, 0, h);
+  vertexEdit.group.addLayer(h);
+  applyVertexEditRings();
+  scheduleSave();
+  return h;
+}
+
+/* Cierra la edición interactiva: solo retira los manejadores temporales
+   (ya no hay nada que "cancelar" — los cambios ya están guardados).   */
+function endVertexEdit() {
+  if (!vertexEdit) return;
   rootGroup.removeLayer(vertexEdit.group);
   vertexEdit = null;
+}
+
+/* ---------- vertexOwner: qué geometría responde a seleccionar/insertar/
+   borrar un vértice ahora mismo ----------
+   Envuelve una ruta (sus manejadores viven siempre en el mapa, ligados
+   a la medición) o un polígono (vertexEdit, construido/destruido aquí
+   según la selección del árbol). `li` es el nodo del árbol al que
+   pertenece, para poder comparar contra la selección actual.          */
+function makeRouteVertexOwner(m, li) {
+  return {
+    kind: "route", li,
+    hasHandle: h => m.handles.includes(h),
+    insertAfter: (h, latlng) => insertRouteWaypoint(m, h, latlng),
+    removeVertex: h => removeRouteWaypoint(m, h)
+  };
+}
+function makePolygonVertexOwner(li) {
+  return {
+    kind: "polygon", li,
+    hasHandle: h => !!findVertexEditPos(h),
+    insertAfter: (h, latlng) => insertVertexEditPoint(h, latlng),
+    removeVertex: h => removeVertexEditPoint(h)
+  };
+}
+
+function clearVertexSelection() {
+  if (vertexSelHandle) {
+    const el = vertexSelHandle.getElement();
+    if (el) el.classList.remove("vertex-selected");
+  }
+  vertexSelHandle = null;
+}
+
+/* Selecciona un manejador DENTRO del vertexOwner activo. Un clic sobre
+   un manejador que no pertenezca al owner actual (no debería darse: los
+   manejadores de un polígono solo existen mientras es el owner) no hace
+   nada, por seguridad.                                                */
+function selectVertex(handle) {
+  if (!vertexOwner || !vertexOwner.hasHandle(handle)) return;
+  clearVertexSelection();
+  vertexSelHandle = handle;
+  const el = handle.getElement();
+  if (el) el.classList.add("vertex-selected");
+}
+
+/* Retira el owner activo: deselecciona, destruye los manejadores del
+   polígono si los hubiera (una ruta no tiene nada que destruir, sus
+   manejadores son permanentes) y apaga el cursor de inserción.        */
+function teardownVertexOwner() {
+  clearVertexSelection();
+  if (vertexOwner && vertexOwner.kind === "polygon") endVertexEdit();
+  vertexOwner = null;
+  map.getContainer().classList.remove("vertex-insert-cursor");
+}
+
+/* Único punto de sincronización entre "qué hay seleccionado en el
+   árbol" y "qué geometría responde a Mayús+clic/Supr sobre un vértice".
+   Con más de un nodo seleccionado, o ninguno, no hay owner: no tiene
+   sentido "insertar en el polígono" cuando hay tres seleccionados.    */
+function syncVertexOwner() {
+  const li = selection.size === 1 ? [...selection][0] : null;
+  const kind = li && li.isConnected ? styleKind(li) : null;
+  if (vertexOwner && vertexOwner.li === li
+      && ((kind === "polygon" && vertexOwner.kind === "polygon")
+        || (kind === "measure" && vertexOwner.kind === "route"))) {
+    return; /* ya es el owner activo: nada que rehacer */
+  }
+  teardownVertexOwner();
+  if (kind === "polygon") {
+    if (beginVertexEdit(li)) vertexOwner = makePolygonVertexOwner(li);
+  } else if (kind === "measure" && li._measure && li._measure.type === "route") {
+    vertexOwner = makeRouteVertexOwner(li._measure, li);
+  }
+}
+
+/* Borra el vértice seleccionado (con el mínimo de cada owner, avisado
+   por su propio removeVertex si no se puede). Llamado con prioridad
+   desde el Supr del árbol — ver 41-selection.js.                     */
+function deleteSelectedVertex() {
+  if (!vertexOwner || !vertexSelHandle) return;
+  const handle = vertexSelHandle;
+  vertexOwner.removeVertex(handle);
+  if (!vertexOwner.hasHandle(handle)) clearVertexSelection();
+}
+
+/* Mayús+clic en el mapa (fuera de un manejador): inserta un vértice
+   nuevo en el owner activo, después del seleccionado o al final si no
+   hay ninguno (ver el tercer punto de la aclaración pedida al usuario),
+   y selecciona el vértice recién creado.                              */
+function insertVertexAfterSelected(latlng) {
+  if (!vertexOwner) return;
+  const h = vertexOwner.insertAfter(vertexSelHandle, latlng);
+  if (h) selectVertex(h);
 }
 
 /* ---------- Moving the dialogs ----------

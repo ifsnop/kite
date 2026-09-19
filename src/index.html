@@ -192,8 +192,8 @@
         <button class="btn" id="pg-points">Ver y editar&#8230;</button>
       </div>
     </div>
-    <!-- Medición (línea o círculo). El relleno solo aplica al círculo:
-         una línea no encierra ninguna superficie. Los valores son de
+    <!-- Medición (ruta o círculo). El relleno solo aplica al círculo:
+         una ruta no encierra ninguna superficie. Los valores son de
          solo lectura, como el perímetro y el área de un polígono. -->
     <div id="style-measure" hidden>
       <div class="dlg-row"><span>Ancho del trazo</span><input type="number" id="ms-weight" min="0.5" max="12" step="0.5"></div>
@@ -252,15 +252,22 @@
       <tr><td>Arrastrar una fila por su nombre</td><td>Mover el nodo a otra carpeta o posici&#243;n (Esc cancela)</td></tr>
       <tr><th colspan="2">En el visor</th></tr>
       <tr><td>May&#250;s + arrastrar</td><td>Zoom a un rect&#225;ngulo</td></tr>
-      <tr><td>Ctrl + arrastrar</td><td>Editar una medici&#243;n</td></tr>
+      <tr><td>Ctrl + arrastrar</td><td>Editar una medici&#243;n o un v&#233;rtice</td></tr>
       <tr><td>Doble clic en una fila</td><td>Ir a la capa; repetido, acercar</td></tr>
       <tr><td>Re P&#225;g / Av P&#225;g (con el mapa enfocado)</td><td>Acercar / alejar un nivel de zoom hacia el puntero</td></tr>
-      <tr><th colspan="2">Dibujar pol&#237;gonos y l&#237;neas</th></tr>
+      <tr><th colspan="2">Dibujar pol&#237;gonos y rutas</th></tr>
       <tr><td>Clic</td><td>Fijar un v&#233;rtice</td></tr>
       <tr><td>Doble clic sobre el &#250;ltimo v&#233;rtice</td><td>Cerrar el pol&#237;gono y terminar</td></tr>
-      <tr><td>Doble clic fuera de un v&#233;rtice</td><td>Terminar la l&#237;nea sin cerrarla</td></tr>
+      <tr><td>Doble clic fuera de un v&#233;rtice</td><td>Terminar la l&#237;nea o la ruta sin cerrarla</td></tr>
       <tr><td>Clic derecho sobre un v&#233;rtice</td><td>Quitar ese v&#233;rtice</td></tr>
       <tr><td>Supr</td><td>Quitar el &#250;ltimo v&#233;rtice</td></tr>
+      <tr><th colspan="2">Editar v&#233;rtices de una ruta o un pol&#237;gono ya creados</th></tr>
+      <tr><td>Seleccionar el nodo en el &#225;rbol</td><td>Activa mover/borrar/insertar v&#233;rtices sobre el mapa (sin abrir su ventana de propiedades)</td></tr>
+      <tr><td>Clic en un v&#233;rtice</td><td>Seleccionarlo</td></tr>
+      <tr><td>Ctrl + arrastrar un v&#233;rtice</td><td>Moverlo</td></tr>
+      <tr><td>Clic derecho sobre un v&#233;rtice</td><td>Quitarlo</td></tr>
+      <tr><td>May&#250;s + clic en el mapa</td><td>Insertar un v&#233;rtice tras el seleccionado (o al final, si no hay ninguno)</td></tr>
+      <tr><td>Supr</td><td>Quitar el v&#233;rtice seleccionado (antes que borrar el nodo)</td></tr>
     </table>
     <div class="dlg-actions"><button class="btn" id="shortcuts-close">Cerrar</button></div>
   </div>

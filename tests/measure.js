@@ -1,22 +1,27 @@
 /* Mediciones: estilo propio, medidas del diálogo de propiedades y
    renombrado sin perder la medida.
 
-   Tres cosas que antes no existían o estaban mal:
+   Cosas que antes no existían o estaban mal:
 
    1. Una medición no tenía estilo editable (`styleable: false`, colores
       fijos por tipo). Ahora lleva su propio estilo de trazo, se guarda
-      con el nodo y una LÍNEA nunca puede rellenarse — la misma regla
+      con el nodo y una RUTA nunca puede rellenarse — la misma regla
       que ya vale para cualquier trazo abierto.
-   2. El diálogo enseña sus medidas: distancia y rumbo de una línea,
-      radio y área de un círculo, con la misma unidad recordada que el
-      perímetro/área de un polígono. El área de un círculo es la del
-      CASQUETE esférico, no πr².
+   2. El diálogo enseña sus medidas: radio y área de un círculo,
+      distancia total y tramos de una ruta, con la misma unidad
+      recordada que el perímetro/área de un polígono. El área de un
+      círculo es la del CASQUETE esférico, no πr².
    3. Renombrar una medición perdía la distancia de su fila: startRename
       devolvía la etiqueta reescribiéndola con `li._name`, y el texto de
       una medición no es el nombre a secas sino "Nombre — 1,20 km · 45°".
       Con el nombre sin cambiar (o cancelando con Escape) setNodeName
       sale antes de llamar a _onRename, que es quien lo repinta, así que
-      la medida se quedaba borrada.                                    */
+      la medida se quedaba borrada.
+   4. La antigua herramienta "línea" (arrastre, siempre dos puntos) se
+      retiró: una ruta de 2 waypoints ES una línea, y además permite
+      insertar/borrar un punto, algo que el arrastre no ofrecía nunca.
+      `mtype: "line"` sigue reconociéndose SOLO al restaurar un árbol
+      guardado antes de este cambio (ver schemaupgrade.js).            */
 const { parseHTML } = require("linkedom");
 const { fn, constDecl, between } = require("./_extract");
 const ok = (c, m) => { if (!c) { console.error("FAIL: " + m); process.exitCode = 1; } };
@@ -27,14 +32,14 @@ const styleSrc = constDecl("MEASURE_COLORS") + "\n"
 const st = new Function(styleSrc
   + "\nreturn {defaultMeasureStyle, normalizePathStyle, MEASURE_COLORS};")();
 
-const lineStyle = st.normalizePathStyle(st.defaultMeasureStyle("line"));
+const routeStyle = st.normalizePathStyle(st.defaultMeasureStyle("route"));
 const circleStyle = st.normalizePathStyle(st.defaultMeasureStyle("circle"));
-ok(lineStyle.fill === false, "una línea de medición no se rellena: " + lineStyle.fill);
+ok(routeStyle.fill === false, "una ruta de medición no se rellena: " + routeStyle.fill);
 ok(circleStyle.fill === true, "un círculo sí: " + circleStyle.fill);
-ok(lineStyle.color === st.MEASURE_COLORS.line && circleStyle.color === st.MEASURE_COLORS.circle,
+ok(routeStyle.color === st.MEASURE_COLORS.route && circleStyle.color === st.MEASURE_COLORS.circle,
   "cada tipo conserva su color de siempre");
 /* El contorno nunca lleva opacidad propia, aquí tampoco */
-ok(lineStyle.opacity === 1 && circleStyle.opacity === 1, "el contorno va siempre opaco");
+ok(routeStyle.opacity === 1 && circleStyle.opacity === 1, "el contorno va siempre opaco");
 ok(circleStyle.fillOpacity === 0.1,
   "el relleno del círculo arranca muy translúcido, para no tapar el mapa: " + circleStyle.fillOpacity);
 
@@ -68,7 +73,9 @@ ok(mv.capArea(0) === 0, "radio cero, área cero");
 ok(Math.abs(mv.capArea(Math.PI * mv.EARTH_R / 2) - 2 * Math.PI * mv.EARTH_R ** 2) < 1,
   "un cuarto de vuelta de radio cubre medio globo");
 
-/* Una medición de mentira: solo hacen falta sus dos manejadores */
+/* Una medición de mentira: solo hacen falta sus dos manejadores. La
+   única de dos puntos que queda es el círculo (una línea de dos puntos
+   es ahora una ruta, probada más abajo con measurementValues real). */
 const fakeM = (type, a, b) => ({
   type,
   mOrigin: { getLatLng: () => a },
@@ -76,20 +83,13 @@ const fakeM = (type, a, b) => ({
 });
 const A = { lat: 40, lng: -3 }, B = { lat: 40, lng: -2 };
 
-const lineVals = mv.measurementValues(fakeM("line", A, B));
-ok(lineVals.circle === false, "una línea no es un círculo");
-ok(lineVals.area === null, "una línea no tiene área");
-ok(lineVals.brg !== null && Math.abs(lineVals.brg - 90) < 0.5,
-  "y sí rumbo, ~90° hacia el este: " + lineVals.brg);
-ok(lineVals.dist > 85000 && lineVals.dist < 86000,
-  "un grado de longitud a 40°N son ~85 km: " + lineVals.dist);
-
 const circVals = mv.measurementValues(fakeM("circle", A, B));
 ok(circVals.circle === true, "un círculo sí lo es");
 ok(circVals.brg === null, "un círculo no tiene rumbo: el radio apunta a todas partes");
 ok(circVals.area === mv.capArea(circVals.dist),
   "su área es la del casquete de su radio, no πr²");
-ok(circVals.dist === lineVals.dist, "y el radio se mide igual que la distancia");
+ok(circVals.dist > 85000 && circVals.dist < 86000,
+  "un grado de longitud a 40°N son ~85 km: " + circVals.dist);
 
 /* ---------- renderMeasureValues: unidades y filas que se ocultan ---------- */
 const { document } = parseHTML(`
@@ -188,7 +188,7 @@ function fakeMeasure(type, a, b, name, treeLabel) {
     label: { setLatLng() {}, setContent(t) { this.content = t; } }
   };
 }
-const mLbl = fakeMeasure("line", A, B, "Línea 1", null);
+const mLbl = fakeMeasure("circle", A, B, "Círculo 1", null);
 refreshCalls = [];
 labelApi.updateMeasurement(mLbl);
 ok(/^45\.99 NM · 89\.\d°$/.test(mLbl.label.content),
@@ -205,7 +205,7 @@ ok(mLbl.label.content.startsWith(render.fmtUnitDist(85179.81, "km").slice(0, 5))
 
 /* refreshMeasureLabels alcanza filas Y registros pendientes ---------- */
 const rowLabel = { textContent: "" };
-const rowM = fakeMeasure("line", A, B, "Línea 1", rowLabel);
+const rowM = fakeMeasure("circle", A, B, "Círculo 1", rowLabel);
 const rowLi = doc3.createElement("li");
 rowLi._measure = rowM;
 doc3.getElementById("tree").appendChild(rowLi);
@@ -217,7 +217,7 @@ doc3.getElementById("tree").appendChild(pendLi);
 
 labelApi.setUnit("nm");
 labelApi.refreshMeasureLabels();
-ok(rowLabel.textContent === `Línea 1 — ${rowM.label.content}`,
+ok(rowLabel.textContent === `Círculo 1 — ${rowM.label.content}`,
   "la fila del árbol repite la etiqueta con el nombre delante: " + rowLabel.textContent);
 ok(/NM/.test(rowLabel.textContent), "y en la unidad nueva: " + rowLabel.textContent);
 ok(/NM/.test(pendM.label.content),

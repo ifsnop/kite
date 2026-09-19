@@ -1,8 +1,8 @@
 /* ================= Herramientas de medición ================= */
 
-const MEASURE_COLORS = { line: "#d97706", circle: "#7c3aed", route: "#0ea5e9" };
+const MEASURE_COLORS = { circle: "#7c3aed", route: "#0ea5e9" };
 let measureLi = null;
-let activeTool = null; /* null | "line" | "circle" | "polygon" | "route" */
+let activeTool = null; /* null | "circle" | "polygon" | "route" */
 let drawing = null;    /* medición en curso durante el arrastre de creación */
 let polyDraft = null;  /* polígono en curso: { vertices, handles, poly, group } | null */
 /* Los dos últimos clicks del dibujo: ¿añadieron vértice? El dblclick lee
@@ -75,13 +75,17 @@ const MeasureControl = L.Control.extend({
   options: { position: "topleft" },
   onAdd() {
     const bar = L.DomUtil.create("div", "leaflet-bar measure-bar");
-    toolButtons.line = makeToolButton(bar, "\u2571", "Medir l\u00EDnea: arrastra del origen al destino", "line");
+    /* La ruta ocupa el sitio de la antigua "Medir l\u00EDnea" (arrastre,
+       siempre dos puntos): una ruta de 2 waypoints ES una l\u00EDnea, as\u00ED
+       que ya no hace falta una herramienta aparte solo para eso \u2014
+       adem\u00E1s, una l\u00EDnea con arrastre no ten\u00EDa ninguna forma de a\u00F1adir
+       ni de borrar un punto, algo que la ruta s\u00ED ofrece.              */
+    toolButtons.route = makeToolButton(bar, "\u2933",
+      "Medir: click para cada waypoint, doble click para terminar", "route");
     toolButtons.circle = makeToolButton(bar, "\u25EF", "Medir c\u00EDrculo: arrastra del centro al borde", "circle");
     toolButtons.polygon = makeToolButton(bar, "\u2B20",
       "Dibujar: click para cada v\u00E9rtice; doble click sobre el \u00FAltimo v\u00E9rtice cierra el "
       + "pol\u00EDgono, doble click fuera termina la l\u00EDnea sin cerrarla", "polygon");
-    toolButtons.route = makeToolButton(bar, "\u2933",
-      "Medir ruta: click para cada waypoint, doble click para terminar", "route");
 
     /* Not a drag tool like the other two: it acts on click, so it does not
        go through setTool and never disables panning                      */
@@ -121,7 +125,7 @@ function setTool(tool) {
   if ((tool === "polygon" || tool === "route") && !descDialog.hidden) {
     descDialog.hidden = true; layerInfoDismissed = true; releaseFocus();
   }
-  /* Leaving any drawing tool (polygon, line, or circle): the double
+  /* Leaving any drawing tool (route, polygon, or circle): the double
      click / mouseup that ends it lands right where the cursor is,
      almost always on top of some layer. See suppressNextHover above
      for why this doesn't reuse layerInfoDismissed.                   */
@@ -173,9 +177,11 @@ document.addEventListener("keydown", e => {
 });
 
 /* Creación con un solo arrastre: mousedown fija el origen y al soltar
-   queda fijado el destino, viendo la medición en vivo                  */
+   queda fijado el destino, viendo la medición en vivo. Solo el círculo
+   sigue este camino — una línea de dos puntos es ahora una ruta más,
+   creada por clicks (ver la herramienta "route").                    */
 map.on("mousedown", e => {
-  if (drawing || (activeTool !== "line" && activeTool !== "circle")) return;
+  if (drawing || activeTool !== "circle") return;
   L.DomEvent.preventDefault(e.originalEvent);
   drawing = buildMeasurement(activeTool, e.latlng, e.latlng);
 });
@@ -205,7 +211,7 @@ function makeHandle(latlng) {
   });
 }
 
-/* Estilo de partida de una medición nueva. Una línea nunca se rellena
+/* Estilo de partida de una medición nueva. Una ruta nunca se rellena
    (no encierra ninguna superficie); un círculo sí, muy translúcido para
    no tapar el mapa. A partir de aquí es un estilo de trazo normal y
    corriente, editable desde el diálogo de propiedades como el de
@@ -217,20 +223,20 @@ function makeHandle(latlng) {
    silencioso sí molestaba.                                            */
 const defaultMeasureStyle = type => type === "circle"
   ? { color: MEASURE_COLORS.circle, weight: 2, fillOpacity: 0.1 }
-  : { color: type === "route" ? MEASURE_COLORS.route : MEASURE_COLORS.line, weight: 3, fill: false };
+  : { color: MEASURE_COLORS.route, weight: 3, fill: false };
 
-/* El guion de la línea de medición no es estilo editable: es lo que la
-   distingue de una línea dibujada a mano. setStyle no lo toca (Leaflet
+/* El guion del trazo de medición no es estilo editable: es lo que lo
+   distingue de un trazo dibujado a mano. setStyle no lo toca (Leaflet
    fusiona opciones), así que sobrevive a cualquier cambio del diálogo.
-   Una ruta lo lleva también, por el mismo motivo.                    */
+   Lo llevan el círculo y la ruta, por el mismo motivo.               */
 const MEASURE_DASH = "6 4";
 
 /* Waypoints de CUALQUIER medición, en la forma en que se guardan
-   (array de {lat,lng}): línea y círculo siempre tienen dos —origen y
-   destino/borde, el mismo significado que los antiguos a/b—, una ruta
-   tiene los que tenga. Se lee en vivo de los manejadores, nunca se
-   cachea, por lo mismo que ya explica serializeNode: son arrastrables
-   con Ctrl+arrastre aunque la fila no exista todavía.                */
+   (array de {lat,lng}): el círculo siempre tiene dos —centro y borde,
+   el mismo significado que los antiguos a/b—, una ruta tiene los que
+   tenga. Se lee en vivo de los manejadores, nunca se cachea, por lo
+   mismo que ya explica serializeNode: son arrastrables con
+   Ctrl+arrastre aunque la fila no exista todavía.                    */
 function measureWaypoints(m) {
   const handles = m.type === "route" ? m.handles : [m.mOrigin, m.mDest];
   return handles.map(h => { const p = h.getLatLng(); return { lat: p.lat, lng: p.lng }; });
@@ -246,7 +252,7 @@ function measureWaypoints(m) {
      así que un arrastre normal sobre un manejador no compite con hacer
      pan y no hace falta ningún modificador.
    - Tras terminar, `requireCtrl` es true: el mapa SÍ es interactivo, así
-     que hace falta el mismo gesto reservado que ya usan línea/círculo
+     que hace falta el mismo gesto reservado que ya usa el círculo
      (Ctrl+arrastre = editar mediciones, ver «Gestos del visor»), aquí
      extendido a vértices de una ruta o un polígono.                   */
 function attachVertexDrag(handle, requireCtrl, onMove, onDrop) {
@@ -267,13 +273,13 @@ function attachVertexDrag(handle, requireCtrl, onMove, onDrop) {
   });
 }
 
+/* La única medición de dos puntos que queda es el círculo: una línea
+   de dos puntos es ahora una ruta de dos waypoints (ver buildRouteMeasurement). */
 function buildMeasurement(type, a, b, style = null) {
   const s = normalizePathStyle(style || defaultMeasureStyle(type));
   const mOrigin = makeHandle(a);
   const mDest = makeHandle(b);
-  const geom = type === "line"
-    ? L.polyline([a, b], { ...s, dashArray: MEASURE_DASH })
-    : L.circle(a, { ...s, radius: Math.max(map.distance(a, b), 0.1) });
+  const geom = L.circle(a, { ...s, radius: Math.max(map.distance(a, b), 0.1) });
   const label = L.tooltip({ permanent: true, direction: "top", className: "measure-label" });
 
   const m = { type, geom, label, mOrigin, mDest, style: s, treeLabel: null, treeName: null };
@@ -289,11 +295,10 @@ function finalizeMeasurement(m) {
   addMeasureNode(m);
 }
 
-/* Edición con Ctrl + arrastre sobre un manejador (Cmd en Mac).
+/* Edición con Ctrl + arrastre sobre un manejador de círculo (Cmd en Mac).
    Se usa Ctrl y no Shift porque Shift + arrastre ya es el box-zoom.
-   - línea: mueve ese extremo
-   - círculo: el borde cambia el radio; el centro traslada el círculo
-     completo conservando radio y rumbo                                 */
+   El borde cambia el radio; el centro traslada el círculo completo
+   conservando radio y rumbo.                                          */
 function attachCtrlDrag(m, handle, isOrigin) {
   handle.on("mousedown", ev => {
     const oe = ev.originalEvent;
@@ -324,8 +329,8 @@ function attachCtrlDrag(m, handle, isOrigin) {
 }
 
 /* Recalcula geometría y etiqueta (distancia geodésica + rumbo). Único
-   punto de paso de todo recálculo de una medición (línea/círculo aquí,
-   ruta vía updateRouteMeasurement), así que es también el sitio
+   punto de paso de todo recálculo de una medición (círculo aquí, ruta
+   vía updateRouteMeasurement), así que es también el sitio
    correcto para refrescar su diálogo de propiedades si está abierto
    mostrando ESTA medición — ver refreshOpenMeasureDialog más abajo:
    sin esto, arrastrar un extremo con el diálogo abierto solo se veía
@@ -342,14 +347,9 @@ function updateMeasurement(m) {
      diálogo. El rumbo va siempre en grados.                          */
   const txt = `${fmtUnitDist(dist, measureUnit)} \u00B7 ${brg.toFixed(1)}\u00B0`;
 
-  if (m.type === "line") {
-    m.geom.setLatLngs([a, b]);
-    m.label.setLatLng(midPoint(a, b)); /* geodésico: correcto en arcos largos */
-  } else {
-    m.geom.setLatLng(a);
-    m.geom.setRadius(Math.max(dist, 0.1));
-    m.label.setLatLng(a);
-  }
+  m.geom.setLatLng(a);
+  m.geom.setRadius(Math.max(dist, 0.1));
+  m.label.setLatLng(a);
   m.label.setContent(txt);
   if (m.treeLabel) m.treeLabel.textContent = `${m.treeName} \u2014 ${txt}`;
   refreshOpenMeasureDialog(m);
@@ -424,7 +424,7 @@ function makeMeasureLi(m) {
   return li;
 }
 
-const MEASURE_NAMES = { line: "L\u00EDnea", circle: "C\u00EDrculo", route: "Ruta" };
+const MEASURE_NAMES = { circle: "C\u00EDrculo", route: "Ruta" };
 
 function addMeasureNode(m) {
   const ul = ensureMeasureSection();
@@ -442,12 +442,19 @@ function addMeasureNode(m) {
    ver materializeRecords, que hace `makeMeasureLi(rec._m)` cuando la
    fila llega a existir de verdad.                                      */
 function buildMeasureRecord(n) {
+  /* Una "línea" guardada antes de retirar esa herramienta se restaura
+     como ruta de 2 waypoints — son la misma geometría por debajo, y así
+     hereda sin más las capacidades nuevas (seleccionar, insertar,
+     borrar). El mtype devuelto ya es "route": la próxima vez que se
+     guarde, la conversión queda hecha, sin tocar TREE_SCHEMA (la forma
+     del registro, `{mtype, waypoints}`, no cambia en absoluto).       */
+  const mtype = n.mtype === "line" ? "route" : n.mtype;
   let m;
-  if (n.mtype === "route") {
+  if (mtype === "route") {
     m = buildRouteMeasurement(n.waypoints, n.style);
     for (const h of m.handles) wireRouteHandle(m, h);
   } else {
-    m = buildMeasurement(n.mtype, L.latLng(n.waypoints[0].lat, n.waypoints[0].lng),
+    m = buildMeasurement(mtype, L.latLng(n.waypoints[0].lat, n.waypoints[0].lng),
       L.latLng(n.waypoints[1].lat, n.waypoints[1].lng), n.style);
     attachCtrlDrag(m, m.mOrigin, true);
     attachCtrlDrag(m, m.mDest, false);
@@ -460,24 +467,21 @@ function buildMeasureRecord(n) {
      ninguna fila para editar una medición), así que la posición se lee
      siempre en vivo de _m (ver serializePendingRecords) en vez de
      cachearse aquí y arriesgarse a quedar obsoleta.                   */
-  return { t: "measure", name: n.name, checked: !!n.checked, mtype: n.mtype,
+  return { t: "measure", name: n.name, checked: !!n.checked, mtype,
            style: m.style, _m: m, _layer: m.group };
 }
 
-/* Lo que el diálogo de propiedades enseña de una medición. Una línea
-   tiene distancia y rumbo; un círculo, radio y área; una ruta, el total
-   y el desglose por tramo (m.legs, ya recalculado por
-   updateRouteMeasurement). Se lee en vivo de los manejadores, que son
-   arrastrables con Ctrl mientras el diálogo está abierto.              */
+/* Lo que el diálogo de propiedades enseña de una medición. Un círculo
+   tiene radio y área; una ruta, el total y el desglose por tramo
+   (m.legs, ya recalculado por updateRouteMeasurement). Se lee en vivo
+   de los manejadores, que son arrastrables con Ctrl mientras el
+   diálogo está abierto.                                              */
 function measurementValues(m) {
   if (m.type === "route") {
     return { circle: false, route: true, dist: m.totalDist, area: null, brg: null, legs: m.legs };
   }
-  const a = m.mOrigin.getLatLng(), b = m.mDest.getLatLng();
-  const dist = map.distance(a, b);
-  return m.type === "circle"
-    ? { circle: true, dist, area: capArea(dist), brg: null }
-    : { circle: false, dist, area: null, brg: bearingDeg(a, b) };
+  const dist = map.distance(m.mOrigin.getLatLng(), m.mDest.getLatLng());
+  return { circle: true, dist, area: capArea(dist), brg: null };
 }
 
 /* ================= Dibujo de polígono a mano =================
@@ -614,7 +618,7 @@ function buildRouteMeasurement(waypoints, style = null) {
 }
 
 /* Cablea cada waypoint (mover con Ctrl+arrastre, en vivo — igual que
-   línea/círculo; borrar con clic derecho) y cuelga el nodo del árbol. */
+   el círculo; borrar con clic derecho) y cuelga el nodo del árbol.   */
 function finalizeRouteMeasurement(m) {
   for (const h of m.handles) wireRouteHandle(m, h);
   addMeasureNode(m);
@@ -623,12 +627,30 @@ function finalizeRouteMeasurement(m) {
 function wireRouteHandle(m, handle) {
   attachVertexDrag(handle, true, () => updateMeasurement(m), scheduleSave);
   handle.on("contextmenu", ev => { L.DomEvent.stop(ev.originalEvent); removeRouteWaypoint(m, handle); });
+  /* Un clic (sin Ctrl) selecciona el vértice — mismo concepto que un
+     polígono, ver 43-points-editor.js. Si esta ruta no es ya el owner
+     activo, seleccionar su nodo del árbol la convierte en él primero
+     (syncVertexOwner, disparado desde selectNode): así basta con hacer
+     clic en un waypoint sobre el mapa, sin tener que ir antes al árbol. */
+  handle.on("click", () => {
+    const li = m.treeLabel && m.treeLabel.closest("li");
+    if (!li) return;
+    if (!(vertexOwner && vertexOwner.kind === "route" && vertexOwner.li === li)) {
+      /* Selección de UN solo nodo: hace falta limpiar la anterior antes
+         (mismo patrón que highlightNode) o "li" se sumaría a lo que ya
+         hubiera seleccionado, dejando más de un nodo marcado — y
+         syncVertexOwner no activa ningún owner con más de uno.        */
+      clearSelection();
+      selectNode(li, true);
+    }
+    selectVertex(handle);
+  });
 }
 
 /* Borrar un waypoint YA CREADO: mismo gesto (clic derecho) y mismo
    mínimo (2) que durante el dibujo, pero en vivo —con scheduleSave—,
-   no diferido a ningún diálogo, igual que arrastrar un extremo de
-   línea/círculo.                                                     */
+   no diferido a ningún diálogo, igual que arrastrar un extremo del
+   círculo.                                                            */
 function removeRouteWaypoint(m, handle) {
   const i = m.handles.indexOf(handle);
   if (i === -1) return;
@@ -636,11 +658,31 @@ function removeRouteWaypoint(m, handle) {
     navMessage("Faltan waypoints para seguir siendo una ruta (mínimo 2).");
     return;
   }
+  if (vertexSelHandle === handle) clearVertexSelection();
   m.handles.splice(i, 1);
   m.group.removeLayer(handle);
   m.group.removeLayer(m.legLabels.pop()); /* el conteo de tramos baja en uno; da igual cuál se retire */
   updateMeasurement(m);
   scheduleSave();
+}
+
+/* Inserta un waypoint nuevo justo después de `handle` (o al final si
+   `handle` es null: sin selección previa, se añade al final de la
+   ruta). Añade además la etiqueta de tramo que falta —un waypoint más
+   siempre significa un tramo más— y devuelve el manejador nuevo, ya
+   seleccionable.                                                      */
+function insertRouteWaypoint(m, handle, latlng) {
+  const i = handle ? m.handles.indexOf(handle) : -1;
+  const at = i === -1 ? m.handles.length : i + 1;
+  const h = makeHandle(latlng);
+  wireRouteHandle(m, h);
+  m.handles.splice(at, 0, h);
+  m.group.addLayer(h);
+  m.legLabels.push(L.tooltip({ permanent: true, direction: "top", className: "measure-label" }));
+  m.group.addLayer(m.legLabels[m.legLabels.length - 1]);
+  updateMeasurement(m);
+  scheduleSave();
+  return h;
 }
 
 /* Un control (el propio botón ⬠, cualquier otro botón de la barra, el
@@ -705,6 +747,30 @@ map.getContainer().addEventListener("dblclick", e => {
 document.addEventListener("keydown", e => {
   if (e.key !== "Delete" || (activeTool !== "polygon" && activeTool !== "route") || !polyDraft) return;
   removePolyVertex(polyDraft.handles[polyDraft.handles.length - 1]);
+});
+
+/* Mayús+clic FUERA de un manejador (y fuera de una herramienta de
+   dibujo activa: mientras se dibuja, el click de siempre ya añade
+   vértices) inserta uno nuevo en la ruta o el polígono cuyos vértices
+   se pueden seleccionar/insertar/borrar ahora mismo (`vertexOwner`, ver
+   43-points-editor.js): después del vértice seleccionado, o al final
+   si no hay ninguno seleccionado.                                     */
+map.getContainer().addEventListener("click", e => {
+  if (activeTool || !vertexOwner || !e.shiftKey || clickOnControl(e.target)) return;
+  if (e.target.closest && e.target.closest(".measure-handle")) return;
+  insertVertexAfterSelected(map.mouseEventToLatLng(e));
+});
+/* Cursor de "insertar" mientras se mantiene Mayús con un owner activo:
+   flecha con un pequeño signo de suma, para saber de antemano que
+   Mayús+clic va a añadir un vértice. Clase de Leaflet, no un estilo en
+   línea — mismo motivo que leaflet-crosshair en setTool: el
+   "cursor: pointer" que Leaflet aplica a cada capa interactiva bajo el
+   ratón gana a un cursor puesto solo en el contenedor (ver styles.css). */
+document.addEventListener("keydown", e => {
+  if (e.key === "Shift" && vertexOwner) map.getContainer().classList.add("vertex-insert-cursor");
+});
+document.addEventListener("keyup", e => {
+  if (e.key === "Shift") map.getContainer().classList.remove("vertex-insert-cursor");
 });
 
 /* Clicking inside an existing named layer while a drawing tool is active

@@ -20,16 +20,19 @@ const browser = await launch();
 const srv = await serve(READABLE, 8853);
 const { page, errors } = await openApp(browser, srv.url);
 
-/* ---------- 1. El diálogo se actualiza en vivo al arrastrar ---------- */
+/* ---------- 1. El diálogo se actualiza en vivo al arrastrar ----------
+   La única medición de dos puntos que queda es el círculo (una línea de
+   dos puntos es ahora una ruta, probada en el bloque siguiente): radio
+   y área, en vez de distancia y rumbo.                                */
 const live = await page.evaluate(async () => {
-  const m = buildMeasurement("line", L.latLng(40, -3), L.latLng(40, -2));
+  const m = buildMeasurement("circle", L.latLng(40, -3), L.latLng(40, -2));
   finalizeMeasurement(m);
   const li = m.treeLabel.closest("li");
   openStyleDialog(li);
   const before = { dist: document.getElementById("ms-dist").textContent,
-                    brg: document.getElementById("ms-bearing").textContent };
+                    area: document.getElementById("ms-area").textContent };
 
-  /* Ctrl+arrastre del destino a otra posición, con eventos reales */
+  /* Ctrl+arrastre del borde a otra posición, con eventos reales */
   const icon = m.mDest.getElement();
   const rect = icon.getBoundingClientRect();
   icon.dispatchEvent(new MouseEvent("mousedown",
@@ -40,12 +43,12 @@ const live = await page.evaluate(async () => {
   document.dispatchEvent(new MouseEvent("mouseup", { bubbles: true }));
 
   const after = { dist: document.getElementById("ms-dist").textContent,
-                  brg: document.getElementById("ms-bearing").textContent };
+                  area: document.getElementById("ms-area").textContent };
   closeStyleDialog(true);
   return { before, after };
 });
 ok(live.before.dist && live.before.dist === live.before.dist, "el diálogo arranca con algún valor: " + live.before.dist);
-ok(live.after.dist !== live.before.dist || live.after.brg !== live.before.brg,
+ok(live.after.dist !== live.before.dist || live.after.area !== live.before.area,
   "arrastrar con el diálogo abierto cambia lo que muestra, SIN cerrarlo ni volver a abrirlo: "
   + JSON.stringify(live));
 

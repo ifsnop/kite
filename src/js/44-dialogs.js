@@ -772,11 +772,13 @@ function openStyleDialog(li, { isNew = false } = {}) {
     $id("pg-points-row").classList.toggle("dim", !!pointsWhy);
     $id("pg-points").disabled = !!pointsWhy;
     $id("pg-points").title = pointsWhy;
-    /* Edición interactiva de vértices (arrastrar/borrar en el mapa):
-       mismo caso que la lista de puntos, un único trazo propio — y por
-       debajo del tope medido (VERTEX_EDIT_MAX), o solo queda el editor
-       de texto de arriba.                                             */
-    if (single && !pointsWhy) beginVertexEdit(styleTargets[0]);
+    /* La edición interactiva de vértices (arrastrar/borrar/seleccionar
+       en el mapa) YA NO depende de este diálogo: la activa tener el
+       polígono como única selección del árbol (syncVertexOwner, en
+       43-points-editor.js), y sigue viva aunque este diálogo se cierre.
+       Si ya está activa (normalmente lo estará: abrir este diálogo
+       exige tener el nodo seleccionado), refreshOpenPolygonDialog más
+       abajo mantiene el perímetro/área en vivo mientras se edita.     */
   } else if (kind === "measure") {
     const styles = styleTargets.map(t => normalizePathStyle(t._style));
     styleDraft = { ...styles[0] };
@@ -819,7 +821,6 @@ function closeStyleDialog(commit = false) {
     setMarkerDraggable(posMarker, false);
     if (!commit && posOriginal) { posMarker.setLatLng(posOriginal); invalidateGeo(styleTargets[0]); }
   }
-  endVertexEdit(commit);
   if (!commit && styleIsNew && styleTargets.length) deleteNode(styleTargets[0]);
   const wasOpen = !styleDialog.hidden;
   styleDialog.hidden = true;
@@ -986,6 +987,19 @@ function renderPolyMeasures() {
   if (polyMeasures.area !== null) {
     $id("pg-area").textContent = fmtUnitArea(polyMeasures.area, measureUnit);
   }
+}
+/* Refresca el diálogo de propiedades EN VIVO mientras se arrastra,
+   borra o inserta un vértice de ESTE polígono — el mismo patrón que
+   refreshOpenMeasureDialog usa para una medición. Llamado desde
+   applyVertexEditRings en cada cambio; sin esto, editar un vértice con
+   el diálogo abierto solo se vería en el mapa hasta cerrarlo y volver a
+   abrirlo. No hace nada si el diálogo está cerrado, mostrando otro
+   nodo, o una selección múltiple (el perímetro/área es de cada uno).  */
+function refreshOpenPolygonDialog(li) {
+  if (styleDialog.hidden || styleTargets.length !== 1 || styleTargets[0] !== li) return;
+  polyMeasures = polygonMeasures(li);
+  $id("pg-measures").hidden = !polyMeasures;
+  if (polyMeasures) renderPolyMeasures();
 }
 /* Cambiar la unidad en CUALQUIERA de los dos bloques repinta también las
    etiquetas de las mediciones del visor: la preferencia es única, así
