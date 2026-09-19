@@ -61,6 +61,15 @@ desarrollo del proyecto.
    versionado (ver más abajo); lo que no corresponda a la versión actual
    se borra, no se migra. No subir versiones sin un cambio que lo
    justifique.
+   **Única excepción hasta ahora, deliberada**: la subida de
+   `TREE_SCHEMA` a 7 (medición de ruta, ver «Persistencia») no borra un
+   árbol v6, lo sube en silencio con `upgradeMeasuresV6`. Se decidió así
+   porque el cambio de forma es trivial y está acotado a un solo tipo de
+   registro (`measure.a/b` → `measure.waypoints`), conocido de antemano
+   — no porque el principio haya dejado de valer. La próxima subida de
+   `TREE_SCHEMA` se evalúa por su cuenta: esto no es una migración
+   general ni sienta precedente para tratarla como la opción por
+   defecto.
 5. **Robustez ante entradas ajenas.** Todo lo que venga de fuera —KML,
    GeoJSON, KMZ, archivos `.kite.json`, respuestas de red— se trata como
    hostil: se valida antes de construir capas, los errores se aíslan por
@@ -565,7 +574,14 @@ index.html         redirección de la raíz del sitio al minificado
 - **Botón 🔍 de enfoque** (`focusOnNode`, `FOCUS_ZOOM`): centra la vista
   en el nodo y fija el zoom, siempre igual, sin depender de dónde
   estuviera la vista. Es la vía fiable frente al doble click, que
-  encadena escalones.
+  encadena escalones. **Salvo para un polígono o una medición**
+  (`styleKind` "polygon" o "measure"): ninguno de los dos usa el zoom
+  fijo, se encuadran enteros con margen (`fitBoundsFramed`, 20%) — una
+  ruta de varios tramos puede ser mucho más ancha que alta, y un zoom
+  centrado la dejaría cortada por un lado o perdida en un encuadre
+  demasiado abierto según su tamaño real. El doble click sobre la fila
+  sigue la escalera de siempre para una medición (solo el botón 🔍
+  cambió; no se pidió tocar el otro camino).
 - **El nombre de la fila NO activa la casilla**: se retiró el `htmlFor`
   del `<label>`. Pinchar el nombre selecciona la fila; un doble click
   sobre él alternaba la visibilidad a medias y parecía «desmarcar» la
@@ -593,8 +609,17 @@ index.html         redirección de la raíz del sitio al minificado
   Un contador de secuencia (`placeSeq`) descarta las respuestas de
   búsquedas ya superadas.
 - **Gestos del visor**: Shift+arrastre = box-zoom de Leaflet (no usarlo
-  para otra cosa); Ctrl+arrastre = editar mediciones; herramienta de
-  medición activa = el arrastre dibuja (pan desactivado temporalmente).
+  para otra cosa); Ctrl+arrastre = editar mediciones **y vértices de una
+  ruta o un polígono ya creados** (mismo gesto reservado, extendido en
+  vez de inventar uno nuevo — ver «Selección de vértice» más abajo);
+  herramienta de medición activa = el arrastre dibuja (pan desactivado
+  temporalmente; durante el dibujo, mover un vértice ya puesto es un
+  arrastre SIN Ctrl, porque ahí el mapa no compite por el gesto).
+  **Mayús+clic tiene DOS significados según el contexto**: selección
+  múltiple de nodos en el panel de navegación (ver más abajo) o, en el
+  visor con una ruta/polígono activa para edición de vértices,
+  insertar uno nuevo — nunca los dos a la vez, porque uno vive en el
+  árbol y el otro en el mapa.
 - **Gestos de la navegación**: Shift+click = selección múltiple de nodos
   (se arrastran, borran y restilizan en lote; `topLevelSelection()`
   excluye nodos contenidos en otro seleccionado, que viajan con su
@@ -805,13 +830,124 @@ index.html         redirección de la raíz del sitio al minificado
   `styleable: false` y un color fijo por tipo). Una medición es un trazo
   más: su estilo se guarda en `li._style`, se aplica con el mismo
   `applyPolygonStyle` que un polígono y se serializa con el nodo
-  (`TREE_SCHEMA` 6). El diálogo (`#style-measure`) ofrece ancho y color
+  (`TREE_SCHEMA` 7). El diálogo (`#style-measure`) ofrece ancho y color
   del trazo, color y opacidad del relleno, y las **medidas en solo
-  lectura**, como el perímetro y el área de un polígono: una línea da
-  **distancia y rumbo**; un círculo, **radio y área**, con el mismo
-  selector de unidad y la misma preferencia única (`measureUnit`) que el
-  diálogo de polígonos y que las etiquetas del visor — ver «Una sola
+  lectura**, como el perímetro y el área de un polígono: un círculo da
+  **radio y área**; una ruta, la **distancia total y el desglose por
+  tramo** (`#ms-legs-row`, una línea de texto por tramo — una ruta de
+  solo 2 waypoints muestra un único tramo, con su distancia y su
+  rumbo: es el equivalente de la antigua «línea»). Todo con el mismo
+  selector de unidad y la misma preferencia única (`measureUnit`) que
+  el diálogo de polígonos y que las etiquetas del visor — ver «Una sola
   unidad de medida» más abajo.
+- **Ruta (`mtype: "route"`): varios waypoints, un tramo por par
+  consecutivo — y la única medición de línea recta que queda.** La
+  antigua herramienta «línea» (arrastre, siempre dos puntos) se retiró:
+  ocupaba el primer hueco de la barra de medición, y ahí está ahora el
+  botón «Ruta» — una ruta de 2 waypoints ES esa misma línea, con la
+  ventaja de poder insertar y borrar puntos, algo que el arrastre nunca
+  ofreció. Al restaurar un árbol guardado antes de este cambio,
+  `buildMeasureRecord` convierte en silencio `mtype: "line"` a `"route"`
+  (misma forma de registro, `{mtype, waypoints}`, sin tocar
+  `TREE_SCHEMA`): la próxima vez que se guarde, la conversión ya está
+  hecha. Se dibuja con el botón «Ruta» de la barra, con el MISMO
+  borrador de clic-por-vértice/doble-clic-para-terminar que la
+  herramienta de dibujo libre (`polyDraft`) — `activeTool` acepta
+  `"route"` en los mismos tres guardias que ya aceptaban `"polygon"`
+  (clic, doble clic, Supr), y `finishPolygon` se bifurca al final para
+  colgar el resultado de «Mediciones», no de «Polígonos». **Siempre
+  termina ABIERTA** en esta primera versión: cerrarla en anillo no está
+  soportado, para no añadir la lógica del tramo de cierre sin que se
+  haya pedido. `buildRouteMeasurement` construye un manejador por
+  waypoint y **un tooltip por TRAMO** (no uno solo), cada uno etiquetado
+  igual que una línea de dos puntos, en su propio punto medio geodésico
+  — la fila del árbol muestra el TOTAL. Se puede **mover** un waypoint
+  ya creado (Ctrl+arrastre, en vivo) y **borrar** uno (clic derecho),
+  con el mismo mínimo de 2 que una forma abierta; ambos gestos
+  comparten mecánica con la edición de vértices de un polígono
+  (`attachVertexDrag`, ver «Selección de vértice» más abajo), y desde
+  ahí también se puede **seleccionar** un waypoint concreto e
+  **insertar** uno nuevo con Mayús+clic.
+- **Persistencia unificada: `waypoints`, nunca a veces dos campos y a
+  veces un array.** Línea y círculo guardan igual que siempre —dos
+  puntos—, pero como array de longitud 2 en vez de los antiguos `a`/`b`
+  sueltos; una ruta, un array de N. `measureWaypoints(m)` es el único
+  sitio que sabe leer esto en vivo de los manejadores (`m.handles` en
+  una ruta, `m.mOrigin`/`m.mDest` en línea/círculo), y lo usan los tres
+  sitios que serializan una medición (`serializeNode`,
+  `serializePendingRecords`, `buildMeasureRecord`).
+- **Edición interactiva de vértices de un polígono ya creado, activada
+  por la SELECCIÓN DEL ÁRBOL, no por el diálogo de estilos**
+  (`43-points-editor.js`, `beginVertexEdit`/`endVertexEdit`,
+  `syncVertexOwner`). Antes solo funcionaba con el diálogo de
+  propiedades abierto — reportado como un bug para las mediciones
+  («no se pueden borrar vértices si no está abierto el panel») que
+  resultó ser el mismo límite en los dos sitios: la solución es la
+  misma en ambos, dejar de depender del diálogo. Con UN único polígono
+  como selección del árbol (no en selección múltiple, igual que la
+  posición de un marcador), y solo por debajo de `VERTEX_EDIT_MAX`
+  vértices (medido: ver el comentario de la propia constante), se
+  construye un manejador por vértice de CUALQUIER anillo/parte
+  —reutilizando `pathRings`, el mismo recorrido que ya usa el editor de
+  texto, en vez de reimplementarlo—; al dejar de ser la única selección,
+  esos manejadores se retiran (`syncVertexOwner`, llamada desde
+  `setSelCursor` — el único punto de paso de `selectNode`/`selectRange`/
+  `toggleOne`/`clearSelection`/`selectFolderLayers` — y desde
+  `deleteNode`, por si el nodo se borra sin pasar por ahí). El diálogo de
+  estilos, si está abierto a la vez mostrando ESE polígono, solo REFLEJA
+  los cambios en vivo (`refreshOpenPolygonDialog`, mismo patrón que
+  `refreshOpenMeasureDialog` para una medición); no los controla.
+  **Ya NO es edición diferida**: arrastrar (Ctrl+arrastre), borrar (clic
+  derecho) e insertar (Mayús+clic, ver «Selección de vértice») se
+  guardan al momento (`scheduleSave`), como ya hacía un waypoint de
+  ruta — sin este cambio, «sin diálogo que abrir» tampoco tendría dónde
+  guardar un «Aceptar». El mínimo por borrado es **por anillo**, no por
+  polígono entero: 3 en uno cerrado, 2 en uno abierto — un agujero no
+  puede bajar de su propio mínimo aunque el contorno exterior tenga
+  vértices de sobra. Por encima del tope, no se construye ningún
+  manejador: solo queda el editor de texto («Ver y editar…»), que ya
+  soporta miles de puntos sin problema.
+- **Selección de vértice: un único modelo para rutas Y polígonos**
+  (`vertexOwner`/`vertexSelHandle`, `43-points-editor.js`). Un clic
+  (sin Ctrl) sobre un manejador lo selecciona —marcado con la clase
+  `vertex-selected`—; Mayús+clic en cualquier OTRO punto del mapa
+  inserta un vértice nuevo justo después del seleccionado, o al final
+  si no hay ninguno (con el cursor cambiado a `copy`, una flecha con un
+  signo de suma, mientras Mayús está pulsado y hay algo que insertar:
+  ver `.vertex-insert-cursor` en `styles.css`); Supr borra el
+  seleccionado, **con prioridad sobre el borrado de nodos del árbol**
+  (dos listeners de `keydown` en `41-selection.js`; el de vértice llama
+  a `stopImmediatePropagation()` si actuó, para que el segundo —que
+  borraría el nodo entero— ni se entere: sin esto, como borrar el
+  vértice ya deja `vertexSelHandle` en `null`, el segundo listener
+  volvía a mirar la selección DESPUÉS de que ya no quedara ninguna y
+  borraba también el nodo, en la misma pulsación). El clic derecho
+  para borrar directamente, sin seleccionar antes, sigue funcionando
+  igual que siempre: es un atajo, no compite con este modelo.
+  `vertexOwner` es qué geometría responde ahora mismo —una ruta (sus
+  manejadores son permanentes: clicar uno selecciona además su nodo del
+  árbol, con el mismo patrón `clearSelection()+selectNode()` que
+  `highlightNode`, para que baste con tocar el mapa) o un polígono
+  (sus manejadores solo existen mientras `syncVertexOwner` los mantiene,
+  ver el punto anterior)—, con `insertAfter`/`removeVertex` propios de
+  cada uno. **Trampa encontrada y corregida**: el `layer.on("click", …)`
+  de `makeNode` que resalta el nodo de una capa al pulsarla en el mapa
+  se dispara TAMBIÉN cuando se clica un manejador, porque `m.group` (la
+  medición) es el `L.FeatureGroup` que además los contiene, y Leaflet
+  reenvía el «click» de un hijo al grupo (`_propagateEvent`); sin
+  filtrarlo, ese `highlightNode` volvía a limpiar y rehacer la selección
+  del árbol justo después de que `wireRouteHandle` seleccionara el
+  vértice, deshaciéndolo en el mismo gesto. Se filtra mirando si el
+  clic original cayó en un `.measure-handle`.
+- **Mover un vértice ANTES de cerrar un polígono/ruta** (mientras se
+  dibuja, `polyDraft`): mismo mecanismo de bajo nivel
+  (`attachVertexDrag`) que la edición post-creación, pero SIN Ctrl —
+  mientras una herramienta de dibujo está activa el mapa ya tiene
+  `dragging.disable()` (`setTool`), así que un arrastre normal sobre un
+  manejador no compite con hacer pan. Borrar cualquier vértice (no solo
+  el último) durante el dibujo YA funcionaba (`removePolyVertex`, clic
+  derecho, busca el índice del manejador): no era nuevo, solo faltaba
+  poder moverlo.
 - **El relleno de una medición es cosa del círculo**: una línea no
   encierra ninguna superficie, así que sus dos controles de relleno se
   **deshabilitan, no se esconden** (mismo criterio que las formas
@@ -1096,6 +1232,16 @@ index.html         redirección de la raíz del sitio al minificado
   necesariamente en vivo—, pero «Cancelar» lo devuelve a su posición
   original. Si la capa está oculta no hay icono en el mapa que arrastrar y
   se esconde el aviso.
+- **Y lo mismo para las CIFRAS de una medición**: arrastrar un extremo o
+  un waypoint con el diálogo de estilos abierto repinta sus valores de
+  solo lectura (distancia, rumbo, tramos de una ruta) EN VIVO, no solo
+  la etiqueta sobre el mapa. `updateMeasurement` llama a
+  `refreshOpenMeasureDialog(m)` en cada recálculo —mismo patrón que
+  `applyVertexEditRings` ya usa para el perímetro/área de un
+  polígono—, que no hace nada si el diálogo no está mostrando
+  precisamente esa medición (cerrado, otro nodo, o una selección
+  múltiple, donde la posición no se edita en bloque). Antes había que
+  cerrar el diálogo y volver a abrirlo para ver las cifras al día.
 - **Crear un pin**: el botón 📍 de la barra de herramientas del visor crea
   un marcador en el centro de la vista, dentro de la sección «Marcadores»,
   y abre su diálogo de estilos para ajustar icono, texto, coordenadas y
@@ -1609,12 +1755,20 @@ index.html         redirección de la raíz del sitio al minificado
   `DB_VERSION` versiona los almacenes (hoy: solo
   `tree`); `TREE_SCHEMA` versiona el formato del árbol serializado, que
   se guarda como `{ v, nodes }` bajo la clave `root`. `TREE_SCHEMA` actual:
-  **6** — los nodos de capa admiten `mstyle` (el estilo de marcador),
-  existen los tipos `elevGrid` (celdas de elevación de una sesión de
-  modo altura) e `imageOverlay` (ortofotos de KMZ), y los nodos
-  `measure` guardan su `style`. La lista completa por versión está en el
-  comentario de la propia constante, que es donde hay que anotar la
-  siguiente.
+  **7** — los nodos `measure` guardan `waypoints` (array de `{lat,lng}`,
+  longitud 2 para línea/círculo, N para el nuevo `mtype: "route"`) en
+  vez de los antiguos campos sueltos `a`/`b`. La lista completa por
+  versión está en el comentario de la propia constante, que es donde
+  hay que anotar la siguiente.
+  **Esta subida es la única excepción a «sin compatibilidad hacia
+  atrás»** (principio nº4): `dbLoadTree` e `importTreeExport` reconocen
+  un árbol/archivo v6 y lo suben en silencio con `upgradeMeasuresV6`
+  —una función pura de recorrido, sin `mtype` que mirar porque la
+  transformación es idéntica para línea y círculo—, en vez de
+  descartarlo. **NO** se aplica al pegado entre pestañas del
+  portapapeles del sistema, que exige a propósito que las dos instancias
+  sean la misma versión ahora mismo, no que una recupere el pasado de
+  la otra.
 - **`style` es un saco ABIERTO, y por eso añadirle una clave no sube la
   versión.** `normalizePathStyle` completa con valores por defecto lo
   que falte —ya ocurre con `fill`, `stroke` y `fillColor`—, así que

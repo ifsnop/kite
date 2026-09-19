@@ -772,6 +772,13 @@ function openStyleDialog(li, { isNew = false } = {}) {
     $id("pg-points-row").classList.toggle("dim", !!pointsWhy);
     $id("pg-points").disabled = !!pointsWhy;
     $id("pg-points").title = pointsWhy;
+    /* La edición interactiva de vértices (arrastrar/borrar/seleccionar
+       en el mapa) YA NO depende de este diálogo: la activa tener el
+       polígono como única selección del árbol (syncVertexOwner, en
+       43-points-editor.js), y sigue viva aunque este diálogo se cierre.
+       Si ya está activa (normalmente lo estará: abrir este diálogo
+       exige tener el nodo seleccionado), refreshOpenPolygonDialog más
+       abajo mantiene el perímetro/área en vivo mientras se edita.     */
   } else if (kind === "measure") {
     const styles = styleTargets.map(t => normalizePathStyle(t._style));
     styleDraft = { ...styles[0] };
@@ -981,6 +988,19 @@ function renderPolyMeasures() {
     $id("pg-area").textContent = fmtUnitArea(polyMeasures.area, measureUnit);
   }
 }
+/* Refresca el diálogo de propiedades EN VIVO mientras se arrastra,
+   borra o inserta un vértice de ESTE polígono — el mismo patrón que
+   refreshOpenMeasureDialog usa para una medición. Llamado desde
+   applyVertexEditRings en cada cambio; sin esto, editar un vértice con
+   el diálogo abierto solo se vería en el mapa hasta cerrarlo y volver a
+   abrirlo. No hace nada si el diálogo está cerrado, mostrando otro
+   nodo, o una selección múltiple (el perímetro/área es de cada uno).  */
+function refreshOpenPolygonDialog(li) {
+  if (styleDialog.hidden || styleTargets.length !== 1 || styleTargets[0] !== li) return;
+  polyMeasures = polygonMeasures(li);
+  $id("pg-measures").hidden = !polyMeasures;
+  if (polyMeasures) renderPolyMeasures();
+}
 /* Cambiar la unidad en CUALQUIERA de los dos bloques repinta también las
    etiquetas de las mediciones del visor: la preferencia es única, así
    que dejar el mapa con la unidad anterior lo pondría en desacuerdo con
@@ -996,20 +1016,50 @@ function setMeasureUnit(unit) {
 $id("pg-unit").addEventListener("change", () => setMeasureUnit($id("pg-unit").value));
 
 /* ---------- Medidas de una medición (solo lectura) ---------- */
-let msMeasures = null; /* {circle, dist, area, brg} de la medición abierta, o null */
+let msMeasures = null; /* {circle, route, dist, area, brg, legs} de la medición abierta, o null */
+
+/* Refresca el diálogo de propiedades EN VIVO mientras se arrastra un
+   extremo/waypoint de la medición que tiene abierta —el mismo patrón
+   que applyVertexEditRings ya usa para el perímetro/área de un
+   polígono—. Llamado desde updateMeasurement en cada recálculo; sin
+   esto, arrastrar con el diálogo abierto solo se veía en el mapa,
+   nunca en las cifras de la propia ventana, hasta cerrarla y volver a
+   abrirla. No hace nada si el diálogo no está mostrando ESTA medición
+   (cerrado, mostrando otro nodo, o una selección múltiple — la
+   posición no se edita en bloque, así que ahí tampoco hay nada vivo
+   que mostrar).                                                       */
+function refreshOpenMeasureDialog(m) {
+  if (styleDialog.hidden || styleTargets.length !== 1 || styleTargets[0]._measure !== m) return;
+  msMeasures = measurementValues(m);
+  renderMeasureValues();
+}
+
 function renderMeasureValues() {
   if (!msMeasures) return;
-  /* Un círculo se describe por su RADIO; una línea, por su distancia */
-  $id("ms-dist-label").textContent = msMeasures.circle ? "Radio" : "Distancia";
+  /* Un círculo se describe por su RADIO, una ruta por su TOTAL, una
+     línea por su distancia sin más.                                  */
+  $id("ms-dist-label").textContent = msMeasures.circle ? "Radio" : msMeasures.route ? "Distancia total" : "Distancia";
   $id("ms-dist").textContent = fmtUnitDist(msMeasures.dist, measureUnit);
   $id("ms-area-row").hidden = msMeasures.area === null;
   if (msMeasures.area !== null) {
     $id("ms-area").textContent = fmtUnitArea(msMeasures.area, measureUnit);
   }
   /* El rumbo va SIEMPRE en grados: no es una distancia y la unidad
-     elegida no le afecta.                                            */
+     elegida no le afecta. Una ruta no tiene un único rumbo: esa fila
+     se oculta y en su lugar se desglosa por tramo, más abajo.        */
   $id("ms-bearing-row").hidden = msMeasures.brg === null;
   if (msMeasures.brg !== null) $id("ms-bearing").textContent = `${msMeasures.brg.toFixed(1)}°`;
+  $id("ms-legs-row").hidden = !msMeasures.route;
+  if (msMeasures.route) {
+    const legs = $id("ms-legs");
+    legs.textContent = "";
+    msMeasures.legs.forEach((leg, i) => {
+      const row = document.createElement("div");
+      row.className = "dlg-note";
+      row.textContent = `Tramo ${i + 1}: ${fmtUnitDist(leg.dist, measureUnit)} · ${leg.brg.toFixed(1)}°`;
+      legs.appendChild(row);
+    });
+  }
 }
 $id("ms-unit").addEventListener("change", () => setMeasureUnit($id("ms-unit").value));
 

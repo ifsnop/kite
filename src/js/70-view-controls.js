@@ -250,7 +250,7 @@ const CTX_MENU_ITEMS = [
     }
   },
   { label: "Modo elevación", checked: () => demOn, action: () => setAltitudeMode(!demOn) },
-  { label: "Medir línea", action: () => setTool(activeTool === "line" ? null : "line") },
+  { label: "Medir ruta", action: () => setTool(activeTool === "route" ? null : "route") },
   { label: "Medir círculo", action: () => setTool(activeTool === "circle" ? null : "circle") },
   { label: "Dibujar polígono o línea", action: () => setTool(activeTool === "polygon" ? null : "polygon") },
   { separator: true },

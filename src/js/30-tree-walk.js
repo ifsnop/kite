@@ -50,6 +50,12 @@ function setSelCursor(li) {
      flecha pulsada por una persona, ni con repetición automática.      */
   if (li) treeEl.setAttribute("aria-activedescendant", li.id);
   else treeEl.removeAttribute("aria-activedescendant");
+  /* Mismo punto único de paso: es también donde "qué hay seleccionado"
+     termina de asentarse tras selectNode/selectRange/toggleOne/
+     clearSelection/selectFolderLayers, así que es el sitio correcto
+     para decidir si una ruta o un polígono pasa a responder a
+     Mayús+clic/Supr sobre sus vértices (ver 43-points-editor.js).      */
+  syncVertexOwner();
 }
 
 /* Punto único para marcar o desmarcar un nodo suelto. Ya NO se exige que
@@ -485,14 +491,17 @@ function fitBoundsFramed(bounds) {
   map.fitBounds(bounds, { padding: [size.x * FRAME_MARGIN_RATIO, size.y * FRAME_MARGIN_RATIO] });
 }
 /* Los nodos de pol\u00EDgono (styleKind "polygon": tambi\u00E9n las l\u00EDneas, que
-   comparten estilo) no usan el zoom de trabajo fijo: se encuadran
-   enteros con margen (fitBoundsFramed), la misma regla tanto si se
-   llega por aqu\u00ED como por el doble click en la fila (m\u00E1s abajo) \u2014 para
-   un pol\u00EDgono no hay escalera de zoom de tres pelda\u00F1os.               */
+   comparten estilo) y las mediciones no usan el zoom de trabajo fijo:
+   se encuadran enteros con margen (fitBoundsFramed) \u2014 para ninguno de
+   los dos hay escalera de zoom de tres pelda\u00F1os. Una medici\u00F3n en
+   particular puede ser mucho m\u00E1s larga que ancha (una ruta de varios
+   tramos), y un zoom fijo la dejar\u00EDa cortada por los lados o perdida
+   en medio de un encuadre demasiado abierto seg\u00FAn su tama\u00F1o real.   */
 function focusOnNode(li) {
   const b = subtreeBounds(li);
   if (!b.isValid()) { navMessage("Esta capa no tiene geometr\u00EDa que enfocar."); return; }
-  if (styleKind(li) === "polygon") fitBoundsFramed(b);
+  const kind = styleKind(li);
+  if (kind === "polygon" || kind === "measure") fitBoundsFramed(b);
   else map.setView(b.getCenter(), FOCUS_ZOOM);
 }
 

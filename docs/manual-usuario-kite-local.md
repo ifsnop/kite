@@ -104,7 +104,7 @@ Al activar o desactivar una carpeta con muchas capas dentro, la casilla se susti
 Al pasar el ratón por una fila aparecen, según lo que sea:
 
 - **En una carpeta o un archivo**: seleccionar todas sus capas (☑) o quitar la selección (☐), ordenar alfabéticamente (AZ, que alterna ascendente y descendente), colapsar la carpeta y todas las de dentro, y guardarla en un archivo aparte (💾).
-- **En una capa**: centrar la vista y acercar el zoom a un nivel fijo (🔍), y abrir su diálogo de estilos (🎨).
+- **En una capa**: centrar la vista y acercar el zoom a un nivel fijo (🔍), y abrir su diálogo de estilos (🎨). Sobre un polígono o una medición, en vez de un zoom fijo, encuadra toda su geometría con un margen alrededor —más útil para una figura o una ruta que puede ser mucho más grande, o más alargada, que lo que cabría en un solo nivel de zoom centrado.
 - **Si la capa tiene una ficha o propiedades que enseñar**: un botón adicional (ℹ) para verlas.
 - **En cualquier fila**: subir (↑) y bajar (↓) un puesto entre sus hermanas, y borrar (×).
 
@@ -145,9 +145,9 @@ En la esquina superior izquierda del mapa hay dos barras verticales.
 
 La primera reúne las herramientas que dibujan sobre el mapa:
 
-- **Medir línea** (╱): arrastrar de un punto a otro traza una línea y calcula su distancia y su rumbo.
+- **Medir ruta** (⤳): un clic por cada waypoint, doble clic para terminar — como varias líneas encadenadas, con la distancia y el rumbo de cada tramo por separado y el total. Una ruta de solo 2 waypoints es una línea recta de toda la vida; con más, sirve para planificar un trayecto con varias escalas.
 - **Medir círculo** (◯): arrastrar del centro al borde calcula el radio y la superficie.
-- **Dibujar polígono o línea** (⬠): un clic por cada vértice; un doble clic sobre el último vértice cierra la figura, y un doble clic fuera de un vértice la deja como una línea abierta.
+- **Dibujar polígono o línea** (⬠): un clic por cada vértice; un doble clic sobre el último vértice cierra la figura, y un doble clic fuera de un vértice la deja como una línea abierta. Mientras se dibuja, un vértice ya puesto se puede arrastrar a otra posición antes de cerrar la figura, y quitar con el botón derecho.
 - **Crear un pin** (📍): añade un marcador en el centro de la vista actual y abre directamente su diálogo de estilo.
 - **Exportar PNG** (📷): guarda una imagen del mapa tal como se ve, sin los controles superpuestos, pero con el cuadro de coordenadas, la escala y la atribución (que la licencia de la cartografía exige conservar).
 
@@ -213,12 +213,14 @@ Ancho y color del contorno; un selector de tres opciones —contorno y relleno, 
 
 Una figura abierta (una línea, no un polígono cerrado) no tiene superficie que rellenar: sus controles de relleno aparecen entonces deshabilitados en vez de ocultos, para que se note que existen pero no aplican a ese caso.
 
+Además del editor de texto, sus vértices se pueden mover, borrar, seleccionar e insertar directamente sobre el mapa con solo tener el polígono como ÚNICA capa seleccionada en el árbol — **no hace falta tener este diálogo abierto**: un clic (sin `Ctrl`) sobre un vértice lo selecciona, `Ctrl` + arrastrar lo mueve, el botón derecho lo quita (sin poder bajar de 3 vértices en un contorno cerrado, o de 2 en una línea abierta) y `Mayús` + clic en cualquier otro punto del mapa inserta uno nuevo justo después del seleccionado —o al final, si no hay ninguno—, con el cursor cambiando a una flecha con un signo de más mientras se mantiene `Mayús` pulsado. La tecla `Supr` borra el vértice seleccionado con prioridad sobre borrar la capa entera. Cada cambio se guarda al momento, sin un «Aceptar» que confirmar; si este diálogo está abierto a la vez, sus medidas de solo lectura se actualizan en vivo. Con una figura de muchísimos vértices (más de unos cientos) esta edición interactiva no se activa, y solo queda disponible el editor de texto.
+
 ### 6.3 Estilo de una medición
 
-Igual que un polígono en cuanto a trazo y relleno, pero con sus medidas propias en modo de solo lectura: una línea muestra distancia y rumbo; un círculo, radio y área.
+Igual que un polígono en cuanto a trazo y relleno, pero con sus medidas propias en modo de solo lectura: un círculo muestra radio y área; una ruta, la distancia total y la de cada uno de sus tramos por separado (una ruta de solo 2 waypoints muestra un único tramo, con su distancia y su rumbo — el equivalente de la antigua «línea»). Con el diálogo abierto, arrastrar el borde de un círculo o un waypoint de una ruta (manteniendo `Ctrl`) actualiza estas cifras al momento, sin necesidad de cerrar el diálogo y volver a abrirlo. Los waypoints de una ruta admiten el mismo seleccionar/insertar/borrar que un polígono (ver 6.2) en todo momento, tenga o no este diálogo abierto: basta con hacer clic en un waypoint sobre el mapa para empezar.
 
 ![Diálogo de estilo de una medición, con distancia y rumbo de solo lectura](img/16-estilo-medicion.png)
-*Figura 17. Estilo de «Línea 1»: mismo tipo de controles que un polígono, con la distancia y el rumbo de la medición debajo.*
+*Figura 17. Estilo de «Ruta 1»: mismo tipo de controles que un polígono, con la distancia y el rumbo de la medición debajo.*
 
 ### 6.4 Editar varias capas a la vez
 
@@ -248,16 +250,18 @@ Todo lo incorporado por esta vía queda dentro de una carpeta «Descargas», con
 
 ### 7.2 Medir una distancia y un rumbo
 
-Se pulsa la herramienta «Medir línea» (╱) de la barra de dibujo, y se arrastra desde el origen hasta el destino sobre el mapa. Al soltar, aparece una etiqueta flotante con la distancia y el rumbo, y la medición queda guardada como una fila más del árbol, dentro de una carpeta «Mediciones», con su propio nombre autonumerado («Línea 1», «Línea 2»…).
+Se pulsa la herramienta «Medir ruta» (⤳) de la barra de dibujo: un clic marca cada waypoint y un doble clic termina la ruta (siempre queda abierta; no se puede cerrar en anillo). Para una distancia y un rumbo sueltos basta con dos waypoints —origen y destino—, exactamente como una línea de toda la vida. La medición queda guardada como una fila más del árbol, dentro de una carpeta «Mediciones», con su propio nombre autonumerado («Ruta 1», «Ruta 2»…).
 
-![Una medición de línea recién creada, con su etiqueta de distancia y rumbo sobre el mapa](img/15-medicion-mapa.png)
+![Una medición de ruta recién creada, con su etiqueta de distancia y rumbo sobre el mapa](img/15-medicion-mapa.png)
 *Figura 20. Medición entre «Base» y «Punto de control»: 1,92 millas náuticas a un rumbo de 108,2°, con su fila correspondiente en el árbol.*
 
-Para editar una medición ya creada basta con mantener pulsado `Ctrl` y arrastrar uno de sus extremos. La unidad de medida (metros, kilómetros, pies o millas náuticas —la unidad por defecto, la habitual en navegación aérea y marítima—) se elige una sola vez y se aplica a la vez a todas las mediciones y a todos los polígonos, tanto en su diálogo de estilo como en las etiquetas que se ven sobre el mapa.
+Para editar una medición ya creada basta con mantener pulsado `Ctrl` y arrastrar uno de sus waypoints; con el botón derecho se quita uno (sin poder bajar de 2). La unidad de medida (metros, kilómetros, pies o millas náuticas —la unidad por defecto, la habitual en navegación aérea y marítima—) se elige una sola vez y se aplica a la vez a todas las mediciones y a todos los polígonos, tanto en su diálogo de estilo como en las etiquetas que se ven sobre el mapa.
+
+Para una ruta con varias escalas, en vez de un solo tramo, se añaden más de dos waypoints: cada tramo lleva su propia etiqueta de distancia y rumbo sobre el mapa, y la fila del árbol muestra la distancia total.
 
 ### 7.3 Medir una superficie, o dibujar una figura propia
 
-La herramienta «Medir círculo» (◯) funciona igual que la de línea (arrastrar del centro al borde) y da el radio y la superficie. La herramienta «Dibujar polígono o línea» (⬠) es distinta: no se arrastra, se hace un clic por cada vértice; un doble clic sobre el primer vértice cierra la figura como un polígono con superficie, y un doble clic en cualquier otro punto la deja como una línea abierta, sin relleno.
+La herramienta «Medir círculo» (◯) se arrastra del centro al borde y da el radio y la superficie. La herramienta «Dibujar polígono o línea» (⬠) es distinta: no se arrastra, se hace un clic por cada vértice; un doble clic sobre el primer vértice cierra la figura como un polígono con superficie, y un doble clic en cualquier otro punto la deja como una línea abierta, sin relleno.
 
 ### 7.4 Personalizar un marcador
 
@@ -336,17 +340,30 @@ La misma tabla está disponible en cualquier momento con la tecla `?` o el botó
 | Gesto | Acción |
 |---|---|
 | Mayús + arrastrar | Zoom a un rectángulo |
-| Ctrl + arrastrar (sobre una medición) | Editar una medición |
+| Ctrl + arrastrar (sobre una medición o un vértice) | Editar una medición o mover un vértice |
 | Doble clic en una capa | Ir a ella; repetido, acercar por peldaños |
 | Re Pág / Av Pág (con el mapa enfocado) | Acercar / alejar un nivel de zoom hacia el puntero |
 
-**Dibujar polígonos y líneas**
+**Dibujar polígonos y rutas**
 
 | Gesto | Acción |
 |---|---|
 | Clic | Fijar un vértice |
 | Doble clic sobre el último vértice | Cerrar el polígono y terminar |
-| Doble clic fuera de un vértice | Terminar la línea sin cerrarla |
+| Doble clic fuera de un vértice | Terminar la línea o la ruta sin cerrarla |
+| Clic derecho sobre un vértice | Quitar ese vértice |
+| Supr | Quitar el último vértice |
+
+**Editar vértices de una ruta o un polígono ya creados**
+
+| Gesto | Acción |
+|---|---|
+| Seleccionar el nodo en el árbol | Activa mover/borrar/insertar vértices sobre el mapa, sin abrir su ventana de propiedades |
+| Clic en un vértice | Seleccionarlo |
+| Ctrl + arrastrar un vértice | Moverlo |
+| Clic derecho sobre un vértice | Quitarlo |
+| Mayús + clic en el mapa | Insertar un vértice tras el seleccionado (o al final, si no hay ninguno) |
+| Supr | Quitar el vértice seleccionado (antes que borrar el nodo) |
 
 ---
 

@@ -93,8 +93,8 @@ const otherLi = { _name: "capa B" };
   ok(api.dialogHidden() === false, "el siguiente hover ya abre con normalidad (no es pegajoso)");
 }
 
-// 4. Arreglo general: línea y círculo tienen el mismo bug y el mismo arreglo
-for (const tool of ["line", "circle"]) {
+// 4. Arreglo general: ruta y círculo tienen el mismo bug y el mismo arreglo
+for (const tool of ["route", "circle"]) {
   const { api } = buildApi();
   api.setTool(tool);
   api.setTool(null);

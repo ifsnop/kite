@@ -413,6 +413,19 @@
     box-shadow: 0 1px 3px rgba(0,0,0,.4);
     cursor: move;
   }
+  /* Vértice seleccionado (ruta o polígono): mismo círculo, resaltado con
+     el color de acento para que se distinga de un manejador cualquiera
+     sin cambiar de forma ni de tamaño.                                 */
+  .measure-handle.vertex-selected {
+    border-color: var(--accent);
+    box-shadow: 0 0 0 2px var(--accent), 0 1px 3px rgba(0,0,0,.4);
+  }
+  /* Cursor de "insertar vértice" mientras se mantiene Mayús con una ruta
+     o un polígono seleccionable (ver 52-measure.js): igual que
+     .leaflet-crosshair, hace falta empujar también .leaflet-interactive,
+     que trae su propio "cursor: pointer" con más especificidad efectiva
+     que el contenedor.                                                 */
+  .vertex-insert-cursor, .vertex-insert-cursor .leaflet-interactive { cursor: copy; }
   .measure-label { font-weight: 600; font-family: system-ui, sans-serif; }
 
   .coords-box {

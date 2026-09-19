@@ -79,6 +79,9 @@ const ok = (c, m) => { if (!c) { console.error("FAIL: " + m); process.exitCode =
   const src = `
     let selCursor = null;
     const nodeRow = li => li._row || li.querySelector(":scope > .node-row");
+    /* setSelCursor avisa a syncVertexOwner (43-points-editor.js) de que la
+       selección terminó de asentarse; no es lo que este test prueba. */
+    function syncVertexOwner() {}
     ${fn("setSelCursor")}
     return { setSelCursor, get selCursor() { return selCursor; } };
   `;
