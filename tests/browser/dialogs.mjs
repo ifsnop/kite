@@ -21,7 +21,7 @@ const { ok, done } = reporter("BROWSER DIALOG LAYOUT TESTS OK");
    razón concreta: una dirección de descarga pasa de mil caracteres con
    facilidad, y en una caja fija no se ve más que un trozo.          */
 const CON_RESIZE = new Set(["style-dialog", "icon-picker", "shortcuts", "desc-dialog",
-  "geojson-name-picker", "gnp-editor", "points-dialog", "log-dialog", "url-dialog"]);
+  "geojson-name-picker", "props-dialog", "points-dialog", "log-dialog", "url-dialog"]);
 
 const browser = await launch();
 const srv = await serve(READABLE, 8871);
@@ -62,7 +62,12 @@ const medidas = await page.evaluate(() => {
     },
     "geojson-name-picker": () => pickNameProperty(
       Object.fromEntries(Array.from({ length: 60 }, (_, i) => ["clave" + i, "valor " + i])), "a.geojson", null),
-    "gnp-editor": () => { document.getElementById("gnp-editor").hidden = false; },
+    /* Renombrado a "Propiedades": ahora con pestañas, la de nombres de
+       GeoJSON es la que puede llenarse de filas y desbordar.           */
+    "props-dialog": async () => {
+      gnpStore = Object.fromEntries(Array.from({ length: 40 }, (_, i) => [`["clave${i}"]`, "clave" + i]));
+      await togglePropsDialog();
+    },
     "points-dialog": () => openPointsDialog(liP),
     "log-dialog": () => { for (let i = 0; i < 80; i++) navMessage("aviso " + i, { tone: "info" }); toggleLog(); },
     "sh-creds": () => { document.getElementById("sh-creds").hidden = false; }

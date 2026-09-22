@@ -31,7 +31,8 @@ const navMessage = (txt, opts) => { navCalls.push({ txt, opts }); };
    recorrido del árbol que prueba tests/navtest.js aparte. Aquí basta
    con toggleOne, que llama a announceSelectionCount igual que
    selectRange y no necesita nada de eso.                             */
-const api = new Function("treeEl", "styleKind", "navMessage", src + "\n" + top +
+const api = new Function("treeEl", "styleKind", "navMessage",
+  src + "\n" + top +
   "\nreturn {selection, selectNode, toggleOne, clearSelection, setSelected," +
   " topLevelSelection, cursor: () => selCursor};")(treeEl, styleKind, navMessage);
 const { selection, selectNode, toggleOne, clearSelection, topLevelSelection, setSelected } = api;

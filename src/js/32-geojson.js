@@ -137,7 +137,7 @@ const DB_NAME = "visor-kml";
 const DB_VERSION = 3;  /* esquema de la base: un único almacén "tree".
                           Subir solo cuando cambie la estructura de almacenes;
                           la migración es simplemente borrar lo anterior.     */
-const TREE_SCHEMA = 6; /* formato del árbol serializado. Subir solo cuando
+const TREE_SCHEMA = 7; /* formato del árbol serializado. Subir solo cuando
                           cambie el formato; un árbol guardado con otra
                           versión se descarta al leer.
                           v2: los nodos de capa admiten `mstyle` (estilo de
@@ -158,8 +158,41 @@ const TREE_SCHEMA = 6; /* formato del árbol serializado. Subir solo cuando
                           por defecto, así que añadirle una clave
                           (textAlways) NO sube esta versión: un árbol
                           anterior se lee igual y subirla habría
-                          borrado el de todo el mundo a cambio de nada. */
+                          borrado el de todo el mundo a cambio de nada.
+                          v7: los nodos "measure" guardan `waypoints`
+                          (array de {lat,lng}, longitud 2 para línea/
+                          círculo, N para el nuevo mtype "route") en vez
+                          de los campos sueltos `a`/`b`. EXCEPCIÓN
+                          deliberada al principio de «sin compatibilidad
+                          hacia atrás»: un árbol v6 no se descarta, se
+                          sube en silencio con upgradeMeasuresV6 (ver
+                          más abajo) porque el único cambio de forma
+                          entre v6 y v7 es ese, y se sabe de antemano
+                          que es trivial y está acotado a un solo tipo
+                          de nodo — no es la política por defecto para
+                          la próxima subida de versión, que se evalúa
+                          aparte. */
 const DB_TREE = "tree";
+
+/* Sube en silencio un árbol v6 a la forma v7 (measure: a/b → waypoints),
+   la ÚNICA excepción a «lo que no corresponda a la versión actual se
+   borra, no se migra». Función PURA sobre el array de registros: no
+   toca IndexedDB ni el DOM, así que se puede probar aislada. No hace
+   falta mirar `mtype`: la transformación es idéntica para línea y
+   círculo (los únicos tipos que existían en v6, ambos con exactamente
+   dos puntos).                                                        */
+function upgradeMeasuresV6(nodes) {
+  for (const rec of nodes) {
+    if (rec.t === "measure" && !rec.waypoints && rec.a && rec.b) {
+      rec.waypoints = [rec.a, rec.b];
+      delete rec.a;
+      delete rec.b;
+    } else if (rec.children) {
+      upgradeMeasuresV6(rec.children);
+    }
+  }
+  return nodes;
+}
 
 /* One connection, reused. Opening the database on every save wastes
    handles and, worse, a stale connection blocks the upgrade of another
@@ -390,6 +423,97 @@ async function dbLoadProps() {
   });
 }
 
+/* ---------- Tope de vértices editables interactivamente sobre el mapa ----------
+   Otra clave del mismo almacén: no hace falta subir DB_VERSION. Depende
+   del hardware de quien lo usa (ver VERTEX_EDIT_MAX_DEFAULT en
+   43-points-editor.js), así que es una preferencia y no una constante
+   fija — se edita en el mismo editor que las asociaciones de nombre de
+   GeoJSON (botón 🏷️, gnp-editor).                                    */
+const VERTMAX_KEY = "vertexEditMax";
+const VERTMAX_SCHEMA = 1;
+
+async function dbSaveVertexEditMax(max) {
+  const db = await openDb();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(DB_TREE, "readwrite");
+    tx.objectStore(DB_TREE).put({ v: VERTMAX_SCHEMA, max }, VERTMAX_KEY);
+    tx.oncomplete = resolve;
+    tx.onerror = () => reject(tx.error);
+  });
+}
+/* Validado como cualquier otro valor leído: un registro corrupto o un
+   0/negativo no debe colar un tope inservible (`beginVertexEdit`
+   comparte código para "sin trazo" y "por encima del tope", y un tope
+   de 0 desactivaría la edición interactiva para todo el mundo).       */
+async function dbLoadVertexEditMax() {
+  const db = await openDb();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(DB_TREE, "readonly");
+    const rq = tx.objectStore(DB_TREE).get(VERTMAX_KEY);
+    rq.onsuccess = () => {
+      const r = rq.result;
+      resolve(r && r.v === VERTMAX_SCHEMA && Number.isInteger(r.max) && r.max > 0 ? r.max : null);
+    };
+    rq.onerror = () => reject(rq.error);
+  });
+}
+
+/* Unidad de medida y formato de latitud/longitud: mismo patrón que
+   VERTMAX_KEY/VERTMAX_SCHEMA, ajustes GLOBALES (panel de Propiedades,
+   43-points-editor.js) que antes vivían solo en memoria, sin persistir
+   entre sesiones, y con un control repetido en varios diálogos
+   distintos (`measureUnit`) o propio de uno solo (el formato de
+   coordenadas de un marcador) — pedido explícitamente: un único sitio,
+   que además recuerde el valor entre sesiones.                       */
+const MEASURE_UNIT_KEY = "measureUnit";
+const MEASURE_UNIT_SCHEMA = 1;
+const MEASURE_UNITS = ["m", "km", "ft", "mi", "nm"];
+async function dbSaveMeasureUnit(unit) {
+  const db = await openDb();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(DB_TREE, "readwrite");
+    tx.objectStore(DB_TREE).put({ v: MEASURE_UNIT_SCHEMA, unit }, MEASURE_UNIT_KEY);
+    tx.oncomplete = resolve;
+    tx.onerror = () => reject(tx.error);
+  });
+}
+async function dbLoadMeasureUnit() {
+  const db = await openDb();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(DB_TREE, "readonly");
+    const rq = tx.objectStore(DB_TREE).get(MEASURE_UNIT_KEY);
+    rq.onsuccess = () => {
+      const r = rq.result;
+      resolve(r && r.v === MEASURE_UNIT_SCHEMA && MEASURE_UNITS.includes(r.unit) ? r.unit : null);
+    };
+    rq.onerror = () => reject(rq.error);
+  });
+}
+
+const COORD_FORMAT_KEY = "coordFormat";
+const COORD_FORMAT_SCHEMA = 1;
+async function dbSaveCoordFormat(fmt) {
+  const db = await openDb();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(DB_TREE, "readwrite");
+    tx.objectStore(DB_TREE).put({ v: COORD_FORMAT_SCHEMA, fmt }, COORD_FORMAT_KEY);
+    tx.oncomplete = resolve;
+    tx.onerror = () => reject(tx.error);
+  });
+}
+async function dbLoadCoordFormat() {
+  const db = await openDb();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(DB_TREE, "readonly");
+    const rq = tx.objectStore(DB_TREE).get(COORD_FORMAT_KEY);
+    rq.onsuccess = () => {
+      const r = rq.result;
+      resolve(r && r.v === COORD_FORMAT_SCHEMA && (r.fmt === "dec" || r.fmt === "dms") ? r.fmt : null);
+    };
+    rq.onerror = () => reject(rq.error);
+  });
+}
+
 async function dbSaveBases(rec) {
   const db = await openDb();
   return new Promise((resolve, reject) => {
@@ -558,6 +682,10 @@ async function dbLoadTree() {
     rq.onsuccess = () => {
       const rec = rq.result;
       if (rec && rec.v === TREE_SCHEMA) { resolve(rec.nodes); return; }
+      /* Excepción deliberada (ver TREE_SCHEMA v7): un árbol v6 no se
+         descarta, se sube en silencio. scheduleSave() lo dejará ya en
+         v7 en cuanto el árbol restaurado sufra cualquier mutación.  */
+      if (rec && rec.v === 6) { resolve(upgradeMeasuresV6(rec.nodes)); return; }
       /* Versión distinta: se descarta el árbol, pero solo el árbol; la
          vista guardada es independiente y sigue siendo válida. El
          usuario pierde lo que tuviera cargado, así que el aviso es
@@ -584,9 +712,8 @@ function serializeNode(li) {
   const chk = li.querySelector(":scope > .node-row > input[type=checkbox]");
   const base = { name: li._name, checked: chk ? chk.checked : true };
   if (li._measure) {
-    const a = li._measure.mOrigin.getLatLng(), b = li._measure.mDest.getLatLng();
     return [{ ...base, t: "measure", mtype: li._measure.type, style: li._style,
-              a: { lat: a.lat, lng: a.lng }, b: { lat: b.lat, lng: b.lng } }];
+              waypoints: measureWaypoints(li._measure) }];
   }
   if (li._elevGrid) {
     return [{ ...base, t: "elevGrid", cells: li._elevGrid.cells }];
@@ -646,10 +773,10 @@ function serializePendingRecords(records) {
     if (rec.t === "measure") {
       /* Posición siempre en vivo: los manejadores son arrastrables con
          Ctrl+arrastre sobre el mapa aunque la fila siga pendiente (ver
-         buildMeasureRecord), así que cachear a/b se quedaría obsoleto. */
-      const a = rec._m.mOrigin.getLatLng(), b = rec._m.mDest.getLatLng();
+         buildMeasureRecord), así que cachear los waypoints se quedaría
+         obsoleto.                                                     */
       return { name: rec.name, checked: rec.checked, t: "measure", mtype: rec.mtype,
-                style: rec.style, a: { lat: a.lat, lng: a.lng }, b: { lat: b.lat, lng: b.lng } };
+                style: rec.style, waypoints: measureWaypoints(rec._m) };
     }
     if (rec.t === "elevGrid") {
       return { name: rec.name, checked: rec.checked, t: "elevGrid", cells: rec.cells };
@@ -733,7 +860,11 @@ async function importTreeExport(doc, fileName, insertBefore, dropTargetUl = null
   if (format !== EXPORT_FORMAT) {
     throw new Error(`archivo de formato v${format}, incompatible con el actual v${EXPORT_FORMAT}`);
   }
-  if (doc.schema !== TREE_SCHEMA) {
+  /* Misma excepci\u00F3n deliberada que dbLoadTree (ver TREE_SCHEMA v7):
+     un .kite.json exportado por una v6 se sube en silencio en vez de
+     rechazarse.                                                      */
+  if (doc.schema === 6) upgradeMeasuresV6(doc.nodes);
+  else if (doc.schema !== TREE_SCHEMA) {
     throw new Error(`formato de \u00E1rbol v${doc.schema}, incompatible con el actual v${TREE_SCHEMA}`);
   }
   if (!doc.nodes.length) throw new Error("el archivo no contiene ning\u00FAn nodo");

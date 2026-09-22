@@ -437,8 +437,10 @@ document.getElementById("desc-close").addEventListener("click", () => {
 
    Se guarda como FRACCIÓN, no en píxeles: la ficha se redimensiona, y
    un ancho en píxeles quedaría desproporcionado en cuanto la ventana
-   cambiara de tamaño. Se recuerda entre aperturas —como posFormat o
-   measureUnit— y no persiste entre sesiones.                         */
+   cambiara de tamaño. Y SÍ persiste entre sesiones (`dbSaveProps`/
+   `dbLoadProps`, más abajo) — depende de cómo son los archivos con los
+   que trabaja cada usuario, no de mirar un dato puntual, así que no
+   tendría sentido reajustarlo en cada arranque.                      */
 let propsKeyFrac = 0.38;
 const PROPS_MIN_FRAC = 0.12; /* que ninguna de las dos columnas desaparezca */
 
@@ -496,7 +498,7 @@ descBody.addEventListener("pointerdown", e => {
    button opened it (see openColorPicker/positionColorPicker), not a
    draggable window with its own dialog role — that separate-window
    treatment is exactly what the popover replaced.                    */
-for (const box of [styleBox, iconBox, descBox, shortcutsBox, ktpBox, kdpBox, gnpBox, gnpEditorBox, shBox, pointsBox, logBox, urlBox]) makeDialogMovable(box);
+for (const box of [styleBox, iconBox, descBox, shortcutsBox, ktpBox, kdpBox, gnpBox, propsBox, shBox, pointsBox, logBox, urlBox]) makeDialogMovable(box);
 setupDialog(styleBox, { modal: false }); /* flotante: el mapa sigue vivo */
 setupDialog(iconBox, { modal: true });
 setupDialog(descBox, { modal: false });
@@ -504,14 +506,14 @@ setupDialog(shortcutsBox, { modal: true });
 setupDialog(ktpBox, { modal: true });
 setupDialog(kdpBox, { modal: true });
 setupDialog(gnpBox, { modal: true });
-setupDialog(gnpEditorBox, { modal: true });
+setupDialog(propsBox, { modal: true });
 setupDialog(shBox, { modal: true });
 setupDialog(pointsBox, { modal: true });
 setupDialog(logBox, { modal: true });
 setupDialog(urlBox, { modal: true });
 window.addEventListener("resize", () => {
   /* a moved dialog must not fall off-screen */
-  for (const box of [styleBox, iconBox, descBox, shortcutsBox, ktpBox, kdpBox, gnpBox, gnpEditorBox, shBox, pointsBox, logBox, urlBox]) clampToViewport(box);
+  for (const box of [styleBox, iconBox, descBox, shortcutsBox, ktpBox, kdpBox, gnpBox, propsBox, shBox, pointsBox, logBox, urlBox]) clampToViewport(box);
   /* the popover's anchor button may have moved too; closing is simpler
      and less confusing than reclamping a stale position              */
   if (!colorPicker.hidden) closeColorPicker();
@@ -520,7 +522,6 @@ let styleTargets = [];    /* nodes being edited */
 let styleKindOpen = null; /* "marker" | "polygon" */
 let styleDraft = null;    /* working copy shown by the controls */
 let pendingIcon = null;   /* icon highlighted in the picker, not yet accepted */
-let posFormat = "dms";    /* coordinate notation, toggled with the ⇅ button */
 let posMarker = null;     /* sole marker whose position is being edited */
 let posOriginal = null;   /* its position when the dialog opened */
 let styleIsNew = false;   /* pin just created: cancelling removes it again */
@@ -533,6 +534,22 @@ let styleIsNew = false;   /* pin just created: cancelling removes it again */
    nodo `styleMixed` queda vacío y todo se aplica como siempre.        */
 let styleMixed = new Set();
 let styleTouched = new Set();
+
+/* Único punto de verdad de "¿se puede mover/insertar/borrar algo de
+   este nodo ahora mismo?" — un vértice de un polígono o una ruta, o el
+   centro/borde de un círculo. BUG reportado: hasta ahora un polígono
+   se podía editar con solo tenerlo seleccionado en el árbol, y una
+   ruta o un círculo SIEMPRE, sin ningún diálogo de por medio. La
+   respuesta es siempre esta misma pregunta — que el diálogo de
+   estilos esté abierto mostrando EXACTAMENTE este nodo, no una
+   selección múltiple ni otro nodo — usada directamente por el círculo
+   (`attachCtrlDrag`, 52-measure.js) y, para ruta/polígono, indirectamente
+   a través de `vertexOwner` (`syncVertexOwnerForDialog`,
+   43-points-editor.js, que la sincroniza una sola vez al abrir/cerrar
+   el diálogo en vez de repetirla en cada gesto).                      */
+function styleDialogShows(li) {
+  return !!li && !styleDialog.hidden && styleTargets.length === 1 && styleTargets[0] === li;
+}
 
 /* Qué propiedad del borrador toca cada control. Sirve para lo mismo en
    los dos sentidos: marcar el control cuando los nodos no coinciden y
@@ -753,7 +770,7 @@ function openStyleDialog(li, { isNew = false } = {}) {
        posición de un marcador) y solo si hay de verdad un polígono cerrado */
     polyMeasures = single ? polygonMeasures(styleTargets[0]) : null;
     $id("pg-measures").hidden = !polyMeasures;
-    if (polyMeasures) { $id("pg-unit").value = measureUnit; renderPolyMeasures(); }
+    if (polyMeasures) renderPolyMeasures();
     /* La lista de puntos es la geometría de UN nodo, como la posición de
        un marcador: no tiene sentido en bloque, y con varios
        seleccionados NO se puede abrir. Pero la fila ya no desaparece:
@@ -772,6 +789,13 @@ function openStyleDialog(li, { isNew = false } = {}) {
     $id("pg-points-row").classList.toggle("dim", !!pointsWhy);
     $id("pg-points").disabled = !!pointsWhy;
     $id("pg-points").title = pointsWhy;
+    /* La edición interactiva de vértices (arrastrar/borrar/seleccionar
+       en el mapa) la activa justamente ESTE diálogo: se enciende al
+       final de la función (`syncVertexOwnerForDialog`, en
+       43-points-editor.js) y se apaga en `closeStyleDialog` — sin él
+       abierto, ningún vértice se puede tocar (bug reportado: antes
+       bastaba con la selección del árbol). `refreshOpenPolygonDialog`
+       mantiene el perímetro/área en vivo mientras se edita.           */
   } else if (kind === "measure") {
     const styles = styleTargets.map(t => normalizePathStyle(t._style));
     styleDraft = { ...styles[0] };
@@ -793,7 +817,7 @@ function openStyleDialog(li, { isNew = false } = {}) {
     /* Las medidas son de UNA medición, como la posición de un marcador */
     msMeasures = single ? measurementValues(styleTargets[0]._measure) : null;
     $id("ms-values").hidden = !msMeasures;
-    if (msMeasures) { $id("ms-unit").value = measureUnit; renderMeasureValues(); }
+    if (msMeasures) renderMeasureValues();
   } else {
     const ops = styleTargets.map(t => ({ opacity: t._imageOverlay.opacity }));
     styleDraft = { ...ops[0] };
@@ -803,11 +827,49 @@ function openStyleDialog(li, { isNew = false } = {}) {
   styleDialog.hidden = false;
   clampToViewport(styleBox);
   focusDialog(styleBox);
+  /* Última: styleTargets/styleKindOpen ya están fijados y el diálogo ya
+     está visible, que es justo lo que styleDialogShows comprueba.     */
+  syncVertexOwnerForDialog();
+  /* Foto para que Cancelar pueda revertir (ver closeStyleDialog). */
+  vertexEditSnapshot = captureVertexSnapshot();
+  /* Aspecto/cursor "editable" de los manejadores PERMANENTES de una
+     ruta o un círculo (los de un polígono ya nacen así, ver
+     beginVertexEdit): solo con un único nodo mostrado, igual que exige
+     styleDialogShows para todo lo demás — con selección múltiple ningún
+     gesto de vértice va a funcionar, así que tampoco deben parecerlo.  */
+  if (kind === "measure" && single) setMeasureHandlesEditable(li._measure, true);
 }
 
 /* `commit` false = cancel: the dragged position goes back and a pin that
    was created just to open this dialog is removed again.               */
 function closeStyleDialog(commit = false) {
+  /* Cerrar el diálogo de una ruta TODAVÍA EN DIBUJO (routeMeasurement,
+     52-measure.js) tiene que salir de ese modo pase lo que pase —
+     Aceptar guarda la ruta (isNew deja de importar, como cualquier
+     nodo ya aceptado), Cancelar la borra (isNew, ver más abajo)—, y
+     los dos casos deben terminar con `activeTool` de vuelta a `null`.
+     Reportado: cerrar con los botones del propio diálogo (a diferencia
+     de Escape, que ya lo hacía aparte) dejaba `routeMeasurement`
+     colgando y la herramienta activa, así que el siguiente click seguía
+     intentando añadir waypoints a un nodo ya borrado o ya terminado.
+     Se captura ANTES de que nada de lo de abajo toque `styleTargets`.  */
+  const closingLiveRoute = typeof routeMeasurement !== "undefined"
+    && routeMeasurement && styleTargets[0] && styleTargets[0]._measure === routeMeasurement;
+  /* Primero: sin esto, un polígono/ruta en edición se quedaría con sus
+     manejadores del mapa vivos después de cerrar el diálogo que los
+     activó — exactamente el bug reportado. Incondicional (cancelar o
+     aceptar): la edición ya es en vivo, no hay nada que revertir aquí,
+     solo retirar los manejadores temporales.                          */
+  teardownVertexOwner();
+  /* Revierte mover/insertar/borrar un vértice, o Ctrl+arrastrar el
+     centro/borde de un círculo, hecho mientras el diálogo estuvo
+     abierto — mismo patrón que posMarker/posOriginal, un poco más
+     abajo. Se lee ANTES de limpiar styleTargets/styleKindOpen.        */
+  if (!commit) restoreVertexSnapshot(vertexEditSnapshot);
+  vertexEditSnapshot = null;
+  if (styleKindOpen === "measure" && styleTargets[0] && styleTargets[0]._measure) {
+    setMeasureHandlesEditable(styleTargets[0]._measure, false);
+  }
   if (dragFrame) { cancelAnimationFrame(dragFrame); dragFrame = null; }
   if (posMarker) {
     posMarker.off("drag", onMarkerDragged);
@@ -817,6 +879,10 @@ function closeStyleDialog(commit = false) {
   if (!commit && styleIsNew && styleTargets.length) deleteNode(styleTargets[0]);
   const wasOpen = !styleDialog.hidden;
   styleDialog.hidden = true;
+  /* El círculo no pasa por vertexOwner (teardownVertexOwner, arriba, ya
+     lo cubre para polígono/ruta): con styleDialog ya oculto,
+     anyEditModeActive deja de contar su Ctrl+arrastre como "en edición". */
+  refreshDoubleClickZoom();
   iconPicker.hidden = true;
   /* Guarded: closeColorPicker() itself pops a focusReturn entry, and it
      would be the wrong one if the popover was already closed.        */
@@ -833,14 +899,22 @@ function closeStyleDialog(commit = false) {
   msMeasures = null;
   styleMixed = new Set();
   styleTouched = new Set();
+  /* setTool(null) sees routeMeasurement already null and skips its own
+     "cancel the in-progress route" branch (52-measure.js), so no
+     recursive call back into closeStyleDialog happens here.           */
+  if (closingLiveRoute) { routeMeasurement = null; setTool(null); }
 }
 
-/* ---------- Position controls ---------- */
-const POS_FORMAT_LABEL = { dms: "g\u00B0 m' s\"", dec: "grados decimales" };
+/* ---------- Position controls ----------
+   El formato (decimal o GMS) ya no es un toggle propio de este diálogo:
+   sigue el ajuste GLOBAL `coordFormat` (panel Propiedades → Preferencias,
+   43-points-editor.js), el mismo que ya usan el centro de un círculo y
+   el editor de puntos de un polígono — antes era `posFormat`, un ⇅
+   propio de este diálogo, de sesión y sin persistir; unificado a
+   petición explícita, para que la notación se decida en un solo sitio.*/
 function renderCoords() {
-  $id("pos-format-label").textContent = POS_FORMAT_LABEL[posFormat];
-  $id("mk-lat").value = formatCoord(styleDraft.lat, true, posFormat);
-  $id("mk-lon").value = formatCoord(styleDraft.lng, false, posFormat);
+  $id("mk-lat").value = formatCoord(styleDraft.lat, true, coordFormat);
+  $id("mk-lon").value = formatCoord(styleDraft.lng, false, coordFormat);
   markCoordValidity();
 }
 /* Flags out-of-range or unreadable text without blocking typing */
@@ -869,17 +943,6 @@ function onMarkerDragged() {
     renderCoords();
   });
 }
-/* Same idea as the notation switch of the native colour picker: one small
-   ⇅ button cycles through the notations, keeping whatever is typed in and
-   just re-expressing it                                                 */
-$id("pos-format").addEventListener("click", () => {
-  if (!styleDraft || !posMarker) return;
-  const { lat, lon } = markCoordValidity();
-  if (isFinite(lat)) styleDraft.lat = lat;
-  if (isFinite(lon)) styleDraft.lng = lon;
-  posFormat = posFormat === "dms" ? "dec" : "dms";
-  renderCoords();
-});
 for (const id of ["mk-lat", "mk-lon"]) {
   $id(id).addEventListener("input", () => { if (styleDraft && posMarker) markCoordValidity(); });
 }
@@ -960,14 +1023,14 @@ for (const ev of ["input", "change"]) {
 
 /* ---------- Perímetro y área (solo lectura) ---------- */
 /* Unidad de TODA medida de distancia y área: el perímetro y el área de
-   un polígono, las medidas de una medición y —desde que el usuario lo
-   pidió— las etiquetas que la medición pinta en el visor y en su fila
-   del árbol. Arranca en millas náuticas, que es la unidad de trabajo en
-   navegación aérea y marítima; se recuerda entre aperturas del diálogo,
-   como posFormat, y no persiste entre sesiones, como elevUnit.
-   Es UNA sola preferencia a propósito: hay dos <select> (uno por bloque
-   del diálogo) pero una única pregunta, "¿en qué unidad quiero leer
-   esto?", y dos respuestas distintas a la vez solo sorprenderían.    */
+   un polígono, las medidas de una medición y las etiquetas que la
+   medición pinta en el visor y en su fila del árbol. Arranca en millas
+   náuticas, que es la unidad de trabajo en navegación aérea y marítima.
+   Es un ajuste GLOBAL con un único control (panel Propiedades →
+   Preferencias, 43-points-editor.js) y SÍ persiste entre sesiones
+   (`dbSaveMeasureUnit`/`dbLoadMeasureUnit`, `32-geojson.js`) — antes
+   era una preferencia de sesión suelta, con un <select> repetido en
+   cada diálogo de polígono/medición; unificada a petición explícita.  */
 let measureUnit = "nm";
 let polyMeasures = null;   /* {area, perim} en m/m² del polígono abierto, o null */
 function renderPolyMeasures() {
@@ -981,38 +1044,87 @@ function renderPolyMeasures() {
     $id("pg-area").textContent = fmtUnitArea(polyMeasures.area, measureUnit);
   }
 }
-/* Cambiar la unidad en CUALQUIERA de los dos bloques repinta también las
-   etiquetas de las mediciones del visor: la preferencia es única, así
-   que dejar el mapa con la unidad anterior lo pondría en desacuerdo con
-   la ventana que se acaba de tocar.                                   */
+/* Refresca el diálogo de propiedades EN VIVO mientras se arrastra,
+   borra o inserta un vértice de ESTE polígono — el mismo patrón que
+   refreshOpenMeasureDialog usa para una medición. Llamado desde
+   applyVertexEditRings en cada cambio; sin esto, editar un vértice con
+   el diálogo abierto solo se vería en el mapa hasta cerrarlo y volver a
+   abrirlo. No hace nada si el diálogo está cerrado, mostrando otro
+   nodo, o una selección múltiple (el perímetro/área es de cada uno).  */
+function refreshOpenPolygonDialog(li) {
+  if (styleDialog.hidden || styleTargets.length !== 1 || styleTargets[0] !== li) return;
+  polyMeasures = polygonMeasures(li);
+  $id("pg-measures").hidden = !polyMeasures;
+  if (polyMeasures) renderPolyMeasures();
+}
+/* Ajuste GLOBAL (panel de Propiedades, 43-points-editor.js), ya no un
+   <select> repetido en cada diálogo — reportado: aunque la preferencia
+   ya era única por debajo, tenerla en dos sitios distintos sugería que
+   cada uno tenía la suya. Repinta al momento lo que esté a la vista
+   (el propio diálogo de polígono/medición, si está abierto, y las
+   etiquetas del visor): es una PREVISUALIZACIÓN en vivo del panel de
+   Propiedades, que decide si de verdad se persiste al pulsar Aceptar
+   (ver renderPropsPrefsTab/togglePropsDialog).                        */
 function setMeasureUnit(unit) {
   measureUnit = unit;
-  $id("pg-unit").value = unit;
-  $id("ms-unit").value = unit;
   renderPolyMeasures();
   renderMeasureValues();
   refreshMeasureLabels();
 }
-$id("pg-unit").addEventListener("change", () => setMeasureUnit($id("pg-unit").value));
 
 /* ---------- Medidas de una medición (solo lectura) ---------- */
-let msMeasures = null; /* {circle, dist, area, brg} de la medición abierta, o null */
+let msMeasures = null; /* {circle, route, dist, area, brg, legs} de la medición abierta, o null */
+
+/* Refresca el diálogo de propiedades EN VIVO mientras se arrastra un
+   extremo/waypoint de la medición que tiene abierta —el mismo patrón
+   que applyVertexEditRings ya usa para el perímetro/área de un
+   polígono—. Llamado desde updateMeasurement en cada recálculo; sin
+   esto, arrastrar con el diálogo abierto solo se veía en el mapa,
+   nunca en las cifras de la propia ventana, hasta cerrarla y volver a
+   abrirla. No hace nada si el diálogo no está mostrando ESTA medición
+   (cerrado, mostrando otro nodo, o una selección múltiple — la
+   posición no se edita en bloque, así que ahí tampoco hay nada vivo
+   que mostrar).                                                       */
+function refreshOpenMeasureDialog(m) {
+  if (styleDialog.hidden || styleTargets.length !== 1 || styleTargets[0]._measure !== m) return;
+  msMeasures = measurementValues(m);
+  renderMeasureValues();
+}
+
 function renderMeasureValues() {
   if (!msMeasures) return;
-  /* Un círculo se describe por su RADIO; una línea, por su distancia */
-  $id("ms-dist-label").textContent = msMeasures.circle ? "Radio" : "Distancia";
+  /* Un círculo se describe por su RADIO, una ruta por su TOTAL, una
+     línea por su distancia sin más.                                  */
+  $id("ms-dist-label").textContent = msMeasures.circle ? "Radio" : msMeasures.route ? "Distancia total" : "Distancia";
   $id("ms-dist").textContent = fmtUnitDist(msMeasures.dist, measureUnit);
+  /* Centro del círculo, pedido explícitamente: en el formato global de
+     coordenadas (Propiedades), igual que la posición de un marcador.  */
+  $id("ms-center-row").hidden = !msMeasures.circle;
+  if (msMeasures.circle) {
+    $id("ms-center").textContent = `${formatCoord(msMeasures.center.lat, true, coordFormat)}, `
+      + formatCoord(msMeasures.center.lng, false, coordFormat);
+  }
   $id("ms-area-row").hidden = msMeasures.area === null;
   if (msMeasures.area !== null) {
     $id("ms-area").textContent = fmtUnitArea(msMeasures.area, measureUnit);
   }
   /* El rumbo va SIEMPRE en grados: no es una distancia y la unidad
-     elegida no le afecta.                                            */
+     elegida no le afecta. Una ruta no tiene un único rumbo: esa fila
+     se oculta y en su lugar se desglosa por tramo, más abajo.        */
   $id("ms-bearing-row").hidden = msMeasures.brg === null;
   if (msMeasures.brg !== null) $id("ms-bearing").textContent = `${msMeasures.brg.toFixed(1)}°`;
+  $id("ms-legs-row").hidden = !msMeasures.route;
+  if (msMeasures.route) {
+    const legs = $id("ms-legs");
+    legs.textContent = "";
+    msMeasures.legs.forEach((leg, i) => {
+      const row = document.createElement("div");
+      row.className = "dlg-note";
+      row.textContent = `Tramo ${i + 1}: ${fmtUnitDist(leg.dist, measureUnit)} · ${leg.brg.toFixed(1)}°`;
+      legs.appendChild(row);
+    });
+  }
 }
-$id("ms-unit").addEventListener("change", () => setMeasureUnit($id("ms-unit").value));
-
 function readImageOverlayControls() {
   styleDraft.opacity = Number($id("io-opacity").value);
 }

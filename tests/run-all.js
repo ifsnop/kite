@@ -37,7 +37,9 @@ const SUITES = [
   ["pointsedit.js", "Editor de la lista de puntos: formato TSV, anillos, errores"],
   ["msglog.js", "Avisos: fusión de repetidos con contador y registro de sesión"],
   ["naming.js", "Autonumerado de formas dibujadas y mediciones"],
-  ["measure.js", "Mediciones: estilo propio, medidas del diálogo y renombrado sin perder la medida"],
+  ["measure.js", "Mediciones: estilo propio, medidas del diálogo, ruta multi-waypoint y renombrado sin perder la medida"],
+  ["schemaupgrade.js", "Subida silenciosa de TREE_SCHEMA v6 a v7: measure.a/b a measure.waypoints"],
+  ["vertexedit.js", "Edición interactiva de vértices de un polígono: arrastrar, borrar, mínimo por anillo, tope"],
   ["icons.js", "Iconos MDI empotrados: catálogo y tabla sincronizados, sin red en ejecución"],
   ["boot.js", "Arranque: el panel no concluye «no hay capas» antes de leer IndexedDB"],
   ["attribution.js", "Línea inferior del visor: versión, enlace al repositorio y escala"],
@@ -69,6 +71,11 @@ const BROWSER = [
   ["browser/tree-move.mjs", "Navegador: mover un nodo de rama recalcula la casilla de los dos extremos"],
   ["browser/multiedit.mjs", "Navegador: editar varios nodos a la vez y el nombre siempre a la vista de un trazo"],
   ["browser/lazy-cascade.mjs", "Navegador: desplegar y marcar una carpeta grande a la vez no la deja a medio encender"],
+  ["browser/measure-dialog-live.mjs", "Navegador: el diálogo de una medición se repinta en vivo al arrastrar, y 🔍 la encuadra con margen"],
+  ["browser/vertex-select.mjs", "Navegador: seleccionar un vértice, Mayús+clic para insertar y Supr para borrar — en rutas y polígonos, sin diálogo"],
+  ["browser/context-menu.mjs", "Navegador: menú contextual del visor — «Editar propiedades» abre el diálogo de estilos"],
+  ["browser/route-live-draw.mjs", "Navegador: crear una ruta se comporta como editarla, con su diálogo abierto y en vivo desde el 2º waypoint"],
+  ["browser/props-panel.mjs", "Navegador: panel Propiedades — unidad y formato de coordenadas globales, con Cancelar/Aceptar de verdad"],
   ["browser/url-import.mjs", "Navegador: añadir desde una dirección, en dos pasos y con cancelación"],
   ["browser/oneworld.mjs", "Navegador: una sola Tierra — sin copias en horizontal, con tope de arrastre y suelo de zoom"]
 ];

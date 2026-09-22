@@ -164,16 +164,39 @@ function makeNode({ name, layer = null, isFolder = false, isFile = false,
      queden estos. Sigue habiendo un hueco menor y aceptado para
      mediciones/elevaciones/ortofotos pendientes (mismo patrón, no
      enganchado por ser casos raros).                                  */
-  if (layer) {
-    layer._li = li; /* back-reference used by the context menu's hit-testing */
-    /* While drawing a polygon, a click inside another layer must fix a
-       vertex there, not highlight that layer in the tree               */
-    layer.on("click", () => { if (activeTool !== "polygon") highlightNode(li); });
-    layer.on("mouseover", () => showLayerInfo(li, { focus: false }));
-    layer.on("mouseout", scheduleLayerInfoHide);
-  }
+  if (layer) wireLayerEvents(li, layer);
 
   return li;
+}
+
+/* Cablea una capa de trazo/marcador a su nodo: resaltar en el árbol al
+   pulsarla en el visor, y el panel de información al pasar el ratón.
+   Extraído de `makeNode` para poder re-cablear una capa NUEVA cuando
+   `setPathLayerClosed` (43-points-editor.js) sustituye un L.Polygon por
+   un L.Polyline o viceversa al cerrar/abrir un trazo durante la edición
+   interactiva — Leaflet no puede cambiar la clase de un L.Path en vivo,
+   así que la capa se reconstruye entera y necesita el MISMO cableado.  */
+function wireLayerEvents(li, layer) {
+  layer._li = li; /* back-reference used by the context menu's hit-testing */
+  /* While drawing a polygon, a click inside another layer must fix a
+     vertex there, not highlight that layer in the tree. And for a
+     medición de ruta, `layer` ES el featureGroup que además contiene
+     sus manejadores de waypoint: Leaflet reenvía el "click" de un hijo
+     al grupo (_propagateEvent), así que sin este guardia, clicar un
+     vértice para seleccionarlo (ver wireRouteHandle, 52-measure.js,
+     con su diálogo de propiedades ya abierto) también dispararía
+     highlightNode, saltando el scroll del árbol a esa fila en cada
+     clic sobre el mapa — molesto mientras se está editando ahí
+     mismo, aunque ya no invalide el vértice elegido (la selección
+     del árbol dejó de tener ninguna relación con vertexOwner).      */
+  layer.on("click", e => {
+    if (activeTool === "polygon") return;
+    const t = e.originalEvent && e.originalEvent.target;
+    if (t && t.closest && t.closest(".measure-handle")) return;
+    highlightNode(li);
+  });
+  layer.on("mouseover", () => showLayerInfo(li, { focus: false }));
+  layer.on("mouseout", scheduleLayerInfoHide);
 }
 
 const nodeUl = li => li.querySelector(":scope > ul.node-list");
@@ -383,6 +406,12 @@ function deleteNode(li, { pruneSelection = true } = {}) {
       if (s === li || li.contains(s)) selection.delete(s);
     }
   }
+  /* Borrar directamente por el botón × de la fila no pasa por
+     clearSelection/selectNode (pruneSelection quita del Set a mano, sin
+     el punto único de setSelCursor), así que si el owner activo era este
+     nodo —o colgaba de él— hay que retirarlo aparte: si no, sus
+     manejadores (un polígono) quedarían huérfanos en el mapa.          */
+  if (vertexOwner && (vertexOwner.li === li || li.contains(vertexOwner.li))) teardownVertexOwner();
   removeSubtreeFromMap(li);
   /* Se guarda el contenedor ANTES de quitarlo: después ya no tiene
      padre, y los hermanos que quedan pueden dejar a la carpeta entera

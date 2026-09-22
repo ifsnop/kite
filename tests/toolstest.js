@@ -10,6 +10,7 @@ function buildApi({ hideDelay = 5, guardMs = 5 } = {}) {
   const src = `
     const document = { activeElement: null };
     let drawing = null, polyDraft = null, activeTool = null, layerInfoDismissed = false;
+    let routeDraft = null, routeMeasurement = null;
     let layerInfoHideTimer = null;
     let suppressNextHover = false;
   ` + [fn("cancelLayerInfoHide"), fn("scheduleLayerInfoHide"), fn("showLayerInfo"), fn("setTool")].join("\n");
@@ -30,6 +31,13 @@ function buildApi({ hideDelay = 5, guardMs = 5 } = {}) {
   };
   const releaseFocusCalls = [];
   const releaseFocus = () => releaseFocusCalls.push(true);
+  /* setTool ya no reactiva doubleClickZoom a ciegas al soltar una
+     herramienta: se lo pregunta a refreshDoubleClickZoom
+     (52-measure.js), que también mira si hay un polígono/ruta/círculo
+     en edición al mismo tiempo. Ajena a lo que aquí se prueba (el
+     propio setTool no comprueba vertexOwner), basta un stub.         */
+  const refreshDoubleClickZoomCalls = [];
+  const refreshDoubleClickZoom = () => refreshDoubleClickZoomCalls.push(true);
   const clampToViewportCalls = [];
   const clampToViewport = () => clampToViewportCalls.push(true);
   const focusDialogCalls = [];
@@ -44,7 +52,7 @@ function buildApi({ hideDelay = 5, guardMs = 5 } = {}) {
   const api = new Function(
     "LAYER_INFO_HIDE_DELAY", "TOOL_EXIT_HOVER_GUARD_MS", "descDialog", "styleDialog", "descBox",
     "descTitle", "descBody", "toolButtons", "rootGroup", "map", "clampToViewport", "focusDialog",
-    "infoHtmlFor", "applyPropsSplit", "releaseFocus",
+    "infoHtmlFor", "applyPropsSplit", "releaseFocus", "refreshDoubleClickZoom",
     src + `
       return {
         showLayerInfo, setTool, scheduleLayerInfoHide, cancelLayerInfoHide,
@@ -52,7 +60,8 @@ function buildApi({ hideDelay = 5, guardMs = 5 } = {}) {
       };
     `
   )(hideDelay, guardMs, descDialog, styleDialog, descBox, descTitle, descBody, toolButtons,
-    rootGroup, map, clampToViewport, focusDialog, infoHtmlFor, applyPropsSplit, releaseFocus);
+    rootGroup, map, clampToViewport, focusDialog, infoHtmlFor, applyPropsSplit, releaseFocus,
+    refreshDoubleClickZoom);
 
   return { api, focusState, descDialog, styleDialog, descTitle, descBody, infoState, releaseFocusCalls };
 }
@@ -93,8 +102,8 @@ const otherLi = { _name: "capa B" };
   ok(api.dialogHidden() === false, "el siguiente hover ya abre con normalidad (no es pegajoso)");
 }
 
-// 4. Arreglo general: línea y círculo tienen el mismo bug y el mismo arreglo
-for (const tool of ["line", "circle"]) {
+// 4. Arreglo general: ruta y círculo tienen el mismo bug y el mismo arreglo
+for (const tool of ["route", "circle"]) {
   const { api } = buildApi();
   api.setTool(tool);
   api.setTool(null);

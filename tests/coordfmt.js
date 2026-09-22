@@ -5,6 +5,7 @@ const api = new Function(
   fn("dmsParts") + "\n" +
   fn("formatCoord") + "\n" +
   fn("formatCoordCompactHtml") + "\n" +
+  fn("parseCoordRaw") + "\n" +
   fn("parseCoord") + "\n" +
   "return { dmsParts, formatCoord, formatCoordCompactHtml, parseCoord };"
 )();

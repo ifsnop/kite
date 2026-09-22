@@ -16,6 +16,26 @@
     if (frac !== null) setPropsSplit(frac);
   } catch { /* sin reparto guardado se usa el de por defecto */ }
 
+  /* Tope de vértices editables interactivamente: depende del hardware
+     de quien lo usa (ver VERTEX_EDIT_MAX_DEFAULT, 43-points-editor.js),
+     así que sin valor guardado se queda con ese valor de partida.     */
+  try {
+    const max = await dbLoadVertexEditMax();
+    if (max !== null) vertexEditMax = max;
+  } catch { /* tope por defecto */ }
+
+  /* Unidad de medida y formato de coordenadas: ajustes globales, ahora
+     persistentes (panel de Propiedades, ver "Persistencia (IndexedDB)"
+     en CLAUDE.md).                                                    */
+  try {
+    const unit = await dbLoadMeasureUnit();
+    if (unit !== null) measureUnit = unit;
+  } catch { /* unidad por defecto (NM) */ }
+  try {
+    const fmt = await dbLoadCoordFormat();
+    if (fmt !== null) coordFormat = fmt;
+  } catch { /* formato por defecto (decimal) */ }
+
   /* La credencial de Copernicus antes que los mapas base: sin ella la
      capa no puede ni construir su URL (ver shWmsUrl).                */
   try {

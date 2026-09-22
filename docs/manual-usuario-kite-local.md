@@ -46,7 +46,7 @@ En la parte superior están el título de la aplicación y cuatro botones de alc
 *Figura 2. Cabecera del panel: botones generales, buscador de lugares, creación de carpetas y los tres botones de activación masiva. Debajo, el aviso de la última carga.*
 
 - **🔗 Añadir desde una dirección**: descarga un archivo desde una dirección web y lo incorpora, con el mismo tratamiento que si se hubiera arrastrado desde el disco. Se explica con detalle en el apartado 7.
-- **🏷️ Nombres recordados para GeoJSON**: abre un editor de las asociaciones que la aplicación recuerda entre la forma de un archivo GeoJSON (qué claves trae) y la propiedad que se usa como nombre de cada elemento. Permite revisar, cambiar o borrar esas asociaciones.
+- **🏷️ Propiedades**: abre un panel con dos pestañas. La primera, «Preferencias» —la que se ve al abrir—, reúne los ajustes generales de la aplicación: la **unidad de medida** (metros, kilómetros, pies, millas o millas náuticas, ver apartado 6.3), el **formato de latitud/longitud** (grados decimales o grados-minutos-segundos) y el tope de vértices editables interactivamente (apartado 6.2). La segunda, «Índices de GeoJSON», recuerda las asociaciones entre la forma de un archivo GeoJSON (qué claves trae) y la propiedad que se usa como nombre de cada elemento, y permite revisar, cambiar o borrar esas asociaciones; con un archivo que traiga muchas asociaciones guardadas, esa lista tiene su propio scroll interno en vez de agrandar la ventana. A diferencia de otras ventanas de configuración de versiones anteriores, este panel sí lleva Cancelar y Aceptar: los cambios se ven al momento en cualquier diálogo abierto (una previsualización), pero solo quedan guardados —y sobreviven a cerrar y volver a abrir la aplicación— al pulsar «Aceptar». «Cancelar» los deja exactamente como estaban.
 - **📋 Registro de avisos**: abre el historial completo de avisos de la sesión en curso —cargas, advertencias, confirmaciones—, incluidos los que ya han desaparecido solos del panel. Un punto sobre el botón indica que hay avisos nuevos sin leer.
 - **? Ayuda**: abre la chuleta de atajos de teclado (apartado 8), la misma que se abre con la tecla `?`.
 - **Buscar un lugar y añadir marcador…**: un buscador de topónimos apoyado en el servicio Nominatim de OpenStreetMap. Se consulta solo al pulsar «Buscar» o la tecla Intro, nunca mientras se escribe. Los resultados aparecen debajo, dentro de la propia cabecera —empujando el árbol hacia abajo, no flotando encima— y se cierran con su «×»; elegir uno crea un marcador en una carpeta «Lugares» y centra la vista sobre él.
@@ -104,7 +104,7 @@ Al activar o desactivar una carpeta con muchas capas dentro, la casilla se susti
 Al pasar el ratón por una fila aparecen, según lo que sea:
 
 - **En una carpeta o un archivo**: seleccionar todas sus capas (☑) o quitar la selección (☐), ordenar alfabéticamente (AZ, que alterna ascendente y descendente), colapsar la carpeta y todas las de dentro, y guardarla en un archivo aparte (💾).
-- **En una capa**: centrar la vista y acercar el zoom a un nivel fijo (🔍), y abrir su diálogo de estilos (🎨).
+- **En una capa**: centrar la vista y acercar el zoom a un nivel fijo (🔍), y abrir su diálogo de estilos (🎨). Sobre un polígono o una medición, en vez de un zoom fijo, encuadra toda su geometría con un margen alrededor —más útil para una figura o una ruta que puede ser mucho más grande, o más alargada, que lo que cabría en un solo nivel de zoom centrado.
 - **Si la capa tiene una ficha o propiedades que enseñar**: un botón adicional (ℹ) para verlas.
 - **En cualquier fila**: subir (↑) y bajar (↓) un puesto entre sus hermanas, y borrar (×).
 
@@ -145,9 +145,9 @@ En la esquina superior izquierda del mapa hay dos barras verticales.
 
 La primera reúne las herramientas que dibujan sobre el mapa:
 
-- **Medir línea** (╱): arrastrar de un punto a otro traza una línea y calcula su distancia y su rumbo.
+- **Medir ruta** (⤳): un clic por cada waypoint, doble clic para terminar — como varias líneas encadenadas, con la distancia y el rumbo de cada tramo por separado y el total. Una ruta de solo 2 waypoints es una línea recta de toda la vida; con más, sirve para planificar un trayecto con varias escalas.
 - **Medir círculo** (◯): arrastrar del centro al borde calcula el radio y la superficie.
-- **Dibujar polígono o línea** (⬠): un clic por cada vértice; un doble clic sobre el último vértice cierra la figura, y un doble clic fuera de un vértice la deja como una línea abierta.
+- **Dibujar polígono o línea** (⬠): un clic por cada vértice; un doble clic sobre el último vértice cierra la figura, y un doble clic fuera de un vértice la deja como una línea abierta. Mientras se dibuja, un vértice ya puesto se puede arrastrar a otra posición antes de cerrar la figura, y quitar con el botón derecho.
 - **Crear un pin** (📍): añade un marcador en el centro de la vista actual y abre directamente su diálogo de estilo.
 - **Exportar PNG** (📷): guarda una imagen del mapa tal como se ve, sin los controles superpuestos, pero con el cuadro de coordenadas, la escala y la atribución (que la licencia de la cartografía exige conservar).
 
@@ -176,7 +176,7 @@ Un clic derecho sobre el mapa abre un menú con las acciones más habituales: co
 ![Menú contextual genérico, sobre una zona del mapa sin ninguna capa debajo](img/08-menu-contextual-generico.png)
 *Figura 11. Menú contextual sobre una zona vacía del mapa.*
 
-Si el clic derecho cae sobre una capa, el menú antepone «Ir al nodo en el panel» (que despliega el árbol hasta esa fila, la selecciona y la hace parpadear en el mapa para identificarla) y, si la capa tiene algo que mostrar, «Mostrar propiedades». Cuando hay varias capas superpuestas exactamente bajo el cursor, esas dos opciones se convierten en un submenú con una entrada por capa, para elegir sobre cuál de todas se quiere actuar.
+Si el clic derecho cae sobre una capa, el menú antepone «Ir al nodo en el panel» (que despliega el árbol hasta esa fila, la selecciona y la hace parpadear en el mapa para identificarla), «Mostrar propiedades» si la capa tiene algo que mostrar (la ficha KML o la tabla de propiedades de un GeoJSON, la misma que el botón ℹ) y, si su tipo admite el diálogo de estilos, **«Editar propiedades»**, que lo abre directamente —el mismo diálogo que el botón 🎨 o Alt+Intro, sin tener que ir antes al árbol—. Cuando hay varias capas superpuestas exactamente bajo el cursor, estas opciones se convierten en un submenú con una entrada por capa, para elegir sobre cuál de todas se quiere actuar.
 
 ![Menú contextual con un submenú, al haber dos zonas superpuestas bajo el cursor](img/09-menu-contextual-submenu.png)
 *Figura 12. Con «Zona A» y «Zona A (ampliación)» superpuestas en ese punto, «Ir al nodo en el panel» se convierte en un submenú con una entrada por cada una.*
@@ -187,11 +187,11 @@ Si el clic derecho cae sobre una capa, el menú antepone «Ir al nodo en el pane
 
 El botón 🎨 de una fila (o de cualquiera de una selección múltiple) abre un diálogo flotante con el estilo de esa capa. El diálogo no aplica nada hasta que se pulsa «Aceptar»; «Cancelar» descarta cualquier cambio probado, incluido un icono distinto. El diálogo se puede arrastrar por su título para apartarlo de la zona del mapa que interese, y no bloquea el resto de la interfaz: se puede seguir trabajando en el mapa mientras está abierto.
 
-Cada muestra de color del diálogo (marcador, texto, contorno, relleno…) abre, justo debajo de sí misma, un selector con el espectro, una paleta de colores habituales y sus propios botones «Cancelar»/«Aceptar». Sobre el cuadrado se elige tono y saturación con el cursor en forma de cruz; sobre la rampa horizontal de matiz, con el cursor en forma de mano, porque ahí solo se desliza en una dirección. Mover el espectro, tocar una muestra o escribir un valor previsualiza el color al momento sobre el elemento editado (el marcador y su icono, o el fondo del mapa en el panel de mapas base), pero no lo confirma: solo «Aceptar» lo deja hecho, y «Cancelar» —igual que repetir la muestra que abrió el selector, un clic fuera o Escape— lo devuelve al color que tenía al abrirlo. Los valores se escriben en cuatro notaciones intercambiables con las flechas ‹ › junto a su nombre (igual que el botón ⇅ de las coordenadas): hexadecimal (un campo), RGB o HSV (tres campos, uno por componente) y CMYK (cuatro), cada uno con su propio control numérico de subida/bajada.
+Cada muestra de color del diálogo (marcador, texto, contorno, relleno…) abre, justo debajo de sí misma, un selector con el espectro, una paleta de colores habituales y sus propios botones «Cancelar»/«Aceptar». Sobre el cuadrado se elige tono y saturación con el cursor en forma de cruz; sobre la rampa horizontal de matiz, con el cursor en forma de mano, porque ahí solo se desliza en una dirección. Mover el espectro, tocar una muestra o escribir un valor previsualiza el color al momento sobre el elemento editado (el marcador y su icono, o el fondo del mapa en el panel de mapas base), pero no lo confirma: solo «Aceptar» lo deja hecho, y «Cancelar» —igual que repetir la muestra que abrió el selector, un clic fuera o Escape— lo devuelve al color que tenía al abrirlo. Los valores se escriben en cuatro notaciones intercambiables con las flechas ‹ › junto a su nombre: hexadecimal (un campo), RGB o HSV (tres campos, uno por componente) y CMYK (cuatro), cada uno con su propio control numérico de subida/bajada.
 
 ### 6.1 Estilo de un marcador
 
-Icono, color y tamaño del marcador; tamaño y color del texto; si el nombre se muestra siempre o solo al pulsar sobre el marcador; y, cuando la capa es un único marcador, su posición exacta, en grados decimales o en grados/minutos/segundos (un botón ⇅ cambia de notación). Mientras el diálogo está abierto, el propio marcador puede arrastrarse por el mapa para ajustar su posición a mano.
+Icono, color y tamaño del marcador; tamaño y color del texto; si el nombre se muestra siempre o solo al pulsar sobre el marcador; y, cuando la capa es un único marcador, su posición exacta, en el formato elegido en el panel 🏷️ Propiedades (apartado 2.1) — grados decimales o grados/minutos/segundos, el mismo ajuste global que usa el centro de un círculo de medición. Mientras el diálogo está abierto, el propio marcador puede arrastrarse por el mapa para ajustar su posición a mano.
 
 ![Diálogo de estilo de un marcador, con icono, colores, tamaños y posición](img/10-estilo-marcador.png)
 *Figura 13. Estilo de la capa «Base»: icono, color y tamaño del marcador, tamaño y color del texto, y sus coordenadas.*
@@ -213,12 +213,20 @@ Ancho y color del contorno; un selector de tres opciones —contorno y relleno, 
 
 Una figura abierta (una línea, no un polígono cerrado) no tiene superficie que rellenar: sus controles de relleno aparecen entonces deshabilitados en vez de ocultos, para que se note que existen pero no aplican a ese caso.
 
+Además del editor de texto, sus vértices se pueden mover, borrar, seleccionar e insertar directamente sobre el mapa — **con este diálogo abierto para ese polígono, y solo entonces**: sin él, ni un clic, ni arrastrar, ni el botón derecho hacen nada sobre ningún vértice, y un vértice sin diálogo abierto se ve como un círculo blanco pequeño que no cambia el cursor al pasar por encima (con el diálogo abierto, crece y el cursor pasa a una cruz de mover). Con el diálogo abierto: un clic sobre un vértice lo selecciona, arrastrarlo lo mueve (no hace falta ninguna tecla), el botón derecho lo quita (sin poder bajar de 3 vértices en un contorno cerrado, o de 2 en una línea abierta) y `Mayús` + clic en cualquier otro punto del mapa —o la tecla `Insertar`, sin necesitar hacer clic, pero en la posición ACTUAL del ratón sobre el mapa— inserta uno nuevo justo después del seleccionado —o al final, si no hay ninguno—, con el cursor cambiando a una flecha con un signo de más mientras se mantiene `Mayús` pulsado. Con el ÚLTIMO vértice seleccionado, `Mayús` + clic sobre el manejador del PRIMERO cierra una línea abierta (sin añadir ningún vértice nuevo); y borrar el vértice que dejaría un contorno cerrado por debajo de 3 lo abre en línea en vez de bloquear el borrado —un contorno cerrado con más de 3 vértices nunca se abre borrando, sea cual sea el vértice que se borre—. La tecla `Supr` borra el vértice seleccionado con prioridad sobre borrar la capa entera. Cada cambio se aplica al momento sobre el mapa, y las medidas de solo lectura de este mismo diálogo se actualizan en vivo, pero **«Cancelar» revierte todos los cambios de vértice hechos mientras el diálogo estuvo abierto** —mover, insertar, borrar, cerrar o abrir la forma—, igual que el resto de campos del diálogo; solo «Aceptar» los deja. Cerrar el diálogo apaga además la edición: los vértices dejan de responder a nada.
+
+Las dos formas de editar los vértices —el texto y el mapa— muestran la misma lista de puntos, así que no conviven: mientras «Ver y editar…» esté abierto, la edición sobre el mapa se desactiva (para no dejar el texto ya escrito desactualizado si se moviera un vértice por debajo), y vuelve sola al cerrar esa ventana.
+
+Con una figura de muchísimos vértices esta edición interactiva no se activa, y solo queda disponible el editor de texto: un aviso explica cuántos vértices tiene la capa y cuál es el tope vigente. Ese tope (500 de partida) depende del equipo de quien lo usa, así que es ajustable: botón 🏷️ de la cabecera → pestaña «Preferencias» → «Tope de vértices editables».
+
+Mientras el diálogo de un polígono está abierto, el doble clic sobre el mapa no hace zoom —de lo contrario, insertar dos vértices seguidos con `Mayús` + clic podría dispararlo sin querer—; vuelve a funcionar con normalidad al cerrar el diálogo.
+
 ### 6.3 Estilo de una medición
 
-Igual que un polígono en cuanto a trazo y relleno, pero con sus medidas propias en modo de solo lectura: una línea muestra distancia y rumbo; un círculo, radio y área.
+Igual que un polígono en cuanto a trazo y relleno, pero con sus medidas propias en modo de solo lectura: un círculo muestra **radio, área y las coordenadas de su centro**; una ruta, la distancia total y la de cada uno de sus tramos por separado, numerados «Tramo 1», «Tramo 2»… (una ruta de solo 2 waypoints muestra un único tramo, con su distancia y su rumbo — el equivalente de la antigua «línea»). **También aquí manda la misma regla que en 6.2, con «Cancelar» incluido**: mover el centro o el borde de un círculo, o un waypoint de una ruta —los tres, arrastrando sin más, ya no hace falta ninguna tecla— y, en una ruta, seleccionar, borrar e insertar waypoints igual que los vértices de un polígono, `Insertar` incluido, solo funciona con este diálogo abierto para esa medición; sin él, sus manejadores se ven como un punto pequeño sin cursor propio (con el diálogo abierto crecen y el cursor cambia a una cruz de mover, y ese aspecto se conserva aunque se apague y encienda la visibilidad de la capa mientras tanto), y el botón derecho abre el menú contextual normal en vez de borrar. Con el diálogo abierto, arrastrar actualiza estas cifras al momento, sin necesidad de cerrarlo y volver a abrirlo, y «Cancelar» revierte cualquier cambio hecho mientras estuvo abierto.
 
 ![Diálogo de estilo de una medición, con distancia y rumbo de solo lectura](img/16-estilo-medicion.png)
-*Figura 17. Estilo de «Línea 1»: mismo tipo de controles que un polígono, con la distancia y el rumbo de la medición debajo.*
+*Figura 17. Estilo de «Ruta 1»: mismo tipo de controles que un polígono, con la distancia y el rumbo de la medición debajo.*
 
 ### 6.4 Editar varias capas a la vez
 
@@ -248,16 +256,18 @@ Todo lo incorporado por esta vía queda dentro de una carpeta «Descargas», con
 
 ### 7.2 Medir una distancia y un rumbo
 
-Se pulsa la herramienta «Medir línea» (╱) de la barra de dibujo, y se arrastra desde el origen hasta el destino sobre el mapa. Al soltar, aparece una etiqueta flotante con la distancia y el rumbo, y la medición queda guardada como una fila más del árbol, dentro de una carpeta «Mediciones», con su propio nombre autonumerado («Línea 1», «Línea 2»…).
+Se pulsa la herramienta «Medir ruta» (⤳) de la barra de dibujo: un clic marca cada waypoint y un doble clic termina la ruta (siempre queda abierta; no se puede cerrar en anillo). Para una distancia y un rumbo sueltos basta con dos waypoints —origen y destino—, exactamente como una línea de toda la vida. **Desde ese segundo waypoint, dibujar una ruta se comporta como editarla**: la medición ya cuelga de una fila del árbol, dentro de una carpeta «Mediciones», con su propio nombre autonumerado («Ruta 1», «Ruta 2»…), y su diálogo de propiedades se abre solo, mostrando distancia y rumbo ya calculados — sin esperar a terminar el dibujo. Cada waypoint que se añade después actualiza esas cifras al momento. Cancelar el diálogo a medio dibujar —con `Escape` o con su propio botón «Cancelar»— borra la ruta, igual que cancelar un marcador recién creado, y sale del modo de dibujo; pulsar «Aceptar» en cambio la GUARDA con los waypoints que tenga hasta ese momento y también sale del modo de dibujo. Terminar con doble clic deja el nodo y su diálogo abiertos, listos para seguir ajustándose.
 
-![Una medición de línea recién creada, con su etiqueta de distancia y rumbo sobre el mapa](img/15-medicion-mapa.png)
+![Una medición de ruta recién creada, con su etiqueta de distancia y rumbo sobre el mapa](img/15-medicion-mapa.png)
 *Figura 20. Medición entre «Base» y «Punto de control»: 1,92 millas náuticas a un rumbo de 108,2°, con su fila correspondiente en el árbol.*
 
-Para editar una medición ya creada basta con mantener pulsado `Ctrl` y arrastrar uno de sus extremos. La unidad de medida (metros, kilómetros, pies o millas náuticas —la unidad por defecto, la habitual en navegación aérea y marítima—) se elige una sola vez y se aplica a la vez a todas las mediciones y a todos los polígonos, tanto en su diálogo de estilo como en las etiquetas que se ven sobre el mapa.
+Para editar una ruta ya creada, con su diálogo de propiedades abierto (ver 6.3), basta con arrastrar uno de sus waypoints —ya no hace falta `Ctrl`—; con el botón derecho se quita uno (sin poder bajar de 2). **Sin el diálogo abierto**, el botón derecho sobre un waypoint no borra nada: abre el menú contextual normal del mapa, con acceso directo a «Editar propiedades». La unidad de medida (metros, kilómetros, pies, millas o millas náuticas —esta última la unidad por defecto, la habitual en navegación aérea y marítima—) y el formato de coordenadas se eligen una sola vez, en el panel 🏷️ Propiedades (apartado 2.1), y se aplican a la vez a todas las mediciones y a todos los polígonos, tanto en su diálogo de estilo como en las etiquetas que se ven sobre el mapa.
+
+Para una ruta con varias escalas, en vez de un solo tramo, se añaden más de dos waypoints: cada tramo lleva su propia etiqueta de distancia y rumbo sobre el mapa —numerada «Tramo 1», «Tramo 2»…, para poder identificarla de un vistazo con la fila del mismo tramo en el diálogo de propiedades—, y la fila del árbol muestra la distancia total.
 
 ### 7.3 Medir una superficie, o dibujar una figura propia
 
-La herramienta «Medir círculo» (◯) funciona igual que la de línea (arrastrar del centro al borde) y da el radio y la superficie. La herramienta «Dibujar polígono o línea» (⬠) es distinta: no se arrastra, se hace un clic por cada vértice; un doble clic sobre el primer vértice cierra la figura como un polígono con superficie, y un doble clic en cualquier otro punto la deja como una línea abierta, sin relleno.
+La herramienta «Medir círculo» (◯) se arrastra del centro al borde y da el radio y la superficie. La herramienta «Dibujar polígono o línea» (⬠) es distinta: no se arrastra, se hace un clic por cada vértice; un doble clic sobre el primer vértice cierra la figura como un polígono con superficie, y un doble clic en cualquier otro punto la deja como una línea abierta, sin relleno.
 
 ### 7.4 Personalizar un marcador
 
@@ -336,17 +346,31 @@ La misma tabla está disponible en cualquier momento con la tecla `?` o el botó
 | Gesto | Acción |
 |---|---|
 | Mayús + arrastrar | Zoom a un rectángulo |
-| Ctrl + arrastrar (sobre una medición) | Editar una medición |
+| Arrastrar (sobre el centro o el borde de un círculo de medición, con su diálogo abierto) | Moverlo o cambiar su radio (no hace falta ninguna tecla) |
 | Doble clic en una capa | Ir a ella; repetido, acercar por peldaños |
 | Re Pág / Av Pág (con el mapa enfocado) | Acercar / alejar un nivel de zoom hacia el puntero |
 
-**Dibujar polígonos y líneas**
+**Dibujar polígonos y rutas**
 
 | Gesto | Acción |
 |---|---|
 | Clic | Fijar un vértice |
 | Doble clic sobre el último vértice | Cerrar el polígono y terminar |
-| Doble clic fuera de un vértice | Terminar la línea sin cerrarla |
+| Doble clic fuera de un vértice | Terminar la línea o la ruta sin cerrarla |
+| Clic derecho sobre un vértice | Quitar ese vértice |
+| Supr | Quitar el último vértice |
+
+**Editar vértices de una ruta o un polígono ya creados**
+
+| Gesto | Acción |
+|---|---|
+| Abrir sus propiedades (🎨 o Alt+Intro) | Activa mover/borrar/insertar vértices sobre el mapa |
+| Clic en un vértice | Seleccionarlo |
+| Arrastrar un vértice | Moverlo (no hace falta ninguna tecla) |
+| Clic derecho sobre un vértice | Quitarlo |
+| Mayús + clic en el mapa, o tecla Insertar | Insertar un vértice tras el seleccionado (o al final, si no hay ninguno) |
+| Mayús + clic sobre el primer vértice, con el último seleccionado | Cerrar una línea abierta (sin añadir ningún vértice) |
+| Supr | Quitar el vértice seleccionado (antes que borrar el nodo) y dejar seleccionado el SIGUIENTE, para poder seguir pulsando Supr y quitar varios vértices seguidos sin tener que volver a hacer clic; en un contorno cerrado de exactamente 3 vértices, lo abre en línea en vez de bloquear el borrado |
 
 ---
 
@@ -354,4 +378,4 @@ La misma tabla está disponible en cualquier momento con la tecla `?` o el botó
 
 KITE Local guarda automáticamente, en el propio navegador y en el propio dispositivo (nunca en un servidor), el árbol completo de capas y la posición y el zoom del mapa, con un pequeño retardo tras cada cambio para no repetir el guardado en cada pulsación. Al volver a abrir la aplicación, el árbol y la vista se restauran tal como se dejaron. Este guardado es local a cada navegador: para llevar el mismo contenido a otro dispositivo hace falta exportarlo (apartado 7.6) o copiarlo por el portapapeles del sistema (apartado 7.5).
 
-Algunas preferencias de uso —la unidad de medida elegida, el formato de coordenadas, la unidad de la cuadrícula de elevación— se recuerdan mientras la pestaña sigue abierta, pero no sobreviven a cerrarla: son ajustes de lectura, no parte de los datos cargados.
+La **unidad de medida** y el **formato de latitud/longitud**, elegidos en el panel 🏷️ Propiedades (apartado 2.1), sí se guardan y se restauran al volver a abrir la aplicación. Otras preferencias de uso más puntuales —la unidad de la cuadrícula de elevación, o el formato de coordenadas del propio diálogo de un marcador— se recuerdan solo mientras la pestaña sigue abierta: son ajustes de lectura rápida, no parte de los datos cargados.
