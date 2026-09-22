@@ -38,7 +38,11 @@ document.addEventListener("keydown", e => {
 document.addEventListener("keydown", e => {
   if (e.key !== "Delete" || !selection.size) return;
   if (/INPUT|TEXTAREA/.test(e.target.tagName)) return;
-  if ((activeTool === "polygon" || activeTool === "route") && polyDraft) return; /* Supr es "borrar vértice" mientras se dibuja */
+  /* Supr es "borrar vértice" mientras se dibuja — un polígono usa
+     polyDraft; una ruta ya NO (ver routeDraft/routeMeasurement,
+     52-measure.js: crear una ruta se comporta como editarla).          */
+  if (activeTool === "polygon" && polyDraft) return;
+  if (activeTool === "route" && (routeDraft || routeMeasurement)) return;
   const items = topLevelSelection();
   const next = cursorAfterDelete(isRow(selCursor) ? selCursor : items[0], items);
   pushUndo(`borrar ${items.length} nodo(s)`);

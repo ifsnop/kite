@@ -333,22 +333,35 @@ function goToNodeAndBlink(li) { highlightNode(li); blinkLayer(li); }
    al pasar el ratón por encima: parpadear ahí sería un mapa
    temblando todo el rato.                                            */
 function showLayerInfoAndBlink(li) { showLayerInfo(li); blinkLayer(li); }
+/* Mismo patrón que las dos de arriba, para el diálogo de ESTILOS (el
+   que abren el botón 🎨 o Alt+Intro) — distinto de "Mostrar
+   propiedades", que es el panel de solo lectura de la ficha KML/
+   properties (showLayerInfo). Acceso directo desde el menú contextual,
+   sin tener que ir al árbol primero.                                  */
+function editPropertiesAndBlink(li) { openStyleDialog(li); blinkLayer(li); }
+/* Mismo criterio que usa openStyleDialog para rechazar una capa sin
+   estilos editables (carpetas, cuadrículas de elevación…).            */
+const STYLE_EDITABLE_KINDS = new Set(["marker", "polygon", "measure", "imageOverlay"]);
 
-/* Ítems de UNA capa: ir al nodo, y mostrar propiedades si tiene algo
-   que enseñar (igual criterio que el botón ℹ de la fila).             */
+/* Ítems de UNA capa: ir al nodo, mostrar propiedades si tiene algo que
+   enseñar (igual criterio que el botón ℹ de la fila), y editar
+   propiedades si el diálogo de estilos aplica a su tipo.              */
 function layerCtxItems(li) {
   const items = [{ label: "Ir al nodo en el panel", action: () => goToNodeAndBlink(li) }];
   if (infoHtmlFor(li) != null) items.push({ label: "Mostrar propiedades", action: () => showLayerInfoAndBlink(li) });
+  if (STYLE_EDITABLE_KINDS.has(styleKind(li))) items.push({ label: "Editar propiedades", action: () => editPropertiesAndBlink(li) });
   return items;
 }
 
-/* Con varias capas bajo el cursor, "Ir al nodo…" y "Mostrar
-   propiedades" se convierten en disparadores de submenú (`.items`) con
-   una entrada por capa, en vez de actuar directamente.                */
+/* Con varias capas bajo el cursor, "Ir al nodo…", "Mostrar
+   propiedades" y "Editar propiedades" se convierten en disparadores de
+   submenú (`.items`) con una entrada por capa, en vez de actuar
+   directamente.                                                       */
 function ctxItemsFor(hits) {
   if (!hits.length) return CTX_MENU_ITEMS;
   if (hits.length === 1) return [...layerCtxItems(hits[0]), { separator: true }, ...CTX_MENU_ITEMS];
   const withInfo = hits.filter(li => infoHtmlFor(li) != null);
+  const editable = hits.filter(li => STYLE_EDITABLE_KINDS.has(styleKind(li)));
   const items = [{
     label: "Ir al nodo en el panel",
     items: hits.map(li => ({ label: li._name, action: () => goToNodeAndBlink(li) }))
@@ -357,6 +370,12 @@ function ctxItemsFor(hits) {
     items.push({
       label: "Mostrar propiedades",
       items: withInfo.map(li => ({ label: li._name, action: () => showLayerInfoAndBlink(li) }))
+    });
+  }
+  if (editable.length) {
+    items.push({
+      label: "Editar propiedades",
+      items: editable.map(li => ({ label: li._name, action: () => editPropertiesAndBlink(li) }))
     });
   }
   return [...items, { separator: true }, ...CTX_MENU_ITEMS];
@@ -448,11 +467,24 @@ function openCtxMenu(latlng, x, y, hits = []) {
      click), and pre-focusing the first row left a lingering keyboard
      highlight fighting the mouse's hover highlight for a different row. */
 }
-map.on("contextmenu", e => {
+/* Extraída para poder reutilizarla desde el propio manejador de un
+   vértice/waypoint/círculo (52-measure.js, 43-points-editor.js):
+   Leaflet nunca deja llegar el "contextmenu" nativo de un marcador
+   interactivo hasta el contenedor del mapa —lo consume internamente
+   en cuanto tiene AL MENOS un listener de ese tipo, haga lo que haga
+   ese listener—, así que depender de que burbujee hasta aquí no
+   funciona nunca para un manejador. La solución es no depender de la
+   propagación: el propio manejador llama a esta misma función a mano
+   cuando le toca abrir el menú en vez de actuar (ver "Selección de
+   vértice" en CLAUDE.md). Un evento "contextmenu" de un L.Marker trae
+   igual de bien `latlng`/`containerPoint`/`originalEvent`, así que
+   sirve para las dos llamadas sin cambios.                            */
+function openCtxMenuFromMouseEvent(e) {
   L.DomEvent.preventDefault(e.originalEvent);
   const hits = layersAtPoint(e.latlng, e.containerPoint);
   openCtxMenu(e.latlng, e.originalEvent.clientX, e.originalEvent.clientY, hits);
-});
+}
+map.on("contextmenu", openCtxMenuFromMouseEvent);
 map.on("movestart zoomstart", closeCtxMenu);
 document.addEventListener("mousedown", e => {
   if (!ctxMenuEl.hidden && !ctxMenuEl.contains(e.target) && !(ctxSubmenuEl && ctxSubmenuEl.contains(e.target))) {

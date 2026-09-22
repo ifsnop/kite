@@ -50,12 +50,6 @@ function setSelCursor(li) {
      flecha pulsada por una persona, ni con repetición automática.      */
   if (li) treeEl.setAttribute("aria-activedescendant", li.id);
   else treeEl.removeAttribute("aria-activedescendant");
-  /* Mismo punto único de paso: es también donde "qué hay seleccionado"
-     termina de asentarse tras selectNode/selectRange/toggleOne/
-     clearSelection/selectFolderLayers, así que es el sitio correcto
-     para decidir si una ruta o un polígono pasa a responder a
-     Mayús+clic/Supr sobre sus vértices (ver 43-points-editor.js).      */
-  syncVertexOwner();
 }
 
 /* Punto único para marcar o desmarcar un nodo suelto. Ya NO se exige que

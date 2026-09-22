@@ -221,12 +221,14 @@ desarrollo del proyecto.
   igualmente para confirmarla (preseleccionada), y a partir de ahí el
   resto de archivos con esa forma en la misma sesión ya no preguntan.
   Cancelar (o Escape) no guarda nada y usa el nombrado automático de
-  siempre para ese archivo. El botón 🏷️ de la cabecera abre un editor
-  de las asociaciones guardadas (ver, cambiar con un `<select>` —las
-  claves posibles ya están en la propia huella, no hace falta
-  guardarlas aparte— y borrar, una por una o todas), con aplicación
-  inmediata: es una lista de configuración, no una capa viva en el
-  mapa, así que no sigue el patrón de borrador con Cancelar/Aceptar.
+  siempre para ese archivo. El botón 🏷️ de la cabecera abre el panel
+  **Propiedades**, cuya primera pestaña edita las asociaciones guardadas
+  (ver, cambiar con un `<select>` —las claves posibles ya están en la
+  propia huella, no hace falta guardarlas aparte— y borrar, una por una
+  o todas). Ver «Panel "Propiedades": nombres de GeoJSON y preferencias,
+  con edición diferida» más abajo para el diseño completo del panel
+  (pestañas, unidad de medida, formato de coordenadas y tope de vértices
+  editables, todo con Cancelar/Aceptar de verdad).
 - **Aislamiento por entidad**: cada Placemark y cada feature se construye
   en su propio `try`; lo que falle se cuenta en el informe
   (`makeImportReport`) y el resto sigue cargando. Al terminar se muestra
@@ -438,8 +440,11 @@ index.html         redirección de la raíz del sitio al minificado
 7. **Separador redimensionable y toggle** del panel.
 8. **Geodesia**: `bearingDeg`, `destPoint`, `fmtDist` — sobre la esfera
    (R = 6371 km, el mismo que usa Leaflet).
-9. **Mediciones**: líneas y círculos, creación por arrastre, edición con
-   Ctrl+arrastre. En su misma barra vive el botón de crear pin.
+9. **Mediciones**: rutas y círculos, con el diálogo de propiedades de
+   esa medición abierto. Un waypoint de ruta se arrastra sin más; el
+   centro/borde de un círculo sigue exigiendo Ctrl+arrastre (mecanismo
+   distinto, más antiguo, sin concepto de "vértice"). En su misma barra
+   vive el botón de crear pin.
 10. **Controles de vista**: autoescala, ES/IC, retícula, coordenadas.
 11. **Arranque**: restauración del árbol guardado. Va al final para que
     todo esté definido.
@@ -609,17 +614,23 @@ index.html         redirección de la raíz del sitio al minificado
   Un contador de secuencia (`placeSeq`) descarta las respuestas de
   búsquedas ya superadas.
 - **Gestos del visor**: Shift+arrastre = box-zoom de Leaflet (no usarlo
-  para otra cosa); Ctrl+arrastre = editar mediciones **y vértices de una
-  ruta o un polígono ya creados** (mismo gesto reservado, extendido en
-  vez de inventar uno nuevo — ver «Selección de vértice» más abajo);
+  para otra cosa); Ctrl+arrastre = editar el centro/borde de un círculo
+  de medición (el gesto reservado original; ver «Selección de vértice»
+  más abajo para por qué un vértice de ruta/polígono YA NO lo exige);
   herramienta de medición activa = el arrastre dibuja (pan desactivado
   temporalmente; durante el dibujo, mover un vértice ya puesto es un
-  arrastre SIN Ctrl, porque ahí el mapa no compite por el gesto).
+  arrastre sin Ctrl, porque ahí el mapa no compite por el gesto — el
+  mismo razonamiento que llevó después a quitarle el Ctrl también a la
+  edición post-creación). **Todo esto —mover, insertar o borrar un
+  vértice, o el centro/borde de un círculo— exige además tener el
+  diálogo de propiedades de ESE nodo abierto** (`styleDialogShows`, ver
+  más abajo): sin él, ninguno de estos gestos hace nada.
   **Mayús+clic tiene DOS significados según el contexto**: selección
   múltiple de nodos en el panel de navegación (ver más abajo) o, en el
-  visor con una ruta/polígono activa para edición de vértices,
-  insertar uno nuevo — nunca los dos a la vez, porque uno vive en el
-  árbol y el otro en el mapa.
+  visor con el diálogo de una ruta/polígono abierto, insertar un vértice
+  nuevo — nunca los dos a la vez, porque uno vive en el árbol y el otro
+  en el mapa. La tecla **Insertar** hace lo mismo sin ratón (ver
+  «Selección de vértice»).
 - **Gestos de la navegación**: Shift+click = selección múltiple de nodos
   (se arrastran, borran y restilizan en lote; `topLevelSelection()`
   excluye nodos contenidos en otro seleccionado, que viajan con su
@@ -833,13 +844,18 @@ index.html         redirección de la raíz del sitio al minificado
   (`TREE_SCHEMA` 7). El diálogo (`#style-measure`) ofrece ancho y color
   del trazo, color y opacidad del relleno, y las **medidas en solo
   lectura**, como el perímetro y el área de un polígono: un círculo da
-  **radio y área**; una ruta, la **distancia total y el desglose por
-  tramo** (`#ms-legs-row`, una línea de texto por tramo — una ruta de
-  solo 2 waypoints muestra un único tramo, con su distancia y su
-  rumbo: es el equivalente de la antigua «línea»). Todo con el mismo
-  selector de unidad y la misma preferencia única (`measureUnit`) que
-  el diálogo de polígonos y que las etiquetas del visor — ver «Una sola
-  unidad de medida» más abajo.
+  **radio, área y las coordenadas de su centro** (`#ms-center-row`, con
+  el formato global de coordenadas — ver «Formato de latitud/longitud…»
+  más abajo; pedido explícitamente, antes no había forma de leer la
+  posición del centro desde el propio diálogo); una ruta, la
+  **distancia total y el desglose por tramo** (`#ms-legs-row`, una línea
+  de texto por tramo, numerada «Tramo N: …» — el mismo número que lleva
+  ahora la etiqueta de ESE tramo en el visor, ver el punto siguiente,
+  para poder correlacionar los dos de un vistazo — una ruta de solo 2
+  waypoints muestra un único tramo, con su distancia y su rumbo: es el
+  equivalente de la antigua «línea»). Todo con la misma unidad global
+  (`measureUnit`) que el diálogo de polígonos y que las etiquetas del
+  visor — ver «Una sola unidad de medida» más abajo.
 - **Ruta (`mtype: "route"`): varios waypoints, un tramo por par
   consecutivo — y la única medición de línea recta que queda.** La
   antigua herramienta «línea» (arrastre, siempre dos puntos) se retiró:
@@ -850,24 +866,82 @@ index.html         redirección de la raíz del sitio al minificado
   `buildMeasureRecord` convierte en silencio `mtype: "line"` a `"route"`
   (misma forma de registro, `{mtype, waypoints}`, sin tocar
   `TREE_SCHEMA`): la próxima vez que se guarde, la conversión ya está
-  hecha. Se dibuja con el botón «Ruta» de la barra, con el MISMO
-  borrador de clic-por-vértice/doble-clic-para-terminar que la
-  herramienta de dibujo libre (`polyDraft`) — `activeTool` acepta
-  `"route"` en los mismos tres guardias que ya aceptaban `"polygon"`
-  (clic, doble clic, Supr), y `finishPolygon` se bifurca al final para
-  colgar el resultado de «Mediciones», no de «Polígonos». **Siempre
-  termina ABIERTA** en esta primera versión: cerrarla en anillo no está
-  soportado, para no añadir la lógica del tramo de cierre sin que se
-  haya pedido. `buildRouteMeasurement` construye un manejador por
-  waypoint y **un tooltip por TRAMO** (no uno solo), cada uno etiquetado
-  igual que una línea de dos puntos, en su propio punto medio geodésico
-  — la fila del árbol muestra el TOTAL. Se puede **mover** un waypoint
-  ya creado (Ctrl+arrastre, en vivo) y **borrar** uno (clic derecho),
-  con el mismo mínimo de 2 que una forma abierta; ambos gestos
-  comparten mecánica con la edición de vértices de un polígono
-  (`attachVertexDrag`, ver «Selección de vértice» más abajo), y desde
-  ahí también se puede **seleccionar** un waypoint concreto e
-  **insertar** uno nuevo con Mayús+clic.
+  hecha. **Siempre termina ABIERTA** en esta primera versión: cerrarla
+  en anillo no está soportado, para no añadir la lógica del tramo de
+  cierre sin que se haya pedido. `buildRouteMeasurement` construye un
+  manejador por waypoint y **un tooltip por TRAMO** (no uno solo), cada
+  uno etiquetado `Tramo N: distancia · rumbo` —el número, pedido
+  explícitamente, es lo que deja correlacionar de un vistazo la
+  etiqueta del mapa con la fila del mismo tramo en el diálogo de
+  propiedades (`#ms-legs`, ver el punto anterior)— en su propio punto
+  medio geodésico; la fila del árbol muestra el TOTAL. Se puede
+  **mover** un waypoint ya creado (arrastre, sin Ctrl, en vivo) y
+  **borrar** uno (clic derecho, solo con el diálogo abierto — ver
+  «Menú contextual en un manejador…» más abajo), con el mismo mínimo de
+  2 que una forma abierta; ambos gestos comparten mecánica con la
+  edición de vértices de un polígono (`attachVertexDrag`, ver
+  «Selección de vértice» más abajo), y desde ahí también se puede
+  **seleccionar** un waypoint concreto e **insertar** uno nuevo con
+  Mayús+clic o la tecla Insertar. A diferencia de un polígono, una ruta
+  nunca cambia de abierta a cerrada durante la edición: cerrarla en
+  anillo no está soportado.
+- **Crear una ruta se comporta como EDITARLA, con el diálogo abierto y
+  en vivo desde el 2º waypoint.** Antes, dibujar una ruta usaba el
+  mismo borrador de vista previa que un polígono (`polyDraft`,
+  clic-por-vértice/doble-clic-para-terminar) y la medición real —con su
+  nodo en el árbol y su diálogo de propiedades— no existía hasta
+  terminar: mientras se dibujaba no había cifras que leer. Ahora, para
+  `activeTool === "route"`, `polyDraft` no se usa en absoluto:
+  - **Antes del 2º punto** solo hay una vista previa de un único punto
+    (`routeDraft`, un manejador suelto): un tramo necesita dos extremos,
+    así que no hay nada real que editar todavía.
+  - **Desde el 2º punto**, `addRouteVertex` construye la medición REAL
+    con `buildRouteMeasurement`, la cuelga del árbol
+    (`finalizeRouteMeasurement`) y abre su diálogo de propiedades con
+    `openStyleDialog(li, {isNew: true})` — el MISMO patrón que crear un
+    pin: `routeMeasurement` guarda esa medición mientras se sigue
+    dibujando. Cada punto siguiente es un `insertRouteWaypoint` más
+    (la misma función que ya usa Mayús+clic al editar una ruta
+    existente), así que las cifras del diálogo (distancia y rumbo por
+    tramo) se actualizan SOLAS con cada click, vía el mismo
+    `refreshOpenMeasureDialog` que ya usa la edición post-creación —sin
+    código nuevo para eso—. Y como el diálogo está abierto,
+    `syncVertexOwnerForDialog` deja `vertexOwner` apuntando a esta
+    misma ruta: Mayús+clic, la tecla Insertar, seleccionar un waypoint y
+    Supr funcionan igual que editando una ruta ya terminada, porque es
+    literalmente el mismo mecanismo.
+  - **Terminar** (doble click) ya NO construye nada: solo dejar de
+    seguir añadiendo (`finishRoute`, `routeMeasurement = null;
+    setTool(null)`). El nodo y su diálogo quedan TAL CUAL — el usuario
+    los cierra cuando quiera, como con cualquier otra ruta.
+  - **Cerrar el diálogo mientras se dibuja, sea como sea, sale de la
+    herramienta.** `closeStyleDialog` (`44-dialogs.js`) es el único
+    punto de cierre real —lo llaman por igual Escape, «Cancelar» y
+    «Aceptar»—, así que ahí mismo detecta si está cerrando el diálogo
+    de la ruta que se está dibujando (`styleTargets[0]._measure ===
+    routeMeasurement`, capturado ANTES de que el resto de la función
+    toque `styleTargets`) y, si es así, limpia `routeMeasurement` y
+    llama a `setTool(null)` — con o sin `commit`. Reportado como bug:
+    antes solo Escape lo hacía (un caso especial en el propio
+    `52-measure.js`); cerrar con los BOTONES del diálogo —tanto
+    Cancelar como Aceptar— dejaba `routeMeasurement` colgando y
+    `activeTool` en `"route"`, así que el siguiente click seguía
+    intentando insertar waypoints en una medición ya borrada (Cancelar,
+    que sigue borrándola por `isNew`, sin cambios) o ya terminada
+    (Aceptar, que la deja guardada normalmente: los waypoints ya se
+    persisten al vuelo con cada `insertRouteWaypoint`, y el estilo con
+    el propio Aceptar del diálogo, como cualquier otra medición). El
+    guardia evita la recursión: `setTool(null)` mira `routeMeasurement`
+    para decidir si tiene que cancelar una ruta en curso, y como
+    `closeStyleDialog` ya lo puso a `null` antes de llamarlo, esa rama
+    no se dispara una segunda vez. Cambiar de herramienta a mitad de
+    trazo (`setTool`, con su propio guardia previo) sigue cancelando
+    igual. Supr sin ningún waypoint seleccionado borra el ÚLTIMO
+    —mismo comportamiento que ya tenía un polígono en dibujo—, pero
+    ahora vía `removeRouteWaypoint` en vez de tocar `polyDraft`.
+  Un polígono no cambia en NADA con esto: toda la reescritura vive
+  detrás de `activeTool === "route"`, y `addPolyVertex`/
+  `removePolyVertex`/`finishPolygon` siguen intactos para polígonos.
 - **Persistencia unificada: `waypoints`, nunca a veces dos campos y a
   veces un array.** Línea y círculo guardan igual que siempre —dos
   puntos—, pero como array de longitud 2 en vez de los antiguos `a`/`b`
@@ -876,46 +950,210 @@ index.html         redirección de la raíz del sitio al minificado
   una ruta, `m.mOrigin`/`m.mDest` en línea/círculo), y lo usan los tres
   sitios que serializan una medición (`serializeNode`,
   `serializePendingRecords`, `buildMeasureRecord`).
-- **Edición interactiva de vértices de un polígono ya creado, activada
-  por la SELECCIÓN DEL ÁRBOL, no por el diálogo de estilos**
-  (`43-points-editor.js`, `beginVertexEdit`/`endVertexEdit`,
-  `syncVertexOwner`). Antes solo funcionaba con el diálogo de
-  propiedades abierto — reportado como un bug para las mediciones
-  («no se pueden borrar vértices si no está abierto el panel») que
-  resultó ser el mismo límite en los dos sitios: la solución es la
-  misma en ambos, dejar de depender del diálogo. Con UN único polígono
-  como selección del árbol (no en selección múltiple, igual que la
-  posición de un marcador), y solo por debajo de `VERTEX_EDIT_MAX`
-  vértices (medido: ver el comentario de la propia constante), se
-  construye un manejador por vértice de CUALQUIER anillo/parte
-  —reutilizando `pathRings`, el mismo recorrido que ya usa el editor de
-  texto, en vez de reimplementarlo—; al dejar de ser la única selección,
-  esos manejadores se retiran (`syncVertexOwner`, llamada desde
-  `setSelCursor` — el único punto de paso de `selectNode`/`selectRange`/
-  `toggleOne`/`clearSelection`/`selectFolderLayers` — y desde
-  `deleteNode`, por si el nodo se borra sin pasar por ahí). El diálogo de
-  estilos, si está abierto a la vez mostrando ESE polígono, solo REFLEJA
-  los cambios en vivo (`refreshOpenPolygonDialog`, mismo patrón que
-  `refreshOpenMeasureDialog` para una medición); no los controla.
-  **Ya NO es edición diferida**: arrastrar (Ctrl+arrastre), borrar (clic
-  derecho) e insertar (Mayús+clic, ver «Selección de vértice») se
-  guardan al momento (`scheduleSave`), como ya hacía un waypoint de
-  ruta — sin este cambio, «sin diálogo que abrir» tampoco tendría dónde
-  guardar un «Aceptar». El mínimo por borrado es **por anillo**, no por
-  polígono entero: 3 en uno cerrado, 2 en uno abierto — un agujero no
-  puede bajar de su propio mínimo aunque el contorno exterior tenga
-  vértices de sobra. Por encima del tope, no se construye ningún
-  manejador: solo queda el editor de texto («Ver y editar…»), que ya
-  soporta miles de puntos sin problema.
+- **Puerta única: nada de un polígono, una ruta o un círculo se mueve,
+  inserta o borra sin su diálogo de propiedades abierto**
+  (`styleDialogShows(li)`, `44-dialogs.js`: ¿el diálogo de estilos
+  muestra EXACTAMENTE este nodo, sin selección múltiple?). Reportado
+  como bug explícito: en un diseño anterior, un polígono se activaba
+  con solo tenerlo como única selección del árbol, y una ruta o un
+  círculo se podían editar SIEMPRE, sin ningún diálogo de por medio —
+  esto último llevaba así desde mucho antes de que existiera el
+  concepto de owner de vértice, y se confirmó explícitamente que debía
+  corregirse también, para que los tres tipos de medición se
+  comportaran igual. La mecánica de cada gesto no cambió NADA con este
+  giro; solo cambió QUIÉN decide si un gesto hace algo en absoluto.
+  Para un círculo (`attachCtrlDrag`, `52-measure.js`, sin conjunto de
+  vértices que gestionar) es una comprobación directa contra
+  `styleDialogShows`. Para ruta y polígono, es indirecta a través de
+  `vertexOwner` (`43-points-editor.js`):
+  - `syncVertexOwnerForDialog()` sincroniza `vertexOwner` con
+    `styleDialogShows` una sola vez, al abrir el diálogo
+    (`openStyleDialog`, al final) y al cerrarlo (`closeStyleDialog`,
+    `teardownVertexOwner()` incondicional al principio — retira los
+    manejadores temporales de un polígono; una ruta no tiene nada que
+    destruir, sus manejadores son permanentes). También la llama
+    `closePointsDialog` (ver el punto del editor de texto, más abajo) y
+    el campo del tope de vértices al cambiar (ver ese punto).
+  - **Un polígono** solo por debajo del tope configurado
+    (`vertexEditMax`, ver el punto siguiente) construye un manejador
+    por vértice de CUALQUIER anillo/parte —reutilizando `pathRings`, el
+    mismo recorrido que ya usa el editor de texto—; al cerrarse el
+    diálogo, `endVertexEdit()` los retira. Como esos manejadores SOLO
+    EXISTEN mientras hay owner, quedan gateados por pura existencia: no
+    hace falta ninguna comprobación en cada gesto.
+  - **Una ruta** es distinta: sus manejadores son PERMANENTES (viven
+    mientras la medición exista y esté marcada, es su propio modelo de
+    datos — `updateRouteMeasurement` lee las posiciones de `m.handles`
+    en vivo, no de un array aparte), así que arrastrar, clic derecho y
+    clic normal (`wireRouteHandle`) necesitan cada uno su propio
+    guardia explícito, `owns()`, que compara `vertexOwner.m` por
+    referencia contra la medición del propio manejador.
+  Arrastrar (sin Ctrl, ver más abajo), borrar (clic derecho) e insertar
+  (Mayús+clic o Insertar, ver «Selección de vértice») se aplican al momento sobre
+  la capa/medición real (`scheduleSave` en cada gesto, para que un
+  cierre inesperado de la pestaña no pierda nada), pero **Cancelar SÍ
+  revierte todo esto** — ver «Cancelar revierte los cambios de
+  vértice» más abajo: ya no es una excepción a la edición diferida,
+  como sí lo sigue siendo el propio guardado incremental por gesto. El
+  mínimo por borrado de un polígono es **por anillo**, no por polígono
+  entero: 3 en uno cerrado, 2 en uno abierto — un agujero no puede
+  bajar de su propio mínimo aunque el contorno exterior tenga vértices
+  de sobra. Por encima del tope, no se construye ningún manejador:
+  solo queda el editor de texto («Ver y editar…»), que ya soporta
+  miles de puntos sin problema.
+- **Cerrar y abrir un trazo durante la edición interactiva**
+  (`setPathLayerClosed`/`convertVertexEditShape`, `43-points-editor.js`,
+  restringido a un ÚNICO anillo simple: un polígono con agujeros o
+  multi-parte no cambia de naturaleza con este gesto, igual que ya
+  limita el editor de texto). Reportado: no había forma de cerrar una
+  línea abierta ni de abrir un polígono cerrado sin pasar por la
+  herramienta de dibujo. Con el ÚLTIMO vértice seleccionado, Mayús+clic
+  ENCIMA del manejador del PRIMERO cierra la forma sin añadir ningún
+  vértice duplicado (`tryCloseAtFirstVertex`, en el propio
+  `handle.on("click", …)` del manejador — tiene que decidirse ahí, antes
+  de que el clic llegue al listener de Mayús+clic del contenedor, que
+  ya ignora cualquier clic sobre `.measure-handle`); borrar el vértice
+  que dejaría un anillo cerrado por debajo de 3 lo ABRE (pasa a línea,
+  mínimo 2) en vez de bloquear el borrado, con un aviso nombrando la
+  capa. Leaflet no puede cambiar la clase de un `L.Path` en vivo
+  (un `L.Polygon` no se convierte en `L.Polyline` in situ), así que
+  `setPathLayerClosed` reconstruye la capa entera con las mismas
+  coordenadas y el mismo `layer.options`, la re-cablea con
+  `wireLayerEvents` —extraído de `makeNode`, `31-tree-node.js`, para
+  poder reutilizarlo aquí sin duplicar el resaltado en el árbol ni el
+  panel de información al pasar el ratón— y ocupa el mismo sitio en
+  `rootGroup` y en `chk._layer`; si abre, además llama a
+  `clearFillOnOpenPaths` (una forma abierta no se rellena) y a
+  `applyPolygonText` (ya lee la capa en fresco).
+- **El editor de texto («Ver y editar…») y la edición interactiva
+  sobre el mapa son dos ventanas a la MISMA geometría, y no pueden
+  convivir para el mismo nodo.** Con las dos activas a la vez, arrastrar
+  un vértice en el mapa dejaría el texto ya escrito desactualizado sin
+  ningún aviso — el fallo concreto que esto evita. `openPointsDialog`
+  retira los manejadores del nodo si los tenía (mismo `teardownVertexOwner`
+  que usa `syncVertexOwnerForDialog`); mientras `pointsTarget` siga
+  apuntando a ese nodo, `syncVertexOwnerForDialog` no los reconstruye
+  (un guardia explícito, no solo "se retiraron una vez al abrir"); y
+  `closePointsDialog` —Cancelar Y Aceptar pasan por ahí— vuelve a
+  llamarla, que los reconstruye solos si el diálogo de estilos SIGUE
+  mostrando el mismo nodo, ya con la geometría que dejó el editor de
+  texto si se aceptó.
+- **Tope de vértices: configurable, no una constante fija.**
+  `VERTEX_EDIT_MAX_DEFAULT` (500, con la medida en su comentario) es
+  solo el punto de PARTIDA; `vertexEditMax` es la preferencia real, y
+  cuánto tarda construir N manejadores depende del hardware de quien lo
+  usa — fijarlo en el código serviría para esta VM de desarrollo y para
+  nadie más. Se edita en la pestaña "Preferencias" del panel
+  **Propiedades** (botón 🏷️ de la cabecera, ver «Panel "Propiedades":
+  nombres de GeoJSON y preferencias, con edición diferida» más abajo),
+  se guarda en IndexedDB (`dbSaveVertexEditMax`/`dbLoadVertexEditMax`,
+  otra clave del mismo almacén, ver «Persistencia») y se restaura al
+  arrancar (`99-boot.js`). Como el resto de controles de esa pestaña,
+  **previsualiza en vivo** mientras el panel está abierto —una sola
+  llamada a `syncVertexOwnerForDialog()` en su listener de `change`, que
+  ya empieza retirando cualquier owner activo antes de reevaluar; bajarlo
+  puede desactivar un polígono que ya se estaba editando, y subirlo
+  puede activar uno que no cabía— pero solo queda GUARDADO al pulsar
+  «Aceptar»: «Cancelar» lo devuelve al valor que tenía al abrir el panel.
+  **Superarlo avisa una vez** (`navMessage`, desde `beginVertexEdit`),
+  nombrando la capa, cuántos vértices tiene y el tope vigente, con un
+  puntero a dónde subirlo — solo en ESTE caso: "sin trazo propio"
+  (varios trazos en la misma capa, o ninguno) no avisa nada, porque no
+  es un límite que se pueda subir, ya lo explica el `title` del propio
+  botón «Ver y editar…».
+- **Trampa encontrada en `insertRouteWaypoint` (52-measure.js)**: el
+  tooltip del tramo nuevo se añadía al mapa (`m.group.addLayer(...)`)
+  ANTES de llamar a `updateMeasurement(m)`, que es quien le da posición
+  y contenido — un `L.Tooltip` recién creado no tiene `_latlng`
+  todavía, así que añadirlo sin posición lanzaba una excepción justo
+  ahí, ANTES de llegar a `updateMeasurement`. Reportado como «insertar
+  un waypoint no conecta la línea ni pone su etiqueta hasta que se
+  mueve algún vértice»: la excepción cortaba la función a media, así
+  que ni el trazo (`m.geom.setLatLngs`) ni la etiqueta nueva llegaban a
+  actualizarse, y solo se "arreglaba" cuando otro gesto —un
+  arrastre— volvía a llamar `updateMeasurement` por su cuenta. Se
+  arregla con el MISMO orden que ya usa `buildRouteMeasurement`:
+  construir, `updateMeasurement`, y solo entonces ir al mapa.
+- **Cancelar revierte los cambios de vértice** (`captureVertexSnapshot`/
+  `restoreVertexSnapshot`, `43-points-editor.js`). Reportado como bug:
+  mover/insertar/borrar un vértice, o Ctrl+arrastrar el centro/borde de
+  un círculo, se guardaba al momento SIN que «Cancelar» lo revirtiera —
+  a diferencia de todo lo demás del diálogo (edición diferida). Mismo
+  patrón que ya usa el arrastre del marcador (`posMarker`/`posOriginal`,
+  `44-dialogs.js`): `openStyleDialog` toma una foto de la geometría al
+  final (polígono: anillos + si estaba cerrado; ruta: los waypoints;
+  círculo: centro y borde), y `closeStyleDialog` la restaura si
+  `!commit`, leyendo la capa/medición EN FRESCO (`solePath`/
+  `li._measure`, no `vertexEdit`, que para entonces ya se ha desmontado)
+  — da igual cuántas veces se haya cerrado/abierto o movido de por medio
+  desde que se abrió el diálogo, o si de paso se cerró/abrió la forma
+  (ver el punto anterior): la foto tiene la última palabra. No pasa por
+  `pushUndo`/Ctrl+Z, igual que el resto de campos del diálogo.
+- **Manejador pasivo fuera de modo edición, activo dentro**
+  (`.vertex-editable`, `styles.css`; `setMeasureHandlesEditable`,
+  `52-measure.js`). Reportado: el cursor cambiaba a `move` y el
+  manejador se veía tan grande como en edición al pasar el ratón por un
+  waypoint de ruta o el borde de un círculo SIN su diálogo abierto,
+  sugiriendo que se podía arrastrar cuando no era así — sus manejadores
+  son PERMANENTES (ver el punto de la puerta única) y existen aunque el
+  diálogo esté cerrado. `.measure-handle` por defecto es un círculo
+  blanco pequeño (`transform: scale(.45)`, sin tocar el icono de 12×12
+  que Leaflet ancla y posiciona: el hit-box del clic sigue siendo el
+  mismo, más fácil de acertar) y SIN `cursor` propio, así que hereda el
+  `pointer` (mano) que Leaflet ya pone en `.leaflet-interactive` — es
+  justo lo que no debe cambiar. `.vertex-editable` (aspecto y cursor
+  `move` de siempre) se añade al `divIcon` desde `makeHandle(latlng,
+  editable)` cuando el manejador nace ya editable —un polígono en
+  edición, o durante el dibujo (`addPolyVertex`), o un waypoint
+  insertado con el diálogo de su ruta ya abierto (`insertRouteWaypoint`)—
+  y se alterna después con `setMeasureHandlesEditable(m, on)` al
+  abrir/cerrar el diálogo de una ruta o un círculo (mismos dos puntos
+  que `syncVertexOwnerForDialog`), solo si `styleTargets.length === 1`
+  —con selección múltiple ningún gesto de vértice va a funcionar, así
+  que tampoco deben parecerlo—. Un polígono no necesita esto: sus
+  manejadores solo existen mientras se editan, así que nacen ya
+  editables. **Cuidado real encontrado**: `pts.map(makeHandle)` pasaría
+  el ÍNDICE de cada punto como segundo argumento (`editable`), truthy a
+  partir del 1 — de ahí la función flecha explícita en
+  `buildRouteMeasurement`.
 - **Selección de vértice: un único modelo para rutas Y polígonos**
   (`vertexOwner`/`vertexSelHandle`, `43-points-editor.js`). Un clic
   (sin Ctrl) sobre un manejador lo selecciona —marcado con la clase
-  `vertex-selected`—; Mayús+clic en cualquier OTRO punto del mapa
-  inserta un vértice nuevo justo después del seleccionado, o al final
-  si no hay ninguno (con el cursor cambiado a `copy`, una flecha con un
+  `vertex-selected`—; **mover un vértice ya NO exige Ctrl, basta con
+  arrastrarlo** (`attachVertexDrag(handle, false, …)` en
+  `wireVertexEditHandle`/`wireRouteHandle`, antes `true`): reportado
+  como fricción innecesaria, y el círculo de una medición —mecanismo
+  distinto, sin concepto de "vértice"— sigue siendo la única excepción
+  que conserva Ctrl (`attachCtrlDrag`). **Trampa real encontrada al
+  quitarlo**: `attachVertexDrag` ligaba la gestión de `map.dragging`
+  (desactivarlo mientras dura el arrastre) a `requireCtrl`, porque
+  antes coincidía que el único caso que lo necesitaba gestionar A MANO
+  era justo el que exigía Ctrl — con Ctrl ya no exigido, esa ligadura
+  habría dejado el mapa compitiendo por el mismo gesto (un arrastre de
+  vértice a la vez que un intento de pan), y ESE arrastre-a-medias es
+  lo que hace que el navegador suprima el siguiente "dblclick" —
+  reportado como «doble click no hace zoom en modo edición». Se
+  desacopla: `attachVertexDrag` gestiona `map.dragging` él solo
+  mientras dura CADA arrastre, siempre que no haya una herramienta de
+  dibujo activa (`!activeTool`, que ya lo gestiona ella sola para TODA
+  la sesión de dibujo — gestionarlo también aquí lo habría reactivado a
+  mitad de dibujo en cuanto se soltara un vértice).
+  Mayús+clic en cualquier OTRO punto del mapa —o la **tecla Insertar**,
+  con el MISMO `insertVertexAfterSelected` y en la MISMA posición: la
+  del propio RATÓN sobre el mapa (`coordsPending`, la última posición
+  conocida, `70-view-controls.js` — la misma que ya usa PageUp/PageDown
+  para el zoom al cursor; sin ningún `mousemove` todavía, cae al vértice
+  base como respaldo). Reportado como bug: insertaba en la posición del
+  vértice base —el seleccionado, o el último si no hay ninguno, vía
+  `vertexOwner.lastHandle()`—, un duplicado justo encima, en vez de en
+  la del ratón, la posición donde de verdad se quiere el punto nuevo—
+  inserta un vértice nuevo justo después del seleccionado, o al final si
+  no hay ninguno (con el cursor cambiado a `copy`, una flecha con un
   signo de suma, mientras Mayús está pulsado y hay algo que insertar:
-  ver `.vertex-insert-cursor` en `styles.css`); Supr borra el
-  seleccionado, **con prioridad sobre el borrado de nodos del árbol**
+  ver `.vertex-insert-cursor` en `styles.css` — este listener y el de
+  Mayús+clic ya comprobaban solo `vertexOwner`, así que heredaron la
+  puerta del punto anterior sin que hiciera falta tocarlos); Supr borra
+  el seleccionado, **con prioridad sobre el borrado de nodos del árbol**
   (dos listeners de `keydown` en `41-selection.js`; el de vértice llama
   a `stopImmediatePropagation()` si actuó, para que el segundo —que
   borraría el nodo entero— ni se entere: sin esto, como borrar el
@@ -924,28 +1162,26 @@ index.html         redirección de la raíz del sitio al minificado
   borraba también el nodo, en la misma pulsación). El clic derecho
   para borrar directamente, sin seleccionar antes, sigue funcionando
   igual que siempre: es un atajo, no compite con este modelo.
-  `vertexOwner` es qué geometría responde ahora mismo —una ruta (sus
-  manejadores son permanentes: clicar uno selecciona además su nodo del
-  árbol, con el mismo patrón `clearSelection()+selectNode()` que
-  `highlightNode`, para que baste con tocar el mapa) o un polígono
-  (sus manejadores solo existen mientras `syncVertexOwner` los mantiene,
-  ver el punto anterior)—, con `insertAfter`/`removeVertex` propios de
-  cada uno. **Trampa encontrada y corregida**: el `layer.on("click", …)`
-  de `makeNode` que resalta el nodo de una capa al pulsarla en el mapa
-  se dispara TAMBIÉN cuando se clica un manejador, porque `m.group` (la
-  medición) es el `L.FeatureGroup` que además los contiene, y Leaflet
-  reenvía el «click» de un hijo al grupo (`_propagateEvent`); sin
-  filtrarlo, ese `highlightNode` volvía a limpiar y rehacer la selección
-  del árbol justo después de que `wireRouteHandle` seleccionara el
-  vértice, deshaciéndolo en el mismo gesto. Se filtra mirando si el
-  clic original cayó en un `.measure-handle`.
+  `vertexOwner` es qué geometría responde ahora mismo —ver el punto de
+  la puerta única para cómo se activa cada una—, con
+  `insertAfter`/`removeVertex` propios de cada tipo. El
+  `layer.on("click", …)` de `makeNode` que resalta el nodo de una capa
+  al pulsarla en el mapa sigue evitando disparar también sobre un
+  `.measure-handle` (`31-tree-node.js`): ya no puede deshacer una
+  selección de vértice —la selección del árbol dejó de tener ninguna
+  relación con `vertexOwner`—, pero sin el guardia saltaría el scroll
+  del árbol a esa fila en cada clic sobre un vértice, molesto mientras
+  se edita ahí mismo.
 - **Mover un vértice ANTES de cerrar un polígono/ruta** (mientras se
   dibuja, `polyDraft`): mismo mecanismo de bajo nivel
-  (`attachVertexDrag`) que la edición post-creación, pero SIN Ctrl —
-  mientras una herramienta de dibujo está activa el mapa ya tiene
-  `dragging.disable()` (`setTool`), así que un arrastre normal sobre un
-  manejador no compite con hacer pan. Borrar cualquier vértice (no solo
-  el último) durante el dibujo YA funcionaba (`removePolyVertex`, clic
+  (`attachVertexDrag`) que la edición post-creación, y el mismo `false`
+  para `requireCtrl` desde siempre —esto es lo que llevó después a
+  quitarle también el Ctrl a la edición post-creación, ver «Selección
+  de vértice» más arriba—. Mientras una herramienta de dibujo está
+  activa el mapa ya tiene `dragging.disable()` puesto por `setTool`
+  para TODA la sesión, así que aquí `attachVertexDrag` no lo vuelve a
+  tocar (`!activeTool` es falso). Borrar cualquier vértice (no solo el
+  último) durante el dibujo YA funcionaba (`removePolyVertex`, clic
   derecho, busca el índice del manejador): no era nuevo, solo faltaba
   poder moverlo.
 - **El relleno de una medición es cosa del círculo**: una línea no
@@ -975,14 +1211,20 @@ index.html         redirección de la raíz del sitio al minificado
   única capa con exactamente un marcador (`soleMarker`), el diálogo añade
   el texto del marcador y su posición; con selección múltiple o con varios
   marcadores en la capa, esas filas se ocultan. La posición se presenta y
-  se edita en dos notaciones intercambiables con un botón ⇅ —el mismo gesto
-  que el selector de color nativo para cambiar de notación—: grados,
-  minutos y segundos con decimales (el formato por defecto) y grados con
-  decimales. El formato elegido se recuerda entre aperturas del diálogo. `parseCoord`
-  acepta cualquiera de las dos con independencia de la elegida (signo por
-  «−» o por hemisferio N/S/E/W/O), así que pegar una coordenada de
-  cualquier procedencia funciona; lo ilegible o fuera de rango se marca en
-  rojo y «Aceptar» no cierra hasta corregirlo.
+  se edita en la notación decidida por el ajuste GLOBAL `coordFormat`
+  (panel Propiedades → Preferencias, `43-points-editor.js`) — grados
+  decimales o grados/minutos/segundos con decimales—, el MISMO que ya usa
+  el centro de un círculo y el editor de puntos de un polígono. Antes
+  tenía su PROPIO botón ⇅ (`posFormat`, un toggle rápido de esa sesión,
+  sin persistir): unificado a petición explícita, para que la notación
+  se decida en un solo sitio; `renderCoords` (`44-dialogs.js`) se repinta
+  al momento si el diálogo del marcador sigue abierto cuando se cambia
+  el ajuste desde Propiedades (previsualización en vivo, con Cancelar/
+  Aceptar revirtiendo o dejándolo igual que el resto de esa ventana).
+  `parseCoord` acepta cualquiera de los dos formatos con independencia
+  del elegido (signo por «−» o por hemisferio N/S/E/W/O), así que pegar
+  una coordenada de cualquier procedencia funciona; lo ilegible o fuera
+  de rango se marca en rojo y «Aceptar» no cierra hasta corregirlo.
 - **La posición no es estilo**: `lat`/`lng` viven en el borrador solo
   mientras el diálogo está abierto y nunca llegan a `_mstyle` (son
   geometría; se guardan con el GeoJSON de la capa).
@@ -1084,14 +1326,16 @@ index.html         redirección de la raíz del sitio al minificado
   único camino: el camino que SÍ guarda es, siempre, el botón «Aceptar»
   del propio popover.
 - **Cuatro notaciones —Hex, RGB, CMYK y HSV—, cicladas con las flechas
-  ‹ › (`color-mode-prev`/`color-mode-next`, `COLOR_MODES`)**: el mismo
-  papel que el botón ⇅ de las coordenadas (ver más arriba), generalizado
-  a más de dos estados porque aquí hay cuatro. Cambiar de notación no
-  cambia el color, solo cuántos campos se ven y qué significan
-  (`setColorMode`, `COLOR_MODE_FIELDS`); no se recuerda entre sesiones,
-  como `posFormat`. RGB va en 0-255, HSV en grados/porcentaje y CMYK en
-  0-100 (`rgbToCmyk`/`cmykToRgb`) porque así es como se citan siempre
-  estos valores fuera de la aplicación.
+  ‹ › (`color-mode-prev`/`color-mode-next`, `COLOR_MODES`)**: mismo
+  papel que un botón de cambiar notación, generalizado a más de dos
+  estados porque aquí hay cuatro. Cambiar de notación no cambia el
+  color, solo cuántos campos se ven y qué significan (`setColorMode`,
+  `COLOR_MODE_FIELDS`); es una preferencia de SESIÓN, no persiste entre
+  aperturas ni entre sesiones (a diferencia de `coordFormat`, que sí es
+  global y persistente — ver «Texto y posición» más arriba). RGB va en
+  0-255, HSV en grados/porcentaje y CMYK en 0-100 (`rgbToCmyk`/
+  `cmykToRgb`) porque así es como se citan siempre estos valores fuera
+  de la aplicación.
 - **UN `<input>` NUMÉRICO POR CANAL, no un solo campo de texto con
   separadores** (`color-f0`…`color-f3`, `colorFieldEls`): Hex usa uno,
   RGB y HSV tres, CMYK los cuatro; `COLOR_MODE_FIELDS` dice cuántos y
@@ -1161,10 +1405,10 @@ index.html         redirección de la raíz del sitio al minificado
     redimensiona, y un ancho en píxeles quedaría desproporcionado en
     cuanto la ventana cambiara de tamaño.
   - **Y sí PERSISTE entre sesiones** (clave `propsSplit` del mismo
-    almacén, con su `PROPS_SCHEMA`), a diferencia de `posFormat` o
-    `measureUnit`: aquellos se cambian sobre la marcha para mirar un
-    dato, mientras que este depende de cómo son los archivos con los que
-    uno trabaja —nombres cortos y valores largos, o al revés— y sin
+    almacén, con su `PROPS_SCHEMA`), a diferencia de `colorMode`: ese se
+    cambia sobre la marcha para mirar un valor en otra notación,
+    mientras que este depende de cómo son los archivos con los que uno
+    trabaja —nombres cortos y valores largos, o al revés— y sin
     guardarlo habría que reajustarlo en cada arranque. Se guarda **al
     soltar**, no en cada píxel del arrastre, y lo leído se valida con
     `Number.isFinite` y se acota, como la vista guardada.
@@ -1261,19 +1505,22 @@ index.html         redirección de la raíz del sitio al minificado
   el mismo papel.** No importa CUÁL sea el orden (se fijó Cancelar a la
   izquierda y Aceptar a la derecha porque es donde ya estaba la mayoría,
   no por ninguna convención de sistema operativo), sino que sea el
-  MISMO en las trece ventanas que llevan botones de acción: lo que
-  confirma, guarda, inserta, finaliza o borra algo —Aceptar, Fusionar,
-  Eliminarlas, Añadir al árbol, y también Borrar/Copiar cuando la
-  ventana no tiene un borrador que aceptar o cancelar, como el registro
-  de avisos o el editor de nombres recordados— va siempre al MISMO lado
-  (la derecha), y lo que cierra sin comprometerse —Cancelar, Cerrar,
-  Dejarlas, Mantener todos— va siempre al otro (la izquierda). Se
-  encontraron dos ventanas que lo rompían (`gnp-editor`: «Borrar todo»
-  antes que «Cerrar»; `log-dialog`: «Copiar»/«Borrar» antes que
-  «Cerrar»; `sh-creds`: «Cancelar» en medio en vez de a la izquierda) y
-  se corrigieron por ser la excepción, no la regla. Un botón nuevo en
-  cualquier `.dlg-actions` se coloca según este mismo criterio, no según
-  lo que quede más cómodo en el marcado.
+  MISMO en las ventanas que llevan botones de acción: lo que confirma,
+  guarda, inserta, finaliza o borra algo —Aceptar, Fusionar, Eliminarlas,
+  Añadir al árbol, y también Borrar/Copiar cuando la ventana no tiene un
+  borrador que aceptar o cancelar, como el registro de avisos— va
+  siempre al MISMO lado (la derecha), y lo que cierra sin comprometerse
+  —Cancelar, Cerrar, Dejarlas, Mantener todos— va siempre al otro (la
+  izquierda). Se encontraron dos ventanas que lo rompían (`gnp-editor`,
+  el antecesor del panel Propiedades: «Borrar todo» antes que «Cerrar»;
+  `log-dialog`: «Copiar»/«Borrar» antes que «Cerrar»; `sh-creds`:
+  «Cancelar» en medio en vez de a la izquierda) y se corrigieron por ser
+  la excepción, no la regla. El panel Propiedades, al ganar un
+  Cancelar/Aceptar de verdad, dejó de necesitar un «Borrar todo» en
+  `.dlg-actions`: como acción de la pestaña de GeoJSON, no del panel
+  entero, vive dentro de esa pestaña, junto a la lista que vacía. Un
+  botón nuevo en cualquier `.dlg-actions` se coloca según este mismo
+  criterio, no según lo que quede más cómodo en el marcado.
 - **El contorno no tiene opacidad**: siempre 100%. Se ignora el alfa del
   `<LineStyle>` de KML y el `stroke-opacity` de simplestyle, y el diálogo
   fuerza `opacity: 1`. Solo el relleno tiene opacidad editable.
@@ -1473,8 +1720,9 @@ index.html         redirección de la raíz del sitio al minificado
   coloca en el punto medio geodésico (`midPoint`, promedio cartesiano
   3D), que es correcto en arcos largos y al cruzar ±180°.
 - **Una sola unidad de medida, elegida por el usuario** (`measureUnit`,
-  m/km/ft/NM, **por defecto NM**, la unidad de trabajo en navegación
-  aérea y marítima). Manda a la vez sobre el perímetro/área de un
+  cinco valores: m/km/ft/mi/nm, **por defecto NM**, la unidad de trabajo
+  en navegación aérea y marítima — «mi», millas terrestres, es la más
+  reciente de las cinco). Manda a la vez sobre el perímetro/área de un
   polígono, sobre las medidas de una medición y sobre las **etiquetas
   que la medición pinta en el visor y en su fila del árbol**. Antes esas
   etiquetas iban por su cuenta en métrico **y** náutico a la vez
@@ -1483,18 +1731,109 @@ index.html         redirección de la raíz del sitio al minificado
   diálogo: es la misma medida y verla escrita de dos formas distintas
   solo hace dudar de si de verdad lo es. El área usa el factor **al
   cuadrado**. El rumbo va siempre en grados: no es una distancia.
-- **Cambiar la unidad repinta TODAS las mediciones**
-  (`setMeasureUnit` → `refreshMeasureLabels`), desde cualquiera de los
-  dos `<select>` —hay dos porque hay dos bloques del diálogo, pero una
-  sola preferencia, y `setMeasureUnit` los mantiene sincronizados—.
-  El barrido alcanza también los registros pendientes (`li._pending`) de
-  las carpetas nunca desplegadas: su capa está en el mapa con su
-  etiqueta aunque no tenga fila. Mismo barrido y mismo motivo que
-  `nextNumberedName`.
-- **La unidad NO es parte del borrador del diálogo**: «Cancelar» no la
-  revierte, igual que no revierte `posFormat`. Es una preferencia de
-  lectura, no un estilo de la capa; se recuerda entre aperturas y no
-  persiste entre sesiones, como `elevUnit`.
+- **AJUSTE GLOBAL, con un único control y persistente entre sesiones**
+  (`measureUnit`, panel Propiedades → pestaña "Preferencias", ver más
+  abajo). Antes había DOS `<select>` redundantes, uno en el diálogo de
+  polígono (`pg-unit`) y otro en el de medición (`ms-unit`), y la
+  preferencia no sobrevivía a un recargo de página — reportado
+  explícitamente: aunque por debajo ya era una única variable, tenerla
+  repetida en dos sitios sugería que cada diálogo tenía la suya. Los dos
+  `<select>` se ELIMINARON del HTML; `readPolygonControls`/
+  `readMeasureControls` nunca los leían, así que quitarlos no afecta al
+  Aceptar de esos diálogos. **Cambiar la unidad repinta TODAS las
+  mediciones** (`setMeasureUnit` → `renderPolyMeasures` +
+  `renderMeasureValues` + `refreshMeasureLabels`), y **se previsualiza
+  en vivo** mientras el panel Propiedades está abierto: si el diálogo de
+  un polígono o una medición está abierto a la vez, sus cifras cambian
+  al momento. El barrido de `refreshMeasureLabels` alcanza también los
+  registros pendientes (`li._pending`) de las carpetas nunca
+  desplegadas: su capa está en el mapa con su etiqueta aunque no tenga
+  fila. Mismo barrido y mismo motivo que `nextNumberedName`.
+- **Pero SÍ es parte del borrador del panel Propiedades**: a diferencia
+  de `colorMode` (las flechas ‹ › del selector de color, una preferencia
+  de sesión suelta, sin Cancelar que la revierta), la unidad y el
+  formato de coordenadas ahora persisten y tienen su propio Cancelar/
+  Aceptar — ver la sección siguiente para el diseño completo.
+- **Panel "Propiedades": preferencias e índices de GeoJSON, con edición
+  diferida.** El botón 🏷️ de la cabecera abría antes "Nombres recordados
+  de GeoJSON" (`gnp-editor`, ver «Nombre de cada elemento de GeoJSON»
+  más arriba), con aplicación INMEDIATA y sin pestañas. Ahora es
+  `#props-dialog`, se llama **Propiedades** (toda referencia suelta a
+  «Nombres recordados de GeoJSON» en avisos al usuario, como el de
+  `beginVertexEdit` cuando se supera el tope de vértices, dice «Ventana
+  de Propiedades») y tiene DOS pestañas (`.dlg-tabs`/`.dlg-tab`/
+  `.dlg-tabpanel`, el único diálogo de la aplicación con pestañas — sin
+  componente nuevo: una fila de botones más dos paneles, con el mismo
+  `<h2>`/`.dlg-actions` fijos que hereda cualquier diálogo). **La
+  pestaña que se ve al abrir es "Preferencias"**, no la de GeoJSON: es
+  la que se toca más a menudo, y el ajuste de GeoJSON es de consulta
+  ocasional.
+  - **"Preferencias"** (primera): unidad de medida (`props-unit`, los
+    cinco valores de `measureUnit`), formato de coordenadas
+    (`props-coord-format`, ver el punto siguiente) y el tope de vértices
+    editables (`gnp-vertex-max`, que se queda con su id histórico).
+  - **"Índices de GeoJSON"** (antes «Nombres de GeoJSON»): la lista de
+    asociaciones recordadas de siempre (ver/cambiar/borrar), ahora sobre
+    un BORRADOR (`propsDraftGnp`, un clon de `gnpStore` tomado al abrir
+    el panel) en vez de escribir directamente en IndexedDB en cada
+    click. **La caja del diálogo lleva una altura de PARTIDA explícita**
+    (`#props-dialog .dlg-box { height: min(70vh, 480px) }`, mismo motivo
+    que `#points-dialog`/`#log-dialog`/`#url-dialog`: un hijo en
+    `flex: 1` sobre un contenedor de altura automática no se constriñe a
+    nada) — reportado: sin ella, un archivo con cientos de asociaciones
+    guardadas hacía crecer la VENTANA ENTERA con la lista en vez de
+    scrollear por su cuenta, ya que el tope global de `.dlg-box`
+    (`max-height: 85vh`) no se alcanzaba hasta un contenido enorme. Con
+    la caja ya acotada, `.gnp-editor-list` (`flex: 1 1 auto`) sí se
+    constriñe de verdad y saca su propio scroll vertical, dejando el
+    resto de la ventana (pestañas, botones) de tamaño fijo.
+  **Por primera vez en este diálogo, edición diferida de verdad**: al
+  abrir (`togglePropsDialog`) se toma una foto de `gnpStore` y de
+  `measureUnit`/`coordFormat`/`vertexEditMax` (`propsOriginal`). Los
+  controles de unidad, formato y tope **previsualizan en vivo** —tocarlos
+  aplica de verdad `measureUnit`/`coordFormat`/`vertexEditMax` y repinta
+  lo que esté a la vista (`setMeasureUnit`, `renderMeasureValues`,
+  `syncVertexOwnerForDialog`), porque son ajustes GLOBALES y "probarlos"
+  significa verlos aplicados—, pero nada de eso se ESCRIBE en IndexedDB
+  todavía. «Cancelar» (`cancelPropsDialog`, también llamado desde
+  Escape) deshace exactamente esa previsualización, devolviendo cada
+  variable a lo que tenía `propsOriginal` y repintando otra vez; «Aceptar»
+  persiste TODO a la vez (`dbSaveGnp`, `dbSaveMeasureUnit`,
+  `dbSaveCoordFormat`, `dbSaveVertexEditMax`) — como en cualquier otro
+  diálogo, lo que ya se ve en pantalla YA es el resultado, así que
+  Aceptar no necesita repintar nada más. "Borrar todo" (de la pestaña de
+  GeoJSON) ahora también es diferido: vacía `propsDraftGnp` sin tocar
+  IndexedDB hasta el Aceptar del panel entero.
+- **Formato de latitud/longitud: decimal o GMS, GLOBAL y persistente**
+  (`coordFormat`, `"dec"|"dms"`, panel Propiedades → Preferencias).
+  Reutiliza `formatCoord`/`parseCoord` (ya existían, ya soportaban los
+  dos formatos) en varios sitios: el centro de un círculo en su diálogo
+  de propiedades (`ms-center`, ver «Las mediciones SÍ tienen diálogo de
+  estilos» más arriba), las columnas Lat/Lon del editor de puntos de un
+  polígono («Ver y editar…», `pointsToText`/`textToPoints`, que antes
+  siempre usaban decimales fijos con `toFixed`), y la posición de un
+  marcador en su propio diálogo (`renderCoords`, `44-dialogs.js`, ver
+  «Texto y posición» más arriba) — esta última llevaba su PROPIO botón ⇅
+  (`posFormat`), un toggle de sesión sin persistir, EXCLUSIVO de ese
+  diálogo; **unificado a petición explícita**: `posFormat` se retiró
+  del todo (variable, botón y fila del HTML) y ahora sigue el mismo
+  `coordFormat` global que todo lo demás, con la misma previsualización
+  en vivo si el diálogo del marcador está abierto a la vez que se
+  cambia el ajuste en Propiedades. El rumbo de una ruta NO pasa por
+  aquí: sigue en grados decimales sin más, en ningún sitio.
+  `parseCoord` se dividió en dos para que el editor de puntos siguiera
+  tolerando coordenadas ligeramente fuera de rango por redondeo (ver
+  «Coordenadas con tolerancia de redondeo»): `parseCoordRaw` analiza
+  decimal o GMS SIN el rechazo final por rango; `parseCoord` lo envuelve
+  añadiendo ese rechazo, y lo sigue usando el diálogo de un marcador,
+  donde rechazar de inmediato lo fuera de rango es lo correcto. El
+  editor de puntos usa `parseCoordRaw`, para que `clampLatLng` —aguas
+  abajo— tenga ocasión de rescatar un valor como `180,0000004` antes de
+  que un rechazo prematuro se adelante. El troceo de columnas de
+  `textToPoints` pasó de "cualquier espacio" a un orden de preferencia
+  (tabulador → coma/punto y coma → espacios): una coordenada en GMS
+  lleva espacios DENTRO de un mismo campo, y partir por cualquier
+  espacio fragmentaba una sola coordenada en varias columnas falsas.
 - **Lectura de coordenadas del visor**: tres filas de la misma posición
   —grados decimales, grados/minutos/segundos y UTM con su huso—, usando
   `formatCoord`, el mismo formateo con el que se editan las coordenadas
@@ -1803,6 +2142,20 @@ index.html         redirección de la raíz del sitio al minificado
   (`geojsonNameProps`, `GNP_SCHEMA`), un mapa de huella de `properties`
   (`propsFingerprint`: el JSON de sus claves, ordenadas) a la propiedad
   elegida como nombre. Se explica en «Formatos y límites de entrada».
+- **Tope de vértices editables** (`vertexEditMax`): otra clave del mismo
+  almacén (`vertexEditMax`, `VERTMAX_SCHEMA`), un número simple, validado
+  como cualquier otro valor leído (`Number.isInteger` y `> 0`, no vaya a
+  colarse un tope de 0 que desactivaría la edición interactiva para
+  todo el mundo). Se explica en «Edición interactiva de vértices…».
+- **Unidad de medida y formato de coordenadas** (`measureUnit`,
+  `coordFormat`): dos claves más del mismo almacén
+  (`MEASURE_UNIT_KEY`/`MEASURE_UNIT_SCHEMA`, `COORD_FORMAT_KEY`/
+  `COORD_FORMAT_SCHEMA`), siguiendo el mismo patrón que
+  `vertexEditMax` — validadas al leer contra la lista de valores
+  posibles (cinco unidades; `"dec"`/`"dms"`). Antes eran preferencias de
+  SESIÓN sin persistir; ahora se editan en el panel Propiedades (ver
+  «Panel "Propiedades"…» más arriba) y se restauran al arrancar
+  (`99-boot.js`).
 
 ## Red externa
 
@@ -2295,21 +2648,32 @@ arrastrar, y admite exactamente los mismos formatos.
 - `CTX_MENU_ITEMS` es la lista genérica (centrar, medir, exportar PNG…)
   que se muestra al hacer click derecho donde no hay ninguna capa.
   Sobre una capa, se anteponen «Ir al nodo en el panel»
-  (`highlightNode`, expande ancestros, selecciona y hace scroll) y,
-  si la capa tiene algo que enseñar, «Mostrar propiedades»
-  (`showLayerInfo`).
-- **Con varias capas superpuestas bajo el cursor, esos dos ítems se
+  (`highlightNode`, expande ancestros, selecciona y hace scroll),
+  «Mostrar propiedades» si la capa tiene algo que enseñar
+  (`showLayerInfo`, el panel de SOLO LECTURA de la ficha KML/
+  `properties`) y **«Editar propiedades»** si su tipo admite el diálogo
+  de estilos (`STYLE_EDITABLE_KINDS`, el mismo criterio que ya usa
+  `openStyleDialog` para rechazar una capa sin estilos editables —
+  `openStyleDialog(li)`). Pedido explícitamente: acceso directo al
+  diálogo de estilos (el que abren el botón 🎨 o Alt+Intro) desde el
+  propio mapa, sin tener que ir antes al árbol. Se llama distinto de
+  «Mostrar propiedades» a propósito —los dos «propiedades» en el mismo
+  menú, con el mismo nombre, harían pensar que uno de los dos no hace
+  nada—, aunque el resto de la aplicación (Alt+Intro, `CLAUDE.md`) ya
+  llame libremente «propiedades» a ambos.
+- **Con varias capas superpuestas bajo el cursor, esos tres ítems se
   convierten en un submenú** con una entrada por capa
   (`ctxItemsFor`/`openCtxSubmenu`), en vez de actuar sobre una sola.
 - **Elegir una capa la hace PARPADEAR** (`blinkLayer`, cuatro pasos de
   `BLINK_INTERVAL_MS` alternando su alta en `rootGroup`, que sirve igual
   para un marcador del DOM que para un polígono en lienzo). Lo llevan
-  las dos acciones, no solo «Ir al nodo»: la ficha de propiedades sale
+  las tres acciones, no solo «Ir al nodo»: la ficha de propiedades sale
   con un nombre y unos datos que **no dicen cuál** de las capas de
   debajo del cursor es, que es justo el problema que el submenú
   plantea. Va en las envolturas del menú (`goToNodeAndBlink`,
-  `showLayerInfoAndBlink`) y **no dentro de `showLayerInfo`**, que se
-  abre también al pasar el ratón por encima: parpadear ahí dejaría el
+  `showLayerInfoAndBlink`, `editPropertiesAndBlink`) y **no dentro de
+  `showLayerInfo`/`openStyleDialog`**, que se abren también desde otros
+  caminos (el primero al pasar el ratón por encima): parpadear ahí dejaría el
   mapa temblando todo el rato. Parpadea también con una sola capa
   debajo, como ya hacía «Ir al nodo»: una regla, no una para cada
   camino.
@@ -2353,6 +2717,50 @@ arrastrar, y admite exactamente los mismos formatos.
   en cuanto hay alguna capa no tocada intercalada entre las que sí lo
   fueron. Arreglarlo habría exigido recrear el orden de pintado
   completo tras cada click derecho.
+- **Menú contextual en un manejador de medición: solo en modo
+  presentación.** Reportado como bug: clic derecho sobre CUALQUIER
+  manejador (`.measure-handle`, un waypoint de ruta o el borde/centro
+  de un círculo) no abría nunca el menú contextual, ni con el diálogo
+  de esa medición abierto ni cerrado. Investigado y confirmado con
+  reproducción real: **Leaflet no deja llegar el evento nativo
+  "contextmenu" de un marcador interactivo hasta el contenedor del
+  mapa en cuanto ese marcador tiene AL MENOS un listener de
+  "contextmenu" propio** —pase lo que pase dentro de ese listener,
+  incluso si no hace nada—, así que `map.on("contextmenu", …)` nunca
+  llegaba a dispararse para ese click. Resuelto preguntando al usuario,
+  porque tocaba un atajo ya asentado (borrar directamente sin menú): en
+  **modo presentación** (sin el diálogo de esa medición abierto) no hay
+  nada que el clic derecho pueda borrar ahí, así que debe abrir el menú
+  contextual normal; en **modo edición** (diálogo abierto) sigue
+  borrando el vértice al instante, sin menú, exactamente como ya
+  funcionaba — un polígono en edición tampoco cambia: sus manejadores
+  solo existen en ese modo, así que el clic derecho allí siempre borra.
+  La solución NO depende de la propagación nativa: cada manejador
+  reinvoca A MANO el mismo código que abre el menú desde el mapa
+  (`openCtxMenuFromMouseEvent`, extraída a `70-view-controls.js` desde
+  el propio `map.on("contextmenu", …)`, que ahora apunta a ella
+  directamente) cuando el gesto no va a borrar nada — `wireRouteHandle`
+  cambia su `return` desnudo por una llamada a esa función cuando
+  `!owns()`, y `attachCtrlDrag` (círculo, que nunca borra con clic
+  derecho) gana un listener de "contextmenu" que no tenía ninguno
+  antes, incondicional. Sirve además de acceso directo a «Editar
+  propiedades» desde el propio manejador, no solo desde el trazo.
+- **Doble click NO hace zoom en NINGÚN modo de edición**, no solo
+  mientras se dibuja. Reportado: insertar dos vértices seguidos con
+  Mayús+clic (dos clics rápidos, indistinguibles de un intento de doble
+  click) podía disparar un zoom no pedido con un polígono en edición.
+  `anyEditModeActive()`/`refreshDoubleClickZoom()` (`52-measure.js`)
+  miran TODO lo que puede estar activo a la vez —una herramienta de
+  dibujo (`activeTool`), un polígono/ruta en edición (`vertexOwner`), o
+  el diálogo de un CÍRCULO abierto (que no pasa por `vertexOwner`,
+  comprobación directa contra `styleTargets`/`styleKindOpen`)— en vez
+  de un apagar/encender independiente en cada sitio que se pisaría
+  entre sí, porque estos tres NO son mutuamente excluyentes (se puede
+  tener una herramienta de dibujo activa Y un diálogo de propiedades
+  abierto a la vez). Se llama desde `setTool` (al soltar la
+  herramienta), `teardownVertexOwner`/`syncVertexOwnerForDialog`
+  (`43-points-editor.js`) y `openStyleDialog`/`closeStyleDialog`
+  (`44-dialogs.js`, para el caso del círculo).
 
 ## Vista guardada
 
@@ -2652,7 +3060,7 @@ creación del release en sí, que sigue siendo una decisión humana):
 4. `.github/workflows/release.yml`, disparado por ese `push` de tag,
    comprueba que el tag coincide con `package.json`, que
    `kitelocal.html`/`kitelocal.min.html` están reconstruidos
-   (`npm run check`) y **que las 51 suites de `npm test` pasan** —el
+   (`npm run check`) y **que las 58 suites de `npm test` pasan** —el
    propio job las ejecuta, con navegador incluido
    (`KITE_REQUIRE_BROWSER=1`, igual que `tests.yml`)—, y si todo cuadra
    publica el Release de GitHub por su cuenta —notas generadas
@@ -2665,7 +3073,7 @@ creación del release en sí, que sigue siendo una decisión humana):
    dependa**: `tests.yml` también se dispara con el mismo `push` de tag
    (no filtra por rama), pero como workflow aparte, sin relación
    `needs` con este — publicar no esperaba a que esa batería pasara, y
-   antes de que se corrigiera, un tag con las 51 suites en rojo se
+   antes de que se corrigiera, un tag con las 58 suites en rojo se
    podía publicar igual, porque `release.yml` nunca llegó a ejecutar
    `npm test`. Correr la batería dentro del propio job es lo que hace
    que un fallo PARE la ejecución antes de llegar al paso que publica

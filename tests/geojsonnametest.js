@@ -1,4 +1,4 @@
-const { fn, between } = require("./_extract");
+const { fn, between, constDecl } = require("./_extract");
 const ok = (c, m) => { if (!c) { console.error("FAIL: " + m); process.exitCode = 1; } };
 
 /* ---------- Elegir la propiedad-nombre (Fase 1) ---------- */
@@ -76,25 +76,30 @@ ok(!tableHtml.includes("<b>"), "escapa entrada hostil en la clave: " + tableHtml
    archivo (entre medias hay creación de DOM: ctxMenuEl, closeCtxMenu…),
    así que se extraen por separado.                                    */
 const ctxSrc = between("const CTX_MENU_ITEMS = [", "const ctxMenuEl")
-  + fn("goToNodeAndBlink") + fn("showLayerInfoAndBlink")
+  + fn("goToNodeAndBlink") + fn("showLayerInfoAndBlink") + fn("editPropertiesAndBlink")
+  + constDecl("STYLE_EDITABLE_KINDS")
   + fn("layerCtxItems") + fn("ctxItemsFor");
 global.infoHtmlFor = li => li._info || null; /* stub: evita depender de DOM/Leaflet */
-/* Se stubea lo que NO se está probando —highlightNode, showLayerInfo y
-   el parpadeo en sí, que necesitan nodeLayer/setLayerVisible sobre <li>
-   reales y aquí los "li" son objetos sueltos {_name,_info}— pero las
-   dos envolturas del menú se extraen DE VERDAD: lo que se comprueba es
-   el enrutado (qué capa le llega a cada acción) y que las dos hagan
-   parpadear la capa, que es lo único que dice CUÁL de las que hay bajo
-   el cursor se ha elegido.                                            */
+/* Se stubea lo que NO se está probando —highlightNode, showLayerInfo,
+   openStyleDialog, styleKind y el parpadeo en sí, que necesitan
+   nodeLayer/setLayerVisible sobre <li> reales y aquí los "li" son
+   objetos sueltos {_name,_info,_kind}— pero las tres envolturas del
+   menú se extraen DE VERDAD: lo que se comprueba es el enrutado (qué
+   capa le llega a cada acción) y que las tres hagan parpadear la capa,
+   que es lo único que dice CUÁL de las que hay bajo el cursor se ha
+   elegido.                                                            */
 global.highlightCalls = [];
 global.showInfoCalls = [];
+global.editCalls = [];
 global.blinkCalls = [];
 const api = new Function(
-  "infoHtmlFor", "showLayerInfo", "highlightNode", "blinkLayer",
+  "infoHtmlFor", "showLayerInfo", "highlightNode", "openStyleDialog", "styleKind", "blinkLayer",
   ctxSrc + "\nreturn {CTX_MENU_ITEMS, ctxItemsFor};"
 )(global.infoHtmlFor,
   li => { global.showInfoCalls.push(li); },
   li => { global.highlightCalls.push(li); },
+  li => { global.editCalls.push(li); },
+  li => li._kind || null,
   li => { global.blinkCalls.push(li); });
 const { CTX_MENU_ITEMS, ctxItemsFor } = api;
 
@@ -113,10 +118,16 @@ const liConInfo = { _name: "Parcela B", _info: "<table></table>" };
 items = ctxItemsFor([liConInfo]);
 ok(items.some(it => it.label === "Mostrar propiedades" && !it.items),
   "1 capa con info: aparece 'Mostrar propiedades' directo");
+ok(!items.some(it => it.label === "Editar propiedades"),
+  "sin _kind editable: 'Editar propiedades' no aparece");
+const liEditable = { _name: "Parcela E", _info: null, _kind: "polygon" };
+items = ctxItemsFor([liEditable]);
+ok(items.some(it => it.label === "Editar propiedades" && !it.items),
+  "1 capa de tipo editable: aparece 'Editar propiedades' directo, distinto de 'Mostrar propiedades'");
 
 // 2+ hits: submenú con una entrada por capa
 const liA = { _name: "Parcela A", _info: null };
-const liB = { _name: "Parcela B", _info: "<table></table>" };
+const liB = { _name: "Parcela B", _info: "<table></table>", _kind: "polygon" };
 const liC = { _name: "Parcela C", _info: "<table></table>" };
 items = ctxItemsFor([liA, liB, liC]);
 const goTo = items.find(it => it.label === "Ir al nodo en el panel");
@@ -125,8 +136,17 @@ ok(goTo && goTo.items && goTo.items.length === 3,
 const showInfo = items.find(it => it.label === "Mostrar propiedades");
 ok(showInfo && showInfo.items.length === 2,
   "varias capas: 'Mostrar propiedades' solo lista las que tienen info");
+const editProps = items.find(it => it.label === "Editar propiedades");
+ok(editProps && editProps.items.length === 1 && editProps.items[0].label === "Parcela B",
+  "varias capas: 'Editar propiedades' solo lista las de tipo editable");
 ok(items[items.length - 1] === CTX_MENU_ITEMS[CTX_MENU_ITEMS.length - 1],
   "varias capas: CTX_MENU_ITEMS también va al final");
+
+global.editCalls.length = 0;
+global.blinkCalls.length = 0;
+editProps.items[0].action();
+ok(global.editCalls[0] === liB, "el submenú de 'Editar propiedades' pasa la capa correcta");
+ok(global.blinkCalls[0] === liB, "y hace parpadear ESA capa");
 
 // invocar una entrada del submenú llama a la función correcta con la capa correcta
 global.highlightCalls.length = 0;

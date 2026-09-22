@@ -1,6 +1,10 @@
 /* Edición interactiva de vértices (arrastrar, borrar e insertar) de un
-   polígono ya creado — activada por tenerlo como ÚNICA selección del
-   árbol, sin que haga falta abrir su diálogo de propiedades.
+   polígono ya creado — activada por tener su diálogo de propiedades
+   abierto (y solo mientras lo esté: ver la integración completa,
+   incluida la puerta `styleDialogShows`, en
+   tests/browser/vertex-select.mjs). Este archivo prueba las
+   funciones de bajo nivel (beginVertexEdit/removeVertexEditPoint/
+   insertVertexEditPoint/etc.) tal cual, ajenas a QUIÉN las llama.
 
    Complementa al editor de texto («Ver y editar…», que sigue existiendo
    para listas grandes): reutiliza el MISMO recorrido de anillos/partes
@@ -8,10 +12,21 @@
    o multi-parte se cubre igual, sin reimplementar cómo se camina
    layer.getLatLngs() anidado.
 
-   Ya NO es edición diferida (no hay "Cancelar" que revierta): cada
-   arrastre, borrado o inserción se guarda al momento, como ya hacía un
-   waypoint de ruta — de ahí que se compruebe que cada operación llama a
-   scheduleSave.
+   Cada arrastre, borrado o inserción se guarda al momento, como ya
+   hacía un waypoint de ruta — de ahí que se compruebe que cada
+   operación llama a scheduleSave; "Cancelar" el diálogo SÍ revierte
+   todo esto ahora (captureVertexSnapshot/restoreVertexSnapshot), pero
+   eso se prueba en tests/browser/vertex-select.mjs, que es donde vive
+   el diálogo de verdad.
+
+   `convertVertexEditShape` (cerrar/abrir un anillo simple durante la
+   edición, cambiando entre L.Polygon y L.Polyline) se sustituye aquí
+   por un doble mínimo, sin tocar el mapa ni el DOM: el real
+   (43-points-editor.js) reconstruye la capa con `setPathLayerClosed` y
+   la re-cablea con `wireLayerEvents` (31-tree-node.js), que exigirían
+   simular bastante más DOM del que este arnés necesita para el resto.
+   Ese camino completo, y el gesto de cerrar (Mayús+clic sobre el primer
+   vértice), se prueban de punta a punta en tests/browser/vertex-select.mjs.
 
    No se simulan eventos de ratón reales (attachVertexDrag ya se prueba
    por su cuenta, es una escucha "mousedown" genérica): se llama
@@ -55,8 +70,13 @@ const L = {
   marker: latlng => fakeMarker(latlng),
   divIcon: opts => opts,
   featureGroup: () => fakeFeatureGroup(),
-  DomEvent: { stop() {} }
+  /* on/off hacen falta desde que mover un vértice ya no exige Ctrl: el
+     mousedown de prueba llega hasta el final de attachVertexDrag (antes
+     se paraba en el chequeo de Ctrl) y registra un mouseup en
+     `document`.                                                       */
+  DomEvent: { stop() {}, on() {}, off() {} }
 };
+const fakeDocument = { addEventListener() {}, removeEventListener() {} };
 const rootGroup = { addTo() { return this; }, addLayer() {}, removeLayer() {} };
 
 let navCalls = [];
@@ -73,21 +93,45 @@ const nodeLayer = li => li._layer;
    estado sin ningún vértice seleccionado, para que removeVertexEditPoint
    no falle al leerlo (clearVertexSelection se estampa como no-op).    */
 const clearVertexSelection = () => {};
+/* Sustituto mínimo de convertVertexEditShape (ver cabecera): cambia la
+   capa fake de clase y el flag `closed`, sin DOM. Se pasa como
+   parámetro más al `new Function(...)` de abajo, igual que
+   `navMessage`/`scheduleSave`. Para LEER/ESCRIBIR `vertexEdit` desde
+   aquí fuera hace falta un detalle: `beginVertexEdit` lo asigna sin
+   `let` (`vertexEdit = {...}`), así que en el modo no estricto de
+   `new Function` es un global implícito de `globalThis` — la misma
+   variable que ya lee `getVertexEdit: () => vertexEdit` en el `return`
+   de esa función, y que esta función, aunque está fuera de ese
+   `new Function`, ve igual por ser el mismo `globalThis`.              */
+function convertVertexEditShape(closed) {
+  vertexEdit.layer = closed ? new FakePolygon(vertexEdit.rings[0]) : new FakePolyline(vertexEdit.rings[0]);
+  vertexEdit.closed = closed;
+}
 
-const src = "let vertexSelHandle = null;\n" + constDecl("VERTEX_EDIT_MAX") + "\n"
+/* VERTEX_EDIT_MAX_DEFAULT es solo el punto de partida: el tope real
+   (vertexEditMax) es una preferencia editable, guardada en IndexedDB
+   (dbSaveVertexEditMax/dbLoadVertexEditMax, 32-geojson.js) y ajustable
+   desde el editor 🏷️ — depende del hardware de quien lo usa, así que
+   no puede ser una constante fija. Se declara aquí con el mismo `let`
+   que el archivo real, y se expone un setter para probar los dos
+   sentidos del cambio.                                                */
+const src = "let vertexSelHandle = null;\nlet activeTool = null;\n" + constDecl("VERTEX_EDIT_MAX_DEFAULT")
+  + "\nlet vertexEditMax = VERTEX_EDIT_MAX_DEFAULT;\n" + constDecl("MEASURE_DOT_HTML")
   + [fn("pathRings"), fn("solePath"), fn("cloneLatLngRings"), fn("beginVertexEdit"),
      fn("applyVertexEditRings"), fn("findVertexEditPos"), fn("wireVertexEditHandle"),
      fn("removeVertexEditPoint"), fn("insertVertexEditPoint"), fn("endVertexEdit"),
      fn("makeHandle"), fn("attachVertexDrag")]
     .join("\n");
 const api = new Function("L", "rootGroup", "navMessage", "invalidateGeo", "nodeLayer",
-  "map", "scheduleSave", "refreshOpenPolygonDialog", "clearVertexSelection",
+  "map", "document", "scheduleSave", "refreshOpenPolygonDialog", "clearVertexSelection", "convertVertexEditShape",
   src
   + "\nreturn {beginVertexEdit, endVertexEdit, removeVertexEditPoint, insertVertexEditPoint,"
-  + " findVertexEditPos, getVertexEdit: () => vertexEdit, VERTEX_EDIT_MAX};"
+  + " findVertexEditPos, getVertexEdit: () => vertexEdit, VERTEX_EDIT_MAX_DEFAULT,"
+  + " setVertexEditMax: v => { vertexEditMax = v; }};"
 )(L, rootGroup, navMessage, invalidateGeo, nodeLayer,
   { dragging: { disable() {}, enable() {} }, on() {}, off() {} },
-  scheduleSave, refreshOpenPolygonDialog, clearVertexSelection);
+  fakeDocument,
+  scheduleSave, refreshOpenPolygonDialog, clearVertexSelection, convertVertexEditShape);
 const ok = (c, m) => { if (!c) { console.error("FAIL: " + m); process.exitCode = 1; } };
 
 const P = (lat, lng) => L.latLng(lat, lng);
@@ -104,16 +148,27 @@ const P = (lat, lng) => L.latLng(lat, lng);
   ok(ve.closed === true, "un L.Polygon se reconoce como anillo cerrado");
   ok(ve.handleRings[0].length === 3, "un manejador por vértice: " + ve.handleRings[0].length);
 
-  /* Mover el vértice 1 (arrastre): se aplica a la capa real */
+  /* Mover un vértice ya NO exige Ctrl (wireVertexEditHandle pasa
+     requireCtrl=false a attachVertexDrag): un mousedown cualquiera
+     arranca el gesto sin lanzar nada, aquí solo se comprueba que no
+     revienta (el mecanismo de mousemove/mouseup en sí, con eventos de
+     ratón de verdad, se prueba en tests/browser/vertex-select.mjs).   */
   const h1 = ve.handleRings[0][1];
-  h1.fire("mousedown"); // sin Ctrl: attachVertexDrag no hace nada más aquí (requireCtrl real se prueba en su mousemove/up simulado abajo)
+  h1.fire("mousedown");
 
-  /* Borrar por debajo del mínimo (3 en un anillo cerrado) se bloquea */
+  /* Borrar por debajo del mínimo (3) en un anillo cerrado ya NO bloquea:
+     ABRE el polígono (pasa a línea, mínimo 2) y el borrado sigue.      */
   api.removeVertexEditPoint(ve.handleRings[0][0]);
+  ok(ve.closed === false, "bajar de 3 en un anillo cerrado lo abre en vez de bloquear el borrado");
+  ok(ve.rings[0].length === 2, "y el borrado se completa: " + ve.rings[0].length);
+  ok(navCalls.length === 1 && /se ha abierto/.test(navCalls[0]), "avisa del cambio: " + navCalls[0]);
+  ok(saveCalls === 1, "y guarda, porque el borrado sí llegó a completarse: " + saveCalls);
+
+  /* Ya es una forma abierta: el mínimo pasa a ser 2, y ESE sí bloquea */
+  navCalls = [];
   api.removeVertexEditPoint(ve.handleRings[0][0]);
-  ok(ve.rings[0].length === 3, "no deja bajar de 3 vértices en un anillo cerrado: " + ve.rings[0].length);
-  ok(navCalls.length === 2 && /mínimo 3/.test(navCalls[0]), "avisa por qué no borra: " + navCalls[0]);
-  ok(saveCalls === 0, "y bloqueado por el mínimo, no guarda nada");
+  ok(ve.rings[0].length === 2, "en el mínimo de una forma abierta, no baja más: " + ve.rings[0].length);
+  ok(navCalls.length === 1 && /mínimo 2/.test(navCalls[0]), "mensaje de forma abierta esta vez: " + navCalls[0]);
 
   api.endVertexEdit();
   ok(!api.getVertexEdit(), "tras cerrar, ya no hay edición en curso");
@@ -200,13 +255,39 @@ const P = (lat, lng) => L.latLng(lat, lng);
   api.endVertexEdit();
 }
 
-/* ---------- Tope de vértices: por encima, no se construye nada ---------- */
+/* ---------- Tope de vértices: por encima, no se construye nada, y avisa
+   dónde subirlo ---------- */
 {
-  const many = Array.from({ length: api.VERTEX_EDIT_MAX + 1 }, (_, i) => P(i * 0.001, 0));
+  const many = Array.from({ length: api.VERTEX_EDIT_MAX_DEFAULT + 1 }, (_, i) => P(i * 0.001, 0));
   const layer = new FakePolygon([many]);
-  const li = { _layer: layer };
+  const li = { _layer: layer, _name: "Muchos vértices" };
+  navCalls = [];
   ok(api.beginVertexEdit(li) === false, "por encima del tope no se crean manejadores interactivos: solo queda el editor de texto");
   ok(!api.getVertexEdit(), "y no queda vertexEdit puesto");
+  ok(navCalls.length === 1, "y esta vez SÍ avisa (a diferencia de \"sin trazo propio\", que no avisa nada)");
+  ok(navCalls[0].includes(li._name), "nombrando la capa: " + navCalls[0]);
+  ok(navCalls[0].includes(String(many.length)), "cuántos vértices tiene: " + navCalls[0]);
+  ok(navCalls[0].includes(`(${api.VERTEX_EDIT_MAX_DEFAULT})`), "y el tope configurado: " + navCalls[0]);
+  ok(/🏷️/.test(navCalls[0]), "con dónde se puede subir: " + navCalls[0]);
+}
+
+/* ---------- El tope es CONFIGURABLE, no una constante fija ---------- */
+{
+  const ring = [P(0, 0), P(0, 1), P(1, 1), P(1, 0), P(2, 2)]; /* 5 vértices */
+  const layer = new FakePolygon([ring]);
+  const li = { _layer: layer, _name: "Cinco vértices" };
+
+  api.setVertexEditMax(3);
+  navCalls = [];
+  ok(api.beginVertexEdit(li) === false, "con el tope bajado a 3, un trazo de 5 vértices ya no cabe");
+  ok(navCalls.length === 1 && /\(3\)/.test(navCalls[0]),
+    "y el aviso cita el tope YA VIGENTE, no el de partida (500): " + navCalls[0]);
+
+  api.setVertexEditMax(10);
+  ok(api.beginVertexEdit(li) === true, "subiéndolo por encima de sus vértices, la edición se activa");
+  api.endVertexEdit();
+
+  api.setVertexEditMax(api.VERTEX_EDIT_MAX_DEFAULT); /* no contaminar otros bloques */
 }
 
 if (!process.exitCode) console.log("VERTEX EDIT TESTS OK");

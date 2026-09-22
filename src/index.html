@@ -82,7 +82,7 @@
     <h1 title="KML Interactive Tree Explorer">KITE Local
       <button id="url-btn" class="btn" title="A&#241;adir contenido desde una direcci&#243;n (URL)"
               aria-label="A&#241;adir contenido desde una direcci&#243;n (URL)">🔗</button>
-      <button id="gnp-editor-btn" class="btn" title="Nombres recordados para GeoJSON">🏷️</button>
+      <button id="gnp-editor-btn" class="btn" title="Propiedades">🏷️</button>
       <button id="log-btn" class="btn" title="Registro de avisos">📋</button>
       <button id="help-btn" class="btn" title="Ayuda y atajos de teclado (tecla ?)">?</button>
     </h1>
@@ -158,10 +158,6 @@
       <div class="dlg-row"><span>Color del texto</span><button type="button" class="color-btn" id="mk-text-color"></button></div>
       <div class="dlg-row"><label for="mk-text-always">Mostrar el texto siempre (si no, solo al hacer click)</label><input type="checkbox" id="mk-text-always"></div>
       <div id="mk-single" hidden>
-        <div class="dlg-row"><span>Coordenadas</span>
-          <span class="dlg-note" id="pos-format-label"></span>
-          <button class="btn" id="pos-format" title="Cambiar el formato de las coordenadas">&#8597;</button>
-        </div>
         <div class="dlg-row"><span>Latitud</span><input type="text" id="mk-lat"></div>
         <div class="dlg-row"><span>Longitud</span><input type="text" id="mk-lon"></div>
         <p class="dlg-hint" id="mk-drag-hint">Tambi&#233;n puede arrastrar el marcador por el mapa mientras esta ventana est&#233; abierta.</p>
@@ -179,12 +175,6 @@
       <div class="dlg-row" id="pg-fill-opacity-row"><span>Opacidad del relleno</span><input type="range" id="pg-fill-opacity" min="0" max="1" step="0.05"></div>
       <div class="dlg-row"><label for="pg-text-always">Mostrar el nombre siempre (si no, solo al hacer click)</label><input type="checkbox" id="pg-text-always"></div>
       <div id="pg-measures" hidden>
-        <div class="dlg-row"><span>Unidad</span><select id="pg-unit">
-          <option value="m">Metros</option>
-          <option value="km">Kilómetros</option>
-          <option value="ft">Pies</option>
-          <option value="nm">Millas náuticas</option>
-        </select></div>
         <div class="dlg-row"><span id="pg-perim-label">Perímetro</span><span class="dlg-note" id="pg-perimeter"></span></div>
         <div class="dlg-row" id="pg-area-row"><span>Área</span><span class="dlg-note" id="pg-area"></span></div>
       </div>
@@ -201,12 +191,7 @@
       <div class="dlg-row" id="ms-fill-color-row"><span>Color del relleno</span><button type="button" class="color-btn" id="ms-fill-color"></button></div>
       <div class="dlg-row" id="ms-fill-opacity-row"><span>Opacidad del relleno</span><input type="range" id="ms-fill-opacity" min="0" max="1" step="0.05"></div>
       <div id="ms-values" hidden>
-        <div class="dlg-row"><span>Unidad</span><select id="ms-unit">
-          <option value="m">Metros</option>
-          <option value="km">Kilómetros</option>
-          <option value="ft">Pies</option>
-          <option value="nm">Millas náuticas</option>
-        </select></div>
+        <div class="dlg-row" id="ms-center-row"><span>Centro</span><span class="dlg-note" id="ms-center"></span></div>
         <div class="dlg-row"><span id="ms-dist-label">Distancia</span><span class="dlg-note" id="ms-dist"></span></div>
         <div class="dlg-row" id="ms-area-row"><span>Área</span><span class="dlg-note" id="ms-area"></span></div>
         <div class="dlg-row" id="ms-bearing-row"><span>Rumbo</span><span class="dlg-note" id="ms-bearing"></span></div>
@@ -252,7 +237,7 @@
       <tr><td>Arrastrar una fila por su nombre</td><td>Mover el nodo a otra carpeta o posici&#243;n (Esc cancela)</td></tr>
       <tr><th colspan="2">En el visor</th></tr>
       <tr><td>May&#250;s + arrastrar</td><td>Zoom a un rect&#225;ngulo</td></tr>
-      <tr><td>Ctrl + arrastrar</td><td>Editar una medici&#243;n o un v&#233;rtice</td></tr>
+      <tr><td>Ctrl + arrastrar (sobre un c&#237;rculo de medici&#243;n)</td><td>Mover su centro o su borde</td></tr>
       <tr><td>Doble clic en una fila</td><td>Ir a la capa; repetido, acercar</td></tr>
       <tr><td>Re P&#225;g / Av P&#225;g (con el mapa enfocado)</td><td>Acercar / alejar un nivel de zoom hacia el puntero</td></tr>
       <tr><th colspan="2">Dibujar pol&#237;gonos y rutas</th></tr>
@@ -262,12 +247,14 @@
       <tr><td>Clic derecho sobre un v&#233;rtice</td><td>Quitar ese v&#233;rtice</td></tr>
       <tr><td>Supr</td><td>Quitar el &#250;ltimo v&#233;rtice</td></tr>
       <tr><th colspan="2">Editar v&#233;rtices de una ruta o un pol&#237;gono ya creados</th></tr>
-      <tr><td>Seleccionar el nodo en el &#225;rbol</td><td>Activa mover/borrar/insertar v&#233;rtices sobre el mapa (sin abrir su ventana de propiedades)</td></tr>
+      <tr><td>Abrir sus propiedades (🎨 o Alt+Intro)</td><td>Activa mover/borrar/insertar v&#233;rtices sobre el mapa</td></tr>
       <tr><td>Clic en un v&#233;rtice</td><td>Seleccionarlo</td></tr>
-      <tr><td>Ctrl + arrastrar un v&#233;rtice</td><td>Moverlo</td></tr>
-      <tr><td>Clic derecho sobre un v&#233;rtice</td><td>Quitarlo</td></tr>
-      <tr><td>May&#250;s + clic en el mapa</td><td>Insertar un v&#233;rtice tras el seleccionado (o al final, si no hay ninguno)</td></tr>
-      <tr><td>Supr</td><td>Quitar el v&#233;rtice seleccionado (antes que borrar el nodo)</td></tr>
+      <tr><td>Arrastrar un v&#233;rtice</td><td>Moverlo (no hace falta ninguna tecla)</td></tr>
+      <tr><td>Clic derecho sobre un v&#233;rtice</td><td>Quitarlo (sin las propiedades abiertas, abre el men&#250; contextual del mapa en su lugar)</td></tr>
+      <tr><td>May&#250;s + clic en el mapa, o tecla Insertar</td><td>Insertar un v&#233;rtice tras el seleccionado (o al final, si no hay ninguno)</td></tr>
+      <tr><td>May&#250;s + clic sobre el primer v&#233;rtice, con el &#250;ltimo seleccionado</td><td>Cerrar una l&#237;nea abierta (sin a&#241;adir ning&#250;n v&#233;rtice)</td></tr>
+      <tr><td>Supr</td><td>Quitar el v&#233;rtice seleccionado (antes que borrar el nodo); en un contorno cerrado de exactamente 3 v&#233;rtices, lo abre en l&#237;nea en vez de bloquear el borrado</td></tr>
+      <tr><td>Doble clic en el mapa</td><td>No hace zoom mientras se edita as&#237; un pol&#237;gono, una ruta o un c&#237;rculo</td></tr>
     </table>
     <div class="dlg-actions"><button class="btn" id="shortcuts-close">Cerrar</button></div>
   </div>
@@ -375,15 +362,40 @@
   </div>
 </div>
 
-<!-- Editor de las asociaciones huella-de-properties → nombre recordadas -->
-<div id="gnp-editor" class="dlg-overlay" hidden>
+<!-- Editor de las asociaciones huella-de-properties → nombre recordadas,
+     y de otras preferencias sin ventana propia (el tope de vértices
+     editables interactivamente, ver 43-points-editor.js). -->
+<div id="props-dialog" class="dlg-overlay" hidden>
   <div class="dlg-box">
-    <h2>Nombres recordados de GeoJSON</h2>
-    <p class="dlg-hint">Asociaciones guardadas entre la estructura de <code>properties</code> de un GeoJSON y la propiedad usada como nombre.</p>
-    <div class="gnp-editor-list" id="gnp-editor-list"></div>
+    <h2>Propiedades</h2>
+    <div class="dlg-tabs" role="tablist">
+      <button type="button" class="dlg-tab active" id="props-tab-btn-prefs" role="tab" aria-selected="true" aria-controls="props-tab-prefs">Preferencias</button>
+      <button type="button" class="dlg-tab" id="props-tab-btn-gnp" role="tab" aria-selected="false" aria-controls="props-tab-gnp">Índices de GeoJSON</button>
+    </div>
+    <div id="props-tab-prefs" class="dlg-tabpanel" role="tabpanel">
+      <div class="dlg-row"><span>Unidad de medida</span><select id="props-unit">
+        <option value="m">Metros</option>
+        <option value="km">Kilómetros</option>
+        <option value="ft">Pies</option>
+        <option value="mi">Millas</option>
+        <option value="nm">Millas náuticas</option>
+      </select></div>
+      <div class="dlg-row"><span>Latitud/longitud</span><select id="props-coord-format">
+        <option value="dec">Grados decimales</option>
+        <option value="dms">Grados, minutos y segundos</option>
+      </select></div>
+      <p class="dlg-hint">Vértices editables sobre el mapa, como máximo: por encima de este número, un polígono ya creado no muestra manejadores interactivos de vértice (queda el editor de texto «Ver y editar…» de su diálogo de estilos). No afecta a una ruta, que se dibuja punto a punto y rara vez llega a acercarse a este límite. Depende del equipo de quien lo usa, así que se puede ajustar aquí.</p>
+      <div class="dlg-row"><span>Tope de vértices editables</span>
+        <input type="number" id="gnp-vertex-max" min="1" step="1"></div>
+    </div>
+    <div id="props-tab-gnp" class="dlg-tabpanel" hidden role="tabpanel">
+      <p class="dlg-hint">Asociaciones guardadas entre la estructura de <code>properties</code> de un GeoJSON y la propiedad usada como nombre.</p>
+      <div class="gnp-editor-list" id="gnp-editor-list"></div>
+      <div class="dlg-row"><span></span><button class="btn" id="gnp-editor-clear">Borrar todo</button></div>
+    </div>
     <div class="dlg-actions">
-      <button class="btn" id="gnp-editor-close">Cerrar</button>
-      <button class="btn" id="gnp-editor-clear">Borrar todo</button>
+      <button class="btn" id="props-cancel">Cancelar</button>
+      <button class="btn" id="props-accept">Aceptar</button>
     </div>
   </div>
 </div>

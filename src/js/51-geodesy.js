@@ -94,6 +94,7 @@ function fmtUtm(lat, lon) {
 
 const METERS_PER_NM = 1852;   /* milla náutica internacional        */
 const METERS_PER_FOOT = 0.3048; /* pie internacional, valor exacto    */
+const METERS_PER_MILE = 1609.344; /* milla terrestre (statute mile), valor exacto */
 
 /* Altitud en metros y en pies: en aeronáutica la altitud se maneja en
    pies, igual que las distancias en millas náuticas.                  */
@@ -102,10 +103,12 @@ const fmtAltitude = m =>
 
 
 /* Unidades de las distancias y las áreas medidas (metros por unidad).
-   Las elige el usuario en el diálogo de propiedades (`measureUnit`) y
-   mandan también sobre las etiquetas del visor.                      */
-const POLY_UNIT_FACTOR = { m: 1, km: 1000, ft: METERS_PER_FOOT, nm: METERS_PER_NM };
-const POLY_UNIT_LABEL = { m: "m", km: "km", ft: "ft", nm: "NM" };
+   Ya NO se eligen por elemento: es un ajuste global (`measureUnit`,
+   panel de Propiedades, ver 43-points-editor.js) que manda a la vez
+   sobre el perímetro/área de un polígono, las medidas de una medición
+   y las etiquetas del visor y del árbol.                              */
+const POLY_UNIT_FACTOR = { m: 1, km: 1000, ft: METERS_PER_FOOT, mi: METERS_PER_MILE, nm: METERS_PER_NM };
+const POLY_UNIT_LABEL = { m: "m", km: "km", ft: "ft", mi: "mi", nm: "NM" };
 
 /* Una medida en la unidad elegida. La MISMA función para el diálogo de
    propiedades y para las etiquetas del visor y del árbol: son la misma

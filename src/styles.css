@@ -406,17 +406,53 @@
      regardless of specificity, so the `hidden` property silently does
      nothing without this explicit override.                           */
   .measure-bar a[hidden] { display: none; }
-  .measure-handle {
+  /* Círculo blanco PEQUEÑO por defecto, sin cursor propio: un waypoint
+     de ruta o el centro/borde de un círculo son manejadores PERMANENTES
+     (existen aunque su diálogo de propiedades esté cerrado, ver
+     makeHandle en 52-measure.js) y sin ese diálogo abierto no se pueden
+     mover ni borrar — reportado como bug: el cursor cambiaba a "move" y
+     el círculo se veía tan grande como en modo edición, sugiriendo que
+     sí se podía arrastrar. Sin `cursor` propio aquí, se hereda el
+     "pointer" (mano) que Leaflet ya pone en `.leaflet-interactive`, que
+     es justo lo que no debe cambiar.
+     El punto visible vive en un `<span class="measure-dot">` INTERIOR
+     (insertado vía la opción `html` de `L.divIcon`, ver makeHandle/
+     setMeasureHandlesEditable) y NO en este `<div>` raíz — reportado de
+     nuevo como bug: el tamaño no cambiaba nunca entre presentación y
+     edición. Causa real: este `<div>` raíz es el mismo elemento que
+     Leaflet POSICIONA con un `transform` EN LÍNEA
+     (`translate3d(...)`, `L.DomUtil.setPosition`) en cada movimiento
+     del mapa, y un estilo en línea gana SIEMPRE a cualquier regla de
+     hoja de estilos sobre la misma propiedad, sin que la especificidad
+     pinte nada — así que un `transform: scale()` puesto aquí nunca
+     llegaba a verse: el navegador seguía pintando el `translate3d` de
+     Leaflet. Comprobado con un repro real (`getComputedStyle(el)
+     .transform` idéntico con el diálogo abierto y cerrado, y solo con
+     matriz de traslación, nunca de escala). El `<span>` interior no lo
+     toca Leaflet en ningún momento después de insertarlo, así que ahí
+     sí funciona: `position: absolute; inset: 0` lo hace ocupar el mismo
+     hit-box de 12×12 sin reducirlo (más fácil de acertar el clic), y es
+     donde vive `transform: scale()` de verdad.                        */
+  .measure-handle .measure-dot {
+    position: absolute;
+    inset: 0;
     background: #fff;
     border: 2px solid #444;
     border-radius: 50%;
     box-shadow: 0 1px 3px rgba(0,0,0,.4);
-    cursor: move;
+    transform: scale(.45);
   }
+  /* Manejador de un polígono en edición (nace así, ver beginVertexEdit),
+     o de una ruta/círculo con su diálogo de propiedades abierto (ver
+     setMeasureHandlesEditable): aspecto y cursor "move" de siempre. El
+     `cursor` sí puede quedarse en el `<div>` raíz: no es una propiedad
+     que Leaflet toque en línea.                                       */
+  .measure-handle.vertex-editable { cursor: move; }
+  .measure-handle.vertex-editable .measure-dot { transform: none; }
   /* Vértice seleccionado (ruta o polígono): mismo círculo, resaltado con
      el color de acento para que se distinga de un manejador cualquiera
      sin cambiar de forma ni de tamaño.                                 */
-  .measure-handle.vertex-selected {
+  .measure-handle.vertex-selected .measure-dot {
     border-color: var(--accent);
     box-shadow: 0 0 0 2px var(--accent), 0 1px 3px rgba(0,0,0,.4);
   }
@@ -770,7 +806,7 @@
      max-width/max-height de .dlg-box siguen valiendo como topes de
      cordura: por mucho que se estire, la ventana no se sale.         */
   #style-dialog .dlg-box, #icon-picker .dlg-box, #shortcuts .dlg-box,
-  #desc-dialog .dlg-box, #geojson-name-picker .dlg-box, #gnp-editor .dlg-box,
+  #desc-dialog .dlg-box, #geojson-name-picker .dlg-box, #props-dialog .dlg-box,
   #points-dialog .dlg-box, #log-dialog .dlg-box, #url-dialog .dlg-box { resize: both; }
   /* El título del diálogo de propiedades lleva el nombre del nodo, y un
      nombre de KML puede tener cientos de caracteres: con la anchura de
@@ -1045,15 +1081,50 @@
   .dlg-note { margin-left: auto; font-size: 12px; color: var(--muted); }
   /* Mismo criterio que .desc-body: llenan la caja en vez de quedarse en
      un tope fijo que ignoraba el redimensionado.                     */
-  #geojson-name-picker .dlg-box, #gnp-editor .dlg-box {
+  #geojson-name-picker .dlg-box {
     display: flex; flex-direction: column;
     width: min(92vw, 32rem);
+  }
+  /* El panel Propiedades lleva ALTURA DE PARTIDA explícita, mismo motivo
+     que #points-dialog/#log-dialog/#url-dialog: un hijo en `flex: 1`
+     sobre un contenedor de altura automática se queda en nada, así que
+     sin esto la lista de "Índices de GeoJSON" (que puede tener cientos
+     de entradas) hacía crecer la CAJA ENTERA con ella en vez de
+     scrollear por su cuenta — reportado explícitamente. Con la caja ya
+     acotada, `.gnp-editor-list` (`flex: 1 1 auto`, más abajo) sí se
+     constriñe de verdad y saca su propio scroll.                      */
+  #props-dialog .dlg-box {
+    display: flex; flex-direction: column;
+    width: min(92vw, 32rem); height: min(70vh, 480px);
   }
   .gnp-list, .gnp-editor-list {
     flex: 1 1 auto; min-height: 4em;
     overflow-y: auto;
     margin: 8px 0;
   }
+  /* ---------- Pestañas del panel de Propiedades ----------
+     Único diálogo de la aplicación con pestañas: mismo lenguaje visual
+     que el resto (fila de botones + paneles), sin componente nuevo. Cada
+     panel llena el alto disponible como ya hace .gnp-editor-list, para
+     que redimensionar la ventana (#props-dialog .dlg-box tiene
+     resize: both) dé espacio de verdad al contenido.                   */
+  .dlg-tabs {
+    display: flex; gap: 4px;
+    border-bottom: 1px solid var(--border);
+    margin: 0 0 8px;
+  }
+  .dlg-tab {
+    background: none; border: none; border-bottom: 2px solid transparent;
+    padding: 6px 10px; font: inherit; font-size: 13px;
+    color: var(--muted); cursor: pointer;
+  }
+  .dlg-tab.active { color: var(--text); border-bottom-color: var(--accent); font-weight: 600; }
+  .dlg-tabpanel { flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; }
+  /* Same trap as .dlg-row[hidden]/.color-field[hidden]: an author
+     "display: flex" beats the UA "[hidden] { display: none }" rule
+     regardless of specificity, so the inactive tab stayed visible
+     without this explicit override.                                   */
+  .dlg-tabpanel[hidden] { display: none; }
   .gnp-row {
     display: flex;
     align-items: baseline;
@@ -1078,7 +1149,6 @@
   }
   .gnp-editor-row .gnp-editor-keys { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .gnp-editor-row select { font: inherit; }
-  #pos-format { padding: 1px 8px; line-height: 1.3; }
   .dlg-row input.bad { border-color: #c0392b; background: #fdf1ef; }
   /* The preview sits outside the button and only its height is fixed, so
      non-square icons (the 25×41 Leaflet pin) keep their aspect ratio */

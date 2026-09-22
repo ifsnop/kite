@@ -423,6 +423,97 @@ async function dbLoadProps() {
   });
 }
 
+/* ---------- Tope de vértices editables interactivamente sobre el mapa ----------
+   Otra clave del mismo almacén: no hace falta subir DB_VERSION. Depende
+   del hardware de quien lo usa (ver VERTEX_EDIT_MAX_DEFAULT en
+   43-points-editor.js), así que es una preferencia y no una constante
+   fija — se edita en el mismo editor que las asociaciones de nombre de
+   GeoJSON (botón 🏷️, gnp-editor).                                    */
+const VERTMAX_KEY = "vertexEditMax";
+const VERTMAX_SCHEMA = 1;
+
+async function dbSaveVertexEditMax(max) {
+  const db = await openDb();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(DB_TREE, "readwrite");
+    tx.objectStore(DB_TREE).put({ v: VERTMAX_SCHEMA, max }, VERTMAX_KEY);
+    tx.oncomplete = resolve;
+    tx.onerror = () => reject(tx.error);
+  });
+}
+/* Validado como cualquier otro valor leído: un registro corrupto o un
+   0/negativo no debe colar un tope inservible (`beginVertexEdit`
+   comparte código para "sin trazo" y "por encima del tope", y un tope
+   de 0 desactivaría la edición interactiva para todo el mundo).       */
+async function dbLoadVertexEditMax() {
+  const db = await openDb();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(DB_TREE, "readonly");
+    const rq = tx.objectStore(DB_TREE).get(VERTMAX_KEY);
+    rq.onsuccess = () => {
+      const r = rq.result;
+      resolve(r && r.v === VERTMAX_SCHEMA && Number.isInteger(r.max) && r.max > 0 ? r.max : null);
+    };
+    rq.onerror = () => reject(rq.error);
+  });
+}
+
+/* Unidad de medida y formato de latitud/longitud: mismo patrón que
+   VERTMAX_KEY/VERTMAX_SCHEMA, ajustes GLOBALES (panel de Propiedades,
+   43-points-editor.js) que antes vivían solo en memoria, sin persistir
+   entre sesiones, y con un control repetido en varios diálogos
+   distintos (`measureUnit`) o propio de uno solo (el formato de
+   coordenadas de un marcador) — pedido explícitamente: un único sitio,
+   que además recuerde el valor entre sesiones.                       */
+const MEASURE_UNIT_KEY = "measureUnit";
+const MEASURE_UNIT_SCHEMA = 1;
+const MEASURE_UNITS = ["m", "km", "ft", "mi", "nm"];
+async function dbSaveMeasureUnit(unit) {
+  const db = await openDb();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(DB_TREE, "readwrite");
+    tx.objectStore(DB_TREE).put({ v: MEASURE_UNIT_SCHEMA, unit }, MEASURE_UNIT_KEY);
+    tx.oncomplete = resolve;
+    tx.onerror = () => reject(tx.error);
+  });
+}
+async function dbLoadMeasureUnit() {
+  const db = await openDb();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(DB_TREE, "readonly");
+    const rq = tx.objectStore(DB_TREE).get(MEASURE_UNIT_KEY);
+    rq.onsuccess = () => {
+      const r = rq.result;
+      resolve(r && r.v === MEASURE_UNIT_SCHEMA && MEASURE_UNITS.includes(r.unit) ? r.unit : null);
+    };
+    rq.onerror = () => reject(rq.error);
+  });
+}
+
+const COORD_FORMAT_KEY = "coordFormat";
+const COORD_FORMAT_SCHEMA = 1;
+async function dbSaveCoordFormat(fmt) {
+  const db = await openDb();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(DB_TREE, "readwrite");
+    tx.objectStore(DB_TREE).put({ v: COORD_FORMAT_SCHEMA, fmt }, COORD_FORMAT_KEY);
+    tx.oncomplete = resolve;
+    tx.onerror = () => reject(tx.error);
+  });
+}
+async function dbLoadCoordFormat() {
+  const db = await openDb();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(DB_TREE, "readonly");
+    const rq = tx.objectStore(DB_TREE).get(COORD_FORMAT_KEY);
+    rq.onsuccess = () => {
+      const r = rq.result;
+      resolve(r && r.v === COORD_FORMAT_SCHEMA && (r.fmt === "dec" || r.fmt === "dms") ? r.fmt : null);
+    };
+    rq.onerror = () => reject(rq.error);
+  });
+}
+
 async function dbSaveBases(rec) {
   const db = await openDb();
   return new Promise((resolve, reject) => {

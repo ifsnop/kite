@@ -31,10 +31,8 @@ const navMessage = (txt, opts) => { navCalls.push({ txt, opts }); };
    recorrido del árbol que prueba tests/navtest.js aparte. Aquí basta
    con toggleOne, que llama a announceSelectionCount igual que
    selectRange y no necesita nada de eso.                             */
-/* setSelCursor avisa a syncVertexOwner (43-points-editor.js) de que la
-   selección terminó de asentarse; no es lo que este test prueba.      */
 const api = new Function("treeEl", "styleKind", "navMessage",
-  "function syncVertexOwner() {}\n" + src + "\n" + top +
+  src + "\n" + top +
   "\nreturn {selection, selectNode, toggleOne, clearSelection, setSelected," +
   " topLevelSelection, cursor: () => selCursor};")(treeEl, styleKind, navMessage);
 const { selection, selectNode, toggleOne, clearSelection, topLevelSelection, setSelected } = api;

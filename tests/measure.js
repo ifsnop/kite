@@ -94,15 +94,20 @@ ok(circVals.dist > 85000 && circVals.dist < 86000,
 /* ---------- renderMeasureValues: unidades y filas que se ocultan ---------- */
 const { document } = parseHTML(`
   <span id="ms-dist-label"></span><span id="ms-dist"></span>
+  <div id="ms-center-row"><span id="ms-center"></span></div>
   <div id="ms-area-row"><span id="ms-area"></span></div>
   <div id="ms-bearing-row"><span id="ms-bearing"></span></div>
   <div id="ms-legs-row"><div id="ms-legs"></div></div>`);
 const units = constDecl("METERS_PER_NM") + "\n" + constDecl("METERS_PER_FOOT") + "\n"
-  + constDecl("POLY_UNIT_FACTOR") + "\n" + constDecl("POLY_UNIT_LABEL") + "\n"
+  + constDecl("METERS_PER_MILE") + "\n" + constDecl("POLY_UNIT_FACTOR") + "\n" + constDecl("POLY_UNIT_LABEL") + "\n"
   + constDecl("fmtUnitDist") + "\n" + constDecl("fmtUnitArea");
+/* renderMeasureValues ahora también escribe el centro de un círculo,
+   con formatCoord/coordFormat (43-points-editor.js) — se extraen tal
+   cual, con "dec" de partida, igual que hace tests/pointsedit.js.     */
+const coordSrc = fn("dmsParts") + "\n" + fn("formatCoord");
 const render = new Function("document",
-  "const $id = id => document.getElementById(id);\n" + units
-  + "\nlet measureUnit = 'm';\nlet msMeasures = null;\n"
+  "const $id = id => document.getElementById(id);\n" + units + "\n" + coordSrc
+  + "\nlet measureUnit = 'm';\nlet coordFormat = 'dec';\nlet msMeasures = null;\n"
   + fn("renderMeasureValues")
   + "\nreturn { fmtUnitDist, fmtUnitArea,"
   + " render(vals, unit) { msMeasures = vals; measureUnit = unit;"
@@ -122,6 +127,7 @@ ok(render.fmtUnitArea(1e6, "m") === "1000000.00 m²", "y en metros, un millón")
 render.render({ circle: false, dist: 1852, area: null, brg: 45 }, "m");
 ok($("ms-dist-label").textContent === "Distancia", "una línea mide DISTANCIA");
 ok($("ms-dist").textContent === "1852.00 m", "en metros: " + $("ms-dist").textContent);
+ok($("ms-center-row").hidden === true, "una línea no tiene centro que mostrar");
 ok($("ms-area-row").hidden === true, "y sin fila de área");
 ok($("ms-bearing-row").hidden === false && $("ms-bearing").textContent === "45.0°",
   "el rumbo va en grados, con un decimal: " + $("ms-bearing").textContent);
@@ -132,7 +138,8 @@ ok($("ms-dist").textContent === "1.00 NM", "1852 m es 1 NM exacta: " + $("ms-dis
 /* El rumbo NO cambia con la unidad: no es una distancia */
 ok($("ms-bearing").textContent === "45.0°", "el rumbo sigue en grados");
 
-render.render({ circle: true, dist: 1000, area: mv.capArea(1000), brg: null }, "km");
+render.render({ circle: true, dist: 1000, area: mv.capArea(1000), brg: null,
+  center: { lat: 40.416775, lng: -3.703790 } }, "km");
 ok($("ms-dist-label").textContent === "Radio", "un círculo mide RADIO");
 ok($("ms-dist").textContent === "1.00 km", "1000 m es 1 km: " + $("ms-dist").textContent);
 ok($("ms-bearing-row").hidden === true, "y no enseña rumbo");
@@ -140,6 +147,11 @@ ok($("ms-area-row").hidden === false, "pero sí área");
 /* El área va en unidad AL CUADRADO: πr² de 1 km son ~3.14 km² */
 ok($("ms-area").textContent === "3.14 km²",
   "el área se convierte con el factor al cuadrado: " + $("ms-area").textContent);
+/* Centro del círculo, pedido explícitamente: solo visible para un
+   círculo, en el formato global de coordenadas.                      */
+ok($("ms-center-row").hidden === false, "el círculo muestra su centro");
+ok($("ms-center").textContent === "40.416775, -3.703790",
+  "en decimal por defecto: " + $("ms-center").textContent);
 
 /* Ruta: «Distancia total», sin fila de rumbo (no hay uno solo) y un
    tramo por línea en #ms-legs.                                       */

@@ -5,6 +5,17 @@ let measureLi = null;
 let activeTool = null; /* null | "circle" | "polygon" | "route" */
 let drawing = null;    /* medición en curso durante el arrastre de creación */
 let polyDraft = null;  /* polígono en curso: { vertices, handles, poly, group } | null */
+/* Crear una ruta se comporta como EDITARLA: no usa polyDraft en absoluto
+   (a diferencia de un polígono). Antes del segundo punto no hay todavía
+   una medición de verdad —un tramo necesita dos extremos—, así que solo
+   hay una vista previa de un único punto (`routeDraft`); desde el
+   segundo, `routeMeasurement` es la medición REAL, ya colgada del árbol
+   y con su diálogo de propiedades abierto (`openStyleDialog(li,
+   {isNew:true})`, el mismo patrón que crear un pin): cada punto nuevo
+   se ve al momento en las cifras del propio diálogo, sin esperar a
+   terminar el dibujo.                                                  */
+let routeDraft = null;       /* { first, previewGroup } antes del 2º punto, o null */
+let routeMeasurement = null; /* la ruta real desde el 2º punto en adelante, o null */
 /* Los dos últimos clicks del dibujo: ¿añadieron vértice? El dblclick lee
    `prevClickAdded` (el primero de su par) para decidir si termina
    cerrada o abierta. Ver el manejador de "dblclick".                  */
@@ -118,6 +129,12 @@ map.addControl(new MeasureControl());
 function setTool(tool) {
   if (drawing) { rootGroup.removeLayer(drawing.group); drawing = null; }
   if (polyDraft) { rootGroup.removeLayer(polyDraft.group); polyDraft = null; }
+  /* Cambiar de herramienta a mitad de una ruta (antes del 2º punto: solo
+     la vista previa; desde el 2º: la medición real con su diálogo
+     abierto) cierra ese diálogo como un Cancelar — mismo camino que
+     Escape, ver más abajo —, que borra el nodo por ser "isNew".        */
+  if (routeDraft) { rootGroup.removeLayer(routeDraft.previewGroup); routeDraft = null; }
+  if (routeMeasurement) { routeMeasurement = null; closeStyleDialog(false); }
   prevClickAdded = lastClickAdded = false; /* el historial es de un solo dibujo */
   /* An info panel already open (from a hover right before activating the
      tool) could sit exactly where the user needs to click to fix a
@@ -148,7 +165,30 @@ function setTool(tool) {
   /* Con la herramienta activa, el arrastre dibuja en vez de hacer pan, y
      el doble click de "cerrar polígono" no debe además hacer zoom      */
   if (tool) { map.dragging.disable(); map.doubleClickZoom.disable(); }
-  else { map.dragging.enable(); map.doubleClickZoom.enable(); }
+  /* Al SOLTAR una herramienta, doubleClickZoom no se reactiva a ciegas:
+     puede seguir habiendo un polígono/ruta/círculo en edición al mismo
+     tiempo (activeTool y vertexOwner NO son excluyentes — se puede abrir
+     una herramienta de dibujo con un diálogo de propiedades ya abierto),
+     y esa edición tiene el mismo derecho a mantenerlo desactivado.      */
+  else { map.dragging.enable(); refreshDoubleClickZoom(); }
+}
+
+/* Reportado: insertar dos vértices seguidos (Mayús+clic) mientras se
+   edita un polígono hacía zoom — el doble click de "cerrar polígono"
+   ya se sabía que no debía hacer zoom DURANTE EL DIBUJO (arriba), pero
+   nadie apagaba doubleClickZoom durante la EDICIÓN post-creación de un
+   polígono/ruta (vertexOwner) ni la de un círculo (su Ctrl+arrastre no
+   pasa por vertexOwner). Una única función que mira TODO lo que puede
+   estar activo a la vez, en vez de un apagar/encender independiente en
+   cada sitio que se pisaría entre sí (ver el comentario de arriba).    */
+function anyEditModeActive() {
+  if (activeTool || vertexOwner) return true;
+  return styleKindOpen === "measure" && !styleDialog.hidden && styleTargets.length === 1
+    && styleTargets[0]._measure && styleTargets[0]._measure.type === "circle";
+}
+function refreshDoubleClickZoom() {
+  if (anyEditModeActive()) map.doubleClickZoom.disable();
+  else map.doubleClickZoom.enable();
 }
 document.addEventListener("keydown", e => {
   if (e.key !== "Escape") return;
@@ -163,9 +203,14 @@ document.addEventListener("keydown", e => {
   if (!ktpDialog.hidden) { closeKtpPicker(false); return; }
   if (!kdpDialog.hidden) { closeKdpPicker(false); return; }
   if (!gnpDialog.hidden) { closeGnpPicker(null); return; }
-  if (!gnpEditorDialog.hidden) { gnpEditorDialog.hidden = true; releaseFocus(); return; }
+  if (!propsDialog.hidden) { cancelPropsDialog(); return; }
   if (!shDialog.hidden) { closeShCredsDialog(); return; }
   if (!pointsDialog.hidden) { closePointsDialog(); return; }
+  /* Cancelar a medio dibujar una ruta (closeStyleDialog(false) borra el
+     nodo por ser "isNew", mismo camino que un pin recién creado, y
+     además sale de la herramienta) vive dentro de closeStyleDialog
+     mismo, `44-dialogs.js`: cubre así también cerrar con los propios
+     botones del diálogo, no solo Escape.                              */
   if (!styleDialog.hidden) { closeStyleDialog(false); return; }
   setTool(null);
   clearSelection();
@@ -203,11 +248,28 @@ L.DomEvent.on(document, "mouseup", () => {
   finalizeMeasurement(m);
 });
 
-/* Manejador de origen/destino: la edición requiere Ctrl para no
-   interferir con el pan del mapa                                       */
-function makeHandle(latlng) {
+/* El punto visible vive en un <span> INTERIOR, no en el <div> raíz del
+   propio divIcon: ver el comentario largo de ".measure-handle
+   .measure-dot" en styles.css para el porqué (el <div> raíz es el
+   mismo elemento que Leaflet posiciona con un transform EN LÍNEA, que
+   siempre gana a cualquier transform de hoja de estilos puesto ahí).  */
+const MEASURE_DOT_HTML = '<span class="measure-dot"></span>';
+
+/* Manejador de origen/destino: `editable` decide el aspecto inicial
+   (círculo blanco pequeño, sin cursor propio; o el círculo grande con
+   cursor "move" de siempre) — ver ".vertex-editable" en styles.css y
+   `setMeasureHandlesEditable`, que la alterna después según si el
+   diálogo de esa medición está abierto. Los manejadores de un polígono
+   nacen ya editables porque solo existen mientras se editan; los de una
+   ruta o un círculo nacen pasivos, porque son permanentes y arrancan
+   sin ningún diálogo abierto.                                          */
+function makeHandle(latlng, editable = false) {
   return L.marker(latlng, {
-    icon: L.divIcon({ className: "measure-handle", iconSize: [12, 12] })
+    icon: L.divIcon({
+      className: "measure-handle" + (editable ? " vertex-editable" : ""),
+      html: MEASURE_DOT_HTML,
+      iconSize: [12, 12]
+    })
   });
 }
 
@@ -254,18 +316,36 @@ function measureWaypoints(m) {
    - Tras terminar, `requireCtrl` es true: el mapa SÍ es interactivo, así
      que hace falta el mismo gesto reservado que ya usa el círculo
      (Ctrl+arrastre = editar mediciones, ver «Gestos del visor»), aquí
-     extendido a vértices de una ruta o un polígono.                   */
-function attachVertexDrag(handle, requireCtrl, onMove, onDrop) {
+     extendido a vértices de una ruta o un polígono.
+   - `canStart`, opcional: comprobado ANTES de capturar nada, así un
+     Ctrl+clic sin owner activo no llega a deshabilitar `map.dragging`
+     ni a dejar el gesto a medias. Un polígono no lo necesita —sus
+     manejadores solo existen mientras hay owner, así que ya están
+     gateados por pura existencia—; una ruta sí, porque los suyos son
+     permanentes (ver `wireRouteHandle`, más abajo).                   */
+function attachVertexDrag(handle, requireCtrl, onMove, onDrop, canStart) {
   handle.on("mousedown", ev => {
     const oe = ev.originalEvent;
     if (requireCtrl && !oe.ctrlKey && !oe.metaKey) return; /* sin Ctrl, el mapa hace pan */
+    if (canStart && !canStart()) return;
     L.DomEvent.stop(oe);
-    if (requireCtrl) map.dragging.disable();
+    /* Gestionar map.dragging es independiente de si hace falta Ctrl para
+       EMPEZAR el gesto: mientras se dibuja, setTool ya lo desactivó para
+       TODA la sesión, y hacerlo también aquí lo reactivaría a mitad de
+       dibujo en cuanto se soltara este vértice. Fuera de una herramienta
+       activa (edición de una forma ya creada) nadie más lo gestiona, así
+       que hace falta aquí — sobre todo ahora que mover un vértice ya no
+       exige Ctrl (wireVertexEditHandle/wireRouteHandle): sin esto el
+       mapa competiría por el mismo gesto, y ese arrastre-de-mapa a
+       medias es lo que le hacía suprimir el "dblclick" que seguía
+       (reportado como "doble click no hace zoom en modo edición").     */
+    const manageDragging = !activeTool;
+    if (manageDragging) map.dragging.disable();
     const move = e => { handle.setLatLng(e.latlng); onMove(e.latlng); };
     const up = () => {
       map.off("mousemove", move);
       L.DomEvent.off(document, "mouseup", up);
-      if (requireCtrl) map.dragging.enable();
+      if (manageDragging) map.dragging.enable();
       if (onDrop) onDrop();
     };
     map.on("mousemove", move);
@@ -295,16 +375,38 @@ function finalizeMeasurement(m) {
   addMeasureNode(m);
 }
 
-/* Edición con Ctrl + arrastre sobre un manejador de círculo (Cmd en Mac).
-   Se usa Ctrl y no Shift porque Shift + arrastre ya es el box-zoom.
-   El borde cambia el radio; el centro traslada el círculo completo
-   conservando radio y rumbo.                                          */
+/* Arrastrar el centro o el borde de un círculo YA NO exige Ctrl —por
+   uniformidad con un vértice de ruta o de polígono, que perdieron esa
+   exigencia antes (ver "Selección de vértice" en CLAUDE.md); reportado
+   explícitamente para que el gesto sea el mismo en los tres casos: un
+   arrastre sin más. El borde cambia el radio; el centro traslada el
+   círculo completo conservando radio y rumbo. Como una ruta o un
+   polígono, sigue exigiendo tener el diálogo de propiedades de ESTA
+   medición abierto (bug reportado en su día: antes se podía mover
+   siempre, sin ningún diálogo) — un círculo no tiene "vértices"
+   plurales que gestionar con un `vertexOwner`, así que aquí basta
+   comprobar `styleDialogShows` directamente, en vez de pasar por
+   `attachVertexDrag` como sí hacen ruta y polígono.
+   NO se delega en `attachVertexDrag`: su `move` ya reposiciona el
+   propio `handle` (`handle.setLatLng(e.latlng)`) ANTES de llamar a su
+   `onMove`, y la foto `saved` (rumbo+distancia del círculo) tiene que
+   tomarse en el `mousedown`, con la posición TODAVÍA sin tocar — si se
+   calculara dentro de `onMove` ya leería una posición desplazada desde
+   el primer movimiento, y el centro/radio saldrían mal en ese primer
+   gesto. Se mantiene el propio mousedown/mousemove/mouseup, solo
+   copiando de `attachVertexDrag` el desacople de `map.dragging` de la
+   tecla modificadora (`manageDragging = !activeTool`, en vez de
+   `map.dragging.disable()` incondicional): sin él, el mapa competiría
+   por el mismo gesto de arrastre y se perdería el siguiente doble
+   click (zoom) — la misma trampa ya documentada y resuelta para
+   ruta/polígono al quitarles Ctrl.                                    */
 function attachCtrlDrag(m, handle, isOrigin) {
   handle.on("mousedown", ev => {
     const oe = ev.originalEvent;
-    if (!oe.ctrlKey && !oe.metaKey) return; /* sin Ctrl, el mapa hace pan */
+    if (!styleDialogShows(m.treeLabel && m.treeLabel.closest("li"))) return;
     L.DomEvent.stop(oe);
-    map.dragging.disable();
+    const manageDragging = !activeTool;
+    if (manageDragging) map.dragging.disable();
 
     const translateCircle = isOrigin && m.type === "circle";
     const saved = translateCircle ? {
@@ -320,12 +422,17 @@ function attachCtrlDrag(m, handle, isOrigin) {
     const onUp = () => {
       map.off("mousemove", onMove);
       L.DomEvent.off(document, "mouseup", onUp);
-      map.dragging.enable();
+      if (manageDragging) map.dragging.enable();
       scheduleSave();
     };
     map.on("mousemove", onMove);
     L.DomEvent.on(document, "mouseup", onUp);
   });
+  /* Un círculo no borra nada con clic derecho (no hay "vértice" que
+     quitar, solo centro y borde): siempre debe abrir el menú
+     contextual normal, con o sin diálogo abierto — a diferencia de un
+     manejador de ruta/polígono, que sí tiene un borrado que hacer.    */
+  handle.on("contextmenu", openCtxMenuFromMouseEvent);
 }
 
 /* Recalcula geometría y etiqueta (distancia geodésica + rumbo). Único
@@ -369,7 +476,10 @@ function updateRouteMeasurement(m) {
     total += dist;
     m.legs.push({ dist, brg });
     m.legLabels[i].setLatLng(midPoint(pts[i], pts[i + 1]));
-    m.legLabels[i].setContent(`${fmtUnitDist(dist, measureUnit)} \u00b7 ${brg.toFixed(1)}\u00b0`);
+    /* El n\u00famero de tramo, primero: para poder correlacionar de un
+       vistazo con el desglose del di\u00e1logo de propiedades
+       (renderMeasureValues, 44-dialogs.js, que ya numera igual).      */
+    m.legLabels[i].setContent(`Tramo ${i + 1}: ${fmtUnitDist(dist, measureUnit)} \u00b7 ${brg.toFixed(1)}\u00b0`);
   }
   m.totalDist = total;
   if (m.treeLabel) {
@@ -481,7 +591,9 @@ function measurementValues(m) {
     return { circle: false, route: true, dist: m.totalDist, area: null, brg: null, legs: m.legs };
   }
   const dist = map.distance(m.mOrigin.getLatLng(), m.mDest.getLatLng());
-  return { circle: true, dist, area: capArea(dist), brg: null };
+  /* El centro, para poder verlo en el diálogo (pedido explícitamente):
+     es literalmente la posición del manejador de origen.               */
+  return { circle: true, dist, area: capArea(dist), brg: null, center: m.mOrigin.getLatLng() };
 }
 
 /* ================= Dibujo de polígono a mano =================
@@ -507,19 +619,14 @@ const POLY_PREVIEW_STYLE = { color: "#16a34a", weight: 2, dashArray: "6 4" };
 const POLYGONS_SECTION = "Polígonos";
 
 function addPolyVertex(latlng) {
+  if (activeTool === "route") { addRouteVertex(latlng); return; }
   if (!polyDraft) {
-    /* La vista previa de una ruta lleva el guion de medición, para que
-       se lea como tal desde el primer trazo, en vez del verde
-       discontinuo del dibujo libre.                                  */
-    const previewStyle = activeTool === "route"
-      ? { color: MEASURE_COLORS.route, weight: 2, dashArray: MEASURE_DASH }
-      : POLY_PREVIEW_STYLE;
-    const poly = L.polyline([latlng], previewStyle);
+    const poly = L.polyline([latlng], POLY_PREVIEW_STYLE);
     polyDraft = { vertices: [latlng], handles: [], poly, group: L.featureGroup([poly]).addTo(rootGroup) };
   } else {
     polyDraft.vertices.push(latlng);
   }
-  const h = makeHandle(latlng);
+  const h = makeHandle(latlng, true);
   h.on("contextmenu", ev => { L.DomEvent.stop(ev.originalEvent); removePolyVertex(h); });
   /* Mover un vértice ANTES de cerrar: sin Ctrl, porque mientras se
      dibuja el mapa ya tiene dragging.disable() (ver setTool) y un
@@ -535,6 +642,44 @@ function addPolyVertex(latlng) {
   polyDraft.handles.push(h);
   polyDraft.group.addLayer(h);
   polyDraft.poly.setLatLngs(polyDraft.vertices);
+}
+
+/* Crear una ruta se comporta como editarla (ver el comentario de
+   routeDraft/routeMeasurement, arriba): desde el 2º punto, cada click
+   añade un waypoint a la medición REAL con `insertRouteWaypoint`, la
+   misma función que ya usa Mayús+clic al editar una ruta existente — el
+   diálogo de propiedades, abierto desde ese 2º punto, repinta sus
+   cifras al momento porque `updateMeasurement` ya llama a
+   `refreshOpenMeasureDialog`, sin nada nuevo que cablear aquí.         */
+function addRouteVertex(latlng) {
+  if (routeMeasurement) {
+    /* Defensa ante un cierre externo del diálogo (p.ej. abrir el de otra
+       capa desde su botón 🎨, que cancela el que estuviera abierto): si
+       el nodo ya no cuelga del árbol, la medición está muerta y este
+       click debe tratarse como el primero de una ruta nueva.           */
+    const li = routeMeasurement.treeLabel && routeMeasurement.treeLabel.closest("li");
+    if (!li || !li.isConnected) routeMeasurement = null;
+  }
+  if (routeMeasurement) {
+    insertRouteWaypoint(routeMeasurement, routeMeasurement.handles[routeMeasurement.handles.length - 1], latlng);
+    return;
+  }
+  if (routeDraft) {
+    const m = buildRouteMeasurement([
+      { lat: routeDraft.first.lat, lng: routeDraft.first.lng },
+      { lat: latlng.lat, lng: latlng.lng }
+    ]);
+    rootGroup.removeLayer(routeDraft.previewGroup);
+    routeDraft = null;
+    routeMeasurement = m;
+    finalizeRouteMeasurement(m);
+    openStyleDialog(m.treeLabel.closest("li"), { isNew: true });
+    return;
+  }
+  /* Primer punto: solo una vista previa, sin medición todavía — un tramo
+     necesita dos extremos, así que no hay nada real que editar aún.    */
+  const h = makeHandle(latlng, true);
+  routeDraft = { first: latlng, previewGroup: L.featureGroup([h]).addTo(rootGroup) };
 }
 
 /* Click derecho sobre un vértice (o Supr, ver el keydown más abajo) lo
@@ -558,7 +703,6 @@ function removePolyVertex(handle) {
    versión: `closed` se ignora y siempre termina abierta, sea cual sea
    el punto donde caiga el doble click.                                */
 function finishPolygon(closed) {
-  if (activeTool === "route") { finishRoute(); return; }
   const min = closed ? 3 : 2;
   if (polyDraft.vertices.length < min) {
     navMessage(closed
@@ -584,20 +728,18 @@ function finishPolygon(closed) {
   highlightNode(li); /* deja el foco de la navegación en el nodo recién creado */
 }
 
-/* Ruta: construye la medición a partir de los waypoints del borrador
-   (mismo umbral que una línea abierta, 2) y la cuelga de «Mediciones»,
-   no de «Polígonos» — es una medición, no una forma dibujada.        */
+/* Terminar una ruta ya NO construye nada aquí: desde el 2º punto la
+   medición real y su nodo ya existen (`addRouteVertex`), con su diálogo
+   de propiedades abierto y en vivo. Terminar solo deja de seguir
+   añadiendo — el nodo y su diálogo quedan TAL CUAL, el usuario los
+   cierra cuando quiera, igual que editar una ruta ya existente.        */
 function finishRoute() {
-  if (polyDraft.vertices.length < 2) {
+  if (!routeMeasurement) {
     navMessage("Faltan waypoints para terminar la ruta (mínimo 2).");
-    return; /* sigue dibujando: no se descarta lo ya puesto */
+    return; /* sigue dibujando: no se descarta lo ya puesto (solo hay un punto) */
   }
-  const waypoints = polyDraft.vertices.map(v => ({ lat: v.lat, lng: v.lng }));
-  const m = buildRouteMeasurement(waypoints);
-  rootGroup.removeLayer(polyDraft.group);
-  polyDraft = null;
+  routeMeasurement = null;
   setTool(null);
-  finalizeRouteMeasurement(m);
 }
 
 /* Construye una ruta a partir de sus waypoints: un manejador por punto
@@ -606,7 +748,10 @@ function finishRoute() {
 function buildRouteMeasurement(waypoints, style = null) {
   const s = normalizePathStyle(style || defaultMeasureStyle("route"));
   const pts = waypoints.map(w => L.latLng(w.lat, w.lng));
-  const handles = pts.map(makeHandle);
+  /* OJO: `pts.map(makeHandle)` pasaría el ÍNDICE de cada punto como
+     segundo argumento (editable), truthy a partir del 1 — de ahí la
+     función flecha explícita.                                         */
+  const handles = pts.map(p => makeHandle(p));
   const geom = L.polyline(pts, { ...s, dashArray: MEASURE_DASH });
   const legLabels = pts.slice(1).map(() =>
     L.tooltip({ permanent: true, direction: "top", className: "measure-label" }));
@@ -624,27 +769,56 @@ function finalizeRouteMeasurement(m) {
   addMeasureNode(m);
 }
 
+/* A diferencia de un polígono —cuyos manejadores solo EXISTEN mientras
+   hay owner activo, así que están gateados por pura existencia—, los
+   de una ruta son permanentes: viven mientras la medición exista y
+   esté marcada, es su propio modelo de datos (`updateRouteMeasurement`
+   lee las posiciones de `m.handles` en vivo). Por eso arrastre, clic
+   derecho y clic normal necesitan aquí un guardia explícito, que un
+   polígono no necesita: sin él, los tres seguían funcionando SIEMPRE,
+   sin ningún diálogo de por medio — el bug reportado. `owns()` compara
+   por referencia contra `vertexOwner.m`, sin tocar el DOM.
+   Mover un waypoint ya NO exige Ctrl (antes sí, para no competir con el
+   pan del mapa): `attachVertexDrag` gestiona `map.dragging` él solo
+   mientras dura CADA arrastre (ver su comentario), así que el mapa no
+   compite por el gesto aunque no haga falta pulsar nada.               */
 function wireRouteHandle(m, handle) {
-  attachVertexDrag(handle, true, () => updateMeasurement(m), scheduleSave);
-  handle.on("contextmenu", ev => { L.DomEvent.stop(ev.originalEvent); removeRouteWaypoint(m, handle); });
-  /* Un clic (sin Ctrl) selecciona el vértice — mismo concepto que un
-     polígono, ver 43-points-editor.js. Si esta ruta no es ya el owner
-     activo, seleccionar su nodo del árbol la convierte en él primero
-     (syncVertexOwner, disparado desde selectNode): así basta con hacer
-     clic en un waypoint sobre el mapa, sin tener que ir antes al árbol. */
-  handle.on("click", () => {
-    const li = m.treeLabel && m.treeLabel.closest("li");
-    if (!li) return;
-    if (!(vertexOwner && vertexOwner.kind === "route" && vertexOwner.li === li)) {
-      /* Selección de UN solo nodo: hace falta limpiar la anterior antes
-         (mismo patrón que highlightNode) o "li" se sumaría a lo que ya
-         hubiera seleccionado, dejando más de un nodo marcado — y
-         syncVertexOwner no activa ningún owner con más de uno.        */
-      clearSelection();
-      selectNode(li, true);
-    }
-    selectVertex(handle);
+  const owns = () => vertexOwner && vertexOwner.kind === "route" && vertexOwner.m === m;
+  attachVertexDrag(handle, false, () => updateMeasurement(m), scheduleSave, owns);
+  /* Con el diálogo abierto, clic derecho borra el waypoint al momento,
+     sin menú (atajo, confirmado). SIN el diálogo abierto no hay nada
+     que borrar ahí, así que el clic derecho debe comportarse como en
+     cualquier otro punto del mapa: abre el menú contextual normal
+     (openCtxMenuFromMouseEvent, 70-view-controls.js) — sin esto,
+     Leaflet se limita a tragarse el evento (ver esa función).         */
+  handle.on("contextmenu", ev => {
+    if (!owns()) { openCtxMenuFromMouseEvent(ev); return; }
+    L.DomEvent.stop(ev.originalEvent);
+    removeRouteWaypoint(m, handle);
   });
+  handle.on("click", () => { if (owns()) selectVertex(handle); });
+}
+
+/* Aspecto/cursor de los manejadores PERMANENTES de una medición (ruta o
+   círculo, ver makeHandle): alterna la clase "vertex-editable" al abrir
+   y cerrar el diálogo de propiedades de ESA medición (44-dialogs.js,
+   mismos dos puntos que ya llaman a syncVertexOwnerForDialog). Un
+   polígono no la necesita: sus manejadores solo existen mientras se
+   editan (nacen ya "editable", ver beginVertexEdit/insertVertexEditPoint
+   en 43-points-editor.js).
+   `setIcon`, no `classList.toggle`: reportado como bug, apagar y
+   encender la visibilidad de la capa (`setLayerVisible` →
+   `rootGroup.removeLayer`/`addLayer` sobre `m.group`) hace que Leaflet
+   reconstruya el `<div>` del icono desde las OPCIONES originales del
+   marcador en cuanto vuelve a añadirse al mapa — una clase mutada solo
+   en el DOM vivo no sobrevive esa reconstrucción y el manejador volvía
+   a verse/comportarse como pasivo aunque el diálogo siguiera abierto.
+   `setIcon` dejar la clase en las propias opciones del `divIcon`, que
+   es lo que Leaflet relee, así que sobrevive a cualquier reconstrucción.*/
+function setMeasureHandlesEditable(m, on) {
+  const handles = m.type === "circle" ? [m.mOrigin, m.mDest] : m.handles;
+  const className = "measure-handle" + (on ? " vertex-editable" : "");
+  for (const h of handles) h.setIcon(L.divIcon({ className, html: MEASURE_DOT_HTML, iconSize: [12, 12] }));
 }
 
 /* Borrar un waypoint YA CREADO: mismo gesto (clic derecho) y mismo
@@ -674,13 +848,23 @@ function removeRouteWaypoint(m, handle) {
 function insertRouteWaypoint(m, handle, latlng) {
   const i = handle ? m.handles.indexOf(handle) : -1;
   const at = i === -1 ? m.handles.length : i + 1;
-  const h = makeHandle(latlng);
+  /* Inserción solo posible con el diálogo de esta ruta ya abierto (ver
+     vertexOwner): el manejador nuevo nace ya "editable".               */
+  const h = makeHandle(latlng, true);
   wireRouteHandle(m, h);
   m.handles.splice(at, 0, h);
-  m.group.addLayer(h);
-  m.legLabels.push(L.tooltip({ permanent: true, direction: "top", className: "measure-label" }));
-  m.group.addLayer(m.legLabels[m.legLabels.length - 1]);
+  const label = L.tooltip({ permanent: true, direction: "top", className: "measure-label" });
+  m.legLabels.push(label);
+  /* updateMeasurement ANTES de ir al mapa: un L.Tooltip recién creado no
+     tiene `_latlng` todavía, y añadirlo sin posición lanzaba
+     "Cannot read properties of undefined (reading 'lat')" dentro de
+     este mismo `addLayer` — antes de llegar aquí abajo, así que el
+     tramo nuevo se quedaba sin dibujar y sin etiqueta hasta que otro
+     gesto (arrastrar un vértice) volviera a llamar updateMeasurement.
+     Mismo orden que ya usa buildRouteMeasurement.                      */
   updateMeasurement(m);
+  m.group.addLayer(h);
+  m.group.addLayer(label);
   scheduleSave();
   return h;
 }
@@ -725,7 +909,12 @@ map.getContainer().addEventListener("click", e => {
   addPolyVertex(map.mouseEventToLatLng(e));
 });
 map.getContainer().addEventListener("dblclick", e => {
-  if ((activeTool !== "polygon" && activeTool !== "route") || !polyDraft) return;
+  if (activeTool === "route") {
+    if (!routeDraft && !routeMeasurement) return;
+    finishRoute();
+    return;
+  }
+  if (activeTool !== "polygon" || !polyDraft) return;
   /* No se quita ningún vértice aquí: el último debe conservarse tanto si
      lo creó el propio doble click (sobre mapa vacío: el guardia
      ".measure-handle" del listener de "click" ya evita que el segundo
@@ -741,12 +930,26 @@ map.getContainer().addEventListener("dblclick", e => {
      `.measure-handle` en los DOS casos y no los distingue.            */
   finishPolygon(!prevClickAdded);
 });
-/* Supr borra el último vértice mientras se dibuja un polígono. El
-   listener de Supr que borra la selección del árbol (más abajo) se
-   guarda de actuar también en este caso, ver esa sección.             */
+/* Supr borra el último vértice mientras se dibuja un polígono, o el
+   último waypoint de una ruta en curso (o su único punto de vista
+   previa, antes del 2º) — sin necesitar seleccionarlo antes, a
+   diferencia de Supr sobre una ruta YA creada (ver deleteSelectedVertex,
+   41-selection.js, con prioridad sobre este mismo listener). El de Supr
+   que borra la selección del árbol (más abajo) se guarda de actuar
+   también en este caso, ver esa sección.                              */
 document.addEventListener("keydown", e => {
-  if (e.key !== "Delete" || (activeTool !== "polygon" && activeTool !== "route") || !polyDraft) return;
-  removePolyVertex(polyDraft.handles[polyDraft.handles.length - 1]);
+  if (e.key !== "Delete") return;
+  if (activeTool === "polygon") {
+    if (!polyDraft) return;
+    removePolyVertex(polyDraft.handles[polyDraft.handles.length - 1]);
+  } else if (activeTool === "route") {
+    if (routeMeasurement) {
+      removeRouteWaypoint(routeMeasurement, routeMeasurement.handles[routeMeasurement.handles.length - 1]);
+    } else if (routeDraft) {
+      rootGroup.removeLayer(routeDraft.previewGroup);
+      routeDraft = null;
+    }
+  }
 });
 
 /* Mayús+clic FUERA de un manejador (y fuera de una herramienta de
@@ -759,6 +962,21 @@ map.getContainer().addEventListener("click", e => {
   if (activeTool || !vertexOwner || !e.shiftKey || clickOnControl(e.target)) return;
   if (e.target.closest && e.target.closest(".measure-handle")) return;
   insertVertexAfterSelected(map.mouseEventToLatLng(e));
+});
+/* Tecla Insertar: mismo resultado que Mayús+clic — inserta en la
+   posición ACTUAL DEL RATÓN sobre el mapa (`coordsPending`, la misma
+   última posición conocida que ya usa PageUp/PageDown para el zoom al
+   cursor, `70-view-controls.js`), después del vértice seleccionado, o
+   al final si no hay ninguno. Reportado como bug: insertaba en la
+   posición del propio vértice base (un duplicado justo encima), no en
+   la del ratón. Sin ningún `mousemove` todavía sobre el mapa (foco
+   llegado por Tab, sin haber movido el ratón) no hay posición conocida
+   y se cae al vértice base, como antes.                               */
+document.addEventListener("keydown", e => {
+  if (e.key !== "Insert" || !vertexOwner) return;
+  const base = vertexSelHandle || vertexOwner.lastHandle();
+  if (!base) return;
+  insertVertexAfterSelected(coordsPending || base.getLatLng());
 });
 /* Cursor de "insertar" mientras se mantiene Mayús con un owner activo:
    flecha con un pequeño signo de suma, para saber de antemano que

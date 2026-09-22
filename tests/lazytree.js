@@ -114,12 +114,11 @@ const src = [
      contenedores de arriba (tercer estado de la casilla); este test no
      construye casillas, así que solo hace falta que exista.          */
   "function refreshChecksFrom() {}", "function applyContainerState() {}",
-  /* deleteNode y setSelCursor (dentro de clearSelection/selectFolderLayers)
-     avisan al mecanismo de selección de vértice de ruta/polígono
-     (43-points-editor.js) de que la selección cambió; no es lo que este
+  /* deleteNode retira el owner de vértice de ruta/polígono activo si el
+     nodo borrado era el suyo (43-points-editor.js); no es lo que este
      test prueba —eso lo cubre tests/browser/vertex-select.mjs de punta a
      punta—, así que basta con que exista sin hacer nada.              */
-  "let vertexOwner = null;", "function syncVertexOwner() {}", "function teardownVertexOwner() {}",
+  "let vertexOwner = null;", "function teardownVertexOwner() {}",
   /* Las dos cuentas que ensureMaterialized lleva para que una cascada
      en curso sepa que todavía se están construyendo filas (ver
      cascadeVisibility). Aquí no hay cascada, pero sí se comprueba que
