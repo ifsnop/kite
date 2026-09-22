@@ -87,7 +87,9 @@ KITE Local does not impose fixed limits on KML file size, imported features or v
   cheat sheet built in
 - collapse and expand folders; deep collapse of a whole branch
 - search by layer or folder name, with previous/next match
-- pan to a node, zoom to a node, and fit the map to loaded content
+- pan to a node, zoom to a node (a fixed level for a marker; a
+  margin-framed fit-to-bounds for a polygon, line or measurement), and fit
+  the map to loaded content
 - an information panel per layer: the original KML `description`
   (sanitized against an allow-list) or a table of the GeoJSON
   `properties`
@@ -95,6 +97,10 @@ KITE Local does not impose fixed limits on KML file size, imported features or v
   submenu instead of guessing one
 - export any folder or file as a portable `.kite.json` package
 - local storage usage indicator, and a session log of every notice shown
+- a Properties panel with a Preferences tab for global settings — measurement
+  unit, coordinate format and the interactive-vertex-edit cap — previewed
+  live in any open dialog but only saved on Accept, plus a second tab that
+  remembers which GeoJSON property was used as each file's name
 
 ### Loading
 
@@ -117,8 +123,13 @@ KITE Local does not impose fixed limits on KML file size, imported features or v
 - polygon and line outline width and colour
 - polygon fill colour and opacity, with an outline/fill/both selector
 - optional permanent polygon and line labels, like the marker ones
-- read-only perimeter (or length) and area, in metres, kilometres, feet
-  or nautical miles
+- read-only perimeter (or length) and area, in metres, kilometres, feet,
+  statute miles or nautical miles
+- interactive vertex editing on the map for an already-created polygon,
+  line or route, while its style dialog is open: drag a vertex to move it,
+  right-click to delete it, Shift+click or the Insert key to add one — with
+  a minimum per ring and an adjustable cap (500 by default) on how many
+  vertices get on-map handles before it falls back to the text editor
 - a point-list editor: one vertex per line, tab-separated, so a geometry
   can be copied into a spreadsheet and pasted back
 - ground-overlay image opacity
@@ -172,11 +183,19 @@ the flag clears by itself when the tiles come back.
 
 ### Measurements
 
-- geodesic line distance and initial bearing
+- geodesic route measurement: click each waypoint, double-click to finish —
+  distance and initial bearing per leg, plus the running total; a
+  two-waypoint route is the old straight-line measurement
 - geodesic circle radius and area
-- editable measurement handles
-- stroke and fill styling, and values shown in metres, kilometres, feet
-  or nautical miles — the same unit the map labels use
+- drag a waypoint, or a circle's centre or edge, to move it — no modifier
+  key needed; insert and delete route waypoints the same way as polygon
+  vertices (right-click, Shift+click, Insert, Delete)
+- while its dialog is open, a measurement's figures refresh live as it is
+  dragged, with no need to close and reopen the dialog, and the 🔍 action
+  fits the map to its full geometry with a margin instead of a fixed zoom
+  level
+- stroke and fill styling, and values shown in metres, kilometres, feet,
+  statute miles or nautical miles — the same unit the map labels use
 - persistent measurements stored with the workspace
 
 ## Quick start
@@ -318,11 +337,13 @@ Do not use public tile, geocoding or CDN services for sensitive work without an 
 - **The sources are split.** The application is edited as `src/index.html`,
   `src/styles.css` and twenty JavaScript files, concatenated into the shipped
   file by `build.js`. The single-file product is the output, not the source.
-- **There are automated tests.** Thirty-six suites run under Node against the
-  shipped file, covering coordinate parsing and formatting, UTM, KML
-  namespaces and styles, geometry conversion, serialization, tree navigation
-  and selection, hit-testing, geodesic area and perimeter, and more. Run them
-  with `npm test`.
+- **There are automated tests.** Fifty-eight suites run against the shipped
+  file — most under Node, plus a set that drives a real headless browser —
+  covering coordinate parsing and formatting, UTM, KML namespaces and
+  styles, geometry conversion, serialization, tree navigation and
+  selection, hit-testing, geodesic area and perimeter, multi-waypoint route
+  measurement, interactive vertex editing, and more. Run them with
+  `npm test`.
 - **CDN dependencies carry Subresource Integrity**, so a compromised CDN
   cannot substitute other content, and marker icons are now embedded in the
   file rather than fetched.
