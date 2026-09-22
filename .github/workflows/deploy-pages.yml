@@ -27,6 +27,35 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v6
 
+      - name: Configurar Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+
+      - name: Instalar dependencias
+        run: npm ci
+
+      # Mismo paso que tests.yml y release.yml: kitelocal.html/.min.html
+      # son GENERADOS y esto es lo que se sirve tal cual desde el
+      # repositorio (este workflow no reconstruye nada).
+      - name: Comprobar que kitelocal.html está al día respecto de src/
+        run: npm run check
+
+      - name: Instalar el navegador de las pruebas
+        run: npx playwright install --with-deps chromium
+
+      # tests.yml se dispara con el mismo push a main pero corre en un
+      # workflow aparte, sin relación `needs`: antes, este job publicaba
+      # en Pages sin esperar a que esas pruebas terminaran, así que un
+      # push con tests en rojo podía desplegarse igual. Igual que en
+      # release.yml, la forma más simple de que el despliegue dependa de
+      # verdad de los tests es correrlos aquí mismo, en el mismo job: si
+      # esto falla, los pasos de despliegue de abajo ni se ejecutan.
+      - name: Ejecutar tests
+        run: npm test
+        env:
+          KITE_REQUIRE_BROWSER: "1"
+
       - name: Setup GitHub Pages
         uses: actions/configure-pages@v5
 
