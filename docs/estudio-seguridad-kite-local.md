@@ -5,8 +5,8 @@
 | | |
 |---|---|
 | **Documento** | Estudio de seguridad — KITE Local (KML Interactive Tree Explorer) |
-| **Versión del documento** | 1.0 |
-| **Fecha** | 14 de septiembre de 2026 |
+| **Versión del documento** | 1.1 |
+| **Fecha** | 22 de septiembre de 2026 |
 | **Preparado por** | Diego Torres |
 | **Versión de la aplicación auditada** | v1.4.0 (202609221811) |
 | **Repositorio público del código fuente** | https://github.com/ifsnop/kite |
@@ -19,7 +19,7 @@ KITE Local es una aplicación de visualización y consulta de información geoes
 
 1. **El origen de cada capa de información es conocido, declarado y verificable.** Tanto la cartografía de fondo como los servicios auxiliares (elevación del terreno, búsqueda de topónimos) proceden de organismos oficiales o de proveedores identificados, y la propia aplicación restringe por configuración los orígenes de red a los que puede conectarse.
 2. **La aplicación no modifica los datos geoespaciales que muestra.** La geometría, las coordenadas y la altitud de cada elemento cargado se conservan tal como están definidas en el archivo de origen a lo largo de todo el ciclo de vida (carga, visualización, guardado y exportación). Las únicas excepciones son un número reducido de correcciones controladas, de alcance mínimo, siempre notificadas al usuario y nunca aplicadas en silencio, que se describen en detalle en el apartado 4.
-3. **El comportamiento descrito está verificado mediante una batería de pruebas automatizadas** que se ejecuta contra el propio archivo que se distribuye —no contra una copia aparte del código— y que en la fecha de este documento supera sus 51 conjuntos de comprobaciones sin ninguna incidencia.
+3. **El comportamiento descrito está verificado mediante una batería de pruebas automatizadas** que se ejecuta contra el propio archivo que se distribuye —no contra una copia aparte del código— y que en la fecha de este documento supera sus 58 conjuntos de comprobaciones sin ninguna incidencia.
 
 El documento está dirigido a personal auditor y experto en seguridad, no a personal programador: describe el comportamiento de la aplicación, su alcance y sus garantías, sin entrar en detalles de implementación.
 
@@ -153,7 +153,7 @@ Esta forma de proceder asegura que lo que las pruebas certifican es, literalment
 
 ### 7.2 Alcance actual de la batería de pruebas
 
-En la fecha de este documento, la batería está compuesta por 51 conjuntos de pruebas independientes, agrupados por área, y todos ellos superados sin ninguna incidencia en la última ejecución realizada para este estudio. Las áreas cubiertas incluyen, entre otras:
+En la fecha de este documento, la batería está compuesta por 58 conjuntos de pruebas independientes, agrupados por área, y todos ellos superados sin ninguna incidencia en la última ejecución realizada para este estudio. Las áreas cubiertas incluyen, entre otras:
 
 **Interpretación de archivos y formatos de origen**
 - Lectura de archivos KML, con independencia del prefijo de espacio de nombres que use cada archivo.
@@ -169,6 +169,8 @@ En la fecha de este documento, la batería está compuesta por 51 conjuntos de p
 - Formato de coordenadas en las distintas notaciones que ofrece la aplicación (grados decimales; grados, minutos y segundos).
 - Cálculo de perímetros y superficies de polígonos, incluidos anillos abiertos o cerrados, huecos interiores y multipolígonos.
 - Tratamiento de formas geométricas abiertas (una línea no tiene superficie ni puede rellenarse).
+- Mediciones de ruta con varios tramos: distancia y rumbo de cada tramo por separado y el total, con su propia numeración independiente de la de las figuras dibujadas.
+- Edición interactiva de vértices de un polígono o de los waypoints de una ruta ya creados (arrastrar, insertar, borrar), con el mínimo exigido por anillo y un tope configurable de cuántos vértices reciben manejador en el mapa, siempre bajo edición diferida (revertible con «Cancelar»).
 
 **Consistencia y deduplicación**
 - Fusión de marcadores duplicados por nombre y posición, tanto en archivos KML como en archivos GeoJSON, siempre bajo confirmación del usuario (ver apartado 5.2).
@@ -203,6 +205,11 @@ En la fecha de este documento, la batería está compuesta por 51 conjuntos de p
 - Conservación del icono personalizado de un marcador, restaurado desde el almacenamiento local, al activarlo dentro de una carpeta que nunca ha llegado a desplegarse.
 - Comportamiento correcto de la función de añadir contenido desde una dirección web, incluida su cancelación.
 - Límite del desplazamiento del mapa a una única representación del planeta, sin duplicados horizontales.
+- Selección, inserción y borrado de vértices sobre el mapa en una ruta o un polígono ya creados, activos únicamente mientras su diálogo de propiedades está abierto.
+- Creación de una ruta de medición como una edición en vivo desde su segundo waypoint, con el diálogo de propiedades ya abierto y actualizándose a cada punto añadido.
+- Repintado en vivo de las cifras del diálogo de una medición mientras se arrastra uno de sus manejadores, y encuadre de toda su geometría con margen al pulsar el botón de enfoque.
+- El menú contextual del visor abre «Editar propiedades» directamente sobre la capa señalada.
+- El panel «Propiedades»: unidad de medida y formato de coordenadas globales, con vista previa en vivo sobre un diálogo ya abierto y aplicación real solo al pulsar «Aceptar».
 
 ### 7.3 Integración continua
 
@@ -210,7 +217,7 @@ Esta batería de pruebas se ejecuta de forma obligatoria en cada cambio propuest
 
 ### 7.4 Resultado verificado para este documento
 
-Como parte de la elaboración de este estudio se ha vuelto a ejecutar la batería completa de pruebas contra la versión de la aplicación identificada en la cabecera de este documento. Resultado: **51 de 51 conjuntos de pruebas superados, sin ninguna incidencia.**
+Como parte de la elaboración de este estudio se ha vuelto a ejecutar la batería completa de pruebas contra la versión de la aplicación identificada en la cabecera de este documento. Resultado: **58 de 58 conjuntos de pruebas superados, sin ninguna incidencia.**
 
 ---
 
@@ -232,6 +239,6 @@ Sobre la base de la revisión del código fuente, de la configuración de red y 
 
 1. El origen de cada fuente de cartografía y de cada servicio auxiliar que KITE Local puede consultar está identificado, documentado y restringido por configuración a una lista cerrada de proveedores oficiales o reconocidos.
 2. KITE Local no modifica la geometría, las coordenadas ni la altitud de los datos que carga y representa; las únicas intervenciones automáticas están acotadas a corregir errores menores y evitables del propio archivo de origen, tienen un alcance mínimo y verificable, y se comunican siempre a la persona usuaria.
-3. Este comportamiento está verificado por una batería de 51 conjuntos de pruebas automatizadas, ejecutadas contra el artefacto realmente distribuido, con resultado íntegramente satisfactorio en la fecha de este documento.
+3. Este comportamiento está verificado por una batería de 58 conjuntos de pruebas automatizadas, ejecutadas contra el artefacto realmente distribuido, con resultado íntegramente satisfactorio en la fecha de este documento.
 
 Estas tres garantías, tomadas en conjunto, sustentan el uso de KITE Local como herramienta de consulta y visualización fiel de información geoespacial dentro del alcance descrito en el apartado 8.
