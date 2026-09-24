@@ -294,7 +294,7 @@ El botón 💾 de una carpeta o un archivo la descarga entera a un archivo con e
 
 ### 7.7 Deshacer y rehacer
 
-`Ctrl + Z` deshace la última operación que cambió el árbol (borrar, pegar, arrastrar, ordenar…), y `Ctrl + Y` la rehace. Hacer algo nuevo después de deshacer descarta lo que se pudiera haber rehecho, igual que en cualquier editor de texto.
+`Ctrl + Z` deshace la última operación que cambió el árbol (borrar, pegar, arrastrar, ordenar, crear un marcador, una medición o una figura dibujada…), y `Ctrl + Y` la rehace. Hacer algo nuevo después de deshacer descarta lo que se pudiera haber rehecho, igual que en cualquier editor de texto.
 
 ### 7.8 Consultar la altitud del terreno
 
