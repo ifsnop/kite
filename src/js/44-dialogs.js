@@ -413,6 +413,49 @@ document.getElementById("sh-accept").addEventListener("click", () => {
   closeShCredsDialog();
 });
 
+/* ---------- Diálogo del servidor de teselas de "Custom Maps" ----------
+   Mismo patrón que el de la credencial de Copernicus, justo arriba:
+   edición diferida, «Aceptar» es lo único que guarda y rearma la capa. */
+const customTilesDialog = document.getElementById("custom-tiles-creds");
+const customTilesBox = customTilesDialog.querySelector(".dlg-box");
+const customTilesInput = document.getElementById("custom-tiles-input");
+const customTilesErrorEl = document.getElementById("custom-tiles-error");
+
+function closeCustomTilesDialog() {
+  customTilesDialog.hidden = true;
+  releaseFocus();
+}
+function openCustomTilesDialog() {
+  customTilesInput.value = customTilesUrl || "";
+  customTilesErrorEl.hidden = true;
+  customTilesDialog.hidden = false;
+  clampToViewport(customTilesBox);
+  focusDialog(customTilesBox);
+  customTilesInput.focus();
+  customTilesInput.select();
+}
+document.getElementById("custom-tiles-cancel").addEventListener("click", closeCustomTilesDialog);
+document.getElementById("custom-tiles-clear").addEventListener("click", () => {
+  /* Borrar actúa sobre el campo, no sobre el diálogo: mismo criterio
+     que sh-clear.                                                     */
+  setCustomTilesUrl(null);
+  customTilesInput.value = "";
+  customTilesErrorEl.hidden = true;
+  customTilesInput.focus();
+  navMessage("Servidor de teselas de Custom Maps borrado.", { tone: "info" });
+});
+document.getElementById("custom-tiles-accept").addEventListener("click", () => {
+  const txt = customTilesInput.value.trim();
+  if (!validCustomTilesUrl(txt)) {
+    customTilesErrorEl.textContent = "Debe ser una dirección https:// válida.";
+    customTilesErrorEl.hidden = false;
+    customTilesInput.focus();
+    return;
+  }
+  setCustomTilesUrl(txt);
+  closeCustomTilesDialog();
+});
+
 const descDialog = document.getElementById("desc-dialog");
 const descBox = descDialog.querySelector(".dlg-box");
 const descTitle = document.getElementById("desc-title");
@@ -498,7 +541,7 @@ descBody.addEventListener("pointerdown", e => {
    button opened it (see openColorPicker/positionColorPicker), not a
    draggable window with its own dialog role — that separate-window
    treatment is exactly what the popover replaced.                    */
-for (const box of [styleBox, iconBox, descBox, shortcutsBox, ktpBox, kdpBox, gnpBox, propsBox, shBox, pointsBox, logBox, urlBox]) makeDialogMovable(box);
+for (const box of [styleBox, iconBox, descBox, shortcutsBox, ktpBox, kdpBox, gnpBox, propsBox, shBox, customTilesBox, pointsBox, logBox, urlBox]) makeDialogMovable(box);
 setupDialog(styleBox, { modal: false }); /* flotante: el mapa sigue vivo */
 setupDialog(iconBox, { modal: true });
 setupDialog(descBox, { modal: false });
@@ -508,12 +551,13 @@ setupDialog(kdpBox, { modal: true });
 setupDialog(gnpBox, { modal: true });
 setupDialog(propsBox, { modal: true });
 setupDialog(shBox, { modal: true });
+setupDialog(customTilesBox, { modal: true });
 setupDialog(pointsBox, { modal: true });
 setupDialog(logBox, { modal: true });
 setupDialog(urlBox, { modal: true });
 window.addEventListener("resize", () => {
   /* a moved dialog must not fall off-screen */
-  for (const box of [styleBox, iconBox, descBox, shortcutsBox, ktpBox, kdpBox, gnpBox, propsBox, shBox, pointsBox, logBox, urlBox]) clampToViewport(box);
+  for (const box of [styleBox, iconBox, descBox, shortcutsBox, ktpBox, kdpBox, gnpBox, propsBox, shBox, customTilesBox, pointsBox, logBox, urlBox]) clampToViewport(box);
   /* the popover's anchor button may have moved too; closing is simpler
      and less confusing than reclamping a stale position              */
   if (!colorPicker.hidden) closeColorPicker();

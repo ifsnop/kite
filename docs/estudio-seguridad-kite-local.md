@@ -5,10 +5,10 @@
 | | |
 |---|---|
 | **Documento** | Estudio de seguridad — KITE Local (KML Interactive Tree Explorer) |
-| **Versión del documento** | 1.1 |
-| **Fecha** | 22 de septiembre de 2026 |
+| **Versión del documento** | 1.2 |
+| **Fecha** | 24 de septiembre de 2026 |
 | **Preparado por** | Diego Torres |
-| **Versión de la aplicación auditada** | v1.4.0 (202609221811) |
+| **Versión de la aplicación auditada** | v1.4.0 (202609242145) |
 | **Repositorio público del código fuente** | https://github.com/ifsnop/kite |
 
 ---
@@ -17,9 +17,9 @@
 
 KITE Local es una aplicación de visualización y consulta de información geoespacial (archivos KML, KMZ, GeoJSON y TopoJSON) que se ejecuta íntegramente en el navegador del usuario, sin ningún servidor propio que reciba, procese o almacene los datos cargados. Este documento se ha elaborado para dejar constancia, de forma verificable, de tres garantías sobre las que descansa la fiabilidad de la herramienta como instrumento de consulta:
 
-1. **El origen de cada capa de información es conocido, declarado y verificable.** Tanto la cartografía de fondo como los servicios auxiliares (elevación del terreno, búsqueda de topónimos) proceden de organismos oficiales o de proveedores identificados, y la propia aplicación restringe por configuración los orígenes de red a los que puede conectarse.
+1. **El origen de cada capa de información es conocido, declarado y verificable.** Tanto la cartografía de fondo como los servicios auxiliares (elevación del terreno, búsqueda de topónimos) proceden de organismos oficiales o de proveedores identificados, y la propia aplicación restringe por configuración los orígenes de red a los que puede conectarse — con dos excepciones deliberadas y acotadas en las que el propio usuario elige el origen (descargar un archivo desde una dirección, y un mapa base de teselas de un servidor propio), descritas en el apartado 6.2.
 2. **La aplicación no modifica los datos geoespaciales que muestra.** La geometría, las coordenadas y la altitud de cada elemento cargado se conservan tal como están definidas en el archivo de origen a lo largo de todo el ciclo de vida (carga, visualización, guardado y exportación). Las únicas excepciones son un número reducido de correcciones controladas, de alcance mínimo, siempre notificadas al usuario y nunca aplicadas en silencio, que se describen en detalle en el apartado 4.
-3. **El comportamiento descrito está verificado mediante una batería de pruebas automatizadas** que se ejecuta contra el propio archivo que se distribuye —no contra una copia aparte del código— y que en la fecha de este documento supera sus 58 conjuntos de comprobaciones sin ninguna incidencia.
+3. **El comportamiento descrito está verificado mediante una batería de pruebas automatizadas** que se ejecuta contra el propio archivo que se distribuye —no contra una copia aparte del código— y que en la fecha de este documento supera sus 60 conjuntos de comprobaciones sin ninguna incidencia.
 
 El documento está dirigido a personal auditor y experto en seguridad, no a personal programador: describe el comportamiento de la aplicación, su alcance y sus garantías, sin entrar en detalles de implementación.
 
@@ -60,7 +60,7 @@ Toda la información que KITE Local puede mostrar procede de dos categorías bie
 
 ### 4.1 Cartografía y modelos de elevación de referencia
 
-La aplicación incorpora, apagados por defecto salvo la capa base de OpenStreetMap, un conjunto cerrado de fuentes de cartografía de fondo y modelos de elevación del terreno. Ninguna otra fuente puede añadirse sin modificar y volver a distribuir la propia aplicación (ver la restricción de red del apartado 6.2).
+La aplicación incorpora, apagados por defecto salvo la capa base de OpenStreetMap, un conjunto de fuentes de cartografía de fondo y modelos de elevación del terreno configuradas de fábrica. Fuera de la excepción explícita descrita justo debajo de la tabla («Custom Maps»), ninguna otra fuente puede añadirse sin modificar y volver a distribuir la propia aplicación (ver la restricción de red del apartado 6.2).
 
 | Capa | Proveedor / organismo | Naturaleza del dato |
 |---|---|---|
@@ -74,6 +74,8 @@ La aplicación incorpora, apagados por defecto salvo la capa base de OpenStreetM
 | Modelo Digital del Terreno de España (WMS) | Instituto Geográfico Nacional (España) | Elevación del terreno (servicio de mapas, para visualización) |
 | Relieve SRTM30 | terrestris (servicio público sin coste, cobertura entre 56° S y 60° N) | Sombreado de relieve global derivado de la misión SRTM |
 | Copernicus DEM | Copernicus Data Space / Sentinel Hub, bajo credencial propia del usuario | Modelo digital de superficie global |
+
+**«Custom Maps» es la única excepción a esta lista cerrada, y es deliberada.** En vez de un proveedor fijo, pide sus teselas a la dirección que el propio usuario configura en el diálogo de esa capa —típicamente una caché o proxy propio delante de un servicio ya existente, para no cargar de tráfico ese servicio público—. Permanece apagada y sin ningún origen configurado hasta que el usuario introduce uno; la aplicación no elige, sugiere ni conoce de antemano ningún servidor para esta capa, y solo admite direcciones cifradas (https), nunca sin cifrar (http). Se detalla en el apartado 6.2.
 
 Además, dos servicios de consulta puntual, no cartografiados como capa de fondo:
 
@@ -133,9 +135,14 @@ KITE Local reutiliza un número reducido de bibliotecas de software de terceros,
 
 ### 6.2 Política de seguridad de contenido con lista cerrada de orígenes
 
-La aplicación declara una política de seguridad de contenido (Content Security Policy) que restringe, a nivel de navegador, con qué orígenes puede comunicarse o de qué orígenes puede cargar código o estilos. Por defecto, todo está denegado; se autoriza explícitamente, uno a uno, cada origen necesario: las dos redes de distribución de las bibliotecas de terceros para código y para hojas de estilo, y la lista cerrada de servicios cartográficos oficiales enumerados en el apartado 4.1 para imágenes de mapa. Ningún origen no declarado en esa lista puede servir código, estilos o imágenes de mapa a la aplicación, aunque el código de la propia aplicación intentara solicitarlo.
+La aplicación declara una política de seguridad de contenido (Content Security Policy) que restringe, a nivel de navegador, con qué orígenes puede comunicarse o de qué orígenes puede cargar código, estilos o imágenes. Por defecto, todo está denegado; se autoriza explícitamente, uno a uno, cada origen necesario: las dos redes de distribución de las bibliotecas de terceros para código y para hojas de estilo, y la lista cerrada de servicios cartográficos oficiales enumerados en el apartado 4.1 para imágenes de mapa. Ningún origen no declarado en esa lista puede servir código, estilos o imágenes de mapa a la aplicación, aunque el código de la propia aplicación intentara solicitarlo — con las dos excepciones deliberadas, y solo esas dos, descritas a continuación.
 
-La única excepción deliberada es la función de "añadir desde una dirección", que por su propia naturaleza debe poder conectarse a un origen que decide el usuario en el momento de usarla —el origen es, precisamente, lo que el usuario escribe—. Esa conexión se permite solo hacia direcciones cifradas (https), nunca hacia direcciones sin cifrar (http), de modo que una aplicación servida de forma segura no pueda verse forzada a comunicarse por un canal inseguro. El resto de restricciones (qué puede ejecutar código, qué puede aportar estilos, qué imágenes de mapa se aceptan) permanece con su lista cerrada intacta.
+Hay dos excepciones deliberadas, y las dos comparten la misma justificación: en ambas el origen no puede enumerarse de antemano porque **es, precisamente, lo que el usuario decide** en el momento de usar la función, no algo que la aplicación elija.
+
+- **"Añadir desde una dirección"**, que debe poder conectarse al origen que el usuario escribe para descargar un archivo.
+- **El mapa base "Custom Maps"**, que debe poder pedir sus teselas al servidor que el usuario configure (apartado 4.1) — típicamente una caché o proxy propio delante de un servicio ya existente.
+
+Las dos conexiones se permiten solo hacia direcciones cifradas (https), nunca hacia direcciones sin cifrar (http), de modo que una aplicación servida de forma segura no pueda verse forzada a comunicarse por un canal inseguro. La restricción de código y de estilos (qué puede ejecutar la página, qué puede darle apariencia) no tiene ninguna excepción: sigue limitada, sin más, a las dos redes de distribución de las bibliotecas de terceros. La de imágenes de mapa sí se amplía a cualquier origen cifrado —es una regla del navegador, no puede limitarse a "solo si lo pide la capa Custom Maps"—, pero en la práctica ninguna de las demás capas de la tabla del apartado 4.1 llega a ejercer esa amplitud: sus direcciones están fijadas en el propio código de la aplicación, no aceptan ninguna entrada del usuario, y seguirían pidiendo exactamente esos mismos orígenes aunque la política fuera más estricta.
 
 ### 6.3 Sin telemetría ni almacenamiento remoto
 
@@ -153,7 +160,7 @@ Esta forma de proceder asegura que lo que las pruebas certifican es, literalment
 
 ### 7.2 Alcance actual de la batería de pruebas
 
-En la fecha de este documento, la batería está compuesta por 58 conjuntos de pruebas independientes, agrupados por área, y todos ellos superados sin ninguna incidencia en la última ejecución realizada para este estudio. Las áreas cubiertas incluyen, entre otras:
+En la fecha de este documento, la batería está compuesta por 60 conjuntos de pruebas independientes, agrupados por área, y todos ellos superados sin ninguna incidencia en la última ejecución realizada para este estudio. Las áreas cubiertas incluyen, entre otras:
 
 **Interpretación de archivos y formatos de origen**
 - Lectura de archivos KML, con independencia del prefijo de espacio de nombres que use cada archivo.
@@ -179,6 +186,9 @@ En la fecha de este documento, la batería está compuesta por 58 conjuntos de p
 - Consulta y combinación de coberturas, formatos y rejillas del servicio de elevación del Instituto Geográfico Nacional.
 - Descubrimiento de las capas disponibles del servicio de ortofoto histórica del IGN.
 - Configuración y uso de la credencial propia del usuario para el servicio Copernicus DEM.
+
+**Mapa base configurable por el usuario ("Custom Maps")**
+- Validación de la dirección del servidor de teselas (exige cifrado, rechaza texto sin forma de dirección válida), normalización antes de construir la petición y verificación de que la plantilla final se genera de forma correcta.
 
 **Comportamiento de la interfaz y del árbol de capas**
 - Navegación y selección de elementos en el árbol de capas.
@@ -217,7 +227,7 @@ Esta batería de pruebas se ejecuta de forma obligatoria en cada cambio propuest
 
 ### 7.4 Resultado verificado para este documento
 
-Como parte de la elaboración de este estudio se ha vuelto a ejecutar la batería completa de pruebas contra la versión de la aplicación identificada en la cabecera de este documento. Resultado: **58 de 58 conjuntos de pruebas superados, sin ninguna incidencia.**
+Como parte de la elaboración de este estudio se ha vuelto a ejecutar la batería completa de pruebas contra la versión de la aplicación identificada en la cabecera de este documento. Resultado: **60 de 60 conjuntos de pruebas superados, sin ninguna incidencia.**
 
 ---
 
@@ -237,8 +247,8 @@ Esta acotación no debilita las garantías descritas en este documento —el ori
 
 Sobre la base de la revisión del código fuente, de la configuración de red y de seguridad declarada por la propia aplicación, y de la ejecución completa de su batería de pruebas automatizadas, este estudio concluye que:
 
-1. El origen de cada fuente de cartografía y de cada servicio auxiliar que KITE Local puede consultar está identificado, documentado y restringido por configuración a una lista cerrada de proveedores oficiales o reconocidos.
+1. El origen de cada fuente de cartografía y de cada servicio auxiliar que KITE Local puede consultar está identificado, documentado y restringido por configuración a una lista cerrada de proveedores oficiales o reconocidos, salvo dos excepciones deliberadas y acotadas en las que el propio usuario elige el origen (descargar un archivo desde una dirección, y el mapa base "Custom Maps" contra un servidor de teselas propio), ambas descritas en el apartado 6.2.
 2. KITE Local no modifica la geometría, las coordenadas ni la altitud de los datos que carga y representa; las únicas intervenciones automáticas están acotadas a corregir errores menores y evitables del propio archivo de origen, tienen un alcance mínimo y verificable, y se comunican siempre a la persona usuaria.
-3. Este comportamiento está verificado por una batería de 58 conjuntos de pruebas automatizadas, ejecutadas contra el artefacto realmente distribuido, con resultado íntegramente satisfactorio en la fecha de este documento.
+3. Este comportamiento está verificado por una batería de 60 conjuntos de pruebas automatizadas, ejecutadas contra el artefacto realmente distribuido, con resultado íntegramente satisfactorio en la fecha de este documento.
 
 Estas tres garantías, tomadas en conjunto, sustentan el uso de KITE Local como herramienta de consulta y visualización fiel de información geoespacial dentro del alcance descrito en el apartado 8.

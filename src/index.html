@@ -14,19 +14,21 @@
      línea y por eso hace falta 'unsafe-inline'. Aun así la política
      acota de dónde puede venir todo lo demás.
 
-     `connect-src` es la excepción, y es deliberada: desde que se puede
-     añadir contenido desde una dirección que escribe el usuario (botón
-     🔗 de la cabecera), enumerar orígenes es imposible por definición —
-     el origen ES lo que el usuario elige. Se abre a cualquier `https:`
-     y NADA MÁS: `default-src 'none'` sigue en pie, script/style/img
+     `connect-src` e `img-src` son la excepción, y es deliberada: desde
+     que se puede añadir contenido desde una dirección que escribe el
+     usuario (botón 🔗 de la cabecera) o pedirle sus teselas a un
+     servidor propio (mapa base «Custom Maps», ⚙ de su fila), enumerar
+     orígenes es imposible por definición — el origen ES lo que el
+     usuario elige. Las dos se abren a cualquier `https:` y NADA MÁS:
+     `default-src 'none'` sigue en pie, `script-src`/`style-src`
      conservan sus listas cerradas (un origen ajeno puede dar datos,
-     nunca código ni estilos) y `http:` queda fuera a propósito, así que
-     una página servida por https no puede degradarse.              -->
+     nunca código ni estilos) y `http:` queda fuera a propósito en las
+     dos, así que una página servida por https no puede degradarse.  -->
 <meta http-equiv="Content-Security-Policy" content="
   default-src 'none';
   script-src 'self' 'unsafe-inline' https://unpkg.com https://cdnjs.cloudflare.com;
   style-src 'self' 'unsafe-inline' https://unpkg.com;
-  img-src 'self' data: blob: https://unpkg.com https://www.ign.es https://tile.openstreetmap.org https://server.arcgisonline.com https://tms-pnoa-ma.idee.es https://servicios.idee.es https://ows.terrestris.de https://sh.dataspace.copernicus.eu;
+  img-src 'self' data: blob: https:;
   connect-src 'self' https:;
   font-src 'self';
   base-uri 'none';
@@ -515,6 +517,37 @@
       <button class="btn" id="sh-cancel">Cancelar</button>
       <button class="btn" id="sh-clear">Borrar</button>
       <button class="btn" id="sh-accept">Aceptar</button>
+    </div>
+  </div>
+</div>
+
+<!-- Servidor de teselas de "Custom Maps": una dirección propia del
+     usuario (t&#237;picamente una cach&#233;/proxy delante de OpenStreetMap u
+     otro servicio, para no descargar de golpe el servicio p&#250;blico
+     ajeno), nunca de la aplicaci&#243;n. -->
+<div id="custom-tiles-creds" class="dlg-overlay" hidden>
+  <div class="dlg-box">
+    <h2>Servidor de teselas personalizado</h2>
+    <p class="dlg-hint">La capa <em>Custom Maps</em> pide sus teselas a la direcci&#243;n que
+      pongas aqu&#237;, a&#241;adiendo <code>{z}/{x}/{y}.png</code> al final por su cuenta &#8212;
+      no hace falta escribirlo.</p>
+    <label class="sh-field">Direcci&#243;n base del servidor
+      <input type="text" id="custom-tiles-input" spellcheck="false" autocomplete="off"
+             placeholder="https://mi-cache.ejemplo.org/tiles/">
+    </label>
+    <p class="dlg-hint">Debe responder en <strong>https</strong> a peticiones del tipo
+      <code>.../{z}/{x}/{y}.png</code> (esquema XYZ est&#225;ndar: <code>z</code> = nivel de
+      zoom, <code>x</code>/<code>y</code> = columna/fila de la tesela, igual que
+      OpenStreetMap) con im&#225;genes PNG de 256&#215;256 &#8212;con canal alfa si se quiere
+      transparencia&#8212; y CORS abierto (<code>Access-Control-Allow-Origin</code>), o el
+      navegador bloquear&#225; las teselas aunque el servidor responda bien.</p>
+    <p class="dlg-hint">Se guarda solo en este navegador y &#250;nicamente se env&#237;a a la
+      direcci&#243;n que pongas. Nunca viaja en un <code>.kite.json</code> exportado.</p>
+    <p class="dlg-hint sh-bad" id="custom-tiles-error" hidden></p>
+    <div class="dlg-actions">
+      <button class="btn" id="custom-tiles-cancel">Cancelar</button>
+      <button class="btn" id="custom-tiles-clear">Borrar</button>
+      <button class="btn" id="custom-tiles-accept">Aceptar</button>
     </div>
   </div>
 </div>

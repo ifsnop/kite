@@ -609,6 +609,48 @@ async function dbLoadSh() {
   });
 }
 
+/* ---------- Servidor de teselas de "Custom Maps" ----------
+   Otra clave del mismo almacén, mismo criterio que la credencial de
+   Sentinel Hub: es del usuario (su propio servidor de teselas, típico
+   caso: una caché/proxy delante de OpenStreetMap u otro servicio) y
+   solo vive en su navegador — nunca se serializa con el árbol ni viaja
+   en un .kite.json exportado.                                        */
+const CUSTOM_TILES_KEY = "customTilesUrl";
+const CUSTOM_TILES_SCHEMA = 1;
+
+async function dbSaveCustomTilesUrl(rec) {
+  const db = await openDb();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(DB_TREE, "readwrite");
+    tx.objectStore(DB_TREE).put({ v: CUSTOM_TILES_SCHEMA, ...rec }, CUSTOM_TILES_KEY);
+    tx.oncomplete = resolve;
+    tx.onerror = () => reject(tx.error);
+  });
+}
+/* Borrar la URL RETIRA la clave, no guarda un registro vacío: mismo
+   criterio que dbDeleteSh.                                            */
+async function dbDeleteCustomTilesUrl() {
+  const db = await openDb();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(DB_TREE, "readwrite");
+    tx.objectStore(DB_TREE).delete(CUSTOM_TILES_KEY);
+    tx.oncomplete = resolve;
+    tx.onerror = () => reject(tx.error);
+  });
+}
+async function dbLoadCustomTilesUrl() {
+  const db = await openDb();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(DB_TREE, "readonly");
+    const rq = tx.objectStore(DB_TREE).get(CUSTOM_TILES_KEY);
+    rq.onsuccess = () => {
+      const rec = rq.result;
+      resolve(rec && rec.v === CUSTOM_TILES_SCHEMA && typeof rec.url === "string" ? rec : null);
+    };
+    rq.onerror = () => reject(rq.error);
+  });
+}
+
 /* ---------- Nombres de GeoJSON recordados por forma de properties ----------
    Otra clave del mismo almacén: huella (JSON de las claves de properties,
    ordenadas) → nombre de la propiedad elegida por el usuario para esa

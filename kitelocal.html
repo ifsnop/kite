@@ -14,19 +14,21 @@
      línea y por eso hace falta 'unsafe-inline'. Aun así la política
      acota de dónde puede venir todo lo demás.
 
-     `connect-src` es la excepción, y es deliberada: desde que se puede
-     añadir contenido desde una dirección que escribe el usuario (botón
-     🔗 de la cabecera), enumerar orígenes es imposible por definición —
-     el origen ES lo que el usuario elige. Se abre a cualquier `https:`
-     y NADA MÁS: `default-src 'none'` sigue en pie, script/style/img
+     `connect-src` e `img-src` son la excepción, y es deliberada: desde
+     que se puede añadir contenido desde una dirección que escribe el
+     usuario (botón 🔗 de la cabecera) o pedirle sus teselas a un
+     servidor propio (mapa base «Custom Maps», ⚙ de su fila), enumerar
+     orígenes es imposible por definición — el origen ES lo que el
+     usuario elige. Las dos se abren a cualquier `https:` y NADA MÁS:
+     `default-src 'none'` sigue en pie, `script-src`/`style-src`
      conservan sus listas cerradas (un origen ajeno puede dar datos,
-     nunca código ni estilos) y `http:` queda fuera a propósito, así que
-     una página servida por https no puede degradarse.              -->
+     nunca código ni estilos) y `http:` queda fuera a propósito en las
+     dos, así que una página servida por https no puede degradarse.  -->
 <meta http-equiv="Content-Security-Policy" content="
   default-src 'none';
   script-src 'self' 'unsafe-inline' https://unpkg.com https://cdnjs.cloudflare.com;
   style-src 'self' 'unsafe-inline' https://unpkg.com;
-  img-src 'self' data: blob: https://unpkg.com https://www.ign.es https://tile.openstreetmap.org https://server.arcgisonline.com https://tms-pnoa-ma.idee.es https://servicios.idee.es https://ows.terrestris.de https://sh.dataspace.copernicus.eu;
+  img-src 'self' data: blob: https:;
   connect-src 'self' https:;
   font-src 'self';
   base-uri 'none';
@@ -893,6 +895,10 @@
      `overflow-wrap` de .dlg-box h2, que parte también un nombre sin
      espacios).                                                        */
   #style-dialog .dlg-box { width: min(92vw, 24rem); }
+  /* Contenido fijo (tres párrafos cortos + un campo), no redimensionable
+     como #sh-creds, pero más ancho: explica el formato de servidor
+     exigido y 42ch se quedaría corto para leerlo con comodidad.       */
+  #custom-tiles-creds .dlg-box { width: min(92vw, 30rem); }
   /* Y la caja de edición del nombre ocupa lo que dé esa ventana, no los
      190 px de un control corto: el nombre es el campo más largo del
      diálogo, así que es el que debe crecer con ella.                  */
@@ -1759,6 +1765,37 @@
   </div>
 </div>
 
+<!-- Servidor de teselas de "Custom Maps": una dirección propia del
+     usuario (t&#237;picamente una cach&#233;/proxy delante de OpenStreetMap u
+     otro servicio, para no descargar de golpe el servicio p&#250;blico
+     ajeno), nunca de la aplicaci&#243;n. -->
+<div id="custom-tiles-creds" class="dlg-overlay" hidden>
+  <div class="dlg-box">
+    <h2>Servidor de teselas personalizado</h2>
+    <p class="dlg-hint">La capa <em>Custom Maps</em> pide sus teselas a la direcci&#243;n que
+      pongas aqu&#237;, a&#241;adiendo <code>{z}/{x}/{y}.png</code> al final por su cuenta &#8212;
+      no hace falta escribirlo.</p>
+    <label class="sh-field">Direcci&#243;n base del servidor
+      <input type="text" id="custom-tiles-input" spellcheck="false" autocomplete="off"
+             placeholder="https://mi-cache.ejemplo.org/tiles/">
+    </label>
+    <p class="dlg-hint">Debe responder en <strong>https</strong> a peticiones del tipo
+      <code>.../{z}/{x}/{y}.png</code> (esquema XYZ est&#225;ndar: <code>z</code> = nivel de
+      zoom, <code>x</code>/<code>y</code> = columna/fila de la tesela, igual que
+      OpenStreetMap) con im&#225;genes PNG de 256&#215;256 &#8212;con canal alfa si se quiere
+      transparencia&#8212; y CORS abierto (<code>Access-Control-Allow-Origin</code>), o el
+      navegador bloquear&#225; las teselas aunque el servidor responda bien.</p>
+    <p class="dlg-hint">Se guarda solo en este navegador y &#250;nicamente se env&#237;a a la
+      direcci&#243;n que pongas. Nunca viaja en un <code>.kite.json</code> exportado.</p>
+    <p class="dlg-hint sh-bad" id="custom-tiles-error" hidden></p>
+    <div class="dlg-actions">
+      <button class="btn" id="custom-tiles-cancel">Cancelar</button>
+      <button class="btn" id="custom-tiles-clear">Borrar</button>
+      <button class="btn" id="custom-tiles-accept">Aceptar</button>
+    </div>
+  </div>
+</div>
+
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
         integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo="
         crossorigin="anonymous" referrerpolicy="no-referrer"></script>
@@ -2008,7 +2045,7 @@ map.on("resize", fitWorldMinZoom);
 
 /* Fecha de generación del código (versión): AÑOMESDIAHORAMINUTO.
    Actualizar en cada generación; se muestra junto al crédito de Leaflet. */
-const BUILD = "202609242011";
+const BUILD = "202609242145";
 /* Versión de release (la de package.json, horneada aquí por build.js
    al construir — ver «Versión y releases de GitHub» en CLAUDE.md): a
    diferencia de BUILD, que cambia en CADA generación, esta solo cambia
@@ -2085,6 +2122,10 @@ const COP_CREDIT = "Copernicus DEM \u2014 Copernicus Data Space / Sentinel Hub";
    Ver la definici\u00f3n de la capa.                                       */
 const COP_MIN_NATIVE_ZOOM = 7;
 const COP_MIN_ZOOM = 6;
+/* Servidor propio del usuario (ver "Custom Maps" más abajo): al no ser
+   ningún servicio conocido no hay a quién dar crédito, solo dejar
+   claro que las teselas no vienen de la aplicación.                  */
+const CUSTOM_TILES_CREDIT = "Servidor de teselas personalizado";
 
 const BASE_LAYERS = [
   { id: "osm", name: "OpenStreetMap", on: true, opacity: 1,
@@ -2175,7 +2216,21 @@ const BASE_LAYERS = [
     dynamic: true, source: "pnoa-hist",
     layer: (wmsLayer) => L.tileLayer.wms(PNOA_HIST_URL, {
       layers: wmsLayer, format: "image/jpeg", version: "1.3.0", transparent: false,
-      maxZoom: MAX_ZOOM, attribution: `PNOA hist\u00F3rico. ${IGN_CREDIT}` }) }
+      maxZoom: MAX_ZOOM, attribution: `PNOA hist\u00F3rico. ${IGN_CREDIT}` }) },
+
+  /* Servidor de teselas del propio usuario \u2014 t\u00EDpicamente una cach\u00E9/proxy
+     delante de OpenStreetMap u otro servicio, para no descargar de golpe
+     el servicio p\u00FAblico ajeno. No es una fuente "dynamic" (no hay
+     cat\u00E1logo que descubrir ni nombre de capa que elegir, solo una URL):
+     lleva `source` para reutilizar el mecanismo de la tuerca \u2699 y el
+     estado "bloqueada sin configurar" (ver DYNAMIC_SOURCES,
+     12-copernicus.js), pero no `dynamic: true`, as\u00ED que el panel no le
+     ofrece ning\u00FAn <select> \u2014no hay nada entre lo que elegir. `layer()`
+     lee `buildCustomTilesUrl()` (11-base-panel.js) en el momento de
+     crearse, nunca antes: la URL puede no estar configurada todav\u00EDa.  */
+  { id: "custom", name: "Custom Maps", on: false, opacity: 1, source: "custom-tiles",
+    layer: () => L.tileLayer(buildCustomTilesUrl(), {
+      maxNativeZoom: 19, maxZoom: MAX_ZOOM, attribution: CUSTOM_TILES_CREDIT }) }
 ];
 
 /* Teselas fallidas seguidas (sin ninguna buena de por medio) antes de
@@ -2213,6 +2268,15 @@ function applyBaseLayer(id) {
       const cat = src && src.get();
       if (cat) st.wmsLayer = src.pickDefault(cat);
       else { if (src) src.ensure(); return; }
+    }
+    /* Una fuente configurable SIN catálogo (hoy, "Custom Maps": no hay
+       nombre de capa que elegir, solo una URL) no tiene equivalente al
+       `ensure()`/`wmsLayer` de arriba: sin la URL puesta todavía no hay
+       nada que construir, así que se queda inerte hasta que se
+       configure (setCustomTilesUrl vuelve a llamar aquí al aceptar).  */
+    if (!st.def.dynamic) {
+      const src = dynSource(st.def);
+      if (src && src.blocked && src.blocked()) return;
     }
     if (!st.layer) {
       st.layer = st.def.dynamic ? st.def.layer(st.wmsLayer) : st.def.layer();
@@ -2334,13 +2398,17 @@ function renderBasePanel() {
        (si no, se queda con el `disabled` de la primera pintada y no
        reacciona a encender/apagar la capa).                          */
     const sel = st.def.dynamic ? buildDynamicLayerSelect(id, st) : null;
-    /* La tuerca no se deshabilita con la capa apagada a propósito: ver
-       buildDynamicConfigButton.                                       */
-    const gear = st.def.dynamic ? buildDynamicConfigButton(st) : null;
+    /* La tuerca depende de tener una fuente CONFIGURABLE (`configure`),
+       no de ser "dynamic": "Custom Maps" tiene tuerca (una URL que
+       ajustar) pero no catálogo ni <select> entre el que elegir —a
+       diferencia de PNOA histórico/Copernicus, que tienen las dos
+       cosas. La tuerca no se deshabilita con la capa apagada a
+       propósito: ver buildDynamicConfigButton.                        */
+    const src = dynSource(st.def);
+    const gear = src && src.configure ? buildDynamicConfigButton(st) : null;
     /* Un selector bloqueado (sin credencial) no se rehabilita al
        encender la capa: no hay nada que elegir todavía.               */
-    const src = st.def.dynamic ? dynSource(st.def) : null;
-    const selLocked = !!(src && src.blocked && src.blocked());
+    const selLocked = !!(st.def.dynamic && src && src.blocked && src.blocked());
 
     chk.addEventListener("change", () => {
       st.on = chk.checked;
@@ -2494,7 +2562,7 @@ function buildDynamicConfigButton(st) {
   const src = dynSource(st.def);
   if (!src || !src.configure) return null;
   const blocked = src.blocked && src.blocked();
-  const label = blocked ? blocked.hint : "Cambiar o borrar la credencial";
+  const label = blocked ? blocked.hint : "Cambiar o borrar la configuración";
   const gear = document.createElement("button");
   gear.className = "base-gear";
   gear.textContent = "⚙";
@@ -2502,6 +2570,59 @@ function buildDynamicConfigButton(st) {
   gear.setAttribute("aria-label", label);
   gear.addEventListener("click", src.configure);
   return gear;
+}
+
+/* ---------- "Custom Maps": servidor de teselas del propio usuario ----------
+   A diferencia de PNOA histórico/Copernicus, aquí no hay ningún
+   catálogo que descubrir ni nombre de capa que elegir: una única URL
+   base, puesta por el usuario, a la que el código añade siempre
+   `{z}/{x}/{y}.png` (esquema XYZ). Por eso esta fuente solo aporta
+   `blocked`/`configure` a DYNAMIC_SOURCES (12-copernicus.js) y NO lleva
+   `dynamic: true` en su BASE_LAYERS (10-map.js): el panel no le ofrece
+   ningún <select>, solo la tuerca ⚙.                                   */
+let customTilesUrl = null; /* URL base del usuario, sin la barra final, o null */
+
+/* Quita cualquier barra final: `buildCustomTilesUrl` añade la suya
+   propia, y una URL con dos barras seguidas ("...\/\/{z}/...") es una
+   ruta distinta para muchos servidores.                                */
+function normalizeCustomTilesBase(url) {
+  return url.trim().replace(/\/+$/, "");
+}
+
+/* Se exige https (igual que connect-src, y por el mismo motivo: el
+   origen lo elige el usuario, así que no hay lista cerrada posible) y
+   una URL con forma válida — evita una petición condenada de antemano
+   y un error críptico del navegador en vez de uno propio y legible.    */
+function validCustomTilesUrl(txt) {
+  try {
+    return new URL(txt.trim()).protocol === "https:";
+  } catch {
+    return false;
+  }
+}
+
+/* Plantilla final que consume L.tileLayer. Se llama SOLO al crear la
+   capa (ver su `layer()` en BASE_LAYERS), nunca antes: `customTilesUrl`
+   puede no estar configurada todavía.                                  */
+function buildCustomTilesUrl() {
+  return `${normalizeCustomTilesBase(customTilesUrl || "")}/{z}/{x}/{y}.png`;
+}
+
+/* Cambiar (o borrar) la URL invalida la capa ya creada, cuya plantilla
+   lleva la URL anterior incrustada — mismo patrón que setInstanceId. */
+function setCustomTilesUrl(url) {
+  customTilesUrl = url ? normalizeCustomTilesBase(url) : null;
+  const st = baseState.get("custom");
+  if (st) {
+    if (st.layer && map.hasLayer(st.layer)) map.removeLayer(st.layer);
+    st.layer = null;
+    st.failed = false;
+    if (!customTilesUrl) st.on = false;
+  }
+  (customTilesUrl ? dbSaveCustomTilesUrl({ url: customTilesUrl }) : dbDeleteCustomTilesUrl()).catch(() => {});
+  scheduleBaseSave();
+  renderBasePanel();
+  if (st && st.on) applyBaseLayer("custom");
 }
 
 /* ---------- PNOA histórico (WMS del IGN) ----------
@@ -2762,6 +2883,19 @@ const DYNAMIC_SOURCES = {
       hint: "Configurar la credencial de Sentinel Hub que exige Copernicus"
     },
     configure: () => openShCredsDialog()
+  },
+  /* Sin catálogo ni `get`/`groups`/`pickDefault`/`ensure`: "Custom Maps"
+     no tiene nombre de capa que elegir, solo una URL — `blocked`/
+     `configure` son lo único que consulta buildDynamicConfigButton, y
+     su BASE_LAYERS (10-map.js) no lleva `dynamic: true`, así que el
+     panel tampoco intenta pedirle un <select> (buildDynamicLayerSelect
+     solo se llama para fuentes "dynamic").                            */
+  "custom-tiles": {
+    blocked: () => customTilesUrl ? null : {
+      label: "Requiere URL",
+      hint: "Configurar la URL del servidor de teselas de Custom Maps"
+    },
+    configure: () => openCustomTilesDialog()
   }
 };
 function dynSource(def) { return (def && def.source && DYNAMIC_SOURCES[def.source]) || null; }
@@ -2769,7 +2903,9 @@ function dynSource(def) { return (def && def.source && DYNAMIC_SOURCES[def.sourc
 function ensureDynamicCatalogs() {
   for (const st of baseState.values()) {
     const src = dynSource(st.def);
-    if (src) src.ensure();
+    /* "Custom Maps" no tiene catálogo (su fuente no aporta `ensure`):
+       nada que adelantar al abrir el panel, solo la tuerca ⚙.         */
+    if (src && src.ensure) src.ensure();
   }
 }
 
@@ -5327,6 +5463,48 @@ async function dbLoadSh() {
     rq.onsuccess = () => {
       const rec = rq.result;
       resolve(rec && rec.v === SH_SCHEMA && typeof rec.instanceId === "string" ? rec : null);
+    };
+    rq.onerror = () => reject(rq.error);
+  });
+}
+
+/* ---------- Servidor de teselas de "Custom Maps" ----------
+   Otra clave del mismo almacén, mismo criterio que la credencial de
+   Sentinel Hub: es del usuario (su propio servidor de teselas, típico
+   caso: una caché/proxy delante de OpenStreetMap u otro servicio) y
+   solo vive en su navegador — nunca se serializa con el árbol ni viaja
+   en un .kite.json exportado.                                        */
+const CUSTOM_TILES_KEY = "customTilesUrl";
+const CUSTOM_TILES_SCHEMA = 1;
+
+async function dbSaveCustomTilesUrl(rec) {
+  const db = await openDb();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(DB_TREE, "readwrite");
+    tx.objectStore(DB_TREE).put({ v: CUSTOM_TILES_SCHEMA, ...rec }, CUSTOM_TILES_KEY);
+    tx.oncomplete = resolve;
+    tx.onerror = () => reject(tx.error);
+  });
+}
+/* Borrar la URL RETIRA la clave, no guarda un registro vacío: mismo
+   criterio que dbDeleteSh.                                            */
+async function dbDeleteCustomTilesUrl() {
+  const db = await openDb();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(DB_TREE, "readwrite");
+    tx.objectStore(DB_TREE).delete(CUSTOM_TILES_KEY);
+    tx.oncomplete = resolve;
+    tx.onerror = () => reject(tx.error);
+  });
+}
+async function dbLoadCustomTilesUrl() {
+  const db = await openDb();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(DB_TREE, "readonly");
+    const rq = tx.objectStore(DB_TREE).get(CUSTOM_TILES_KEY);
+    rq.onsuccess = () => {
+      const rec = rq.result;
+      resolve(rec && rec.v === CUSTOM_TILES_SCHEMA && typeof rec.url === "string" ? rec : null);
     };
     rq.onerror = () => reject(rq.error);
   });
@@ -10152,6 +10330,49 @@ document.getElementById("sh-accept").addEventListener("click", () => {
   closeShCredsDialog();
 });
 
+/* ---------- Diálogo del servidor de teselas de "Custom Maps" ----------
+   Mismo patrón que el de la credencial de Copernicus, justo arriba:
+   edición diferida, «Aceptar» es lo único que guarda y rearma la capa. */
+const customTilesDialog = document.getElementById("custom-tiles-creds");
+const customTilesBox = customTilesDialog.querySelector(".dlg-box");
+const customTilesInput = document.getElementById("custom-tiles-input");
+const customTilesErrorEl = document.getElementById("custom-tiles-error");
+
+function closeCustomTilesDialog() {
+  customTilesDialog.hidden = true;
+  releaseFocus();
+}
+function openCustomTilesDialog() {
+  customTilesInput.value = customTilesUrl || "";
+  customTilesErrorEl.hidden = true;
+  customTilesDialog.hidden = false;
+  clampToViewport(customTilesBox);
+  focusDialog(customTilesBox);
+  customTilesInput.focus();
+  customTilesInput.select();
+}
+document.getElementById("custom-tiles-cancel").addEventListener("click", closeCustomTilesDialog);
+document.getElementById("custom-tiles-clear").addEventListener("click", () => {
+  /* Borrar actúa sobre el campo, no sobre el diálogo: mismo criterio
+     que sh-clear.                                                     */
+  setCustomTilesUrl(null);
+  customTilesInput.value = "";
+  customTilesErrorEl.hidden = true;
+  customTilesInput.focus();
+  navMessage("Servidor de teselas de Custom Maps borrado.", { tone: "info" });
+});
+document.getElementById("custom-tiles-accept").addEventListener("click", () => {
+  const txt = customTilesInput.value.trim();
+  if (!validCustomTilesUrl(txt)) {
+    customTilesErrorEl.textContent = "Debe ser una dirección https:// válida.";
+    customTilesErrorEl.hidden = false;
+    customTilesInput.focus();
+    return;
+  }
+  setCustomTilesUrl(txt);
+  closeCustomTilesDialog();
+});
+
 const descDialog = document.getElementById("desc-dialog");
 const descBox = descDialog.querySelector(".dlg-box");
 const descTitle = document.getElementById("desc-title");
@@ -10237,7 +10458,7 @@ descBody.addEventListener("pointerdown", e => {
    button opened it (see openColorPicker/positionColorPicker), not a
    draggable window with its own dialog role — that separate-window
    treatment is exactly what the popover replaced.                    */
-for (const box of [styleBox, iconBox, descBox, shortcutsBox, ktpBox, kdpBox, gnpBox, propsBox, shBox, pointsBox, logBox, urlBox]) makeDialogMovable(box);
+for (const box of [styleBox, iconBox, descBox, shortcutsBox, ktpBox, kdpBox, gnpBox, propsBox, shBox, customTilesBox, pointsBox, logBox, urlBox]) makeDialogMovable(box);
 setupDialog(styleBox, { modal: false }); /* flotante: el mapa sigue vivo */
 setupDialog(iconBox, { modal: true });
 setupDialog(descBox, { modal: false });
@@ -10247,12 +10468,13 @@ setupDialog(kdpBox, { modal: true });
 setupDialog(gnpBox, { modal: true });
 setupDialog(propsBox, { modal: true });
 setupDialog(shBox, { modal: true });
+setupDialog(customTilesBox, { modal: true });
 setupDialog(pointsBox, { modal: true });
 setupDialog(logBox, { modal: true });
 setupDialog(urlBox, { modal: true });
 window.addEventListener("resize", () => {
   /* a moved dialog must not fall off-screen */
-  for (const box of [styleBox, iconBox, descBox, shortcutsBox, ktpBox, kdpBox, gnpBox, propsBox, shBox, pointsBox, logBox, urlBox]) clampToViewport(box);
+  for (const box of [styleBox, iconBox, descBox, shortcutsBox, ktpBox, kdpBox, gnpBox, propsBox, shBox, customTilesBox, pointsBox, logBox, urlBox]) clampToViewport(box);
   /* the popover's anchor button may have moved too; closing is simpler
      and less confusing than reclamping a stale position              */
   if (!colorPicker.hidden) closeColorPicker();
@@ -11447,6 +11669,7 @@ document.addEventListener("keydown", e => {
   if (!gnpDialog.hidden) { closeGnpPicker(null); return; }
   if (!propsDialog.hidden) { cancelPropsDialog(); return; }
   if (!shDialog.hidden) { closeShCredsDialog(); return; }
+  if (!customTilesDialog.hidden) { closeCustomTilesDialog(); return; }
   if (!pointsDialog.hidden) { closePointsDialog(); return; }
   /* Cancelar a medio dibujar una ruta (closeStyleDialog(false) borra el
      nodo por ser "isNew", mismo camino que un pin recién creado, y
@@ -13902,6 +14125,13 @@ setInterval(checkServerVersion, VERSION_CHECK_MS);
     if (sh && validInstanceId(sh.instanceId)) shInstanceId = sh.instanceId.trim();
   } catch { /* sin credencial guardada la capa pedirá configurarla */ }
 
+  /* Igual que la de Copernicus, antes que los mapas base: sin ella
+     "Custom Maps" no puede construir su plantilla de teselas.         */
+  try {
+    const ct = await dbLoadCustomTilesUrl();
+    if (ct && validCustomTilesUrl(ct.url)) customTilesUrl = normalizeCustomTilesBase(ct.url);
+  } catch { /* sin URL guardada la capa pedirá configurarla */ }
+
   /* Color de fondo del mapa: antes de pintar el panel de mapas base,
      cuya primera fila lo muestra. Sin valor guardado se queda con el
      de por defecto (MAP_BG_DEFAULT, el mismo que ya trae el CSS).    */
@@ -13925,7 +14155,11 @@ setInterval(checkServerVersion, VERSION_CHECK_MS);
      dejado de publicarse), sin esperar a que se abra el panel.       */
   for (const st of baseState.values()) {
     const src = dynSource(st.def);
-    if (st.on && src) src.ensure();
+    /* "Custom Maps" (source sin `dynamic: true`) no tiene catálogo que
+       descubrir, así que su fuente no aporta `ensure` — nada que
+       adelantar aquí, `applyBaseLayer` ya construyó su capa arriba
+       si la URL estaba configurada.                                   */
+    if (st.on && src && src.ensure) src.ensure();
   }
 
   let nodes = null;

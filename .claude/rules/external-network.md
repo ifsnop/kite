@@ -12,3 +12,4 @@ paths:
 - `describeHttp` traduce el estado HTTP a algo accionable (404 = dirección inexistente, 401 = falta autenticación, 429 = límite del servicio, 5xx = no disponible…).
 - Descarga por URL: misma disciplina + tope de tiempo/tamaño, aborto por cancelación/cierre, lectura por trozos — ver `url-import.md`.
 - **Los iconos ya NO son tráfico de ejecución** (van empotrados, ver `marker-icons.md`): fue la única consulta externa sin tope ni caché compartida (79 a la vez) y por eso reventó.
+- **Teselas (Custom Maps incluido) no pasan por esta disciplina**: son `<img>` de Leaflet (`L.tileLayer`), no `fetch`, así que no hay `AbortController`/tope de tiempo que aplicar — el mecanismo de reintento es el genérico de cualquier capa base (`tileerror`/`tileload`, `BASE_FAIL_TILES`, ver `base-maps.md`). Solo `https:` (CSP `img-src`, ver `import-parsing.md`), igual criterio que `connect-src`.

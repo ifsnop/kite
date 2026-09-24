@@ -43,6 +43,13 @@
     if (sh && validInstanceId(sh.instanceId)) shInstanceId = sh.instanceId.trim();
   } catch { /* sin credencial guardada la capa pedirá configurarla */ }
 
+  /* Igual que la de Copernicus, antes que los mapas base: sin ella
+     "Custom Maps" no puede construir su plantilla de teselas.         */
+  try {
+    const ct = await dbLoadCustomTilesUrl();
+    if (ct && validCustomTilesUrl(ct.url)) customTilesUrl = normalizeCustomTilesBase(ct.url);
+  } catch { /* sin URL guardada la capa pedirá configurarla */ }
+
   /* Color de fondo del mapa: antes de pintar el panel de mapas base,
      cuya primera fila lo muestra. Sin valor guardado se queda con el
      de por defecto (MAP_BG_DEFAULT, el mismo que ya trae el CSS).    */
@@ -66,7 +73,11 @@
      dejado de publicarse), sin esperar a que se abra el panel.       */
   for (const st of baseState.values()) {
     const src = dynSource(st.def);
-    if (st.on && src) src.ensure();
+    /* "Custom Maps" (source sin `dynamic: true`) no tiene catálogo que
+       descubrir, así que su fuente no aporta `ensure` — nada que
+       adelantar aquí, `applyBaseLayer` ya construyó su capa arriba
+       si la URL estaba configurada.                                   */
+    if (st.on && src && src.ensure) src.ensure();
   }
 
   let nodes = null;

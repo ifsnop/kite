@@ -178,6 +178,16 @@ COPERNICUS / SENTINEL HUB TESTS OK
 
 **Qué cubre:** Capa base de Copernicus DEM por Sentinel Hub: `validInstanceId` (UUID, con espacios alrededor, rechazando truncados y dígitos no hexadecimales); lectura de las capas de una configuración de usuario con `COP_WMS_OPTS` (lista plana, un solo grupo, sin exclusiones, sin confundir el `<Name>` de `<Style>`); y el `Invalid instance id` real del servicio, que llega con HTTP 400 y por tanto solo se puede leer del cuerpo.
 
+### `customtiles.js`
+
+**Salida de `npm test`:**
+```
+── Custom Maps: validación de la URL del servidor, normalización y plantilla XYZ
+CUSTOM MAPS TESTS OK
+```
+
+**Qué cubre:** Capa base «Custom Maps» (servidor de teselas del propio usuario, sin catálogo): `validCustomTilesUrl` acepta solo direcciones `https://` con forma de URL válida (con espacios alrededor tolerados, igual que el instance ID de Copernicus) y rechaza `http:`, texto suelto, vacío y otros esquemas (`ftp:`); `normalizeCustomTilesBase` quita la barra final (una o varias seguidas) y los espacios alrededor, para que `buildCustomTilesUrl` no pueda producir una barra duplicada al añadir `{z}/{x}/{y}.png`; y sin URL configurada, `buildCustomTilesUrl` no lanza excepción (queda para `blocked()` decidir si hay algo que construir, no esta función).
+
 ### `navtest.js`
 
 **Salida de `npm test`:**
