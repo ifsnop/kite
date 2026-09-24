@@ -29,6 +29,14 @@ function pathRings(layer) {
   return { rings, nested: true };
 }
 
+/* Los waypoints de una medición (círculo o ruta, ver measureWaypoints en
+   52-measure.js) no tienen concepto de anillo, pero encajan sin fricción
+   como un único "anillo" en pointsToText/textToPoints — nunca hay más de
+   uno, así que la pista de "esta capa tiene N trazos" no aplica nunca. */
+function measureRings(m) {
+  return { rings: [measureWaypoints(m)] };
+}
+
 /* Lat/Lon en el formato global elegido en Propiedades (`coordFormat`,
    decimal o GMS — ver su comentario más abajo); la altitud no es una
    coordenada y se queda siempre en decimal simple.                    */
@@ -668,7 +676,8 @@ function syncVertexOwnerForDialog() {
      — se restaura sola al cerrarlo (closePointsDialog llama aquí).    */
   if (styleKindOpen === "polygon" && !(pointsTarget && pointsTarget.li === li)) {
     if (beginVertexEdit(li)) vertexOwner = makePolygonVertexOwner(li);
-  } else if (styleKindOpen === "measure" && li._measure && li._measure.type === "route") {
+  } else if (styleKindOpen === "measure" && li._measure && li._measure.type === "route"
+      && !(pointsTarget && pointsTarget.li === li)) {
     vertexOwner = makeRouteVertexOwner(li._measure, li);
   }
   refreshDoubleClickZoom(); /* 52-measure.js: puede que haya que apagarlo ahora */
@@ -1413,10 +1422,32 @@ const iconBox = iconPicker.querySelector(".dlg-box");
    not a wrapper around a nested .dlg-box — see openColorPicker.      */
 const shortcutsDialog = document.getElementById("shortcuts");
 const shortcutsBox = shortcutsDialog.querySelector(".dlg-box");
+/* Cuatro pestañas para no tener que scrollear una única tabla larga
+   (reportado: la ayuda ocupaba demasiada pantalla). Mismo lenguaje
+   visual que las pestañas de Propiedades (.dlg-tabs/.dlg-tab), pero con
+   un mapa en vez de dos booleanos hardcodeados: aquí son cuatro.       */
+const shTabs = {
+  nav: [document.getElementById("sh-tab-btn-nav"), document.getElementById("sh-tab-nav")],
+  act: [document.getElementById("sh-tab-btn-act"), document.getElementById("sh-tab-act")],
+  view: [document.getElementById("sh-tab-btn-view"), document.getElementById("sh-tab-view")],
+  draw: [document.getElementById("sh-tab-btn-draw"), document.getElementById("sh-tab-draw")]
+};
+function showShortcutsTab(tab) {
+  for (const [key, [btn, panel]] of Object.entries(shTabs)) {
+    const active = key === tab;
+    btn.classList.toggle("active", active);
+    btn.setAttribute("aria-selected", String(active));
+    panel.hidden = !active;
+  }
+}
+for (const key of Object.keys(shTabs)) shTabs[key][0].addEventListener("click", () => showShortcutsTab(key));
 function toggleShortcuts() {
   shortcutsDialog.hidden = !shortcutsDialog.hidden;
-  if (!shortcutsDialog.hidden) { clampToViewport(shortcutsBox); focusDialog(shortcutsBox); }
-  else releaseFocus();
+  if (!shortcutsDialog.hidden) {
+    showShortcutsTab("nav"); /* no se queda en la última pestaña vista la vez anterior */
+    clampToViewport(shortcutsBox);
+    focusDialog(shortcutsBox);
+  } else releaseFocus();
 }
 document.getElementById("shortcuts-close").addEventListener("click", toggleShortcuts);
 document.getElementById("help-btn").addEventListener("click", toggleShortcuts);
@@ -1590,7 +1621,7 @@ const pointsDialog = document.getElementById("points-dialog");
 const pointsBox = pointsDialog.querySelector(".dlg-box");
 const pointsText = document.getElementById("points-text");
 const pointsError = document.getElementById("points-error");
-let pointsTarget = null;  /* { li, path, nested } mientras está abierto */
+let pointsTarget = null;  /* { li, path, nested } (polígono) o { li, measure } mientras está abierto */
 
 function closePointsDialog() {
   pointsDialog.hidden = true;
@@ -1602,7 +1633,29 @@ function closePointsDialog() {
   syncVertexOwnerForDialog();
 }
 
-function openPointsDialog(li) {
+/* Parte común de rellenar el textarea/contador/título y mostrar el
+   diálogo, compartida entre un polígono/línea y una medición.        */
+function openPointsDialogCommon(li, rings, { showRingsHint }) {
+  pointsText.value = pointsToText(rings);
+  pointsText.classList.remove("bad");
+  pointsError.hidden = true;
+  const total = rings.reduce((n, r) => n + r.length, 0);
+  $id("points-title").textContent = `Puntos de «${li._name}»`;
+  $id("points-count").textContent = `${total} punto${total === 1 ? "" : "s"}`;
+  /* Solo se explica la separación por anillos cuando de verdad hay más
+     de uno: en el caso corriente sobra el detalle. Una medición nunca
+     tiene más de un "anillo", así que aquí siempre queda oculta.      */
+  const ringsHint = $id("points-rings");
+  ringsHint.hidden = !showRingsHint || rings.length < 2;
+  ringsHint.textContent = !showRingsHint || rings.length < 2 ? ""
+    : `Esta capa tiene ${rings.length} trazos (contorno exterior primero, luego los `
+      + "agujeros). Van separados por una línea en blanco; mantén esa separación.";
+  pointsDialog.hidden = false;
+  clampToViewport(pointsBox);
+  focusDialog(pointsBox);
+}
+
+function openPointsDialogForPath(li) {
   const path = solePath(li);
   if (!path) return;
   const { rings, nested } = pathRings(path);
@@ -1614,33 +1667,36 @@ function openPointsDialog(li) {
      aunque el diálogo de estilos siga mostrando el mismo nodo;
      closePointsDialog los restaura al cerrar.                        */
   if (vertexOwner && vertexOwner.kind === "polygon" && vertexOwner.li === li) teardownVertexOwner();
-  pointsText.value = pointsToText(rings);
-  pointsText.classList.remove("bad");
-  pointsError.hidden = true;
-  const total = rings.reduce((n, r) => n + r.length, 0);
-  $id("points-title").textContent = `Puntos de «${li._name}»`;
-  $id("points-count").textContent = `${total} punto${total === 1 ? "" : "s"}`;
-  /* Solo se explica la separación por anillos cuando de verdad hay más
-     de uno: en el caso corriente sobra el detalle.                    */
-  const ringsHint = $id("points-rings");
-  ringsHint.hidden = rings.length < 2;
-  ringsHint.textContent = rings.length < 2 ? ""
-    : `Esta capa tiene ${rings.length} trazos (contorno exterior primero, luego los `
-      + "agujeros). Van separados por una línea en blanco; mantén esa separación.";
-  pointsDialog.hidden = false;
-  clampToViewport(pointsBox);
-  focusDialog(pointsBox);
+  openPointsDialogCommon(li, rings, { showRingsHint: true });
+}
+
+function openPointsDialogForMeasure(li) {
+  const measure = li._measure;
+  if (!measure) return;
+  const { rings } = measureRings(measure);
+  pointsTarget = { li, measure };
+  /* Mismo criterio que un polígono: si el diálogo mostraba esta ruta con
+     sus manejadores interactivos activos (vertexOwner), se retiran
+     mientras el editor de texto esté abierto (un círculo nunca pasa por
+     vertexOwner, así que aquí no hay nada que retirar en ese caso).    */
+  if (vertexOwner && vertexOwner.li === li) teardownVertexOwner();
+  openPointsDialogCommon(li, rings, { showRingsHint: false });
+}
+
+function openPointsDialog(li) {
+  if (li._measure) openPointsDialogForMeasure(li);
+  else openPointsDialogForPath(li);
 }
 $id("pg-points").addEventListener("click", () => {
+  if (styleTargets.length === 1) openPointsDialog(styleTargets[0]);
+});
+$id("ms-points").addEventListener("click", () => {
   if (styleTargets.length === 1) openPointsDialog(styleTargets[0]);
 });
 $id("points-cancel").addEventListener("click", closePointsDialog);
 $id("points-accept").addEventListener("click", () => {
   if (!pointsTarget) return closePointsDialog();
-  const { li, path, nested } = pointsTarget;
   const { rings, errors } = textToPoints(pointsText.value);
-  const closed = path instanceof L.Polygon;
-  const min = closed ? 3 : 2;
   const bad = msg => {
     /* No se cierra con la lista rota: mismo criterio que las
        coordenadas del diálogo de estilos.                            */
@@ -1655,6 +1711,62 @@ $id("points-accept").addEventListener("click", () => {
       + list + (errors.length > 3 ? "…" : "") + ".");
   }
   if (!rings.length) return bad("No queda ningún punto.");
+
+  if (pointsTarget.measure) {
+    const { li, measure } = pointsTarget;
+    /* textToPoints devuelve tuplas [lat, lon(, alt)] (clampLatLng), no
+       objetos {lat, lng} — measure.mOrigin/mDest.setLatLng las acepta
+       tal cual (Leaflet normaliza arrays), pero buildRouteMeasurement
+       lee w.lat/w.lng como propiedades, así que la ruta las convierte
+       explícitamente más abajo.                                      */
+    if (measure.type === "circle") {
+      if (rings[0].length !== 2) return bad("Un círculo tiene exactamente 2 puntos: centro y borde.");
+      pushUndo("editar puntos");
+      measure.mOrigin.setLatLng(rings[0][0]);
+      measure.mDest.setLatLng(rings[0][1]);
+      updateMeasurement(measure);
+    } else {
+      if (rings[0].length < 2) return bad("Una ruta necesita al menos 2 waypoints.");
+      pushUndo("editar puntos");
+      if (vertexSelHandle && measure.handles.includes(vertexSelHandle)) clearVertexSelection();
+      /* Reconstruye solo la parte GEOMÉTRICA del mismo objeto "measure"
+         (el número de waypoints puede haber cambiado): retira lo viejo
+         del mapa, construye lo nuevo con buildRouteMeasurement (que crea
+         su PROPIO featureGroup efímero, descartado aquí) y traslada sus
+         piezas al featureGroup de siempre — measure.treeLabel/treeName/
+         style y la identidad del nodo del árbol no se tocan.          */
+      measure.group.removeLayer(measure.geom);
+      for (const h of measure.handles) measure.group.removeLayer(h);
+      for (const lb of measure.legLabels) measure.group.removeLayer(lb);
+      const waypoints = rings[0].map(p => ({ lat: p[0], lng: p[1] }));
+      const fresh = buildRouteMeasurement(waypoints, measure.style);
+      rootGroup.removeLayer(fresh.group); /* descarta el featureGroup efímero, no sus capas */
+      measure.geom = fresh.geom;
+      measure.handles = fresh.handles;
+      measure.legLabels = fresh.legLabels;
+      measure.legs = fresh.legs;
+      measure.totalDist = fresh.totalDist;
+      measure.group.addLayer(measure.geom);
+      for (const h of measure.handles) { wireRouteHandle(measure, h); measure.group.addLayer(h); }
+      for (const lb of measure.legLabels) measure.group.addLayer(lb);
+      setMeasureLabelsVisible(measure, measure.style.showLabels);
+      updateMeasurement(measure);
+    }
+    scheduleSave();
+    closePointsDialog();
+    /* El diálogo de estilos sigue abierto detrás y muestra medidas ya
+       obsoletas: se recalculan con la geometría nueva.                 */
+    if (!styleDialog.hidden && styleTargets[0] === li) {
+      msMeasures = measurementValues(measure);
+      $id("ms-values").hidden = !msMeasures;
+      if (msMeasures) renderMeasureValues();
+    }
+    return;
+  }
+
+  const { li, path, nested } = pointsTarget;
+  const closed = path instanceof L.Polygon;
+  const min = closed ? 3 : 2;
   const short = rings.find(r => r.length < min);
   if (short) {
     return bad(closed

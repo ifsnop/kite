@@ -304,6 +304,21 @@ function measureWaypoints(m) {
   return handles.map(h => { const p = h.getLatLng(); return { lat: p.lat, lng: p.lng }; });
 }
 
+/* Alterna la visibilidad de las etiquetas de distancia/rumbo de una
+   medición (style.showLabels) sin destruir los L.Tooltip: se quitan o
+   se ponen del propio featureGroup. updateMeasurement/
+   updateRouteMeasurement siguen llamando setLatLng/setContent en cada
+   recálculo aunque el tooltip no esté añadido al mapa — Leaflet solo
+   toca el DOM si el tooltip tiene _map, así que no lanza excepción.   */
+function setMeasureLabelsVisible(m, on) {
+  const labels = m.type === "route" ? m.legLabels : [m.label];
+  for (const t of labels) {
+    const has = m.group.hasLayer(t);
+    if (on && !has) m.group.addLayer(t);
+    else if (!on && has) m.group.removeLayer(t);
+  }
+}
+
 /* ---------- Vértices editables (arrastrar + borrar) ----------
    Mecánica compartida por el borrador de dibujo/ruta (polyDraft) y por
    la edición de una medición o un polígono YA creados. Sin estado
@@ -366,6 +381,7 @@ function buildMeasurement(type, a, b, style = null) {
   /* La etiqueta debe tener posición y contenido ANTES de ir al mapa */
   updateMeasurement(m);
   m.group = L.featureGroup([geom, label, mOrigin, mDest]).addTo(rootGroup);
+  setMeasureLabelsVisible(m, s.showLabels);
   return m;
 }
 
@@ -730,16 +746,21 @@ function finishPolygon(closed) {
 
 /* Terminar una ruta ya NO construye nada aquí: desde el 2º punto la
    medición real y su nodo ya existen (`addRouteVertex`), con su diálogo
-   de propiedades abierto y en vivo. Terminar solo deja de seguir
-   añadiendo — el nodo y su diálogo quedan TAL CUAL, el usuario los
-   cierra cuando quiera, igual que editar una ruta ya existente.        */
+   de propiedades abierto y en vivo. Terminar con doble click se
+   comporta como pulsar "Aceptar" en ese mismo diálogo: guarda el
+   estilo/nombre del borrador y CIERRA, dando una señal visual clara de
+   que la edición ha terminado (antes se quedaba abierto sin más,
+   reportado como confuso). Invariante: mientras `routeMeasurement` no
+   es null, el diálogo está SIEMPRE abierto mostrando exactamente esta
+   ruta (`closeStyleDialog` los mantiene sincronizados ante cualquier
+   cierre anticipado), así que `acceptStyleDialog` siempre encuentra
+   `styleKindOpen === "measure"` desde aquí.                            */
 function finishRoute() {
   if (!routeMeasurement) {
     navMessage("Faltan waypoints para terminar la ruta (mínimo 2).");
     return; /* sigue dibujando: no se descarta lo ya puesto (solo hay un punto) */
   }
-  routeMeasurement = null;
-  setTool(null);
+  acceptStyleDialog();
 }
 
 /* Construye una ruta a partir de sus waypoints: un manejador por punto
@@ -759,6 +780,7 @@ function buildRouteMeasurement(waypoints, style = null) {
               legs: [], totalDist: 0, treeLabel: null, treeName: null };
   updateMeasurement(m); /* posiciona y rellena las etiquetas ANTES de ir al mapa */
   m.group = L.featureGroup([geom, ...legLabels, ...handles]).addTo(rootGroup);
+  setMeasureLabelsVisible(m, s.showLabels);
   return m;
 }
 
@@ -864,7 +886,7 @@ function insertRouteWaypoint(m, handle, latlng) {
      Mismo orden que ya usa buildRouteMeasurement.                      */
   updateMeasurement(m);
   m.group.addLayer(h);
-  m.group.addLayer(label);
+  if (m.style.showLabels) m.group.addLayer(label); /* respeta el estado de "Mostrar etiquetas" */
   scheduleSave();
   return h;
 }

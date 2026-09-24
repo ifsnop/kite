@@ -352,6 +352,7 @@ function normalizePathStyle(s) {
   s.fill = s.fill !== false; /* Leaflet default: filled */
   s.stroke = s.stroke !== false; /* Leaflet default: outlined */
   s.opacity = 1;
+  s.showLabels = s.showLabels !== false; /* default: shown, current behaviour */
   return s;
 }
 

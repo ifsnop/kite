@@ -17,8 +17,9 @@
       y abre su diálogo (isNew), con un tramo ya calculado; 3) un tercer
       punto actualiza el diálogo sin cerrarlo; 4) Escape a medio dibujar
       borra el nodo (como cancelar un pin recién creado) y sale de la
-      herramienta; 5) terminar con doble click dejA el nodo y su diálogo
-      TAL CUAL, listos para seguir editándose como cualquier otra ruta. */
+      herramienta; 5) terminar con doble click se comporta como pulsar
+      "Aceptar": guarda el nodo y CIERRA el diálogo, dando señal visual
+      de que la edición terminó. */
 import { launch, serve, openApp, reporter, READABLE } from "./_browser.mjs";
 
 const { ok, done } = reporter("BROWSER ROUTE LIVE DRAW TESTS OK");
@@ -101,7 +102,7 @@ ok(afterEscape.activeTool === null, "y sale de la herramienta");
 ok(afterEscape.dialogHidden, "el diálogo se cierra");
 ok(afterEscape.liGone, "y el nodo recién creado se borra, como cancelar un pin");
 
-/* ---------- Terminar con doble click deja el nodo y su diálogo TAL CUAL ---------- */
+/* ---------- Terminar con doble click GUARDA y CIERRA, como "Aceptar" ---------- */
 await page.evaluate(() => setTool("route"));
 const p4 = await pt(40.506, -3.91);
 await page.mouse.click(p4.x, p4.y);
@@ -118,10 +119,9 @@ const afterFinish = await page.evaluate(() => ({
 }));
 ok(!afterFinish.routeMeasurement, "terminar deja de seguir añadiendo waypoints");
 ok(afterFinish.activeTool === null, "y sale de la herramienta de dibujo");
-ok(!afterFinish.dialogHidden, "pero el diálogo de propiedades se queda ABIERTO");
-ok(afterFinish.liConnected, "y el nodo sigue en el árbol");
+ok(afterFinish.dialogHidden, "terminar con doble click cierra el diálogo, como pulsar Aceptar");
+ok(afterFinish.liConnected, "y el nodo se GUARDA, no se borra");
 ok(afterFinish.handles === 3, "con el waypoint del propio doble click incluido: " + afterFinish.handles);
-await page.evaluate(() => closeStyleDialog(true));
 
 /* ---------- Cerrar con los BOTONES del diálogo también sale del modo dibujo ----------
    Reportado como bug: antes solo Escape limpiaba routeMeasurement/salía

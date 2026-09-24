@@ -640,7 +640,18 @@ ok(cancelReverts.circleReverted, "y el Ctrl+arrastre de un círculo");
    mientras haya un polígono/ruta/círculo en edición, igual que ya
    hacía `setTool` durante el DIBUJO; se comprueba también que vuelve a
    funcionar en cuanto se cierra el diálogo.                           */
+const viewBeforeNoCtrl = await page.evaluate(() => ({ center: map.getCenter(), zoom: map.getZoom() }));
 const noCtrlAndDblclick = await page.evaluate(async () => {
+  /* Vista fija sobre el propio polígono: sin esto, la posición en pantalla
+     de sus vértices depende de dónde dejaron el mapa los escenarios
+     anteriores (paneos/zooms de las mediciones previas) y del ancho del
+     panel de navegación — puede coincidir con el hueco fijo arriba-derecha
+     del diálogo de estilos (.dlg-float) y "tapar" el propio vértice bajo
+     su caja, haciendo fallar el arrastre sin que sea un fallo real.
+     Restaurada justo después (viewBeforeNoCtrl): los escenarios que
+     siguen (routeNoCtrl y otros) reutilizan las mismas coordenadas
+     cercanas a Madrid asumiendo la vista que ya hubiera en ese momento. */
+  map.setView([40.325, -3.875], 10, { animate: false });
   const ul = ensureRootUl();
   const pol = L.polygon([[40.3, -3.9], [40.35, -3.9], [40.35, -3.85]]).addTo(rootGroup);
   const li = makeNode({ name: "Sin Ctrl", layer: pol, style: normalizePathStyle({}) });
@@ -685,9 +696,14 @@ await page.waitForTimeout(300);
 const zoomAfterClose = await page.evaluate(() => map.getZoom());
 ok(zoomAfterClose > zoomWhileEditing,
   `y vuelve a hacer zoom al cerrar el diálogo: ${zoomWhileEditing} → ${zoomAfterClose}`);
+await page.evaluate(v => map.setView(v.center, v.zoom, { animate: false }), viewBeforeNoCtrl);
 
 /* Mismo cambio para una ruta: arrastrar un waypoint SIN Ctrl lo mueve */
+const viewBeforeRouteNoCtrl = await page.evaluate(() => ({ center: map.getCenter(), zoom: map.getZoom() }));
 const routeNoCtrl = await page.evaluate(async () => {
+  /* Misma razón que en el polígono de más arriba: vista propia para que
+     el waypoint no acabe bajo el diálogo de estilos flotante.          */
+  map.setView([40.225, -3.875], 10, { animate: false });
   const m = buildRouteMeasurement([{ lat: 40.2, lng: -3.9 }, { lat: 40.25, lng: -3.85 }]);
   finalizeRouteMeasurement(m);
   const li = m.treeLabel.closest("li");
@@ -705,6 +721,7 @@ const routeMoved = await page.evaluate(() => {
   return ll.lat !== 40.2 || ll.lng !== -3.9;
 });
 ok(routeMoved, "arrastrar un waypoint de ruta SIN mantener Ctrl también lo mueve");
+await page.evaluate(v => map.setView(v.center, v.zoom, { animate: false }), viewBeforeRouteNoCtrl);
 await page.evaluate(() => closeStyleDialog(true));
 
 /* ---------- Tecla Insertar: en la posición del RATÓN, no del vértice ----------
@@ -878,7 +895,11 @@ ok(!menuNoDialog.hidden, "clic derecho en un waypoint de ruta SIN diálogo abier
 ok(menuNoDialog.items.includes("Editar propiedades"), "con acceso a Editar propiedades: " + JSON.stringify(menuNoDialog.items));
 await page.evaluate(() => closeCtxMenu());
 
+const viewBeforeCtxEditing = await page.evaluate(() => ({ center: map.getCenter(), zoom: map.getZoom() }));
 const ctxOnHandleEditing = await page.evaluate(async () => {
+  /* Misma razón que los casos anteriores: vista propia para que el
+     waypoint no acabe bajo el diálogo de estilos flotante.             */
+  map.setView([40.725, -3.85], 10, { animate: false });
   const m = buildRouteMeasurement([{ lat: 40.7, lng: -3.9 }, { lat: 40.75, lng: -3.85 }, { lat: 40.7, lng: -3.8 }]);
   finalizeRouteMeasurement(m);
   const li = m.treeLabel.closest("li");
@@ -896,9 +917,14 @@ const afterCount = await page.evaluate(() => vertexOwner.m.handles.length);
 ok(editingResult.menuHidden, "con el diálogo abierto, clic derecho NO abre el menú");
 ok(afterCount === ctxOnHandleEditing.before - 1, "sigue borrando el waypoint al instante: " + afterCount);
 await page.evaluate(() => closeStyleDialog(true));
+await page.evaluate(v => map.setView(v.center, v.zoom, { animate: false }), viewBeforeCtxEditing);
 
 /* Círculo: nunca borra con clic derecho, así que siempre va al menú */
+const viewBeforeCtxCircle = await page.evaluate(() => ({ center: map.getCenter(), zoom: map.getZoom() }));
 const ctxOnCircle = await page.evaluate(async () => {
+  /* Misma razón que los casos anteriores: vista propia para que el
+     manejador no acabe bajo el diálogo de estilos flotante.            */
+  map.setView([40.805, -3.9], 10, { animate: false });
   const c = buildMeasurement("circle", L.latLng(40.8, -3.9), L.latLng(40.81, -3.9));
   finalizeMeasurement(c);
   const li = c.treeLabel.closest("li");
@@ -912,6 +938,7 @@ await page.waitForTimeout(100);
 const circleMenu = await page.evaluate(() => document.getElementById("map-ctxmenu").hidden);
 ok(!circleMenu, "clic derecho en el borde de un círculo abre el menú, con o sin diálogo abierto");
 await page.evaluate(() => { closeCtxMenu(); closeStyleDialog(true); });
+await page.evaluate(v => map.setView(v.center, v.zoom, { animate: false }), viewBeforeCtxCircle);
 
 /* ---------- Supr selecciona el VECINO tras borrar, para poder encadenar ----------
    Reportado como bug: tras borrar el vértice seleccionado no quedaba
