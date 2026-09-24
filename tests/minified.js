@@ -104,18 +104,21 @@ ok(/default-src 'none'/.test(csp), "sigue cerrada por defecto: " + csp.slice(0, 
    dar datos, nunca scripts ni estilos.                               */
 for (const [nombre, origen] of [["script-src", "https://unpkg.com"],
                                 ["script-src", "https://cdnjs.cloudflare.com"],
-                                ["style-src", "https://unpkg.com"],
-                                ["img-src", "https://www.ign.es"]]) {
+                                ["style-src", "https://unpkg.com"]]) {
   const d = directiva(nombre);
   ok(!!d && d.includes(origen), `${nombre} conserva ${origen}: ${d}`);
   ok(!!d && !/(^|\s)https:(\s|$)/.test(d), `y ${nombre} NO admite cualquier https: ${d}`);
 }
-/* connect-src sí es abierta, y a propósito: la dirección de la que se
-   descarga la elige el usuario (botón 🔗), así que enumerar orígenes es
-   imposible por definición. Que esté aquí escrito es lo que convierte
-   abrirla en una decisión visible y no en algo que se cuela en un diff. */
+/* connect-src e img-src SÍ son abiertas, y a propósito: la dirección de
+   la que se descarga (botón 🔗) o de la que se piden teselas (mapa base
+   «Custom Maps», su propio servidor) las elige el usuario, así que
+   enumerar orígenes es imposible por definición. Que esté aquí escrito
+   es lo que convierte abrirlas en una decisión visible y no en algo que
+   se cuela en un diff.                                                */
 ok(directiva("connect-src") === "'self' https:",
   "connect-src admite cualquier https, y nada más: " + directiva("connect-src"));
+ok(directiva("img-src") === "'self' data: blob: https:",
+  "img-src admite cualquier https además de datos/blobs propios: " + directiva("img-src"));
 ok(!/http:/.test(csp), "sin http: en ninguna directiva: una página https no se degrada");
 /* Y lo que se quitó al empotrar los iconos sigue fuera también aquí */
 ok(!min.includes("api.iconify.design"), "sin resucitar api.iconify.design");

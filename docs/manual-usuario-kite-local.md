@@ -132,12 +132,14 @@ Arrastrar una fila con el ratón la mueve de carpeta o cambia su orden entre her
 
 ### 4.1 Mapas base
 
-Un icono de capas, en la esquina superior derecha del mapa, despliega el panel de cartografías de fondo: OpenStreetMap, varias capas del Instituto Geográfico Nacional (mapa base, topográfico, ortofoto PNOA actual e histórica, modelo digital del terreno), un par de opciones de relieve sombreado y, bajo credencial propia del usuario, el modelo de superficie de Copernicus. Se pueden combinar varias a la vez, cada una con su propio control de opacidad, y reordenarse con las flechas de cada fila (el orden de la lista es el orden de apilado en el mapa).
+Un icono de capas, en la esquina superior derecha del mapa, despliega el panel de cartografías de fondo: OpenStreetMap, varias capas del Instituto Geográfico Nacional (mapa base, topográfico, ortofoto PNOA actual e histórica, modelo digital del terreno), un par de opciones de relieve sombreado, bajo credencial propia del usuario el modelo de superficie de Copernicus, y «Custom Maps», que pide sus teselas a un servidor propio del usuario. Se pueden combinar varias a la vez, cada una con su propio control de opacidad, y reordenarse con las flechas de cada fila (el orden de la lista es el orden de apilado en el mapa).
 
 La primera fila del panel no es un mapa, sino el color de fondo del propio visor: el que se ve detrás de las teselas, en un hueco sin cobertura o en el borde del mundo. Por defecto es el mismo azul claro de siempre; su muestra de color abre el mismo selector integrado que los colores de una capa (apartado 6.1) y el cambio se recuerda entre sesiones.
 
 ![Panel de mapas base desplegado, con OpenStreetMap activa y el resto disponibles](img/07-mapas-base.png)
 *Figura 9. Panel de mapas base: primera fila para el color de fondo, y debajo cada mapa con su casilla de activación, control de opacidad y flechas de orden. La rueda dentada junto a Copernicus DEM abre su configuración de credencial.*
+
+**Custom Maps**, al final de la lista, sirve para apuntar a un servidor de teselas propio —típicamente una caché o proxy delante de OpenStreetMap u otro servicio, para no descargar de golpe el servicio público de otra persona—: la rueda dentada de su fila abre un diálogo donde se escribe solo la dirección base (por ejemplo `https://mi-cache.ejemplo.org/tiles/`); la aplicación añade siempre `{z}/{x}/{y}.png` al final por su cuenta. El servidor debe admitir esas peticiones en `https` (nunca `http`) y responder con imágenes PNG —con canal alfa si se quiere transparencia— y cabeceras CORS abiertas, o el navegador bloqueará las teselas aunque el servidor responda bien; el propio diálogo explica el formato. La dirección se guarda solo en ese navegador y nunca viaja en un `.kite.json` exportado.
 
 ### 4.2 Barra de herramientas de dibujo y medición
 

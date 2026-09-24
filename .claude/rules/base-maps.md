@@ -24,16 +24,46 @@ paths:
   `get`/`error`/`ensure`, `pickDefault` y `groups`. Hoy: `pnoa-hist`,
   `copernicus`. Ni `applyBaseLayer` ni `buildDynamicLayerSelect` deben
   nombrar una fuente concreta.
+- **Una fuente puede ser CONFIGURABLE sin ser `dynamic`** (`custom-tiles`,
+  Custom Maps): aporta `blocked`/`configure` pero no `get`/`groups`/
+  `pickDefault`/`ensure`, porque no hay catálogo que descubrir ni nombre
+  de capa que elegir — solo una URL. La tuerca (`buildDynamicConfigButton`)
+  y el estado bloqueado se leen de `dynSource(def)` sin mirar `dynamic`;
+  el `<select>` (`buildDynamicLayerSelect`) sigue exigiendo `dynamic:
+  true` explícitamente, así que una fuente sin catálogo no lo recibe.
+  `ensureDynamicCatalogs`/el bucle de arranque que llama `src.ensure()`
+  comprueban que exista antes de invocarlo (una fuente sin catálogo no
+  lo tiene) — un cambio nuevo en `DYNAMIC_SOURCES` con un método a veces
+  ausente debe seguir ese mismo guardia, no asumir la forma completa.
 - **Fuente bloqueada** (`blocked()`): da `label`/`hint` cuando no se
-  puede listar nada (Copernicus sin credencial → selector deshabilitado,
-  no se rehabilita solo con encender la capa). Al arrancar, una capa
-  bloqueada guardada como encendida se APAGA en vez de fallar tesela a
-  tesela.
+  puede listar nada (Copernicus sin credencial → selector deshabilitado;
+  Custom Maps sin URL → tuerca sin capa que construir), no se
+  rehabilita solo con encender la capa. Al arrancar, una capa bloqueada
+  guardada como encendida se APAGA en vez de fallar tesela a tesela —
+  ese chequeo (`99-boot.js`) ya es genérico por `dynSource`, cubre
+  cualquier fuente con `blocked()` sea o no `dynamic`.
 - **Configurar una fuente: tuerca ⚙** (`buildDynamicConfigButton`, en
   `.base-tools` a la izquierda de las flechas de apilado). Visible
-  siempre que haya `configure`, con o sin credencial, y con la capa
-  apagada (si no, no se podría configurar una fuente aún no funcional ni
-  retirar una credencial ya guardada).
+  siempre que haya `configure`, con o sin credencial/URL ya puesta, y
+  con la capa apagada (si no, no se podría configurar una fuente aún no
+  funcional ni retirar lo ya guardado).
+- **Custom Maps: URL del propio usuario, sin catálogo** (`customTilesUrl`,
+  `setCustomTilesUrl`, `buildCustomTilesUrl`, diálogo
+  `#custom-tiles-creds`, `11-base-panel.js`). El usuario pega solo la
+  dirección BASE de su servidor (típicamente una caché/proxy delante de
+  OpenStreetMap u otro servicio, para no cargar el servicio público
+  ajeno); el código añade siempre `{z}/{x}/{y}.png` al construir la capa
+  (`buildCustomTilesUrl`, llamada solo dentro de `layer()`, nunca antes:
+  la URL puede no estar configurada todavía). Solo `https:` (mismo
+  criterio que `connect-src`, nunca `http:`); se guarda en el navegador
+  (`customTilesUrl`/`CUSTOM_TILES_SCHEMA`), nunca en el archivo
+  distribuido ni en un `.kite.json` exportado. **CSP**: `img-src` se
+  abrió a cualquier `https:` para esto — mismo motivo y misma forma que
+  `connect-src` (el origen lo elige el usuario, enumerar es imposible
+  por definición), ver `import-parsing.md`. Cambiar o borrar la URL
+  invalida la capa ya creada (su plantilla lleva la URL anterior
+  incrustada), igual que `setInstanceId` con la credencial de
+  Copernicus.
 - **Copernicus DEM: Sentinel Hub, credencial DEL USUARIO** (`COP_WMS_BASE`,
   `shWmsUrl`, `setInstanceId`, diálogo `#sh-creds`). No existe WMS
   anónimo de Copernicus (EEA EU-DEM retirado; mirror AWS sin CORS). El
@@ -61,7 +91,10 @@ paths:
 - **Diálogo nuevo → definir su `max-width`**: `.dlg-box` trae
   `max-width: 90vw` (pensado para diálogos anchos). Cajas de texto corto
   van en la regla de `#kml-tags-picker, #kml-dup-picker, #sh-creds`
-  (`max-width: 42ch`).
+  (`max-width: 42ch`) — `#custom-tiles-creds` es la excepción: contenido
+  igual de fijo (no redimensionable) pero con más texto explicando el
+  formato de servidor exigido, así que lleva su propio
+  `width: min(92vw, 30rem)` en vez de entrar en esa lista de 42ch.
 - **Ventana de propiedades con ancho PROPIO, no de ajuste al
   contenido**: `#style-dialog .dlg-box { width: min(92vw, 24rem) }` —
   un nombre de KML largo no puede decidir el tamaño de la ventana.

@@ -20,6 +20,7 @@ const SUITES = [
   ["elevtest.js",   "Elevaciones: WCS del IGN, coberturas, formatos, rejilla"],
   ["pnoahisttest.js", "PNOA histórico: descubrimiento de capas del WMS del IGN"],
   ["copernicustest.js", "Copernicus DEM: instance ID de Sentinel Hub y sus capas"],
+  ["customtiles.js", "Custom Maps: validación de la URL del servidor, normalización y plantilla XYZ"],
   ["navtest.js",    "Navegación del árbol y selección por rangos"],
   ["a11ytreetest.js", "Accesibilidad del árbol: role=group del <ul> raíz, aria-label de las casillas"],
   ["selcorrect.js", "Selección: cursor y nodos de nivel superior"],

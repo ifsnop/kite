@@ -80,9 +80,22 @@ export async function openApp(browser, url, opts = {}) {
       e => window.__csp.push(e.violatedDirective + " ← " + e.blockedURI));
   });
   await page.goto(url);
-  await page.waitForFunction(() =>
-    typeof map === "object" && map && typeof map.getZoom === "function"
-    && !!document.querySelector("#tree .empty, #tree ul.node-list"));
+  /* El árbol pasa por DOS estados con la MISMA clase ("empty": primero
+     "Inicializando…", luego, si de verdad no hay nada guardado, "No hay
+     capas cargadas.") — `showTreePlaceholder`, 30-tree-walk.js. Esperar
+     solo la clase capturaba a veces el intermedio: invisible mientras el
+     arranque (99-boot.js) tuviera poco que leer de IndexedDB antes de
+     resolver el árbol, hasta que una lectura más (la URL de "Custom
+     Maps") alargó lo suficiente esa ventana como para que el sondeo la
+     viera. Comprobar el TEXTO del placeholder, no solo su clase, espera
+     el estado de verdad final en los dos casos (con árbol guardado, hay
+     `ul.node-list`, directamente).                                     */
+  await page.waitForFunction(() => {
+    if (!(typeof map === "object" && map && typeof map.getZoom === "function")) return false;
+    if (document.querySelector("#tree ul.node-list")) return true;
+    const empty = document.querySelector("#tree .empty");
+    return !!empty && empty.textContent !== "Inicializando…";
+  });
   return { ctx, page, errors };
 }
 

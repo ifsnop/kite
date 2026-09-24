@@ -820,6 +820,10 @@
      `overflow-wrap` de .dlg-box h2, que parte también un nombre sin
      espacios).                                                        */
   #style-dialog .dlg-box { width: min(92vw, 24rem); }
+  /* Contenido fijo (tres párrafos cortos + un campo), no redimensionable
+     como #sh-creds, pero más ancho: explica el formato de servidor
+     exigido y 42ch se quedaría corto para leerlo con comodidad.       */
+  #custom-tiles-creds .dlg-box { width: min(92vw, 30rem); }
   /* Y la caja de edición del nombre ocupa lo que dé esa ventana, no los
      190 px de un control corto: el nombre es el campo más largo del
      diálogo, así que es el que debe crecer con ella.                  */

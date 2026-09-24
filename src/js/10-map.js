@@ -127,7 +127,7 @@ map.on("resize", fitWorldMinZoom);
 
 /* Fecha de generación del código (versión): AÑOMESDIAHORAMINUTO.
    Actualizar en cada generación; se muestra junto al crédito de Leaflet. */
-const BUILD = "202609242011";
+const BUILD = "202609242145";
 /* Versión de release (la de package.json, horneada aquí por build.js
    al construir — ver «Versión y releases de GitHub» en CLAUDE.md): a
    diferencia de BUILD, que cambia en CADA generación, esta solo cambia
@@ -204,6 +204,10 @@ const COP_CREDIT = "Copernicus DEM \u2014 Copernicus Data Space / Sentinel Hub";
    Ver la definici\u00f3n de la capa.                                       */
 const COP_MIN_NATIVE_ZOOM = 7;
 const COP_MIN_ZOOM = 6;
+/* Servidor propio del usuario (ver "Custom Maps" más abajo): al no ser
+   ningún servicio conocido no hay a quién dar crédito, solo dejar
+   claro que las teselas no vienen de la aplicación.                  */
+const CUSTOM_TILES_CREDIT = "Servidor de teselas personalizado";
 
 const BASE_LAYERS = [
   { id: "osm", name: "OpenStreetMap", on: true, opacity: 1,
@@ -294,7 +298,21 @@ const BASE_LAYERS = [
     dynamic: true, source: "pnoa-hist",
     layer: (wmsLayer) => L.tileLayer.wms(PNOA_HIST_URL, {
       layers: wmsLayer, format: "image/jpeg", version: "1.3.0", transparent: false,
-      maxZoom: MAX_ZOOM, attribution: `PNOA hist\u00F3rico. ${IGN_CREDIT}` }) }
+      maxZoom: MAX_ZOOM, attribution: `PNOA hist\u00F3rico. ${IGN_CREDIT}` }) },
+
+  /* Servidor de teselas del propio usuario \u2014 t\u00EDpicamente una cach\u00E9/proxy
+     delante de OpenStreetMap u otro servicio, para no descargar de golpe
+     el servicio p\u00FAblico ajeno. No es una fuente "dynamic" (no hay
+     cat\u00E1logo que descubrir ni nombre de capa que elegir, solo una URL):
+     lleva `source` para reutilizar el mecanismo de la tuerca \u2699 y el
+     estado "bloqueada sin configurar" (ver DYNAMIC_SOURCES,
+     12-copernicus.js), pero no `dynamic: true`, as\u00ED que el panel no le
+     ofrece ning\u00FAn <select> \u2014no hay nada entre lo que elegir. `layer()`
+     lee `buildCustomTilesUrl()` (11-base-panel.js) en el momento de
+     crearse, nunca antes: la URL puede no estar configurada todav\u00EDa.  */
+  { id: "custom", name: "Custom Maps", on: false, opacity: 1, source: "custom-tiles",
+    layer: () => L.tileLayer(buildCustomTilesUrl(), {
+      maxNativeZoom: 19, maxZoom: MAX_ZOOM, attribution: CUSTOM_TILES_CREDIT }) }
 ];
 
 /* Teselas fallidas seguidas (sin ninguna buena de por medio) antes de
@@ -332,6 +350,15 @@ function applyBaseLayer(id) {
       const cat = src && src.get();
       if (cat) st.wmsLayer = src.pickDefault(cat);
       else { if (src) src.ensure(); return; }
+    }
+    /* Una fuente configurable SIN catálogo (hoy, "Custom Maps": no hay
+       nombre de capa que elegir, solo una URL) no tiene equivalente al
+       `ensure()`/`wmsLayer` de arriba: sin la URL puesta todavía no hay
+       nada que construir, así que se queda inerte hasta que se
+       configure (setCustomTilesUrl vuelve a llamar aquí al aceptar).  */
+    if (!st.def.dynamic) {
+      const src = dynSource(st.def);
+      if (src && src.blocked && src.blocked()) return;
     }
     if (!st.layer) {
       st.layer = st.def.dynamic ? st.def.layer(st.wmsLayer) : st.def.layer();

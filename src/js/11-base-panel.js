@@ -73,13 +73,17 @@ function renderBasePanel() {
        (si no, se queda con el `disabled` de la primera pintada y no
        reacciona a encender/apagar la capa).                          */
     const sel = st.def.dynamic ? buildDynamicLayerSelect(id, st) : null;
-    /* La tuerca no se deshabilita con la capa apagada a propósito: ver
-       buildDynamicConfigButton.                                       */
-    const gear = st.def.dynamic ? buildDynamicConfigButton(st) : null;
+    /* La tuerca depende de tener una fuente CONFIGURABLE (`configure`),
+       no de ser "dynamic": "Custom Maps" tiene tuerca (una URL que
+       ajustar) pero no catálogo ni <select> entre el que elegir —a
+       diferencia de PNOA histórico/Copernicus, que tienen las dos
+       cosas. La tuerca no se deshabilita con la capa apagada a
+       propósito: ver buildDynamicConfigButton.                        */
+    const src = dynSource(st.def);
+    const gear = src && src.configure ? buildDynamicConfigButton(st) : null;
     /* Un selector bloqueado (sin credencial) no se rehabilita al
        encender la capa: no hay nada que elegir todavía.               */
-    const src = st.def.dynamic ? dynSource(st.def) : null;
-    const selLocked = !!(src && src.blocked && src.blocked());
+    const selLocked = !!(st.def.dynamic && src && src.blocked && src.blocked());
 
     chk.addEventListener("change", () => {
       st.on = chk.checked;
@@ -233,7 +237,7 @@ function buildDynamicConfigButton(st) {
   const src = dynSource(st.def);
   if (!src || !src.configure) return null;
   const blocked = src.blocked && src.blocked();
-  const label = blocked ? blocked.hint : "Cambiar o borrar la credencial";
+  const label = blocked ? blocked.hint : "Cambiar o borrar la configuración";
   const gear = document.createElement("button");
   gear.className = "base-gear";
   gear.textContent = "⚙";
@@ -241,6 +245,59 @@ function buildDynamicConfigButton(st) {
   gear.setAttribute("aria-label", label);
   gear.addEventListener("click", src.configure);
   return gear;
+}
+
+/* ---------- "Custom Maps": servidor de teselas del propio usuario ----------
+   A diferencia de PNOA histórico/Copernicus, aquí no hay ningún
+   catálogo que descubrir ni nombre de capa que elegir: una única URL
+   base, puesta por el usuario, a la que el código añade siempre
+   `{z}/{x}/{y}.png` (esquema XYZ). Por eso esta fuente solo aporta
+   `blocked`/`configure` a DYNAMIC_SOURCES (12-copernicus.js) y NO lleva
+   `dynamic: true` en su BASE_LAYERS (10-map.js): el panel no le ofrece
+   ningún <select>, solo la tuerca ⚙.                                   */
+let customTilesUrl = null; /* URL base del usuario, sin la barra final, o null */
+
+/* Quita cualquier barra final: `buildCustomTilesUrl` añade la suya
+   propia, y una URL con dos barras seguidas ("...\/\/{z}/...") es una
+   ruta distinta para muchos servidores.                                */
+function normalizeCustomTilesBase(url) {
+  return url.trim().replace(/\/+$/, "");
+}
+
+/* Se exige https (igual que connect-src, y por el mismo motivo: el
+   origen lo elige el usuario, así que no hay lista cerrada posible) y
+   una URL con forma válida — evita una petición condenada de antemano
+   y un error críptico del navegador en vez de uno propio y legible.    */
+function validCustomTilesUrl(txt) {
+  try {
+    return new URL(txt.trim()).protocol === "https:";
+  } catch {
+    return false;
+  }
+}
+
+/* Plantilla final que consume L.tileLayer. Se llama SOLO al crear la
+   capa (ver su `layer()` en BASE_LAYERS), nunca antes: `customTilesUrl`
+   puede no estar configurada todavía.                                  */
+function buildCustomTilesUrl() {
+  return `${normalizeCustomTilesBase(customTilesUrl || "")}/{z}/{x}/{y}.png`;
+}
+
+/* Cambiar (o borrar) la URL invalida la capa ya creada, cuya plantilla
+   lleva la URL anterior incrustada — mismo patrón que setInstanceId. */
+function setCustomTilesUrl(url) {
+  customTilesUrl = url ? normalizeCustomTilesBase(url) : null;
+  const st = baseState.get("custom");
+  if (st) {
+    if (st.layer && map.hasLayer(st.layer)) map.removeLayer(st.layer);
+    st.layer = null;
+    st.failed = false;
+    if (!customTilesUrl) st.on = false;
+  }
+  (customTilesUrl ? dbSaveCustomTilesUrl({ url: customTilesUrl }) : dbDeleteCustomTilesUrl()).catch(() => {});
+  scheduleBaseSave();
+  renderBasePanel();
+  if (st && st.on) applyBaseLayer("custom");
 }
 
 /* ---------- PNOA histórico (WMS del IGN) ----------
