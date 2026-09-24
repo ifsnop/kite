@@ -7,7 +7,7 @@
     --accent: #2f6f4f;
     --accent-soft: #e7f0ea;
     --danger: #b04a3a;
-    --nav-width: 320px;
+    --nav-width: 400px;
   }
   * { box-sizing: border-box; }
   html, body { height: 100%; margin: 0; }
@@ -54,7 +54,11 @@
     color: var(--accent);
     background: var(--accent-soft);
   }
-  .nav-actions { display: flex; gap: 6px; margin-bottom: 6px; }
+  /* flex-wrap: red de seguridad si el panel se estrecha por debajo de lo
+     que necesitan "Activar todo"/"Desactivar todo"/"Colapsar todo" en
+     una sola fila — pasan a dos filas en vez de recortarse contra el
+     overflow:hidden de #nav-panel.                                    */
+  .nav-actions { display: flex; gap: 6px; margin-bottom: 6px; flex-wrap: wrap; }
   .nav-actions input[type="text"] {
     flex: 1;
     min-width: 0;
@@ -573,7 +577,7 @@
   .coords-alt { font-weight: 600; }
   .coords-alt[hidden], .coords-sup[hidden] { display: none; }
   .grat-label {
-    font: 10px ui-monospace, Consolas, monospace;
+    font: 13px ui-monospace, Consolas, monospace;
     color: #445;
     white-space: nowrap;
     text-shadow: 0 0 3px #fff, 0 0 3px #fff;
@@ -1097,17 +1101,25 @@
     display: flex; flex-direction: column;
     width: min(92vw, 32rem); height: min(70vh, 480px);
   }
+  /* Misma razón que #props-dialog: altura de partida explícita para que
+     el tirador (resize: both, ya puesto más abajo) dé espacio de verdad
+     al contenido en vez de crecer la caja entera con él.                */
+  #shortcuts .dlg-box {
+    display: flex; flex-direction: column;
+    width: min(92vw, 34rem); height: min(70vh, 520px);
+  }
+  #shortcuts .dlg-tabpanel { overflow-y: auto; }
   .gnp-list, .gnp-editor-list {
     flex: 1 1 auto; min-height: 4em;
     overflow-y: auto;
     margin: 8px 0;
   }
-  /* ---------- Pestañas del panel de Propiedades ----------
-     Único diálogo de la aplicación con pestañas: mismo lenguaje visual
-     que el resto (fila de botones + paneles), sin componente nuevo. Cada
-     panel llena el alto disponible como ya hace .gnp-editor-list, para
-     que redimensionar la ventana (#props-dialog .dlg-box tiene
-     resize: both) dé espacio de verdad al contenido.                   */
+  /* ---------- Pestañas (compartidas por Propiedades y la ayuda) ----------
+     Mismo lenguaje visual que el resto de la aplicación (fila de botones
+     + paneles), sin componente nuevo. Cada panel llena el alto
+     disponible como ya hace .gnp-editor-list, para que redimensionar la
+     ventana (resize: both en ambos diálogos) dé espacio de verdad al
+     contenido.                                                          */
   .dlg-tabs {
     display: flex; gap: 4px;
     border-bottom: 1px solid var(--border);

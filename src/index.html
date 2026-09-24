@@ -190,6 +190,7 @@
       <div class="dlg-row"><span>Color del trazo</span><button type="button" class="color-btn" id="ms-color"></button></div>
       <div class="dlg-row" id="ms-fill-color-row"><span>Color del relleno</span><button type="button" class="color-btn" id="ms-fill-color"></button></div>
       <div class="dlg-row" id="ms-fill-opacity-row"><span>Opacidad del relleno</span><input type="range" id="ms-fill-opacity" min="0" max="1" step="0.05"></div>
+      <div class="dlg-row"><label for="ms-show-labels">Mostrar las etiquetas de distancia y rumbo</label><input type="checkbox" id="ms-show-labels"></div>
       <div id="ms-values" hidden>
         <div class="dlg-row" id="ms-center-row"><span>Centro</span><span class="dlg-note" id="ms-center"></span></div>
         <div class="dlg-row"><span id="ms-dist-label">Distancia</span><span class="dlg-note" id="ms-dist"></span></div>
@@ -198,6 +199,9 @@
         <!-- Ruta: un tramo por línea («Tramo N: distancia · rumbo»), en
              vez de un único rumbo que no existiría para varios tramos. -->
         <div class="dlg-row" id="ms-legs-row" hidden><span>Tramos</span><div id="ms-legs"></div></div>
+      </div>
+      <div class="dlg-row" id="ms-points-row"><span>Puntos</span>
+        <button class="btn" id="ms-points">Ver y editar&#8230;</button>
       </div>
     </div>
     <div id="style-imageoverlay" hidden>
@@ -214,48 +218,71 @@
 <div id="shortcuts" class="dlg-overlay" hidden>
   <div class="dlg-box">
     <h2>Atajos de teclado</h2>
-    <table class="keys">
-      <tr><th colspan="2">Moverse por el &#225;rbol</th></tr>
-      <tr><td>&#8593; &#8595;</td><td>Nodo anterior / siguiente</td></tr>
-      <tr><td>&#8594; &#8592;</td><td>Desplegar y entrar / colapsar y subir</td></tr>
-      <tr><td>Re P&#225;g / Av P&#225;g</td><td>Saltar diez nodos</td></tr>
-      <tr><td>Inicio / Fin</td><td>Primero / &#250;ltimo de la carpeta actual</td></tr>
-      <tr><th colspan="2">Seleccionar</th></tr>
-      <tr><td>May&#250;s + flechas</td><td>Extender la selecci&#243;n</td></tr>
-      <tr><td>May&#250;s + clic</td><td>Seleccionar hasta ah&#237;</td></tr>
-      <tr><td>Ctrl + May&#250;s + clic</td><td>A&#241;adir o quitar un nodo suelto</td></tr>
-      <tr><td>Ctrl + A</td><td>La carpeta actual; otra vez, todo el &#225;rbol</td></tr>
-      <tr><td>Esc</td><td>Quitar la selecci&#243;n</td></tr>
-      <tr><th colspan="2">Actuar</th></tr>
-      <tr><td>Espacio</td><td>Activar o desactivar la capa</td></tr>
-      <tr><td>F2</td><td>Renombrar (tambi&#233;n en las propiedades)</td></tr>
-      <tr><td>Supr</td><td>Borrar lo seleccionado</td></tr>
-      <tr><td>Ctrl + C / X / V</td><td>Copiar, cortar y pegar (tambi&#233;n entre pesta&#241;as de KITE)</td></tr>
-      <tr><td>Ctrl + Z / Ctrl + Y</td><td>Deshacer y rehacer</td></tr>
-      <tr><td>Alt + Intro</td><td>Propiedades de lo seleccionado</td></tr>
-      <tr><td>Ctrl + F</td><td>Ir al buscador</td></tr>
-      <tr><td>Arrastrar una fila por su nombre</td><td>Mover el nodo a otra carpeta o posici&#243;n (Esc cancela)</td></tr>
-      <tr><th colspan="2">En el visor</th></tr>
-      <tr><td>May&#250;s + arrastrar</td><td>Zoom a un rect&#225;ngulo</td></tr>
-      <tr><td>Ctrl + arrastrar (sobre un c&#237;rculo de medici&#243;n)</td><td>Mover su centro o su borde</td></tr>
-      <tr><td>Doble clic en una fila</td><td>Ir a la capa; repetido, acercar</td></tr>
-      <tr><td>Re P&#225;g / Av P&#225;g (con el mapa enfocado)</td><td>Acercar / alejar un nivel de zoom hacia el puntero</td></tr>
-      <tr><th colspan="2">Dibujar pol&#237;gonos y rutas</th></tr>
-      <tr><td>Clic</td><td>Fijar un v&#233;rtice</td></tr>
-      <tr><td>Doble clic sobre el &#250;ltimo v&#233;rtice</td><td>Cerrar el pol&#237;gono y terminar</td></tr>
-      <tr><td>Doble clic fuera de un v&#233;rtice</td><td>Terminar la l&#237;nea o la ruta sin cerrarla</td></tr>
-      <tr><td>Clic derecho sobre un v&#233;rtice</td><td>Quitar ese v&#233;rtice</td></tr>
-      <tr><td>Supr</td><td>Quitar el &#250;ltimo v&#233;rtice</td></tr>
-      <tr><th colspan="2">Editar v&#233;rtices de una ruta o un pol&#237;gono ya creados</th></tr>
-      <tr><td>Abrir sus propiedades (🎨 o Alt+Intro)</td><td>Activa mover/borrar/insertar v&#233;rtices sobre el mapa</td></tr>
-      <tr><td>Clic en un v&#233;rtice</td><td>Seleccionarlo</td></tr>
-      <tr><td>Arrastrar un v&#233;rtice</td><td>Moverlo (no hace falta ninguna tecla)</td></tr>
-      <tr><td>Clic derecho sobre un v&#233;rtice</td><td>Quitarlo (sin las propiedades abiertas, abre el men&#250; contextual del mapa en su lugar)</td></tr>
-      <tr><td>May&#250;s + clic en el mapa, o tecla Insertar</td><td>Insertar un v&#233;rtice tras el seleccionado (o al final, si no hay ninguno)</td></tr>
-      <tr><td>May&#250;s + clic sobre el primer v&#233;rtice, con el &#250;ltimo seleccionado</td><td>Cerrar una l&#237;nea abierta (sin a&#241;adir ning&#250;n v&#233;rtice)</td></tr>
-      <tr><td>Supr</td><td>Quitar el v&#233;rtice seleccionado (antes que borrar el nodo); en un contorno cerrado de exactamente 3 v&#233;rtices, lo abre en l&#237;nea en vez de bloquear el borrado</td></tr>
-      <tr><td>Doble clic en el mapa</td><td>No hace zoom mientras se edita as&#237; un pol&#237;gono, una ruta o un c&#237;rculo</td></tr>
-    </table>
+    <div class="dlg-tabs" role="tablist">
+      <button type="button" class="dlg-tab active" id="sh-tab-btn-nav" role="tab" aria-selected="true" aria-controls="sh-tab-nav">Navegaci&#243;n</button>
+      <button type="button" class="dlg-tab" id="sh-tab-btn-act" role="tab" aria-selected="false" aria-controls="sh-tab-act">Actuar</button>
+      <button type="button" class="dlg-tab" id="sh-tab-btn-view" role="tab" aria-selected="false" aria-controls="sh-tab-view">Visor</button>
+      <button type="button" class="dlg-tab" id="sh-tab-btn-draw" role="tab" aria-selected="false" aria-controls="sh-tab-draw">Dibujar y editar</button>
+    </div>
+    <div id="sh-tab-nav" class="dlg-tabpanel" role="tabpanel">
+      <table class="keys">
+        <tr><th colspan="2">Moverse por el &#225;rbol</th></tr>
+        <tr><td>&#8593; &#8595;</td><td>Nodo anterior / siguiente</td></tr>
+        <tr><td>&#8594; &#8592;</td><td>Desplegar y entrar / colapsar y subir</td></tr>
+        <tr><td>Re P&#225;g / Av P&#225;g</td><td>Saltar diez nodos</td></tr>
+        <tr><td>Inicio / Fin</td><td>Primero / &#250;ltimo de la carpeta actual</td></tr>
+        <tr><th colspan="2">Seleccionar</th></tr>
+        <tr><td>May&#250;s + flechas</td><td>Extender la selecci&#243;n</td></tr>
+        <tr><td>May&#250;s + clic</td><td>Seleccionar hasta ah&#237;</td></tr>
+        <tr><td>Ctrl + May&#250;s + clic</td><td>A&#241;adir o quitar un nodo suelto</td></tr>
+        <tr><td>Ctrl + A</td><td>La carpeta actual; otra vez, todo el &#225;rbol</td></tr>
+        <tr><td>Esc</td><td>Quitar la selecci&#243;n; si hay un di&#225;logo abierto, lo cierra primero; si hay una herramienta de dibujo o medici&#243;n activa, la cancela</td></tr>
+      </table>
+    </div>
+    <div id="sh-tab-act" class="dlg-tabpanel" hidden role="tabpanel">
+      <table class="keys">
+        <tr><th colspan="2">Actuar</th></tr>
+        <tr><td>Espacio</td><td>Activar o desactivar la capa</td></tr>
+        <tr><td>F2</td><td>Renombrar (tambi&#233;n en las propiedades)</td></tr>
+        <tr><td>Intro (renombrando)</td><td>Confirma el nuevo nombre</td></tr>
+        <tr><td>Esc (renombrando)</td><td>Cancela y restaura el nombre anterior</td></tr>
+        <tr><td>Supr</td><td>Borrar lo seleccionado</td></tr>
+        <tr><td>Ctrl + C / X / V</td><td>Copiar, cortar y pegar (tambi&#233;n entre pesta&#241;as de KITE)</td></tr>
+        <tr><td>Ctrl + Z / Ctrl + Y</td><td>Deshacer y rehacer</td></tr>
+        <tr><td>Alt + Intro</td><td>Propiedades de lo seleccionado</td></tr>
+        <tr><td>Ctrl + F</td><td>Ir al buscador</td></tr>
+        <tr><td>? o May&#250;s + /</td><td>Abrir esta ayuda</td></tr>
+        <tr><td>Arrastrar una fila por su nombre</td><td>Mover el nodo a otra carpeta o posici&#243;n (Esc cancela)</td></tr>
+      </table>
+    </div>
+    <div id="sh-tab-view" class="dlg-tabpanel" hidden role="tabpanel">
+      <table class="keys">
+        <tr><th colspan="2">En el visor</th></tr>
+        <tr><td>May&#250;s + arrastrar</td><td>Zoom a un rect&#225;ngulo</td></tr>
+        <tr><td>Ctrl + arrastrar (sobre un c&#237;rculo de medici&#243;n)</td><td>Mover su centro o su borde</td></tr>
+        <tr><td>Doble clic en una fila</td><td>Ir a la capa; repetido, acercar</td></tr>
+        <tr><td>Re P&#225;g / Av P&#225;g (con el mapa enfocado)</td><td>Acercar / alejar un nivel de zoom hacia el puntero</td></tr>
+      </table>
+    </div>
+    <div id="sh-tab-draw" class="dlg-tabpanel" hidden role="tabpanel">
+      <table class="keys">
+        <tr><th colspan="2">Dibujar pol&#237;gonos y rutas</th></tr>
+        <tr><td>Clic</td><td>Fijar un v&#233;rtice</td></tr>
+        <tr><td>Doble clic sobre el &#250;ltimo v&#233;rtice</td><td>Cerrar el pol&#237;gono y terminar</td></tr>
+        <tr><td>Doble clic fuera de un v&#233;rtice</td><td>Terminar la l&#237;nea o la ruta sin cerrarla</td></tr>
+        <tr><td>Clic derecho sobre un v&#233;rtice</td><td>Quitar ese v&#233;rtice</td></tr>
+        <tr><td>Supr</td><td>Quitar el &#250;ltimo v&#233;rtice</td></tr>
+        <tr><th colspan="2">Editar v&#233;rtices de una ruta o un pol&#237;gono ya creados</th></tr>
+        <tr><td>Abrir sus propiedades (🎨 o Alt+Intro)</td><td>Activa mover/borrar/insertar v&#233;rtices sobre el mapa</td></tr>
+        <tr><td>Clic en un v&#233;rtice</td><td>Seleccionarlo</td></tr>
+        <tr><td>Arrastrar un v&#233;rtice</td><td>Moverlo (no hace falta ninguna tecla)</td></tr>
+        <tr><td>Clic derecho sobre un v&#233;rtice</td><td>Quitarlo (sin las propiedades abiertas, abre el men&#250; contextual del mapa en su lugar)</td></tr>
+        <tr><td>May&#250;s + clic en el mapa, o tecla Insertar</td><td>Insertar un v&#233;rtice tras el seleccionado (o al final, si no hay ninguno)</td></tr>
+        <tr><td>May&#250;s + clic sobre el primer v&#233;rtice, con el &#250;ltimo seleccionado</td><td>Cerrar una l&#237;nea abierta (sin a&#241;adir ning&#250;n v&#233;rtice)</td></tr>
+        <tr><td>Supr</td><td>Quitar el v&#233;rtice seleccionado (antes que borrar el nodo); en un contorno cerrado de exactamente 3 v&#233;rtices, lo abre en l&#237;nea en vez de bloquear el borrado</td></tr>
+        <tr><td>Doble clic en el mapa</td><td>No hace zoom mientras se edita as&#237; un pol&#237;gono, una ruta o un c&#237;rculo</td></tr>
+      </table>
+    </div>
     <div class="dlg-actions"><button class="btn" id="shortcuts-close">Cerrar</button></div>
   </div>
 </div>

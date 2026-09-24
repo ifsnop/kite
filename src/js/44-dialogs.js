@@ -562,7 +562,7 @@ const CONTROL_PROP = {
   "pg-fill-color": "fillColor", "pg-fill-opacity": "fillOpacity",
   "pg-text-always": "textAlways",
   "ms-weight": "weight", "ms-color": "color", "ms-fill-color": "fillColor",
-  "ms-fill-opacity": "fillOpacity",
+  "ms-fill-opacity": "fillOpacity", "ms-show-labels": "showLabels",
   "io-opacity": "opacity"
 };
 
@@ -799,7 +799,7 @@ function openStyleDialog(li, { isNew = false } = {}) {
   } else if (kind === "measure") {
     const styles = styleTargets.map(t => normalizePathStyle(t._style));
     styleDraft = { ...styles[0] };
-    styleMixed = mixedProps(styles, ["weight", "color", "fillColor", "fillOpacity"]);
+    styleMixed = mixedProps(styles, ["weight", "color", "fillColor", "fillOpacity", "showLabels"]);
     /* Solo un círculo encierra superficie: para una línea el relleno no
        existe. Se DESHABILITA, no se esconde, igual que en las formas
        abiertas del diálogo de polígonos. Con una selección mixta manda
@@ -814,6 +814,13 @@ function openStyleDialog(li, { isNew = false } = {}) {
     setColorControl($id("ms-color"), styleDraft.color, styleMixed.has("color"));
     setColorControl($id("ms-fill-color"), styleDraft.fillColor, styleMixed.has("fillColor"));
     setValueControl($id("ms-fill-opacity"), styleDraft.fillOpacity, styleMixed.has("fillOpacity"));
+    setCheckControl($id("ms-show-labels"), styleDraft.showLabels, styleMixed.has("showLabels"));
+    /* Los puntos son la geometría de UNA medición, como la posición de un
+       marcador: no tiene sentido en bloque (a diferencia de un polígono,
+       aquí no hay "varios trazos en la capa" que distinguir).          */
+    $id("ms-points-row").classList.toggle("dim", !single);
+    $id("ms-points").disabled = !single;
+    $id("ms-points").title = single ? "" : "Deje seleccionada una sola medición para editar sus puntos.";
     /* Las medidas son de UNA medición, como la posición de un marcador */
     msMeasures = single ? measurementValues(styleTargets[0]._measure) : null;
     $id("ms-values").hidden = !msMeasures;
@@ -989,7 +996,8 @@ function readMeasureControls() {
     color: colorOf($id("ms-color")),
     opacity: 1, /* el contorno siempre opaco, como en los polígonos */
     fillColor: colorOf($id("ms-fill-color")),
-    fillOpacity: Number($id("ms-fill-opacity").value)
+    fillOpacity: Number($id("ms-fill-opacity").value),
+    showLabels: $id("ms-show-labels").checked
   });
 }
 /* Un único punto de reparto de "vuelca los controles en el borrador":
@@ -1131,7 +1139,10 @@ function readImageOverlayControls() {
 $id("io-opacity").addEventListener("input", () => { if (styleDraft) readImageOverlayControls(); });
 
 $id("style-cancel").addEventListener("click", () => closeStyleDialog(false));
-$id("style-accept").addEventListener("click", () => {
+/* Extraída del listener de "Aceptar" para que finishRoute (52-measure.js)
+   pueda reutilizarla tal cual al terminar una ruta con doble click: debe
+   comportarse exactamente como pulsar este botón, no como un Cancelar. */
+function acceptStyleDialog() {
   if (!styleDraft) return;
   /* El nombre se aplica sea cual sea el tipo del nodo. Con varios, el
      campo va vacío y solo renombra si el usuario escribe algo: lo que
@@ -1182,7 +1193,7 @@ $id("style-accept").addEventListener("click", () => {
     }
   } else if (styleKindOpen === "measure") {
     readMeasureControls();
-    const pick = draftProps(["weight", "color", "fillColor", "fillOpacity"]);
+    const pick = draftProps(["weight", "color", "fillColor", "fillOpacity", "showLabels"]);
     for (const t of styleTargets) {
       /* El relleno se decide por capa, no en el diálogo: una selección
          puede mezclar líneas y círculos, y un trazo abierto relleno
@@ -1192,6 +1203,7 @@ $id("style-accept").addEventListener("click", () => {
         fill: t._measure.type === "circle" && styleDraft.fill !== false };
       applyPolygonStyle(t); /* una medición es un trazo más: mismo camino */
       t._measure.style = t._style; /* el registro pendiente lo serializa desde aquí */
+      setMeasureLabelsVisible(t._measure, t._style.showLabels);
     }
   } else {
     readImageOverlayControls();
@@ -1206,7 +1218,8 @@ $id("style-accept").addEventListener("click", () => {
   }
   scheduleSave();
   closeStyleDialog(true);
-});
+}
+$id("style-accept").addEventListener("click", acceptStyleDialog);
 
 /* ---------- Icon picker (Google Earth-like palette) ----------
    Rebuilt on each open so the previews use the colour currently in the

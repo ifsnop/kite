@@ -4,13 +4,16 @@ const BaseControl = L.Control.extend({
   onAdd() {
     const box = L.DomUtil.create("div", "base-box leaflet-bar");
     /* Icono de capas dibujado en SVG: el emoji anterior salía diminuto y
-       dependía de la fuente del sistema                              */
+       dependía de la fuente del sistema. Coordenadas Y desplazadas
+       -0.45 respecto del dibujo original para centrar el bounding box
+       vertical real (antes [2, 22.9], centro 12.45) en el centro del
+       viewBox de 24 (12) — el eje X ya estaba centrado.               */
     box.innerHTML =
       '<button class="base-toggle" title="Mapas base" aria-label="Mapas base">'
       + '<svg viewBox="0 0 24 24" width="40" height="40" aria-hidden="true">'
-      + '<path fill="currentColor" d="M12 2 1.5 8 12 14l10.5-6L12 2Z"/>'
-      + '<path fill="currentColor" opacity=".65" d="M12 16.2 3.7 11.4 1.5 12.7 12 18.7l10.5-6-2.2-1.3L12 16.2Z"/>'
-      + '<path fill="currentColor" opacity=".4" d="M12 20.4 3.7 15.6 1.5 16.9 12 22.9l10.5-6-2.2-1.3L12 20.4Z"/>'
+      + '<path fill="currentColor" d="M12 1.55 1.5 7.55 12 13.55l10.5-6L12 1.55Z"/>'
+      + '<path fill="currentColor" opacity=".65" d="M12 15.75 3.7 10.95 1.5 12.25 12 18.25l10.5-6-2.2-1.3L12 15.75Z"/>'
+      + '<path fill="currentColor" opacity=".4" d="M12 19.95 3.7 15.15 1.5 16.45 12 22.45l10.5-6-2.2-1.3L12 19.95Z"/>'
       + '</svg></button>'
       + '<div class="base-list" hidden></div>';
     this._list = box.querySelector(".base-list");

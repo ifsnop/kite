@@ -223,7 +223,7 @@ Mientras el diálogo de un polígono está abierto, el doble clic sobre el mapa 
 
 ### 6.3 Estilo de una medición
 
-Igual que un polígono en cuanto a trazo y relleno, pero con sus medidas propias en modo de solo lectura: un círculo muestra **radio, área y las coordenadas de su centro**; una ruta, la distancia total y la de cada uno de sus tramos por separado, numerados «Tramo 1», «Tramo 2»… (una ruta de solo 2 waypoints muestra un único tramo, con su distancia y su rumbo — el equivalente de la antigua «línea»). **También aquí manda la misma regla que en 6.2, con «Cancelar» incluido**: mover el centro o el borde de un círculo, o un waypoint de una ruta —los tres, arrastrando sin más, ya no hace falta ninguna tecla— y, en una ruta, seleccionar, borrar e insertar waypoints igual que los vértices de un polígono, `Insertar` incluido, solo funciona con este diálogo abierto para esa medición; sin él, sus manejadores se ven como un punto pequeño sin cursor propio (con el diálogo abierto crecen y el cursor cambia a una cruz de mover, y ese aspecto se conserva aunque se apague y encienda la visibilidad de la capa mientras tanto), y el botón derecho abre el menú contextual normal en vez de borrar. Con el diálogo abierto, arrastrar actualiza estas cifras al momento, sin necesidad de cerrarlo y volver a abrirlo, y «Cancelar» revierte cualquier cambio hecho mientras estuvo abierto.
+Igual que un polígono en cuanto a trazo y relleno, pero con sus medidas propias en modo de solo lectura: un círculo muestra **radio, área y las coordenadas de su centro**; una ruta, la distancia total y la de cada uno de sus tramos por separado, numerados «Tramo 1», «Tramo 2»… (una ruta de solo 2 waypoints muestra un único tramo, con su distancia y su rumbo — el equivalente de la antigua «línea»). Una casilla «Mostrar las etiquetas de distancia y rumbo» permite ocultar esas etiquetas sobre el mapa sin borrar la medición, para despejar la vista cuando hay varias mediciones juntas o se va a exportar una imagen del mapa; se muestran por defecto. Un botón «Ver y editar…», igual que en un polígono (apartado 6.2), abre la lista de waypoints como texto tabulado: un círculo siempre con dos (centro y borde), una ruta con los que tenga (mínimo 2). **También aquí manda la misma regla que en 6.2, con «Cancelar» incluido**: mover el centro o el borde de un círculo, o un waypoint de una ruta —los tres, arrastrando sin más, ya no hace falta ninguna tecla— y, en una ruta, seleccionar, borrar e insertar waypoints igual que los vértices de un polígono, `Insertar` incluido, solo funciona con este diálogo abierto para esa medición; sin él, sus manejadores se ven como un punto pequeño sin cursor propio (con el diálogo abierto crecen y el cursor cambia a una cruz de mover, y ese aspecto se conserva aunque se apague y encienda la visibilidad de la capa mientras tanto), y el botón derecho abre el menú contextual normal en vez de borrar. Con el diálogo abierto, arrastrar actualiza estas cifras al momento, sin necesidad de cerrarlo y volver a abrirlo, y «Cancelar» revierte cualquier cambio hecho mientras estuvo abierto.
 
 ![Diálogo de estilo de una medición, con distancia y rumbo de solo lectura](img/16-estilo-medicion.png)
 *Figura 17. Estilo de «Ruta 1»: mismo tipo de controles que un polígono, con la distancia y el rumbo de la medición debajo.*
@@ -256,7 +256,7 @@ Todo lo incorporado por esta vía queda dentro de una carpeta «Descargas», con
 
 ### 7.2 Medir una distancia y un rumbo
 
-Se pulsa la herramienta «Medir ruta» (⤳) de la barra de dibujo: un clic marca cada waypoint y un doble clic termina la ruta (siempre queda abierta; no se puede cerrar en anillo). Para una distancia y un rumbo sueltos basta con dos waypoints —origen y destino—, exactamente como una línea de toda la vida. **Desde ese segundo waypoint, dibujar una ruta se comporta como editarla**: la medición ya cuelga de una fila del árbol, dentro de una carpeta «Mediciones», con su propio nombre autonumerado («Ruta 1», «Ruta 2»…), y su diálogo de propiedades se abre solo, mostrando distancia y rumbo ya calculados — sin esperar a terminar el dibujo. Cada waypoint que se añade después actualiza esas cifras al momento. Cancelar el diálogo a medio dibujar —con `Escape` o con su propio botón «Cancelar»— borra la ruta, igual que cancelar un marcador recién creado, y sale del modo de dibujo; pulsar «Aceptar» en cambio la GUARDA con los waypoints que tenga hasta ese momento y también sale del modo de dibujo. Terminar con doble clic deja el nodo y su diálogo abiertos, listos para seguir ajustándose.
+Se pulsa la herramienta «Medir ruta» (⤳) de la barra de dibujo: un clic marca cada waypoint y un doble clic termina la ruta (siempre queda abierta; no se puede cerrar en anillo). Para una distancia y un rumbo sueltos basta con dos waypoints —origen y destino—, exactamente como una línea de toda la vida. **Desde ese segundo waypoint, dibujar una ruta se comporta como editarla**: la medición ya cuelga de una fila del árbol, dentro de una carpeta «Mediciones», con su propio nombre autonumerado («Ruta 1», «Ruta 2»…), y su diálogo de propiedades se abre solo, mostrando distancia y rumbo ya calculados — sin esperar a terminar el dibujo. Cada waypoint que se añade después actualiza esas cifras al momento. Cancelar el diálogo a medio dibujar —con `Escape` o con su propio botón «Cancelar»— borra la ruta, igual que cancelar un marcador recién creado, y sale del modo de dibujo; pulsar «Aceptar», o terminar con doble clic (se comporta exactamente igual que «Aceptar»), en cambio la GUARDA con los waypoints que tenga hasta ese momento, cierra el diálogo —señal visual de que la edición ha terminado— y sale del modo de dibujo.
 
 ![Una medición de ruta recién creada, con su etiqueta de distancia y rumbo sobre el mapa](img/15-medicion-mapa.png)
 *Figura 20. Medición entre «Base» y «Punto de control»: 1,92 millas náuticas a un rumbo de 108,2°, con su fila correspondiente en el árbol.*
@@ -304,10 +304,10 @@ Se activa con el botón ⛰ de la barra de vista (o «Modo elevación» del men�
 
 ## 8. Atajos de teclado
 
-La misma tabla está disponible en cualquier momento con la tecla `?` o el botón de ayuda de la cabecera.
+La misma información está disponible en cualquier momento con la tecla `?` o el botón de ayuda de la cabecera, organizada en pestañas («Navegación», «Actuar», «Visor», «Dibujar y editar») para no tener que scrollear una única tabla larga.
 
 ![Chuleta de atajos de teclado completa](img/19-atajos.png)
-*Figura 22. Chuleta de atajos de teclado (tecla `?`).*
+*Figura 22. Chuleta de atajos de teclado (tecla `?`), pestaña «Navegación».*
 
 **Moverse por el árbol**
 
@@ -326,7 +326,7 @@ La misma tabla está disponible en cualquier momento con la tecla `?` o el botó
 | Mayús + clic | Seleccionar hasta ahí |
 | Ctrl + Mayús + clic | Añadir o quitar un nodo suelto |
 | Ctrl + A | La carpeta actual; otra vez, todo el árbol |
-| Esc | Quitar la selección |
+| Esc | Quitar la selección; si hay un diálogo abierto, lo cierra primero; si hay una herramienta de dibujo o medición activa, la cancela |
 
 **Actuar**
 
@@ -334,11 +334,14 @@ La misma tabla está disponible en cualquier momento con la tecla `?` o el botó
 |---|---|
 | Espacio | Activar o desactivar la capa |
 | F2 | Renombrar (también desde las propiedades) |
+| Intro (renombrando) | Confirma el nuevo nombre |
+| Esc (renombrando) | Cancela y restaura el nombre anterior |
 | Supr | Borrar lo seleccionado |
 | Ctrl + C / X / V | Copiar, cortar y pegar (también entre pestañas de KITE) |
 | Ctrl + Z / Ctrl + Y | Deshacer y rehacer |
 | Alt + Intro | Propiedades de lo seleccionado |
 | Ctrl + F | Ir al buscador |
+| ? o Mayús + / | Abrir esta ayuda |
 | Arrastrar una fila por su nombre | Mover el nodo a otra carpeta o posición (Esc cancela) |
 
 **En el visor**
