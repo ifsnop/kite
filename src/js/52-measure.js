@@ -537,6 +537,7 @@ function makeMeasureLi(m) {
 const MEASURE_NAMES = { circle: "C\u00EDrculo", route: "Ruta" };
 
 function addMeasureNode(m) {
+  pushUndo(m.type === "circle" ? "crear círculo" : "crear ruta");
   const ul = ensureMeasureSection();
   m.treeName = nextNumberedName(MEASURE_NAMES[m.type]);
   const mli = makeMeasureLi(m);
@@ -710,6 +711,7 @@ function finishPolygon(closed) {
       : "Faltan vértices para terminar la línea (mínimo 2).");
     return; /* sigue dibujando: no se descarta lo ya puesto */
   }
+  pushUndo(closed ? "crear polígono" : "crear línea");
   /* Solo contorno, sin relleno: se ve el mapa debajo nada más cerrarlo;
      el relleno es cosa del diálogo de estilos si hace falta.          */
   const style = normalizePathStyle({ fill: false });
