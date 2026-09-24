@@ -232,10 +232,18 @@ paths:
 ## Deshacer y rehacer
 
 - `pushUndo(etiqueta)` guarda una instantánea del árbol antes de cada
-  operación destructiva (borrar, pegar, mover, ordenar). Barato porque
+  operación destructiva (borrar, pegar, mover, ordenar) o de CREACIÓN
+  (marcador, lugar del buscador, polígono/línea dibujados, ruta o
+  círculo de medición — `tests/browser/undo-create.mjs`). Barato porque
   la geometría se cachea y las instantáneas la COMPARTEN en vez de
   clonarla.
-- Toda operación nueva que destruya o reordene debe llamar a `pushUndo`
-  ANTES de tocar nada.
+- Toda operación nueva que destruya, reordene o CREE un nodo debe
+  llamar a `pushUndo` ANTES de tocar nada — reportado como bug: crear
+  un marcador o una medición no era deshacible porque ningún camino de
+  creación llamaba a `pushUndo`. Se llama en el momento en que la
+  mutación queda comprometida (mismo instante que `scheduleSave()`),
+  no dentro de «Aceptar»/«Cancelar» de un diálogo de estilos abierto
+  después: crear ya es una acción completa por sí misma, independiente
+  de lo que se decida luego sobre el estilo del nodo recién creado.
 - Ctrl+Y rehace: `undoLast` guarda el presente en `redoStack` antes de
   retroceder. Una acción nueva vacía esa pila (la historia se bifurca).

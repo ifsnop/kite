@@ -273,6 +273,7 @@ function addPlaceMarker(r) {
   const lat = Number(r.lat), lon = Number(r.lon);
   if (!isFinite(lat) || !isFinite(lon)) { navMessage("El resultado no trae coordenadas v\u00E1lidas."); return; }
   const name = r.name || String(r.display_name).split(",")[0];
+  pushUndo("añadir un lugar");
   const layer = L.marker([lat, lon]).addTo(rootGroup);
   const li = makeNode({ name, layer, style: { color: DEFAULT_MARKER_STYLE.color } });
   ensureNamedSection(PLACES_SECTION).appendChild(li);
@@ -298,6 +299,7 @@ function addPlaceMarker(r) {
    it again (see `styleIsNew`).                                       */
 const PINS_SECTION = "Marcadores";
 function createPin() {
+  pushUndo("crear marcador");
   const marker = L.marker(map.getCenter()).addTo(rootGroup);
   /* Autonumerado como las formas dibujadas y las mediciones: con un
      nombre fijo, veinte pines se llamaban todos "Marcador" y no había

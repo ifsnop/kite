@@ -675,6 +675,16 @@ BROWSER ONE WORLD TESTS OK
 
 **Qué cubre:** Una sola Tierra: que la capa base se cree con `noWrap` y no pida teselas fuera del mundo, que `maxBounds` acote a la franja Mercator (±85,051…, no ±90) con viscosidad 1 y que pedir un centro tres mundos más allá quede dentro, y que el suelo de zoom siga al tamaño de la ventana en LOS DOS SENTIDOS —el mundo llena la vista en ese zoom y no en el anterior—. Lo último es el fallo que tuvo `fitWorldMinZoom`: `getBoundsZoom` acaba en `Math.max(getMinZoom(), …)`, así que el suelo solo subía y tras encoger la ventana ya no se podía alejar; por eso se mide encogiendo DESPUÉS de agrandar.
 
+### `browser/undo-create.mjs`
+
+**Salida de `npm test`:**
+```
+── Navegador: crear un marcador, un polígono o una medición se puede deshacer y rehacer
+BROWSER UNDO CREATE TESTS OK
+```
+
+**Qué cubre:** Reportado como bug: crear un marcador (📍), dibujar un polígono (⬠), o crear una medición de ruta (⤳) o de círculo (◯) no llamaba a `pushUndo`, así que Ctrl+Z no las deshacía. La suite crea cada uno de los cuatro con gestos reales (clic/doble clic/arrastre, no llamadas directas a la función interna salvo `createPin`, que no es un gesto de arrastre) y comprueba que `undoLast()` lo quita del árbol y `redoLast()` lo devuelve. `pushUndo` se llama justo ANTES de la mutación en cada camino de creación (mismo patrón que ya usan borrar/mover/pegar), no dentro de «Aceptar»/«Cancelar» del diálogo de estilos: la creación ya es una acción completa y guardada desde el momento en que aparece en el árbol. El marcador y la ruta cierran su diálogo de propiedades con «Aceptar» antes de deshacer, para no mezclar esto con si deshacer debe además cerrar un diálogo abierto sobre el nodo que desaparece — cuestión aparte, no la que prueba esta suite.
+
 `selbench.js` no se cuenta entre esas 51: es una medición, no una
 batería de aserciones, y solo se ejecuta con `node tests/run-all.js
 --bench` (ver «Ejecutar»). Mismo criterio con su texto: «Coste de seleccionar y de topLevelSelection».
