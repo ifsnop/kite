@@ -48,8 +48,12 @@ function pngTimestamp(d = new Date()) {
    incluso si la captura falla. El cuadro de coordenadas y la
    atribución NO se ocultan: el primero sí muestra información del
    punto bajo el cursor, y la segunda es la atribución CC BY que exige
-   la licencia del PNOA/IGN.                                          */
-const HIDE_FOR_PNG = ".leaflet-control-zoom, .measure-bar, .base-box";
+   la licencia del PNOA/IGN. El lienzo de iluminación día/noche y la
+   trayectoria/icono de sol y luna (61-daynight.js, `.daynight-canvas`
+   y `.dn-celestial-overlay`) también se ocultan: son un efecto del
+   momento actual, no parte del contenido del mapa, y html2canvas no
+   garantiza capturar bien un canvas WebGL.                           */
+const HIDE_FOR_PNG = ".leaflet-control-zoom, .measure-bar, .base-box, .daynight-canvas, .dn-celestial-overlay";
 
 async function exportMapPng() {
   if (typeof html2canvas === "undefined") {

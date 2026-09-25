@@ -78,6 +78,12 @@ const ViewControl = L.Control.extend({
     gratButton.title = "Mostrar / ocultar paralelos y meridianos";
     gratButton.addEventListener("click", e => { e.preventDefault(); toggleGraticule(); });
 
+    dnButton = L.DomUtil.create("a", "dn-toggle", bar);
+    dnButton.href = "#";
+    dnButton.textContent = "☀";
+    dnButton.title = "Iluminación real: sombrea el mapa según la posición del sol ahora mismo (efecto visual)";
+    dnButton.addEventListener("click", e => { e.preventDefault(); toggleDayNight(); });
+
     L.DomEvent.disableClickPropagation(bar);
     return bar;
   }

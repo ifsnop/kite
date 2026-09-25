@@ -81,6 +81,31 @@ normalmente, 9 en la física de Esri). Por encima, Leaflet escala la
 borrosa, pero la cuadrícula de elevaciones (celdas de 5 m) se puede leer.
 La escalera de doble clic se corta en `ZOOM_LADDER_TOP` (19).
 
+## Overlays propios sobre el visor, en pantalla y no geográficos
+
+Un efecto que se recalcula él solo en cada `move`/`zoom` (como el lienzo
+WebGL y el `<div>` de sol/luna de `61-daynight.js`) **no debe vivir
+dentro de un pane de Leaflet**, ni siquiera uno propio creado con
+`map.createPane`. Motivo, comprobado a mano arrastrando el mapa:
+`.leaflet-map-pane` (contiene teselas, capas vectoriales y marcadores)
+recibe una transformación CSS al arrastrar que Leaflet **NO deshace al
+soltar** — la deja puesta y compensa por su cuenta con el origen de
+píxel interno. Cualquier `<canvas>`/`<div>` metido ahí dentro hereda esa
+transformación para siempre después del primer arrastre, aunque su
+propio contenido se recalcule bien en cada evento. Un pane propio SÍ
+sirve para intercalar el z-index entre teselas (200) y capas vectoriales
+(400) — imposible desde fuera, `.leaflet-map-pane` se compara como un
+bloque único por SU PROPIO z-index (400) — pero solo vale para contenido
+GEOGRÁFICO (que Leaflet ya sabe mover con ese mismo pane).
+La solución para un overlay en pantalla: hijo directo de
+`map.getContainer()`, hermano de `.leaflet-map-pane` (mismo sitio que
+`.leaflet-control-container`, por lo mismo — los controles tampoco
+deben arrastrarse), con su propio z-index por encima de 400 si debe
+tapar el mapa entero. Para posicionar un punto/línea geográfico sin pane
+propio, `map.latLngToContainerPoint` da las coordenadas de pantalla
+correctas en cualquier momento, arrastre en curso incluido — es la
+misma función que usan los controles.
+
 ## Cuadro de coordenadas y atribución
 
 La línea inferior es SOLO para la atribución de Leaflet (crece con cada

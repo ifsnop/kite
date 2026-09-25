@@ -169,9 +169,12 @@ const KEYWORDS = new Set(["if", "for", "while", "switch", "catch", "return", "ty
 const GLOBALS = new Set([
   "AbortController", "Blob", "DOMParser", "Date", "Error", "Map", "Number",
   "Promise", "RegExp", "Set", "String", "URLSearchParams",
-  "cancelAnimationFrame", "clearTimeout", "encodeURIComponent", "fetch",
+  "cancelAnimationFrame", "clearInterval", "clearTimeout", "encodeURIComponent", "fetch",
   "isFinite", "parseFloat", "parseInt", "requestAnimationFrame",
   "setInterval", "setTimeout",
+  /* `Float32Array`: buffer de vértices del quad a pantalla completa del
+     efecto de iluminación día/noche (61-daynight.js, WebGL).          */
+  "Float32Array",
   /* `URL` y `decodeURIComponent`: reconocer una dirección pegada por el
      usuario (ver fileNameFromUrl). Van en la lista explícita por lo
      mismo que el resto: depender de una API del navegador tiene que ser

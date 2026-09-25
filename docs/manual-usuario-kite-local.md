@@ -159,6 +159,7 @@ La segunda barra reúne los controles de la propia vista:
 - **IB / GC**: centran la vista en la península y Baleares, o en las islas Canarias.
 - **Modo altura** (⛰): activa la consulta de la altitud del terreno (y de la superficie) bajo el cursor, contra los servicios del Instituto Geográfico Nacional; solo tiene cobertura sobre España y necesita conexión. Un segundo botón, junto a él, cambia la unidad de esa lectura entre metros y pies.
 - **Paralelos y meridianos** (#): muestra u oculta la retícula geográfica.
+- **Iluminación real** (☀, en color): sombrea la parte del mundo visible en el mapa según sea de día, de noche o esté en penumbra de crepúsculo en ese momento, calculado a partir de la posición real del sol y la hora del propio dispositivo. Con el efecto activo se dibuja también, con línea discontinua, la trayectoria del sol y de la luna, con un icono en su posición actual (☀ y ☽) que se va moviendo junto con la sombra. Es un efecto puramente visual (no se usa para ninguna medición) y no aparece en el PNG exportado.
 
 ### 4.3 Cuadro de coordenadas, escala y atribución
 

@@ -160,7 +160,7 @@ Esta forma de proceder asegura que lo que las pruebas certifican es, literalment
 
 ### 7.2 Alcance actual de la batería de pruebas
 
-En la fecha de este documento, la batería está compuesta por 60 conjuntos de pruebas independientes, agrupados por área, y todos ellos superados sin ninguna incidencia en la última ejecución realizada para este estudio. Las áreas cubiertas incluyen, entre otras:
+En la fecha de este documento, la batería está compuesta por 61 conjuntos de pruebas independientes, agrupados por área, y todos ellos superados sin ninguna incidencia en la última ejecución realizada para este estudio. Las áreas cubiertas incluyen, entre otras:
 
 **Interpretación de archivos y formatos de origen**
 - Lectura de archivos KML, con independencia del prefijo de espacio de nombres que use cada archivo.
@@ -227,7 +227,7 @@ Esta batería de pruebas se ejecuta de forma obligatoria en cada cambio propuest
 
 ### 7.4 Resultado verificado para este documento
 
-Como parte de la elaboración de este estudio se ha vuelto a ejecutar la batería completa de pruebas contra la versión de la aplicación identificada en la cabecera de este documento. Resultado: **60 de 60 conjuntos de pruebas superados, sin ninguna incidencia.**
+Como parte de la elaboración de este estudio se ha vuelto a ejecutar la batería completa de pruebas contra la versión de la aplicación identificada en la cabecera de este documento. Resultado: **61 de 61 conjuntos de pruebas superados, sin ninguna incidencia.**
 
 ---
 

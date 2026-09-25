@@ -138,6 +138,16 @@ UTM TESTS OK
 
 **Qué cubre:** UTM contra valores publicados, invariante del meridiano central, husos de Noruega y Svalbard, e ida y vuelta sobre una malla mundial.
 
+### `daynight.js`
+
+**Salida de `npm test`:**
+```
+── Iluminación día/noche: punto subsolar y elevación solar en fechas y puntos de referencia
+DAYNIGHT TESTS OK
+```
+
+**Qué cubre:** Las funciones puras del efecto de iluminación real (61-daynight.js): `subsolarPoint` contra las declinaciones de referencia de los solsticios (±23,44°) y equinoccios (≈0°) de 2026, y la longitud subsolar cerca de 0° al mediodía UTC; `solarElevationDeg` en el propio punto subsolar (90°), su antípoda (-90°), a 90° de distancia angular sobre el ecuador (0°) y en los polos con el sol sobre el ecuador (0° en ambos); `sublunarPoint` contra el porcentaje de iluminación lunar real publicado por un servicio externo para el 2026-09-25 (luna gibosa creciente, ~97%, derivado aquí de la separación angular entre el punto subsolar y el sublunar) y contra la cota física de la declinación lunar (±~28,6°) en los doce meses de 2026. No prueba el shader WebGL ni las trayectorias/iconos que dibuja sobre el mapa (no son funciones puras, se verifican a mano en el navegador).
+
 ### `coordfmt.js`
 
 **Salida de `npm test`:**
