@@ -404,6 +404,13 @@
     cursor: pointer;
     user-select: none;
   }
+  /* Botón de iluminación real: en color, no en blanco y negro como el
+     resto de glifos de esta barra (pedido explícito). Misma
+     especificidad que `.active` de abajo: por eso esta regla va ANTES
+     — así, al activarse, `.active` gana por orden de cascada y el
+     icono se ve blanco sobre el fondo de acento, igual que cualquier
+     otro botón de esta barra.                                        */
+  .measure-bar a.dn-toggle { color: #f5a623; }
   .measure-bar a.active { background: var(--accent); color: #fff; }
   /* Leaflet's own CSS sets ".leaflet-bar a { display: block }"; being an
      author rule it beats the browser's UA "[hidden] { display: none }"
@@ -583,6 +590,38 @@
     text-shadow: 0 0 3px #fff, 0 0 3px #fff;
     pointer-events: none;
   }
+  /* Trayectoria e iconos del sol y la luna del modo de iluminación real
+     (61-daynight.js): NO es una capa de Leaflet, es un `<div>` propio,
+     hermano de `.leaflet-map-pane` (ver el comentario de `dnOverlay` en
+     el JS del porqué) — 61-daynight.js recoloca `.dn-path`/icono en
+     cada redibujado con `top`/`left` en píxeles, ya calculados con
+     `map.latLngToContainerPoint`, así que aquí solo hace falta el
+     aspecto, no la posición base.                                     */
+  .dn-celestial-overlay {
+    position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+    pointer-events: none;
+    z-index: 620; /* por encima del lienzo de sombreado (610): no debe quedar tapado por la sombra */
+    overflow: hidden; /* la línea es más ancha que el visor a propósito, para no recalcular en cada resize */
+  }
+  .dn-path {
+    position: absolute; left: -10%; width: 120%; height: 0;
+    border-top: 1.5px dashed;
+    opacity: .7;
+  }
+  .dn-sun-path { border-color: #f5a623; }
+  .dn-moon-path { border-color: #b9c4d6; }
+  /* Sombra oscura, no blanca como .grat-label, porque este icono cae
+     igual sobre tramos ya oscurecidos por la propia noche que dibuja el
+     efecto y una sombra clara ahí se perdería.                         */
+  .dn-sun-icon, .dn-moon-icon {
+    position: absolute;
+    transform: translate(-50%, -50%); /* centrado sobre el punto, no esquina superior izquierda */
+    font-size: 20px;
+    line-height: 1;
+    text-shadow: 0 0 3px rgba(0,0,0,.65), 0 0 3px rgba(0,0,0,.65);
+  }
+  .dn-sun-icon { color: #f5a623; }
+  .dn-moon-icon { color: #cdd8e8; }
 
   /* ================= Layer style dialog and icon picker ================= */
   .dlg-overlay {

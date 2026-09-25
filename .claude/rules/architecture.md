@@ -33,8 +33,17 @@ paths:
    abierto. Waypoint de ruta se arrastra sin más; centro/borde de
    círculo exige Ctrl+arrastre (mecanismo distinto, sin concepto de
    "vértice"). Botón de crear pin en la misma barra.
-10. **Controles de vista**: autoescala, ES/IC, retícula, coordenadas.
-11. **Arranque**: restauración del árbol guardado. Al final, para que
+10. **Iluminación día/noche**: `subsolarPoint`/`sublunarPoint`/
+    `solarElevationDeg` (única parte pura y testeada), un overlay WebGL
+    sobre un `<canvas>` superpuesto al mapa que sombrea la parte visible
+    según la posición real del sol, y un `<div>` propio (trayectoria
+    discontinua + icono de sol y luna) recolocado en cada redibujado con
+    `map.latLngToContainerPoint` — NINGUNO de los dos vive dentro de un
+    pane de Leaflet (`.leaflet-map-pane` no deshace su transformación de
+    arrastre al soltar, ver el comentario de `dnOverlay`). Efecto
+    decorativo, sin persistencia.
+11. **Controles de vista**: autoescala, ES/IC, retícula, coordenadas.
+12. **Arranque**: restauración del árbol guardado. Al final, para que
     todo esté definido.
 
 - **«No hay capas cargadas» es una CONCLUSIÓN tras leer IndexedDB, no

@@ -58,6 +58,7 @@ const JS = [
   "51-geodesy.js",        /* geodesia y UTM */
   "52-measure.js",        /* herramientas de medición */
   "60-elevation.js",      /* elevaciones: WCS, cuadrícula */
+  "61-daynight.js",       /* iluminación real día/noche (efecto WebGL) */
   "70-view-controls.js",  /* controles de vista y menú contextual */
   "99-boot.js"            /* arranque: restaurar el árbol guardado */
 ];

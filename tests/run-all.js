@@ -16,6 +16,7 @@ const SUITES = [
   ["dupetest.js", "Fusión de marcadores duplicados: mismo nombre y posición, en KML y en GeoJSON"],
   ["clamptest.js",  "Coordenadas: validación y tolerancia de redondeo"],
   ["utmtest.js",    "Conversión a UTM y husos"],
+  ["daynight.js",   "Iluminación día/noche: punto subsolar y elevación solar en fechas y puntos de referencia"],
   ["coordfmt.js",   "Formato de coordenadas: decimal, GMS con espacios y GMS compacto"],
   ["elevtest.js",   "Elevaciones: WCS del IGN, coberturas, formatos, rejilla"],
   ["pnoahisttest.js", "PNOA histórico: descubrimiento de capas del WMS del IGN"],
