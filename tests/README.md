@@ -316,7 +316,7 @@ PNG FILENAME TESTS OK
 GEOJSON NAME PICKER / CTX MENU TESTS OK
 ```
 
-**Qué cubre:** `geojsonFeatures`/`needsNamePicker`/`propsFingerprint`/`resolveFeatureName` (elegir y recordar la propiedad-nombre de un GeoJSON ambiguo); `stringifyPropValue`/`propertiesTableHtml` (tabla de `properties` del panel de información, con escapado de entrada hostil); `ctxItemsFor` (menú contextual con una, ninguna o varias capas bajo el cursor: ítems directos frente a submenú) y las TRES envolturas que usa (`goToNodeAndBlink`, `showLayerInfoAndBlink`, `editPropertiesAndBlink`), extraídas de verdad y no stubeadas: que cada acción reciba la capa correcta y que las TRES la hagan parpadear, que con varias superpuestas es lo único que dice cuál se eligió. «Editar propiedades» (el acceso directo al diálogo de estilos desde el menú contextual, pedido explícitamente) solo aparece para una capa de tipo editable (`STYLE_EDITABLE_KINDS`, con `styleKind` stubeado por un `_kind` de mentira en el `li`): con una sola capa editable aparece directo y distinto de «Mostrar propiedades»; con varias, solo lista las de tipo editable en su submenú. El clic derecho DE VERDAD sobre el mapa, y que abra el diálogo real, se prueba en `tests/browser/context-menu.mjs`.
+**Qué cubre:** `geojsonFeatures`/`needsNamePicker`/`propsFingerprint`/`resolveFeatureName` (elegir y recordar la propiedad-nombre de un GeoJSON ambiguo); `stringifyPropValue`/`propertiesTableHtml` (tabla de `properties` del panel de información, con escapado de entrada hostil); `ctxItemsFor` (menú contextual con una, ninguna o varias capas bajo el cursor: ítems directos frente a submenú) y las TRES envolturas que usa (`goToNodeAndBlink`, `showLayerInfoAndBlink`, `editPropertiesAndBlink`), extraídas de verdad y no stubeadas: que cada acción reciba la capa correcta y que las TRES la hagan parpadear, que con varias superpuestas es lo único que dice cuál se eligió. «Editar propiedades» (el acceso directo al diálogo de estilos desde el menú contextual, pedido explícitamente) solo aparece para una capa de tipo editable (`STYLE_EDITABLE_KINDS`, con `styleKind` stubeado por un `_kind` de mentira en el `li`): con una sola capa editable aparece directo y distinto de «Mostrar atributos»; con varias, solo lista las de tipo editable en su submenú. El clic derecho DE VERDAD sobre el mapa, y que abra el diálogo real, se prueba en `tests/browser/context-menu.mjs`.
 
 ### `cascadetest.js`
 
@@ -601,6 +601,16 @@ BROWSER MULTI-EDIT TESTS OK
 
 **Qué cubre:** El diálogo de estilos con VARIOS nodos seleccionados: que lo que no coincide salga marcado —la fila con «(varios)», el número en blanco, la casilla con el guion del árbol—, que tocar un control lo desmarque, y sobre todo que aceptar aplique SOLO lo tocado: el grosor que nadie movió sigue siendo el de cada uno, y cada marcador conserva su icono y su tamaño. El nombre: vacío con el resumen de nombres de marcador de posición, aceptar sin escribir no renombra, escribir renombra todos. Y el nombre siempre a la vista de un trazo, de punta a punta: etiqueta permanente al encenderlo, globo de click al apagarlo, cada trazo con SU nombre, repintada al renombrar y recuperada al restaurar el árbol. Y que el editor de puntos no trabaje en bloque: con varios seleccionados no abre ni pulsándolo a propósito, y la fila se ve deshabilitada —opacidad medida— diciendo por qué.
 
+### `browser/live-preview.mjs`
+
+**Salida de `npm test`:**
+```
+── Navegador: el diálogo de estilos aplica en vivo tamaño, icono y color, y Cancelar los revierte
+BROWSER LIVE PREVIEW TESTS OK
+```
+
+**Qué cubre:** El diálogo de estilos aplica los cambios al mapa AL MOMENTO y «Cancelar» los deshace. Marcador: el tamaño llega a la capa mientras el diálogo sigue abierto y el marcador sigue siendo arrastrable; el color por el popover se ve al pulsar una muestra, Cancelar del popover lo devuelve, y Cancelar del diálogo deshace incluso un color ya aceptado en el popover; el icono se aplica al pulsarlo en la rejilla, Cancelar del selector lo devuelve y Aceptar lo deja. Polígono: grosor en vivo, revertido al cancelar, persistente al aceptar. Selección mixta: un color tocado llega a todos, y cancelar el popover devuelve a CADA uno el suyo (no el del primero).
+
 ### `browser/lazy-cascade.mjs`
 
 **Salida de `npm test`:**
@@ -673,7 +683,7 @@ Un bloque más, para un bug reportado después: **el diálogo de un marcador sig
 BROWSER CONTEXT MENU TESTS OK
 ```
 
-**Qué cubre:** El ítem nuevo «Editar propiedades» del menú contextual del visor (`layerCtxItems`/`ctxItemsFor`, `70-view-controls.js`), con un clic derecho DE VERDAD sobre el mapa (no una llamada directa a `openCtxMenu`): pasa por el hit-testing real (`layersAtPoint`) y abre el diálogo de estilos real. Pedido explícitamente: acceso directo a las propiedades de un polígono/marcador/medición desde el propio mapa. Comprueba que aparece junto a «Ir al nodo en el panel» (y «Mostrar propiedades» si la capa tiene ficha), que pulsarlo abre `#style-dialog` mostrando ESA capa (su nombre en el título) y cierra el menú, y que un clic derecho SIN ninguna capa debajo muestra el menú genérico sin «Editar propiedades». La comprobación de que una capa de tipo NO editable (una cuadrícula de elevación) tampoco lo ofrece se queda en `tests/geojsonnametest.js`: sus celdas son `interactive: false` (`60-elevation.js`) y nunca llegan a ser un "hit" de un clic real, así que no hay forma de probarlo con una capa de verdad — solo a nivel de función, con un `_kind` de mentira.
+**Qué cubre:** El ítem nuevo «Editar propiedades» del menú contextual del visor (`layerCtxItems`/`ctxItemsFor`, `70-view-controls.js`), con un clic derecho DE VERDAD sobre el mapa (no una llamada directa a `openCtxMenu`): pasa por el hit-testing real (`layersAtPoint`) y abre el diálogo de estilos real. Pedido explícitamente: acceso directo a las propiedades de un polígono/marcador/medición desde el propio mapa. Comprueba que aparece junto a «Ir al nodo en el panel» (y «Mostrar atributos» si la capa tiene ficha), que pulsarlo abre `#style-dialog` mostrando ESA capa (su nombre en el título) y cierra el menú, y que un clic derecho SIN ninguna capa debajo muestra el menú genérico sin «Editar propiedades». La comprobación de que una capa de tipo NO editable (una cuadrícula de elevación) tampoco lo ofrece se queda en `tests/geojsonnametest.js`: sus celdas son `interactive: false` (`60-elevation.js`) y nunca llegan a ser un "hit" de un clic real, así que no hay forma de probarlo con una capa de verdad — solo a nivel de función, con un `_kind` de mentira.
 
 ### `browser/url-import.mjs`
 

@@ -341,7 +341,7 @@ function goToNodeAndBlink(li) { highlightNode(li); blinkLayer(li); }
 function showLayerInfoAndBlink(li) { showLayerInfo(li); blinkLayer(li); }
 /* Mismo patrón que las dos de arriba, para el diálogo de ESTILOS (el
    que abren el botón 🎨 o Alt+Intro) — distinto de "Mostrar
-   propiedades", que es el panel de solo lectura de la ficha KML/
+   atributos", que es el panel de solo lectura de la ficha KML/
    properties (showLayerInfo). Acceso directo desde el menú contextual,
    sin tener que ir al árbol primero.                                  */
 function editPropertiesAndBlink(li) { openStyleDialog(li); blinkLayer(li); }
@@ -354,7 +354,7 @@ const STYLE_EDITABLE_KINDS = new Set(["marker", "polygon", "measure", "imageOver
    propiedades si el diálogo de estilos aplica a su tipo.              */
 function layerCtxItems(li) {
   const items = [{ label: "Ir al nodo en el panel", action: () => goToNodeAndBlink(li) }];
-  if (infoHtmlFor(li) != null) items.push({ label: "Mostrar propiedades", action: () => showLayerInfoAndBlink(li) });
+  if (infoHtmlFor(li) != null) items.push({ label: "Mostrar atributos", action: () => showLayerInfoAndBlink(li) });
   if (STYLE_EDITABLE_KINDS.has(styleKind(li))) items.push({ label: "Editar propiedades", action: () => editPropertiesAndBlink(li) });
   return items;
 }
@@ -374,7 +374,7 @@ function ctxItemsFor(hits) {
   }];
   if (withInfo.length) {
     items.push({
-      label: "Mostrar propiedades",
+      label: "Mostrar atributos",
       items: withInfo.map(li => ({ label: li._name, action: () => showLayerInfoAndBlink(li) }))
     });
   }

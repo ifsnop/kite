@@ -32,7 +32,7 @@ Un botón con una flecha (◀ / ▶), en el borde entre ambos, oculta o vuelve a
 ![Vista general de KITE Local, con el panel de navegación a la izquierda y el visor a la derecha](img/01-vista-general.png)
 *Figura 1. Vista general: panel de navegación (árbol con dos zonas, dos puntos de interés y una capa de sensores) y visor con la cartografía de fondo.*
 
-Una idea recorre toda la aplicación: **la vista del mapa es del usuario y nadie la toca sin que se pida**. Cargar un archivo nuevo, por grande que sea, no mueve el encuadre ni cambia el zoom; para eso están los botones de encuadre que se describen más adelante. Del mismo modo, ningún diálogo aplica un cambio hasta que se pulsa «Aceptar»: se puede abrir el estilo de una capa, probar colores y tamaños, y cerrar con «Cancelar» sin que nada de lo probado llegue a aplicarse.
+Una idea recorre toda la aplicación: **la vista del mapa es del usuario y nadie la toca sin que se pida**. Cargar un archivo nuevo, por grande que sea, no mueve el encuadre ni cambia el zoom; para eso están los botones de encuadre que se describen más adelante. Del mismo modo, los diálogos enseñan el efecto de cada cambio al momento —el estilo de una capa se ve en el mapa mientras se prueban colores, iconos y tamaños— pero solo «Aceptar» lo deja hecho: «Cancelar» devuelve todo exactamente a como estaba al abrir el diálogo.
 
 ---
 
@@ -179,7 +179,7 @@ Un clic derecho sobre el mapa abre un menú con las acciones más habituales: co
 ![Menú contextual genérico, sobre una zona del mapa sin ninguna capa debajo](img/08-menu-contextual-generico.png)
 *Figura 11. Menú contextual sobre una zona vacía del mapa.*
 
-Si el clic derecho cae sobre una capa, el menú antepone «Ir al nodo en el panel» (que despliega el árbol hasta esa fila, la selecciona y la hace parpadear en el mapa para identificarla), «Mostrar propiedades» si la capa tiene algo que mostrar (la ficha KML o la tabla de propiedades de un GeoJSON, la misma que el botón ℹ) y, si su tipo admite el diálogo de estilos, **«Editar propiedades»**, que lo abre directamente —el mismo diálogo que el botón 🎨 o Alt+Intro, sin tener que ir antes al árbol—. Cuando hay varias capas superpuestas exactamente bajo el cursor, estas opciones se convierten en un submenú con una entrada por capa, para elegir sobre cuál de todas se quiere actuar.
+Si el clic derecho cae sobre una capa, el menú antepone «Ir al nodo en el panel» (que despliega el árbol hasta esa fila, la selecciona y la hace parpadear en el mapa para identificarla), «Mostrar atributos» si la capa tiene algo que mostrar (la ficha KML o la tabla de propiedades de un GeoJSON, la misma que el botón ℹ) y, si su tipo admite el diálogo de estilos, **«Editar propiedades»**, que lo abre directamente —el mismo diálogo que el botón 🎨 o Alt+Intro, sin tener que ir antes al árbol—. Cuando hay varias capas superpuestas exactamente bajo el cursor, estas opciones se convierten en un submenú con una entrada por capa, para elegir sobre cuál de todas se quiere actuar.
 
 ![Menú contextual con un submenú, al haber dos zonas superpuestas bajo el cursor](img/09-menu-contextual-submenu.png)
 *Figura 12. Con «Zona A» y «Zona A (ampliación)» superpuestas en ese punto, «Ir al nodo en el panel» se convierte en un submenú con una entrada por cada una.*
@@ -188,9 +188,9 @@ Si el clic derecho cae sobre una capa, el menú antepone «Ir al nodo en el pane
 
 ## 6. Estilos de capa
 
-El botón 🎨 de una fila (o de cualquiera de una selección múltiple) abre un diálogo flotante con el estilo de esa capa. El diálogo no aplica nada hasta que se pulsa «Aceptar»; «Cancelar» descarta cualquier cambio probado, incluido un icono distinto. El diálogo se puede arrastrar por su título para apartarlo de la zona del mapa que interese, y no bloquea el resto de la interfaz: se puede seguir trabajando en el mapa mientras está abierto.
+El botón 🎨 de una fila (o de cualquiera de una selección múltiple) abre un diálogo flotante con el estilo de esa capa. Los cambios de color, icono, tamaño, grosor, relleno y texto se ven en el mapa AL MOMENTO, mientras el diálogo sigue abierto, para poder juzgar el resultado; «Aceptar» los deja y «Cancelar» los revierte todos, incluido un icono distinto, dejando la capa como estaba al abrir. El diálogo se puede arrastrar por su título para apartarlo de la zona del mapa que interese, y no bloquea el resto de la interfaz: se puede seguir trabajando en el mapa mientras está abierto.
 
-Cada muestra de color del diálogo (marcador, texto, contorno, relleno…) abre, justo debajo de sí misma, un selector con el espectro, una paleta de colores habituales y sus propios botones «Cancelar»/«Aceptar». Sobre el cuadrado se elige tono y saturación con el cursor en forma de cruz; sobre la rampa horizontal de matiz, con el cursor en forma de mano, porque ahí solo se desliza en una dirección. Mover el espectro, tocar una muestra o escribir un valor previsualiza el color al momento sobre el elemento editado (el marcador y su icono, o el fondo del mapa en el panel de mapas base), pero no lo confirma: solo «Aceptar» lo deja hecho, y «Cancelar» —igual que repetir la muestra que abrió el selector, un clic fuera o Escape— lo devuelve al color que tenía al abrirlo. Los valores se escriben en cuatro notaciones intercambiables con las flechas ‹ › junto a su nombre: hexadecimal (un campo), RGB o HSV (tres campos, uno por componente) y CMYK (cuatro), cada uno con su propio control numérico de subida/bajada.
+Cada muestra de color del diálogo (marcador, texto, contorno, relleno…) abre, justo debajo de sí misma, un selector con el espectro, una paleta de colores habituales y sus propios botones «Cancelar»/«Aceptar». Sobre el cuadrado se elige tono y saturación con el cursor en forma de cruz; sobre la rampa horizontal de matiz, con el cursor en forma de mano, porque ahí solo se desliza en una dirección. Mover el espectro, tocar una muestra o escribir un valor previsualiza el color al momento sobre el elemento editado (el marcador y su icono, o el fondo del mapa en el panel de mapas base), y también sobre la capa en el mapa, pero no lo confirma: solo «Aceptar» lo deja hecho, y «Cancelar» —igual que repetir la muestra que abrió el selector, un clic fuera o Escape— lo devuelve al color que tenía al abrirlo. Los valores se escriben en cuatro notaciones intercambiables con las flechas ‹ › junto a su nombre: hexadecimal (un campo), RGB o HSV (tres campos, uno por componente) y CMYK (cuatro), cada uno con su propio control numérico de subida/bajada.
 
 ### 6.1 Estilo de un marcador
 
@@ -237,7 +237,7 @@ Con más de una capa seleccionada, el diálogo de estilos se abre igual, pero co
 
 ### 6.5 Ficha de información y propiedades
 
-Cuando una capa procede de un KML con una descripción, o de un GeoJSON con propiedades, el botón ℹ de su fila —o pasar el ratón por encima de la capa en el mapa, o «Mostrar propiedades» del menú contextual— abre una ficha con esa información: el texto original en el caso de un KML (filtrado de cualquier contenido peligroso, conservando el texto) o una tabla de clave y valor en el caso de un GeoJSON.
+Cuando una capa procede de un KML con una descripción, o de un GeoJSON con propiedades, el botón ℹ de su fila —o pasar el ratón por encima de la capa en el mapa, o «Mostrar atributos» del menú contextual— abre una ficha con esa información: el texto original en el caso de un KML (filtrado de cualquier contenido peligroso, conservando el texto) o una tabla de clave y valor en el caso de un GeoJSON. Si el tipo de capa admite edición (marcador, forma, medición…), la ficha lleva un botón «Editar propiedades» que la cierra y abre el diálogo de estilos de esa misma capa (color, tamaño, posición, etc.).
 
 ![Ficha de propiedades de un elemento GeoJSON, en tabla de clave y valor](img/14-ficha-propiedades.png)
 *Figura 18. Propiedades de «Sensor 1», tal como venían en el archivo GeoJSON de origen.*
@@ -274,7 +274,7 @@ La herramienta «Medir círculo» (◯) se arrastra del centro al borde y da el 
 
 ### 7.4 Personalizar un marcador
 
-Se abre su diálogo de estilo con el botón 🎨 de su fila. «Cambiar…» abre el catálogo de iconos; un clic sobre uno lo selecciona (sin aplicarlo todavía) y «Aceptar», en el selector, lo confirma como icono elegido para ese marcador. De vuelta en el diálogo principal, el color escogido tiñe cualquier icono del catálogo (no afecta a la gota clásica de Leaflet, que es una imagen fija). Solo al pulsar «Aceptar» en el diálogo de estilo se aplica todo el conjunto de cambios —icono, color, tamaños, texto y posición— a la capa.
+Se abre su diálogo de estilo con el botón 🎨 de su fila. «Cambiar…» abre el catálogo de iconos; un clic sobre uno lo selecciona y ya lo muestra sobre el marcador del mapa; «Cancelar», en el selector, devuelve el icono que había, y «Aceptar» lo confirma como icono elegido para ese marcador. De vuelta en el diálogo principal, el color escogido tiñe cualquier icono del catálogo (no afecta a la gota clásica de Leaflet, que es una imagen fija). Todo se ve en el mapa mientras se edita, pero solo al pulsar «Aceptar» en el diálogo de estilo el conjunto de cambios —icono, color, tamaños, texto y posición— queda definitivo; «Cancelar» lo revierte entero.
 
 ### 7.5 Copiar capas entre dos instancias distintas de KITE Local
 

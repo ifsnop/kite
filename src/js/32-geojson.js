@@ -267,7 +267,7 @@ function sanitizeHtml(html) {
 
 /* El usuario cerró el panel explícitamente (Cerrar o Escape): el hover
    no debe reabrirlo hasta la próxima apertura explícita (botón ℹ o
-   «Mostrar propiedades» del menú contextual), o el cierre nunca "se
+   «Mostrar atributos» del menú contextual), o el cierre nunca "se
    queda cerrado" mientras el ratón siga pasando por capas.           */
 let layerInfoDismissed = false;
 
@@ -327,6 +327,8 @@ function showLayerInfo(li, { focus = true } = {}) {
   if (html == null) return;
   descTitle.textContent = li._name;
   descBody.innerHTML = html;
+  descLayer = li;
+  descEditBtn.hidden = !STYLE_EDITABLE_KINDS.has(styleKind(li));
   applyPropsSplit(); /* el reparto elegido sobrevive al cambio de capa */
   const wasHidden = descDialog.hidden;
   descDialog.hidden = false;

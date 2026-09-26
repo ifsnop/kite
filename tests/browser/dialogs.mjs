@@ -323,11 +323,15 @@ ok(trasCancelarMk.hidden, "Cancelar cierra el popover");
 ok(trasCancelarMk.boton === colorOriginalMk,
   `y Cancelar restaura el color ORIGINAL del botón: ${trasSoltarMk.boton} → ${trasCancelarMk.boton} (era ${colorOriginalMk})`);
 
-/* Repitiendo el arrastre pero Aceptando: el color previsualizado debe
-   quedarse, y solo entonces llega al borrador del diálogo de estilos —
-   la edición del diálogo exterior sigue diferida hasta SU propio
-   Aceptar, que aquí no se pulsa (se cierra con Cancelar al final).    */
-const colorAntesDelBorrador = await page.evaluate(() => styleDraft.color);
+/* Repitiendo el arrastre pero Aceptando: el color se ve EN VIVO en el
+   mapa mientras se previsualiza (cambio de filosofía: antes esperaba al
+   Aceptar exterior), llega al borrador al Aceptar del popover, y el
+   Cancelar del diálogo exterior lo revierte en la capa.               */
+await page.waitForTimeout(100); /* deja pasar el fotograma de la vista previa anterior */
+const colorAntesCapa = await page.evaluate(() => {
+  const li = [...document.querySelectorAll("#tree li")].find(x => x._mstyle);
+  return li._mstyle.color;
+});
 await page.click("#mk-color");
 await page.waitForTimeout(150);
 box = await (await page.$("#color-sv")).boundingBox();
@@ -335,10 +339,13 @@ await page.mouse.move(box.x + box.width * 0.7, box.y + box.height * 0.3);
 await page.mouse.down();
 await page.mouse.move(box.x + box.width * 0.8, box.y + box.height * 0.2);
 await page.mouse.up();
-await page.waitForTimeout(80);
+await page.waitForTimeout(150);
 const previsualizadoMk = await page.evaluate(() => document.getElementById("mk-color").dataset.color);
-ok((await page.evaluate(() => styleDraft.color)) === colorAntesDelBorrador,
-  "mientras el popover sigue abierto, el borrador del diálogo de estilos NO ha cambiado todavía");
+ok((await page.evaluate(() => {
+  const li = [...document.querySelectorAll("#tree li")].find(x => x._mstyle);
+  return li._mstyle.color;
+})) === previsualizadoMk,
+  "mientras el popover sigue abierto, el color ya está aplicado a la CAPA (vista previa en vivo)");
 await page.click("#color-accept");
 const trasAceptarMk = await page.evaluate(() => ({
   hidden: document.getElementById("color-picker").hidden,
@@ -348,7 +355,17 @@ const trasAceptarMk = await page.evaluate(() => ({
 ok(trasAceptarMk.hidden, "Aceptar cierra el popover");
 ok(trasAceptarMk.boton === previsualizadoMk, "y deja el color que se estaba previsualizando");
 ok(trasAceptarMk.borrador === previsualizadoMk,
-  "que ahora sí ha llegado al borrador del diálogo de estilos (aún no a la capa: falta el Aceptar exterior)");
+  "que ahora sí ha llegado al borrador del diálogo de estilos");
+await page.click("#style-cancel");
+ok((await page.evaluate(() => {
+  const li = [...document.querySelectorAll("#tree li")].find(x => x._mstyle);
+  return li._mstyle.color;
+})) === colorAntesCapa,
+  "y Cancelar en el diálogo de estilos devuelve a la capa el color con el que se abrió");
+await page.evaluate(() => {
+  const li = [...document.querySelectorAll("#tree li")].find(x => x._mstyle);
+  openStyleDialog(li);
+});
 
 /* El antiguo fallo más esquivo: escribir un hexadecimal y pulsar Intro.
    Ya no puede reabrir nada porque ya no CIERRA nada — Intro solo
