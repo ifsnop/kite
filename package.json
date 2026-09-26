@@ -1,6 +1,6 @@
 {
   "name": "kite",
-  "version": "1.4.1",
+  "version": "1.4.2",
   "description": "KITE Local — KML Interactive Tree Explorer. Se edita en src/ y se distribuye como un único kitelocal.html.",
   "private": true,
   "scripts": {

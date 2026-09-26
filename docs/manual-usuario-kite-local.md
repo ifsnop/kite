@@ -1,6 +1,6 @@
 # Manual de usuario de KITE Local
 
-### KML Interactive Tree Explorer — versión v1.4.1 (202609242213)
+### KML Interactive Tree Explorer — versión v1.4.2 (202609242213)
 
 Este manual da por hecho que KITE Local ya está desplegado y abierto en el navegador (como archivo local con doble clic, o servido desde una dirección web): no trata la instalación, sino el manejo diario de la aplicación. Todas las capturas de este documento corresponden a una sesión de ejemplo con datos ficticios (una zona de operación y unos sensores cerca de Madrid), usada solo para ilustrar cada función.
 
