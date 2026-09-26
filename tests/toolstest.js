@@ -48,12 +48,17 @@ function buildApi({ hideDelay = 5, guardMs = 5 } = {}) {
      de capa. Aquí no es lo que se prueba —no hay tabla de properties—,
      así que basta con que exista.                                     */
   const applyPropsSplit = () => {};
+  /* y el botón «Editar propiedades» de la ficha, que tampoco se prueba aquí */
+  const descEditBtn = { hidden: true };
+  const STYLE_EDITABLE_KINDS = new Set(["marker", "polygon", "measure", "imageOverlay"]);
+  const styleKind = () => "marker";
 
   const api = new Function(
     "LAYER_INFO_HIDE_DELAY", "TOOL_EXIT_HOVER_GUARD_MS", "descDialog", "styleDialog", "descBox",
     "descTitle", "descBody", "toolButtons", "rootGroup", "map", "clampToViewport", "focusDialog",
     "infoHtmlFor", "applyPropsSplit", "releaseFocus", "refreshDoubleClickZoom",
-    src + `
+    "descEditBtn", "STYLE_EDITABLE_KINDS", "styleKind",
+    "let descLayer = null;\n" + src + `
       return {
         showLayerInfo, setTool, scheduleLayerInfoHide, cancelLayerInfoHide,
         activeToolNow: () => activeTool, dialogHidden: () => descDialog.hidden,
@@ -61,7 +66,7 @@ function buildApi({ hideDelay = 5, guardMs = 5 } = {}) {
     `
   )(hideDelay, guardMs, descDialog, styleDialog, descBox, descTitle, descBody, toolButtons,
     rootGroup, map, clampToViewport, focusDialog, infoHtmlFor, applyPropsSplit, releaseFocus,
-    refreshDoubleClickZoom);
+    refreshDoubleClickZoom, descEditBtn, STYLE_EDITABLE_KINDS, styleKind);
 
   return { api, focusState, descDialog, styleDialog, descTitle, descBody, infoState, releaseFocusCalls };
 }

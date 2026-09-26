@@ -116,14 +116,14 @@ ok(items[items.length - 1] === CTX_MENU_ITEMS[CTX_MENU_ITEMS.length - 1],
   "1 capa: CTX_MENU_ITEMS va al final");
 const liConInfo = { _name: "Parcela B", _info: "<table></table>" };
 items = ctxItemsFor([liConInfo]);
-ok(items.some(it => it.label === "Mostrar propiedades" && !it.items),
-  "1 capa con info: aparece 'Mostrar propiedades' directo");
+ok(items.some(it => it.label === "Mostrar atributos" && !it.items),
+  "1 capa con info: aparece 'Mostrar atributos' directo");
 ok(!items.some(it => it.label === "Editar propiedades"),
   "sin _kind editable: 'Editar propiedades' no aparece");
 const liEditable = { _name: "Parcela E", _info: null, _kind: "polygon" };
 items = ctxItemsFor([liEditable]);
 ok(items.some(it => it.label === "Editar propiedades" && !it.items),
-  "1 capa de tipo editable: aparece 'Editar propiedades' directo, distinto de 'Mostrar propiedades'");
+  "1 capa de tipo editable: aparece 'Editar propiedades' directo, distinto de 'Mostrar atributos'");
 
 // 2+ hits: submenú con una entrada por capa
 const liA = { _name: "Parcela A", _info: null };
@@ -133,9 +133,9 @@ items = ctxItemsFor([liA, liB, liC]);
 const goTo = items.find(it => it.label === "Ir al nodo en el panel");
 ok(goTo && goTo.items && goTo.items.length === 3,
   "varias capas: 'Ir al nodo' es un submenú con una entrada por capa");
-const showInfo = items.find(it => it.label === "Mostrar propiedades");
+const showInfo = items.find(it => it.label === "Mostrar atributos");
 ok(showInfo && showInfo.items.length === 2,
-  "varias capas: 'Mostrar propiedades' solo lista las que tienen info");
+  "varias capas: 'Mostrar atributos' solo lista las que tienen info");
 const editProps = items.find(it => it.label === "Editar propiedades");
 ok(editProps && editProps.items.length === 1 && editProps.items[0].label === "Parcela B",
   "varias capas: 'Editar propiedades' solo lista las de tipo editable");
@@ -157,7 +157,7 @@ ok(global.blinkCalls[0] === liB, "y hace parpadear ESA capa, no otra");
 global.showInfoCalls.length = 0;
 global.blinkCalls.length = 0;
 showInfo.items[0].action();
-ok(global.showInfoCalls[0] === liB, "el submenú de 'Mostrar propiedades' pasa la capa correcta");
+ok(global.showInfoCalls[0] === liB, "el submenú de 'Mostrar atributos' pasa la capa correcta");
 /* Lo pedido: con varias capas superpuestas, la ficha sale con un nombre
    y unos datos que no dicen cuál de ellas es. El parpadeo sí.        */
 ok(global.blinkCalls[0] === liB,
@@ -167,13 +167,13 @@ ok(global.blinkCalls[0] === liB,
    es la misma para los dos caminos, no una para cada uno.            */
 global.showInfoCalls.length = 0;
 global.blinkCalls.length = 0;
-ctxItemsFor([liConInfo]).find(it => it.label === "Mostrar propiedades").action();
+ctxItemsFor([liConInfo]).find(it => it.label === "Mostrar atributos").action();
 ok(global.showInfoCalls[0] === liConInfo && global.blinkCalls[0] === liConInfo,
-  "con una sola capa, 'Mostrar propiedades' también parpadea");
+  "con una sola capa, 'Mostrar atributos' también parpadea");
 
-// ninguna capa con info: no aparece "Mostrar propiedades"
+// ninguna capa con info: no aparece "Mostrar atributos"
 items = ctxItemsFor([liA, { _name: "Parcela D", _info: null }]);
-ok(!items.some(it => it.label === "Mostrar propiedades"),
-  "varias capas, ninguna con info: 'Mostrar propiedades' no aparece");
+ok(!items.some(it => it.label === "Mostrar atributos"),
+  "varias capas, ninguna con info: 'Mostrar atributos' no aparece");
 
 if (!process.exitCode) console.log("GEOJSON NAME PICKER / CTX MENU TESTS OK");

@@ -13,12 +13,12 @@
 const { fn, constDecl } = require("./_extract");
 const ok = (c, m) => { if (!c) { console.error("FAIL: " + m); process.exitCode = 1; } };
 
-const src = "let styleMixed = new Set(); let styleTouched = new Set(); let styleDraft = null;\n"
+const src = "let styleMixed = new Set(); let styleTouched = new Set(); let styleLivePreview = new Set(); let styleDraft = null;\n"
   + constDecl("NAMES_PREVIEW_MAX") + "\n" + fn("joinNames") + "\n"
   + fn("mixedProps") + "\n" + fn("draftProps");
 const api = new Function(src
   + "\nreturn { joinNames, mixedProps, draftProps,"
-  + " set: (m, t, d) => { styleMixed = new Set(m); styleTouched = new Set(t); styleDraft = d; } };")();
+  + " set: (m, t, d, l = []) => { styleMixed = new Set(m); styleTouched = new Set(t); styleLivePreview = new Set(l); styleDraft = d; } };")();
 
 /* ---------- mixedProps: en qué NO coinciden ---------- */
 const a = { color: "#f00", weight: 2, fillOpacity: 0.35, textAlways: false };
@@ -66,6 +66,13 @@ ok(!("weight" in tocado), "y la otra sigue sin aplicarse: " + JSON.stringify(toc
 api.set(["textAlways"], ["textAlways"], { textAlways: false });
 ok(api.draftProps(["textAlways"]).textAlways === false,
   "un false tocado se aplica; filtrar por valor lo habría perdido");
+
+/* Un selector (color, icono) que está PROBANDO una propiedad mezclada la
+   aplica en vivo sin haberla marcado como tocada.                    */
+api.set(["color"], [], draft, ["color"]);
+ok(api.draftProps(props).color === "#00f", "una propiedad en vista previa se aplica en vivo");
+api.set(["color"], [], draft, []);
+ok(!("color" in api.draftProps(props)), "y al cancelar el selector deja de aplicarse");
 
 /* ---------- joinNames: los nombres, sin desbordar el campo ---------- */
 ok(api.joinNames(["Alfa", "Beta"]) === "Alfa, Beta",

@@ -9,10 +9,10 @@ paths:
 
 - `CTX_MENU_ITEMS`: lista genérica (centrar, medir, exportar PNG…) en
   click derecho sin capa. Sobre una capa se anteponen «Ir al nodo en el
-  panel» (`highlightNode`), «Mostrar propiedades» si hay algo que
+  panel» (`highlightNode`), «Mostrar atributos» si hay algo que
   enseñar (`showLayerInfo`, solo lectura) y «Editar propiedades» si el
   tipo admite diálogo de estilos (`STYLE_EDITABLE_KINDS`, mismo criterio
-  que `openStyleDialog`). Nombrado distinto de «Mostrar propiedades» a
+  que `openStyleDialog`). Nombrado distinto de «Mostrar atributos» a
   propósito (dos ítems iguales confundirían), aunque el resto de la app
   llame «propiedades» a ambos indistintamente.
 - **Varias capas superpuestas → submenú** con una entrada por capa

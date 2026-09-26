@@ -460,6 +460,17 @@ const descDialog = document.getElementById("desc-dialog");
 const descBox = descDialog.querySelector(".dlg-box");
 const descTitle = document.getElementById("desc-title");
 const descBody = document.getElementById("desc-body");
+const descEditBtn = document.getElementById("desc-edit");
+let descLayer = null; /* capa cuya ficha se muestra ahora */
+/* De la ficha de atributos (solo lectura) a la edición de la misma capa:
+   cierra la ficha y abre el diálogo de estilos. */
+descEditBtn.addEventListener("click", () => {
+  const li = descLayer;
+  descDialog.hidden = true;
+  layerInfoDismissed = true;
+  releaseFocus();
+  if (li) openStyleDialog(li);
+});
 document.getElementById("desc-close").addEventListener("click", () => {
   descDialog.hidden = true;
   layerInfoDismissed = true;
@@ -578,6 +589,17 @@ let styleIsNew = false;   /* pin just created: cancelling removes it again */
    nodo `styleMixed` queda vacío y todo se aplica como siempre.        */
 let styleMixed = new Set();
 let styleTouched = new Set();
+/* Vista previa EN VIVO: los cambios llegan al mapa al momento y «Cancelar»
+   los deshace. `styleSnapshot` guarda, por nodo, el estilo que tenía al
+   abrir (los estilos se SUSTITUYEN, nunca se mutan, así que basta la
+   referencia). `styleLivePreview` son las propiedades que un selector
+   (color, icono) está probando ahora mismo sin haberlas aceptado: se
+   aplican como si estuvieran tocadas, pero sin marcarlas de verdad, para
+   que cancelar el selector no deje una propiedad mezclada igualada.   */
+let styleSnapshot = null;
+let styleLivePreview = new Set();
+let previewFrame = null;
+let stylePreviewed = false; /* algo llegó a la capa: Cancelar debe re-guardar */
 
 /* Único punto de verdad de "¿se puede mover/insertar/borrar algo de
    este nodo ahora mismo?" — un vértice de un polígono o una ruta, o el
@@ -663,7 +685,7 @@ function touchControl(el) {
 function draftProps(props) {
   const out = {};
   for (const k of props) {
-    if (!styleMixed.has(k) || styleTouched.has(k)) out[k] = styleDraft[k];
+    if (!styleMixed.has(k) || styleTouched.has(k) || styleLivePreview.has(k)) out[k] = styleDraft[k];
   }
   return out;
 }
@@ -875,6 +897,12 @@ function openStyleDialog(li, { isNew = false } = {}) {
     styleMixed = mixedProps(ops, ["opacity"]);
     setValueControl($id("io-opacity"), styleDraft.opacity, styleMixed.has("opacity"));
   }
+  styleSnapshot = new Map(styleTargets.map(t => [t, {
+    mstyle: t._mstyle, style: t._style,
+    opacity: t._imageOverlay ? t._imageOverlay.opacity : undefined
+  }]));
+  styleLivePreview = new Set();
+  stylePreviewed = false;
   styleDialog.hidden = false;
   clampToViewport(styleBox);
   focusDialog(styleBox);
@@ -912,6 +940,8 @@ function closeStyleDialog(commit = false) {
      aceptar): la edición ya es en vivo, no hay nada que revertir aquí,
      solo retirar los manejadores temporales.                          */
   teardownVertexOwner();
+  if (previewFrame) { cancelAnimationFrame(previewFrame); previewFrame = null; }
+  if (!commit) restoreStyleSnapshot();
   /* Revierte mover/insertar/borrar un vértice, o Ctrl+arrastrar el
      centro/borde de un círculo, hecho mientras el diálogo estuvo
      abierto — mismo patrón que posMarker/posOriginal, un poco más
@@ -950,6 +980,8 @@ function closeStyleDialog(commit = false) {
   msMeasures = null;
   styleMixed = new Set();
   styleTouched = new Set();
+  styleSnapshot = null;
+  styleLivePreview = new Set();
   /* setTool(null) sees routeMeasurement already null and skips its own
      "cancel the in-progress route" branch (52-measure.js), so no
      recursive call back into closeStyleDialog happens here.           */
@@ -1054,23 +1086,24 @@ function readStyleControls() {
   else readImageOverlayControls();
 }
 for (const id of ["mk-size", "mk-text-size", "mk-text-always"]) { /* colours: openColorPicker */
-  $id(id).addEventListener("input", () => { if (styleDraft) readMarkerControls(); });
+  $id(id).addEventListener("input", () => { if (styleDraft) { readMarkerControls(); schedulePreview(); } });
 }
 for (const id of ["pg-weight", "pg-fill-opacity"]) { /* colours: openColorPicker */
-  $id(id).addEventListener("input", () => { if (styleDraft) readPolygonControls(); });
+  $id(id).addEventListener("input", () => { if (styleDraft) { readPolygonControls(); schedulePreview(); } });
 }
 for (const id of ["ms-weight", "ms-fill-opacity"]) { /* colours: openColorPicker */
-  $id(id).addEventListener("input", () => { if (styleDraft) readMeasureControls(); });
+  $id(id).addEventListener("input", () => { if (styleDraft) { readMeasureControls(); schedulePreview(); } });
 }
-$id("pg-mode").addEventListener("change", () => { if (styleDraft) readPolygonControls(); });
-$id("pg-text-always").addEventListener("input", () => { if (styleDraft) readPolygonControls(); });
+$id("pg-mode").addEventListener("change", () => { if (styleDraft) { readPolygonControls(); schedulePreview(); } });
+$id("pg-text-always").addEventListener("input", () => { if (styleDraft) { readPolygonControls(); schedulePreview(); } });
+$id("ms-show-labels").addEventListener("input", () => { if (styleDraft) { readMeasureControls(); schedulePreview(); } });
 
 /* Qué ha tocado el usuario, por delegación sobre la caja entera: así un
    control nuevo queda cubierto con solo aparecer en CONTROL_PROP, sin
    depender de acordarse de añadirle su escucha. Los colores y el icono
    no disparan `input` y avisan desde sus propios selectores.         */
 for (const ev of ["input", "change"]) {
-  styleBox.addEventListener(ev, e => touchControl(e.target));
+  styleBox.addEventListener(ev, e => touchControl(e.target), true); /* capture: antes que cada control */
 }
 
 /* ---------- Perímetro y área (solo lectura) ---------- */
@@ -1180,7 +1213,7 @@ function renderMeasureValues() {
 function readImageOverlayControls() {
   styleDraft.opacity = Number($id("io-opacity").value);
 }
-$id("io-opacity").addEventListener("input", () => { if (styleDraft) readImageOverlayControls(); });
+$id("io-opacity").addEventListener("input", () => { if (styleDraft) { readImageOverlayControls(); schedulePreview(); } });
 
 $id("style-cancel").addEventListener("click", () => closeStyleDialog(false));
 /* Extraída del listener de "Aceptar" para que finishRoute (52-measure.js)
@@ -1199,30 +1232,41 @@ function acceptStyleDialog() {
   } else if (nombre) {
     for (const t of styleTargets) setNodeName(t, nombre);
   }
-  if (styleKindOpen === "marker") {
-    readMarkerControls();
-    if (posMarker) {
-      const { lat, lon } = markCoordValidity();
-      if (!isFinite(lat) || !isFinite(lon)) {
-        navMessage("Coordenadas no v\u00E1lidas: revise la latitud y la longitud.");
-        return; /* keep the dialog open so the value can be fixed */
-      }
-      styleDraft.lat = lat;
-      styleDraft.lng = lon;
-      posMarker.setLatLng([lat, lon]);
-      invalidateGeo(styleTargets[0]);
+  readStyleControls();
+  if (styleKindOpen === "marker" && posMarker) {
+    const { lat, lon } = markCoordValidity();
+    if (!isFinite(lat) || !isFinite(lon)) {
+      navMessage("Coordenadas no v\u00E1lidas: revise la latitud y la longitud.");
+      return; /* keep the dialog open so the value can be fixed */
     }
-    /* lat/lng live in the draft for the dialog only; they are a property
-       of the geometry, not of the style, so they never reach _mstyle.
-       Lo que no coincidía entre los nodos y nadie ha tocado se queda
-       como estaba en cada uno (draftProps).                           */
+    styleDraft.lat = lat;
+    styleDraft.lng = lon;
+    posMarker.setLatLng([lat, lon]);
+    invalidateGeo(styleTargets[0]);
+  }
+  applyDraftToTargets();
+  scheduleSave();
+  closeStyleDialog(true);
+}
+
+/* Vuelca el borrador en cada nodo. Lo usan Aceptar y la vista previa en
+   vivo: los cambios de estilo se ven en el mapa AL MOMENTO y Cancelar los
+   deshace desde `styleSnapshot` (`restoreStyleSnapshot`). lat/lng viven en
+   el borrador solo para el diálogo; son geometría, no estilo, y nunca
+   llegan a `_mstyle`. Lo que no coincidía entre los nodos y nadie ha
+   tocado se queda como estaba en cada uno (draftProps).                */
+function applyDraftToTargets() {
+  stylePreviewed = true;
+  /* Base = estilo con el que se abrió el diálogo, no el que dejó la vista
+     previa anterior: lo que deja de aplicarse (un selector cancelado sobre
+     una propiedad mezclada) vuelve así solo al valor de cada nodo.     */
+  if (styleKindOpen === "marker") {
     const pick = draftProps(["icon", "color", "size", "textSize", "textColor", "textAlways"]);
     for (const t of styleTargets) {
-      t._mstyle = { ...DEFAULT_MARKER_STYLE, ...(t._mstyle || {}), ...pick };
+      t._mstyle = { ...DEFAULT_MARKER_STYLE, ...(styleSnapshot.get(t).mstyle || {}), ...pick };
       applyMarkerStyle(t);
     }
   } else if (styleKindOpen === "polygon") {
-    readPolygonControls();
     const pick = draftProps(["weight", "color", "fillColor", "fillOpacity", "textAlways"]);
     /* El modo son dos booleanos que viajan juntos: o se aplican los dos
        o no se toca ninguno, o un nodo podría quedarse sin contorno NI
@@ -1232,36 +1276,84 @@ function acceptStyleDialog() {
       pick.fill = styleDraft.fill;
     }
     for (const t of styleTargets) {
-      t._style = { ...normalizePathStyle(t._style), ...pick };
+      t._style = { ...normalizePathStyle(styleSnapshot.get(t).style), ...pick };
       applyPolygonStyle(t);
     }
   } else if (styleKindOpen === "measure") {
-    readMeasureControls();
     const pick = draftProps(["weight", "color", "fillColor", "fillOpacity", "showLabels"]);
     for (const t of styleTargets) {
       /* El relleno se decide por capa, no en el diálogo: una selección
          puede mezclar líneas y círculos, y un trazo abierto relleno
          obliga a Leaflet a cerrarlo por su cuenta (misma regla que
          clearFillOnOpenPaths aplica en la propia capa).              */
-      t._style = { ...normalizePathStyle(t._style), ...pick,
+      t._style = { ...normalizePathStyle(styleSnapshot.get(t).style), ...pick,
         fill: t._measure.type === "circle" && styleDraft.fill !== false };
       applyPolygonStyle(t); /* una medición es un trazo más: mismo camino */
       t._measure.style = t._style; /* el registro pendiente lo serializa desde aquí */
       setMeasureLabelsVisible(t._measure, t._style.showLabels);
     }
   } else {
-    readImageOverlayControls();
     const pick = draftProps(["opacity"]);
-    if ("opacity" in pick) {
-      for (const t of styleTargets) {
-        t._imageOverlay.opacity = pick.opacity;
-        const layer = nodeLayer(t);
-        if (layer) layer.setOpacity(pick.opacity);
-      }
+    for (const t of styleTargets) {
+      const op = "opacity" in pick ? pick.opacity : styleSnapshot.get(t).opacity;
+      t._imageOverlay.opacity = op;
+      const layer = nodeLayer(t);
+      if (layer) layer.setOpacity(op);
     }
   }
+}
+
+/* Una repintada por fotograma: un deslizador o el arrastre en el espectro
+   de color disparan decenas de eventos por segundo, y aplicar el estilo
+   reconstruye iconos y tooltips.                                       */
+function schedulePreview() {
+  if (previewFrame || !styleDraft) return;
+  previewFrame = requestAnimationFrame(() => {
+    previewFrame = null;
+    if (styleDraft) applyDraftToTargets();
+  });
+}
+
+/* Cancelar: cada nodo vuelve al estilo con el que se abrió el diálogo,
+   por el mismo camino que la vista previa (los `apply*`). */
+function restoreStyleSnapshot() {
+  if (!styleSnapshot || !stylePreviewed) return;
+  for (const [t, snap] of styleSnapshot) {
+    if (styleKindOpen === "marker") {
+      t._mstyle = snap.mstyle;
+      applyMarkerStyle(t);
+    } else if (styleKindOpen === "polygon") {
+      t._style = snap.style;
+      applyPolygonStyle(t);
+    } else if (styleKindOpen === "measure") {
+      t._style = snap.style;
+      applyPolygonStyle(t);
+      t._measure.style = t._style;
+      setMeasureLabelsVisible(t._measure, normalizePathStyle(t._style).showLabels !== false);
+    } else {
+      t._imageOverlay.opacity = snap.opacity;
+      const layer = nodeLayer(t);
+      if (layer) layer.setOpacity(snap.opacity);
+    }
+  }
+  /* un guardado automático pudo coincidir con la vista previa */
   scheduleSave();
-  closeStyleDialog(true);
+}
+
+/* Vista previa de un selector de color del diálogo (lo llama
+   `defaultColorPreview`, incluida la restitución al cancelar el
+   popover): el color llega al mapa, y la propiedad cuenta como probada
+   mientras difiera del original — así un selector cancelado sobre una
+   propiedad mezclada devuelve a CADA nodo su propio valor. */
+function previewColorControl(btn, hex) {
+  if (!styleDraft) return;
+  const prop = CONTROL_PROP[btn.id];
+  if (prop) {
+    if (hex === colorOriginal && !styleTouched.has(prop)) styleLivePreview.delete(prop);
+    else styleLivePreview.add(prop);
+  }
+  readStyleControls();
+  schedulePreview();
 }
 $id("style-accept").addEventListener("click", acceptStyleDialog);
 
@@ -1294,25 +1386,44 @@ function buildIconGrid(color) {
         for (const other of grid.querySelectorAll(".icon-opt")) {
           other.classList.toggle("chosen", other === b);
         }
+        previewIcon(name);
       });
       box.appendChild(b);
     }
     grid.appendChild(box);
   }
 }
+/* El icono también se ve en el mapa al pulsarlo en la rejilla; cancelar el
+   selector devuelve el que había al abrirlo (`iconOriginal`).          */
+let iconOriginal = null;
+function previewIcon(name) {
+  if (!styleDraft) return;
+  styleDraft.icon = name;
+  styleLivePreview.add("icon");
+  $id("icon-preview").src = iconUrl(name, colorOf($id("mk-color")), 20);
+  schedulePreview();
+}
 $id("icon-preview-btn").addEventListener("click", () => {
   if (!styleDraft) return;
+  iconOriginal = styleDraft.icon;
   pendingIcon = styleDraft.icon;
   buildIconGrid(colorOf($id("mk-color")));
   iconPicker.hidden = false;
   clampToViewport(iconBox);
   focusDialog(iconBox);
 });
-$id("icon-cancel").addEventListener("click", () => {
+function cancelIconPicker() {
+  if (styleDraft && iconOriginal) {
+    styleDraft.icon = iconOriginal;
+    styleLivePreview.delete("icon");
+    $id("icon-preview").src = iconUrl(iconOriginal, colorOf($id("mk-color")), 20);
+    schedulePreview();
+  }
   iconPicker.hidden = true;
   pendingIcon = null;
   releaseFocus();
-});
+}
+$id("icon-cancel").addEventListener("click", cancelIconPicker);
 $id("icon-accept").addEventListener("click", () => {
   if (styleDraft && pendingIcon) {
     styleDraft.icon = pendingIcon;

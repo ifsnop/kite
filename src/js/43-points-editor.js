@@ -938,15 +938,16 @@ function setColorButton(btn, hex) {
 }
 const colorOf = btn => btn.dataset.color || "#000000";
 
-/* Default preview, for the six style-dialog buttons: only the button's
-   swatch (and, for a marker's colour, its icon preview) changes — never
-   styleDraft and never the live layer, which still waits for the outer
-   dialog's own "Aceptar".                                             */
+/* Default preview, for the style-dialog colour buttons: the swatch, the
+   marker's icon preview and — live — the layer itself (`previewColorControl`,
+   44-dialogs.js). Cancelling the popover re-runs this with the original
+   hex, and the outer dialog's own "Cancelar" restores the snapshot.     */
 function defaultColorPreview(btn, hex) {
   setColorButton(btn, hex);
   if (btn.id === "mk-color" && styleDraft) {
     document.getElementById("icon-preview").src = iconUrl(styleDraft.icon, hex, 20);
   }
+  previewColorControl(btn, hex);
 }
 /* Default commit: the visual value is already there (defaultColorPreview
    put it there), so this only makes it part of the draft for real — the

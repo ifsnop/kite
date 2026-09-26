@@ -1,7 +1,7 @@
 /* Menú contextual del visor: «Editar propiedades», nuevo.
 
    Ya había «Ir al nodo en el panel» y, si la capa tiene algo que
-   enseñar, «Mostrar propiedades» (el panel de SOLO LECTURA de la ficha
+   enseñar, «Mostrar atributos» (el panel de SOLO LECTURA de la ficha
    KML/`properties`, `showLayerInfo`). Pedido: un acceso directo al
    diálogo de ESTILOS (el que abren el botón 🎨 o Alt+Intro) desde el
    propio menú contextual, para no tener que ir al árbol primero. Se
@@ -45,8 +45,8 @@ const menu = await page.evaluate(() => {
 });
 ok(!menu.hidden, "clic derecho sobre el polígono abre el menú contextual");
 ok(menu.items.includes("Editar propiedades"), "y ofrece «Editar propiedades»: " + JSON.stringify(menu.items));
-ok(menu.items.includes("Mostrar propiedades") === false || menu.items.includes("Editar propiedades"),
-  "distinto de «Mostrar propiedades» (nombres no colisionan)");
+ok(menu.items.includes("Mostrar atributos") === false || menu.items.includes("Editar propiedades"),
+  "distinto de «Mostrar atributos» (nombres no colisionan)");
 
 /* Pulsarlo abre el diálogo de estilos, mostrando ESTA capa */
 await page.evaluate(() => {
@@ -63,6 +63,23 @@ ok(opened.dialogOpen, "«Editar propiedades» abre el diálogo de estilos");
 ok(opened.title.includes("Parcela contextual"), "mostrando la capa correcta: " + opened.title);
 ok(opened.menuClosedAfter, "y cierra el menú contextual al elegir la acción");
 
+await page.evaluate(() => closeStyleDialog(true));
+
+/* La ficha de atributos lleva un botón que salta a la edición */
+const ficha = await page.evaluate(() => {
+  const li = [...document.querySelectorAll("#tree li")].find(x => x._name === "Parcela contextual");
+  li._desc = "<p>Descripción</p>";
+  showLayerInfo(li);
+  return { visible: !descDialog.hidden, boton: !document.getElementById("desc-edit").hidden };
+});
+ok(ficha.visible && ficha.boton, "la ficha de atributos ofrece «Editar propiedades» para una capa editable");
+await page.click("#desc-edit");
+const trasEditar = await page.evaluate(() => ({
+  ficha: descDialog.hidden, estilo: !styleDialog.hidden,
+  titulo: document.getElementById("style-title").textContent
+}));
+ok(trasEditar.ficha && trasEditar.estilo && trasEditar.titulo.includes("Parcela contextual"),
+  "cierra la ficha y abre el diálogo de estilos de esa capa: " + JSON.stringify(trasEditar));
 await page.evaluate(() => closeStyleDialog(true));
 
 /* Clic derecho en un punto del mapa SIN ninguna capa debajo: menú
