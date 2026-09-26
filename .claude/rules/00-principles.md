@@ -84,7 +84,7 @@ Lo hecho se BORRA de esta lista en cuanto se hace.
 - **Preguntar por ARCHIVO al filtrar etiquetas HTML**: hoy el diálogo
   sale una vez por archivo (KML `<name>` y GeoJSON `properties`);
   cincuenta archivos son cincuenta preguntas. Alternativas si molesta:
-  recordar durante la sesión (como `gnpSessionUsed`), por huella de
+  recordar durante la sesión, por huella de
   archivo, o quitar la pregunta y dejar constancia en el resumen. Sin
   decidir aún.
 - **Comprobación en navegador del minificado es manual**: automatizarla

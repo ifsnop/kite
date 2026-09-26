@@ -3,8 +3,9 @@ const ok = (c, m) => { if (!c) { console.error("FAIL: " + m); process.exitCode =
 
 /* ---------- Elegir la propiedad-nombre (Fase 1) ---------- */
 const nameSrc = between("const GEOJSON_TYPES = new Set(", "async function buildGeoJsonRecords");
-const { geojsonFeatures, needsNamePicker, propsFingerprint, resolveFeatureName } =
-  new Function(nameSrc + "\nreturn {geojsonFeatures, needsNamePicker, propsFingerprint, resolveFeatureName};")();
+const { geojsonFeatures, needsNamePicker, propsFingerprint, composeFeatureName, resolveFeatureName } =
+  new Function(fn("stringifyPropValue") + "\n" + nameSrc
+    + "\nreturn {geojsonFeatures, needsNamePicker, propsFingerprint, composeFeatureName, resolveFeatureName};")();
 
 // geojsonFeatures
 ok(geojsonFeatures({ type: "FeatureCollection", features: [{ type: "Feature" }] }).length === 1,
@@ -22,11 +23,11 @@ threw = false;
 try { geojsonFeatures(null); } catch { threw = true; }
 ok(threw, "no es un objeto: lanza");
 
-// needsNamePicker
+// needsNamePicker: ya no se asume name/title, basta con que haya claves
 ok(needsNamePicker({}) === false, "properties vacío: no hace falta preguntar");
-ok(needsNamePicker({ name: "x" }) === false, "con name: no hace falta preguntar");
-ok(needsNamePicker({ title: "x" }) === false, "con title: no hace falta preguntar");
-ok(needsNamePicker({ ref: "A-04" }) === true, "solo otras claves: hace falta preguntar");
+ok(needsNamePicker({ name: "x" }) === true, "con name también se pregunta: no se asume");
+ok(needsNamePicker({ title: "x" }) === true, "con title también se pregunta: no se asume");
+ok(needsNamePicker({ ref: "A-04" }) === true, "con claves: hace falta preguntar");
 ok(needsNamePicker(null) === false, "no-objeto: no hace falta preguntar");
 
 // propsFingerprint
@@ -36,19 +37,32 @@ ok(propsFingerprint({ a: 1 }) !== propsFingerprint({ b: 1 }),
   "claves distintas: huella distinta");
 ok(propsFingerprint({}) === "[]", "sin claves: huella estable");
 
+// composeFeatureName
+ok(composeFeatureName({ ref: "A-04", mun: "Madrid" }, ["ref", "mun"]) === "A-04 / Madrid",
+  "une los valores con « / » en el orden elegido");
+ok(composeFeatureName({ ref: "A-04", mun: "Madrid" }, ["mun", "ref"]) === "Madrid / A-04",
+  "el orden de las claves manda, no el de las properties");
+ok(composeFeatureName({ ref: "A-04" }, ["ref", "mun"]) === "A-04",
+  "clave ausente: se omite, sin separador colgando");
+ok(composeFeatureName({ ref: "  ", mun: "Madrid" }, ["ref", "mun"]) === "Madrid",
+  "valor vacío o en blanco: se omite");
+ok(composeFeatureName({ n: 7, o: { a: 1 } }, ["n", "o"]) === '7 / {"a":1}',
+  "números y objetos se muestran como en la tabla de properties");
+ok(composeFeatureName({ ref: "x" }, ["otra"]) === "", "ninguna presente: cadena vacía");
+ok(composeFeatureName({ ref: "x" }, null) === "" && composeFeatureName(null, ["ref"]) === "",
+  "sin selección o sin properties: cadena vacía, no lanza");
+
 // resolveFeatureName
-ok(resolveFeatureName({ ref: "A-04" }, 0, "ref") === "A-04",
+ok(resolveFeatureName({ ref: "A-04" }, 0, ["ref"]) === "A-04",
   "usa la propiedad elegida cuando está presente");
-ok(resolveFeatureName({ tipo: "urbano" }, 2, "ref") === "Elemento 3",
-  "si el feature no tiene la clave elegida, cae en el nombrado automático");
-ok(resolveFeatureName({ name: "Casa" }, 0, "ref") === "Casa",
-  "nameProp elegido pero ausente en este feature: cae en name");
-ok(resolveFeatureName({ name: "Casa" }, 0, null) === "Casa",
-  "sin nameProp, usa name como siempre");
-ok(resolveFeatureName({ title: "Casa" }, 0, null) === "Casa",
-  "sin nameProp ni name, usa title como siempre");
+ok(resolveFeatureName({ tipo: "urbano" }, 2, ["ref"]) === "Elemento 3",
+  "si el feature no tiene la clave elegida, cae en Elemento N");
+ok(resolveFeatureName({ name: "Casa" }, 0, ["ref"]) === "Elemento 1",
+  "sin respaldo a name: no se asume como nombre");
+ok(resolveFeatureName({ name: "Casa" }, 0, null) === "Elemento 1",
+  "sin selección, name tampoco se usa");
 ok(resolveFeatureName({}, 4, null) === "Elemento 5",
-  "sin nada, cae en Elemento N (1-based)");
+  "sin nada, Elemento N (1-based)");
 
 /* ---------- Tabla de properties (Fase 3) ---------- */
 const propSrc = between("const escapeHtml = s =>", "function infoHtmlFor");

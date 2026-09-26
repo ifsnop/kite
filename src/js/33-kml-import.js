@@ -203,11 +203,10 @@ function removeDuplicatePlacemarks(groups) {
      agruparía nunca. Es el mismo criterio que el `if (!name) continue`
      del KML, donde un Placemark sin `<name>` tampoco entra en ningún
      grupo.                                                             */
-function featureDupName(props, nameProp) {
-  const name = (nameProp && props[nameProp]) || props.name || props.title;
-  return name ? String(name) : null;
+function featureDupName(props, nameKeys) {
+  return composeFeatureName(props, nameKeys) || null;
 }
-function findDuplicateFeatures(features, nameProp) {
+function findDuplicateFeatures(features, nameKeys) {
   const groups = new Map(); /* "name|lat|lng" -> [Feature] */
   for (const f of features) {
     const geom = f && f.geometry;
@@ -215,7 +214,7 @@ function findDuplicateFeatures(features, nameProp) {
     const [lng, lat] = geom.coordinates || [];
     if (!Number.isFinite(lat) || !Number.isFinite(lng)) continue;
     const props = (typeof f.properties === "object" && f.properties) || {};
-    const name = featureDupName(props, nameProp);
+    const name = featureDupName(props, nameKeys);
     if (!name) continue;
     const key = `${name}|${lat.toFixed(DUP_POS_DECIMALS)}|${lng.toFixed(DUP_POS_DECIMALS)}`;
     if (!groups.has(key)) groups.set(key, []);
@@ -260,16 +259,22 @@ function parseKmlDocument(content) {
   throw new Error(`XML no v\u00E1lido: ${why}`);
 }
 
-/* Asociaciones huella-de-properties → propiedad-nombre, cargadas
-   perezosamente desde IndexedDB (ver dbLoadGnp) la primera vez que
-   hace falta. gnpSessionUsed recuerda qué huellas ya se confirmaron en
-   ESTA carga de página, para no volver a preguntar por ellas dentro de
-   la misma sesión. addFileNode tiene un único punto de llamada y
-   siempre se espera con await dentro del bucle secuencial de
-   handleDroppedFiles, así que no hay condición de carrera entre
+/* Asociaciones huella-de-properties → claves-nombre (array ordenado),
+   cargadas perezosamente desde IndexedDB (ver dbLoadGnp) la primera vez
+   que hace falta. Una forma ya guardada se aplica SIN preguntar (se
+   cambia desde el panel Propiedades); addFileNode tiene un único punto
+   de llamada y siempre se espera con await dentro del bucle secuencial
+   de handleDroppedFiles, así que no hay condición de carrera entre
    importaciones concurrentes sobre este estado compartido.           */
 let gnpStore = null;
-const gnpSessionUsed = new Set();
+
+/* El usuario cerró el selector de nombre sin elegir: se aborta la carga
+   de ESE archivo (handleDroppedFiles lo distingue de un fallo real).   */
+function importCancelled() {
+  const err = new Error("carga cancelada");
+  err.cancelled = true;
+  return err;
+}
 
 /* Importa un archivo: crea su sección y construye su contenido.
    Para archivos grandes muestra las fases 2 y 3 del progreso:
@@ -354,20 +359,19 @@ async function addFileNode(name, kind, content, insertBefore = null, dropTargetU
         }
       }
       const firstProps = (features[0] && typeof features[0].properties === "object" && features[0].properties) || {};
-      let nameProp = null;
+      let nameKeys = null;
       if (needsNamePicker(firstProps)) {
         if (!gnpStore) gnpStore = await dbLoadGnp();
         const fp = propsFingerprint(firstProps);
         const stored = gnpStore[fp] || null;
-        if (stored && gnpSessionUsed.has(fp)) {
-          nameProp = stored; /* ya confirmada esta sesi\u00f3n: se aplica sin preguntar */
+        if (stored) {
+          nameKeys = stored;
+          navMessage(`\u00AB${name}\u00BB: nombre de los elementos seg\u00FAn la selecci\u00F3n guardada (${stored.join(NAME_JOIN)})`, { tone: "info" });
         } else {
-          nameProp = await pickNameProperty(firstProps, name, stored);
-          if (nameProp) {
-            gnpStore[fp] = nameProp;
-            gnpSessionUsed.add(fp);
-            await dbSaveGnp(gnpStore);
-          }
+          nameKeys = await pickNameProperty(Object.keys(firstProps), name, { sample: firstProps });
+          if (!nameKeys) throw importCancelled();
+          gnpStore[fp] = nameKeys;
+          await dbSaveGnp(gnpStore);
         }
       }
       /* DESPU\u00c9S del selector de propiedad-nombre: el nombre es media
@@ -375,7 +379,7 @@ async function addFileNode(name, kind, content, insertBefore = null, dropTargetU
          nombre que el usuario todav\u00eda no ha elegido. Misma pregunta y
          mismo di\u00e1logo que en KML, una sola vez por archivo y v\u00e1lida
          para todos sus grupos.                                        */
-      const dupGroups = findDuplicateFeatures(features, nameProp);
+      const dupGroups = findDuplicateFeatures(features, nameKeys);
       if (dupGroups.length) {
         if (await confirmMergeDuplicates(name, dupGroups)) {
           const removed = removeDuplicateFeatures(gj, dupGroups);
@@ -390,7 +394,7 @@ async function addFileNode(name, kind, content, insertBefore = null, dropTargetU
         update: d => progress.set(100 * d / total,
           `Construyendo capas de ${name}\u2026 (${d}/${total})`)
       } : null;
-      const records = await buildGeoJsonRecords(gj, prog, report, nameProp);
+      const records = await buildGeoJsonRecords(gj, prog, report, nameKeys);
       /* los GeoJSON arrancan colapsados SIEMPRE: nunca hace falta
          materializar sus filas al importar, van directas a pendientes  */
       li._pending = records;
@@ -536,6 +540,7 @@ async function handleDroppedFiles(files, insertBefore, dropTargetUl = null) {
       await addFileNode(file.name, kind, content, insertBefore, dropTargetUl, zip);
       scheduleSave();
     } catch (err) {
+      if (err.cancelled) { navMessage(`Carga de \u00AB${file.name}\u00BB cancelada.`, { tone: "info" }); continue; }
       navMessage(`No se pudo cargar \u00AB${file.name}\u00BB (${ext || "sin extensi\u00F3n"}, ${fmtBytes(file.size)}): ${err.message}`);
     } finally {
       if (big) progress.hide();

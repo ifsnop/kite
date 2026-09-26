@@ -61,10 +61,10 @@ for (const [respuesta, botón] of [["Eliminarlas", "ktp-accept"], ["Dejarlas", "
     et("la vista previa del selector de nombre refleja la respuesta: " + JSON.stringify(previa)));
 
   const r = await page.evaluate(async () => {
-    /* Se elige `nombre` como propiedad-nombre y se acepta */
-    const radio = [...document.querySelectorAll("#gnp-list input[name=gnp-key]")]
-      .find(i => i.value === "nombre");
-    radio.checked = true;
+    /* Se marca `nombre` como propiedad-nombre y se acepta */
+    const casilla = [...document.querySelectorAll("#gnp-list .gnp-row")]
+      .find(f => f.dataset.key === "nombre").querySelector("input");
+    casilla.click();
     document.getElementById("gnp-accept").click();
     await window.__import;
     const file = [...document.querySelectorAll("#tree li")].find(x => x._name === "datos.geojson");
