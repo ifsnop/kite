@@ -137,6 +137,12 @@ await esperarResultado();
 e = await estado();
 ok(e.puedeAnadir && !e.botonActivo, "y descargando otra vez se vuelve al mismo sitio");
 await page.click("#url-add");
+/* El GeoJSON trae properties, así que pregunta con qué nombrar los
+   elementos (la primera vez: la respuesta queda guardada y las
+   siguientes importaciones de esta misma forma ya no preguntan).  */
+await page.waitForSelector("#geojson-name-picker:not([hidden])");
+await page.click('#gnp-list .gnp-row[data-key="name"] input');
+await page.click("#gnp-accept");
 await page.waitForTimeout(800);
 /* Todo lo descargado entra en SU carpeta numerada: sin ella el
    resultado depende del formato —un GeoJSON crea envoltorio y un KML

@@ -115,7 +115,7 @@ HTML-LIKE TAGS TESTS OK
 DUPLICATE MARKER TESTS OK
 ```
 
-**Qué cubre:** Fusión de marcadores duplicados —mismo nombre y misma posición—, en los DOS caminos de importación. KML (`findDuplicatePlacemarks`/`removeDuplicatePlacemarks`) y GeoJSON (`featureDupName`/`findDuplicateFeatures`/`removeDuplicateFeatures`), que antes no se miraba: un archivo entraba con sus duplicados dentro y sin preguntar. En el lado GeoJSON, tres trampas propias: las coordenadas van `[lng, lat]` (dos features con los números cambiados de sitio NO son el mismo punto, que es lo que delataría una lectura al revés), sin nombre en las properties no se agrupa —el «Elemento N» de respaldo lo da el índice y no dice nada— y la propiedad elegida en el selector de nombre es la que se compara. Y que el array se filtre EN EL SITIO: quien llamó ya tiene ese mismo array en la mano.
+**Qué cubre:** Fusión de marcadores duplicados —mismo nombre y misma posición—, en los DOS caminos de importación. KML (`findDuplicatePlacemarks`/`removeDuplicatePlacemarks`) y GeoJSON (`featureDupName`/`findDuplicateFeatures`/`removeDuplicateFeatures`), que antes no se miraba: un archivo entraba con sus duplicados dentro y sin preguntar. En el lado GeoJSON (el nombre sale de `composeFeatureName` con las claves elegidas, sin respaldo a `name`/`title`), tres trampas propias: las coordenadas van `[lng, lat]` (dos features con los números cambiados de sitio NO son el mismo punto, que es lo que delataría una lectura al revés), sin nombre en las properties no se agrupa —el «Elemento N» de respaldo lo da el índice y no dice nada— y la propiedad elegida en el selector de nombre es la que se compara. Y que el array se filtre EN EL SITIO: quien llamó ya tiene ese mismo array en la mano.
 
 ### `clamptest.js`
 
@@ -316,7 +316,7 @@ PNG FILENAME TESTS OK
 GEOJSON NAME PICKER / CTX MENU TESTS OK
 ```
 
-**Qué cubre:** `geojsonFeatures`/`needsNamePicker`/`propsFingerprint`/`resolveFeatureName` (elegir y recordar la propiedad-nombre de un GeoJSON ambiguo); `stringifyPropValue`/`propertiesTableHtml` (tabla de `properties` del panel de información, con escapado de entrada hostil); `ctxItemsFor` (menú contextual con una, ninguna o varias capas bajo el cursor: ítems directos frente a submenú) y las TRES envolturas que usa (`goToNodeAndBlink`, `showLayerInfoAndBlink`, `editPropertiesAndBlink`), extraídas de verdad y no stubeadas: que cada acción reciba la capa correcta y que las TRES la hagan parpadear, que con varias superpuestas es lo único que dice cuál se eligió. «Editar propiedades» (el acceso directo al diálogo de estilos desde el menú contextual, pedido explícitamente) solo aparece para una capa de tipo editable (`STYLE_EDITABLE_KINDS`, con `styleKind` stubeado por un `_kind` de mentira en el `li`): con una sola capa editable aparece directo y distinto de «Mostrar atributos»; con varias, solo lista las de tipo editable en su submenú. El clic derecho DE VERDAD sobre el mapa, y que abra el diálogo real, se prueba en `tests/browser/context-menu.mjs`.
+**Qué cubre:** `geojsonFeatures`/`needsNamePicker`/`propsFingerprint`/`composeFeatureName`/`resolveFeatureName` (elegir y recordar las propiedades que componen el nombre de un GeoJSON: se pregunta siempre que haya claves —no se asume `name`/`title`—, varias claves se unen con « / » en el orden elegido, las ausentes o vacías se omiten y sin ninguna sale «Elemento N»); `stringifyPropValue`/`propertiesTableHtml` (tabla de `properties` del panel de información, con escapado de entrada hostil); `ctxItemsFor` (menú contextual con una, ninguna o varias capas bajo el cursor: ítems directos frente a submenú) y las TRES envolturas que usa (`goToNodeAndBlink`, `showLayerInfoAndBlink`, `editPropertiesAndBlink`), extraídas de verdad y no stubeadas: que cada acción reciba la capa correcta y que las TRES la hagan parpadear, que con varias superpuestas es lo único que dice cuál se eligió. «Editar propiedades» (el acceso directo al diálogo de estilos desde el menú contextual, pedido explícitamente) solo aparece para una capa de tipo editable (`STYLE_EDITABLE_KINDS`, con `styleKind` stubeado por un `_kind` de mentira en el `li`): con una sola capa editable aparece directo y distinto de «Mostrar atributos»; con varias, solo lista las de tipo editable en su submenú. El clic derecho DE VERDAD sobre el mapa, y que abra el diálogo real, se prueba en `tests/browser/context-menu.mjs`.
 
 ### `cascadetest.js`
 
@@ -559,6 +559,16 @@ BROWSER CLIPBOARD TESTS OK
 ```
 
 **Qué cubre:** El viaje que ninguna suite de Node puede dar: copiar con Ctrl+C DE VERDAD en un origen y pegar con Ctrl+V DE VERDAD en otro (dos puertos son dos orígenes), por el portapapeles real del sistema. Comprueba que Ctrl+C deja el envoltorio de KITE en el portapapeles, que el segundo origen recibe la carpeta con sus tres puntos y sus tres capas en el mapa, y que pegar FUERA del árbol —en el editor de puntos— no importa nada y deja el JSON en el cuadro de texto, como se acordó. Y la regresión grave del corte: con teclado REAL, que Ctrl+X + Ctrl+V MUEVA —raíz con solo el destino, sin filas marcadas, 4 capas y no 8— porque al escribir en el portapapeles del sistema Ctrl+V leía de vuelta nuestro propio envoltorio y lo trataba como ajeno, que nunca mueve; más la otra mitad, que copiar siga copiando.
+
+### `browser/geojson-name.mjs`
+
+**Salida de `npm test`:**
+```
+── Navegador: nombre de GeoJSON con varias claves, selección guardada sin preguntar, cancelar y cambiarla desde Propiedades
+BROWSER GEOJSON NAME TESTS OK
+```
+
+**Qué cubre:** El flujo completo del selector de nombre, con un archivo que TRAE `name` a propósito para comprobar que no se asume. Aceptar arranca deshabilitado; una casilla por propiedad; cada casilla muestra su número de orden de marcado, desmarcar y volver a marcar renumera, la vista previa muestra la combinación con « / » y omite una clave de valor vacío. Una segunda importación con la misma forma de properties NO pregunta, usa lo guardado y deja constancia en el registro de avisos. Cancelar (botón o Escape) aborta la carga de ESE archivo —no entra en el árbol— con un aviso de cancelación y no de fallo. Desde el panel Propiedades, «Cambiar…» abre el mismo selector con la selección guardada y su orden, el cambio es diferido (Cancelar del panel lo descarta) y tras Aceptar la siguiente importación usa lo nuevo.
 
 ### `browser/geojson-html.mjs`
 

@@ -1132,6 +1132,9 @@
     display: flex; flex-direction: column;
     width: min(92vw, 32rem);
   }
+  /* Por encima del panel Propiedades: se abre desde él al cambiar una
+     asociación guardada (mismo caso que #icon-picker).                */
+  #geojson-name-picker { z-index: 2100; }
   /* El panel Propiedades lleva ALTURA DE PARTIDA explícita, mismo motivo
      que #points-dialog/#log-dialog/#url-dialog: un hijo en `flex: 1`
      sobre un contenedor de altura automática se queda en nada, así que
@@ -1188,6 +1191,12 @@
     font-size: 13px;
   }
   .gnp-row .gnp-key { font-weight: 600; }
+  /* Número de orden de marcado (1, 2, 3…); ancho fijo para que las
+     filas no bailen al marcar/desmarcar.                              */
+  .gnp-row .gnp-order {
+    display: inline-block; min-width: 1.6em; text-align: center;
+    font-size: 12px; font-weight: 600; color: var(--accent);
+  }
   .gnp-row .gnp-val {
     color: var(--muted);
     overflow: hidden;
@@ -1203,7 +1212,7 @@
     border-bottom: 1px solid var(--border);
   }
   .gnp-editor-row .gnp-editor-keys { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  .gnp-editor-row select { font: inherit; }
+  .gnp-editor-row .gnp-editor-sel { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 600; }
   .dlg-row input.bad { border-color: #c0392b; background: #fdf1ef; }
   /* The preview sits outside the button and only its height is fixed, so
      non-square icons (the 25×41 Leaflet pin) keep their aspect ratio */

@@ -44,8 +44,11 @@ paths:
 - Cambiar el formato serializado → sube `TREE_SCHEMA`; cambiar los
   almacenes → sube `DB_VERSION`. En ambos casos lo viejo se descarta.
 - **Nombres de GeoJSON recordados** (`geojsonNameProps`, `GNP_SCHEMA`):
-  mapa de huella de `properties` (`propsFingerprint`) → propiedad
-  elegida como nombre. Ver `import-parsing.md`.
+  mapa de huella de `properties` (`propsFingerprint`) → ARRAY ORDENADO
+  de claves elegidas para componer el nombre (`GNP_SCHEMA` 2; la v1
+  guardaba una sola clave y se descarta al leer; `dbLoadGnp` ignora
+  además entradas cuyo valor no sea un array no vacío de strings). Ver
+  `import-parsing.md`.
 - **Tope de vértices editables** (`vertexEditMax`, `VERTMAX_SCHEMA`):
   número simple, validado al leer (`Number.isInteger` y `> 0`, para que
   no se cuele un tope de 0). Ver `measurements-drawing-vertex-editing.md`.

@@ -1207,6 +1207,9 @@
     display: flex; flex-direction: column;
     width: min(92vw, 32rem);
   }
+  /* Por encima del panel Propiedades: se abre desde él al cambiar una
+     asociación guardada (mismo caso que #icon-picker).                */
+  #geojson-name-picker { z-index: 2100; }
   /* El panel Propiedades lleva ALTURA DE PARTIDA explícita, mismo motivo
      que #points-dialog/#log-dialog/#url-dialog: un hijo en `flex: 1`
      sobre un contenedor de altura automática se queda en nada, así que
@@ -1263,6 +1266,12 @@
     font-size: 13px;
   }
   .gnp-row .gnp-key { font-weight: 600; }
+  /* Número de orden de marcado (1, 2, 3…); ancho fijo para que las
+     filas no bailen al marcar/desmarcar.                              */
+  .gnp-row .gnp-order {
+    display: inline-block; min-width: 1.6em; text-align: center;
+    font-size: 12px; font-weight: 600; color: var(--accent);
+  }
   .gnp-row .gnp-val {
     color: var(--muted);
     overflow: hidden;
@@ -1278,7 +1287,7 @@
     border-bottom: 1px solid var(--border);
   }
   .gnp-editor-row .gnp-editor-keys { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  .gnp-editor-row select { font: inherit; }
+  .gnp-editor-row .gnp-editor-sel { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 600; }
   .dlg-row input.bad { border-color: #c0392b; background: #fdf1ef; }
   /* The preview sits outside the button and only its height is fixed, so
      non-square icons (the 25×41 Leaflet pin) keep their aspect ratio */
@@ -1669,10 +1678,11 @@
     <h2>Elegir nombre</h2>
     <p id="gnp-intro" class="dlg-hint"></p>
     <div class="gnp-list" id="gnp-list"></div>
-    <p class="dlg-hint">Esta elección se recuerda para futuros archivos con esta misma estructura.</p>
+    <p class="dlg-hint" id="gnp-result" aria-live="polite"></p>
+    <p class="dlg-hint" id="gnp-note"></p>
     <div class="dlg-actions">
       <button class="btn" id="gnp-cancel">Cancelar</button>
-      <button class="btn" id="gnp-accept">Aceptar</button>
+      <button class="btn" id="gnp-accept" disabled>Aceptar</button>
     </div>
   </div>
 </div>
@@ -2087,7 +2097,7 @@ map.on("resize", fitWorldMinZoom);
 
 /* Fecha de generación del código (versión): AÑOMESDIAHORAMINUTO.
    Actualizar en cada generación; se muestra junto al crédito de Leaflet. */
-const BUILD = "202609260016";
+const BUILD = "202609262139";
 /* Versión de release (la de package.json, horneada aquí por build.js
    al construir — ver «Versión y releases de GitHub» en CLAUDE.md): a
    diferencia de BUILD, que cambia en CADA generación, esta solo cambia
@@ -4968,12 +4978,11 @@ function geojsonFeatures(gj) {
   throw new Error("no parece un GeoJSON");
 }
 
-/* Un archivo es ambiguo cuando trae properties pero ninguna clave con la
-   que ya sabemos nombrar (name/title): solo entonces hace falta
-   preguntar qué propiedad usar.                                     */
+/* Hay que preguntar (o aplicar lo guardado) siempre que el primer Feature
+   traiga properties con alguna clave: NO se asume que `name` o `title`
+   sean el nombre, lo decide el usuario una vez por forma de properties. */
 function needsNamePicker(props) {
-  return !!(props && typeof props === "object" && Object.keys(props).length
-    && !props.name && !props.title);
+  return !!(props && typeof props === "object" && Object.keys(props).length);
 }
 
 /* Huella de la FORMA de properties (su conjunto de claves, no sus
@@ -4984,20 +4993,37 @@ function propsFingerprint(props) {
   return JSON.stringify(Object.keys(props || {}).sort());
 }
 
-/* nameProp es la clave elegida por el usuario (o recordada); si esa
-   capa concreta no la tiene, se cae en la cadena de siempre.        */
-function resolveFeatureName(props, index, nameProp) {
-  return String((nameProp && props[nameProp]) || props.name || props.title || `Elemento ${index + 1}`);
+/* Separador entre los valores de varias claves elegidas como nombre. */
+const NAME_JOIN = " / ";
+
+/* Une, EN EL ORDEN de `keys`, los valores presentes de esas claves.
+   Una clave ausente o de valor vacío se omite (no deja «A / »); si no
+   queda ninguna devuelve "" y quien llama decide el respaldo.         */
+function composeFeatureName(props, keys) {
+  if (!props || !Array.isArray(keys)) return "";
+  const parts = [];
+  for (const k of keys) {
+    const v = stringifyPropValue(props[k]).trim();
+    if (v) parts.push(v);
+  }
+  return parts.join(NAME_JOIN);
 }
 
-async function buildGeoJsonRecords(gj, prog, report, nameProp = null) {
+/* nameKeys es la lista ordenada elegida por el usuario (o recordada).
+   Sin `name`/`title` de respaldo a propósito: si el elemento no tiene
+   ninguna de esas claves, sale «Elemento N».                         */
+function resolveFeatureName(props, index, nameKeys) {
+  return composeFeatureName(props, nameKeys) || `Elemento ${index + 1}`;
+}
+
+async function buildGeoJsonRecords(gj, prog, report, nameKeys = null) {
   const features = geojsonFeatures(gj);
   const out = [];
 
   for (let i = 0; i < features.length; i++) {
     const feature = features[i];
     const props = (feature && typeof feature.properties === "object" && feature.properties) || {};
-    const name = resolveFeatureName(props, i, nameProp);
+    const name = resolveFeatureName(props, i, nameKeys);
     try {
       if (!feature || !validGeometry(feature.geometry)) {
         if (report) {
@@ -5556,11 +5582,13 @@ async function dbLoadCustomTilesUrl() {
 
 /* ---------- Nombres de GeoJSON recordados por forma de properties ----------
    Otra clave del mismo almacén: huella (JSON de las claves de properties,
-   ordenadas) → nombre de la propiedad elegida por el usuario para esa
-   forma. Así un archivo futuro con la misma forma de properties (esta
-   sesión u otra) no vuelve a preguntar.                              */
+   ordenadas) → ARRAY ORDENADO de claves que el usuario eligió para
+   componer el nombre (se unen con " / "). Un archivo futuro con la misma
+   forma de properties (esta sesión u otra) lo aplica sin preguntar.
+   v2: el valor pasó de una clave (string) a un array; lo guardado en v1
+   se descarta al leer.                                               */
 const GNP_KEY = "geojsonNameProps";
-const GNP_SCHEMA = 1;
+const GNP_SCHEMA = 2;
 
 async function dbSaveGnp(map) {
   const db = await openDb();
@@ -5578,7 +5606,13 @@ async function dbLoadGnp() {
     const rq = tx.objectStore(DB_TREE).get(GNP_KEY);
     rq.onsuccess = () => {
       const rec = rq.result;
-      resolve(rec && rec.v === GNP_SCHEMA && rec.map && typeof rec.map === "object" ? rec.map : {});
+      const out = {};
+      if (rec && rec.v === GNP_SCHEMA && rec.map && typeof rec.map === "object") {
+        for (const [fp, keys] of Object.entries(rec.map)) {
+          if (Array.isArray(keys) && keys.length && keys.every(k => typeof k === "string")) out[fp] = keys;
+        }
+      }
+      resolve(out);
     };
     rq.onerror = () => reject(rq.error);
   });
@@ -6347,11 +6381,10 @@ function removeDuplicatePlacemarks(groups) {
      agruparía nunca. Es el mismo criterio que el `if (!name) continue`
      del KML, donde un Placemark sin `<name>` tampoco entra en ningún
      grupo.                                                             */
-function featureDupName(props, nameProp) {
-  const name = (nameProp && props[nameProp]) || props.name || props.title;
-  return name ? String(name) : null;
+function featureDupName(props, nameKeys) {
+  return composeFeatureName(props, nameKeys) || null;
 }
-function findDuplicateFeatures(features, nameProp) {
+function findDuplicateFeatures(features, nameKeys) {
   const groups = new Map(); /* "name|lat|lng" -> [Feature] */
   for (const f of features) {
     const geom = f && f.geometry;
@@ -6359,7 +6392,7 @@ function findDuplicateFeatures(features, nameProp) {
     const [lng, lat] = geom.coordinates || [];
     if (!Number.isFinite(lat) || !Number.isFinite(lng)) continue;
     const props = (typeof f.properties === "object" && f.properties) || {};
-    const name = featureDupName(props, nameProp);
+    const name = featureDupName(props, nameKeys);
     if (!name) continue;
     const key = `${name}|${lat.toFixed(DUP_POS_DECIMALS)}|${lng.toFixed(DUP_POS_DECIMALS)}`;
     if (!groups.has(key)) groups.set(key, []);
@@ -6404,16 +6437,22 @@ function parseKmlDocument(content) {
   throw new Error(`XML no v\u00E1lido: ${why}`);
 }
 
-/* Asociaciones huella-de-properties → propiedad-nombre, cargadas
-   perezosamente desde IndexedDB (ver dbLoadGnp) la primera vez que
-   hace falta. gnpSessionUsed recuerda qué huellas ya se confirmaron en
-   ESTA carga de página, para no volver a preguntar por ellas dentro de
-   la misma sesión. addFileNode tiene un único punto de llamada y
-   siempre se espera con await dentro del bucle secuencial de
-   handleDroppedFiles, así que no hay condición de carrera entre
+/* Asociaciones huella-de-properties → claves-nombre (array ordenado),
+   cargadas perezosamente desde IndexedDB (ver dbLoadGnp) la primera vez
+   que hace falta. Una forma ya guardada se aplica SIN preguntar (se
+   cambia desde el panel Propiedades); addFileNode tiene un único punto
+   de llamada y siempre se espera con await dentro del bucle secuencial
+   de handleDroppedFiles, así que no hay condición de carrera entre
    importaciones concurrentes sobre este estado compartido.           */
 let gnpStore = null;
-const gnpSessionUsed = new Set();
+
+/* El usuario cerró el selector de nombre sin elegir: se aborta la carga
+   de ESE archivo (handleDroppedFiles lo distingue de un fallo real).   */
+function importCancelled() {
+  const err = new Error("carga cancelada");
+  err.cancelled = true;
+  return err;
+}
 
 /* Importa un archivo: crea su sección y construye su contenido.
    Para archivos grandes muestra las fases 2 y 3 del progreso:
@@ -6498,20 +6537,19 @@ async function addFileNode(name, kind, content, insertBefore = null, dropTargetU
         }
       }
       const firstProps = (features[0] && typeof features[0].properties === "object" && features[0].properties) || {};
-      let nameProp = null;
+      let nameKeys = null;
       if (needsNamePicker(firstProps)) {
         if (!gnpStore) gnpStore = await dbLoadGnp();
         const fp = propsFingerprint(firstProps);
         const stored = gnpStore[fp] || null;
-        if (stored && gnpSessionUsed.has(fp)) {
-          nameProp = stored; /* ya confirmada esta sesi\u00f3n: se aplica sin preguntar */
+        if (stored) {
+          nameKeys = stored;
+          navMessage(`\u00AB${name}\u00BB: nombre de los elementos seg\u00FAn la selecci\u00F3n guardada (${stored.join(NAME_JOIN)})`, { tone: "info" });
         } else {
-          nameProp = await pickNameProperty(firstProps, name, stored);
-          if (nameProp) {
-            gnpStore[fp] = nameProp;
-            gnpSessionUsed.add(fp);
-            await dbSaveGnp(gnpStore);
-          }
+          nameKeys = await pickNameProperty(Object.keys(firstProps), name, { sample: firstProps });
+          if (!nameKeys) throw importCancelled();
+          gnpStore[fp] = nameKeys;
+          await dbSaveGnp(gnpStore);
         }
       }
       /* DESPU\u00c9S del selector de propiedad-nombre: el nombre es media
@@ -6519,7 +6557,7 @@ async function addFileNode(name, kind, content, insertBefore = null, dropTargetU
          nombre que el usuario todav\u00eda no ha elegido. Misma pregunta y
          mismo di\u00e1logo que en KML, una sola vez por archivo y v\u00e1lida
          para todos sus grupos.                                        */
-      const dupGroups = findDuplicateFeatures(features, nameProp);
+      const dupGroups = findDuplicateFeatures(features, nameKeys);
       if (dupGroups.length) {
         if (await confirmMergeDuplicates(name, dupGroups)) {
           const removed = removeDuplicateFeatures(gj, dupGroups);
@@ -6534,7 +6572,7 @@ async function addFileNode(name, kind, content, insertBefore = null, dropTargetU
         update: d => progress.set(100 * d / total,
           `Construyendo capas de ${name}\u2026 (${d}/${total})`)
       } : null;
-      const records = await buildGeoJsonRecords(gj, prog, report, nameProp);
+      const records = await buildGeoJsonRecords(gj, prog, report, nameKeys);
       /* los GeoJSON arrancan colapsados SIEMPRE: nunca hace falta
          materializar sus filas al importar, van directas a pendientes  */
       li._pending = records;
@@ -6680,6 +6718,7 @@ async function handleDroppedFiles(files, insertBefore, dropTargetUl = null) {
       await addFileNode(file.name, kind, content, insertBefore, dropTargetUl, zip);
       scheduleSave();
     } catch (err) {
+      if (err.cancelled) { navMessage(`Carga de \u00AB${file.name}\u00BB cancelada.`, { tone: "info" }); continue; }
       navMessage(`No se pudo cargar \u00AB${file.name}\u00BB (${ext || "sin extensi\u00F3n"}, ${fmtBytes(file.size)}): ${err.message}`);
     } finally {
       if (big) progress.hide();
@@ -9530,17 +9569,24 @@ function confirmMergeDuplicates(fileName, groups) {
 document.getElementById("kdp-cancel").addEventListener("click", () => closeKdpPicker(false));
 document.getElementById("kdp-accept").addEventListener("click", () => closeKdpPicker(true));
 
-/* ---------- Elegir la propiedad-nombre de un GeoJSON ambiguo ----------
+/* ---------- Elegir las propiedades que forman el nombre de un GeoJSON ----------
    addFileNode es async y necesita ESPERAR la elección antes de seguir
    construyendo el árbol: mismo patrón que el diálogo anterior, una
-   Promise en vez de eventos sueltos. Cancelar resuelve con null
-   (nombrado automático de siempre, nada se guarda); Aceptar resuelve
-   con la clave marcada.                                              */
+   Promise en vez de eventos sueltos. Casillas, no radios: el nombre puede
+   combinar varias claves y el ORDEN DE MARCADO es el orden de la
+   combinación (`gnpOrder`; cada casilla muestra su número). Cancelar
+   resuelve con null (quien llama aborta la carga o deja la asociación
+   como estaba); Aceptar, con una copia del array ordenado.            */
 const gnpDialog = document.getElementById("geojson-name-picker");
 const gnpBox = gnpDialog.querySelector(".dlg-box");
 const gnpList = document.getElementById("gnp-list");
 const gnpIntro = document.getElementById("gnp-intro");
+const gnpResult = document.getElementById("gnp-result");
+const gnpNote = document.getElementById("gnp-note");
+const gnpAccept = document.getElementById("gnp-accept");
 let gnpResolve = null;
+let gnpOrder = [];      /* claves marcadas, en orden de marcado */
+let gnpSample = null;   /* properties de muestra para la vista previa (null al editar) */
 
 function gnpPreview(v) {
   const s = stringifyPropValue(v);
@@ -9555,30 +9601,59 @@ function closeGnpPicker(result) {
   if (resolve) resolve(result);
 }
 
-function pickNameProperty(props, fileName, storedKey) {
-  const keys = Object.keys(props);
-  gnpIntro.textContent = storedKey
-    ? `Para archivos con esta misma estructura de propiedades se guardó «${storedKey}» como nombre. Confirma o elige otra:`
-    : `«${fileName}» no tiene una propiedad «name» ni «title». Elige cuál usar como nombre:`;
+/* Repinta números de orden, vista previa y estado de Aceptar. */
+function refreshGnpOrder() {
+  for (const row of gnpList.querySelectorAll(".gnp-row")) {
+    const i = gnpOrder.indexOf(row.dataset.key);
+    row.querySelector(".gnp-order").textContent = i < 0 ? "" : String(i + 1);
+  }
+  gnpAccept.disabled = !gnpOrder.length;
+  if (gnpSample) {
+    gnpResult.textContent = gnpOrder.length
+      ? `Nombre del primer elemento: \u00AB${composeFeatureName(gnpSample, gnpOrder) || "(vac\u00EDo)"}\u00BB`
+      : "";
+  }
+}
+
+/* `keys` = claves ofrecidas; `sample` = properties del primer elemento
+   (vista previa de valores) o null al editar una asociación guardada;
+   `selected` = selección previa, en su orden (solo al editar).       */
+function pickNameProperty(keys, fileName, { sample = null, selected = [] } = {}) {
+  const editing = !sample;
+  gnpIntro.textContent = editing
+    ? "Elige qu\u00E9 propiedades forman el nombre de los elementos. El orden en que las marques es el orden en que se unen con \u00AB / \u00BB."
+    : `Elige qu\u00E9 propiedades de \u00AB${fileName}\u00BB forman el nombre de cada elemento. El orden en que las marques es el orden en que se unen con \u00AB / \u00BB.`;
+  gnpNote.textContent = "Esta elecci\u00F3n se recuerda para futuros archivos con esta misma estructura y se puede cambiar en \uD83C\uDFF7\uFE0F Propiedades \u2192 \u00CDndices de GeoJSON.";
+  gnpSample = sample;
+  gnpOrder = selected.filter(k => keys.includes(k));
   gnpList.innerHTML = "";
-  keys.forEach((k, i) => {
-    const checked = storedKey ? k === storedKey : i === 0;
+  for (const k of keys) {
     const row = document.createElement("label");
     row.className = "gnp-row";
-    row.innerHTML = `<input type="radio" name="gnp-key" value="${escapeHtml(k)}"${checked ? " checked" : ""}>`
+    row.dataset.key = k;
+    row.innerHTML = `<input type="checkbox">`
+      + `<span class="gnp-order"></span>`
       + `<span class="gnp-key">${escapeHtml(k)}</span>`
-      + `<span class="gnp-val">${escapeHtml(gnpPreview(props[k]))}</span>`;
+      + (editing ? "" : `<span class="gnp-val">${escapeHtml(gnpPreview(sample[k]))}</span>`);
+    const box = row.querySelector("input");
+    box.checked = gnpOrder.includes(k);
+    box.addEventListener("change", () => {
+      if (box.checked) gnpOrder.push(k);
+      else gnpOrder = gnpOrder.filter(x => x !== k);
+      refreshGnpOrder();
+    });
     gnpList.appendChild(row);
-  });
+  }
+  gnpResult.textContent = "";
+  refreshGnpOrder();
   gnpDialog.hidden = false;
   clampToViewport(gnpBox);
   focusDialog(gnpBox);
   return new Promise(resolve => { gnpResolve = resolve; });
 }
 document.getElementById("gnp-cancel").addEventListener("click", () => closeGnpPicker(null));
-document.getElementById("gnp-accept").addEventListener("click", () => {
-  const checked = gnpList.querySelector("input[name=gnp-key]:checked");
-  closeGnpPicker(checked ? checked.value : null);
+gnpAccept.addEventListener("click", () => {
+  if (gnpOrder.length) closeGnpPicker([...gnpOrder]);
 });
 
 /* ---------- Style dialog (single instance, deferred editing) ----------
@@ -9681,15 +9756,19 @@ function renderGnpEditor() {
     keysSpan.className = "gnp-editor-keys";
     keysSpan.textContent = keys.join(", ");
     keysSpan.title = keysSpan.textContent;
-    const select = document.createElement("select");
-    for (const k of keys) {
-      const opt = document.createElement("option");
-      opt.value = k;
-      opt.textContent = k;
-      if (k === value) opt.selected = true;
-      select.appendChild(opt);
-    }
-    select.addEventListener("change", () => { propsDraftGnp[fp] = select.value; });
+    const sel = document.createElement("span");
+    sel.className = "gnp-editor-sel";
+    sel.textContent = value.join(NAME_JOIN);
+    sel.title = sel.textContent;
+    const change = document.createElement("button");
+    change.className = "btn";
+    change.textContent = "Cambiar\u2026";
+    change.addEventListener("click", async () => {
+      const picked = await pickNameProperty(keys, "", { selected: value });
+      if (!picked) return;
+      propsDraftGnp[fp] = picked;
+      renderGnpEditor();
+    });
     const del = document.createElement("button");
     del.className = "btn";
     del.textContent = "Borrar";
@@ -9697,7 +9776,7 @@ function renderGnpEditor() {
       delete propsDraftGnp[fp];
       renderGnpEditor();
     });
-    row.append(keysSpan, select, del);
+    row.append(keysSpan, sel, change, del);
     gnpEditorList.appendChild(row);
   }
 }

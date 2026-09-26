@@ -60,12 +60,14 @@ const medidas = await page.evaluate(() => {
       document.getElementById("url-input").value =
         "https://ejemplo.com/descargas/" + "a".repeat(950) + "/datos.geojson";
     },
-    "geojson-name-picker": () => pickNameProperty(
-      Object.fromEntries(Array.from({ length: 60 }, (_, i) => ["clave" + i, "valor " + i])), "a.geojson", null),
+    "geojson-name-picker": () => {
+      const sample = Object.fromEntries(Array.from({ length: 60 }, (_, i) => ["clave" + i, "valor " + i]));
+      pickNameProperty(Object.keys(sample), "a.geojson", { sample });
+    },
     /* Renombrado a "Propiedades": ahora con pestañas, la de nombres de
        GeoJSON es la que puede llenarse de filas y desbordar.           */
     "props-dialog": async () => {
-      gnpStore = Object.fromEntries(Array.from({ length: 40 }, (_, i) => [`["clave${i}"]`, "clave" + i]));
+      gnpStore = Object.fromEntries(Array.from({ length: 40 }, (_, i) => [`["clave${i}"]`, ["clave" + i]]));
       await togglePropsDialog();
     },
     "points-dialog": () => openPointsDialog(liP),

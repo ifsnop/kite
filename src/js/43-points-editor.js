@@ -1358,17 +1358,24 @@ function confirmMergeDuplicates(fileName, groups) {
 document.getElementById("kdp-cancel").addEventListener("click", () => closeKdpPicker(false));
 document.getElementById("kdp-accept").addEventListener("click", () => closeKdpPicker(true));
 
-/* ---------- Elegir la propiedad-nombre de un GeoJSON ambiguo ----------
+/* ---------- Elegir las propiedades que forman el nombre de un GeoJSON ----------
    addFileNode es async y necesita ESPERAR la elección antes de seguir
    construyendo el árbol: mismo patrón que el diálogo anterior, una
-   Promise en vez de eventos sueltos. Cancelar resuelve con null
-   (nombrado automático de siempre, nada se guarda); Aceptar resuelve
-   con la clave marcada.                                              */
+   Promise en vez de eventos sueltos. Casillas, no radios: el nombre puede
+   combinar varias claves y el ORDEN DE MARCADO es el orden de la
+   combinación (`gnpOrder`; cada casilla muestra su número). Cancelar
+   resuelve con null (quien llama aborta la carga o deja la asociación
+   como estaba); Aceptar, con una copia del array ordenado.            */
 const gnpDialog = document.getElementById("geojson-name-picker");
 const gnpBox = gnpDialog.querySelector(".dlg-box");
 const gnpList = document.getElementById("gnp-list");
 const gnpIntro = document.getElementById("gnp-intro");
+const gnpResult = document.getElementById("gnp-result");
+const gnpNote = document.getElementById("gnp-note");
+const gnpAccept = document.getElementById("gnp-accept");
 let gnpResolve = null;
+let gnpOrder = [];      /* claves marcadas, en orden de marcado */
+let gnpSample = null;   /* properties de muestra para la vista previa (null al editar) */
 
 function gnpPreview(v) {
   const s = stringifyPropValue(v);
@@ -1383,30 +1390,59 @@ function closeGnpPicker(result) {
   if (resolve) resolve(result);
 }
 
-function pickNameProperty(props, fileName, storedKey) {
-  const keys = Object.keys(props);
-  gnpIntro.textContent = storedKey
-    ? `Para archivos con esta misma estructura de propiedades se guardó «${storedKey}» como nombre. Confirma o elige otra:`
-    : `«${fileName}» no tiene una propiedad «name» ni «title». Elige cuál usar como nombre:`;
+/* Repinta números de orden, vista previa y estado de Aceptar. */
+function refreshGnpOrder() {
+  for (const row of gnpList.querySelectorAll(".gnp-row")) {
+    const i = gnpOrder.indexOf(row.dataset.key);
+    row.querySelector(".gnp-order").textContent = i < 0 ? "" : String(i + 1);
+  }
+  gnpAccept.disabled = !gnpOrder.length;
+  if (gnpSample) {
+    gnpResult.textContent = gnpOrder.length
+      ? `Nombre del primer elemento: \u00AB${composeFeatureName(gnpSample, gnpOrder) || "(vac\u00EDo)"}\u00BB`
+      : "";
+  }
+}
+
+/* `keys` = claves ofrecidas; `sample` = properties del primer elemento
+   (vista previa de valores) o null al editar una asociación guardada;
+   `selected` = selección previa, en su orden (solo al editar).       */
+function pickNameProperty(keys, fileName, { sample = null, selected = [] } = {}) {
+  const editing = !sample;
+  gnpIntro.textContent = editing
+    ? "Elige qu\u00E9 propiedades forman el nombre de los elementos. El orden en que las marques es el orden en que se unen con \u00AB / \u00BB."
+    : `Elige qu\u00E9 propiedades de \u00AB${fileName}\u00BB forman el nombre de cada elemento. El orden en que las marques es el orden en que se unen con \u00AB / \u00BB.`;
+  gnpNote.textContent = "Esta elecci\u00F3n se recuerda para futuros archivos con esta misma estructura y se puede cambiar en \uD83C\uDFF7\uFE0F Propiedades \u2192 \u00CDndices de GeoJSON.";
+  gnpSample = sample;
+  gnpOrder = selected.filter(k => keys.includes(k));
   gnpList.innerHTML = "";
-  keys.forEach((k, i) => {
-    const checked = storedKey ? k === storedKey : i === 0;
+  for (const k of keys) {
     const row = document.createElement("label");
     row.className = "gnp-row";
-    row.innerHTML = `<input type="radio" name="gnp-key" value="${escapeHtml(k)}"${checked ? " checked" : ""}>`
+    row.dataset.key = k;
+    row.innerHTML = `<input type="checkbox">`
+      + `<span class="gnp-order"></span>`
       + `<span class="gnp-key">${escapeHtml(k)}</span>`
-      + `<span class="gnp-val">${escapeHtml(gnpPreview(props[k]))}</span>`;
+      + (editing ? "" : `<span class="gnp-val">${escapeHtml(gnpPreview(sample[k]))}</span>`);
+    const box = row.querySelector("input");
+    box.checked = gnpOrder.includes(k);
+    box.addEventListener("change", () => {
+      if (box.checked) gnpOrder.push(k);
+      else gnpOrder = gnpOrder.filter(x => x !== k);
+      refreshGnpOrder();
+    });
     gnpList.appendChild(row);
-  });
+  }
+  gnpResult.textContent = "";
+  refreshGnpOrder();
   gnpDialog.hidden = false;
   clampToViewport(gnpBox);
   focusDialog(gnpBox);
   return new Promise(resolve => { gnpResolve = resolve; });
 }
 document.getElementById("gnp-cancel").addEventListener("click", () => closeGnpPicker(null));
-document.getElementById("gnp-accept").addEventListener("click", () => {
-  const checked = gnpList.querySelector("input[name=gnp-key]:checked");
-  closeGnpPicker(checked ? checked.value : null);
+gnpAccept.addEventListener("click", () => {
+  if (gnpOrder.length) closeGnpPicker([...gnpOrder]);
 });
 
 /* ---------- Style dialog (single instance, deferred editing) ----------
@@ -1509,15 +1545,19 @@ function renderGnpEditor() {
     keysSpan.className = "gnp-editor-keys";
     keysSpan.textContent = keys.join(", ");
     keysSpan.title = keysSpan.textContent;
-    const select = document.createElement("select");
-    for (const k of keys) {
-      const opt = document.createElement("option");
-      opt.value = k;
-      opt.textContent = k;
-      if (k === value) opt.selected = true;
-      select.appendChild(opt);
-    }
-    select.addEventListener("change", () => { propsDraftGnp[fp] = select.value; });
+    const sel = document.createElement("span");
+    sel.className = "gnp-editor-sel";
+    sel.textContent = value.join(NAME_JOIN);
+    sel.title = sel.textContent;
+    const change = document.createElement("button");
+    change.className = "btn";
+    change.textContent = "Cambiar\u2026";
+    change.addEventListener("click", async () => {
+      const picked = await pickNameProperty(keys, "", { selected: value });
+      if (!picked) return;
+      propsDraftGnp[fp] = picked;
+      renderGnpEditor();
+    });
     const del = document.createElement("button");
     del.className = "btn";
     del.textContent = "Borrar";
@@ -1525,7 +1565,7 @@ function renderGnpEditor() {
       delete propsDraftGnp[fp];
       renderGnpEditor();
     });
-    row.append(keysSpan, select, del);
+    row.append(keysSpan, sel, change, del);
     gnpEditorList.appendChild(row);
   }
 }

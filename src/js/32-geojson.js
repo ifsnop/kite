@@ -67,12 +67,11 @@ function geojsonFeatures(gj) {
   throw new Error("no parece un GeoJSON");
 }
 
-/* Un archivo es ambiguo cuando trae properties pero ninguna clave con la
-   que ya sabemos nombrar (name/title): solo entonces hace falta
-   preguntar qué propiedad usar.                                     */
+/* Hay que preguntar (o aplicar lo guardado) siempre que el primer Feature
+   traiga properties con alguna clave: NO se asume que `name` o `title`
+   sean el nombre, lo decide el usuario una vez por forma de properties. */
 function needsNamePicker(props) {
-  return !!(props && typeof props === "object" && Object.keys(props).length
-    && !props.name && !props.title);
+  return !!(props && typeof props === "object" && Object.keys(props).length);
 }
 
 /* Huella de la FORMA de properties (su conjunto de claves, no sus
@@ -83,20 +82,37 @@ function propsFingerprint(props) {
   return JSON.stringify(Object.keys(props || {}).sort());
 }
 
-/* nameProp es la clave elegida por el usuario (o recordada); si esa
-   capa concreta no la tiene, se cae en la cadena de siempre.        */
-function resolveFeatureName(props, index, nameProp) {
-  return String((nameProp && props[nameProp]) || props.name || props.title || `Elemento ${index + 1}`);
+/* Separador entre los valores de varias claves elegidas como nombre. */
+const NAME_JOIN = " / ";
+
+/* Une, EN EL ORDEN de `keys`, los valores presentes de esas claves.
+   Una clave ausente o de valor vacío se omite (no deja «A / »); si no
+   queda ninguna devuelve "" y quien llama decide el respaldo.         */
+function composeFeatureName(props, keys) {
+  if (!props || !Array.isArray(keys)) return "";
+  const parts = [];
+  for (const k of keys) {
+    const v = stringifyPropValue(props[k]).trim();
+    if (v) parts.push(v);
+  }
+  return parts.join(NAME_JOIN);
 }
 
-async function buildGeoJsonRecords(gj, prog, report, nameProp = null) {
+/* nameKeys es la lista ordenada elegida por el usuario (o recordada).
+   Sin `name`/`title` de respaldo a propósito: si el elemento no tiene
+   ninguna de esas claves, sale «Elemento N».                         */
+function resolveFeatureName(props, index, nameKeys) {
+  return composeFeatureName(props, nameKeys) || `Elemento ${index + 1}`;
+}
+
+async function buildGeoJsonRecords(gj, prog, report, nameKeys = null) {
   const features = geojsonFeatures(gj);
   const out = [];
 
   for (let i = 0; i < features.length; i++) {
     const feature = features[i];
     const props = (feature && typeof feature.properties === "object" && feature.properties) || {};
-    const name = resolveFeatureName(props, i, nameProp);
+    const name = resolveFeatureName(props, i, nameKeys);
     try {
       if (!feature || !validGeometry(feature.geometry)) {
         if (report) {
@@ -655,11 +671,13 @@ async function dbLoadCustomTilesUrl() {
 
 /* ---------- Nombres de GeoJSON recordados por forma de properties ----------
    Otra clave del mismo almacén: huella (JSON de las claves de properties,
-   ordenadas) → nombre de la propiedad elegida por el usuario para esa
-   forma. Así un archivo futuro con la misma forma de properties (esta
-   sesión u otra) no vuelve a preguntar.                              */
+   ordenadas) → ARRAY ORDENADO de claves que el usuario eligió para
+   componer el nombre (se unen con " / "). Un archivo futuro con la misma
+   forma de properties (esta sesión u otra) lo aplica sin preguntar.
+   v2: el valor pasó de una clave (string) a un array; lo guardado en v1
+   se descarta al leer.                                               */
 const GNP_KEY = "geojsonNameProps";
-const GNP_SCHEMA = 1;
+const GNP_SCHEMA = 2;
 
 async function dbSaveGnp(map) {
   const db = await openDb();
@@ -677,7 +695,13 @@ async function dbLoadGnp() {
     const rq = tx.objectStore(DB_TREE).get(GNP_KEY);
     rq.onsuccess = () => {
       const rec = rq.result;
-      resolve(rec && rec.v === GNP_SCHEMA && rec.map && typeof rec.map === "object" ? rec.map : {});
+      const out = {};
+      if (rec && rec.v === GNP_SCHEMA && rec.map && typeof rec.map === "object") {
+        for (const [fp, keys] of Object.entries(rec.map)) {
+          if (Array.isArray(keys) && keys.length && keys.every(k => typeof k === "string")) out[fp] = keys;
+        }
+      }
+      resolve(out);
     };
     rq.onerror = () => reject(rq.error);
   });
