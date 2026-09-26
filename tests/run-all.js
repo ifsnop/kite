@@ -68,6 +68,7 @@ const BENCH = [["selbench.js", "Coste de seleccionar y de topLevelSelection"]];
 const BROWSER = [
   ["browser/app.mjs", "Navegador: la aplicación arranca y funciona, en los DOS artefactos"],
   ["browser/clipboard.mjs", "Navegador: copiar y pegar entre instancias de distinto origen, con el portapapeles real"],
+  ["browser/sun-times-info.mjs", "Navegador: horas del sol y crepúsculos en la ficha de un marcador con la iluminación real activa"],
   ["browser/geojson-name.mjs", "Navegador: nombre de GeoJSON con varias claves, selección guardada sin preguntar, cancelar y cambiarla desde Propiedades"],
   ["browser/geojson-html.mjs", "Navegador: etiquetas tipo HTML en properties de GeoJSON, de punta a punta"],
   ["browser/dialogs.mjs", "Navegador: las ventanas fijan cabecera y pie, y se redimensionan"],

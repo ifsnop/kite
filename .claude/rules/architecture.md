@@ -41,7 +41,9 @@ paths:
     `map.latLngToContainerPoint` — NINGUNO de los dos vive dentro de un
     pane de Leaflet (`.leaflet-map-pane` no deshace su transformación de
     arrastre al soltar, ver el comentario de `dnOverlay`). Efecto
-    decorativo, sin persistencia.
+    decorativo, sin persistencia. Además aporta a la ficha de un marcador
+    las horas del sol y crepúsculos (`sunTimes`/`sunTimesHtml`, puras y
+    testeadas; ver `style-dialogs-ui.md`, «Ficha del elemento»).
 11. **Controles de vista**: autoescala, ES/IC, retícula, coordenadas.
 12. **Arranque**: restauración del árbol guardado. Al final, para que
     todo esté definido.

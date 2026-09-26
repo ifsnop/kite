@@ -277,8 +277,12 @@ function makeActions(li, sortable, styleable, layer) {
         () => focusOnNode(li));
     btn("\uD83C\uDFA8", "Estilos de la capa", "", () => openStyleDialog(li));
   }
-  if (li._desc || layerProperties(layer)) {
-    btn("\u2139", "Ver informaci\u00F3n de la capa", "", () => showLayerInfo(li));
+  /* Un marcador siempre lleva el botón, oculto mientras no tenga ficha:
+     con la iluminación real activa la gana (horas del sol), y
+     refreshInfoButtons lo muestra/oculta sin reconstruir la fila.      */
+  if (li._desc || layerProperties(layer) || layerKind(layer) === "marker") {
+    btn("\u2139", "Ver informaci\u00F3n de la capa", "info-btn", () => showLayerInfo(li));
+    box.lastChild.hidden = !hasInfo(li, layer);
   }
   btn("\u2191", "Subir", "", () => {
     const prev = li.previousElementSibling;

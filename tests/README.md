@@ -146,7 +146,7 @@ UTM TESTS OK
 DAYNIGHT TESTS OK
 ```
 
-**Qué cubre:** Las funciones puras del efecto de iluminación real (61-daynight.js): `subsolarPoint` contra las declinaciones de referencia de los solsticios (±23,44°) y equinoccios (≈0°) de 2026, y la longitud subsolar cerca de 0° al mediodía UTC; `solarElevationDeg` en el propio punto subsolar (90°), su antípoda (-90°), a 90° de distancia angular sobre el ecuador (0°) y en los polos con el sol sobre el ecuador (0° en ambos); `sublunarPoint` contra el porcentaje de iluminación lunar real publicado por un servicio externo para el 2026-09-25 (luna gibosa creciente, ~97%, derivado aquí de la separación angular entre el punto subsolar y el sublunar) y contra la cota física de la declinación lunar (±~28,6°) en los doce meses de 2026. No prueba el shader WebGL ni las trayectorias/iconos que dibuja sobre el mapa (no son funciones puras, se verifican a mano en el navegador).
+**Qué cubre:** Las funciones puras del efecto de iluminación real (61-daynight.js): `subsolarPoint` contra las declinaciones de referencia de los solsticios (±23,44°) y equinoccios (≈0°) de 2026, y la longitud subsolar cerca de 0° al mediodía UTC; `solarElevationDeg` en el propio punto subsolar (90°), su antípoda (-90°), a 90° de distancia angular sobre el ecuador (0°) y en los polos con el sol sobre el ecuador (0° en ambos); `sublunarPoint` contra el porcentaje de iluminación lunar real publicado por un servicio externo para el 2026-09-25 (luna gibosa creciente, ~97%, derivado aquí de la separación angular entre el punto subsolar y el sublunar) y contra la cota física de la declinación lunar (±~28,6°) en los doce meses de 2026. Y las horas del sol y crepúsculos de la ficha de un marcador (`sunTimes`, `solarNoonMs`, `fmtSunClock`, `utcOffsetLabel`, `sunTimesHtml`): Madrid en el solsticio de junio contra la salida/puesta/mediodía de referencia (comprobados también con el ángulo horario analítico), el orden de los cuatro niveles de crepúsculo, que cada cruce devuelto esté de verdad a la elevación que dice (±0,05°), Wellington (el día solar es el más cercano a `now`, no el de calendario), el sol de medianoche de Tromsø y la noche polar a −78° y −85° (`state` en vez de una hora falsa), el ecuador en el equinoccio, y el formato (redondeo al minuto, `(+1 d)`/`(−1 d)`, `UTC+5:30`). No prueba el shader WebGL ni las trayectorias/iconos que dibuja sobre el mapa (no son funciones puras, se verifican a mano en el navegador).
 
 ### `coordfmt.js`
 
@@ -559,6 +559,16 @@ BROWSER CLIPBOARD TESTS OK
 ```
 
 **Qué cubre:** El viaje que ninguna suite de Node puede dar: copiar con Ctrl+C DE VERDAD en un origen y pegar con Ctrl+V DE VERDAD en otro (dos puertos son dos orígenes), por el portapapeles real del sistema. Comprueba que Ctrl+C deja el envoltorio de KITE en el portapapeles, que el segundo origen recibe la carpeta con sus tres puntos y sus tres capas en el mapa, y que pegar FUERA del árbol —en el editor de puntos— no importa nada y deja el JSON en el cuadro de texto, como se acordó. Y la regresión grave del corte: con teclado REAL, que Ctrl+X + Ctrl+V MUEVA —raíz con solo el destino, sin filas marcadas, 4 capas y no 8— porque al escribir en el portapapeles del sistema Ctrl+V leía de vuelta nuestro propio envoltorio y lo trataba como ajeno, que nunca mueve; más la otra mitad, que copiar siga copiando.
+
+### `browser/sun-times-info.mjs`
+
+**Salida de `npm test`:**
+```
+── Navegador: horas del sol y crepúsculos en la ficha de un marcador con la iluminación real activa
+BROWSER SUN TIMES INFO TESTS OK
+```
+
+**Qué cubre:** Lo que se VE y cuándo, activando la iluminación de verdad (☀, WebGL del navegador de pruebas). Apagada, un marcador sin nada no tiene ficha ni ℹ visible y uno con descripción no lleva la sección. Activa: el ℹ de un marcador sin nada aparece, la ficha trae salida, puesta y los tres crepúsculos con el desfase UTC, y abre con 9 filas desde el botón real; con ficha propia va primero la suya y detrás la sección; una capa con DOS marcadores no la tiene. Pasar el ratón NO abre la ventana en un marcador sin ficha propia y sí en uno con ella; «Mostrar atributos» aparece en el menú contextual. Al apagar vuelve todo a como estaba, y un marcador importado con la iluminación ya activa nace con su ℹ.
 
 ### `browser/geojson-name.mjs`
 
