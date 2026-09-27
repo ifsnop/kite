@@ -1,5 +1,9 @@
 # KITE Local
 
+[![Tests](https://github.com/ifsnop/kite/actions/workflows/tests.yml/badge.svg)](https://github.com/ifsnop/kite/actions/workflows/tests.yml)
+[![Release](https://img.shields.io/github/v/release/ifsnop/kite)](https://github.com/ifsnop/kite/releases/latest)
+[![License: AGPL v3](https://img.shields.io/badge/License-AGPL%20v3-blue.svg)](LICENSE)
+
 **KML Interactive Tree Explorer**
 
 A privacy-first, browser-based viewer and organizer for **KML, KMZ and GeoJSON** files. It preserves nested KML folder structures as an interactive layer tree, runs from one self-contained HTML file, and keeps imported data inside the user's browser.
