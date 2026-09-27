@@ -331,6 +331,7 @@
   .actions button:hover { color: var(--accent); background: #fff; }
   .actions button.delete:hover { color: var(--danger); }
   .actions button.az { font-size: 10px; font-weight: 600; }
+  .actions button[hidden] { display: none; }
   #nav-search {
     padding: 8px 14px;
     border-top: 1px solid var(--border);
@@ -1028,6 +1029,10 @@
   }
   .desc-body td, .desc-body th { border: 1px solid var(--border); padding: 2px 5px; text-align: left; }
   .desc-body img { max-width: 100%; height: auto; }
+  /* Horas del sol (iluminación real): separada de la ficha propia */
+  .desc-body .sun-times { margin-top: 12px; }
+  .desc-body .sun-times p { margin: 2px 0 6px; }
+  .desc-body .sun-table { width: 100%; font-variant-numeric: tabular-nums; }
   .dlg-hint { margin: 6px 0 0; font-size: 12px; color: var(--muted); }
   .dlg-hint.sh-bad { color: var(--danger); }
   /* El resultado de la descarga NO es una nota al pie: es lo que se ha

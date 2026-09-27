@@ -255,7 +255,11 @@ function parseCoord(txt, isLat) {
 /* The single marker of a layer, or null when it has none or several:
    editing a position only makes sense for exactly one marker.        */
 function soleMarker(li) {
-  const layer = nodeLayer(li);
+  return soleMarkerOfLayer(nodeLayer(li));
+}
+/* Por capa y no por nodo: makeActions todavía no tiene la casilla del
+   nodo (nodeLayer(li) aún no la encuentra) cuando decide su botón ℹ. */
+function soleMarkerOfLayer(layer) {
   if (!layer) return null;
   let found = null, count = 0;
   const scan = l => {

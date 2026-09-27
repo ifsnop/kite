@@ -84,6 +84,108 @@ function sublunarPoint(date = new Date()) {
   return { lat: decl, lng };
 }
 
+/* ---------- Horas del sol y crepúsculos en un punto ----------
+   Reutiliza subsolarPoint/solarElevationDeg (misma precisión: minutos,
+   no segundos, de sobra para una ficha informativa). Se busca cada
+   cruce de una elevación dada por BISECCIÓN dentro del día solar en
+   curso: entre el nadir anterior y el mediodía solar (subida) y entre
+   el mediodía y el nadir siguiente (bajada). La elevación es monótona
+   en cada mitad, y así funciona igual en cualquier latitud sin
+   fórmulas de ángulo horario que fallen en los polos.
+
+   «Día solar en curso» = el que tiene su mediodía más cercano a `now`
+   (a lo sumo ±12 h): para un punto lejano al huso del navegador, un día
+   de calendario local mezclaría dos días solares.                     */
+const SUN_HORIZON_DEG = -0.833; /* refracción + semidiámetro del disco */
+const SUN_EVENT_LEVELS = [
+  { dawn: "Crep\u00FAsculo astron\u00F3mico (inicio)", dusk: "Crep\u00FAsculo astron\u00F3mico (fin)", h: -18 },
+  { dawn: "Crep\u00FAsculo n\u00E1utico (inicio)", dusk: "Crep\u00FAsculo n\u00E1utico (fin)", h: -12 },
+  { dawn: "Crep\u00FAsculo civil (inicio)", dusk: "Crep\u00FAsculo civil (fin)", h: -6 },
+  { dawn: "Salida del sol", dusk: "Puesta del sol", h: SUN_HORIZON_DEG }
+];
+
+/* Instante (ms) del mediodía solar más cercano a `nearMs` en la
+   longitud dada: el sol avanza 15°/h hacia el oeste, y unas pocas
+   iteraciones absorben que la ecuación del tiempo cambie mientras tanto. */
+function solarNoonMs(lng, nearMs) {
+  let t = nearMs;
+  for (let i = 0; i < 4; i++) {
+    const sub = subsolarPoint(new Date(t));
+    t += (((sub.lng - lng + 540) % 360) - 180) / 15 * 3600000;
+  }
+  return t;
+}
+
+function sunTimes(lat, lng, now = new Date()) {
+  const HALF_DAY = 12 * 3600000;
+  const el = t => {
+    const s = subsolarPoint(new Date(t));
+    return solarElevationDeg(lat, lng, s.lat, s.lng);
+  };
+  /* Cruce de la elevación h entre a (un extremo) y b (el otro) */
+  const cross = (h, a, b) => {
+    const rising = el(a) < el(b);
+    let lo = a, hi = b;
+    for (let i = 0; i < 24; i++) { /* 12 h / 2^24: por debajo del segundo */
+      const mid = (lo + hi) / 2;
+      if ((el(mid) >= h) === rising) hi = mid; else lo = mid;
+    }
+    return (lo + hi) / 2;
+  };
+  const noon = solarNoonMs(lng, now.getTime());
+  const elNoon = el(noon), elPrev = el(noon - HALF_DAY), elNext = el(noon + HALF_DAY);
+  const levels = SUN_EVENT_LEVELS.map(({ dawn, dusk, h }) => {
+    /* "never": ni al mediodía llega a h; "always": ni en el nadir baja de h */
+    const state = elNoon < h ? "never" : (elPrev >= h && elNext >= h) ? "always" : "ok";
+    return {
+      dawn, dusk, h, state,
+      rise: state === "ok" && elPrev < h ? cross(h, noon - HALF_DAY, noon) : null,
+      set: state === "ok" && elNext < h ? cross(h, noon, noon + HALF_DAY) : null
+    };
+  });
+  return { noon, maxElevation: elNoon, levels };
+}
+
+/* «HH:MM» local del navegador, redondeado al minuto más cercano, con
+   «(+1 d)»/«(−1 d)» si cae en otro día de calendario que `refMs`.     */
+function fmtSunClock(ms, refMs) {
+  const d = new Date(ms + 30000), r = new Date(refMs);
+  const p = n => String(n).padStart(2, "0");
+  const dayDiff = Math.round((Date.UTC(d.getFullYear(), d.getMonth(), d.getDate())
+    - Date.UTC(r.getFullYear(), r.getMonth(), r.getDate())) / 86400000);
+  const sfx = dayDiff === 0 ? "" : dayDiff > 0 ? ` (+${dayDiff} d)` : ` (\u2212${-dayDiff} d)`;
+  return `${p(d.getHours())}:${p(d.getMinutes())}${sfx}`;
+}
+
+/* «UTC+2», «UTC\u22125», «UTC+5:30» */
+function utcOffsetLabel(date) {
+  const off = -date.getTimezoneOffset();
+  const abs = Math.abs(off), h = Math.floor(abs / 60), m = abs % 60;
+  return `UTC${off < 0 ? "\u2212" : "+"}${h}${m ? ":" + String(m).padStart(2, "0") : ""}`;
+}
+
+/* Sección de la ficha con las horas. Solo números y textos propios
+   (nada del archivo del usuario), así que no hay nada que escapar.   */
+function sunTimesHtml(lat, lng, now = new Date()) {
+  const r = sunTimes(lat, lng, now);
+  const ref = now.getTime();
+  const cell = (lv, key) => {
+    if (lv.state === "ok") return lv[key] == null ? "\u2014" : fmtSunClock(lv[key], ref);
+    const never = lv.state === "never";
+    const target = lv.h === SUN_HORIZON_DEG ? (never ? "al horizonte" : "del horizonte") : `${never ? "a" : "de"} \u2212${-lv.h}\u00B0`;
+    return `<span class="dlg-hint">no ocurre: el sol no ${never ? "llega" : "baja"} ${target}</span>`;
+  };
+  const row = (label, value) => `<tr><td>${label}</td><td>${value}</td></tr>`;
+  const rows = [
+    ...r.levels.map(lv => row(lv.dawn, cell(lv, "rise"))),
+    row("Mediod\u00EDa solar", `${fmtSunClock(r.noon, ref)} <span class="dlg-hint">(elevaci\u00F3n ${r.maxElevation.toFixed(1)}\u00B0)</span>`),
+    ...[...r.levels].reverse().map(lv => row(lv.dusk, cell(lv, "set")))
+  ];
+  return '<div class="sun-times"><strong>Sol y crep\u00FAsculos</strong>'
+    + `<p class="dlg-hint">Horas locales del navegador (${utcOffsetLabel(now)}), d\u00EDa solar en curso.</p>`
+    + `<table class="sun-table">${rows.join("")}</table></div>`;
+}
+
 let dayNightOn = false;
 let dnButton = null; /* asignado por el botón de la barra, en 70-view-controls.js */
 let dnCanvas = null, dnGl = null, dnProgram = null, dnUniforms = null;
@@ -358,10 +460,22 @@ function dnTeardown() {
   dnSunLine = dnMoonLine = dnSunIconEl = dnMoonIconEl = null;
 }
 
+/* Sección de la ficha de un marcador con las horas del sol, solo con la
+   iluminación real activa. Con varios marcadores en la capa no hay un
+   único punto del que hablar: no se muestra.                          */
+function sunInfoHtmlFor(li) {
+  if (!dayNightOn) return "";
+  const m = soleMarker(li);
+  if (!m) return "";
+  const { lat, lng } = m.getLatLng();
+  return sunTimesHtml(lat, lng);
+}
+
 /* Interruptor único: no se persiste (como la retícula, es una
    preferencia de VISTA efímera, no de datos — no toca TREE_SCHEMA). */
 function toggleDayNight() {
   dayNightOn = !dayNightOn;
+  refreshInfoButtons(); /* el ℹ de los marcadores aparece/desaparece con la iluminación */
   if (!dayNightOn) {
     dnTeardown();
     if (dnButton) dnButton.classList.remove("active");
@@ -369,6 +483,7 @@ function toggleDayNight() {
   }
   if (!dnInit()) {
     dayNightOn = false;
+    refreshInfoButtons();
     navMessage("Este navegador no admite WebGL: no se puede mostrar la iluminación real.");
     return;
   }

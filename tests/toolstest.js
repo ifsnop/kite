@@ -44,6 +44,7 @@ function buildApi({ hideDelay = 5, guardMs = 5 } = {}) {
   const focusDialog = () => focusDialogCalls.push(true);
   const infoState = { html: "<p>info</p>" };
   const infoHtmlFor = () => infoState.html;
+  const baseInfoHtml = () => infoState.html; /* sin horas del sol: la ficha propia es la misma */
   /* showLayerInfo reaplica el reparto de columnas de la ficha al cambiar
      de capa. Aquí no es lo que se prueba —no hay tabla de properties—,
      así que basta con que exista.                                     */
@@ -56,7 +57,7 @@ function buildApi({ hideDelay = 5, guardMs = 5 } = {}) {
   const api = new Function(
     "LAYER_INFO_HIDE_DELAY", "TOOL_EXIT_HOVER_GUARD_MS", "descDialog", "styleDialog", "descBox",
     "descTitle", "descBody", "toolButtons", "rootGroup", "map", "clampToViewport", "focusDialog",
-    "infoHtmlFor", "applyPropsSplit", "releaseFocus", "refreshDoubleClickZoom",
+    "infoHtmlFor", "baseInfoHtml", "applyPropsSplit", "releaseFocus", "refreshDoubleClickZoom",
     "descEditBtn", "STYLE_EDITABLE_KINDS", "styleKind",
     "let descLayer = null;\n" + src + `
       return {
@@ -65,7 +66,7 @@ function buildApi({ hideDelay = 5, guardMs = 5 } = {}) {
       };
     `
   )(hideDelay, guardMs, descDialog, styleDialog, descBox, descTitle, descBody, toolButtons,
-    rootGroup, map, clampToViewport, focusDialog, infoHtmlFor, applyPropsSplit, releaseFocus,
+    rootGroup, map, clampToViewport, focusDialog, infoHtmlFor, baseInfoHtml, applyPropsSplit, releaseFocus,
     refreshDoubleClickZoom, descEditBtn, STYLE_EDITABLE_KINDS, styleKind);
 
   return { api, focusState, descDialog, styleDialog, descTitle, descBody, infoState, releaseFocusCalls };

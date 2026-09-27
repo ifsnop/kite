@@ -187,12 +187,37 @@ function propertiesTableHtml(props) {
     + ' title="Arrastre para repartir el ancho entre clave y valor"></div></div>';
 }
 
-/* HTML a mostrar en el panel de información de la capa: la ficha KML si
-   la tiene, si no la tabla de properties de GeoJSON si las tiene, si no
-   null (nada que mostrar).                                           */
-function infoHtmlFor(li) {
+/* Ficha propia de la capa: la KML si la tiene, si no la tabla de
+   properties de GeoJSON si las tiene, si no null.                   */
+function baseInfoHtml(li) {
   if (li._desc) return sanitizeHtml(li._desc);
   const props = layerProperties(nodeLayer(li));
   return props ? propertiesTableHtml(props) : null;
+}
+
+/* HTML a mostrar en el panel de información de la capa: su ficha propia
+   más, con la iluminación real activa y un único marcador, las horas
+   del sol y crepúsculos (sunInfoHtmlFor, 61-daynight.js). null = nada
+   que mostrar.                                                       */
+function infoHtmlFor(li) {
+  const base = baseInfoHtml(li);
+  const sun = sunInfoHtmlFor(li);
+  return base == null && !sun ? null : (base || "") + sun;
+}
+
+/* ¿Tiene ficha? Versión barata de `infoHtmlFor(li) != null`, sin
+   construir el HTML: decide si se ve el botón ℹ de la fila.          */
+function hasInfo(li, layer = nodeLayer(li)) {
+  return !!(li._desc || layerProperties(layer) || (dayNightOn && soleMarkerOfLayer(layer)));
+}
+
+/* Al activar/desactivar la iluminación cambia qué marcadores tienen
+   ficha: se reajustan los ℹ de las filas ya construidas (las que se
+   construyan después lo deciden solas en makeActions).               */
+function refreshInfoButtons() {
+  for (const b of document.querySelectorAll(".actions .info-btn")) {
+    const li = b.closest("li");
+    if (li) b.hidden = !hasInfo(li);
+  }
 }
 

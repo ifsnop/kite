@@ -341,6 +341,10 @@ function showLayerInfo(li, { focus = true } = {}) {
   if (focus) layerInfoDismissed = false; /* explicit open: re-arms the hover */
   const html = infoHtmlFor(li);
   if (html == null) return;
+  /* Pasar el ratón solo abre la ficha propia de la capa: que un marcador
+     sin nada más tenga las horas del sol (con la iluminación activa) no
+     debe abrir una ventana cada vez que se cruza uno.                  */
+  if (!focus && baseInfoHtml(li) == null) return;
   descTitle.textContent = li._name;
   descBody.innerHTML = html;
   descLayer = li;
