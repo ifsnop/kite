@@ -644,6 +644,36 @@
     z-index: 2000;
   }
   .dlg-float[hidden] { display: none; }
+  /* La calculadora geodésica va abajo a la derecha: arriba a la derecha
+     está el diálogo de estilos y se taparían entre sí.                 */
+  #geocalc-dialog { top: auto; bottom: 40px; }
+  #geocalc-dialog .dlg-box { width: min(92vw, 30rem); }
+  .geocalc-field { display: flex; gap: 6px; }
+  #geocalc-dialog .dlg-row input[type="number"] { width: 110px; }
+  /* Latitud y longitud van EN LA MISMA LÍNEA (un solo campo cada una, con
+     su texto de ayuda): texto (admite decimal y GMS), de ancho fijo para
+     que las dos quepan junto a la etiqueta.                             */
+  #geocalc-dialog .dlg-row input[type="text"] { flex: none; width: 140px; }
+  /* Las etiquetas largas («Altitud del centro de fases de la antena») no
+     deben empujar los campos fuera de la ventana.                       */
+  #geocalc-dialog .dlg-row > span:first-child { flex: 1 1 auto; min-width: 0; }
+  /* Desplegables de texto largo («Sobre la superficie (nivel del mar)»):
+     el tope de 190px de .dlg-row los cortaba. Solo los sueltos en la fila,
+     no los de unidad, que van dentro de .geocalc-field.                 */
+  #geocalc-dialog .dlg-row > select { max-width: 270px; }
+  /* Zona de resultado de ALTURA RESERVADA: el resultado y el aviso de
+     error se turnan en ella (un aviso borra el resultado), así que ni
+     calcular ni equivocarse hacen crecer la ventana —que está anclada
+     abajo y, al crecer, sube sola—. Tres líneas: el máximo de ambas
+     pestañas (elevación: ángulo, cono y altura corregida; vector GPS:
+     distancia, horizontal y orientación); un aviso, de dos, también cabe. */
+  .geocalc-out { margin-top: 10px; font-size: 13px; min-height: 4.2em; } /* 3 líneas de 1.4em */
+  /* Unidad fija (hPa) junto a un campo: misma altura de línea que un selector */
+  .geocalc-unit { align-self: center; min-width: 3.2em; }
+  .geocalc-out > p { margin: 0; }
+  /* Mismo tamaño que el texto de los campos (.dlg-row, 13px); pre-line:
+     los resultados de varias líneas llevan «\n» en el texto, sin HTML. */
+  .geocalc-result { font-size: 13px; line-height: 1.4; font-weight: 600; white-space: pre-line; }
   /* Sub-dialog of the style dialog always sits above it */
   #icon-picker { z-index: 2100; }
   /* The colour picker is a POPOVER anchored to whichever button opened

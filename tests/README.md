@@ -530,6 +530,16 @@ POLYGON AREA/PERIMETER TESTS OK
 
 **Qué cubre:** Perímetro y área de polígonos (diálogo de propiedades): `ringArea` (fórmula del exceso esférico) contra la aproximación plana de un cuadrado pequeño, invariante al sentido de recorrido, cero con menos de 3 puntos; `ringClosed` (primer y último punto iguales, con tolerancia `COORD_EPS`) distingue un anillo ABC sin repetir el punto de cierre (el caso de algunos JSON) de uno que sí lo repite; `ringPerimeter` con un anillo abierto suma solo los tramos consecutivos (sin el de cierre), con uno cerrado sí lo incluye; `polygonParts` separa exterior/agujeros tanto en un polígono simple como en un multipolígono anidado; área con agujero, calculada a mano y vía `polygonParts`, menor que sin él y próxima a la resta exterior−agujero.
 
+### `geocalc.js`
+
+**Salida de `npm test`:**
+```
+── Calculadora geodésica: elevación, cono, corrección por presión (ISA) y vector GPS, con su validación
+GEOCALC TESTS OK
+```
+
+**Qué cubre:** `elevationAngleDeg` en los tres modelos de la calculadora geodésica. Plano: 45° con Δh = d, 0° con alturas iguales, signo negativo al bajar y ±90° con distancia cero. Esfera y esfera con refracción 4/3: con alturas iguales el ángulo es exactamente −(d/R)/2 (R real o R·4/3), la refracción da menos caída que la esfera sola, a 200 m la esfera coincide con el plano, y un objetivo a nivel del mar justo en el horizonte geométrico se ve a −acos(R/(R+h)). `elevationInputError`: rechaza valores no finitos, distancia negativa, distancia cero con alturas iguales (no hay dirección), una altura en el centro de la Tierra y, solo en los modelos esféricos, más de media vuelta; con distancia cero y alturas distintas es válido. `silenceConeDeg`: complementario de la elevación (90° en la vertical → 0°, horizontal → 90°, sin recortar con elevación negativa) y elevación + cono = 90° en un caso realista. **Caso reportado del cono de silencio** (antena 24,21 m, aeronave 45000 ft, 12,2 NM): la oblicua da `asin(Δh/d)` ≈ 37,3° y la distancia de superficie `atan(Δh/d)` ≈ 31,2° (la diferencia con otras aplicaciones era la interpretación de la distancia, no la fórmula), el modelo de Tierra mueve menos de 0,15° y con el modelo por defecto el resultado es 37° de elevación y 53° de cono. `gpsVector` contra una formulación independiente en cartesianas 3D (ángulo entre radios con `atan2(|a×b|, a·b)`, cuerda como norma de la diferencia y acimut con las componentes este/norte del vector en A) en cinco pares —Madrid→Barcelona, Sídney→Tokio, un cruce de ±180°, un trayecto por el polo y una misma vertical—; referencias a mano (1° de longitud en el ecuador, rumbos 0/90/180/270°); la altitud alarga la cuerda pero no la distancia horizontal; misma vertical da la diferencia de altitudes y orientación `null` (no un 0° falso); y puntos a ~1 cm, donde la ley de los cosenos directa perdería cifras. `gpsVectorError`: valores no numéricos, latitud o longitud fuera de rango y altitud en el centro de la Tierra; los polos son válidos. **Distancia oblicua** (`kind = "slant"`, `surfaceFromSlant`): triángulo 3-4-5 en el plano; oblicua = Δh da ±90°; en esfera y con refracción, una distancia de superficie se convierte en cuerda con OTRA fórmula (coordenadas 2D del objetivo) y el ángulo por oblicua coincide con el de superficie, y `surfaceFromSlant` recupera la distancia; cruce con la cuerda y el arco de `gpsVector` (otro camino de código); a 1 cm no se pierden cifras (el `acos` directo las perdería); a 5 km de altura la cuerda de 1 cm corresponde a un arco a nivel del mar algo menor (factor R/(R+h)); sin tipo = superficie. Validación: oblicua menor que Δh es error (con tolerancia al redondeo de unidades, pero no un 0,1 % menos), 0 con alturas iguales no tiene dirección, mayor que el diámetro es imposible en la esfera (π·R lo es aunque como arco cupiera) y el modelo plano no la limita; el ángulo de un caso imposible es NaN, no un número falso. **Corrección de la altitud por presión (atmósfera estándar ISA):** la presión estándar es EXACTAMENTE 1013.25 hPa (no 1013.1) y el exponente barométrico `g·M/(R*·L)` = 5.25588 (inverso 0.190263); la presión a 0, 1, 2, 5, 10, 11, 15 y 20 km contra la tabla publicada de la atmósfera estándar; continuidad de valor y de pendiente en la tropopausa (11 km); la inversa deshace a la directa cada 500 m de −5 a 20 km, en las dos capas; con la presión estándar la altitud no cambia NI UN BIT, incluso fuera del rango ISA; en el nivel del mar la sensibilidad es 8.324 m/hPa = 27.31 ft/hPa (no los 30 de la regla del pulgar) y baja con la altitud (26.4 ft/hPa a 5000 ft, 20.5 a 45000 ft); una fórmula cerrada independiente por capa (troposfera: `(T0/L)(1 − (p0/QNH)^0.190263)`; estratosfera: `alt + Hs·ln(QNH/p0)` con `Hs = R*·T/(g·M)`); QNH mayor sube y menor baja la altitud verdadera, creciente en QNH y sin saltos al cruzar los 11 km; la presión en el avión es la misma en las dos atmósferas (`QNH·f(h) = p0·f(alt)`). `pressureInputError`: presión no numérica o fuera de 800–1100 hPa, altitud fuera de −5 a 20 km (o que la corrección saque de ahí) con otra presión, y ninguna exigencia con la estándar. Probado por mutación: con 1013.1 como presión estándar fallan la constante y toda la tabla.
+
 ### `toolstest.js`
 
 **Salida de `npm test`:**
@@ -735,68 +745,22 @@ BROWSER UNDO CREATE TESTS OK
 
 **Qué cubre:** Reportado como bug: crear un marcador (📍), dibujar un polígono (⬠), o crear una medición de ruta (⤳) o de círculo (◯) no llamaba a `pushUndo`, así que Ctrl+Z no las deshacía. La suite crea cada uno de los cuatro con gestos reales (clic/doble clic/arrastre, no llamadas directas a la función interna salvo `createPin`, que no es un gesto de arrastre) y comprueba que `undoLast()` lo quita del árbol y `redoLast()` lo devuelve. `pushUndo` se llama justo ANTES de la mutación en cada camino de creación (mismo patrón que ya usan borrar/mover/pegar), no dentro de «Aceptar»/«Cancelar» del diálogo de estilos: la creación ya es una acción completa y guardada desde el momento en que aparece en el árbol. El marcador y la ruta cierran su diálogo de propiedades con «Aceptar» antes de deshacer, para no mezclar esto con si deshacer debe además cerrar un diálogo abierto sobre el nodo que desaparece — cuestión aparte, no la que prueba esta suite.
 
-`selbench.js` no se cuenta entre esas 51: es una medición, no una
-batería de aserciones, y solo se ejecuta con `node tests/run-all.js
---bench` (ver «Ejecutar»). Mismo criterio con su texto: «Coste de seleccionar y de topLevelSelection».
+### `browser/geocalc.mjs`
 
-## Dependencias
-
-- **linkedom** para DOM de HTML.
-- **@xmldom/xmldom** para XML: linkedom no implementa espacios de nombres
-  ni `getElementsByTagName("*")`, y las pruebas del parser darían falsos
-  negativos.
-
-## El extractor común (`_extract.js`)
-
-Toda suite saca lo que prueba del `<script>` de `kitelocal.html` por el
-**mismo** módulo. **Una suite nueva no escribe su propio extractor**:
-
-```js
-const { script, fn, constDecl, between } = require("./_extract");
+**Salida de `npm test`:**
+```
+── Navegador: calculadora geodésica — dos pestañas que se recalculan solas, presión, unidades que convierten, sin crecer y no modal
+BROWSER GEOCALC TESTS OK
 ```
 
-- `fn("nombre")` — la declaración completa de una función.
-- `constDecl("NOMBRE")` — una `const NOMBRE … ;` de una sola sentencia.
-- `between("desde", "hasta")` — un tramo del script entre dos marcadores
-  literales, `desde` incluido y `hasta` excluido.
-- `script` — el texto entero, para lo que no encaje en lo anterior.
+**Qué cubre:** La ventana 📐 de cálculos geodésicos con la interfaz de verdad (clics, teclado, selectores), con los valores esperados calculados aquí aparte con otras fórmulas (vector al objetivo, ley de los cosenos para la oblicua, fórmulas cerradas por capa de la atmósfera).
 
-Antes cada suite se traía su copia de la extracción, y el coste no era la
-duplicación: **cada copia aprendía las trampas por su cuenta, y tarde**.
-Tres funciones llegaron truncadas en silencio a la suite que las probaba
-—`collectWmsLayers`, `deleteNode`/`showLayerInfo` y `navMessage`—, cada
-una por algo que otra suite ya sabía. Las trampas, con su porqué, están
-documentadas en la cabecera de `_extract.js`; en resumen:
+**Estructura:** el botón va justo detrás de 🏷️ Propiedades y la ventana arranca cerrada; solo dos pestañas («Ángulo de elevación» y «Vector GPS»), sin rastro de la del cono (ni ids ni el texto «blanco») y sin botón «Calcular» (el pie solo lleva «Cerrar»); unidades de los campos = las de Propiedades en su orden; partida en pies/pies/NM, esfera + 4/3, distancia oblicua y presión 1013.25 hPa; diálogo no modal con `role` y título.
 
-1. `async` va **antes** de `function`, así que buscar `function NOMBRE(`
-   se lo salta y deja un `await` huérfano.
-2. Una **desestructuración en la firma** (`deleteNode(li, {
-   pruneSelection = true } = {})`) mete pares `{}` en la lista de
-   parámetros: contar llaves desde la primera `{` cierra ahí y devuelve
-   la función cortada antes de su cuerpo. Se salta la lista de
-   parámetros por profundidad de paréntesis y solo después se cuentan
-   llaves.
-3. Un marcador que ya no existe: `indexOf` devuelve `-1` y `slice` lo lee
-   como «uno desde el final», así que renombrar un comentario del código
-   dejaba a la suite con un fragmento verosímil en lugar de un error.
-   `between` y `constDecl` **lanzan**.
+**Ángulo de elevación, cálculo inmediato:** sin datos no hay resultado ni aviso ni marcas rojas, tampoco con un solo dato; el resultado aparece solo al completar el último, con ángulo Y cono de silencio, y cada cambio (distancia, altura, tipo, modelo) lo actualiza al momento. Caso reportado (24,21 m, 45000 ft, 12,2 NM): 37° / cono 53° como oblicua, 31° como superficie, `asin(Δh/d)` en plano, y el modelo de Tierra mueve menos de 0,15°. Cambiar la unidad convierte el valor y solo el suyo (45000 ft ↔ 13716 m, 12.2 NM ↔ 22.5944 km, ida y vuelta sin restos) sin mover el resultado, ni siquiera un instante.
 
-Y la red para la trampa que aún no ha aparecido: **todo lo extraído se
-comprueba que parsea** antes de devolverlo. Es lo que convierte la
-próxima en un error nombrado ahí y no en un fallo raro en la suite.
+**Presión:** con la estándar no hay línea de altura corregida; con QNH 1030 a 45000 ft (estratosfera) el resultado y la tercera línea («Altura de destino corregida: … (+341.xx ft)») coinciden con la fórmula cerrada de esa capa, con signo negativo para QNH 1000, en la unidad de la altura de destino; en troposfera (3000 ft) con la suya. El ORIGEN no se corrige: con alturas iguales y presión estándar el ángulo es 0° y con QNH 1030 solo cuenta lo que sube el destino. Errores: 10 hPa avisa con el rango y marca la presión; presión vacía es «faltan datos» (sin aviso); 30 km con la estándar se calcula (sin corrección) y con otra presión avisa señalando la altura de destino y no la presión; oblicua menor que Δh avisa, igual a Δh da 90° y 0° de cono; distancia negativa avisa.
 
-`run-all.js` no usa el módulo a propósito: también lee el script, pero
-**después** de sus propias guardas (que exista el archivo, y que
-corresponda a `src/`), y requerirlo en la cabecera cambiaría esos avisos
-por un `ENOENT` en crudo.
+**Vector GPS:** parte en m / m / NM con las opciones de Propiedades; Madrid en A y Barcelona en B en GMS (`40° 25' 00.48" N`…) con altitudes 650 y 12, y el resultado YA está al abrir la pestaña, sin tocar nada, igual al cálculo hecho aquí en cartesianas (distancia, distancia horizontal y orientación); latitud y longitud en la misma línea (misma altura, longitud a la derecha); la unidad del resultado (mi, km) y las de las altitudes actúan al instante, y cambiar una altitud recalcula; el selector GMS/decimal convierte las cuatro coordenadas (`40.416800`…), no toca las altitudes, vuelve exactamente a lo de partida, deja un campo ilegible como está y normaliza uno legible escrito en el otro formato; GMS escrito a mano sin espacios; campo vacío = sin resultado ni aviso ni marcas; mismos lat/lon dan «no definida» y no 0°; latitud 95° avisa y marca el campo.
 
-## Convenciones
-
-- Los mensajes de las aserciones describen **qué comportamiento** se
-  espera, no en qué línea está; al fallar, el mensaje debe bastar para
-  entender qué se ha roto.
-- Cuando una prueba nace de un fallo real, el comentario lo dice: sirve
-  para que nadie la "simplifique" sin saber qué protegía.
-- Los tests extraen funciones sueltas por nombre (`fn`), no rangos
-  amplios de texto: extraer rangos arrastraba código con efectos
-  secundarios. Ver «El extractor común».
+**Ventana:** el resultado tiene el tamaño de letra de los campos (numéricos y de texto); la caja mide lo mismo vacía, con 2 líneas, con 3 (presión) y con aviso, en las dos pestañas. No es modal (el centro del mapa no queda tapado y no hay `.dlg-overlay`); se arrastra por el título y, ya arrastrada, la pestaña alta deja «Cerrar» a la vista (antes se salía de la pantalla); Escape y «Cerrar» la cierran; al reabrir conserva lo escrito y los resultados ya están calculados.

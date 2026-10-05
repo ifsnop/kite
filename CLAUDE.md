@@ -40,6 +40,7 @@ nuevo, no que la regla no exista.
 | `measurements-drawing-vertex-editing.md` | Mediciones (ruta/círculo), dibujo de formas, edición interactiva de vértices | `52-measure.js`, `43-points-editor.js` |
 | `marker-icons.md` | Iconos MDI empotrados sin red, cómo ampliar el catálogo | `05-mdi-icons.js`, `fetch-icons.js` |
 | `units-coordinates-properties-panel.md` | Unidad de medida global, formato de coordenadas, panel Propiedades | `44-dialogs.js`, `43-points-editor.js` |
+| `geocalc.md` | Calculadora geodésica (botón 📐): pestañas (elevación con cono y corrección por presión, vector GPS), cálculo inmediato, unidades copiadas de Propiedades, modelos de Tierra | `62-geocalc.js` |
 | `elevation-dem.md` | Modo altura (MDT del IGN) y MDS (Copernicus/WCS) | `60-elevation.js` |
 | `accessibility.md` | ARIA del árbol y de los diálogos | `src/js/**`, `src/index.html` |
 | `persistence-indexeddb.md` | `DB_VERSION`/`TREE_SCHEMA`, serialización del árbol, claves del almacén | `src/js/**` |

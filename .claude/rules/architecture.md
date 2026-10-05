@@ -44,8 +44,13 @@ paths:
     decorativo, sin persistencia. Además aporta a la ficha de un marcador
     las horas del sol y crepúsculos (`sunTimes`/`sunTimesHtml`, puras y
     testeadas; ver `style-dialogs-ui.md`, «Ficha del elemento»).
-11. **Controles de vista**: autoescala, ES/IC, retícula, coordenadas.
-12. **Arranque**: restauración del árbol guardado. Al final, para que
+11. **Calculadora geodésica** (`62-geocalc.js`): ventana flotante con
+    una pestaña por cálculo (ángulo de elevación con cono y corrección
+    por presión, vector GPS), recalculadas solas, sin botón; la lógica
+    pura vive en `51-geodesy.js`.
+    Ver `geocalc.md`.
+12. **Controles de vista**: autoescala, ES/IC, retícula, coordenadas.
+13. **Arranque**: restauración del árbol guardado. Al final, para que
     todo esté definido.
 
 - **«No hay capas cargadas» es una CONCLUSIÓN tras leer IndexedDB, no

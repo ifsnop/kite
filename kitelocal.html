@@ -719,6 +719,36 @@
     z-index: 2000;
   }
   .dlg-float[hidden] { display: none; }
+  /* La calculadora geodésica va abajo a la derecha: arriba a la derecha
+     está el diálogo de estilos y se taparían entre sí.                 */
+  #geocalc-dialog { top: auto; bottom: 40px; }
+  #geocalc-dialog .dlg-box { width: min(92vw, 30rem); }
+  .geocalc-field { display: flex; gap: 6px; }
+  #geocalc-dialog .dlg-row input[type="number"] { width: 110px; }
+  /* Latitud y longitud van EN LA MISMA LÍNEA (un solo campo cada una, con
+     su texto de ayuda): texto (admite decimal y GMS), de ancho fijo para
+     que las dos quepan junto a la etiqueta.                             */
+  #geocalc-dialog .dlg-row input[type="text"] { flex: none; width: 140px; }
+  /* Las etiquetas largas («Altitud del centro de fases de la antena») no
+     deben empujar los campos fuera de la ventana.                       */
+  #geocalc-dialog .dlg-row > span:first-child { flex: 1 1 auto; min-width: 0; }
+  /* Desplegables de texto largo («Sobre la superficie (nivel del mar)»):
+     el tope de 190px de .dlg-row los cortaba. Solo los sueltos en la fila,
+     no los de unidad, que van dentro de .geocalc-field.                 */
+  #geocalc-dialog .dlg-row > select { max-width: 270px; }
+  /* Zona de resultado de ALTURA RESERVADA: el resultado y el aviso de
+     error se turnan en ella (un aviso borra el resultado), así que ni
+     calcular ni equivocarse hacen crecer la ventana —que está anclada
+     abajo y, al crecer, sube sola—. Tres líneas: el máximo de ambas
+     pestañas (elevación: ángulo, cono y altura corregida; vector GPS:
+     distancia, horizontal y orientación); un aviso, de dos, también cabe. */
+  .geocalc-out { margin-top: 10px; font-size: 13px; min-height: 4.2em; } /* 3 líneas de 1.4em */
+  /* Unidad fija (hPa) junto a un campo: misma altura de línea que un selector */
+  .geocalc-unit { align-self: center; min-width: 3.2em; }
+  .geocalc-out > p { margin: 0; }
+  /* Mismo tamaño que el texto de los campos (.dlg-row, 13px); pre-line:
+     los resultados de varias líneas llevan «\n» en el texto, sin HTML. */
+  .geocalc-result { font-size: 13px; line-height: 1.4; font-weight: 600; white-space: pre-line; }
   /* Sub-dialog of the style dialog always sits above it */
   #icon-picker { z-index: 2100; }
   /* The colour picker is a POPOVER anchored to whichever button opened
@@ -1382,6 +1412,8 @@
       <button id="url-btn" class="btn" title="A&#241;adir contenido desde una direcci&#243;n (URL)"
               aria-label="A&#241;adir contenido desde una direcci&#243;n (URL)">🔗</button>
       <button id="gnp-editor-btn" class="btn" title="Propiedades">🏷️</button>
+      <button id="geocalc-btn" class="btn" title="C&#225;lculos geod&#233;sicos"
+              aria-label="C&#225;lculos geod&#233;sicos">📐</button>
       <button id="log-btn" class="btn" title="Registro de avisos">📋</button>
       <button id="help-btn" class="btn" title="Ayuda y atajos de teclado (tecla ?)">?</button>
     </h1>
@@ -1726,6 +1758,66 @@
     <div class="dlg-actions">
       <button class="btn" id="props-cancel">Cancelar</button>
       <button class="btn" id="props-accept">Aceptar</button>
+    </div>
+  </div>
+</div>
+
+<!-- Cálculos geodésicos: una pestaña por cálculo. Flotante y no modal (como
+     el diálogo de estilos) para poder seguir usando el mapa. Los <select>
+     de unidad se rellenan desde #props-unit (62-geocalc.js). Cada panel
+     lleva su propio resultado y su propio aviso de error, y se recalcula
+     SOLO, al cambiar cualquier dato: no hay botón «Calcular». -->
+<div id="geocalc-dialog" class="dlg-float" hidden>
+  <div class="dlg-box">
+    <h2>C&#225;lculos geod&#233;sicos</h2>
+    <div class="dlg-tabs" role="tablist">
+      <button type="button" class="dlg-tab active" id="geocalc-tab-btn-elev" role="tab" aria-selected="true" aria-controls="geocalc-tab-elev">&#193;ngulo de elevaci&#243;n</button>
+      <button type="button" class="dlg-tab" id="geocalc-tab-btn-gps" role="tab" aria-selected="false" aria-controls="geocalc-tab-gps">Vector GPS</button>
+    </div>
+    <div id="geocalc-tab-elev" class="dlg-tabpanel" role="tabpanel">
+      <div class="dlg-row"><span>Altura de origen</span>
+        <span class="geocalc-field"><input type="number" id="geocalc-h1" step="any" aria-label="Altura de origen"><select id="geocalc-h1-unit" aria-label="Unidad de la altura de origen"></select></span></div>
+      <div class="dlg-row"><span>Altura de destino</span>
+        <span class="geocalc-field"><input type="number" id="geocalc-h2" step="any" aria-label="Altura de destino"><select id="geocalc-h2-unit" aria-label="Unidad de la altura de destino"></select></span></div>
+      <div class="dlg-row"><span>Presión atmosférica (QNH)</span>
+        <span class="geocalc-field"><input type="number" id="geocalc-p" step="any" min="0" aria-label="Presión atmosférica a nivel del mar, en hectopascales"><span class="geocalc-unit">hPa</span></span></div>
+      <div class="dlg-row"><span>Distancia</span>
+        <span class="geocalc-field"><input type="number" id="geocalc-d" step="any" min="0" aria-label="Distancia"><select id="geocalc-d-unit" aria-label="Unidad de la distancia"></select></span></div>
+      <div class="dlg-row"><span>Tipo de distancia</span><select id="geocalc-dkind">
+        <option value="slant" selected>Oblicua (entre los dos puntos)</option>
+        <option value="surface">Sobre la superficie (nivel del mar)</option>
+      </select></div>
+      <div class="dlg-row"><span>Modelo de Tierra</span><select id="geocalc-model">
+        <option value="flat">Plano</option>
+        <option value="sphere">Esfera</option>
+        <option value="refr" selected>Esfera + refracci&#243;n (4/3&#183;R)</option>
+      </select></div>
+      <p class="dlg-hint">&#193;ngulo con que se ve el destino desde el origen (0&#176; es la horizontal, positivo hacia arriba) y cono de silencio, que es 90&#176; menos ese &#225;ngulo. La distancia oblicua, la de partida, es la l&#237;nea recta entre los dos puntos a sus alturas; la de superficie es el arco a nivel del mar. La altura de destino se toma como altitud de alt&#237;metro (reglaje est&#225;ndar) y se corrige con la presi&#243;n al nivel del mar (QNH, en hPa o mbar) seg&#250;n la atm&#243;sfera est&#225;ndar; con 1013,25 hPa no cambia. Se recalcula al cambiar cualquier dato.</p>
+      <div class="geocalc-out">
+        <p class="geocalc-result" id="geocalc-elev-result" aria-live="polite"></p>
+        <p class="dlg-hint sh-bad" id="geocalc-error" hidden></p>
+      </div>
+    </div>
+    <div id="geocalc-tab-gps" class="dlg-tabpanel" role="tabpanel" hidden>
+      <div class="dlg-row"><span>Punto A</span>
+        <span class="geocalc-field"><input type="text" id="gps-lat1" autocomplete="off" spellcheck="false" placeholder="Latitud" aria-label="Latitud del punto A"><input type="text" id="gps-lng1" autocomplete="off" spellcheck="false" placeholder="Longitud" aria-label="Longitud del punto A"></span></div>
+      <div class="dlg-row"><span>Altitud A</span>
+        <span class="geocalc-field"><input type="number" id="gps-alt1" step="any" aria-label="Altitud del punto A"><select id="gps-alt1-unit" aria-label="Unidad de la altitud del punto A"></select></span></div>
+      <div class="dlg-row"><span>Punto B</span>
+        <span class="geocalc-field"><input type="text" id="gps-lat2" autocomplete="off" spellcheck="false" placeholder="Latitud" aria-label="Latitud del punto B"><input type="text" id="gps-lng2" autocomplete="off" spellcheck="false" placeholder="Longitud" aria-label="Longitud del punto B"></span></div>
+      <div class="dlg-row"><span>Altitud B</span>
+        <span class="geocalc-field"><input type="number" id="gps-alt2" step="any" aria-label="Altitud del punto B"><select id="gps-alt2-unit" aria-label="Unidad de la altitud del punto B"></select></span></div>
+      <div class="dlg-row"><span>Latitud/longitud</span><select id="gps-coord-format" aria-label="Formato de latitud y longitud"></select></div>
+      <div class="dlg-row"><span>Distancia (resultado en)</span>
+        <span class="geocalc-field"><select id="gps-d-unit" aria-label="Unidad de la distancia del resultado"></select></span></div>
+      <p class="dlg-hint">Latitud y longitud, en grados, minutos y segundos o en grados decimales; al cambiar el formato se convierten los valores escritos. La distancia es la l&#237;nea recta entre A y B teniendo en cuenta las altitudes; la horizontal, el arco sobre la superficie. La orientaci&#243;n es el rumbo inicial de A hacia B: 0&#176; norte, sentido horario.</p>
+      <div class="geocalc-out">
+        <p class="geocalc-result" id="gps-result" aria-live="polite"></p>
+        <p class="dlg-hint sh-bad" id="gps-error" hidden></p>
+      </div>
+    </div>
+    <div class="dlg-actions">
+      <button class="btn" id="geocalc-close">Cerrar</button>
     </div>
   </div>
 </div>
@@ -2102,7 +2194,7 @@ map.on("resize", fitWorldMinZoom);
 
 /* Fecha de generación del código (versión): AÑOMESDIAHORAMINUTO.
    Actualizar en cada generación; se muestra junto al crédito de Leaflet. */
-const BUILD = "202609271159";
+const BUILD = "202610051248";
 /* Versión de release (la de package.json, horneada aquí por build.js
    al construir — ver «Versión y releases de GitHub» en CLAUDE.md): a
    diferencia de BUILD, que cambia en CADA generación, esta solo cambia
@@ -11673,6 +11765,203 @@ const fmtUnitDist = (m, unit) =>
 const fmtUnitArea = (m2, unit) =>
   `${(m2 / POLY_UNIT_FACTOR[unit] ** 2).toFixed(2)} ${POLY_UNIT_LABEL[unit]}²`;
 
+/* ---------- Ángulo de elevación entre dos alturas ----------
+   Refracción atmosférica estándar: la luz y las ondas de radio se curvan
+   hacia abajo, lo que equivale a una Tierra de radio 4/3 el real. Es la
+   convención de radar y radioenlaces, así que es el modelo por defecto
+   de la calculadora geodésica.                                         */
+const REFRACTION_K = 4 / 3;
+
+/* Radio efectivo según el modelo; null para "flat" (sin curvatura). */
+const elevationRadius = model =>
+  model === "flat" ? null : model === "refr" ? EARTH_R * REFRACTION_K : EARTH_R;
+
+/* Distancia sobre la superficie (arco a nivel del mar) equivalente a una
+   distancia OBLICUA s: la recta entre el punto inicial a su altura h1 y
+   el final a su altura h2. Devuelve { d } en metros o { error } si no
+   existe esa geometría. En una esfera de radio R, con r1 = R + h1 y
+   r2 = R + h2, la cuerda cumple s² = (r1−r2)² + 4·r1·r2·sin²(θ/2); de
+   ahí θ = 2·asin(√q) con q = (s² − Δh²)/(4·r1·r2). Se escribe
+   s² − Δh² como (s−Δh)(s+Δh) y se usa asin, no acos de la ley de los
+   cosenos: con puntos cercanos esa resta pierde todas las cifras.
+   En el modelo plano no hay curvatura: d = √(s² − Δh²).
+   Una oblicua apenas menor que Δh (el redondeo de pasar de una unidad a
+   otra) se toma como Δh, es decir, como los dos puntos en la misma
+   vertical; más que eso es imposible: la recta no puede ser más corta
+   que la diferencia de alturas.                                        */
+function surfaceFromSlant(h1, h2, s, model) {
+  const R = elevationRadius(model), dh = Math.abs(h2 - h1);
+  let x = s - dh;
+  if (x < 0) {
+    if (-x > 1e-9 * Math.max(dh, 1)) return { error: "La distancia oblicua no puede ser menor que la diferencia de alturas." };
+    x = 0;
+  }
+  if (R === null) return { d: Math.sqrt(x * (s + dh)) };
+  const q = x * (s + dh) / (4 * (R + h1) * (R + h2));
+  if (q > 1) return { error: "La distancia oblicua supera la máxima posible entre los dos puntos." };
+  return { d: 2 * R * Math.asin(Math.sqrt(q)) };
+}
+
+/* Ángulo (grados, 0 = horizontal, positivo hacia arriba) con que, desde
+   una altura h1, se ve un punto a altura h2 situado a una distancia d.
+   `kind` dice qué es d: "surface" (por defecto), el arco a nivel del mar
+   como el resto de mediciones de la app, o "slant", la distancia oblicua
+   entre los dos puntos a sus alturas (se convierte primero con
+   `surfaceFromSlant`; NaN si no existe). Todo en metros. En una esfera, el observador
+   está en r1 = R + h1 y el objetivo en r2 = R + h2 separados un ángulo
+   central θ = d/R; la horizontal local del observador es perpendicular
+   a su radio, de ahí el atan2 de las componentes.                      */
+function elevationAngleDeg(h1, h2, d, model, kind) {
+  if (kind === "slant") {
+    const r = surfaceFromSlant(h1, h2, d, model);
+    if (r.error) return NaN;
+    d = r.d;
+  }
+  const R = elevationRadius(model);
+  if (R === null) return toDeg(Math.atan2(h2 - h1, d));
+  const th = d / R, r1 = R + h1, r2 = R + h2;
+  return toDeg(Math.atan2(r2 * Math.cos(th) - r1, r2 * Math.sin(th)));
+}
+
+/* Cono de silencio de una antena: el semiángulo, medido desde la
+   vertical, de la zona sobre ella donde no ve un blanco. Es el
+   complementario de la elevación a la que se ve ese blanco: a 90° de
+   elevación (sobre la antena) el cono es 0°; cuanto más bajo se ve el
+   blanco, más ancho es. Sin recortar: con elevación negativa (blanco por
+   debajo del centro de fases) sale mayor de 90°, que es lo que dice la
+   geometría.                                                          */
+const silenceConeDeg = elevDeg => 90 - elevDeg;
+
+/* ---------- Altitud de altímetro → altitud verdadera (presión) ----------
+   Un altímetro con el reglaje estándar (1013,25 hPa) marca la ALTITUD
+   DE PRESIÓN, no la altura real: si la presión al nivel del mar (QNH)
+   no es la estándar, la aeronave está más alta (QNH mayor) o más baja
+   (menor) de lo que marca. Se corrige con la atmósfera estándar
+   internacional (ISA, ICAO Doc 7488 / US Standard Atmosphere 1976), con
+   sus constantes definitorias:
+   - p0 = 101325 Pa = 1013,25 hPa (EXACTO; no 1013,1), T0 = 288,15 K,
+     gradiente 6,5 K/km hasta los 11 km, g = 9,80665 m/s², M = 28,9644
+     g/mol, R* = 8,31432 J/(mol·K) (la de ICAO, no la de CODATA);
+   - troposfera: p/p0 = (1 − L·h/T0)^N con N = g·M/(R*·L) = 5,25588;
+   - de 11 a 20 km, isoterma a 216,65 K: p/p0 = F11·exp(−(h − 11000)/Hs),
+     con Hs = R*·T/(g·M) = 6341,6 m. Necesaria: 45000 ft (13716 m) ya
+     está en la estratosfera, y la fórmula de la troposfera extrapolada
+     daría un resultado falso allí.
+   NO se usa una constante de «30 ft por hPa»: es una regla del pulgar.
+   Lo exacto son 27,31 ft/hPa a nivel del mar (8,324 m/hPa) y baja con la
+   altitud (26,4 a 5000 ft, 20,5 a 45000 ft: la columna de aire de debajo
+   es más fría y se «estira» menos con la presión), y el modelo ya lo
+   da todo.
+   Método: la presión en el avión es la misma en las dos atmósferas
+   (p = p0·f(altitud de presión)); en una atmósfera con el mismo perfil de
+   temperatura pero presión QNH al nivel del mar, esa presión se da a la
+   altura h que cumple QNH·f(h) = p0·f(alt), es decir h = f⁻¹(p0/QNH ·
+   f(alt)). Supone temperatura ISA: la desviación de temperatura real
+   (que también mueve la altitud verdadera) no se modela.              */
+const ISA_P0_HPA = 1013.25;
+const ISA_SEA_T = 288.15;
+const ISA_LAPSE = 0.0065;
+const ISA_G = 9.80665;
+const ISA_MOLAR = 0.0289644;
+const ISA_RGAS = 8.31432;
+const ISA_BARO_N = ISA_G * ISA_MOLAR / (ISA_RGAS * ISA_LAPSE);
+const ISA_TROPO_H = 11000;
+const ISA_TROPO_T = ISA_SEA_T - ISA_LAPSE * ISA_TROPO_H;
+const ISA_TROPO_F = (ISA_TROPO_T / ISA_SEA_T) ** ISA_BARO_N;
+const ISA_STRATO_H = ISA_RGAS * ISA_TROPO_T / (ISA_G * ISA_MOLAR);
+/* Rango en que el modelo es ISA de verdad (troposfera + estratosfera baja) */
+const ISA_ALT_MIN = -5000;
+const ISA_ALT_MAX = 20000;
+/* Récords de presión al nivel del mar: ~870 a ~1085 hPa. Un valor fuera de
+   este margen es casi seguro un error de tecleo.                         */
+const QNH_MIN_HPA = 800;
+const QNH_MAX_HPA = 1100;
+
+/* p/p0 a la altitud h (m) en la atmósfera estándar */
+function isaPressureRatio(h) {
+  return h <= ISA_TROPO_H
+    ? (1 - ISA_LAPSE * h / ISA_SEA_T) ** ISA_BARO_N
+    : ISA_TROPO_F * Math.exp(-(h - ISA_TROPO_H) / ISA_STRATO_H);
+}
+
+/* Inversa de isaPressureRatio: la altitud (m) a la que p/p0 = r */
+function isaAltitudeFromRatio(r) {
+  return r >= ISA_TROPO_F
+    ? ISA_SEA_T / ISA_LAPSE * (1 - r ** (1 / ISA_BARO_N))
+    : ISA_TROPO_H - ISA_STRATO_H * Math.log(r / ISA_TROPO_F);
+}
+
+/* Altitud verdadera (m) de una aeronave que marca `altM` (m, reglaje
+   estándar) con presión `qnhHpa` al nivel del mar. Con la presión
+   estándar devuelve la altitud tal cual, sin pasar por la cuenta: así no
+   hay ruido de coma flotante en el caso por defecto.                  */
+function trueAltitudeM(altM, qnhHpa) {
+  if (qnhHpa === ISA_P0_HPA) return altM;
+  return isaAltitudeFromRatio(ISA_P0_HPA / qnhHpa * isaPressureRatio(altM));
+}
+
+/* Texto de error en español, o null si la corrección es aplicable. Con la
+   presión estándar no hay corrección y no se exige nada a la altitud
+   (el cálculo no cambia respecto de no tener presión).                */
+function pressureInputError(altM, qnhHpa) {
+  if (!Number.isFinite(qnhHpa)) return "Introduce la presión atmosférica.";
+  if (qnhHpa < QNH_MIN_HPA || qnhHpa > QNH_MAX_HPA) {
+    return `La presión al nivel del mar debe estar entre ${QNH_MIN_HPA} y ${QNH_MAX_HPA} hPa.`;
+  }
+  if (qnhHpa === ISA_P0_HPA) return null;
+  const msg = `La corrección por presión solo es válida con la altura de destino entre ${ISA_ALT_MIN / 1000} y ${ISA_ALT_MAX / 1000} km (atmósfera estándar).`;
+  if (!Number.isFinite(altM) || altM < ISA_ALT_MIN || altM > ISA_ALT_MAX) return msg;
+  const h = trueAltitudeM(altM, qnhHpa);
+  return h < ISA_ALT_MIN || h > ISA_ALT_MAX ? msg : null;
+}
+
+/* ---------- Vector entre dos puntos con altitud (vector GPS) ----------
+   a, b = { lat, lng, alt }, grados y metros. Sobre la esfera de la app
+   (EARTH_R), como el resto de la geodesia:
+   - horizontal: arco entre las dos verticales a nivel del mar (la misma
+     distancia que dan las mediciones del mapa);
+   - slant: distancia en LÍNEA RECTA entre los dos puntos en 3D (la
+     cuerda, atravesando la Tierra si hace falta), con las altitudes;
+   - bearing: rumbo inicial de a → b, 0° = norte horario; null si los
+     puntos coinciden en horizontal, donde no hay dirección que dar (y
+     atan2(0, 0) devolvería un 0° falso).
+   `slant² = (r1−r2)² + 4·r1·r2·sin²(θ/2)` y no la ley de los cosenos
+   directa: con puntos cercanos esta forma no pierde cifras por restar
+   dos números casi iguales.                                           */
+function gpsVector(a, b) {
+  const p1 = toRad(a.lat), p2 = toRad(b.lat), dl = toRad(b.lng - a.lng);
+  const s = Math.sin((p2 - p1) / 2) ** 2 + Math.cos(p1) * Math.cos(p2) * Math.sin(dl / 2) ** 2;
+  const theta = 2 * Math.atan2(Math.sqrt(s), Math.sqrt(1 - s));
+  const r1 = EARTH_R + a.alt, r2 = EARTH_R + b.alt;
+  const sinHalf = Math.sin(theta / 2);
+  const slant = Math.sqrt((r1 - r2) ** 2 + 4 * r1 * r2 * sinHalf * sinHalf);
+  const horizontal = theta * EARTH_R;
+  return { horizontal, slant, bearing: horizontal < 0.01 ? null : bearingDeg(a, b) };
+}
+
+/* Texto de error en español, o null si los datos sirven. */
+function gpsVectorError(a, b) {
+  const nums = [a.lat, a.lng, a.alt, b.lat, b.lng, b.alt];
+  if (!nums.every(Number.isFinite)) return "Introduce latitud, longitud y altitud de los dos puntos.";
+  if (Math.abs(a.lat) > 90 || Math.abs(b.lat) > 90) return "La latitud debe estar entre −90° y 90°.";
+  if (Math.abs(a.lng) > 180 || Math.abs(b.lng) > 180) return "La longitud debe estar entre −180° y 180°.";
+  if (Math.min(a.alt, b.alt) <= -EARTH_R) return "Una altitud está por debajo del centro de la Tierra.";
+  return null;
+}
+
+/* Texto de error en español, o null si los datos sirven. */
+function elevationInputError(h1, h2, d, model, kind) {
+  if (![h1, h2, d].every(Number.isFinite)) return "Introduce las dos alturas y la distancia.";
+  if (d < 0) return "La distancia no puede ser negativa.";
+  if (d === 0 && h1 === h2) return "Con distancia cero y alturas iguales no hay dirección.";
+  const R = elevationRadius(model) || EARTH_R;
+  if (Math.min(h1, h2) <= -R) return "Una altura está por debajo del centro de la Tierra.";
+  /* La oblicua se valida al convertirla; la de superficie, contra media vuelta. */
+  if (kind === "slant") return surfaceFromSlant(h1, h2, d, model).error || null;
+  if (model !== "flat" && d > Math.PI * R) return "La distancia supera media vuelta a la Tierra.";
+  return null;
+}
+
 /* Punto medio GEODÉSICO del arco a→b. Promediar latitudes y longitudes
    coloca mal la etiqueta en líneas largas y directamente en el otro lado
    del mundo cuando el arco cruza ±180°: aquí se promedia en coordenadas
@@ -11943,6 +12232,7 @@ document.addEventListener("keydown", e => {
   if (!logDialog.hidden) { toggleLog(); return; }
   if (!urlDialog.hidden) { closeUrlDialog(); return; }
   if (!descDialog.hidden) { descDialog.hidden = true; layerInfoDismissed = true; releaseFocus(); return; }
+  if (!geocalcDialog.hidden) { toggleGeocalcDialog(); return; }
   if (!colorPicker.hidden) { cancelColorPicker(); return; }
   if (!iconPicker.hidden) { cancelIconPicker(); return; }
   if (!ktpDialog.hidden) { closeKtpPicker(false); return; }
@@ -14271,6 +14561,275 @@ function toggleDayNight() {
   dnTimer = setInterval(dnRequestRender, DAYNIGHT_REFRESH_MS);
   dnRequestRender();
 }
+/* ================= Calculadora geodésica =================
+   Ventana flotante con una pestaña por cálculo: ángulo de elevación
+   (con cono de silencio y corrección por presión) y vector GPS. Añadir
+   otra es una entrada más en `geocalcTabs` (con su función de cálculo),
+   su botón y su panel en index.html. La lógica pura vive en
+   51-geodesy.js; aquí solo hay interfaz.
+
+   NO hay botón «Calcular»: cada pestaña se recalcula SOLA al cambiar
+   cualquier dato (campo, unidad, tipo de distancia, modelo, formato), con
+   el resultado a la vista al momento. Mientras falte algún dato, el
+   resultado queda vacío y SIN aviso: un error por cada tecla pulsada a
+   medio escribir sería ruido; el aviso solo sale cuando los datos están
+   completos y no valen.
+
+   Se registra aquí (makeDialogMovable/setupDialog) y no en la lista de
+   44-dialogs.js: ese archivo carga antes y la caja aún no existiría.   */
+const geocalcDialog = document.getElementById("geocalc-dialog");
+const geocalcBox = geocalcDialog.querySelector(".dlg-box");
+makeDialogMovable(geocalcBox);
+setupDialog(geocalcBox, { modal: false }); /* flotante: el mapa sigue vivo */
+
+const gcEl = id => document.getElementById(id);
+
+/* ---------- Pestañas ----------
+   Cada una trae su función de cálculo, que se ejecuta al cambiar un dato
+   de SU panel, al mostrarla y al abrir la ventana. Cada panel lleva su
+   propio resultado y aviso, así que cambiar de pestaña no arrastra el
+   de otra.                                                              */
+const geocalcTabs = {
+  elev: { btn: gcEl("geocalc-tab-btn-elev"), panel: gcEl("geocalc-tab-elev"), calc: () => calcElevation() },
+  gps:  { btn: gcEl("geocalc-tab-btn-gps"),  panel: gcEl("geocalc-tab-gps"),  calc: () => calcGps() }
+};
+let geocalcActiveTab = "elev";
+
+/* Cada pestaña tiene una altura distinta. Sin arrastrar, la ventana está
+   anclada abajo y crece hacia arriba sola; pero una vez arrastrada
+   queda fijada POR ARRIBA (makeDialogMovable) y una pestaña más alta
+   saca el pie de la pantalla. `clampToViewport` no sirve aquí: solo
+   garantiza que el título sea alcanzable, no que quepa el cuadro. Se
+   sube lo justo para que el borde inferior se vea.                     */
+function fitGeocalcBottom() {
+  if (!geocalcBox.style.top) return; /* nunca movida: el ancla ya lo resuelve */
+  const r = geocalcBox.getBoundingClientRect();
+  const top = Math.max(0, Math.min(r.top, window.innerHeight - r.height - 8));
+  geocalcBox.style.top = `${top}px`;
+}
+function showGeocalcTab(tab) {
+  geocalcActiveTab = tab;
+  for (const [key, { btn, panel }] of Object.entries(geocalcTabs)) {
+    const active = key === tab;
+    btn.classList.toggle("active", active);
+    btn.setAttribute("aria-selected", String(active));
+    panel.hidden = !active;
+  }
+  fitGeocalcBottom();
+  geocalcTabs[tab].calc();
+}
+for (const [key, { btn, panel, calc }] of Object.entries(geocalcTabs)) {
+  btn.addEventListener("click", () => showGeocalcTab(key));
+  /* Teclear en un campo recalcula al momento. Los <select> NO por `input`:
+     el navegador lo dispara ANTES de `change`, y la conversión de valor
+     al cambiar de unidad (convertGeocalcField) va en `change`, así que
+     calcular en `input` usaría el valor viejo con la unidad nueva.     */
+  panel.addEventListener("input", e => { if (e.target.tagName !== "SELECT") calc(); });
+  panel.addEventListener("change", e => { if (e.target.tagName === "SELECT") calc(); });
+}
+
+/* ---------- Unidades ----------
+   Se copian de #props-unit en vez de repetir la lista: así son siempre
+   las mismas y en el mismo orden que en Propiedades.                   */
+const GEOCALC_UNIT_OPTIONS = propsUnitSelect.innerHTML;
+function geocalcUnitSelect(id, unit) {
+  const sel = gcEl(id);
+  sel.innerHTML = GEOCALC_UNIT_OPTIONS;
+  sel.value = unit;
+  sel.dataset.prev = unit;
+  return sel;
+}
+
+/* Cambiar la unidad de un campo CONVIERTE su valor, no lo reinterpreta:
+   1000 ft pasados a metros pasan a ser 304,8, no «1000 m». La cantidad
+   física es la misma. Cada selector recuerda su unidad anterior
+   (`dataset.prev`) porque `change` solo trae la nueva. Se redondea a 12
+   cifras significativas: las bastantes para que el ruido de coma
+   flotante (~1e-16, p. ej. 304.79999999999995) desaparezca, y las
+   bastantes para que ida y vuelta m → ft → m devuelva lo mismo (con 10,
+   650 m daban «650.0000001» al volver: el valor intermedio ya había
+   perdido precisión). Un campo vacío o ilegible se deja como está.     */
+function convertGeocalcField(input, unitSel) {
+  const from = unitSel.dataset.prev || unitSel.value;
+  unitSel.dataset.prev = unitSel.value;
+  if (from === unitSel.value || input.value.trim() === "") return;
+  const v = Number(input.value);
+  if (!Number.isFinite(v)) return;
+  input.value = String(Number((v * POLY_UNIT_FACTOR[from] / POLY_UNIT_FACTOR[unitSel.value]).toPrecision(12)));
+}
+/* Campo numérico con su selector de unidad, ya enlazados. */
+function geocalcUnitField(inputId, unitId, unit) {
+  const input = gcEl(inputId), sel = geocalcUnitSelect(unitId, unit);
+  sel.addEventListener("change", () => convertGeocalcField(input, sel));
+  return { input, sel };
+}
+
+const geocalcEmpty = el => el.value.trim() === "";
+
+/* Valor numérico del campo en metros; NaN si está vacío o no es número
+   (un <input type=number> con texto inválido da value === "").        */
+function geocalcMeters({ input, sel }) {
+  if (geocalcEmpty(input)) return NaN;
+  return Number(input.value) * POLY_UNIT_FACTOR[sel.value];
+}
+
+/* Aviso de un panel: lo muestra u oculta, y con aviso borra el resultado. */
+function geocalcShowError(errId, resultId, msg) {
+  const el = gcEl(errId);
+  el.hidden = !msg;
+  el.textContent = msg || "";
+  if (msg) gcEl(resultId).textContent = "";
+}
+const geocalcMarkBad = (el, bad) => el.classList.toggle("bad", bad);
+/* Datos incompletos: ni resultado ni aviso ni marcas rojas. */
+function geocalcIdle(errId, resultId, inputs) {
+  for (const el of inputs) el.classList.remove("bad");
+  geocalcShowError(errId, resultId, null);
+  gcEl(resultId).textContent = "";
+}
+
+/* ---------- Pestaña 1: ángulo de elevación y cono de silencio ---------- */
+const gcH1 = geocalcUnitField("geocalc-h1", "geocalc-h1-unit", "m");
+const gcH2 = geocalcUnitField("geocalc-h2", "geocalc-h2-unit", "m");
+const gcD = geocalcUnitField("geocalc-d", "geocalc-d-unit", "nm");
+/* Presión al nivel del mar (QNH), en hPa (= mbar): parte en la estándar. */
+const gcP = gcEl("geocalc-p");
+gcP.value = ISA_P0_HPA;
+let geocalcUnitsSeeded = false;
+
+/* Primera apertura: la distancia en la unidad global y las alturas en
+   pies si la unidad global es de uso aeronáutico/marino, en metros si
+   no. Después manda el usuario y no se vuelve a tocar (ni se persiste).
+   Solo esta pestaña: el vector GPS tiene unidades de partida FIJAS.    */
+function seedGeocalcUnits() {
+  if (geocalcUnitsSeeded) return;
+  geocalcUnitsSeeded = true;
+  gcD.sel.value = measureUnit;
+  const heightUnit = ["ft", "mi", "nm"].includes(measureUnit) ? "ft" : "m";
+  gcH1.sel.value = gcH2.sel.value = heightUnit;
+  for (const f of [gcH1, gcH2, gcD]) f.sel.dataset.prev = f.sel.value;
+}
+
+/* La distancia puede ser la de superficie (arco a nivel del mar) o la
+   OBLICUA entre los dos puntos a sus alturas (`kind`, ver
+   `surfaceFromSlant`); parte como oblicua, el alcance en línea recta que
+   da un radar y con el que trabajan las demás herramientas (tomar esa
+   cifra como arco sobre el suelo daba otra elevación: 24,21 m, 45000 ft
+   y 12,2 NM, 31° en vez de 37°). Cambiar de tipo NO convierte el valor
+   escrito: no es una unidad, es otra magnitud.
+   La presión corrige SOLO la altura de destino, que se toma como
+   altitud de altímetro (reglaje estándar), como la de una aeronave; la
+   de origen se usa tal cual (una cota de antena es geométrica y no
+   depende de la presión). Ver `trueAltitudeM`.                         */
+function calcElevation() {
+  const inputs = [gcH1.input, gcH2.input, gcD.input, gcP];
+  if (inputs.some(geocalcEmpty)) { geocalcIdle("geocalc-error", "geocalc-elev-result", inputs); return; }
+  const h1 = geocalcMeters(gcH1), h2 = geocalcMeters(gcH2), d = geocalcMeters(gcD), q = Number(gcP.value);
+  const model = gcEl("geocalc-model").value, kind = gcEl("geocalc-dkind").value;
+  const pErr = Number.isFinite(h2) ? pressureInputError(h2, q) : null;
+  /* El error de presión señala el campo que de verdad lo causa: la presión
+     si está fuera de rango, la altura de destino si es ella la que no
+     admite corrección.                                                  */
+  const qBad = !Number.isFinite(q) || q < QNH_MIN_HPA || q > QNH_MAX_HPA;
+  geocalcMarkBad(gcH1.input, !Number.isFinite(h1));
+  geocalcMarkBad(gcH2.input, !Number.isFinite(h2) || (!!pErr && !qBad));
+  geocalcMarkBad(gcD.input, !Number.isFinite(d) || d < 0);
+  geocalcMarkBad(gcP, !!pErr && qBad);
+  const h2c = pErr ? NaN : trueAltitudeM(h2, q);
+  const err = pErr || elevationInputError(h1, h2c, d, model, kind);
+  geocalcShowError("geocalc-error", "geocalc-elev-result", err);
+  if (err) return;
+  const deg = elevationAngleDeg(h1, h2c, d, model, kind);
+  let text = `Ángulo de elevación: ${deg.toFixed(3)}°\nCono de silencio: ${silenceConeDeg(deg).toFixed(3)}°`;
+  if (q !== ISA_P0_HPA) {
+    const u = gcH2.sel.value, delta = h2c - h2;
+    text += `\nAltura de destino corregida: ${fmtUnitDist(h2c, u)} (${delta >= 0 ? "+" : ""}${fmtUnitDist(delta, u)})`;
+  }
+  gcEl("geocalc-elev-result").textContent = text;
+}
+
+/* ---------- Pestaña 2: vector GPS ----------
+   Dos puntos (latitud, longitud, altitud). Altitudes en metros por
+   defecto (lo que da un GPS) y distancia del resultado en millas
+   náuticas (las demás unidades se eligen en el desplegable).
+   Latitud y longitud se leen con `parseCoord`, que acepta decimal y GMS
+   indistintamente, así que pegar una coordenada funciona sea cual sea el
+   formato mostrado. El formato de ESTA pestaña (`gps-coord-format`) es
+   propio, no el global de Propiedades: parte en GMS, con Madrid en A y
+   Barcelona en B para que haya un resultado desde el primer momento, y
+   al cambiarlo CONVIERTE lo escrito (como las unidades).                */
+const gcGpsLat1 = gcEl("gps-lat1"), gcGpsLng1 = gcEl("gps-lng1");
+const gcGpsLat2 = gcEl("gps-lat2"), gcGpsLng2 = gcEl("gps-lng2");
+const gcGpsAlt1 = geocalcUnitField("gps-alt1", "gps-alt1-unit", "m");
+const gcGpsAlt2 = geocalcUnitField("gps-alt2", "gps-alt2-unit", "m");
+const gcGpsDUnit = geocalcUnitSelect("gps-d-unit", "nm");
+const gcGpsFormat = gcEl("gps-coord-format");
+gcGpsFormat.innerHTML = propsCoordFormatSelect.innerHTML; /* mismas opciones y rótulos que Propiedades */
+gcGpsFormat.value = "dms";
+const gcGpsCoordFields = [[gcGpsLat1, true], [gcGpsLng1, false], [gcGpsLat2, true], [gcGpsLng2, false]];
+
+/* Valores de partida (grados decimales y metros), escritos en el formato
+   que esté elegido.                                                    */
+const GEOCALC_GPS_START = {
+  a: { lat: 40.4168, lng: -3.7038, alt: 650 }, /* Madrid */
+  b: { lat: 41.3874, lng: 2.1686, alt: 12 }    /* Barcelona */
+};
+function fillGpsStart() {
+  const { a, b } = GEOCALC_GPS_START, mode = gcGpsFormat.value;
+  gcGpsLat1.value = formatCoord(a.lat, true, mode);
+  gcGpsLng1.value = formatCoord(a.lng, false, mode);
+  gcGpsAlt1.input.value = a.alt;
+  gcGpsLat2.value = formatCoord(b.lat, true, mode);
+  gcGpsLng2.value = formatCoord(b.lng, false, mode);
+  gcGpsAlt2.input.value = b.alt;
+}
+fillGpsStart();
+
+/* Cambiar el formato reescribe cada coordenada en el nuevo, sin cambiar
+   el punto. Lo que no se pueda leer (vacío, a medio escribir, fuera de
+   rango) se deja tal cual: no se inventa un valor ni se pierde lo
+   escrito, y el cálculo lo marcará.                                    */
+gcGpsFormat.addEventListener("change", () => {
+  for (const [input, isLat] of gcGpsCoordFields) {
+    const v = parseCoord(input.value, isLat);
+    if (Number.isFinite(v)) input.value = formatCoord(v, isLat, gcGpsFormat.value);
+  }
+});
+
+function calcGps() {
+  const inputs = [gcGpsLat1, gcGpsLng1, gcGpsAlt1.input, gcGpsLat2, gcGpsLng2, gcGpsAlt2.input];
+  if (inputs.some(geocalcEmpty)) { geocalcIdle("gps-error", "gps-result", inputs); return; }
+  const a = { lat: parseCoord(gcGpsLat1.value, true), lng: parseCoord(gcGpsLng1.value, false), alt: geocalcMeters(gcGpsAlt1) };
+  const b = { lat: parseCoord(gcGpsLat2.value, true), lng: parseCoord(gcGpsLng2.value, false), alt: geocalcMeters(gcGpsAlt2) };
+  geocalcMarkBad(gcGpsLat1, !Number.isFinite(a.lat));
+  geocalcMarkBad(gcGpsLng1, !Number.isFinite(a.lng));
+  geocalcMarkBad(gcGpsAlt1.input, !Number.isFinite(a.alt));
+  geocalcMarkBad(gcGpsLat2, !Number.isFinite(b.lat));
+  geocalcMarkBad(gcGpsLng2, !Number.isFinite(b.lng));
+  geocalcMarkBad(gcGpsAlt2.input, !Number.isFinite(b.alt));
+  const err = gpsVectorError(a, b);
+  geocalcShowError("gps-error", "gps-result", err);
+  if (err) return;
+  const v = gpsVector(a, b), u = gcGpsDUnit.value;
+  const dist = m => `${(m / POLY_UNIT_FACTOR[u]).toFixed(3)} ${POLY_UNIT_LABEL[u]}`; /* 3 decimales: a 1 cm de precisión en NM */
+  gcEl("gps-result").textContent =
+    `Distancia: ${dist(v.slant)}\nDistancia horizontal: ${dist(v.horizontal)}\n` +
+    (v.bearing === null ? "Orientación: no definida (mismas latitud y longitud)"
+      : `Orientación: ${v.bearing.toFixed(3)}°`);
+}
+
+/* ---------- Abrir y cerrar ---------- */
+function toggleGeocalcDialog() {
+  geocalcDialog.hidden = !geocalcDialog.hidden;
+  if (geocalcDialog.hidden) { releaseFocus(); return; }
+  seedGeocalcUnits();
+  clampToViewport(geocalcBox);
+  fitGeocalcBottom();
+  focusDialog(geocalcBox);
+  geocalcTabs[geocalcActiveTab].calc(); /* el vector GPS ya trae datos de partida */
+}
+gcEl("geocalc-btn").addEventListener("click", toggleGeocalcDialog);
+gcEl("geocalc-close").addEventListener("click", toggleGeocalcDialog);
 /* ================= Controles de vista del visor ================= */
 
 let gratButton = null;
