@@ -8,7 +8,7 @@
 | **Versión del documento** | 1.2 |
 | **Fecha** | 24 de septiembre de 2026 |
 | **Preparado por** | Diego Torres |
-| **Versión de la aplicación auditada** | v1.4.3 (202609271159) |
+| **Versión de la aplicación auditada** | v1.5.0 (202610051305) |
 | **Repositorio público del código fuente** | https://github.com/ifsnop/kite |
 
 ---
