@@ -21,7 +21,7 @@ jobs:
 
     environment:
       name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
+      url: ${{ steps.deployment.outputs.page_url || steps.deployment_retry.outputs.page_url }}
 
     steps:
       - name: Checkout
@@ -64,6 +64,28 @@ jobs:
         with:
           path: .
 
+      # El servicio de Pages falla a veces de forma transitoria al desplegar un
+      # artefacto recién subido ("Found 0 artifact(s)": ocurrió con los tests en
+      # verde, run 37312559354). Un segundo intento un minuto después suele
+      # bastar. `continue-on-error` en el primero evita que un fallo ya
+      # recuperado deje el job en rojo (y mande un correo de fallo por algo que
+      # ya está resuelto); si el SEGUNDO intento también falla, el job falla y
+      # GitHub manda su correo de fallo de siempre: ese es el único aviso que se
+      # quiere. No hay correo de confirmación a propósito: GitHub solo avisa de
+      # los fallos, y un despliegue que se recupera solo no necesita atención.
+      # El primer fallo queda a la vista como anotación del run.
       - name: Deploy to GitHub Pages
         id: deployment
+        continue-on-error: true
+        uses: actions/deploy-pages@v4
+
+      - name: Esperar antes de reintentar el despliegue
+        if: steps.deployment.outcome == 'failure'
+        run: |
+          echo "::warning title=Despliegue a Pages::El primer intento falló; se reintenta en 60 s."
+          sleep 60
+
+      - name: Deploy to GitHub Pages (reintento)
+        id: deployment_retry
+        if: steps.deployment.outcome == 'failure'
         uses: actions/deploy-pages@v4
