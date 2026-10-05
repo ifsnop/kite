@@ -85,6 +85,8 @@
       <button id="url-btn" class="btn" title="A&#241;adir contenido desde una direcci&#243;n (URL)"
               aria-label="A&#241;adir contenido desde una direcci&#243;n (URL)">🔗</button>
       <button id="gnp-editor-btn" class="btn" title="Propiedades">🏷️</button>
+      <button id="geocalc-btn" class="btn" title="C&#225;lculos geod&#233;sicos"
+              aria-label="C&#225;lculos geod&#233;sicos">📐</button>
       <button id="log-btn" class="btn" title="Registro de avisos">📋</button>
       <button id="help-btn" class="btn" title="Ayuda y atajos de teclado (tecla ?)">?</button>
     </h1>
@@ -429,6 +431,66 @@
     <div class="dlg-actions">
       <button class="btn" id="props-cancel">Cancelar</button>
       <button class="btn" id="props-accept">Aceptar</button>
+    </div>
+  </div>
+</div>
+
+<!-- Cálculos geodésicos: una pestaña por cálculo. Flotante y no modal (como
+     el diálogo de estilos) para poder seguir usando el mapa. Los <select>
+     de unidad se rellenan desde #props-unit (62-geocalc.js). Cada panel
+     lleva su propio resultado y su propio aviso de error, y se recalcula
+     SOLO, al cambiar cualquier dato: no hay botón «Calcular». -->
+<div id="geocalc-dialog" class="dlg-float" hidden>
+  <div class="dlg-box">
+    <h2>C&#225;lculos geod&#233;sicos</h2>
+    <div class="dlg-tabs" role="tablist">
+      <button type="button" class="dlg-tab active" id="geocalc-tab-btn-elev" role="tab" aria-selected="true" aria-controls="geocalc-tab-elev">&#193;ngulo de elevaci&#243;n</button>
+      <button type="button" class="dlg-tab" id="geocalc-tab-btn-gps" role="tab" aria-selected="false" aria-controls="geocalc-tab-gps">Vector GPS</button>
+    </div>
+    <div id="geocalc-tab-elev" class="dlg-tabpanel" role="tabpanel">
+      <div class="dlg-row"><span>Altura de origen</span>
+        <span class="geocalc-field"><input type="number" id="geocalc-h1" step="any" aria-label="Altura de origen"><select id="geocalc-h1-unit" aria-label="Unidad de la altura de origen"></select></span></div>
+      <div class="dlg-row"><span>Altura de destino</span>
+        <span class="geocalc-field"><input type="number" id="geocalc-h2" step="any" aria-label="Altura de destino"><select id="geocalc-h2-unit" aria-label="Unidad de la altura de destino"></select></span></div>
+      <div class="dlg-row"><span>Presión atmosférica (QNH)</span>
+        <span class="geocalc-field"><input type="number" id="geocalc-p" step="any" min="0" aria-label="Presión atmosférica a nivel del mar, en hectopascales"><span class="geocalc-unit">hPa</span></span></div>
+      <div class="dlg-row"><span>Distancia</span>
+        <span class="geocalc-field"><input type="number" id="geocalc-d" step="any" min="0" aria-label="Distancia"><select id="geocalc-d-unit" aria-label="Unidad de la distancia"></select></span></div>
+      <div class="dlg-row"><span>Tipo de distancia</span><select id="geocalc-dkind">
+        <option value="slant" selected>Oblicua (entre los dos puntos)</option>
+        <option value="surface">Sobre la superficie (nivel del mar)</option>
+      </select></div>
+      <div class="dlg-row"><span>Modelo de Tierra</span><select id="geocalc-model">
+        <option value="flat">Plano</option>
+        <option value="sphere">Esfera</option>
+        <option value="refr" selected>Esfera + refracci&#243;n (4/3&#183;R)</option>
+      </select></div>
+      <p class="dlg-hint">&#193;ngulo con que se ve el destino desde el origen (0&#176; es la horizontal, positivo hacia arriba) y cono de silencio, que es 90&#176; menos ese &#225;ngulo. La distancia oblicua, la de partida, es la l&#237;nea recta entre los dos puntos a sus alturas; la de superficie es el arco a nivel del mar. La altura de destino se toma como altitud de alt&#237;metro (reglaje est&#225;ndar) y se corrige con la presi&#243;n al nivel del mar (QNH, en hPa o mbar) seg&#250;n la atm&#243;sfera est&#225;ndar; con 1013,25 hPa no cambia. Se recalcula al cambiar cualquier dato.</p>
+      <div class="geocalc-out">
+        <p class="geocalc-result" id="geocalc-elev-result" aria-live="polite"></p>
+        <p class="dlg-hint sh-bad" id="geocalc-error" hidden></p>
+      </div>
+    </div>
+    <div id="geocalc-tab-gps" class="dlg-tabpanel" role="tabpanel" hidden>
+      <div class="dlg-row"><span>Punto A</span>
+        <span class="geocalc-field"><input type="text" id="gps-lat1" autocomplete="off" spellcheck="false" placeholder="Latitud" aria-label="Latitud del punto A"><input type="text" id="gps-lng1" autocomplete="off" spellcheck="false" placeholder="Longitud" aria-label="Longitud del punto A"></span></div>
+      <div class="dlg-row"><span>Altitud A</span>
+        <span class="geocalc-field"><input type="number" id="gps-alt1" step="any" aria-label="Altitud del punto A"><select id="gps-alt1-unit" aria-label="Unidad de la altitud del punto A"></select></span></div>
+      <div class="dlg-row"><span>Punto B</span>
+        <span class="geocalc-field"><input type="text" id="gps-lat2" autocomplete="off" spellcheck="false" placeholder="Latitud" aria-label="Latitud del punto B"><input type="text" id="gps-lng2" autocomplete="off" spellcheck="false" placeholder="Longitud" aria-label="Longitud del punto B"></span></div>
+      <div class="dlg-row"><span>Altitud B</span>
+        <span class="geocalc-field"><input type="number" id="gps-alt2" step="any" aria-label="Altitud del punto B"><select id="gps-alt2-unit" aria-label="Unidad de la altitud del punto B"></select></span></div>
+      <div class="dlg-row"><span>Latitud/longitud</span><select id="gps-coord-format" aria-label="Formato de latitud y longitud"></select></div>
+      <div class="dlg-row"><span>Distancia (resultado en)</span>
+        <span class="geocalc-field"><select id="gps-d-unit" aria-label="Unidad de la distancia del resultado"></select></span></div>
+      <p class="dlg-hint">Latitud y longitud, en grados, minutos y segundos o en grados decimales; al cambiar el formato se convierten los valores escritos. La distancia es la l&#237;nea recta entre A y B teniendo en cuenta las altitudes; la horizontal, el arco sobre la superficie. La orientaci&#243;n es el rumbo inicial de A hacia B: 0&#176; norte, sentido horario.</p>
+      <div class="geocalc-out">
+        <p class="geocalc-result" id="gps-result" aria-live="polite"></p>
+        <p class="dlg-hint sh-bad" id="gps-error" hidden></p>
+      </div>
+    </div>
+    <div class="dlg-actions">
+      <button class="btn" id="geocalc-close">Cerrar</button>
     </div>
   </div>
 </div>

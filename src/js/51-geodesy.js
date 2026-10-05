@@ -122,6 +122,203 @@ const fmtUnitDist = (m, unit) =>
 const fmtUnitArea = (m2, unit) =>
   `${(m2 / POLY_UNIT_FACTOR[unit] ** 2).toFixed(2)} ${POLY_UNIT_LABEL[unit]}²`;
 
+/* ---------- Ángulo de elevación entre dos alturas ----------
+   Refracción atmosférica estándar: la luz y las ondas de radio se curvan
+   hacia abajo, lo que equivale a una Tierra de radio 4/3 el real. Es la
+   convención de radar y radioenlaces, así que es el modelo por defecto
+   de la calculadora geodésica.                                         */
+const REFRACTION_K = 4 / 3;
+
+/* Radio efectivo según el modelo; null para "flat" (sin curvatura). */
+const elevationRadius = model =>
+  model === "flat" ? null : model === "refr" ? EARTH_R * REFRACTION_K : EARTH_R;
+
+/* Distancia sobre la superficie (arco a nivel del mar) equivalente a una
+   distancia OBLICUA s: la recta entre el punto inicial a su altura h1 y
+   el final a su altura h2. Devuelve { d } en metros o { error } si no
+   existe esa geometría. En una esfera de radio R, con r1 = R + h1 y
+   r2 = R + h2, la cuerda cumple s² = (r1−r2)² + 4·r1·r2·sin²(θ/2); de
+   ahí θ = 2·asin(√q) con q = (s² − Δh²)/(4·r1·r2). Se escribe
+   s² − Δh² como (s−Δh)(s+Δh) y se usa asin, no acos de la ley de los
+   cosenos: con puntos cercanos esa resta pierde todas las cifras.
+   En el modelo plano no hay curvatura: d = √(s² − Δh²).
+   Una oblicua apenas menor que Δh (el redondeo de pasar de una unidad a
+   otra) se toma como Δh, es decir, como los dos puntos en la misma
+   vertical; más que eso es imposible: la recta no puede ser más corta
+   que la diferencia de alturas.                                        */
+function surfaceFromSlant(h1, h2, s, model) {
+  const R = elevationRadius(model), dh = Math.abs(h2 - h1);
+  let x = s - dh;
+  if (x < 0) {
+    if (-x > 1e-9 * Math.max(dh, 1)) return { error: "La distancia oblicua no puede ser menor que la diferencia de alturas." };
+    x = 0;
+  }
+  if (R === null) return { d: Math.sqrt(x * (s + dh)) };
+  const q = x * (s + dh) / (4 * (R + h1) * (R + h2));
+  if (q > 1) return { error: "La distancia oblicua supera la máxima posible entre los dos puntos." };
+  return { d: 2 * R * Math.asin(Math.sqrt(q)) };
+}
+
+/* Ángulo (grados, 0 = horizontal, positivo hacia arriba) con que, desde
+   una altura h1, se ve un punto a altura h2 situado a una distancia d.
+   `kind` dice qué es d: "surface" (por defecto), el arco a nivel del mar
+   como el resto de mediciones de la app, o "slant", la distancia oblicua
+   entre los dos puntos a sus alturas (se convierte primero con
+   `surfaceFromSlant`; NaN si no existe). Todo en metros. En una esfera, el observador
+   está en r1 = R + h1 y el objetivo en r2 = R + h2 separados un ángulo
+   central θ = d/R; la horizontal local del observador es perpendicular
+   a su radio, de ahí el atan2 de las componentes.                      */
+function elevationAngleDeg(h1, h2, d, model, kind) {
+  if (kind === "slant") {
+    const r = surfaceFromSlant(h1, h2, d, model);
+    if (r.error) return NaN;
+    d = r.d;
+  }
+  const R = elevationRadius(model);
+  if (R === null) return toDeg(Math.atan2(h2 - h1, d));
+  const th = d / R, r1 = R + h1, r2 = R + h2;
+  return toDeg(Math.atan2(r2 * Math.cos(th) - r1, r2 * Math.sin(th)));
+}
+
+/* Cono de silencio de una antena: el semiángulo, medido desde la
+   vertical, de la zona sobre ella donde no ve un blanco. Es el
+   complementario de la elevación a la que se ve ese blanco: a 90° de
+   elevación (sobre la antena) el cono es 0°; cuanto más bajo se ve el
+   blanco, más ancho es. Sin recortar: con elevación negativa (blanco por
+   debajo del centro de fases) sale mayor de 90°, que es lo que dice la
+   geometría.                                                          */
+const silenceConeDeg = elevDeg => 90 - elevDeg;
+
+/* ---------- Altitud de altímetro → altitud verdadera (presión) ----------
+   Un altímetro con el reglaje estándar (1013,25 hPa) marca la ALTITUD
+   DE PRESIÓN, no la altura real: si la presión al nivel del mar (QNH)
+   no es la estándar, la aeronave está más alta (QNH mayor) o más baja
+   (menor) de lo que marca. Se corrige con la atmósfera estándar
+   internacional (ISA, ICAO Doc 7488 / US Standard Atmosphere 1976), con
+   sus constantes definitorias:
+   - p0 = 101325 Pa = 1013,25 hPa (EXACTO; no 1013,1), T0 = 288,15 K,
+     gradiente 6,5 K/km hasta los 11 km, g = 9,80665 m/s², M = 28,9644
+     g/mol, R* = 8,31432 J/(mol·K) (la de ICAO, no la de CODATA);
+   - troposfera: p/p0 = (1 − L·h/T0)^N con N = g·M/(R*·L) = 5,25588;
+   - de 11 a 20 km, isoterma a 216,65 K: p/p0 = F11·exp(−(h − 11000)/Hs),
+     con Hs = R*·T/(g·M) = 6341,6 m. Necesaria: 45000 ft (13716 m) ya
+     está en la estratosfera, y la fórmula de la troposfera extrapolada
+     daría un resultado falso allí.
+   NO se usa una constante de «30 ft por hPa»: es una regla del pulgar.
+   Lo exacto son 27,31 ft/hPa a nivel del mar (8,324 m/hPa) y baja con la
+   altitud (26,4 a 5000 ft, 20,5 a 45000 ft: la columna de aire de debajo
+   es más fría y se «estira» menos con la presión), y el modelo ya lo
+   da todo.
+   Método: la presión en el avión es la misma en las dos atmósferas
+   (p = p0·f(altitud de presión)); en una atmósfera con el mismo perfil de
+   temperatura pero presión QNH al nivel del mar, esa presión se da a la
+   altura h que cumple QNH·f(h) = p0·f(alt), es decir h = f⁻¹(p0/QNH ·
+   f(alt)). Supone temperatura ISA: la desviación de temperatura real
+   (que también mueve la altitud verdadera) no se modela.              */
+const ISA_P0_HPA = 1013.25;
+const ISA_SEA_T = 288.15;
+const ISA_LAPSE = 0.0065;
+const ISA_G = 9.80665;
+const ISA_MOLAR = 0.0289644;
+const ISA_RGAS = 8.31432;
+const ISA_BARO_N = ISA_G * ISA_MOLAR / (ISA_RGAS * ISA_LAPSE);
+const ISA_TROPO_H = 11000;
+const ISA_TROPO_T = ISA_SEA_T - ISA_LAPSE * ISA_TROPO_H;
+const ISA_TROPO_F = (ISA_TROPO_T / ISA_SEA_T) ** ISA_BARO_N;
+const ISA_STRATO_H = ISA_RGAS * ISA_TROPO_T / (ISA_G * ISA_MOLAR);
+/* Rango en que el modelo es ISA de verdad (troposfera + estratosfera baja) */
+const ISA_ALT_MIN = -5000;
+const ISA_ALT_MAX = 20000;
+/* Récords de presión al nivel del mar: ~870 a ~1085 hPa. Un valor fuera de
+   este margen es casi seguro un error de tecleo.                         */
+const QNH_MIN_HPA = 800;
+const QNH_MAX_HPA = 1100;
+
+/* p/p0 a la altitud h (m) en la atmósfera estándar */
+function isaPressureRatio(h) {
+  return h <= ISA_TROPO_H
+    ? (1 - ISA_LAPSE * h / ISA_SEA_T) ** ISA_BARO_N
+    : ISA_TROPO_F * Math.exp(-(h - ISA_TROPO_H) / ISA_STRATO_H);
+}
+
+/* Inversa de isaPressureRatio: la altitud (m) a la que p/p0 = r */
+function isaAltitudeFromRatio(r) {
+  return r >= ISA_TROPO_F
+    ? ISA_SEA_T / ISA_LAPSE * (1 - r ** (1 / ISA_BARO_N))
+    : ISA_TROPO_H - ISA_STRATO_H * Math.log(r / ISA_TROPO_F);
+}
+
+/* Altitud verdadera (m) de una aeronave que marca `altM` (m, reglaje
+   estándar) con presión `qnhHpa` al nivel del mar. Con la presión
+   estándar devuelve la altitud tal cual, sin pasar por la cuenta: así no
+   hay ruido de coma flotante en el caso por defecto.                  */
+function trueAltitudeM(altM, qnhHpa) {
+  if (qnhHpa === ISA_P0_HPA) return altM;
+  return isaAltitudeFromRatio(ISA_P0_HPA / qnhHpa * isaPressureRatio(altM));
+}
+
+/* Texto de error en español, o null si la corrección es aplicable. Con la
+   presión estándar no hay corrección y no se exige nada a la altitud
+   (el cálculo no cambia respecto de no tener presión).                */
+function pressureInputError(altM, qnhHpa) {
+  if (!Number.isFinite(qnhHpa)) return "Introduce la presión atmosférica.";
+  if (qnhHpa < QNH_MIN_HPA || qnhHpa > QNH_MAX_HPA) {
+    return `La presión al nivel del mar debe estar entre ${QNH_MIN_HPA} y ${QNH_MAX_HPA} hPa.`;
+  }
+  if (qnhHpa === ISA_P0_HPA) return null;
+  const msg = `La corrección por presión solo es válida con la altura de destino entre ${ISA_ALT_MIN / 1000} y ${ISA_ALT_MAX / 1000} km (atmósfera estándar).`;
+  if (!Number.isFinite(altM) || altM < ISA_ALT_MIN || altM > ISA_ALT_MAX) return msg;
+  const h = trueAltitudeM(altM, qnhHpa);
+  return h < ISA_ALT_MIN || h > ISA_ALT_MAX ? msg : null;
+}
+
+/* ---------- Vector entre dos puntos con altitud (vector GPS) ----------
+   a, b = { lat, lng, alt }, grados y metros. Sobre la esfera de la app
+   (EARTH_R), como el resto de la geodesia:
+   - horizontal: arco entre las dos verticales a nivel del mar (la misma
+     distancia que dan las mediciones del mapa);
+   - slant: distancia en LÍNEA RECTA entre los dos puntos en 3D (la
+     cuerda, atravesando la Tierra si hace falta), con las altitudes;
+   - bearing: rumbo inicial de a → b, 0° = norte horario; null si los
+     puntos coinciden en horizontal, donde no hay dirección que dar (y
+     atan2(0, 0) devolvería un 0° falso).
+   `slant² = (r1−r2)² + 4·r1·r2·sin²(θ/2)` y no la ley de los cosenos
+   directa: con puntos cercanos esta forma no pierde cifras por restar
+   dos números casi iguales.                                           */
+function gpsVector(a, b) {
+  const p1 = toRad(a.lat), p2 = toRad(b.lat), dl = toRad(b.lng - a.lng);
+  const s = Math.sin((p2 - p1) / 2) ** 2 + Math.cos(p1) * Math.cos(p2) * Math.sin(dl / 2) ** 2;
+  const theta = 2 * Math.atan2(Math.sqrt(s), Math.sqrt(1 - s));
+  const r1 = EARTH_R + a.alt, r2 = EARTH_R + b.alt;
+  const sinHalf = Math.sin(theta / 2);
+  const slant = Math.sqrt((r1 - r2) ** 2 + 4 * r1 * r2 * sinHalf * sinHalf);
+  const horizontal = theta * EARTH_R;
+  return { horizontal, slant, bearing: horizontal < 0.01 ? null : bearingDeg(a, b) };
+}
+
+/* Texto de error en español, o null si los datos sirven. */
+function gpsVectorError(a, b) {
+  const nums = [a.lat, a.lng, a.alt, b.lat, b.lng, b.alt];
+  if (!nums.every(Number.isFinite)) return "Introduce latitud, longitud y altitud de los dos puntos.";
+  if (Math.abs(a.lat) > 90 || Math.abs(b.lat) > 90) return "La latitud debe estar entre −90° y 90°.";
+  if (Math.abs(a.lng) > 180 || Math.abs(b.lng) > 180) return "La longitud debe estar entre −180° y 180°.";
+  if (Math.min(a.alt, b.alt) <= -EARTH_R) return "Una altitud está por debajo del centro de la Tierra.";
+  return null;
+}
+
+/* Texto de error en español, o null si los datos sirven. */
+function elevationInputError(h1, h2, d, model, kind) {
+  if (![h1, h2, d].every(Number.isFinite)) return "Introduce las dos alturas y la distancia.";
+  if (d < 0) return "La distancia no puede ser negativa.";
+  if (d === 0 && h1 === h2) return "Con distancia cero y alturas iguales no hay dirección.";
+  const R = elevationRadius(model) || EARTH_R;
+  if (Math.min(h1, h2) <= -R) return "Una altura está por debajo del centro de la Tierra.";
+  /* La oblicua se valida al convertirla; la de superficie, contra media vuelta. */
+  if (kind === "slant") return surfaceFromSlant(h1, h2, d, model).error || null;
+  if (model !== "flat" && d > Math.PI * R) return "La distancia supera media vuelta a la Tierra.";
+  return null;
+}
+
 /* Punto medio GEODÉSICO del arco a→b. Promediar latitudes y longitudes
    coloca mal la etiqueta en líneas largas y directamente en el otro lado
    del mundo cuando el arco cruza ±180°: aquí se promedia en coordenadas

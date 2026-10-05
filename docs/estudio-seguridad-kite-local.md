@@ -174,6 +174,7 @@ En la fecha de este documento, la batería está compuesta por 61 conjuntos de p
 - Validación de coordenadas y el margen de tolerancia de redondeo descrito en el apartado 5.2, incluyendo los casos límite que deben aceptarse y los que deben rechazarse.
 - Conversión de coordenadas al sistema UTM y verificación de husos, incluidas sus excepciones geográficas reales.
 - Formato de coordenadas en las distintas notaciones que ofrece la aplicación (grados decimales; grados, minutos y segundos).
+- Cálculo del ángulo de elevación entre dos alturas (plano, esfera y esfera con refracción 4/3), con distancia de superficie u oblicua, del cono de silencio y de la corrección de la altura por presión atmosférica según la atmósfera estándar (contrastada con la tabla publicada de presiones, con fórmulas cerradas independientes por capa y con la continuidad en la tropopausa), y del vector entre dos posiciones con altitud (distancia, distancia horizontal y orientación); todo contrastado con una formulación independiente y con rechazo de datos no válidos.
 - Cálculo de perímetros y superficies de polígonos, incluidos anillos abiertos o cerrados, huecos interiores y multipolígonos.
 - Tratamiento de formas geométricas abiertas (una línea no tiene superficie ni puede rellenarse).
 - Mediciones de ruta con varios tramos: distancia y rumbo de cada tramo por separado y el total, con su propia numeración independiente de la de las figuras dibujadas.
@@ -220,6 +221,7 @@ En la fecha de este documento, la batería está compuesta por 61 conjuntos de p
 - Repintado en vivo de las cifras del diálogo de una medición mientras se arrastra uno de sus manejadores, y encuadre de toda su geometría con margen al pulsar el botón de enfoque.
 - El menú contextual del visor abre «Editar propiedades» directamente sobre la capa señalada.
 - El panel «Propiedades»: unidad de medida y formato de coordenadas globales, con vista previa en vivo sobre un diálogo ya abierto y aplicación real solo al pulsar «Aceptar».
+- La calculadora geodésica: ángulo de elevación con cono de silencio y corrección por presión, y vector GPS; cálculo inmediato al cambiar cualquier dato, sin avisos mientras faltan datos, unidades independientes por campo que convierten su valor, ventana que no cambia de tamaño al calcular y validación de los datos, sin ninguna petición de red.
 
 ### 7.3 Integración continua
 
