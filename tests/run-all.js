@@ -79,7 +79,7 @@ const BROWSER = [
   ["browser/lazy-cascade.mjs", "Navegador: desplegar y marcar una carpeta grande a la vez no la deja a medio encender"],
   ["browser/measure-dialog-live.mjs", "Navegador: el diálogo de una medición se repinta en vivo al arrastrar, y 🔍 la encuadra con margen"],
   ["browser/vertex-select.mjs", "Navegador: seleccionar un vértice, Mayús+clic para insertar y Supr para borrar — en rutas y polígonos, sin diálogo"],
-  ["browser/context-menu.mjs", "Navegador: menú contextual del visor — «Editar propiedades» abre el diálogo de estilos"],
+  ["browser/context-menu.mjs", "Navegador: menú contextual del visor — «Editar propiedades» abre el diálogo de propiedades (Estilos y Atributos)"],
   ["browser/route-live-draw.mjs", "Navegador: crear una ruta se comporta como editarla, con su diálogo abierto y en vivo desde el 2º waypoint"],
   ["browser/props-panel.mjs", "Navegador: panel Propiedades — unidad y formato de coordenadas globales, con Cancelar/Aceptar de verdad"],
   ["browser/url-import.mjs", "Navegador: añadir desde una dirección, en dos pasos y con cancelación"],

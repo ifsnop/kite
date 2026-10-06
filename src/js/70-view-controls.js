@@ -339,10 +339,10 @@ function goToNodeAndBlink(li) { highlightNode(li); blinkLayer(li); }
    al pasar el ratón por encima: parpadear ahí sería un mapa
    temblando todo el rato.                                            */
 function showLayerInfoAndBlink(li) { showLayerInfo(li); blinkLayer(li); }
-/* Mismo patrón que las dos de arriba, para el diálogo de ESTILOS (el
-   que abren el botón 🎨 o Alt+Intro) — distinto de "Mostrar
-   atributos", que es el panel de solo lectura de la ficha KML/
-   properties (showLayerInfo). Acceso directo desde el menú contextual,
+/* Mismo patrón que las dos de arriba, para el diálogo de PROPIEDADES
+   (el que abren el botón 🎨 o Alt+Intro, con pestañas Estilos y
+   Atributos) — distinto de "Mostrar atributos", que es el panel de
+   solo lectura de la ficha KML/properties (showLayerInfo). Acceso directo desde el menú contextual,
    sin tener que ir al árbol primero.                                  */
 function editPropertiesAndBlink(li) { openStyleDialog(li); blinkLayer(li); }
 /* Mismo criterio que usa openStyleDialog para rechazar una capa sin

@@ -275,7 +275,7 @@ function makeActions(li, sortable, styleable, layer) {
   if (styleable) {
     btn("\uD83D\uDD0D", `Centrar la vista aqu\u00ED y acercar (zoom ${FOCUS_ZOOM})`, "",
         () => focusOnNode(li));
-    btn("\uD83C\uDFA8", "Estilos de la capa", "", () => openStyleDialog(li));
+    btn("\uD83C\uDFA8", "Editar propiedades", "", () => openStyleDialog(li));
   }
   /* Un marcador siempre lleva el botón, oculto mientras no tenga ficha:
      con la iluminación real activa la gana (horas del sol), y

@@ -463,7 +463,7 @@ const descBody = document.getElementById("desc-body");
 const descEditBtn = document.getElementById("desc-edit");
 let descLayer = null; /* capa cuya ficha se muestra ahora */
 /* De la ficha de atributos (solo lectura) a la edición de la misma capa:
-   cierra la ficha y abre el diálogo de estilos. */
+   cierra la ficha y abre el diálogo de propiedades (pestaña Estilos). */
 descEditBtn.addEventListener("click", () => {
   const li = descLayer;
   descDialog.hidden = true;
@@ -498,8 +498,14 @@ document.getElementById("desc-close").addEventListener("click", () => {
 let propsKeyFrac = 0.38;
 const PROPS_MIN_FRAC = 0.12; /* que ninguna de las dos columnas desaparezca */
 
+/* Dos cuerpos comparten el reparto: la ficha y la pestaña «Atributos»
+   del diálogo de propiedades. Se declara aquí (no más abajo) por el orden:
+   `applyPropsSplit` se llama al abrir cualquiera de los dos.           */
+const styleAttrsBody = document.getElementById("style-attrs-body");
 function applyPropsSplit() {
-  descBody.style.setProperty("--props-key", (propsKeyFrac * 100).toFixed(2) + "%");
+  for (const body of [descBody, styleAttrsBody]) {
+    body.style.setProperty("--props-key", (propsKeyFrac * 100).toFixed(2) + "%");
+  }
 }
 
 /* El reparto SÍ persiste entre sesiones, a diferencia de la unidad de
@@ -521,31 +527,35 @@ function setPropsSplit(frac, { save = false } = {}) {
    tabla habría que volver a poner en cada apertura.
    Eventos de PUNTERO, como el arrastre de los diálogos: valen igual
    para ratón, lápiz y dedo.                                          */
-descBody.addEventListener("pointerdown", e => {
-  const grip = e.target.closest && e.target.closest(".props-grip");
-  if (!grip) return;
-  const wrap = grip.parentElement;
-  e.preventDefault();
-  grip.classList.add("dragging");
-  /* La captura mantiene los eventos aquí aunque el puntero se salga de
-     la ficha, que es lo que evita que el arrastre se quede pegado.  */
-  grip.setPointerCapture(e.pointerId);
-  const onMove = ev => {
-    const r = wrap.getBoundingClientRect();
-    if (!r.width) return;
-    setPropsSplit((ev.clientX - r.left) / r.width);
-  };
-  const onUp = () => {
-    setPropsSplit(propsKeyFrac, { save: true });
-    grip.removeEventListener("pointermove", onMove);
-    grip.removeEventListener("pointerup", onUp);
-    grip.removeEventListener("pointercancel", onUp);
-    grip.classList.remove("dragging");
-  };
-  grip.addEventListener("pointermove", onMove);
-  grip.addEventListener("pointerup", onUp);
-  grip.addEventListener("pointercancel", onUp);
-});
+function wirePropsGrip(container) {
+  container.addEventListener("pointerdown", e => {
+    const grip = e.target.closest && e.target.closest(".props-grip");
+    if (!grip) return;
+    const wrap = grip.parentElement;
+    e.preventDefault();
+    grip.classList.add("dragging");
+    /* La captura mantiene los eventos aquí aunque el puntero se salga de
+       la ficha, que es lo que evita que el arrastre se quede pegado.  */
+    grip.setPointerCapture(e.pointerId);
+    const onMove = ev => {
+      const r = wrap.getBoundingClientRect();
+      if (!r.width) return;
+      setPropsSplit((ev.clientX - r.left) / r.width);
+    };
+    const onUp = () => {
+      setPropsSplit(propsKeyFrac, { save: true });
+      grip.removeEventListener("pointermove", onMove);
+      grip.removeEventListener("pointerup", onUp);
+      grip.removeEventListener("pointercancel", onUp);
+      grip.classList.remove("dragging");
+    };
+    grip.addEventListener("pointermove", onMove);
+    grip.addEventListener("pointerup", onUp);
+    grip.addEventListener("pointercancel", onUp);
+  });
+}
+wirePropsGrip(descBody);
+wirePropsGrip(styleAttrsBody);
 
 
 /* colorPicker is NOT in this list: it is a popover anchored to whichever
@@ -719,6 +729,41 @@ function joinNames(names, max = NAMES_PREVIEW_MAX) {
   return rest ? `${out.join(", ")} y ${rest} más` : out.join(", ");
 }
 
+/* Pestañas del diálogo de propiedades. Mismo patrón que la chuleta
+   (`shTabs`, 43-points-editor.js): un mapa en vez de booleanos sueltos. */
+const styleTabs = {
+  styles: [$id("style-tab-btn-styles"), $id("style-tab-styles")],
+  attrs: [$id("style-tab-btn-attrs"), $id("style-tab-attrs")]
+};
+function showStyleTab(tab) {
+  for (const [key, [btn, panel]] of Object.entries(styleTabs)) {
+    const active = key === tab;
+    btn.classList.toggle("active", active);
+    btn.setAttribute("aria-selected", String(active));
+    panel.hidden = !active;
+  }
+}
+for (const key of Object.keys(styleTabs)) styleTabs[key][0].addEventListener("click", () => showStyleTab(key));
+
+/* Pestaña «Atributos»: la MISMA ficha que «Mostrar atributos»
+   (`infoHtmlFor`, ya saneada), de solo lectura. Es de UNA capa, como la
+   posición de un marcador: con varias seleccionadas la pestaña sigue ahí
+   y dice por qué no aplica, en vez de desaparecer.                      */
+function renderStyleAttrs() {
+  const hint = $id("style-attrs-empty");
+  let html = null;
+  let why = "";
+  if (styleTargets.length !== 1) why = "Los atributos son de cada capa: deje seleccionada una sola para verlos.";
+  else {
+    html = infoHtmlFor(styleTargets[0]);
+    if (html == null) why = "Esta capa no tiene atributos.";
+  }
+  styleAttrsBody.innerHTML = html == null ? "" : html;
+  hint.textContent = why;
+  hint.hidden = !why;
+  applyPropsSplit(); /* el reparto elegido sobrevive al cambio de capa */
+}
+
 function openStyleDialog(li, { isNew = false } = {}) {
   /* The dialog is not modal, so another row's button may be pressed while
      it is open: that cancels the edit in progress before retargeting    */
@@ -749,7 +794,7 @@ function openStyleDialog(li, { isNew = false } = {}) {
   styleKindOpen = kind;
   styleIsNew = isNew;
   $id("style-title").textContent = styleTargets.length > 1
-    ? `Estilo de ${styleTargets.length} capas` : `Estilo: ${li._name}`;
+    ? `Propiedades de ${styleTargets.length} capas` : `Propiedades: ${li._name}`;
   $id("style-marker").hidden = kind !== "marker";
   $id("style-polygon").hidden = kind !== "polygon";
   $id("style-measure").hidden = kind !== "measure";
@@ -903,6 +948,8 @@ function openStyleDialog(li, { isNew = false } = {}) {
   }]));
   styleLivePreview = new Set();
   stylePreviewed = false;
+  renderStyleAttrs();
+  showStyleTab("styles"); /* siempre abre en Estilos, no recuerda la última */
   styleDialog.hidden = false;
   clampToViewport(styleBox);
   focusDialog(styleBox);
@@ -960,6 +1007,7 @@ function closeStyleDialog(commit = false) {
   if (!commit && styleIsNew && styleTargets.length) deleteNode(styleTargets[0]);
   const wasOpen = !styleDialog.hidden;
   styleDialog.hidden = true;
+  styleAttrsBody.innerHTML = ""; /* no retener el HTML de la capa cerrada */
   /* El círculo no pasa por vertexOwner (teardownVertexOwner, arriba, ya
      lo cubre para polígono/ruta): con styleDialog ya oculto,
      anyEditModeActive deja de contar su Ctrl+arrastre como "en edición". */
