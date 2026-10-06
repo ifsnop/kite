@@ -219,7 +219,7 @@ En la fecha de este documento, la batería está compuesta por 61 conjuntos de p
 - Selección, inserción y borrado de vértices sobre el mapa en una ruta o un polígono ya creados, activos únicamente mientras su diálogo de propiedades está abierto.
 - Creación de una ruta de medición como una edición en vivo desde su segundo waypoint, con el diálogo de propiedades ya abierto y actualizándose a cada punto añadido.
 - Repintado en vivo de las cifras del diálogo de una medición mientras se arrastra uno de sus manejadores, y encuadre de toda su geometría con margen al pulsar el botón de enfoque.
-- El menú contextual del visor abre «Editar propiedades» directamente sobre la capa señalada.
+- El menú contextual del visor abre «Editar propiedades» directamente sobre la capa señalada. Ese diálogo incluye una pestaña «Atributos» con la misma ficha que «Mostrar atributos» (`infoHtmlFor`, ya saneada por `sanitizeHtml` o escapada): no añade superficie nueva.
 - El panel «Propiedades»: unidad de medida y formato de coordenadas globales, con vista previa en vivo sobre un diálogo ya abierto y aplicación real solo al pulsar «Aceptar».
 - La calculadora geodésica: ángulo de elevación con cono de silencio y corrección por presión, y vector GPS; cálculo inmediato al cambiar cualquier dato, sin avisos mientras faltan datos, unidades independientes por campo que convierten su valor, ventana que no cambia de tamaño al calcular y validación de los datos, sin ninguna petición de red.
 

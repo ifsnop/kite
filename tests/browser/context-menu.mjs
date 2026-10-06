@@ -63,7 +63,60 @@ ok(opened.dialogOpen, "«Editar propiedades» abre el diálogo de estilos");
 ok(opened.title.includes("Parcela contextual"), "mostrando la capa correcta: " + opened.title);
 ok(opened.menuClosedAfter, "y cierra el menú contextual al elegir la acción");
 
+/* Dos pestañas: abre en Estilos, y Atributos enseña la ficha de la capa */
+const tabs0 = await page.evaluate(() => ({
+  estilos: !document.getElementById("style-tab-styles").hidden,
+  atributos: !document.getElementById("style-tab-attrs").hidden,
+  vacio: document.getElementById("style-attrs-empty").textContent
+}));
+ok(tabs0.estilos && !tabs0.atributos, "el diálogo abre en la pestaña Estilos: " + JSON.stringify(tabs0));
+ok(/no tiene atributos/.test(tabs0.vacio), "capa sin atributos: la pestaña lo dice: " + tabs0.vacio);
 await page.evaluate(() => closeStyleDialog(true));
+
+const boton = await page.evaluate(() => {
+  const li = [...document.querySelectorAll("#tree li")].find(x => x._name === "Parcela contextual");
+  const b = [...li.querySelectorAll(".actions button")].find(x => x.textContent === "\uD83C\uDFA8");
+  return { title: b.title, aria: b.getAttribute("aria-label") };
+});
+ok(boton.title === "Editar propiedades" && boton.aria === "Editar propiedades",
+  "el botón 🎨 de la fila se llama «Editar propiedades»: " + JSON.stringify(boton));
+
+const attrs = await page.evaluate(() => {
+  const li = [...document.querySelectorAll("#tree li")].find(x => x._name === "Parcela contextual");
+  li._desc = "<p>Atributo de prueba</p>";
+  openStyleDialog(li);
+  document.getElementById("style-tab-btn-attrs").click();
+  return {
+    estilos: !document.getElementById("style-tab-styles").hidden,
+    atributos: !document.getElementById("style-tab-attrs").hidden,
+    html: document.getElementById("style-attrs-body").textContent,
+    aceptar: document.getElementById("style-accept").offsetParent !== null,
+    seleccionada: document.getElementById("style-tab-btn-attrs").getAttribute("aria-selected")
+  };
+});
+ok(!attrs.estilos && attrs.atributos && /Atributo de prueba/.test(attrs.html),
+  "la pestaña Atributos muestra la ficha de la capa: " + JSON.stringify(attrs));
+ok(attrs.aceptar && attrs.seleccionada === "true", "Aceptar/Cancelar siguen visibles y la pestaña queda marcada");
+await page.evaluate(() => closeStyleDialog(true));
+const cerrado = await page.evaluate(() => document.getElementById("style-attrs-body").innerHTML);
+ok(cerrado === "", "al cerrar no se retiene el HTML de la capa");
+await page.evaluate(() => {
+  const li = [...document.querySelectorAll("#tree li")].find(x => x._name === "Parcela contextual");
+  delete li._desc;
+});
+
+/* «Mostrar atributos» sigue abriendo la ficha, no el diálogo de edición */
+const mostrar = await page.evaluate(() => {
+  const li = [...document.querySelectorAll("#tree li")].find(x => x._name === "Parcela contextual");
+  li._desc = "<p>Ficha</p>";
+  const item = layerCtxItems(li).find(i => i.label === "Mostrar atributos");
+  item.action();
+  const r = { ficha: !descDialog.hidden, estilo: !styleDialog.hidden };
+  descDialog.hidden = true;
+  delete li._desc;
+  return r;
+});
+ok(mostrar.ficha && !mostrar.estilo, "«Mostrar atributos» sigue abriendo solo la ficha: " + JSON.stringify(mostrar));
 
 /* La ficha de atributos lleva un botón que salta a la edición */
 const ficha = await page.evaluate(() => {

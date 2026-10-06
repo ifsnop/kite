@@ -1470,7 +1470,7 @@
 <!-- ================= Diálogo de estilos de capa ================= -->
 <div id="style-dialog" class="dlg-float" hidden>
   <div class="dlg-box">
-    <h2 id="style-title">Estilo de capa</h2>
+    <h2 id="style-title">Propiedades</h2>
     <!-- El nombre es de cada nodo, pero con varios seleccionados el campo
          no se deja en blanco: enseña los nombres que hay (en gris y
          cursiva, como marca de "esto no es un valor") y escribir uno
@@ -1478,6 +1478,14 @@
     <div class="dlg-row" id="name-row" hidden>
       <span>Nombre</span><input type="text" id="mk-name">
     </div>
+    <!-- Dos pestañas: los estilos (editables, con vista previa en vivo) y
+         los atributos de la capa (solo lectura, lo mismo que la ficha de
+         «Mostrar atributos»). El nombre queda encima: vale para las dos. -->
+    <div class="dlg-tabs" role="tablist">
+      <button type="button" class="dlg-tab active" id="style-tab-btn-styles" role="tab" aria-selected="true" aria-controls="style-tab-styles">Estilos</button>
+      <button type="button" class="dlg-tab" id="style-tab-btn-attrs" role="tab" aria-selected="false" aria-controls="style-tab-attrs">Atributos</button>
+    </div>
+    <div id="style-tab-styles" class="dlg-tabpanel" role="tabpanel">
     <div id="style-marker" hidden>
       <div class="dlg-row"><span>Marcador</span>
         <span class="icon-preview-wrap"><img id="icon-preview" alt=""></span>
@@ -1537,6 +1545,11 @@
     </div>
     <div id="style-imageoverlay" hidden>
       <div class="dlg-row"><span>Opacidad</span><input type="range" id="io-opacity" min="0" max="1" step="0.05"></div>
+    </div>
+    </div>
+    <div id="style-tab-attrs" class="dlg-tabpanel" role="tabpanel" hidden>
+      <p class="dlg-hint" id="style-attrs-empty" hidden></p>
+      <div id="style-attrs-body" class="desc-body"></div>
     </div>
     <div class="dlg-actions">
       <button class="btn" id="style-cancel">Cancelar</button>
@@ -2194,7 +2207,7 @@ map.on("resize", fitWorldMinZoom);
 
 /* Fecha de generación del código (versión): AÑOMESDIAHORAMINUTO.
    Actualizar en cada generación; se muestra junto al crédito de Leaflet. */
-const BUILD = "202610051305";
+const BUILD = "202610061433";
 /* Versión de release (la de package.json, horneada aquí por build.js
    al construir — ver «Versión y releases de GitHub» en CLAUDE.md): a
    diferencia de BUILD, que cambia en CADA generación, esta solo cambia
@@ -4519,7 +4532,7 @@ function makeActions(li, sortable, styleable, layer) {
   if (styleable) {
     btn("\uD83D\uDD0D", `Centrar la vista aqu\u00ED y acercar (zoom ${FOCUS_ZOOM})`, "",
         () => focusOnNode(li));
-    btn("\uD83C\uDFA8", "Estilos de la capa", "", () => openStyleDialog(li));
+    btn("\uD83C\uDFA8", "Editar propiedades", "", () => openStyleDialog(li));
   }
   /* Un marcador siempre lleva el botón, oculto mientras no tenga ficha:
      con la iluminación real activa la gana (horas del sol), y
@@ -10638,7 +10651,7 @@ const descBody = document.getElementById("desc-body");
 const descEditBtn = document.getElementById("desc-edit");
 let descLayer = null; /* capa cuya ficha se muestra ahora */
 /* De la ficha de atributos (solo lectura) a la edición de la misma capa:
-   cierra la ficha y abre el diálogo de estilos. */
+   cierra la ficha y abre el diálogo de propiedades (pestaña Estilos). */
 descEditBtn.addEventListener("click", () => {
   const li = descLayer;
   descDialog.hidden = true;
@@ -10673,8 +10686,14 @@ document.getElementById("desc-close").addEventListener("click", () => {
 let propsKeyFrac = 0.38;
 const PROPS_MIN_FRAC = 0.12; /* que ninguna de las dos columnas desaparezca */
 
+/* Dos cuerpos comparten el reparto: la ficha y la pestaña «Atributos»
+   del diálogo de propiedades. Se declara aquí (no más abajo) por el orden:
+   `applyPropsSplit` se llama al abrir cualquiera de los dos.           */
+const styleAttrsBody = document.getElementById("style-attrs-body");
 function applyPropsSplit() {
-  descBody.style.setProperty("--props-key", (propsKeyFrac * 100).toFixed(2) + "%");
+  for (const body of [descBody, styleAttrsBody]) {
+    body.style.setProperty("--props-key", (propsKeyFrac * 100).toFixed(2) + "%");
+  }
 }
 
 /* El reparto SÍ persiste entre sesiones, a diferencia de la unidad de
@@ -10696,31 +10715,35 @@ function setPropsSplit(frac, { save = false } = {}) {
    tabla habría que volver a poner en cada apertura.
    Eventos de PUNTERO, como el arrastre de los diálogos: valen igual
    para ratón, lápiz y dedo.                                          */
-descBody.addEventListener("pointerdown", e => {
-  const grip = e.target.closest && e.target.closest(".props-grip");
-  if (!grip) return;
-  const wrap = grip.parentElement;
-  e.preventDefault();
-  grip.classList.add("dragging");
-  /* La captura mantiene los eventos aquí aunque el puntero se salga de
-     la ficha, que es lo que evita que el arrastre se quede pegado.  */
-  grip.setPointerCapture(e.pointerId);
-  const onMove = ev => {
-    const r = wrap.getBoundingClientRect();
-    if (!r.width) return;
-    setPropsSplit((ev.clientX - r.left) / r.width);
-  };
-  const onUp = () => {
-    setPropsSplit(propsKeyFrac, { save: true });
-    grip.removeEventListener("pointermove", onMove);
-    grip.removeEventListener("pointerup", onUp);
-    grip.removeEventListener("pointercancel", onUp);
-    grip.classList.remove("dragging");
-  };
-  grip.addEventListener("pointermove", onMove);
-  grip.addEventListener("pointerup", onUp);
-  grip.addEventListener("pointercancel", onUp);
-});
+function wirePropsGrip(container) {
+  container.addEventListener("pointerdown", e => {
+    const grip = e.target.closest && e.target.closest(".props-grip");
+    if (!grip) return;
+    const wrap = grip.parentElement;
+    e.preventDefault();
+    grip.classList.add("dragging");
+    /* La captura mantiene los eventos aquí aunque el puntero se salga de
+       la ficha, que es lo que evita que el arrastre se quede pegado.  */
+    grip.setPointerCapture(e.pointerId);
+    const onMove = ev => {
+      const r = wrap.getBoundingClientRect();
+      if (!r.width) return;
+      setPropsSplit((ev.clientX - r.left) / r.width);
+    };
+    const onUp = () => {
+      setPropsSplit(propsKeyFrac, { save: true });
+      grip.removeEventListener("pointermove", onMove);
+      grip.removeEventListener("pointerup", onUp);
+      grip.removeEventListener("pointercancel", onUp);
+      grip.classList.remove("dragging");
+    };
+    grip.addEventListener("pointermove", onMove);
+    grip.addEventListener("pointerup", onUp);
+    grip.addEventListener("pointercancel", onUp);
+  });
+}
+wirePropsGrip(descBody);
+wirePropsGrip(styleAttrsBody);
 
 
 /* colorPicker is NOT in this list: it is a popover anchored to whichever
@@ -10894,6 +10917,41 @@ function joinNames(names, max = NAMES_PREVIEW_MAX) {
   return rest ? `${out.join(", ")} y ${rest} más` : out.join(", ");
 }
 
+/* Pestañas del diálogo de propiedades. Mismo patrón que la chuleta
+   (`shTabs`, 43-points-editor.js): un mapa en vez de booleanos sueltos. */
+const styleTabs = {
+  styles: [$id("style-tab-btn-styles"), $id("style-tab-styles")],
+  attrs: [$id("style-tab-btn-attrs"), $id("style-tab-attrs")]
+};
+function showStyleTab(tab) {
+  for (const [key, [btn, panel]] of Object.entries(styleTabs)) {
+    const active = key === tab;
+    btn.classList.toggle("active", active);
+    btn.setAttribute("aria-selected", String(active));
+    panel.hidden = !active;
+  }
+}
+for (const key of Object.keys(styleTabs)) styleTabs[key][0].addEventListener("click", () => showStyleTab(key));
+
+/* Pestaña «Atributos»: la MISMA ficha que «Mostrar atributos»
+   (`infoHtmlFor`, ya saneada), de solo lectura. Es de UNA capa, como la
+   posición de un marcador: con varias seleccionadas la pestaña sigue ahí
+   y dice por qué no aplica, en vez de desaparecer.                      */
+function renderStyleAttrs() {
+  const hint = $id("style-attrs-empty");
+  let html = null;
+  let why = "";
+  if (styleTargets.length !== 1) why = "Los atributos son de cada capa: deje seleccionada una sola para verlos.";
+  else {
+    html = infoHtmlFor(styleTargets[0]);
+    if (html == null) why = "Esta capa no tiene atributos.";
+  }
+  styleAttrsBody.innerHTML = html == null ? "" : html;
+  hint.textContent = why;
+  hint.hidden = !why;
+  applyPropsSplit(); /* el reparto elegido sobrevive al cambio de capa */
+}
+
 function openStyleDialog(li, { isNew = false } = {}) {
   /* The dialog is not modal, so another row's button may be pressed while
      it is open: that cancels the edit in progress before retargeting    */
@@ -10924,7 +10982,7 @@ function openStyleDialog(li, { isNew = false } = {}) {
   styleKindOpen = kind;
   styleIsNew = isNew;
   $id("style-title").textContent = styleTargets.length > 1
-    ? `Estilo de ${styleTargets.length} capas` : `Estilo: ${li._name}`;
+    ? `Propiedades de ${styleTargets.length} capas` : `Propiedades: ${li._name}`;
   $id("style-marker").hidden = kind !== "marker";
   $id("style-polygon").hidden = kind !== "polygon";
   $id("style-measure").hidden = kind !== "measure";
@@ -11078,6 +11136,8 @@ function openStyleDialog(li, { isNew = false } = {}) {
   }]));
   styleLivePreview = new Set();
   stylePreviewed = false;
+  renderStyleAttrs();
+  showStyleTab("styles"); /* siempre abre en Estilos, no recuerda la última */
   styleDialog.hidden = false;
   clampToViewport(styleBox);
   focusDialog(styleBox);
@@ -11135,6 +11195,7 @@ function closeStyleDialog(commit = false) {
   if (!commit && styleIsNew && styleTargets.length) deleteNode(styleTargets[0]);
   const wasOpen = !styleDialog.hidden;
   styleDialog.hidden = true;
+  styleAttrsBody.innerHTML = ""; /* no retener el HTML de la capa cerrada */
   /* El círculo no pasa por vertexOwner (teardownVertexOwner, arriba, ya
      lo cubre para polígono/ruta): con styleDialog ya oculto,
      anyEditModeActive deja de contar su Ctrl+arrastre como "en edición". */
@@ -15171,10 +15232,10 @@ function goToNodeAndBlink(li) { highlightNode(li); blinkLayer(li); }
    al pasar el ratón por encima: parpadear ahí sería un mapa
    temblando todo el rato.                                            */
 function showLayerInfoAndBlink(li) { showLayerInfo(li); blinkLayer(li); }
-/* Mismo patrón que las dos de arriba, para el diálogo de ESTILOS (el
-   que abren el botón 🎨 o Alt+Intro) — distinto de "Mostrar
-   atributos", que es el panel de solo lectura de la ficha KML/
-   properties (showLayerInfo). Acceso directo desde el menú contextual,
+/* Mismo patrón que las dos de arriba, para el diálogo de PROPIEDADES
+   (el que abren el botón 🎨 o Alt+Intro, con pestañas Estilos y
+   Atributos) — distinto de "Mostrar atributos", que es el panel de
+   solo lectura de la ficha KML/properties (showLayerInfo). Acceso directo desde el menú contextual,
    sin tener que ir al árbol primero.                                  */
 function editPropertiesAndBlink(li) { openStyleDialog(li); blinkLayer(li); }
 /* Mismo criterio que usa openStyleDialog para rechazar una capa sin
