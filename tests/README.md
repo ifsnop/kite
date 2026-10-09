@@ -550,6 +550,16 @@ TOOLS TESTS OK
 
 **Qué cubre:** `showLayerInfo`/`setTool`: el panel de información abre por hover salvo con el diálogo de estilos abierto o dibujando un polígono (guardas preexistentes); al salir de polígono —y también de ruta o círculo, mismo bug— se suprime exactamente el siguiente hover residual (no más, no queda pegajoso); la guarda expira sola si no llega ningún hover; el cierre diferido por `mouseout` se cancela si el siguiente hover cae en otra capa (pasar de una a otra no debe cerrar ni parpadear); no hace nada si ya está cerrado; un panel abierto explícitamente (con foco de teclado dentro) no se autocierra.
 
+### `rotation.js`
+
+**Salida de `npm test`:**
+```
+── Rotación del mapa: ángulo de la brújula, giro con el botón central, recorte de la retícula y arrastre limitado al mundo con el mapa girado
+ROTATION TESTS OK
+```
+
+**Qué cubre:** Las piezas puras de la rotación del mapa (experimento, leaflet-rotate). `pointerAngleDeg` (ángulo del puntero desde el centro de la brújula con el convenio de rumbo: 0 arriba, sentido horario, nunca negativo) y `dragBearing` (el rumbo durante un arrastre es el de partida más lo que gira el puntero, no su ángulo absoluto —el mapa no salta al primer movimiento—, cruza el norte sin restar 340°, se normaliza a [0, 360) y es libre, sin pasos). `pivotDragBearing` (giro con el botón central: medio grado por píxel en horizontal, derecha = horario, cruza el norte sin negativos, libre). `clipSegmentToRect` (Liang–Barsky: recorte de una línea de la retícula al visor; el primer extremo devuelto es el del lado de `p0`, que es por donde se pone la etiqueta; fuera de la vista → null, incluida una vertical exterior). `clampRotatedDragOffset` (arrastre limitado al mundo con el mapa girado): a 0° coincide con el recorte por ejes de Leaflet, a 90° el tope es el del eje del MAPA y no el de la pantalla, y con la vista más grande que el mundo el centro se queda en medio.
+
 ### `browser/app.mjs`
 
 **Salida de `npm test`:**
@@ -754,6 +764,16 @@ BROWSER ARC DRAW TESTS OK
 ```
 
 **Qué cubre:** La herramienta «Medir arco» con clics y movimientos de ratón DE VERDAD. Un clic sin arrastre fija el centro y deja el radio a medias; el siguiente fija el inicio y pasa a recorrer el perímetro (arrastrar del centro al inicio también vale). El barrido sigue al ratón: +90° en horario, −190° en antihorario (más de media vuelta). Al terminar sale una RUTA normal (`type "route"`, sin tipo propio) llamada «Arco N», con `arcSegments`+1 waypoints (16 por defecto, el valor de la preferencia al terminar), todos sobre el círculo, empezando en la orientación del inicio y acabando donde se hizo el último clic, con las etiquetas de tramo apagadas y sin abrir diálogo. Un clic sin barrido no crea nada y sigue dibujando; Escape a medias cancela sin dejar nodos; Ctrl+Z deshace; y tras recargar vuelve como la misma ruta. Con las etiquetas de tramo apagadas (nacen así), ni abrir el diálogo ni Cancelar —que restaura los vértices— las vuelven a mostrar, y marcar la casilla sí. Los `mousemove` se espacian 60 ms: Chromium agrupa los que llegan en un mismo fotograma.
+
+### `browser/rotation.mjs`
+
+**Salida de `npm test`:**
+```
+── Navegador: rotación del mapa — brújula, botón central, R, etiquetas horizontales, detección de capas, modo alturas, PNG y bordes del mundo
+BROWSER ROTATION TESTS OK
+```
+
+**Qué cubre:** La rotación del mapa con ratón y teclado de verdad. La brújula va encima del panel de mapas base (y el control propio del plugin no aparece); arrastrarla 60° en sentido horario gira el mapa 60°, el norte queda en pantalla en esa dirección y la aguja lo señala; un clic sin arrastre y la tecla R con el foco en el visor vuelven a 0, pero una «r» escrita en el buscador no gira nada. La brújula y el botón de capas miden lo mismo y la brújula no lleva texto. Con el botón central, 120 px a la derecha giran 60° en sentido horario sin arrastrar el mapa, el punto pulsado se queda bajo el cursor (a menos de 1,5 px), el cursor es la rosa de los vientos mientras dura y se quita al soltar; un clic central sin mover no hace nada y el botón izquierdo sigue arrastrando sin girar. A 45° las etiquetas (de un polígono y de una medición) siguen horizontales y un clic sobre un polígono estrecho y diagonal lo encuentra (la criba de dos esquinas lo dejaba fuera: comprobado que falla sin el arreglo). El modo alturas no se activa con el mapa girado, su botón y su entrada del menú contextual se ven deshabilitados con el motivo, y girar con el modo activo lo apaga. El PNG incluye la brújula solo con el mapa girado. A zoom mínimo y 45° el suelo de zoom sube, ninguna esquina cae fuera del mundo y ningún mapa base pide teselas fuera de rango (antes, 400 y aviso falso); arrastrar contra el borde del mundo girado no hace saltar la vista. La iluminación día/noche, leída píxel a píxel del lienzo WebGL a 70°, sombrea donde es de noche de verdad (sin el arreglo del shader, cero).
 
 ### `browser/geocalc.mjs`
 

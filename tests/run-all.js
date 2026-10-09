@@ -56,7 +56,8 @@ const SUITES = [
   ["openshape.js", "Formas abiertas: una línea no tiene área ni relleno"],
   ["polyarea.js",         "Perímetro y área de polígonos: anillos cerrados/sin cerrar, agujeros, multipolígono"],
   ["geocalc.js",          "Calculadora geodésica: elevación, cono, corrección por presión (ISA) y vector GPS, con su validación"],
-  ["toolstest.js",        "showLayerInfo/setTool: el panel de información no se cuela ni queda pegado al salir de una herramienta de dibujo"]
+  ["toolstest.js",        "showLayerInfo/setTool: el panel de información no se cuela ni queda pegado al salir de una herramienta de dibujo"],
+  ["rotation.js",         "Rotación del mapa: ángulo de la brújula, giro con el botón central, recorte de la retícula y arrastre limitado al mundo con el mapa girado"]
 ];
 const BENCH = [["selbench.js", "Coste de seleccionar y de topLevelSelection"]];
 
@@ -86,6 +87,7 @@ const BROWSER = [
   ["browser/oneworld.mjs", "Navegador: una sola Tierra — sin copias en horizontal, con tope de arrastre y suelo de zoom"],
   ["browser/undo-create.mjs", "Navegador: crear un marcador, un polígono o una medición se puede deshacer y rehacer"],
   ["browser/arc-draw.mjs", "Navegador: medir un arco — centro, inicio y recorrido del perímetro, guardado como ruta de N tramos"],
+  ["browser/rotation.mjs", "Navegador: rotación del mapa — brújula, botón central, R, etiquetas horizontales, detección de capas, modo alturas, PNG y bordes del mundo"],
   ["browser/geocalc.mjs", "Navegador: calculadora geodésica — dos pestañas que se recalculan solas, presión, unidades que convierten, sin crecer y no modal"]
 ];
 

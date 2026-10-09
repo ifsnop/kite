@@ -3,6 +3,9 @@
 let gratButton = null;
 let elevUnitButton = null;
 
+const DEM_BUTTON_TITLE = "Modo altura: consulta el MDT (terreno) y el MDS"
+  + " (superficie) del IGN bajo el cursor (Espa\u00F1a; requiere conexi\u00F3n)";
+
 /* Named so both the toolbar buttons and the viewer's context menu can
    trigger the same action without duplicating logic.                  */
 function fitToContent() {
@@ -51,8 +54,7 @@ const ViewControl = L.Control.extend({
     demButton = L.DomUtil.create("a", "", bar);
     demButton.href = "#";
     demButton.textContent = "\u26F0";
-    demButton.title = "Modo altura: consulta el MDT (terreno) y el MDS"
-      + " (superficie) del IGN bajo el cursor (Espa\u00F1a; requiere conexi\u00F3n)";
+    demButton.title = DEM_BUTTON_TITLE;
     demButton.addEventListener("click", e => {
       e.preventDefault();
       setAltitudeMode(!demOn);
@@ -134,23 +136,259 @@ function redrawGraticule() {
   }
   const dec = (String(step).split(".")[1] || "").length;
   const style = { color: "#446", weight: 1, opacity: 0.45, dashArray: "2 4", interactive: false };
-  const labelLng = Math.max(view.getWest(), west);
-  const labelLat = Math.min(view.getNorth(), north);
+  const size = map.getSize();
+  const rotated = Math.abs(map.getBearing()) > 0.05;
 
   let n = 0;
   for (let i = Math.ceil(south / step); i * step <= north && n < GRAT_MAX_LINES; i++, n++) {
     const lat = i * step;
     graticuleLayer.addLayer(L.polyline([[lat, west], [lat, east]], style));
-    graticuleLayer.addLayer(gratLabel([lat, labelLng], `\u00A0${lat.toFixed(dec)}\u00B0`));
+    const at = gratLabelPoint([lat, west], [lat, east], size, rotated);
+    if (at) graticuleLayer.addLayer(gratLabel(at, `\u00A0${lat.toFixed(dec)}\u00B0`));
   }
   n = 0;
   for (let i = Math.ceil(west / step); i * step <= east && n < GRAT_MAX_LINES; i++, n++) {
     const lng = i * step;
     graticuleLayer.addLayer(L.polyline([[south, lng], [north, lng]], style));
-    graticuleLayer.addLayer(gratLabel([labelLat, lng], `${lng.toFixed(dec)}\u00B0`));
+    const at = gratLabelPoint([north, lng], [south, lng], size, rotated);
+    if (at) graticuleLayer.addLayer(gratLabel(at, `${lng.toFixed(dec)}\u00B0`));
   }
 }
+
+/* Recorta el segmento p0→p1 (píxeles de contenedor) al rectángulo
+   [0,w]×[0,h] (Liang–Barsky). Devuelve los dos extremos visibles, o
+   null si el segmento no pasa por la vista.                          */
+function clipSegmentToRect(p0, p1, w, h) {
+  const dx = p1.x - p0.x, dy = p1.y - p0.y;
+  let t0 = 0, t1 = 1;
+  for (const [p, q] of [[-dx, p0.x], [dx, w - p0.x], [-dy, p0.y], [dy, h - p0.y]]) {
+    if (p === 0) { if (q < 0) return null; continue; }
+    const r = q / p;
+    if (p < 0) { if (r > t1) return null; if (r > t0) t0 = r; }
+    else { if (r < t0) return null; if (r < t1) t1 = r; }
+  }
+  return [{ x: p0.x + t0 * dx, y: p0.y + t0 * dy }, { x: p0.x + t1 * dx, y: p0.y + t1 * dy }];
+}
+/* Etiqueta de una línea de la retícula: donde ENTRA en la vista desde
+   su extremo `a` — el oeste para un paralelo, el norte para un
+   meridiano. Con el norte arriba es exactamente el borde izquierdo/
+   superior de siempre. Con el mapa rotado ese borde ya no es el de la
+   pantalla (de ahí recortar en píxeles), y separar paralelos y
+   meridianos por su extremo geográfico, y no por el borde de pantalla
+   más cercano, es lo que evita que se amontonen todas en el mismo
+   borde. Si cae en el borde derecho o inferior, la etiqueta se mete un
+   poco hacia dentro para que no quede cortada.                        */
+const GRAT_LABEL_W = 44, GRAT_LABEL_H = 14;
+function gratLabelPoint(a, b, size, rotated) {
+  const seg = clipSegmentToRect(map.latLngToContainerPoint(a), map.latLngToContainerPoint(b), size.x, size.y);
+  if (!seg) return null;
+  let p = seg[0];
+  if (rotated) {
+    p = { x: Math.min(p.x, size.x - GRAT_LABEL_W), y: Math.min(p.y, size.y - GRAT_LABEL_H) };
+  }
+  return map.containerPointToLatLng([p.x, p.y]);
+}
 map.on("moveend zoomend", redrawGraticule);
+/* Girar la brújula dispara "rotate" decenas de veces por segundo: un
+   redibujado por fotograma basta.                                     */
+let gratFrame = null;
+map.on("rotate", () => {
+  if (!graticuleOn || gratFrame) return;
+  gratFrame = requestAnimationFrame(() => { gratFrame = null; redrawGraticule(); });
+});
+
+/* ---------- Brújula: rotación del mapa (leaflet-rotate) ----------
+   Arrastrar alrededor de la brújula gira el mapa, de forma LIBRE (sin
+   pasos); un clic sin arrastrar —o la tecla R con el foco en el visor—
+   vuelve a poner el norte arriba. La orientación no se guarda: cada
+   arranque empieza con el norte arriba. Va en la esquina superior
+   derecha, ENCIMA del panel de mapas base: los dos son controles de
+   "topright" y Leaflet los apila por orden de alta, así que se mueve a
+   mano a la cabeza de esa esquina.
+   `map.getBearing()` = grados que el contenido del mapa está girado en
+   sentido HORARIO; el norte queda en pantalla en esa misma dirección,
+   así que la aguja gira lo mismo.                                     */
+const BEARING_EPS = 0.05; /* por debajo, se considera norte arriba */
+const COMPASS_DRAG_PX = 3; /* menos es un clic con temblor, no un arrastre */
+const isMapRotated = () => Math.abs(map.getBearing()) > BEARING_EPS
+  && Math.abs(map.getBearing() - 360) > BEARING_EPS;
+
+/* Ángulo del puntero (x, y) visto desde el centro (cx, cy), en grados,
+   0 = arriba, sentido horario (el mismo convenio que un rumbo).       */
+function pointerAngleDeg(cx, cy, x, y) {
+  return (Math.atan2(x - cx, cy - y) * 180 / Math.PI + 360) % 360;
+}
+/* Rumbo del mapa durante un arrastre: el de partida más lo que ha
+   girado el puntero desde que empezó (no el ángulo absoluto del
+   puntero: así el mapa no salta al primer movimiento).               */
+function dragBearing(startBearing, startAngle, angle) {
+  return ((startBearing + angle - startAngle) % 360 + 360) % 360;
+}
+
+function resetNorth() { if (isMapRotated()) map.setBearing(0); }
+
+const COMPASS_SVG = '<svg viewBox="0 0 40 40" width="40" height="40" aria-hidden="true">'
+  + '<g class="compass-needle">'
+  + '<polygon points="20,4 25,20 15,20" class="compass-n"/>'
+  + '<polygon points="20,36 25,20 15,20" class="compass-s"/>'
+  + '</g></svg>';
+
+let compassEl = null;
+const CompassControl = L.Control.extend({
+  options: { position: "topright" },
+  onAdd() {
+    const box = L.DomUtil.create("div", "compass-box leaflet-bar");
+    const a = L.DomUtil.create("a", "compass-btn", box);
+    a.href = "#";
+    a.title = "Brújula: arrastra para girar el mapa; clic (o R sobre el visor) vuelve a poner el norte arriba";
+    a.setAttribute("aria-label", "Brújula: clic para poner el norte arriba");
+    a.innerHTML = COMPASS_SVG;
+    compassEl = box;
+    let drag = null, dragged = false;
+    a.addEventListener("pointerdown", e => {
+      if (e.button !== 0) return;
+      e.preventDefault();
+      const r = a.getBoundingClientRect();
+      const cx = r.left + r.width / 2, cy = r.top + r.height / 2;
+      drag = { cx, cy, x: e.clientX, y: e.clientY, bearing: map.getBearing(),
+               angle: pointerAngleDeg(cx, cy, e.clientX, e.clientY), moved: false };
+      a.setPointerCapture(e.pointerId);
+    });
+    a.addEventListener("pointermove", e => {
+      if (!drag) return;
+      if (!drag.moved && Math.hypot(e.clientX - drag.x, e.clientY - drag.y) < COMPASS_DRAG_PX) return;
+      drag.moved = true;
+      box.classList.add("dragging");
+      map.setBearing(dragBearing(drag.bearing, drag.angle, pointerAngleDeg(drag.cx, drag.cy, e.clientX, e.clientY)));
+    });
+    const end = () => {
+      if (!drag) return;
+      dragged = drag.moved;
+      drag = null;
+      box.classList.remove("dragging");
+      /* Girar no mueve el centro, pero la vista girada puede asomar ya
+         fuera del mundo junto a un borde: se recoloca al soltar (no en
+         cada paso del giro, que haría temblar el mapa).               */
+      if (dragged) map.panInsideBounds(map.options.maxBounds, { animate: false });
+    };
+    a.addEventListener("pointerup", end);
+    a.addEventListener("pointercancel", end);
+    /* El clic (ratón o Intro/espacio desde teclado) pone el norte arriba,
+       salvo si cierra un arrastre: ese gesto ya hizo lo que tenía que hacer. */
+    a.addEventListener("click", e => {
+      e.preventDefault();
+      if (dragged) { dragged = false; return; }
+      resetNorth();
+    });
+    L.DomEvent.disableClickPropagation(box);
+    return box;
+  }
+});
+map.addControl(new CompassControl());
+{
+  /* A la cabeza de la esquina topright: encima del panel de mapas base */
+  const corner = compassEl.parentNode;
+  corner.insertBefore(compassEl, corner.firstChild);
+}
+function syncCompass() {
+  const needle = compassEl.querySelector(".compass-needle");
+  needle.setAttribute("transform", `rotate(${map.getBearing()} 20 20)`);
+  compassEl.classList.toggle("rotated", isMapRotated());
+}
+map.on("rotate", syncCompass);
+syncCompass();
+
+/* R con el foco en el visor: norte arriba. Mismo patrón que AvPág/RePág
+   (más abajo): escuchado en el contenedor del mapa, así que escribir una
+   "r" en cualquier campo de texto no lo dispara.                      */
+map.getContainer().addEventListener("keydown", e => {
+  if ((e.key !== "r" && e.key !== "R") || e.ctrlKey || e.metaKey || e.altKey) return;
+  e.preventDefault();
+  resetNorth();
+});
+
+/* ---------- Girar con el botón central del ratón ----------
+   Mantener pulsado el botón central (la rueda) y arrastrar gira el mapa
+   alrededor del punto donde se pulsó, que se queda quieto bajo el
+   cursor; el giro es el desplazamiento HORIZONTAL desde ese punto
+   (derecha = sentido horario). No el ángulo del puntero alrededor del
+   pivote: al empezar el puntero está encima de él y ese ángulo salta.
+   Antes el botón central arrastraba el mapa como el izquierdo: el
+   Draggable de Leaflet 1.9 acepta `button === 1` (resto de
+   compatibilidad con IE, donde 1 era el izquierdo), así que el gesto se
+   intercepta en fase de CAPTURA en el contenedor, antes que Leaflet. El
+   `preventDefault` del pointerdown suprime además el `mousedown` de
+   compatibilidad (y con él el autodesplazamiento del navegador).
+   Durante el gesto el cursor es una rosa de los vientos con su norte
+   donde apunta el norte del mapa.                                     */
+const ROTATE_DEG_PER_PX = 0.5;
+
+/* Rumbo tras desplazar el puntero `dx` píxeles en horizontal */
+function pivotDragBearing(startBearing, dx) {
+  return dragBearing(startBearing, 0, dx * ROTATE_DEG_PER_PX);
+}
+
+function roseCursor(bearing) {
+  const svg = '<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 32 32">'
+    + `<g transform="rotate(${bearing.toFixed(1)} 16 16)" stroke="#fff" stroke-width="1.5"`
+    + ' stroke-linejoin="round" paint-order="stroke">'
+    + '<polygon points="16,7 17.4,14.6 25,16 17.4,17.4 16,25 14.6,17.4 7,16 14.6,14.6" fill="#666" transform="rotate(45 16 16)"/>'
+    + '<polygon points="16,1 18.3,13.7 31,16 18.3,18.3 16,31 13.7,18.3 1,16 13.7,13.7" fill="#333"/>'
+    + '<polygon points="16,1.6 18.1,13.9 16,16 13.9,13.9" fill="#d62828" stroke="none"/>'
+    + '</g></svg>';
+  return `url("data:image/svg+xml,${encodeURIComponent(svg)}") 16 16, move`;
+}
+
+{
+  const el = map.getContainer();
+  let rot = null;
+  const setCursor = () => el.style.setProperty("--rotate-cursor", roseCursor(map.getBearing()));
+  el.addEventListener("pointerdown", e => {
+    if (e.button !== 1 || e.pointerType !== "mouse" || rot) return;
+    if (e.target.closest(".leaflet-control-container")) return;
+    e.preventDefault();
+    e.stopPropagation();
+    el.focus({ preventScroll: true });
+    const r = el.getBoundingClientRect();
+    const pivot = L.point(e.clientX - r.left, e.clientY - r.top);
+    rot = { id: e.pointerId, x: e.clientX, pivot, latlng: map.containerPointToLatLng(pivot),
+            bearing: map.getBearing(), moved: false };
+    el.setPointerCapture(e.pointerId);
+    setCursor();
+    el.classList.add("map-rotating");
+  }, true);
+  /* Por si el navegador entrega aún el mousedown: que Leaflet no lo vea */
+  el.addEventListener("mousedown", e => { if (e.button === 1 && rot) { e.preventDefault(); e.stopPropagation(); } }, true);
+  el.addEventListener("pointermove", e => {
+    if (!rot || e.pointerId !== rot.id) return;
+    e.stopPropagation();
+    if (!rot.moved) { rot.moved = true; map.fire("movestart"); }
+    map.setBearing(pivotDragBearing(rot.bearing, e.clientX - rot.x));
+    /* El giro del plugin es alrededor del centro de la vista: se
+       devuelve el punto pulsado a su sitio. Siempre contra el MISMO
+       punto geográfico, así el redondeo a píxel no se acumula.       */
+    const off = map.latLngToContainerPoint(rot.latlng).subtract(rot.pivot).round();
+    if (off.x || off.y) map._rawPanBy(off);
+    map.fire("move");
+    setCursor();
+  }, true);
+  const end = e => {
+    if (!rot || e.pointerId !== rot.id) return;
+    const moved = rot.moved;
+    rot = null;
+    el.classList.remove("map-rotating");
+    if (!moved) return;
+    map.fire("moveend");
+    /* Como al soltar la brújula: la vista girada puede asomar fuera
+       del mundo junto a un borde, se recoloca al terminar.           */
+    map.panInsideBounds(map.options.maxBounds, { animate: false });
+  };
+  el.addEventListener("pointerup", end, true);
+  el.addEventListener("pointercancel", end, true);
+  /* Sin el pegado de la selección primaria (X11) ni otros usos del
+     clic central sobre el visor */
+  el.addEventListener("auxclick", e => { if (e.button === 1) e.preventDefault(); });
+}
 
 /* ---------- Coordenadas del puntero (inferior izquierda) ---------- */
 /* Tres lecturas de la misma posición: grados decimales, grados/minutos/
@@ -255,7 +493,8 @@ const CTX_MENU_ITEMS = [
         .catch(() => navMessage("No se pudieron copiar las coordenadas."));
     }
   },
-  { label: "Modo elevación", checked: () => demOn, action: () => setAltitudeMode(!demOn) },
+  { label: "Modo elevación", checked: () => demOn, action: () => setAltitudeMode(!demOn),
+    disabled: () => isMapRotated() && ALT_ROTATED_WHY },
   /* Las tres mediciones agrupadas en un submenú: son la misma familia y
      tres entradas sueltas desbordaban el menú.                        */
   {
@@ -445,6 +684,10 @@ function renderCtxItems(container, items, latlng) {
       btn.setAttribute("role", isToggle ? "menuitemcheckbox" : "menuitem");
       if (isToggle) btn.setAttribute("aria-checked", String(on));
       btn.textContent = (on ? "✓ " : "") + item.label;
+      /* `disabled()` opcional: devuelve el MOTIVO (texto) o algo falso.
+         Deshabilitado, no escondido: se ve que existe y por qué no va. */
+      const why = typeof item.disabled === "function" && item.disabled();
+      if (why) { btn.disabled = true; btn.title = why; }
       if (isTopLevel) btn.addEventListener("mouseenter", closeCtxSubmenu);
       btn.addEventListener("click", () => { closeCtxMenu(); item.action(latlng); });
     }

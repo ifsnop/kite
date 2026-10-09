@@ -46,7 +46,10 @@ Dos cotas bajo el árbol (`#usage`):
 ## Una sola Tierra
 
 Sin desplazamiento infinito: el mundo se ve una vez, TRES piezas
-necesarias, cada una tapa un agujero distinto:
+necesarias, cada una tapa un agujero distinto (con el mapa ROTADO cada
+una necesita además su adaptación — `bounds` en las teselas, suelo de
+zoom con la caja girada y límite del arrastre en el marco del mapa —,
+ver `map-rotation.md`):
 
 - **`noWrap`** en cada capa de teselas, puesto en `applyBaseLayer` (único
   sitio que instancia una capa base, no repetido en `BASE_LAYERS`) para

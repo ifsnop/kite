@@ -61,7 +61,10 @@ async function exportMapPng() {
     return;
   }
   let canvas;
-  const hidden = [...document.querySelectorAll(HIDE_FOR_PNG)];
+  /* La brújula, en cambio, SÍ sale cuando el mapa está rotado: sin
+     ella, una imagen girada no dice dónde está el norte. Con el norte
+     arriba no aporta nada y se oculta como el resto de controles.    */
+  const hidden = [...document.querySelectorAll(HIDE_FOR_PNG + (isMapRotated() ? "" : ", .compass-box"))];
   const prevDisplay = hidden.map(el => el.style.display);
   hidden.forEach(el => { el.style.display = "none"; });
   try {

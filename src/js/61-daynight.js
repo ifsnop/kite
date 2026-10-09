@@ -207,8 +207,10 @@ const DAYNIGHT_REFRESH_MS = 60000;
    redibujado con `map.latLngToContainerPoint` — la misma función que
    usan los controles y que sí tiene en cuenta el arrastre en curso.
    Como la latitud fija a lo largo de un día en Web Mercator es una
-   línea horizontal (el píxel Y de una latitud no depende de la
-   longitud), basta un `border-top` a todo lo ancho, sin trazar nada. */
+   línea recta (horizontal con el norte arriba: el píxel Y de una
+   latitud no depende de la longitud; girada lo mismo que el mapa si
+   está rotado), basta un `border-top` largo, sin trazar nada — ver
+   dnPlaceParallel.                                                    */
 let dnOverlay = null, dnSunLine = null, dnMoonLine = null, dnSunIconEl = null, dnMoonIconEl = null;
 
 function dnBuildCelestialOverlay() {
@@ -234,16 +236,33 @@ function dnBuildCelestialOverlay() {
    MISMA función que usan los controles de Leaflet para su posición en
    pantalla — coherente con lo que se ve ahora mismo, arrastre incluido. */
 function dnUpdateCelestialOverlay(sub, moon) {
-  const sunY = map.latLngToContainerPoint([sub.lat, 0]).y;
-  const moonY = map.latLngToContainerPoint([moon.lat, 0]).y;
-  dnSunLine.style.top = `${sunY}px`;
-  dnMoonLine.style.top = `${moonY}px`;
   const sunPt = map.latLngToContainerPoint([sub.lat, sub.lng]);
   const moonPt = map.latLngToContainerPoint([moon.lat, moon.lng]);
+  dnPlaceParallel(dnSunLine, sunPt);
+  dnPlaceParallel(dnMoonLine, moonPt);
   dnSunIconEl.style.left = `${sunPt.x}px`;
   dnSunIconEl.style.top = `${sunPt.y}px`;
   dnMoonIconEl.style.left = `${moonPt.x}px`;
   dnMoonIconEl.style.top = `${moonPt.y}px`;
+}
+
+/* Un paralelo en pantalla es una recta que pasa por `pt` con la
+   dirección del giro del mapa (horizontal con el norte arriba). Se
+   dibuja centrada en el punto de esa recta más cercano al centro del
+   visor y con el doble de la diagonal de largo, así cubre la vista
+   entera aunque el sol o la luna queden muy lejos de ella.            */
+function dnPlaceParallel(line, pt) {
+  const size = map.getSize();
+  const b = map.getBearing() * Math.PI / 180;
+  const ux = Math.cos(b), uy = Math.sin(b);
+  const cx = size.x / 2, cy = size.y / 2;
+  const t = (cx - pt.x) * ux + (cy - pt.y) * uy;
+  const qx = pt.x + ux * t, qy = pt.y + uy * t;
+  const half = Math.hypot(size.x, size.y);
+  line.style.left = `${qx - half}px`;
+  line.style.top = `${qy}px`;
+  line.style.width = `${2 * half}px`;
+  line.style.transform = `rotate(${map.getBearing()}deg)`;
 }
 
 const DN_VERTEX_SRC = `
@@ -267,6 +286,7 @@ const DN_FRAGMENT_SRC = `
   uniform float uScale;      /* píxeles de mundo (CSS) por píxel de dispositivo */
   uniform float uWorldSize;  /* 256 * 2^zoom */
   uniform vec2 uSubsolar;    /* lat, lng del punto subsolar, en RADIANES */
+  uniform float uBearing;    /* giro del mapa (leaflet-rotate), en RADIANES, horario */
 
   const float PI = 3.14159265358979;
 
@@ -274,7 +294,13 @@ const DN_FRAGMENT_SRC = `
     /* gl_FragCoord crece hacia ARRIBA; el mundo de teselas crece hacia
        el SUR, de ahí el signo distinto en cada eje. */
     vec2 screen = gl_FragCoord.xy - uResolution * 0.5;
-    vec2 world = uCenterWorld + vec2(screen.x, -screen.y) * uScale;
+    /* Con el mapa rotado, el píxel de pantalla se "desgira" alrededor
+       del centro antes de pasar al mundo de teselas: es la inversa de
+       la rotación (horaria, con Y hacia abajo) que aplica el plugin. */
+    vec2 s = vec2(screen.x, -screen.y);
+    float cb = cos(uBearing), sb = sin(uBearing);
+    s = vec2(cb * s.x + sb * s.y, -sb * s.x + cb * s.y);
+    vec2 world = uCenterWorld + s * uScale;
     vec2 frac = world / uWorldSize;
     float lng = fract(frac.x) * 2.0 * PI - PI;
     /* GLSL ES 1.00 (WebGL1) no tiene sinh(): es de GLSL ES 3.00 en
@@ -385,7 +411,8 @@ function dnInit() {
     centerWorld: dnGl.getUniformLocation(dnProgram, "uCenterWorld"),
     scale: dnGl.getUniformLocation(dnProgram, "uScale"),
     worldSize: dnGl.getUniformLocation(dnProgram, "uWorldSize"),
-    subsolar: dnGl.getUniformLocation(dnProgram, "uSubsolar")
+    subsolar: dnGl.getUniformLocation(dnProgram, "uSubsolar"),
+    bearing: dnGl.getUniformLocation(dnProgram, "uBearing")
   };
   dnBuildCelestialOverlay();
   return true;
@@ -420,6 +447,7 @@ function dnRender() {
   dnGl.uniform1f(dnUniforms.scale, 1 / dpr);
   dnGl.uniform1f(dnUniforms.worldSize, worldSize);
   dnGl.uniform2f(dnUniforms.subsolar, sub.lat * Math.PI / 180, sub.lng * Math.PI / 180);
+  dnGl.uniform1f(dnUniforms.bearing, map.getBearing() * Math.PI / 180);
   /* `preserveDrawingBuffer: true` conserva el lienzo ENTRE fotogramas
      compuestos (necesario, ver dnInit), pero eso significa que también
      conserva el contenido del redibujado ANTERIOR: sin este `clear`,
@@ -453,7 +481,7 @@ function dnTeardown() {
   if (dnFrame) { cancelAnimationFrame(dnFrame); dnFrame = null; }
   if (dnTimer) { clearInterval(dnTimer); dnTimer = null; }
   document.removeEventListener("visibilitychange", dnVisibilityHandler);
-  map.off("move zoom resize", dnRequestRender);
+  map.off("move zoom resize rotate", dnRequestRender);
   if (dnCanvas) { dnCanvas.remove(); dnCanvas = null; }
   dnGl = null; dnProgram = null; dnUniforms = null;
   if (dnOverlay) { dnOverlay.remove(); dnOverlay = null; }
@@ -488,7 +516,7 @@ function toggleDayNight() {
     return;
   }
   if (dnButton) dnButton.classList.add("active");
-  map.on("move zoom resize", dnRequestRender);
+  map.on("move zoom resize rotate", dnRequestRender);
   document.addEventListener("visibilitychange", dnVisibilityHandler);
   dnTimer = setInterval(dnRequestRender, DAYNIGHT_REFRESH_MS);
   dnRequestRender();

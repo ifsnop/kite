@@ -280,6 +280,9 @@
         <tr><td>Ctrl + arrastrar (sobre un c&#237;rculo de medici&#243;n)</td><td>Mover su centro o su borde</td></tr>
         <tr><td>Doble clic en una fila</td><td>Ir a la capa; repetido, acercar</td></tr>
         <tr><td>Re P&#225;g / Av P&#225;g (con el mapa enfocado)</td><td>Acercar / alejar un nivel de zoom hacia el puntero</td></tr>
+        <tr><td>Arrastrar la br&#250;jula</td><td>Girar el mapa (el norte deja de apuntar arriba)</td></tr>
+        <tr><td>R (con el mapa enfocado) o clic en la br&#250;jula</td><td>Volver a poner el norte arriba</td></tr>
+        <tr><td>Bot&#243;n central (rueda) pulsado + arrastrar a izquierda/derecha</td><td>Girar el mapa alrededor del punto pulsado</td></tr>
       </table>
     </div>
     <div id="sh-tab-draw" class="dlg-tabpanel" hidden role="tabpanel">
@@ -637,6 +640,11 @@
 
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
         integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo="
+        crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+<!-- Rotación del mapa (experimento): parchea Leaflet, así que va justo
+     detrás de él y antes que cualquier L.map(). -->
+<script src="https://unpkg.com/leaflet-rotate@0.2.8/dist/leaflet-rotate.js"
+        integrity="sha384-MtIdllebpZyms2pw9K3YJl8BEqrKNQCdSFAySjeglab6z2PkeFdF4Lb9cDsnxQuG"
         crossorigin="anonymous" referrerpolicy="no-referrer"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"
         integrity="sha512-XMVd28F1oH/O71fzwBnV7HucLxVwtxf26XV8P4wPk26EDxuGZ91N8bsOttmnomcCD3CS5ZMRL50H0GgOHvegtg=="

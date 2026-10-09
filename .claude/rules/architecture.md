@@ -7,6 +7,9 @@ paths:
 
 ## Arquitectura (orden de secciones dentro del script)
 
+0. **Correcciones a leaflet-rotate** (`08-leaflet-rotate-fixes.js`):
+   parches de prototipo de Leaflet, ANTES de crear el mapa. Ver
+   `map-rotation.md`.
 1. **Mapa base**: capas de teselas (OSM, Esri Terrain, PNOA, sin fondo)
    y `rootGroup` (`featureGroup` del que cuelga TODO). Prefijo de
    atribución (versión+repo) y escala aquí: su posición depende del
