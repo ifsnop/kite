@@ -45,7 +45,7 @@ ok(circleStyle.fillOpacity === 0.1,
 
 /* ================= 2. Medidas: casquete esférico y lectura ================= */
 const geoSrc = between("/* ================= Geodesia", "/* Rumbo inicial de a")
-  + "\n" + fn("bearingDeg") + "\n" + constDecl("capArea");
+  + "\n" + fn("bearingDeg") + "\n" + constDecl("capArea") + "\n" + constDecl("circlePerimeter");
 /* map.distance de sustitución: haversine sobre la misma esfera que usa
    Leaflet (EARTH_R/toRad ya extraídos arriba), no una reimplementación. */
 const mapStub = `
@@ -57,7 +57,7 @@ const map = { distance(a, b) {
 } };
 `;
 const mv = new Function(geoSrc + mapStub + "\n" + fn("measurementValues")
-  + "\nreturn {measurementValues, capArea, EARTH_R};")();
+  + "\nreturn {measurementValues, capArea, circlePerimeter, EARTH_R};")();
 
 /* capArea: para un círculo pequeño es πr² con toda la precisión que
    hace falta; para uno grande se separa, y SIEMPRE por debajo (la
@@ -85,7 +85,12 @@ const A = { lat: 40, lng: -3 }, B = { lat: 40, lng: -2 };
 
 const circVals = mv.measurementValues(fakeM("circle", A, B));
 ok(circVals.circle === true, "un círculo sí lo es");
-ok(circVals.brg === null, "un círculo no tiene rumbo: el radio apunta a todas partes");
+/* Su orientación es el rumbo centro → borde (A y B comparten latitud, así
+   que el borde queda al este, ~90°), y su perímetro el del círculo menor
+   sobre la esfera, no 2πr.                                              */
+ok(Math.abs(circVals.brg - 90) < 0.5, "la orientación de un círculo es el rumbo al borde: " + circVals.brg);
+ok(circVals.perim === mv.circlePerimeter(circVals.dist),
+  "su perímetro es el del círculo menor: " + circVals.perim);
 ok(circVals.area === mv.capArea(circVals.dist),
   "su área es la del casquete de su radio, no πr²");
 ok(circVals.dist > 85000 && circVals.dist < 86000,
@@ -95,6 +100,7 @@ ok(circVals.dist > 85000 && circVals.dist < 86000,
 const { document } = parseHTML(`
   <span id="ms-dist-label"></span><span id="ms-dist"></span>
   <div id="ms-center-row"><span id="ms-center"></span></div>
+  <div id="ms-perim-row"><span id="ms-perim"></span></div>
   <div id="ms-area-row"><span id="ms-area"></span></div>
   <div id="ms-bearing-row"><span id="ms-bearing"></span></div>
   <div id="ms-legs-row"><div id="ms-legs"></div></div>`);
@@ -129,6 +135,7 @@ ok($("ms-dist-label").textContent === "Distancia", "una línea mide DISTANCIA");
 ok($("ms-dist").textContent === "1852.00 m", "en metros: " + $("ms-dist").textContent);
 ok($("ms-center-row").hidden === true, "una línea no tiene centro que mostrar");
 ok($("ms-area-row").hidden === true, "y sin fila de área");
+ok($("ms-perim-row").hidden === true, "ni de perímetro");
 ok($("ms-bearing-row").hidden === false && $("ms-bearing").textContent === "45.0°",
   "el rumbo va en grados, con un decimal: " + $("ms-bearing").textContent);
 
@@ -138,12 +145,16 @@ ok($("ms-dist").textContent === "1.00 NM", "1852 m es 1 NM exacta: " + $("ms-dis
 /* El rumbo NO cambia con la unidad: no es una distancia */
 ok($("ms-bearing").textContent === "45.0°", "el rumbo sigue en grados");
 
-render.render({ circle: true, dist: 1000, area: mv.capArea(1000), brg: null,
-  center: { lat: 40.416775, lng: -3.703790 } }, "km");
+render.render({ circle: true, dist: 1000, area: mv.capArea(1000), brg: 270,
+  perim: mv.circlePerimeter(1000), center: { lat: 40.416775, lng: -3.703790 } }, "km");
 ok($("ms-dist-label").textContent === "Radio", "un círculo mide RADIO");
 ok($("ms-dist").textContent === "1.00 km", "1000 m es 1 km: " + $("ms-dist").textContent);
-ok($("ms-bearing-row").hidden === true, "y no enseña rumbo");
-ok($("ms-area-row").hidden === false, "pero sí área");
+/* La orientación (rumbo centro → borde) y el perímetro SÍ se enseñan */
+ok($("ms-bearing-row").hidden === false && $("ms-bearing").textContent === "270.0°",
+  "el círculo enseña su orientación: " + $("ms-bearing").textContent);
+ok($("ms-perim-row").hidden === false && $("ms-perim").textContent === "6.28 km",
+  "y su perímetro, en la unidad elegida: " + $("ms-perim").textContent);
+ok($("ms-area-row").hidden === false, "y el área");
 /* El área va en unidad AL CUADRADO: πr² de 1 km son ~3.14 km² */
 ok($("ms-area").textContent === "3.14 km²",
   "el área se convierte con el factor al cuadrado: " + $("ms-area").textContent);
@@ -160,6 +171,7 @@ render.render({ circle: false, route: true, dist: 100000, area: null, brg: null,
 ok($("ms-dist-label").textContent === "Distancia total", "una ruta mide DISTANCIA TOTAL: " + $("ms-dist-label").textContent);
 ok($("ms-dist").textContent === "100.00 km", "el total en km: " + $("ms-dist").textContent);
 ok($("ms-bearing-row").hidden === true, "una ruta no tiene un único rumbo");
+ok($("ms-perim-row").hidden === true, "ni perímetro: su longitud es la distancia total");
 ok($("ms-legs-row").hidden === false, "y sí una fila de tramos");
 ok($("ms-legs").children.length === 2, "un div por tramo: " + $("ms-legs").children.length);
 ok($("ms-legs").children[0].textContent === "Tramo 1: 50.00 km · 90.0°",
@@ -358,5 +370,50 @@ ok(plabel.textContent === "Capa nueva" && plabel.title === "Capa nueva",
   "una capa sin medida se renombra como siempre: " + plabel.textContent);
 ok(pchk.getAttribute("aria-label") === "Activar o desactivar «Capa nueva»",
   "y la casilla mantiene su nombre accesible");
+
+
+/* ================= Arco: perímetro, puntos y barrido ================= */
+const arcSrc = between("/* ================= Geodesia", "/* Rumbo inicial de a")
+  + "\n" + fn("bearingDeg") + "\n" + fn("destPoint") + "\n" + constDecl("circlePerimeter")
+  + "\n" + fn("arcPoints") + "\n" + constDecl("ARC_SWEEP_MAX") + "\n" + fn("unwrapSweep");
+const arcMod = new Function("L", arcSrc
+  + "\nreturn {circlePerimeter, arcPoints, unwrapSweep, bearingDeg, EARTH_R, ARC_SWEEP_MAX};")(
+  { latLng: (lat, lng) => ({ lat, lng }) });
+const geoDist = (a, b) => {
+  const p1 = toRadT(a.lat), p2 = toRadT(b.lat);
+  const h = Math.sin((p2 - p1) / 2) ** 2
+    + Math.cos(p1) * Math.cos(p2) * Math.sin(toRadT(b.lng - a.lng) / 2) ** 2;
+  return 2 * arcMod.EARTH_R * Math.asin(Math.sqrt(h));
+};
+function toRadT(d) { return d * Math.PI / 180; }
+
+/* En metros coincide con 2πr; a miles de km se queda por debajo */
+ok(Math.abs(arcMod.circlePerimeter(1000) - 2 * Math.PI * 1000) / (2 * Math.PI * 1000) < 1e-6,
+  "a 1 km el perímetro es 2πr: " + arcMod.circlePerimeter(1000));
+ok(arcMod.circlePerimeter(1e6) < 2 * Math.PI * 1e6, "a 1000 km el círculo menor es MÁS corto que 2πr");
+ok(arcMod.circlePerimeter(0) === 0, "radio cero, perímetro cero");
+
+const ARC_C = { lat: 40, lng: -3 };
+const arcPts = arcMod.arcPoints(ARC_C, 50000, 90, 90, 8);
+ok(arcPts.length === 9, "N segmentos son N+1 puntos: " + arcPts.length);
+ok(arcPts.every(p => Math.abs(geoDist(ARC_C, p) - 50000) < 5), "todos los puntos caen sobre el círculo");
+ok(Math.abs(arcMod.bearingDeg(ARC_C, arcPts[0]) - 90) < 0.01, "el primero está en el rumbo de inicio");
+ok(Math.abs(arcMod.bearingDeg(ARC_C, arcPts[8]) - 180) < 0.01, "el último, tras barrer +90°, mira al sur");
+const ccw = arcMod.arcPoints(ARC_C, 50000, 90, -90, 8);
+ok(Math.abs(arcMod.bearingDeg(ARC_C, ccw[8]) - 0) < 0.01 || Math.abs(arcMod.bearingDeg(ARC_C, ccw[8]) - 360) < 0.01,
+  "con barrido negativo (antihorario) acaba al norte");
+const bigArc = arcMod.arcPoints(ARC_C, 50000, 0, 270, 27);
+ok(Math.abs(arcMod.bearingDeg(ARC_C, bigArc[27]) - 270) < 0.01, "un arco de más de 180° llega a su rumbo final");
+
+/* unwrapSweep: sigue el movimiento, no el rumbo absoluto */
+ok(arcMod.unwrapSweep(0, 90, 100) === 10, "avanzar 10° en sentido horario suma 10");
+ok(arcMod.unwrapSweep(0, 90, 80) === -10, "retroceder resta");
+ok(Math.abs(arcMod.unwrapSweep(10, 350, 5) - 25) < 1e-9, "cruzar el norte (350° → 5°) suma 15, no resta 345");
+ok(Math.abs(arcMod.unwrapSweep(-10, 5, 350) - -25) < 1e-9, "y al revés, en antihorario");
+let acc = 0, prev = 0;
+for (let b = 20; b <= 300; b += 20) { acc = arcMod.unwrapSweep(acc, prev, b); prev = b; }
+ok(Math.abs(acc - 300) < 1e-9, "pasar de 180° acumula sin saltos: " + acc);
+ok(arcMod.unwrapSweep(359, 0, 90) === arcMod.ARC_SWEEP_MAX, "nunca llega a la vuelta completa");
+ok(arcMod.unwrapSweep(-359, 0, 270) === -arcMod.ARC_SWEEP_MAX, "ni en antihorario");
 
 if (!process.exitCode) console.log("MEASURE TESTS OK");

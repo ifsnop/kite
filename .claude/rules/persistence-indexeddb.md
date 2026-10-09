@@ -49,6 +49,7 @@ paths:
   guardaba una sola clave y se descarta al leer; `dbLoadGnp` ignora
   además entradas cuyo valor no sea un array no vacío de strings). Ver
   `import-parsing.md`.
+- **Segmentos de un arco** (`arcSegments`, `ARC_SEGMENTS_SCHEMA`): entero en [`ARC_SEGMENTS_MIN`, `ARC_SEGMENTS_MAX`] (2–720), validado al leer; clave propia del mismo almacén. Un arco ya dibujado es una ruta y no guarda nada de esto.
 - **Tope de vértices editables** (`vertexEditMax`, `VERTMAX_SCHEMA`):
   número simple, validado al leer (`Number.isInteger` y `> 0`, para que
   no se cuele un tope de 0). Ver `measurements-drawing-vertex-editing.md`.

@@ -370,6 +370,35 @@ function ringArea(ring) {
    el resto del proyecto mide sobre la misma esfera (EARTH_R).         */
 const capArea = r => 2 * Math.PI * EARTH_R * EARTH_R * (1 - Math.cos(r / EARTH_R));
 
+/* Perímetro del mismo círculo: la circunferencia del círculo menor sobre
+   la esfera, 2πR·sin(r/R), no 2πr — coherente con capArea (coinciden en
+   metros, se separan en decenas de km).                               */
+const circlePerimeter = r => 2 * Math.PI * EARTH_R * Math.sin(r / EARTH_R);
+
+/* Puntos de un arco de círculo menor: `segments`+1 puntos desde el rumbo
+   `startBrg` barriendo `sweep` grados (+ horario, − antihorario), todos
+   exactamente a `r` metros del centro (destPoint).                    */
+function arcPoints(center, r, startBrg, sweep, segments) {
+  const pts = [];
+  for (let i = 0; i <= segments; i++) {
+    pts.push(destPoint(center, startBrg + sweep * i / segments, r));
+  }
+  return pts;
+}
+
+/* Apertura acumulada de un arco mientras el ratón recorre el perímetro:
+   suma el cambio de rumbo (normalizado a (−180, 180]) al barrido previo,
+   en vez de tomar el rumbo absoluto, así el sentido lo da el movimiento
+   del ratón y se pueden superar los 180° sin saltos. Acotada justo por
+   debajo de una vuelta completa.                                      */
+const ARC_SWEEP_MAX = 359.9;
+function unwrapSweep(sweep, prevBrg, brg) {
+  let d = (brg - prevBrg) % 360;
+  if (d > 180) d -= 360;
+  else if (d <= -180) d += 360;
+  return Math.max(-ARC_SWEEP_MAX, Math.min(ARC_SWEEP_MAX, sweep + d));
+}
+
 /* getLatLngs() de un L.Polygon viene en dos profundidades posibles: los
    anillos de UN polígono ([exterior, agujero1, …], el caso normal de KML
    y de un GeoJSON Polygon) o una lista de polígonos cada uno con sus

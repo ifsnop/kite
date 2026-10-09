@@ -206,8 +206,9 @@
       <div id="ms-values" hidden>
         <div class="dlg-row" id="ms-center-row"><span>Centro</span><span class="dlg-note" id="ms-center"></span></div>
         <div class="dlg-row"><span id="ms-dist-label">Distancia</span><span class="dlg-note" id="ms-dist"></span></div>
+        <div class="dlg-row" id="ms-perim-row"><span>Perímetro</span><span class="dlg-note" id="ms-perim"></span></div>
         <div class="dlg-row" id="ms-area-row"><span>Área</span><span class="dlg-note" id="ms-area"></span></div>
-        <div class="dlg-row" id="ms-bearing-row"><span>Rumbo</span><span class="dlg-note" id="ms-bearing"></span></div>
+        <div class="dlg-row" id="ms-bearing-row"><span>Orientación</span><span class="dlg-note" id="ms-bearing"></span></div>
         <!-- Ruta: un tramo por línea («Tramo N: distancia · rumbo»), en
              vez de un único rumbo que no existiría para varios tramos. -->
         <div class="dlg-row" id="ms-legs-row" hidden><span>Tramos</span><div id="ms-legs"></div></div>
@@ -435,6 +436,9 @@
       <p class="dlg-hint">Vértices editables sobre el mapa, como máximo: por encima de este número, un polígono ya creado no muestra manejadores interactivos de vértice (queda el editor de texto «Ver y editar…» de su diálogo de estilos). No afecta a una ruta, que se dibuja punto a punto y rara vez llega a acercarse a este límite. Depende del equipo de quien lo usa, así que se puede ajustar aquí.</p>
       <div class="dlg-row"><span>Tope de vértices editables</span>
         <input type="number" id="gnp-vertex-max" min="1" step="1"></div>
+      <p class="dlg-hint">Segmentos en que se divide un arco al terminar de dibujarlo con «Medir arco». El resultado es una ruta normal con ese número de tramos; cambiarlo solo afecta a los arcos que se dibujen después.</p>
+      <div class="dlg-row"><span>Segmentos de un arco</span>
+        <input type="number" id="props-arc-segments" min="2" max="720" step="1"></div>
     </div>
     <div id="props-tab-gnp" class="dlg-tabpanel" hidden role="tabpanel">
       <p class="dlg-hint">Asociaciones guardadas entre la estructura de <code>properties</code> de un GeoJSON y la propiedad usada como nombre.</p>

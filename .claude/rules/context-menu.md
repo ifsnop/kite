@@ -15,6 +15,7 @@ paths:
   que `openStyleDialog`). Nombrado distinto de «Mostrar atributos» a
   propósito (dos ítems iguales confundirían), aunque el resto de la app
   llame «propiedades» a ambos indistintamente.
+- **«Medir ▸» es un submenú fijo de `CTX_MENU_ITEMS`** con Ruta, Círculo y Arco (cada uno alterna su herramienta con `setTool`); «Dibujar polígono o línea» queda fuera del grupo.
 - **Varias capas superpuestas → submenú** con una entrada por capa
   (`ctxItemsFor`/`openCtxSubmenu`).
 - **Elegir una capa la hace PARPADEAR** (`blinkLayer`, 4 pasos de

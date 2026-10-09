@@ -363,6 +363,15 @@ function setMarkerDraggable(mk, on) {
 const VERTEX_EDIT_MAX_DEFAULT = 500;
 let vertexEditMax = VERTEX_EDIT_MAX_DEFAULT; /* preferencia, ver dbLoadVertexEditMax en 99-boot.js */
 
+/* Segmentos en que se trocea un arco al terminar de dibujarlo (herramienta
+   «Medir arco», 52-measure.js). Preferencia global, no propiedad del
+   arco: el resultado es una ruta normal que no recuerda nada de su
+   origen. Ver dbLoadArcSegments en 99-boot.js.                        */
+const ARC_SEGMENTS_DEFAULT = 16;
+const ARC_SEGMENTS_MIN = 2;
+const ARC_SEGMENTS_MAX = 720;
+let arcSegments = ARC_SEGMENTS_DEFAULT;
+
 let vertexEdit = null;   /* { li, layer, rings, handleRings, nested, closed, group } o null */
 let vertexOwner = null;  /* { kind: "route"|"polygon", li, hasHandle, insertAfter, removeVertex } o null */
 let vertexSelHandle = null; /* manejador seleccionado dentro de vertexOwner, o null */
@@ -742,6 +751,10 @@ function restoreVertexSnapshot(snap) {
     updateMeasurement(m);
     m.handles.forEach(h => m.group.addLayer(h));
     m.legLabels.forEach(l => m.group.addLayer(l));
+    /* Las etiquetas nuevas nacen añadidas al grupo: respetar «Mostrar las
+       etiquetas…» (un arco nace con ellas apagadas, y Cancelar las
+       reaparecía).                                                     */
+    setMeasureLabelsVisible(m, m.style.showLabels);
   } else if (snap.kind === "circle") {
     const m = snap.li._measure;
     m.mOrigin.setLatLng(snap.origin);
@@ -1514,9 +1527,10 @@ const propsTabPrefs = document.getElementById("props-tab-prefs");
 const propsUnitSelect = document.getElementById("props-unit");
 const propsCoordFormatSelect = document.getElementById("props-coord-format");
 const gnpVertexMaxInput = document.getElementById("gnp-vertex-max");
+const propsArcSegmentsInput = document.getElementById("props-arc-segments");
 
 let propsDraftGnp = null; /* clon de gnpStore mientras el panel está abierto */
-let propsOriginal = null; /* {unit, coordFormat, vertexEditMax} al abrir, para Cancelar */
+let propsOriginal = null; /* {unit, coordFormat, vertexEditMax, arcSegments} al abrir, para Cancelar */
 
 function showPropsTab(tab) {
   const isGnp = tab === "gnp";
@@ -1582,6 +1596,7 @@ function renderPropsPrefsTab() {
   propsUnitSelect.value = measureUnit;
   propsCoordFormatSelect.value = coordFormat;
   gnpVertexMaxInput.value = vertexEditMax;
+  propsArcSegmentsInput.value = arcSegments;
 }
 propsUnitSelect.addEventListener("change", () => setMeasureUnit(propsUnitSelect.value));
 propsCoordFormatSelect.addEventListener("change", () => {
@@ -1611,11 +1626,24 @@ gnpVertexMaxInput.addEventListener("change", () => {
   syncVertexOwnerForDialog();
 });
 
+/* Solo cuenta para los arcos que se dibujen DESPUÉS: no hay nada que
+   repintar. Mismo criterio que el tope de vértices: un valor ilegible o
+   fuera de rango se descarta y el campo vuelve al vigente.            */
+propsArcSegmentsInput.addEventListener("change", () => {
+  const n = Math.trunc(Number(propsArcSegmentsInput.value));
+  if (!Number.isFinite(n) || n < ARC_SEGMENTS_MIN || n > ARC_SEGMENTS_MAX) {
+    propsArcSegmentsInput.value = arcSegments;
+    return;
+  }
+  arcSegments = n;
+  propsArcSegmentsInput.value = n;
+});
+
 async function togglePropsDialog() {
   if (!propsDialog.hidden) { cancelPropsDialog(); return; }
   if (!gnpStore) gnpStore = await dbLoadGnp();
   propsDraftGnp = { ...gnpStore };
-  propsOriginal = { unit: measureUnit, coordFormat, vertexEditMax };
+  propsOriginal = { unit: measureUnit, coordFormat, vertexEditMax, arcSegments };
   renderGnpEditor();
   renderPropsPrefsTab();
   showPropsTab("prefs");
@@ -1641,6 +1669,7 @@ function cancelPropsDialog() {
     vertexEditMax = propsOriginal.vertexEditMax;
     syncVertexOwnerForDialog();
   }
+  arcSegments = propsOriginal.arcSegments;
   propsDraftGnp = null;
   propsOriginal = null;
 }
@@ -1652,6 +1681,7 @@ document.getElementById("props-accept").addEventListener("click", () => {
   dbSaveMeasureUnit(measureUnit);
   dbSaveCoordFormat(coordFormat);
   dbSaveVertexEditMax(vertexEditMax);
+  dbSaveArcSegments(arcSegments);
   propsDialog.hidden = true;
   releaseFocus();
   propsDraftGnp = null;

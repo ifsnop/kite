@@ -256,8 +256,16 @@ const CTX_MENU_ITEMS = [
     }
   },
   { label: "Modo elevación", checked: () => demOn, action: () => setAltitudeMode(!demOn) },
-  { label: "Medir ruta", action: () => setTool(activeTool === "route" ? null : "route") },
-  { label: "Medir círculo", action: () => setTool(activeTool === "circle" ? null : "circle") },
+  /* Las tres mediciones agrupadas en un submenú: son la misma familia y
+     tres entradas sueltas desbordaban el menú.                        */
+  {
+    label: "Medir",
+    items: [
+      { label: "Ruta", action: () => setTool(activeTool === "route" ? null : "route") },
+      { label: "Círculo", action: () => setTool(activeTool === "circle" ? null : "circle") },
+      { label: "Arco", action: () => setTool(activeTool === "arc" ? null : "arc") }
+    ]
+  },
   { label: "Dibujar polígono o línea", action: () => setTool(activeTool === "polygon" ? null : "polygon") },
   { separator: true },
   { label: "Crear un pin", action: () => createPin() },

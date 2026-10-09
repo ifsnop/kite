@@ -30,7 +30,12 @@ const live = await page.evaluate(async () => {
   const li = m.treeLabel.closest("li");
   openStyleDialog(li);
   const before = { dist: document.getElementById("ms-dist").textContent,
-                    area: document.getElementById("ms-area").textContent };
+                    area: document.getElementById("ms-area").textContent,
+                    perim: document.getElementById("ms-perim").textContent,
+                    brg: document.getElementById("ms-bearing").textContent,
+                    perimShown: !document.getElementById("ms-perim-row").hidden,
+                    brgShown: !document.getElementById("ms-bearing-row").hidden,
+                    brgLabel: document.querySelector("#ms-bearing-row span").textContent };
 
   /* Ctrl+arrastre del borde a otra posición, con eventos reales */
   const icon = m.mDest.getElement();
@@ -43,10 +48,22 @@ const live = await page.evaluate(async () => {
   document.dispatchEvent(new MouseEvent("mouseup", { bubbles: true }));
 
   const after = { dist: document.getElementById("ms-dist").textContent,
-                  area: document.getElementById("ms-area").textContent };
+                  area: document.getElementById("ms-area").textContent,
+                  perim: document.getElementById("ms-perim").textContent,
+                  brg: document.getElementById("ms-bearing").textContent };
   closeStyleDialog(true);
   return { before, after };
 });
+/* Perímetro y orientación del círculo (antes solo radio, área y centro) */
+ok(live.before.perimShown && /\d/.test(live.before.perim),
+  "el círculo enseña su perímetro: " + live.before.perim);
+ok(live.before.brgShown && live.before.brgLabel === "Orientación" && /°$/.test(live.before.brg),
+  "y su orientación, en grados: " + live.before.brgLabel + " " + live.before.brg);
+/* El rumbo inicial de una geodésica no es exactamente 90° aunque ambos
+   puntos compartan latitud (la ruta más corta se curva hacia el polo) */
+ok(Math.abs(parseFloat(live.before.brg) - 90) < 1, "borde al este del centro → ~90°: " + live.before.brg);
+ok(live.after.perim !== live.before.perim && live.after.brg !== live.before.brg,
+  "y ambos se repintan en vivo al arrastrar el borde: " + JSON.stringify(live));
 ok(live.before.dist && live.before.dist === live.before.dist, "el diálogo arranca con algún valor: " + live.before.dist);
 ok(live.after.dist !== live.before.dist || live.after.area !== live.before.area,
   "arrastrar con el diálogo abierto cambia lo que muestra, SIN cerrarlo ni volver a abrirlo: "

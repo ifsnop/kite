@@ -10,7 +10,7 @@ function buildApi({ hideDelay = 5, guardMs = 5 } = {}) {
   const src = `
     const document = { activeElement: null };
     let drawing = null, polyDraft = null, activeTool = null, layerInfoDismissed = false;
-    let routeDraft = null, routeMeasurement = null;
+    let routeDraft = null, routeMeasurement = null, arcDraft = null;
     let layerInfoHideTimer = null;
     let suppressNextHover = false;
   ` + [fn("cancelLayerInfoHide"), fn("scheduleLayerInfoHide"), fn("showLayerInfo"), fn("setTool")].join("\n");

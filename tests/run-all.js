@@ -85,6 +85,7 @@ const BROWSER = [
   ["browser/url-import.mjs", "Navegador: añadir desde una dirección, en dos pasos y con cancelación"],
   ["browser/oneworld.mjs", "Navegador: una sola Tierra — sin copias en horizontal, con tope de arrastre y suelo de zoom"],
   ["browser/undo-create.mjs", "Navegador: crear un marcador, un polígono o una medición se puede deshacer y rehacer"],
+  ["browser/arc-draw.mjs", "Navegador: medir un arco — centro, inicio y recorrido del perímetro, guardado como ruta de N tramos"],
   ["browser/geocalc.mjs", "Navegador: calculadora geodésica — dos pestañas que se recalculan solas, presión, unidades que convierten, sin crecer y no modal"]
 ];
 
