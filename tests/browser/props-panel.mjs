@@ -131,6 +131,45 @@ ok(markerFormat.dmsWhileOpen.includes("°"),
 ok(markerFormat.decAfterCancel === markerFormat.decBefore, "Cancelar lo devuelve a como estaba: " + markerFormat.decAfterCancel);
 ok(markerFormat.dmsAfterAccept.includes("°"), "y Aceptar lo deja aplicado: " + markerFormat.dmsAfterAccept);
 
+/* ---------- Segmentos de un arco: 16 por defecto, Cancelar/Aceptar de verdad ---------- */
+const arcPref = await page.evaluate(async () => {
+  const out = { def: arcSegments, field: null };
+  await togglePropsDialog();
+  const inp = document.getElementById("props-arc-segments");
+  out.field = inp.value;
+  inp.value = "48";
+  inp.dispatchEvent(new Event("change", { bubbles: true }));
+  out.whileOpen = arcSegments;
+  document.getElementById("props-cancel").click();
+  out.afterCancel = arcSegments;
+  out.savedAfterCancel = await dbLoadArcSegments();
+
+  await togglePropsDialog();
+  inp.value = "0"; /* fuera de rango: se descarta y el campo vuelve al vigente */
+  inp.dispatchEvent(new Event("change", { bubbles: true }));
+  out.afterBad = arcSegments;
+  out.fieldAfterBad = inp.value;
+  inp.value = "64";
+  inp.dispatchEvent(new Event("change", { bubbles: true }));
+  document.getElementById("props-accept").click();
+  out.afterAccept = arcSegments;
+  out.saved = await dbLoadArcSegments();
+  return out;
+});
+ok(arcPref.def === 16, "por defecto un arco se trocea en 16 segmentos: " + arcPref.def);
+ok(arcPref.field === "16", "y el campo de Propiedades lo muestra: " + arcPref.field);
+ok(arcPref.whileOpen === 48, "cambiarlo se aplica al momento: " + arcPref.whileOpen);
+/* El Aceptar de más arriba ya persistió el 16 vigente; Cancelar no debe
+   haber escrito el 48 de la previsualización */
+ok(arcPref.afterCancel === 16 && arcPref.savedAfterCancel === 16,
+  "Cancelar lo devuelve a 16 y no persiste el 48: " + JSON.stringify([arcPref.afterCancel, arcPref.savedAfterCancel]));
+ok(arcPref.afterBad === 16 && arcPref.fieldAfterBad === "16", "un valor fuera de rango se descarta");
+ok(arcPref.afterAccept === 64 && arcPref.saved === 64, "Aceptar lo deja aplicado y persistido: " + arcPref.saved);
+await page.reload();
+await page.waitForFunction(() => typeof arcSegments !== "undefined");
+await page.waitForTimeout(500);
+ok(await page.evaluate(() => arcSegments) === 64, "y se restaura al recargar la página");
+
 ok(errors.length === 0, "sin errores de página: " + JSON.stringify(errors));
 
 await browser.close();

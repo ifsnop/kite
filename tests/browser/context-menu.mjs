@@ -150,6 +150,26 @@ ok(!menu2.includes("Editar propiedades"),
   "clic derecho sin ninguna capa debajo: no ofrece «Editar propiedades»: " + JSON.stringify(menu2));
 ok(menu2.includes("Copiar coordenadas"), "y sí el menú genérico del mapa: " + JSON.stringify(menu2));
 
+/* Las tres mediciones van agrupadas en un submenú «Medir», no sueltas */
+ok(menu2.includes("Medir ▸"), "el menú agrupa las mediciones en «Medir ▸»: " + JSON.stringify(menu2));
+ok(!menu2.includes("Medir ruta") && !menu2.includes("Medir círculo"),
+  "y ya no hay entradas sueltas «Medir ruta»/«Medir círculo»");
+const sub = await page.evaluate(() => {
+  const trigger = [...document.querySelectorAll("#map-ctxmenu .ctx-menu-item")]
+    .find(b => b.textContent === "Medir ▸");
+  trigger.click();
+  const subItems = [...document.querySelectorAll(".ctx-menu:not(#map-ctxmenu) .ctx-menu-item")]
+    .map(b => b.textContent);
+  const arco = [...document.querySelectorAll(".ctx-menu:not(#map-ctxmenu) .ctx-menu-item")]
+    .find(b => b.textContent === "Arco");
+  arco.click();
+  return { subItems, tool: activeTool };
+});
+ok(JSON.stringify(sub.subItems) === JSON.stringify(["Ruta", "Círculo", "Arco"]),
+  "el submenú ofrece Ruta, Círculo y Arco: " + JSON.stringify(sub.subItems));
+ok(sub.tool === "arc", "«Arco» activa la herramienta de arco: " + sub.tool);
+await page.evaluate(() => setTool(null));
+
 ok(errors.length === 0, "sin errores de página: " + JSON.stringify(errors));
 
 await browser.close();

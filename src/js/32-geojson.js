@@ -480,6 +480,34 @@ async function dbLoadVertexEditMax() {
   });
 }
 
+/* Segmentos de un arco (herramienta «Medir arco»): mismo patrón que el
+   tope de vértices. Se valida contra el mismo rango que el campo del
+   panel (ARC_SEGMENTS_MIN/MAX, 43-points-editor.js).                  */
+const ARC_SEGMENTS_KEY = "arcSegments";
+const ARC_SEGMENTS_SCHEMA = 1;
+async function dbSaveArcSegments(n) {
+  const db = await openDb();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(DB_TREE, "readwrite");
+    tx.objectStore(DB_TREE).put({ v: ARC_SEGMENTS_SCHEMA, n }, ARC_SEGMENTS_KEY);
+    tx.oncomplete = resolve;
+    tx.onerror = () => reject(tx.error);
+  });
+}
+async function dbLoadArcSegments() {
+  const db = await openDb();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(DB_TREE, "readonly");
+    const rq = tx.objectStore(DB_TREE).get(ARC_SEGMENTS_KEY);
+    rq.onsuccess = () => {
+      const r = rq.result;
+      resolve(r && r.v === ARC_SEGMENTS_SCHEMA && Number.isInteger(r.n)
+        && r.n >= ARC_SEGMENTS_MIN && r.n <= ARC_SEGMENTS_MAX ? r.n : null);
+    };
+    rq.onerror = () => reject(rq.error);
+  });
+}
+
 /* Unidad de medida y formato de latitud/longitud: mismo patrón que
    VERTMAX_KEY/VERTMAX_SCHEMA, ajustes GLOBALES (panel de Propiedades,
    43-points-editor.js) que antes vivían solo en memoria, sin persistir

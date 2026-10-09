@@ -1533,8 +1533,9 @@
       <div id="ms-values" hidden>
         <div class="dlg-row" id="ms-center-row"><span>Centro</span><span class="dlg-note" id="ms-center"></span></div>
         <div class="dlg-row"><span id="ms-dist-label">Distancia</span><span class="dlg-note" id="ms-dist"></span></div>
+        <div class="dlg-row" id="ms-perim-row"><span>Perímetro</span><span class="dlg-note" id="ms-perim"></span></div>
         <div class="dlg-row" id="ms-area-row"><span>Área</span><span class="dlg-note" id="ms-area"></span></div>
-        <div class="dlg-row" id="ms-bearing-row"><span>Rumbo</span><span class="dlg-note" id="ms-bearing"></span></div>
+        <div class="dlg-row" id="ms-bearing-row"><span>Orientación</span><span class="dlg-note" id="ms-bearing"></span></div>
         <!-- Ruta: un tramo por línea («Tramo N: distancia · rumbo»), en
              vez de un único rumbo que no existiría para varios tramos. -->
         <div class="dlg-row" id="ms-legs-row" hidden><span>Tramos</span><div id="ms-legs"></div></div>
@@ -1762,6 +1763,9 @@
       <p class="dlg-hint">Vértices editables sobre el mapa, como máximo: por encima de este número, un polígono ya creado no muestra manejadores interactivos de vértice (queda el editor de texto «Ver y editar…» de su diálogo de estilos). No afecta a una ruta, que se dibuja punto a punto y rara vez llega a acercarse a este límite. Depende del equipo de quien lo usa, así que se puede ajustar aquí.</p>
       <div class="dlg-row"><span>Tope de vértices editables</span>
         <input type="number" id="gnp-vertex-max" min="1" step="1"></div>
+      <p class="dlg-hint">Segmentos en que se divide un arco al terminar de dibujarlo con «Medir arco». El resultado es una ruta normal con ese número de tramos; cambiarlo solo afecta a los arcos que se dibujen después.</p>
+      <div class="dlg-row"><span>Segmentos de un arco</span>
+        <input type="number" id="props-arc-segments" min="2" max="720" step="1"></div>
     </div>
     <div id="props-tab-gnp" class="dlg-tabpanel" hidden role="tabpanel">
       <p class="dlg-hint">Asociaciones guardadas entre la estructura de <code>properties</code> de un GeoJSON y la propiedad usada como nombre.</p>
@@ -2207,7 +2211,7 @@ map.on("resize", fitWorldMinZoom);
 
 /* Fecha de generación del código (versión): AÑOMESDIAHORAMINUTO.
    Actualizar en cada generación; se muestra junto al crédito de Leaflet. */
-const BUILD = "202610061849";
+const BUILD = "202610090436";
 /* Versión de release (la de package.json, horneada aquí por build.js
    al construir — ver «Versión y releases de GitHub» en CLAUDE.md): a
    diferencia de BUILD, que cambia en CADA generación, esta solo cambia
@@ -5505,6 +5509,34 @@ async function dbLoadVertexEditMax() {
   });
 }
 
+/* Segmentos de un arco (herramienta «Medir arco»): mismo patrón que el
+   tope de vértices. Se valida contra el mismo rango que el campo del
+   panel (ARC_SEGMENTS_MIN/MAX, 43-points-editor.js).                  */
+const ARC_SEGMENTS_KEY = "arcSegments";
+const ARC_SEGMENTS_SCHEMA = 1;
+async function dbSaveArcSegments(n) {
+  const db = await openDb();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(DB_TREE, "readwrite");
+    tx.objectStore(DB_TREE).put({ v: ARC_SEGMENTS_SCHEMA, n }, ARC_SEGMENTS_KEY);
+    tx.oncomplete = resolve;
+    tx.onerror = () => reject(tx.error);
+  });
+}
+async function dbLoadArcSegments() {
+  const db = await openDb();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(DB_TREE, "readonly");
+    const rq = tx.objectStore(DB_TREE).get(ARC_SEGMENTS_KEY);
+    rq.onsuccess = () => {
+      const r = rq.result;
+      resolve(r && r.v === ARC_SEGMENTS_SCHEMA && Number.isInteger(r.n)
+        && r.n >= ARC_SEGMENTS_MIN && r.n <= ARC_SEGMENTS_MAX ? r.n : null);
+    };
+    rq.onerror = () => reject(rq.error);
+  });
+}
+
 /* Unidad de medida y formato de latitud/longitud: mismo patrón que
    VERTMAX_KEY/VERTMAX_SCHEMA, ajustes GLOBALES (panel de Propiedades,
    43-points-editor.js) que antes vivían solo en memoria, sin persistir
@@ -8717,6 +8749,15 @@ function setMarkerDraggable(mk, on) {
 const VERTEX_EDIT_MAX_DEFAULT = 500;
 let vertexEditMax = VERTEX_EDIT_MAX_DEFAULT; /* preferencia, ver dbLoadVertexEditMax en 99-boot.js */
 
+/* Segmentos en que se trocea un arco al terminar de dibujarlo (herramienta
+   «Medir arco», 52-measure.js). Preferencia global, no propiedad del
+   arco: el resultado es una ruta normal que no recuerda nada de su
+   origen. Ver dbLoadArcSegments en 99-boot.js.                        */
+const ARC_SEGMENTS_DEFAULT = 16;
+const ARC_SEGMENTS_MIN = 2;
+const ARC_SEGMENTS_MAX = 720;
+let arcSegments = ARC_SEGMENTS_DEFAULT;
+
 let vertexEdit = null;   /* { li, layer, rings, handleRings, nested, closed, group } o null */
 let vertexOwner = null;  /* { kind: "route"|"polygon", li, hasHandle, insertAfter, removeVertex } o null */
 let vertexSelHandle = null; /* manejador seleccionado dentro de vertexOwner, o null */
@@ -9096,6 +9137,10 @@ function restoreVertexSnapshot(snap) {
     updateMeasurement(m);
     m.handles.forEach(h => m.group.addLayer(h));
     m.legLabels.forEach(l => m.group.addLayer(l));
+    /* Las etiquetas nuevas nacen añadidas al grupo: respetar «Mostrar las
+       etiquetas…» (un arco nace con ellas apagadas, y Cancelar las
+       reaparecía).                                                     */
+    setMeasureLabelsVisible(m, m.style.showLabels);
   } else if (snap.kind === "circle") {
     const m = snap.li._measure;
     m.mOrigin.setLatLng(snap.origin);
@@ -9868,9 +9913,10 @@ const propsTabPrefs = document.getElementById("props-tab-prefs");
 const propsUnitSelect = document.getElementById("props-unit");
 const propsCoordFormatSelect = document.getElementById("props-coord-format");
 const gnpVertexMaxInput = document.getElementById("gnp-vertex-max");
+const propsArcSegmentsInput = document.getElementById("props-arc-segments");
 
 let propsDraftGnp = null; /* clon de gnpStore mientras el panel está abierto */
-let propsOriginal = null; /* {unit, coordFormat, vertexEditMax} al abrir, para Cancelar */
+let propsOriginal = null; /* {unit, coordFormat, vertexEditMax, arcSegments} al abrir, para Cancelar */
 
 function showPropsTab(tab) {
   const isGnp = tab === "gnp";
@@ -9936,6 +9982,7 @@ function renderPropsPrefsTab() {
   propsUnitSelect.value = measureUnit;
   propsCoordFormatSelect.value = coordFormat;
   gnpVertexMaxInput.value = vertexEditMax;
+  propsArcSegmentsInput.value = arcSegments;
 }
 propsUnitSelect.addEventListener("change", () => setMeasureUnit(propsUnitSelect.value));
 propsCoordFormatSelect.addEventListener("change", () => {
@@ -9965,11 +10012,24 @@ gnpVertexMaxInput.addEventListener("change", () => {
   syncVertexOwnerForDialog();
 });
 
+/* Solo cuenta para los arcos que se dibujen DESPUÉS: no hay nada que
+   repintar. Mismo criterio que el tope de vértices: un valor ilegible o
+   fuera de rango se descarta y el campo vuelve al vigente.            */
+propsArcSegmentsInput.addEventListener("change", () => {
+  const n = Math.trunc(Number(propsArcSegmentsInput.value));
+  if (!Number.isFinite(n) || n < ARC_SEGMENTS_MIN || n > ARC_SEGMENTS_MAX) {
+    propsArcSegmentsInput.value = arcSegments;
+    return;
+  }
+  arcSegments = n;
+  propsArcSegmentsInput.value = n;
+});
+
 async function togglePropsDialog() {
   if (!propsDialog.hidden) { cancelPropsDialog(); return; }
   if (!gnpStore) gnpStore = await dbLoadGnp();
   propsDraftGnp = { ...gnpStore };
-  propsOriginal = { unit: measureUnit, coordFormat, vertexEditMax };
+  propsOriginal = { unit: measureUnit, coordFormat, vertexEditMax, arcSegments };
   renderGnpEditor();
   renderPropsPrefsTab();
   showPropsTab("prefs");
@@ -9995,6 +10055,7 @@ function cancelPropsDialog() {
     vertexEditMax = propsOriginal.vertexEditMax;
     syncVertexOwnerForDialog();
   }
+  arcSegments = propsOriginal.arcSegments;
   propsDraftGnp = null;
   propsOriginal = null;
 }
@@ -10006,6 +10067,7 @@ document.getElementById("props-accept").addEventListener("click", () => {
   dbSaveMeasureUnit(measureUnit);
   dbSaveCoordFormat(coordFormat);
   dbSaveVertexEditMax(vertexEditMax);
+  dbSaveArcSegments(arcSegments);
   propsDialog.hidden = true;
   releaseFocus();
   propsDraftGnp = null;
@@ -11425,13 +11487,19 @@ function renderMeasureValues() {
     $id("ms-center").textContent = `${formatCoord(msMeasures.center.lat, true, coordFormat)}, `
       + formatCoord(msMeasures.center.lng, false, coordFormat);
   }
+  /* Solo el círculo tiene perímetro propio: la ruta ya enseña su
+     «Distancia total» en la primera fila.                              */
+  $id("ms-perim-row").hidden = !msMeasures.circle;
+  if (msMeasures.circle) $id("ms-perim").textContent = fmtUnitDist(msMeasures.perim, measureUnit);
   $id("ms-area-row").hidden = msMeasures.area === null;
   if (msMeasures.area !== null) {
     $id("ms-area").textContent = fmtUnitArea(msMeasures.area, measureUnit);
   }
-  /* El rumbo va SIEMPRE en grados: no es una distancia y la unidad
-     elegida no le afecta. Una ruta no tiene un único rumbo: esa fila
-     se oculta y en su lugar se desglosa por tramo, más abajo.        */
+  /* La orientación de un círculo es el rumbo centro → borde (el punto
+     que se arrastra para cambiar el radio). Va SIEMPRE en grados: no es
+     una distancia y la unidad elegida no le afecta. Una ruta no tiene un
+     único rumbo: esa fila se oculta y en su lugar se desglosa por tramo,
+     más abajo.                                                         */
   $id("ms-bearing-row").hidden = msMeasures.brg === null;
   if (msMeasures.brg !== null) $id("ms-bearing").textContent = `${msMeasures.brg.toFixed(1)}°`;
   $id("ms-legs-row").hidden = !msMeasures.route;
@@ -12074,6 +12142,35 @@ function ringArea(ring) {
    el resto del proyecto mide sobre la misma esfera (EARTH_R).         */
 const capArea = r => 2 * Math.PI * EARTH_R * EARTH_R * (1 - Math.cos(r / EARTH_R));
 
+/* Perímetro del mismo círculo: la circunferencia del círculo menor sobre
+   la esfera, 2πR·sin(r/R), no 2πr — coherente con capArea (coinciden en
+   metros, se separan en decenas de km).                               */
+const circlePerimeter = r => 2 * Math.PI * EARTH_R * Math.sin(r / EARTH_R);
+
+/* Puntos de un arco de círculo menor: `segments`+1 puntos desde el rumbo
+   `startBrg` barriendo `sweep` grados (+ horario, − antihorario), todos
+   exactamente a `r` metros del centro (destPoint).                    */
+function arcPoints(center, r, startBrg, sweep, segments) {
+  const pts = [];
+  for (let i = 0; i <= segments; i++) {
+    pts.push(destPoint(center, startBrg + sweep * i / segments, r));
+  }
+  return pts;
+}
+
+/* Apertura acumulada de un arco mientras el ratón recorre el perímetro:
+   suma el cambio de rumbo (normalizado a (−180, 180]) al barrido previo,
+   en vez de tomar el rumbo absoluto, así el sentido lo da el movimiento
+   del ratón y se pueden superar los 180° sin saltos. Acotada justo por
+   debajo de una vuelta completa.                                      */
+const ARC_SWEEP_MAX = 359.9;
+function unwrapSweep(sweep, prevBrg, brg) {
+  let d = (brg - prevBrg) % 360;
+  if (d > 180) d -= 360;
+  else if (d <= -180) d += 360;
+  return Math.max(-ARC_SWEEP_MAX, Math.min(ARC_SWEEP_MAX, sweep + d));
+}
+
 /* getLatLngs() de un L.Polygon viene en dos profundidades posibles: los
    anillos de UN polígono ([exterior, agujero1, …], el caso normal de KML
    y de un GeoJSON Polygon) o una lista de polígonos cada uno con sus
@@ -12093,7 +12190,7 @@ function polygonParts(latlngs) {
 
 const MEASURE_COLORS = { circle: "#7c3aed", route: "#0ea5e9" };
 let measureLi = null;
-let activeTool = null; /* null | "circle" | "polygon" | "route" */
+let activeTool = null; /* null | "circle" | "arc" | "polygon" | "route" */
 let drawing = null;    /* medición en curso durante el arrastre de creación */
 let polyDraft = null;  /* polígono en curso: { vertices, handles, poly, group } | null */
 /* Crear una ruta se comporta como EDITARLA: no usa polyDraft en absoluto
@@ -12189,6 +12286,12 @@ const MeasureControl = L.Control.extend({
     toolButtons.route = makeToolButton(bar, "\u2933",
       "Medir: click para cada waypoint, doble click para terminar", "route");
     toolButtons.circle = makeToolButton(bar, "\u25EF", "Medir c\u00EDrculo: arrastra del centro al borde", "circle");
+    /* El arco no es un tipo de medici\u00F3n propio: al terminar de dibujarlo
+       se convierte en una ruta (ver finishArc), as\u00ED que solo la
+       herramienta vive aqu\u00ED.                                         */
+    toolButtons.arc = makeToolButton(bar, "\u25E0",
+      "Medir arco: arrastra (o haz clic) del centro al inicio del arco, recorre el per\u00EDmetro "
+      + "y haz clic donde acaba", "arc");
     toolButtons.polygon = makeToolButton(bar, "\u2B20",
       "Dibujar: click para cada v\u00E9rtice; doble click sobre el \u00FAltimo v\u00E9rtice cierra el "
       + "pol\u00EDgono, doble click fuera termina la l\u00EDnea sin cerrarla", "polygon");
@@ -12224,6 +12327,7 @@ map.addControl(new MeasureControl());
 function setTool(tool) {
   if (drawing) { rootGroup.removeLayer(drawing.group); drawing = null; }
   if (polyDraft) { rootGroup.removeLayer(polyDraft.group); polyDraft = null; }
+  if (arcDraft) { rootGroup.removeLayer(arcDraft.group); arcDraft = null; }
   /* Cambiar de herramienta a mitad de una ruta (antes del 2º punto: solo
      la vista previa; desde el 2º: la medición real con su diálogo
      abierto) cierra ese diálogo como un Cancelar — mismo camino que
@@ -12343,6 +12447,116 @@ L.DomEvent.on(document, "mouseup", () => {
     return;
   }
   finalizeMeasurement(m);
+});
+
+/* ---------- Arco ----------
+   Tres gestos: centro, inicio (el punto del radio, que fija tambi\u00E9n la
+   orientaci\u00F3n) y fin, recorriendo el per\u00EDmetro desde el inicio. Los dos
+   primeros valen como un arrastre o como dos clics; el \u00FAltimo es un
+   clic. El sentido lo da el movimiento del rat\u00F3n (unwrapSweep), as\u00ED que
+   caben arcos de m\u00E1s de 180\u00B0 en cualquier sentido. Todo esto es solo una
+   vista previa (arcDraft): al terminar se trocea en `arcSegments`
+   tramos y se guarda como una RUTA normal, sin recordar centro, radio ni
+   apertura.                                                            */
+const ARC_COLOR = "#db2777";
+const ARC_MIN_RADIUS_M = 1;       /* menos es un clic accidental, no un radio */
+const ARC_MIN_SWEEP_DEG = 0.5;    /* menos no es un arco                      */
+let arcDraft = null; /* { center, start, phase: "radius"|"sweep", sweep, prevBrg, group, \u2026 } | null */
+
+const arcPreviewDot = ll => L.circleMarker(ll, {
+  radius: 5, color: "#fff", weight: 2, fillColor: ARC_COLOR, fillOpacity: 1, interactive: false
+});
+
+function startArcDraft(center) {
+  const label = L.tooltip({ permanent: true, direction: "top", className: "measure-label" });
+  label.setLatLng(center);
+  label.setContent("");
+  const d = {
+    center, start: center, phase: "radius", sweep: 0, prevBrg: 0,
+    circle: L.circle(center, { color: ARC_COLOR, weight: 1, fill: false, dashArray: MEASURE_DASH,
+      radius: 0.1, interactive: false }),
+    radiusLine: L.polyline([center, center], { color: ARC_COLOR, weight: 2, dashArray: MEASURE_DASH,
+      interactive: false }),
+    arc: L.polyline([], { color: ARC_COLOR, weight: 3, interactive: false }),
+    hCenter: arcPreviewDot(center), hStart: arcPreviewDot(center), hEnd: arcPreviewDot(center),
+    label
+  };
+  d.group = L.featureGroup([d.circle, d.radiusLine, d.hCenter, d.hStart, label]).addTo(rootGroup);
+  return d;
+}
+
+function updateArcDraft(d) {
+  const r = map.distance(d.center, d.start);
+  const startBrg = bearingDeg(d.center, d.start);
+  d.circle.setRadius(Math.max(r, 0.1));
+  d.radiusLine.setLatLngs([d.center, d.start]);
+  d.hStart.setLatLng(d.start);
+  let txt = `${fmtUnitDist(r, measureUnit)} \u00B7 ${startBrg.toFixed(1)}\u00B0`;
+  let at = d.start;
+  if (d.phase === "sweep") {
+    const pts = arcPoints(d.center, r, startBrg, d.sweep, arcSegments);
+    d.arc.setLatLngs(pts);
+    d.hEnd.setLatLng(pts[pts.length - 1]);
+    const endBrg = ((startBrg + d.sweep) % 360 + 360) % 360;
+    txt += ` \u2192 ${endBrg.toFixed(1)}\u00B0 (${d.sweep >= 0 ? "+" : "\u2212"}${Math.abs(d.sweep).toFixed(1)}\u00B0)`;
+    at = pts[pts.length >> 1];
+  }
+  d.label.setLatLng(at);
+  d.label.setContent(txt);
+}
+
+/* Fin del recorrido del radio: a partir de aqu\u00ED el rat\u00F3n barre el arco */
+function beginArcSweep(d) {
+  d.phase = "sweep";
+  d.prevBrg = bearingDeg(d.center, d.start);
+  d.group.addLayer(d.arc);
+  d.group.addLayer(d.hEnd);
+  updateArcDraft(d);
+}
+
+/* Etiquetas de tramo APAGADAS al crear: decenas de tooltips permanentes sobre un
+   arco de unos pocos kil\u00F3metros lo taparían entero. Se pueden encender
+   desde el di\u00E1logo de propiedades de la ruta resultante.            */
+function finishArc(d) {
+  const r = map.distance(d.center, d.start);
+  const pts = arcPoints(d.center, r, bearingDeg(d.center, d.start), d.sweep, arcSegments);
+  setTool(null); /* retira la vista previa */
+  const m = buildRouteMeasurement(pts.map(p => ({ lat: p.lat, lng: p.lng })),
+    { ...defaultMeasureStyle("route"), showLabels: false });
+  finalizeRouteMeasurement(m, "arc");
+}
+
+map.on("mousedown", e => {
+  if (arcDraft || activeTool !== "arc") return;
+  L.DomEvent.preventDefault(e.originalEvent);
+  arcDraft = startArcDraft(e.latlng);
+});
+map.on("mousemove", e => {
+  const d = arcDraft;
+  if (!d) return;
+  if (d.phase === "radius") {
+    d.start = e.latlng;
+  } else {
+    const brg = bearingDeg(d.center, e.latlng);
+    d.sweep = unwrapSweep(d.sweep, d.prevBrg, brg);
+    d.prevBrg = brg;
+  }
+  updateArcDraft(d);
+});
+L.DomEvent.on(document, "mouseup", e => {
+  const d = arcDraft;
+  if (!d || clickOnControl(e.target)) return;
+  if (d.phase === "radius") {
+    /* Un clic sin arrastre deja el radio a medias (start == center): el
+       siguiente clic lo fija. Solo un radio de verdad pasa a la fase 2. */
+    if (map.distance(d.center, d.start) >= ARC_MIN_RADIUS_M) beginArcSweep(d);
+    return;
+  }
+  if (Math.abs(d.sweep) < ARC_MIN_SWEEP_DEG) {
+    navMessage("Recorre el per\u00EDmetro hasta donde debe acabar el arco y haz clic.");
+    return; /* sigue dibujando */
+  }
+  finishArc(d);
 });
 
 /* El punto visible vive en un <span> INTERIOR, no en el <div> raíz del
@@ -12647,12 +12861,15 @@ function makeMeasureLi(m) {
   return li;
 }
 
-const MEASURE_NAMES = { circle: "C\u00EDrculo", route: "Ruta" };
+/* `kind` es lo que el usuario cree que ha creado: un arco ES una ruta
+   (m.type), pero se nombra y se deshace como arco.                    */
+const MEASURE_NAMES = { circle: "C\u00EDrculo", route: "Ruta", arc: "Arco" };
+const MEASURE_UNDO = { circle: "crear c\u00EDrculo", route: "crear ruta", arc: "crear arco" };
 
-function addMeasureNode(m) {
-  pushUndo(m.type === "circle" ? "crear círculo" : "crear ruta");
+function addMeasureNode(m, kind = m.type) {
+  pushUndo(MEASURE_UNDO[kind]);
   const ul = ensureMeasureSection();
-  m.treeName = nextNumberedName(MEASURE_NAMES[m.type]);
+  m.treeName = nextNumberedName(MEASURE_NAMES[kind]);
   const mli = makeMeasureLi(m);
   ul.appendChild(mli);
   refreshAncestorChecks(mli);
@@ -12696,7 +12913,7 @@ function buildMeasureRecord(n) {
 }
 
 /* Lo que el diálogo de propiedades enseña de una medición. Un círculo
-   tiene radio y área; una ruta, el total y el desglose por tramo
+   tiene radio, perímetro, área y orientación; una ruta, el total y el desglose por tramo
    (m.legs, ya recalculado por updateRouteMeasurement). Se lee en vivo
    de los manejadores, que son arrastrables con Ctrl mientras el
    diálogo está abierto.                                              */
@@ -12706,8 +12923,12 @@ function measurementValues(m) {
   }
   const dist = map.distance(m.mOrigin.getLatLng(), m.mDest.getLatLng());
   /* El centro, para poder verlo en el diálogo (pedido explícitamente):
-     es literalmente la posición del manejador de origen.               */
-  return { circle: true, dist, area: capArea(dist), brg: null, center: m.mOrigin.getLatLng() };
+     es literalmente la posición del manejador de origen. La orientación
+     es el rumbo centro → borde, el mismo que ya enseña la etiqueta del
+     mapa; el perímetro, el del círculo menor sobre la esfera.          */
+  return { circle: true, dist, area: capArea(dist), perim: circlePerimeter(dist),
+           brg: bearingDeg(m.mOrigin.getLatLng(), m.mDest.getLatLng()),
+           center: m.mOrigin.getLatLng() };
 }
 
 /* ================= Dibujo de polígono a mano =================
@@ -12885,9 +13106,9 @@ function buildRouteMeasurement(waypoints, style = null) {
 
 /* Cablea cada waypoint (mover con Ctrl+arrastre, en vivo — igual que
    el círculo; borrar con clic derecho) y cuelga el nodo del árbol.   */
-function finalizeRouteMeasurement(m) {
+function finalizeRouteMeasurement(m, kind = "route") {
   for (const h of m.handles) wireRouteHandle(m, h);
-  addMeasureNode(m);
+  addMeasureNode(m, kind);
 }
 
 /* A diferencia de un polígono —cuyos manejadores solo EXISTEN mientras
@@ -15149,8 +15370,16 @@ const CTX_MENU_ITEMS = [
     }
   },
   { label: "Modo elevación", checked: () => demOn, action: () => setAltitudeMode(!demOn) },
-  { label: "Medir ruta", action: () => setTool(activeTool === "route" ? null : "route") },
-  { label: "Medir círculo", action: () => setTool(activeTool === "circle" ? null : "circle") },
+  /* Las tres mediciones agrupadas en un submenú: son la misma familia y
+     tres entradas sueltas desbordaban el menú.                        */
+  {
+    label: "Medir",
+    items: [
+      { label: "Ruta", action: () => setTool(activeTool === "route" ? null : "route") },
+      { label: "Círculo", action: () => setTool(activeTool === "circle" ? null : "circle") },
+      { label: "Arco", action: () => setTool(activeTool === "arc" ? null : "arc") }
+    ]
+  },
   { label: "Dibujar polígono o línea", action: () => setTool(activeTool === "polygon" ? null : "polygon") },
   { separator: true },
   { label: "Crear un pin", action: () => createPin() },
@@ -15507,6 +15736,10 @@ setInterval(checkServerVersion, VERSION_CHECK_MS);
     const max = await dbLoadVertexEditMax();
     if (max !== null) vertexEditMax = max;
   } catch { /* tope por defecto */ }
+  try {
+    const n = await dbLoadArcSegments();
+    if (n !== null) arcSegments = n;
+  } catch { /* segmentos por defecto */ }
 
   /* Unidad de medida y formato de coordenadas: ajustes globales, ahora
      persistentes (panel de Propiedades, ver "Persistencia (IndexedDB)"

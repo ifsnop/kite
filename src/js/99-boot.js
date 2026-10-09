@@ -23,6 +23,10 @@
     const max = await dbLoadVertexEditMax();
     if (max !== null) vertexEditMax = max;
   } catch { /* tope por defecto */ }
+  try {
+    const n = await dbLoadArcSegments();
+    if (n !== null) arcSegments = n;
+  } catch { /* segmentos por defecto */ }
 
   /* Unidad de medida y formato de coordenadas: ajustes globales, ahora
      persistentes (panel de Propiedades, ver "Persistencia (IndexedDB)"

@@ -2,7 +2,7 @@
 
 const MEASURE_COLORS = { circle: "#7c3aed", route: "#0ea5e9" };
 let measureLi = null;
-let activeTool = null; /* null | "circle" | "polygon" | "route" */
+let activeTool = null; /* null | "circle" | "arc" | "polygon" | "route" */
 let drawing = null;    /* medición en curso durante el arrastre de creación */
 let polyDraft = null;  /* polígono en curso: { vertices, handles, poly, group } | null */
 /* Crear una ruta se comporta como EDITARLA: no usa polyDraft en absoluto
@@ -98,6 +98,12 @@ const MeasureControl = L.Control.extend({
     toolButtons.route = makeToolButton(bar, "\u2933",
       "Medir: click para cada waypoint, doble click para terminar", "route");
     toolButtons.circle = makeToolButton(bar, "\u25EF", "Medir c\u00EDrculo: arrastra del centro al borde", "circle");
+    /* El arco no es un tipo de medici\u00F3n propio: al terminar de dibujarlo
+       se convierte en una ruta (ver finishArc), as\u00ED que solo la
+       herramienta vive aqu\u00ED.                                         */
+    toolButtons.arc = makeToolButton(bar, "\u25E0",
+      "Medir arco: arrastra (o haz clic) del centro al inicio del arco, recorre el per\u00EDmetro "
+      + "y haz clic donde acaba", "arc");
     toolButtons.polygon = makeToolButton(bar, "\u2B20",
       "Dibujar: click para cada v\u00E9rtice; doble click sobre el \u00FAltimo v\u00E9rtice cierra el "
       + "pol\u00EDgono, doble click fuera termina la l\u00EDnea sin cerrarla", "polygon");
@@ -133,6 +139,7 @@ map.addControl(new MeasureControl());
 function setTool(tool) {
   if (drawing) { rootGroup.removeLayer(drawing.group); drawing = null; }
   if (polyDraft) { rootGroup.removeLayer(polyDraft.group); polyDraft = null; }
+  if (arcDraft) { rootGroup.removeLayer(arcDraft.group); arcDraft = null; }
   /* Cambiar de herramienta a mitad de una ruta (antes del 2º punto: solo
      la vista previa; desde el 2º: la medición real con su diálogo
      abierto) cierra ese diálogo como un Cancelar — mismo camino que
@@ -252,6 +259,116 @@ L.DomEvent.on(document, "mouseup", () => {
     return;
   }
   finalizeMeasurement(m);
+});
+
+/* ---------- Arco ----------
+   Tres gestos: centro, inicio (el punto del radio, que fija tambi\u00E9n la
+   orientaci\u00F3n) y fin, recorriendo el per\u00EDmetro desde el inicio. Los dos
+   primeros valen como un arrastre o como dos clics; el \u00FAltimo es un
+   clic. El sentido lo da el movimiento del rat\u00F3n (unwrapSweep), as\u00ED que
+   caben arcos de m\u00E1s de 180\u00B0 en cualquier sentido. Todo esto es solo una
+   vista previa (arcDraft): al terminar se trocea en `arcSegments`
+   tramos y se guarda como una RUTA normal, sin recordar centro, radio ni
+   apertura.                                                            */
+const ARC_COLOR = "#db2777";
+const ARC_MIN_RADIUS_M = 1;       /* menos es un clic accidental, no un radio */
+const ARC_MIN_SWEEP_DEG = 0.5;    /* menos no es un arco                      */
+let arcDraft = null; /* { center, start, phase: "radius"|"sweep", sweep, prevBrg, group, \u2026 } | null */
+
+const arcPreviewDot = ll => L.circleMarker(ll, {
+  radius: 5, color: "#fff", weight: 2, fillColor: ARC_COLOR, fillOpacity: 1, interactive: false
+});
+
+function startArcDraft(center) {
+  const label = L.tooltip({ permanent: true, direction: "top", className: "measure-label" });
+  label.setLatLng(center);
+  label.setContent("");
+  const d = {
+    center, start: center, phase: "radius", sweep: 0, prevBrg: 0,
+    circle: L.circle(center, { color: ARC_COLOR, weight: 1, fill: false, dashArray: MEASURE_DASH,
+      radius: 0.1, interactive: false }),
+    radiusLine: L.polyline([center, center], { color: ARC_COLOR, weight: 2, dashArray: MEASURE_DASH,
+      interactive: false }),
+    arc: L.polyline([], { color: ARC_COLOR, weight: 3, interactive: false }),
+    hCenter: arcPreviewDot(center), hStart: arcPreviewDot(center), hEnd: arcPreviewDot(center),
+    label
+  };
+  d.group = L.featureGroup([d.circle, d.radiusLine, d.hCenter, d.hStart, label]).addTo(rootGroup);
+  return d;
+}
+
+function updateArcDraft(d) {
+  const r = map.distance(d.center, d.start);
+  const startBrg = bearingDeg(d.center, d.start);
+  d.circle.setRadius(Math.max(r, 0.1));
+  d.radiusLine.setLatLngs([d.center, d.start]);
+  d.hStart.setLatLng(d.start);
+  let txt = `${fmtUnitDist(r, measureUnit)} \u00B7 ${startBrg.toFixed(1)}\u00B0`;
+  let at = d.start;
+  if (d.phase === "sweep") {
+    const pts = arcPoints(d.center, r, startBrg, d.sweep, arcSegments);
+    d.arc.setLatLngs(pts);
+    d.hEnd.setLatLng(pts[pts.length - 1]);
+    const endBrg = ((startBrg + d.sweep) % 360 + 360) % 360;
+    txt += ` \u2192 ${endBrg.toFixed(1)}\u00B0 (${d.sweep >= 0 ? "+" : "\u2212"}${Math.abs(d.sweep).toFixed(1)}\u00B0)`;
+    at = pts[pts.length >> 1];
+  }
+  d.label.setLatLng(at);
+  d.label.setContent(txt);
+}
+
+/* Fin del recorrido del radio: a partir de aqu\u00ED el rat\u00F3n barre el arco */
+function beginArcSweep(d) {
+  d.phase = "sweep";
+  d.prevBrg = bearingDeg(d.center, d.start);
+  d.group.addLayer(d.arc);
+  d.group.addLayer(d.hEnd);
+  updateArcDraft(d);
+}
+
+/* Etiquetas de tramo APAGADAS al crear: decenas de tooltips permanentes sobre un
+   arco de unos pocos kil\u00F3metros lo taparían entero. Se pueden encender
+   desde el di\u00E1logo de propiedades de la ruta resultante.            */
+function finishArc(d) {
+  const r = map.distance(d.center, d.start);
+  const pts = arcPoints(d.center, r, bearingDeg(d.center, d.start), d.sweep, arcSegments);
+  setTool(null); /* retira la vista previa */
+  const m = buildRouteMeasurement(pts.map(p => ({ lat: p.lat, lng: p.lng })),
+    { ...defaultMeasureStyle("route"), showLabels: false });
+  finalizeRouteMeasurement(m, "arc");
+}
+
+map.on("mousedown", e => {
+  if (arcDraft || activeTool !== "arc") return;
+  L.DomEvent.preventDefault(e.originalEvent);
+  arcDraft = startArcDraft(e.latlng);
+});
+map.on("mousemove", e => {
+  const d = arcDraft;
+  if (!d) return;
+  if (d.phase === "radius") {
+    d.start = e.latlng;
+  } else {
+    const brg = bearingDeg(d.center, e.latlng);
+    d.sweep = unwrapSweep(d.sweep, d.prevBrg, brg);
+    d.prevBrg = brg;
+  }
+  updateArcDraft(d);
+});
+L.DomEvent.on(document, "mouseup", e => {
+  const d = arcDraft;
+  if (!d || clickOnControl(e.target)) return;
+  if (d.phase === "radius") {
+    /* Un clic sin arrastre deja el radio a medias (start == center): el
+       siguiente clic lo fija. Solo un radio de verdad pasa a la fase 2. */
+    if (map.distance(d.center, d.start) >= ARC_MIN_RADIUS_M) beginArcSweep(d);
+    return;
+  }
+  if (Math.abs(d.sweep) < ARC_MIN_SWEEP_DEG) {
+    navMessage("Recorre el per\u00EDmetro hasta donde debe acabar el arco y haz clic.");
+    return; /* sigue dibujando */
+  }
+  finishArc(d);
 });
 
 /* El punto visible vive en un <span> INTERIOR, no en el <div> raíz del
@@ -556,12 +673,15 @@ function makeMeasureLi(m) {
   return li;
 }
 
-const MEASURE_NAMES = { circle: "C\u00EDrculo", route: "Ruta" };
+/* `kind` es lo que el usuario cree que ha creado: un arco ES una ruta
+   (m.type), pero se nombra y se deshace como arco.                    */
+const MEASURE_NAMES = { circle: "C\u00EDrculo", route: "Ruta", arc: "Arco" };
+const MEASURE_UNDO = { circle: "crear c\u00EDrculo", route: "crear ruta", arc: "crear arco" };
 
-function addMeasureNode(m) {
-  pushUndo(m.type === "circle" ? "crear círculo" : "crear ruta");
+function addMeasureNode(m, kind = m.type) {
+  pushUndo(MEASURE_UNDO[kind]);
   const ul = ensureMeasureSection();
-  m.treeName = nextNumberedName(MEASURE_NAMES[m.type]);
+  m.treeName = nextNumberedName(MEASURE_NAMES[kind]);
   const mli = makeMeasureLi(m);
   ul.appendChild(mli);
   refreshAncestorChecks(mli);
@@ -605,7 +725,7 @@ function buildMeasureRecord(n) {
 }
 
 /* Lo que el diálogo de propiedades enseña de una medición. Un círculo
-   tiene radio y área; una ruta, el total y el desglose por tramo
+   tiene radio, perímetro, área y orientación; una ruta, el total y el desglose por tramo
    (m.legs, ya recalculado por updateRouteMeasurement). Se lee en vivo
    de los manejadores, que son arrastrables con Ctrl mientras el
    diálogo está abierto.                                              */
@@ -615,8 +735,12 @@ function measurementValues(m) {
   }
   const dist = map.distance(m.mOrigin.getLatLng(), m.mDest.getLatLng());
   /* El centro, para poder verlo en el diálogo (pedido explícitamente):
-     es literalmente la posición del manejador de origen.               */
-  return { circle: true, dist, area: capArea(dist), brg: null, center: m.mOrigin.getLatLng() };
+     es literalmente la posición del manejador de origen. La orientación
+     es el rumbo centro → borde, el mismo que ya enseña la etiqueta del
+     mapa; el perímetro, el del círculo menor sobre la esfera.          */
+  return { circle: true, dist, area: capArea(dist), perim: circlePerimeter(dist),
+           brg: bearingDeg(m.mOrigin.getLatLng(), m.mDest.getLatLng()),
+           center: m.mOrigin.getLatLng() };
 }
 
 /* ================= Dibujo de polígono a mano =================
@@ -794,9 +918,9 @@ function buildRouteMeasurement(waypoints, style = null) {
 
 /* Cablea cada waypoint (mover con Ctrl+arrastre, en vivo — igual que
    el círculo; borrar con clic derecho) y cuelga el nodo del árbol.   */
-function finalizeRouteMeasurement(m) {
+function finalizeRouteMeasurement(m, kind = "route") {
   for (const h of m.handles) wireRouteHandle(m, h);
-  addMeasureNode(m);
+  addMeasureNode(m, kind);
 }
 
 /* A diferencia de un polígono —cuyos manejadores solo EXISTEN mientras

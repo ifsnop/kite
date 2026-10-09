@@ -1237,13 +1237,19 @@ function renderMeasureValues() {
     $id("ms-center").textContent = `${formatCoord(msMeasures.center.lat, true, coordFormat)}, `
       + formatCoord(msMeasures.center.lng, false, coordFormat);
   }
+  /* Solo el círculo tiene perímetro propio: la ruta ya enseña su
+     «Distancia total» en la primera fila.                              */
+  $id("ms-perim-row").hidden = !msMeasures.circle;
+  if (msMeasures.circle) $id("ms-perim").textContent = fmtUnitDist(msMeasures.perim, measureUnit);
   $id("ms-area-row").hidden = msMeasures.area === null;
   if (msMeasures.area !== null) {
     $id("ms-area").textContent = fmtUnitArea(msMeasures.area, measureUnit);
   }
-  /* El rumbo va SIEMPRE en grados: no es una distancia y la unidad
-     elegida no le afecta. Una ruta no tiene un único rumbo: esa fila
-     se oculta y en su lugar se desglosa por tramo, más abajo.        */
+  /* La orientación de un círculo es el rumbo centro → borde (el punto
+     que se arrastra para cambiar el radio). Va SIEMPRE en grados: no es
+     una distancia y la unidad elegida no le afecta. Una ruta no tiene un
+     único rumbo: esa fila se oculta y en su lugar se desglosa por tramo,
+     más abajo.                                                         */
   $id("ms-bearing-row").hidden = msMeasures.brg === null;
   if (msMeasures.brg !== null) $id("ms-bearing").textContent = `${msMeasures.brg.toFixed(1)}°`;
   $id("ms-legs-row").hidden = !msMeasures.route;
