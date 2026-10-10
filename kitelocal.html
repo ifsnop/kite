@@ -2116,1983 +2116,453 @@ const MDI_ICON_BODIES = {
   "map-marker-alert": '<path fill="currentColor" d="M12 2c3.9 0 7 3.1 7 7c0 5.2-7 13-7 13S5 14.2 5 9c0-3.9 3.1-7 7-7m-1 4v6h2V6zm0 8v2h2v-2z"/>',
 };
 /* fin de MDI_ICON_BODIES */
-/* leaflet-rotate 0.2.8 (https://github.com/Raruto/leaflet-rotate),
-   dist/leaflet-rotate-src.js copied VERBATIM (only the sourceMappingURL
-   line dropped and the UMD wrapper reduced to a plain IIFE: there is no
-   module loader here) so that the next commit's reduction reads as a diff.
-   GPL-3.0, © Raruto and contributors (IvanSanchez, Fnicollet,
-   Hyperknot). Same file the CDN served: the minified build matched the
-   SRI hash pinned in src/index.html.                                  */
-(function () { 'use strict';
-
-    /**
-     * @external L.DomUtil
-     * 
-     * @see https://github.com/Leaflet/Leaflet/tree/v1.9.3/src/dom/DomUtil.js
-     */
-
-    const domUtilProto = L.extend({}, L.DomUtil);
-
-    L.extend(L.DomUtil, {
-
-        /**
-         * Resets the 3D CSS transform of `el` so it is
-         * translated by `offset` pixels and optionally
-         * scaled by `scale`. Does not have an effect if
-         * the browser doesn't support 3D CSS transforms.
-         * 
-         * @param {HTMLElement} el 
-         * @param {L.Point} offset 
-         * @param {Number} scale
-         * @param {Number} bearing 
-         * @param {L.Point} pivot 
-         */
-        setTransform: function(el, offset, scale, bearing, pivot) {
-            var pos = offset || new L.Point(0, 0);
-
-            if (!bearing) {
-                offset = pos._round();
-                return domUtilProto.setTransform.apply(this, arguments);
-            }
-
-            pos = pos.rotateFrom(bearing, pivot);
-
-            el.style[L.DomUtil.TRANSFORM] =
-                'translate3d(' + pos.x + 'px,' + pos.y + 'px' + ',0)' +
-                (scale ? ' scale(' + scale + ')' : '') +
-                ' rotate(' + bearing + 'rad)';
-        },
-
-        /**
-         * Sets the position of `el` to coordinates specified by
-         * `position`, using CSS translate or top/left positioning
-         * depending on the browser (used by Leaflet internally
-         * to position its layers).
-         * 
-         * @param {HTMLElement} el 
-         * @param {L.Point} point 
-         * @param {Number} bearing
-         * @param {L.Point} pivot 
-         * @param {Number} scale 
-         */
-        setPosition: function(el, point, bearing, pivot, scale) {
-            if (!bearing) {
-                return domUtilProto.setPosition.apply(this, arguments);
-            }
-
-            /*eslint-disable */
-            el._leaflet_pos = point;
-            /*eslint-enable */
-
-            if (L.Browser.any3d) {
-                L.DomUtil.setTransform(el, point, scale, bearing, pivot);
-            } else {
-                el.style.left = point.x + 'px';
-                el.style.top = point.y + 'px';
-            }
-        },
-
-        /**
-         * @constant radians = degrees × π/180°
-         */
-        DEG_TO_RAD: Math.PI / 180,
-
-        /**
-         * @constant degrees = radians × 180°/π
-         */
-        RAD_TO_DEG: 180 / Math.PI,
-
-    });
-
-    /**
-     * @external L.Draggable
-     * 
-     * @see https://github.com/Leaflet/Leaflet/tree/v1.9.3/src/dom/Draggable.js
-     */
-
-    /**
-     * A class for making DOM elements draggable (including touch support).
-     * Used internally for map and marker dragging. Only works for elements
-     * that were positioned with [`L.DomUtil.setPosition`](#domutil-setposition).
-     */
-
-    L.Draggable.include({
-
-        /** @TODO */
-        // updateMapBearing: function(mapBearing) {
-        //     this._mapBearing = mapBearing;
-        // },
-
-    });
-
-    /**
-     * @external L.Point
-     * 
-     * @see https://github.com/Leaflet/Leaflet/tree/v1.9.3/src/geometry/Point.js
-     */
-
-    L.extend(L.Point.prototype, {
-
-        /**
-         * Rotate around (0,0) by applying the 2D rotation matrix:
-         * 
-         * ⎡ x' ⎤ = ⎡ cos θ  -sin θ ⎤ ⎡ x ⎤
-         * ⎣ y' ⎦   ⎣ sin θ   cos θ ⎦ ⎣ y ⎦
-         * 
-         * @param theta must be given in radians.
-         */
-        rotate: function(theta) {
-            return this.rotateFrom(theta, new L.Point(0,0))
-        },
-
-        /**
-         * Rotate around (pivot.x, pivot.y) by:
-         * 
-         * 1. subtract (pivot.x, pivot.y)
-         * 2. rotate around (0, 0)
-         * 3. add (pivot.x, pivot.y) back
-         * 
-         * same as `this.subtract(pivot).rotate(theta).add(pivot)`
-         * 
-         * @param {Number} theta 
-         * @param {L.Point} pivot 
-         * 
-         * @returns {L.Point}
-         */
-        rotateFrom: function(theta, pivot) {
-            if (!theta) { return this; }
-            var sinTheta = Math.sin(theta);
-            var cosTheta = Math.cos(theta);
-            var cx = pivot.x,
-                cy = pivot.y;
-            var x = this.x - cx,
-                y = this.y - cy;
-
-            return new L.Point(
-                x * cosTheta - y * sinTheta + cx,
-                x * sinTheta + y * cosTheta + cy
-            );
-        },
-
-    });
-
-    /**
-     * @external L.DivOverlay
-     * 
-     * @see https://github.com/Leaflet/Leaflet/tree/v1.9.3/src/layer/DivOverlay.js
-     */
-
-    const divOverlayProto = L.extend({}, L.DivOverlay.prototype);
-
-    L.DivOverlay.include({
-
-        /**
-         * Update L.Popup and L.Tooltip anchor positions after
-         * the map is moved by calling `map.setBearing(theta)`
-         * 
-         * @listens L.Map~rotate
-         */
-        getEvents: function() {
-            return L.extend(divOverlayProto.getEvents.apply(this, arguments), { rotate: this._updatePosition });
-        },
-
-        /**
-         * 0. update element anchor point (divOverlayProto v1.9.3)
-         * 1. rotate around anchor point (subtract anchor -> rotate point -> add anchor)
-         */
-        _updatePosition: function() {
-            if (!this._map) { return; }
-            divOverlayProto._updatePosition.apply(this, arguments);
-            if (this._map && this._map._rotate && this._zoomAnimated) {
-                var anchor = this._getAnchor();
-                var pos = L.DomUtil.getPosition(this._container).subtract(anchor);
-                L.DomUtil.setPosition(this._container, this._map.rotatedPointToMapPanePoint(pos).add(anchor));
-            }
-
-        },
-
-    });
-
-    /**
-     * @external L.Popup
-     * 
-     * @see https://github.com/Leaflet/Leaflet/tree/v1.9.3/src/layer/Popup.js
-     */
-
-    const popupProto = L.extend({}, L.Popup.prototype);
-
-    L.Popup.include({
-
-        /**
-         * 0. update element anchor point (popupProto v1.9.3)
-         * 1. rotate around anchor point (subtract anchor -> rotate point -> add anchor)
-         */
-        _animateZoom: function(e) {
-            popupProto._animateZoom.apply(this, arguments);
-            if (this._map && this._map._rotate) {
-                var anchor = this._getAnchor();
-                var pos = L.DomUtil.getPosition(this._container).subtract(anchor);
-                L.DomUtil.setPosition(this._container, this._map.rotatedPointToMapPanePoint(pos).add(anchor));
-            }
-        },
-
-        /**
-         * Fix for L.popup({ keepInView = true })
-         * 
-         * @see https://github.com/fnicollet/Leaflet/pull/21
-         */
-        _adjustPan: function() {
-            if (!this.options.autoPan || (this._map._panAnim && this._map._panAnim._inProgress)) { return; }
-
-            // We can endlessly recurse if keepInView is set and the view resets.
-            // Let's guard against that by exiting early if we're responding to our own autopan.
-            if (this._autopanning) {
-                this._autopanning = false;
-                return;
-            }
-
-            var map = this._map,
-                marginBottom = parseInt(L.DomUtil.getStyle(this._container, 'marginBottom'), 10) || 0,
-                containerHeight = this._container.offsetHeight + marginBottom,
-                containerWidth = this._containerWidth,
-                layerPos = new L.Point(this._containerLeft, -containerHeight - this._containerBottom);
-
-            layerPos._add(L.DomUtil.getPosition(this._container));
-
-            /** @TODO use popupProto._adjustPan */
-            // var containerPos = map.layerPointToContainerPoint(layerPos);
-            var containerPos = layerPos._add(this._map._getMapPanePos()),
-                padding = L.point(this.options.autoPanPadding),
-                paddingTL = L.point(this.options.autoPanPaddingTopLeft || padding),
-                paddingBR = L.point(this.options.autoPanPaddingBottomRight || padding),
-                size = map.getSize(),
-                dx = 0,
-                dy = 0;
-
-            if (containerPos.x + containerWidth + paddingBR.x > size.x) { // right
-                dx = containerPos.x + containerWidth - size.x + paddingBR.x;
-            }
-            if (containerPos.x - dx - paddingTL.x < 0) { // left
-                dx = containerPos.x - paddingTL.x;
-            }
-            if (containerPos.y + containerHeight + paddingBR.y > size.y) { // bottom
-                dy = containerPos.y + containerHeight - size.y + paddingBR.y;
-            }
-            if (containerPos.y - dy - paddingTL.y < 0) { // top
-                dy = containerPos.y - paddingTL.y;
-            }
-
-            // @namespace Map
-            // @section Popup events
-            // @event autopanstart: Event
-            // Fired when the map starts autopanning when opening a popup.
-            if (dx || dy) {
-                // Track that we're autopanning, as this function will be re-ran on moveend
-                if (this.options.keepInView) {
-                    this._autopanning = true;
-                }
-                map
-                    .fire('autopanstart')
-                    .panBy([dx, dy]);
-            }
-        },
-
-    });
-
-    /**
-     * @external L.Tooltip
-     * 
-     * @see https://github.com/Leaflet/Leaflet/tree/v1.9.3/src/layer/Tooltip.js
-     */
-
-    const tooltipProto = L.extend({}, L.Tooltip.prototype);
-
-    L.Tooltip.include({
-
-        _animateZoom: function(e) {
-            if (!this._map._rotate) {
-                return tooltipProto._animateZoom.apply(this, arguments);
-            }
-            var pos = this._map._latLngToNewLayerPoint(this._latlng, e.zoom, e.center);
-
-            pos = this._map.rotatedPointToMapPanePoint(pos);
-            this._setPosition(pos);
-        },
-
-        _updatePosition: function() {
-            if (!this._map._rotate) {
-                return tooltipProto._updatePosition.apply(this, arguments);
-            }
-            var pos = this._map.latLngToLayerPoint(this._latlng);
-
-            pos = this._map.rotatedPointToMapPanePoint(pos);
-            this._setPosition(pos);
-        },
-
-    });
-
-    /**
-     * @external L.Icon
-     * 
-     * @see https://github.com/Leaflet/Leaflet/tree/v1.9.3/src/layer/marker/Icon.js
-     */
-
-    L.extend({}, L.Icon.prototype);
-
-    L.Icon.include({
-
-        _setIconStyles: function(img, name) {
-            var options = this.options;
-            var sizeOption = options[name + 'Size'];
-
-            if (typeof sizeOption === 'number') {
-                sizeOption = [sizeOption, sizeOption];
-            }
-
-            var size = L.point(sizeOption),
-                anchor = L.point(name === 'shadow' && options.shadowAnchor || options.iconAnchor ||
-                    size && size.divideBy(2, true));
-
-            img.className = 'leaflet-marker-' + name + ' ' + (options.className || '');
-
-            if (anchor) {
-                img.style.marginLeft = (-anchor.x) + 'px';
-                img.style.marginTop = (-anchor.y) + 'px';
-                /** @TODO use iconProto._setIconStyles */
-                img.style[L.DomUtil.TRANSFORM + "Origin"] = anchor.x + "px " + anchor.y + "px 0px";
-            }
-
-            if (size) {
-                img.style.width = size.x + 'px';
-                img.style.height = size.y + 'px';
-            }
-        },
-
-    });
-
-    /**
-     * @external L.Marker
-     * @external L.Handler.MarkerDrag
-     * 
-     * @see https://github.com/Leaflet/Leaflet/tree/v1.9.3/src/layer/marker/Marker.js
-     * @see https://github.com/Leaflet/Leaflet/tree/v1.9.3/src/layer/marker/Marker.Drag.js
-     * @see https://github.com/Leaflet/Leaflet/tree/v1.9.3/src/dom/Draggable.js
-     */
-
-    const markerProto = L.extend({}, L.Marker.prototype);
-
-    L.Marker.mergeOptions({
-
-        /**
-         * Rotation of this marker in rad
-         * 
-         * @type {Number}
-         */
-        rotation: 0,
-
-        /**
-         * Rotate this marker when map rotates
-         * 
-         * @type {Boolean}
-         */
-        rotateWithView: false,
-
-        /**
-         * Scale of the marker icon
-         * 
-         * @type {Number}
-         */
-        scale: undefined,
-
-    });
-
-    var markerDragProto; // retrived at runtime (see below: L.Marker::_initInteraction())
-
-    var MarkerDrag = {
-
-        // _onDragStart: function() {
-        //     if (!this._marker._map._rotate) {
-        //         return markerDragProto._onDragStart.apply(this, arguments);
-        //     }
-        //     this._draggable.updateMapBearing(this._marker._map._bearing);
-        // },
-
-        _onDrag: function(e) {
-            var marker = this._marker,
-                /** @TODO use markerDragProto._onDrag */
-                rotated_marker = marker.options.rotation || marker.options.rotateWithView,
-                shadow = marker._shadow,
-                iconPos = L.DomUtil.getPosition(marker._icon);
-
-            /** @TODO use markerDragProto._onDrag */
-            // update shadow position
-            if (!rotated_marker && shadow) {
-                L.DomUtil.setPosition(shadow, iconPos);
-            }
-
-            /** @TODO use markerDragProto._onDrag */
-            if (marker._map._rotate) {
-                // Reverse calculation from mapPane coordinates to rotatePane coordinates
-                iconPos = marker._map.mapPanePointToRotatedPoint(iconPos);
-            }
-            var latlng = marker._map.layerPointToLatLng(iconPos);
-
-            marker._latlng = latlng;
-            e.latlng = latlng;
-            e.oldLatLng = this._oldLatLng;
-
-            /** @TODO use markerDragProto._onDrag */
-            if (rotated_marker) marker.setLatLng(latlng); // use `setLatLng` to presisit rotation. low efficiency
-            else marker.fire('move', e); // `setLatLng` will trig 'move' event. we imitate here.
-
-            // @event drag: Event
-            // Fired repeatedly while the user drags the marker.
-            marker
-                .fire('drag', e);
-        },
-
-        _onDragEnd: function(e) {
-            if (this._marker._map._rotate) {
-                this._marker.update();
-            }
-            markerDragProto._onDragEnd.apply(this, arguments);
-        },
-
-    };
-
-    L.Marker.include({
-
-        /**
-         * Update L.Marker anchor position after the map
-         * is moved by calling `map.setBearing(theta)`
-         * 
-         * @listens L.Map~rotate
-         */
-        getEvents: function() {
-            return L.extend(markerProto.getEvents.apply(this, arguments), { rotate: this.update });
-        },
-
-        _initInteraction: function() {
-            var ret = markerProto._initInteraction.apply(this, arguments);
-            if (this.dragging && this.dragging.enabled() && this._map && this._map._rotate) {
-                // L.Handler.MarkerDrag is used internally by L.Marker to make the markers draggable
-                markerDragProto = markerDragProto || Object.getPrototypeOf(this.dragging);
-                this.dragging.disable();
-                Object.assign(this.dragging, {
-                    // _onDragStart: MarkerDrag._onDragStart.bind(this.dragging),
-                    _onDrag: MarkerDrag._onDrag.bind(this.dragging),
-                    _onDragEnd: MarkerDrag._onDragEnd.bind(this.dragging),
-                });
-                this.dragging.enable();
-            }
-            return ret;
-        },
-
-        _setPos: function(pos) {
-
-            /** @TODO use markerProto._setPos */
-            if (this._map._rotate) {
-                pos = this._map.rotatedPointToMapPanePoint(pos);
-            }
-
-            /** @TODO use markerProto._setPos */
-            var bearing = this.options.rotation || 0;
-            if (this.options.rotateWithView) {
-                bearing += this._map._bearing;
-            }
-
-            /** @TODO use markerProto._setPos */
-            if (this._icon) {
-                L.DomUtil.setPosition(this._icon, pos, bearing, pos, this.options.scale);
-            }
-
-            /** @TODO use markerProto._setPos */
-            if (this._shadow) {
-                L.DomUtil.setPosition(this._shadow, pos, bearing, pos, this.options.scale);
-            }
-
-            this._zIndex = pos.y + this.options.zIndexOffset;
-
-            this._resetZIndex();
-        },
-
-        // _updateZIndex: function(offset) {
-        //     if (!this._map._rotate) {
-        //         return markerProto._updateZIndex.apply(this, arguments);
-        //     }
-        //     this._icon.style.zIndex = Math.round(this._zIndex + offset);
-        // },
-
-        setRotation: function(rotation) {
-            this.options.rotation = rotation;
-            this.update();
-        },
-
-    });
-
-    /**
-     * @external L.GridLayer
-     * 
-     * @see https://github.com/Leaflet/Leaflet/tree/v1.9.3/src/layer/tile/GridLayer.js
-     */
-
-    const gridLayerProto = L.extend({}, L.GridLayer.prototype);
-
-    L.GridLayer.include({
-
-        /**
-         * Redraw L.TileLayer bounds after the map is
-         * moved by just calling `map.setBearing(theta)`
-         * 
-         * @listens L.Map~rotate
-         */
-        getEvents: function() {
-            var events = gridLayerProto.getEvents.apply(this, arguments);
-            if (this._map._rotate && !this.options.updateWhenIdle) {
-                if (!this._onRotate) {
-                    this._onRotate = L.Util.throttle(this._onMoveEnd, this.options.updateInterval, this);
-                }
-                events.rotate = this._onRotate;
-            }
-            return events;
-        },
-
-        _getTiledPixelBounds: function(center) {
-            if (!this._map._rotate) {
-                return gridLayerProto._getTiledPixelBounds.apply(this, arguments);
-            }
-
-            return this._map._getNewPixelBounds(center, this._tileZoom);
-        },
-
-    });
-
-    /**
-     * @external L.Renderer
-     * 
-     * @see https://github.com/Leaflet/Leaflet/tree/v1.9.3/src/layer/vector/Renderer.js
-     */
-
-    const rendererProto = L.extend({}, L.Renderer.prototype);
-
-    L.Renderer.include({
-
-        /**
-         * Redraw L.Canvas and L.SVG renderer bounds after the
-         * map is moved by just calling `map.setBearing(theta)`
-         * 
-         * @listens L.Map~rotate
-         */
-        getEvents: function() {
-            return L.extend(rendererProto.getEvents.apply(this, arguments), { rotate: this._update });
-        },
-
-        /**
-         * Fix for `map.flyTo()` when `false === map.options.zoomAnimation`
-         * 
-         * @see https://github.com/Leaflet/Leaflet/pull/8794
-         */
-        onAdd: function() {
-            rendererProto.onAdd.apply(this, arguments);
-            if (L.version <= "1.9.3") {
-                // always keep transform-origin as 0 0
-                this._container.classList.add('leaflet-zoom-animated');
-            }
-        },
-
-        /**
-         * @FIXME layer drifts on `map.setZoom()` (eg. zoom during animation)
-         * 
-         * the main cause seems to be related to `this._updateTransform(path._center, path._zoom))`
-         * and `this._topLeft = this._map.layerPointToLatLng(this._bounds.min);`
-         * 
-         * @example
-         *   map.setZoom(2);
-         *   path._renderer._update();
-         *   path._renderer._updateTransform(path._renderer._center, path._renderer._zoom);
-         * 
-         * @see https://github.com/Leaflet/Leaflet/pull/8794
-         * @see https://github.com/Leaflet/Leaflet/pull/8103
-         * @see https://github.com/Leaflet/Leaflet/issues/7466
-         * 
-         * @TODO rechek this changes from leaflet@v1.9.3
-         * 
-         * @see https://github.com/Leaflet/Leaflet/compare/v1.7.0...v1.9.3
-         */
-        _updateTransform: function(center, zoom) {
-            if (!this._map._rotate) {
-                return rendererProto._updateTransform.apply(this, arguments);
-            }
-            /**
-             * @FIXME see path._renderer._reset();
-             */
-            var scale = this._map.getZoomScale(zoom, this._zoom),
-                offset = this._map._latLngToNewLayerPoint(this._topLeft, zoom, center);
-
-            L.DomUtil.setTransform(this._container, offset, scale);
-            
-        },
-
-        // getEvents() {
-        //     const events = {
-        //         viewreset: this._reset,
-        //         zoom: this._onZoom,
-        //         moveend: this._update,
-        //         zoomend: this._onZoomEnd
-        //     };
-        //     if (this._zoomAnimated) {
-        //         events.zoomanim = this._onAnimZoom;
-        //     }
-        //     return events;
-        // },
-
-        // _onAnimZoom(ev) {
-        //     this._updateTransform(ev.center, ev.zoom);
-        // },
-
-    	// _onZoom() {
-        //     this._updateTransform(this._map.getCenter(), this._map.getZoom());
-    	// },
-
-        // _onZoomEnd() {
-        //     for (const id in this._layers) {
-        //         this._layers[id]._project();
-        //     }
-        // },
-
-        // _reset() {
-        //     this._update();
-        //     this._updateTransform(this._center, this._zoom);
-
-        //     for (const id in this._layers) {
-        //         this._layers[id]._reset();
-        //     }
-        // },
-
-        // _updatePaths() {
-        //     for (const id in this._layers) {
-        //         this._layers[id]._update();
-        //     }
-        // },
-
-        _update: function() {
-            if (!this._map._rotate) {
-                return rendererProto._update.apply(this, arguments);
-            }
-            // Update pixel bounds of renderer container (for positioning/sizing/clipping later)
-            // Subclasses are responsible of firing the 'update' event.
-            this._bounds = this._map._getPaddedPixelBounds(this.options.padding);
-            this._topLeft = this._map.layerPointToLatLng(this._bounds.min);
-            this._center = this._map.getCenter();
-            this._zoom = this._map.getZoom();
-        },
-
-    });
-
-    /**
-     * @external L.Map
-     * 
-     * @see https://github.com/Leaflet/Leaflet/blob/v1.9.3/src/map/Map.js
-     */
-
-    const mapProto = L.extend({}, L.Map.prototype);
-
-    L.Map.mergeOptions({ rotate: false, bearing: 0, });
-
-    L.Map.include({
-
-        /**
-         * @param {(HTMLElement|String)} id html selector
-         * @param {Object} [options={}] leaflet map options
-         */
-        initialize: function(id, options) {
-            if (options.rotate) {
-                this._rotate = true;
-                this._bearing = 0;
-            }
-            mapProto.initialize.apply(this, arguments);
-            if(this.options.rotate){
-              this.setBearing(this.options.bearing);
-            }
-        },
-
-        /**
-         * Given a pixel coordinate relative to the map container,
-         * returns the corresponding pixel coordinate relative to
-         * the [origin pixel](#map-getpixelorigin).
-         * 
-         * @param {L.Point} point pixel screen coordinates
-         * @returns {L.Point} transformed pixel point
-         */
-        containerPointToLayerPoint: function(point) {
-            if (!this._rotate) {
-                return mapProto.containerPointToLayerPoint.apply(this, arguments);
-            }
-            return L.point(point)
-                .subtract(this._getMapPanePos())
-                .rotateFrom(-this._bearing, this._getRotatePanePos())
-                .subtract(this._getRotatePanePos());
-        },
-
-        /**
-         * Given a pixel coordinate relative to the [origin pixel](#map-getpixelorigin),
-         * returns the corresponding pixel coordinate relative to the map container.
-         * 
-         * @param {L.Point} point pixel screen coordinates
-         * @returns {L.Point} transformed pixel point
-         */
-        layerPointToContainerPoint: function(point) {
-            if (!this._rotate) {
-                return mapProto.layerPointToContainerPoint.apply(this, arguments);
-            }
-            return L.point(point)
-                .add(this._getRotatePanePos())
-                .rotateFrom(this._bearing, this._getRotatePanePos())
-                .add(this._getMapPanePos());
-        },
-
-        /**
-         * Converts a coordinate from the rotated pane reference system
-         * to the reference system of the not rotated map pane.
-         * 
-         * (rotatePane) --> (mapPane)
-         * (rotatePane) --> (norotatePane)
-         * 
-         * @param {L.Point} point pixel screen coordinates
-         * @returns {L.Point}
-         * 
-         * @since leaflet-rotate (v0.1)
-         */
-        rotatedPointToMapPanePoint: function(point) {
-            return L.point(point)
-                .rotate(this._bearing)
-                ._add(this._getRotatePanePos());
-        },
-
-        /**
-         * Converts a coordinate from the not rotated map pane reference system
-         * to the reference system of the rotated pane.
-         * 
-         * (mapPane) --> (rotatePane)
-         * (norotatePane) --> (rotatePane)
-         * 
-         * @param {L.Point} point pixel screen coordinates
-         * 
-         * @since leaflet-rotate (v0.1)
-         */
-        mapPanePointToRotatedPoint: function(point) {
-            return L.point(point)
-                ._subtract(this._getRotatePanePos())
-                .rotate(-this._bearing);
-        },
-
-        // latLngToLayerPoint: function (latlng) {
-        //     var projectedPoint = this.project(L.latLng(latlng))._round();
-        //     return projectedPoint._subtract(this.getPixelOrigin());
-        // },
-
-        // latLngToContainerPoint: function (latlng) {
-    	// 	return this.layerPointToContainerPoint(this.latLngToLayerPoint(toLatLng(latlng)));
-    	// },
-
-        /**
-         * Given latlng bounds, returns the bounds in projected pixel
-         * relative to the map container.
-         * 
-         * @see https://github.com/ronikar/Leaflet/blob/5c480ef959b947c3beed7065425a5a36c486262b/src/map/Map.js#L1114-L1135
-         * 
-         * @param {L.LatLngBounds} bounds 
-         * @returns {L.Bounds}
-         * 
-         * @since leaflet-rotate (v0.2)
-         */
-        mapBoundsToContainerBounds: function (bounds) {
-            if (!this._rotate && mapProto.mapBoundsToContainerBounds) {
-                return mapProto.mapBoundsToContainerBounds.apply(this, arguments);
-            }
-
-            // const nw = this.latLngToContainerPoint(bounds.getNorthWest()),
-            //       ne = this.latLngToContainerPoint(bounds.getNorthEast()),
-            //       sw = this.latLngToContainerPoint(bounds.getSouthWest()),
-            //       se = this.latLngToContainerPoint(bounds.getSouthEast());
-
-            // same as `this.latLngToContainerPoint(latlng)` but with floating point precision
-            const origin = this.getPixelOrigin();
-            const nw = this.layerPointToContainerPoint(this.project(bounds.getNorthWest())._subtract(origin)),
-                  ne = this.layerPointToContainerPoint(this.project(bounds.getNorthEast())._subtract(origin)),
-                  sw = this.layerPointToContainerPoint(this.project(bounds.getSouthWest())._subtract(origin)),
-                  se = this.layerPointToContainerPoint(this.project(bounds.getSouthEast())._subtract(origin));
-
-            return L.bounds([
-                L.point(Math.min(nw.x, ne.x, se.x, sw.x), Math.min(nw.y, ne.y, se.y, sw.y)), // [ minX, minY ]
-                L.point(Math.max(nw.x, ne.x, se.x, sw.x), Math.max(nw.y, ne.y, se.y, sw.y))  // [ maxX, maxY ]
-            ]);
-        },
-
-        /**
-         * Returns geographical bounds visible in the current map view
-         * 
-         * @TODO find out  if map bounds calculated by `L.Map::getBounds()`
-         *       function should match the `rotatePane` or `norotatePane` bounds
-         * 
-         * @see https://github.com/fnicollet/Leaflet/issues/7
-         * 
-         * @returns {L.LatLngBounds}
-         */
-        getBounds: function() {
-            if (!this._rotate) {
-                return mapProto.getBounds.apply(this, arguments);
-            }
-
-            // SEE: https://github.com/fnicollet/Leaflet/pull/22
-            //
-            // var bounds = this.getPixelBounds(),
-            // sw = this.unproject(bounds.getBottomLeft()),
-            // ne = this.unproject(bounds.getTopRight());
-            // return new LatLngBounds(sw, ne);
-            //
-
-            // LatLngBounds' constructor automatically
-            // extends the bounds to fit the passed points
-            var size = this.getSize();
-            return new L.LatLngBounds([
-                this.containerPointToLatLng([0, 0]),           // topleft
-                this.containerPointToLatLng([size.x, 0]),      // topright 
-                this.containerPointToLatLng([size.x, size.y]), // bottomright
-                this.containerPointToLatLng([0, size.y]),      // bottomleft
-            ]);
-        },
-
-        /**
-         * Returns the bounds of the current map view in projected pixel
-         * coordinates (sometimes useful in layer and overlay implementations).
-         * 
-         * @TODO find out if map bounds calculated by `L.Map::getPixelBounds()`
-         *       function should match the `rotatePane` or `norotatePane` bounds
-         *
-         * @see https://github.com/fnicollet/Leaflet/issues/7
-         * 
-         * @returns {L.Bounds}
-         */
-        // getPixelBounds(center, zoom) {
-        //     // const topLeftPoint = map.containerPointToLayerPoint(this._getTopLeftPoint());
-        //     const topLeftPoint = this._getTopLeftPoint(center, zoom);
-        //       return new L.Bounds(topLeftPoint, topLeftPoint.add(this.getSize()));
-        // },
-
-        /**
-         * Change map rotation
-         * 
-         * @param {number} theta map degrees
-         * 
-         * @since leaflet-rotate (v0.1)
-         */
-        setBearing: function(theta) {
-            if (!L.Browser.any3d || !this._rotate) { return; }
-
-            var bearing = L.Util.wrapNum(theta, [0, 360]) * L.DomUtil.DEG_TO_RAD,
-                center = this._getPixelCenter(),
-                oldPos = this._getRotatePanePos().rotateFrom(-this._bearing, center),
-                newPos = oldPos.rotateFrom(bearing, center);
-
-            // CSS transform
-            L.DomUtil.setPosition(this._rotatePane, oldPos, bearing, center);
-
-            this._pivot = center;
-            this._bearing = bearing;
-            this._rotatePanePos = newPos;
-
-            this.fire('rotate');
-        },
-
-        /**
-         * Get current map rotation
-         * 
-         * @returns {number} theta map degrees
-         * 
-         * @since leaflet-rotate (v0.1)
-         */
-        getBearing: function() {
-            return this._bearing * L.DomUtil.RAD_TO_DEG;
-        },
-
-        /**
-         * Creates a new [map pane](#map-pane) with the given name if it doesn't
-         * exist already, then returns it. The pane is created as a child of
-         * `container`, or as a child of the main map pane if not set.
-         * 
-         * @param {String} name leaflet pane
-         * @param {HTMLElement} [container] parent element
-         * @returns {HTMLElement} pane container
-         */
-        // createPane: function(name, container) {
-        //     if (!this._rotate || name == 'mapPane') {
-        //         return mapProto.createPane.apply(this, arguments);
-        //     }
-        //     // init "rotatePane"
-        //     if (!this._rotatePane) {
-        //         // this._pivot = this.getSize().divideBy(2);
-        //         this._rotatePane = mapProto.createPane.call(this, 'rotatePane', this._mapPane);
-        //         L.DomUtil.setPosition(this._rotatePane, new L.Point(0, 0), this._bearing, this._pivot);
-        //     }
-        //     return mapProto.createPane.call(this, name, container || this._rotatePane);
-        // },
-
-        /**
-         * Panes are DOM elements used to control the ordering of layers on
-         * the map. You can access panes with [`map.getPane`](#map-getpane)
-         * or [`map.getPanes`](#map-getpanes) methods. New panes can be created
-         * with the [`map.createPane`](#map-createpane) method.
-         * 
-         * Every map has the following default panes that differ only in zIndex:
-         * 
-         * - mapPane     [HTMLElement = 'auto'] - Pane that contains all other map panes
-         * - tilePane    [HTMLElement = 2]      - Pane for tile layers
-         * - overlayPane [HTMLElement = 4]      - Pane for overlays like polylines and polygons
-         * - shadowPane  [HTMLElement = 5]      - Pane for overlay shadows (e.g. marker shadows)
-         * - markerPane  [HTMLElement = 6]      - Pane for marker icons
-         * - tooltipPane [HTMLElement = 650]    - Pane for tooltips.
-         * - popupPane   [HTMLElement = 700]    - Pane for popups.
-         */
-        _initPanes: function() {
-            var panes = this._panes = {};
-            this._paneRenderers = {};
-
-            this._mapPane = this.createPane('mapPane', this._container);
-            L.DomUtil.setPosition(this._mapPane, new L.Point(0, 0));
-
-            if (this._rotate) {
-                this._rotatePane = this.createPane('rotatePane', this._mapPane);
-                this._norotatePane = this.createPane('norotatePane', this._mapPane);
-                // rotatePane
-                this.createPane('tilePane', this._rotatePane);
-                this.createPane('overlayPane', this._rotatePane);
-                // norotatePane
-                this.createPane('shadowPane', this._norotatePane);
-                this.createPane('markerPane', this._norotatePane);
-                this.createPane('tooltipPane', this._norotatePane);
-                this.createPane('popupPane', this._norotatePane);
-            } else {
-                this.createPane('tilePane');
-                this.createPane('overlayPane');
-                this.createPane('shadowPane');
-                this.createPane('markerPane');
-                this.createPane('tooltipPane');
-                this.createPane('popupPane');
-            }
-
-            if (!this.options.markerZoomAnimation) {
-                L.DomUtil.addClass(panes.markerPane, 'leaflet-zoom-hide');
-                L.DomUtil.addClass(panes.shadowPane, 'leaflet-zoom-hide');
-            }
-        },
-
-        /**
-         * Pans the map the minimum amount to make the `latlng` visible. Use
-         * padding options to fit the display to more restricted bounds.
-         * If `latlng` is already within the (optionally padded) display bounds,
-         * the map will not be panned.
-         * 
-         * @see https://github.com/Raruto/leaflet-rotate/issues/18
-         * 
-         * @param {L.LatLng} latlng coordinates
-         * @param {Object} [options={}] padding options
-         * 
-         * @returns {L.Map} current map instance
-         */
-        panInside(latlng, options) {
-            if (!this._rotate || Math.abs(this._bearing).toFixed(1) < 0.1) {
-                return mapProto.panInside.apply(this, arguments);
-            }
-
-            options = options || {};
-
-            const paddingTL = L.point(options.paddingTopLeft || options.padding || [0, 0]),
-                paddingBR = L.point(options.paddingBottomRight || options.padding || [0, 0]),
-                /** @TODO use mapProto.panInside */
-                // pixelPoint = this.project(latlng),
-                // pixelBounds = this.getPixelBounds(),
-                // pixelCenter = this.project(this.getCenter()),
-                rect = this._container.getBoundingClientRect(),
-                pixelPoint = this.latLngToContainerPoint(latlng),
-                pixelBounds = L.bounds([ L.point(rect), L.point(rect).add(this.getSize()) ]),
-                pixelCenter = pixelBounds.getCenter(),
-                //
-                paddedBounds = L.bounds([pixelBounds.min.add(paddingTL), pixelBounds.max.subtract(paddingBR)]),
-                paddedSize = paddedBounds.getSize();
-            
-            if (!paddedBounds.contains(pixelPoint)) {
-                this._enforcingBounds = true;
-                const centerOffset = pixelPoint.subtract(paddedBounds.getCenter());
-                const offset = paddedBounds.extend(pixelPoint).getSize().subtract(paddedSize);
-                pixelCenter.x += centerOffset.x < 0 ? -offset.x : offset.x;
-                pixelCenter.y += centerOffset.y < 0 ? -offset.y : offset.y;
-                /** @TODO use mapProto.panInside */
-                // this.panTo(this.unproject(pixelCenter), options);
-                this.panTo(this.containerPointToLatLng(pixelCenter), options);
-                //
-                this._enforcingBounds = false;
-            }
-            return this;
-        },
-
-        /**
-         * Pans the map to the closest view that would lie inside the given bounds
-         * (if it's not already), controlling the animation using the options specific,
-         * if any.
-         * 
-         * @TODO check if map bounds calculated by `L.Map::panInsideBounds()`
-         *       function should match the `rotatePane` or `norotatePane` bounds
-         *
-         * @see https://github.com/fnicollet/Leaflet/issues/7
-         * 
-         * @param {L.LatLngBounds} bounds coordinates
-         * @param {Object} [options] pan options
-         * @returns {L.Map} current map instance
-         */
-        // panInsideBounds: function (bounds, options) {
-        //     this._enforcingBounds = true;
-        //     var center = this.getCenter(),
-        //         newCenter = this._limitCenter(center, this._zoom, L.latLngBounds(bounds));
-        //
-        //     if (!center.equals(newCenter)) {
-        //         this.panTo(newCenter, options);
-        //     }
-        //
-        //     this._enforcingBounds = false;
-        //     return this;
-        // },
-
-        // adjust center for view to get inside bounds
-        // _limitCenter(center, zoom, bounds) {
-        //
-        //     if (!bounds) { return center; }
-        //
-        //     const centerPoint = this.project(center, zoom),
-        //         viewHalf = this.getSize().divideBy(2),
-        //         viewBounds = new Bounds(centerPoint.subtract(viewHalf), centerPoint.add(viewHalf)),
-        //         offset = this._getBoundsOffset(viewBounds, bounds, zoom);
-        //
-        //     // If offset is less than a pixel, ignore.
-        //     // This prevents unstable projections from getting into
-        //     // an infinite loop of tiny offsets.
-        //     if (Math.abs(offset.x) <= 1 && Math.abs(offset.y) <= 1) {
-        //             return center;
-        //     }
-        //
-        //     return this.unproject(centerPoint.add(offset), zoom);
-        // },
-
-        // @method flyToBounds(bounds: LatLngBounds, options?: fitBounds options): this
-        // Sets the view of the map with a smooth animation like [`flyTo`](#map-flyto),
-        // but takes a bounds parameter like [`fitBounds`](#map-fitbounds).
-        // flyToBounds(bounds, options) {
-        //     const target = this._getBoundsCenterZoom(bounds, options);
-        //     return this.flyTo(target.center, target.zoom, options);
-        // },
-
-        // _getBoundsCenterZoom(bounds, options) {
-        //
-        //     options = options || {};
-        //     bounds = bounds.getBounds ? bounds.getBounds() : toLatLngBounds(bounds);
-        //
-        //     const paddingTL = L.point(options.paddingTopLeft || options.padding || [0, 0]),
-        //           paddingBR = L.point(options.paddingBottomRight || options.padding || [0, 0]);
-        //
-        //     let zoom = this.getBoundsZoom(bounds, false, paddingTL.add(paddingBR));
-        //
-        //     zoom = (typeof options.maxZoom === 'number') ? Math.min(options.maxZoom, zoom) : zoom;
-        //
-        //     if (zoom === Infinity) {
-        //         return { center: bounds.getCenter(), zoom };
-        //     }
-        //
-        //     return { center, zoom };
-        //
-        // },
-
-        /**
-         * Returns the maximum zoom level on which the given bounds fit to the map
-         * view in its entirety. If `inside` (optional) is set to `true`, the method
-         * instead returns the minimum zoom level on which the map view fits into
-         * the given bounds in its entirety.
-         * 
-         * @param {L.LatLngBounds} bounds
-         * @param {Boolean} [inside=false]
-         * @param {L.Point} [padding=[0,0]]
-         * 
-         * @returns {Number} zoom level
-         */
-        getBoundsZoom(bounds, inside, padding) {
-            if (!this._rotate || Math.abs(this._bearing).toFixed(1) < 0.1) {
-                return mapProto.getBoundsZoom.apply(this, arguments);
-            }
-
-            bounds = L.latLngBounds(bounds);
-            padding = L.point(padding || [0, 0]);
-
-            let zoom = this.getZoom() || 0;
-            const min = this.getMinZoom(),
-                    max = this.getMaxZoom(),
-                    /** @TODO use mapProto.getBoundsZoom */
-                    // nw = bounds.getNorthWest(),
-                    // se = bounds.getSouthEast(),
-                    // size = this.getSize().subtract(padding),
-                    // boundsSize = L.bounds(this.project(se, zoom), this.project(nw, zoom)).getSize(),
-                    size = this.getSize().subtract(padding),
-                    boundsSize = this.mapBoundsToContainerBounds(bounds).getSize(),
-                    snap = this.options.zoomSnap,
-                    scalex = size.x / boundsSize.x,
-                    scaley = size.y / boundsSize.y,
-                    scale = inside ? Math.max(scalex, scaley) : Math.min(scalex, scaley);
-
-            zoom = this.getScaleZoom(scale, zoom);
-
-            if (snap) {
-                zoom = Math.round(zoom / (snap / 100)) * (snap / 100); // don't jump if within 1% of a snap level
-                zoom = inside ? Math.ceil(zoom / snap) * snap : Math.floor(zoom / snap) * snap;
-            }
-
-            return Math.max(min, Math.min(max, zoom));
-        },
-
-        /**
-         * Layer point of the current center
-         * 
-         * @returns {L.Point} layer center
-         */
-        // _getCenterLayerPoint: function () {
-        //    return this.containerPointToLayerPoint(this.getSize()._divideBy(2));
-        // },
-
-        /**
-         * Offset of the specified place to the current center in pixels
-         * 
-         * @param {L.LatLng} latlng map coordinates
-         */
-        _getCenterOffset: function(latlng) {
-            var centerOffset = mapProto._getCenterOffset.apply(this, arguments);
-            if (this._rotate) {
-                centerOffset = centerOffset.rotate(this._bearing);
-            }
-            return centerOffset;
-        },
-
-        /**
-         * @since leaflet-rotate (v0.1)
-         */
-        _getRotatePanePos: function() {
-            return this._rotatePanePos || new L.Point(0, 0);
-            // return L.DomUtil.getPosition(this._rotatePane) || new L.Point(0, 0);
-        },
-
-        // _latLngToNewLayerPoint(latlng, zoom, center) {
-        //    const topLeft = this._getNewPixelOrigin(center, zoom);
-        //    return this.project(latlng, zoom)._subtract(topLeft);
-        //},
-
-        _getNewPixelOrigin: function(center, zoom) {
-            if (!this._rotate) {
-                return mapProto._getNewPixelOrigin.apply(this, arguments);
-            }
-            var viewHalf = this.getSize()._divideBy(2);
-            return this.project(center, zoom)
-                .rotate(this._bearing)
-                ._subtract(viewHalf)
-                ._add(this._getMapPanePos())
-                ._add(this._getRotatePanePos())
-                .rotate(-this._bearing)
-                ._round();
-        },
-
-        /**
-         * @since leaflet-rotate (v0.2)
-         * 
-         * @see src\layer\tile\GridLayer::_getTiledPixelBounds()
-         */
-        _getNewPixelBounds: function(center, zoom) {
-            center = center || this.getCenter();
-            zoom = zoom || this.getZoom();
-            if (!this._rotate && mapProto._getNewPixelBounds) {
-                return mapProto._getNewPixelBounds.apply(this, arguments);
-            }
-            var mapZoom = this._animatingZoom ? Math.max(this._animateToZoom, this.getZoom()) : this.getZoom(),
-                scale = this.getZoomScale(mapZoom, zoom),
-                pixelCenter = this.project(center, zoom).floor(),
-                size = this.getSize(),
-                halfSize = new L.Bounds([
-                    this.containerPointToLayerPoint([0, 0]).floor(),
-                    this.containerPointToLayerPoint([size.x, 0]).floor(),
-                    this.containerPointToLayerPoint([0, size.y]).floor(),
-                    this.containerPointToLayerPoint([size.x, size.y]).floor()
-                ]).getSize().divideBy(scale * 2);
-
-            return new L.Bounds(pixelCenter.subtract(halfSize), pixelCenter.add(halfSize));
-        },
-
-        /**
-         * @since leaflet-rotate (v0.2)
-         * 
-         * @return {L.Point} map pivot point (center)
-         */
-        _getPixelCenter: function() {
-            if (!this._rotate && mapProto._getPixelCenter) {
-                return mapProto._getPixelCenter.apply(this, arguments);
-            }
-            return this.getSize()._divideBy(2)._subtract(this._getMapPanePos());
-        },
-
-        /**
-         * @since leaflet-rotate (v0.2)
-         * 
-         * @see src\layer\vector\Renderer::_update()
-         */
-        _getPaddedPixelBounds: function(padding) {
-            if (!this._rotate && mapProto._getPaddedPixelBounds) {
-                return mapProto._getPaddedPixelBounds.apply(this, arguments);
-            }
-            var p = padding,
-                size = this.getSize(),
-                padMin = size.multiplyBy(-p),
-                padMax = size.multiplyBy(1 + p);
-                //min = this.containerPointToLayerPoint(size.multiplyBy(-p)).round();
-
-            return new L.Bounds([
-                this.containerPointToLayerPoint([padMin.x, padMin.y]).floor(),
-                this.containerPointToLayerPoint([padMin.x, padMax.y]).floor(),
-                this.containerPointToLayerPoint([padMax.x, padMin.y]).floor(),
-                this.containerPointToLayerPoint([padMax.x, padMax.y]).floor()
-            ]);
-        },
-
-        _handleGeolocationResponse: function(pos) {
-            if (!this._container._leaflet_id) { return; }
-
-            var lat = pos.coords.latitude,
-                lng = pos.coords.longitude,
-                /** @TODO use mapProto._handleGeolocationResponse */
-                hdg = pos.coords.heading,
-                latlng = new L.LatLng(lat, lng),
-                bounds = latlng.toBounds(pos.coords.accuracy),
-                options = this._locateOptions;
-
-            if (options.setView) {
-                var zoom = this.getBoundsZoom(bounds);
-                this.setView(latlng, options.maxZoom ? Math.min(zoom, options.maxZoom) : zoom);
-            }
-
-            var data = {
-                latlng: latlng,
-                bounds: bounds,
-                timestamp: pos.timestamp,
-                /** @TODO use mapProto._handleGeolocationResponse */
-                heading: hdg
-            };
-
-            for (var i in pos.coords) {
-                if (typeof pos.coords[i] === 'number') {
-                    data[i] = pos.coords[i];
-                }
-            }
-
-            // @event locationfound: LocationEvent
-            // Fired when geolocation (using the [`locate`](#map-locate) method)
-            // went successfully.
-            this.fire('locationfound', data);
-        },
-
-        /**
-         * @see https://github.com/ronikar/Leaflet/blob/5c480ef959b947c3beed7065425a5a36c486262b/src/geo/LatLngBounds.js#L253-L264
-         * 
-         * @param {L.Bounds} points 
-         * @returns {L.Bounds}
-         */
-        // toCircumscribedBounds(points) {
-        //     var minX = points.reduce(function (pv, v) { return Math.min(pv, v.x); }, points[0].x),
-        //         maxX = points.reduce(function (pv, v) { return Math.max(pv, v.x); }, points[0].x),
-        //         minY = points.reduce(function (pv, v) { return Math.min(pv, v.y); }, points[0].y),
-        //         maxY = points.reduce(function (pv, v) { return Math.max(pv, v.y); }, points[0].y);
-        //
-        //     return L.bounds(L.point(minX, minY), L.point(maxX, maxY));
-        // },
-
-    });
-
-    /**
-     * Rotates the map according to a smartphone's compass.
-     * 
-     * @typedef L.Map.CompassBearing
-     */
-
-    L.Map.CompassBearing = L.Handler.extend({
-
-        initialize: function(map) {
-            this._map = map;
-            /** @see https://caniuse.com/?search=DeviceOrientation */
-            if ('ondeviceorientationabsolute' in window) {
-                this.__deviceOrientationEvent = 'deviceorientationabsolute';
-            } else if('ondeviceorientation' in window) {
-                this.__deviceOrientationEvent = 'deviceorientation';
-            }
-            this._throttled = L.Util.throttle(this._onDeviceOrientation, 100, this);
-        },
-
-        addHooks: function() {
-            if (this._map._rotate && this.__deviceOrientationEvent) {
-                L.DomEvent.on(window, this.__deviceOrientationEvent, this._throttled, this);
-            } else {
-                // L.Map.CompassBearing handler will be automatically
-                // disabled if device orientation is not supported.
-                this.disable();
-            }
-        },
-
-        removeHooks: function() {
-            if (this._map._rotate && this.__deviceOrientationEvent) {
-                L.DomEvent.off(window, this.__deviceOrientationEvent, this._throttled, this);
-            }
-        },
-
-        /**
-         * `DeviceOrientationEvent.absolute` - Indicates whether the device is providing absolute
-         *                                     orientation values (relatives to Magnetic North) or
-         *                                     using some arbitrary frame determined by the device.
-         * 
-         * `DeviceOrientationEvent.alpha`    - Returns the rotation of the device around the Z axis;
-         *                                     that is, the number of degrees by which the device is
-         *                                     being twisted around the center of the screen.
-         * 
-         * `window.orientation`              - Returns the screen orientation in degrees (in 90-degree increments)
-         *                                     of the viewport relative to the device's natural orientation.
-         *                                     Its only possible values are -90, 0, 90, and 180. Positive
-         *                                     values are counterclockwise; negative values are clockwise.
-         * 
-         * @see https://developer.mozilla.org/en-US/docs/Web/API/DeviceOrientationEvent/absolute
-         * @see https://developer.mozilla.org/en-US/docs/Web/API/DeviceOrientationEvent/alpha
-         * @see https://developer.mozilla.org/en-US/docs/Web/API/Window/orientation
-         */
-        _onDeviceOrientation: function(e) {
-            var angle = e.webkitCompassHeading || e.alpha;
-            var deviceOrientation = 0;
-
-            // Safari iOS
-            if (!e.absolute && e.webkitCompassHeading) {
-                angle = 360 - angle;
-            }
-
-            // Older browsers
-            if (!e.absolute && 'undefined' !== typeof window.orientation) {
-                deviceOrientation = window.orientation;
-            }
-
-            this._map.setBearing(angle - deviceOrientation);
-        },
-
-    });
-
-    /**
-     * Add Compass bearing handler to L.Map (disabled unless `window.DeviceOrientationEvent` is set).
-     * 
-     * @property {L.Map.CompassBearing} compassBearing
-     */
-    L.Map.addInitHook('addHandler', 'compassBearing', L.Map.CompassBearing);
-
-    /**
-     * Triggers `invalidateResize` when the map's DOM container mutates.
-     * 
-     * @typedef L.Map.ContainerMutation
-     */
-
-    /**
-     * @TODO check again this file after leaflet v1.9.3 (eg. L.Browser.mutation).
-     * Mutation Observer support will likely be added by default in next releases.
-     */
-
-    L.Map.mergeOptions({
-
-        /**
-         * Whether the map uses mutation observers to
-         * detect changes in its container and trigger
-         * `invalidateSize`. Disabled by default due to
-         * support not being available in all web browsers.
-         *
-         * @type {Boolean}
-         * 
-         * @see https://developer.mozilla.org/docs/Web/API/MutationObserver
-         */
-        trackContainerMutation: false
-
-    });
-
-    L.Map.ContainerMutation = L.Handler.extend({
-
-        addHooks: function() {
-            // if (!L.Browser.mutation) { return; }
-            if (!this._observer) {
-                this._observer = new MutationObserver(L.Util.bind(this._map.invalidateSize, this._map));
-            }
-            this._observer.observe(this._map.getContainer(), {
-                childList: false,
-                attributes: true,
-                characterData: false,
-                subtree: false,
-                attributeFilter: ['style']
-            });
-        },
-
-        removeHooks: function() {
-            // if (!L.Browser.mutation) { return; }
-            this._observer.disconnect();
-        },
-
-    });
-
-    /**
-     * Add Container mutation handler to L.Map (disabled unless `trackContainerMutation` is set).
-     * 
-     * @property {L.Map.ContainerMutation} trackContainerMutation
-     */
-    L.Map.addInitHook('addHandler', 'trackContainerMutation', L.Map.ContainerMutation);
-
-    /**
-     * TouchGestures is both TouchZoom plus TouchRotate
-     * 
-     * @see https://github.com/fnicollet/Leaflet/commit/a77af51a6b10f308d1b9a16552091d1d0aee8834
-     * @see https://github.com/Leaflet/Leaflet/blob/v1.9.3/src/map/handler/Map.TouchZoom.js
-     * 
-     * @typedef L.Map.TouchGestures
-     */
-
-    L.Map.mergeOptions({
-
-        /**
-         * Set it to false if you don't want the map to
-         * zoom beyond min/max zoom and then bounce back
-         * when pinch-zooming.
-         * 
-         * @type {Boolean}
-         */
-        bounceAtZoomLimits: true,
-
-    });
-
-    L.Map.TouchGestures = L.Handler.extend({
-
-        initialize: function(map) {
-            this._map = map;
-            this.rotate = !!this._map.options.touchRotate;
-            this.zoom = !!this._map.options.touchZoom;
-        },
-
-        addHooks: function() {
-            L.DomEvent.on(this._map._container, 'touchstart', this._onTouchStart, this);
-        },
-
-        removeHooks: function() {
-            L.DomEvent.off(this._map._container, 'touchstart', this._onTouchStart, this);
-        },
-
-        _onTouchStart: function(e) {
-            var map = this._map;
-
-            if (!e.touches || e.touches.length !== 2 || map._animatingZoom || this._zooming || this._rotating) { return; }
-
-            var p1 = map.mouseEventToContainerPoint(e.touches[0]),
-                p2 = map.mouseEventToContainerPoint(e.touches[1]),
-                vector = p1.subtract(p2);
-
-            this._centerPoint = map.getSize()._divideBy(2);
-            this._startLatLng = map.containerPointToLatLng(this._centerPoint);
-
-            if (this.zoom) {
-                if (map.options.touchZoom !== 'center') {
-                    this._pinchStartLatLng = map.containerPointToLatLng(p1.add(p2)._divideBy(2));
-                }
-                this._startDist = p1.distanceTo(p2);
-                this._startZoom = map.getZoom();
-                this._zooming = true;
-            } else {
-                this._zooming = false;
-            }
-
-            if (this.rotate) {
-                this._startTheta = Math.atan(vector.x / vector.y);
-                this._startBearing = map.getBearing();
-                if (vector.y < 0) { this._startBearing += 180; }
-                this._rotating = true;
-            } else {
-                this._rotating = false;
-            }
-
-            this._moved = false;
-
-            map._stop();
-
-            L.DomEvent
-                .on(document, 'touchmove', this._onTouchMove, this)
-                .on(document, 'touchend touchcancel', this._onTouchEnd, this);
-
-            L.DomEvent.preventDefault(e);
-        },
-
-        _onTouchMove: function(e) {
-            if (!e.touches || e.touches.length !== 2 || !(this._zooming || this._rotating)) { return; }
-
-            var map = this._map,
-                p1 = map.mouseEventToContainerPoint(e.touches[0]),
-                p2 = map.mouseEventToContainerPoint(e.touches[1]),
-                vector = p1.subtract(p2),
-                scale = p1.distanceTo(p2) / this._startDist,
-                delta;
-
-            if (this._rotating) {
-                var theta = Math.atan(vector.x / vector.y);
-                var bearingDelta = (theta - this._startTheta) * L.DomUtil.RAD_TO_DEG;
-                if (vector.y < 0) { bearingDelta += 180; }
-                if (bearingDelta) {
-                    /**
-                     * @TODO the pivot should be the last touch point,
-                     * but zoomAnimation manages to overwrite the rotate
-                     * pane position. Maybe related to #3529.
-                     * 
-                     * @see https://github.com/Leaflet/Leaflet/pull/3529
-                     * @see https://github.com/fnicollet/Leaflet/commit/a77af51a6b10f308d1b9a16552091d1d0aee8834
-                     */
-                    map.setBearing(this._startBearing - bearingDelta);
-                }
-            }
-
-            if (this._zooming) {
-                this._zoom = map.getScaleZoom(scale, this._startZoom);
-
-                if (!map.options.bounceAtZoomLimits && (
-                        (this._zoom < map.getMinZoom() && scale < 1) ||
-                        (this._zoom > map.getMaxZoom() && scale > 1))) {
-                    this._zoom = map._limitZoom(this._zoom);
-                }
-
-                if (map.options.touchZoom === 'center') {
-                    this._center = this._startLatLng;
-                    if (scale === 1) { return; }
-                } else {
-                    // Get delta from pinch to center, so centerLatLng is delta applied to initial pinchLatLng
-                    delta = p1._add(p2)._divideBy(2)._subtract(this._centerPoint);
-                    if (scale === 1 && delta.x === 0 && delta.y === 0) { return; }
-
-                    var alpha = -map.getBearing() * L.DomUtil.DEG_TO_RAD;
-
-                    this._center = map.unproject(map.project(this._pinchStartLatLng).subtract(delta.rotate(alpha)));
-                }
-
-            }
-
-            if (!this._moved) {
-                map._moveStart(true, false);
-                this._moved = true;
-            }
-
-            L.Util.cancelAnimFrame(this._animRequest);
-
-            var moveFn = map._move.bind(map, this._center, this._zoom, { pinch: true, round: false }, undefined);
-            this._animRequest = L.Util.requestAnimFrame(moveFn, this, true);
-
-            L.DomEvent.preventDefault(e);
-        },
-
-        _onTouchEnd: function() {
-            if (!this._moved || !(this._zooming || this._rotating)) {
-                this._zooming = false;
-                return;
-            }
-
-            this._zooming = false;
-            this._rotating = false;
-            L.Util.cancelAnimFrame(this._animRequest);
-
-            L.DomEvent
-                .off(document, 'touchmove', this._onTouchMove, this)
-                .off(document, 'touchend touchcancel', this._onTouchEnd, this);
-
-            if (this.zoom) {
-                // Pinch updates GridLayers' levels only when zoomSnap is off, so zoomSnap becomes noUpdate.
-                if (this._map.options.zoomAnimation) {
-                    this._map._animateZoom(this._center, this._map._limitZoom(this._zoom), true, this._map.options.zoomSnap);
-                } else {
-                    this._map._resetView(this._center, this._map._limitZoom(this._zoom));
-                }
-            }
-        },
-
-    });
-
-    /**
-     * Add Touch Gestures handler (enabled unless `touchGestures` is unset).
-     * 
-     * @property {L.Map.TouchGestures} touchGestures
-     */
-    L.Map.addInitHook('addHandler', 'touchGestures', L.Map.TouchGestures);
-
-    /**
-     * Rotates the map on two-finger (touch devices).
-     * 
-     * @typedef L.Map.TouchRotate
-     */
-
-    L.Map.mergeOptions({
-
-        /**
-         * Whether the map can be rotated with a two-finger rotation gesture
-         * 
-         * @type {Boolean}
-         */
-        touchRotate: false,
-
-    });
-
-    L.Map.TouchRotate = L.Handler.extend({
-
-        addHooks: function() {
-            this._map.touchGestures.enable();
-            this._map.touchGestures.rotate = true;
-        },
-
-        removeHooks: function() {
-            this._map.touchGestures.rotate = false;
-        },
-
-    });
-
-    /**
-     * Add Touch Rotate handler (disabled unless `touchGestures` is set).
-     * 
-     * @property {L.Map.TouchGestures} touchGestures
-     */
-    L.Map.addInitHook('addHandler', 'touchRotate', L.Map.TouchRotate);
-
-    /**
-     * Rotates the map on shift key + mousewheel scrolling (desktop).
-     * 
-     * @typedef L.Map.ShiftKeyRotate
-     */
-
-    L.Map.mergeOptions({
-
-        /**
-         * Whether the map can be rotated with shift + wheel scroll
-         * @type {Boolean}
-         */
-        shiftKeyRotate: true,
-
-    });
-
-    L.Map.ShiftKeyRotate = L.Handler.extend({
-
-        addHooks: function() {
-            L.DomEvent.on(this._map._container, "wheel", this._handleShiftScroll, this);
-            // this._map.shiftKeyRotate.enable();
-            this._map.shiftKeyRotate.rotate = true;
-        },
-
-        removeHooks: function() {
-            L.DomEvent.off(this._map._container, "wheel", this._handleShiftScroll, this);
-            this._map.shiftKeyRotate.rotate = false;
-        },
-
-        _handleShiftScroll: function(e) {
-            if (e.shiftKey) {
-                e.preventDefault();
-                this._map.scrollWheelZoom.disable();
-                this._map.setBearing((this._map._bearing * L.DomUtil.RAD_TO_DEG) + Math.sign(e.deltaY) * 5);
-            } else {
-                this._map.scrollWheelZoom.enable();
-            }
-        },
-
-    });
-
-    /**
-     * Add ShiftKey handler to L.Map (enabled unless `shiftKeyRotate` is unset).
-     * 
-     * @property {L.Map.ShiftKeyRotate} shiftKeyRotate
-     */
-    L.Map.addInitHook('addHandler', 'shiftKeyRotate', L.Map.ShiftKeyRotate);
-
-    // decrease `scrollWheelZoom` handler priority over `shiftKeyRotate` handler
-    L.Map.addInitHook(function() {
-        if (this.scrollWheelZoom.enabled() && this.shiftKeyRotate.enabled()) {
-            this.scrollWheelZoom.disable();
-            this.scrollWheelZoom.enable();
-        }
-    });
-
-    /**
-     * Adds pinch zoom rotation on mobile browsers
-     * 
-     * @see https://github.com/Leaflet/Leaflet/blob/v1.9.3/src/map/handler/Map.TouchZoom.js
-     * 
-     * @external L.Map.TouchZoom
-     */
-
-    L.Map.mergeOptions({
-
-        /**
-         * Whether the map can be zoomed by touch-dragging
-         * with two fingers. If passed `'center'`, it will
-         * zoom to the center of the view regardless of
-         * where the touch events (fingers) were. Enabled
-         * for touch-capable web browsers.
-         * 
-         * @type {(Boolean|String)}
-         */
-        touchZoom: L.Browser.touch,
-
-        /**
-         * @TODO check if this is a duplicate of `L.Map.TouchGestures::bounceAtZoomLimits`
-         * 
-         * Set it to false if you don't want the map to
-         * zoom beyond min/max zoom and then bounce back
-         * when pinch-zooming.
-         * 
-         * @type {Boolean}
-         */
-        bounceAtZoomLimits: false,
-
-    });
-
-    L.Map.TouchZoom = L.Handler.extend({
-
-        addHooks: function() {
-            L.DomUtil.addClass(this._map._container, 'leaflet-touch-zoom');
-            this._map.touchGestures.enable();
-            this._map.touchGestures.zoom = true;
-        },
-
-        removeHooks: function() {
-            L.DomUtil.removeClass(this._map._container, 'leaflet-touch-zoom');
-            this._map.touchGestures.zoom = false;
-        },
-
-    });
-
-    /**
-     * Add Touch Zoom handler (disabled unless `L.Browser.touch` is set).
-     * 
-     * @property {L.Map.TouchGestures} touchGestures
-     */
-    L.Map.addInitHook('addHandler', 'touchZoom', L.Map.TouchZoom);
-
-    /**
-     * A tri-state control for map rotation, states are:
-     * 
-     * - Locked (default)
-     * - Unlocked (user can pinch-rotate)
-     * - Follow (rotation follows device orientation, if available)
-     * 
-     * @typedef L.Control.Rotate
-     */
-
-    L.Control.Rotate = L.Control.extend({
-
-        options: {
-            position: 'topleft',
-            closeOnZeroBearing: true
-        },
-
-        onAdd: function(map) {
-            var container = this._container = L.DomUtil.create('div', 'leaflet-control-rotate leaflet-bar');
-
-            // this.button = L.Control.Zoom.prototype._createButton.call(this, 'R', 'leaflet-control-rotate', 'leaflet-control-rotate', container, this._toggleLock);
-
-            var arrow = this._arrow = L.DomUtil.create('span', 'leaflet-control-rotate-arrow');
-
-            arrow.style.backgroundImage = `url("data:image/svg+xml;charset=utf-8,%3Csvg width='29' height='29' viewBox='0 0 29 29' xmlns='http://www.w3.org/2000/svg' fill='%23333'%3E%3Cpath d='M10.5 14l4-8 4 8h-8z'/%3E%3Cpath d='M10.5 16l4 8 4-8h-8z' fill='%23ccc'/%3E%3C/svg%3E")`;
-            arrow.style.cursor = 'grab';
-            arrow.style.display = 'block';
-            arrow.style.width = '100%';
-            arrow.style.height = '100%';
-            arrow.style.backgroundRepeat = 'no-repeat';
-            arrow.style.backgroundPosition = '50%';
-
-            // Copy-pasted from L.Control.Zoom
-            var link = this._link = L.DomUtil.create('a', 'leaflet-control-rotate-toggle', container);
-            link.appendChild(arrow);
-            link.href = '#';
-            link.title = 'Rotate map';
-
-            L.DomEvent
-                .on(link, 'dblclick', L.DomEvent.stopPropagation)
-                .on(link, 'mousedown', this._handleMouseDown, this)
-                .on(link, 'click', L.DomEvent.stop)
-                .on(link, 'click', this._cycleState, this)
-                .on(link, 'click', this._refocusOnMap, this);
-
-            if (!L.Browser.any3d) {
-                L.DomUtil.addClass(link, 'leaflet-disabled');
-            }
-
-            this._restyle();
-
-            map.on('rotate', this._restyle, this);
-
-            // State flag
-            this._follow = false;
-            this._canFollow = false;
-
-            if (this.options.closeOnZeroBearing && map.getBearing() === 0) {
-                container.style.display = 'none';
-            }
-
-            return container;
-        },
-        
-        onRemove: function(map) {
-            map.off('rotate', this._restyle, this);
-        },
-
-        _handleMouseDown: function(e) {
-            L.DomEvent.stop(e);
-            this.dragging = true;
-            this.dragstartX = e.pageX;
-            this.dragstartY = e.pageY;
-            L.DomEvent
-                .on(document, 'mousemove', this._handleMouseDrag, this)
-                .on(document, 'mouseup', this._handleMouseUp, this);
-        },
-
-        _handleMouseUp: function(e) {
-            L.DomEvent.stop(e);
-            this.dragging = false;
-
-            L.DomEvent
-                .off(document, 'mousemove', this._handleMouseDrag, this)
-                .off(document, 'mouseup', this._handleMouseUp, this);
-        },
-
-        _handleMouseDrag: function(e) {
-            if (!this.dragging) { return; }
-            var deltaX = e.clientX - this.dragstartX;
-            this._map.setBearing(deltaX);
-        },
-
-        _cycleState: function(ev) {
-            if (!this._map) {
-                return;
-            }
-
-            var map = this._map;
-
-            // Touch mode
-            if (!map.touchRotate.enabled() && !map.compassBearing.enabled()) {
-                map.touchRotate.enable();
-            }
-            
-            // Compass mode
-            else if (!map.compassBearing.enabled()) {
-                map.touchRotate.disable();
-                map.compassBearing.enable();
-            }
-
-            // Locked mode
-            else {
-                map.compassBearing.disable();
-                map.setBearing(0);
-                if (this.options.closeOnZeroBearing) {
-                    map.touchRotate.enable();
-                }
-            }
-            this._restyle();
-        },
-
-        _restyle: function() {
-            if (!this._map.options.rotate) {
-                L.DomUtil.addClass(this._link, 'leaflet-disabled');
-            } else {
-                var map = this._map;
-                var bearing = map.getBearing();
-
-                this._arrow.style.transform = 'rotate(' + bearing + 'deg)';
-
-                if (bearing && this.options.closeOnZeroBearing) {
-                    this._container.style.display = 'block';
-                }
-
-                // Compass mode
-                if (map.compassBearing.enabled()) {
-                    this._link.style.backgroundColor = 'orange';
-                }
-                
-                // Touch mode
-                else if (map.touchRotate.enabled()) {
-                    this._link.style.backgroundColor = null;
-                }
-
-                // Locked mode
-                else {
-                    this._link.style.backgroundColor = 'grey';
-                    if (0 === bearing && this.options.closeOnZeroBearing) {
-                        this._container.style.display = 'none';
-                    }
-                }
-            }
-        },
-
-    });
-
-    L.control.rotate = function(options) {
-        return new L.Control.Rotate(options);
-    };
-
-    L.Map.mergeOptions({
-        rotateControl: true,
-    });
-
-    L.Map.addInitHook(function() {
-        if (this.options.rotateControl) {
-            var options = typeof this.options.rotateControl === 'object' ? this.options.rotateControl : {};
-            this.rotateControl = L.control.rotate(options);
-            this.addControl(this.rotateControl);
-        }
-    });
-
-})();
-/* ---------- Correcciones a leaflet-rotate 0.2.8 ----------
-   Todo lo que este visor ha tenido que arreglar del plugin de rotación
-   vive AQUÍ, junto, y no repartido por 10-map.js: así se revisa de un
-   vistazo, se retira de una vez si el experimento no sigue y, si algún
-   día se incorpora el plugin al código, es la lista exacta de cambios
-   que hay que llevarle. Son tres agujeros de «una sola Tierra» que el
-   plugin no tapa con el mapa girado:
-
-   1. Arrastre y recentrado contra el borde del mundo (`maxBounds`).
-   2. Suelo de zoom: la ventana girada tiene que caber en el mundo.
-   3. Teselas fuera del mundo (peticiones 400 y aviso falso).
-
-   Va ANTES de 10-map.js: los parches de prototipo deben estar puestos
-   cuando se crea el mapa. Nada de aquí usa `map` ni `WORLD_BOUNDS` al
-   cargarse; quien llama pasa el mapa y los límites.                   */
-
-const isRotatedMap = m => !!(m._rotate && m._bearing);
-
-/* ---------- 1. `maxBounds` con el mapa girado ----------
-   leaflet-rotate no adapta `maxBounds` al giro (lo deja como TODO en su
-   código): Leaflet limita el arrastre con un rectángulo en píxeles de
-   PANTALLA calculado con dos esquinas del mundo, y recentra con medio
-   tamaño de ventana sin girar — con el mapa rotado, arrastrar contra el
-   borde hacía saltar la vista a otro continente (medido: de Siberia a
-   Madagascar en un solo arrastre a 45°). Con el norte arriba se usa el
-   código de Leaflet tal cual; rotado, los dos límites se calculan en el
-   marco del mapa SIN girar, con la caja que envuelve la vista girada
-   (rotatedViewExtra), y el arrastre se vuelve a girar a pantalla.
-   Límite duro (viscosidad 1), que es la que usa este visor.            */
-const leafletLimitCenter = L.Map.prototype._limitCenter;
-const leafletDragStart = L.Map.Drag.prototype._onDragStart;
-const leafletPreDragLimit = L.Map.Drag.prototype._onPreDragLimit;
-
-/* Arrastre `offset` (píxeles de pantalla que se mueve el contenido) con
-   el mapa girado `b` radianes, recortado para que el centro —que se
-   mueve al revés, en el marco del mapa— no salga de [min, max]. Si la
-   vista es más grande que el mundo en un eje (min > max), el centro se
-   queda en medio, como hace Leaflet.                                  */
+/* ---------- Map rotation ----------
+   Derived from leaflet-rotate 0.2.8 (https://github.com/Raruto/leaflet-rotate),
+   © Raruto and contributors (IvanSanchez, Fnicollet, Hyperknot),
+   GPL-3.0. Incorporated into KITE Local and distributed as part of it
+   under the AGPL-3.0 (GPLv3 §13 allows combining both). The plugin is
+   unmaintained since 2023 and already needed fixes of ours, so it now
+   lives here, cut down to what this viewer uses:
+
+   - Kept: the rotated pane, screen <-> layer conversions, setBearing/
+     getBearing and the "rotate" event, view bounds and fit zoom, tiles,
+     the canvas renderer, markers (and dragging them), tooltips, popups,
+     and two-finger pinch zoom.
+   - Dropped: its compass control, device-orientation compass, Shift+
+     wheel rotation, touch rotation, container mutation observer, the
+     per-marker rotation options, geolocation and the `rotate` option
+     itself. This map is ALWAYS rotatable: with leaflet-rotate it was
+     created with `rotate: true`, so the north-up view already ran
+     through this code — dropping the flag removes branches, not
+     behaviour.
+   - Added: the three «one world» fixes the plugin lacked (maxBounds,
+     zoom floor, tiles outside the world), at the end of this file.
+
+   It PATCHES Leaflet internals, so it is tied to the pinned Leaflet
+   (LEAFLET_PATCHED, checked by tests/browser/rotation.mjs together with
+   every original saved in `leaflet`). Loaded before 10-map.js: the
+   prototypes must be patched before the map is created. Nothing here
+   touches `map` or WORLD_BOUNDS at load time; callers pass them.      */
+
+const LEAFLET_PATCHED = "1.9.4";
+const DEG = Math.PI / 180;
+
+/* Leaflet's own methods, saved before patching: every override below
+   delegates to them for the part rotation does not change.          */
+const leaflet = {
+  mapInitialize: L.Map.prototype.initialize,
+  getBoundsZoom: L.Map.prototype.getBoundsZoom,
+  panInside: L.Map.prototype.panInside,
+  getCenterOffset: L.Map.prototype._getCenterOffset,
+  limitCenter: L.Map.prototype._limitCenter,
+  dragStart: L.Map.Drag.prototype._onDragStart,
+  preDragLimit: L.Map.Drag.prototype._onPreDragLimit,
+  gridEvents: L.GridLayer.prototype.getEvents,
+  rendererEvents: L.Renderer.prototype.getEvents,
+  markerEvents: L.Marker.prototype.getEvents,
+  markerSetPos: L.Marker.prototype._setPos,
+  markerInitInteraction: L.Marker.prototype._initInteraction,
+  overlayEvents: L.DivOverlay.prototype.getEvents,
+  overlayUpdatePosition: L.DivOverlay.prototype._updatePosition,
+  popupAnimateZoom: L.Popup.prototype._animateZoom
+};
+
+/* ---------- Pure geometry (tested in Node, tests/rotation.js) ---------- */
+
+/* (x, y) turned `theta` radians clockwise on screen (y grows downwards)
+   around (cx, cy).                                                    */
+function rotateXY(x, y, theta, cx, cy) {
+  const c = Math.cos(theta), s = Math.sin(theta), dx = x - cx, dy = y - cy;
+  return { x: dx * c - dy * s + cx, y: dx * s + dy * c + cy };
+}
+
+/* CSS transform that places an element whose unrotated top-left is
+   `pos` rotated `theta` around `pivot`. CSS rotates around the
+   element's own origin (its top-left here), so the translation is the
+   rotated position, not `pos` itself.                                 */
+function rotatedTransformCss(pos, theta, pivot) {
+  const p = rotateXY(pos.x, pos.y, theta, pivot.x, pivot.y);
+  return `translate3d(${p.x}px,${p.y}px,0) rotate(${theta}rad)`;
+}
+
+/* Axis-aligned box that encloses a set of points: what a rotated
+   rectangle covers once turned back into the unrotated frame.        */
+function enclosingBox(points) {
+  const xs = points.map(p => p.x), ys = points.map(p => p.y);
+  return { min: { x: Math.min(...xs), y: Math.min(...ys) },
+           max: { x: Math.max(...xs), y: Math.max(...ys) } };
+}
+
+L.extend(L.Point.prototype, {
+  /* Same object back when there is nothing to turn: north-up callers
+     rely on it to keep whole-pixel positions untouched.               */
+  rotateFrom(theta, pivot) {
+    if (!theta) return this;
+    const r = rotateXY(this.x, this.y, theta, pivot.x, pivot.y);
+    return new L.Point(r.x, r.y);
+  },
+  rotate(theta) { return this.rotateFrom(theta, L.point(0, 0)); }
+});
+
+/* ---------- The rotated pane ----------
+   Tiles and vector layers live in `rotatePane`, turned by CSS; markers,
+   tooltips and popups in `norotatePane`, positioned on the turned spot
+   but kept upright (labels stay horizontal for free). Both hang from
+   Leaflet's mapPane, so panning and zooming still move them together. */
+function rotatePaneTransform(el, pos, theta, pivot) {
+  el._leaflet_pos = pos; /* what L.DomUtil.getPosition reads back */
+  if (!theta) {
+    /* North up: whole pixels, or every tile would be resampled blurry */
+    L.DomUtil.setPosition(el, pos._round());
+    return;
+  }
+  el.style[L.DomUtil.TRANSFORM] = rotatedTransformCss(pos, theta, pivot);
+}
+
+/* Centre of the view in mapPane coordinates: the pivot of every turn */
+function pixelCenter(map) {
+  return map.getSize()._divideBy(2)._subtract(map._getMapPanePos());
+}
+
+/* Layer-pixel box covering a rectangle of the CONTAINER once the map is
+   turned (its four corners, floored like Leaflet does).              */
+function containerRectToLayerBounds(map, min, max) {
+  const corners = [[min.x, min.y], [max.x, min.y], [min.x, max.y], [max.x, max.y]]
+    .map(c => map.containerPointToLayerPoint(c).floor());
+  return L.bounds(corners);
+}
+
+L.Map.include({
+  initialize(id, options) {
+    /* Read while Leaflet's constructor sets the first view */
+    this._bearing = 0;
+    leaflet.mapInitialize.call(this, id, options);
+    /* Gives rotatePane its first (null) transform, as every later turn will */
+    this.setBearing(0);
+  },
+
+  _initPanes() {
+    this._panes = {};
+    this._paneRenderers = {};
+    this._mapPane = this.createPane("mapPane", this._container);
+    L.DomUtil.setPosition(this._mapPane, L.point(0, 0));
+    this._rotatePane = this.createPane("rotatePane", this._mapPane);
+    this._norotatePane = this.createPane("norotatePane", this._mapPane);
+    for (const name of ["tilePane", "overlayPane"]) this.createPane(name, this._rotatePane);
+    for (const name of ["shadowPane", "markerPane", "tooltipPane", "popupPane"]) {
+      this.createPane(name, this._norotatePane);
+    }
+    if (!this.options.markerZoomAnimation) {
+      L.DomUtil.addClass(this._panes.markerPane, "leaflet-zoom-hide");
+      L.DomUtil.addClass(this._panes.shadowPane, "leaflet-zoom-hide");
+    }
+  },
+
+  /* Degrees, clockwise: the content turns this much and north points
+     that way on screen. Turns around the centre of the view.         */
+  setBearing(theta) {
+    const bearing = L.Util.wrapNum(theta, [0, 360]) * DEG;
+    const center = pixelCenter(this);
+    const oldPos = this._getRotatePanePos().rotateFrom(-this._bearing, center);
+    const newPos = oldPos.rotateFrom(bearing, center);
+    rotatePaneTransform(this._rotatePane, oldPos, bearing, center);
+    this._bearing = bearing;
+    this._rotatePanePos = newPos;
+    this.fire("rotate");
+  },
+  getBearing() { return this._bearing / DEG; },
+
+  _getRotatePanePos() { return this._rotatePanePos || L.point(0, 0); },
+
+  containerPointToLayerPoint(point) {
+    const rp = this._getRotatePanePos();
+    return L.point(point).subtract(this._getMapPanePos()).rotateFrom(-this._bearing, rp).subtract(rp);
+  },
+  layerPointToContainerPoint(point) {
+    const rp = this._getRotatePanePos();
+    return L.point(point).add(rp).rotateFrom(this._bearing, rp).add(this._getMapPanePos());
+  },
+  /* rotatePane <-> mapPane (= norotatePane). Never mutate the argument:
+     callers pass positions Leaflet still holds (an icon's own).       */
+  rotatedPointToMapPanePoint(point) {
+    return L.point(point).rotate(this._bearing).add(this._getRotatePanePos());
+  },
+  mapPanePointToRotatedPoint(point) {
+    return L.point(point).subtract(this._getRotatePanePos()).rotate(-this._bearing);
+  },
+
+  _getNewPixelOrigin(center, zoom) {
+    const viewHalf = this.getSize()._divideBy(2);
+    return this.project(center, zoom).rotate(this._bearing)._subtract(viewHalf)
+      ._add(this._getMapPanePos())._add(this._getRotatePanePos())
+      .rotate(-this._bearing)._round();
+  },
+  _getCenterOffset(latlng) {
+    return leaflet.getCenterOffset.call(this, latlng).rotate(this._bearing);
+  },
+
+  /* Turned, the view is no longer a north-aligned rectangle: these are
+     the bounds that enclose its four corners.                        */
+  getBounds() {
+    const size = this.getSize();
+    return L.latLngBounds([[0, 0], [size.x, 0], [size.x, size.y], [0, size.y]]
+      .map(c => this.containerPointToLatLng(c)));
+  },
+
+  /* Zoom that fits `bounds` measured as they lie on the TURNED screen;
+     north up it is Leaflet's own answer.                             */
+  getBoundsZoom(bounds, inside, padding) {
+    if (!this._bearing) return leaflet.getBoundsZoom.call(this, bounds, inside, padding);
+    bounds = L.latLngBounds(bounds);
+    const zoom = this.getZoom() || 0;
+    const size = this.getSize().subtract(L.point(padding || [0, 0]));
+    const origin = this.getPixelOrigin();
+    const box = enclosingBox([bounds.getNorthWest(), bounds.getNorthEast(),
+                              bounds.getSouthWest(), bounds.getSouthEast()]
+      .map(ll => this.layerPointToContainerPoint(this.project(ll)._subtract(origin))));
+    const scaleX = size.x / (box.max.x - box.min.x), scaleY = size.y / (box.max.y - box.min.y);
+    let z = this.getScaleZoom(inside ? Math.max(scaleX, scaleY) : Math.min(scaleX, scaleY), zoom);
+    const snap = this.options.zoomSnap;
+    if (snap) {
+      z = Math.round(z / (snap / 100)) * (snap / 100); /* no jump within 1% of a level */
+      z = inside ? Math.ceil(z / snap) * snap : Math.floor(z / snap) * snap;
+    }
+    return Math.max(this.getMinZoom(), Math.min(this.getMaxZoom(), z));
+  },
+
+  /* Leaflet tests "is it visible" in unrotated pixels; turned, the
+     visible area is the container itself.                            */
+  panInside(latlng, options = {}) {
+    if (!this._bearing) return leaflet.panInside.call(this, latlng, options);
+    const tl = L.point(options.paddingTopLeft || options.padding || [0, 0]);
+    const br = L.point(options.paddingBottomRight || options.padding || [0, 0]);
+    const rect = this._container.getBoundingClientRect();
+    const point = this.latLngToContainerPoint(latlng);
+    const view = L.bounds([L.point(rect), L.point(rect).add(this.getSize())]);
+    const center = view.getCenter();
+    const padded = L.bounds([view.min.add(tl), view.max.subtract(br)]);
+    const paddedSize = padded.getSize();
+    if (!padded.contains(point)) {
+      this._enforcingBounds = true;
+      const towards = point.subtract(padded.getCenter());
+      const offset = padded.extend(point).getSize().subtract(paddedSize);
+      center.x += towards.x < 0 ? -offset.x : offset.x;
+      center.y += towards.y < 0 ? -offset.y : offset.y;
+      this.panTo(this.containerPointToLatLng(center), options);
+      this._enforcingBounds = false;
+    }
+    return this;
+  }
+});
+
+/* ---------- Tiles and the canvas: cover the TURNED view ----------
+   Both ask the map which layer pixels to fill; turned, that is the box
+   enclosing the rotated container, larger than the container itself,
+   or the corners show the background.                                */
+L.GridLayer.include({
+  getEvents() {
+    const events = leaflet.gridEvents.call(this);
+    if (!this.options.updateWhenIdle) {
+      if (!this._onRotate) this._onRotate = L.Util.throttle(this._onMoveEnd, this.options.updateInterval, this);
+      events.rotate = this._onRotate;
+    }
+    return events;
+  },
+  _getTiledPixelBounds(center) {
+    const map = this._map, size = map.getSize();
+    const mapZoom = map._animatingZoom ? Math.max(map._animateToZoom, map.getZoom()) : map.getZoom();
+    const scale = map.getZoomScale(mapZoom, this._tileZoom);
+    const pixelCenter = map.project(center, this._tileZoom).floor();
+    const half = containerRectToLayerBounds(map, L.point(0, 0), size).getSize().divideBy(scale * 2);
+    return L.bounds(pixelCenter.subtract(half), pixelCenter.add(half));
+  }
+});
+
+L.Renderer.include({
+  getEvents() {
+    return L.extend(leaflet.rendererEvents.call(this), { rotate: this._update });
+  },
+  /* Zoom animation: scale around where the TURNED top-left goes */
+  _updateTransform(center, zoom) {
+    const scale = this._map.getZoomScale(zoom, this._zoom);
+    const offset = this._map._latLngToNewLayerPoint(this._topLeft, zoom, center)._round();
+    L.DomUtil.setTransform(this._container, offset, scale);
+  },
+  _update() {
+    const map = this._map, size = map.getSize(), p = this.options.padding;
+    this._bounds = containerRectToLayerBounds(map, size.multiplyBy(-p), size.multiplyBy(1 + p));
+    this._topLeft = map.layerPointToLatLng(this._bounds.min);
+    this._center = map.getCenter();
+    this._zoom = map.getZoom();
+  }
+});
+
+/* ---------- Markers, tooltips and popups: upright, on the turned spot ---------- */
+L.Marker.include({
+  getEvents() {
+    return L.extend(leaflet.markerEvents.call(this), { rotate: this.update });
+  },
+  _setPos(pos) {
+    leaflet.markerSetPos.call(this, this._map.rotatedPointToMapPanePoint(pos));
+  },
+  _initInteraction() {
+    const result = leaflet.markerInitInteraction.apply(this, arguments);
+    patchMarkerDrag(this.dragging);
+    return result;
+  }
+});
+
+/* Leaflet does not export its marker drag handler, so its prototype is
+   reached through the first instance. While dragging, the icon moves in
+   mapPane pixels, and its latlng has to be read back through the turn. */
+let markerDragPatched = false;
+function patchMarkerDrag(handler) {
+  if (!handler || markerDragPatched) return;
+  markerDragPatched = true;
+  const proto = Object.getPrototypeOf(handler);
+  const onDragEnd = proto._onDragEnd;
+  proto._onDrag = function (e) {
+    const marker = this._marker, map = marker._map;
+    const iconPos = L.DomUtil.getPosition(marker._icon);
+    if (marker._shadow) L.DomUtil.setPosition(marker._shadow, iconPos);
+    const latlng = map.layerPointToLatLng(map.mapPanePointToRotatedPoint(iconPos));
+    marker._latlng = latlng;
+    e.latlng = latlng;
+    e.oldLatLng = this._oldLatLng;
+    marker.fire("move", e).fire("drag", e);
+  };
+  proto._onDragEnd = function (e) {
+    this._marker.update(); /* back to its latlng, snapped like any other placement */
+    onDragEnd.call(this, e);
+  };
+  /* Listeners are bound when enabled: this one already holds the old ones */
+  if (handler.enabled()) { handler.disable(); handler.enable(); }
+}
+
+/* Leaflet placed the overlay at its ROTATED layer point; move it to
+   where that point is on the mapPane, keeping the anchor.           */
+function placeOverlayUnrotated(overlay) {
+  const anchor = overlay._getAnchor();
+  const pos = L.DomUtil.getPosition(overlay._container).subtract(anchor);
+  L.DomUtil.setPosition(overlay._container, overlay._map.rotatedPointToMapPanePoint(pos).add(anchor));
+}
+L.DivOverlay.include({
+  getEvents() {
+    return L.extend(leaflet.overlayEvents.call(this), { rotate: this._updatePosition });
+  },
+  _updatePosition() {
+    if (!this._map) return;
+    leaflet.overlayUpdatePosition.call(this);
+    if (this._map && this._zoomAnimated) placeOverlayUnrotated(this);
+  }
+});
+L.Popup.include({
+  _animateZoom(e) {
+    leaflet.popupAnimateZoom.call(this, e);
+    if (this._map) placeOverlayUnrotated(this);
+  },
+  /* Leaflet 1.9.4's, except for where the popup is on screen: it sits in
+     norotatePane, so mapPane pixels plus the pane offset, not the
+     (turned) layerPointToContainerPoint.                             */
+  _adjustPan() {
+    if (!this.options.autoPan) return;
+    if (this._map._panAnim) this._map._panAnim.stop();
+    if (this._autopanning) { this._autopanning = false; return; } /* our own autopan's moveend */
+    const map = this._map;
+    const marginBottom = parseInt(L.DomUtil.getStyle(this._container, "marginBottom"), 10) || 0;
+    const containerHeight = this._container.offsetHeight + marginBottom;
+    const containerWidth = this._containerWidth;
+    const pos = L.point(this._containerLeft, -containerHeight - this._containerBottom)
+      ._add(L.DomUtil.getPosition(this._container))._add(map._getMapPanePos());
+    const padding = L.point(this.options.autoPanPadding);
+    const tl = L.point(this.options.autoPanPaddingTopLeft || padding);
+    const br = L.point(this.options.autoPanPaddingBottomRight || padding);
+    const size = map.getSize();
+    let dx = 0, dy = 0;
+    if (pos.x + containerWidth + br.x > size.x) dx = pos.x + containerWidth - size.x + br.x;
+    if (pos.x - dx - tl.x < 0) dx = pos.x - tl.x;
+    if (pos.y + containerHeight + br.y > size.y) dy = pos.y + containerHeight - size.y + br.y;
+    if (pos.y - dy - tl.y < 0) dy = pos.y - tl.y;
+    if (dx || dy) {
+      if (this.options.keepInView) this._autopanning = true;
+      map.fire("autopanstart").panBy([dx, dy]);
+    }
+  }
+});
+L.Tooltip.include({
+  _updatePosition() {
+    const pos = this._map.latLngToLayerPoint(this._latlng);
+    this._setPosition(this._map.rotatedPointToMapPanePoint(pos));
+  },
+  _animateZoom(e) {
+    const pos = this._map._latLngToNewLayerPoint(this._latlng, e.zoom, e.center);
+    this._setPosition(this._map.rotatedPointToMapPanePoint(pos));
+  }
+});
+
+/* ---------- Two-finger pinch zoom ----------
+   Leaflet keeps the spot under the fingers fixed by shifting the centre
+   by the fingers' offset from the view centre — a SCREEN offset, applied
+   in the unrotated map frame: turned, the map slid sideways under the
+   fingers. Leaflet 1.9.4's handler, with that offset turned back.
+   (leaflet-rotate replaced the whole handler instead, and left Leaflet's
+   own attached too: both ran on every pinch.)                         */
+L.Map.TouchZoom.include({
+  _onTouchMove(e) {
+    if (!e.touches || e.touches.length !== 2 || !this._zooming) return;
+    const map = this._map;
+    const p1 = map.mouseEventToContainerPoint(e.touches[0]);
+    const p2 = map.mouseEventToContainerPoint(e.touches[1]);
+    const scale = p1.distanceTo(p2) / this._startDist;
+    this._zoom = map.getScaleZoom(scale, this._startZoom);
+    if (!map.options.bounceAtZoomLimits && (
+      (this._zoom < map.getMinZoom() && scale < 1) ||
+      (this._zoom > map.getMaxZoom() && scale > 1))) {
+      this._zoom = map._limitZoom(this._zoom);
+    }
+    if (map.options.touchZoom === "center") {
+      this._center = this._startLatLng;
+      if (scale === 1) return;
+    } else {
+      const delta = p1._add(p2)._divideBy(2)._subtract(this._centerPoint);
+      if (scale === 1 && delta.x === 0 && delta.y === 0) return;
+      this._center = map.unproject(
+        map.project(this._pinchStartLatLng, this._zoom).subtract(delta.rotate(-map._bearing)), this._zoom);
+    }
+    if (!this._moved) {
+      map._moveStart(true, false);
+      this._moved = true;
+    }
+    L.Util.cancelAnimFrame(this._animRequest);
+    const moveFn = L.Util.bind(map._move, map, this._center, this._zoom, { pinch: true, round: false }, undefined);
+    this._animRequest = L.Util.requestAnimFrame(moveFn, this, true);
+    L.DomEvent.preventDefault(e);
+  }
+});
+
+/* ================= «One world» with the map turned =================
+   Three holes leaflet-rotate left open, each with its fix:
+   1. Dragging and recentring against the edge of the world (maxBounds).
+   2. Zoom floor: the turned view has to fit inside the world.
+   3. Tiles outside the world (400 responses and a false warning).    */
+
+const isRotatedMap = m => !!m._bearing;
+
+/* ---------- 1. `maxBounds` with the map turned ----------
+   Leaflet limits dragging with a rectangle in SCREEN pixels built from
+   two corners of the world, and recentres with half an unrotated view:
+   turned, dragging against the edge jumped to another continent
+   (measured: Siberia to Madagascar in one drag at 45°). North up it is
+   Leaflet's code as is; turned, both limits are computed in the
+   UNROTATED map frame with the box enclosing the turned view
+   (rotatedViewExtra), and the drag is turned back to the screen. Hard
+   limit (viscosity 1), the one this viewer uses.                     */
+
+/* Drag `offset` (screen pixels the content moves) with the map turned
+   `b` radians, clipped so the centre — which moves the opposite way,
+   in the map frame — stays within [min, max]. If the view is larger
+   than the world along an axis (min > max) the centre stays midway, as
+   Leaflet does.                                                       */
 function clampRotatedDragOffset(offset, b, c0, min, max) {
   const c = Math.cos(b), s = Math.sin(b);
   let dx = -(c * offset.x + s * offset.y), dy = -(-s * offset.x + c * offset.y);
@@ -4104,7 +2574,7 @@ function clampRotatedDragOffset(offset, b, c0, min, max) {
 
 L.Map.include({
   _limitCenter(center, zoom, bounds) {
-    if (!bounds || !isRotatedMap(this)) return leafletLimitCenter.call(this, center, zoom, bounds);
+    if (!bounds || !isRotatedMap(this)) return leaflet.limitCenter.call(this, center, zoom, bounds);
     const centerPoint = this.project(center, zoom);
     const viewHalf = this.getSize().add(rotatedViewExtra(this)).divideBy(2);
     const viewBounds = L.bounds(centerPoint.subtract(viewHalf), centerPoint.add(viewHalf));
@@ -4115,7 +2585,7 @@ L.Map.include({
 });
 L.Map.Drag.include({
   _onDragStart() {
-    leafletDragStart.call(this);
+    leaflet.dragStart.call(this);
     const m = this._map;
     this._rotLimit = null;
     if (!this._offsetLimit || !isRotatedMap(m)) return;
@@ -4129,7 +2599,7 @@ L.Map.Drag.include({
     };
   },
   _onPreDragLimit() {
-    if (!this._rotLimit) return leafletPreDragLimit.call(this);
+    if (!this._rotLimit) return leaflet.preDragLimit.call(this);
     const r = this._rotLimit;
     const offset = this._draggable._newPos.subtract(this._draggable._startPos);
     const fixed = clampRotatedDragOffset(offset, r.bearing, r.c0, r.min, r.max);
@@ -4137,41 +2607,36 @@ L.Map.Drag.include({
   }
 });
 
-/* ---------- 2. Suelo de zoom con el mapa girado ----------
-   Con el mapa rotado, lo que tiene que llenar el mundo no es la ventana
-   sino la caja que la envuelve girada (W·|cos|+H·|sin| de ancho, y al
-   revés de alto), o asoma el fondo por las esquinas. Esto devuelve lo
-   que esa caja excede a la ventana.                                   */
+/* ---------- 2. Zoom floor with the map turned ----------
+   Turned, what has to fill the world is not the window but the box
+   enclosing it turned (W·|cos|+H·|sin| wide, and the other way round
+   high), or the background shows in the corners. This returns how much
+   that box exceeds the window.                                       */
 function rotatedViewExtra(m) {
   const size = m.getSize();
-  const b = (m.getBearing ? m.getBearing() : 0) * Math.PI / 180;
+  const b = m.getBearing() * DEG;
   const c = Math.abs(Math.cos(b)), s = Math.abs(Math.sin(b));
   return L.point(size.x * c + size.y * s - size.x, size.x * s + size.y * c - size.y);
 }
-/* Zoom en que la vista GIRADA cabe dentro de `bounds`. getBoundsZoom
-   resta su `padding` al tamaño de la ventana: un padding NEGATIVO de
-   rotatedViewExtra es justo la caja girada, y así se sigue preguntando
-   a Leaflet (redondeo a zoomSnap incluido) en vez de calcular el
-   logaritmo aquí. Trampa: leaflet-rotate redefine getBoundsZoom con el
-   mapa girado y mide otra cosa (la caja del MUNDO girado frente a la
-   ventana), así que se apaga `_rotate` solo durante esta llamada
-   síncrona y el plugin cae al método original de Leaflet.            */
+/* Zoom at which the TURNED view fits inside `bounds`. getBoundsZoom
+   subtracts its `padding` from the window size: a NEGATIVE padding of
+   rotatedViewExtra is exactly the turned box, so Leaflet still answers
+   (zoomSnap rounding included) instead of computing the logarithm here.
+   Leaflet's own method, not the turned one above: that one measures
+   something else (the turned WORLD against the window).             */
 function rotatedFitZoom(m, bounds) {
-  const rot = m._rotate;
-  m._rotate = false;
-  try { return m.getBoundsZoom(bounds, true, rotatedViewExtra(m).multiplyBy(-1)); }
-  finally { m._rotate = rot; }
+  return leaflet.getBoundsZoom.call(m, bounds, true, rotatedViewExtra(m).multiplyBy(-1));
 }
 
-/* ---------- 3. Teselas fuera del mundo ----------
-   `noWrap` no basta con el mapa ROTADO: leaflet-rotate pide teselas
-   para la caja que envuelve la vista girada, más ancha que el mundo, y
-   Leaflet solo descarta una tesela fuera de rango (`_isValidTile`) si
-   la capa tiene `bounds` — sin ellos pedía x=-1 o x=2^z, el servidor
-   contestaba 400 y saltaba el aviso de «no responde» con el servicio en
-   perfecto estado (medido: 8 errores a zoom 2 y 45°, ninguno a 0°).
-   Como `noWrap`, se escribe sobre las opciones ya construidas: Leaflet
-   las lee al añadir la capa, no en el constructor.                    */
+/* ---------- 3. Tiles outside the world ----------
+   `noWrap` is not enough with the map TURNED: tiles are requested for
+   the box enclosing the turned view, wider than the world, and Leaflet
+   only drops an out-of-range tile (`_isValidTile`) if the layer has
+   `bounds` — without them it asked for x=-1 or x=2^z, the server
+   answered 400 and the «not responding» warning fired with the service
+   perfectly fine (measured: 8 errors at zoom 2 and 45°, none at 0°).
+   Like `noWrap`, it is written on the already built options: Leaflet
+   reads them when the layer is added, not in the constructor.        */
 function confineTilesToWorld(layer, bounds) {
   layer.options.bounds = bounds;
 }
@@ -4258,15 +2723,11 @@ const map = L.map("map", {
   /* La rueda es nuestra (70-view-controls.js): zoom continuo como Re/Av
      Pág, no el salto de nivel en nivel de Leaflet.                   */
   scrollWheelZoom: false,
-  /* Rotación (leaflet-rotate). Solo por gestos propios (brújula y
-     botón central, 70-view-controls.js): Mayús+rueda giraría el mapa,
-     pero Mayús ya está reservado (zoom de caja, insertar vértice); sin
-     rotación táctil ni el control del plugin.                        */
-  rotate: true,
-  bearing: 0,
-  shiftKeyRotate: false,
-  touchRotate: false,
-  rotateControl: false,
+  /* El pellizco se para en los límites de zoom en vez de pasarse y
+     rebotar (lo que dejaba puesto leaflet-rotate). El mapa es siempre
+     girable (08-map-rotation.js), solo con gestos propios: brújula y
+     botón central (70-view-controls.js).                             */
+  bounceAtZoomLimits: false,
 }).setView([40.4, -3.7], 6);
 
 /* Color de fondo del mapa: el que se ve fuera de las teselas (huecos
@@ -4305,7 +2766,7 @@ function setMapBackground(hex) {
    calcular el logaritmo a mano porque el redondeo a `zoomSnap` es suyo
    y tiene su propia letra pequeña.                                    */
 /* Con el mapa rotado, la que tiene que caber en el mundo es la caja de
-   la vista girada: `rotatedFitZoom` (08-leaflet-rotate-fixes.js).    */
+   la vista girada: `rotatedFitZoom` (08-map-rotation.js).    */
 function fitWorldMinZoom() {
   const previo = map.options.minZoom;
   map.options.minZoom = 0;
@@ -4318,7 +2779,7 @@ map.on("resize rotate", fitWorldMinZoom);
 
 /* Fecha de generación del código (versión): AÑOMESDIAHORAMINUTO.
    Actualizar en cada generación; se muestra junto al crédito de Leaflet. */
-const BUILD = "202610101121";
+const BUILD = "202610101128";
 /* Versión de release (la de package.json, horneada aquí por build.js
    al construir — ver «Versión y releases de GitHub» en CLAUDE.md): a
    diferencia de BUILD, que cambia en CADA generación, esta solo cambia
@@ -4563,7 +3024,7 @@ function applyBaseLayer(id) {
          no en su constructor.                                         */
       st.layer.options.noWrap = true;
       /* Y sin teselas fuera del mundo con el mapa girado (ver
-         08-leaflet-rotate-fixes.js) */
+         08-map-rotation.js) */
       confineTilesToWorld(st.layer, WORLD_BOUNDS);
       st.layer.setZIndex(st.zIndex);
       /* Una URL que no responda debe verse, no fallar en silencio */
@@ -16796,7 +15257,7 @@ const DN_FRAGMENT_SRC = `
   uniform float uScale;      /* píxeles de mundo (CSS) por píxel de dispositivo */
   uniform float uWorldSize;  /* 256 * 2^zoom */
   uniform vec2 uSubsolar;    /* lat, lng del punto subsolar, en RADIANES */
-  uniform float uBearing;    /* giro del mapa (leaflet-rotate), en RADIANES, horario */
+  uniform float uBearing;    /* giro del mapa (08-map-rotation.js), en RADIANES, horario */
 
   const float PI = 3.14159265358979;
 
@@ -17499,7 +15960,7 @@ map.on("rotate", () => {
   gratFrame = requestAnimationFrame(() => { gratFrame = null; redrawGraticule(); });
 });
 
-/* ---------- Brújula: rotación del mapa (leaflet-rotate) ----------
+/* ---------- Brújula: rotación del mapa (08-map-rotation.js) ----------
    Arrastrar alrededor de la brújula gira el mapa, de forma LIBRE (sin
    pasos); un clic sin arrastrar —o la tecla R con el foco en el visor—
    vuelve a poner el norte arriba. La orientación no se guarda: cada
@@ -17905,11 +16366,11 @@ const easeOutCubic = k => 1 - Math.pow(1 - k, 3);
      El desplazamiento es en PANTALLA (con el mapa girado, ↑ sigue
      siendo hacia arriba) y se pasa a píxeles del mapa sin girar con el
      giro inverso. Se calcula ahí y no ida y vuelta por
-     containerPointToLatLng/latLngToContainerPoint: con leaflet-rotate
+     containerPointToLatLng/latLngToContainerPoint: con el mapa girable
      esa ida y vuelta se desvía ~1 px, y medido daba pasos de 8 px en
      vez de 7 (un toque recorría 98 px, no 80). _limitCenter devuelve el
      MISMO objeto si no hay que limitar (ya sabe del giro,
-     08-leaflet-rotate-fixes.js): entonces vale el desplazamiento pedido
+     08-map-rotation.js): entonces vale el desplazamiento pedido
      tal cual.                                                        */
   function limitScreenPan(want) {
     const z = map.getZoom(), b = map.getBearing() * Math.PI / 180;
