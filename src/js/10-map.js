@@ -78,6 +78,9 @@ const map = L.map("map", {
      efecto elástico que aquí no se quiere.                           */
   maxBoundsViscosity: 1,
   zoomAnimation: hwAccelerated,
+  /* La rueda es nuestra (70-view-controls.js): zoom continuo como Re/Av
+     Pág, no el salto de nivel en nivel de Leaflet.                   */
+  scrollWheelZoom: false,
   /* Rotación (leaflet-rotate). Solo por gestos propios (brújula y
      botón central, 70-view-controls.js): Mayús+rueda giraría el mapa,
      pero Mayús ya está reservado (zoom de caja, insertar vértice); sin
@@ -138,7 +141,7 @@ map.on("resize rotate", fitWorldMinZoom);
 
 /* Fecha de generación del código (versión): AÑOMESDIAHORAMINUTO.
    Actualizar en cada generación; se muestra junto al crédito de Leaflet. */
-const BUILD = "202610092248";
+const BUILD = "202610100955";
 /* Versión de release (la de package.json, horneada aquí por build.js
    al construir — ver «Versión y releases de GitHub» en CLAUDE.md): a
    diferencia de BUILD, que cambia en CADA generación, esta solo cambia

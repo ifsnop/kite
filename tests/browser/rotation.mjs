@@ -259,13 +259,21 @@ ok(Math.abs(after.lat - before.lat) < 5 && Math.abs(after.lng - before.lng) < 15
 
 /* ---------- 7. Día/noche con el mapa girado ---------- */
 const dn = await page.evaluate(async () => {
+  /* Centrada en el TERMINADOR (a 90° del punto subsolar), no en una
+     longitud fija: con la vista fija en 0° la prueba fallaba de noche
+     (a las 22:50 toda la vista era noche y no había punto de día). De
+     los dos terminadores, el más lejano a ±180°: junto al antimeridiano
+     el límite del mundo empuja la vista hacia un solo lado (medido: con
+     el sol en 85° E toda la vista quedaba por encima de -8°).        */
+  const sub = subsolarPoint();
+  const wrap = l => ((l + 540) % 360) - 180;
+  const lng = [wrap(sub.lng + 90), wrap(sub.lng - 90)].sort((a, b) => Math.abs(a) - Math.abs(b))[0];
   map.setBearing(0);
-  map.setView([20, 0], 3, { animate: false });
+  map.setView([0, lng], 3, { animate: false });
   map.setBearing(70);
   toggleDayNight();
   await new Promise(r => setTimeout(r, 500));
   dnRender();
-  const sub = subsolarPoint();
   const s = map.getSize();
   const dpr = window.devicePixelRatio || 1;
   const gl = dnGl;

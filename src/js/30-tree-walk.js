@@ -814,9 +814,13 @@ function bringLayerToFront(layer) {
    marcador siempre por encima de polígonos/líneas/ortofotos); dentro de
    cada tipo, el orden del árbol se respeta con exactitud.             */
 function reorderPaintOrder() {
+  /* toFront es un appendChild: un icono de marcador enfocado (con Tab)
+     que se mueve en el DOM suelta el foco al <body>. Se le devuelve.  */
+  const focused = document.activeElement;
   for (const chk of treeEl.querySelectorAll("input[type=checkbox]")) {
     if (chk.checked && chk._layer) bringLayerToFront(chk._layer);
   }
+  if (focused && focused !== document.activeElement && focused.isConnected) focused.focus({ preventScroll: true });
 }
 
 /* Toda mutación del árbol ya llama a scheduleSave() (regla del proyecto),

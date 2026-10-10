@@ -296,8 +296,8 @@ function setMarkerDraggable(mk, on) {
    Complementa al editor de texto («Ver y editar…», sigue existiendo
    para listas grandes o ediciones masivas): mientras un ÚNICO polígono
    está seleccionado en el árbol —sin que haga falta abrir su diálogo de
-   propiedades—, sus vértices se pueden arrastrar (Ctrl+arrastre, el
-   mismo gesto reservado que ya usan las mediciones) y borrar (clic
+   propiedades—, sus vértices se pueden arrastrar (un arrastre sin
+   más, como en las mediciones) y borrar (clic
    derecho), directamente sobre el mapa. A diferencia de la posición de
    un marcador, esto YA NO es edición diferida: cada arrastre o borrado
    se guarda al momento (scheduleSave), igual que ya hacía un waypoint
@@ -336,7 +336,7 @@ function setMarkerDraggable(mk, on) {
 
    ---------- Coherencia entre ruta y polígono ----------
    Las dos comparten exactamente el mismo modelo de arriba (clic
-   selecciona, Ctrl+arrastre mueve, clic derecho borra, Mayús+clic
+   selecciona, arrastrar mueve, clic derecho borra, Mayús+clic
    inserta, Supr borra con prioridad), con la única diferencia real que
    les corresponde por naturaleza: los manejadores de una ruta son
    PERMANENTES (viven mientras la medición exista y esté marcada, no
@@ -699,7 +699,7 @@ function syncVertexOwnerForDialog() {
 /* Foto de la geometría al abrir el diálogo de estilos, para que
    Cancelar pueda restaurarla (ver restoreVertexSnapshot): un polígono,
    una ruta o un círculo. Reportado como bug: mover/insertar/borrar un
-   vértice, o Ctrl+arrastrar el centro/borde de un círculo, se guardaba
+   vértice, o arrastrar el centro/borde de un círculo, se guardaba
    al momento sin que "Cancelar" lo revirtiera — a diferencia del resto
    de campos del diálogo (edición diferida) y del propio arrastre del
    marcador (`posMarker`/`posOriginal`, 44-dialogs.js), cuyo patrón se
@@ -836,11 +836,13 @@ function setupDialog(box, { modal }) {
   });
 }
 
-/* Focus goes to the dialog on open and back to the opener on close */
+/* Focus goes to the dialog on open and back to the opener on close.
+   With `move` false it stays where it is (still recorded, so the
+   pairing with releaseFocus holds).                                 */
 let focusReturn = [];
-function focusDialog(box) {
+function focusDialog(box, move = true) {
   focusReturn.push(document.activeElement);
-  const first = box.querySelector("button, input, select");
+  const first = move && box.querySelector("button, input, select");
   if (first) first.focus();
 }
 function releaseFocus() {

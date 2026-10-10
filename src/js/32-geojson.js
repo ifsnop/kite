@@ -871,8 +871,8 @@ function serializePendingRecords(records) {
       return out;
     }
     if (rec.t === "measure") {
-      /* Posición siempre en vivo: los manejadores son arrastrables con
-         Ctrl+arrastre sobre el mapa aunque la fila siga pendiente (ver
+      /* Posición siempre en vivo: los manejadores son arrastrables
+         sobre el mapa aunque la fila siga pendiente (ver
          buildMeasureRecord), así que cachear los waypoints se quedaría
          obsoleto.                                                     */
       return { name: rec.name, checked: rec.checked, t: "measure", mtype: rec.mtype,

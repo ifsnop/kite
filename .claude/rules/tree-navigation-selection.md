@@ -118,9 +118,9 @@ paths:
   «Lugares» (`ensureNamedSection`, localiza secciones existentes por
   nombre). `placeSeq` descarta respuestas de búsquedas ya superadas.
 - **Gestos del visor**: Shift+arrastre = box-zoom de Leaflet (reservado);
-  Ctrl+arrastre = editar centro/borde de un círculo de medición (un
-  vértice de ruta/polígono ya NO lo exige, ver «Selección de vértice»);
-  herramienta de medición activa = el arrastre dibuja (pan desactivado;
+  ni un vértice de ruta/polígono ni el centro/borde de un círculo de
+  medición exigen ya Ctrl: se arrastran sin más (ver «Selección de
+  vértice»); herramienta de medición activa = el arrastre dibuja (pan desactivado;
   mover un vértice ya puesto durante el dibujo es arrastre SIN Ctrl,
   mismo motivo que quitó el Ctrl a la edición post-creación). **Mover,
   insertar o borrar un vértice, o el centro/borde de un círculo, exige

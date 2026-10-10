@@ -191,8 +191,8 @@ function setTool(tool) {
    edita un polígono hacía zoom — el doble click de "cerrar polígono"
    ya se sabía que no debía hacer zoom DURANTE EL DIBUJO (arriba), pero
    nadie apagaba doubleClickZoom durante la EDICIÓN post-creación de un
-   polígono/ruta (vertexOwner) ni la de un círculo (su Ctrl+arrastre no
-   pasa por vertexOwner). Una única función que mira TODO lo que puede
+   polígono/ruta (vertexOwner) ni la de un círculo (su arrastre no pasa
+   por vertexOwner). Una única función que mira TODO lo que puede
    estar activo a la vez, en vez de un apagar/encender independiente en
    cada sitio que se pisaría entre sí (ver el comentario de arriba).    */
 function anyEditModeActive() {
@@ -423,8 +423,8 @@ const MEASURE_DASH = "6 4";
    (array de {lat,lng}): el círculo siempre tiene dos —centro y borde,
    el mismo significado que los antiguos a/b—, una ruta tiene los que
    tenga. Se lee en vivo de los manejadores, nunca se cachea, por lo
-   mismo que ya explica serializeNode: son arrastrables con
-   Ctrl+arrastre aunque la fila no exista todavía.                    */
+   mismo que ya explica serializeNode: son arrastrables
+   aunque la fila no exista todavía.                    */
 function measureWaypoints(m) {
   const handles = m.type === "route" ? m.handles : [m.mOrigin, m.mDest];
   return handles.map(h => { const p = h.getLatLng(); return { lat: p.lat, lng: p.lng }; });
@@ -454,10 +454,11 @@ function setMeasureLabelsVisible(m, on) {
      dragging.disable() mientras una herramienta está activa (setTool),
      así que un arrastre normal sobre un manejador no compite con hacer
      pan y no hace falta ningún modificador.
-   - Tras terminar, `requireCtrl` es true: el mapa SÍ es interactivo, así
-     que hace falta el mismo gesto reservado que ya usa el círculo
-     (Ctrl+arrastre = editar mediciones, ver «Gestos del visor»), aquí
-     extendido a vértices de una ruta o un polígono.
+   - `requireCtrl` true exigiría Ctrl+arrastre para empezar. Era el
+     gesto de editar una forma YA creada; hoy ningún llamador lo pide:
+     tras terminar, mover un vértice (o el centro/borde de un círculo)
+     es un arrastre sin más, con el diálogo de propiedades de ESE nodo
+     abierto.
    - `canStart`, opcional: comprobado ANTES de capturar nada, así un
      Ctrl+clic sin owner activo no llega a deshabilitar `map.dragging`
      ni a dejar el gesto a medias. Un polígono no lo necesita —sus
@@ -512,8 +513,8 @@ function buildMeasurement(type, a, b, style = null) {
 }
 
 function finalizeMeasurement(m) {
-  attachCtrlDrag(m, m.mOrigin, true);
-  attachCtrlDrag(m, m.mDest, false);
+  attachCircleHandleDrag(m, m.mOrigin, true);
+  attachCircleHandleDrag(m, m.mDest, false);
   addMeasureNode(m);
 }
 
@@ -542,7 +543,7 @@ function finalizeMeasurement(m) {
    por el mismo gesto de arrastre y se perdería el siguiente doble
    click (zoom) — la misma trampa ya documentada y resuelta para
    ruta/polígono al quitarles Ctrl.                                    */
-function attachCtrlDrag(m, handle, isOrigin) {
+function attachCircleHandleDrag(m, handle, isOrigin) {
   handle.on("mousedown", ev => {
     const oe = ev.originalEvent;
     if (!styleDialogShows(m.treeLabel && m.treeLabel.closest("li"))) return;
@@ -712,13 +713,13 @@ function buildMeasureRecord(n) {
   } else {
     m = buildMeasurement(mtype, L.latLng(n.waypoints[0].lat, n.waypoints[0].lng),
       L.latLng(n.waypoints[1].lat, n.waypoints[1].lng), n.style);
-    attachCtrlDrag(m, m.mOrigin, true);
-    attachCtrlDrag(m, m.mDest, false);
+    attachCircleHandleDrag(m, m.mOrigin, true);
+    attachCircleHandleDrag(m, m.mDest, false);
   }
   m.treeName = n.name;
   if (!n.checked) rootGroup.removeLayer(m.group); /* buildMeasurement/buildRouteMeasurement la añaden siempre */
   /* Sin waypoints propios en el registro: los manejadores son
-     arrastrables con Ctrl+arrastre directamente sobre el mapa aunque la
+     arrastrables directamente sobre el mapa aunque la
      fila siga pendiente (no hace falta el diálogo de estilos ni
      ninguna fila para editar una medición), así que la posición se lee
      siempre en vivo de _m (ver serializePendingRecords) en vez de
@@ -823,7 +824,7 @@ function addRouteVertex(latlng) {
     routeDraft = null;
     routeMeasurement = m;
     finalizeRouteMeasurement(m);
-    openStyleDialog(m.treeLabel.closest("li"), { isNew: true });
+    openStyleDialog(m.treeLabel.closest("li"), { isNew: true, focus: false });
     return;
   }
   /* Primer punto: solo una vista previa, sin medición todavía — un tramo
@@ -919,7 +920,7 @@ function buildRouteMeasurement(waypoints, style = null) {
   return m;
 }
 
-/* Cablea cada waypoint (mover con Ctrl+arrastre, en vivo — igual que
+/* Cablea cada waypoint (mover arrastrando, en vivo — igual que
    el círculo; borrar con clic derecho) y cuelga el nodo del árbol.   */
 function finalizeRouteMeasurement(m, kind = "route") {
   for (const h of m.handles) wireRouteHandle(m, h);

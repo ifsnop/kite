@@ -1087,7 +1087,12 @@
   .keys { border-collapse: collapse; font-size: 12.5px; width: 100%; }
   .keys th { text-align: left; padding: 8px 4px 3px; color: var(--muted); font-size: 11.5px; }
   .keys td { padding: 2px 10px 2px 4px; vertical-align: top; }
-  .keys td:first-child { white-space: nowrap; font-family: ui-monospace, Consolas, monospace; }
+  /* La columna de teclas ENVUELVE y tiene un ancho fijo, no el de su
+     texto más largo: con `nowrap`, «Mayús + clic sobre el primer
+     vértice, con el último seleccionado» empujaba la descripción fuera
+     del diálogo. El 40 % deja la frontera en el mismo sitio en todas
+     las pestañas; `pretty` evita una palabra suelta en la última línea. */
+  .keys td:first-child { width: 40%; text-wrap: pretty; font-family: ui-monospace, Consolas, monospace; }
   /* Redimensionar la ventana tiene que dar espacio AL CONTENIDO, que es
      para lo que se redimensiona. Antes el tirador estaba en el elemento
      interior y crecía él; ahora está en la caja, así que el interior
@@ -1628,9 +1633,11 @@
       <table class="keys">
         <tr><th colspan="2">En el visor</th></tr>
         <tr><td>May&#250;s + arrastrar</td><td>Zoom a un rect&#225;ngulo</td></tr>
-        <tr><td>Ctrl + arrastrar (sobre un c&#237;rculo de medici&#243;n)</td><td>Mover su centro o su borde</td></tr>
+        <tr><td>Arrastrar el centro o el borde de un c&#237;rculo de medici&#243;n (con su di&#225;logo de propiedades abierto)</td><td>Moverlo o cambiar su radio</td></tr>
         <tr><td>Doble clic en una fila</td><td>Ir a la capa; repetido, acercar</td></tr>
-        <tr><td>Re P&#225;g / Av P&#225;g (con el mapa enfocado)</td><td>Acercar / alejar un nivel de zoom hacia el puntero</td></tr>
+        <tr><td>Flechas (con el mapa enfocado)</td><td>Desplazar el mapa; mantenida, se desliza sin pausa y acelera (May&#250;s: m&#225;s r&#225;pido; dos a la vez: diagonal)</td></tr>
+        <tr><td>Re P&#225;g / Av P&#225;g (con el mapa enfocado)</td><td>Acercar / alejar un nivel de zoom hacia el puntero; mantenida, zoom continuo que al soltar se ajusta al nivel siguiente</td></tr>
+        <tr><td>Rueda del rat&#243;n</td><td>Zoom continuo hacia el puntero; al parar se ajusta al nivel siguiente</td></tr>
         <tr><td>Arrastrar la br&#250;jula</td><td>Girar el mapa (el norte deja de apuntar arriba)</td></tr>
         <tr><td>R (con el mapa enfocado) o clic en la br&#250;jula</td><td>Volver a poner el norte arriba</td></tr>
         <tr><td>Bot&#243;n central (rueda) pulsado + arrastrar a izquierda/derecha</td><td>Girar el mapa alrededor del punto pulsado</td></tr>
@@ -2314,6 +2321,9 @@ const map = L.map("map", {
      efecto elástico que aquí no se quiere.                           */
   maxBoundsViscosity: 1,
   zoomAnimation: hwAccelerated,
+  /* La rueda es nuestra (70-view-controls.js): zoom continuo como Re/Av
+     Pág, no el salto de nivel en nivel de Leaflet.                   */
+  scrollWheelZoom: false,
   /* Rotación (leaflet-rotate). Solo por gestos propios (brújula y
      botón central, 70-view-controls.js): Mayús+rueda giraría el mapa,
      pero Mayús ya está reservado (zoom de caja, insertar vértice); sin
@@ -2374,7 +2384,7 @@ map.on("resize rotate", fitWorldMinZoom);
 
 /* Fecha de generación del código (versión): AÑOMESDIAHORAMINUTO.
    Actualizar en cada generación; se muestra junto al crédito de Leaflet. */
-const BUILD = "202610092248";
+const BUILD = "202610100955";
 /* Versión de release (la de package.json, horneada aquí por build.js
    al construir — ver «Versión y releases de GitHub» en CLAUDE.md): a
    diferencia de BUILD, que cambia en CADA generación, esta solo cambia
@@ -4405,9 +4415,13 @@ function bringLayerToFront(layer) {
    marcador siempre por encima de polígonos/líneas/ortofotos); dentro de
    cada tipo, el orden del árbol se respeta con exactitud.             */
 function reorderPaintOrder() {
+  /* toFront es un appendChild: un icono de marcador enfocado (con Tab)
+     que se mueve en el DOM suelta el foco al <body>. Se le devuelve.  */
+  const focused = document.activeElement;
   for (const chk of treeEl.querySelectorAll("input[type=checkbox]")) {
     if (chk.checked && chk._layer) bringLayerToFront(chk._layer);
   }
+  if (focused && focused !== document.activeElement && focused.isConnected) focused.focus({ preventScroll: true });
 }
 
 /* Toda mutación del árbol ya llama a scheduleSave() (regla del proyecto),
@@ -6066,8 +6080,8 @@ function serializePendingRecords(records) {
       return out;
     }
     if (rec.t === "measure") {
-      /* Posición siempre en vivo: los manejadores son arrastrables con
-         Ctrl+arrastre sobre el mapa aunque la fila siga pendiente (ver
+      /* Posición siempre en vivo: los manejadores son arrastrables
+         sobre el mapa aunque la fila siga pendiente (ver
          buildMeasureRecord), así que cachear los waypoints se quedaría
          obsoleto.                                                     */
       return { name: rec.name, checked: rec.checked, t: "measure", mtype: rec.mtype,
@@ -8854,8 +8868,8 @@ function setMarkerDraggable(mk, on) {
    Complementa al editor de texto («Ver y editar…», sigue existiendo
    para listas grandes o ediciones masivas): mientras un ÚNICO polígono
    está seleccionado en el árbol —sin que haga falta abrir su diálogo de
-   propiedades—, sus vértices se pueden arrastrar (Ctrl+arrastre, el
-   mismo gesto reservado que ya usan las mediciones) y borrar (clic
+   propiedades—, sus vértices se pueden arrastrar (un arrastre sin
+   más, como en las mediciones) y borrar (clic
    derecho), directamente sobre el mapa. A diferencia de la posición de
    un marcador, esto YA NO es edición diferida: cada arrastre o borrado
    se guarda al momento (scheduleSave), igual que ya hacía un waypoint
@@ -8894,7 +8908,7 @@ function setMarkerDraggable(mk, on) {
 
    ---------- Coherencia entre ruta y polígono ----------
    Las dos comparten exactamente el mismo modelo de arriba (clic
-   selecciona, Ctrl+arrastre mueve, clic derecho borra, Mayús+clic
+   selecciona, arrastrar mueve, clic derecho borra, Mayús+clic
    inserta, Supr borra con prioridad), con la única diferencia real que
    les corresponde por naturaleza: los manejadores de una ruta son
    PERMANENTES (viven mientras la medición exista y esté marcada, no
@@ -9257,7 +9271,7 @@ function syncVertexOwnerForDialog() {
 /* Foto de la geometría al abrir el diálogo de estilos, para que
    Cancelar pueda restaurarla (ver restoreVertexSnapshot): un polígono,
    una ruta o un círculo. Reportado como bug: mover/insertar/borrar un
-   vértice, o Ctrl+arrastrar el centro/borde de un círculo, se guardaba
+   vértice, o arrastrar el centro/borde de un círculo, se guardaba
    al momento sin que "Cancelar" lo revirtiera — a diferencia del resto
    de campos del diálogo (edición diferida) y del propio arrastre del
    marcador (`posMarker`/`posOriginal`, 44-dialogs.js), cuyo patrón se
@@ -9394,11 +9408,13 @@ function setupDialog(box, { modal }) {
   });
 }
 
-/* Focus goes to the dialog on open and back to the opener on close */
+/* Focus goes to the dialog on open and back to the opener on close.
+   With `move` false it stays where it is (still recorded, so the
+   pairing with releaseFocus holds).                                 */
 let focusReturn = [];
-function focusDialog(box) {
+function focusDialog(box, move = true) {
   focusReturn.push(document.activeElement);
-  const first = box.querySelector("button, input, select");
+  const first = move && box.querySelector("button, input, select");
   if (first) first.focus();
 }
 function releaseFocus() {
@@ -11041,7 +11057,7 @@ let stylePreviewed = false; /* algo llegó a la capa: Cancelar debe re-guardar *
    respuesta es siempre esta misma pregunta — que el diálogo de
    estilos esté abierto mostrando EXACTAMENTE este nodo, no una
    selección múltiple ni otro nodo — usada directamente por el círculo
-   (`attachCtrlDrag`, 52-measure.js) y, para ruta/polígono, indirectamente
+   (`attachCircleHandleDrag`, 52-measure.js) y, para ruta/polígono, indirectamente
    a través de `vertexOwner` (`syncVertexOwnerForDialog`,
    43-points-editor.js, que la sincroniza una sola vez al abrir/cerrar
    el diálogo en vez de repetirla en cada gesto).                      */
@@ -11186,7 +11202,10 @@ function renderStyleAttrs() {
   applyPropsSplit(); /* el reparto elegido sobrevive al cambio de capa */
 }
 
-function openStyleDialog(li, { isNew = false } = {}) {
+/* `focus: false` cuando lo abre un clic en el VISOR (la ruta que se
+   está creando): el foco se queda en el mapa, o sus teclas (desplazar,
+   zoom, R) dejarían de llegar a mitad del dibujo.                   */
+function openStyleDialog(li, { isNew = false, focus = true } = {}) {
   /* The dialog is not modal, so another row's button may be pressed while
      it is open: that cancels the edit in progress before retargeting    */
   if (!styleDialog.hidden) closeStyleDialog(false);
@@ -11374,7 +11393,7 @@ function openStyleDialog(li, { isNew = false } = {}) {
   showStyleTab("styles"); /* siempre abre en Estilos, no recuerda la última */
   styleDialog.hidden = false;
   clampToViewport(styleBox);
-  focusDialog(styleBox);
+  focusDialog(styleBox, focus);
   /* Última: styleTargets/styleKindOpen ya están fijados y el diálogo ya
      está visible, que es justo lo que styleDialogShows comprueba.     */
   syncVertexOwnerForDialog();
@@ -11411,7 +11430,7 @@ function closeStyleDialog(commit = false) {
   teardownVertexOwner();
   if (previewFrame) { cancelAnimationFrame(previewFrame); previewFrame = null; }
   if (!commit) restoreStyleSnapshot();
-  /* Revierte mover/insertar/borrar un vértice, o Ctrl+arrastrar el
+  /* Revierte mover/insertar/borrar un vértice, o arrastrar el
      centro/borde de un círculo, hecho mientras el diálogo estuvo
      abierto — mismo patrón que posMarker/posOriginal, un poco más
      abajo. Se lee ANTES de limpiar styleTargets/styleKindOpen.        */
@@ -11432,7 +11451,7 @@ function closeStyleDialog(commit = false) {
   styleAttrsBody.innerHTML = ""; /* no retener el HTML de la capa cerrada */
   /* El círculo no pasa por vertexOwner (teardownVertexOwner, arriba, ya
      lo cubre para polígono/ruta): con styleDialog ya oculto,
-     anyEditModeActive deja de contar su Ctrl+arrastre como "en edición". */
+     anyEditModeActive deja de contar su arrastre como "en edición". */
   refreshDoubleClickZoom();
   iconPicker.hidden = true;
   /* Guarded: closeColorPicker() itself pops a focusReturn entry, and it
@@ -12551,8 +12570,8 @@ function setTool(tool) {
    edita un polígono hacía zoom — el doble click de "cerrar polígono"
    ya se sabía que no debía hacer zoom DURANTE EL DIBUJO (arriba), pero
    nadie apagaba doubleClickZoom durante la EDICIÓN post-creación de un
-   polígono/ruta (vertexOwner) ni la de un círculo (su Ctrl+arrastre no
-   pasa por vertexOwner). Una única función que mira TODO lo que puede
+   polígono/ruta (vertexOwner) ni la de un círculo (su arrastre no pasa
+   por vertexOwner). Una única función que mira TODO lo que puede
    estar activo a la vez, en vez de un apagar/encender independiente en
    cada sitio que se pisaría entre sí (ver el comentario de arriba).    */
 function anyEditModeActive() {
@@ -12783,8 +12802,8 @@ const MEASURE_DASH = "6 4";
    (array de {lat,lng}): el círculo siempre tiene dos —centro y borde,
    el mismo significado que los antiguos a/b—, una ruta tiene los que
    tenga. Se lee en vivo de los manejadores, nunca se cachea, por lo
-   mismo que ya explica serializeNode: son arrastrables con
-   Ctrl+arrastre aunque la fila no exista todavía.                    */
+   mismo que ya explica serializeNode: son arrastrables
+   aunque la fila no exista todavía.                    */
 function measureWaypoints(m) {
   const handles = m.type === "route" ? m.handles : [m.mOrigin, m.mDest];
   return handles.map(h => { const p = h.getLatLng(); return { lat: p.lat, lng: p.lng }; });
@@ -12814,10 +12833,11 @@ function setMeasureLabelsVisible(m, on) {
      dragging.disable() mientras una herramienta está activa (setTool),
      así que un arrastre normal sobre un manejador no compite con hacer
      pan y no hace falta ningún modificador.
-   - Tras terminar, `requireCtrl` es true: el mapa SÍ es interactivo, así
-     que hace falta el mismo gesto reservado que ya usa el círculo
-     (Ctrl+arrastre = editar mediciones, ver «Gestos del visor»), aquí
-     extendido a vértices de una ruta o un polígono.
+   - `requireCtrl` true exigiría Ctrl+arrastre para empezar. Era el
+     gesto de editar una forma YA creada; hoy ningún llamador lo pide:
+     tras terminar, mover un vértice (o el centro/borde de un círculo)
+     es un arrastre sin más, con el diálogo de propiedades de ESE nodo
+     abierto.
    - `canStart`, opcional: comprobado ANTES de capturar nada, así un
      Ctrl+clic sin owner activo no llega a deshabilitar `map.dragging`
      ni a dejar el gesto a medias. Un polígono no lo necesita —sus
@@ -12872,8 +12892,8 @@ function buildMeasurement(type, a, b, style = null) {
 }
 
 function finalizeMeasurement(m) {
-  attachCtrlDrag(m, m.mOrigin, true);
-  attachCtrlDrag(m, m.mDest, false);
+  attachCircleHandleDrag(m, m.mOrigin, true);
+  attachCircleHandleDrag(m, m.mDest, false);
   addMeasureNode(m);
 }
 
@@ -12902,7 +12922,7 @@ function finalizeMeasurement(m) {
    por el mismo gesto de arrastre y se perdería el siguiente doble
    click (zoom) — la misma trampa ya documentada y resuelta para
    ruta/polígono al quitarles Ctrl.                                    */
-function attachCtrlDrag(m, handle, isOrigin) {
+function attachCircleHandleDrag(m, handle, isOrigin) {
   handle.on("mousedown", ev => {
     const oe = ev.originalEvent;
     if (!styleDialogShows(m.treeLabel && m.treeLabel.closest("li"))) return;
@@ -13072,13 +13092,13 @@ function buildMeasureRecord(n) {
   } else {
     m = buildMeasurement(mtype, L.latLng(n.waypoints[0].lat, n.waypoints[0].lng),
       L.latLng(n.waypoints[1].lat, n.waypoints[1].lng), n.style);
-    attachCtrlDrag(m, m.mOrigin, true);
-    attachCtrlDrag(m, m.mDest, false);
+    attachCircleHandleDrag(m, m.mOrigin, true);
+    attachCircleHandleDrag(m, m.mDest, false);
   }
   m.treeName = n.name;
   if (!n.checked) rootGroup.removeLayer(m.group); /* buildMeasurement/buildRouteMeasurement la añaden siempre */
   /* Sin waypoints propios en el registro: los manejadores son
-     arrastrables con Ctrl+arrastre directamente sobre el mapa aunque la
+     arrastrables directamente sobre el mapa aunque la
      fila siga pendiente (no hace falta el diálogo de estilos ni
      ninguna fila para editar una medición), así que la posición se lee
      siempre en vivo de _m (ver serializePendingRecords) en vez de
@@ -13183,7 +13203,7 @@ function addRouteVertex(latlng) {
     routeDraft = null;
     routeMeasurement = m;
     finalizeRouteMeasurement(m);
-    openStyleDialog(m.treeLabel.closest("li"), { isNew: true });
+    openStyleDialog(m.treeLabel.closest("li"), { isNew: true, focus: false });
     return;
   }
   /* Primer punto: solo una vista previa, sin medición todavía — un tramo
@@ -13279,7 +13299,7 @@ function buildRouteMeasurement(waypoints, style = null) {
   return m;
 }
 
-/* Cablea cada waypoint (mover con Ctrl+arrastre, en vivo — igual que
+/* Cablea cada waypoint (mover arrastrando, en vivo — igual que
    el círculo; borrar con clic derecho) y cuelga el nodo del árbol.   */
 function finalizeRouteMeasurement(m, kind = "route") {
   for (const h of m.handles) wireRouteHandle(m, h);
@@ -15797,22 +15817,304 @@ map.on("mousemove", e => {
   });
 });
 
-/* PageUp/PageDown zoom the map while it has focus. Listening directly on
-   the map container (like the polygon-drawing click/dblclick above)
-   means this only fires with focus inside #map. preventDefault stops
-   the browser's native whole-page scroll; Leaflet's own keyboard
-   handler doesn't act on these two keys, so today they do nothing.
-   Anchored on coordsPending (the last known cursor position) so the zoom
-   behaves like the mouse wheel's, which zooms toward the cursor instead
-   of the view center; without a prior mousemove (focus reached via Tab)
-   there's no known position and it falls back to zooming on the center. */
-map.getContainer().addEventListener("keydown", e => {
-  if (e.key !== "PageUp" && e.key !== "PageDown") return;
-  e.preventDefault();
-  const target = map.getZoom() + (e.key === "PageUp" ? 1 : -1);
-  if (coordsPending) map.setZoomAround(coordsPending, target);
-  else map.setZoom(target);
-});
+/* ---------- Teclado del visor: desplazar (flechas) y zoom (Re/Av Pág) ----------
+   Lo que cuenta es el tiempo que la tecla está PULSADA (keydown→keyup),
+   no los keydown de autorrepetición del sistema: con ellos el mapa daba
+   un paso, se quedaba quieto el retardo de repetición (~250–600 ms) y
+   luego avanzaba a saltos — molesto sobre todo dibujando una ruta. Un
+   toque hace lo de siempre (80 px; ±1 nivel); al mantener, el
+   movimiento arranca ya en el keydown y es continuo hasta soltar.
+   Solo con el foco en el visor: los listeners van en su contenedor, así
+   que una flecha en el buscador o en el árbol no toca el mapa. Las
+   flechas se cogen en CAPTURA y no se propagan: el `Keyboard` de
+   Leaflet escucha en `document` y, si las viera, desplazaría dos veces
+   (sus `+`/`-`/Escape siguen siendo suyos).                           */
+const KEY_PAN_STEP = 80;           /* px de un toque: el keyboardPanDelta de Leaflet */
+const KEY_PAN_SPEED = 400;         /* px/s al empezar a mantener */
+const KEY_PAN_MAX_SPEED = 1600;    /* px/s, tras la rampa */
+const KEY_PAN_ACCEL_MS = 500;      /* mantenida más que esto, acelera… */
+const KEY_PAN_RAMP_MS = 1000;      /* …hasta el tope en este tiempo */
+const KEY_PAN_SHIFT = 3;           /* Mayús: más rápido, como en Leaflet */
+const KEY_ZOOM_RATE = 3;           /* niveles/s mientras se mantiene */
+const KEY_PAN_DIRS = { ArrowLeft: [-1, 0], ArrowRight: [1, 0], ArrowUp: [0, -1], ArrowDown: [0, 1] };
+
+/* Velocidad (px/s) de una flecha mantenida `heldMs` */
+function keyPanSpeed(heldMs) {
+  if (heldMs <= KEY_PAN_ACCEL_MS) return KEY_PAN_SPEED;
+  const k = Math.min(1, (heldMs - KEY_PAN_ACCEL_MS) / KEY_PAN_RAMP_MS);
+  return KEY_PAN_SPEED + (KEY_PAN_MAX_SPEED - KEY_PAN_SPEED) * k;
+}
+/* Velocidad combinada en pantalla de las flechas vivas, `keys` =
+   [[tecla, px/s], …]: dos a la vez dan diagonal, opuestas se anulan. */
+function keyPanVector(keys, shift) {
+  const f = shift ? KEY_PAN_SHIFT : 1;
+  let x = 0, y = 0;
+  for (const [key, v] of keys) {
+    const d = KEY_PAN_DIRS[key];
+    if (d) { x += d[0] * v * f; y += d[1] * v * f; }
+  }
+  return { x, y };
+}
+/* Nivel ENTERO en que termina un zoom continuo que empezó en z0 y va
+   por z: el siguiente en la dirección del zoom y al menos uno más que
+   el de partida (un toque es ±1, como antes), dentro de [min, max].  */
+function keyZoomTarget(z0, z, dir, min, max) {
+  const eps = 1e-6;
+  const t = dir > 0 ? Math.max(Math.ceil(z - eps), Math.floor(z0 + eps) + 1)
+                    : Math.min(Math.floor(z + eps), Math.ceil(z0 - eps) - 1);
+  return Math.min(max, Math.max(min, t));
+}
+
+/* ---------- Rueda del ratón: el mismo zoom continuo ----------
+   Leaflet daba un salto animado de nivel en nivel, con una espera de
+   40 ms para juntar eventos. Aquí cada evento mueve un OBJETIVO
+   fraccionario y la vista lo alcanza con frenada (WHEEL_EASE_MS) por el
+   mismo camino del pellizco que Re/Av Pág; parada la rueda, se asienta
+   en el nivel entero siguiente en la dirección del último giro.     */
+const WHEEL_PX_PER_LEVEL = 100;    /* px de rueda por nivel: una muesca (100–120 px) da uno */
+const WHEEL_EASE_MS = 200;         /* tiempo para alcanzar el objetivo de cada evento */
+const WHEEL_SETTLE_MS = 150;       /* del objetivo fraccionario al nivel entero */
+const WHEEL_IDLE_MS = 150;         /* sin rueda este rato, el gesto ha terminado */
+
+/* Niveles que pide un evento `wheel` (hacia arriba acerca). Una muesca
+   llega en un evento de 100–120 px (Chrome) o en varios pequeños
+   (Firefox, panel táctil): como mucho un nivel por evento, para que
+   una rueda de líneas o páginas no salte varios de golpe.          */
+function wheelLevels(deltaY, deltaMode) {
+  const px = deltaMode === 1 ? deltaY * 40 : deltaMode === 2 ? deltaY * 800 : deltaY;
+  return Math.max(-1, Math.min(1, -px / WHEEL_PX_PER_LEVEL));
+}
+/* Nivel ENTERO en que se asienta un zoom de rueda que va por z: el
+   siguiente en la dirección `dir` (z ya entero se queda), en [min, max] */
+function wheelZoomTarget(z, dir, min, max) {
+  const eps = 1e-6;
+  const t = dir > 0 ? Math.ceil(z - eps) : Math.floor(z + eps);
+  return Math.min(max, Math.max(min, t));
+}
+const easeOutCubic = k => 1 - Math.pow(1 - k, 3);
+
+{
+  const el = map.getContainer();
+  /* Última posición del puntero sobre el visor (contenedor), para el
+     mousemove sintético: al mover el mapa sin mover el ratón, las
+     coordenadas, la vista previa del arco o un vértice arrastrado
+     seguían en el punto geográfico viejo. Se olvida al salir.         */
+  let pointer = null;
+  map.on("mousemove", e => { if (!e.synthetic) pointer = e.containerPoint; });
+  map.on("mouseout", () => { pointer = null; });
+  const syncPointer = () => {
+    if (!pointer) return;
+    map.fire("mousemove", { synthetic: true, containerPoint: pointer,
+      layerPoint: map.containerPointToLayerPoint(pointer),
+      latlng: map.containerPointToLatLng(pointer), originalEvent: null });
+  };
+
+  let shift = false, frame = null, last = 0;
+  const pan = new Map();   /* tecla → { t0, down, traveled } */
+  let panAcc = { x: 0, y: 0 }, panning = false;
+  let zoom = null;         /* sesión de zoom, ver startZoom */
+
+  const tick = now => {
+    frame = null;
+    /* La marca de un fotograma es la de su INICIO: el primero tras el
+       keydown puede llevar una anterior a él (dt negativo, medido: un
+       paso de -5 px hacia atrás). Tope de 0,1 s tras una pausa.      */
+    const dt = Math.max(0, Math.min(0.1, (now - last) / 1000));
+    last = now;
+    if (zoom) stepZoom(now); else if (pan.size) stepPan(now, dt);
+    syncPointer();
+    if (zoom || pan.size) frame = requestAnimationFrame(tick);
+  };
+  const run = () => {
+    if (frame) return;
+    last = performance.now();
+    frame = requestAnimationFrame(tick);
+  };
+
+  function stepPan(now, dt) {
+    const keys = [];
+    for (const [key, k] of pan) {
+      /* Soltada: si no llegó al paso de un toque, lo completa sin
+         pasarse; si ya lo pasó, se para en seco.                     */
+      const v = k.down ? keyPanSpeed(now - k.t0)
+        : Math.max(0, Math.min(KEY_PAN_SPEED, (KEY_PAN_STEP - k.traveled) / dt));
+      k.traveled += v * dt;
+      keys.push([key, v]);
+      if (!k.down && k.traveled >= KEY_PAN_STEP - 0.01) pan.delete(key);
+    }
+    const v = keyPanVector(keys, shift);
+    panAcc.x += v.x * dt; panAcc.y += v.y * dt;
+    const want = L.point(Math.round(panAcc.x), Math.round(panAcc.y));
+    if (!want.x && !want.y) { if (!pan.size) endPan(); return; }
+    const off = limitScreenPan(want);
+    panAcc.x = off.x === want.x ? panAcc.x - want.x : 0;
+    panAcc.y = off.y === want.y ? panAcc.y - want.y : 0;
+    if (off.x || off.y) {
+      if (!panning) { panning = true; map._stop(); map.fire("movestart"); }
+      map._rawPanBy(off);
+      map.fire("move");
+    }
+    if (!pan.size) endPan();
+  }
+  /* Contra el borde del mundo, en cada fotograma (al final rebotaría).
+     El desplazamiento es en PANTALLA (con el mapa girado, ↑ sigue
+     siendo hacia arriba) y se pasa a píxeles del mapa sin girar con el
+     giro inverso. Se calcula ahí y no ida y vuelta por
+     containerPointToLatLng/latLngToContainerPoint: con leaflet-rotate
+     esa ida y vuelta se desvía ~1 px, y medido daba pasos de 8 px en
+     vez de 7 (un toque recorría 98 px, no 80). _limitCenter devuelve el
+     MISMO objeto si no hay que limitar (ya sabe del giro,
+     08-leaflet-rotate-fixes.js): entonces vale el desplazamiento pedido
+     tal cual.                                                        */
+  function limitScreenPan(want) {
+    const z = map.getZoom(), b = map.getBearing() * Math.PI / 180;
+    const cos = Math.cos(b), sin = Math.sin(b);
+    const m = L.point(want.x * cos + want.y * sin, -want.x * sin + want.y * cos);
+    const c = map.project(map.getCenter(), z);
+    const to = map.unproject(c.add(m), z);
+    const lim = map._limitCenter(to, z, map.options.maxBounds);
+    if (lim === to) return want;
+    const d = map.project(lim, z).subtract(c);
+    return L.point(d.x * cos - d.y * sin, d.x * sin + d.y * cos).round();
+  }
+  function endPan() {
+    pan.clear();
+    panAcc = { x: 0, y: 0 };
+    if (panning) { panning = false; map.fire("moveend"); }
+  }
+
+  /* Zoom continuo por el camino del PELLIZCO táctil de Leaflet
+     (`_moveStart` + `_move(…, {pinch})`): solo transforma por CSS
+     teselas y lienzo de vectores, sin redibujar en cada fotograma; el
+     redibujo llega con el zoom final. Niveles fraccionarios mientras
+     dura, pero `zoomSnap` sigue en 1: al soltar se anima hasta el nivel
+     entero siguiente (teselas nítidas en reposo; rueda, doble clic y
+     encuadres como siempre). El centro sale del ANCLA, no del fotograma
+     anterior (no acumula error): guarda su desfase respecto al centro
+     en píxeles del mapa sin girar, `d`, que con el giro no cambia.
+     Teclas (`kind` "key"): z crece con el tiempo pulsada, ancla fija.
+     Rueda ("wheel"): z persigue un objetivo `goal` con frenada, y cada
+     evento vuelve a anclar en el cursor (puede moverse entre muescas). */
+  const clampZoom = z => Math.min(map.getMaxZoom(), Math.max(map.getMinZoom(), z));
+  function startZoom(kind, dir, anchor) {
+    endPan();
+    /* Una muesca o un toque durante la animación final del anterior: se
+       da por terminada (ya está casi en su nivel) y se sigue desde ahí;
+       si no, su final llegaría después y pisaría este zoom.          */
+    if (map._animatingZoom) map._onZoomTransitionEnd();
+    const z0 = map.getZoom(), center = map.getCenter(), now = performance.now();
+    map._stop();
+    map._moveStart(true, false);
+    zoom = { kind, dir, t0: now, z0, z: z0, center, anchor, d: null,
+             goal: z0, from: z0, dur: 0, last: now };
+    anchorZoom(zoom, anchor);
+    run();
+  }
+  function anchorZoom(zm, anchor) {
+    zm.anchor = anchor;
+    zm.d = map.project(anchor, zm.z).subtract(map.project(zm.center, zm.z));
+  }
+  const zoomCenter = (zm, z) => map._limitCenter(
+    map.unproject(map.project(zm.anchor, z).subtract(zm.d), z), z, map.options.maxBounds);
+  function easeZoom(zm, goal, now, dur) {
+    zm.from = zm.z; zm.goal = goal; zm.t0 = now; zm.dur = dur;
+  }
+  function stepZoom(now) {
+    const zm = zoom;
+    const k = zm.dur ? Math.min(1, Math.max(0, now - zm.t0) / zm.dur) : 1;
+    const z = zm.kind === "key"
+      ? clampZoom(zm.z0 + zm.dir * KEY_ZOOM_RATE * Math.max(0, now - zm.t0) / 1000)
+      : k === 1 ? zm.goal : zm.from + (zm.goal - zm.from) * easeOutCubic(k);
+    if (z !== zm.z) {
+      zm.z = z;
+      zm.center = zoomCenter(zm, z);
+      map._move(zm.center, z, { pinch: true, round: false });
+    }
+    /* Rueda: alcanzado el objetivo y parada la rueda, al nivel entero;
+       ya en él, el final.                                            */
+    if (zm.kind === "wheel" && k === 1 && now - zm.last >= WHEEL_IDLE_MS) {
+      const t = wheelZoomTarget(zm.goal, zm.dir, map.getMinZoom(), map.getMaxZoom());
+      if (t === zm.z) endZoom();
+      else easeZoom(zm, t, now, WHEEL_SETTLE_MS);
+    }
+  }
+  /* Final como el del pellizco (TouchZoom._onTouchEnd), no con
+     setZoomAround: ese abriría otro zoomstart sobre el que ya está en
+     curso. */
+  function endZoom() {
+    const zm = zoom;
+    zoom = null;
+    const min = map.getMinZoom(), max = map.getMaxZoom();
+    const target = zm.kind === "key" ? keyZoomTarget(zm.z0, zm.z, zm.dir, min, max)
+                                     : wheelZoomTarget(zm.goal, zm.dir, min, max);
+    const c = zoomCenter(zm, target);
+    if (map.options.zoomAnimation && map._zoomAnimated) map._animateZoom(c, target, true, map.options.zoomSnap);
+    else map._resetView(c, target);
+  }
+
+  const stopAll = () => {
+    endPan();
+    if (zoom) endZoom();
+  };
+  el.addEventListener("keydown", e => {
+    shift = e.shiftKey;
+    if (e.ctrlKey || e.altKey || e.metaKey) return;
+    const isPan = e.key in KEY_PAN_DIRS, isZoom = e.key === "PageUp" || e.key === "PageDown";
+    if (!isPan && !isZoom) return;
+    e.preventDefault();
+    e.stopPropagation();
+    if (e.repeat) return;
+    if (isZoom) {
+      if (zoom) return;
+      startZoom("key", e.key === "PageUp" ? 1 : -1, coordsPending || map.getCenter());
+    } else if (!zoom) {
+      pan.set(e.key, { t0: performance.now(), down: true, traveled: 0 });
+      run();
+    }
+  }, true);
+  document.addEventListener("keyup", e => {
+    shift = e.shiftKey;
+    const k = pan.get(e.key);
+    if (k) k.down = false;
+    if (zoom && zoom.kind === "key" && (e.key === "PageUp" || e.key === "PageDown")) endZoom();
+  });
+  /* En el contenedor y en burbuja: los controles (panel de mapas base,
+     coordenadas…) cortan la propagación de la rueda con
+     disableScrollPropagation, así que sobre ellos no hay zoom. */
+  el.addEventListener("wheel", e => {
+    /* Siempre: sin él la página se desplazaría, y con Ctrl (pellizco
+       del panel táctil) el navegador ampliaría la página entera.    */
+    e.preventDefault();
+    if ((zoom && zoom.kind === "key") || map.dragging.moving()) return;
+    const lv = wheelLevels(e.deltaY, e.deltaMode);
+    if (!lv) return;
+    const now = performance.now(), dir = Math.sign(lv);
+    pointer = map.mouseEventToContainerPoint(e);
+    const anchor = map.containerPointToLatLng(pointer);
+    if (!zoom) startZoom("wheel", dir, anchor);
+    else anchorZoom(zoom, anchor);
+    zoom.dir = dir;
+    zoom.last = now;
+    easeZoom(zoom, clampZoom(zoom.goal + lv), now, WHEEL_EASE_MS);
+  }, { passive: false });
+  /* El foco se queda en el VISOR al pulsar una capa, o estas teclas
+     (y R, y +/- de Leaflet) dejan de llegar. Un marcador (icono con
+     tabindex: `keyboard` de Leaflet) se quedaba el foco al clicarlo, y
+     el siguiente guardado del árbol se lo quitaba: reorderPaintOrder
+     reengancha los iconos (L.DomUtil.toFront es un appendChild) y un
+     elemento enfocado que se mueve en el DOM suelta el foco al <body>,
+     donde Re/Av Pág y las flechas son del ÁRBOL (su listener está en
+     `document`). Se anula la acción por defecto del mousedown, que es
+     lo que enfoca; con Tab un marcador sigue siendo alcanzable.      */
+  el.addEventListener("mousedown", e => {
+    if (!e.target.closest(".leaflet-marker-icon")) return;
+    e.preventDefault();
+    el.focus({ preventScroll: true });
+  }, true);
+  /* Sin keyup no hay final: perder el foco o la pestaña lo para todo */
+  el.addEventListener("blur", stopAll);
+  document.addEventListener("visibilitychange", () => { if (document.hidden) stopAll(); });
+}
 
 /* ---------- Menú contextual del visor (botón derecho) ---------- */
 /* Extensible a propósito: cada entrada es {label, action(latlng)} y

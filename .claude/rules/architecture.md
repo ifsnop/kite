@@ -33,9 +33,9 @@ paths:
 8. **Geodesia**: `bearingDeg`, `destPoint`, `fmtDist` — esfera
    (R = 6371 km, igual que Leaflet).
 9. **Mediciones**: rutas y círculos, con el diálogo de propiedades
-   abierto. Waypoint de ruta se arrastra sin más; centro/borde de
-   círculo exige Ctrl+arrastre (mecanismo distinto, sin concepto de
-   "vértice"). Botón de crear pin en la misma barra.
+   abierto. Waypoint de ruta y centro/borde de círculo se arrastran sin
+   más con su diálogo abierto (el círculo por un mecanismo distinto, sin
+   concepto de "vértice"). Botón de crear pin en la misma barra.
 10. **Iluminación día/noche**: `subsolarPoint`/`sublunarPoint`/
     `solarElevationDeg` (única parte pura y testeada), un overlay WebGL
     sobre un `<canvas>` superpuesto al mapa que sombrea la parte visible

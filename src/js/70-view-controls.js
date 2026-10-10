@@ -460,22 +460,304 @@ map.on("mousemove", e => {
   });
 });
 
-/* PageUp/PageDown zoom the map while it has focus. Listening directly on
-   the map container (like the polygon-drawing click/dblclick above)
-   means this only fires with focus inside #map. preventDefault stops
-   the browser's native whole-page scroll; Leaflet's own keyboard
-   handler doesn't act on these two keys, so today they do nothing.
-   Anchored on coordsPending (the last known cursor position) so the zoom
-   behaves like the mouse wheel's, which zooms toward the cursor instead
-   of the view center; without a prior mousemove (focus reached via Tab)
-   there's no known position and it falls back to zooming on the center. */
-map.getContainer().addEventListener("keydown", e => {
-  if (e.key !== "PageUp" && e.key !== "PageDown") return;
-  e.preventDefault();
-  const target = map.getZoom() + (e.key === "PageUp" ? 1 : -1);
-  if (coordsPending) map.setZoomAround(coordsPending, target);
-  else map.setZoom(target);
-});
+/* ---------- Teclado del visor: desplazar (flechas) y zoom (Re/Av Pág) ----------
+   Lo que cuenta es el tiempo que la tecla está PULSADA (keydown→keyup),
+   no los keydown de autorrepetición del sistema: con ellos el mapa daba
+   un paso, se quedaba quieto el retardo de repetición (~250–600 ms) y
+   luego avanzaba a saltos — molesto sobre todo dibujando una ruta. Un
+   toque hace lo de siempre (80 px; ±1 nivel); al mantener, el
+   movimiento arranca ya en el keydown y es continuo hasta soltar.
+   Solo con el foco en el visor: los listeners van en su contenedor, así
+   que una flecha en el buscador o en el árbol no toca el mapa. Las
+   flechas se cogen en CAPTURA y no se propagan: el `Keyboard` de
+   Leaflet escucha en `document` y, si las viera, desplazaría dos veces
+   (sus `+`/`-`/Escape siguen siendo suyos).                           */
+const KEY_PAN_STEP = 80;           /* px de un toque: el keyboardPanDelta de Leaflet */
+const KEY_PAN_SPEED = 400;         /* px/s al empezar a mantener */
+const KEY_PAN_MAX_SPEED = 1600;    /* px/s, tras la rampa */
+const KEY_PAN_ACCEL_MS = 500;      /* mantenida más que esto, acelera… */
+const KEY_PAN_RAMP_MS = 1000;      /* …hasta el tope en este tiempo */
+const KEY_PAN_SHIFT = 3;           /* Mayús: más rápido, como en Leaflet */
+const KEY_ZOOM_RATE = 3;           /* niveles/s mientras se mantiene */
+const KEY_PAN_DIRS = { ArrowLeft: [-1, 0], ArrowRight: [1, 0], ArrowUp: [0, -1], ArrowDown: [0, 1] };
+
+/* Velocidad (px/s) de una flecha mantenida `heldMs` */
+function keyPanSpeed(heldMs) {
+  if (heldMs <= KEY_PAN_ACCEL_MS) return KEY_PAN_SPEED;
+  const k = Math.min(1, (heldMs - KEY_PAN_ACCEL_MS) / KEY_PAN_RAMP_MS);
+  return KEY_PAN_SPEED + (KEY_PAN_MAX_SPEED - KEY_PAN_SPEED) * k;
+}
+/* Velocidad combinada en pantalla de las flechas vivas, `keys` =
+   [[tecla, px/s], …]: dos a la vez dan diagonal, opuestas se anulan. */
+function keyPanVector(keys, shift) {
+  const f = shift ? KEY_PAN_SHIFT : 1;
+  let x = 0, y = 0;
+  for (const [key, v] of keys) {
+    const d = KEY_PAN_DIRS[key];
+    if (d) { x += d[0] * v * f; y += d[1] * v * f; }
+  }
+  return { x, y };
+}
+/* Nivel ENTERO en que termina un zoom continuo que empezó en z0 y va
+   por z: el siguiente en la dirección del zoom y al menos uno más que
+   el de partida (un toque es ±1, como antes), dentro de [min, max].  */
+function keyZoomTarget(z0, z, dir, min, max) {
+  const eps = 1e-6;
+  const t = dir > 0 ? Math.max(Math.ceil(z - eps), Math.floor(z0 + eps) + 1)
+                    : Math.min(Math.floor(z + eps), Math.ceil(z0 - eps) - 1);
+  return Math.min(max, Math.max(min, t));
+}
+
+/* ---------- Rueda del ratón: el mismo zoom continuo ----------
+   Leaflet daba un salto animado de nivel en nivel, con una espera de
+   40 ms para juntar eventos. Aquí cada evento mueve un OBJETIVO
+   fraccionario y la vista lo alcanza con frenada (WHEEL_EASE_MS) por el
+   mismo camino del pellizco que Re/Av Pág; parada la rueda, se asienta
+   en el nivel entero siguiente en la dirección del último giro.     */
+const WHEEL_PX_PER_LEVEL = 100;    /* px de rueda por nivel: una muesca (100–120 px) da uno */
+const WHEEL_EASE_MS = 200;         /* tiempo para alcanzar el objetivo de cada evento */
+const WHEEL_SETTLE_MS = 150;       /* del objetivo fraccionario al nivel entero */
+const WHEEL_IDLE_MS = 150;         /* sin rueda este rato, el gesto ha terminado */
+
+/* Niveles que pide un evento `wheel` (hacia arriba acerca). Una muesca
+   llega en un evento de 100–120 px (Chrome) o en varios pequeños
+   (Firefox, panel táctil): como mucho un nivel por evento, para que
+   una rueda de líneas o páginas no salte varios de golpe.          */
+function wheelLevels(deltaY, deltaMode) {
+  const px = deltaMode === 1 ? deltaY * 40 : deltaMode === 2 ? deltaY * 800 : deltaY;
+  return Math.max(-1, Math.min(1, -px / WHEEL_PX_PER_LEVEL));
+}
+/* Nivel ENTERO en que se asienta un zoom de rueda que va por z: el
+   siguiente en la dirección `dir` (z ya entero se queda), en [min, max] */
+function wheelZoomTarget(z, dir, min, max) {
+  const eps = 1e-6;
+  const t = dir > 0 ? Math.ceil(z - eps) : Math.floor(z + eps);
+  return Math.min(max, Math.max(min, t));
+}
+const easeOutCubic = k => 1 - Math.pow(1 - k, 3);
+
+{
+  const el = map.getContainer();
+  /* Última posición del puntero sobre el visor (contenedor), para el
+     mousemove sintético: al mover el mapa sin mover el ratón, las
+     coordenadas, la vista previa del arco o un vértice arrastrado
+     seguían en el punto geográfico viejo. Se olvida al salir.         */
+  let pointer = null;
+  map.on("mousemove", e => { if (!e.synthetic) pointer = e.containerPoint; });
+  map.on("mouseout", () => { pointer = null; });
+  const syncPointer = () => {
+    if (!pointer) return;
+    map.fire("mousemove", { synthetic: true, containerPoint: pointer,
+      layerPoint: map.containerPointToLayerPoint(pointer),
+      latlng: map.containerPointToLatLng(pointer), originalEvent: null });
+  };
+
+  let shift = false, frame = null, last = 0;
+  const pan = new Map();   /* tecla → { t0, down, traveled } */
+  let panAcc = { x: 0, y: 0 }, panning = false;
+  let zoom = null;         /* sesión de zoom, ver startZoom */
+
+  const tick = now => {
+    frame = null;
+    /* La marca de un fotograma es la de su INICIO: el primero tras el
+       keydown puede llevar una anterior a él (dt negativo, medido: un
+       paso de -5 px hacia atrás). Tope de 0,1 s tras una pausa.      */
+    const dt = Math.max(0, Math.min(0.1, (now - last) / 1000));
+    last = now;
+    if (zoom) stepZoom(now); else if (pan.size) stepPan(now, dt);
+    syncPointer();
+    if (zoom || pan.size) frame = requestAnimationFrame(tick);
+  };
+  const run = () => {
+    if (frame) return;
+    last = performance.now();
+    frame = requestAnimationFrame(tick);
+  };
+
+  function stepPan(now, dt) {
+    const keys = [];
+    for (const [key, k] of pan) {
+      /* Soltada: si no llegó al paso de un toque, lo completa sin
+         pasarse; si ya lo pasó, se para en seco.                     */
+      const v = k.down ? keyPanSpeed(now - k.t0)
+        : Math.max(0, Math.min(KEY_PAN_SPEED, (KEY_PAN_STEP - k.traveled) / dt));
+      k.traveled += v * dt;
+      keys.push([key, v]);
+      if (!k.down && k.traveled >= KEY_PAN_STEP - 0.01) pan.delete(key);
+    }
+    const v = keyPanVector(keys, shift);
+    panAcc.x += v.x * dt; panAcc.y += v.y * dt;
+    const want = L.point(Math.round(panAcc.x), Math.round(panAcc.y));
+    if (!want.x && !want.y) { if (!pan.size) endPan(); return; }
+    const off = limitScreenPan(want);
+    panAcc.x = off.x === want.x ? panAcc.x - want.x : 0;
+    panAcc.y = off.y === want.y ? panAcc.y - want.y : 0;
+    if (off.x || off.y) {
+      if (!panning) { panning = true; map._stop(); map.fire("movestart"); }
+      map._rawPanBy(off);
+      map.fire("move");
+    }
+    if (!pan.size) endPan();
+  }
+  /* Contra el borde del mundo, en cada fotograma (al final rebotaría).
+     El desplazamiento es en PANTALLA (con el mapa girado, ↑ sigue
+     siendo hacia arriba) y se pasa a píxeles del mapa sin girar con el
+     giro inverso. Se calcula ahí y no ida y vuelta por
+     containerPointToLatLng/latLngToContainerPoint: con leaflet-rotate
+     esa ida y vuelta se desvía ~1 px, y medido daba pasos de 8 px en
+     vez de 7 (un toque recorría 98 px, no 80). _limitCenter devuelve el
+     MISMO objeto si no hay que limitar (ya sabe del giro,
+     08-leaflet-rotate-fixes.js): entonces vale el desplazamiento pedido
+     tal cual.                                                        */
+  function limitScreenPan(want) {
+    const z = map.getZoom(), b = map.getBearing() * Math.PI / 180;
+    const cos = Math.cos(b), sin = Math.sin(b);
+    const m = L.point(want.x * cos + want.y * sin, -want.x * sin + want.y * cos);
+    const c = map.project(map.getCenter(), z);
+    const to = map.unproject(c.add(m), z);
+    const lim = map._limitCenter(to, z, map.options.maxBounds);
+    if (lim === to) return want;
+    const d = map.project(lim, z).subtract(c);
+    return L.point(d.x * cos - d.y * sin, d.x * sin + d.y * cos).round();
+  }
+  function endPan() {
+    pan.clear();
+    panAcc = { x: 0, y: 0 };
+    if (panning) { panning = false; map.fire("moveend"); }
+  }
+
+  /* Zoom continuo por el camino del PELLIZCO táctil de Leaflet
+     (`_moveStart` + `_move(…, {pinch})`): solo transforma por CSS
+     teselas y lienzo de vectores, sin redibujar en cada fotograma; el
+     redibujo llega con el zoom final. Niveles fraccionarios mientras
+     dura, pero `zoomSnap` sigue en 1: al soltar se anima hasta el nivel
+     entero siguiente (teselas nítidas en reposo; rueda, doble clic y
+     encuadres como siempre). El centro sale del ANCLA, no del fotograma
+     anterior (no acumula error): guarda su desfase respecto al centro
+     en píxeles del mapa sin girar, `d`, que con el giro no cambia.
+     Teclas (`kind` "key"): z crece con el tiempo pulsada, ancla fija.
+     Rueda ("wheel"): z persigue un objetivo `goal` con frenada, y cada
+     evento vuelve a anclar en el cursor (puede moverse entre muescas). */
+  const clampZoom = z => Math.min(map.getMaxZoom(), Math.max(map.getMinZoom(), z));
+  function startZoom(kind, dir, anchor) {
+    endPan();
+    /* Una muesca o un toque durante la animación final del anterior: se
+       da por terminada (ya está casi en su nivel) y se sigue desde ahí;
+       si no, su final llegaría después y pisaría este zoom.          */
+    if (map._animatingZoom) map._onZoomTransitionEnd();
+    const z0 = map.getZoom(), center = map.getCenter(), now = performance.now();
+    map._stop();
+    map._moveStart(true, false);
+    zoom = { kind, dir, t0: now, z0, z: z0, center, anchor, d: null,
+             goal: z0, from: z0, dur: 0, last: now };
+    anchorZoom(zoom, anchor);
+    run();
+  }
+  function anchorZoom(zm, anchor) {
+    zm.anchor = anchor;
+    zm.d = map.project(anchor, zm.z).subtract(map.project(zm.center, zm.z));
+  }
+  const zoomCenter = (zm, z) => map._limitCenter(
+    map.unproject(map.project(zm.anchor, z).subtract(zm.d), z), z, map.options.maxBounds);
+  function easeZoom(zm, goal, now, dur) {
+    zm.from = zm.z; zm.goal = goal; zm.t0 = now; zm.dur = dur;
+  }
+  function stepZoom(now) {
+    const zm = zoom;
+    const k = zm.dur ? Math.min(1, Math.max(0, now - zm.t0) / zm.dur) : 1;
+    const z = zm.kind === "key"
+      ? clampZoom(zm.z0 + zm.dir * KEY_ZOOM_RATE * Math.max(0, now - zm.t0) / 1000)
+      : k === 1 ? zm.goal : zm.from + (zm.goal - zm.from) * easeOutCubic(k);
+    if (z !== zm.z) {
+      zm.z = z;
+      zm.center = zoomCenter(zm, z);
+      map._move(zm.center, z, { pinch: true, round: false });
+    }
+    /* Rueda: alcanzado el objetivo y parada la rueda, al nivel entero;
+       ya en él, el final.                                            */
+    if (zm.kind === "wheel" && k === 1 && now - zm.last >= WHEEL_IDLE_MS) {
+      const t = wheelZoomTarget(zm.goal, zm.dir, map.getMinZoom(), map.getMaxZoom());
+      if (t === zm.z) endZoom();
+      else easeZoom(zm, t, now, WHEEL_SETTLE_MS);
+    }
+  }
+  /* Final como el del pellizco (TouchZoom._onTouchEnd), no con
+     setZoomAround: ese abriría otro zoomstart sobre el que ya está en
+     curso. */
+  function endZoom() {
+    const zm = zoom;
+    zoom = null;
+    const min = map.getMinZoom(), max = map.getMaxZoom();
+    const target = zm.kind === "key" ? keyZoomTarget(zm.z0, zm.z, zm.dir, min, max)
+                                     : wheelZoomTarget(zm.goal, zm.dir, min, max);
+    const c = zoomCenter(zm, target);
+    if (map.options.zoomAnimation && map._zoomAnimated) map._animateZoom(c, target, true, map.options.zoomSnap);
+    else map._resetView(c, target);
+  }
+
+  const stopAll = () => {
+    endPan();
+    if (zoom) endZoom();
+  };
+  el.addEventListener("keydown", e => {
+    shift = e.shiftKey;
+    if (e.ctrlKey || e.altKey || e.metaKey) return;
+    const isPan = e.key in KEY_PAN_DIRS, isZoom = e.key === "PageUp" || e.key === "PageDown";
+    if (!isPan && !isZoom) return;
+    e.preventDefault();
+    e.stopPropagation();
+    if (e.repeat) return;
+    if (isZoom) {
+      if (zoom) return;
+      startZoom("key", e.key === "PageUp" ? 1 : -1, coordsPending || map.getCenter());
+    } else if (!zoom) {
+      pan.set(e.key, { t0: performance.now(), down: true, traveled: 0 });
+      run();
+    }
+  }, true);
+  document.addEventListener("keyup", e => {
+    shift = e.shiftKey;
+    const k = pan.get(e.key);
+    if (k) k.down = false;
+    if (zoom && zoom.kind === "key" && (e.key === "PageUp" || e.key === "PageDown")) endZoom();
+  });
+  /* En el contenedor y en burbuja: los controles (panel de mapas base,
+     coordenadas…) cortan la propagación de la rueda con
+     disableScrollPropagation, así que sobre ellos no hay zoom. */
+  el.addEventListener("wheel", e => {
+    /* Siempre: sin él la página se desplazaría, y con Ctrl (pellizco
+       del panel táctil) el navegador ampliaría la página entera.    */
+    e.preventDefault();
+    if ((zoom && zoom.kind === "key") || map.dragging.moving()) return;
+    const lv = wheelLevels(e.deltaY, e.deltaMode);
+    if (!lv) return;
+    const now = performance.now(), dir = Math.sign(lv);
+    pointer = map.mouseEventToContainerPoint(e);
+    const anchor = map.containerPointToLatLng(pointer);
+    if (!zoom) startZoom("wheel", dir, anchor);
+    else anchorZoom(zoom, anchor);
+    zoom.dir = dir;
+    zoom.last = now;
+    easeZoom(zoom, clampZoom(zoom.goal + lv), now, WHEEL_EASE_MS);
+  }, { passive: false });
+  /* El foco se queda en el VISOR al pulsar una capa, o estas teclas
+     (y R, y +/- de Leaflet) dejan de llegar. Un marcador (icono con
+     tabindex: `keyboard` de Leaflet) se quedaba el foco al clicarlo, y
+     el siguiente guardado del árbol se lo quitaba: reorderPaintOrder
+     reengancha los iconos (L.DomUtil.toFront es un appendChild) y un
+     elemento enfocado que se mueve en el DOM suelta el foco al <body>,
+     donde Re/Av Pág y las flechas son del ÁRBOL (su listener está en
+     `document`). Se anula la acción por defecto del mousedown, que es
+     lo que enfoca; con Tab un marcador sigue siendo alcanzable.      */
+  el.addEventListener("mousedown", e => {
+    if (!e.target.closest(".leaflet-marker-icon")) return;
+    e.preventDefault();
+    el.focus({ preventScroll: true });
+  }, true);
+  /* Sin keyup no hay final: perder el foco o la pestaña lo para todo */
+  el.addEventListener("blur", stopAll);
+  document.addEventListener("visibilitychange", () => { if (document.hidden) stopAll(); });
+}
 
 /* ---------- Menú contextual del visor (botón derecho) ---------- */
 /* Extensible a propósito: cada entrada es {label, action(latlng)} y
