@@ -16,13 +16,18 @@ description: Principios no negociables, vocabulario y checklist de KITE Local. S
    siguiente build. `node tests/run-all.js` comprueba esto primero y
    falla si alguno de los dos no corresponde a `src/`.
 2. **Reusar librerías conocidas y estables; no reinventar.** CDN con
-   versión fijada: Leaflet 1.9.4, leaflet-rotate 0.2.8 (rotación, experimento — `map-rotation.md`), JSZip 3.10.1 (KMZ), Material Design
+   versión fijada: Leaflet 1.9.4, JSZip 3.10.1 (KMZ), Material Design
    Icons EMPOTRADOS sin red en ejecución (`src/js/05-mdi-icons.js`,
    generado por `fetch-icons.js`/`npm run icons` — ver
    `marker-icons.md`), Nominatim (geocodificación; ~1 req/s, solo al
    pulsar Enter/botón, nunca por tecla, `limit=5`). Antes de escribir
    código propio, comprobar si Leaflet ya lo resuelve. Excepción:
    `leaflet-pin` es el PNG de Leaflet, no un SVG de MDI, no coloreable.
+   **La rotación del mapa es código INCORPORADO**, no CDN
+   (`08-map-rotation.js`, derivado de leaflet-rotate 0.2.8): el plugin
+   no se mantenía y ya había que corregirlo; recortado a lo que se usa
+   y atado a Leaflet 1.9.4 (ver `map-rotation.md`). Incorporar otra
+   librería así exige la misma justificación.
 3. **Código limpio, comentado en inglés.** Comentarios en inglés,
    explican el *porqué* no el *qué*; textos de interfaz y mensajes al
    usuario en español. Funciones pequeñas, una responsabilidad. Al
