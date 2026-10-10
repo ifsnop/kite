@@ -33,7 +33,7 @@ KITE Local focuses deliberately on that workflow:
 - **Take work out again.** Any folder can be exported as a portable
   `.kite.json` package, and the current view as a PNG image.
 
-It is an independent GPL-3.0 project and is **not affiliated with or endorsed by Google, Google Earth, QGIS, OpenStreetMap, Esri, Leaflet, Iconify or Instituto Geográfico Nacional de España**.
+It is an independent AGPL-3.0 project and is **not affiliated with or endorsed by Google, Google Earth, QGIS, OpenStreetMap, Esri, Leaflet, Iconify or Instituto Geográfico Nacional de España**.
 
 ## Key differentiators
 
@@ -442,9 +442,11 @@ If any of those checks fail, the workflow fails and **no Release is published** 
 
 ## License
 
-This project is licensed under the **GNU General Public License v3.0 (GPL-3.0)**.
+This project is licensed under the **GNU Affero General Public License v3.0 (AGPL-3.0)**.
 
-See the repository's `LICENSE` file for the complete license text. Redistribution and modification are subject to the GPL-3.0 terms.
+See the repository's `LICENSE` file for the complete license text. Redistribution and modification are subject to the AGPL-3.0 terms.
+
+The map rotation code (`src/js/08-map-rotation.js`) is derived from [leaflet-rotate](https://github.com/Raruto/leaflet-rotate) 0.2.8 by Raruto and contributors (IvanSanchez, Fnicollet, Hyperknot), released under the GPL-3.0. It has been incorporated, cut down and modified, and is distributed as part of KITE Local under the AGPL-3.0, as section 13 of the GPLv3 allows; its authorship notice is kept in the file.
 
 ## Third-party services and libraries
 
@@ -454,6 +456,7 @@ This application currently uses or accesses:
 - [JSZip](https://stuk.github.io/jszip/)
 - [topojson-client](https://github.com/topojson/topojson-client)
 - [html2canvas](https://html2canvas.hertzen.com/)
+- [leaflet-rotate](https://github.com/Raruto/leaflet-rotate) (GPL-3.0) — incorporated into the source (see License); not requested at runtime
 - [Material Design Icons](https://pictogrammers.com/library/mdi/) (Pictogrammers, Apache-2.0) — embedded at build time through [Iconify](https://iconify.design/); not requested at runtime
 - [OpenStreetMap](https://www.openstreetmap.org/)
 - [Nominatim](https://nominatim.org/)

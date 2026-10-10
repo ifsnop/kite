@@ -67,7 +67,7 @@ index.html         redirección de la raíz del sitio al minificado
 
 ## Dependencias externas
 
-- Leaflet 1.9.4 (CSS+JS, unpkg), leaflet-rotate 0.2.8 (unpkg, experimento de rotación — ver `map-rotation.md`; va justo detrás de Leaflet porque lo parchea) y JSZip 3.10.1 (cdnjs) llevan `integrity` (SRI) + `crossorigin`: el navegador verifica el hash antes de ejecutar, un CDN comprometido no puede colar otro contenido.
+- Leaflet 1.9.4 (CSS+JS, unpkg) y JSZip 3.10.1 (cdnjs) llevan `integrity` (SRI) + `crossorigin`: el navegador verifica el hash antes de ejecutar, un CDN comprometido no puede colar otro contenido.
 - **Al subir versión de librería, sustituir su hash** o el navegador bloquea el arranque. Se obtiene de la doc de Leaflet, el botón de copiar de cdnjs, o `curl -sL <url> | openssl dgst -sha384 -binary | openssl base64 -A`.
 - El script empieza comprobando que `L` (Leaflet) existe, con aviso explicativo si no — este guardián va **lo primero del script**, antes de cualquier uso de `L`.
 - Sin SRI: teselas/iconos PNG (`<img>` no lo admite) y respuestas de APIs REST (Iconify, Nominatim, IGN) — son datos, no código.

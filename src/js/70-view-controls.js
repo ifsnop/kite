@@ -197,7 +197,7 @@ map.on("rotate", () => {
   gratFrame = requestAnimationFrame(() => { gratFrame = null; redrawGraticule(); });
 });
 
-/* ---------- Brújula: rotación del mapa (leaflet-rotate) ----------
+/* ---------- Brújula: rotación del mapa (08-map-rotation.js) ----------
    Arrastrar alrededor de la brújula gira el mapa, de forma LIBRE (sin
    pasos); un clic sin arrastrar —o la tecla R con el foco en el visor—
    vuelve a poner el norte arriba. La orientación no se guarda: cada
@@ -603,11 +603,11 @@ const easeOutCubic = k => 1 - Math.pow(1 - k, 3);
      El desplazamiento es en PANTALLA (con el mapa girado, ↑ sigue
      siendo hacia arriba) y se pasa a píxeles del mapa sin girar con el
      giro inverso. Se calcula ahí y no ida y vuelta por
-     containerPointToLatLng/latLngToContainerPoint: con leaflet-rotate
+     containerPointToLatLng/latLngToContainerPoint: con el mapa girable
      esa ida y vuelta se desvía ~1 px, y medido daba pasos de 8 px en
      vez de 7 (un toque recorría 98 px, no 80). _limitCenter devuelve el
      MISMO objeto si no hay que limitar (ya sabe del giro,
-     08-leaflet-rotate-fixes.js): entonces vale el desplazamiento pedido
+     08-map-rotation.js): entonces vale el desplazamiento pedido
      tal cual.                                                        */
   function limitScreenPan(want) {
     const z = map.getZoom(), b = map.getBearing() * Math.PI / 180;

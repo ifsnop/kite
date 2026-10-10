@@ -97,7 +97,7 @@ saltos: se notaba dibujando una ruta). Todo en `70-view-controls.js`.
 - **Límite del mundo en cada fotograma** (al final rebotaría), en
   píxeles del mapa sin girar con el giro inverso, y `_limitCenter`
   (consciente del giro). **Trampa**: ida y vuelta por
-  `containerPointToLatLng`/`latLngToContainerPoint` con leaflet-rotate
+  `containerPointToLatLng`/`latLngToContainerPoint` con el mapa girable
   se desvía ~1 px → pasos de 8 px en vez de 7 y un toque de 98 px.
   `_limitCenter` devuelve el MISMO objeto si no limita: entonces vale el
   desplazamiento pedido tal cual.

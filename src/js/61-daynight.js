@@ -286,7 +286,7 @@ const DN_FRAGMENT_SRC = `
   uniform float uScale;      /* píxeles de mundo (CSS) por píxel de dispositivo */
   uniform float uWorldSize;  /* 256 * 2^zoom */
   uniform vec2 uSubsolar;    /* lat, lng del punto subsolar, en RADIANES */
-  uniform float uBearing;    /* giro del mapa (leaflet-rotate), en RADIANES, horario */
+  uniform float uBearing;    /* giro del mapa (08-map-rotation.js), en RADIANES, horario */
 
   const float PI = 3.14159265358979;
 

@@ -57,7 +57,7 @@ const SUITES = [
   ["polyarea.js",         "Perímetro y área de polígonos: anillos cerrados/sin cerrar, agujeros, multipolígono"],
   ["geocalc.js",          "Calculadora geodésica: elevación, cono, corrección por presión (ISA) y vector GPS, con su validación"],
   ["toolstest.js",        "showLayerInfo/setTool: el panel de información no se cuela ni queda pegado al salir de una herramienta de dibujo"],
-  ["rotation.js",         "Rotación del mapa: ángulo de la brújula, giro con el botón central, recorte de la retícula y arrastre limitado al mundo con el mapa girado"],
+  ["rotation.js",         "Rotación del mapa: ángulo de la brújula, giro con el botón central, recorte de la retícula y arrastre limitado al mundo con el mapa girado; giro, transform y caja envolvente del código incorporado, y versión de Leaflet fijada"],
   ["view-keys.js",        "Teclado y rueda del visor: velocidad de las flechas mantenidas, dirección combinada y nivel final del zoom continuo (teclas y rueda)"]
 ];
 const BENCH = [["selbench.js", "Coste de seleccionar y de topLevelSelection"]];
@@ -89,6 +89,7 @@ const BROWSER = [
   ["browser/undo-create.mjs", "Navegador: crear un marcador, un polígono o una medición se puede deshacer y rehacer"],
   ["browser/arc-draw.mjs", "Navegador: medir un arco — centro, inicio y recorrido del perímetro, guardado como ruta de N tramos"],
   ["browser/rotation.mjs", "Navegador: rotación del mapa — brújula, botón central, R, etiquetas horizontales, detección de capas, modo alturas, PNG y bordes del mundo"],
+  ["browser/rotation-core.mjs", "Navegador: giro incorporado — conversiones, marcadores, etiquetas, popups, arrastre, teselas, encuadre y pellizco con el mapa girado"],
   ["browser/keyboard-nav.mjs", "Navegador: teclado y rueda del visor — flechas, Re/Av Pág y rueda continuos, y el foco que se queda en el visor"],
   ["browser/geocalc.mjs", "Navegador: calculadora geodésica — dos pestañas que se recalculan solas, presión, unidades que convierten, sin crecer y no modal"]
 ];

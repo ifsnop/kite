@@ -81,15 +81,11 @@ const map = L.map("map", {
   /* La rueda es nuestra (70-view-controls.js): zoom continuo como Re/Av
      Pág, no el salto de nivel en nivel de Leaflet.                   */
   scrollWheelZoom: false,
-  /* Rotación (leaflet-rotate). Solo por gestos propios (brújula y
-     botón central, 70-view-controls.js): Mayús+rueda giraría el mapa,
-     pero Mayús ya está reservado (zoom de caja, insertar vértice); sin
-     rotación táctil ni el control del plugin.                        */
-  rotate: true,
-  bearing: 0,
-  shiftKeyRotate: false,
-  touchRotate: false,
-  rotateControl: false,
+  /* El pellizco se para en los límites de zoom en vez de pasarse y
+     rebotar (lo que dejaba puesto leaflet-rotate). El mapa es siempre
+     girable (08-map-rotation.js), solo con gestos propios: brújula y
+     botón central (70-view-controls.js).                             */
+  bounceAtZoomLimits: false,
 }).setView([40.4, -3.7], 6);
 
 /* Color de fondo del mapa: el que se ve fuera de las teselas (huecos
@@ -128,7 +124,7 @@ function setMapBackground(hex) {
    calcular el logaritmo a mano porque el redondeo a `zoomSnap` es suyo
    y tiene su propia letra pequeña.                                    */
 /* Con el mapa rotado, la que tiene que caber en el mundo es la caja de
-   la vista girada: `rotatedFitZoom` (08-leaflet-rotate-fixes.js).    */
+   la vista girada: `rotatedFitZoom` (08-map-rotation.js).    */
 function fitWorldMinZoom() {
   const previo = map.options.minZoom;
   map.options.minZoom = 0;
@@ -141,7 +137,7 @@ map.on("resize rotate", fitWorldMinZoom);
 
 /* Fecha de generación del código (versión): AÑOMESDIAHORAMINUTO.
    Actualizar en cada generación; se muestra junto al crédito de Leaflet. */
-const BUILD = "202610101022";
+const BUILD = "202610101135";
 /* Versión de release (la de package.json, horneada aquí por build.js
    al construir — ver «Versión y releases de GitHub» en CLAUDE.md): a
    diferencia de BUILD, que cambia en CADA generación, esta solo cambia
@@ -386,7 +382,7 @@ function applyBaseLayer(id) {
          no en su constructor.                                         */
       st.layer.options.noWrap = true;
       /* Y sin teselas fuera del mundo con el mapa girado (ver
-         08-leaflet-rotate-fixes.js) */
+         08-map-rotation.js) */
       confineTilesToWorld(st.layer, WORLD_BOUNDS);
       st.layer.setZIndex(st.zIndex);
       /* Una URL que no responda debe verse, no fallar en silencio */

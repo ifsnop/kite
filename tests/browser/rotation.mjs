@@ -1,4 +1,4 @@
-/* Rotación del mapa (experimento, leaflet-rotate), con ratón y teclado
+/* Rotación del mapa (08-map-rotation.js), con ratón y teclado
    DE VERDAD sobre la aplicación entera.
 
    1) La brújula está ENCIMA del panel de mapas base; arrastrarla gira el
