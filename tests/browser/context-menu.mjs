@@ -135,6 +135,76 @@ ok(trasEditar.ficha && trasEditar.estilo && trasEditar.titulo.includes("Parcela 
   "cierra la ficha y abre el diálogo de estilos de esa capa: " + JSON.stringify(trasEditar));
 await page.evaluate(() => closeStyleDialog(true));
 
+/* El foco vuelve al VISOR al elegir una acción del menú, y al cerrar el
+   diálogo que abre. Sin eso, ocultar el menú dejaba el foco en el <body>,
+   donde las flechas y Re/Av Pág son del ÁRBOL: «Mostrar atributos» (y el
+   resto) acababa con el foco en el panel de navegación. Clics reales, no
+   `.click()`: lo que se mide es el foco que deja el ratón.            */
+const viewerFocused = () => page.evaluate(() => document.activeElement === map.getContainer());
+for (const [accion, cerrar] of [
+  ["Mostrar atributos", () => page.click("#desc-close")],
+  ["Editar propiedades", () => page.evaluate(() => closeStyleDialog(true))]
+]) {
+  await page.evaluate(() => {
+    const li = [...document.querySelectorAll("#tree li")].find(x => x._name === "Parcela contextual");
+    li._desc = "<p>Ficha</p>";
+  });
+  /* El parpadeo de la acción anterior apaga la capa unos 600 ms: sin
+     esperarlo, el clic derecho no encuentra nada debajo.             */
+  await page.waitForTimeout(900);
+  const at = await page.evaluate(() => {
+    const li = [...document.querySelectorAll("#tree li")].find(x => x._name === "Parcela contextual");
+    const pt = map.latLngToContainerPoint(nodeLayer(li).getBounds().getCenter());
+    const r = map.getContainer().getBoundingClientRect();
+    return { x: r.left + pt.x, y: r.top + pt.y };
+  });
+  await page.mouse.move(at.x, at.y);
+  await page.mouse.click(at.x, at.y, { button: "right" });
+  await page.waitForTimeout(100);
+  await page.click(`#map-ctxmenu .ctx-menu-item:text-is("${accion}")`);
+  await page.waitForTimeout(100);
+  ok(await page.evaluate(() => !!document.activeElement.closest("#desc-dialog, #style-dialog")),
+    `«${accion}»: el foco pasa al diálogo al abrirse`);
+  await cerrar();
+  await page.waitForTimeout(100);
+  ok(await viewerFocused(), `«${accion}»: al cerrar el diálogo el foco vuelve al visor`);
+  await page.evaluate(() => {
+    const li = [...document.querySelectorAll("#tree li")].find(x => x._name === "Parcela contextual");
+    delete li._desc;
+  });
+}
+
+/* Cerrar la ficha abierta al PASAR el ratón (sin robar el foco al
+   abrirse) o una etiqueta (popup) con su ×: el foco acaba en el visor,
+   no en el panel de navegación aunque estuviera allí al abrirse.      */
+await page.evaluate(() => {
+  const li = [...document.querySelectorAll("#tree li")].find(x => x._name === "Parcela contextual");
+  li._desc = "<p>Hover</p>";
+  li.querySelector(":scope > .node-row input[type=checkbox]").focus(); /* foco en el árbol */
+  layerInfoDismissed = false; /* los cierres anteriores lo dejaron armado */
+  showLayerInfo(li, { focus: false });
+});
+ok(await page.evaluate(() => !descDialog.hidden && !!document.activeElement.closest("#tree")),
+  "ficha abierta al pasar el ratón: no roba el foco al árbol");
+await page.click("#desc-close");
+await page.waitForTimeout(100);
+ok(await viewerFocused(), "cerrar con × una ficha abierta al pasar el ratón: el foco queda en el visor");
+await page.evaluate(() => {
+  const li = [...document.querySelectorAll("#tree li")].find(x => x._name === "Parcela contextual");
+  delete li._desc;
+});
+
+await page.evaluate(() => {
+  document.querySelector("#tree input[type=checkbox]").focus();
+  const m = L.marker(map.getCenter()).bindPopup("Etiqueta de prueba").addTo(map);
+  m.openPopup();
+  window.__popupMarker = m;
+});
+await page.click(".leaflet-popup-close-button");
+await page.waitForTimeout(100);
+ok(await viewerFocused(), "cerrar con × una etiqueta (popup) del visor: el foco queda en el visor");
+await page.evaluate(() => map.removeLayer(window.__popupMarker));
+
 /* Clic derecho en un punto del mapa SIN ninguna capa debajo: menú
    genérico, sin "Editar propiedades" (no hay a qué aplicarlo). El caso
    de una capa con un tipo no editable (elevGrid, sin estilos propios)

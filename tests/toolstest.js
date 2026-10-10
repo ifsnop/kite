@@ -13,7 +13,8 @@ function buildApi({ hideDelay = 5, guardMs = 5 } = {}) {
     let routeDraft = null, routeMeasurement = null, arcDraft = null;
     let layerInfoHideTimer = null;
     let suppressNextHover = false;
-  ` + [fn("cancelLayerInfoHide"), fn("scheduleLayerInfoHide"), fn("showLayerInfo"), fn("setTool")].join("\n");
+    const focusReturn = [];
+  ` + [fn("hideLayerInfo"), fn("cancelLayerInfoHide"), fn("scheduleLayerInfoHide"), fn("showLayerInfo"), fn("setTool")].join("\n");
 
   const focusState = { insideDesc: false };
   const descDialog = { hidden: true };

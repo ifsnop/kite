@@ -154,7 +154,7 @@ function setTool(tool) {
      tool) could sit exactly where the user needs to click to fix a
      vertex inside another polygon                                     */
   if ((tool === "polygon" || tool === "route") && !descDialog.hidden) {
-    descDialog.hidden = true; layerInfoDismissed = true; releaseFocus();
+    hideLayerInfo({ dismiss: true });
   }
   /* Leaving any drawing tool (route, polygon, or circle): the double
      click / mouseup that ends it lands right where the cursor is,
@@ -211,7 +211,7 @@ document.addEventListener("keydown", e => {
   if (!shortcutsDialog.hidden) { toggleShortcuts(); return; }
   if (!logDialog.hidden) { toggleLog(); return; }
   if (!urlDialog.hidden) { closeUrlDialog(); return; }
-  if (!descDialog.hidden) { descDialog.hidden = true; layerInfoDismissed = true; releaseFocus(); return; }
+  if (!descDialog.hidden) { hideLayerInfo({ dismiss: true }); return; }
   if (!geocalcDialog.hidden) { toggleGeocalcDialog(); return; }
   if (!colorPicker.hidden) { cancelColorPicker(); return; }
   if (!iconPicker.hidden) { cancelIconPicker(); return; }

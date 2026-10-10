@@ -306,7 +306,7 @@ function cancelLayerInfoHide() {
 function scheduleLayerInfoHide() {
   if (descDialog.hidden || descBox.contains(document.activeElement)) return;
   cancelLayerInfoHide();
-  layerInfoHideTimer = setTimeout(() => { descDialog.hidden = true; layerInfoHideTimer = null; }, LAYER_INFO_HIDE_DELAY);
+  layerInfoHideTimer = setTimeout(() => { hideLayerInfo(); layerInfoHideTimer = null; }, LAYER_INFO_HIDE_DELAY);
 }
 
 /* One-shot guard set when LEAVING a drawing tool (see setTool): the
@@ -328,6 +328,18 @@ let suppressNextHover = false;
    (.dlg-float): the map stays interactive underneath, and with the
    dialog already open, moving to another layer only updates its
    content, without repositioning or closing the box.                 */
+/* Every hide goes through here so focusReturn stays paired with the open
+   (showLayerInfo always pushes one entry). Focus is restored only if it
+   was in the panel or already lost to <body>: a hover-opened panel that
+   times out must not pull focus away from wherever the user is now.   */
+function hideLayerInfo({ dismiss = false } = {}) {
+  if (descDialog.hidden) return;
+  const a = document.activeElement;
+  const hadFocus = !a || a === document.body || descBox.contains(a);
+  descDialog.hidden = true;
+  if (dismiss) layerInfoDismissed = true;
+  if (hadFocus) releaseFocus(); else focusReturn.pop();
+}
 function showLayerInfo(li, { focus = true } = {}) {
   cancelLayerInfoHide(); /* a real hover cancels any pending deferred close */
   if (!focus && suppressNextHover) { suppressNextHover = false; return; } /* residual hover right after leaving a drawing tool */
@@ -355,6 +367,9 @@ function showLayerInfo(li, { focus = true } = {}) {
   if (wasHidden) {
     clampToViewport(descBox);
     if (focus) focusDialog(descBox);
+    /* Opened by hovering the viewer: closing it must land back there,
+       not wherever focus happened to be when the cursor crossed it.   */
+    else focusReturn.push(map.getContainer());
   }
 }
 

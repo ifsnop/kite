@@ -971,7 +971,16 @@ function renderCtxItems(container, items, latlng) {
       const why = typeof item.disabled === "function" && item.disabled();
       if (why) { btn.disabled = true; btn.title = why; }
       if (isTopLevel) btn.addEventListener("mouseenter", closeCtxSubmenu);
-      btn.addEventListener("click", () => { closeCtxMenu(); item.action(latlng); });
+      /* Focus goes back to the VIEWER before the action runs: hiding the
+         menu drops it on <body> (where the tree's document-level keys
+         take over), and focusDialog records document.activeElement as
+         the place to return to when a dialog opened by the action
+         closes — so it must already be the viewer by then.           */
+      btn.addEventListener("click", () => {
+        closeCtxMenu();
+        map.getContainer().focus({ preventScroll: true });
+        item.action(latlng);
+      });
     }
     container.appendChild(btn);
   }
@@ -1025,6 +1034,15 @@ function openCtxMenuFromMouseEvent(e) {
 }
 map.on("contextmenu", openCtxMenuFromMouseEvent);
 map.on("movestart zoomstart", closeCtxMenu);
+/* Closing a label (popup) with its × leaves focus on <body>, where the
+   tree's document-level keys take over: keep it in the viewer. Only
+   when focus was actually lost — never steal it from a field.        */
+map.on("popupclose", () => {
+  /* The event fires while the × may still be focused (it is on its way
+     out of the DOM) or already gone, hence both cases.                 */
+  const a = document.activeElement;
+  if (!a || a === document.body || a.closest(".leaflet-popup")) map.getContainer().focus({ preventScroll: true });
+});
 document.addEventListener("mousedown", e => {
   if (!ctxMenuEl.hidden && !ctxMenuEl.contains(e.target) && !(ctxSubmenuEl && ctxSubmenuEl.contains(e.target))) {
     closeCtxMenu();

@@ -17,6 +17,23 @@ paths:
   llame «propiedades» a ambos indistintamente.
 - **`disabled()` opcional en un ítem**: devuelve el MOTIVO (texto, va al `title`) o algo falso. El ítem se pinta deshabilitado, no se esconde. Hoy lo usa «Modo elevación» con el mapa rotado.
 - **«Medir ▸» es un submenú fijo de `CTX_MENU_ITEMS`** con Ruta, Círculo y Arco (cada uno alterna su herramienta con `setTool`); «Dibujar polígono o línea» queda fuera del grupo.
+- **Elegir una acción devuelve el foco al VISOR antes de ejecutarla**
+  (clic del ítem en `renderCtxItems`): ocultar el menú lo dejaba en el
+  `<body>`, donde las teclas son del ÁRBOL, y `focusDialog` lo habría
+  guardado como destino de retorno — el diálogo abierto desde el menú
+  devolvía el foco al panel. Con el visor ya enfocado, `releaseFocus` lo
+  devuelve ahí al cerrar. Vale para cualquier diálogo nuevo abierto
+  desde una entrada del menú.
+- **Cerrar una ficha o etiqueta también deja el foco en el visor.**
+  Todo cierre de `#desc-dialog` pasa por `hideLayerInfo`
+  (`32-geojson.js`), y `showLayerInfo` empuja SIEMPRE una entrada a
+  `focusReturn` (la del visor si se abrió con el ratón, `focus: false`):
+  antes el cierre sin apertura emparejada sacaba una entrada ajena y el
+  foco iba al árbol. Sin foco en la ficha (cierre por temporizador) solo
+  se descarta la entrada, no se roba el foco. Las etiquetas de Leaflet
+  (popup) se tratan en `popupclose` (`70-view-controls.js`): si el foco
+  se perdió (`<body>` o el ×), vuelve al contenedor. Además
+  `closeStyleDialog` ya no descarta su entrada antes de devolver el foco.
 - **Varias capas superpuestas → submenú** con una entrada por capa
   (`ctxItemsFor`/`openCtxSubmenu`).
 - **Elegir una capa la hace PARPADEAR** (`blinkLayer`, 4 pasos de

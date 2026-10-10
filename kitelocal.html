@@ -2384,7 +2384,7 @@ map.on("resize rotate", fitWorldMinZoom);
 
 /* Fecha de generación del código (versión): AÑOMESDIAHORAMINUTO.
    Actualizar en cada generación; se muestra junto al crédito de Leaflet. */
-const BUILD = "202610100955";
+const BUILD = "202610101022";
 /* Versión de release (la de package.json, horneada aquí por build.js
    al construir — ver «Versión y releases de GitHub» en CLAUDE.md): a
    diferencia de BUILD, que cambia en CADA generación, esta solo cambia
@@ -5515,7 +5515,7 @@ function cancelLayerInfoHide() {
 function scheduleLayerInfoHide() {
   if (descDialog.hidden || descBox.contains(document.activeElement)) return;
   cancelLayerInfoHide();
-  layerInfoHideTimer = setTimeout(() => { descDialog.hidden = true; layerInfoHideTimer = null; }, LAYER_INFO_HIDE_DELAY);
+  layerInfoHideTimer = setTimeout(() => { hideLayerInfo(); layerInfoHideTimer = null; }, LAYER_INFO_HIDE_DELAY);
 }
 
 /* One-shot guard set when LEAVING a drawing tool (see setTool): the
@@ -5537,6 +5537,18 @@ let suppressNextHover = false;
    (.dlg-float): the map stays interactive underneath, and with the
    dialog already open, moving to another layer only updates its
    content, without repositioning or closing the box.                 */
+/* Every hide goes through here so focusReturn stays paired with the open
+   (showLayerInfo always pushes one entry). Focus is restored only if it
+   was in the panel or already lost to <body>: a hover-opened panel that
+   times out must not pull focus away from wherever the user is now.   */
+function hideLayerInfo({ dismiss = false } = {}) {
+  if (descDialog.hidden) return;
+  const a = document.activeElement;
+  const hadFocus = !a || a === document.body || descBox.contains(a);
+  descDialog.hidden = true;
+  if (dismiss) layerInfoDismissed = true;
+  if (hadFocus) releaseFocus(); else focusReturn.pop();
+}
 function showLayerInfo(li, { focus = true } = {}) {
   cancelLayerInfoHide(); /* a real hover cancels any pending deferred close */
   if (!focus && suppressNextHover) { suppressNextHover = false; return; } /* residual hover right after leaving a drawing tool */
@@ -5564,6 +5576,9 @@ function showLayerInfo(li, { focus = true } = {}) {
   if (wasHidden) {
     clampToViewport(descBox);
     if (focus) focusDialog(descBox);
+    /* Opened by hovering the viewer: closing it must land back there,
+       not wherever focus happened to be when the cursor crossed it.   */
+    else focusReturn.push(map.getContainer());
   }
 }
 
@@ -10904,15 +10919,11 @@ let descLayer = null; /* capa cuya ficha se muestra ahora */
    cierra la ficha y abre el diálogo de propiedades (pestaña Estilos). */
 descEditBtn.addEventListener("click", () => {
   const li = descLayer;
-  descDialog.hidden = true;
-  layerInfoDismissed = true;
-  releaseFocus();
+  hideLayerInfo({ dismiss: true });
   if (li) openStyleDialog(li);
 });
 document.getElementById("desc-close").addEventListener("click", () => {
-  descDialog.hidden = true;
-  layerInfoDismissed = true;
-  releaseFocus();
+  hideLayerInfo({ dismiss: true });
 });
 /* ---------- Separador de las dos columnas de la ficha ----------
    Las properties son siempre clave/valor, así que la tabla tiene DOS
@@ -11212,7 +11223,7 @@ function openStyleDialog(li, { isNew = false, focus = true } = {}) {
   /* El panel de información (hover) es igual de flotante y puede quedar
      justo en el mismo sitio, tapando este diálogo sin ningún aviso de
      que hay algo debajo: se cierra antes de mostrar el de edición.    */
-  if (!descDialog.hidden) descDialog.hidden = true;
+  hideLayerInfo();
   const kind = styleKind(li);
   if (kind !== "marker" && kind !== "polygon" && kind !== "measure" && kind !== "imageOverlay") {
     navMessage("Esta capa no tiene estilos editables.");
@@ -11457,7 +11468,7 @@ function closeStyleDialog(commit = false) {
   /* Guarded: closeColorPicker() itself pops a focusReturn entry, and it
      would be the wrong one if the popover was already closed.        */
   if (!colorPicker.hidden) closeColorPicker();
-  if (wasOpen) { focusReturn = focusReturn.slice(0, -1); releaseFocus(); }
+  if (wasOpen) releaseFocus();
   styleTargets = [];
   styleKindOpen = null;
   styleDraft = null;
@@ -12533,7 +12544,7 @@ function setTool(tool) {
      tool) could sit exactly where the user needs to click to fix a
      vertex inside another polygon                                     */
   if ((tool === "polygon" || tool === "route") && !descDialog.hidden) {
-    descDialog.hidden = true; layerInfoDismissed = true; releaseFocus();
+    hideLayerInfo({ dismiss: true });
   }
   /* Leaving any drawing tool (route, polygon, or circle): the double
      click / mouseup that ends it lands right where the cursor is,
@@ -12590,7 +12601,7 @@ document.addEventListener("keydown", e => {
   if (!shortcutsDialog.hidden) { toggleShortcuts(); return; }
   if (!logDialog.hidden) { toggleLog(); return; }
   if (!urlDialog.hidden) { closeUrlDialog(); return; }
-  if (!descDialog.hidden) { descDialog.hidden = true; layerInfoDismissed = true; releaseFocus(); return; }
+  if (!descDialog.hidden) { hideLayerInfo({ dismiss: true }); return; }
   if (!geocalcDialog.hidden) { toggleGeocalcDialog(); return; }
   if (!colorPicker.hidden) { cancelColorPicker(); return; }
   if (!iconPicker.hidden) { cancelIconPicker(); return; }
@@ -16328,7 +16339,16 @@ function renderCtxItems(container, items, latlng) {
       const why = typeof item.disabled === "function" && item.disabled();
       if (why) { btn.disabled = true; btn.title = why; }
       if (isTopLevel) btn.addEventListener("mouseenter", closeCtxSubmenu);
-      btn.addEventListener("click", () => { closeCtxMenu(); item.action(latlng); });
+      /* Focus goes back to the VIEWER before the action runs: hiding the
+         menu drops it on <body> (where the tree's document-level keys
+         take over), and focusDialog records document.activeElement as
+         the place to return to when a dialog opened by the action
+         closes — so it must already be the viewer by then.           */
+      btn.addEventListener("click", () => {
+        closeCtxMenu();
+        map.getContainer().focus({ preventScroll: true });
+        item.action(latlng);
+      });
     }
     container.appendChild(btn);
   }
@@ -16382,6 +16402,15 @@ function openCtxMenuFromMouseEvent(e) {
 }
 map.on("contextmenu", openCtxMenuFromMouseEvent);
 map.on("movestart zoomstart", closeCtxMenu);
+/* Closing a label (popup) with its × leaves focus on <body>, where the
+   tree's document-level keys take over: keep it in the viewer. Only
+   when focus was actually lost — never steal it from a field.        */
+map.on("popupclose", () => {
+  /* The event fires while the × may still be focused (it is on its way
+     out of the DOM) or already gone, hence both cases.                 */
+  const a = document.activeElement;
+  if (!a || a === document.body || a.closest(".leaflet-popup")) map.getContainer().focus({ preventScroll: true });
+});
 document.addEventListener("mousedown", e => {
   if (!ctxMenuEl.hidden && !ctxMenuEl.contains(e.target) && !(ctxSubmenuEl && ctxSubmenuEl.contains(e.target))) {
     closeCtxMenu();

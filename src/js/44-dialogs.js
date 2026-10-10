@@ -466,15 +466,11 @@ let descLayer = null; /* capa cuya ficha se muestra ahora */
    cierra la ficha y abre el diálogo de propiedades (pestaña Estilos). */
 descEditBtn.addEventListener("click", () => {
   const li = descLayer;
-  descDialog.hidden = true;
-  layerInfoDismissed = true;
-  releaseFocus();
+  hideLayerInfo({ dismiss: true });
   if (li) openStyleDialog(li);
 });
 document.getElementById("desc-close").addEventListener("click", () => {
-  descDialog.hidden = true;
-  layerInfoDismissed = true;
-  releaseFocus();
+  hideLayerInfo({ dismiss: true });
 });
 /* ---------- Separador de las dos columnas de la ficha ----------
    Las properties son siempre clave/valor, así que la tabla tiene DOS
@@ -774,7 +770,7 @@ function openStyleDialog(li, { isNew = false, focus = true } = {}) {
   /* El panel de información (hover) es igual de flotante y puede quedar
      justo en el mismo sitio, tapando este diálogo sin ningún aviso de
      que hay algo debajo: se cierra antes de mostrar el de edición.    */
-  if (!descDialog.hidden) descDialog.hidden = true;
+  hideLayerInfo();
   const kind = styleKind(li);
   if (kind !== "marker" && kind !== "polygon" && kind !== "measure" && kind !== "imageOverlay") {
     navMessage("Esta capa no tiene estilos editables.");
@@ -1019,7 +1015,7 @@ function closeStyleDialog(commit = false) {
   /* Guarded: closeColorPicker() itself pops a focusReturn entry, and it
      would be the wrong one if the popover was already closed.        */
   if (!colorPicker.hidden) closeColorPicker();
-  if (wasOpen) { focusReturn = focusReturn.slice(0, -1); releaseFocus(); }
+  if (wasOpen) releaseFocus();
   styleTargets = [];
   styleKindOpen = null;
   styleDraft = null;
