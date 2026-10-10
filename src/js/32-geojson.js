@@ -523,6 +523,34 @@ async function dbLoadArcSegments() {
   });
 }
 
+/* Fuentes de elevación elegidas (Propiedades → Fuentes de datos): un id
+   del catálogo ELEV_SOURCES por modelo, o null = «Ninguna». Se valida
+   contra el catálogo ACTUAL al leer (validElevSources, 60-elevation.js):
+   una fuente retirada del código vuelve a la de por defecto.        */
+const ELEV_SOURCES_KEY = "elevSources";
+const ELEV_SOURCES_SCHEMA = 1;
+async function dbSaveElevSources(sel) {
+  const db = await openDb();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(DB_TREE, "readwrite");
+    tx.objectStore(DB_TREE).put({ v: ELEV_SOURCES_SCHEMA, mdt: sel.mdt, mds: sel.mds }, ELEV_SOURCES_KEY);
+    tx.oncomplete = resolve;
+    tx.onerror = () => reject(tx.error);
+  });
+}
+async function dbLoadElevSources() {
+  const db = await openDb();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(DB_TREE, "readonly");
+    const rq = tx.objectStore(DB_TREE).get(ELEV_SOURCES_KEY);
+    rq.onsuccess = () => {
+      const r = rq.result;
+      resolve(r && r.v === ELEV_SOURCES_SCHEMA ? validElevSources(r) : null);
+    };
+    rq.onerror = () => reject(rq.error);
+  });
+}
+
 /* Unidad de medida y formato de latitud/longitud: mismo patrón que
    VERTMAX_KEY/VERTMAX_SCHEMA, ajustes GLOBALES (panel de Propiedades,
    43-points-editor.js) que antes vivían solo en memoria, sin persistir

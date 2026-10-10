@@ -1242,6 +1242,9 @@
   }
   .dlg-tab.active { color: var(--text); border-bottom-color: var(--accent); font-weight: 600; }
   .dlg-tabpanel { flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; }
+  /* La dirección del servicio bajo cada selector de fuente: una URL
+     larga no tiene espacios por los que partir y desbordaría la caja. */
+  .props-src-url { margin-top: 0; overflow-wrap: anywhere; }
   /* Same trap as .dlg-row[hidden]/.color-field[hidden]: an author
      "display: flex" beats the UA "[hidden] { display: none }" rule
      regardless of specificity, so the inactive tab stayed visible

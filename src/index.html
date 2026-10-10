@@ -425,6 +425,7 @@
     <div class="dlg-tabs" role="tablist">
       <button type="button" class="dlg-tab active" id="props-tab-btn-prefs" role="tab" aria-selected="true" aria-controls="props-tab-prefs">Preferencias</button>
       <button type="button" class="dlg-tab" id="props-tab-btn-gnp" role="tab" aria-selected="false" aria-controls="props-tab-gnp">Índices de GeoJSON</button>
+      <button type="button" class="dlg-tab" id="props-tab-btn-sources" role="tab" aria-selected="false" aria-controls="props-tab-sources">Fuentes de datos</button>
     </div>
     <div id="props-tab-prefs" class="dlg-tabpanel" role="tabpanel">
       <div class="dlg-row"><span>Unidad de medida</span><select id="props-unit">
@@ -449,6 +450,15 @@
       <p class="dlg-hint">Asociaciones guardadas entre la estructura de <code>properties</code> de un GeoJSON y la propiedad usada como nombre.</p>
       <div class="gnp-editor-list" id="gnp-editor-list"></div>
       <div class="dlg-row"><span></span><button class="btn" id="gnp-editor-clear">Borrar todo</button></div>
+    </div>
+    <!-- Las opciones se rellenan desde el catálogo ELEV_SOURCES
+         (60-elevation.js): añadir una fuente en el código la añade aquí. -->
+    <div id="props-tab-sources" class="dlg-tabpanel" hidden role="tabpanel">
+      <p class="dlg-hint">Servicios WCS de los que «Consultar elevación aquí» (menú contextual del visor) descarga el terreno y la superficie. Con «Ninguna», ese modelo no se consulta: la cuadrícula muestra solo el otro, sin diferencia.</p>
+      <div class="dlg-row"><span>MDT (terreno)</span><select id="props-src-mdt"></select></div>
+      <p class="dlg-hint props-src-url" id="props-src-mdt-url"></p>
+      <div class="dlg-row"><span>MDS (superficie)</span><select id="props-src-mds"></select></div>
+      <p class="dlg-hint props-src-url" id="props-src-mds-url"></p>
     </div>
     <div class="dlg-actions">
       <button class="btn" id="props-cancel">Cancelar</button>
@@ -651,6 +661,12 @@
         crossorigin="anonymous" referrerpolicy="no-referrer"></script>
 <script src="https://unpkg.com/html2canvas@1.4.1/dist/html2canvas.min.js"
         integrity="sha384-ZZ1pncU3bQe8y31yfZdMFdSpttDoPmOZg2wguVK9almUodir1PghgT0eY7Mrty8H"
+        crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+<!-- GeoTIFF: solo para fuentes de elevación que no ofrecen rejilla ASCII
+     (Digital Earth Africa). Es el bundle de navegador, ya minificado y en
+     un solo archivo (sin trozos cargados aparte que el SRI no cubriría). -->
+<script src="https://unpkg.com/geotiff@2.1.3/dist-browser/geotiff.js"
+        integrity="sha384-m5adk5PRgt3JjiYbYoG8oXxc3EgRFKc1aCBgKzyxqxnbYpdiAMlHkR0gVDp03Q/H"
         crossorigin="anonymous" referrerpolicy="no-referrer"></script>
 <script>
 {{SCRIPTS}}

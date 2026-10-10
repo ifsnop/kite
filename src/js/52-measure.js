@@ -1164,40 +1164,32 @@ document.addEventListener("keyup", e => {
    rebinding every layer's popup while a tool is active.                */
 map.on("popupopen", e => { if (activeTool) e.popup.close(); });
 
-/* ================= Modo altura (MDT y MDS del IGN) =================
-   Los dos modelos se consultan por el MISMO camino: WCS 2.0, rejilla
-   ASCII, la misma ventana y el mismo recorte. Antes el terreno venía de
-   teselas Terrain-RGB y la superficie de un WCS, y comparar sus valores
-   —o restarlos para saber qué hay construido— no era fiable: distinto
+/* ================= Elevaciones (MDT y MDS por WCS) =================
+   Los dos modelos se consultan por el MISMO camino: WCS 2.0, la misma
+   ventana y el mismo recorte. Antes el terreno venía de teselas
+   Terrain-RGB y la superficie de un WCS, y comparar sus valores —o
+   restarlos para saber qué hay construido— no era fiable: distinto
    muestreo, distinta interpolación y distinto redondeo.
 
-   Cada consulta es una petición entera, así que se lanzan solo cuando el
-   cursor se para y se cachean por celdas.                             */
+   Qué servicio da cada modelo lo elige el usuario (Propiedades →
+   Fuentes de datos, catálogo ELEV_SOURCES en 60-elevation.js), y cada
+   consulta la pide él desde el menú contextual del visor, para la
+   tesela bajo el puntero: mover el ratón no pide nada.                */
 const ELEV_WINDOW = 20;      /* m: media ventana pedida alrededor del punto.
                                 Más ancha que las celdas del modelo (5 m),
-                                para que una consulta cubra varias celdas y
-                                el ratón pueda recorrerlas sin volver a pedir */
+                                para que una consulta cubra varias celdas */
 const ELEV_CELL = 25;        /* m: tamaño de la celda cacheada              */
-const ELEV_SETTLE_MS = 700;  /* el cursor debe pararse antes de pedir       */
 const ELEV_CACHE_MAX = 200;
 const ELEV_TIMEOUT = 12000;
-const ELEV_MAX_RPS = 4;      /* peticiones por segundo, entre las dos fuentes */
+const ELEV_MAX_RPS = 4;      /* peticiones por segundo, entre todas las fuentes */
 const ELEV_STATUS_QUIET = 20000;
-const ELEV_ATTRIB = 'MDT05/MDS PNOA \u00A9 <a href="https://www.ign.es">IGN</a> (CC BY 4.0)';
-/* Tope de celdas acumuladas en una sesión de modo altura: cada respuesta
-   aporta ~100-120 celdas (una tesela de 40 m sobre la malla nativa de
-   5 m), así que el tope permite explorar varias decenas de teselas antes
-   de avisar. Los marcadores de Leaflet son siempre nodos del DOM (no
-   pasan por canvas como el resto del visor), así que este tope es
-   también un tope de nodos del DOM, no solo de memoria.               */
-const ELEV_ACCUM_MAX_CELLS = 4000;
 
-let demOn = false;
-let demButton = null;
 const demTimes = [];
-const demStatusAt = { ok: 0, error: 0 };
+const demErrorAt = new Map(); /* clave (fuente) → último aviso de error */
 
-/* Tope de peticiones por segundo, compartido: son el mismo servidor */
+/* Tope de peticiones por segundo, compartido por todas las fuentes: el
+   descubrimiento de la primera consulta encadena varias peticiones
+   contra el mismo servicio, y cada consulta pide a todas a la vez.    */
 function demRateOk() {
   const now = Date.now();
   while (demTimes.length && now - demTimes[0] > 1000) demTimes.shift();
@@ -1206,21 +1198,24 @@ function demRateOk() {
   return true;
 }
 
-/* Un aviso por racha: moviendo el ratón se piden muchos puntos */
-function demStatus(kind, detail) {
+/* Un aviso de error por racha Y POR FUENTE: un servicio caído fallaría
+   igual en cada consulta seguida, y repetirlo no dice nada nuevo; pero
+   que falle el MDS no debe callar que el MDT tampoco responde.        */
+function demError(key, detail) {
   const now = Date.now();
-  if (now - demStatusAt[kind] < ELEV_STATUS_QUIET) return;
-  demStatusAt[kind] = now;
-  if (kind === "ok") navMessage("Altitud: datos recibidos del IGN.", { tone: "info" });
-  else navMessage(`Altitud: ${detail}.`);
+  if (now - (demErrorAt.get(key) || 0) < ELEV_STATUS_QUIET) return;
+  demErrorAt.set(key, now);
+  navMessage(`Elevación: ${detail}.`);
 }
 
 /* ---------- Lectura de las respuestas del servicio ---------- */
 
 /* Pedir en latitud/longitud evita convertir coordenadas por nuestra
    cuenta y, con ello, toda una clase de errores. Solo se usa si el
-   servicio declara admitir un CRS geográfico.                        */
-const ELEV_GEO_CRS = [/EPSG\/0\/4326$/, /EPSG\/0\/4258$/];
+   servicio declara admitir un CRS geográfico. Los servicios lo
+   escriben de dos maneras: como URL (`…/EPSG/0/4326`, el IGN) o en
+   forma corta (`EPSG:4326`, Digital Earth Africa).                    */
+const ELEV_GEO_CRS = [/EPSG(\/0\/|:)4326$/, /EPSG(\/0\/|:)4258$/];
 const pickGeoCrs = list =>
   ELEV_GEO_CRS.reduce((found, re) => found || (list || []).find(c => re.test(c)), null) || null;
 
@@ -1228,7 +1223,7 @@ const pickGeoCrs = list =>
    prefiere a las geográficas: así lo que se consulta está en el mismo
    sistema que lo que se ve. La conversión la hace Leaflet con su propia
    proyección (`map.options.crs.project`), sin cálculos nuestros.     */
-const pickWebMercator = list => (list || []).find(c => /EPSG\/0\/3857$/.test(c)) || null;
+const pickWebMercator = list => (list || []).find(c => /EPSG(\/0\/|:)3857$/.test(c)) || null;
 
 /* Metros Web Mercator de una posición, exactamente como los calcula el
    visor para colocar las teselas                                      */

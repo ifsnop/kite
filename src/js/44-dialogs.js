@@ -1202,6 +1202,7 @@ function setMeasureUnit(unit) {
   renderPolyMeasures();
   renderMeasureValues();
   refreshMeasureLabels();
+  refreshElevCells(); /* las cifras de las cuadrículas de elevación también */
 }
 
 /* ---------- Medidas de una medición (solo lectura) ---------- */
