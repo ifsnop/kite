@@ -9,6 +9,7 @@ paths:
 ## Red externa
 
 - Nominatim: `AbortController`/`AbortSignal.timeout` — búsqueda nueva o cerrar resultados cancela la anterior.
+- **Servicios de elevación (WCS)**: solo los del catálogo `ELEV_SOURCES` (IGN y Digital Earth Africa), solo al pedirlo el usuario («Consultar elevación aquí»), con tope de peticiones/s, `AbortSignal.timeout` y descubrimiento una vez por sesión — ver `elevation-dem.md`. Digital Earth Africa responde 403 sin CORS a los navegadores Chromium (User-Agent con `Chrome/`); la página no puede evitarlo.
 - `describeHttp` traduce el estado HTTP a algo accionable (404 = dirección inexistente, 401 = falta autenticación, 429 = límite del servicio, 5xx = no disponible…).
 - Descarga por URL: misma disciplina + tope de tiempo/tamaño, aborto por cancelación/cierre, lectura por trozos — ver `url-import.md`.
 - **Los iconos ya NO son tráfico de ejecución** (van empotrados, ver `marker-icons.md`): fue la única consulta externa sin tope ni caché compartida (79 a la vez) y por eso reventó.

@@ -1,126 +1,57 @@
 ---
-description: Modo altura (MDT del IGN) y MDS (Copernicus/WCS): caché de rejillas, cobertura, cuadrícula acumulada, disciplina de peticiones.
+description: Elevaciones (MDT y MDS por WCS) — catálogo de fuentes elegibles, consulta puntual desde el menú contextual, carpeta por sesión, descubrimiento una vez por sesión, ASCII/GeoTIFF, caché de rejillas y disciplina de peticiones.
 paths:
   - "src/js/60-elevation.js"
 ---
 
-- **Modo altura (⛰, MDT del IGN)**: altitud bajo el cursor vía XYZ del IGN
-  (`raster-dem`, MDT05 PNOA, Terrain-RGB, zooms 5–15, solo España).
-  Altitud **ortométrica** (no elipsoidal GNSS), en metros y pies
-  (`fmtAltitude`, pie = 0,3048 m). Apagado por defecto (cada lectura es
-  una petición externa); al activarlo se añade la atribución CC BY 4.0.
-- **MDT y MDS por el MISMO camino** (`makeElevationSource`): ambos WCS
-  2.0, rejilla ASCII, misma ventana/recorte — necesario para que restar
-  MDT−MDS sea fiable (muestreo/interpolación/redondeo distintos rompían
-  la resta). MDT: `servicios.idee.es/wcs-inspire/mdt`; `pickMdtCoverage`
-  elige la malla más fina (5 m) y, a igualdad, un CRS geográfico.
-- **Caché por REJILLA/COBERTURA, no por celda**: una rejilla sirve si
-  contiene el punto pedido; indexar por celdas de 25 m dejaba huecos
-  (~22 m) sin cobertura. Zonas sin dato sí se indexan por celda (no hay
-  rejilla que las delimite).
-- **Ventana de petición ±20 m** (no ±10): con celdas de 5 m cubre más
-  puntos por petición.
-- **Mientras el cursor esté dentro de la última rejilla se lee directo**
-  (`gridSample`), sin pedir; se pide solo al salir de SU cobertura (no
-  de la celda de caché).
-- **Lectura bajo el CURSOR**, no la celda central de la rejilla.
-- **Tres estados en `gridSample`**: `undefined` = fuera (pedir), `null`
-  = dentro sin dato (no repetir), número = dato válido. No confundir los
-  dos primeros.
-- **Cuadrícula de elevaciones**: se dispara con la RESPUESTA del WCS, no
-  con el movimiento del ratón. `parseAsciiGrid` devuelve la matriz
-  completa + cabecera (`xllcorner`, `yllcorner`, `cellsize`); `gridValue`
-  extrae la celda central.
-- **Se ACUMULA mientras el modo altura está activo** (`drawElevGrid` no
-  borra). Cada petición se ajusta (`snapTile`) a una retícula fija de
-  teselas de 2×`ELEV_WINDOW` (origen/tamaño fijos de por vida) para que
-  la misma zona caiga siempre en la misma tesela y el deduplicado
-  (`elevTileKey`) compare esquinas exactas, no proximidad. Al
-  desactivar, la sesión (`elevAccum`) se convierte en capa normal
-  («Elevación N», sección «Elevaciones»); sesión vacía no crea capa.
-  Tope `ELEV_ACCUM_MAX_CELLS` (cada celda es un `L.rectangle` + un
-  `L.marker` DOM, no canvas).
-- **Dibujo según zoom** (`elevZoomBand`): bajo zoom 19 (`ELEV_ZOOM_MINI`)
-  solo relleno (rojo pastel si MDS−MDT > `ELEV_ALERT_DIFF` = 1 m, blanco
-  si no); zoom 19 solo la diferencia; desde 20, las tres líneas
-  (terreno/superficie/diferencia). Umbral siempre en METROS.
-  `refreshElevCells` recalcula desde `_cell` (registro crudo por capa)
-  sin red al cambiar zoom o unidad.
-- **Unidad m/ft** (`elevUnit`, botón junto al de modo altura,
-  `toElevUnit`/`METERS_PER_FOOT`): solo afecta a la capa de elevaciones,
-  no al cuadro de coordenadas; no persiste, arranca en metros.
-- **Repetir medición con una capa de elevaciones visible la AMPLÍA**:
-  `pickClosestElevLi` fusiona en la única marcada, o en la más cercana
-  al centro si hay varias (`mergeElevSession`); sin ninguna, crea
-  «Elevación N+1». Durante la fusión, `elevRequest` evita puntos ya
-  cubiertos (`coveredByPriorCells`, punto-en-rectángulo). Si la capa
-  destino se borra a mitad, cae a crear una nueva.
-- **La rejilla viaja etiquetada con su CRS** (`web`/`geo`/`native`): Web
-  Mercator se deshace con la proyección de Leaflet; el nativo (UTM) no
-  se dibuja (sin conversión inversa).
-- **Texto de celda escala con zoom** (`gridFontSize`, crece desde el 21)
-  — tamaño relativo a la celda, recalculado en `zoomend` sin red.
-- **Celdas RECTANGULARES**: la ASCII grid da `cellsize` solo si son
-  cuadradas, si no `dx`/`dy` (MDT y MDS devuelven mallas de tamaño
-  distinto). Usar siempre `cellX`/`cellY`.
-- **MDT y MDS se emparejan por POSICIÓN, no por índice** (pueden no
-  empezar en el mismo punto).
-- **Sin esquina, la rejilla no se dibuja pero sí se lee** (`located:
-  false`): sigue siendo válida para el cuadro de coordenadas.
-- **Mientras se consulta: «Consultando…»**, nunca el valor anterior
-  (evita leer un número viejo como si fuera del punto nuevo). Cada fila
-  lleva el prefijo del modelo (MDT/MDS).
-- **MDS (altura de superficie)**: solo WCS 2.0 (`wcs-mds.idee.es/mds`,
-  sin teselas XYZ) → una petición por punto, disparada al parar el
-  cursor (`MDS_SETTLE_MS`), cacheada por celdas de `MDS_CELL` m.
-- **Regla general de esta integración: de un servicio ajeno no se supone
-  nada, se lee de sus capacidades** (`mdsDiscover`+`parseMdsCoverage`:
-  cobertura del GetCapabilities, CRS/ejes/extensión del
-  DescribeCoverage). Trampas reales ya comprobadas contra este servicio:
-  `axisLabels` es ATRIBUTO del `<Envelope>`, no elemento; el eje se
-  identifica por NOMBRE nunca por orden (aquí declara `x y`, al revés de
-  la convención GML `N E`: asumir orden produce `ExtentError`); WCS
-  exige repetir la clave `subset` una vez por eje (un objeto plano no
-  vale).
-- **El formato de salida también se descubre** (`formatSupported`+
-  `pickMdsFormat`): este servicio publica ASCII como `ArcGrid`/
-  `application/asc` (nombres no estándar) — buscar por patrón contra
-  variantes, no por igualdad; suponer `text/plain` da
-  `InvalidParameterValue`.
-- **Errores OGC viajan en el CUERPO aunque el HTTP sea 400**: `mdsFetch`
-  siempre lee el cuerpo y lanza ese texto + `exceptionCode`.
-- **Cobertura ABSOLUTA, no la primera de la lista** (`pickMdsCoverage`):
-  el servicio también publica `mdsn_e025`/`mdsn_v025` (normalizadas,
-  altura sobre el suelo, no altitud) junto a `mds05` (absoluta).
-- **Se pide en EPSG:3857 siempre que se pueda** (mismo sistema que
-  dibuja el visor; conversión vía `map.options.crs.project`). Ventana
-  corregida por latitud (`webMercatorHalf`, Web Mercator estira con el
-  coseno de la latitud). Si el servicio no ofrece 3857 o rechaza, cae a
-  geográficas y luego a nativas, recordando el descarte (salir de
-  cobertura NO cuenta como rechazo).
-- **Latitud/longitud como respaldo** (`crsSupported`→`pickGeoCrs`, ejes
-  `Lat`/`Long` vía `subsettingCrs`, sin transformar nada a mano). Si el
-  servidor la rechaza, pasa a nativas UNA sola vez (`cfg.useGeo =
-  false`) y avisa.
-- **MDS en un solo huso** (30 extendido para toda España, no el local de
-  cada punto): `latLngToUtm(forceZone)` usa el que declare el EPSG de la
-  cobertura (el huso local desplazaría el punto medio millón de metros
-  en zonas límite como Barcelona).
-- **Errores OGC llegan como XML con HTTP 200**: `parseOwsException` los
-  reconoce (si no, un `ExtentError` se lee como «sin datos»). Salir del
-  área cubierta no es error, solo «sin dato».
-- **Se comprueba la extensión antes de pedir**: evita una petición
-  condenada a fallar.
-- **CSP**: los *sourcemaps* de librerías van por `connect-src` (unpkg/
-  cdnjs deben estar ahí también); `frame-ancestors` no va en el `<meta>`
-  (solo vale como cabecera HTTP).
-- **Disciplina de peticiones al MDT**: caché de teselas con tope
-  (`DEM_CACHE_MAX`, LRU), muestreo con retardo (`DEM_SAMPLE_MS`), tope
-  de peticiones/s (`DEM_MAX_RPS`, ventana deslizante), peticiones en
-  vuelo compartidas (`demPending`), teselas fallidas recordadas. Avisos
-  agrupados por rachas (`DEM_STATUS_QUIET`). Cualquier consulta externa
-  nueva debe seguir este patrón.
-- **Tres estados**: `undefined` = aplazada por el tope, `null` = sin
-  cobertura, valor = dato bueno. Nunca inventar un número.
-- **Retícula**: recortada a la franja Mercator (±85°), paso creciente
-  para que el nº de líneas quepa en `GRAT_MAX_LINES` cerca de los polos.
+## Fuentes y descubrimiento
+
+- **Catálogo de fuentes en el código** (`ELEV_SOURCES`, `60-elevation.js`): cada entrada es un WCS 2.0 que da un modelo (`kind`: `mdt` terreno, `mds` superficie), con `id`, `label`, `base`, `pickCoverage` (filtra coberturas CANDIDATAS) y `attrib`. Hoy: `ign-mdt` (`servicios.idee.es/wcs-inspire/mdt`), `ign-mds` (`wcs-mds.idee.es/mds`) y `dea-cop30` (Digital Earth Africa, `ows.digitalearth.africa/wcs`, Copernicus DEM GLO-30, MDS). **Añadir una fuente es añadir una entrada**: la pestaña de Propiedades se rellena sola desde aquí. El usuario NO escribe direcciones: elige del catálogo.
+- **Elección del usuario** (`elevSources = { mdt, mds }`, id o `null` = «Ninguna»; por defecto `ELEV_SOURCE_DEFAULT`, las del IGN): Propiedades → «Fuentes de datos» (ver `units-coordinates-properties-panel.md`), persistida (`elevSources`, ver `persistence-indexeddb.md`). `validElevSources` valida lo leído contra el catálogo ACTUAL: id retirado o de otro tipo → el de por defecto; `null` es legítimo.
+- **Un cliente por fuente** (`sourceClient(id)`, `makeElevationSource(source)`), perezoso y vivo toda la sesión: con él viven su descubrimiento y su caché.
+- **Descubrimiento UNA vez por fuente y sesión** (`discover`), en su PRIMERA consulta —nunca al arrancar ni al abrir Propiedades—: GetCapabilities, `pickCoverage` → candidatas (como mucho `ELEV_MAX_CANDIDATES`), DescribeCoverage de todas a la vez y `pickFinestCoverage`. Un fallo de red no cuenta (`discovering = null`): se reintenta en la siguiente consulta. Lo elegido se anota UNA vez en el registro de avisos (`describeElevChoice`: cobertura, formato, celda), petición expresa del usuario: con varias mallas posibles, quien lee una altura tiene que poder saber de cuál salió.
+- **La mejor resolución, leída de la malla, no del nombre** (`coverageCellMeters`): `offsetVector` de una RectifiedGrid, o extensión entre `GridLimits` (`high − low + 1`, cruzando los ejes de la malla con los de la extensión por NOMBRE). En grados se pasa a metros con la latitud media; manda el eje más grueso. `pickFinestCoverage`: menor celda (tolerancia 0,5 m), a igualdad la geográfica; sin celda conocida cuenta como la peor; no descrita, fuera. **El nombre sigue sirviendo de criba**: `pickMdtCoverage` deja solo las de paso más fino de `Elevacion<EPSG>_<paso>` (las 17 coberturas del MDT no se describen todas, solo las 3 de 5 m), geográficas primero.
+- **Formato: ASCII antes que GeoTIFF** (`ELEV_FORMATS` en orden, `pickElevFormat` → `{ name, kind }`): la rejilla de texto se lee sin librería y sin ambigüedad de tipo. GeoTIFF solo si el servicio no ofrece ASCII (Digital Earth Africa: solo `image/geotiff` y NetCDF), leído con geotiff.js (`readGeoTiffGrid`, sin Pool: la CSP bloquearía sus workers de `blob:`) y convertido por `gridFromRaster` (pura) a la MISMA rejilla que `parseAsciiGrid`. Un GeoTIFF de color (`GEOTIFF_RGB` del IGN) no es una rejilla de alturas.
+- **Atribución por fuente**: la de cada fuente que respondió, añadida la primera vez y para toda la sesión (`elevAttribDone`). Las cuadrículas restauradas de otra sesión no la llevan.
+
+## Consulta puntual (menú contextual)
+
+- **No hay modo altura ni botones** (⛰ y m/ft retirados): «Consultar elevación aquí» del menú contextual del visor (`queryElevationAt(latlng)`) pide a las fuentes ELEGIDAS la tesela de la retícula que contiene el punto. Mover el ratón no pide nada. `elevQueryDisabled()` da el motivo para el `disabled()` del menú: mapa girado (`ALT_ROTATED_WHY`) o las dos en «Ninguna» (`ELEV_NO_SOURCES_WHY`).
+- **Una capa por consulta, una carpeta por sesión**: sección «Elevaciones» › «Sesión AAAA-MM-DD HH:MM» (`sessionStamp`, hora de la primera consulta) › «Elevación N» (`nextNumberedName`, deduce el número de los nombres del árbol). La carpeta se recuerda por REFERENCIA (`elevSessionLi`), no por nombre: dos sesiones pueden llamarse igual y una restaurada no es esta; borrada (o reconstruida por un deshacer), la siguiente consulta crea otra. `pushUndo("consultar elevación")` en el momento en que hay celdas que añadir.
+- **Repetir la tesela con las MISMAS fuentes no pide nada** (`elevSessionKeys`, clave `mdt|mds|latticeKey`): señala la capa que ya la tiene (`highlightNode` + `blinkLayer`). Las fuentes van en la clave: con otro MDS la misma tesela es otra consulta (fallo real cazado por la suite: tras pedir Madrid al IGN, Digital Earth Africa la daba por descargada).
+- **Celdas con solo lo consultado**: `buildElevCells(terrain, surface, kinds)`; el modelo en «Ninguna» no aporta clave (`hasMdt`/`hasMds`), `null` dentro de la clave = consultado sin dato. JSON quita `undefined` y conserva `null`, así que la distinción sobrevive al guardado SIN subir `TREE_SCHEMA` (lo guardado antes trae las dos claves). `elevCellHtml` pinta solo esas líneas; con un solo modelo la línea única es su valor (no hay diferencia).
+- **«Sin datos» solo si alguna fuente ELEGIDA respondió**: la que está en «Ninguna» resuelve `null` y no cuenta; una que falló ya avisó por su cuenta.
+- **Unidad: la global de Propiedades** (`measureUnit`), no una propia: `fmtHeight`/`fmtHeightValue` (`51-geodesy.js`; 1 decimal en m/ft, 4 en km/mi/NM —2,5 m son 0,0013 NM—). `setMeasureUnit` llama a `refreshElevCells`. Umbral del aviso rojo siempre en METROS.
+- **Cuadro de coordenadas**: por fotograma (el rAF del `mousemove`), `elevCellAt` busca la celda bajo el cursor en las capas VISIBLES (`elevGridGroups` en `rootGroup`, solo rectángulos) y `coordsControl.showElevationCell` pinta sus filas en `measureUnit`, sin red; fuera de celdas se ocultan. **Trampa**: se ocultan con `mouseleave` NATIVO del contenedor, no con el `mouseout` de Leaflet: el lienzo de los vectores lleva `_leaflet_disable_events` y saliendo desde ENCIMA de una cuadrícula (justo el caso) el mapa no recibía su mouseout; y se cancela el fotograma pendiente, que llegaba después y volvía a pintar la celda.
+- **Mapa girado**: la consulta sigue deshabilitada (restricción heredada de la primera iteración, ver `map-rotation.md`); las cuadrículas ya descargadas giran bien.
+
+## Trampas de los servicios (comprobadas contra ellos)
+
+- **Regla general: de un servicio ajeno no se supone nada, se lee de sus capacidades**: cobertura y caja WGS84 del GetCapabilities (`parseWcsCapabilities` → `bboxes`), CRS/ejes/extensión/celda del DescribeCoverage (`parseCoverageDescription`).
+- `axisLabels` es ATRIBUTO del `<Envelope>`, no elemento; el eje se identifica por NOMBRE nunca por orden (el IGN declara `x y`, al revés de la convención GML `N E`; Digital Earth Africa `latitude longitude`); WCS exige repetir la clave `subset` una vez por eje.
+- **Digital Earth Africa declara la extensión como `EnvelopeWithTimePeriod`** (eje de tiempo): `firstByTag` compara el nombre exacto, hay que buscar los dos.
+- **CRS en dos formas**: URL (`…/EPSG/0/3857`, IGN) y corta (`EPSG:3857`, Digital Earth Africa) — `pickWebMercator`/`pickGeoCrs` aceptan ambas.
+- **El formato se descubre por patrón**: el IGN publica ASCII como `ArcGrid`/`application/asc`; suponer `text/plain` da `InvalidParameterValue`.
+- **Fuera de cobertura NO es error** (`isOutOfCoverage`): el IGN responde `ExtentError` (a veces con HTTP 200), Digital Earth Africa **HTTP 404 con `InvalidSubsetting`**. Confundirlo con un rechazo hacía abandonar para siempre la vía Web Mercator (`cfg.useWeb = false`). Tampoco un tiempo agotado descarta una vía.
+- **Errores OGC viajan en el CUERPO aunque el HTTP sea 400/404**: `request` siempre lee el cuerpo si es XML (también al esperar GeoTIFF) y lanza ese texto + `exceptionCode`.
+- **Se comprueba la extensión antes de pedir**: la caja WGS84 de la cobertura (Madrid queda fuera de Digital Earth Africa, por encima de 39°N) y, en la vía nativa, la del DescribeCoverage.
+- **Cobertura ABSOLUTA, no la primera de la lista** (`pickMdsCoverage`): el MDS del IGN publica también `mdsn_e025`/`mdsn_v025` (normalizadas, altura sobre el suelo, no altitud). De Digital Earth Africa solo `dem_cop_30` (`pickDeaDemCoverage`): Copernicus DEM es un modelo de SUPERFICIE; SRTM y NASADEM no aportan.
+- **Digital Earth Africa rechaza a Chromium**: su CloudFront responde **403 sin cabecera CORS a todo User-Agent con `Chrome/`** (Chrome, Edge, Brave…), y 200 a Firefox, Safari o `curl` (comprobado repetidamente, octubre de 2026). Desde Chromium llega como «no admite consultas desde el navegador (CORS)»; la página no puede cambiar su User-Agent. Validado de punta a punta contra el servicio real con el User-Agent de Firefox (Teide ≈ 3700 m).
+- **Se pide en EPSG:3857 siempre que se pueda** (mismo sistema que dibuja el visor; `map.options.crs.project`). Ventana corregida por latitud (`webMercatorHalf`). Si el servicio no ofrece 3857 o lo rechaza, cae a geográficas (ejes de la cobertura si es geográfica, si no `Long`/`Lat` del IGN) y luego a nativas, recordando el descarte.
+- **Huso único del MDS del IGN** (30 extendido): `latLngToUtm(forceZone)` usa el del EPSG de la cobertura (el huso local desplazaría el punto medio millón de metros en zonas límite como Barcelona).
+- **CSP**: los *sourcemaps* de librerías van por `connect-src` (unpkg/cdnjs deben estar ahí también); `frame-ancestors` no va en el `<meta>` (solo vale como cabecera HTTP).
+
+## Rejilla, caché y dibujo
+
+- **MDT y MDS por el MISMO camino** (`makeElevationSource`): WCS 2.0, misma ventana y recorte — necesario para que restar MDT−MDS sea fiable. Se emparejan por POSICIÓN, no por índice (pueden no empezar en el mismo punto, ni tener la misma malla: 5 m frente a 30 m).
+- **Retícula fija**: cada petición se ajusta (`snapTile`) a teselas de 2×`ELEV_WINDOW` con origen fijo; `latticeKey` es la clave de tesela Web Mercator.
+- **Caché por REJILLA/COBERTURA, no por celda** (por fuente): una rejilla sirve si contiene el punto; indexar por celdas de 25 m dejaba huecos. Zonas sin dato sí se indexan por celda (`emptyAt`).
+- **La rejilla viaja etiquetada con su CRS** (`web`/`geo`/`native`): el nativo (UTM) no se dibuja. **Celdas RECTANGULARES** (`cellX`/`cellY`: la ASCII grid da `cellsize` solo si son cuadradas). **Sin esquina, la rejilla no se dibuja** (`located: false`).
+- **Huecos**: NODATA, NaN (GeoTIFF de Digital Earth Africa) y valores fuera de [−500, 9000] son `null` (`elevValue`), nunca un número inventado.
+- **Dibujo según zoom** (`elevZoomBand`): bajo zoom 19 solo relleno (rojo pastel si MDS−MDT > `ELEV_ALERT_DIFF` = 1 m); zoom 19 una línea; desde 20 todas. `refreshElevCells` recalcula desde `_cell` sin red al cambiar zoom o unidad. Texto escalado con el zoom (`gridFontSize`).
+- **Disciplina de peticiones**: tope de peticiones/s entre TODAS las fuentes (`demRateOk`, `ELEV_MAX_RPS`), tiempo máximo (`ELEV_TIMEOUT`), caché con tope (`ELEV_CACHE_MAX`), consultas en vuelo no duplicadas (`elevInFlight`). Sin tope de celdas acumuladas (el antiguo `ELEV_ACCUM_MAX_CELLS` era del modo continuo, que pedía solo al mover el ratón): cada consulta es expresa y trae del orden de cien celdas, cada una un rectángulo en el lienzo y un marcador DOM. Avisos de error agrupados por racha Y POR FUENTE (`demError(key, …)`, `ELEV_STATUS_QUIET`): que falle el MDS no debe callar que el MDT tampoco responde. Tres estados: `undefined` = no se pudo consultar, `null` = sin dato, número = dato.
+- **Retícula de paralelos y meridianos**: recortada a la franja Mercator (±85°), paso creciente para que el nº de líneas quepa en `GRAT_MAX_LINES` cerca de los polos.
+
+## Pruebas
+
+`tests/elevtest.js` (lógica pura, con el DescribeCoverage y las capacidades reales de Digital Earth Africa recortadas) y `tests/browser/elev-sources.mjs` (de punta a punta con los servicios simulados por `page.route` y un GeoTIFF REAL de Digital Earth Africa en `tests/fixtures/dea-cop30-tenerife.tif`).

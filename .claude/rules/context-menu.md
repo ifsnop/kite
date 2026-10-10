@@ -15,7 +15,8 @@ paths:
   que `openStyleDialog`). Nombrado distinto de «Mostrar atributos» a
   propósito (dos ítems iguales confundirían), aunque el resto de la app
   llame «propiedades» a ambos indistintamente.
-- **`disabled()` opcional en un ítem**: devuelve el MOTIVO (texto, va al `title`) o algo falso. El ítem se pinta deshabilitado, no se esconde. Hoy lo usa «Modo elevación» con el mapa rotado.
+- **`disabled()` opcional en un ítem**: devuelve el MOTIVO (texto, va al `title`) o algo falso. El ítem se pinta deshabilitado, no se esconde. Hoy lo usa «Consultar elevación aquí» (`elevQueryDisabled`): mapa rotado, o las dos fuentes de elevación en «Ninguna».
+- **«Consultar elevación aquí»** (`queryElevationAt(latlng)`) sustituye al antiguo interruptor «Modo elevación» y al botón ⛰: una consulta puntual de la tesela bajo el puntero, una capa por consulta. Ver `elevation-dem.md`.
 - **«Medir ▸» es un submenú fijo de `CTX_MENU_ITEMS`** con Ruta, Círculo y Arco (cada uno alterna su herramienta con `setTool`); «Dibujar polígono o línea» queda fuera del grupo.
 - **Elegir una acción devuelve el foco al VISOR antes de ejecutarla**
   (clic del ítem en `renderCtxItems`): ocultar el menú lo dejaba en el

@@ -50,6 +50,7 @@ paths:
   además entradas cuyo valor no sea un array no vacío de strings). Ver
   `import-parsing.md`.
 - **Segmentos de un arco** (`arcSegments`, `ARC_SEGMENTS_SCHEMA`): entero en [`ARC_SEGMENTS_MIN`, `ARC_SEGMENTS_MAX`] (2–720), validado al leer; clave propia del mismo almacén. Un arco ya dibujado es una ruta y no guarda nada de esto.
+- **Fuentes de elevación** (`elevSources`, `ELEV_SOURCES_SCHEMA`): `{ v, mdt, mds }` con un id del catálogo `ELEV_SOURCES` o `null` («Ninguna»); `dbLoadElevSources` lo pasa por `validElevSources` (id retirado o de otro tipo → el de por defecto). Restaurado en `99-boot.js`. Las celdas de una capa `elevGrid` omiten la clave `mdt`/`mds` del modelo no consultado: JSON lo conserva tal cual, NO sube `TREE_SCHEMA` (ver `elevation-dem.md`).
 - **Tope de vértices editables** (`vertexEditMax`, `VERTMAX_SCHEMA`):
   número simple, validado al leer (`Number.isInteger` y `> 0`, para que
   no se cuele un tope de 0). Ver `measurements-drawing-vertex-editing.md`.
