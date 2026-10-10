@@ -1,5 +1,5 @@
-/* Rotación del mapa (experimento, leaflet-rotate): las piezas PURAS que
-   no dependen del plugin ni del navegador.
+/* Rotación del mapa (08-map-rotation.js, derivada de leaflet-rotate):
+   las piezas PURAS, que no dependen de Leaflet ni del navegador.
 
    1. La brújula: ángulo del puntero visto desde su centro (convenio de
       rumbo: 0 = arriba, sentido horario) y rumbo del mapa durante un
@@ -12,18 +12,28 @@
    3. «Una sola Tierra» rotada: el arrastre en pantalla se recorta en el
       marco del mapa sin girar y se vuelve a girar; con el norte arriba
       debe coincidir con el recorte por ejes de Leaflet.
+   4. El giro incorporado: girar un punto alrededor de un pivote, el
+      transform CSS del panel girado y la caja que envuelve una vista
+      girada. Y el guardián de versión: el código parchea internos de
+      Leaflet, así que la versión fijada en el HTML tiene que ser la
+      misma para la que se escribió (LEAFLET_PATCHED), y ya no se carga
+      leaflet-rotate de ningún CDN.
 
    La integración con el mapa de verdad (brújula, R, etiquetas
    horizontales, detección de capas, PNG…) está en
    tests/browser/rotation.mjs.                                          */
+const fs = require("fs");
+const path = require("path");
 const { fn, constDecl } = require("./_extract");
 const ok = (c, m) => { if (!c) { console.error("FAIL: " + m); process.exitCode = 1; } };
 const near = (a, b, eps = 1e-9) => Math.abs(a - b) < eps;
 
 const R = new Function(fn("pointerAngleDeg") + "\n" + fn("dragBearing") + "\n"
   + constDecl("ROTATE_DEG_PER_PX") + "\n" + fn("pivotDragBearing") + "\n"
-  + fn("clipSegmentToRect") + "\n" + fn("clampRotatedDragOffset")
-  + "\nreturn { pointerAngleDeg, dragBearing, pivotDragBearing, clipSegmentToRect, clampRotatedDragOffset };")();
+  + fn("clipSegmentToRect") + "\n" + fn("clampRotatedDragOffset") + "\n"
+  + fn("rotateXY") + "\n" + fn("rotatedTransformCss") + "\n" + fn("enclosingBox")
+  + "\nreturn { pointerAngleDeg, dragBearing, pivotDragBearing, clipSegmentToRect, clampRotatedDragOffset,"
+  + " rotateXY, rotatedTransformCss, enclosingBox };")();
 
 /* ================= 1. Brújula ================= */
 ok(near(R.pointerAngleDeg(0, 0, 0, -10), 0), "puntero arriba del centro → 0°");
@@ -82,5 +92,38 @@ ok(near(o.x, 50, 1e-6) && near(o.y, 0, 1e-6),
 /* Vista más grande que el mundo en un eje: el centro se queda en medio */
 o = R.clampRotatedDragOffset({ x: 40, y: 0 }, 0, { x: 480, y: 500 }, { x: 600, y: 450 }, { x: 400, y: 550 });
 ok(near(o.x, -20), "sin hueco en X, el centro va al punto medio (500): arrastre -20: " + JSON.stringify(o));
+
+/* ================= 4. Giro incorporado ================= */
+/* En pantalla Y crece hacia abajo: un giro positivo es HORARIO */
+let p = R.rotateXY(10, 0, Math.PI / 2, 0, 0);
+ok(near(p.x, 0, 1e-9) && near(p.y, 10, 1e-9), "a 90°, (10,0) va a (0,10): horario en pantalla: " + JSON.stringify(p));
+p = R.rotateXY(15, 5, Math.PI, 5, 5);
+ok(near(p.x, -5, 1e-9) && near(p.y, 5, 1e-9), "alrededor de un pivote, no del origen: " + JSON.stringify(p));
+p = R.rotateXY(3, 4, 0, 100, 100);
+ok(p.x === 3 && p.y === 4, "sin giro no se mueve");
+const back = R.rotateXY(...Object.values(R.rotateXY(7, -2, 0.7, 1, 1)), -0.7, 1, 1);
+ok(near(back.x, 7, 1e-9) && near(back.y, -2, 1e-9), "girar y deshacer el giro vuelve al punto");
+
+/* El transform lleva la posición YA girada (CSS gira alrededor de la
+   esquina del propio elemento, no del pivote) y el ángulo en radianes */
+const css = R.rotatedTransformCss({ x: 10, y: 0 }, Math.PI / 2, { x: 0, y: 0 });
+const m = css.match(/^translate3d\(([-\d.e]+)px,([-\d.e]+)px,0\) rotate\(([-\d.e]+)rad\)$/);
+ok(m && near(+m[1], 0, 1e-9) && near(+m[2], 10, 1e-9) && near(+m[3], Math.PI / 2, 1e-12),
+  "transform del panel girado: posición girada alrededor del pivote + rotate en rad: " + css);
+
+/* La caja que envuelve un cuadrado de 100 girado 45° mide 100·√2 */
+const sq = [[0, 0], [100, 0], [0, 100], [100, 100]].map(([x, y]) => R.rotateXY(x, y, Math.PI / 4, 50, 50));
+const box = R.enclosingBox(sq);
+ok(near(box.max.x - box.min.x, 100 * Math.SQRT2, 1e-9) && near(box.max.y - box.min.y, 100 * Math.SQRT2, 1e-9),
+  "caja envolvente de un cuadrado girado 45°: lado 100·√2: " + JSON.stringify(box));
+ok(near(box.min.x + box.max.x, 100, 1e-9), "y centrada en el pivote");
+
+/* Guardián: parchea internos de Leaflet, así que versión fijada = la
+   del código; y ningún <script> trae ya leaflet-rotate de fuera.     */
+const html = fs.readFileSync(path.join(__dirname, "..", "kitelocal.html"), "utf8");
+const patched = new Function(constDecl("LEAFLET_PATCHED") + "\nreturn LEAFLET_PATCHED;")();
+const pinned = (html.match(/unpkg\.com\/leaflet@([\d.]+)\/dist\/leaflet\.js/) || [])[1];
+ok(pinned === patched, `Leaflet fijado en el HTML (${pinned}) = el que parchea 08-map-rotation.js (${patched})`);
+ok(!/<script[^>]+leaflet-rotate/.test(html), "ningún <script> carga leaflet-rotate: el giro es código propio");
 
 if (!process.exitCode) console.log("ROTATION TESTS OK");

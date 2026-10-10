@@ -44,9 +44,7 @@ const leaflet = {
   markerEvents: L.Marker.prototype.getEvents,
   markerSetPos: L.Marker.prototype._setPos,
   markerInitInteraction: L.Marker.prototype._initInteraction,
-  overlayEvents: L.DivOverlay.prototype.getEvents,
-  overlayUpdatePosition: L.DivOverlay.prototype._updatePosition,
-  popupAnimateZoom: L.Popup.prototype._animateZoom
+  overlayEvents: L.DivOverlay.prototype.getEvents
 };
 
 /* ---------- Pure geometry (tested in Node, tests/rotation.js) ---------- */
@@ -107,10 +105,12 @@ function pixelCenter(map) {
 }
 
 /* Layer-pixel box covering a rectangle of the CONTAINER once the map is
-   turned (its four corners, floored like Leaflet does).              */
+   turned (its four corners). Exact, not floored corner by corner as
+   leaflet-rotate did: that shrank the box by up to a pixel per side
+   and left the turned view's corners outside the tiles requested.   */
 function containerRectToLayerBounds(map, min, max) {
   const corners = [[min.x, min.y], [max.x, min.y], [min.x, max.y], [max.x, max.y]]
-    .map(c => map.containerPointToLayerPoint(c).floor());
+    .map(c => map.containerPointToLayerPoint(c));
   return L.bounds(corners);
 }
 
@@ -213,14 +213,15 @@ L.Map.include({
   },
 
   /* Leaflet tests "is it visible" in unrotated pixels; turned, the
-     visible area is the container itself.                            */
+     visible area is the container itself — in CONTAINER pixels, like
+     the point (leaflet-rotate mixed in page pixels: with anything left
+     of the map, such as the tree panel, the point was never inside).  */
   panInside(latlng, options = {}) {
     if (!this._bearing) return leaflet.panInside.call(this, latlng, options);
     const tl = L.point(options.paddingTopLeft || options.padding || [0, 0]);
     const br = L.point(options.paddingBottomRight || options.padding || [0, 0]);
-    const rect = this._container.getBoundingClientRect();
     const point = this.latLngToContainerPoint(latlng);
-    const view = L.bounds([L.point(rect), L.point(rect).add(this.getSize())]);
+    const view = L.bounds([L.point(0, 0), this.getSize()]);
     const center = view.getCenter();
     const padded = L.bounds([view.min.add(tl), view.max.subtract(br)]);
     const paddedSize = padded.getSize();
@@ -272,7 +273,8 @@ L.Renderer.include({
   },
   _update() {
     const map = this._map, size = map.getSize(), p = this.options.padding;
-    this._bounds = containerRectToLayerBounds(map, size.multiplyBy(-p), size.multiplyBy(1 + p));
+    const b = containerRectToLayerBounds(map, size.multiplyBy(-p), size.multiplyBy(1 + p));
+    this._bounds = L.bounds(b.min.floor(), b.max.ceil()); /* whole canvas pixels, still covering */
     this._topLeft = map.layerPointToLatLng(this._bounds.min);
     this._center = map.getCenter();
     this._zoom = map.getZoom();
@@ -321,27 +323,33 @@ function patchMarkerDrag(handler) {
   if (handler.enabled()) { handler.disable(); handler.enable(); }
 }
 
-/* Leaflet placed the overlay at its ROTATED layer point; move it to
-   where that point is on the mapPane, keeping the anchor.           */
-function placeOverlayUnrotated(overlay) {
-  const anchor = overlay._getAnchor();
-  const pos = L.DomUtil.getPosition(overlay._container).subtract(anchor);
-  L.DomUtil.setPosition(overlay._container, overlay._map.rotatedPointToMapPanePoint(pos).add(anchor));
-}
+/* Popups (and the DivOverlay base): Leaflet 1.9.4's placement, from
+   the point where the latlng is on the mapPane instead of its rotated
+   layer point. leaflet-rotate corrected the position afterwards only
+   for zoom-animated overlays: without zoom animation (no GPU), a popup
+   drifted off its spot as soon as the map turned.                   */
 L.DivOverlay.include({
   getEvents() {
     return L.extend(leaflet.overlayEvents.call(this), { rotate: this._updatePosition });
   },
   _updatePosition() {
     if (!this._map) return;
-    leaflet.overlayUpdatePosition.call(this);
-    if (this._map && this._zoomAnimated) placeOverlayUnrotated(this);
+    const pos = this._map.rotatedPointToMapPanePoint(this._map.latLngToLayerPoint(this._latlng));
+    const anchor = this._getAnchor();
+    let offset = L.point(this.options.offset);
+    if (this._zoomAnimated) L.DomUtil.setPosition(this._container, pos.add(anchor));
+    else offset = offset.add(pos).add(anchor);
+    const bottom = this._containerBottom = -offset.y;
+    const left = this._containerLeft = -Math.round(this._containerWidth / 2) + offset.x;
+    /* bottom-anchored, in case the content grows (images loading…) */
+    this._container.style.bottom = bottom + "px";
+    this._container.style.left = left + "px";
   }
 });
 L.Popup.include({
   _animateZoom(e) {
-    leaflet.popupAnimateZoom.call(this, e);
-    if (this._map) placeOverlayUnrotated(this);
+    const pos = this._map._latLngToNewLayerPoint(this._latlng, e.zoom, e.center);
+    L.DomUtil.setPosition(this._container, this._map.rotatedPointToMapPanePoint(pos).add(this._getAnchor()));
   },
   /* Leaflet 1.9.4's, except for where the popup is on screen: it sits in
      norotatePane, so mapPane pixels plus the pane offset, not the
