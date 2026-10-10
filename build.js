@@ -41,6 +41,8 @@ const JS = [
   "05-mdi-icons.js",      /* GENERADO por fetch-icons.js: cuerpos SVG empotrados.
                              Va el primero por ser datos puros, sin ninguna
                              dependencia, y para que nada pueda usarlo antes  */
+  "07-leaflet-rotate.js", /* leaflet-rotate incorporado: parchea prototipos
+                             de Leaflet, antes de cualquier L.map()       */
   "08-leaflet-rotate-fixes.js", /* correcciones a leaflet-rotate: parchea
                              prototipos de Leaflet, así que va ANTES de
                              crear el mapa en 10-map.js                     */

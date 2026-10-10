@@ -175,6 +175,9 @@ const GLOBALS = new Set([
   /* `Float32Array`: buffer de vértices del quad a pantalla completa del
      efecto de iluminación día/noche (61-daynight.js, WebGL).          */
   "Float32Array",
+  /* `MutationObserver`: ContainerMutation de leaflet-rotate, copiado tal
+     cual en 07-leaflet-rotate.js (desactivado por opción).          */
+  "MutationObserver",
   /* `URL` y `decodeURIComponent`: reconocer una dirección pegada por el
      usuario (ver fileNameFromUrl). Van en la lista explícita por lo
      mismo que el resto: depender de una API del navegador tiene que ser
