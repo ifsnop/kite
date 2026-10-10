@@ -1,5 +1,5 @@
 ---
-description: Vista guardada, uso de almacenamiento/memoria, límites del mundo (una sola Tierra), zoom sobre teselas, cuadro de coordenadas y atribución.
+description: Vista guardada, uso de almacenamiento/memoria, límites del mundo (una sola Tierra), teclado y rueda del visor (flechas, Re/Av Pág y rueda continuos; el foco se queda en el visor), zoom sobre teselas, cuadro de coordenadas y atribución.
 paths:
   - "src/js/10-map.js"
   - "src/js/70-view-controls.js"
@@ -46,7 +46,10 @@ Dos cotas bajo el árbol (`#usage`):
 ## Una sola Tierra
 
 Sin desplazamiento infinito: el mundo se ve una vez, TRES piezas
-necesarias, cada una tapa un agujero distinto:
+necesarias, cada una tapa un agujero distinto (con el mapa ROTADO cada
+una necesita además su adaptación — `bounds` en las teselas, suelo de
+zoom con la caja girada y límite del arrastre en el marco del mapa —,
+ver `map-rotation.md`):
 
 - **`noWrap`** en cada capa de teselas, puesto en `applyBaseLayer` (único
   sitio que instancia una capa base, no repetido en `BASE_LAYERS`) para
@@ -72,6 +75,91 @@ calculando el logaritmo a mano) por el redondeo a `zoomSnap`.
 Consecuencia: una geometría con longitud fuera de ±180 queda fuera del
 área alcanzable (la importación ya ajusta a ±180 con `clampLatLng`, pero
 conviene saberlo).
+
+## Teclado y rueda del visor: flechas, Re/Av Pág y rueda continuos
+
+Mantener una tecla cuenta por el tiempo PULSADA (keydown→keyup), no por
+los keydown de autorrepetición del sistema (paso, pausa de ~250–600 ms,
+saltos: se notaba dibujando una ruta). Todo en `70-view-controls.js`.
+
+- **Toque = lo de siempre**: 80 px (`KEY_PAN_STEP`, el
+  `keyboardPanDelta` de Leaflet) o ±1 nivel. Soltada antes, la flecha
+  COMPLETA el paso sin pasarse; soltada después, se para en seco.
+- **Flechas**: arrancan en el keydown a 400 px/s, aceleran a partir de
+  500 ms hasta 1600 px/s en 1 s (`keyPanSpeed`), dos a la vez en
+  diagonal y Mayús ×3 (`keyPanVector`). En PANTALLA: girado, ↑ sigue
+  siendo arriba.
+- **No se usa el `Keyboard` de Leaflet para las flechas**: un paso por
+  keydown es justo el problema. Se cogen en CAPTURA en el contenedor y
+  no se propagan (Leaflet escucha en `document` y desplazaría dos
+  veces); `+`/`-`/Escape siguen siendo suyos. Solo con el foco en el
+  visor: en el buscador o el árbol no tocan el mapa.
+- **Límite del mundo en cada fotograma** (al final rebotaría), en
+  píxeles del mapa sin girar con el giro inverso, y `_limitCenter`
+  (consciente del giro). **Trampa**: ida y vuelta por
+  `containerPointToLatLng`/`latLngToContainerPoint` con leaflet-rotate
+  se desvía ~1 px → pasos de 8 px en vez de 7 y un toque de 98 px.
+  `_limitCenter` devuelve el MISMO objeto si no limita: entonces vale el
+  desplazamiento pedido tal cual.
+- **Trampa del primer fotograma**: la marca de tiempo de rAF es la del
+  INICIO del fotograma, anterior al keydown → `dt` negativo → un paso
+  hacia atrás (medido: −5 px). Se acota a ≥ 0 (y a 0,1 s tras pausas).
+- **Zoom continuo por el camino del pellizco táctil** (`_moveStart` +
+  `_move(…, {pinch: true})`, 3 niveles/s): solo transforma por CSS
+  teselas y lienzo, sin redibujar por fotograma. Centro desde el estado
+  INICIAL (desfase del ancla en píxeles del mapa sin girar, `d`), no del
+  fotograma anterior. Final como `TouchZoom._onTouchEnd`
+  (`_animateZoom`, o `_resetView` sin animación de zoom), no
+  `setZoomAround`, que abriría otro `zoomstart`. **`zoomSnap` sigue en
+  1** (decidido): al soltar se anima al nivel ENTERO siguiente en la
+  dirección del zoom y al menos ±1 del de partida (`keyZoomTarget`) —
+  teselas nítidas en reposo; rueda, doble clic y encuadres sin cambios.
+  Zoom y desplazamiento no se mezclan (empezar un zoom corta el
+  desplazamiento; flechas ignoradas durante un zoom).
+- **`mousemove` sintético** por fotograma en la última posición del
+  puntero sobre el visor (`synthetic: true`, olvidada en `mouseout`):
+  sin él, coordenadas, vista previa del arco o un vértice arrastrado se
+  quedaban en el punto geográfico viejo al mover el mapa sin mover el
+  ratón. `coordsPending` (ancla del zoom) se actualiza por ahí.
+- Se para todo con `blur` del visor o la pestaña oculta (sin keyup).
+- **Rueda: el mismo zoom continuo** (`scrollWheelZoom: false` en el
+  mapa; listener `wheel` propio en el contenedor, en burbuja: los
+  controles cortan la rueda con `disableScrollPropagation`). Cada evento
+  mueve un OBJETIVO fraccionario (`wheelLevels`: 100 px = un nivel, como
+  mucho uno por evento) que la vista alcanza con frenada en
+  `WHEEL_EASE_MS` por el camino del pellizco; cada evento vuelve a
+  anclar en el cursor. Sin rueda `WHEEL_IDLE_MS`, se asienta en el entero
+  siguiente en la dirección del último giro (`wheelZoomTarget`, SIN el
+  «al menos ±1» de las teclas: subir y bajar lo mismo deja donde
+  estaba) y termina como el de teclas. `preventDefault` siempre, también
+  con Ctrl (pellizco de panel táctil: si no, el navegador amplía la
+  página). Ignorada durante un zoom de teclas o un arrastre. **Trampa**:
+  un zoom nuevo durante la animación final del anterior (`_animatingZoom`)
+  la da por terminada (`_onZoomTransitionEnd`) antes de empezar; si no,
+  su final llegaba después y pisaba el zoom en curso (valía también para
+  dos toques rápidos de Re Pág). Medido igual que el de teclas: mediana
+  16,7 ms, un fotograma de 33 ms (el redibujo final).
+- **El foco se queda en el visor al usarlo con el ratón**, o estas
+  teclas (y R, y `+`/`-` de Leaflet) dejan de llegar. Dos fugas, ambas
+  comprobadas en Chromium:
+  - **Clic en un marcador**: su icono tiene tabindex (`keyboard` de
+    Leaflet) y se quedaba el foco; el siguiente guardado del árbol lo
+    tiraba al `<body>`, porque `reorderPaintOrder` reengancha los iconos
+    (`L.DomUtil.toFront` = `appendChild`) y un elemento enfocado que se
+    mueve en el DOM suelta el foco. En el `<body>`, Re/Av Pág y flechas
+    son del ÁRBOL (listener en `document`). Arreglo: `preventDefault`
+    del `mousedown` sobre `.leaflet-marker-icon` (la acción por defecto
+    es lo que enfoca) y foco al contenedor; con Tab siguen siendo
+    alcanzables, y `reorderPaintOrder` devuelve el foco si el reenganche
+    se lo quitó.
+  - **Crear una ruta**: al segundo punto se abre su diálogo de
+    propiedades, que se llevaba el foco (`focusDialog`). Lo abre un clic
+    en el visor, así que va con `openStyleDialog(li, { focus: false })`.
+  Saltar al nodo en el árbol (`highlightNode`) NO mueve el foco: solo
+  selecciona y desplaza la lista.
+- **Medido** (Chromium headless sin GPU, 2000 polígonos): desplazamiento
+  a 60 fps sostenidos (máx. 16,8 ms); zoom con mediana de 16,7 ms y p95
+  de 33 ms (el redibujo al soltar).
 
 ## Zoom por encima de las teselas
 

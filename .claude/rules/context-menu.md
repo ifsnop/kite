@@ -15,6 +15,7 @@ paths:
   que `openStyleDialog`). Nombrado distinto de «Mostrar atributos» a
   propósito (dos ítems iguales confundirían), aunque el resto de la app
   llame «propiedades» a ambos indistintamente.
+- **`disabled()` opcional en un ítem**: devuelve el MOTIVO (texto, va al `title`) o algo falso. El ítem se pinta deshabilitado, no se esconde. Hoy lo usa «Modo elevación» con el mapa rotado.
 - **«Medir ▸» es un submenú fijo de `CTX_MENU_ITEMS`** con Ruta, Círculo y Arco (cada uno alterna su herramienta con `setTool`); «Dibujar polígono o línea» queda fuera del grupo.
 - **Varias capas superpuestas → submenú** con una entrada por capa
   (`ctxItemsFor`/`openCtxSubmenu`).
@@ -33,7 +34,10 @@ paths:
   `pointInRings`) + distancia a segmentos (`segDistSq`/`nearPolyline`)
   en píxeles de contenedor, con `PATH_HIT_PX` (10, el `clickTolerance`
   de Leaflet) ensanchado por el grosor del trazo. La caja envolvente
-  queda solo como criba previa barata (7,2 ms/click con 2002 capas).
+  queda solo como criba previa barata (7,2 ms/click con 2002 capas),
+  con las CUATRO esquinas de la caja proyectadas (con el mapa rotado,
+  noroeste/sureste ya no son los extremos en pantalla; ver
+  `map-rotation.md`).
 - Acierta un polígono el click dentro del área o cerca del contorno
   (igual que el renderizador de Leaflet); un punto en un agujero queda
   fuera salvo pegado al borde.

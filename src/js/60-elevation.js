@@ -874,7 +874,27 @@ function buildImageOverlayRecord(n) {
   return { t: "imageOverlay", name: n.name, checked: !!n.checked, box: n.box, dataUrl: n.dataUrl, opacity: n.opacity, _layer: layer };
 }
 
+/* Primera iteración de la rotación: el modo alturas pide y pinta su
+   cuadrícula de celdas suponiendo el norte arriba, así que con el mapa
+   rotado no se puede activar, y girar el mapa lo apaga (lo medido se
+   conserva como capa, igual que al apagarlo a mano).                  */
+const ALT_ROTATED_WHY = "El modo elevación no está disponible con el mapa rotado: pulsa R o la brújula para poner el norte arriba.";
+function syncAltitudeForRotation() {
+  const rotated = isMapRotated();
+  if (demButton) {
+    demButton.classList.toggle("disabled", rotated);
+    demButton.setAttribute("aria-disabled", String(rotated));
+    demButton.title = rotated ? ALT_ROTATED_WHY : DEM_BUTTON_TITLE;
+  }
+  if (rotated && demOn) {
+    setAltitudeMode(false);
+    navMessage("Modo elevación desactivado: no funciona con el mapa rotado.", { tone: "info" });
+  }
+}
+map.on("rotate", syncAltitudeForRotation);
+
 async function setAltitudeMode(on) {
+  if (on && isMapRotated()) { navMessage(ALT_ROTATED_WHY); return; }
   demOn = on;
   if (demButton) demButton.classList.toggle("active", on);
   if (elevUnitButton) elevUnitButton.hidden = !on;

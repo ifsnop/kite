@@ -177,6 +177,22 @@ En la esquina inferior izquierda, un cuadro de texto sigue al cursor mostrando l
 
 En la esquina inferior derecha están la escala gráfica y, debajo, la línea de atribución (versión de la aplicación, enlace al repositorio y crédito de la cartografía activa).
 
+### 4.4 Girar el mapa (brújula)
+
+Encima del icono de capas, en la esquina superior derecha, hay una **brújula**. Arrastrándola en círculo se gira el mapa libremente, en el sentido del arrastre; su aguja roja señala en todo momento hacia dónde queda el norte. Un **clic** en la brújula —o la tecla **R** con el foco en el mapa— vuelve a poner el norte arriba. Con el norte arriba la brújula se ve atenuada; con el mapa girado, resaltada.
+
+También se puede girar con el ratón: manteniendo pulsado el **botón central** (la rueda) y moviendo el ratón a la derecha, el mapa gira en el sentido de las agujas del reloj; a la izquierda, al revés (medio grado por píxel). El giro es **alrededor del punto donde se pulsó**, que se queda quieto bajo el cursor. Mientras dura, el cursor es una rosa de los vientos cuya punta roja señala el norte. El botón izquierdo sigue sirviendo para desplazar el mapa.
+
+Con el mapa girado giran también los mapas base, las capas, la retícula de paralelos y meridianos y la iluminación real; las etiquetas (nombres, medidas, cifras de las cuadrículas de elevación) se quedan **horizontales**, para poder leerlas. Los rumbos de las mediciones siguen siendo geográficos (0° = norte), no relativos a la pantalla. Dibujar, medir, editar vértices, el menú contextual y el zoom de caja (Mayús + arrastrar) funcionan igual que con el norte arriba. Exportar a PNG guarda la imagen girada tal como se ve, y en ese caso incluye la brújula, para que la imagen diga dónde está el norte.
+
+La orientación no se guarda: al volver a abrir la aplicación, el mapa arranca con el norte arriba. **Limitación actual:** el modo altura (⛰) no está disponible con el mapa girado —su botón y su entrada del menú contextual aparecen deshabilitados— y, si estaba activo, girar el mapa lo desactiva (lo ya medido se conserva como capa, igual que al apagarlo a mano). Las cuadrículas de elevación ya guardadas sí se ven giradas.
+
+### 4.5 Moverse con el teclado y la rueda
+
+Con el foco en el mapa (basta con haber hecho clic en él, también sobre una capa o un marcador: el foco no se va al árbol aunque este salte al nodo pulsado, ni al diálogo de una ruta que se está creando), las **flechas** lo desplazan y **Re Pág / Av Pág** acercan y alejan. Un toque desplaza un paso corto o cambia exactamente un nivel de zoom. Si la tecla se **mantiene pulsada**, el movimiento empieza en el acto, sin la pausa de repetición del teclado, y sigue de forma continua hasta soltarla: el desplazamiento acelera al cabo de medio segundo (con Mayús, el triple de rápido) y dos flechas a la vez desplazan en diagonal. El zoom continuo es suave y se hace hacia el puntero; al soltar, se ajusta al nivel entero siguiente para que los mapas se vean nítidos. Las flechas van siempre en el sentido de la pantalla, también con el mapa girado. Mientras el mapa se mueve con el teclado, las coordenadas y lo que se esté dibujando siguen al puntero aunque el ratón no se mueva. Con el foco en un campo de texto o en el árbol, estas teclas no tocan el mapa.
+
+La **rueda del ratón** hace el mismo zoom suave hacia el puntero, sin necesidad de foco: cada muesca acerca o aleja un nivel, pasando por los intermedios en lugar de saltar, y varias muescas seguidas se encadenan sin pausas. Al parar la rueda, el zoom se ajusta al nivel entero siguiente en la dirección del último giro; en un panel táctil, donde el desplazamiento llega en pasos pequeños, ocurre lo mismo. Sobre los controles del mapa (panel de mapas base, cuadro de coordenadas) la rueda no hace zoom.
+
 ---
 
 ## 5. El menú contextual del visor
@@ -365,7 +381,12 @@ La misma información está disponible en cualquier momento con la tecla `?` o e
 | Mayús + arrastrar | Zoom a un rectángulo |
 | Arrastrar (sobre el centro o el borde de un círculo de medición, con su diálogo abierto) | Moverlo o cambiar su radio (no hace falta ninguna tecla) |
 | Doble clic en una capa | Ir a ella; repetido, acercar por peldaños |
-| Re Pág / Av Pág (con el mapa enfocado) | Acercar / alejar un nivel de zoom hacia el puntero |
+| Flechas (con el mapa enfocado) | Desplazar el mapa; mantenida, se desliza sin pausa y acelera (Mayús: más rápido; dos a la vez: diagonal) |
+| Re Pág / Av Pág (con el mapa enfocado) | Acercar / alejar un nivel de zoom hacia el puntero; mantenida, zoom continuo que al soltar se ajusta al nivel siguiente |
+| Rueda del ratón | Zoom continuo hacia el puntero; al parar se ajusta al nivel siguiente |
+| Arrastrar la brújula | Girar el mapa (el norte deja de apuntar arriba) |
+| R (con el mapa enfocado) o clic en la brújula | Volver a poner el norte arriba |
+| Botón central (rueda) pulsado + arrastrar a izquierda/derecha | Girar el mapa alrededor del punto pulsado |
 
 **Dibujar polígonos y rutas**
 

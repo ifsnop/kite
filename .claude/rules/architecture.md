@@ -7,6 +7,9 @@ paths:
 
 ## Arquitectura (orden de secciones dentro del script)
 
+0. **Correcciones a leaflet-rotate** (`08-leaflet-rotate-fixes.js`):
+   parches de prototipo de Leaflet, ANTES de crear el mapa. Ver
+   `map-rotation.md`.
 1. **Mapa base**: capas de teselas (OSM, Esri Terrain, PNOA, sin fondo)
    y `rootGroup` (`featureGroup` del que cuelga TODO). Prefijo de
    atribución (versión+repo) y escala aquí: su posición depende del
@@ -30,9 +33,9 @@ paths:
 8. **Geodesia**: `bearingDeg`, `destPoint`, `fmtDist` — esfera
    (R = 6371 km, igual que Leaflet).
 9. **Mediciones**: rutas y círculos, con el diálogo de propiedades
-   abierto. Waypoint de ruta se arrastra sin más; centro/borde de
-   círculo exige Ctrl+arrastre (mecanismo distinto, sin concepto de
-   "vértice"). Botón de crear pin en la misma barra.
+   abierto. Waypoint de ruta y centro/borde de círculo se arrastran sin
+   más con su diálogo abierto (el círculo por un mecanismo distinto, sin
+   concepto de "vértice"). Botón de crear pin en la misma barra.
 10. **Iluminación día/noche**: `subsolarPoint`/`sublunarPoint`/
     `solarElevationDeg` (única parte pura y testeada), un overlay WebGL
     sobre un `<canvas>` superpuesto al mapa que sombrea la parte visible

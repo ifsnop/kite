@@ -15,5 +15,9 @@ paths:
   `aria-modal` según sean modales o no, `aria-labelledby` a su título y
   atrapado de Tab dentro de la caja. `focusDialog` / `releaseFocus`
   llevan el foco al abrir y lo devuelven al elemento que lo abrió.
-  Cualquier diálogo nuevo debe pasar por ahí.
+  Cualquier diálogo nuevo debe pasar por ahí. **Excepción**: un
+  diálogo que abre un clic EN EL VISOR a mitad de un gesto (la ruta que
+  se está creando) no se lleva el foco (`focusDialog(box, false)`, vía
+  `openStyleDialog(li, { focus: false })`): las teclas del visor tienen
+  que seguir llegando (ver `view-controls-map.md`).
 

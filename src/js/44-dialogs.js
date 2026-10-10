@@ -619,7 +619,7 @@ let stylePreviewed = false; /* algo llegó a la capa: Cancelar debe re-guardar *
    respuesta es siempre esta misma pregunta — que el diálogo de
    estilos esté abierto mostrando EXACTAMENTE este nodo, no una
    selección múltiple ni otro nodo — usada directamente por el círculo
-   (`attachCtrlDrag`, 52-measure.js) y, para ruta/polígono, indirectamente
+   (`attachCircleHandleDrag`, 52-measure.js) y, para ruta/polígono, indirectamente
    a través de `vertexOwner` (`syncVertexOwnerForDialog`,
    43-points-editor.js, que la sincroniza una sola vez al abrir/cerrar
    el diálogo en vez de repetirla en cada gesto).                      */
@@ -764,7 +764,10 @@ function renderStyleAttrs() {
   applyPropsSplit(); /* el reparto elegido sobrevive al cambio de capa */
 }
 
-function openStyleDialog(li, { isNew = false } = {}) {
+/* `focus: false` cuando lo abre un clic en el VISOR (la ruta que se
+   está creando): el foco se queda en el mapa, o sus teclas (desplazar,
+   zoom, R) dejarían de llegar a mitad del dibujo.                   */
+function openStyleDialog(li, { isNew = false, focus = true } = {}) {
   /* The dialog is not modal, so another row's button may be pressed while
      it is open: that cancels the edit in progress before retargeting    */
   if (!styleDialog.hidden) closeStyleDialog(false);
@@ -952,7 +955,7 @@ function openStyleDialog(li, { isNew = false } = {}) {
   showStyleTab("styles"); /* siempre abre en Estilos, no recuerda la última */
   styleDialog.hidden = false;
   clampToViewport(styleBox);
-  focusDialog(styleBox);
+  focusDialog(styleBox, focus);
   /* Última: styleTargets/styleKindOpen ya están fijados y el diálogo ya
      está visible, que es justo lo que styleDialogShows comprueba.     */
   syncVertexOwnerForDialog();
@@ -989,7 +992,7 @@ function closeStyleDialog(commit = false) {
   teardownVertexOwner();
   if (previewFrame) { cancelAnimationFrame(previewFrame); previewFrame = null; }
   if (!commit) restoreStyleSnapshot();
-  /* Revierte mover/insertar/borrar un vértice, o Ctrl+arrastrar el
+  /* Revierte mover/insertar/borrar un vértice, o arrastrar el
      centro/borde de un círculo, hecho mientras el diálogo estuvo
      abierto — mismo patrón que posMarker/posOriginal, un poco más
      abajo. Se lee ANTES de limpiar styleTargets/styleKindOpen.        */
@@ -1010,7 +1013,7 @@ function closeStyleDialog(commit = false) {
   styleAttrsBody.innerHTML = ""; /* no retener el HTML de la capa cerrada */
   /* El círculo no pasa por vertexOwner (teardownVertexOwner, arriba, ya
      lo cubre para polígono/ruta): con styleDialog ya oculto,
-     anyEditModeActive deja de contar su Ctrl+arrastre como "en edición". */
+     anyEditModeActive deja de contar su arrastre como "en edición". */
   refreshDoubleClickZoom();
   iconPicker.hidden = true;
   /* Guarded: closeColorPicker() itself pops a focusReturn entry, and it

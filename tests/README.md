@@ -58,7 +58,7 @@ este documento se puedan seguir la pista una a la otra:
 - **Qué cubre**: una explicación en prosa de qué comprueba la suite
   por dentro —qué funciones ejercita y qué caso concreto, a menudo un
   fallo real ya corregido, protege cada aserción—, con el detalle que
-  la sola línea de cabecera no puede dar. Las nueve bajo `browser/`
+  la sola línea de cabecera no puede dar. Las de `browser/`
   necesitan un navegador de verdad (ver «Ejecutar»): son las últimas
   en correr y las que se saltan, sin fallar, cuando no hay ninguno.
 
@@ -550,6 +550,26 @@ TOOLS TESTS OK
 
 **Qué cubre:** `showLayerInfo`/`setTool`: el panel de información abre por hover salvo con el diálogo de estilos abierto o dibujando un polígono (guardas preexistentes); al salir de polígono —y también de ruta o círculo, mismo bug— se suprime exactamente el siguiente hover residual (no más, no queda pegajoso); la guarda expira sola si no llega ningún hover; el cierre diferido por `mouseout` se cancela si el siguiente hover cae en otra capa (pasar de una a otra no debe cerrar ni parpadear); no hace nada si ya está cerrado; un panel abierto explícitamente (con foco de teclado dentro) no se autocierra.
 
+### `rotation.js`
+
+**Salida de `npm test`:**
+```
+── Rotación del mapa: ángulo de la brújula, giro con el botón central, recorte de la retícula y arrastre limitado al mundo con el mapa girado
+ROTATION TESTS OK
+```
+
+**Qué cubre:** Las piezas puras de la rotación del mapa (experimento, leaflet-rotate). `pointerAngleDeg` (ángulo del puntero desde el centro de la brújula con el convenio de rumbo: 0 arriba, sentido horario, nunca negativo) y `dragBearing` (el rumbo durante un arrastre es el de partida más lo que gira el puntero, no su ángulo absoluto —el mapa no salta al primer movimiento—, cruza el norte sin restar 340°, se normaliza a [0, 360) y es libre, sin pasos). `pivotDragBearing` (giro con el botón central: medio grado por píxel en horizontal, derecha = horario, cruza el norte sin negativos, libre). `clipSegmentToRect` (Liang–Barsky: recorte de una línea de la retícula al visor; el primer extremo devuelto es el del lado de `p0`, que es por donde se pone la etiqueta; fuera de la vista → null, incluida una vertical exterior). `clampRotatedDragOffset` (arrastre limitado al mundo con el mapa girado): a 0° coincide con el recorte por ejes de Leaflet, a 90° el tope es el del eje del MAPA y no el de la pantalla, y con la vista más grande que el mundo el centro se queda en medio.
+
+### `view-keys.js`
+
+**Salida de `npm test`:**
+```
+── Teclado y rueda del visor: velocidad de las flechas mantenidas, dirección combinada y nivel final del zoom continuo (teclas y rueda)
+VIEW KEYS TESTS OK
+```
+
+**Qué cubre:** Las piezas puras del teclado del visor (`70-view-controls.js`). `keyPanSpeed`: una flecha arranca ya a la velocidad base (sin pausa), constante hasta el umbral de aceleración, rampa lineal hasta el tope y nunca por encima; un tiempo negativo (marca de fotograma anterior al keydown) no la frena. `keyPanVector`: → es x positiva y ↑ y negativa (pantalla), dos flechas dan diagonal, opuestas se anulan, Mayús multiplica y una tecla que no es flecha no mueve nada. `keyZoomTarget`: un toque es ±1 nivel entero, mantenido sigue hasta el entero siguiente en la dirección del zoom (no vuelve atrás), ya en un entero se queda, desde un zoom fraccionario va al entero vecino (no a ±1 del fraccionario) y no se pasa del máximo ni del mínimo. `wheelLevels`: una muesca hacia arriba (100 px) acerca un nivel y una de 120 px hacia abajo aleja uno, no más; un delta pequeño de panel táctil da una fracción; rueda en modo líneas o páginas, como mucho un nivel por evento; sin delta vertical, nada. `wheelZoomTarget`: acercando va al entero siguiente y alejando al anterior, ya en un entero se queda (tres muescas = tres niveles), subir y bajar lo mismo deja donde estaba (sin el ±1 de las teclas) y no sale de [min, max].
+
 ### `browser/app.mjs`
 
 **Salida de `npm test`:**
@@ -754,6 +774,26 @@ BROWSER ARC DRAW TESTS OK
 ```
 
 **Qué cubre:** La herramienta «Medir arco» con clics y movimientos de ratón DE VERDAD. Un clic sin arrastre fija el centro y deja el radio a medias; el siguiente fija el inicio y pasa a recorrer el perímetro (arrastrar del centro al inicio también vale). El barrido sigue al ratón: +90° en horario, −190° en antihorario (más de media vuelta). Al terminar sale una RUTA normal (`type "route"`, sin tipo propio) llamada «Arco N», con `arcSegments`+1 waypoints (16 por defecto, el valor de la preferencia al terminar), todos sobre el círculo, empezando en la orientación del inicio y acabando donde se hizo el último clic, con las etiquetas de tramo apagadas y sin abrir diálogo. Un clic sin barrido no crea nada y sigue dibujando; Escape a medias cancela sin dejar nodos; Ctrl+Z deshace; y tras recargar vuelve como la misma ruta. Con las etiquetas de tramo apagadas (nacen así), ni abrir el diálogo ni Cancelar —que restaura los vértices— las vuelven a mostrar, y marcar la casilla sí. Los `mousemove` se espacian 60 ms: Chromium agrupa los que llegan en un mismo fotograma.
+
+### `browser/rotation.mjs`
+
+**Salida de `npm test`:**
+```
+── Navegador: rotación del mapa — brújula, botón central, R, etiquetas horizontales, detección de capas, modo alturas, PNG y bordes del mundo
+BROWSER ROTATION TESTS OK
+```
+
+**Qué cubre:** La rotación del mapa con ratón y teclado de verdad. La brújula va encima del panel de mapas base (y el control propio del plugin no aparece); arrastrarla 60° en sentido horario gira el mapa 60°, el norte queda en pantalla en esa dirección y la aguja lo señala; un clic sin arrastre y la tecla R con el foco en el visor vuelven a 0, pero una «r» escrita en el buscador no gira nada. La brújula y el botón de capas miden lo mismo y la brújula no lleva texto. Con el botón central, 120 px a la derecha giran 60° en sentido horario sin arrastrar el mapa, el punto pulsado se queda bajo el cursor (a menos de 1,5 px), el cursor es la rosa de los vientos mientras dura y se quita al soltar; un clic central sin mover no hace nada y el botón izquierdo sigue arrastrando sin girar. A 45° las etiquetas (de un polígono y de una medición) siguen horizontales y un clic sobre un polígono estrecho y diagonal lo encuentra (la criba de dos esquinas lo dejaba fuera: comprobado que falla sin el arreglo). El modo alturas no se activa con el mapa girado, su botón y su entrada del menú contextual se ven deshabilitados con el motivo, y girar con el modo activo lo apaga. El PNG incluye la brújula solo con el mapa girado. A zoom mínimo y 45° el suelo de zoom sube, ninguna esquina cae fuera del mundo y ningún mapa base pide teselas fuera de rango (antes, 400 y aviso falso); arrastrar contra el borde del mundo girado no hace saltar la vista. La iluminación día/noche, leída píxel a píxel del lienzo WebGL a 70°, sombrea donde es de noche de verdad (sin el arreglo del shader, cero).
+
+### `browser/keyboard-nav.mjs`
+
+**Salida de `npm test`:**
+```
+── Navegador: teclado y rueda del visor — flechas, Re/Av Pág y rueda continuos, y el foco que se queda en el visor
+BROWSER KEYBOARD NAV TESTS OK
+```
+
+**Qué cubre:** Flechas y Re/Av Pág con teclas de verdad sobre el visor enfocado. Playwright no autorrepite (un `keyboard.down` es un solo keydown, como el primero de una pulsación real antes del retardo de repetición): con el comportamiento anterior, mantener un segundo daba un único paso, y los casos de «mantener» FALLAN sin el cambio (comprobado contra la versión anterior). Flechas: un toque desplaza 80 px; manteniendo, a los 100 ms ya se ha movido y en un segundo pasa de 500 px; al soltar se para sin seguir ni rebotar; → y ↓ a la vez dan una diagonal; con Mayús va más de 2,2 veces más rápido; contra el borde norte del mundo la vista se queda dentro y quieta; con el mapa a 90°, ↑ desplaza 80 px hacia arriba de la PANTALLA. Tras desplazar sin mover el ratón, las coordenadas son las del punto bajo el cursor (mousemove sintético). Zoom: un toque de Re Pág acerca exactamente un nivel y uno de Av Pág aleja uno; mantenida, a los 350 ms el zoom es fraccionario (continuo), en un segundo sube más de dos niveles y al soltar queda en uno entero, con el punto bajo el cursor quieto (≤ 3 px); en el zoom mínimo, Av Pág no baja de él. Con el foco en el buscador, flechas y Re Pág no mueven el mapa. La chuleta ya no pide «Ctrl + arrastrar» para un círculo de medición y dice que basta con su diálogo de propiedades abierto. Rueda: una muesca va por niveles fraccionarios a los 80 ms y se asienta exactamente un nivel más arriba con el punto bajo el cursor quieto (≤ 2 px); tres muescas seguidas son tres niveles; cinco deltas pequeños de panel táctil (medio nivel) acaban en el entero siguiente; hacia abajo aleja uno; Ctrl+rueda queda anulada (no amplía la página) y la rueda sobre el panel de mapas base no hace zoom. Foco: clicar un marcador deja el foco en el visor (no en su icono) y va igualmente a su nodo; tras un guardado del árbol Re Pág sigue haciendo zoom sin mover el cursor del árbol y R sigue poniendo el norte arriba; un marcador enfocado con Tab conserva el foco cuando se reordena el pintado; al crear una ruta, su diálogo se abre al segundo punto con el foco todavía en el visor, y Re Pág hace zoom. Los once casos de rueda y foco FALLAN sin el arreglo (comprobado quitando cada pieza).
 
 ### `browser/geocalc.mjs`
 

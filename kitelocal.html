@@ -488,6 +488,7 @@
      otro botón de esta barra.                                        */
   .measure-bar a.dn-toggle { color: #f5a623; }
   .measure-bar a.active { background: var(--accent); color: #fff; }
+  .measure-bar a.disabled { opacity: .35; cursor: not-allowed; }
   /* Leaflet's own CSS sets ".leaflet-bar a { display: block }"; being an
      author rule it beats the browser's UA "[hidden] { display: none }"
      regardless of specificity, so the `hidden` property silently does
@@ -582,7 +583,10 @@
   .base-box {
     background: #fff; border-radius: 4px;
     position: relative;
-    min-width: 48px; min-height: 48px; /* el icono, al salir del flujo, ya no lo garantiza */
+    /* el icono, al salir del flujo, ya no lo garantiza: sus 48 px más
+       el borde de 2 px de .leaflet-bar (border-box), o el icono se
+       salía de la caja y esta medía 4 px menos que la brújula        */
+    min-width: 52px; min-height: 52px;
   }
   .base-toggle {
     position: absolute; top: 0; right: 0;
@@ -593,6 +597,24 @@
     padding: 4px;
   }
   .base-toggle:hover { color: var(--accent); }
+  /* Brújula (rotación del mapa, 70-view-controls.js): mismo tamaño que
+     el botón de capas base, justo encima. Atenuada con el norte arriba;
+     resaltada en cuanto el mapa está girado, que es cuando importa.  */
+  .compass-box { background: #fff; border-radius: 4px; }
+  .compass-btn {
+    display: flex !important; align-items: center; justify-content: center;
+    width: 48px !important; height: 48px !important;
+    cursor: grab; touch-action: none; opacity: .55;
+  }
+  .compass-box.rotated .compass-btn { opacity: 1; }
+  .compass-box.dragging .compass-btn { cursor: grabbing; }
+  .compass-n { fill: #d62828; }
+  .compass-s { fill: #fff; stroke: #555; stroke-width: 1; }
+  /* Girando con el botón central: rosa de los vientos (roseCursor), en
+     todo el visor —capas interactivas incluidas— mientras dura.      */
+  .leaflet-container.map-rotating, .leaflet-container.map-rotating * {
+    cursor: var(--rotate-cursor) !important;
+  }
   .base-list {
     margin-top: 48px; /* hueco que dejaba el icono en flujo */
     padding: 6px 8px;
@@ -680,7 +702,8 @@
     overflow: hidden; /* la línea es más ancha que el visor a propósito, para no recalcular en cada resize */
   }
   .dn-path {
-    position: absolute; left: -10%; width: 120%; height: 0;
+    /* left/top/width y el giro los pone dnPlaceParallel (61-daynight.js) */
+    position: absolute; height: 0; transform-origin: 50% 0;
     border-top: 1.5px dashed;
     opacity: .7;
   }
@@ -868,7 +891,8 @@
      keyboard focus (Tab, no auto-focus on open) gets a thin outline
      instead of the same fill, so the two never look like two competing
      highlights when both a hovered row and a focused row exist at once. */
-  .ctx-menu-item:hover { background: var(--accent); color: #fff; }
+  .ctx-menu-item:hover:not(:disabled) { background: var(--accent); color: #fff; }
+  .ctx-menu-item:disabled { color: var(--muted); cursor: default; }
   .ctx-menu-item:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
   .ctx-menu-sep { height: 1px; margin: 4px 6px; background: var(--border); }
   .color-btn {
@@ -1063,7 +1087,12 @@
   .keys { border-collapse: collapse; font-size: 12.5px; width: 100%; }
   .keys th { text-align: left; padding: 8px 4px 3px; color: var(--muted); font-size: 11.5px; }
   .keys td { padding: 2px 10px 2px 4px; vertical-align: top; }
-  .keys td:first-child { white-space: nowrap; font-family: ui-monospace, Consolas, monospace; }
+  /* La columna de teclas ENVUELVE y tiene un ancho fijo, no el de su
+     texto más largo: con `nowrap`, «Mayús + clic sobre el primer
+     vértice, con el último seleccionado» empujaba la descripción fuera
+     del diálogo. El 40 % deja la frontera en el mismo sitio en todas
+     las pestañas; `pretty` evita una palabra suelta en la última línea. */
+  .keys td:first-child { width: 40%; text-wrap: pretty; font-family: ui-monospace, Consolas, monospace; }
   /* Redimensionar la ventana tiene que dar espacio AL CONTENIDO, que es
      para lo que se redimensiona. Antes el tirador estaba en el elemento
      interior y crecía él; ahora está en la caja, así que el interior
@@ -1604,9 +1633,14 @@
       <table class="keys">
         <tr><th colspan="2">En el visor</th></tr>
         <tr><td>May&#250;s + arrastrar</td><td>Zoom a un rect&#225;ngulo</td></tr>
-        <tr><td>Ctrl + arrastrar (sobre un c&#237;rculo de medici&#243;n)</td><td>Mover su centro o su borde</td></tr>
+        <tr><td>Arrastrar el centro o el borde de un c&#237;rculo de medici&#243;n (con su di&#225;logo de propiedades abierto)</td><td>Moverlo o cambiar su radio</td></tr>
         <tr><td>Doble clic en una fila</td><td>Ir a la capa; repetido, acercar</td></tr>
-        <tr><td>Re P&#225;g / Av P&#225;g (con el mapa enfocado)</td><td>Acercar / alejar un nivel de zoom hacia el puntero</td></tr>
+        <tr><td>Flechas (con el mapa enfocado)</td><td>Desplazar el mapa; mantenida, se desliza sin pausa y acelera (May&#250;s: m&#225;s r&#225;pido; dos a la vez: diagonal)</td></tr>
+        <tr><td>Re P&#225;g / Av P&#225;g (con el mapa enfocado)</td><td>Acercar / alejar un nivel de zoom hacia el puntero; mantenida, zoom continuo que al soltar se ajusta al nivel siguiente</td></tr>
+        <tr><td>Rueda del rat&#243;n</td><td>Zoom continuo hacia el puntero; al parar se ajusta al nivel siguiente</td></tr>
+        <tr><td>Arrastrar la br&#250;jula</td><td>Girar el mapa (el norte deja de apuntar arriba)</td></tr>
+        <tr><td>R (con el mapa enfocado) o clic en la br&#250;jula</td><td>Volver a poner el norte arriba</td></tr>
+        <tr><td>Bot&#243;n central (rueda) pulsado + arrastrar a izquierda/derecha</td><td>Girar el mapa alrededor del punto pulsado</td></tr>
       </table>
     </div>
     <div id="sh-tab-draw" class="dlg-tabpanel" hidden role="tabpanel">
@@ -1965,6 +1999,11 @@
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
         integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo="
         crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+<!-- Rotación del mapa (experimento): parchea Leaflet, así que va justo
+     detrás de él y antes que cualquier L.map(). -->
+<script src="https://unpkg.com/leaflet-rotate@0.2.8/dist/leaflet-rotate.js"
+        integrity="sha384-MtIdllebpZyms2pw9K3YJl8BEqrKNQCdSFAySjeglab6z2PkeFdF4Lb9cDsnxQuG"
+        crossorigin="anonymous" referrerpolicy="no-referrer"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"
         integrity="sha512-XMVd28F1oH/O71fzwBnV7HucLxVwtxf26XV8P4wPk26EDxuGZ91N8bsOttmnomcCD3CS5ZMRL50H0GgOHvegtg=="
         crossorigin="anonymous" referrerpolicy="no-referrer"></script>
@@ -2082,6 +2121,126 @@ const MDI_ICON_BODIES = {
   "map-marker-alert": '<path fill="currentColor" d="M12 2c3.9 0 7 3.1 7 7c0 5.2-7 13-7 13S5 14.2 5 9c0-3.9 3.1-7 7-7m-1 4v6h2V6zm0 8v2h2v-2z"/>',
 };
 /* fin de MDI_ICON_BODIES */
+/* ---------- Correcciones a leaflet-rotate 0.2.8 ----------
+   Todo lo que este visor ha tenido que arreglar del plugin de rotación
+   vive AQUÍ, junto, y no repartido por 10-map.js: así se revisa de un
+   vistazo, se retira de una vez si el experimento no sigue y, si algún
+   día se incorpora el plugin al código, es la lista exacta de cambios
+   que hay que llevarle. Son tres agujeros de «una sola Tierra» que el
+   plugin no tapa con el mapa girado:
+
+   1. Arrastre y recentrado contra el borde del mundo (`maxBounds`).
+   2. Suelo de zoom: la ventana girada tiene que caber en el mundo.
+   3. Teselas fuera del mundo (peticiones 400 y aviso falso).
+
+   Va ANTES de 10-map.js: los parches de prototipo deben estar puestos
+   cuando se crea el mapa. Nada de aquí usa `map` ni `WORLD_BOUNDS` al
+   cargarse; quien llama pasa el mapa y los límites.                   */
+
+const isRotatedMap = m => !!(m._rotate && m._bearing);
+
+/* ---------- 1. `maxBounds` con el mapa girado ----------
+   leaflet-rotate no adapta `maxBounds` al giro (lo deja como TODO en su
+   código): Leaflet limita el arrastre con un rectángulo en píxeles de
+   PANTALLA calculado con dos esquinas del mundo, y recentra con medio
+   tamaño de ventana sin girar — con el mapa rotado, arrastrar contra el
+   borde hacía saltar la vista a otro continente (medido: de Siberia a
+   Madagascar en un solo arrastre a 45°). Con el norte arriba se usa el
+   código de Leaflet tal cual; rotado, los dos límites se calculan en el
+   marco del mapa SIN girar, con la caja que envuelve la vista girada
+   (rotatedViewExtra), y el arrastre se vuelve a girar a pantalla.
+   Límite duro (viscosidad 1), que es la que usa este visor.            */
+const leafletLimitCenter = L.Map.prototype._limitCenter;
+const leafletDragStart = L.Map.Drag.prototype._onDragStart;
+const leafletPreDragLimit = L.Map.Drag.prototype._onPreDragLimit;
+
+/* Arrastre `offset` (píxeles de pantalla que se mueve el contenido) con
+   el mapa girado `b` radianes, recortado para que el centro —que se
+   mueve al revés, en el marco del mapa— no salga de [min, max]. Si la
+   vista es más grande que el mundo en un eje (min > max), el centro se
+   queda en medio, como hace Leaflet.                                  */
+function clampRotatedDragOffset(offset, b, c0, min, max) {
+  const c = Math.cos(b), s = Math.sin(b);
+  let dx = -(c * offset.x + s * offset.y), dy = -(-s * offset.x + c * offset.y);
+  const clamp = (v, lo, hi) => lo > hi ? (lo + hi) / 2 : Math.min(hi, Math.max(lo, v));
+  dx = clamp(c0.x + dx, min.x, max.x) - c0.x;
+  dy = clamp(c0.y + dy, min.y, max.y) - c0.y;
+  return { x: -(c * dx - s * dy), y: -(s * dx + c * dy) };
+}
+
+L.Map.include({
+  _limitCenter(center, zoom, bounds) {
+    if (!bounds || !isRotatedMap(this)) return leafletLimitCenter.call(this, center, zoom, bounds);
+    const centerPoint = this.project(center, zoom);
+    const viewHalf = this.getSize().add(rotatedViewExtra(this)).divideBy(2);
+    const viewBounds = L.bounds(centerPoint.subtract(viewHalf), centerPoint.add(viewHalf));
+    const offset = this._getBoundsOffset(viewBounds, bounds, zoom);
+    if (Math.abs(offset.x) <= 1 && Math.abs(offset.y) <= 1) return center;
+    return this.unproject(centerPoint.add(offset), zoom);
+  }
+});
+L.Map.Drag.include({
+  _onDragStart() {
+    leafletDragStart.call(this);
+    const m = this._map;
+    this._rotLimit = null;
+    if (!this._offsetLimit || !isRotatedMap(m)) return;
+    const zoom = m.getZoom();
+    const b = L.latLngBounds(m.options.maxBounds);
+    const half = m.getSize().add(rotatedViewExtra(m)).divideBy(2);
+    this._rotLimit = {
+      bearing: m._bearing, c0: m.project(m.getCenter(), zoom),
+      min: m.project(b.getNorthWest(), zoom).add(half),
+      max: m.project(b.getSouthEast(), zoom).subtract(half)
+    };
+  },
+  _onPreDragLimit() {
+    if (!this._rotLimit) return leafletPreDragLimit.call(this);
+    const r = this._rotLimit;
+    const offset = this._draggable._newPos.subtract(this._draggable._startPos);
+    const fixed = clampRotatedDragOffset(offset, r.bearing, r.c0, r.min, r.max);
+    this._draggable._newPos = this._draggable._startPos.add(L.point(fixed.x, fixed.y));
+  }
+});
+
+/* ---------- 2. Suelo de zoom con el mapa girado ----------
+   Con el mapa rotado, lo que tiene que llenar el mundo no es la ventana
+   sino la caja que la envuelve girada (W·|cos|+H·|sin| de ancho, y al
+   revés de alto), o asoma el fondo por las esquinas. Esto devuelve lo
+   que esa caja excede a la ventana.                                   */
+function rotatedViewExtra(m) {
+  const size = m.getSize();
+  const b = (m.getBearing ? m.getBearing() : 0) * Math.PI / 180;
+  const c = Math.abs(Math.cos(b)), s = Math.abs(Math.sin(b));
+  return L.point(size.x * c + size.y * s - size.x, size.x * s + size.y * c - size.y);
+}
+/* Zoom en que la vista GIRADA cabe dentro de `bounds`. getBoundsZoom
+   resta su `padding` al tamaño de la ventana: un padding NEGATIVO de
+   rotatedViewExtra es justo la caja girada, y así se sigue preguntando
+   a Leaflet (redondeo a zoomSnap incluido) en vez de calcular el
+   logaritmo aquí. Trampa: leaflet-rotate redefine getBoundsZoom con el
+   mapa girado y mide otra cosa (la caja del MUNDO girado frente a la
+   ventana), así que se apaga `_rotate` solo durante esta llamada
+   síncrona y el plugin cae al método original de Leaflet.            */
+function rotatedFitZoom(m, bounds) {
+  const rot = m._rotate;
+  m._rotate = false;
+  try { return m.getBoundsZoom(bounds, true, rotatedViewExtra(m).multiplyBy(-1)); }
+  finally { m._rotate = rot; }
+}
+
+/* ---------- 3. Teselas fuera del mundo ----------
+   `noWrap` no basta con el mapa ROTADO: leaflet-rotate pide teselas
+   para la caja que envuelve la vista girada, más ancha que el mundo, y
+   Leaflet solo descarta una tesela fuera de rango (`_isValidTile`) si
+   la capa tiene `bounds` — sin ellos pedía x=-1 o x=2^z, el servidor
+   contestaba 400 y saltaba el aviso de «no responde» con el servicio en
+   perfecto estado (medido: 8 errores a zoom 2 y 45°, ninguno a 0°).
+   Como `noWrap`, se escribe sobre las opciones ya construidas: Leaflet
+   las lee al añadir la capa, no en el constructor.                    */
+function confineTilesToWorld(layer, bounds) {
+  layer.options.bounds = bounds;
+}
 /* Leaflet es imprescindible: si el CDN falla o su hash de integridad no
    cuadra, el navegador lo bloquea, y sin este aviso quedaría una página
    en blanco sin explicación. Se corta aquí, diciendo qué mirar.      */
@@ -2162,6 +2321,18 @@ const map = L.map("map", {
      efecto elástico que aquí no se quiere.                           */
   maxBoundsViscosity: 1,
   zoomAnimation: hwAccelerated,
+  /* La rueda es nuestra (70-view-controls.js): zoom continuo como Re/Av
+     Pág, no el salto de nivel en nivel de Leaflet.                   */
+  scrollWheelZoom: false,
+  /* Rotación (leaflet-rotate). Solo por gestos propios (brújula y
+     botón central, 70-view-controls.js): Mayús+rueda giraría el mapa,
+     pero Mayús ya está reservado (zoom de caja, insertar vértice); sin
+     rotación táctil ni el control del plugin.                        */
+  rotate: true,
+  bearing: 0,
+  shiftKeyRotate: false,
+  touchRotate: false,
+  rotateControl: false,
 }).setView([40.4, -3.7], 6);
 
 /* Color de fondo del mapa: el que se ve fuera de las teselas (huecos
@@ -2199,19 +2370,21 @@ function setMapBackground(hex) {
    pone después el que conteste. Se le pregunta a Leaflet en vez de
    calcular el logaritmo a mano porque el redondeo a `zoomSnap` es suyo
    y tiene su propia letra pequeña.                                    */
+/* Con el mapa rotado, la que tiene que caber en el mundo es la caja de
+   la vista girada: `rotatedFitZoom` (08-leaflet-rotate-fixes.js).    */
 function fitWorldMinZoom() {
   const previo = map.options.minZoom;
   map.options.minZoom = 0;
-  const z = map.getBoundsZoom(WORLD_BOUNDS, true);
+  const z = rotatedFitZoom(map, WORLD_BOUNDS);
   map.options.minZoom = previo;
   if (Number.isFinite(z) && z !== previo) map.setMinZoom(z);
 }
 fitWorldMinZoom();
-map.on("resize", fitWorldMinZoom);
+map.on("resize rotate", fitWorldMinZoom);
 
 /* Fecha de generación del código (versión): AÑOMESDIAHORAMINUTO.
    Actualizar en cada generación; se muestra junto al crédito de Leaflet. */
-const BUILD = "202610090440";
+const BUILD = "202610100955";
 /* Versión de release (la de package.json, horneada aquí por build.js
    al construir — ver «Versión y releases de GitHub» en CLAUDE.md): a
    diferencia de BUILD, que cambia en CADA generación, esta solo cambia
@@ -2455,6 +2628,9 @@ function applyBaseLayer(id) {
          (`_resetGrid`, al añadirse al mapa y en cada cambio de zoom),
          no en su constructor.                                         */
       st.layer.options.noWrap = true;
+      /* Y sin teselas fuera del mundo con el mapa girado (ver
+         08-leaflet-rotate-fixes.js) */
+      confineTilesToWorld(st.layer, WORLD_BOUNDS);
       st.layer.setZIndex(st.zIndex);
       /* Una URL que no responda debe verse, no fallar en silencio */
       let errors = 0;
@@ -4239,9 +4415,13 @@ function bringLayerToFront(layer) {
    marcador siempre por encima de polígonos/líneas/ortofotos); dentro de
    cada tipo, el orden del árbol se respeta con exactitud.             */
 function reorderPaintOrder() {
+  /* toFront es un appendChild: un icono de marcador enfocado (con Tab)
+     que se mueve en el DOM suelta el foco al <body>. Se le devuelve.  */
+  const focused = document.activeElement;
   for (const chk of treeEl.querySelectorAll("input[type=checkbox]")) {
     if (chk.checked && chk._layer) bringLayerToFront(chk._layer);
   }
+  if (focused && focused !== document.activeElement && focused.isConnected) focused.focus({ preventScroll: true });
 }
 
 /* Toda mutación del árbol ya llama a scheduleSave() (regla del proyecto),
@@ -5900,8 +6080,8 @@ function serializePendingRecords(records) {
       return out;
     }
     if (rec.t === "measure") {
-      /* Posición siempre en vivo: los manejadores son arrastrables con
-         Ctrl+arrastre sobre el mapa aunque la fila siga pendiente (ver
+      /* Posición siempre en vivo: los manejadores son arrastrables
+         sobre el mapa aunque la fila siga pendiente (ver
          buildMeasureRecord), así que cachear los waypoints se quedaría
          obsoleto.                                                     */
       return { name: rec.name, checked: rec.checked, t: "measure", mtype: rec.mtype,
@@ -8086,10 +8266,16 @@ function nearBounds(sub, containerPoint, tol) {
   let b;
   try { b = sub.getBounds(); } catch { return false; }
   if (!b || !b.isValid()) return false;
-  const a = map.latLngToContainerPoint(b.getNorthWest());
-  const c = map.latLngToContainerPoint(b.getSouthEast());
-  return containerPoint.x >= Math.min(a.x, c.x) - tol && containerPoint.x <= Math.max(a.x, c.x) + tol
-      && containerPoint.y >= Math.min(a.y, c.y) - tol && containerPoint.y <= Math.max(a.y, c.y) + tol;
+  /* Las CUATRO esquinas, no dos: con el mapa rotado la caja geográfica
+     es un rombo en pantalla, y noroeste/sureste ya no son sus extremos
+     (con dos, un polígono a 45° quedaba fuera de su propia criba).
+     Medido con 2002 capas, en el mismo equipo: 1,5 → 2,9 ms por clic
+     derecho; sigue siendo una acción puntual, no un bucle de fotograma. */
+  const pts = [b.getNorthWest(), b.getNorthEast(), b.getSouthEast(), b.getSouthWest()]
+    .map(ll => map.latLngToContainerPoint(ll));
+  const xs = pts.map(p => p.x), ys = pts.map(p => p.y);
+  return containerPoint.x >= Math.min(...xs) - tol && containerPoint.x <= Math.max(...xs) + tol
+      && containerPoint.y >= Math.min(...ys) - tol && containerPoint.y <= Math.max(...ys) + tol;
 }
 
 /* El despacho es POR CLASE, no por "tiene este método". Con duck typing
@@ -8682,8 +8868,8 @@ function setMarkerDraggable(mk, on) {
    Complementa al editor de texto («Ver y editar…», sigue existiendo
    para listas grandes o ediciones masivas): mientras un ÚNICO polígono
    está seleccionado en el árbol —sin que haga falta abrir su diálogo de
-   propiedades—, sus vértices se pueden arrastrar (Ctrl+arrastre, el
-   mismo gesto reservado que ya usan las mediciones) y borrar (clic
+   propiedades—, sus vértices se pueden arrastrar (un arrastre sin
+   más, como en las mediciones) y borrar (clic
    derecho), directamente sobre el mapa. A diferencia de la posición de
    un marcador, esto YA NO es edición diferida: cada arrastre o borrado
    se guarda al momento (scheduleSave), igual que ya hacía un waypoint
@@ -8722,7 +8908,7 @@ function setMarkerDraggable(mk, on) {
 
    ---------- Coherencia entre ruta y polígono ----------
    Las dos comparten exactamente el mismo modelo de arriba (clic
-   selecciona, Ctrl+arrastre mueve, clic derecho borra, Mayús+clic
+   selecciona, arrastrar mueve, clic derecho borra, Mayús+clic
    inserta, Supr borra con prioridad), con la única diferencia real que
    les corresponde por naturaleza: los manejadores de una ruta son
    PERMANENTES (viven mientras la medición exista y esté marcada, no
@@ -9085,7 +9271,7 @@ function syncVertexOwnerForDialog() {
 /* Foto de la geometría al abrir el diálogo de estilos, para que
    Cancelar pueda restaurarla (ver restoreVertexSnapshot): un polígono,
    una ruta o un círculo. Reportado como bug: mover/insertar/borrar un
-   vértice, o Ctrl+arrastrar el centro/borde de un círculo, se guardaba
+   vértice, o arrastrar el centro/borde de un círculo, se guardaba
    al momento sin que "Cancelar" lo revirtiera — a diferencia del resto
    de campos del diálogo (edición diferida) y del propio arrastre del
    marcador (`posMarker`/`posOriginal`, 44-dialogs.js), cuyo patrón se
@@ -9222,11 +9408,13 @@ function setupDialog(box, { modal }) {
   });
 }
 
-/* Focus goes to the dialog on open and back to the opener on close */
+/* Focus goes to the dialog on open and back to the opener on close.
+   With `move` false it stays where it is (still recorded, so the
+   pairing with releaseFocus holds).                                 */
 let focusReturn = [];
-function focusDialog(box) {
+function focusDialog(box, move = true) {
   focusReturn.push(document.activeElement);
-  const first = box.querySelector("button, input, select");
+  const first = move && box.querySelector("button, input, select");
   if (first) first.focus();
 }
 function releaseFocus() {
@@ -10869,7 +11057,7 @@ let stylePreviewed = false; /* algo llegó a la capa: Cancelar debe re-guardar *
    respuesta es siempre esta misma pregunta — que el diálogo de
    estilos esté abierto mostrando EXACTAMENTE este nodo, no una
    selección múltiple ni otro nodo — usada directamente por el círculo
-   (`attachCtrlDrag`, 52-measure.js) y, para ruta/polígono, indirectamente
+   (`attachCircleHandleDrag`, 52-measure.js) y, para ruta/polígono, indirectamente
    a través de `vertexOwner` (`syncVertexOwnerForDialog`,
    43-points-editor.js, que la sincroniza una sola vez al abrir/cerrar
    el diálogo en vez de repetirla en cada gesto).                      */
@@ -11014,7 +11202,10 @@ function renderStyleAttrs() {
   applyPropsSplit(); /* el reparto elegido sobrevive al cambio de capa */
 }
 
-function openStyleDialog(li, { isNew = false } = {}) {
+/* `focus: false` cuando lo abre un clic en el VISOR (la ruta que se
+   está creando): el foco se queda en el mapa, o sus teclas (desplazar,
+   zoom, R) dejarían de llegar a mitad del dibujo.                   */
+function openStyleDialog(li, { isNew = false, focus = true } = {}) {
   /* The dialog is not modal, so another row's button may be pressed while
      it is open: that cancels the edit in progress before retargeting    */
   if (!styleDialog.hidden) closeStyleDialog(false);
@@ -11202,7 +11393,7 @@ function openStyleDialog(li, { isNew = false } = {}) {
   showStyleTab("styles"); /* siempre abre en Estilos, no recuerda la última */
   styleDialog.hidden = false;
   clampToViewport(styleBox);
-  focusDialog(styleBox);
+  focusDialog(styleBox, focus);
   /* Última: styleTargets/styleKindOpen ya están fijados y el diálogo ya
      está visible, que es justo lo que styleDialogShows comprueba.     */
   syncVertexOwnerForDialog();
@@ -11239,7 +11430,7 @@ function closeStyleDialog(commit = false) {
   teardownVertexOwner();
   if (previewFrame) { cancelAnimationFrame(previewFrame); previewFrame = null; }
   if (!commit) restoreStyleSnapshot();
-  /* Revierte mover/insertar/borrar un vértice, o Ctrl+arrastrar el
+  /* Revierte mover/insertar/borrar un vértice, o arrastrar el
      centro/borde de un círculo, hecho mientras el diálogo estuvo
      abierto — mismo patrón que posMarker/posOriginal, un poco más
      abajo. Se lee ANTES de limpiar styleTargets/styleKindOpen.        */
@@ -11260,7 +11451,7 @@ function closeStyleDialog(commit = false) {
   styleAttrsBody.innerHTML = ""; /* no retener el HTML de la capa cerrada */
   /* El círculo no pasa por vertexOwner (teardownVertexOwner, arriba, ya
      lo cubre para polígono/ruta): con styleDialog ya oculto,
-     anyEditModeActive deja de contar su Ctrl+arrastre como "en edición". */
+     anyEditModeActive deja de contar su arrastre como "en edición". */
   refreshDoubleClickZoom();
   iconPicker.hidden = true;
   /* Guarded: closeColorPicker() itself pops a focusReturn entry, and it
@@ -12249,7 +12440,10 @@ async function exportMapPng() {
     return;
   }
   let canvas;
-  const hidden = [...document.querySelectorAll(HIDE_FOR_PNG)];
+  /* La brújula, en cambio, SÍ sale cuando el mapa está rotado: sin
+     ella, una imagen girada no dice dónde está el norte. Con el norte
+     arriba no aporta nada y se oculta como el resto de controles.    */
+  const hidden = [...document.querySelectorAll(HIDE_FOR_PNG + (isMapRotated() ? "" : ", .compass-box"))];
   const prevDisplay = hidden.map(el => el.style.display);
   hidden.forEach(el => { el.style.display = "none"; });
   try {
@@ -12376,8 +12570,8 @@ function setTool(tool) {
    edita un polígono hacía zoom — el doble click de "cerrar polígono"
    ya se sabía que no debía hacer zoom DURANTE EL DIBUJO (arriba), pero
    nadie apagaba doubleClickZoom durante la EDICIÓN post-creación de un
-   polígono/ruta (vertexOwner) ni la de un círculo (su Ctrl+arrastre no
-   pasa por vertexOwner). Una única función que mira TODO lo que puede
+   polígono/ruta (vertexOwner) ni la de un círculo (su arrastre no pasa
+   por vertexOwner). Una única función que mira TODO lo que puede
    estar activo a la vez, en vez de un apagar/encender independiente en
    cada sitio que se pisaría entre sí (ver el comentario de arriba).    */
 function anyEditModeActive() {
@@ -12608,8 +12802,8 @@ const MEASURE_DASH = "6 4";
    (array de {lat,lng}): el círculo siempre tiene dos —centro y borde,
    el mismo significado que los antiguos a/b—, una ruta tiene los que
    tenga. Se lee en vivo de los manejadores, nunca se cachea, por lo
-   mismo que ya explica serializeNode: son arrastrables con
-   Ctrl+arrastre aunque la fila no exista todavía.                    */
+   mismo que ya explica serializeNode: son arrastrables
+   aunque la fila no exista todavía.                    */
 function measureWaypoints(m) {
   const handles = m.type === "route" ? m.handles : [m.mOrigin, m.mDest];
   return handles.map(h => { const p = h.getLatLng(); return { lat: p.lat, lng: p.lng }; });
@@ -12639,10 +12833,11 @@ function setMeasureLabelsVisible(m, on) {
      dragging.disable() mientras una herramienta está activa (setTool),
      así que un arrastre normal sobre un manejador no compite con hacer
      pan y no hace falta ningún modificador.
-   - Tras terminar, `requireCtrl` es true: el mapa SÍ es interactivo, así
-     que hace falta el mismo gesto reservado que ya usa el círculo
-     (Ctrl+arrastre = editar mediciones, ver «Gestos del visor»), aquí
-     extendido a vértices de una ruta o un polígono.
+   - `requireCtrl` true exigiría Ctrl+arrastre para empezar. Era el
+     gesto de editar una forma YA creada; hoy ningún llamador lo pide:
+     tras terminar, mover un vértice (o el centro/borde de un círculo)
+     es un arrastre sin más, con el diálogo de propiedades de ESE nodo
+     abierto.
    - `canStart`, opcional: comprobado ANTES de capturar nada, así un
      Ctrl+clic sin owner activo no llega a deshabilitar `map.dragging`
      ni a dejar el gesto a medias. Un polígono no lo necesita —sus
@@ -12697,8 +12892,8 @@ function buildMeasurement(type, a, b, style = null) {
 }
 
 function finalizeMeasurement(m) {
-  attachCtrlDrag(m, m.mOrigin, true);
-  attachCtrlDrag(m, m.mDest, false);
+  attachCircleHandleDrag(m, m.mOrigin, true);
+  attachCircleHandleDrag(m, m.mDest, false);
   addMeasureNode(m);
 }
 
@@ -12727,7 +12922,7 @@ function finalizeMeasurement(m) {
    por el mismo gesto de arrastre y se perdería el siguiente doble
    click (zoom) — la misma trampa ya documentada y resuelta para
    ruta/polígono al quitarles Ctrl.                                    */
-function attachCtrlDrag(m, handle, isOrigin) {
+function attachCircleHandleDrag(m, handle, isOrigin) {
   handle.on("mousedown", ev => {
     const oe = ev.originalEvent;
     if (!styleDialogShows(m.treeLabel && m.treeLabel.closest("li"))) return;
@@ -12897,13 +13092,13 @@ function buildMeasureRecord(n) {
   } else {
     m = buildMeasurement(mtype, L.latLng(n.waypoints[0].lat, n.waypoints[0].lng),
       L.latLng(n.waypoints[1].lat, n.waypoints[1].lng), n.style);
-    attachCtrlDrag(m, m.mOrigin, true);
-    attachCtrlDrag(m, m.mDest, false);
+    attachCircleHandleDrag(m, m.mOrigin, true);
+    attachCircleHandleDrag(m, m.mDest, false);
   }
   m.treeName = n.name;
   if (!n.checked) rootGroup.removeLayer(m.group); /* buildMeasurement/buildRouteMeasurement la añaden siempre */
   /* Sin waypoints propios en el registro: los manejadores son
-     arrastrables con Ctrl+arrastre directamente sobre el mapa aunque la
+     arrastrables directamente sobre el mapa aunque la
      fila siga pendiente (no hace falta el diálogo de estilos ni
      ninguna fila para editar una medición), así que la posición se lee
      siempre en vivo de _m (ver serializePendingRecords) en vez de
@@ -13008,7 +13203,7 @@ function addRouteVertex(latlng) {
     routeDraft = null;
     routeMeasurement = m;
     finalizeRouteMeasurement(m);
-    openStyleDialog(m.treeLabel.closest("li"), { isNew: true });
+    openStyleDialog(m.treeLabel.closest("li"), { isNew: true, focus: false });
     return;
   }
   /* Primer punto: solo una vista previa, sin medición todavía — un tramo
@@ -13104,7 +13299,7 @@ function buildRouteMeasurement(waypoints, style = null) {
   return m;
 }
 
-/* Cablea cada waypoint (mover con Ctrl+arrastre, en vivo — igual que
+/* Cablea cada waypoint (mover arrastrando, en vivo — igual que
    el círculo; borrar con clic derecho) y cuelga el nodo del árbol.   */
 function finalizeRouteMeasurement(m, kind = "route") {
   for (const h of m.handles) wireRouteHandle(m, h);
@@ -14310,7 +14505,27 @@ function buildImageOverlayRecord(n) {
   return { t: "imageOverlay", name: n.name, checked: !!n.checked, box: n.box, dataUrl: n.dataUrl, opacity: n.opacity, _layer: layer };
 }
 
+/* Primera iteración de la rotación: el modo alturas pide y pinta su
+   cuadrícula de celdas suponiendo el norte arriba, así que con el mapa
+   rotado no se puede activar, y girar el mapa lo apaga (lo medido se
+   conserva como capa, igual que al apagarlo a mano).                  */
+const ALT_ROTATED_WHY = "El modo elevación no está disponible con el mapa rotado: pulsa R o la brújula para poner el norte arriba.";
+function syncAltitudeForRotation() {
+  const rotated = isMapRotated();
+  if (demButton) {
+    demButton.classList.toggle("disabled", rotated);
+    demButton.setAttribute("aria-disabled", String(rotated));
+    demButton.title = rotated ? ALT_ROTATED_WHY : DEM_BUTTON_TITLE;
+  }
+  if (rotated && demOn) {
+    setAltitudeMode(false);
+    navMessage("Modo elevación desactivado: no funciona con el mapa rotado.", { tone: "info" });
+  }
+}
+map.on("rotate", syncAltitudeForRotation);
+
 async function setAltitudeMode(on) {
+  if (on && isMapRotated()) { navMessage(ALT_ROTATED_WHY); return; }
   demOn = on;
   if (demButton) demButton.classList.toggle("active", on);
   if (elevUnitButton) elevUnitButton.hidden = !on;
@@ -14557,8 +14772,10 @@ const DAYNIGHT_REFRESH_MS = 60000;
    redibujado con `map.latLngToContainerPoint` — la misma función que
    usan los controles y que sí tiene en cuenta el arrastre en curso.
    Como la latitud fija a lo largo de un día en Web Mercator es una
-   línea horizontal (el píxel Y de una latitud no depende de la
-   longitud), basta un `border-top` a todo lo ancho, sin trazar nada. */
+   línea recta (horizontal con el norte arriba: el píxel Y de una
+   latitud no depende de la longitud; girada lo mismo que el mapa si
+   está rotado), basta un `border-top` largo, sin trazar nada — ver
+   dnPlaceParallel.                                                    */
 let dnOverlay = null, dnSunLine = null, dnMoonLine = null, dnSunIconEl = null, dnMoonIconEl = null;
 
 function dnBuildCelestialOverlay() {
@@ -14584,16 +14801,33 @@ function dnBuildCelestialOverlay() {
    MISMA función que usan los controles de Leaflet para su posición en
    pantalla — coherente con lo que se ve ahora mismo, arrastre incluido. */
 function dnUpdateCelestialOverlay(sub, moon) {
-  const sunY = map.latLngToContainerPoint([sub.lat, 0]).y;
-  const moonY = map.latLngToContainerPoint([moon.lat, 0]).y;
-  dnSunLine.style.top = `${sunY}px`;
-  dnMoonLine.style.top = `${moonY}px`;
   const sunPt = map.latLngToContainerPoint([sub.lat, sub.lng]);
   const moonPt = map.latLngToContainerPoint([moon.lat, moon.lng]);
+  dnPlaceParallel(dnSunLine, sunPt);
+  dnPlaceParallel(dnMoonLine, moonPt);
   dnSunIconEl.style.left = `${sunPt.x}px`;
   dnSunIconEl.style.top = `${sunPt.y}px`;
   dnMoonIconEl.style.left = `${moonPt.x}px`;
   dnMoonIconEl.style.top = `${moonPt.y}px`;
+}
+
+/* Un paralelo en pantalla es una recta que pasa por `pt` con la
+   dirección del giro del mapa (horizontal con el norte arriba). Se
+   dibuja centrada en el punto de esa recta más cercano al centro del
+   visor y con el doble de la diagonal de largo, así cubre la vista
+   entera aunque el sol o la luna queden muy lejos de ella.            */
+function dnPlaceParallel(line, pt) {
+  const size = map.getSize();
+  const b = map.getBearing() * Math.PI / 180;
+  const ux = Math.cos(b), uy = Math.sin(b);
+  const cx = size.x / 2, cy = size.y / 2;
+  const t = (cx - pt.x) * ux + (cy - pt.y) * uy;
+  const qx = pt.x + ux * t, qy = pt.y + uy * t;
+  const half = Math.hypot(size.x, size.y);
+  line.style.left = `${qx - half}px`;
+  line.style.top = `${qy}px`;
+  line.style.width = `${2 * half}px`;
+  line.style.transform = `rotate(${map.getBearing()}deg)`;
 }
 
 const DN_VERTEX_SRC = `
@@ -14617,6 +14851,7 @@ const DN_FRAGMENT_SRC = `
   uniform float uScale;      /* píxeles de mundo (CSS) por píxel de dispositivo */
   uniform float uWorldSize;  /* 256 * 2^zoom */
   uniform vec2 uSubsolar;    /* lat, lng del punto subsolar, en RADIANES */
+  uniform float uBearing;    /* giro del mapa (leaflet-rotate), en RADIANES, horario */
 
   const float PI = 3.14159265358979;
 
@@ -14624,7 +14859,13 @@ const DN_FRAGMENT_SRC = `
     /* gl_FragCoord crece hacia ARRIBA; el mundo de teselas crece hacia
        el SUR, de ahí el signo distinto en cada eje. */
     vec2 screen = gl_FragCoord.xy - uResolution * 0.5;
-    vec2 world = uCenterWorld + vec2(screen.x, -screen.y) * uScale;
+    /* Con el mapa rotado, el píxel de pantalla se "desgira" alrededor
+       del centro antes de pasar al mundo de teselas: es la inversa de
+       la rotación (horaria, con Y hacia abajo) que aplica el plugin. */
+    vec2 s = vec2(screen.x, -screen.y);
+    float cb = cos(uBearing), sb = sin(uBearing);
+    s = vec2(cb * s.x + sb * s.y, -sb * s.x + cb * s.y);
+    vec2 world = uCenterWorld + s * uScale;
     vec2 frac = world / uWorldSize;
     float lng = fract(frac.x) * 2.0 * PI - PI;
     /* GLSL ES 1.00 (WebGL1) no tiene sinh(): es de GLSL ES 3.00 en
@@ -14735,7 +14976,8 @@ function dnInit() {
     centerWorld: dnGl.getUniformLocation(dnProgram, "uCenterWorld"),
     scale: dnGl.getUniformLocation(dnProgram, "uScale"),
     worldSize: dnGl.getUniformLocation(dnProgram, "uWorldSize"),
-    subsolar: dnGl.getUniformLocation(dnProgram, "uSubsolar")
+    subsolar: dnGl.getUniformLocation(dnProgram, "uSubsolar"),
+    bearing: dnGl.getUniformLocation(dnProgram, "uBearing")
   };
   dnBuildCelestialOverlay();
   return true;
@@ -14770,6 +15012,7 @@ function dnRender() {
   dnGl.uniform1f(dnUniforms.scale, 1 / dpr);
   dnGl.uniform1f(dnUniforms.worldSize, worldSize);
   dnGl.uniform2f(dnUniforms.subsolar, sub.lat * Math.PI / 180, sub.lng * Math.PI / 180);
+  dnGl.uniform1f(dnUniforms.bearing, map.getBearing() * Math.PI / 180);
   /* `preserveDrawingBuffer: true` conserva el lienzo ENTRE fotogramas
      compuestos (necesario, ver dnInit), pero eso significa que también
      conserva el contenido del redibujado ANTERIOR: sin este `clear`,
@@ -14803,7 +15046,7 @@ function dnTeardown() {
   if (dnFrame) { cancelAnimationFrame(dnFrame); dnFrame = null; }
   if (dnTimer) { clearInterval(dnTimer); dnTimer = null; }
   document.removeEventListener("visibilitychange", dnVisibilityHandler);
-  map.off("move zoom resize", dnRequestRender);
+  map.off("move zoom resize rotate", dnRequestRender);
   if (dnCanvas) { dnCanvas.remove(); dnCanvas = null; }
   dnGl = null; dnProgram = null; dnUniforms = null;
   if (dnOverlay) { dnOverlay.remove(); dnOverlay = null; }
@@ -14838,7 +15081,7 @@ function toggleDayNight() {
     return;
   }
   if (dnButton) dnButton.classList.add("active");
-  map.on("move zoom resize", dnRequestRender);
+  map.on("move zoom resize rotate", dnRequestRender);
   document.addEventListener("visibilitychange", dnVisibilityHandler);
   dnTimer = setInterval(dnRequestRender, DAYNIGHT_REFRESH_MS);
   dnRequestRender();
@@ -15117,6 +15360,9 @@ gcEl("geocalc-close").addEventListener("click", toggleGeocalcDialog);
 let gratButton = null;
 let elevUnitButton = null;
 
+const DEM_BUTTON_TITLE = "Modo altura: consulta el MDT (terreno) y el MDS"
+  + " (superficie) del IGN bajo el cursor (Espa\u00F1a; requiere conexi\u00F3n)";
+
 /* Named so both the toolbar buttons and the viewer's context menu can
    trigger the same action without duplicating logic.                  */
 function fitToContent() {
@@ -15165,8 +15411,7 @@ const ViewControl = L.Control.extend({
     demButton = L.DomUtil.create("a", "", bar);
     demButton.href = "#";
     demButton.textContent = "\u26F0";
-    demButton.title = "Modo altura: consulta el MDT (terreno) y el MDS"
-      + " (superficie) del IGN bajo el cursor (Espa\u00F1a; requiere conexi\u00F3n)";
+    demButton.title = DEM_BUTTON_TITLE;
     demButton.addEventListener("click", e => {
       e.preventDefault();
       setAltitudeMode(!demOn);
@@ -15248,23 +15493,259 @@ function redrawGraticule() {
   }
   const dec = (String(step).split(".")[1] || "").length;
   const style = { color: "#446", weight: 1, opacity: 0.45, dashArray: "2 4", interactive: false };
-  const labelLng = Math.max(view.getWest(), west);
-  const labelLat = Math.min(view.getNorth(), north);
+  const size = map.getSize();
+  const rotated = Math.abs(map.getBearing()) > 0.05;
 
   let n = 0;
   for (let i = Math.ceil(south / step); i * step <= north && n < GRAT_MAX_LINES; i++, n++) {
     const lat = i * step;
     graticuleLayer.addLayer(L.polyline([[lat, west], [lat, east]], style));
-    graticuleLayer.addLayer(gratLabel([lat, labelLng], `\u00A0${lat.toFixed(dec)}\u00B0`));
+    const at = gratLabelPoint([lat, west], [lat, east], size, rotated);
+    if (at) graticuleLayer.addLayer(gratLabel(at, `\u00A0${lat.toFixed(dec)}\u00B0`));
   }
   n = 0;
   for (let i = Math.ceil(west / step); i * step <= east && n < GRAT_MAX_LINES; i++, n++) {
     const lng = i * step;
     graticuleLayer.addLayer(L.polyline([[south, lng], [north, lng]], style));
-    graticuleLayer.addLayer(gratLabel([labelLat, lng], `${lng.toFixed(dec)}\u00B0`));
+    const at = gratLabelPoint([north, lng], [south, lng], size, rotated);
+    if (at) graticuleLayer.addLayer(gratLabel(at, `${lng.toFixed(dec)}\u00B0`));
   }
 }
+
+/* Recorta el segmento p0→p1 (píxeles de contenedor) al rectángulo
+   [0,w]×[0,h] (Liang–Barsky). Devuelve los dos extremos visibles, o
+   null si el segmento no pasa por la vista.                          */
+function clipSegmentToRect(p0, p1, w, h) {
+  const dx = p1.x - p0.x, dy = p1.y - p0.y;
+  let t0 = 0, t1 = 1;
+  for (const [p, q] of [[-dx, p0.x], [dx, w - p0.x], [-dy, p0.y], [dy, h - p0.y]]) {
+    if (p === 0) { if (q < 0) return null; continue; }
+    const r = q / p;
+    if (p < 0) { if (r > t1) return null; if (r > t0) t0 = r; }
+    else { if (r < t0) return null; if (r < t1) t1 = r; }
+  }
+  return [{ x: p0.x + t0 * dx, y: p0.y + t0 * dy }, { x: p0.x + t1 * dx, y: p0.y + t1 * dy }];
+}
+/* Etiqueta de una línea de la retícula: donde ENTRA en la vista desde
+   su extremo `a` — el oeste para un paralelo, el norte para un
+   meridiano. Con el norte arriba es exactamente el borde izquierdo/
+   superior de siempre. Con el mapa rotado ese borde ya no es el de la
+   pantalla (de ahí recortar en píxeles), y separar paralelos y
+   meridianos por su extremo geográfico, y no por el borde de pantalla
+   más cercano, es lo que evita que se amontonen todas en el mismo
+   borde. Si cae en el borde derecho o inferior, la etiqueta se mete un
+   poco hacia dentro para que no quede cortada.                        */
+const GRAT_LABEL_W = 44, GRAT_LABEL_H = 14;
+function gratLabelPoint(a, b, size, rotated) {
+  const seg = clipSegmentToRect(map.latLngToContainerPoint(a), map.latLngToContainerPoint(b), size.x, size.y);
+  if (!seg) return null;
+  let p = seg[0];
+  if (rotated) {
+    p = { x: Math.min(p.x, size.x - GRAT_LABEL_W), y: Math.min(p.y, size.y - GRAT_LABEL_H) };
+  }
+  return map.containerPointToLatLng([p.x, p.y]);
+}
 map.on("moveend zoomend", redrawGraticule);
+/* Girar la brújula dispara "rotate" decenas de veces por segundo: un
+   redibujado por fotograma basta.                                     */
+let gratFrame = null;
+map.on("rotate", () => {
+  if (!graticuleOn || gratFrame) return;
+  gratFrame = requestAnimationFrame(() => { gratFrame = null; redrawGraticule(); });
+});
+
+/* ---------- Brújula: rotación del mapa (leaflet-rotate) ----------
+   Arrastrar alrededor de la brújula gira el mapa, de forma LIBRE (sin
+   pasos); un clic sin arrastrar —o la tecla R con el foco en el visor—
+   vuelve a poner el norte arriba. La orientación no se guarda: cada
+   arranque empieza con el norte arriba. Va en la esquina superior
+   derecha, ENCIMA del panel de mapas base: los dos son controles de
+   "topright" y Leaflet los apila por orden de alta, así que se mueve a
+   mano a la cabeza de esa esquina.
+   `map.getBearing()` = grados que el contenido del mapa está girado en
+   sentido HORARIO; el norte queda en pantalla en esa misma dirección,
+   así que la aguja gira lo mismo.                                     */
+const BEARING_EPS = 0.05; /* por debajo, se considera norte arriba */
+const COMPASS_DRAG_PX = 3; /* menos es un clic con temblor, no un arrastre */
+const isMapRotated = () => Math.abs(map.getBearing()) > BEARING_EPS
+  && Math.abs(map.getBearing() - 360) > BEARING_EPS;
+
+/* Ángulo del puntero (x, y) visto desde el centro (cx, cy), en grados,
+   0 = arriba, sentido horario (el mismo convenio que un rumbo).       */
+function pointerAngleDeg(cx, cy, x, y) {
+  return (Math.atan2(x - cx, cy - y) * 180 / Math.PI + 360) % 360;
+}
+/* Rumbo del mapa durante un arrastre: el de partida más lo que ha
+   girado el puntero desde que empezó (no el ángulo absoluto del
+   puntero: así el mapa no salta al primer movimiento).               */
+function dragBearing(startBearing, startAngle, angle) {
+  return ((startBearing + angle - startAngle) % 360 + 360) % 360;
+}
+
+function resetNorth() { if (isMapRotated()) map.setBearing(0); }
+
+const COMPASS_SVG = '<svg viewBox="0 0 40 40" width="40" height="40" aria-hidden="true">'
+  + '<g class="compass-needle">'
+  + '<polygon points="20,4 25,20 15,20" class="compass-n"/>'
+  + '<polygon points="20,36 25,20 15,20" class="compass-s"/>'
+  + '</g></svg>';
+
+let compassEl = null;
+const CompassControl = L.Control.extend({
+  options: { position: "topright" },
+  onAdd() {
+    const box = L.DomUtil.create("div", "compass-box leaflet-bar");
+    const a = L.DomUtil.create("a", "compass-btn", box);
+    a.href = "#";
+    a.title = "Brújula: arrastra para girar el mapa; clic (o R sobre el visor) vuelve a poner el norte arriba";
+    a.setAttribute("aria-label", "Brújula: clic para poner el norte arriba");
+    a.innerHTML = COMPASS_SVG;
+    compassEl = box;
+    let drag = null, dragged = false;
+    a.addEventListener("pointerdown", e => {
+      if (e.button !== 0) return;
+      e.preventDefault();
+      const r = a.getBoundingClientRect();
+      const cx = r.left + r.width / 2, cy = r.top + r.height / 2;
+      drag = { cx, cy, x: e.clientX, y: e.clientY, bearing: map.getBearing(),
+               angle: pointerAngleDeg(cx, cy, e.clientX, e.clientY), moved: false };
+      a.setPointerCapture(e.pointerId);
+    });
+    a.addEventListener("pointermove", e => {
+      if (!drag) return;
+      if (!drag.moved && Math.hypot(e.clientX - drag.x, e.clientY - drag.y) < COMPASS_DRAG_PX) return;
+      drag.moved = true;
+      box.classList.add("dragging");
+      map.setBearing(dragBearing(drag.bearing, drag.angle, pointerAngleDeg(drag.cx, drag.cy, e.clientX, e.clientY)));
+    });
+    const end = () => {
+      if (!drag) return;
+      dragged = drag.moved;
+      drag = null;
+      box.classList.remove("dragging");
+      /* Girar no mueve el centro, pero la vista girada puede asomar ya
+         fuera del mundo junto a un borde: se recoloca al soltar (no en
+         cada paso del giro, que haría temblar el mapa).               */
+      if (dragged) map.panInsideBounds(map.options.maxBounds, { animate: false });
+    };
+    a.addEventListener("pointerup", end);
+    a.addEventListener("pointercancel", end);
+    /* El clic (ratón o Intro/espacio desde teclado) pone el norte arriba,
+       salvo si cierra un arrastre: ese gesto ya hizo lo que tenía que hacer. */
+    a.addEventListener("click", e => {
+      e.preventDefault();
+      if (dragged) { dragged = false; return; }
+      resetNorth();
+    });
+    L.DomEvent.disableClickPropagation(box);
+    return box;
+  }
+});
+map.addControl(new CompassControl());
+{
+  /* A la cabeza de la esquina topright: encima del panel de mapas base */
+  const corner = compassEl.parentNode;
+  corner.insertBefore(compassEl, corner.firstChild);
+}
+function syncCompass() {
+  const needle = compassEl.querySelector(".compass-needle");
+  needle.setAttribute("transform", `rotate(${map.getBearing()} 20 20)`);
+  compassEl.classList.toggle("rotated", isMapRotated());
+}
+map.on("rotate", syncCompass);
+syncCompass();
+
+/* R con el foco en el visor: norte arriba. Mismo patrón que AvPág/RePág
+   (más abajo): escuchado en el contenedor del mapa, así que escribir una
+   "r" en cualquier campo de texto no lo dispara.                      */
+map.getContainer().addEventListener("keydown", e => {
+  if ((e.key !== "r" && e.key !== "R") || e.ctrlKey || e.metaKey || e.altKey) return;
+  e.preventDefault();
+  resetNorth();
+});
+
+/* ---------- Girar con el botón central del ratón ----------
+   Mantener pulsado el botón central (la rueda) y arrastrar gira el mapa
+   alrededor del punto donde se pulsó, que se queda quieto bajo el
+   cursor; el giro es el desplazamiento HORIZONTAL desde ese punto
+   (derecha = sentido horario). No el ángulo del puntero alrededor del
+   pivote: al empezar el puntero está encima de él y ese ángulo salta.
+   Antes el botón central arrastraba el mapa como el izquierdo: el
+   Draggable de Leaflet 1.9 acepta `button === 1` (resto de
+   compatibilidad con IE, donde 1 era el izquierdo), así que el gesto se
+   intercepta en fase de CAPTURA en el contenedor, antes que Leaflet. El
+   `preventDefault` del pointerdown suprime además el `mousedown` de
+   compatibilidad (y con él el autodesplazamiento del navegador).
+   Durante el gesto el cursor es una rosa de los vientos con su norte
+   donde apunta el norte del mapa.                                     */
+const ROTATE_DEG_PER_PX = 0.5;
+
+/* Rumbo tras desplazar el puntero `dx` píxeles en horizontal */
+function pivotDragBearing(startBearing, dx) {
+  return dragBearing(startBearing, 0, dx * ROTATE_DEG_PER_PX);
+}
+
+function roseCursor(bearing) {
+  const svg = '<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 32 32">'
+    + `<g transform="rotate(${bearing.toFixed(1)} 16 16)" stroke="#fff" stroke-width="1.5"`
+    + ' stroke-linejoin="round" paint-order="stroke">'
+    + '<polygon points="16,7 17.4,14.6 25,16 17.4,17.4 16,25 14.6,17.4 7,16 14.6,14.6" fill="#666" transform="rotate(45 16 16)"/>'
+    + '<polygon points="16,1 18.3,13.7 31,16 18.3,18.3 16,31 13.7,18.3 1,16 13.7,13.7" fill="#333"/>'
+    + '<polygon points="16,1.6 18.1,13.9 16,16 13.9,13.9" fill="#d62828" stroke="none"/>'
+    + '</g></svg>';
+  return `url("data:image/svg+xml,${encodeURIComponent(svg)}") 16 16, move`;
+}
+
+{
+  const el = map.getContainer();
+  let rot = null;
+  const setCursor = () => el.style.setProperty("--rotate-cursor", roseCursor(map.getBearing()));
+  el.addEventListener("pointerdown", e => {
+    if (e.button !== 1 || e.pointerType !== "mouse" || rot) return;
+    if (e.target.closest(".leaflet-control-container")) return;
+    e.preventDefault();
+    e.stopPropagation();
+    el.focus({ preventScroll: true });
+    const r = el.getBoundingClientRect();
+    const pivot = L.point(e.clientX - r.left, e.clientY - r.top);
+    rot = { id: e.pointerId, x: e.clientX, pivot, latlng: map.containerPointToLatLng(pivot),
+            bearing: map.getBearing(), moved: false };
+    el.setPointerCapture(e.pointerId);
+    setCursor();
+    el.classList.add("map-rotating");
+  }, true);
+  /* Por si el navegador entrega aún el mousedown: que Leaflet no lo vea */
+  el.addEventListener("mousedown", e => { if (e.button === 1 && rot) { e.preventDefault(); e.stopPropagation(); } }, true);
+  el.addEventListener("pointermove", e => {
+    if (!rot || e.pointerId !== rot.id) return;
+    e.stopPropagation();
+    if (!rot.moved) { rot.moved = true; map.fire("movestart"); }
+    map.setBearing(pivotDragBearing(rot.bearing, e.clientX - rot.x));
+    /* El giro del plugin es alrededor del centro de la vista: se
+       devuelve el punto pulsado a su sitio. Siempre contra el MISMO
+       punto geográfico, así el redondeo a píxel no se acumula.       */
+    const off = map.latLngToContainerPoint(rot.latlng).subtract(rot.pivot).round();
+    if (off.x || off.y) map._rawPanBy(off);
+    map.fire("move");
+    setCursor();
+  }, true);
+  const end = e => {
+    if (!rot || e.pointerId !== rot.id) return;
+    const moved = rot.moved;
+    rot = null;
+    el.classList.remove("map-rotating");
+    if (!moved) return;
+    map.fire("moveend");
+    /* Como al soltar la brújula: la vista girada puede asomar fuera
+       del mundo junto a un borde, se recoloca al terminar.           */
+    map.panInsideBounds(map.options.maxBounds, { animate: false });
+  };
+  el.addEventListener("pointerup", end, true);
+  el.addEventListener("pointercancel", end, true);
+  /* Sin el pegado de la selección primaria (X11) ni otros usos del
+     clic central sobre el visor */
+  el.addEventListener("auxclick", e => { if (e.button === 1) e.preventDefault(); });
+}
 
 /* ---------- Coordenadas del puntero (inferior izquierda) ---------- */
 /* Tres lecturas de la misma posición: grados decimales, grados/minutos/
@@ -15336,22 +15817,304 @@ map.on("mousemove", e => {
   });
 });
 
-/* PageUp/PageDown zoom the map while it has focus. Listening directly on
-   the map container (like the polygon-drawing click/dblclick above)
-   means this only fires with focus inside #map. preventDefault stops
-   the browser's native whole-page scroll; Leaflet's own keyboard
-   handler doesn't act on these two keys, so today they do nothing.
-   Anchored on coordsPending (the last known cursor position) so the zoom
-   behaves like the mouse wheel's, which zooms toward the cursor instead
-   of the view center; without a prior mousemove (focus reached via Tab)
-   there's no known position and it falls back to zooming on the center. */
-map.getContainer().addEventListener("keydown", e => {
-  if (e.key !== "PageUp" && e.key !== "PageDown") return;
-  e.preventDefault();
-  const target = map.getZoom() + (e.key === "PageUp" ? 1 : -1);
-  if (coordsPending) map.setZoomAround(coordsPending, target);
-  else map.setZoom(target);
-});
+/* ---------- Teclado del visor: desplazar (flechas) y zoom (Re/Av Pág) ----------
+   Lo que cuenta es el tiempo que la tecla está PULSADA (keydown→keyup),
+   no los keydown de autorrepetición del sistema: con ellos el mapa daba
+   un paso, se quedaba quieto el retardo de repetición (~250–600 ms) y
+   luego avanzaba a saltos — molesto sobre todo dibujando una ruta. Un
+   toque hace lo de siempre (80 px; ±1 nivel); al mantener, el
+   movimiento arranca ya en el keydown y es continuo hasta soltar.
+   Solo con el foco en el visor: los listeners van en su contenedor, así
+   que una flecha en el buscador o en el árbol no toca el mapa. Las
+   flechas se cogen en CAPTURA y no se propagan: el `Keyboard` de
+   Leaflet escucha en `document` y, si las viera, desplazaría dos veces
+   (sus `+`/`-`/Escape siguen siendo suyos).                           */
+const KEY_PAN_STEP = 80;           /* px de un toque: el keyboardPanDelta de Leaflet */
+const KEY_PAN_SPEED = 400;         /* px/s al empezar a mantener */
+const KEY_PAN_MAX_SPEED = 1600;    /* px/s, tras la rampa */
+const KEY_PAN_ACCEL_MS = 500;      /* mantenida más que esto, acelera… */
+const KEY_PAN_RAMP_MS = 1000;      /* …hasta el tope en este tiempo */
+const KEY_PAN_SHIFT = 3;           /* Mayús: más rápido, como en Leaflet */
+const KEY_ZOOM_RATE = 3;           /* niveles/s mientras se mantiene */
+const KEY_PAN_DIRS = { ArrowLeft: [-1, 0], ArrowRight: [1, 0], ArrowUp: [0, -1], ArrowDown: [0, 1] };
+
+/* Velocidad (px/s) de una flecha mantenida `heldMs` */
+function keyPanSpeed(heldMs) {
+  if (heldMs <= KEY_PAN_ACCEL_MS) return KEY_PAN_SPEED;
+  const k = Math.min(1, (heldMs - KEY_PAN_ACCEL_MS) / KEY_PAN_RAMP_MS);
+  return KEY_PAN_SPEED + (KEY_PAN_MAX_SPEED - KEY_PAN_SPEED) * k;
+}
+/* Velocidad combinada en pantalla de las flechas vivas, `keys` =
+   [[tecla, px/s], …]: dos a la vez dan diagonal, opuestas se anulan. */
+function keyPanVector(keys, shift) {
+  const f = shift ? KEY_PAN_SHIFT : 1;
+  let x = 0, y = 0;
+  for (const [key, v] of keys) {
+    const d = KEY_PAN_DIRS[key];
+    if (d) { x += d[0] * v * f; y += d[1] * v * f; }
+  }
+  return { x, y };
+}
+/* Nivel ENTERO en que termina un zoom continuo que empezó en z0 y va
+   por z: el siguiente en la dirección del zoom y al menos uno más que
+   el de partida (un toque es ±1, como antes), dentro de [min, max].  */
+function keyZoomTarget(z0, z, dir, min, max) {
+  const eps = 1e-6;
+  const t = dir > 0 ? Math.max(Math.ceil(z - eps), Math.floor(z0 + eps) + 1)
+                    : Math.min(Math.floor(z + eps), Math.ceil(z0 - eps) - 1);
+  return Math.min(max, Math.max(min, t));
+}
+
+/* ---------- Rueda del ratón: el mismo zoom continuo ----------
+   Leaflet daba un salto animado de nivel en nivel, con una espera de
+   40 ms para juntar eventos. Aquí cada evento mueve un OBJETIVO
+   fraccionario y la vista lo alcanza con frenada (WHEEL_EASE_MS) por el
+   mismo camino del pellizco que Re/Av Pág; parada la rueda, se asienta
+   en el nivel entero siguiente en la dirección del último giro.     */
+const WHEEL_PX_PER_LEVEL = 100;    /* px de rueda por nivel: una muesca (100–120 px) da uno */
+const WHEEL_EASE_MS = 200;         /* tiempo para alcanzar el objetivo de cada evento */
+const WHEEL_SETTLE_MS = 150;       /* del objetivo fraccionario al nivel entero */
+const WHEEL_IDLE_MS = 150;         /* sin rueda este rato, el gesto ha terminado */
+
+/* Niveles que pide un evento `wheel` (hacia arriba acerca). Una muesca
+   llega en un evento de 100–120 px (Chrome) o en varios pequeños
+   (Firefox, panel táctil): como mucho un nivel por evento, para que
+   una rueda de líneas o páginas no salte varios de golpe.          */
+function wheelLevels(deltaY, deltaMode) {
+  const px = deltaMode === 1 ? deltaY * 40 : deltaMode === 2 ? deltaY * 800 : deltaY;
+  return Math.max(-1, Math.min(1, -px / WHEEL_PX_PER_LEVEL));
+}
+/* Nivel ENTERO en que se asienta un zoom de rueda que va por z: el
+   siguiente en la dirección `dir` (z ya entero se queda), en [min, max] */
+function wheelZoomTarget(z, dir, min, max) {
+  const eps = 1e-6;
+  const t = dir > 0 ? Math.ceil(z - eps) : Math.floor(z + eps);
+  return Math.min(max, Math.max(min, t));
+}
+const easeOutCubic = k => 1 - Math.pow(1 - k, 3);
+
+{
+  const el = map.getContainer();
+  /* Última posición del puntero sobre el visor (contenedor), para el
+     mousemove sintético: al mover el mapa sin mover el ratón, las
+     coordenadas, la vista previa del arco o un vértice arrastrado
+     seguían en el punto geográfico viejo. Se olvida al salir.         */
+  let pointer = null;
+  map.on("mousemove", e => { if (!e.synthetic) pointer = e.containerPoint; });
+  map.on("mouseout", () => { pointer = null; });
+  const syncPointer = () => {
+    if (!pointer) return;
+    map.fire("mousemove", { synthetic: true, containerPoint: pointer,
+      layerPoint: map.containerPointToLayerPoint(pointer),
+      latlng: map.containerPointToLatLng(pointer), originalEvent: null });
+  };
+
+  let shift = false, frame = null, last = 0;
+  const pan = new Map();   /* tecla → { t0, down, traveled } */
+  let panAcc = { x: 0, y: 0 }, panning = false;
+  let zoom = null;         /* sesión de zoom, ver startZoom */
+
+  const tick = now => {
+    frame = null;
+    /* La marca de un fotograma es la de su INICIO: el primero tras el
+       keydown puede llevar una anterior a él (dt negativo, medido: un
+       paso de -5 px hacia atrás). Tope de 0,1 s tras una pausa.      */
+    const dt = Math.max(0, Math.min(0.1, (now - last) / 1000));
+    last = now;
+    if (zoom) stepZoom(now); else if (pan.size) stepPan(now, dt);
+    syncPointer();
+    if (zoom || pan.size) frame = requestAnimationFrame(tick);
+  };
+  const run = () => {
+    if (frame) return;
+    last = performance.now();
+    frame = requestAnimationFrame(tick);
+  };
+
+  function stepPan(now, dt) {
+    const keys = [];
+    for (const [key, k] of pan) {
+      /* Soltada: si no llegó al paso de un toque, lo completa sin
+         pasarse; si ya lo pasó, se para en seco.                     */
+      const v = k.down ? keyPanSpeed(now - k.t0)
+        : Math.max(0, Math.min(KEY_PAN_SPEED, (KEY_PAN_STEP - k.traveled) / dt));
+      k.traveled += v * dt;
+      keys.push([key, v]);
+      if (!k.down && k.traveled >= KEY_PAN_STEP - 0.01) pan.delete(key);
+    }
+    const v = keyPanVector(keys, shift);
+    panAcc.x += v.x * dt; panAcc.y += v.y * dt;
+    const want = L.point(Math.round(panAcc.x), Math.round(panAcc.y));
+    if (!want.x && !want.y) { if (!pan.size) endPan(); return; }
+    const off = limitScreenPan(want);
+    panAcc.x = off.x === want.x ? panAcc.x - want.x : 0;
+    panAcc.y = off.y === want.y ? panAcc.y - want.y : 0;
+    if (off.x || off.y) {
+      if (!panning) { panning = true; map._stop(); map.fire("movestart"); }
+      map._rawPanBy(off);
+      map.fire("move");
+    }
+    if (!pan.size) endPan();
+  }
+  /* Contra el borde del mundo, en cada fotograma (al final rebotaría).
+     El desplazamiento es en PANTALLA (con el mapa girado, ↑ sigue
+     siendo hacia arriba) y se pasa a píxeles del mapa sin girar con el
+     giro inverso. Se calcula ahí y no ida y vuelta por
+     containerPointToLatLng/latLngToContainerPoint: con leaflet-rotate
+     esa ida y vuelta se desvía ~1 px, y medido daba pasos de 8 px en
+     vez de 7 (un toque recorría 98 px, no 80). _limitCenter devuelve el
+     MISMO objeto si no hay que limitar (ya sabe del giro,
+     08-leaflet-rotate-fixes.js): entonces vale el desplazamiento pedido
+     tal cual.                                                        */
+  function limitScreenPan(want) {
+    const z = map.getZoom(), b = map.getBearing() * Math.PI / 180;
+    const cos = Math.cos(b), sin = Math.sin(b);
+    const m = L.point(want.x * cos + want.y * sin, -want.x * sin + want.y * cos);
+    const c = map.project(map.getCenter(), z);
+    const to = map.unproject(c.add(m), z);
+    const lim = map._limitCenter(to, z, map.options.maxBounds);
+    if (lim === to) return want;
+    const d = map.project(lim, z).subtract(c);
+    return L.point(d.x * cos - d.y * sin, d.x * sin + d.y * cos).round();
+  }
+  function endPan() {
+    pan.clear();
+    panAcc = { x: 0, y: 0 };
+    if (panning) { panning = false; map.fire("moveend"); }
+  }
+
+  /* Zoom continuo por el camino del PELLIZCO táctil de Leaflet
+     (`_moveStart` + `_move(…, {pinch})`): solo transforma por CSS
+     teselas y lienzo de vectores, sin redibujar en cada fotograma; el
+     redibujo llega con el zoom final. Niveles fraccionarios mientras
+     dura, pero `zoomSnap` sigue en 1: al soltar se anima hasta el nivel
+     entero siguiente (teselas nítidas en reposo; rueda, doble clic y
+     encuadres como siempre). El centro sale del ANCLA, no del fotograma
+     anterior (no acumula error): guarda su desfase respecto al centro
+     en píxeles del mapa sin girar, `d`, que con el giro no cambia.
+     Teclas (`kind` "key"): z crece con el tiempo pulsada, ancla fija.
+     Rueda ("wheel"): z persigue un objetivo `goal` con frenada, y cada
+     evento vuelve a anclar en el cursor (puede moverse entre muescas). */
+  const clampZoom = z => Math.min(map.getMaxZoom(), Math.max(map.getMinZoom(), z));
+  function startZoom(kind, dir, anchor) {
+    endPan();
+    /* Una muesca o un toque durante la animación final del anterior: se
+       da por terminada (ya está casi en su nivel) y se sigue desde ahí;
+       si no, su final llegaría después y pisaría este zoom.          */
+    if (map._animatingZoom) map._onZoomTransitionEnd();
+    const z0 = map.getZoom(), center = map.getCenter(), now = performance.now();
+    map._stop();
+    map._moveStart(true, false);
+    zoom = { kind, dir, t0: now, z0, z: z0, center, anchor, d: null,
+             goal: z0, from: z0, dur: 0, last: now };
+    anchorZoom(zoom, anchor);
+    run();
+  }
+  function anchorZoom(zm, anchor) {
+    zm.anchor = anchor;
+    zm.d = map.project(anchor, zm.z).subtract(map.project(zm.center, zm.z));
+  }
+  const zoomCenter = (zm, z) => map._limitCenter(
+    map.unproject(map.project(zm.anchor, z).subtract(zm.d), z), z, map.options.maxBounds);
+  function easeZoom(zm, goal, now, dur) {
+    zm.from = zm.z; zm.goal = goal; zm.t0 = now; zm.dur = dur;
+  }
+  function stepZoom(now) {
+    const zm = zoom;
+    const k = zm.dur ? Math.min(1, Math.max(0, now - zm.t0) / zm.dur) : 1;
+    const z = zm.kind === "key"
+      ? clampZoom(zm.z0 + zm.dir * KEY_ZOOM_RATE * Math.max(0, now - zm.t0) / 1000)
+      : k === 1 ? zm.goal : zm.from + (zm.goal - zm.from) * easeOutCubic(k);
+    if (z !== zm.z) {
+      zm.z = z;
+      zm.center = zoomCenter(zm, z);
+      map._move(zm.center, z, { pinch: true, round: false });
+    }
+    /* Rueda: alcanzado el objetivo y parada la rueda, al nivel entero;
+       ya en él, el final.                                            */
+    if (zm.kind === "wheel" && k === 1 && now - zm.last >= WHEEL_IDLE_MS) {
+      const t = wheelZoomTarget(zm.goal, zm.dir, map.getMinZoom(), map.getMaxZoom());
+      if (t === zm.z) endZoom();
+      else easeZoom(zm, t, now, WHEEL_SETTLE_MS);
+    }
+  }
+  /* Final como el del pellizco (TouchZoom._onTouchEnd), no con
+     setZoomAround: ese abriría otro zoomstart sobre el que ya está en
+     curso. */
+  function endZoom() {
+    const zm = zoom;
+    zoom = null;
+    const min = map.getMinZoom(), max = map.getMaxZoom();
+    const target = zm.kind === "key" ? keyZoomTarget(zm.z0, zm.z, zm.dir, min, max)
+                                     : wheelZoomTarget(zm.goal, zm.dir, min, max);
+    const c = zoomCenter(zm, target);
+    if (map.options.zoomAnimation && map._zoomAnimated) map._animateZoom(c, target, true, map.options.zoomSnap);
+    else map._resetView(c, target);
+  }
+
+  const stopAll = () => {
+    endPan();
+    if (zoom) endZoom();
+  };
+  el.addEventListener("keydown", e => {
+    shift = e.shiftKey;
+    if (e.ctrlKey || e.altKey || e.metaKey) return;
+    const isPan = e.key in KEY_PAN_DIRS, isZoom = e.key === "PageUp" || e.key === "PageDown";
+    if (!isPan && !isZoom) return;
+    e.preventDefault();
+    e.stopPropagation();
+    if (e.repeat) return;
+    if (isZoom) {
+      if (zoom) return;
+      startZoom("key", e.key === "PageUp" ? 1 : -1, coordsPending || map.getCenter());
+    } else if (!zoom) {
+      pan.set(e.key, { t0: performance.now(), down: true, traveled: 0 });
+      run();
+    }
+  }, true);
+  document.addEventListener("keyup", e => {
+    shift = e.shiftKey;
+    const k = pan.get(e.key);
+    if (k) k.down = false;
+    if (zoom && zoom.kind === "key" && (e.key === "PageUp" || e.key === "PageDown")) endZoom();
+  });
+  /* En el contenedor y en burbuja: los controles (panel de mapas base,
+     coordenadas…) cortan la propagación de la rueda con
+     disableScrollPropagation, así que sobre ellos no hay zoom. */
+  el.addEventListener("wheel", e => {
+    /* Siempre: sin él la página se desplazaría, y con Ctrl (pellizco
+       del panel táctil) el navegador ampliaría la página entera.    */
+    e.preventDefault();
+    if ((zoom && zoom.kind === "key") || map.dragging.moving()) return;
+    const lv = wheelLevels(e.deltaY, e.deltaMode);
+    if (!lv) return;
+    const now = performance.now(), dir = Math.sign(lv);
+    pointer = map.mouseEventToContainerPoint(e);
+    const anchor = map.containerPointToLatLng(pointer);
+    if (!zoom) startZoom("wheel", dir, anchor);
+    else anchorZoom(zoom, anchor);
+    zoom.dir = dir;
+    zoom.last = now;
+    easeZoom(zoom, clampZoom(zoom.goal + lv), now, WHEEL_EASE_MS);
+  }, { passive: false });
+  /* El foco se queda en el VISOR al pulsar una capa, o estas teclas
+     (y R, y +/- de Leaflet) dejan de llegar. Un marcador (icono con
+     tabindex: `keyboard` de Leaflet) se quedaba el foco al clicarlo, y
+     el siguiente guardado del árbol se lo quitaba: reorderPaintOrder
+     reengancha los iconos (L.DomUtil.toFront es un appendChild) y un
+     elemento enfocado que se mueve en el DOM suelta el foco al <body>,
+     donde Re/Av Pág y las flechas son del ÁRBOL (su listener está en
+     `document`). Se anula la acción por defecto del mousedown, que es
+     lo que enfoca; con Tab un marcador sigue siendo alcanzable.      */
+  el.addEventListener("mousedown", e => {
+    if (!e.target.closest(".leaflet-marker-icon")) return;
+    e.preventDefault();
+    el.focus({ preventScroll: true });
+  }, true);
+  /* Sin keyup no hay final: perder el foco o la pestaña lo para todo */
+  el.addEventListener("blur", stopAll);
+  document.addEventListener("visibilitychange", () => { if (document.hidden) stopAll(); });
+}
 
 /* ---------- Menú contextual del visor (botón derecho) ---------- */
 /* Extensible a propósito: cada entrada es {label, action(latlng)} y
@@ -15369,7 +16132,8 @@ const CTX_MENU_ITEMS = [
         .catch(() => navMessage("No se pudieron copiar las coordenadas."));
     }
   },
-  { label: "Modo elevación", checked: () => demOn, action: () => setAltitudeMode(!demOn) },
+  { label: "Modo elevación", checked: () => demOn, action: () => setAltitudeMode(!demOn),
+    disabled: () => isMapRotated() && ALT_ROTATED_WHY },
   /* Las tres mediciones agrupadas en un submenú: son la misma familia y
      tres entradas sueltas desbordaban el menú.                        */
   {
@@ -15559,6 +16323,10 @@ function renderCtxItems(container, items, latlng) {
       btn.setAttribute("role", isToggle ? "menuitemcheckbox" : "menuitem");
       if (isToggle) btn.setAttribute("aria-checked", String(on));
       btn.textContent = (on ? "✓ " : "") + item.label;
+      /* `disabled()` opcional: devuelve el MOTIVO (texto) o algo falso.
+         Deshabilitado, no escondido: se ve que existe y por qué no va. */
+      const why = typeof item.disabled === "function" && item.disabled();
+      if (why) { btn.disabled = true; btn.title = why; }
       if (isTopLevel) btn.addEventListener("mouseenter", closeCtxSubmenu);
       btn.addEventListener("click", () => { closeCtxMenu(); item.action(latlng); });
     }

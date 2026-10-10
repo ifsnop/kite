@@ -413,6 +413,7 @@
      otro botón de esta barra.                                        */
   .measure-bar a.dn-toggle { color: #f5a623; }
   .measure-bar a.active { background: var(--accent); color: #fff; }
+  .measure-bar a.disabled { opacity: .35; cursor: not-allowed; }
   /* Leaflet's own CSS sets ".leaflet-bar a { display: block }"; being an
      author rule it beats the browser's UA "[hidden] { display: none }"
      regardless of specificity, so the `hidden` property silently does
@@ -507,7 +508,10 @@
   .base-box {
     background: #fff; border-radius: 4px;
     position: relative;
-    min-width: 48px; min-height: 48px; /* el icono, al salir del flujo, ya no lo garantiza */
+    /* el icono, al salir del flujo, ya no lo garantiza: sus 48 px más
+       el borde de 2 px de .leaflet-bar (border-box), o el icono se
+       salía de la caja y esta medía 4 px menos que la brújula        */
+    min-width: 52px; min-height: 52px;
   }
   .base-toggle {
     position: absolute; top: 0; right: 0;
@@ -518,6 +522,24 @@
     padding: 4px;
   }
   .base-toggle:hover { color: var(--accent); }
+  /* Brújula (rotación del mapa, 70-view-controls.js): mismo tamaño que
+     el botón de capas base, justo encima. Atenuada con el norte arriba;
+     resaltada en cuanto el mapa está girado, que es cuando importa.  */
+  .compass-box { background: #fff; border-radius: 4px; }
+  .compass-btn {
+    display: flex !important; align-items: center; justify-content: center;
+    width: 48px !important; height: 48px !important;
+    cursor: grab; touch-action: none; opacity: .55;
+  }
+  .compass-box.rotated .compass-btn { opacity: 1; }
+  .compass-box.dragging .compass-btn { cursor: grabbing; }
+  .compass-n { fill: #d62828; }
+  .compass-s { fill: #fff; stroke: #555; stroke-width: 1; }
+  /* Girando con el botón central: rosa de los vientos (roseCursor), en
+     todo el visor —capas interactivas incluidas— mientras dura.      */
+  .leaflet-container.map-rotating, .leaflet-container.map-rotating * {
+    cursor: var(--rotate-cursor) !important;
+  }
   .base-list {
     margin-top: 48px; /* hueco que dejaba el icono en flujo */
     padding: 6px 8px;
@@ -605,7 +627,8 @@
     overflow: hidden; /* la línea es más ancha que el visor a propósito, para no recalcular en cada resize */
   }
   .dn-path {
-    position: absolute; left: -10%; width: 120%; height: 0;
+    /* left/top/width y el giro los pone dnPlaceParallel (61-daynight.js) */
+    position: absolute; height: 0; transform-origin: 50% 0;
     border-top: 1.5px dashed;
     opacity: .7;
   }
@@ -793,7 +816,8 @@
      keyboard focus (Tab, no auto-focus on open) gets a thin outline
      instead of the same fill, so the two never look like two competing
      highlights when both a hovered row and a focused row exist at once. */
-  .ctx-menu-item:hover { background: var(--accent); color: #fff; }
+  .ctx-menu-item:hover:not(:disabled) { background: var(--accent); color: #fff; }
+  .ctx-menu-item:disabled { color: var(--muted); cursor: default; }
   .ctx-menu-item:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
   .ctx-menu-sep { height: 1px; margin: 4px 6px; background: var(--border); }
   .color-btn {
@@ -988,7 +1012,12 @@
   .keys { border-collapse: collapse; font-size: 12.5px; width: 100%; }
   .keys th { text-align: left; padding: 8px 4px 3px; color: var(--muted); font-size: 11.5px; }
   .keys td { padding: 2px 10px 2px 4px; vertical-align: top; }
-  .keys td:first-child { white-space: nowrap; font-family: ui-monospace, Consolas, monospace; }
+  /* La columna de teclas ENVUELVE y tiene un ancho fijo, no el de su
+     texto más largo: con `nowrap`, «Mayús + clic sobre el primer
+     vértice, con el último seleccionado» empujaba la descripción fuera
+     del diálogo. El 40 % deja la frontera en el mismo sitio en todas
+     las pestañas; `pretty` evita una palabra suelta en la última línea. */
+  .keys td:first-child { width: 40%; text-wrap: pretty; font-family: ui-monospace, Consolas, monospace; }
   /* Redimensionar la ventana tiene que dar espacio AL CONTENIDO, que es
      para lo que se redimensiona. Antes el tirador estaba en el elemento
      interior y crecía él; ahora está en la caja, así que el interior
