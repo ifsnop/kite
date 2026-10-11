@@ -211,9 +211,12 @@ the flag clears by itself when the tiles come back.
   blue and MDS in green, leg vertices in bold
 - hovering the chart moves a red line across it and a red arrow along the
   route on the map, pointing the way of travel
-- the mouse wheel zooms the chart around the pointer (from the whole route
-  down to 1 m per pixel, heights rescaled to what is shown) and dragging
-  pans it
+- the mouse wheel zooms the chart's distance around the pointer (from the
+  whole route down to 0.1 m per pixel) and dragging pans it; Shift+wheel,
+  or the wheel over the height axis, zooms the heights on their own
+- heights rescale to what is shown unless the Y axis is locked; a toolbar
+  has −/+ for each axis, «Bloquear eje Y» and «Ver todo»; the curves are
+  straight segments between cell values
 - only the cells the route actually crosses are kept, as a layer of the
   «Perfiles de ruta» root folder that also stores the curves: from then on
   the option reads «Mostrar perfil» and shows them without downloading

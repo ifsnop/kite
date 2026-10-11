@@ -23,9 +23,13 @@
    7) La flecha del mapa sigue al cursor de la gráfica (ratón real): en
       un vértice, sobre ese waypoint; a mitad de tramo, sobre la línea;
       al salir de la gráfica o cerrar, desaparece. La rueda acerca con
-      el punto bajo el ratón fijo, hasta 1 m por píxel, y aleja hasta la
-      ruta entera; la altura se ajusta a lo visible; arrastrar desplaza
-      sin cambiar el zoom y se para en los extremos.
+      el punto bajo el ratón fijo, hasta 0,1 m por píxel, y aleja hasta
+      la ruta entera; la altura se ajusta a lo visible; arrastrar
+      desplaza sin cambiar el zoom y se para en los extremos. Zoom de
+      altura (rueda sobre el eje, Mayús+rueda, botones), que bloquea el
+      eje Y; bloqueado, la distancia se mueve sin tocar la altura y
+      arrastrar en vertical la desplaza; «Ver todo». Las series son
+      solo segmentos rectos entre valores de celda.
    8) Deshacer quita el perfil; con el MDT en «Ninguna», una sola curva
       y celdas sin MDT; un trozo que falla deja un hueco; cancelar a
       mitad no deja nada.
@@ -352,14 +356,16 @@ ok(g2.view.x1 - g2.view.x0 < g.total * 0.8 && g2.zoomed, "la rueda acerca: " + J
 ok(Math.abs(anchorNow - anchorD) < 2, `el punto bajo el ratón se queda bajo el ratón (${anchorNow.toFixed(1)} frente a ${anchorD.toFixed(1)} m)`);
 const zoomLabels = await page.evaluate(() => [...document.querySelectorAll("#profile-chart text.pf-tick.vertex")].map(t => t.textContent));
 ok(zoomLabels.length >= 1, "el quiebro sigue con su cifra en negrita: " + zoomLabels);
-/* Hasta el tope: 1 m por píxel */
-for (let i = 0; i < 12; i++) { await page.mouse.wheel(0, -400); await frames(); }
+/* Hasta el tope: 0,1 m por píxel */
+for (let i = 0; i < 16; i++) { await page.mouse.wheel(0, -400); await frames(); }
 g2 = await chartGeom();
-ok(Math.abs((g2.view.x1 - g2.view.x0) - g2.pw) < 1e-6, `tope de zoom: 1 m por píxel (${(g2.view.x1 - g2.view.x0).toFixed(1)} m en ${g2.pw} px)`);
+ok(Math.abs((g2.view.x1 - g2.view.x0) - 0.1 * g2.pw) < 1e-6,
+  `tope de zoom: 0,1 m por píxel (${(g2.view.x1 - g2.view.x0).toFixed(1)} m en ${g2.pw} px)`);
 ok(await yRange() < fullY, "la altura se ajusta a lo que se ve");
 const zoomArrow = await (async () => { await mouseAt(g2, g2.vertices[1]); return arrowState(); })();
 ok(zoomArrow.shown && zoomArrow.atVertex <= 2, "con zoom, la flecha sigue cayendo en su sitio: " + zoomArrow.atVertex);
-/* Arrastrar 100 px a la derecha: se ven 100 m anteriores, sin cambiar el zoom */
+ok(/^\d+\.\d{4} km/.test(zoomArrow.readout), "a 0,1 m por píxel, la lectura distingue la décima de metro: " + zoomArrow.readout);
+/* Arrastrar 100 px a la derecha: se ven 10 m anteriores, sin cambiar el zoom */
 const sx = screenX(g2, (g2.view.x0 + g2.view.x1) / 2), sy = g2.top + g2.height / 2;
 await page.mouse.move(sx, sy);
 await page.mouse.down();
@@ -369,8 +375,17 @@ await page.mouse.move(sx + 100, sy, { steps: 3 });
 await page.mouse.up();
 await frames();
 const g3 = await chartGeom();
-ok(grabbing && Math.abs((g3.view.x0 - g2.view.x0) + 100) < 1.5 && Math.abs((g3.view.x1 - g3.view.x0) - g2.pw) < 1e-6,
-  "arrastrar 100 px desplaza 100 m, mismo zoom: " + JSON.stringify([g2.view, g3.view]));
+ok(grabbing && Math.abs((g3.view.x0 - g2.view.x0) + 10) < 0.15 && Math.abs((g3.view.x1 - g3.view.x0) - 0.1 * g2.pw) < 1e-6,
+  "arrastrar 100 px desplaza 10 m, mismo zoom: " + JSON.stringify([g2.view, g3.view]));
+/* Alejar con el botón − de distancia (al doble cada vez, centrado) y arrastrar hasta pasarse */
+const span3 = g3.view.x1 - g3.view.x0, mid3 = (g3.view.x0 + g3.view.x1) / 2;
+await page.click("#pf-x-out");
+await frames();
+const gOut = await chartGeom();
+ok(Math.abs((gOut.view.x1 - gOut.view.x0) - 2 * span3) < 1e-6 && Math.abs((gOut.view.x0 + gOut.view.x1) / 2 - mid3) < 1e-6,
+  "el botón − de distancia aleja al doble, centrado: " + JSON.stringify(gOut.view));
+for (let i = 0; i < 4; i++) await page.click("#pf-x-out");
+await frames();
 await page.mouse.move(sx, sy);
 await page.mouse.down();
 await page.mouse.move(sx - 3000, sy, { steps: 5 });
@@ -382,6 +397,113 @@ await mouseAt(g4, (g4.view.x0 + g4.view.x1) / 2); /* el arrastre dejó el ratón
 for (let i = 0; i < 15; i++) { await page.mouse.wheel(0, 600); await frames(); }
 const g5 = await chartGeom();
 ok(g5.view.x0 === 0 && g5.view.x1 === g5.total && !g5.zoomed, "alejar tiene tope en la ruta entera: " + JSON.stringify(g5.view));
+
+/* ---------- 7c. Eje de alturas: zoom propio y bloqueo ---------- */
+const yState = () => page.evaluate(() => ({
+  yView: profileYView && { ...profileYView }, auto: { ...profileLayout.ym }, view: { ...profileView },
+  lock: document.getElementById("pf-y-lock").checked,
+  tools: !document.getElementById("profile-tools").hidden
+}));
+let y0s = await yState();
+ok(y0s.tools && !y0s.lock && !y0s.yView, "con la gráfica, la barra de controles; el eje Y, automático: " + JSON.stringify(y0s));
+/* Rueda sobre el eje de alturas: acerca la ALTURA, no la distancia */
+const axisX = g5.left + 30, midY = g5.top + g5.height / 2;
+await page.mouse.move(axisX, midY);
+await page.mouse.wheel(0, -300);
+await frames();
+let y1s = await yState();
+const spanY = r => r.b - r.a;
+ok(y1s.yView && spanY(y1s.yView) < spanY(y0s.auto) * 0.8 && y1s.lock,
+  "rueda sobre el eje: acerca la altura y bloquea el eje Y: " + JSON.stringify([y0s.auto, y1s.yView]));
+ok(y1s.view.x0 === y0s.view.x0 && y1s.view.x1 === y0s.view.x1, "y la distancia no cambia");
+/* Mayús+rueda sobre la gráfica: también altura (aquí, alejar) */
+await mouseAt(g5, g5.total / 2);
+await page.keyboard.down("Shift");
+await page.mouse.wheel(0, 300);
+await page.keyboard.up("Shift");
+await frames();
+let y2s = await yState();
+ok(spanY(y2s.yView) > spanY(y1s.yView) * 1.2 && y2s.view.x1 - y2s.view.x0 === y1s.view.x1 - y1s.view.x0,
+  "Mayús+rueda: zoom de altura, sin tocar la distancia: " + JSON.stringify([y1s.yView, y2s.yView]));
+/* Bloqueado: acercar y desplazar la distancia no mueve la altura */
+await mouseAt(g5, g5.total / 3);
+await page.mouse.wheel(0, -500);
+await frames();
+const gz = await chartGeom();
+await page.mouse.move(screenX(gz, (gz.view.x0 + gz.view.x1) / 2), midY);
+await page.mouse.down();
+await page.mouse.move(screenX(gz, (gz.view.x0 + gz.view.x1) / 2) + 120, midY, { steps: 4 });
+await page.mouse.up();
+await frames();
+let y3s = await yState();
+ok(y3s.view.x1 - y3s.view.x0 < g5.total * 0.8 && y3s.yView.a === y2s.yView.a && y3s.yView.b === y2s.yView.b,
+  "con el eje bloqueado, zoom y arrastre de distancia no cambian la altura: " + JSON.stringify([y2s.yView, y3s.yView]));
+/* …y arrastrar en vertical sí la desplaza (hacia abajo = ver más arriba) */
+const gy = await chartGeom();
+const cx = screenX(gy, (gy.view.x0 + gy.view.x1) / 2);
+await page.mouse.move(cx, midY);
+await page.mouse.down();
+await page.mouse.move(cx, midY + 40, { steps: 4 });
+await page.mouse.up();
+await frames();
+let y4s = await yState();
+const ph = await page.evaluate(() => profileLayout.ph);
+/* tolerancia: el contenedor mide subpíxeles distintos en pantalla y en el viewBox (201,6 frente a 202) */
+ok(Math.abs((y4s.yView.a - y3s.yView.a) - 40 / ph * spanY(y3s.yView)) < 0.005 * spanY(y3s.yView)
+  && Math.abs(spanY(y4s.yView) - spanY(y3s.yView)) < 1e-9,
+  "arrastrar 40 px hacia abajo sube la ventana de alturas lo mismo: " + JSON.stringify([y3s.yView, y4s.yView]));
+/* Desbloquear: vuelve al ajuste automático */
+await page.click("#pf-y-lock");
+await frames();
+let y5s = await yState();
+ok(!y5s.lock && !y5s.yView, "desmarcar «Bloquear eje Y» vuelve a la altura automática");
+/* Marcarlo congela lo que se ve */
+await page.click("#pf-y-lock");
+await frames();
+let y6s = await yState();
+ok(y6s.lock && y6s.yView && y6s.yView.a === y5s.auto.a && y6s.yView.b === y5s.auto.b, "marcarlo congela la altura que se veía");
+/* Botones de altura: al doble / a la mitad, centrados */
+await page.click("#pf-y-in");
+await frames();
+let y7s = await yState();
+ok(Math.abs(spanY(y7s.yView) - spanY(y6s.yView) / 2) < 1e-9
+  && Math.abs((y7s.yView.a + y7s.yView.b) - (y6s.yView.a + y6s.yView.b)) < 1e-9, "el botón + de altura acerca a la mitad, centrado");
+await page.click("#pf-y-out");
+await frames();
+ok(Math.abs(spanY((await yState()).yView) - spanY(y6s.yView)) < 1e-9, "y el − lo deshace");
+/* Ver todo */
+await page.click("#pf-reset");
+await frames();
+const yr = await yState();
+ok(!yr.yView && !yr.lock && yr.view.x0 === 0 && yr.view.x1 === g5.total, "«Ver todo»: ruta entera y altura automática");
+
+/* ---------- 7d. Solo segmentos rectos entre los valores ---------- */
+/* Cada vértice de cada <polyline> es un valor de celda (x = su distancia,
+   y = su altura) y nada más: sin curvas, sin puntos inventados. Con la
+   ruta entera (diezmado a mín/máx por columna) y con zoom (todos). */
+const straight = async () => page.evaluate(() => {
+  const lay = profileLayout, svg = profileChart.firstChild;
+  const curves = svg.querySelectorAll("path").length;
+  let vertices = 0, matched = 0, expected = 0;
+  for (const s of profileData.series) {
+    const want = new Set(visibleProfilePoints(s.points, lay.x0, lay.x1)
+      .filter(p => typeof p.v === "number").map(p => `${lay.xOf(p.d).toFixed(1)},${lay.yOf(p.v).toFixed(1)}`));
+    expected += want.size;
+    for (const pl of svg.querySelectorAll(`polyline.pf-line.${s.kind}`)) {
+      for (const pt of pl.getAttribute("points").trim().split(/\s+/)) { vertices++; if (want.has(pt)) matched++; }
+    }
+  }
+  const joins = [...svg.querySelectorAll("polyline.pf-line")].map(pl => getComputedStyle(pl).strokeLinejoin);
+  return { curves, vertices, matched, expected, joins: [...new Set(joins)] };
+});
+const stFull = await straight();
+ok(stFull.curves === 0 && stFull.vertices > 0 && stFull.matched === stFull.vertices,
+  "ruta entera: solo polilíneas, y cada vértice es un valor de celda: " + JSON.stringify(stFull));
+await mouseAt(g5, g5.total / 2);
+for (let i = 0; i < 6; i++) { await page.mouse.wheel(0, -400); await frames(); }
+const stZoom = await straight();
+ok(stZoom.curves === 0 && stZoom.matched === stZoom.vertices && stZoom.vertices === stZoom.expected,
+  "con zoom, una línea recta de valor a valor, todos los valores: " + JSON.stringify(stZoom));
 await page.evaluate(() => closeProfileDialog());
 
 /* ---------- 6b. Tras recargar, sigue siendo «Mostrar» ---------- */

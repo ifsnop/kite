@@ -680,7 +680,7 @@
   #profile-dialog { top: auto; bottom: 40px; }
   #profile-dialog .dlg-box {
     display: flex; flex-direction: column; resize: both;
-    width: min(92vw, 46rem); height: min(70vh, 380px); min-width: 320px; min-height: 220px;
+    width: min(92vw, 46rem); height: min(75vh, 440px); min-width: 320px; min-height: 260px; /* + la barra de controles */
   }
   #profile-progress { margin: 10px 0 4px; }
   #profile-progress[hidden] { display: none; }
@@ -692,6 +692,12 @@
   #profile-chart { flex: 1 1 auto; min-height: 120px; position: relative;
                    touch-action: none; user-select: none; }
   #profile-chart.zoomed { cursor: grab; }
+  #profile-tools { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 14px;
+                   margin: 6px 0 2px; font-size: 13px; }
+  #profile-tools[hidden] { display: none; }
+  #profile-tools .pf-tool-group { display: inline-flex; align-items: center; gap: 4px; }
+  #profile-tools .pf-tool { min-width: 28px; padding: 1px 6px; }
+  #profile-tools .pf-tools-hint { color: var(--muted); font-size: 11px; }
   #profile-chart.dragging { cursor: grabbing; }
   #profile-chart svg { display: block; width: 100%; height: 100%; font: 11px system-ui, sans-serif; }
   #profile-chart .pf-axis { stroke: var(--muted); stroke-width: 1; }

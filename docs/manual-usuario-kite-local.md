@@ -341,12 +341,16 @@ Cada consulta queda como una capa más del árbol, «Elevación 1», «Elevació
 
 Con el botón derecho sobre una ruta, **«Obtener perfil»** (o el mismo botón en su diálogo de propiedades, apartado 6.3) descarga del MDT y del MDS elegidos en «Fuentes de datos» las celdas que recorre la ruta y dibuja su perfil: la distancia desde el inicio en horizontal, en la unidad de distancia, y la altura en vertical, en la unidad de altitud, con **una curva por modelo: el terreno (MDT) en azul y la superficie (MDS) en verde**, y una leyenda arriba con el nombre de cada fuente. Si uno de los dos modelos está en «Ninguna», se dibuja solo el otro. Los vértices donde cambia de tramo se marcan con una línea discontinua y su distancia en **negrita** bajo el eje, y coinciden exactamente con la suma de las distancias de los tramos que se leen en el mapa. Cambiar cualquiera de las dos unidades en Propiedades redibuja la gráfica, y la ventana se puede mover y agrandar.
 
-**La rueda del ratón sobre la gráfica la acerca o la aleja**, con el punto que hay bajo el ratón fijo en su sitio, para ver de cerca una zona concreta: alejar llega como mucho a la ruta entera, y acercar, a 1 metro de ruta por píxel. La escala de alturas se ajusta sola a lo que se ve, así que al acercar se aprecian desniveles pequeños. Con zoom, **arrastrar la gráfica la desplaza** (el cursor se convierte en una mano) para ver la zona contigua, sin cambiar el zoom; se para al principio y al final de la ruta. Las cifras de los vértices que caen en la parte visible siguen en negrita, con más decimales si hace falta.
+**La rueda del ratón sobre la gráfica acerca o aleja la distancia**, con el punto que hay bajo el ratón fijo en su sitio, para ver de cerca una zona concreta: alejar llega como mucho a la ruta entera, y acercar, a 0,1 metros de ruta por píxel (la lectura de la distancia gana decimales para distinguirlo). Con zoom, **arrastrar la gráfica la desplaza** (el cursor se convierte en una mano) para ver la zona contigua, sin cambiar el zoom; se para al principio y al final de la ruta. Las cifras de los vértices que caen en la parte visible siguen en negrita, con más decimales si hace falta.
+
+La **altura** tiene su propio zoom, independiente: la rueda con **Mayús** pulsada, o la rueda con el ratón **sobre el eje de alturas** (a la izquierda), la acerca o la aleja con el punto bajo el ratón fijo. De partida la escala de alturas se ajusta sola a lo que se ve; al hacer zoom de altura queda **bloqueada**: se queda quieta aunque se desplace o se acerque la distancia, y entonces arrastrar la gráfica la mueve también en vertical. Sobre la gráfica hay una barra con los mismos controles en botones: «Distancia − +» y «Altura − +» (cada pulsación aleja al doble o acerca a la mitad, desde el centro), la casilla **«Bloquear eje Y»** (marcarla congela la escala de alturas que se ve; desmarcarla vuelve al ajuste automático) y **«Ver todo»**, que vuelve a la ruta entera con la altura automática.
+
+Las curvas son **líneas rectas entre los valores de celdas consecutivas**: no se suavizan ni se inventan puntos intermedios. Con zoom se ven todos los valores; con la ruta entera, si hay más celdas que píxeles, de cada columna de píxeles se dibujan el valor más bajo y el más alto, para no perder ningún pico.
 
 Al pasar el ratón por la gráfica, una línea vertical roja lo sigue y se lee la distancia y la altura de cada modelo en ese punto; a la vez, **una flecha roja sobre la ruta en el mapa** marca ese mismo punto y apunta en el sentido de la marcha, moviéndose con la línea. La vista del mapa no se mueve: si la ruta no está a la vista, la flecha tampoco. Al sacar el ratón de la gráfica o cerrar la ventana, la flecha desaparece.
 
 ![Perfil de una ruta de dos tramos con MDT05 y MDS del IGN](img/24-perfil-ruta.png)
-*Figura 22. Perfil de «Ruta 1», 5,63 km en el puerto de Navacerrada con el MDT05 (azul) y el MDS (verde) del IGN. El quiebro entre los dos tramos (2,75 km), el inicio y el final llevan su cifra en negrita; la línea roja, su lectura de las dos alturas y la flecha roja sobre la ruta siguen al ratón.*
+*Figura 22. Perfil de «Ruta 1», 5,63 km en el puerto de Navacerrada con el MDT05 (azul) y el MDS (verde) del IGN. El quiebro entre los dos tramos (2,75 km), el inicio y el final llevan su cifra en negrita; la línea roja, su lectura de las dos alturas y la flecha roja sobre la ruta siguen al ratón. Encima de la gráfica, la barra de zoom de cada eje, el bloqueo del eje Y y «Ver todo».*
 
 La descarga se hace por zonas a lo largo de la ruta, una tras otra y de las dos fuentes, con una **barra de progreso** que dice qué porcentaje lleva y cuántas zonas faltan; «Cancelar» la detiene sin dejar nada. Una zona que no responde ni tras sus reintentos deja un hueco en la curva de su modelo, y la ventana dice cuántas fallaron y de qué fuente. Al terminar, el botón pasa a «Cerrar».
 
@@ -409,6 +413,14 @@ La misma información está disponible en cualquier momento con la tecla `?` o e
 | Arrastrar la brújula | Girar el mapa (el norte deja de apuntar arriba) |
 | R (con el mapa enfocado) o clic en la brújula | Volver a poner el norte arriba |
 | Botón central (rueda) pulsado + arrastrar a izquierda/derecha | Girar el mapa alrededor del punto pulsado |
+
+**Gráfica del perfil de una ruta** (apartado 7.9)
+
+| Gesto | Acción |
+|---|---|
+| Rueda del ratón sobre la gráfica | Acercar / alejar la distancia hacia el puntero (de la ruta entera a 0,1 m por píxel) |
+| Mayús + rueda, o rueda sobre el eje de alturas | Acercar / alejar la altura (bloquea el eje Y) |
+| Arrastrar la gráfica | Desplazarla; con el eje Y bloqueado, también en vertical |
 
 **Dibujar polígonos y rutas**
 

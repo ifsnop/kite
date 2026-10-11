@@ -755,7 +755,7 @@
   #profile-dialog { top: auto; bottom: 40px; }
   #profile-dialog .dlg-box {
     display: flex; flex-direction: column; resize: both;
-    width: min(92vw, 46rem); height: min(70vh, 380px); min-width: 320px; min-height: 220px;
+    width: min(92vw, 46rem); height: min(75vh, 440px); min-width: 320px; min-height: 260px; /* + la barra de controles */
   }
   #profile-progress { margin: 10px 0 4px; }
   #profile-progress[hidden] { display: none; }
@@ -767,6 +767,12 @@
   #profile-chart { flex: 1 1 auto; min-height: 120px; position: relative;
                    touch-action: none; user-select: none; }
   #profile-chart.zoomed { cursor: grab; }
+  #profile-tools { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 14px;
+                   margin: 6px 0 2px; font-size: 13px; }
+  #profile-tools[hidden] { display: none; }
+  #profile-tools .pf-tool-group { display: inline-flex; align-items: center; gap: 4px; }
+  #profile-tools .pf-tool { min-width: 28px; padding: 1px 6px; }
+  #profile-tools .pf-tools-hint { color: var(--muted); font-size: 11px; }
   #profile-chart.dragging { cursor: grabbing; }
   #profile-chart svg { display: block; width: 100%; height: 100%; font: 11px system-ui, sans-serif; }
   #profile-chart .pf-axis { stroke: var(--muted); stroke-width: 1; }
@@ -1698,6 +1704,12 @@
         <tr><td>R (con el mapa enfocado) o clic en la br&#250;jula</td><td>Volver a poner el norte arriba</td></tr>
         <tr><td>Bot&#243;n central (rueda) pulsado + arrastrar a izquierda/derecha</td><td>Girar el mapa alrededor del punto pulsado</td></tr>
       </table>
+      <table class="keys">
+        <tr><th colspan="2">Gr&#225;fica del perfil de una ruta</th></tr>
+        <tr><td>Rueda del rat&#243;n sobre la gr&#225;fica</td><td>Acercar / alejar la distancia hacia el puntero (de la ruta entera a 0,1 m por p&#237;xel)</td></tr>
+        <tr><td>May&#250;s + rueda, o rueda sobre el eje de alturas</td><td>Acercar / alejar la altura (bloquea el eje Y)</td></tr>
+        <tr><td>Arrastrar la gr&#225;fica</td><td>Desplazarla; con el eje Y bloqueado, tambi&#233;n en vertical</td></tr>
+      </table>
     </div>
     <div id="sh-tab-draw" class="dlg-tabpanel" hidden role="tabpanel">
       <table class="keys">
@@ -1957,6 +1969,24 @@
       <div class="bar"><div id="profile-progress-fill"></div></div>
     </div>
     <p class="dlg-hint" id="profile-note" hidden></p>
+    <!-- Controles de la gráfica (63-route-profile.js): zoom de cada eje
+         por separado, bloqueo del eje Y y vuelta a la vista entera. Lo
+         mismo, con el ratón: rueda = distancia; Mayús+rueda o rueda
+         sobre el eje de alturas = altura; arrastrar = desplazar. -->
+    <div id="profile-tools" hidden>
+      <span class="pf-tool-group" role="group" aria-label="Zoom de distancia">Distancia
+        <button class="btn pf-tool" id="pf-x-out" title="Alejar en distancia" aria-label="Alejar en distancia">−</button>
+        <button class="btn pf-tool" id="pf-x-in" title="Acercar en distancia (hasta 0,1 m por píxel)" aria-label="Acercar en distancia">+</button>
+      </span>
+      <span class="pf-tool-group" role="group" aria-label="Zoom de altura">Altura
+        <button class="btn pf-tool" id="pf-y-out" title="Alejar en altura (bloquea el eje Y)" aria-label="Alejar en altura">−</button>
+        <button class="btn pf-tool" id="pf-y-in" title="Acercar en altura (bloquea el eje Y)" aria-label="Acercar en altura">+</button>
+      </span>
+      <label class="pf-tool-group" title="La escala de alturas se queda quieta al desplazar o acercar la distancia; desmarcado, se ajusta sola a lo que se ve">
+        <input type="checkbox" id="pf-y-lock"> Bloquear eje Y</label>
+      <button class="btn" id="pf-reset" title="Ruta entera y altura automática">Ver todo</button>
+      <span class="pf-tools-hint">Rueda: distancia · Mayús+rueda o rueda sobre el eje: altura · arrastrar: desplazar</span>
+    </div>
     <div id="profile-chart" aria-live="polite"></div>
     <div class="dlg-actions">
       <button class="btn" id="profile-close">Cancelar</button>
@@ -2884,7 +2914,7 @@ map.on("resize rotate", fitWorldMinZoom);
 
 /* Fecha de generación del código (versión): AÑOMESDIAHORAMINUTO.
    Actualizar en cada generación; se muestra junto al crédito de Leaflet. */
-const BUILD = "202610111755";
+const BUILD = "202610111817";
 /* Versión de release (la de package.json, horneada aquí por build.js
    al construir — ver «Versión y releases de GitHub» en CLAUDE.md): a
    diferencia de BUILD, que cambia en CADA generación, esta solo cambia
@@ -16644,9 +16674,8 @@ function nearestProfilePoint(points, d) {
 
 /* ---------- Ventana de la gráfica: zoom y desplazamiento (puro) ----------
    La gráfica enseña las distancias [x0, x1] de la ruta. Alejar tiene
-   tope en la ruta entera; acercar, en `minSpan` (1 m por píxel: más no
-   enseña nada nuevo, las celdas miden 2,5 m o más). Siempre dentro de
-   [0, total].                                                        */
+   tope en la ruta entera; acercar, en `minSpan` (0,1 m por píxel,
+   pedido). Siempre dentro de [0, total].                             */
 function clampProfileView(x0, span, total, minSpan) {
   const s = Math.min(total, Math.max(Math.min(minSpan, total), span));
   const a = Math.min(total - s, Math.max(0, x0));
@@ -16665,6 +16694,20 @@ function zoomProfileView(view, total, minSpan, frac, factor) {
 /* Desplazar `dd` metros (arrastrar a la derecha = ver lo anterior) */
 const panProfileView = (view, total, minSpan, dd) =>
   clampProfileView(view.x0 + dd, view.x1 - view.x0, total, minSpan);
+
+/* Zoom del eje de ALTURAS: el intervalo {a, b} (metros) con ancla `frac`
+   contada desde abajo, y anchura entre minSpan y maxSpan. Sin topes de
+   dominio: con el eje bloqueado se puede mirar por encima o por debajo
+   de la curva.                                                      */
+function zoomRange(r, frac, factor, minSpan, maxSpan) {
+  const span = r.b - r.a, anchor = r.a + frac * span;
+  const s = Math.min(maxSpan, Math.max(minSpan, span * factor));
+  return { a: anchor - frac * s, b: anchor - frac * s + s };
+}
+
+/* Decimales para leer una distancia con `mPerPx` metros por píxel en la
+   unidad de factor `f`: los que distinguen un píxel, de 2 a 6.      */
+const distDecimals = (mPerPx, f) => Math.max(2, Math.min(6, tickDecimals(mPerPx / f)));
 
 /* Los puntos que se ven en [x0, x1], más el vecino de cada lado para que
    la curva llegue hasta el borde (recortada por el clipPath). `points`
@@ -16794,7 +16837,9 @@ function openProfileDialog(title) {
   setProfileNote("");
   profileData = null;
   profileView = null; /* un perfil nuevo empieza con la ruta entera */
+  profileYView = null; /* y con la altura automática */
   profileLayout = null;
+  profileTools.hidden = true;
   profileChart.innerHTML = "";
   profileDialog.hidden = false;
   clampToViewport(profileBox);
@@ -17023,21 +17068,37 @@ async function obtainRouteProfile(li) {
 }
 
 /* ---------- Gráfica (SVG propio) ----------
-   Rueda = zoom con ancla en el ratón; arrastrar = desplazar. La vista
-   (`profileView`, distancias [x0, x1]) va de la ruta entera a 1 m por
-   píxel, y la altura se ajusta sola a lo que se ve. El SVG se rehace
-   entero en cada cambio (un fotograma: `scheduleProfileChart`), así que
-   los escuchas viven en el contenedor, no en el SVG.               */
+   Rueda = zoom de DISTANCIA con ancla en el ratón; Mayús+rueda, o la
+   rueda sobre el eje de alturas, zoom de ALTURA; arrastrar = desplazar.
+   La vista de distancias (`profileView`, [x0, x1]) va de la ruta entera
+   a 0,1 m por píxel. La altura se ajusta sola a lo que se ve, salvo con
+   el eje Y BLOQUEADO (`profileYView`, [a, b] en metros): entonces se
+   queda quieta al desplazar o acercar la distancia. Hacer zoom de
+   altura lo bloquea; desbloquear vuelve al ajuste automático. Los
+   botones de la barra (`#profile-tools`) hacen lo mismo centrados.
+   El SVG se rehace entero en cada cambio (un fotograma:
+   `scheduleProfileChart`), así que los escuchas viven en el
+   contenedor, no en el SVG.
+
+   Las series se dibujan como `<polyline>`: SEGMENTOS RECTOS entre los
+   valores de celdas consecutivas, sin curvas ni suavizado (la prueba lo
+   comprueba vértice a vértice).                                      */
 const PF_MARGIN = { l: 64, r: 14, t: 26, b: 40 };
 const SVG_NS = "http://www.w3.org/2000/svg";
 const PF_SNAP_PX = 8;          /* la lectura de una serie, si tiene un punto a menos de esto */
-const PF_MIN_M_PER_PX = 1;     /* zoom máximo: 1 m de ruta por píxel (pedido) */
+const PF_MIN_M_PER_PX = 0.1;   /* zoom máximo: 0,1 m de ruta por píxel (pedido) */
 const PF_WHEEL_STEP = 0.0015;  /* factor de zoom = e^(píxeles de rueda × esto) */
+const PF_BUTTON_FACTOR = 2;    /* un botón − / + aleja o acerca al doble   */
+const PF_Y_MIN_SPAN = 0.1;     /* m: altura mínima a la vista               */
+const PF_Y_MAX_SPAN = 20000;   /* m: altura máxima a la vista               */
 
 let profileView = null;   /* { x0, x1 } en metros; null = la ruta entera */
+let profileYView = null;  /* { a, b } en metros: eje Y bloqueado; null = automático */
 let profileLayout = null; /* geometría de la última gráfica dibujada     */
 let profileFrame = 0;
-let profileDrag = null;   /* { x, view } mientras se arrastra           */
+let profileDrag = null;   /* { x, y, view, yView } mientras se arrastra */
+const profileTools = document.getElementById("profile-tools");
+const profileYLock = document.getElementById("pf-y-lock");
 
 /* Anchura útil de la gráfica en píxeles, y el tope de zoom que da */
 const profilePlotWidth = () => profileChart.clientWidth - PF_MARGIN.l - PF_MARGIN.r;
@@ -17063,13 +17124,20 @@ function renderProfileChart() {
     .map(p => p.v / fy));
   if (!vals.length) vals.push(...shown.flatMap(s => s.points.filter(p => typeof p.v === "number").map(p => p.v / fy)));
   if (!vals.length) vals.push(0);
-  let y0 = Math.min(...vals), y1 = Math.max(...vals);
-  const pad = (y1 - y0) * 0.08 || Math.max(1 / fy, Math.abs(y0) * 0.05) || 1;
-  y0 -= pad; y1 += pad;
+  /* Alturas en METROS: automático = lo visible con un margen; con el
+     eje bloqueado, el intervalo guardado, quieto.                    */
+  let ym;
+  if (profileYView) ym = { ...profileYView };
+  else {
+    const lo = Math.min(...vals) * fy, hi = Math.max(...vals) * fy;
+    const pad = (hi - lo) * 0.08 || Math.max(1, Math.abs(lo) * 0.05) || 1;
+    ym = { a: lo - pad, b: hi + pad };
+  }
+  const y0 = ym.a / fy, y1 = ym.b / fy;
   const xOf = d => PF_MARGIN.l + (d - x0) / span * pw;
   const yOf = v => PF_MARGIN.t + (1 - (v / fy - y0) / (y1 - y0)) * ph;
   const yPix = u => PF_MARGIN.t + (1 - (u - y0) / (y1 - y0)) * ph;
-  profileLayout = { W, pw, x0, x1, total, xOf, dOf: x => x0 + (x - PF_MARGIN.l) / pw * span };
+  profileLayout = { W, H, pw, ph, x0, x1, total, ym, xOf, yOf, dOf: x => x0 + (x - PF_MARGIN.l) / pw * span };
 
   const parts = [`<clipPath id="pf-clip"><rect x="${PF_MARGIN.l}" y="${PF_MARGIN.t}" width="${pw}" height="${ph}"/></clipPath>`];
   const yt = niceTicks(y0, y1, Math.max(2, Math.floor(ph / 36)));
@@ -17125,13 +17193,15 @@ function renderProfileChart() {
     `<text class="pf-readout" id="pf-readout" y="${PF_MARGIN.t + 10}" visibility="hidden"></text>`);
   profileChart.innerHTML = `<svg xmlns="${SVG_NS}" viewBox="0 0 ${W} ${H}" role="img" `
     + `aria-label="Perfil de alturas a lo largo de la ruta">${parts.join("")}</svg>`;
-  profileChart.classList.toggle("zoomed", span < total - eps);
+  profileChart.classList.toggle("zoomed", span < total - eps || !!profileYView);
+  profileTools.hidden = false;
+  profileYLock.checked = !!profileYView;
   if (lastX !== undefined) showProfileCursor(lastX);
 }
 
 /* Cifras de los vértices: con zoom hacen falta más decimales que las
-   dos de la ruta entera (a 1 m por píxel, una pantalla son ~0,3 NM). */
-const vertexDecimals = spanUnits => Math.max(2, Math.min(4, tickDecimals(spanUnits / 10) + 1));
+   dos de la ruta entera (a 0,1 m por píxel, una pantalla son ~0,04 NM). */
+const vertexDecimals = spanUnits => Math.max(2, Math.min(5, tickDecimals(spanUnits / 10) + 1));
 
 /* La línea roja, la lectura y la flecha del mapa en la x (píxeles del
    SVG) del ratón. Cada serie da su altura si tiene una celda a la
@@ -17146,7 +17216,9 @@ function showProfileCursor(x) {
   cursor.setAttribute("x1", px); cursor.setAttribute("x2", px);
   cursor.setAttribute("visibility", "visible");
   const snap = PF_SNAP_PX / lay.pw * (lay.x1 - lay.x0);
-  const read = [fmtUnitDist(d, measureUnit)];
+  /* tantos decimales como distinga un píxel: a 0,1 m/px, 4 en km */
+  const fx = POLY_UNIT_FACTOR[measureUnit];
+  const read = [`${(d / fx).toFixed(distDecimals((lay.x1 - lay.x0) / lay.pw, fx))} ${POLY_UNIT_LABEL[measureUnit]}`];
   for (const s of profileData.series) {
     const p = nearestProfilePoint(s.points, d);
     if (p && Math.abs(p.d - d) <= snap) read.push(`${PROFILE_KIND_LABEL[s.kind]} ${fmtHeight(p.v, altitudeUnit)}`);
@@ -17171,10 +17243,30 @@ function hideProfileCursor() {
   hideProfileArrow();
 }
 
-/* x del ratón en píxeles del SVG (viewBox = tamaño del contenedor) */
+/* x e y del ratón en píxeles del SVG (viewBox = tamaño del contenedor) */
 function chartX(e) {
   const r = profileChart.getBoundingClientRect();
   return profileLayout ? (e.clientX - r.left) * profileLayout.W / r.width : 0;
+}
+function chartY(e) {
+  const r = profileChart.getBoundingClientRect();
+  return profileLayout ? (e.clientY - r.top) * profileLayout.H / r.height : 0;
+}
+
+/* Zoom de distancia o de altura, con ancla `frac` (0..1; la de altura
+   contada desde abajo). Hacer zoom de altura BLOQUEA el eje Y en lo
+   que se ve.                                                        */
+function zoomProfileX(frac, factor) {
+  const lay = profileLayout;
+  if (!lay) return;
+  profileView = zoomProfileView(profileView, lay.total, profileMinSpan(), frac, factor);
+  scheduleProfileChart();
+}
+function zoomProfileY(frac, factor) {
+  const lay = profileLayout;
+  if (!lay) return;
+  profileYView = zoomRange(profileYView || lay.ym, frac, factor, PF_Y_MIN_SPAN, PF_Y_MAX_SPAN);
+  scheduleProfileChart();
 }
 
 /* Un redibujo por fotograma: la rueda y el arrastre dan más eventos.
@@ -17185,20 +17277,28 @@ function scheduleProfileChart() {
   if (!profileFrame) profileFrame = requestAnimationFrame(() => { profileFrame = 0; renderProfileChart(); });
 }
 
+/* Rueda: sobre la gráfica, distancia; con Mayús o sobre el eje de
+   alturas (margen izquierdo), altura. Con Mayús, Chromium y Firefox en
+   Windows/Linux mandan la rueda en deltaX, no en deltaY.           */
 profileChart.addEventListener("wheel", e => {
   if (!profileLayout) return;
   e.preventDefault(); /* la rueda es de la gráfica, no de la página */
   const lay = profileLayout;
-  const px = e.deltaY * (e.deltaMode === 1 ? 16 : e.deltaMode === 2 ? 400 : 1);
-  const frac = Math.min(1, Math.max(0, (chartX(e) - PF_MARGIN.l) / lay.pw));
-  profileView = zoomProfileView(profileView, lay.total, profileMinSpan(), frac, Math.exp(px * PF_WHEEL_STEP));
+  const raw = e.deltaY || (e.shiftKey ? e.deltaX : 0);
+  const px = raw * (e.deltaMode === 1 ? 16 : e.deltaMode === 2 ? 400 : 1);
+  const factor = Math.exp(px * PF_WHEEL_STEP);
   lay.lastX = chartX(e); /* tras redibujar, la línea sigue bajo el ratón */
-  scheduleProfileChart();
+  if (e.shiftKey || chartX(e) < PF_MARGIN.l) {
+    zoomProfileY(Math.min(1, Math.max(0, 1 - (chartY(e) - PF_MARGIN.t) / lay.ph)), factor);
+  } else {
+    zoomProfileX(Math.min(1, Math.max(0, (chartX(e) - PF_MARGIN.l) / lay.pw)), factor);
+  }
 }, { passive: false });
 
 profileChart.addEventListener("pointerdown", e => {
   if (!profileLayout || e.button !== 0) return;
-  profileDrag = { x: chartX(e), view: { ...profileView } };
+  profileDrag = { x: chartX(e), y: chartY(e), view: { ...profileView },
+                  yView: profileYView && { ...profileYView } };
   profileChart.setPointerCapture(e.pointerId);
   profileChart.classList.add("dragging");
 });
@@ -17209,6 +17309,12 @@ profileChart.addEventListener("pointermove", e => {
     const lay = profileLayout;
     const dd = -(x - profileDrag.x) / lay.pw * (profileDrag.view.x1 - profileDrag.view.x0);
     profileView = panProfileView(profileDrag.view, lay.total, profileMinSpan(), dd);
+    /* Con el eje Y bloqueado, arrastrar también desplaza en vertical
+       (hacia abajo = ver más arriba); en automático no hay qué mover. */
+    if (profileDrag.yView) {
+      const yv = profileDrag.yView, dm = (chartY(e) - profileDrag.y) / lay.ph * (yv.b - yv.a);
+      profileYView = { a: yv.a + dm, b: yv.b + dm };
+    }
     lay.lastX = x;
     scheduleProfileChart();
   } else {
@@ -17222,6 +17328,23 @@ function endProfileDrag() {
 profileChart.addEventListener("pointerup", endProfileDrag);
 profileChart.addEventListener("pointercancel", endProfileDrag);
 profileChart.addEventListener("pointerleave", () => { if (!profileDrag) hideProfileCursor(); });
+
+/* Barra de controles: −/+ de cada eje centrados, bloqueo del eje Y
+   (marcarlo congela lo que se ve; desmarcarlo vuelve al ajuste
+   automático) y «Ver todo» (ruta entera y altura automática).       */
+document.getElementById("pf-x-out").addEventListener("click", () => zoomProfileX(0.5, PF_BUTTON_FACTOR));
+document.getElementById("pf-x-in").addEventListener("click", () => zoomProfileX(0.5, 1 / PF_BUTTON_FACTOR));
+document.getElementById("pf-y-out").addEventListener("click", () => zoomProfileY(0.5, PF_BUTTON_FACTOR));
+document.getElementById("pf-y-in").addEventListener("click", () => zoomProfileY(0.5, 1 / PF_BUTTON_FACTOR));
+profileYLock.addEventListener("change", () => {
+  profileYView = profileYLock.checked && profileLayout ? { ...profileLayout.ym } : null;
+  scheduleProfileChart();
+});
+document.getElementById("pf-reset").addEventListener("click", () => {
+  profileView = null;
+  profileYView = null;
+  scheduleProfileChart();
+});
 
 /* Cambiar una unidad en Propiedades (setMeasureUnit/setAltitudeUnit) o
    el tamaño de la ventana redibuja la gráfica, sin volver a pedir nada
