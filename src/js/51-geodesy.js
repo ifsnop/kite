@@ -116,10 +116,10 @@ const fmtUnitDist = (m, unit) =>
 const fmtUnitArea = (m2, unit) =>
   `${(m2 / POLY_UNIT_FACTOR[unit] ** 2).toFixed(2)} ${POLY_UNIT_LABEL[unit]}²`;
 
-/* Una altura (terreno, superficie o su diferencia) en la misma unidad
-   global que las distancias: en aeronáutica se piensa en pies, en
-   topografía en metros, y quien trabaja en millas náuticas espera ver
-   también ahí la altura. Los decimales dependen de la unidad, no son
+/* Una altura (terreno, superficie o su diferencia) en la unidad de
+   ALTITUD de Propiedades (`altitudeUnit`), independiente de la de
+   distancias: en aeronáutica se mide en NM y se sube en pies, en
+   topografía todo va en metros. Los decimales dependen de la unidad, no son
    los dos de una distancia: en m y ft basta uno (el modelo tiene
    precisión de decímetros), pero 1 m son 0,0005 NM, así que en km, mi
    y NM hacen falta cuatro para que la diferencia entre terreno y

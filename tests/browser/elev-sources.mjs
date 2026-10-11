@@ -15,14 +15,20 @@
       a la MISMA carpeta; repetir la tesela no pide nada; GetCapabilities
       UNA vez por fuente y la elección (cobertura, formato, celda) UNA
       vez en el registro de avisos.
-   5) La unidad de Propiedades manda en las cifras de las celdas y en el
-      cuadro de coordenadas, que lee la celda bajo el ratón sin red.
+   5) La unidad de ALTITUD de Propiedades manda en las cifras de las
+      celdas y en el cuadro de coordenadas, que lee la celda bajo el
+      ratón sin red; la de distancia no las toca. La lupa 🔍 de la capa
+      la encuadra.
    6) Con el MDS en «Ninguna» no se pide al MDS y la celda no lo lleva.
    7) Digital Earth Africa: GeoTIFF leído y dibujado; fuera de su caja
       WGS84 no se pide; `InvalidSubsetting` (404) es «sin dato» y no
       hace abandonar la vía Web Mercator.
-   8) Tras recargar, la elección de fuentes sigue y la sesión nueva
-      tiene su propia carpeta.                                        */
+   8) Tras recargar, la elección de fuentes y la unidad de altitud
+      siguen, y la sesión nueva tiene su propia carpeta.
+   9) MDT25 pide solo coberturas de 25 m y da nombre a la capa.
+  10) Reintentos: dos 503 seguidos y la consulta acaba creando la capa.
+   Ninguna consulta deja «Consultando…» ni «añadida a…» en el registro;
+   cada capa se llama con su conjunto de datos y proveedor.          */
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -38,6 +44,7 @@ const { page, errors } = await openApp(browser, srv.url, { viewport: { width: 14
 
 /* ---------- Servicios falsos ---------- */
 const seen = []; /* { host, request, params } de cada petición WCS */
+let mdsFailures = 0;
 const capsXml = ({ formats, crs, coverages }) => `<?xml version="1.0"?>
 <wcs:Capabilities xmlns:wcs="http://www.opengis.net/wcs/2.0" xmlns:ows="http://www.opengis.net/ows/2.0"
   xmlns:crs="http://www.opengis.net/wcs/crs/1.0"><wcs:ServiceMetadata>
@@ -86,11 +93,19 @@ await page.route(/servicios\.idee\.es|wcs-mds\.idee\.es|ows\.digitalearth\.afric
   const xml = body => route.fulfill({ status: 200, contentType: "application/xml", body });
   if (u.host === "servicios.idee.es") {
     if (request === "GetCapabilities") return xml(capsXml({ formats: ["image/tiff", "ArcGrid"], crs: IGN_CRS,
-      coverages: [["Elevacion4258_25"], ["Elevacion4258_5"], ["Elevacion25830_5"]] }));
-    if (request === "DescribeCoverage") return xml(ignDesc(5, /4258/.test(params.get("coverageId"))));
+      coverages: [["Elevacion4258_25"], ["Elevacion25830_25"], ["Elevacion4258_5"], ["Elevacion25830_5"]] }));
+    if (request === "DescribeCoverage") {
+      const id = params.get("coverageId");
+      return xml(ignDesc(/_25$/.test(id) ? 25 : 5, /4258/.test(id)));
+    }
     return route.fulfill({ status: 200, contentType: "text/plain", body: asciiFor(params, 600) });
   }
   if (u.host === "wcs-mds.idee.es") {
+    /* Fallos pasajeros a demanda (paso 10): un 503 por cada uno pedido */
+    if (request === "GetCoverage" && mdsFailures > 0) {
+      mdsFailures--;
+      return route.fulfill({ status: 503, contentType: "text/html", body: "<h1>Service Unavailable</h1>" });
+    }
     if (request === "GetCapabilities") return xml(capsXml({ formats: ["ArcGrid"], crs: IGN_CRS,
       coverages: [["mdsn_e025"], ["mds05"]] }));
     if (request === "DescribeCoverage") return xml(ignDesc(5, false));
@@ -128,10 +143,10 @@ async function queryViaMenu(ll) {
     if (!item || item.disabled) return { item: !!item, disabled: item && item.disabled };
     item.click();
     const t0 = performance.now();
-    while (performance.now() - t0 < 5000) {
+    while (performance.now() - t0 < 12000) { /* con reintentos: 1 s + 2 s de espera */
       await new Promise(r => setTimeout(r, 30));
       const last = fresh();
-      if (elevGridGroups.length > before || last.some(t => /sin datos|ya está descargada|Elevación: /.test(t) && !/Consultando/.test(t))) break;
+      if (elevGridGroups.length > before || last.some(t => /sin datos|ya está descargada|Elevación: /.test(t))) break;
     }
     return { added: elevGridGroups.length - before, log: fresh() };
   }, ll);
@@ -173,9 +188,9 @@ const tab = await page.evaluate(async () => {
   return r;
 });
 ok(tab.visible && tab.prefsHidden, "la pestaña se muestra y oculta las demás");
-ok(tab.mdt.join() === "ign-mdt," && tab.mds.join() === "ign-mds,dea-cop30,", "opciones del catálogo más «Ninguna»: "
-  + JSON.stringify([tab.mdt, tab.mds]));
-ok(tab.mdtVal === "ign-mdt" && tab.mdsVal === "ign-mds", "por defecto, las del IGN");
+ok(tab.mdt.join() === "ign-mdt05,ign-mdt25,ign-mdt200," && tab.mds.join() === "ign-mds,dea-cop30,",
+  "opciones del catálogo (MDT05, MDT25 y MDT200 del IGN) más «Ninguna»: " + JSON.stringify([tab.mdt, tab.mds]));
+ok(tab.mdtVal === "ign-mdt05" && tab.mdsVal === "ign-mds", "por defecto, MDT05 y MDS del IGN");
 ok(tab.url === "https://wcs-mds.idee.es/mds", "bajo el selector, la dirección del servicio: " + tab.url);
 ok(tab.during === null && /No se consulta/.test(tab.noneUrl), "«Ninguna» se aplica al elegirla y lo dice");
 ok(tab.afterCancel === "ign-mds", "Cancelar la deshace");
@@ -200,7 +215,9 @@ const q1 = await queryViaMenu(MADRID);
 ok(q1.added === 1, "la consulta crea una capa: " + JSON.stringify(q1));
 let shape = await treeShape();
 ok(shape && shape.length === 1 && /^Sesión \d{4}-\d\d-\d\d \d\d:\d\d$/.test(shape[0].name)
-  && shape[0].children.join() === "Elevación 1", "Elevaciones › Sesión … › Elevación 1: " + JSON.stringify(shape));
+  && shape[0].children.join() === "Elevación 1 — MDT05 + MDS (IGN)",
+  "Elevaciones › Sesión … › Elevación 1, con conjunto y proveedor: " + JSON.stringify(shape));
+ok(!q1.log.some(t => /Consultando|añadida/.test(t)), "ni «Consultando…» ni «añadida a…» en el registro: " + JSON.stringify(q1.log));
 const cells1 = await page.evaluate(() => elevGridGroups.at(-1).getLayers().filter(l => l instanceof L.Rectangle).map(l => l._cell));
 ok(cells1.length === 64, "las 64 celdas de la rejilla: " + cells1.length);
 ok(cells1.every(c => typeof c.mdt === "number" && typeof c.mds === "number" && Math.abs(c.diff - 3) < 1e-6),
@@ -214,7 +231,9 @@ ok(coverage.every(s => s.params.get("format") === "ArcGrid"), "en ASCII aunque e
 /* segunda consulta, otra tesela (unos 80 m al este) → misma carpeta */
 const q2 = await queryViaMenu({ lat: MADRID.lat, lng: MADRID.lng + 0.001 });
 shape = await treeShape();
-ok(q2.added === 1 && shape.length === 1 && shape[0].children.join() === "Elevación 1,Elevación 2",
+ok(q2.log.length === 0, "una consulta ya descubierta no deja NADA en el registro: " + JSON.stringify(q2.log));
+ok(q2.added === 1 && shape.length === 1
+  && shape[0].children.join() === "Elevación 1 — MDT05 + MDS (IGN),Elevación 2 — MDT05 + MDS (IGN)",
   "la segunda consulta va a la MISMA carpeta de sesión: " + JSON.stringify(shape));
 ok(count("servicios.idee.es", "GetCapabilities") === 1 && count("wcs-mds.idee.es", "GetCapabilities") === 1,
   "GetCapabilities una sola vez por fuente y sesión");
@@ -222,7 +241,7 @@ ok(count("servicios.idee.es", "DescribeCoverage") === 2, "y la descripción solo
   + count("servicios.idee.es", "DescribeCoverage"));
 const choice = await page.evaluate(() => msgLog.filter(e => /· IGN/.test(e.text)).map(e => ({ t: e.text, n: e.count })));
 ok(choice.length === 2 && choice.every(c => c.n === 1), "la elección, una vez por fuente en el registro: " + JSON.stringify(choice));
-ok(choice.some(c => /^MDT \(terreno\) · IGN.*Elevacion4258_5.*ArcGrid \(rejilla ASCII\).*celda ≈ 5\.0 m/.test(c.t)),
+ok(choice.some(c => /^MDT \(terreno\) · IGN.*conjunto MDT05.*Elevacion4258_5.*ArcGrid \(rejilla ASCII\).*celda ≈ 5\.0 m/.test(c.t)),
   "con cobertura, formato y celda: " + choice.map(c => c.t).join(" | "));
 
 /* repetir la misma tesela: no pide nada, señala la que hay */
@@ -234,14 +253,21 @@ ok(q3.added === 0 && seen.filter(s => s.request === "GetCoverage").length === nC
 /* ---------- 5. Unidades y cuadro de coordenadas ---------- */
 const units = await page.evaluate(async () => {
   const g = elevGridGroups.at(-1);
-  const label = g.getLayers().find(l => l instanceof L.Marker);
-  const cell = label._cell;
-  /* La unidad por defecto es la náutica: se parte de metros a mano */
-  setMeasureUnit("m");
+  const cellRect = g._rects[27];
+  const cell = cellRect._cell;
+  /* Las cifras solo existen a la vista y desde el zoom 19 */
+  map.setView(L.latLng(cell.center), 17, { animate: false });
+  const r = { labelsAt17: g.getLayers().filter(l => l instanceof L.Marker).length };
+  /* La unidad de altitud por defecto es el pie: se parte de metros */
+  setAltitudeUnit("m");
   map.setView(L.latLng(cell.center), 20, { animate: false });
-  const html = () => label.getElement().innerHTML;
-  const r = { m: html() };
-  setMeasureUnit("ft");
+  r.labelsAt20 = g.getLayers().filter(l => l instanceof L.Marker).length;
+  const html = () => cellRect._label.getElement().innerHTML;
+  r.m = html();
+  setMeasureUnit("km"); /* la de DISTANCIA no toca las alturas */
+  r.km = html();
+  setMeasureUnit("nm");
+  setAltitudeUnit("ft");
   r.ft = html();
   /* el ratón sobre la celda: el cuadro lee lo descargado, sin red */
   const p = map.latLngToContainerPoint(L.latLng(cell.center));
@@ -250,7 +276,9 @@ const units = await page.evaluate(async () => {
   r.mdt = cell.mdt;
   return r;
 });
-ok(/ec-t">\d+\.\d</.test(units.m) && units.ft !== units.m, "cambiar la unidad repinta las celdas");
+ok(units.labelsAt17 === 0 && units.labelsAt20 > 0, "cifras solo desde el zoom 19, de lo que se ve: " + JSON.stringify([units.labelsAt17, units.labelsAt20]));
+ok(/ec-t">\d+\.\d</.test(units.m) && units.ft !== units.m, "cambiar la unidad de altitud repinta las celdas");
+ok(units.km === units.m, "cambiar la de distancia no las toca");
 ok(units.ft.includes(`>${(units.mdt / 0.3048).toFixed(1)}<`), "en pies: " + units.ft);
 const covBefore = seen.length;
 await page.mouse.move(units.point.x, units.point.y);
@@ -262,14 +290,28 @@ const box = await page.evaluate(() => ({
 ok(/^MDT \(terreno\): \d+\.\d ft$/.test(box.alt), "cuadro de coordenadas en pies: " + box.alt);
 ok(/^MDS \(superficie\): .* ft · sobre el suelo \+9\.8 ft$/.test(box.sup), "con la diferencia (3 m = 9,8 ft): " + box.sup);
 ok(seen.length === covBefore, "leer bajo el cursor no pide nada");
-await page.evaluate(() => setMeasureUnit("m"));
+await page.evaluate(() => setAltitudeUnit("m"));
 await page.mouse.move(5, 5); /* fuera del visor, saliendo desde ENCIMA de la cuadrícula */
 await page.waitForFunction(() => document.querySelector(".coords-alt").hidden);
 ok(true, "al salir del visor (desde el lienzo de la cuadrícula), las filas de elevación se ocultan");
 
+/* La lupa 🔍 de la capa la encuadra (antes solo rutas y polígonos) */
+const lupa = await page.evaluate(() => {
+  const li = [...document.querySelectorAll("#tree li")].find(x => /^Elevación 1 /.test(x._name));
+  const btn = [...li.querySelectorAll(":scope > .node-row .actions button")].find(b => b.textContent === "\uD83D\uDD0D");
+  if (!btn) return { btn: false };
+  map.setView([0, 0], 3, { animate: false });
+  btn.click();
+  const b = elevGridGroups[0].getBounds();
+  return { btn: true, zoom: map.getZoom(), inside: map.getBounds().contains(b), noStyle:
+    ![...li.querySelectorAll(":scope > .node-row .actions button")].some(x => x.textContent === "\uD83C\uDFA8") };
+});
+ok(lupa.btn && lupa.noStyle, "la capa de elevación lleva 🔍 (y sigue sin 🎨): " + JSON.stringify(lupa));
+ok(lupa.inside && lupa.zoom >= 17, "y la lupa la encuadra entera, de cerca: " + JSON.stringify(lupa));
+
 /* ---------- 6. MDS en «Ninguna» ---------- */
 const mdsBefore = count("wcs-mds.idee.es", "GetCoverage");
-await page.evaluate(() => { elevSources = { mdt: "ign-mdt", mds: null }; });
+await page.evaluate(() => { elevSources = { mdt: "ign-mdt05", mds: null }; });
 const q4 = await queryViaMenu({ lat: MADRID.lat, lng: MADRID.lng + 0.002 });
 const only = await page.evaluate(() => {
   const ls = elevGridGroups.at(-1).getLayers();
@@ -313,6 +355,9 @@ ok(/IGN/.test(attrib) && /Copernicus DEM/.test(attrib), "atribución de cada fue
 /* ---------- 8. Aceptar persiste; tras recargar, sesión nueva ---------- */
 await page.evaluate(async () => {
   await togglePropsDialog();
+  const alt = document.getElementById("props-alt-unit");
+  alt.value = "m";
+  alt.dispatchEvent(new Event("change"));
   document.getElementById("props-tab-btn-sources").click();
   document.getElementById("props-accept").click();
   await new Promise(r => setTimeout(r, 600)); /* guardado del árbol (debounce) */
@@ -320,15 +365,37 @@ await page.evaluate(async () => {
 await page.reload();
 await page.waitForFunction(() => typeof map === "object" && document.querySelector("#tree ul.node-list"));
 await page.waitForFunction(() => elevSources && elevSources.mds === "dea-cop30");
-const after = await page.evaluate(() => elevSources);
+const after = await page.evaluate(() => ({ ...elevSources, altitudeUnit }));
 ok(after.mdt === null && after.mds === "dea-cop30", "la elección sobrevive a la recarga: " + JSON.stringify(after));
+ok(after.altitudeUnit === "m", "y la unidad de altitud también: " + after.altitudeUnit);
 const q8 = await queryViaMenu(tfe);
 shape = await treeShape();
-ok(q8.added === 1 && shape.length === 2 && shape[1].children.join() === "Elevación 5",
+ok(q8.added === 1 && shape.length === 2
+  && shape[1].children.join() === "Elevación 5 — COP-DEM GLO-30 (Digital Earth Africa)",
   "la carga nueva abre su propia carpeta de sesión, y la numeración sigue: " + JSON.stringify(shape));
 
-/* El único 404 es el InvalidSubsetting simulado del paso 7 */
-const realErrors = errors.filter(e => !/status of 404/.test(e));
+/* ---------- 9. MDT25: solo coberturas de 25 m ---------- */
+await page.evaluate(() => { elevSources = { mdt: "ign-mdt25", mds: "ign-mds" }; });
+const before25 = seen.length;
+const q9 = await queryViaMenu(MADRID);
+const asked25 = seen.slice(before25).filter(s => s.host === "servicios.idee.es");
+ok(q9.added === 1, "consulta con MDT25: " + JSON.stringify(q9));
+ok(asked25.filter(s => s.request !== "GetCapabilities").every(s => /_25$/.test(s.params.get("coverageId"))),
+  "solo se describen y piden coberturas de 25 m: " + asked25.map(s => s.params.get("coverageId")));
+ok(q9.log.some(t => /conjunto MDT25.*celda ≈ 25 m/.test(t)), "su elección en el registro: " + JSON.stringify(q9.log));
+shape = await treeShape();
+ok(shape[1].children.at(-1) === "Elevación 6 — MDT25 + MDS (IGN)", "y su nombre: " + shape[1].children.at(-1));
+
+/* ---------- 10. Reintentos ---------- */
+mdsFailures = 2;
+const nMds = count("wcs-mds.idee.es", "GetCoverage");
+const q10 = await queryViaMenu({ lat: MADRID.lat + 0.003, lng: MADRID.lng });
+ok(q10.added === 1 && mdsFailures === 0, "dos 503 seguidos y la consulta acaba creando la capa: " + JSON.stringify(q10));
+ok(count("wcs-mds.idee.es", "GetCoverage") - nMds === 3, "al tercer intento: " + (count("wcs-mds.idee.es", "GetCoverage") - nMds));
+ok(!q10.log.length, "sin aviso de error: el fallo pasajero no llega al usuario: " + JSON.stringify(q10.log));
+
+/* Los únicos 404 y 503 son los simulados (pasos 7 y 10) */
+const realErrors = errors.filter(e => !/status of (404|503)/.test(e));
 ok(realErrors.length === 0, "sin errores en la consola: " + realErrors.join(" | "));
 await browser.close();
 srv.close();

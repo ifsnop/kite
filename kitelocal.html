@@ -668,6 +668,10 @@
   .elev-cell .ec-s { color: #2e7d32; }                    /* superficie */
   .elev-cell .ec-d { color: #b04a3a; }                    /* diferencia */
   .elev-cell .ec-d.alert { color: #d32f2f; font-weight: 700; } /* MDS > MDT + 1 m */
+  /* Consulta de elevación en marcha: sin aviso en el registro, el cursor
+     es la señal (ver syncElevBusy). `!important` y `*`: las capas
+     interactivas y el arrastre ponen su propio cursor.               */
+  .leaflet-container.elev-busy, .leaflet-container.elev-busy * { cursor: progress !important; }
 
   .coords-zoom { font-weight: 600; }
   /* La atribución se queda en una sola línea, la de abajo del todo */
@@ -745,6 +749,29 @@
   /* La calculadora geodésica va abajo a la derecha: arriba a la derecha
      está el diálogo de estilos y se taparían entre sí.                 */
   #geocalc-dialog { top: auto; bottom: 40px; }
+  /* El perfil también abajo a la derecha, más ancho: cabe una gráfica.
+     Altura de partida explícita (como #props-dialog) para que el tirador
+     dé espacio a la gráfica, que llena la caja y se redibuja al tamaño. */
+  #profile-dialog { top: auto; bottom: 40px; }
+  #profile-dialog .dlg-box {
+    display: flex; flex-direction: column; resize: both;
+    width: min(92vw, 46rem); height: min(70vh, 380px); min-width: 320px; min-height: 220px;
+  }
+  #profile-progress { margin: 10px 0 4px; }
+  #profile-progress[hidden] { display: none; }
+  #profile-progress-label { font-size: 13px; margin-bottom: 4px; }
+  #profile-progress .bar { height: 8px; background: var(--border); border-radius: 4px; overflow: hidden; }
+  #profile-progress-fill { height: 100%; width: 0; background: var(--accent); transition: width 0.15s; }
+  #profile-chart { flex: 1 1 auto; min-height: 120px; position: relative; }
+  #profile-chart svg { display: block; width: 100%; height: 100%; font: 11px system-ui, sans-serif; }
+  #profile-chart .pf-axis { stroke: var(--muted); stroke-width: 1; }
+  #profile-chart .pf-grid { stroke: var(--border); stroke-width: 1; }
+  #profile-chart .pf-vertex { stroke: var(--muted); stroke-width: 1; stroke-dasharray: 3 3; }
+  #profile-chart .pf-line { fill: none; stroke: #2e7d32; stroke-width: 1.5; }
+  #profile-chart .pf-tick { fill: var(--text); }
+  #profile-chart .pf-tick.vertex { font-weight: 700; }
+  #profile-chart .pf-cursor { stroke: #b04a3a; stroke-width: 1; }
+  #profile-chart .pf-readout { fill: var(--text); font-weight: 600; }
   #geocalc-dialog .dlg-box { width: min(92vw, 30rem); }
   .geocalc-field { display: flex; gap: 6px; }
   #geocalc-dialog .dlg-row input[type="number"] { width: 110px; }
@@ -1054,6 +1081,10 @@
     border-radius: 5px;
     font: inherit;
   }
+  /* Campo numérico con su unidad al lado (límite del perfil, que se
+     escribe en la unidad de distancia elegida)                      */
+  .props-with-unit { display: inline-flex; align-items: center; gap: 6px; }
+  .props-with-unit input[type="number"] { width: 80px; }
   .dlg-row input[type="range"] { width: 120px; }
   .dlg-row input[type="color"] {
     width: 34px;
@@ -1294,6 +1325,10 @@
     width: min(92vw, 34rem); height: min(70vh, 520px);
   }
   #shortcuts .dlg-tabpanel { overflow-y: auto; }
+  /* Preferencias ya no cabe en la altura de partida (dos unidades y el
+     límite del perfil): el panel scrollea por su cuenta, como la
+     chuleta, en vez de salirse por debajo de los botones.           */
+  #props-dialog .dlg-tabpanel { overflow-y: auto; }
   .gnp-list, .gnp-editor-list {
     flex: 1 1 auto; min-height: 4em;
     overflow-y: auto;
@@ -1575,6 +1610,11 @@
       <div class="dlg-row" id="ms-points-row"><span>Puntos</span>
         <button class="btn" id="ms-points">Ver y editar&#8230;</button>
       </div>
+      <!-- Solo con UNA ruta (no círculo); el motivo de estar deshabilitado
+           va en el title (sin MDS elegido, o ruta más larga que el límite) -->
+      <div class="dlg-row" id="ms-profile-row" hidden><span>Perfil del terreno</span>
+        <button class="btn" id="ms-profile">Obtener perfil</button>
+      </div>
     </div>
     <div id="style-imageoverlay" hidden>
       <div class="dlg-row"><span>Opacidad</span><input type="range" id="io-opacity" min="0" max="1" step="0.05"></div>
@@ -1787,13 +1827,15 @@
       <button type="button" class="dlg-tab" id="props-tab-btn-sources" role="tab" aria-selected="false" aria-controls="props-tab-sources">Fuentes de datos</button>
     </div>
     <div id="props-tab-prefs" class="dlg-tabpanel" role="tabpanel">
-      <div class="dlg-row"><span>Unidad de medida</span><select id="props-unit">
+      <div class="dlg-row"><span>Unidad de distancia</span><select id="props-unit">
         <option value="m">Metros</option>
         <option value="km">Kilómetros</option>
         <option value="ft">Pies</option>
         <option value="mi">Millas</option>
         <option value="nm">Millas náuticas</option>
       </select></div>
+      <!-- Mismas opciones que props-unit, copiadas al cargar (43-points-editor.js) -->
+      <div class="dlg-row"><span>Unidad de altitud</span><select id="props-alt-unit"></select></div>
       <div class="dlg-row"><span>Latitud/longitud</span><select id="props-coord-format">
         <option value="dec">Grados decimales</option>
         <option value="dms">Grados, minutos y segundos</option>
@@ -1804,6 +1846,9 @@
       <p class="dlg-hint">Segmentos en que se divide un arco al terminar de dibujarlo con «Medir arco». El resultado es una ruta normal con ese número de tramos; cambiarlo solo afecta a los arcos que se dibujen después.</p>
       <div class="dlg-row"><span>Segmentos de un arco</span>
         <input type="number" id="props-arc-segments" min="2" max="720" step="1"></div>
+      <p class="dlg-hint">Longitud máxima de una ruta para «Obtener perfil». Acota lo que se descarga y, sobre todo, lo que el perfil deja guardado en el árbol: una celda de elevación por cada una que recorre la ruta.</p>
+      <div class="dlg-row"><span>Longitud máxima de un perfil</span>
+        <span class="props-with-unit"><input type="number" id="props-profile-max" min="0" step="any"><span id="props-profile-max-unit"></span></span></div>
     </div>
     <div id="props-tab-gnp" class="dlg-tabpanel" hidden role="tabpanel">
       <p class="dlg-hint">Asociaciones guardadas entre la estructura de <code>properties</code> de un GeoJSON y la propiedad usada como nombre.</p>
@@ -1882,6 +1927,26 @@
     </div>
     <div class="dlg-actions">
       <button class="btn" id="geocalc-close">Cerrar</button>
+    </div>
+  </div>
+</div>
+
+<!-- Perfil de una ruta (63-route-profile.js): primero la barra de
+     progreso de la descarga de las celdas MDS que recorre la ruta, luego
+     la gráfica. Flotante y no modal, como la calculadora: se puede
+     mirar el mapa a la vez. El botón del pie es «Cancelar» mientras
+     descarga (aborta) y «Cerrar» con la gráfica ya dibujada. -->
+<div id="profile-dialog" class="dlg-float" hidden>
+  <div class="dlg-box">
+    <h2 id="profile-title">Perfil</h2>
+    <div id="profile-progress">
+      <div id="profile-progress-label"></div>
+      <div class="bar"><div id="profile-progress-fill"></div></div>
+    </div>
+    <p class="dlg-hint" id="profile-note" hidden></p>
+    <div id="profile-chart" aria-live="polite"></div>
+    <div class="dlg-actions">
+      <button class="btn" id="profile-close">Cancelar</button>
     </div>
   </div>
 </div>
@@ -2806,7 +2871,7 @@ map.on("resize rotate", fitWorldMinZoom);
 
 /* Fecha de generación del código (versión): AÑOMESDIAHORAMINUTO.
    Actualizar en cada generación; se muestra junto al crédito de Leaflet. */
-const BUILD = "202610102315";
+const BUILD = "202610111121";
 /* Versión de release (la de package.json, horneada aquí por build.js
    al construir — ver «Versión y releases de GitHub» en CLAUDE.md): a
    diferencia de BUILD, que cambia en CADA generación, esta solo cambia
@@ -4513,12 +4578,14 @@ function fitBoundsFramed(bounds) {
    los dos hay escalera de zoom de tres pelda\u00F1os. Una medici\u00F3n en
    particular puede ser mucho m\u00E1s larga que ancha (una ruta de varios
    tramos), y un zoom fijo la dejar\u00EDa cortada por los lados o perdida
-   en medio de un encuadre demasiado abierto seg\u00FAn su tama\u00F1o real.   */
+   en medio de un encuadre demasiado abierto seg\u00FAn su tama\u00F1o real.
+   Una cuadr\u00EDcula de elevaci\u00F3n tampoco: mide decenas de metros (o
+   kil\u00F3metros, la de un perfil) y al zoom fijo ni se ver\u00EDa.        */
 function focusOnNode(li) {
   const b = subtreeBounds(li);
   if (!b.isValid()) { navMessage("Esta capa no tiene geometr\u00EDa que enfocar."); return; }
   const kind = styleKind(li);
-  if (kind === "polygon" || kind === "measure") fitBoundsFramed(b);
+  if (kind === "polygon" || kind === "measure" || kind === "elevGrid") fitBoundsFramed(b);
   else map.setView(b.getCenter(), FOCUS_ZOOM);
 }
 
@@ -4868,7 +4935,7 @@ function scheduleReorder() {
 function makeNode({ name, layer = null, isFolder = false, isFile = false,
                     style = null, checked = true, desc = null,
                     onDelete = null, onRename = null,
-                    styleable = layer !== null }) {
+                    styleable = layer !== null, focusable = styleable }) {
   const li = document.createElement("li");
   if (isFile) li.className = "file";
   li._name = name;
@@ -4959,7 +5026,7 @@ function makeNode({ name, layer = null, isFolder = false, isFile = false,
   label.title = name;
   row.appendChild(label);
 
-  row.appendChild(makeActions(li, isFolder || isFile, styleable, layer));
+  row.appendChild(makeActions(li, isFolder || isFile, styleable, layer, focusable));
 
   /* Shift+click toggles multi-selection without touching the checkbox.
      Only same-kind nodes can be selected together (marker layers with
@@ -5115,7 +5182,9 @@ function makeCaret(li) {
 
 /* Row action buttons: sort/collapse (containers), layer styles (layers),
    rename, move up/down and delete */
-function makeActions(li, sortable, styleable, layer) {
+/* `focusable`: lleva la lupa 🔍 aunque no tenga diálogo de propiedades
+   (una cuadrícula de elevación se encuadra, pero no tiene estilos).  */
+function makeActions(li, sortable, styleable, layer, focusable = styleable) {
   const box = document.createElement("span");
   box.className = "actions";
   const btn = (glyph, title, cls, fn) => {
@@ -5135,11 +5204,11 @@ function makeActions(li, sortable, styleable, layer) {
     btn("\u229F", "Colapsar esta carpeta y las interiores", "", () => collapseDescendants(li));
     btn("\uD83D\uDCBE", "Guardar esta carpeta en un archivo para volver a cargarla despu\u00E9s", "", () => exportNode(li));
   }
-  if (styleable) {
+  if (focusable) {
     btn("\uD83D\uDD0D", `Centrar la vista aqu\u00ED y acercar (zoom ${FOCUS_ZOOM})`, "",
         () => focusOnNode(li));
-    btn("\uD83C\uDFA8", "Editar propiedades", "", () => openStyleDialog(li));
   }
+  if (styleable) btn("\uD83C\uDFA8", "Editar propiedades", "", () => openStyleDialog(li));
   /* Un marcador siempre lleva el botón, oculto mientras no tenga ficha:
      con la iluminación real activa la gana (horas del sol), y
      refreshInfoButtons lo muestra/oculta sin reconstruir la fila.      */
@@ -6214,6 +6283,61 @@ async function dbLoadMeasureUnit() {
   });
 }
 
+/* Unidad de las ALTITUDES (celdas de elevación, cuadro de coordenadas,
+   perfil de una ruta), independiente de la de distancias: en
+   aeronáutica se mide en millas náuticas y se sube en pies. Mismas
+   cinco unidades que la de distancia.                                 */
+const ALTITUDE_UNIT_KEY = "altitudeUnit";
+const ALTITUDE_UNIT_SCHEMA = 1;
+const validAltitudeUnit = r =>
+  (r && r.v === ALTITUDE_UNIT_SCHEMA && MEASURE_UNITS.includes(r.unit) ? r.unit : null);
+async function dbSaveAltitudeUnit(unit) {
+  const db = await openDb();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(DB_TREE, "readwrite");
+    tx.objectStore(DB_TREE).put({ v: ALTITUDE_UNIT_SCHEMA, unit }, ALTITUDE_UNIT_KEY);
+    tx.oncomplete = resolve;
+    tx.onerror = () => reject(tx.error);
+  });
+}
+async function dbLoadAltitudeUnit() {
+  const db = await openDb();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(DB_TREE, "readonly");
+    const rq = tx.objectStore(DB_TREE).get(ALTITUDE_UNIT_KEY);
+    rq.onsuccess = () => resolve(validAltitudeUnit(rq.result));
+    rq.onerror = () => reject(rq.error);
+  });
+}
+
+/* Longitud máxima de una ruta para obtener su perfil, en METROS (se
+   enseña en la unidad de distancia). Acota lo que un perfil descarga y,
+   sobre todo, lo que deja guardado en el árbol: una celda por cada una
+   recorrida. Fuera de [PROFILE_MAX_MIN, PROFILE_MAX_MAX] se descarta. */
+const PROFILE_MAX_KEY = "profileMax";
+const PROFILE_MAX_SCHEMA = 1;
+const validProfileMax = r =>
+  (r && r.v === PROFILE_MAX_SCHEMA && Number.isFinite(r.m)
+    && r.m >= PROFILE_MAX_MIN && r.m <= PROFILE_MAX_MAX ? r.m : null);
+async function dbSaveProfileMax(m) {
+  const db = await openDb();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(DB_TREE, "readwrite");
+    tx.objectStore(DB_TREE).put({ v: PROFILE_MAX_SCHEMA, m }, PROFILE_MAX_KEY);
+    tx.oncomplete = resolve;
+    tx.onerror = () => reject(tx.error);
+  });
+}
+async function dbLoadProfileMax() {
+  const db = await openDb();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(DB_TREE, "readonly");
+    const rq = tx.objectStore(DB_TREE).get(PROFILE_MAX_KEY);
+    rq.onsuccess = () => resolve(validProfileMax(rq.result));
+    rq.onerror = () => reject(rq.error);
+  });
+}
+
 const COORD_FORMAT_KEY = "coordFormat";
 const COORD_FORMAT_SCHEMA = 1;
 async function dbSaveCoordFormat(fmt) {
@@ -6921,7 +7045,7 @@ async function materializeRecords(records, parentUl) {
       updateMeasurement(rec._m);
     } else if (rec.t === "elevGrid") {
       const li = makeNode({
-        name: rec.name, layer: rec._layer, styleable: false, checked: !!rec.checked,
+        name: rec.name, layer: rec._layer, styleable: false, focusable: true, checked: !!rec.checked,
         onDelete: () => {
           const i = elevGridGroups.indexOf(rec._layer);
           if (i >= 0) elevGridGroups.splice(i, 1);
@@ -7844,9 +7968,12 @@ let placeSeq = 0; /* discards responses of superseded searches */
    nodos se pueden mover a cualquier carpeta. Cuesta lo que una búsqueda
    del panel y solo ocurre al crear una forma, nunca en un bucle.
    Cuenta también los registros PENDIENTES (li._pending) de las carpetas
-   nunca desplegadas: esos nodos existen aunque no tengan fila.        */
+   nunca desplegadas: esos nodos existen aunque no tengan fila.
+   Admite un sufijo « — …» tras el número: las capas de elevación lo
+   llevan («Elevación 3 — MDT25 + MDS (IGN)», ver elevNodeName), y sin
+   contarlas la siguiente volvería a ser la 1.                        */
 function nextNumberedName(base) {
-  const re = new RegExp(`^${base} (\\d+)$`);
+  const re = new RegExp(`^${base} (\\d+)(?: — .*)?$`);
   let max = 0;
   const consider = name => {
     const m = re.exec(name == null ? "" : String(name));
@@ -10570,12 +10697,17 @@ const propsSrcSelect = {
   mds: document.getElementById("props-src-mds")
 };
 const propsUnitSelect = document.getElementById("props-unit");
+const propsAltUnitSelect = document.getElementById("props-alt-unit");
+/* Las mismas unidades que la distancia, por construcción (como hace la
+   calculadora con sus selectores)                                  */
+propsAltUnitSelect.innerHTML = propsUnitSelect.innerHTML;
+const propsProfileMaxInput = document.getElementById("props-profile-max");
 const propsCoordFormatSelect = document.getElementById("props-coord-format");
 const gnpVertexMaxInput = document.getElementById("gnp-vertex-max");
 const propsArcSegmentsInput = document.getElementById("props-arc-segments");
 
 let propsDraftGnp = null; /* clon de gnpStore mientras el panel está abierto */
-let propsOriginal = null; /* {unit, coordFormat, vertexEditMax, arcSegments, elevSources} al abrir, para Cancelar */
+let propsOriginal = null; /* ajustes al abrir (unidades, formato, topes, fuentes…), para Cancelar */
 
 const PROPS_TABS = {
   prefs: [propsTabPrefsBtn, propsTabPrefs],
@@ -10674,13 +10806,32 @@ document.getElementById("gnp-editor-clear").addEventListener("click", () => {
   renderGnpEditor();
 });
 
+/* El límite del perfil se guarda en metros y se enseña en la unidad de
+   distancia elegida: al cambiarla, se repinta convertido.            */
+function renderPropsProfileMax() {
+  propsProfileMaxInput.value = Number((profileMaxM / POLY_UNIT_FACTOR[measureUnit]).toPrecision(6));
+  document.getElementById("props-profile-max-unit").textContent = POLY_UNIT_LABEL[measureUnit];
+}
 function renderPropsPrefsTab() {
   propsUnitSelect.value = measureUnit;
+  propsAltUnitSelect.value = altitudeUnit;
+  renderPropsProfileMax();
   propsCoordFormatSelect.value = coordFormat;
   gnpVertexMaxInput.value = vertexEditMax;
   propsArcSegmentsInput.value = arcSegments;
 }
-propsUnitSelect.addEventListener("change", () => setMeasureUnit(propsUnitSelect.value));
+propsUnitSelect.addEventListener("change", () => {
+  setMeasureUnit(propsUnitSelect.value);
+  renderPropsProfileMax();
+});
+propsAltUnitSelect.addEventListener("change", () => setAltitudeUnit(propsAltUnitSelect.value));
+/* Mismo criterio que el tope de vértices: un valor ilegible o fuera de
+   [PROFILE_MAX_MIN, PROFILE_MAX_MAX] se descarta y vuelve el vigente. */
+propsProfileMaxInput.addEventListener("change", () => {
+  const m = Number(propsProfileMaxInput.value) * POLY_UNIT_FACTOR[measureUnit];
+  if (Number.isFinite(m) && m >= PROFILE_MAX_MIN && m <= PROFILE_MAX_MAX) profileMaxM = m;
+  renderPropsProfileMax();
+});
 propsCoordFormatSelect.addEventListener("change", () => {
   coordFormat = propsCoordFormatSelect.value;
   renderMeasureValues();
@@ -10725,7 +10876,8 @@ async function togglePropsDialog() {
   if (!propsDialog.hidden) { cancelPropsDialog(); return; }
   if (!gnpStore) gnpStore = await dbLoadGnp();
   propsDraftGnp = { ...gnpStore };
-  propsOriginal = { unit: measureUnit, coordFormat, vertexEditMax, arcSegments, elevSources };
+  propsOriginal = { unit: measureUnit, altitudeUnit, profileMaxM, coordFormat, vertexEditMax,
+                    arcSegments, elevSources };
   renderGnpEditor();
   renderPropsPrefsTab();
   renderPropsSourcesTab();
@@ -10743,6 +10895,8 @@ function cancelPropsDialog() {
   if (!propsOriginal) return;
   /* Deshace la previsualización en vivo con el mismo camino que la aplicó. */
   if (propsOriginal.unit !== measureUnit) setMeasureUnit(propsOriginal.unit);
+  if (propsOriginal.altitudeUnit !== altitudeUnit) setAltitudeUnit(propsOriginal.altitudeUnit);
+  profileMaxM = propsOriginal.profileMaxM;
   if (propsOriginal.coordFormat !== coordFormat) {
     coordFormat = propsOriginal.coordFormat;
     renderMeasureValues();
@@ -10763,6 +10917,8 @@ document.getElementById("props-accept").addEventListener("click", () => {
   gnpStore = propsDraftGnp || {};
   dbSaveGnp(gnpStore);
   dbSaveMeasureUnit(measureUnit);
+  dbSaveAltitudeUnit(altitudeUnit);
+  dbSaveProfileMax(profileMaxM);
   dbSaveCoordFormat(coordFormat);
   dbSaveVertexEditMax(vertexEditMax);
   dbSaveArcSegments(arcSegments);
@@ -11884,6 +12040,15 @@ function openStyleDialog(li, { isNew = false, focus = true } = {}) {
     msMeasures = single ? measurementValues(styleTargets[0]._measure) : null;
     $id("ms-values").hidden = !msMeasures;
     if (msMeasures) renderMeasureValues();
+    /* «Obtener perfil»: de UNA ruta ya creada (mientras se dibuja aún no
+       es una ruta terminada). Deshabilitado con el motivo en el title. */
+    const route = single && !isNew && styleTargets[0]._measure.type === "route";
+    $id("ms-profile-row").hidden = !route;
+    if (route) {
+      const why = routeProfileDisabled(styleTargets[0]);
+      $id("ms-profile").disabled = !!why;
+      $id("ms-profile").title = why || "Descargar las alturas MDS a lo largo de la ruta y dibujar su perfil";
+    }
   } else {
     const ops = styleTargets.map(t => ({ opacity: t._imageOverlay.opacity }));
     styleDraft = { ...ops[0] };
@@ -12113,6 +12278,22 @@ for (const ev of ["input", "change"]) {
    era una preferencia de sesión suelta, con un <select> repetido en
    cada diálogo de polígono/medición; unificada a petición explícita.  */
 let measureUnit = "nm";
+/* Unidad de las ALTITUDES, independiente de la de distancias (pedido
+   expreso: en aeronáutica la distancia va en NM y la altura en pies).
+   Manda en las cifras de las cuadrículas de elevación, su lectura en el
+   cuadro de coordenadas y el eje vertical del perfil de una ruta. Por
+   defecto pies, lo que ya proponía la calculadora para alturas con la
+   distancia en NM. Persistente (`dbSaveAltitudeUnit`).               */
+let altitudeUnit = "ft";
+/* Longitud máxima de una ruta para obtener su perfil, en metros: acota
+   la descarga y, sobre todo, lo que el perfil deja guardado en el árbol
+   (una celda por cada una que recorre). Por defecto 10 NM. En metros
+   escritos a mano (1852 por NM): METERS_PER_NM vive en 51-geodesy.js,
+   que carga DESPUÉS (zona muerta temporal).                          */
+const PROFILE_MAX_DEFAULT = 10 * 1852;
+const PROFILE_MAX_MIN = 100;
+const PROFILE_MAX_MAX = 100 * 1852;
+let profileMaxM = PROFILE_MAX_DEFAULT;
 let polyMeasures = null;   /* {area, perim} en m/m² del polígono abierto, o null */
 function renderPolyMeasures() {
   if (!polyMeasures) return;
@@ -12151,7 +12332,15 @@ function setMeasureUnit(unit) {
   renderPolyMeasures();
   renderMeasureValues();
   refreshMeasureLabels();
-  refreshElevCells(); /* las cifras de las cuadrículas de elevación también */
+  refreshProfileChart(); /* eje de distancias del perfil, si está abierto */
+}
+
+/* Igual que setMeasureUnit, para las altitudes: previsualización en vivo
+   desde Propiedades, que decide al Aceptar si se guarda.              */
+function setAltitudeUnit(unit) {
+  altitudeUnit = unit;
+  refreshElevCells();
+  refreshProfileChart();
 }
 
 /* ---------- Medidas de una medición (solo lectura) ---------- */
@@ -12587,10 +12776,10 @@ const fmtUnitDist = (m, unit) =>
 const fmtUnitArea = (m2, unit) =>
   `${(m2 / POLY_UNIT_FACTOR[unit] ** 2).toFixed(2)} ${POLY_UNIT_LABEL[unit]}²`;
 
-/* Una altura (terreno, superficie o su diferencia) en la misma unidad
-   global que las distancias: en aeronáutica se piensa en pies, en
-   topografía en metros, y quien trabaja en millas náuticas espera ver
-   también ahí la altura. Los decimales dependen de la unidad, no son
+/* Una altura (terreno, superficie o su diferencia) en la unidad de
+   ALTITUD de Propiedades (`altitudeUnit`), independiente de la de
+   distancias: en aeronáutica se mide en NM y se sube en pies, en
+   topografía todo va en metros. Los decimales dependen de la unidad, no son
    los dos de una distancia: en m y ft basta uno (el modelo tiene
    precisión de decímetros), pero 1 m son 0,0005 NM, así que en km, mi
    y NM hacen falta cuatro para que la diferencia entre terreno y
@@ -13107,6 +13296,7 @@ document.addEventListener("keydown", e => {
   if (!urlDialog.hidden) { closeUrlDialog(); return; }
   if (!descDialog.hidden) { hideLayerInfo({ dismiss: true }); return; }
   if (!geocalcDialog.hidden) { toggleGeocalcDialog(); return; }
+  if (!profileDialog.hidden) { closeProfileDialog(); return; }
   if (!colorPicker.hidden) { cancelColorPicker(); return; }
   if (!iconPicker.hidden) { cancelIconPicker(); return; }
   if (!ktpDialog.hidden) { closeKtpPicker(false); return; }
@@ -14074,9 +14264,15 @@ const ELEV_WINDOW = 20;      /* m: media ventana pedida alrededor del punto.
                                 para que una consulta cubra varias celdas */
 const ELEV_CELL = 25;        /* m: tamaño de la celda cacheada              */
 const ELEV_CACHE_MAX = 200;
-const ELEV_TIMEOUT = 12000;
+const ELEV_TIMEOUT = 12000;  /* ms por intento; una fuente lenta lleva el suyo */
 const ELEV_MAX_RPS = 4;      /* peticiones por segundo, entre todas las fuentes */
 const ELEV_STATUS_QUIET = 20000;
+/* Reintentos de una petición que falla por algo PASAJERO, con espera
+   creciente entre intentos. Medido contra Digital Earth Africa (octubre
+   de 2026): la primera petición a una zona tarda 17-33 s y la misma,
+   repetida, 1-5 s; el usuario tenía que repetir la consulta a mano. */
+const ELEV_RETRIES = 3;
+const ELEV_RETRY_DELAYS = [1000, 2000, 4000];
 
 const demTimes = [];
 const demErrorAt = new Map(); /* clave (fuente) → último aviso de error */
@@ -14100,6 +14296,53 @@ function demError(key, detail) {
   if (now - (demErrorAt.get(key) || 0) < ELEV_STATUS_QUIET) return;
   demErrorAt.set(key, now);
   navMessage(`Elevación: ${detail}.`);
+}
+
+/* Lo mismo que demRateOk, pero ESPERANDO turno en vez de rendirse: un
+   perfil encadena decenas de peticiones que el usuario ya ha pedido,
+   y descartar la que no cabe dejaría un hueco en la gráfica.          */
+async function demRateWait(signal) {
+  while (!demRateOk()) await elevSleep(1000 / ELEV_MAX_RPS, signal);
+}
+
+/* Espera cancelable: abortar (cerrar el diálogo del perfil) no tiene
+   que esperar a que venza la pausa entre reintentos.                 */
+function elevSleep(ms, signal) {
+  return new Promise((resolve, reject) => {
+    if (signal && signal.aborted) { reject(signal.reason); return; }
+    const t = setTimeout(resolve, ms);
+    if (signal) signal.addEventListener("abort", () => { clearTimeout(t); reject(signal.reason); }, { once: true });
+  });
+}
+
+/* Qué fallos merecen otro intento: los PASAJEROS. Tiempo agotado, red
+   caída (`TypeError`, también el CORS de un 403 de CloudFront, que no se
+   distingue), límite del servicio (429) y errores del servidor (5xx).
+   No se reintenta lo que el servicio CONTESTA: una excepción OGC (fuera
+   de cobertura es una respuesta, no un fallo), el resto de 4xx, ni la
+   cancelación del propio usuario.                                     */
+function isRetryableElevError(err) {
+  if (!err || err.owsCode) return false;
+  if (err.name === "TimeoutError" || err.name === "TypeError") return true;
+  const s = err.status;
+  return s === 429 || (s >= 500 && s <= 599);
+}
+
+/* `attempt(i)` hace UN intento (i = 0, 1…). Pura salvo la espera, que
+   se inyecta para probarla en Node sin relojes.                       */
+async function withElevRetries(attempt, { signal = null, retries = ELEV_RETRIES,
+                                          delays = ELEV_RETRY_DELAYS, sleep = elevSleep } = {}) {
+  for (let i = 0; ; i++) {
+    try {
+      return await attempt(i);
+    } catch (err) {
+      if (i >= retries || !isRetryableElevError(err) || (signal && signal.aborted)) {
+        err.attempts = i + 1;
+        throw err;
+      }
+      await sleep(delays[Math.min(i, delays.length - 1)], signal);
+    }
+  }
 }
 
 /* ---------- Lectura de las respuestas del servicio ---------- */
@@ -14415,8 +14658,23 @@ function gridCellBounds(grid, r, c) {
    consulta, porque no llegó a elegirse nada.                         */
 const ELEV_MAX_CANDIDATES = 8; /* DescribeCoverage como mucho, por fuente */
 
+/* Cuántas teselas base (2·ELEV_WINDOW = 40 m) mide la de una fuente:
+   las suficientes para que quepan unas dos celdas de su malla. 5 m → 1
+   (8×8 celdas), 25-31 m → 2, 200 m → 10. Sin celda conocida, 1.      */
+const elevTileFactor = cellMeters =>
+  Math.max(1, Math.ceil((cellMeters > 0 ? cellMeters : 0) / ELEV_WINDOW));
+
+/* La señal de UN intento: su propio tiempo máximo y, si la hay, la
+   cancelación de quien pide (el diálogo del perfil). Sin AbortSignal.any
+   (navegadores anteriores a 2024) manda solo el tiempo.              */
+function elevAttemptSignal(timeout, signal) {
+  const t = AbortSignal.timeout(timeout);
+  return signal && typeof AbortSignal.any === "function" ? AbortSignal.any([t, signal]) : t;
+}
+
 function makeElevationSource(source) {
   const { base, label, pickCoverage } = source;
+  const timeout = source.timeout || ELEV_TIMEOUT;
   let config = null, discovering = null;
 
   const url = (params, extra = []) => {
@@ -14428,23 +14686,26 @@ function makeElevationSource(source) {
   /* `binary`: se espera un GeoTIFF. Los servicios OGC explican el fallo
      en el CUERPO aunque devuelvan un 400 o un 404, y en XML: quedarse
      en el código HTTP, o leer ese XML como imagen, tira el dato que
-     sirve.                                                            */
-  async function request(params, signal, extra = [], binary = false) {
-    const r = await fetch(url(params, extra), { signal });
-    const xml = /xml|text\/plain/i.test(r.headers.get("content-type") || "");
-    if (binary && r.ok && !xml) return r.arrayBuffer();
-    const txt = await r.text();
-    const ex = parseOwsException(txt);
-    if (ex) throw Object.assign(new Error(ex.msg), { owsCode: ex.code });
-    if (!r.ok) throw new Error(describeHttp(r.status));
-    return txt;
+     sirve. Cada intento lleva su propio tiempo máximo (ver
+     withElevRetries: lo pasajero se reintenta, lo contestado no).     */
+  function request(params, { signal = null, extra = [], binary = false } = {}) {
+    return withElevRetries(async () => {
+      const r = await fetch(url(params, extra), { signal: elevAttemptSignal(timeout, signal) });
+      const xml = /xml|text\/plain/i.test(r.headers.get("content-type") || "");
+      if (binary && r.ok && !xml) return r.arrayBuffer();
+      const txt = await r.text();
+      const ex = parseOwsException(txt);
+      if (ex) throw Object.assign(new Error(ex.msg), { owsCode: ex.code });
+      if (!r.ok) throw Object.assign(new Error(describeHttp(r.status)), { status: r.status });
+      return txt;
+    }, { signal });
   }
 
-  async function fetchGrid(cfg, params, extra) {
+  async function fetchGrid(cfg, params, extra, signal) {
     const geotiff = cfg.format.kind === "geotiff";
     const body = await request({
       request: "GetCoverage", coverageId: cfg.coverageId, format: cfg.format.name, ...params
-    }, AbortSignal.timeout(ELEV_TIMEOUT), extra, geotiff);
+    }, { signal, extra, binary: geotiff });
     return geotiff ? readGeoTiffGrid(body) : parseAsciiGrid(body);
   }
 
@@ -14452,8 +14713,7 @@ function makeElevationSource(source) {
     if (config) return Promise.resolve(config);
     if (discovering) return discovering;
     discovering = (async () => {
-      const signal = AbortSignal.timeout(ELEV_TIMEOUT);
-      const caps = parseWcsCapabilities(await request({ request: "GetCapabilities" }, signal));
+      const caps = parseWcsCapabilities(await request({ request: "GetCapabilities" }));
       if (!caps) throw new Error(`${label}: el servicio no declara coberturas`);
       const candidates = pickCoverage(caps.coverages).slice(0, ELEV_MAX_CANDIDATES);
       if (!candidates.length) throw new Error(`${label}: sin cobertura utilizable`);
@@ -14462,7 +14722,7 @@ function makeElevationSource(source) {
       if (!format) throw new Error(`${label}: no ofrece rejilla ASCII ni GeoTIFF`);
       /* Todas las candidatas a la vez: es una espera, no varias */
       const described = await Promise.all(candidates.map(id =>
-        request({ request: "DescribeCoverage", coverageId: id }, signal)
+        request({ request: "DescribeCoverage", coverageId: id })
           .then(parseCoverageDescription, () => null)));
       const best = pickFinestCoverage(candidates.map((id, i) => ({ id, desc: described[i] })));
       if (!best) throw new Error(`${label}: no se pudo leer la descripción`);
@@ -14474,6 +14734,13 @@ function makeElevationSource(source) {
         ...best.desc
       };
       navMessage(describeElevChoice(source, config), { tone: "info" });
+      /* El conjunto de datos del catálogo, contra lo que el servicio dice
+         publicar (INSPIRE SpatialDataSetIdentifier). Si no lo declara se
+         sigue igual —la cobertura sí existe—, pero se avisa: el nombre
+         que llevan las capas podría no corresponder ya a lo descargado. */
+      if (caps.datasets.length && !caps.datasets.includes(source.dataset)) {
+        navMessage(`${label}: el servicio ya no declara el conjunto de datos ${source.dataset}.`);
+      }
       return config;
     })().catch(err => { discovering = null; throw err; });
     return discovering;
@@ -14483,73 +14750,97 @@ function makeElevationSource(source) {
      pueden convertir sus esquinas a latitud y longitud para dibujarla */
   const tag = (grid, crs) => (grid ? { ...grid, crs } : null);
 
+  /* Vía preferida: Web Mercator, el sistema del visor. `box` en metros
+     Web Mercator. Salir de la cobertura es respuesta legítima y un tiempo
+     agotado no dice nada de la vía: solo se abandona (`useWeb = false`)
+     si el servicio no entiende la petición. `undefined` = vía no
+     disponible, para que quien llama pruebe la siguiente.            */
+  async function fetchWebBox(cfg, { x0, y0, x1, y1 }, signal) {
+    if (!cfg.webCrs || cfg.useWeb === false) return undefined;
+    try {
+      return tag(await fetchGrid(cfg, { subsettingCrs: cfg.webCrs }, [
+        ["subset", `${cfg.axisX}(${x0.toFixed(2)},${x1.toFixed(2)})`],
+        ["subset", `${cfg.axisY}(${y0.toFixed(2)},${y1.toFixed(2)})`]
+      ], signal), "web");
+    } catch (err) {
+      if (isOutOfCoverage(err) || isRetryableElevError(err) || err.name === "AbortError") throw err;
+      cfg.useWeb = false;
+      return undefined;
+    }
+  }
+
+  /* Respaldo: latitud y longitud. Si la cobertura es geográfica sus ejes
+     ya tienen nombre (`latitude`/`longitude` en Digital Earth Africa);
+     si no, los del IGN para el subsettingCrs geográfico.              */
+  async function fetchGeoBox(cfg, { west, south, east, north }, signal) {
+    if (!cfg.geoCrs || cfg.useGeo === false) return undefined;
+    const ax = cfg.geographic ? cfg.axisX : "Long", ay = cfg.geographic ? cfg.axisY : "Lat";
+    try {
+      return tag(await fetchGrid(cfg, { subsettingCrs: cfg.geoCrs }, [
+        ["subset", `${ax}(${west.toFixed(7)},${east.toFixed(7)})`],
+        ["subset", `${ay}(${south.toFixed(7)},${north.toFixed(7)})`]
+      ], signal), "geo");
+    } catch (err) {
+      if (isOutOfCoverage(err) || isRetryableElevError(err) || err.name === "AbortError") throw err;
+      cfg.useGeo = false;
+      return undefined;
+    }
+  }
+
+  const outsideWgs84 = (cfg, lat, lon) => {
+    const w = cfg.wgs84;
+    return !!w && (lat < w.south || lat > w.north || lon < w.west || lon > w.east);
+  };
+
   async function fetchValue(lat, lon) {
     const cfg = await discover();
     /* La extensión se comprueba ANTES de pedir: una petición fuera de
        la cobertura está condenada a fallar.                          */
-    const w = cfg.wgs84;
-    if (w && (lat < w.south || lat > w.north || lon < w.west || lon > w.east)) return null;
+    if (outsideWgs84(cfg, lat, lon)) return null;
 
-    /* Vía preferida: Web Mercator, el sistema del visor. La ventana se
-       ajusta a la retícula fija (ELEV_TILE_WEB), no al punto: así dos
-       peticiones sobre la misma zona piden exactamente lo mismo.      */
-    if (cfg.webCrs && cfg.useWeb !== false) {
-      const p = toWebMercator(lat, lon);
-      const cx = snapTile(p.x, ELEV_TILE_WEB), cy = snapTile(p.y, ELEV_TILE_WEB);
-      const half = ELEV_TILE_WEB / 2;
-      try {
-        return tag(await fetchGrid(cfg, { subsettingCrs: cfg.webCrs }, [
-          ["subset", `${cfg.axisX}(${(cx - half).toFixed(2)},${(cx + half).toFixed(2)})`],
-          ["subset", `${cfg.axisY}(${(cy - half).toFixed(2)},${(cy + half).toFixed(2)})`]
-        ]), "web");
-      } catch (err) {
-        /* Salir de la cobertura es respuesta legítima; solo se abandona
-           esta vía si el servicio no entiende la petición            */
-        if (isOutOfCoverage(err) || err.name === "TimeoutError") throw err;
-        cfg.useWeb = false;
-      }
-    }
+    /* La ventana se ajusta a la retícula fija (ELEV_TILE_WEB/GEO), no al
+       punto: así dos peticiones sobre la misma zona piden exactamente
+       lo mismo. Una malla gruesa pide teselas MÚLTIPLO de la base
+       (elevTileFactor): sin eso, 40 m de ventana sobre celdas de 200 m
+       no llegan a un píxel y el IGN responde «out of memory» (medido
+       con MDT200). Con el mismo origen, la tesela gruesa contiene a la
+       fina del mismo punto, así que las dos mallas se solapan.        */
+    const k = elevTileFactor(cfg.cellMeters);
+    const tileWeb = ELEV_TILE_WEB * k;
+    const p = toWebMercator(lat, lon);
+    const cx = snapTile(p.x, tileWeb), cy = snapTile(p.y, tileWeb);
+    const half = tileWeb / 2;
+    const web = await fetchWebBox(cfg, { x0: cx - half, y0: cy - half, x1: cx + half, y1: cy + half });
+    if (web !== undefined) return web;
 
-    /* Respaldo: latitud y longitud, también ajustado a la retícula fija
-       (ELEV_TILE_GEO). Si la cobertura es geográfica sus ejes ya tienen
-       nombre (`latitude`/`longitude` en Digital Earth Africa); si no,
-       los del IGN para el subsettingCrs geográfico.                   */
-    if (cfg.geoCrs && cfg.useGeo !== false) {
-      const tlon = snapTile(lon, ELEV_TILE_GEO.lon), tlat = snapTile(lat, ELEV_TILE_GEO.lat);
-      const halfLon = ELEV_TILE_GEO.lon / 2, halfLat = ELEV_TILE_GEO.lat / 2;
-      const ax = cfg.geographic ? cfg.axisX : "Long", ay = cfg.geographic ? cfg.axisY : "Lat";
-      try {
-        return tag(await fetchGrid(cfg, { subsettingCrs: cfg.geoCrs }, [
-          ["subset", `${ax}(${(tlon - halfLon).toFixed(7)},${(tlon + halfLon).toFixed(7)})`],
-          ["subset", `${ay}(${(tlat - halfLat).toFixed(7)},${(tlat + halfLat).toFixed(7)})`]
-        ]), "geo");
-      } catch (err) {
-        if (isOutOfCoverage(err) || err.name === "TimeoutError") throw err;
-        cfg.useGeo = false;
-      }
-    }
+    const tileLon = ELEV_TILE_GEO.lon * k, tileLat = ELEV_TILE_GEO.lat * k;
+    const tlon = snapTile(lon, tileLon), tlat = snapTile(lat, tileLat);
+    const halfLon = tileLon / 2, halfLat = tileLat / 2;
+    const geo = await fetchGeoBox(cfg,
+      { west: tlon - halfLon, south: tlat - halfLat, east: tlon + halfLon, north: tlat + halfLat });
+    if (geo !== undefined) return geo;
 
     /* Respaldo: coordenadas nativas de la cobertura */
-    const p = cfg.geographic
-      ? { x: lon, y: lat, half: ELEV_WINDOW / 111320 }
+    const n = cfg.geographic
+      ? { x: lon, y: lat, half: k * ELEV_WINDOW / 111320 }
       : (() => {
           const u = latLngToUtm(lat, lon, cfg.zone);
-          return u ? { x: u.easting, y: u.northing, half: ELEV_WINDOW } : null;
+          return u ? { x: u.easting, y: u.northing, half: k * ELEV_WINDOW } : null;
         })();
-    if (!p) return null;
+    if (!n) return null;
     /* El rechazo por extensión mira el punto CRUDO: si se mirara el
        ajustado a tesela, un punto cerca del borde de cobertura podría
        rechazarse por error aunque el punto real sí esté dentro.       */
-    if (p.x < cfg.minX || p.x > cfg.maxX || p.y < cfg.minY || p.y > cfg.maxY) return null;
+    if (n.x < cfg.minX || n.x > cfg.maxX || n.y < cfg.minY || n.y > cfg.maxY) return null;
 
     /* Esta rejilla no llega a dibujarse (gridToLatLng no sabe situar el
        CRS nativo), pero se ajusta a la misma retícula por consistencia
        con las otras dos vías y para no romper su caché por cobertura. */
-    const tileSize = p.half * 2;
-    const tx = snapTile(p.x, tileSize), ty = snapTile(p.y, tileSize);
+    const tileSize = n.half * 2;
+    const tx = snapTile(n.x, tileSize), ty = snapTile(n.y, tileSize);
     return tag(await fetchGrid(cfg, {}, [
-      ["subset", `${cfg.axisX}(${(tx - p.half).toFixed(1)},${(tx + p.half).toFixed(1)})`],
-      ["subset", `${cfg.axisY}(${(ty - p.half).toFixed(1)},${(ty + p.half).toFixed(1)})`]
+      ["subset", `${cfg.axisX}(${(tx - n.half).toFixed(1)},${(tx + n.half).toFixed(1)})`],
+      ["subset", `${cfg.axisY}(${(ty - n.half).toFixed(1)},${(ty + n.half).toFixed(1)})`]
     ]), cfg.geographic ? "geo" : "native");
   }
 
@@ -14566,8 +14857,18 @@ function makeElevationSource(source) {
     return u ? `${u.zone}/${Math.round(u.easting / ELEV_CELL)}/${Math.round(u.northing / ELEV_CELL)}` : null;
   };
 
+  /* Un fallo que ha agotado sus intentos, en palabras del usuario */
+  const failText = err => {
+    const why = err.name === "TimeoutError" ? "el servicio no responde"
+      : err.name === "TypeError"
+        ? "el servicio no admite consultas desde el navegador (CORS) o no está disponible"
+        : err.message;
+    return err.attempts > 1 ? `${why} (tras ${err.attempts} intentos)` : why;
+  };
+
   return {
     source,
+    discover,
     /* `undefined` = no se pudo consultar; `null` = sin dato ahí */
     async value(lat, lon) {
       for (let i = grids.length - 1; i >= 0; i--) {
@@ -14593,12 +14894,33 @@ function makeElevationSource(source) {
           if (ek) emptyAt.add(ek);
           return null;
         }
-        const why = err.name === "TimeoutError" ? "el servicio no responde"
-          : err.message === "Failed to fetch"
-            ? "el servicio no admite consultas desde el navegador (CORS)"
-            : err.message;
-        demError(source.id, `${label}: ${why}`);
+        demError(source.id, `${label}: ${failText(err)}`);
         return undefined;
+      }
+    },
+    /* Una zona entera (perfil de una ruta): caja en lat/lng, pedida tal
+       cual —sin retícula— por Web Mercator o, si no, en geográficas. No
+       pasa por la caché: son rejillas grandes que solo sirven a ese
+       perfil. Mismos tres estados que `value`, y un fallo se devuelve en
+       `error` en vez de avisar: el perfil lo cuenta él al terminar.    */
+    async area({ south, west, north, east }, signal) {
+      const cfg = await discover();
+      const w = cfg.wgs84;
+      if (w && (north < w.south || south > w.north || east < w.west || west > w.east)) return { grid: null };
+      await demRateWait(signal);
+      try {
+        const a = toWebMercator(south, west), b = toWebMercator(north, east);
+        const web = await fetchWebBox(cfg, {
+          x0: Math.min(a.x, b.x), y0: Math.min(a.y, b.y), x1: Math.max(a.x, b.x), y1: Math.max(a.y, b.y)
+        }, signal);
+        if (web !== undefined) return { grid: web };
+        const geo = await fetchGeoBox(cfg, { west, south, east, north }, signal);
+        if (geo !== undefined) return { grid: geo };
+        return { grid: undefined, error: `${label}: el servicio no admite recortes en Web Mercator ni en geográficas` };
+      } catch (err) {
+        if (isOutOfCoverage(err)) return { grid: null };
+        if (signal && signal.aborted) throw err;
+        return { grid: undefined, error: `${label}: ${failText(err)}` };
       }
     }
   };
@@ -14622,8 +14944,13 @@ function parseWcsCapabilities(xmlText) {
     if (lo.length < 2 || hi.length < 2 || ![...lo, ...hi].every(Number.isFinite)) continue;
     bboxes[id] = { west: lo[0], south: lo[1], east: hi[0], north: hi[1] };
   }
+  /* Conjuntos de datos que el servicio dice publicar (extensión INSPIRE:
+     el IGN declara MDT05, MDT25… o MDS; Digital Earth Africa, ninguno).
+     No dicen qué cobertura es cuál: eso lo decide `pickCoverage`.    */
+  const datasets = elsByTag(doc, "SpatialDataSetIdentifier")
+    .map(el => (text(el, "Code") || "").trim()).filter(Boolean);
   return {
-    coverages, bboxes,
+    coverages, bboxes, datasets,
     formats: elsByTag(doc, "formatSupported").map(el => el.textContent.trim()).filter(Boolean),
     crs: elsByTag(doc, "crsSupported").map(el => el.textContent.trim()).filter(Boolean)
   };
@@ -14658,28 +14985,24 @@ function describeElevChoice(source, cfg) {
   const cell = cfg.cellMeters > 0
     ? `celda ≈ ${cfg.cellMeters < 10 ? cfg.cellMeters.toFixed(1) : Math.round(cfg.cellMeters)} m`
     : "tamaño de celda no declarado";
-  return `${ELEV_KIND_LABEL[source.kind]} · ${source.label}: cobertura ${cfg.coverageId}, `
+  return `${ELEV_KIND_LABEL[source.kind]} · ${source.label}: conjunto ${source.dataset}, cobertura ${cfg.coverageId}, `
     + `formato ${fmt}, ${cell}.`;
 }
 
 /* El MDT del IGN se publica en varias mallas y sistemas:
-   `Elevacion<EPSG>_<paso>`. El paso del nombre basta para quedarse con
-   las de malla más fina —todas las que lo empatan— y no pedir la
-   descripción de las diecisiete; entre esas decide pickFinestCoverage
-   con lo que digan sus descripciones. Lo que no siga el patrón se
-   ofrece tal cual, en su orden.                                     */
-function pickMdtCoverage(ids) {
-  const parsed = ids
-    .map(id => ({ id, m: /^Elevacion(\d+)_(\d+)$/i.exec(id) }))
-    .filter(x => x.m)
-    .map(x => ({ id: x.id, epsg: Number(x.m[1]), step: Number(x.m[2]) }));
-  if (!parsed.length) return ids.slice();
-  const finest = Math.min(...parsed.map(x => x.step));
+   `Elevacion<EPSG>_<paso>` (5, 25, 200, 500 y 1000 m; EPSG 4258, 4326,
+   25830 o 4083). Cada conjunto de datos del catálogo (MDT05, MDT25,
+   MDT200) es UNA malla: se queda con las coberturas de su paso, las
+   geográficas primero, y entre esas decide pickFinestCoverage con lo
+   que digan sus descripciones (dentro de una misma malla, el sistema). */
+const mdtCoverages = step => ids => {
   const geo = new Set([4326, 4258]);
-  return parsed.filter(x => x.step === finest)
-    .sort((a, b) => (geo.has(b.epsg) ? 1 : 0) - (geo.has(a.epsg) ? 1 : 0))
+  return ids
+    .map(id => ({ id, m: /^Elevacion(\d+)_(\d+)$/i.exec(id) }))
+    .filter(x => x.m && Number(x.m[2]) === step)
+    .sort((a, b) => (geo.has(Number(b.m[1])) ? 1 : 0) - (geo.has(Number(a.m[1])) ? 1 : 0))
     .map(x => x.id);
-}
+};
 
 /* El MDS del IGN publica además coberturas "normalizadas" (mdsn_*), que
    dan la altura sobre el suelo y no la altitud: no sirven para comparar. */
@@ -14702,26 +15025,43 @@ const pickDeaDemCoverage = ids => ids.filter(id => id === "dem_cop_30");
    lista). Añadir una fuente es añadir una entrada: `pickCoverage`
    filtra qué coberturas del servicio son candidatas, y del resto
    —formato, sistema, ejes, celda— se encarga el descubrimiento.     */
+const IGN_MDT_BASE = "https://servicios.idee.es/wcs-inspire/mdt";
+const IGN_MDT_ATTRIB = dataset => `${dataset} PNOA © <a href="https://www.ign.es">IGN</a> (CC BY 4.0)`;
+/* `dataset` es el código con que el servicio publica el conjunto
+   (INSPIRE SpatialDataSetIdentifier, comprobado en su GetCapabilities:
+   MDT05, MDT25, MDT200… y MDS en el IGN); Digital Earth Africa no
+   declara ninguno y se usa el nombre del producto. Con el proveedor,
+   da nombre a las capas descargadas (elevNodeName). `timeout`, si lo
+   hay, sustituye a ELEV_TIMEOUT por intento: Digital Earth Africa tarda
+   17-33 s en la primera petición a una zona (medido, octubre de 2026). */
 const ELEV_SOURCES = [
   {
-    id: "ign-mdt", kind: "mdt", label: "IGN — MDT05 (España)",
-    base: "https://servicios.idee.es/wcs-inspire/mdt", pickCoverage: pickMdtCoverage,
-    attrib: 'MDT05 PNOA © <a href="https://www.ign.es">IGN</a> (CC BY 4.0)'
+    id: "ign-mdt05", kind: "mdt", label: "IGN — MDT05 (España, 5 m)", dataset: "MDT05", provider: "IGN",
+    base: IGN_MDT_BASE, pickCoverage: mdtCoverages(5), attrib: IGN_MDT_ATTRIB("MDT05")
   },
   {
-    id: "ign-mds", kind: "mds", label: "IGN — MDS05 (España)",
+    id: "ign-mdt25", kind: "mdt", label: "IGN — MDT25 (España, 25 m)", dataset: "MDT25", provider: "IGN",
+    base: IGN_MDT_BASE, pickCoverage: mdtCoverages(25), attrib: IGN_MDT_ATTRIB("MDT25")
+  },
+  {
+    id: "ign-mdt200", kind: "mdt", label: "IGN — MDT200 (España, 200 m)", dataset: "MDT200", provider: "IGN",
+    base: IGN_MDT_BASE, pickCoverage: mdtCoverages(200), attrib: IGN_MDT_ATTRIB("MDT200")
+  },
+  {
+    id: "ign-mds", kind: "mds", label: "IGN — MDS (España, 5 m)", dataset: "MDS", provider: "IGN",
     base: "https://wcs-mds.idee.es/mds", pickCoverage: pickMdsCoverage,
     attrib: 'MDS PNOA © <a href="https://www.ign.es">IGN</a> (CC BY 4.0)'
   },
   {
     id: "dea-cop30", kind: "mds",
-    label: "Digital Earth Africa — Copernicus DEM 30 m (África y Canarias)",
+    label: "Digital Earth Africa — Copernicus DEM 30 m (África, Canarias y sur peninsular)",
+    dataset: "COP-DEM GLO-30", provider: "Digital Earth Africa", timeout: 40000,
     base: "https://ows.digitalearth.africa/wcs", pickCoverage: pickDeaDemCoverage,
     attrib: 'Copernicus DEM © DLR e.V. 2010-2014 y © Airbus Defence and Space GmbH 2014-2018 '
       + '(Copernicus, UE/ESA), vía <a href="https://www.digitalearthafrica.org">Digital Earth Africa</a>'
   }
 ];
-const ELEV_SOURCE_DEFAULT = { mdt: "ign-mdt", mds: "ign-mds" };
+const ELEV_SOURCE_DEFAULT = { mdt: "ign-mdt05", mds: "ign-mds" };
 /* Lo elegido ahora: id del catálogo, o null = «Ninguna» (no se pide) */
 let elevSources = { ...ELEV_SOURCE_DEFAULT };
 
@@ -14749,6 +15089,23 @@ function sourceClient(id) {
   if (!elevClients.has(id)) elevClients.set(id, makeElevationSource(elevSourceById(id)));
   return elevClients.get(id);
 }
+
+/* Sufijo del nombre de una capa: de qué conjunto de datos y de qué
+   proveedor sale cada modelo, «MDT25 + MDS (IGN)» o, con proveedores
+   distintos, «MDT05 (IGN) + COP-DEM GLO-30 (Digital Earth Africa)».
+   Pura: recibe las fuentes ya resueltas (null = no consultado).      */
+function elevSourcesLabel(sources) {
+  const used = sources.filter(Boolean);
+  if (!used.length) return "";
+  const providers = [...new Set(used.map(s => s.provider))];
+  return providers.length === 1
+    ? `${used.map(s => s.dataset).join(" + ")} (${providers[0]})`
+    : used.map(s => `${s.dataset} (${s.provider})`).join(" + ");
+}
+const elevNodeName = (base, sources) => {
+  const label = elevSourcesLabel(sources);
+  return label ? `${base} — ${label}` : base;
+};
 
 /* ---------- Cuadrícula de elevaciones ----------
    Se dibuja lo que ha devuelto el servicio, celda por celda y en su
@@ -14820,10 +15177,11 @@ function gridToLatLng(grid, x, y) {
 const hasMdt = cell => "mdt" in cell;
 const hasMds = cell => "mds" in cell;
 
-/* En la unidad global de Propiedades (measureUnit), como las distancias */
-const fmtCell = v => v === null || v === undefined ? "—" : fmtHeightValue(v, measureUnit);
+/* En la unidad de altitud de Propiedades (altitudeUnit), que es
+   independiente de la de distancias                                  */
+const fmtCell = v => v === null || v === undefined ? "—" : fmtHeightValue(v, altitudeUnit);
 const fmtDiff = d => d === null || d === undefined ? "—"
-  : (d >= 0 ? "+" : "") + fmtHeightValue(d, measureUnit);
+  : (d >= 0 ? "+" : "") + fmtHeightValue(d, altitudeUnit);
 
 /* Contenido de una celda según la banda de zoom (ver elevZoomBand):
    sin texto por debajo del 19, una sola línea en el 19, todas a partir
@@ -14860,8 +15218,8 @@ function cellIcon(html, font) {
 }
 
 /* Recalcula el aspecto de todas las celdas (relleno + texto): al cambiar
-   el zoom (banda de contenido, tamaño de letra) y la unidad de medida
-   (setMeasureUnit, Propiedades). La geometría de la cuadrícula no
+   el zoom (banda de contenido, tamaño de letra) y la unidad de altitud
+   (setAltitudeUnit, Propiedades). La geometría de la cuadrícula no
    depende de ninguno de los dos, y volver a pedir datos sería absurdo:
    todo se recalcula a partir de `l._cell`, los valores crudos que ya
    guarda cada capa.                                                  */
@@ -14870,26 +15228,63 @@ function refreshElevCells() {
   const band = elevZoomBand(zoom);
   const font = gridFontSize(zoom);
   for (const g of elevGridGroups) {
-    g.eachLayer(l => {
-      if (!l._cell) return;
-      if (l instanceof L.Rectangle) { renderElevRect(l, l._cell, zoom); return; }
-      l.setOpacity(band === "mini" ? 0 : 1);
-      if (band !== "mini") l.setIcon(cellIcon(elevCellHtml(l._cell, band), font));
-    });
+    for (const rect of g._rects) {
+      renderElevRect(rect, rect._cell, zoom);
+      if (rect._label) rect._label.setIcon(cellIcon(elevCellHtml(rect._cell, band), font));
+    }
   }
 }
+
+/* Las cifras son marcadores DOM, y Leaflet recoloca CADA UNO en cada
+   zoom aunque esté fuera de la vista: con el perfil de 10 NM a 5 m
+   (4335 celdas) eso costaba 110-130 ms por paso de zoom, frente a unos
+   50 ms solo con los rectángulos y 17-37 ms sin la capa (medido en
+   Chromium headless). Así que solo existen las de las celdas A LA VISTA
+   (con margen) y a partir del zoom 19, que es cuando se escribe algo;
+   se crean y retiran al moverse. Una capa oculta no lleva ninguna.
+   Con esto, el mismo perfil: 43-67 ms por paso de zoom (lo de los
+   rectángulos) y 36 ms al pasar al zoom 20, antes 216-233 ms.        */
+const ELEV_LABEL_PAD = 0.25; /* margen alrededor de la vista, en fracción */
+function syncElevLabels() {
+  const zoom = map.getZoom();
+  const band = elevZoomBand(zoom);
+  const font = gridFontSize(zoom);
+  const view = band === "mini" ? null : map.getBounds().pad(ELEV_LABEL_PAD);
+  for (const g of elevGridGroups) {
+    const shown = view && rootGroup.hasLayer(g) && view.intersects(g.getBounds());
+    for (const rect of g._rects) {
+      const want = shown && view.contains(rect._cell.center);
+      if (want && !rect._label) {
+        rect._label = L.marker(rect._cell.center, { interactive: false });
+        rect._label._cell = rect._cell;
+        rect._label.setIcon(cellIcon(elevCellHtml(rect._cell, band), font));
+        g.addLayer(rect._label);
+      } else if (!want && rect._label) {
+        g.removeLayer(rect._label);
+        rect._label = null;
+      }
+    }
+  }
+}
+map.on("moveend", syncElevLabels);
 map.on("zoomend", refreshElevCells);
 
 /* Cálculo puro: convierte un par de rejillas (MDT/MDS) en registros de
    celda autocontenidos (esquinas en lat/lng + valores), sin construir
-   nada de Leaflet. `terrain` manda en la geometría; de `surface` se toma
-   el valor de la celda que coincide, que puede no existir si las mallas
-   difieren (5x4 frente a 4x4, o 5 m frente a 30 m; donde el MDS no
-   llega NO se inventa ni se interpola). `kinds` dice qué modelos se
-   consultaron: el que no, no aporta clave a la celda (ver hasMdt).   */
+   nada de Leaflet. La malla MÁS FINA manda en la geometría (a igualdad,
+   el terreno); de la otra se toma el valor de la celda que contiene el
+   centro de cada una, que puede no existir (donde no llega NO se
+   inventa ni se interpola). Con MDT25 o MDT200 y el MDS de 5 m, las
+   celdas son las de 5 m y cada una lleva el MDT de la celda gruesa que
+   la contiene: si mandara la gruesa, su centro caería casi siempre
+   fuera de la tesela del MDS y la superficie saldría vacía. `kinds`
+   dice qué modelos se consultaron: el que no, no aporta clave a la
+   celda (ver hasMdt).                                                */
 function buildElevCells(terrain, surface, kinds = { mdt: true, mds: true }) {
-  const grid = terrain || surface;
-  if (!grid || !grid.located || !gridToLatLng(grid, grid.xll, grid.yll)) return null;
+  const usable = g => (g && g.located ? g : null);
+  const t = usable(terrain), s = usable(surface);
+  const grid = t && s && s.crs === t.crs && s.cellX * s.cellY < t.cellX * t.cellY * 0.99 ? s : (t || s);
+  if (!grid || !gridToLatLng(grid, grid.xll, grid.yll)) return null;
 
   /* Las dos mallas pueden no empezar en el mismo punto, así que el valor
      de la otra se busca por POSICIÓN, no por índice de celda.        */
@@ -14922,42 +15317,36 @@ function buildElevCells(terrain, surface, kinds = { mdt: true, mds: true }) {
   return { grid, role: terrain === grid ? "terrain" : "surface", cells };
 }
 
-/* Construye las capas Leaflet (rectángulo + etiqueta) de UNA celda.
-   Compartido entre una consulta nueva y la reconstrucción de una capa
-   guardada (buildElevGridGroup), para que ambas se vean idénticas.   */
-function makeElevCellLayers(cell, zoom) {
-  const band = elevZoomBand(zoom);
-  const font = gridFontSize(zoom);
-
+/* El rectángulo de UNA celda; su cifra la pone syncElevLabels solo si
+   está a la vista. Compartido entre una consulta nueva y la
+   reconstrucción de una capa guardada (buildElevGridGroup), para que
+   ambas se vean idénticas.                                          */
+function makeElevCellRect(cell, zoom) {
   const rect = L.rectangle([cell.sw, cell.ne], {
     color: "#1b5e97", weight: 1, opacity: 0.8,
     fillColor: "#ffffff", fillOpacity: GRID_FILL_OPACITY,
     interactive: false
   });
   rect._cell = cell;
+  rect._label = null;
   renderElevRect(rect, cell, zoom);
-
-  /* La etiqueta va como marcador sin icono, anclado al centro de la
-     celda: así la escribe el navegador y no hay que escalar texto */
-  const label = L.marker(cell.center, { interactive: false });
-  label._cell = cell;
-  label.setIcon(cellIcon(elevCellHtml(cell, band), font));
-  label.setOpacity(band === "mini" ? 0 : 1); /* sin texto por debajo del zoom 19 */
-  return [rect, label];
+  return rect;
 }
 
-/* Construye una capa completa (rectángulos + etiquetas) a partir de
-   registros de celda ya calculados: se usa tanto al terminar una
-   consulta como al restaurar una capa guardada desde IndexedDB.
+/* Construye una capa completa a partir de registros de celda ya
+   calculados: se usa tanto al terminar una consulta como al restaurar
+   una capa guardada desde IndexedDB. `_rects` guarda los rectángulos
+   (las cifras entran y salen del grupo, ver syncElevLabels). Al entrar
+   en el mapa (casilla marcada) pone las cifras de lo que se vea.
    Debe ser un L.featureGroup, no un L.layerGroup: subtreeBounds (usado
-   por "Autoescalar" y el doble click) necesita getBounds(), que
-   L.LayerGroup no tiene en Leaflet 1.9.4.                             */
+   por "Autoescalar", la lupa y el doble click) necesita getBounds(),
+   que L.LayerGroup no tiene en Leaflet 1.9.4.                         */
 function buildElevGridGroup(cells) {
   const group = L.featureGroup();
   const zoom = map.getZoom();
-  for (const cell of cells) {
-    for (const layer of makeElevCellLayers(cell, zoom)) group.addLayer(layer);
-  }
+  group._rects = cells.map(cell => makeElevCellRect(cell, zoom));
+  for (const rect of group._rects) group.addLayer(rect);
+  group.on("add", syncElevLabels);
   return group;
 }
 
@@ -15039,6 +15428,20 @@ const ALT_ROTATED_WHY = "La consulta de elevación no está disponible con el ma
   + "pulsa R o la brújula para poner el norte arriba.";
 const ELEV_NO_SOURCES_WHY = "Sin fuentes de elevación: elígelas en Propiedades → Fuentes de datos.";
 
+/* La atribución de cada fuente que ha respondido, una vez por sesión
+   (CC BY 4.0 y la licencia de Copernicus lo exigen)                   */
+function addElevAttribution(id) {
+  if (elevAttribDone.has(id)) return;
+  elevAttribDone.add(id);
+  map.attributionControl.addAttribution(elevSourceById(id).attrib);
+}
+
+/* Sin aviso de «consultando» en el registro (el usuario lo pidió así),
+   la única señal de que hay una consulta en marcha es el cursor de
+   espera sobre el mapa: una primera petición puede tardar medio minuto
+   con sus reintentos.                                                */
+const syncElevBusy = () => map.getContainer().classList.toggle("elev-busy", elevInFlight.size > 0);
+
 /* Motivo por el que la entrada del menú está deshabilitada, o false */
 function elevQueryDisabled() {
   if (isMapRotated()) return ALT_ROTATED_WHY;
@@ -15066,10 +15469,13 @@ async function ensureElevSessionFolder() {
 
 /* Una capa normal del árbol: persistente, con casilla, borrable */
 function makeElevGridNode(name, cells) {
-  const group = buildElevGridGroup(cells).addTo(rootGroup);
+  /* En la lista ANTES de entrar en el mapa: al entrar pone sus cifras
+     (syncElevLabels), y solo recorre las capas de la lista.          */
+  const group = buildElevGridGroup(cells);
   elevGridGroups.push(group);
+  group.addTo(rootGroup);
   const li = makeNode({
-    name, layer: group, styleable: false,
+    name, layer: group, styleable: false, focusable: true,
     onDelete: () => {
       const i = elevGridGroups.indexOf(group);
       if (i >= 0) elevGridGroups.splice(i, 1);
@@ -15093,17 +15499,13 @@ async function queryElevationAt(latlng) {
   }
   if (elevInFlight.has(key)) return;
   elevInFlight.add(key);
+  syncElevBusy();
   try {
-    navMessage("Consultando elevación…", { tone: "info" });
     const ask = id => (id ? sourceClient(id).value(latlng.lat, latlng.lng) : Promise.resolve(null));
     const [terrain, surface] = await Promise.all([ask(ids.mdt), ask(ids.mds)]);
 
-    /* La atribución de cada fuente que ha respondido, una vez por sesión
-       (CC BY 4.0 y la licencia de Copernicus lo exigen)               */
     for (const [id, got] of [[ids.mdt, terrain], [ids.mds, surface]]) {
-      if (!id || got === undefined || elevAttribDone.has(id)) continue;
-      elevAttribDone.add(id);
-      map.attributionControl.addAttribution(elevSourceById(id).attrib);
+      if (id && got !== undefined) addElevAttribution(id);
     }
 
     const built = buildElevCells(terrain || null, surface || null, { mdt: !!ids.mdt, mds: !!ids.mds });
@@ -15121,14 +15523,16 @@ async function queryElevationAt(latlng) {
 
     pushUndo("consultar elevación");
     const folder = await ensureElevSessionFolder();
-    const li = makeElevGridNode(nextNumberedName("Elevación"), built.cells);
+    const name = elevNodeName(nextNumberedName("Elevación"),
+      [elevSourceById(ids.mdt), elevSourceById(ids.mds)]);
+    const li = makeElevGridNode(name, built.cells);
     nodeUl(folder).appendChild(li);
     refreshAncestorChecks(li);
     scheduleSave();
     elevSessionKeys.set(key, li);
-    navMessage(`Elevación: «${li._name}» añadida a «${folder._name}».`, { tone: "info" });
   } finally {
     elevInFlight.delete(key);
+    syncElevBusy();
   }
 }
 
@@ -15812,16 +16216,15 @@ const gcP = gcEl("geocalc-p");
 gcP.value = ISA_P0_HPA;
 let geocalcUnitsSeeded = false;
 
-/* Primera apertura: la distancia en la unidad global y las alturas en
-   pies si la unidad global es de uso aeronáutico/marino, en metros si
-   no. Después manda el usuario y no se vuelve a tocar (ni se persiste).
-   Solo esta pestaña: el vector GPS tiene unidades de partida FIJAS.    */
+/* Primera apertura: la distancia en la unidad de distancia de
+   Propiedades y las alturas en la de altitud. Después manda el usuario
+   y no se vuelve a tocar (ni se persiste). Solo esta pestaña: el vector
+   GPS tiene unidades de partida FIJAS.                                 */
 function seedGeocalcUnits() {
   if (geocalcUnitsSeeded) return;
   geocalcUnitsSeeded = true;
   gcD.sel.value = measureUnit;
-  const heightUnit = ["ft", "mi", "nm"].includes(measureUnit) ? "ft" : "m";
-  gcH1.sel.value = gcH2.sel.value = heightUnit;
+  gcH1.sel.value = gcH2.sel.value = altitudeUnit;
   for (const f of [gcH1, gcH2, gcD]) f.sel.dataset.prev = f.sel.value;
 }
 
@@ -15945,6 +16348,438 @@ function toggleGeocalcDialog() {
 }
 gcEl("geocalc-btn").addEventListener("click", toggleGeocalcDialog);
 gcEl("geocalc-close").addEventListener("click", toggleGeocalcDialog);
+/* ================= Perfil de una ruta =================
+   «Obtener perfil» (menú contextual sobre una ruta, o su diálogo de
+   propiedades) descarga del MDS elegido en Propiedades → Fuentes de
+   datos las celdas que recorre la ruta y dibuja la altura a lo largo
+   de ella: distancia desde el inicio en horizontal (unidad de
+   distancia), altura en vertical (unidad de altitud), con los vértices
+   entre tramos marcados en negrita en el eje de distancias.
+
+   La ventana de 40 m de «Consultar elevación aquí» daría cientos de
+   peticiones para una ruta de kilómetros, así que aquí se pide por
+   TROZOS: cada tramo se corta en piezas cuya caja mide como mucho
+   PROFILE_CHUNK_CELLS celdas de lado, y cada pieza es una petición.
+   De cada caja se aprovecha solo lo que pisa la ruta: es el precio de
+   pedir rectángulos. Las peticiones van una tras otra, respetando el
+   tope de peticiones por segundo (demRateWait) y con los reintentos de
+   cualquier consulta (withElevRetries).
+
+   Lo que queda en el árbol son SOLO las celdas recorridas, una capa
+   «Perfil de «Ruta N» — …» en la carpeta de la sesión: lo descargado y
+   no usado se descarta. La gráfica no se guarda; se vuelve a obtener.
+   La longitud de la ruta está acotada (profileMaxM, Preferencias) para
+   que una ruta larga no llene IndexedDB de celdas.                   */
+const PROFILE_CHUNK_CELLS = 200;   /* celdas de lado, como mucho, por petición */
+
+/* ---------- Cálculo (puro: se prueba en Node) ----------
+   Los tramos van en metros Web Mercator, como los dibuja el visor
+   (`L.polyline` es recta en la proyección, no un arco geodésico): la
+   ruta que se ve es la que se muestrea. `scale` es cuántos metros Web
+   Mercator mide un metro real a la latitud del tramo (1/cos φ), para
+   pasar el tamaño de celda del modelo a la proyección. `dist` es la
+   distancia geodésica del tramo, la misma de su etiqueta.            */
+
+/* Cajas de petición: cada tramo en tantas piezas iguales como hagan
+   falta para que ninguna caja supere PROFILE_CHUNK_CELLS celdas de
+   lado, más una celda de margen (que la celda bajo el borde de la
+   pieza llegue entera).                                              */
+function profilePieces(legs, cellMeters, maxCells = PROFILE_CHUNK_CELLS) {
+  const out = [];
+  for (const leg of legs) {
+    const cell = cellMeters * leg.scale;
+    const len = Math.hypot(leg.b.x - leg.a.x, leg.b.y - leg.a.y);
+    const n = Math.max(1, Math.ceil(len / (maxCells * cell)));
+    for (let k = 0; k < n; k++) {
+      const p = { x: leg.a.x + (leg.b.x - leg.a.x) * k / n, y: leg.a.y + (leg.b.y - leg.a.y) * k / n };
+      const q = { x: leg.a.x + (leg.b.x - leg.a.x) * (k + 1) / n, y: leg.a.y + (leg.b.y - leg.a.y) * (k + 1) / n };
+      out.push({
+        x0: Math.min(p.x, q.x) - cell, y0: Math.min(p.y, q.y) - cell,
+        x1: Math.max(p.x, q.x) + cell, y1: Math.max(p.y, q.y) + cell
+      });
+    }
+  }
+  return out;
+}
+
+/* Muestras a lo largo de la ruta, a media celda o menos (así no se
+   salta ninguna celda que la línea cruce), cada una con su distancia
+   desde el inicio. Dentro de un tramo la distancia es proporcional
+   sobre su distancia geodésica: cada vértice cae EXACTAMENTE en la suma
+   de las etiquetas de los tramos anteriores, que es lo que el usuario
+   ha leído en el mapa. `vertices`: la distancia de cada vértice.     */
+function routeProfileSamples(legs, cellMeters) {
+  const samples = [], vertices = [0];
+  let cum = 0;
+  legs.forEach((leg, i) => {
+    const len = Math.hypot(leg.b.x - leg.a.x, leg.b.y - leg.a.y);
+    const n = Math.max(1, Math.ceil(len / (cellMeters * leg.scale / 2)));
+    for (let k = i === 0 ? 0 : 1; k <= n; k++) {
+      const t = k / n;
+      samples.push({
+        x: leg.a.x + (leg.b.x - leg.a.x) * t, y: leg.a.y + (leg.b.y - leg.a.y) * t,
+        d: cum + t * leg.dist
+      });
+    }
+    cum += leg.dist;
+    vertices.push(cum);
+  });
+  return { samples, vertices, total: cum };
+}
+
+/* Un punto por CELDA RECORRIDA: las muestras seguidas que caen en la
+   misma celda se funden en una, situada en la distancia media de su
+   recorrido. `lookup(sample)` da `{ key, value, ref }` de la celda bajo
+   la muestra, o `undefined` si ninguna rejilla la cubre (trozo sin
+   respuesta): eso es un hueco, igual que una celda sin dato
+   (`value: null`). Los huecos seguidos también se funden.            */
+function profileFromSamples(samples, lookup) {
+  const points = [];
+  let run = null;
+  const close = () => {
+    if (!run) return;
+    points.push({ d: (run.d0 + run.d1) / 2, v: run.v, ref: run.ref });
+    run = null;
+  };
+  for (const s of samples) {
+    const hit = lookup(s);
+    const key = hit ? hit.key : "∅";
+    if (run && run.key === key) { run.d1 = s.d; continue; }
+    close();
+    run = { key, d0: s.d, d1: s.d, v: hit ? hit.value : null, ref: hit ? hit.ref : null };
+  }
+  close();
+  return points;
+}
+
+/* Marcas «redondas» de un eje (1, 2 o 5 por potencia de diez) entre
+   min y max, unas `n`. `step` sirve para decidir cuántos decimales.  */
+function niceTicks(min, max, n) {
+  const span = max - min;
+  if (!(span > 0) || !Number.isFinite(span)) return { ticks: [min], step: 0 };
+  const rough = span / Math.max(1, n);
+  const mag = 10 ** Math.floor(Math.log10(rough));
+  const norm = rough / mag;
+  const step = (norm < 1.5 ? 1 : norm < 3 ? 2 : norm < 7 ? 5 : 10) * mag;
+  const ticks = [];
+  for (let v = Math.ceil(min / step - 1e-9) * step; v <= max + step * 1e-9; v += step) {
+    ticks.push(Number(v.toFixed(12)));
+  }
+  return { ticks, step };
+}
+
+/* Decimales de las cifras de un eje: los que pide su paso */
+const tickDecimals = step => (step > 0 ? Math.min(6, Math.max(0, -Math.floor(Math.log10(step) + 1e-9))) : 2);
+
+/* Tramos continuos de la curva (los huecos la cortan), y en cada uno,
+   si hay más puntos que píxeles, el mínimo y el máximo de cada columna
+   en su orden: así no se pierde un pico al dibujar 7000 celdas en 600
+   píxeles.                                                          */
+function profilePolylines(points, xOf, yOf) {
+  const lines = [];
+  let cur = [];
+  const flush = () => { if (cur.length) lines.push(cur); cur = []; };
+  let col = null, lo = null, hi = null;
+  const emit = () => {
+    if (!lo) return;
+    if (lo === hi) cur.push(lo);
+    else if (lo.i < hi.i) cur.push(lo, hi); else cur.push(hi, lo);
+    lo = hi = null;
+  };
+  points.forEach((p, i) => {
+    if (p.v === null || p.v === undefined) { emit(); flush(); col = null; return; }
+    const x = xOf(p.d), y = yOf(p.v), c = Math.round(x);
+    if (c !== col) { emit(); col = c; }
+    const pt = { x, y, i };
+    if (!lo || y > lo.y) lo = pt;  /* y de pantalla: mayor = más bajo */
+    if (!hi || y < hi.y) hi = pt;
+  });
+  emit();
+  flush();
+  return lines;
+}
+
+/* El punto con dato más cercano a una distancia (lectura bajo el ratón).
+   `points` va ordenado por distancia.                                */
+function nearestProfilePoint(points, d) {
+  let best = null;
+  for (const p of points) {
+    if (p.v === null || p.v === undefined) continue;
+    if (!best || Math.abs(p.d - d) < Math.abs(best.d - d)) best = p;
+    else if (p.d > d) break;
+  }
+  return best;
+}
+
+/* ---------- Diálogo ---------- */
+const profileDialog = document.getElementById("profile-dialog");
+const profileBox = profileDialog.querySelector(".dlg-box");
+const profileChart = document.getElementById("profile-chart");
+makeDialogMovable(profileBox);
+setupDialog(profileBox, { modal: false }); /* flotante: el mapa sigue vivo */
+
+let profileRun = null;   /* { ctl } mientras descarga                  */
+let profileData = null;  /* { points, vertices, total } ya calculado   */
+
+function setProfileProgress(done, total) {
+  const pct = total ? Math.round(100 * done / total) : 0;
+  document.getElementById("profile-progress-fill").style.width = `${pct}%`;
+  document.getElementById("profile-progress-label").textContent = total
+    ? `Descargando celdas MDS: ${pct} % (${done} de ${total} zona${total === 1 ? "" : "s"})`
+    : "Consultando el servicio…";
+}
+
+function setProfileNote(txt) {
+  const el = document.getElementById("profile-note");
+  el.hidden = !txt;
+  el.textContent = txt || "";
+}
+
+function openProfileDialog(title) {
+  document.getElementById("profile-title").textContent = title;
+  document.getElementById("profile-progress").hidden = false;
+  document.getElementById("profile-close").textContent = "Cancelar";
+  setProfileProgress(0, 0);
+  setProfileNote("");
+  profileData = null;
+  profileChart.innerHTML = "";
+  profileDialog.hidden = false;
+  clampToViewport(profileBox);
+  focusDialog(profileBox);
+}
+
+/* Cancelar (descargando) o Cerrar (con la gráfica): lo mismo, abortar
+   lo que quede en vuelo. Cancelar a mitad no deja nada en el árbol. */
+function closeProfileDialog() {
+  if (profileRun) profileRun.ctl.abort();
+  if (profileDialog.hidden) return;
+  profileDialog.hidden = true;
+  releaseFocus();
+}
+document.getElementById("profile-close").addEventListener("click", closeProfileDialog);
+
+/* Por qué no se puede obtener el perfil de esta ruta, o false: es el
+   `disabled()` del menú contextual y el title del botón del diálogo.  */
+function routeProfileDisabled(li) {
+  const m = li && li._measure;
+  if (!m || m.type !== "route") return "Solo una ruta tiene perfil.";
+  if (!elevSources.mds) return "Sin fuente MDS: elígela en Propiedades → Fuentes de datos.";
+  if (m.totalDist > profileMaxM) {
+    return `La ruta mide ${fmtUnitDist(m.totalDist, measureUnit)} y el límite de un perfil es `
+      + `${fmtUnitDist(profileMaxM, measureUnit)} (Propiedades → Preferencias).`;
+  }
+  return false;
+}
+
+/* Tramos de la ruta en metros Web Mercator, con su escala local y su
+   distancia geodésica (la de las etiquetas, m.legs).                  */
+function profileLegs(m) {
+  const pts = m.handles.map(h => h.getLatLng());
+  return m.legs.map((leg, i) => {
+    const a = toWebMercator(pts[i].lat, pts[i].lng), b = toWebMercator(pts[i + 1].lat, pts[i + 1].lng);
+    const midLat = (pts[i].lat + pts[i + 1].lat) / 2;
+    return { a, b, dist: leg.dist, scale: 1 / Math.max(0.05, Math.cos(toRad(midLat))) };
+  });
+}
+
+/* La celda bajo una muestra: la primera rejilla que la cubre (empezando
+   por la última que acertó, que casi siempre es la buena).           */
+function makeProfileLookup(grids) {
+  let last = 0;
+  return s => {
+    let ll = null; /* solo hace falta para una rejilla geográfica */
+    for (let k = 0; k < grids.length; k++) {
+      const gi = (last + k) % grids.length, g = grids[gi];
+      if (g.crs !== "web" && !ll) ll = map.options.crs.unproject(L.point(s.x, s.y));
+      const p = g.crs === "web" ? s : gridPoint(g, ll.lat, ll.lng);
+      if (!p) continue;
+      const c = Math.floor((p.x - g.xll) / g.cellX);
+      const r = g.rows - 1 - Math.floor((p.y - g.yll) / g.cellY);
+      if (r < 0 || r >= g.rows || c < 0 || c >= g.cols) continue;
+      last = gi;
+      return { key: `${gi}:${r}:${c}`, value: g.values[r][c], ref: { grid: g, r, c } };
+    }
+    return undefined;
+  };
+}
+
+/* Registro de celda (el mismo que buildElevCells) de una celda recorrida */
+function profileCell(p) {
+  const { grid, r, c } = p.ref;
+  const b = gridCellBounds(grid, r, c);
+  const sw = gridToLatLng(grid, b.x0, b.y0), ne = gridToLatLng(grid, b.x1, b.y1);
+  if (!sw || !ne) return null;
+  return { sw, ne, center: [(sw[0] + ne[0]) / 2, (sw[1] + ne[1]) / 2], mds: p.v, diff: null };
+}
+
+async function obtainRouteProfile(li) {
+  const why = routeProfileDisabled(li);
+  if (why) { navMessage(why); return; }
+  if (profileRun) profileRun.ctl.abort();
+  const m = li._measure;
+  const src = elevSourceById(elevSources.mds);
+  const client = sourceClient(src.id);
+  const run = { ctl: new AbortController() };
+  profileRun = run;
+  openProfileDialog(`Perfil: ${li._name}`);
+  try {
+    const cfg = await client.discover();
+    if (run.ctl.signal.aborted) return;
+    const cellMeters = cfg.cellMeters > 0 ? cfg.cellMeters : 30;
+    const legs = profileLegs(m);
+    const pieces = profilePieces(legs, cellMeters);
+    const grids = [];
+    let failed = 0, lastError = null, answered = false;
+    setProfileProgress(0, pieces.length);
+    for (let i = 0; i < pieces.length; i++) {
+      const q = pieces[i];
+      const sw = map.options.crs.unproject(L.point(q.x0, q.y0));
+      const ne = map.options.crs.unproject(L.point(q.x1, q.y1));
+      const res = await client.area({ south: sw.lat, west: sw.lng, north: ne.lat, east: ne.lng },
+        run.ctl.signal);
+      if (res.grid !== undefined) answered = true;
+      if (res.grid && res.grid.located) grids.push(res.grid);
+      if (res.error) { failed++; lastError = res.error; }
+      setProfileProgress(i + 1, pieces.length);
+    }
+    if (answered) addElevAttribution(src.id);
+    document.getElementById("profile-progress").hidden = true;
+    document.getElementById("profile-close").textContent = "Cerrar";
+
+    const { samples, vertices, total } = routeProfileSamples(legs, cellMeters);
+    const points = profileFromSamples(samples, makeProfileLookup(grids));
+    const notes = [];
+    if (failed) notes.push(`${failed} de ${pieces.length} zonas sin respuesta (${lastError}): salen como huecos.`);
+    const cells = points.filter(p => p.ref && p.v !== null).map(profileCell).filter(Boolean);
+    if (!cells.length) {
+      notes.push("Sin datos de elevación a lo largo de la ruta (fuera de la cobertura de la fuente MDS elegida).");
+      setProfileNote(notes.join(" "));
+      return;
+    }
+    setProfileNote(notes.join(" "));
+    profileData = { points, vertices, total };
+    renderProfileChart();
+
+    /* Al árbol, solo las celdas recorridas con dato */
+    pushUndo("obtener perfil");
+    const folder = await ensureElevSessionFolder();
+    const node = makeElevGridNode(elevNodeName(`Perfil de «${li._name}»`, [src]), cells);
+    nodeUl(folder).appendChild(node);
+    refreshAncestorChecks(node);
+    scheduleSave();
+  } catch (err) {
+    if (run.ctl.signal.aborted) return;
+    document.getElementById("profile-progress").hidden = true;
+    document.getElementById("profile-close").textContent = "Cerrar";
+    const why = err.name === "TimeoutError" ? "el servicio no responde"
+      : err.name === "TypeError"
+        ? "el servicio no está disponible o no admite consultas desde el navegador (CORS)"
+        : err.message;
+    setProfileNote(`No se pudo obtener el perfil: ${why}.`);
+  } finally {
+    if (profileRun === run) profileRun = null;
+  }
+}
+
+/* ---------- Gráfica (SVG propio) ---------- */
+const PF_MARGIN = { l: 64, r: 14, t: 14, b: 40 };
+const SVG_NS = "http://www.w3.org/2000/svg";
+
+function renderProfileChart() {
+  if (!profileData || profileDialog.hidden) return;
+  const { points, vertices, total } = profileData;
+  const W = profileChart.clientWidth, H = profileChart.clientHeight;
+  if (W < 80 || H < 60) return;
+  const pw = W - PF_MARGIN.l - PF_MARGIN.r, ph = H - PF_MARGIN.t - PF_MARGIN.b;
+  const fx = POLY_UNIT_FACTOR[measureUnit], fy = POLY_UNIT_FACTOR[altitudeUnit];
+  const vals = points.filter(p => p.v !== null && p.v !== undefined).map(p => p.v / fy);
+  let y0 = Math.min(...vals), y1 = Math.max(...vals);
+  const pad = (y1 - y0) * 0.08 || Math.max(1 / fy, Math.abs(y0) * 0.05) || 1;
+  y0 -= pad; y1 += pad;
+  const xMax = total / fx || 1;
+  const xOf = d => PF_MARGIN.l + (d / fx) / xMax * pw;
+  const yOf = v => PF_MARGIN.t + (1 - (v / fy - y0) / (y1 - y0)) * ph;
+  const yPix = u => PF_MARGIN.t + (1 - (u - y0) / (y1 - y0)) * ph;
+
+  const parts = [];
+  const yt = niceTicks(y0, y1, Math.max(2, Math.floor(ph / 36)));
+  const yd = tickDecimals(yt.step);
+  for (const u of yt.ticks) {
+    const y = yPix(u).toFixed(1);
+    parts.push(`<line class="pf-grid" x1="${PF_MARGIN.l}" x2="${W - PF_MARGIN.r}" y1="${y}" y2="${y}"/>`,
+      `<text class="pf-tick" x="${PF_MARGIN.l - 6}" y="${y}" text-anchor="end" dominant-baseline="middle">${u.toFixed(yd)}</text>`);
+  }
+  /* Vértices: línea discontinua y su distancia en NEGRITA. Una cifra
+     que se montaría sobre la anterior se omite (un arco son decenas de
+     tramos cortos), pero su línea se dibuja; el final siempre lleva la
+     suya. Las marcas redondas que caerían encima de una se omiten.   */
+  const vx = vertices.map(xOf);
+  const labelled = [];
+  for (let i = 0; i < vertices.length; i++) {
+    const x = vx[i].toFixed(1);
+    parts.push(`<line class="pf-vertex" x1="${x}" x2="${x}" y1="${PF_MARGIN.t}" y2="${H - PF_MARGIN.b}"/>`);
+    const last = i === vertices.length - 1;
+    if (labelled.length && vx[i] - labelled[labelled.length - 1] < 40) {
+      if (!last) continue;
+      labelled.pop(); /* el final manda sobre el vértice que tenga encima */
+      parts.splice(parts.findLastIndex(t => t.startsWith('<text class="pf-tick vertex"')), 1);
+    }
+    labelled.push(vx[i]);
+    parts.push(`<text class="pf-tick vertex" x="${x}" y="${H - PF_MARGIN.b + 14}" text-anchor="middle">${(vertices[i] / fx).toFixed(2)}</text>`);
+  }
+  const xt = niceTicks(0, xMax, Math.max(2, Math.floor(pw / 90)));
+  const xd = tickDecimals(xt.step);
+  for (const u of xt.ticks) {
+    const x = PF_MARGIN.l + u / xMax * pw;
+    if (labelled.some(v => Math.abs(v - x) < 34)) continue;
+    parts.push(`<text class="pf-tick" x="${x.toFixed(1)}" y="${H - PF_MARGIN.b + 14}" text-anchor="middle">${u.toFixed(xd)}</text>`);
+  }
+  parts.push(`<line class="pf-axis" x1="${PF_MARGIN.l}" x2="${PF_MARGIN.l}" y1="${PF_MARGIN.t}" y2="${H - PF_MARGIN.b}"/>`,
+    `<line class="pf-axis" x1="${PF_MARGIN.l}" x2="${W - PF_MARGIN.r}" y1="${H - PF_MARGIN.b}" y2="${H - PF_MARGIN.b}"/>`,
+    `<text class="pf-tick" x="${PF_MARGIN.l + pw / 2}" y="${H - 6}" text-anchor="middle">Distancia desde el inicio (${POLY_UNIT_LABEL[measureUnit]})</text>`,
+    `<text class="pf-tick" transform="translate(12 ${PF_MARGIN.t + ph / 2}) rotate(-90)" text-anchor="middle">Altura MDS (${POLY_UNIT_LABEL[altitudeUnit]})</text>`);
+  for (const line of profilePolylines(points, xOf, yOf)) {
+    parts.push(`<polyline class="pf-line" points="${line.map(p => `${p.x.toFixed(1)},${p.y.toFixed(1)}`).join(" ")}"/>`);
+  }
+  parts.push(`<line class="pf-cursor" id="pf-cursor" y1="${PF_MARGIN.t}" y2="${H - PF_MARGIN.b}" visibility="hidden"/>`,
+    `<text class="pf-readout" id="pf-readout" y="${PF_MARGIN.t + 10}" visibility="hidden"></text>`);
+  profileChart.innerHTML = `<svg xmlns="${SVG_NS}" viewBox="0 0 ${W} ${H}" role="img" `
+    + `aria-label="Perfil de alturas a lo largo de la ruta">${parts.join("")}</svg>`;
+
+  /* Lectura bajo el ratón: la celda más cercana a esa distancia */
+  const svg = profileChart.firstChild;
+  const cursor = svg.querySelector("#pf-cursor"), readout = svg.querySelector("#pf-readout");
+  svg.addEventListener("mousemove", e => {
+    const r = svg.getBoundingClientRect();
+    const x = (e.clientX - r.left) * W / r.width;
+    const d = Math.min(total, Math.max(0, (x - PF_MARGIN.l) / pw * xMax * fx));
+    const p = nearestProfilePoint(points, d);
+    if (!p) return;
+    const px = xOf(p.d);
+    cursor.setAttribute("x1", px); cursor.setAttribute("x2", px);
+    cursor.setAttribute("visibility", "visible");
+    readout.textContent = `${fmtUnitDist(p.d, measureUnit)} · ${fmtHeight(p.v, altitudeUnit)}`;
+    const right = px > PF_MARGIN.l + pw / 2;
+    readout.setAttribute("x", right ? px - 6 : px + 6);
+    readout.setAttribute("text-anchor", right ? "end" : "start");
+    readout.setAttribute("visibility", "visible");
+  });
+  svg.addEventListener("mouseleave", () => {
+    cursor.setAttribute("visibility", "hidden");
+    readout.setAttribute("visibility", "hidden");
+  });
+}
+
+/* Cambiar una unidad en Propiedades (setMeasureUnit/setAltitudeUnit) o
+   el tamaño de la ventana redibuja la gráfica, sin volver a pedir nada. */
+function refreshProfileChart() { renderProfileChart(); }
+new ResizeObserver(() => renderProfileChart()).observe(profileChart);
+
+/* Botón del diálogo de propiedades de la ruta (44-dialogs.js lo enseña
+   solo con una ruta ya creada, y lo deshabilita con el motivo).      */
+document.getElementById("ms-profile").addEventListener("click", () => {
+  if (styleTargets.length === 1) obtainRouteProfile(styleTargets[0]);
+});
 /* ================= Controles de vista del visor ================= */
 
 let gratButton = null;
@@ -16333,7 +17168,7 @@ const CoordsControl = L.Control.extend({
      modelo que la produce y solo aparece si ese modelo se consultó; la
      diferencia, solo cuando los DOS valores son números de verdad.   */
   showElevationCell(cell) {
-    const fmt = v => (v === null || v === undefined ? "sin datos" : fmtHeight(v, measureUnit));
+    const fmt = v => (v === null || v === undefined ? "sin datos" : fmtHeight(v, altitudeUnit));
     const t = !!cell && hasMdt(cell), s = !!cell && hasMds(cell);
     this._rows[4].hidden = !t;
     this._rows[5].hidden = !s;
@@ -16341,7 +17176,7 @@ const CoordsControl = L.Control.extend({
     if (s) {
       let line = `${ELEV_KIND_LABEL.mds}: ${fmt(cell.mds)}`;
       if (typeof cell.diff === "number") {
-        line += ` \u00B7 sobre el suelo ${cell.diff >= 0 ? "+" : ""}${fmtHeight(cell.diff, measureUnit)}`;
+        line += ` \u00B7 sobre el suelo ${cell.diff >= 0 ? "+" : ""}${fmtHeight(cell.diff, altitudeUnit)}`;
       }
       this._rows[5].textContent = line;
     }
@@ -16816,6 +17651,12 @@ function layerCtxItems(li) {
   const items = [{ label: "Ir al nodo en el panel", action: () => goToNodeAndBlink(li) }];
   if (infoHtmlFor(li) != null) items.push({ label: "Mostrar atributos", action: () => showLayerInfoAndBlink(li) });
   if (STYLE_EDITABLE_KINDS.has(styleKind(li))) items.push({ label: "Editar propiedades", action: () => editPropertiesAndBlink(li) });
+  /* Una ruta (también un arco, que es una ruta) da su perfil; el motivo
+     de no poder va en el ítem deshabilitado (sin MDS, demasiado larga) */
+  if (li._measure && li._measure.type === "route") {
+    items.push({ label: "Obtener perfil", action: () => obtainRouteProfile(li),
+                 disabled: () => routeProfileDisabled(li) });
+  }
   return items;
 }
 
@@ -17108,6 +17949,14 @@ setInterval(checkServerVersion, VERSION_CHECK_MS);
     const unit = await dbLoadMeasureUnit();
     if (unit !== null) measureUnit = unit;
   } catch { /* unidad por defecto (NM) */ }
+  try {
+    const unit = await dbLoadAltitudeUnit();
+    if (unit !== null) altitudeUnit = unit;
+  } catch { /* altitudes por defecto (pies) */ }
+  try {
+    const m = await dbLoadProfileMax();
+    if (m !== null) profileMaxM = m;
+  } catch { /* límite del perfil por defecto (10 NM) */ }
   try {
     const fmt = await dbLoadCoordFormat();
     if (fmt !== null) coordFormat = fmt;

@@ -5,7 +5,7 @@
 function makeNode({ name, layer = null, isFolder = false, isFile = false,
                     style = null, checked = true, desc = null,
                     onDelete = null, onRename = null,
-                    styleable = layer !== null }) {
+                    styleable = layer !== null, focusable = styleable }) {
   const li = document.createElement("li");
   if (isFile) li.className = "file";
   li._name = name;
@@ -96,7 +96,7 @@ function makeNode({ name, layer = null, isFolder = false, isFile = false,
   label.title = name;
   row.appendChild(label);
 
-  row.appendChild(makeActions(li, isFolder || isFile, styleable, layer));
+  row.appendChild(makeActions(li, isFolder || isFile, styleable, layer, focusable));
 
   /* Shift+click toggles multi-selection without touching the checkbox.
      Only same-kind nodes can be selected together (marker layers with
@@ -252,7 +252,9 @@ function makeCaret(li) {
 
 /* Row action buttons: sort/collapse (containers), layer styles (layers),
    rename, move up/down and delete */
-function makeActions(li, sortable, styleable, layer) {
+/* `focusable`: lleva la lupa 🔍 aunque no tenga diálogo de propiedades
+   (una cuadrícula de elevación se encuadra, pero no tiene estilos).  */
+function makeActions(li, sortable, styleable, layer, focusable = styleable) {
   const box = document.createElement("span");
   box.className = "actions";
   const btn = (glyph, title, cls, fn) => {
@@ -272,11 +274,11 @@ function makeActions(li, sortable, styleable, layer) {
     btn("\u229F", "Colapsar esta carpeta y las interiores", "", () => collapseDescendants(li));
     btn("\uD83D\uDCBE", "Guardar esta carpeta en un archivo para volver a cargarla despu\u00E9s", "", () => exportNode(li));
   }
-  if (styleable) {
+  if (focusable) {
     btn("\uD83D\uDD0D", `Centrar la vista aqu\u00ED y acercar (zoom ${FOCUS_ZOOM})`, "",
         () => focusOnNode(li));
-    btn("\uD83C\uDFA8", "Editar propiedades", "", () => openStyleDialog(li));
   }
+  if (styleable) btn("\uD83C\uDFA8", "Editar propiedades", "", () => openStyleDialog(li));
   /* Un marcador siempre lleva el botón, oculto mientras no tenga ficha:
      con la iluminación real activa la gana (horas del sol), y
      refreshInfoButtons lo muestra/oculta sin reconstruir la fila.      */

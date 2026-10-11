@@ -213,6 +213,7 @@ document.addEventListener("keydown", e => {
   if (!urlDialog.hidden) { closeUrlDialog(); return; }
   if (!descDialog.hidden) { hideLayerInfo({ dismiss: true }); return; }
   if (!geocalcDialog.hidden) { toggleGeocalcDialog(); return; }
+  if (!profileDialog.hidden) { closeProfileDialog(); return; }
   if (!colorPicker.hidden) { cancelColorPicker(); return; }
   if (!iconPicker.hidden) { cancelIconPicker(); return; }
   if (!ktpDialog.hidden) { closeKtpPicker(false); return; }
@@ -1180,9 +1181,15 @@ const ELEV_WINDOW = 20;      /* m: media ventana pedida alrededor del punto.
                                 para que una consulta cubra varias celdas */
 const ELEV_CELL = 25;        /* m: tamaño de la celda cacheada              */
 const ELEV_CACHE_MAX = 200;
-const ELEV_TIMEOUT = 12000;
+const ELEV_TIMEOUT = 12000;  /* ms por intento; una fuente lenta lleva el suyo */
 const ELEV_MAX_RPS = 4;      /* peticiones por segundo, entre todas las fuentes */
 const ELEV_STATUS_QUIET = 20000;
+/* Reintentos de una petición que falla por algo PASAJERO, con espera
+   creciente entre intentos. Medido contra Digital Earth Africa (octubre
+   de 2026): la primera petición a una zona tarda 17-33 s y la misma,
+   repetida, 1-5 s; el usuario tenía que repetir la consulta a mano. */
+const ELEV_RETRIES = 3;
+const ELEV_RETRY_DELAYS = [1000, 2000, 4000];
 
 const demTimes = [];
 const demErrorAt = new Map(); /* clave (fuente) → último aviso de error */
@@ -1206,6 +1213,53 @@ function demError(key, detail) {
   if (now - (demErrorAt.get(key) || 0) < ELEV_STATUS_QUIET) return;
   demErrorAt.set(key, now);
   navMessage(`Elevación: ${detail}.`);
+}
+
+/* Lo mismo que demRateOk, pero ESPERANDO turno en vez de rendirse: un
+   perfil encadena decenas de peticiones que el usuario ya ha pedido,
+   y descartar la que no cabe dejaría un hueco en la gráfica.          */
+async function demRateWait(signal) {
+  while (!demRateOk()) await elevSleep(1000 / ELEV_MAX_RPS, signal);
+}
+
+/* Espera cancelable: abortar (cerrar el diálogo del perfil) no tiene
+   que esperar a que venza la pausa entre reintentos.                 */
+function elevSleep(ms, signal) {
+  return new Promise((resolve, reject) => {
+    if (signal && signal.aborted) { reject(signal.reason); return; }
+    const t = setTimeout(resolve, ms);
+    if (signal) signal.addEventListener("abort", () => { clearTimeout(t); reject(signal.reason); }, { once: true });
+  });
+}
+
+/* Qué fallos merecen otro intento: los PASAJEROS. Tiempo agotado, red
+   caída (`TypeError`, también el CORS de un 403 de CloudFront, que no se
+   distingue), límite del servicio (429) y errores del servidor (5xx).
+   No se reintenta lo que el servicio CONTESTA: una excepción OGC (fuera
+   de cobertura es una respuesta, no un fallo), el resto de 4xx, ni la
+   cancelación del propio usuario.                                     */
+function isRetryableElevError(err) {
+  if (!err || err.owsCode) return false;
+  if (err.name === "TimeoutError" || err.name === "TypeError") return true;
+  const s = err.status;
+  return s === 429 || (s >= 500 && s <= 599);
+}
+
+/* `attempt(i)` hace UN intento (i = 0, 1…). Pura salvo la espera, que
+   se inyecta para probarla en Node sin relojes.                       */
+async function withElevRetries(attempt, { signal = null, retries = ELEV_RETRIES,
+                                          delays = ELEV_RETRY_DELAYS, sleep = elevSleep } = {}) {
+  for (let i = 0; ; i++) {
+    try {
+      return await attempt(i);
+    } catch (err) {
+      if (i >= retries || !isRetryableElevError(err) || (signal && signal.aborted)) {
+        err.attempts = i + 1;
+        throw err;
+      }
+      await sleep(delays[Math.min(i, delays.length - 1)], signal);
+    }
+  }
 }
 
 /* ---------- Lectura de las respuestas del servicio ---------- */

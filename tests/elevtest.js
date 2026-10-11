@@ -7,36 +7,57 @@ const fonts = between("const GRID_FONT_BASE", "const elevGridGroups");
    webMercatorHalf→parseCoverageDescription) la necesita al evaluarse. */
 const elevWindow = between("const ELEV_WINDOW", "const ELEV_CELL");
 const consts = fonts + elevWindow
+  + between("const ELEV_RETRIES", "const demTimes")
   + between("const ELEV_GEO_CRS", "function toWebMercator")
   + between("const webMercatorHalf", "function parseCoverageDescription");
 /* Unidades y formato de alturas (51-geodesy.js): fmtCell/fmtDiff y el
-   cuadro de coordenadas escriben en la unidad global measureUnit, que
-   aquí se fija desde la prueba con setUnit.                          */
+   cuadro de coordenadas escriben en la unidad de ALTITUD altitudeUnit,
+   que aquí se fija desde la prueba con setUnit.                       */
 const units = between("const METERS_PER_NM", "/* ---------- Ángulo de elevación");
 const arrows = [
   between("const isOutOfCoverage", "/* Rejilla ASCII de ESRI"),
   between("const elevValue", "/* La misma rejilla que parseAsciiGrid"),
+  between("const mdtCoverages", "/* El MDS del IGN publica"),
   between("const pickDeaDemCoverage", "/* ---------- Catálogo de fuentes"),
-  between("const ELEV_SOURCES = [", "/* Valida lo leído"),
+  between("const IGN_MDT_BASE", "/* Valida lo leído"),
+  between("const elevNodeName", "/* ---------- Cuadrícula de elevaciones"),
   between("const ELEV_KIND_LABEL", "function describeElevChoice"),
-  between("const hasMdt", "/* Contenido de una celda")
+  between("const elevTileFactor", "/* La señal de UN intento"),
+  between("const hasMdt", "/* Contenido de una celda"),
+  /* Preferencias: unidad de altitud y límite del perfil (validación) */
+  between("const MEASURE_UNITS", "async function dbSaveMeasureUnit"),
+  between("const PROFILE_MAX_DEFAULT", "let profileMaxM"),
+  between("const ALTITUDE_UNIT_KEY", "async function dbSaveAltitudeUnit"),
+  between("const PROFILE_MAX_KEY", "async function dbSaveProfileMax"),
+  /* Perfil de una ruta (63-route-profile.js), solo lo puro */
+  between("const PROFILE_CHUNK_CELLS", "/* ---------- Cálculo"),
+  between("const tickDecimals", "/* Tramos continuos")
 ].join("\n");
+/* nextNumberedName barre el árbol: aquí, un árbol de mentira */
+const fakeTree = "let fakeNames = []; const treeEl = { querySelectorAll: () => fakeNames.map(n => ({ _name: n })) };\n";
 const src = "const parserErrorText = () => null;\nconst toRad = d => d * Math.PI / 180;\n"
-  + "let measureUnit = 'm'; const setUnit = u => { measureUnit = u; };\n"
+  + "let altitudeUnit = 'm'; const setUnit = u => { altitudeUnit = u; };\n" + fakeTree
   + helpers + units + consts + arrows + "\n" +
-  [fn("parseWcsCapabilities"), fn("pickMdtCoverage"), fn("pickMdsCoverage"),
+  [fn("parseWcsCapabilities"), fn("pickMdsCoverage"),
    fn("parseCoverageDescription"), fn("coverageCellMeters"), fn("pickFinestCoverage"),
-   fn("describeElevChoice"), fn("validElevSources"), fn("parseOwsException"),
+   fn("describeElevChoice"), fn("validElevSources"), fn("elevSourcesLabel"),
+   fn("parseOwsException"), fn("isRetryableElevError"), fn("withElevRetries"),
    fn("parseAsciiGrid"), fn("gridFromRaster"), fn("gridCellBounds"), fn("gridToLatLng"),
    fn("buildElevCells"), fn("elevCellHtml"), fn("pointInCell"), fn("sessionStamp"),
+   fn("nextNumberedName"), fn("profilePieces"), fn("routeProfileSamples"), fn("profileFromSamples"),
+   fn("niceTicks"), fn("profilePolylines"), fn("nearestProfilePoint"),
    fn("text")].join("\n");
-const apiExports = "\nreturn {parseWcsCapabilities, pickMdtCoverage, pickMdsCoverage, pickDeaDemCoverage," +
+const apiExports = "\nreturn {parseWcsCapabilities, mdtCoverages, pickMdsCoverage, pickDeaDemCoverage," +
   " pickGeoCrs, pickElevFormat, parseCoverageDescription, pickFinestCoverage, describeElevChoice," +
-  " validElevSources, ELEV_SOURCES, ELEV_SOURCE_DEFAULT, isOutOfCoverage, parseOwsException," +
+  " validElevSources, ELEV_SOURCES, ELEV_SOURCE_DEFAULT, elevSourceById, elevNodeName," +
+  " isOutOfCoverage, parseOwsException, isRetryableElevError, withElevRetries, ELEV_RETRIES," +
   " parseAsciiGrid, gridFromRaster, pickWebMercator, webMercatorHalf, gridCellBounds, gridFontSize," +
   " gridIconSize, snapTile, latticeKey, ELEV_TILE_WEB, ELEV_TILE_GEO, ELEV_WINDOW, gridToLatLng," +
   " buildElevCells, elevCellHtml, elevZoomBand, isElevAlert, pointInCell, sessionStamp," +
-  " fmtHeight, fmtHeightValue, setUnit};";
+  " fmtHeight, fmtHeightValue, setUnit, nextNumberedName, setNames: n => { fakeNames = n; }," +
+  " validAltitudeUnit, validProfileMax, PROFILE_MAX_DEFAULT, ALTITUDE_UNIT_SCHEMA, PROFILE_MAX_SCHEMA," +
+  " profilePieces, routeProfileSamples, profileFromSamples, niceTicks, tickDecimals, profilePolylines," +
+  " nearestProfilePoint, PROFILE_CHUNK_CELLS, elevTileFactor};";
 const api = new Function("DOMParser", src + apiExports)(DOMParser);
 const ok=(c,m)=>{ if(!c){ console.error("FAIL: "+m); process.exitCode=1; } };
 
@@ -47,6 +68,13 @@ const ids = ["Elevacion4258_1000","Elevacion4326_1000","Elevacion4258_500","Elev
   "Elevacion4083_200","Elevacion25830_25","Elevacion4083_25","Elevacion25830_5","Elevacion4083_5"];
 const caps = `<?xml version="1.0"?><wcs:Capabilities xmlns:wcs="http://www.opengis.net/wcs/2.0"
   xmlns:crs="http://www.opengis.net/wcs/crs/1.0">
+  <ows:OperationsMetadata xmlns:ows="http://www.opengis.net/ows/2.0"
+   xmlns:inspire_dls="http://inspire.ec.europa.eu/schemas/inspire_dls/1.0"
+   xmlns:inspire_common="http://inspire.ec.europa.eu/schemas/common/1.0"><ows:ExtendedCapabilities>
+   <inspire_dls:ExtendedCapabilities>${["MDT05","MDT25","MDT200","MDT500","MDT1000"].map(c =>
+     `<inspire_dls:SpatialDataSetIdentifier><inspire_common:Code>${c}</inspire_common:Code>` +
+     `<inspire_common:Namespace>IGN</inspire_common:Namespace></inspire_dls:SpatialDataSetIdentifier>`).join("")}
+   </inspire_dls:ExtendedCapabilities></ows:ExtendedCapabilities></ows:OperationsMetadata>
   <wcs:ServiceMetadata>
     <wcs:formatSupported>image/tiff</wcs:formatSupported>
     <wcs:formatSupported>ArcGrid</wcs:formatSupported>
@@ -65,19 +93,28 @@ ok(parsed.coverages.length === 17, "las 17 coberturas se leen: " + parsed.covera
 ok(parsed.formats.includes("ArcGrid"), "formatos leídos");
 ok(parsed.crs.length === 3, "sistemas leídos");
 ok(Object.keys(parsed.bboxes).length === 0, "sin WGS84BoundingBox no se inventa ninguna caja");
+ok(parsed.datasets.join() === "MDT05,MDT25,MDT200,MDT500,MDT1000",
+   "SpatialDataSetIdentifier del IGN (INSPIRE): " + parsed.datasets);
+for (const src of api.ELEV_SOURCES.filter(x => x.provider === "IGN" && x.kind === "mdt")) {
+  ok(parsed.datasets.includes(src.dataset), `el conjunto ${src.dataset} del catálogo existe en el servicio`);
+}
 
-/* Del nombre se toman solo las de malla más fina (las de 5 m, en
-   cualquier sistema), con las geográficas primero: la decisión final
-   entre ellas la toma pickFinestCoverage con sus descripciones.      */
-const cand = api.pickMdtCoverage(ids);
-ok(cand.length === 3 && cand.every(id => /_5$/.test(id)), "candidatas: las tres de 5 m: " + cand);
+/* Cada conjunto de datos del MDT (MDT05, MDT25, MDT200) es UNA malla:
+   del nombre se toman solo las coberturas de su paso, en cualquier
+   sistema, con las geográficas primero; la decisión final entre ellas
+   la toma pickFinestCoverage con sus descripciones.                  */
+const cand = api.mdtCoverages(5)(ids);
+ok(cand.length === 3 && cand.every(id => /_5$/.test(id)), "MDT05: las tres de 5 m: " + cand);
 ok(cand[0] === "Elevacion4258_5", "la geográfica de 5 m, la primera: " + cand[0]);
-ok(api.pickMdtCoverage(["Elevacion25830_5","Elevacion4258_25"]).join() === "Elevacion25830_5",
-   "la malla manda sobre el sistema");
-ok(api.pickMdtCoverage(["Elevacion4083_25","Elevacion4258_25"])[0] === "Elevacion4258_25",
+const c25 = api.mdtCoverages(25)(ids);
+ok(c25.length === 3 && c25.every(id => /_25$/.test(id)) && c25[0] === "Elevacion4258_25",
+   "MDT25: solo las de 25 m, nunca las de 5: " + c25);
+ok(api.mdtCoverages(200)(ids).every(id => /_200$/.test(id)) && api.mdtCoverages(200)(ids).length === 3,
+   "MDT200: las tres de 200 m");
+ok(api.mdtCoverages(25)(["Elevacion4083_25","Elevacion4258_25"])[0] === "Elevacion4258_25",
    "a igual malla, gana el geográfico");
-ok(api.pickMdtCoverage(["otraCosa"]).join() === "otraCosa", "si no siguen el patrón, se ofrecen tal cual");
-ok(api.pickMdtCoverage([]).length === 0, "sin coberturas, ninguna candidata");
+ok(api.mdtCoverages(5)(["otraCosa"]).length === 0, "lo que no sigue el patrón no es de ningún conjunto");
+ok(api.mdtCoverages(5)([]).length === 0, "sin coberturas, ninguna candidata");
 
 /* El MDS sigue evitando las normalizadas */
 ok(api.pickMdsCoverage(["mdsn_e025","mds05","mdsn_v025"]).join() === "mds05", "MDS absoluto");
@@ -176,6 +213,7 @@ ok(dcaps.coverages.length === 3, "tres coberturas");
 const bb = dcaps.bboxes.dem_cop_30;
 ok(bb && bb.west < -25.9 && bb.east > 64.9 && bb.south < -46.9 && bb.north > 39, "caja WGS84 en orden longitud latitud: " + JSON.stringify(bb));
 ok(!dcaps.bboxes.nasadem, "sin caja declarada, sin entrada");
+ok(dcaps.datasets.length === 0, "Digital Earth Africa no declara conjuntos de datos");
 ok(api.pickDeaDemCoverage(dcaps.coverages).join() === "dem_cop_30", "de todo el catálogo, solo Copernicus DEM");
 ok(api.pickDeaDemCoverage(["crop_mask"]).length === 0, "sin Copernicus DEM, ninguna candidata (no la primera que haya)");
 /* Canarias dentro, Madrid fuera: lo que decide no pedir en vano */
@@ -184,10 +222,10 @@ ok(inside(bb, 28.3, -16.5), "Tenerife cae dentro de la cobertura");
 ok(!inside(bb, 40.4, -3.7), "Madrid queda fuera (por encima de 39°N)");
 
 /* ---- lo elegido, en una línea para el registro de avisos ---- */
-const ign = api.ELEV_SOURCES.find(s => s.id === "ign-mdt");
+const ign = api.ELEV_SOURCES.find(s => s.id === "ign-mdt05");
 const deaSrc = api.ELEV_SOURCES.find(s => s.id === "dea-cop30");
 let line = api.describeElevChoice(ign, { coverageId: "Elevacion4258_5", format: { name: "ArcGrid", kind: "ascii" }, cellMeters: 5 });
-ok(/^MDT \(terreno\) · IGN/.test(line) && /Elevacion4258_5/.test(line) && /ArcGrid \(rejilla ASCII\)/.test(line)
+ok(/^MDT \(terreno\) · IGN/.test(line) && /conjunto MDT05/.test(line) && /Elevacion4258_5/.test(line) && /ArcGrid \(rejilla ASCII\)/.test(line)
    && /celda ≈ 5\.0 m/.test(line), "aviso del MDT: " + line);
 line = api.describeElevChoice(deaSrc, { coverageId: "dem_cop_30", format: { name: "image/geotiff", kind: "geotiff" }, cellMeters: 30.9 });
 ok(/^MDS \(superficie\) · Digital Earth Africa/.test(line) && /no ofrece rejilla ASCII/.test(line) && /celda ≈ 31 m/.test(line),
@@ -199,21 +237,49 @@ ok(/no declarado/.test(api.describeElevChoice(ign, { coverageId: "x", format: { 
 const catIds = api.ELEV_SOURCES.map(s => s.id);
 ok(new Set(catIds).size === catIds.length, "ids únicos: " + catIds);
 ok(api.ELEV_SOURCES.every(s => (s.kind === "mdt" || s.kind === "mds") && /^https:\/\//.test(s.base)
-   && typeof s.pickCoverage === "function" && s.label && s.attrib), "cada fuente completa, https y con atribución");
+   && typeof s.pickCoverage === "function" && s.label && s.attrib && s.dataset && s.provider),
+   "cada fuente completa: https, atribución, conjunto de datos y proveedor");
+ok(["ign-mdt05", "ign-mdt25", "ign-mdt200"].every(id => api.ELEV_SOURCES.some(s => s.id === id && s.kind === "mdt")),
+   "el IGN ofrece MDT05, MDT25 y MDT200");
+ok(api.ELEV_SOURCES.find(s => s.id === "dea-cop30").timeout >= 35000,
+   "Digital Earth Africa lleva su propio tiempo máximo (tarda 17-33 s en frío)");
 ok(api.ELEV_SOURCES.filter(s => s.kind === "mds").length >= 2, "al menos dos MDS (IGN y Digital Earth Africa)");
-ok(api.ELEV_SOURCE_DEFAULT.mdt === "ign-mdt" && api.ELEV_SOURCE_DEFAULT.mds === "ign-mds", "por defecto, las del IGN");
+ok(api.ELEV_SOURCE_DEFAULT.mdt === "ign-mdt05" && api.ELEV_SOURCE_DEFAULT.mds === "ign-mds", "por defecto, MDT05 y MDS del IGN");
 for (const k of ["mdt", "mds"]) {
   const s = api.ELEV_SOURCES.find(x => x.id === api.ELEV_SOURCE_DEFAULT[k]);
   ok(s && s.kind === k, `la fuente por defecto de ${k} es de ese tipo`);
 }
 
 /* ---- validar la elección guardada contra el catálogo actual ---- */
-ok(JSON.stringify(api.validElevSources({ mdt: "ign-mdt", mds: "dea-cop30" })) === '{"mdt":"ign-mdt","mds":"dea-cop30"}',
+ok(JSON.stringify(api.validElevSources({ mdt: "ign-mdt25", mds: "dea-cop30" })) === '{"mdt":"ign-mdt25","mds":"dea-cop30"}',
    "una elección válida se respeta");
+ok(api.validElevSources({ mdt: "ign-mdt", mds: "ign-mds" }).mdt === "ign-mdt05",
+   "el id anterior al catálogo por conjuntos (ign-mdt) cae al de por defecto, sin migración");
 ok(JSON.stringify(api.validElevSources({ mdt: null, mds: null })) === '{"mdt":null,"mds":null}',
    "«Ninguna» en las dos es legítimo");
-ok(api.validElevSources({ mdt: "retirada", mds: "ign-mds" }).mdt === "ign-mdt", "una fuente retirada vuelve a la de por defecto");
-ok(api.validElevSources({ mdt: "ign-mds", mds: "ign-mdt" }).mdt === "ign-mdt", "un MDS en el hueco del MDT no se cuela");
+ok(api.validElevSources({ mdt: "retirada", mds: "ign-mds" }).mdt === "ign-mdt05", "una fuente retirada vuelve a la de por defecto");
+ok(api.validElevSources({ mdt: "ign-mds", mds: "ign-mdt25" }).mdt === "ign-mdt05", "un MDS en el hueco del MDT no se cuela");
+ok(api.validElevSources({ mdt: "ign-mds", mds: "ign-mdt25" }).mds === "ign-mds", "ni un MDT en el del MDS");
+
+/* ---- nombre de las capas: conjunto de datos y proveedor ---- */
+{
+  const S = id => api.elevSourceById(id);
+  ok(api.elevNodeName("Elevación 3", [S("ign-mdt25"), S("ign-mds")]) === "Elevación 3 — MDT25 + MDS (IGN)",
+     "mismo proveedor: una vez: " + api.elevNodeName("Elevación 3", [S("ign-mdt25"), S("ign-mds")]));
+  ok(api.elevNodeName("Elevación 4", [S("ign-mdt05"), S("dea-cop30")])
+     === "Elevación 4 — MDT05 (IGN) + COP-DEM GLO-30 (Digital Earth Africa)", "proveedores distintos: cada uno con el suyo");
+  ok(api.elevNodeName("Elevación 5", [null, S("dea-cop30")]) === "Elevación 5 — COP-DEM GLO-30 (Digital Earth Africa)",
+     "un solo modelo consultado");
+  ok(api.elevNodeName("Perfil de «Ruta 1»", [S("ign-mds")]) === "Perfil de «Ruta 1» — MDS (IGN)", "perfil");
+  ok(api.elevNodeName("Elevación 6", [null, null]) === "Elevación 6", "sin fuentes, el nombre tal cual");
+  /* La numeración sigue contando con el sufijo detrás */
+  api.setNames(["Elevación 3 — MDT25 + MDS (IGN)", "Elevación 7 — MDS (IGN)", "Elevación 2", "Elevación 9x"]);
+  ok(api.nextNumberedName("Elevación") === "Elevación 8", "nextNumberedName ve el número con sufijo: "
+     + api.nextNumberedName("Elevación"));
+  api.setNames(["Ruta 4 — algo", "Ruta 5—pegado"]);
+  ok(api.nextNumberedName("Ruta") === "Ruta 5", "solo el sufijo « — …» separado cuenta");
+  api.setNames([]);
+}
 ok(api.validElevSources(null) === null && api.validElevSources("x") === null, "sin forma de elección → null");
 
 /* ---- errores OGC, que llegan como XML ---- */
@@ -430,9 +496,26 @@ ok(api.ELEV_TILE_GEO.lon > api.ELEV_TILE_GEO.lat,
   ok(builtFar.cells.every(c => c.mds === null && c.diff === null),
      "MDS fuera de la zona del MDT: sin dato, no falso cero");
   ok(api.buildElevCells(null, null) === null, "sin ninguna rejilla, nada que dibujar");
+
+  /* Mallas de distinto paso (MDT200 o MDT25 con el MDS de 5 m): manda
+     la FINA, y cada celda lleva el valor de la gruesa que la contiene.
+     Si mandara la gruesa, su centro caería fuera de la tesela del MDS
+     y la superficie saldría vacía.                                    */
+  const coarseT = { ...api.parseAsciiGrid(
+    "ncols 1\nnrows 1\nxllcorner 0\nyllcorner 0\ncellsize 40\nNODATA_value -9999\n650\n"), crs: "geo" };
+  const fineS = { ...api.parseAsciiGrid(
+    "ncols 2\nnrows 2\nxllcorner 10\nyllcorner 10\ncellsize 10\nNODATA_value -9999\n661 662\n663 664\n"), crs: "geo" };
+  const mixed = api.buildElevCells(coarseT, fineS);
+  ok(mixed.role === "surface" && mixed.cells.length === 4, "la malla fina manda: " + (mixed && mixed.cells.length));
+  ok(mixed.cells.every(c => c.mdt === 650 && c.diff === c.mds - 650), "cada celda fina con el MDT grueso que la contiene");
+}
+{
+  ok(api.elevTileFactor(5) === 1 && api.elevTileFactor(null) === 1, "malla de 5 m (o desconocida): la tesela base");
+  ok(api.elevTileFactor(25) === 2 && api.elevTileFactor(31) === 2, "25-31 m: el doble (caben dos celdas)");
+  ok(api.elevTileFactor(200) === 10, "200 m: diez teselas base, 400 m (40 m no llegaban a un píxel)");
 }
 
-/* ---- elevCellHtml: solo las líneas de lo consultado, en la unidad global ---- */
+/* ---- elevCellHtml: solo las líneas de lo consultado, en la unidad de altitud ---- */
 {
   api.setUnit("m");
   const both = { mdt: 100, mds: 102.5, diff: 2.5 };
@@ -453,7 +536,7 @@ ok(api.ELEV_TILE_GEO.lon > api.ELEV_TILE_GEO.lat,
   api.setUnit("m");
 }
 
-/* ---- fmtHeight: la unidad global de Propiedades ---- */
+/* ---- fmtHeight: en la unidad que se le pida (la de altitud de Propiedades) ---- */
 ok(api.fmtHeight(695.32, "m") === "695.3 m", api.fmtHeight(695.32, "m"));
 ok(api.fmtHeight(100, "ft") === "328.1 ft", api.fmtHeight(100, "ft"));
 ok(api.fmtHeight(1852, "nm") === "1.0000 NM", api.fmtHeight(1852, "nm"));
@@ -494,4 +577,109 @@ ok(api.isElevAlert({ diff: null }) === false, "sin dato: sin aviso");
 ok(api.sessionStamp(new Date(2026, 9, 5, 7, 3)) === "2026-10-05 07:03",
    "fecha y hora locales con ceros: " + api.sessionStamp(new Date(2026, 9, 5, 7, 3)));
 
-if (!process.exitCode) console.log("ELEVATION TESTS OK");
+/* ---- reintentos: solo lo pasajero, con espera creciente ---- */
+{
+  const E = (props) => Object.assign(new Error("x"), props);
+  ok(api.isRetryableElevError(E({ name: "TimeoutError" })), "tiempo agotado: se reintenta");
+  ok(api.isRetryableElevError(new TypeError("Failed to fetch")), "red caída (o CORS de un 403): se reintenta");
+  ok(api.isRetryableElevError(E({ status: 503 })) && api.isRetryableElevError(E({ status: 429 })), "5xx y 429: se reintenta");
+  ok(!api.isRetryableElevError(E({ status: 404 })) && !api.isRetryableElevError(E({ status: 400 })), "otro 4xx: no");
+  ok(!api.isRetryableElevError(E({ owsCode: "InvalidSubsetting", status: 404 })), "fuera de cobertura es una respuesta: no");
+  ok(!api.isRetryableElevError(E({ name: "AbortError" })), "cancelado por el usuario: no");
+  ok(api.ELEV_RETRIES >= 3, "al menos tres reintentos (pedido)");
+}
+(async () => {
+  const waits = [];
+  const sleep = async ms => { waits.push(ms); };
+  const run = async outcomes => {
+    let calls = 0;
+    const attempt = async () => {
+      const o = outcomes[Math.min(calls++, outcomes.length - 1)];
+      if (o instanceof Error) throw o;
+      return o;
+    };
+    try { return { value: await api.withElevRetries(attempt, { sleep }), calls }; }
+    catch (err) { return { err, calls }; }
+  };
+  const e503 = Object.assign(new Error("no disponible"), { status: 503 });
+  let r = await run([e503, e503, "rejilla"]);
+  ok(r.value === "rejilla" && r.calls === 3, "dos 503 y un acierto: éxito al tercer intento: " + JSON.stringify(r));
+  ok(waits.join() === "1000,2000", "espera creciente entre intentos: " + waits);
+  r = await run([Object.assign(new Error("fuera"), { owsCode: "InvalidSubsetting", status: 404 })]);
+  ok(r.err && r.calls === 1, "fuera de cobertura: un solo intento");
+  const tmo = Object.assign(new Error("t"), { name: "TimeoutError" });
+  r = await run([tmo]);
+  ok(r.err && r.calls === 1 + api.ELEV_RETRIES && r.err.attempts === 1 + api.ELEV_RETRIES,
+     `siempre tiempo agotado: ${1 + api.ELEV_RETRIES} intentos y se rinde: ` + r.calls);
+
+  /* ---- Preferencias: unidad de altitud y límite del perfil ---- */
+  ok(api.validAltitudeUnit({ v: api.ALTITUDE_UNIT_SCHEMA, unit: "ft" }) === "ft", "unidad de altitud válida");
+  ok(api.validAltitudeUnit({ v: api.ALTITUDE_UNIT_SCHEMA, unit: "yd" }) === null, "unidad desconocida: descartada");
+  ok(api.validAltitudeUnit({ v: 99, unit: "m" }) === null && api.validAltitudeUnit(undefined) === null, "otra versión o nada: null");
+  ok(Math.abs(api.PROFILE_MAX_DEFAULT - 18520) < 1e-9, "límite del perfil por defecto: 10 NM");
+  ok(api.validProfileMax({ v: api.PROFILE_MAX_SCHEMA, m: 5000 }) === 5000, "límite válido");
+  ok(api.validProfileMax({ v: api.PROFILE_MAX_SCHEMA, m: 0 }) === null, "cero: descartado");
+  ok(api.validProfileMax({ v: api.PROFILE_MAX_SCHEMA, m: 1e9 }) === null, "desmesurado: descartado");
+  ok(api.validProfileMax({ v: api.PROFILE_MAX_SCHEMA, m: "5000" }) === null, "no numérico: descartado");
+
+  /* ---- perfil: trozos, muestras y un punto por celda ---- */
+  {
+    /* Dos tramos en metros Web Mercator, escala 1 (ecuador): 1000 m al
+       este y luego 500 m al norte; distancias geodésicas 1000 y 500.  */
+    const legs = [
+      { a: { x: 0, y: 0 }, b: { x: 1000, y: 0 }, dist: 1000, scale: 1 },
+      { a: { x: 1000, y: 0 }, b: { x: 1000, y: 500 }, dist: 500, scale: 1 }
+    ];
+    const pieces = api.profilePieces(legs, 5, 100);  /* 100 celdas de 5 m = 500 m por trozo */
+    ok(pieces.length === 3, "1000 m en dos trozos de 500 y 500 m en uno: " + pieces.length);
+    ok(pieces.every(q => q.x1 - q.x0 <= 500 + 10 + 1e-9 && q.y1 - q.y0 <= 500 + 10 + 1e-9),
+       "ninguna caja pasa del tope más una celda de margen por lado");
+    ok(pieces[0].x0 === -5 && pieces[0].y0 === -5, "margen de una celda");
+    const diag = api.profilePieces([{ a: { x: 0, y: 0 }, b: { x: 3000, y: 4000 }, dist: 5000, scale: 2 }], 5, 100);
+    ok(diag.length === 5, "la escala de Mercator agranda la celda en la proyección: 5000/(100·5·2) = 5 trozos: " + diag.length);
+
+    const { samples, vertices, total } = api.routeProfileSamples(legs, 5);
+    ok(total === 1500 && vertices.join() === "0,1000,1500", "vértices en la suma de los tramos: " + vertices);
+    ok(samples[0].d === 0 && samples[samples.length - 1].d === 1500, "de principio a fin");
+    ok(samples.every((s, i) => i === 0 || s.d > samples[i - 1].d), "distancias crecientes, sin repetir el vértice");
+    ok(samples.every((s, i) => i === 0 || Math.hypot(s.x - samples[i - 1].x, s.y - samples[i - 1].y) <= 2.5 + 1e-9),
+       "a media celda o menos: no se salta ninguna");
+
+    /* Rejilla falsa de celdas de 10 m: valor = columna + 100·fila */
+    const lookup = s => (s.y > 300 ? undefined : {
+      key: `${Math.floor(s.x / 10)}:${Math.floor(s.y / 10)}`,
+      value: Math.floor(s.x / 10) === 50 ? null : Math.floor(s.x / 10) + 100 * Math.floor(s.y / 10), ref: {}
+    });
+    const pts = api.profileFromSamples(samples, lookup);
+    const along = pts.filter(p => p.d <= 1000);
+    ok(along.length === 100 || along.length === 101, "un punto por celda recorrida en el primer tramo: " + along.length);
+    ok(pts.some(p => p.v === null && p.ref), "celda sin dato: hueco (con su celda)");
+    ok(pts[pts.length - 1].v === null && !pts[pts.length - 1].ref, "sin rejilla que cubra: hueco sin celda");
+    ok(pts.filter(p => !p.ref).length === 1, "los huecos seguidos se funden en uno");
+    ok(pts.every((p, i) => i === 0 || p.d > pts[i - 1].d), "puntos en orden de distancia");
+    const mid = pts.find(p => p.v === 3);
+    ok(mid && Math.abs(mid.d - 35) < 3, "cada punto, en la distancia media de su celda: " + (mid && mid.d));
+    ok(api.nearestProfilePoint(pts, 503).v !== null, "la lectura bajo el ratón salta los huecos");
+
+    /* Diezmado: con más puntos que píxeles, min y max por columna */
+    const many = Array.from({ length: 1000 }, (_, i) => ({ d: i, v: i === 500 ? 999 : 10 }));
+    const lines = api.profilePolylines(many, d => d / 10, v => 1000 - v);
+    ok(lines.length === 1 && lines[0].length < 250, "1000 puntos en 100 columnas: se reducen: " + lines[0].length);
+    ok(lines[0].some(p => p.y === 1), "y el pico no se pierde");
+    const gappy = [{ d: 0, v: 1 }, { d: 1, v: 2 }, { d: 2, v: null }, { d: 3, v: 4 }];
+    ok(api.profilePolylines(gappy, d => d * 100, v => v).length === 2, "un hueco corta la curva en dos");
+  }
+
+  /* ---- marcas de eje ---- */
+  {
+    let t = api.niceTicks(0, 18.52, 5);
+    ok(t.step === 5 && t.ticks.join() === "0,5,10,15", "0–18,52 NM: de 5 en 5: " + t.ticks);
+    t = api.niceTicks(612.3, 698.9, 4);
+    ok(t.step === 20 && t.ticks[0] === 620 && t.ticks[t.ticks.length - 1] === 680, "alturas: de 20 en 20: " + t.ticks);
+    t = api.niceTicks(0, 0.0123, 4);
+    ok(t.step === 0.005 && api.tickDecimals(t.step) === 3, "en NM, pasos pequeños con sus decimales: " + t.ticks);
+    ok(api.niceTicks(5, 5, 4).ticks.join() === "5", "sin rango: una sola marca");
+  }
+
+  if (!process.exitCode) console.log("ELEVATION TESTS OK");
+})();

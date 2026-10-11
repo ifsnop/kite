@@ -169,9 +169,12 @@ let placeSeq = 0; /* discards responses of superseded searches */
    nodos se pueden mover a cualquier carpeta. Cuesta lo que una búsqueda
    del panel y solo ocurre al crear una forma, nunca en un bucle.
    Cuenta también los registros PENDIENTES (li._pending) de las carpetas
-   nunca desplegadas: esos nodos existen aunque no tengan fila.        */
+   nunca desplegadas: esos nodos existen aunque no tengan fila.
+   Admite un sufijo « — …» tras el número: las capas de elevación lo
+   llevan («Elevación 3 — MDT25 + MDS (IGN)», ver elevNodeName), y sin
+   contarlas la siguiente volvería a ser la 1.                        */
 function nextNumberedName(base) {
-  const re = new RegExp(`^${base} (\\d+)$`);
+  const re = new RegExp(`^${base} (\\d+)(?: — .*)?$`);
   let max = 0;
   const consider = name => {
     const m = re.exec(name == null ? "" : String(name));

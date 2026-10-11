@@ -134,16 +134,15 @@ const gcP = gcEl("geocalc-p");
 gcP.value = ISA_P0_HPA;
 let geocalcUnitsSeeded = false;
 
-/* Primera apertura: la distancia en la unidad global y las alturas en
-   pies si la unidad global es de uso aeronáutico/marino, en metros si
-   no. Después manda el usuario y no se vuelve a tocar (ni se persiste).
-   Solo esta pestaña: el vector GPS tiene unidades de partida FIJAS.    */
+/* Primera apertura: la distancia en la unidad de distancia de
+   Propiedades y las alturas en la de altitud. Después manda el usuario
+   y no se vuelve a tocar (ni se persiste). Solo esta pestaña: el vector
+   GPS tiene unidades de partida FIJAS.                                 */
 function seedGeocalcUnits() {
   if (geocalcUnitsSeeded) return;
   geocalcUnitsSeeded = true;
   gcD.sel.value = measureUnit;
-  const heightUnit = ["ft", "mi", "nm"].includes(measureUnit) ? "ft" : "m";
-  gcH1.sel.value = gcH2.sel.value = heightUnit;
+  gcH1.sel.value = gcH2.sel.value = altitudeUnit;
   for (const f of [gcH1, gcH2, gcD]) f.sel.dataset.prev = f.sel.value;
 }
 

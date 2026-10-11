@@ -1533,12 +1533,17 @@ const propsSrcSelect = {
   mds: document.getElementById("props-src-mds")
 };
 const propsUnitSelect = document.getElementById("props-unit");
+const propsAltUnitSelect = document.getElementById("props-alt-unit");
+/* Las mismas unidades que la distancia, por construcción (como hace la
+   calculadora con sus selectores)                                  */
+propsAltUnitSelect.innerHTML = propsUnitSelect.innerHTML;
+const propsProfileMaxInput = document.getElementById("props-profile-max");
 const propsCoordFormatSelect = document.getElementById("props-coord-format");
 const gnpVertexMaxInput = document.getElementById("gnp-vertex-max");
 const propsArcSegmentsInput = document.getElementById("props-arc-segments");
 
 let propsDraftGnp = null; /* clon de gnpStore mientras el panel está abierto */
-let propsOriginal = null; /* {unit, coordFormat, vertexEditMax, arcSegments, elevSources} al abrir, para Cancelar */
+let propsOriginal = null; /* ajustes al abrir (unidades, formato, topes, fuentes…), para Cancelar */
 
 const PROPS_TABS = {
   prefs: [propsTabPrefsBtn, propsTabPrefs],
@@ -1637,13 +1642,32 @@ document.getElementById("gnp-editor-clear").addEventListener("click", () => {
   renderGnpEditor();
 });
 
+/* El límite del perfil se guarda en metros y se enseña en la unidad de
+   distancia elegida: al cambiarla, se repinta convertido.            */
+function renderPropsProfileMax() {
+  propsProfileMaxInput.value = Number((profileMaxM / POLY_UNIT_FACTOR[measureUnit]).toPrecision(6));
+  document.getElementById("props-profile-max-unit").textContent = POLY_UNIT_LABEL[measureUnit];
+}
 function renderPropsPrefsTab() {
   propsUnitSelect.value = measureUnit;
+  propsAltUnitSelect.value = altitudeUnit;
+  renderPropsProfileMax();
   propsCoordFormatSelect.value = coordFormat;
   gnpVertexMaxInput.value = vertexEditMax;
   propsArcSegmentsInput.value = arcSegments;
 }
-propsUnitSelect.addEventListener("change", () => setMeasureUnit(propsUnitSelect.value));
+propsUnitSelect.addEventListener("change", () => {
+  setMeasureUnit(propsUnitSelect.value);
+  renderPropsProfileMax();
+});
+propsAltUnitSelect.addEventListener("change", () => setAltitudeUnit(propsAltUnitSelect.value));
+/* Mismo criterio que el tope de vértices: un valor ilegible o fuera de
+   [PROFILE_MAX_MIN, PROFILE_MAX_MAX] se descarta y vuelve el vigente. */
+propsProfileMaxInput.addEventListener("change", () => {
+  const m = Number(propsProfileMaxInput.value) * POLY_UNIT_FACTOR[measureUnit];
+  if (Number.isFinite(m) && m >= PROFILE_MAX_MIN && m <= PROFILE_MAX_MAX) profileMaxM = m;
+  renderPropsProfileMax();
+});
 propsCoordFormatSelect.addEventListener("change", () => {
   coordFormat = propsCoordFormatSelect.value;
   renderMeasureValues();
@@ -1688,7 +1712,8 @@ async function togglePropsDialog() {
   if (!propsDialog.hidden) { cancelPropsDialog(); return; }
   if (!gnpStore) gnpStore = await dbLoadGnp();
   propsDraftGnp = { ...gnpStore };
-  propsOriginal = { unit: measureUnit, coordFormat, vertexEditMax, arcSegments, elevSources };
+  propsOriginal = { unit: measureUnit, altitudeUnit, profileMaxM, coordFormat, vertexEditMax,
+                    arcSegments, elevSources };
   renderGnpEditor();
   renderPropsPrefsTab();
   renderPropsSourcesTab();
@@ -1706,6 +1731,8 @@ function cancelPropsDialog() {
   if (!propsOriginal) return;
   /* Deshace la previsualización en vivo con el mismo camino que la aplicó. */
   if (propsOriginal.unit !== measureUnit) setMeasureUnit(propsOriginal.unit);
+  if (propsOriginal.altitudeUnit !== altitudeUnit) setAltitudeUnit(propsOriginal.altitudeUnit);
+  profileMaxM = propsOriginal.profileMaxM;
   if (propsOriginal.coordFormat !== coordFormat) {
     coordFormat = propsOriginal.coordFormat;
     renderMeasureValues();
@@ -1726,6 +1753,8 @@ document.getElementById("props-accept").addEventListener("click", () => {
   gnpStore = propsDraftGnp || {};
   dbSaveGnp(gnpStore);
   dbSaveMeasureUnit(measureUnit);
+  dbSaveAltitudeUnit(altitudeUnit);
+  dbSaveProfileMax(profileMaxM);
   dbSaveCoordFormat(coordFormat);
   dbSaveVertexEditMax(vertexEditMax);
   dbSaveArcSegments(arcSegments);

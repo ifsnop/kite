@@ -274,8 +274,23 @@ function gridCellBounds(grid, r, c) {
    consulta, porque no llegó a elegirse nada.                         */
 const ELEV_MAX_CANDIDATES = 8; /* DescribeCoverage como mucho, por fuente */
 
+/* Cuántas teselas base (2·ELEV_WINDOW = 40 m) mide la de una fuente:
+   las suficientes para que quepan unas dos celdas de su malla. 5 m → 1
+   (8×8 celdas), 25-31 m → 2, 200 m → 10. Sin celda conocida, 1.      */
+const elevTileFactor = cellMeters =>
+  Math.max(1, Math.ceil((cellMeters > 0 ? cellMeters : 0) / ELEV_WINDOW));
+
+/* La señal de UN intento: su propio tiempo máximo y, si la hay, la
+   cancelación de quien pide (el diálogo del perfil). Sin AbortSignal.any
+   (navegadores anteriores a 2024) manda solo el tiempo.              */
+function elevAttemptSignal(timeout, signal) {
+  const t = AbortSignal.timeout(timeout);
+  return signal && typeof AbortSignal.any === "function" ? AbortSignal.any([t, signal]) : t;
+}
+
 function makeElevationSource(source) {
   const { base, label, pickCoverage } = source;
+  const timeout = source.timeout || ELEV_TIMEOUT;
   let config = null, discovering = null;
 
   const url = (params, extra = []) => {
@@ -287,23 +302,26 @@ function makeElevationSource(source) {
   /* `binary`: se espera un GeoTIFF. Los servicios OGC explican el fallo
      en el CUERPO aunque devuelvan un 400 o un 404, y en XML: quedarse
      en el código HTTP, o leer ese XML como imagen, tira el dato que
-     sirve.                                                            */
-  async function request(params, signal, extra = [], binary = false) {
-    const r = await fetch(url(params, extra), { signal });
-    const xml = /xml|text\/plain/i.test(r.headers.get("content-type") || "");
-    if (binary && r.ok && !xml) return r.arrayBuffer();
-    const txt = await r.text();
-    const ex = parseOwsException(txt);
-    if (ex) throw Object.assign(new Error(ex.msg), { owsCode: ex.code });
-    if (!r.ok) throw new Error(describeHttp(r.status));
-    return txt;
+     sirve. Cada intento lleva su propio tiempo máximo (ver
+     withElevRetries: lo pasajero se reintenta, lo contestado no).     */
+  function request(params, { signal = null, extra = [], binary = false } = {}) {
+    return withElevRetries(async () => {
+      const r = await fetch(url(params, extra), { signal: elevAttemptSignal(timeout, signal) });
+      const xml = /xml|text\/plain/i.test(r.headers.get("content-type") || "");
+      if (binary && r.ok && !xml) return r.arrayBuffer();
+      const txt = await r.text();
+      const ex = parseOwsException(txt);
+      if (ex) throw Object.assign(new Error(ex.msg), { owsCode: ex.code });
+      if (!r.ok) throw Object.assign(new Error(describeHttp(r.status)), { status: r.status });
+      return txt;
+    }, { signal });
   }
 
-  async function fetchGrid(cfg, params, extra) {
+  async function fetchGrid(cfg, params, extra, signal) {
     const geotiff = cfg.format.kind === "geotiff";
     const body = await request({
       request: "GetCoverage", coverageId: cfg.coverageId, format: cfg.format.name, ...params
-    }, AbortSignal.timeout(ELEV_TIMEOUT), extra, geotiff);
+    }, { signal, extra, binary: geotiff });
     return geotiff ? readGeoTiffGrid(body) : parseAsciiGrid(body);
   }
 
@@ -311,8 +329,7 @@ function makeElevationSource(source) {
     if (config) return Promise.resolve(config);
     if (discovering) return discovering;
     discovering = (async () => {
-      const signal = AbortSignal.timeout(ELEV_TIMEOUT);
-      const caps = parseWcsCapabilities(await request({ request: "GetCapabilities" }, signal));
+      const caps = parseWcsCapabilities(await request({ request: "GetCapabilities" }));
       if (!caps) throw new Error(`${label}: el servicio no declara coberturas`);
       const candidates = pickCoverage(caps.coverages).slice(0, ELEV_MAX_CANDIDATES);
       if (!candidates.length) throw new Error(`${label}: sin cobertura utilizable`);
@@ -321,7 +338,7 @@ function makeElevationSource(source) {
       if (!format) throw new Error(`${label}: no ofrece rejilla ASCII ni GeoTIFF`);
       /* Todas las candidatas a la vez: es una espera, no varias */
       const described = await Promise.all(candidates.map(id =>
-        request({ request: "DescribeCoverage", coverageId: id }, signal)
+        request({ request: "DescribeCoverage", coverageId: id })
           .then(parseCoverageDescription, () => null)));
       const best = pickFinestCoverage(candidates.map((id, i) => ({ id, desc: described[i] })));
       if (!best) throw new Error(`${label}: no se pudo leer la descripción`);
@@ -333,6 +350,13 @@ function makeElevationSource(source) {
         ...best.desc
       };
       navMessage(describeElevChoice(source, config), { tone: "info" });
+      /* El conjunto de datos del catálogo, contra lo que el servicio dice
+         publicar (INSPIRE SpatialDataSetIdentifier). Si no lo declara se
+         sigue igual —la cobertura sí existe—, pero se avisa: el nombre
+         que llevan las capas podría no corresponder ya a lo descargado. */
+      if (caps.datasets.length && !caps.datasets.includes(source.dataset)) {
+        navMessage(`${label}: el servicio ya no declara el conjunto de datos ${source.dataset}.`);
+      }
       return config;
     })().catch(err => { discovering = null; throw err; });
     return discovering;
@@ -342,73 +366,97 @@ function makeElevationSource(source) {
      pueden convertir sus esquinas a latitud y longitud para dibujarla */
   const tag = (grid, crs) => (grid ? { ...grid, crs } : null);
 
+  /* Vía preferida: Web Mercator, el sistema del visor. `box` en metros
+     Web Mercator. Salir de la cobertura es respuesta legítima y un tiempo
+     agotado no dice nada de la vía: solo se abandona (`useWeb = false`)
+     si el servicio no entiende la petición. `undefined` = vía no
+     disponible, para que quien llama pruebe la siguiente.            */
+  async function fetchWebBox(cfg, { x0, y0, x1, y1 }, signal) {
+    if (!cfg.webCrs || cfg.useWeb === false) return undefined;
+    try {
+      return tag(await fetchGrid(cfg, { subsettingCrs: cfg.webCrs }, [
+        ["subset", `${cfg.axisX}(${x0.toFixed(2)},${x1.toFixed(2)})`],
+        ["subset", `${cfg.axisY}(${y0.toFixed(2)},${y1.toFixed(2)})`]
+      ], signal), "web");
+    } catch (err) {
+      if (isOutOfCoverage(err) || isRetryableElevError(err) || err.name === "AbortError") throw err;
+      cfg.useWeb = false;
+      return undefined;
+    }
+  }
+
+  /* Respaldo: latitud y longitud. Si la cobertura es geográfica sus ejes
+     ya tienen nombre (`latitude`/`longitude` en Digital Earth Africa);
+     si no, los del IGN para el subsettingCrs geográfico.              */
+  async function fetchGeoBox(cfg, { west, south, east, north }, signal) {
+    if (!cfg.geoCrs || cfg.useGeo === false) return undefined;
+    const ax = cfg.geographic ? cfg.axisX : "Long", ay = cfg.geographic ? cfg.axisY : "Lat";
+    try {
+      return tag(await fetchGrid(cfg, { subsettingCrs: cfg.geoCrs }, [
+        ["subset", `${ax}(${west.toFixed(7)},${east.toFixed(7)})`],
+        ["subset", `${ay}(${south.toFixed(7)},${north.toFixed(7)})`]
+      ], signal), "geo");
+    } catch (err) {
+      if (isOutOfCoverage(err) || isRetryableElevError(err) || err.name === "AbortError") throw err;
+      cfg.useGeo = false;
+      return undefined;
+    }
+  }
+
+  const outsideWgs84 = (cfg, lat, lon) => {
+    const w = cfg.wgs84;
+    return !!w && (lat < w.south || lat > w.north || lon < w.west || lon > w.east);
+  };
+
   async function fetchValue(lat, lon) {
     const cfg = await discover();
     /* La extensión se comprueba ANTES de pedir: una petición fuera de
        la cobertura está condenada a fallar.                          */
-    const w = cfg.wgs84;
-    if (w && (lat < w.south || lat > w.north || lon < w.west || lon > w.east)) return null;
+    if (outsideWgs84(cfg, lat, lon)) return null;
 
-    /* Vía preferida: Web Mercator, el sistema del visor. La ventana se
-       ajusta a la retícula fija (ELEV_TILE_WEB), no al punto: así dos
-       peticiones sobre la misma zona piden exactamente lo mismo.      */
-    if (cfg.webCrs && cfg.useWeb !== false) {
-      const p = toWebMercator(lat, lon);
-      const cx = snapTile(p.x, ELEV_TILE_WEB), cy = snapTile(p.y, ELEV_TILE_WEB);
-      const half = ELEV_TILE_WEB / 2;
-      try {
-        return tag(await fetchGrid(cfg, { subsettingCrs: cfg.webCrs }, [
-          ["subset", `${cfg.axisX}(${(cx - half).toFixed(2)},${(cx + half).toFixed(2)})`],
-          ["subset", `${cfg.axisY}(${(cy - half).toFixed(2)},${(cy + half).toFixed(2)})`]
-        ]), "web");
-      } catch (err) {
-        /* Salir de la cobertura es respuesta legítima; solo se abandona
-           esta vía si el servicio no entiende la petición            */
-        if (isOutOfCoverage(err) || err.name === "TimeoutError") throw err;
-        cfg.useWeb = false;
-      }
-    }
+    /* La ventana se ajusta a la retícula fija (ELEV_TILE_WEB/GEO), no al
+       punto: así dos peticiones sobre la misma zona piden exactamente
+       lo mismo. Una malla gruesa pide teselas MÚLTIPLO de la base
+       (elevTileFactor): sin eso, 40 m de ventana sobre celdas de 200 m
+       no llegan a un píxel y el IGN responde «out of memory» (medido
+       con MDT200). Con el mismo origen, la tesela gruesa contiene a la
+       fina del mismo punto, así que las dos mallas se solapan.        */
+    const k = elevTileFactor(cfg.cellMeters);
+    const tileWeb = ELEV_TILE_WEB * k;
+    const p = toWebMercator(lat, lon);
+    const cx = snapTile(p.x, tileWeb), cy = snapTile(p.y, tileWeb);
+    const half = tileWeb / 2;
+    const web = await fetchWebBox(cfg, { x0: cx - half, y0: cy - half, x1: cx + half, y1: cy + half });
+    if (web !== undefined) return web;
 
-    /* Respaldo: latitud y longitud, también ajustado a la retícula fija
-       (ELEV_TILE_GEO). Si la cobertura es geográfica sus ejes ya tienen
-       nombre (`latitude`/`longitude` en Digital Earth Africa); si no,
-       los del IGN para el subsettingCrs geográfico.                   */
-    if (cfg.geoCrs && cfg.useGeo !== false) {
-      const tlon = snapTile(lon, ELEV_TILE_GEO.lon), tlat = snapTile(lat, ELEV_TILE_GEO.lat);
-      const halfLon = ELEV_TILE_GEO.lon / 2, halfLat = ELEV_TILE_GEO.lat / 2;
-      const ax = cfg.geographic ? cfg.axisX : "Long", ay = cfg.geographic ? cfg.axisY : "Lat";
-      try {
-        return tag(await fetchGrid(cfg, { subsettingCrs: cfg.geoCrs }, [
-          ["subset", `${ax}(${(tlon - halfLon).toFixed(7)},${(tlon + halfLon).toFixed(7)})`],
-          ["subset", `${ay}(${(tlat - halfLat).toFixed(7)},${(tlat + halfLat).toFixed(7)})`]
-        ]), "geo");
-      } catch (err) {
-        if (isOutOfCoverage(err) || err.name === "TimeoutError") throw err;
-        cfg.useGeo = false;
-      }
-    }
+    const tileLon = ELEV_TILE_GEO.lon * k, tileLat = ELEV_TILE_GEO.lat * k;
+    const tlon = snapTile(lon, tileLon), tlat = snapTile(lat, tileLat);
+    const halfLon = tileLon / 2, halfLat = tileLat / 2;
+    const geo = await fetchGeoBox(cfg,
+      { west: tlon - halfLon, south: tlat - halfLat, east: tlon + halfLon, north: tlat + halfLat });
+    if (geo !== undefined) return geo;
 
     /* Respaldo: coordenadas nativas de la cobertura */
-    const p = cfg.geographic
-      ? { x: lon, y: lat, half: ELEV_WINDOW / 111320 }
+    const n = cfg.geographic
+      ? { x: lon, y: lat, half: k * ELEV_WINDOW / 111320 }
       : (() => {
           const u = latLngToUtm(lat, lon, cfg.zone);
-          return u ? { x: u.easting, y: u.northing, half: ELEV_WINDOW } : null;
+          return u ? { x: u.easting, y: u.northing, half: k * ELEV_WINDOW } : null;
         })();
-    if (!p) return null;
+    if (!n) return null;
     /* El rechazo por extensión mira el punto CRUDO: si se mirara el
        ajustado a tesela, un punto cerca del borde de cobertura podría
        rechazarse por error aunque el punto real sí esté dentro.       */
-    if (p.x < cfg.minX || p.x > cfg.maxX || p.y < cfg.minY || p.y > cfg.maxY) return null;
+    if (n.x < cfg.minX || n.x > cfg.maxX || n.y < cfg.minY || n.y > cfg.maxY) return null;
 
     /* Esta rejilla no llega a dibujarse (gridToLatLng no sabe situar el
        CRS nativo), pero se ajusta a la misma retícula por consistencia
        con las otras dos vías y para no romper su caché por cobertura. */
-    const tileSize = p.half * 2;
-    const tx = snapTile(p.x, tileSize), ty = snapTile(p.y, tileSize);
+    const tileSize = n.half * 2;
+    const tx = snapTile(n.x, tileSize), ty = snapTile(n.y, tileSize);
     return tag(await fetchGrid(cfg, {}, [
-      ["subset", `${cfg.axisX}(${(tx - p.half).toFixed(1)},${(tx + p.half).toFixed(1)})`],
-      ["subset", `${cfg.axisY}(${(ty - p.half).toFixed(1)},${(ty + p.half).toFixed(1)})`]
+      ["subset", `${cfg.axisX}(${(tx - n.half).toFixed(1)},${(tx + n.half).toFixed(1)})`],
+      ["subset", `${cfg.axisY}(${(ty - n.half).toFixed(1)},${(ty + n.half).toFixed(1)})`]
     ]), cfg.geographic ? "geo" : "native");
   }
 
@@ -425,8 +473,18 @@ function makeElevationSource(source) {
     return u ? `${u.zone}/${Math.round(u.easting / ELEV_CELL)}/${Math.round(u.northing / ELEV_CELL)}` : null;
   };
 
+  /* Un fallo que ha agotado sus intentos, en palabras del usuario */
+  const failText = err => {
+    const why = err.name === "TimeoutError" ? "el servicio no responde"
+      : err.name === "TypeError"
+        ? "el servicio no admite consultas desde el navegador (CORS) o no está disponible"
+        : err.message;
+    return err.attempts > 1 ? `${why} (tras ${err.attempts} intentos)` : why;
+  };
+
   return {
     source,
+    discover,
     /* `undefined` = no se pudo consultar; `null` = sin dato ahí */
     async value(lat, lon) {
       for (let i = grids.length - 1; i >= 0; i--) {
@@ -452,12 +510,33 @@ function makeElevationSource(source) {
           if (ek) emptyAt.add(ek);
           return null;
         }
-        const why = err.name === "TimeoutError" ? "el servicio no responde"
-          : err.message === "Failed to fetch"
-            ? "el servicio no admite consultas desde el navegador (CORS)"
-            : err.message;
-        demError(source.id, `${label}: ${why}`);
+        demError(source.id, `${label}: ${failText(err)}`);
         return undefined;
+      }
+    },
+    /* Una zona entera (perfil de una ruta): caja en lat/lng, pedida tal
+       cual —sin retícula— por Web Mercator o, si no, en geográficas. No
+       pasa por la caché: son rejillas grandes que solo sirven a ese
+       perfil. Mismos tres estados que `value`, y un fallo se devuelve en
+       `error` en vez de avisar: el perfil lo cuenta él al terminar.    */
+    async area({ south, west, north, east }, signal) {
+      const cfg = await discover();
+      const w = cfg.wgs84;
+      if (w && (north < w.south || south > w.north || east < w.west || west > w.east)) return { grid: null };
+      await demRateWait(signal);
+      try {
+        const a = toWebMercator(south, west), b = toWebMercator(north, east);
+        const web = await fetchWebBox(cfg, {
+          x0: Math.min(a.x, b.x), y0: Math.min(a.y, b.y), x1: Math.max(a.x, b.x), y1: Math.max(a.y, b.y)
+        }, signal);
+        if (web !== undefined) return { grid: web };
+        const geo = await fetchGeoBox(cfg, { west, south, east, north }, signal);
+        if (geo !== undefined) return { grid: geo };
+        return { grid: undefined, error: `${label}: el servicio no admite recortes en Web Mercator ni en geográficas` };
+      } catch (err) {
+        if (isOutOfCoverage(err)) return { grid: null };
+        if (signal && signal.aborted) throw err;
+        return { grid: undefined, error: `${label}: ${failText(err)}` };
       }
     }
   };
@@ -481,8 +560,13 @@ function parseWcsCapabilities(xmlText) {
     if (lo.length < 2 || hi.length < 2 || ![...lo, ...hi].every(Number.isFinite)) continue;
     bboxes[id] = { west: lo[0], south: lo[1], east: hi[0], north: hi[1] };
   }
+  /* Conjuntos de datos que el servicio dice publicar (extensión INSPIRE:
+     el IGN declara MDT05, MDT25… o MDS; Digital Earth Africa, ninguno).
+     No dicen qué cobertura es cuál: eso lo decide `pickCoverage`.    */
+  const datasets = elsByTag(doc, "SpatialDataSetIdentifier")
+    .map(el => (text(el, "Code") || "").trim()).filter(Boolean);
   return {
-    coverages, bboxes,
+    coverages, bboxes, datasets,
     formats: elsByTag(doc, "formatSupported").map(el => el.textContent.trim()).filter(Boolean),
     crs: elsByTag(doc, "crsSupported").map(el => el.textContent.trim()).filter(Boolean)
   };
@@ -517,28 +601,24 @@ function describeElevChoice(source, cfg) {
   const cell = cfg.cellMeters > 0
     ? `celda ≈ ${cfg.cellMeters < 10 ? cfg.cellMeters.toFixed(1) : Math.round(cfg.cellMeters)} m`
     : "tamaño de celda no declarado";
-  return `${ELEV_KIND_LABEL[source.kind]} · ${source.label}: cobertura ${cfg.coverageId}, `
+  return `${ELEV_KIND_LABEL[source.kind]} · ${source.label}: conjunto ${source.dataset}, cobertura ${cfg.coverageId}, `
     + `formato ${fmt}, ${cell}.`;
 }
 
 /* El MDT del IGN se publica en varias mallas y sistemas:
-   `Elevacion<EPSG>_<paso>`. El paso del nombre basta para quedarse con
-   las de malla más fina —todas las que lo empatan— y no pedir la
-   descripción de las diecisiete; entre esas decide pickFinestCoverage
-   con lo que digan sus descripciones. Lo que no siga el patrón se
-   ofrece tal cual, en su orden.                                     */
-function pickMdtCoverage(ids) {
-  const parsed = ids
-    .map(id => ({ id, m: /^Elevacion(\d+)_(\d+)$/i.exec(id) }))
-    .filter(x => x.m)
-    .map(x => ({ id: x.id, epsg: Number(x.m[1]), step: Number(x.m[2]) }));
-  if (!parsed.length) return ids.slice();
-  const finest = Math.min(...parsed.map(x => x.step));
+   `Elevacion<EPSG>_<paso>` (5, 25, 200, 500 y 1000 m; EPSG 4258, 4326,
+   25830 o 4083). Cada conjunto de datos del catálogo (MDT05, MDT25,
+   MDT200) es UNA malla: se queda con las coberturas de su paso, las
+   geográficas primero, y entre esas decide pickFinestCoverage con lo
+   que digan sus descripciones (dentro de una misma malla, el sistema). */
+const mdtCoverages = step => ids => {
   const geo = new Set([4326, 4258]);
-  return parsed.filter(x => x.step === finest)
-    .sort((a, b) => (geo.has(b.epsg) ? 1 : 0) - (geo.has(a.epsg) ? 1 : 0))
+  return ids
+    .map(id => ({ id, m: /^Elevacion(\d+)_(\d+)$/i.exec(id) }))
+    .filter(x => x.m && Number(x.m[2]) === step)
+    .sort((a, b) => (geo.has(Number(b.m[1])) ? 1 : 0) - (geo.has(Number(a.m[1])) ? 1 : 0))
     .map(x => x.id);
-}
+};
 
 /* El MDS del IGN publica además coberturas "normalizadas" (mdsn_*), que
    dan la altura sobre el suelo y no la altitud: no sirven para comparar. */
@@ -561,26 +641,43 @@ const pickDeaDemCoverage = ids => ids.filter(id => id === "dem_cop_30");
    lista). Añadir una fuente es añadir una entrada: `pickCoverage`
    filtra qué coberturas del servicio son candidatas, y del resto
    —formato, sistema, ejes, celda— se encarga el descubrimiento.     */
+const IGN_MDT_BASE = "https://servicios.idee.es/wcs-inspire/mdt";
+const IGN_MDT_ATTRIB = dataset => `${dataset} PNOA © <a href="https://www.ign.es">IGN</a> (CC BY 4.0)`;
+/* `dataset` es el código con que el servicio publica el conjunto
+   (INSPIRE SpatialDataSetIdentifier, comprobado en su GetCapabilities:
+   MDT05, MDT25, MDT200… y MDS en el IGN); Digital Earth Africa no
+   declara ninguno y se usa el nombre del producto. Con el proveedor,
+   da nombre a las capas descargadas (elevNodeName). `timeout`, si lo
+   hay, sustituye a ELEV_TIMEOUT por intento: Digital Earth Africa tarda
+   17-33 s en la primera petición a una zona (medido, octubre de 2026). */
 const ELEV_SOURCES = [
   {
-    id: "ign-mdt", kind: "mdt", label: "IGN — MDT05 (España)",
-    base: "https://servicios.idee.es/wcs-inspire/mdt", pickCoverage: pickMdtCoverage,
-    attrib: 'MDT05 PNOA © <a href="https://www.ign.es">IGN</a> (CC BY 4.0)'
+    id: "ign-mdt05", kind: "mdt", label: "IGN — MDT05 (España, 5 m)", dataset: "MDT05", provider: "IGN",
+    base: IGN_MDT_BASE, pickCoverage: mdtCoverages(5), attrib: IGN_MDT_ATTRIB("MDT05")
   },
   {
-    id: "ign-mds", kind: "mds", label: "IGN — MDS05 (España)",
+    id: "ign-mdt25", kind: "mdt", label: "IGN — MDT25 (España, 25 m)", dataset: "MDT25", provider: "IGN",
+    base: IGN_MDT_BASE, pickCoverage: mdtCoverages(25), attrib: IGN_MDT_ATTRIB("MDT25")
+  },
+  {
+    id: "ign-mdt200", kind: "mdt", label: "IGN — MDT200 (España, 200 m)", dataset: "MDT200", provider: "IGN",
+    base: IGN_MDT_BASE, pickCoverage: mdtCoverages(200), attrib: IGN_MDT_ATTRIB("MDT200")
+  },
+  {
+    id: "ign-mds", kind: "mds", label: "IGN — MDS (España, 5 m)", dataset: "MDS", provider: "IGN",
     base: "https://wcs-mds.idee.es/mds", pickCoverage: pickMdsCoverage,
     attrib: 'MDS PNOA © <a href="https://www.ign.es">IGN</a> (CC BY 4.0)'
   },
   {
     id: "dea-cop30", kind: "mds",
-    label: "Digital Earth Africa — Copernicus DEM 30 m (África y Canarias)",
+    label: "Digital Earth Africa — Copernicus DEM 30 m (África, Canarias y sur peninsular)",
+    dataset: "COP-DEM GLO-30", provider: "Digital Earth Africa", timeout: 40000,
     base: "https://ows.digitalearth.africa/wcs", pickCoverage: pickDeaDemCoverage,
     attrib: 'Copernicus DEM © DLR e.V. 2010-2014 y © Airbus Defence and Space GmbH 2014-2018 '
       + '(Copernicus, UE/ESA), vía <a href="https://www.digitalearthafrica.org">Digital Earth Africa</a>'
   }
 ];
-const ELEV_SOURCE_DEFAULT = { mdt: "ign-mdt", mds: "ign-mds" };
+const ELEV_SOURCE_DEFAULT = { mdt: "ign-mdt05", mds: "ign-mds" };
 /* Lo elegido ahora: id del catálogo, o null = «Ninguna» (no se pide) */
 let elevSources = { ...ELEV_SOURCE_DEFAULT };
 
@@ -608,6 +705,23 @@ function sourceClient(id) {
   if (!elevClients.has(id)) elevClients.set(id, makeElevationSource(elevSourceById(id)));
   return elevClients.get(id);
 }
+
+/* Sufijo del nombre de una capa: de qué conjunto de datos y de qué
+   proveedor sale cada modelo, «MDT25 + MDS (IGN)» o, con proveedores
+   distintos, «MDT05 (IGN) + COP-DEM GLO-30 (Digital Earth Africa)».
+   Pura: recibe las fuentes ya resueltas (null = no consultado).      */
+function elevSourcesLabel(sources) {
+  const used = sources.filter(Boolean);
+  if (!used.length) return "";
+  const providers = [...new Set(used.map(s => s.provider))];
+  return providers.length === 1
+    ? `${used.map(s => s.dataset).join(" + ")} (${providers[0]})`
+    : used.map(s => `${s.dataset} (${s.provider})`).join(" + ");
+}
+const elevNodeName = (base, sources) => {
+  const label = elevSourcesLabel(sources);
+  return label ? `${base} — ${label}` : base;
+};
 
 /* ---------- Cuadrícula de elevaciones ----------
    Se dibuja lo que ha devuelto el servicio, celda por celda y en su
@@ -679,10 +793,11 @@ function gridToLatLng(grid, x, y) {
 const hasMdt = cell => "mdt" in cell;
 const hasMds = cell => "mds" in cell;
 
-/* En la unidad global de Propiedades (measureUnit), como las distancias */
-const fmtCell = v => v === null || v === undefined ? "—" : fmtHeightValue(v, measureUnit);
+/* En la unidad de altitud de Propiedades (altitudeUnit), que es
+   independiente de la de distancias                                  */
+const fmtCell = v => v === null || v === undefined ? "—" : fmtHeightValue(v, altitudeUnit);
 const fmtDiff = d => d === null || d === undefined ? "—"
-  : (d >= 0 ? "+" : "") + fmtHeightValue(d, measureUnit);
+  : (d >= 0 ? "+" : "") + fmtHeightValue(d, altitudeUnit);
 
 /* Contenido de una celda según la banda de zoom (ver elevZoomBand):
    sin texto por debajo del 19, una sola línea en el 19, todas a partir
@@ -719,8 +834,8 @@ function cellIcon(html, font) {
 }
 
 /* Recalcula el aspecto de todas las celdas (relleno + texto): al cambiar
-   el zoom (banda de contenido, tamaño de letra) y la unidad de medida
-   (setMeasureUnit, Propiedades). La geometría de la cuadrícula no
+   el zoom (banda de contenido, tamaño de letra) y la unidad de altitud
+   (setAltitudeUnit, Propiedades). La geometría de la cuadrícula no
    depende de ninguno de los dos, y volver a pedir datos sería absurdo:
    todo se recalcula a partir de `l._cell`, los valores crudos que ya
    guarda cada capa.                                                  */
@@ -729,26 +844,63 @@ function refreshElevCells() {
   const band = elevZoomBand(zoom);
   const font = gridFontSize(zoom);
   for (const g of elevGridGroups) {
-    g.eachLayer(l => {
-      if (!l._cell) return;
-      if (l instanceof L.Rectangle) { renderElevRect(l, l._cell, zoom); return; }
-      l.setOpacity(band === "mini" ? 0 : 1);
-      if (band !== "mini") l.setIcon(cellIcon(elevCellHtml(l._cell, band), font));
-    });
+    for (const rect of g._rects) {
+      renderElevRect(rect, rect._cell, zoom);
+      if (rect._label) rect._label.setIcon(cellIcon(elevCellHtml(rect._cell, band), font));
+    }
   }
 }
+
+/* Las cifras son marcadores DOM, y Leaflet recoloca CADA UNO en cada
+   zoom aunque esté fuera de la vista: con el perfil de 10 NM a 5 m
+   (4335 celdas) eso costaba 110-130 ms por paso de zoom, frente a unos
+   50 ms solo con los rectángulos y 17-37 ms sin la capa (medido en
+   Chromium headless). Así que solo existen las de las celdas A LA VISTA
+   (con margen) y a partir del zoom 19, que es cuando se escribe algo;
+   se crean y retiran al moverse. Una capa oculta no lleva ninguna.
+   Con esto, el mismo perfil: 43-67 ms por paso de zoom (lo de los
+   rectángulos) y 36 ms al pasar al zoom 20, antes 216-233 ms.        */
+const ELEV_LABEL_PAD = 0.25; /* margen alrededor de la vista, en fracción */
+function syncElevLabels() {
+  const zoom = map.getZoom();
+  const band = elevZoomBand(zoom);
+  const font = gridFontSize(zoom);
+  const view = band === "mini" ? null : map.getBounds().pad(ELEV_LABEL_PAD);
+  for (const g of elevGridGroups) {
+    const shown = view && rootGroup.hasLayer(g) && view.intersects(g.getBounds());
+    for (const rect of g._rects) {
+      const want = shown && view.contains(rect._cell.center);
+      if (want && !rect._label) {
+        rect._label = L.marker(rect._cell.center, { interactive: false });
+        rect._label._cell = rect._cell;
+        rect._label.setIcon(cellIcon(elevCellHtml(rect._cell, band), font));
+        g.addLayer(rect._label);
+      } else if (!want && rect._label) {
+        g.removeLayer(rect._label);
+        rect._label = null;
+      }
+    }
+  }
+}
+map.on("moveend", syncElevLabels);
 map.on("zoomend", refreshElevCells);
 
 /* Cálculo puro: convierte un par de rejillas (MDT/MDS) en registros de
    celda autocontenidos (esquinas en lat/lng + valores), sin construir
-   nada de Leaflet. `terrain` manda en la geometría; de `surface` se toma
-   el valor de la celda que coincide, que puede no existir si las mallas
-   difieren (5x4 frente a 4x4, o 5 m frente a 30 m; donde el MDS no
-   llega NO se inventa ni se interpola). `kinds` dice qué modelos se
-   consultaron: el que no, no aporta clave a la celda (ver hasMdt).   */
+   nada de Leaflet. La malla MÁS FINA manda en la geometría (a igualdad,
+   el terreno); de la otra se toma el valor de la celda que contiene el
+   centro de cada una, que puede no existir (donde no llega NO se
+   inventa ni se interpola). Con MDT25 o MDT200 y el MDS de 5 m, las
+   celdas son las de 5 m y cada una lleva el MDT de la celda gruesa que
+   la contiene: si mandara la gruesa, su centro caería casi siempre
+   fuera de la tesela del MDS y la superficie saldría vacía. `kinds`
+   dice qué modelos se consultaron: el que no, no aporta clave a la
+   celda (ver hasMdt).                                                */
 function buildElevCells(terrain, surface, kinds = { mdt: true, mds: true }) {
-  const grid = terrain || surface;
-  if (!grid || !grid.located || !gridToLatLng(grid, grid.xll, grid.yll)) return null;
+  const usable = g => (g && g.located ? g : null);
+  const t = usable(terrain), s = usable(surface);
+  const grid = t && s && s.crs === t.crs && s.cellX * s.cellY < t.cellX * t.cellY * 0.99 ? s : (t || s);
+  if (!grid || !gridToLatLng(grid, grid.xll, grid.yll)) return null;
 
   /* Las dos mallas pueden no empezar en el mismo punto, así que el valor
      de la otra se busca por POSICIÓN, no por índice de celda.        */
@@ -781,42 +933,36 @@ function buildElevCells(terrain, surface, kinds = { mdt: true, mds: true }) {
   return { grid, role: terrain === grid ? "terrain" : "surface", cells };
 }
 
-/* Construye las capas Leaflet (rectángulo + etiqueta) de UNA celda.
-   Compartido entre una consulta nueva y la reconstrucción de una capa
-   guardada (buildElevGridGroup), para que ambas se vean idénticas.   */
-function makeElevCellLayers(cell, zoom) {
-  const band = elevZoomBand(zoom);
-  const font = gridFontSize(zoom);
-
+/* El rectángulo de UNA celda; su cifra la pone syncElevLabels solo si
+   está a la vista. Compartido entre una consulta nueva y la
+   reconstrucción de una capa guardada (buildElevGridGroup), para que
+   ambas se vean idénticas.                                          */
+function makeElevCellRect(cell, zoom) {
   const rect = L.rectangle([cell.sw, cell.ne], {
     color: "#1b5e97", weight: 1, opacity: 0.8,
     fillColor: "#ffffff", fillOpacity: GRID_FILL_OPACITY,
     interactive: false
   });
   rect._cell = cell;
+  rect._label = null;
   renderElevRect(rect, cell, zoom);
-
-  /* La etiqueta va como marcador sin icono, anclado al centro de la
-     celda: así la escribe el navegador y no hay que escalar texto */
-  const label = L.marker(cell.center, { interactive: false });
-  label._cell = cell;
-  label.setIcon(cellIcon(elevCellHtml(cell, band), font));
-  label.setOpacity(band === "mini" ? 0 : 1); /* sin texto por debajo del zoom 19 */
-  return [rect, label];
+  return rect;
 }
 
-/* Construye una capa completa (rectángulos + etiquetas) a partir de
-   registros de celda ya calculados: se usa tanto al terminar una
-   consulta como al restaurar una capa guardada desde IndexedDB.
+/* Construye una capa completa a partir de registros de celda ya
+   calculados: se usa tanto al terminar una consulta como al restaurar
+   una capa guardada desde IndexedDB. `_rects` guarda los rectángulos
+   (las cifras entran y salen del grupo, ver syncElevLabels). Al entrar
+   en el mapa (casilla marcada) pone las cifras de lo que se vea.
    Debe ser un L.featureGroup, no un L.layerGroup: subtreeBounds (usado
-   por "Autoescalar" y el doble click) necesita getBounds(), que
-   L.LayerGroup no tiene en Leaflet 1.9.4.                             */
+   por "Autoescalar", la lupa y el doble click) necesita getBounds(),
+   que L.LayerGroup no tiene en Leaflet 1.9.4.                         */
 function buildElevGridGroup(cells) {
   const group = L.featureGroup();
   const zoom = map.getZoom();
-  for (const cell of cells) {
-    for (const layer of makeElevCellLayers(cell, zoom)) group.addLayer(layer);
-  }
+  group._rects = cells.map(cell => makeElevCellRect(cell, zoom));
+  for (const rect of group._rects) group.addLayer(rect);
+  group.on("add", syncElevLabels);
   return group;
 }
 
@@ -898,6 +1044,20 @@ const ALT_ROTATED_WHY = "La consulta de elevación no está disponible con el ma
   + "pulsa R o la brújula para poner el norte arriba.";
 const ELEV_NO_SOURCES_WHY = "Sin fuentes de elevación: elígelas en Propiedades → Fuentes de datos.";
 
+/* La atribución de cada fuente que ha respondido, una vez por sesión
+   (CC BY 4.0 y la licencia de Copernicus lo exigen)                   */
+function addElevAttribution(id) {
+  if (elevAttribDone.has(id)) return;
+  elevAttribDone.add(id);
+  map.attributionControl.addAttribution(elevSourceById(id).attrib);
+}
+
+/* Sin aviso de «consultando» en el registro (el usuario lo pidió así),
+   la única señal de que hay una consulta en marcha es el cursor de
+   espera sobre el mapa: una primera petición puede tardar medio minuto
+   con sus reintentos.                                                */
+const syncElevBusy = () => map.getContainer().classList.toggle("elev-busy", elevInFlight.size > 0);
+
 /* Motivo por el que la entrada del menú está deshabilitada, o false */
 function elevQueryDisabled() {
   if (isMapRotated()) return ALT_ROTATED_WHY;
@@ -925,10 +1085,13 @@ async function ensureElevSessionFolder() {
 
 /* Una capa normal del árbol: persistente, con casilla, borrable */
 function makeElevGridNode(name, cells) {
-  const group = buildElevGridGroup(cells).addTo(rootGroup);
+  /* En la lista ANTES de entrar en el mapa: al entrar pone sus cifras
+     (syncElevLabels), y solo recorre las capas de la lista.          */
+  const group = buildElevGridGroup(cells);
   elevGridGroups.push(group);
+  group.addTo(rootGroup);
   const li = makeNode({
-    name, layer: group, styleable: false,
+    name, layer: group, styleable: false, focusable: true,
     onDelete: () => {
       const i = elevGridGroups.indexOf(group);
       if (i >= 0) elevGridGroups.splice(i, 1);
@@ -952,17 +1115,13 @@ async function queryElevationAt(latlng) {
   }
   if (elevInFlight.has(key)) return;
   elevInFlight.add(key);
+  syncElevBusy();
   try {
-    navMessage("Consultando elevación…", { tone: "info" });
     const ask = id => (id ? sourceClient(id).value(latlng.lat, latlng.lng) : Promise.resolve(null));
     const [terrain, surface] = await Promise.all([ask(ids.mdt), ask(ids.mds)]);
 
-    /* La atribución de cada fuente que ha respondido, una vez por sesión
-       (CC BY 4.0 y la licencia de Copernicus lo exigen)               */
     for (const [id, got] of [[ids.mdt, terrain], [ids.mds, surface]]) {
-      if (!id || got === undefined || elevAttribDone.has(id)) continue;
-      elevAttribDone.add(id);
-      map.attributionControl.addAttribution(elevSourceById(id).attrib);
+      if (id && got !== undefined) addElevAttribution(id);
     }
 
     const built = buildElevCells(terrain || null, surface || null, { mdt: !!ids.mdt, mds: !!ids.mds });
@@ -980,14 +1139,16 @@ async function queryElevationAt(latlng) {
 
     pushUndo("consultar elevación");
     const folder = await ensureElevSessionFolder();
-    const li = makeElevGridNode(nextNumberedName("Elevación"), built.cells);
+    const name = elevNodeName(nextNumberedName("Elevación"),
+      [elevSourceById(ids.mdt), elevSourceById(ids.mds)]);
+    const li = makeElevGridNode(name, built.cells);
     nodeUl(folder).appendChild(li);
     refreshAncestorChecks(li);
     scheduleSave();
     elevSessionKeys.set(key, li);
-    navMessage(`Elevación: «${li._name}» añadida a «${folder._name}».`, { tone: "info" });
   } finally {
     elevInFlight.delete(key);
+    syncElevBusy();
   }
 }
 

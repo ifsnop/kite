@@ -490,12 +490,14 @@ function fitBoundsFramed(bounds) {
    los dos hay escalera de zoom de tres pelda\u00F1os. Una medici\u00F3n en
    particular puede ser mucho m\u00E1s larga que ancha (una ruta de varios
    tramos), y un zoom fijo la dejar\u00EDa cortada por los lados o perdida
-   en medio de un encuadre demasiado abierto seg\u00FAn su tama\u00F1o real.   */
+   en medio de un encuadre demasiado abierto seg\u00FAn su tama\u00F1o real.
+   Una cuadr\u00EDcula de elevaci\u00F3n tampoco: mide decenas de metros (o
+   kil\u00F3metros, la de un perfil) y al zoom fijo ni se ver\u00EDa.        */
 function focusOnNode(li) {
   const b = subtreeBounds(li);
   if (!b.isValid()) { navMessage("Esta capa no tiene geometr\u00EDa que enfocar."); return; }
   const kind = styleKind(li);
-  if (kind === "polygon" || kind === "measure") fitBoundsFramed(b);
+  if (kind === "polygon" || kind === "measure" || kind === "elevGrid") fitBoundsFramed(b);
   else map.setView(b.getCenter(), FOCUS_ZOOM);
 }
 

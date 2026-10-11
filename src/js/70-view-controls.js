@@ -386,7 +386,7 @@ const CoordsControl = L.Control.extend({
      modelo que la produce y solo aparece si ese modelo se consultó; la
      diferencia, solo cuando los DOS valores son números de verdad.   */
   showElevationCell(cell) {
-    const fmt = v => (v === null || v === undefined ? "sin datos" : fmtHeight(v, measureUnit));
+    const fmt = v => (v === null || v === undefined ? "sin datos" : fmtHeight(v, altitudeUnit));
     const t = !!cell && hasMdt(cell), s = !!cell && hasMds(cell);
     this._rows[4].hidden = !t;
     this._rows[5].hidden = !s;
@@ -394,7 +394,7 @@ const CoordsControl = L.Control.extend({
     if (s) {
       let line = `${ELEV_KIND_LABEL.mds}: ${fmt(cell.mds)}`;
       if (typeof cell.diff === "number") {
-        line += ` \u00B7 sobre el suelo ${cell.diff >= 0 ? "+" : ""}${fmtHeight(cell.diff, measureUnit)}`;
+        line += ` \u00B7 sobre el suelo ${cell.diff >= 0 ? "+" : ""}${fmtHeight(cell.diff, altitudeUnit)}`;
       }
       this._rows[5].textContent = line;
     }
@@ -869,6 +869,12 @@ function layerCtxItems(li) {
   const items = [{ label: "Ir al nodo en el panel", action: () => goToNodeAndBlink(li) }];
   if (infoHtmlFor(li) != null) items.push({ label: "Mostrar atributos", action: () => showLayerInfoAndBlink(li) });
   if (STYLE_EDITABLE_KINDS.has(styleKind(li))) items.push({ label: "Editar propiedades", action: () => editPropertiesAndBlink(li) });
+  /* Una ruta (también un arco, que es una ruta) da su perfil; el motivo
+     de no poder va en el ítem deshabilitado (sin MDS, demasiado larga) */
+  if (li._measure && li._measure.type === "route") {
+    items.push({ label: "Obtener perfil", action: () => obtainRouteProfile(li),
+                 disabled: () => routeProfileDisabled(li) });
+  }
   return items;
 }
 

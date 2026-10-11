@@ -583,6 +583,61 @@ async function dbLoadMeasureUnit() {
   });
 }
 
+/* Unidad de las ALTITUDES (celdas de elevación, cuadro de coordenadas,
+   perfil de una ruta), independiente de la de distancias: en
+   aeronáutica se mide en millas náuticas y se sube en pies. Mismas
+   cinco unidades que la de distancia.                                 */
+const ALTITUDE_UNIT_KEY = "altitudeUnit";
+const ALTITUDE_UNIT_SCHEMA = 1;
+const validAltitudeUnit = r =>
+  (r && r.v === ALTITUDE_UNIT_SCHEMA && MEASURE_UNITS.includes(r.unit) ? r.unit : null);
+async function dbSaveAltitudeUnit(unit) {
+  const db = await openDb();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(DB_TREE, "readwrite");
+    tx.objectStore(DB_TREE).put({ v: ALTITUDE_UNIT_SCHEMA, unit }, ALTITUDE_UNIT_KEY);
+    tx.oncomplete = resolve;
+    tx.onerror = () => reject(tx.error);
+  });
+}
+async function dbLoadAltitudeUnit() {
+  const db = await openDb();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(DB_TREE, "readonly");
+    const rq = tx.objectStore(DB_TREE).get(ALTITUDE_UNIT_KEY);
+    rq.onsuccess = () => resolve(validAltitudeUnit(rq.result));
+    rq.onerror = () => reject(rq.error);
+  });
+}
+
+/* Longitud máxima de una ruta para obtener su perfil, en METROS (se
+   enseña en la unidad de distancia). Acota lo que un perfil descarga y,
+   sobre todo, lo que deja guardado en el árbol: una celda por cada una
+   recorrida. Fuera de [PROFILE_MAX_MIN, PROFILE_MAX_MAX] se descarta. */
+const PROFILE_MAX_KEY = "profileMax";
+const PROFILE_MAX_SCHEMA = 1;
+const validProfileMax = r =>
+  (r && r.v === PROFILE_MAX_SCHEMA && Number.isFinite(r.m)
+    && r.m >= PROFILE_MAX_MIN && r.m <= PROFILE_MAX_MAX ? r.m : null);
+async function dbSaveProfileMax(m) {
+  const db = await openDb();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(DB_TREE, "readwrite");
+    tx.objectStore(DB_TREE).put({ v: PROFILE_MAX_SCHEMA, m }, PROFILE_MAX_KEY);
+    tx.oncomplete = resolve;
+    tx.onerror = () => reject(tx.error);
+  });
+}
+async function dbLoadProfileMax() {
+  const db = await openDb();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(DB_TREE, "readonly");
+    const rq = tx.objectStore(DB_TREE).get(PROFILE_MAX_KEY);
+    rq.onsuccess = () => resolve(validProfileMax(rq.result));
+    rq.onerror = () => reject(rq.error);
+  });
+}
+
 const COORD_FORMAT_KEY = "coordFormat";
 const COORD_FORMAT_SCHEMA = 1;
 async function dbSaveCoordFormat(fmt) {
@@ -1290,7 +1345,7 @@ async function materializeRecords(records, parentUl) {
       updateMeasurement(rec._m);
     } else if (rec.t === "elevGrid") {
       const li = makeNode({
-        name: rec.name, layer: rec._layer, styleable: false, checked: !!rec.checked,
+        name: rec.name, layer: rec._layer, styleable: false, focusable: true, checked: !!rec.checked,
         onDelete: () => {
           const i = elevGridGroups.indexOf(rec._layer);
           if (i >= 0) elevGridGroups.splice(i, 1);

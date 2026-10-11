@@ -36,6 +36,14 @@
     if (unit !== null) measureUnit = unit;
   } catch { /* unidad por defecto (NM) */ }
   try {
+    const unit = await dbLoadAltitudeUnit();
+    if (unit !== null) altitudeUnit = unit;
+  } catch { /* altitudes por defecto (pies) */ }
+  try {
+    const m = await dbLoadProfileMax();
+    if (m !== null) profileMaxM = m;
+  } catch { /* límite del perfil por defecto (10 NM) */ }
+  try {
     const fmt = await dbLoadCoordFormat();
     if (fmt !== null) coordFormat = fmt;
   } catch { /* formato por defecto (decimal) */ }
