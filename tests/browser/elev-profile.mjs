@@ -23,9 +23,13 @@
    7) La flecha del mapa sigue al cursor de la gráfica (ratón real): en
       un vértice, sobre ese waypoint; a mitad de tramo, sobre la línea;
       al salir de la gráfica o cerrar, desaparece. La rueda acerca con
-      el punto bajo el ratón fijo, hasta 1 m por píxel, y aleja hasta la
-      ruta entera; la altura se ajusta a lo visible; arrastrar desplaza
-      sin cambiar el zoom y se para en los extremos.
+      el punto bajo el ratón fijo, hasta 0,1 m por píxel, y aleja hasta
+      la ruta entera; la altura se ajusta a lo visible; arrastrar
+      desplaza sin cambiar el zoom y se para en los extremos. Zoom de
+      altura (rueda sobre el eje, Mayús+rueda, botones), que bloquea el
+      eje Y; bloqueado, la distancia se mueve sin tocar la altura y
+      arrastrar en vertical la desplaza; «Ver todo». Las series son
+      solo segmentos rectos entre valores de celda.
    8) Deshacer quita el perfil; con el MDT en «Ninguna», una sola curva
       y celdas sin MDT; un trozo que falla deja un hueco; cancelar a
       mitad no deja nada.
@@ -178,13 +182,22 @@ async function runProfile() {
     document.getElementById("ms-profile").click();
     document.getElementById("style-cancel").click();
     const t0 = performance.now();
-    while (performance.now() - t0 < 20000 && document.getElementById("profile-close").textContent !== "Cerrar") {
+    /* Mientras descarga: alto de la ventana y si el registro ya scrollea */
+    const box = document.querySelector("#profile-dialog .dlg-box"), logEl = document.getElementById("profile-log");
+    const heights = [], chartShown = [];
+    let logScrolls = false;
+    while (performance.now() - t0 < 20000 && document.getElementById("profile-close").title !== "Cerrar") {
+      heights.push(Math.round(box.getBoundingClientRect().height));
+      chartShown.push(!profileChart.hidden);
+      if (logEl.scrollHeight > logEl.clientHeight + 1) logScrolls = true;
       await new Promise(r => setTimeout(r, 30));
     }
     await new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));
     obs.disconnect();
     return {
-      steps, button: document.getElementById("profile-close").textContent,
+      steps, button: document.getElementById("profile-close").title,
+      heights: [Math.min(...heights), Math.max(...heights)], chartShown: chartShown.some(Boolean), logScrolls,
+      log: [...logEl.children].map(e => `${e.className}|${e.textContent}`), chartAfter: !profileChart.hidden,
       progressHidden: document.getElementById("profile-progress").hidden,
       note: document.getElementById("profile-note").hidden ? "" : document.getElementById("profile-note").textContent
     };
@@ -198,7 +211,22 @@ ok(asked.some(s => s.host === "servicios.idee.es") && asked.some(s => s.host ===
   "pide al MDT y al MDS");
 ok(run1.steps.some(t => /^Descargando celdas MDT y MDS: \d+ % \(1 de \d+ zonas?\)$/.test(t))
   && run1.steps.some(t => /100 %/.test(t)), "la barra cuenta las zonas de las dos y llega al 100 %: " + JSON.stringify(run1.steps));
-ok(run1.button === "Cerrar" && run1.progressHidden && !run1.note, "al terminar, «Cerrar» y sin avisos: " + JSON.stringify(run1));
+ok(run1.button === "Cerrar" && run1.progressHidden && !run1.note, "al terminar, «Cerrar» y sin avisos: " + JSON.stringify({ ...run1, log: run1.log.length }));
+/* Registro de depuración: qué pide la aplicación y qué le llega */
+{
+  const L = run1.log;
+  const gets = L.filter(l => /^pl-req\|.*→ GetCoverage, intento 1: https:\/\/.*scaleSize=/.test(l));
+  const oks = L.filter(l => /^pl-res\|.*← HTTP 200 · .* · [\d.]+ (B|kB) · \d+ ms$/.test(l));
+  const grids = L.filter(l => /^pl-info\|.*rejilla de \d+ × \d+ celdas de [\d.]+ · \d+ sin dato · alturas [\d.]+–[\d.]+ m$/.test(l));
+  ok(gets.length === asked.length, `una línea por cada GetCoverage lanzado, con la dirección entera: ${gets.length} de ${asked.length}`);
+  ok(oks.length >= asked.length && grids.length === asked.length, `y lo recibido: estado, tipo, tamaño, tiempo y la rejilla leída: ${oks.length}, ${grids.length}`);
+  ok(L.some(l => /^pl-head\|.*MDT05 \(IGN\) · zona 1 de \d+: lat /.test(l)) && L.some(l => /^pl-head\|.*MDS \(IGN\) · zona 1 de/.test(l)),
+    "cada zona, con su fuente y su caja: " + L.filter(l => /^pl-head/.test(l)).slice(0, 4).join(" / "));
+  ok(L.some(l => /GetCapabilities, intento 1/.test(l) || /descubrimiento ya hecho/.test(l)), "y el descubrimiento de cada fuente");
+  ok(run1.heights[1] - run1.heights[0] <= 1 && run1.logScrolls,
+    "la ventana no crece con el registro, que scrollea por su cuenta: " + JSON.stringify(run1.heights));
+  ok(!run1.chartShown && run1.chartAfter, "descargando, el sitio es del registro; al terminar, de la gráfica");
+}
 
 /* ---------- 3. La gráfica ---------- */
 const readChart = () => page.evaluate(() => {
@@ -239,6 +267,20 @@ const redraw = await page.evaluate(() => {
 });
 ok(redraw.includes("Distancia desde el inicio (NM)") && redraw.includes("Altura (ft)"),
   "cambiar las unidades la redibuja: " + JSON.stringify(redraw));
+/* Regla de los diálogos de un solo botón: el × arriba a la derecha y,
+   sin pie, la gráfica hasta abajo */
+const layout = await page.evaluate(() => {
+  const box = profileBox.getBoundingClientRect(), x = document.getElementById("profile-close");
+  const b = x.getBoundingClientRect(), chart = profileChart.getBoundingClientRect();
+  return { inHead: x.parentElement === profileBox.querySelector("h2"), right: Math.round(box.right - b.right),
+           top: Math.round(b.top - box.top), footer: !!profileBox.querySelector(".dlg-actions"),
+           gap: Math.round(box.bottom - chart.bottom),
+           name: document.getElementById(profileBox.getAttribute("aria-labelledby")).textContent,
+           title: document.getElementById("profile-title").textContent };
+});
+ok(layout.inHead && layout.right < 16 && layout.top < 16, "el × de cerrar, arriba a la derecha en la cabecera: " + JSON.stringify(layout));
+ok(!layout.footer && layout.gap < 12, "sin pie: la gráfica llega hasta abajo de la ventana: " + JSON.stringify(layout));
+ok(layout.name === layout.title, "la ventana se llama por su título, sin el «Cerrar» del ×: " + layout.name);
 
 /* ---------- 4. En el árbol: raíz «Perfiles de ruta» ---------- */
 await page.waitForFunction(() => [...document.querySelectorAll("#tree li")].some(li => /^Perfil de/.test(li._name || "")));
@@ -267,7 +309,9 @@ ok(menu1.hits.length === 2 && menu1.profile === "Mostrar perfil",
   "ruta y perfil bajo el cursor: el menú sigue ofreciendo el perfil, ya «Mostrar»: " + JSON.stringify(menu1));
 
 /* ---------- 6. Mostrar: sin red, sin capa nueva ---------- */
-await page.evaluate(() => closeProfileDialog());
+await page.click("#profile-close"); /* ratón real: el × vive en el asa de arrastre */
+ok(await page.evaluate(() => profileDialog.hidden && !profileBox.style.left),
+  "pulsar el × cierra la ventana, sin empezar a arrastrarla");
 const n0 = coverages().length + seen.length;
 const shown = await page.evaluate(async sel => {
   const li = eval(sel);
@@ -278,7 +322,7 @@ const shown = await page.evaluate(async sel => {
   document.getElementById("style-cancel").click();
   await new Promise(r2 => requestAnimationFrame(() => requestAnimationFrame(r2)));
   r.lines = document.querySelectorAll("#profile-chart polyline.pf-line").length;
-  r.close = document.getElementById("profile-close").textContent;
+  r.close = document.getElementById("profile-close").title;
   closeProfileDialog();
   ctxItemsFor([li]).find(i => i.label === "Mostrar perfil").action();
   await new Promise(r2 => requestAnimationFrame(() => requestAnimationFrame(r2)));
@@ -308,7 +352,11 @@ const arrowState = () => page.evaluate(wps => {
   return { shown: true, atVertex: p.distanceTo(a),
            offLine: Math.abs((b.x - a.x) * (a.y - p.y) - (a.x - p.x) * (b.y - a.y)) / a.distanceTo(b),
            between: p.y < a.y && p.y > b.y, rotate: profileArrow.getElement().firstChild.style.transform,
-           readout: document.getElementById("pf-readout").textContent,
+           readout: [...document.querySelectorAll("#pf-readout tspan")].map(t => t.textContent).join(" · "),
+           lines: document.querySelectorAll("#pf-readout tspan").length,
+           crosses: (r => { const c = document.getElementById("pf-cursor").getBoundingClientRect().left;
+             return r.left < c - 1 && r.right > c + 1; })(document.getElementById("pf-readout").getBoundingClientRect()),
+           diffAlert: !!document.querySelector("#pf-readout .pf-diff.alert"),
            cursor: document.getElementById("pf-cursor").getAttribute("visibility") };
 }, WAYPOINTS);
 let g = await chartGeom();
@@ -326,6 +374,14 @@ const afterClose = await arrowState();
 ok(atV.shown && atV.atVertex <= 2, "en el vértice de la gráfica, la flecha está en ese waypoint: " + JSON.stringify(atV));
 ok(atV.cursor === "visible" && /km · MDT [\d.]+ m · MDS [\d.]+ m/.test(atV.readout),
   "la línea roja y la lectura de las dos alturas: " + atV.readout);
+{
+  const m = atV.readout.match(/MDT ([\d.]+) m · MDS ([\d.]+) m · MDS−MDT ([+-][\d.]+) m$/);
+  const diff = m && +m[2] - +m[1];
+  ok(m && Math.abs(+m[3] - diff) < 0.11, "y su diferencia MDS−MDT, con signo: " + atV.readout);
+  ok(m && atV.diffAlert === diff > 1, "en rojo solo por encima de 1 m, como en las celdas: " + JSON.stringify(atV));
+  ok(atV.lines === 3 && !atV.crosses && !midLeg.crosses,
+    "en tres líneas (distancia, alturas, diferencia), a un lado de la línea roja sin cruzarla: " + JSON.stringify([atV.lines, atV.crosses, midLeg.crosses]));
+}
 ok(midLeg.offLine < 1 && midLeg.between, "a mitad de tramo, sobre la línea dibujada: " + JSON.stringify(midLeg));
 ok(/rotate\(-90deg\)/.test(midLeg.rotate), "apuntando en el sentido de la marcha (norte): " + midLeg.rotate);
 ok(!afterLeave.shown && !afterClose.shown, "al salir de la gráfica o cerrar, desaparece");
@@ -352,14 +408,16 @@ ok(g2.view.x1 - g2.view.x0 < g.total * 0.8 && g2.zoomed, "la rueda acerca: " + J
 ok(Math.abs(anchorNow - anchorD) < 2, `el punto bajo el ratón se queda bajo el ratón (${anchorNow.toFixed(1)} frente a ${anchorD.toFixed(1)} m)`);
 const zoomLabels = await page.evaluate(() => [...document.querySelectorAll("#profile-chart text.pf-tick.vertex")].map(t => t.textContent));
 ok(zoomLabels.length >= 1, "el quiebro sigue con su cifra en negrita: " + zoomLabels);
-/* Hasta el tope: 1 m por píxel */
-for (let i = 0; i < 12; i++) { await page.mouse.wheel(0, -400); await frames(); }
+/* Hasta el tope: 0,1 m por píxel */
+for (let i = 0; i < 16; i++) { await page.mouse.wheel(0, -400); await frames(); }
 g2 = await chartGeom();
-ok(Math.abs((g2.view.x1 - g2.view.x0) - g2.pw) < 1e-6, `tope de zoom: 1 m por píxel (${(g2.view.x1 - g2.view.x0).toFixed(1)} m en ${g2.pw} px)`);
+ok(Math.abs((g2.view.x1 - g2.view.x0) - 0.1 * g2.pw) < 1e-6,
+  `tope de zoom: 0,1 m por píxel (${(g2.view.x1 - g2.view.x0).toFixed(1)} m en ${g2.pw} px)`);
 ok(await yRange() < fullY, "la altura se ajusta a lo que se ve");
 const zoomArrow = await (async () => { await mouseAt(g2, g2.vertices[1]); return arrowState(); })();
 ok(zoomArrow.shown && zoomArrow.atVertex <= 2, "con zoom, la flecha sigue cayendo en su sitio: " + zoomArrow.atVertex);
-/* Arrastrar 100 px a la derecha: se ven 100 m anteriores, sin cambiar el zoom */
+ok(/^\d+\.\d{4} km/.test(zoomArrow.readout), "a 0,1 m por píxel, la lectura distingue la décima de metro: " + zoomArrow.readout);
+/* Arrastrar 100 px a la derecha: se ven 10 m anteriores, sin cambiar el zoom */
 const sx = screenX(g2, (g2.view.x0 + g2.view.x1) / 2), sy = g2.top + g2.height / 2;
 await page.mouse.move(sx, sy);
 await page.mouse.down();
@@ -369,8 +427,17 @@ await page.mouse.move(sx + 100, sy, { steps: 3 });
 await page.mouse.up();
 await frames();
 const g3 = await chartGeom();
-ok(grabbing && Math.abs((g3.view.x0 - g2.view.x0) + 100) < 1.5 && Math.abs((g3.view.x1 - g3.view.x0) - g2.pw) < 1e-6,
-  "arrastrar 100 px desplaza 100 m, mismo zoom: " + JSON.stringify([g2.view, g3.view]));
+ok(grabbing && Math.abs((g3.view.x0 - g2.view.x0) + 10) < 0.15 && Math.abs((g3.view.x1 - g3.view.x0) - 0.1 * g2.pw) < 1e-6,
+  "arrastrar 100 px desplaza 10 m, mismo zoom: " + JSON.stringify([g2.view, g3.view]));
+/* Alejar con el botón − de distancia (al doble cada vez, centrado) y arrastrar hasta pasarse */
+const span3 = g3.view.x1 - g3.view.x0, mid3 = (g3.view.x0 + g3.view.x1) / 2;
+await page.click("#pf-x-out");
+await frames();
+const gOut = await chartGeom();
+ok(Math.abs((gOut.view.x1 - gOut.view.x0) - 2 * span3) < 1e-6 && Math.abs((gOut.view.x0 + gOut.view.x1) / 2 - mid3) < 1e-6,
+  "el botón − de distancia aleja al doble, centrado: " + JSON.stringify(gOut.view));
+for (let i = 0; i < 4; i++) await page.click("#pf-x-out");
+await frames();
 await page.mouse.move(sx, sy);
 await page.mouse.down();
 await page.mouse.move(sx - 3000, sy, { steps: 5 });
@@ -382,6 +449,113 @@ await mouseAt(g4, (g4.view.x0 + g4.view.x1) / 2); /* el arrastre dejó el ratón
 for (let i = 0; i < 15; i++) { await page.mouse.wheel(0, 600); await frames(); }
 const g5 = await chartGeom();
 ok(g5.view.x0 === 0 && g5.view.x1 === g5.total && !g5.zoomed, "alejar tiene tope en la ruta entera: " + JSON.stringify(g5.view));
+
+/* ---------- 7c. Eje de alturas: zoom propio y bloqueo ---------- */
+const yState = () => page.evaluate(() => ({
+  yView: profileYView && { ...profileYView }, auto: { ...profileLayout.ym }, view: { ...profileView },
+  lock: document.getElementById("pf-y-lock").checked,
+  tools: !document.getElementById("profile-tools").hidden
+}));
+let y0s = await yState();
+ok(y0s.tools && !y0s.lock && !y0s.yView, "con la gráfica, la barra de controles; el eje Y, automático: " + JSON.stringify(y0s));
+/* Rueda sobre el eje de alturas: acerca la ALTURA, no la distancia */
+const axisX = g5.left + 30, midY = g5.top + g5.height / 2;
+await page.mouse.move(axisX, midY);
+await page.mouse.wheel(0, -300);
+await frames();
+let y1s = await yState();
+const spanY = r => r.b - r.a;
+ok(y1s.yView && spanY(y1s.yView) < spanY(y0s.auto) * 0.8 && y1s.lock,
+  "rueda sobre el eje: acerca la altura y bloquea el eje Y: " + JSON.stringify([y0s.auto, y1s.yView]));
+ok(y1s.view.x0 === y0s.view.x0 && y1s.view.x1 === y0s.view.x1, "y la distancia no cambia");
+/* Mayús+rueda sobre la gráfica: también altura (aquí, alejar) */
+await mouseAt(g5, g5.total / 2);
+await page.keyboard.down("Shift");
+await page.mouse.wheel(0, 300);
+await page.keyboard.up("Shift");
+await frames();
+let y2s = await yState();
+ok(spanY(y2s.yView) > spanY(y1s.yView) * 1.2 && y2s.view.x1 - y2s.view.x0 === y1s.view.x1 - y1s.view.x0,
+  "Mayús+rueda: zoom de altura, sin tocar la distancia: " + JSON.stringify([y1s.yView, y2s.yView]));
+/* Bloqueado: acercar y desplazar la distancia no mueve la altura */
+await mouseAt(g5, g5.total / 3);
+await page.mouse.wheel(0, -500);
+await frames();
+const gz = await chartGeom();
+await page.mouse.move(screenX(gz, (gz.view.x0 + gz.view.x1) / 2), midY);
+await page.mouse.down();
+await page.mouse.move(screenX(gz, (gz.view.x0 + gz.view.x1) / 2) + 120, midY, { steps: 4 });
+await page.mouse.up();
+await frames();
+let y3s = await yState();
+ok(y3s.view.x1 - y3s.view.x0 < g5.total * 0.8 && y3s.yView.a === y2s.yView.a && y3s.yView.b === y2s.yView.b,
+  "con el eje bloqueado, zoom y arrastre de distancia no cambian la altura: " + JSON.stringify([y2s.yView, y3s.yView]));
+/* …y arrastrar en vertical sí la desplaza (hacia abajo = ver más arriba) */
+const gy = await chartGeom();
+const cx = screenX(gy, (gy.view.x0 + gy.view.x1) / 2);
+await page.mouse.move(cx, midY);
+await page.mouse.down();
+await page.mouse.move(cx, midY + 40, { steps: 4 });
+await page.mouse.up();
+await frames();
+let y4s = await yState();
+const ph = await page.evaluate(() => profileLayout.ph);
+/* tolerancia: el contenedor mide subpíxeles distintos en pantalla y en el viewBox (201,6 frente a 202) */
+ok(Math.abs((y4s.yView.a - y3s.yView.a) - 40 / ph * spanY(y3s.yView)) < 0.005 * spanY(y3s.yView)
+  && Math.abs(spanY(y4s.yView) - spanY(y3s.yView)) < 1e-9,
+  "arrastrar 40 px hacia abajo sube la ventana de alturas lo mismo: " + JSON.stringify([y3s.yView, y4s.yView]));
+/* Desbloquear: vuelve al ajuste automático */
+await page.click("#pf-y-lock");
+await frames();
+let y5s = await yState();
+ok(!y5s.lock && !y5s.yView, "desmarcar «Bloquear eje Y» vuelve a la altura automática");
+/* Marcarlo congela lo que se ve */
+await page.click("#pf-y-lock");
+await frames();
+let y6s = await yState();
+ok(y6s.lock && y6s.yView && y6s.yView.a === y5s.auto.a && y6s.yView.b === y5s.auto.b, "marcarlo congela la altura que se veía");
+/* Botones de altura: al doble / a la mitad, centrados */
+await page.click("#pf-y-in");
+await frames();
+let y7s = await yState();
+ok(Math.abs(spanY(y7s.yView) - spanY(y6s.yView) / 2) < 1e-9
+  && Math.abs((y7s.yView.a + y7s.yView.b) - (y6s.yView.a + y6s.yView.b)) < 1e-9, "el botón + de altura acerca a la mitad, centrado");
+await page.click("#pf-y-out");
+await frames();
+ok(Math.abs(spanY((await yState()).yView) - spanY(y6s.yView)) < 1e-9, "y el − lo deshace");
+/* Ver todo */
+await page.click("#pf-reset");
+await frames();
+const yr = await yState();
+ok(!yr.yView && !yr.lock && yr.view.x0 === 0 && yr.view.x1 === g5.total, "«Ver todo»: ruta entera y altura automática");
+
+/* ---------- 7d. Solo segmentos rectos entre los valores ---------- */
+/* Cada vértice de cada <polyline> es un valor de celda (x = su distancia,
+   y = su altura) y nada más: sin curvas, sin puntos inventados. Con la
+   ruta entera (diezmado a mín/máx por columna) y con zoom (todos). */
+const straight = async () => page.evaluate(() => {
+  const lay = profileLayout, svg = profileChart.firstChild;
+  const curves = svg.querySelectorAll("path").length;
+  let vertices = 0, matched = 0, expected = 0;
+  for (const s of profileData.series) {
+    const want = new Set(visibleProfilePoints(s.points, lay.x0, lay.x1)
+      .filter(p => typeof p.v === "number").map(p => `${lay.xOf(p.d).toFixed(1)},${lay.yOf(p.v).toFixed(1)}`));
+    expected += want.size;
+    for (const pl of svg.querySelectorAll(`polyline.pf-line.${s.kind}`)) {
+      for (const pt of pl.getAttribute("points").trim().split(/\s+/)) { vertices++; if (want.has(pt)) matched++; }
+    }
+  }
+  const joins = [...svg.querySelectorAll("polyline.pf-line")].map(pl => getComputedStyle(pl).strokeLinejoin);
+  return { curves, vertices, matched, expected, joins: [...new Set(joins)] };
+});
+const stFull = await straight();
+ok(stFull.curves === 0 && stFull.vertices > 0 && stFull.matched === stFull.vertices,
+  "ruta entera: solo polilíneas, y cada vértice es un valor de celda: " + JSON.stringify(stFull));
+await mouseAt(g5, g5.total / 2);
+for (let i = 0; i < 6; i++) { await page.mouse.wheel(0, -400); await frames(); }
+const stZoom = await straight();
+ok(stZoom.curves === 0 && stZoom.matched === stZoom.vertices && stZoom.vertices === stZoom.expected,
+  "con zoom, una línea recta de valor a valor, todos los valores: " + JSON.stringify(stZoom));
 await page.evaluate(() => closeProfileDialog());
 
 /* ---------- 6b. Tras recargar, sigue siendo «Mostrar» ---------- */
@@ -456,6 +630,12 @@ const lastMds = coverages().filter(s => s.host === "wcs-mds.idee.es").at(-1);
 failBox = { host: "wcs-mds.idee.es", x0: Number(/\(([-\d.]+),/.exec(lastMds.params.getAll("subset")[0])[1]) };
 const run2 = await runProfile();
 ok(/MDS: 1 de \d+ zonas sin respuesta .*tras 4 intentos.*huecos/.test(run2.note), "el trozo caído, dicho: " + run2.note);
+{
+  const fails = run2.log.filter(l => /^pl-err\|.*✗ HTTP 500/.test(l));
+  ok(fails.length === 4 && /se reintenta en 1 s$/.test(fails[0]) && !/reintenta/.test(fails[3])
+    && run2.log.some(l => /^pl-err\|.*zona sin respuesta/.test(l)),
+    "en el registro, cada intento fallido con su espera, y la zona perdida: " + JSON.stringify(fails));
+}
 const gaps = await page.evaluate(() => {
   const mds = profileData.series.find(s => s.kind === "mds"), mdt = profileData.series.find(s => s.kind === "mdt");
   return { holes: mds.points.some(p => !p.ref), mdtWhole: !mdt.points.some(p => !p.ref),
@@ -474,7 +654,7 @@ const cancelled = await page.evaluate(async sel => {
   demTimes.length = 0;
   openRouteProfile(eval(sel));
   await new Promise(r => setTimeout(r, 300));
-  document.getElementById("profile-close").click(); /* «Cancelar» */
+  document.getElementById("profile-close").click(); /* × = «Cancelar la descarga» */
   await new Promise(r => setTimeout(r, 2500));
   return { hidden: document.getElementById("profile-dialog").hidden, groups: elevGridGroups.length };
 }, routeLi);

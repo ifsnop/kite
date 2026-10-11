@@ -42,7 +42,8 @@ const medidas = await page.evaluate(() => {
   const abrir = {
     "style-dialog": () => openStyleDialog(liM),
     "icon-picker": () => { openStyleDialog(liM); document.getElementById("icon-preview-btn").click(); },
-    "shortcuts": () => { document.getElementById("shortcuts").hidden = false; },
+    /* La pestaña más larga: sin pie, las otras ya caben a 620 px */
+    "shortcuts": () => { document.getElementById("shortcuts").hidden = false; showShortcutsTab("view"); },
     "desc-dialog": () => {
       document.getElementById("desc-body").innerHTML =
         "<table>" + "<tr><td>clave</td><td>un valor bastante largo</td></tr>".repeat(80) + "</table>";
@@ -79,7 +80,10 @@ const medidas = await page.evaluate(() => {
   for (const [id, fn] of Object.entries(abrir)) {
     try { fn(); } catch (e) { out.push({ id, error: e.message }); continue; }
     const box = document.getElementById(id).querySelector(".dlg-box");
-    const acc = box.querySelector(".dlg-actions");
+    /* Con un solo botón, el de cerrar, no hay pie: el botón es el × de la
+       cabecera (regla de style-dialogs-ui.md), y es él el que debe verse. */
+    const pie = box.querySelector(".dlg-actions");
+    const acc = pie || box.querySelector(".dlg-close");
     const h2 = box.querySelector("h2");
     /* Cuánto se sale cada barra de la caja, arriba del scroll y abajo.
        Negativo = está dentro, que es lo que se quiere.               */
@@ -106,10 +110,14 @@ const medidas = await page.evaluate(() => {
     box.scrollTop = Math.max(1, Math.floor((box.scrollHeight - box.clientHeight) / 2));
     const rb2 = box.getBoundingClientRect();
     const huecos = {
-      abajo: Math.round(rb2.bottom - acc.getBoundingClientRect().bottom),
+      abajo: pie ? Math.round(rb2.bottom - pie.getBoundingClientRect().bottom) : 0,
       arriba: Math.round(h2.getBoundingClientRect().top - rb2.top)
     };
-    out.push({ id, arriba, abajo, huecos, desborda, resize: getComputedStyle(box).resize });
+    /* Sin pie, el × arriba a la derecha y dentro del asa de arrastre */
+    const x = !pie && acc.getBoundingClientRect();
+    const cierre = x && { enCabecera: acc.parentElement === h2,
+      derecha: Math.round(rb2.right - x.right), arriba: Math.round(x.top - rb2.top) };
+    out.push({ id, arriba, abajo, huecos, cierre, desborda, resize: getComputedStyle(box).resize });
     document.getElementById(id).hidden = true;
     document.getElementById("style-dialog").hidden = true;
     document.getElementById("icon-picker").hidden = true;
@@ -134,11 +142,15 @@ for (const m of medidas) {
      arriba y abajo, que es el relleno de la caja más su borde.     */
   ok(m.huecos.abajo <= 1, `${m.id}: la barra de botones cubre hasta abajo (quedan ${m.huecos.abajo} px)`);
   ok(m.huecos.arriba <= 1, `${m.id}: el título cubre hasta arriba (quedan ${m.huecos.arriba} px)`);
+  if (m.cierre) ok(m.cierre.enCabecera && m.cierre.derecha < 20 && m.cierre.arriba < 20,
+    `${m.id}: sin pie, su × está arriba a la derecha, en la cabecera: ${JSON.stringify(m.cierre)}`);
   /* Y el tirador, donde toca y solo donde toca */
   const esperado = CON_RESIZE.has(m.id);
   ok((m.resize === "both") === esperado,
     `${m.id}: ${esperado ? "debe" : "NO debe"} ser redimensionable (resize: ${m.resize})`);
 }
+
+ok(medidas.some(m => m.id === "shortcuts" && m.cierre), "la chuleta, de un solo botón, lo lleva como × en la cabecera");
 
 /* Las dos que fallaban tienen que SEGUIR desbordando: el arreglo
    consiste en fijar los bordes, no en hacerlas caber a la fuerza, que

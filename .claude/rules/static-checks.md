@@ -23,6 +23,10 @@ Sobre `kitelocal.html`, automatizadas:
 - **Toda función llamada está declarada** (íd.): un refactor puede
   eliminar un helper todavía en uso sin que `node --check` lo detecte
   (sigue siendo sintácticamente válido).
+- **Regla de los diálogos de un solo botón** (íd.): ningún
+  `.dlg-actions` con un único botón, y todo `.dlg-close` dentro de un
+  `<h2 class="dlg-head">` de una caja `no-actions` (ver
+  `dialog-close-button.md`).
 
 Las dos últimas requieren analizar el código, no el texto en bruto: un
 barrido ingenuo contra comentarios en castellano llenos de paréntesis

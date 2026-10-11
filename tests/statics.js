@@ -21,6 +21,11 @@
       cadena— pero hacía que `grep` sin `-a` tratara el archivo como
       binario y dejara de encontrar nada en él, incluido lo que buscan
       el punto 10 del checklist y el resto de suites de esta lista.
+   4. Regla de los diálogos de UN solo botón, el de cerrar (ver
+      .claude/rules/dialog-close-button.md): ese botón va como × arriba a la derecha,
+      dentro de la cabecera, y no lleva pie. Ningún `.dlg-actions` con
+      un único botón, y todo `.dlg-close` dentro de un `<h2 class="dlg-head">`
+      de una caja `no-actions`.
 
    La segunda exige mirar el código de verdad, no con una expresión
    regular sobre el texto en bruto: los comentarios de este proyecto
@@ -204,5 +209,16 @@ ok(undeclared.length === 0,
 const declaredFns = [...code.matchAll(/\bfunction\s+([A-Za-z_$][\w$]*)/g)].map(m => m[1]);
 const unused = declaredFns.filter(n => !called.has(n));
 if (unused.length) console.log("  (aviso, no fallo) funciones declaradas y nunca llamadas: " + unused.join(", "));
+
+/* ---------- 4. Un solo botón de cerrar → arriba a la derecha ---------- */
+const lone = [...html.matchAll(/<div class="dlg-actions">([\s\S]*?)<\/div>/g)]
+  .filter(m => (m[1].match(/<button\b/g) || []).length === 1)
+  .map(m => (m[1].match(/id="([^"]+)"/) || [, "?"])[1]);
+ok(lone.length === 0, "diálogo con un pie de un solo botón (la regla lo pone como × en la cabecera): " + lone.join(", "));
+const closes = [...html.matchAll(/class="dlg-close"[^>]*id="([^"]+)"/g)].map(m => m[1]);
+ok(closes.length >= 3, `se han encontrado botones × de cabecera: ${closes.length}`);
+const misplaced = closes.filter(id => !new RegExp(
+  `<div class="dlg-box no-actions">\\s*<h2 class="dlg-head">[^\\n]*?id="${id}"[^\\n]*?</h2>`).test(html));
+ok(misplaced.length === 0, "× de cerrar fuera de la cabecera de una caja sin pie: " + misplaced.join(", "));
 
 if (!process.exitCode) console.log("STATIC CHECKS OK");

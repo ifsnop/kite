@@ -175,9 +175,8 @@ function nearestProfilePoint(points, d) {
 
 /* ---------- Ventana de la gráfica: zoom y desplazamiento (puro) ----------
    La gráfica enseña las distancias [x0, x1] de la ruta. Alejar tiene
-   tope en la ruta entera; acercar, en `minSpan` (1 m por píxel: más no
-   enseña nada nuevo, las celdas miden 2,5 m o más). Siempre dentro de
-   [0, total].                                                        */
+   tope en la ruta entera; acercar, en `minSpan` (0,1 m por píxel,
+   pedido). Siempre dentro de [0, total].                             */
 function clampProfileView(x0, span, total, minSpan) {
   const s = Math.min(total, Math.max(Math.min(minSpan, total), span));
   const a = Math.min(total - s, Math.max(0, x0));
@@ -196,6 +195,20 @@ function zoomProfileView(view, total, minSpan, frac, factor) {
 /* Desplazar `dd` metros (arrastrar a la derecha = ver lo anterior) */
 const panProfileView = (view, total, minSpan, dd) =>
   clampProfileView(view.x0 + dd, view.x1 - view.x0, total, minSpan);
+
+/* Zoom del eje de ALTURAS: el intervalo {a, b} (metros) con ancla `frac`
+   contada desde abajo, y anchura entre minSpan y maxSpan. Sin topes de
+   dominio: con el eje bloqueado se puede mirar por encima o por debajo
+   de la curva.                                                      */
+function zoomRange(r, frac, factor, minSpan, maxSpan) {
+  const span = r.b - r.a, anchor = r.a + frac * span;
+  const s = Math.min(maxSpan, Math.max(minSpan, span * factor));
+  return { a: anchor - frac * s, b: anchor - frac * s + s };
+}
+
+/* Decimales para leer una distancia con `mPerPx` metros por píxel en la
+   unidad de factor `f`: los que distinguen un píxel, de 2 a 6.      */
+const distDecimals = (mPerPx, f) => Math.max(2, Math.min(6, tickDecimals(mPerPx / f)));
 
 /* Los puntos que se ven en [x0, x1], más el vecino de cada lado para que
    la curva llegue hasta el borde (recortada por el clipPath). `points`
@@ -310,22 +323,61 @@ function setProfileProgress(done, total, what = "MDS") {
     : "Consultando el servicio…";
 }
 
+/* Registro de depuración de la descarga: lo que la aplicación pide a
+   cada servicio y lo que recibe (ver `trace` en 60-elevation.js). Vive
+   en el bloque de progreso y se va con él al terminar. Los mensajes de
+   un servicio son ajenos: siempre por textContent. Sigue al final
+   salvo que el usuario haya subido a leer.                         */
+const PROFILE_LOG_MAX = 3000; /* líneas; se descartan las más viejas */
+const PROFILE_LOG_PREFIX = { req: "→ ", res: "← ", err: "✗ ", info: "  ", head: "" };
+const profileLogBox = document.getElementById("profile-log");
+let profileLogStart = 0;
+
+function resetProfileLog() {
+  profileLogBox.textContent = "";
+  profileLogStart = performance.now();
+}
+
+function profileLog(kind, txt) {
+  const box = profileLogBox;
+  const atEnd = box.scrollHeight - box.scrollTop - box.clientHeight < 24;
+  const row = document.createElement("div");
+  row.className = `pl-${kind}`;
+  const secs = ((performance.now() - profileLogStart) / 1000).toFixed(1).padStart(6);
+  row.textContent = `${secs} s  ${PROFILE_LOG_PREFIX[kind] ?? ""}${txt}`;
+  box.appendChild(row);
+  while (box.childElementCount > PROFILE_LOG_MAX) box.firstChild.remove();
+  if (atEnd) box.scrollTop = box.scrollHeight;
+}
+
 function setProfileNote(txt) {
   const el = document.getElementById("profile-note");
   el.hidden = !txt;
   el.textContent = txt || "";
 }
 
+/* The header's × aborts while downloading and closes afterwards: its
+   name says which (it has no visible text to say it).             */
+function setProfileCloseLabel(txt) {
+  const btn = document.getElementById("profile-close");
+  btn.title = txt;
+  btn.setAttribute("aria-label", txt);
+}
+
 function openProfileDialog(title) {
   hideProfileArrow();
   document.getElementById("profile-title").textContent = title;
   document.getElementById("profile-progress").hidden = false;
-  document.getElementById("profile-close").textContent = "Cancelar";
+  resetProfileLog();
+  profileChart.hidden = true; /* sin gráfica todavía: el sitio es del registro */
+  setProfileCloseLabel("Cancelar la descarga");
   setProfileProgress(0, 0);
   setProfileNote("");
   profileData = null;
   profileView = null; /* un perfil nuevo empieza con la ruta entera */
+  profileYView = null; /* y con la altura automática */
   profileLayout = null;
+  profileTools.hidden = true;
   profileChart.innerHTML = "";
   profileDialog.hidden = false;
   clampToViewport(profileBox);
@@ -335,7 +387,8 @@ function openProfileDialog(title) {
 /* Fin de la descarga (o perfil ya guardado): fuera la barra, «Cerrar» */
 function profileDialogDone() {
   document.getElementById("profile-progress").hidden = true;
-  document.getElementById("profile-close").textContent = "Cerrar";
+  profileChart.hidden = false;
+  setProfileCloseLabel("Cerrar");
 }
 
 /* Cancelar (descargando) o Cerrar (con la gráfica): lo mismo, abortar
@@ -463,19 +516,25 @@ async function obtainRouteProfile(li) {
   profileRun = run;
   openProfileDialog(`Perfil: ${li._name}`);
   const notes = [];
+  const srcName = s => elevSourcesLabel([s.src]);
+  profileLog("head", `«${li._name}»: ${measureWaypoints(m).length} waypoints, `
+    + `${fmtUnitDist(m.totalDist, measureUnit)} · fuentes: ${runs.map(srcName).join(", ")}`);
   try {
     const legs = profileLegs(m);
     /* Descubrimiento de cada fuente: la que falla se cuenta y se sigue
        con la otra; solo sin ninguna se da el perfil por perdido.     */
     for (const s of runs) {
       s.client = sourceClient(s.src.id);
+      profileLog("head", `${srcName(s)} — ${s.src.base}`);
       try {
-        const cfg = await s.client.discover();
+        const cfg = await s.client.discover(profileLog);
         s.cell = cfg.cellMeters > 0 ? cfg.cellMeters : 30;
         s.pieces = profilePieces(legs, s.cell);
+        profileLog("info", `celda ${s.cell.toFixed(2)} m → ${s.pieces.length} zona(s) a lo largo de la ruta`);
       } catch (err) {
         if (run.ctl.signal.aborted) return;
         s.dead = profileFailText(err);
+        profileLog("err", `${srcName(s)}: ${s.dead}`);
       }
       if (run.ctl.signal.aborted) return;
     }
@@ -489,14 +548,17 @@ async function obtainRouteProfile(li) {
     let done = 0;
     setProfileProgress(0, total, what);
     for (const s of live) {
-      for (const q of s.pieces) {
+      for (const [i, q] of s.pieces.entries()) {
         const sw = map.options.crs.unproject(L.point(q.x0, q.y0));
         const ne = map.options.crs.unproject(L.point(q.x1, q.y1));
+        profileLog("head", `${srcName(s)} · zona ${i + 1} de ${s.pieces.length}: `
+          + `lat ${sw.lat.toFixed(5)}…${ne.lat.toFixed(5)}, lon ${sw.lng.toFixed(5)}…${ne.lng.toFixed(5)}`);
         const res = await s.client.area({ south: sw.lat, west: sw.lng, north: ne.lat, east: ne.lng },
-          run.ctl.signal);
+          run.ctl.signal, profileLog);
         if (res.grid !== undefined) s.answered = true;
         if (res.grid && res.grid.located) s.grids.push(res.grid);
-        if (res.error) { s.failed++; s.lastError = res.error; }
+        if (res.grid === null) profileLog("info", "sin datos en esta zona");
+        if (res.error) { s.failed++; s.lastError = res.error; profileLog("err", `zona sin respuesta: ${res.error}`); }
         setProfileProgress(++done, total, what);
       }
       if (s.answered) addElevAttribution(s.src.id);
@@ -554,21 +616,38 @@ async function obtainRouteProfile(li) {
 }
 
 /* ---------- Gráfica (SVG propio) ----------
-   Rueda = zoom con ancla en el ratón; arrastrar = desplazar. La vista
-   (`profileView`, distancias [x0, x1]) va de la ruta entera a 1 m por
-   píxel, y la altura se ajusta sola a lo que se ve. El SVG se rehace
-   entero en cada cambio (un fotograma: `scheduleProfileChart`), así que
-   los escuchas viven en el contenedor, no en el SVG.               */
+   Rueda = zoom de DISTANCIA con ancla en el ratón; Mayús+rueda, o la
+   rueda sobre el eje de alturas, zoom de ALTURA; arrastrar = desplazar.
+   La vista de distancias (`profileView`, [x0, x1]) va de la ruta entera
+   a 0,1 m por píxel. La altura se ajusta sola a lo que se ve, salvo con
+   el eje Y BLOQUEADO (`profileYView`, [a, b] en metros): entonces se
+   queda quieta al desplazar o acercar la distancia. Hacer zoom de
+   altura lo bloquea; desbloquear vuelve al ajuste automático. Los
+   botones de la barra (`#profile-tools`) hacen lo mismo centrados.
+   El SVG se rehace entero en cada cambio (un fotograma:
+   `scheduleProfileChart`), así que los escuchas viven en el
+   contenedor, no en el SVG.
+
+   Las series se dibujan como `<polyline>`: SEGMENTOS RECTOS entre los
+   valores de celdas consecutivas, sin curvas ni suavizado (la prueba lo
+   comprueba vértice a vértice).                                      */
 const PF_MARGIN = { l: 64, r: 14, t: 26, b: 40 };
 const SVG_NS = "http://www.w3.org/2000/svg";
 const PF_SNAP_PX = 8;          /* la lectura de una serie, si tiene un punto a menos de esto */
-const PF_MIN_M_PER_PX = 1;     /* zoom máximo: 1 m de ruta por píxel (pedido) */
+const PF_READOUT_LINE = 14;    /* px entre líneas de la lectura del cursor */
+const PF_MIN_M_PER_PX = 0.1;   /* zoom máximo: 0,1 m de ruta por píxel (pedido) */
 const PF_WHEEL_STEP = 0.0015;  /* factor de zoom = e^(píxeles de rueda × esto) */
+const PF_BUTTON_FACTOR = 2;    /* un botón − / + aleja o acerca al doble   */
+const PF_Y_MIN_SPAN = 0.1;     /* m: altura mínima a la vista               */
+const PF_Y_MAX_SPAN = 20000;   /* m: altura máxima a la vista               */
 
 let profileView = null;   /* { x0, x1 } en metros; null = la ruta entera */
+let profileYView = null;  /* { a, b } en metros: eje Y bloqueado; null = automático */
 let profileLayout = null; /* geometría de la última gráfica dibujada     */
 let profileFrame = 0;
-let profileDrag = null;   /* { x, view } mientras se arrastra           */
+let profileDrag = null;   /* { x, y, view, yView } mientras se arrastra */
+const profileTools = document.getElementById("profile-tools");
+const profileYLock = document.getElementById("pf-y-lock");
 
 /* Anchura útil de la gráfica en píxeles, y el tope de zoom que da */
 const profilePlotWidth = () => profileChart.clientWidth - PF_MARGIN.l - PF_MARGIN.r;
@@ -594,13 +673,20 @@ function renderProfileChart() {
     .map(p => p.v / fy));
   if (!vals.length) vals.push(...shown.flatMap(s => s.points.filter(p => typeof p.v === "number").map(p => p.v / fy)));
   if (!vals.length) vals.push(0);
-  let y0 = Math.min(...vals), y1 = Math.max(...vals);
-  const pad = (y1 - y0) * 0.08 || Math.max(1 / fy, Math.abs(y0) * 0.05) || 1;
-  y0 -= pad; y1 += pad;
+  /* Alturas en METROS: automático = lo visible con un margen; con el
+     eje bloqueado, el intervalo guardado, quieto.                    */
+  let ym;
+  if (profileYView) ym = { ...profileYView };
+  else {
+    const lo = Math.min(...vals) * fy, hi = Math.max(...vals) * fy;
+    const pad = (hi - lo) * 0.08 || Math.max(1, Math.abs(lo) * 0.05) || 1;
+    ym = { a: lo - pad, b: hi + pad };
+  }
+  const y0 = ym.a / fy, y1 = ym.b / fy;
   const xOf = d => PF_MARGIN.l + (d - x0) / span * pw;
   const yOf = v => PF_MARGIN.t + (1 - (v / fy - y0) / (y1 - y0)) * ph;
   const yPix = u => PF_MARGIN.t + (1 - (u - y0) / (y1 - y0)) * ph;
-  profileLayout = { W, pw, x0, x1, total, xOf, dOf: x => x0 + (x - PF_MARGIN.l) / pw * span };
+  profileLayout = { W, H, pw, ph, x0, x1, total, ym, xOf, yOf, dOf: x => x0 + (x - PF_MARGIN.l) / pw * span };
 
   const parts = [`<clipPath id="pf-clip"><rect x="${PF_MARGIN.l}" y="${PF_MARGIN.t}" width="${pw}" height="${ph}"/></clipPath>`];
   const yt = niceTicks(y0, y1, Math.max(2, Math.floor(ph / 36)));
@@ -656,17 +742,20 @@ function renderProfileChart() {
     `<text class="pf-readout" id="pf-readout" y="${PF_MARGIN.t + 10}" visibility="hidden"></text>`);
   profileChart.innerHTML = `<svg xmlns="${SVG_NS}" viewBox="0 0 ${W} ${H}" role="img" `
     + `aria-label="Perfil de alturas a lo largo de la ruta">${parts.join("")}</svg>`;
-  profileChart.classList.toggle("zoomed", span < total - eps);
+  profileChart.classList.toggle("zoomed", span < total - eps || !!profileYView);
+  profileTools.hidden = false;
+  profileYLock.checked = !!profileYView;
   if (lastX !== undefined) showProfileCursor(lastX);
 }
 
 /* Cifras de los vértices: con zoom hacen falta más decimales que las
-   dos de la ruta entera (a 1 m por píxel, una pantalla son ~0,3 NM). */
-const vertexDecimals = spanUnits => Math.max(2, Math.min(4, tickDecimals(spanUnits / 10) + 1));
+   dos de la ruta entera (a 0,1 m por píxel, una pantalla son ~0,04 NM). */
+const vertexDecimals = spanUnits => Math.max(2, Math.min(5, tickDecimals(spanUnits / 10) + 1));
 
 /* La línea roja, la lectura y la flecha del mapa en la x (píxeles del
    SVG) del ratón. Cada serie da su altura si tiene una celda a la
-   vista de esa distancia (en un hueco, se omite).                  */
+   vista de esa distancia (en un hueco, se omite); con las dos, también
+   MDS−MDT, en rojo por encima de ELEV_ALERT_DIFF como en las celdas. */
 function showProfileCursor(x) {
   const lay = profileLayout, svg = profileChart.firstChild;
   if (!lay || !svg) return;
@@ -677,16 +766,43 @@ function showProfileCursor(x) {
   cursor.setAttribute("x1", px); cursor.setAttribute("x2", px);
   cursor.setAttribute("visibility", "visible");
   const snap = PF_SNAP_PX / lay.pw * (lay.x1 - lay.x0);
-  const read = [fmtUnitDist(d, measureUnit)];
+  /* tantos decimales como distinga un píxel: a 0,1 m/px, 4 en km */
+  const fx = POLY_UNIT_FACTOR[measureUnit];
+  const heights = [], at = {};
   for (const s of profileData.series) {
     const p = nearestProfilePoint(s.points, d);
-    if (p && Math.abs(p.d - d) <= snap) read.push(`${PROFILE_KIND_LABEL[s.kind]} ${fmtHeight(p.v, altitudeUnit)}`);
+    if (p && Math.abs(p.d - d) <= snap) {
+      at[s.kind] = p.v;
+      heights.push(`${PROFILE_KIND_LABEL[s.kind]} ${fmtHeight(p.v, altitudeUnit)}`);
+    }
   }
-  readout.textContent = read.join(" · ");
-  const right = px > PF_MARGIN.l + lay.pw / 2;
-  readout.setAttribute("x", right ? px - 6 : px + 6);
-  readout.setAttribute("text-anchor", right ? "end" : "start");
+  /* Una línea por dato (distancia, alturas, MDS−MDT): en una sola, con
+     la diferencia, no cabía a ningún lado de la línea roja y la cruzaba. */
+  const lines = [{ txt: `${(d / fx).toFixed(distDecimals((lay.x1 - lay.x0) / lay.pw, fx))} ${POLY_UNIT_LABEL[measureUnit]}` }];
+  if (heights.length) lines.push({ txt: heights.join(" · ") });
+  if (at.mdt !== undefined && at.mds !== undefined) {
+    const diff = at.mds - at.mdt;
+    lines.push({ txt: `MDS−MDT ${fmtDiff(diff)} ${POLY_UNIT_LABEL[altitudeUnit]}`,
+                 cls: `pf-diff${diff > ELEV_ALERT_DIFF ? " alert" : ""}` });
+  }
+  readout.textContent = "";
+  const spans = lines.map((l, i) => {
+    const span = document.createElementNS(SVG_NS, "tspan");
+    span.setAttribute("dy", i ? PF_READOUT_LINE : 0);
+    if (l.cls) span.setAttribute("class", l.cls);
+    span.textContent = l.txt;
+    return readout.appendChild(span);
+  });
   readout.setAttribute("visibility", "visible");
+  /* Del lado con más sitio; si no cabe, al otro; si tampoco, contra el
+     borde (una gráfica muy estrecha). */
+  const w = Math.max(...spans.map(sp => sp.getComputedTextLength()));
+  const fitsLeft = px - 6 - w >= 2, fitsRight = px + 6 + w <= lay.W - 2;
+  let right = px > PF_MARGIN.l + lay.pw / 2;
+  if (right ? !fitsLeft && fitsRight : !fitsRight && fitsLeft) right = !right;
+  const lx = right ? (fitsLeft ? px - 6 : w + 2) : (fitsRight ? px + 6 : lay.W - 2 - w);
+  readout.setAttribute("text-anchor", right ? "end" : "start");
+  for (const sp of spans) sp.setAttribute("x", lx);
   placeProfileArrow(d);
 }
 
@@ -702,10 +818,30 @@ function hideProfileCursor() {
   hideProfileArrow();
 }
 
-/* x del ratón en píxeles del SVG (viewBox = tamaño del contenedor) */
+/* x e y del ratón en píxeles del SVG (viewBox = tamaño del contenedor) */
 function chartX(e) {
   const r = profileChart.getBoundingClientRect();
   return profileLayout ? (e.clientX - r.left) * profileLayout.W / r.width : 0;
+}
+function chartY(e) {
+  const r = profileChart.getBoundingClientRect();
+  return profileLayout ? (e.clientY - r.top) * profileLayout.H / r.height : 0;
+}
+
+/* Zoom de distancia o de altura, con ancla `frac` (0..1; la de altura
+   contada desde abajo). Hacer zoom de altura BLOQUEA el eje Y en lo
+   que se ve.                                                        */
+function zoomProfileX(frac, factor) {
+  const lay = profileLayout;
+  if (!lay) return;
+  profileView = zoomProfileView(profileView, lay.total, profileMinSpan(), frac, factor);
+  scheduleProfileChart();
+}
+function zoomProfileY(frac, factor) {
+  const lay = profileLayout;
+  if (!lay) return;
+  profileYView = zoomRange(profileYView || lay.ym, frac, factor, PF_Y_MIN_SPAN, PF_Y_MAX_SPAN);
+  scheduleProfileChart();
 }
 
 /* Un redibujo por fotograma: la rueda y el arrastre dan más eventos.
@@ -716,20 +852,28 @@ function scheduleProfileChart() {
   if (!profileFrame) profileFrame = requestAnimationFrame(() => { profileFrame = 0; renderProfileChart(); });
 }
 
+/* Rueda: sobre la gráfica, distancia; con Mayús o sobre el eje de
+   alturas (margen izquierdo), altura. Con Mayús, Chromium y Firefox en
+   Windows/Linux mandan la rueda en deltaX, no en deltaY.           */
 profileChart.addEventListener("wheel", e => {
   if (!profileLayout) return;
   e.preventDefault(); /* la rueda es de la gráfica, no de la página */
   const lay = profileLayout;
-  const px = e.deltaY * (e.deltaMode === 1 ? 16 : e.deltaMode === 2 ? 400 : 1);
-  const frac = Math.min(1, Math.max(0, (chartX(e) - PF_MARGIN.l) / lay.pw));
-  profileView = zoomProfileView(profileView, lay.total, profileMinSpan(), frac, Math.exp(px * PF_WHEEL_STEP));
+  const raw = e.deltaY || (e.shiftKey ? e.deltaX : 0);
+  const px = raw * (e.deltaMode === 1 ? 16 : e.deltaMode === 2 ? 400 : 1);
+  const factor = Math.exp(px * PF_WHEEL_STEP);
   lay.lastX = chartX(e); /* tras redibujar, la línea sigue bajo el ratón */
-  scheduleProfileChart();
+  if (e.shiftKey || chartX(e) < PF_MARGIN.l) {
+    zoomProfileY(Math.min(1, Math.max(0, 1 - (chartY(e) - PF_MARGIN.t) / lay.ph)), factor);
+  } else {
+    zoomProfileX(Math.min(1, Math.max(0, (chartX(e) - PF_MARGIN.l) / lay.pw)), factor);
+  }
 }, { passive: false });
 
 profileChart.addEventListener("pointerdown", e => {
   if (!profileLayout || e.button !== 0) return;
-  profileDrag = { x: chartX(e), view: { ...profileView } };
+  profileDrag = { x: chartX(e), y: chartY(e), view: { ...profileView },
+                  yView: profileYView && { ...profileYView } };
   profileChart.setPointerCapture(e.pointerId);
   profileChart.classList.add("dragging");
 });
@@ -740,6 +884,12 @@ profileChart.addEventListener("pointermove", e => {
     const lay = profileLayout;
     const dd = -(x - profileDrag.x) / lay.pw * (profileDrag.view.x1 - profileDrag.view.x0);
     profileView = panProfileView(profileDrag.view, lay.total, profileMinSpan(), dd);
+    /* Con el eje Y bloqueado, arrastrar también desplaza en vertical
+       (hacia abajo = ver más arriba); en automático no hay qué mover. */
+    if (profileDrag.yView) {
+      const yv = profileDrag.yView, dm = (chartY(e) - profileDrag.y) / lay.ph * (yv.b - yv.a);
+      profileYView = { a: yv.a + dm, b: yv.b + dm };
+    }
     lay.lastX = x;
     scheduleProfileChart();
   } else {
@@ -753,6 +903,23 @@ function endProfileDrag() {
 profileChart.addEventListener("pointerup", endProfileDrag);
 profileChart.addEventListener("pointercancel", endProfileDrag);
 profileChart.addEventListener("pointerleave", () => { if (!profileDrag) hideProfileCursor(); });
+
+/* Barra de controles: −/+ de cada eje centrados, bloqueo del eje Y
+   (marcarlo congela lo que se ve; desmarcarlo vuelve al ajuste
+   automático) y «Ver todo» (ruta entera y altura automática).       */
+document.getElementById("pf-x-out").addEventListener("click", () => zoomProfileX(0.5, PF_BUTTON_FACTOR));
+document.getElementById("pf-x-in").addEventListener("click", () => zoomProfileX(0.5, 1 / PF_BUTTON_FACTOR));
+document.getElementById("pf-y-out").addEventListener("click", () => zoomProfileY(0.5, PF_BUTTON_FACTOR));
+document.getElementById("pf-y-in").addEventListener("click", () => zoomProfileY(0.5, 1 / PF_BUTTON_FACTOR));
+profileYLock.addEventListener("change", () => {
+  profileYView = profileYLock.checked && profileLayout ? { ...profileLayout.ym } : null;
+  scheduleProfileChart();
+});
+document.getElementById("pf-reset").addEventListener("click", () => {
+  profileView = null;
+  profileYView = null;
+  scheduleProfileChart();
+});
 
 /* Cambiar una unidad en Propiedades (setMeasureUnit/setAltitudeUnit) o
    el tamaño de la ventana redibuja la gráfica, sin volver a pedir nada

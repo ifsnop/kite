@@ -33,7 +33,9 @@ const arrows = [
   between("const PROFILE_CHUNK_CELLS", "/* ---------- Cálculo"),
   between("const tickDecimals", "/* Tramos continuos"),
   between("const packProfilePoints", "/* Un perfil leído de fuera"),
-  between("const panProfileView", "/* Los puntos que se ven")
+  between("const panProfileView", "/* Los puntos que se ven"),
+  /* Registro de depuración de la descarga del perfil */
+  between("const fmtTraceBytes", "/* Un intento fallido")
 ].join("\n");
 /* nextNumberedName barre el árbol: aquí, un árbol de mentira */
 const fakeTree = "let fakeNames = []; const treeEl = { querySelectorAll: () => fakeNames.map(n => ({ _name: n })) };\n";
@@ -49,7 +51,7 @@ const src = "const parserErrorText = () => null;\nconst toRad = d => d * Math.PI
    fn("nextNumberedName"), fn("profilePieces"), fn("routeProfileSamples"), fn("profileFromSamples"),
    fn("niceTicks"), fn("profilePolylines"), fn("nearestProfilePoint"),
    fn("routeProfileKey"), fn("profilePointAt"), fn("clampProfileView"), fn("zoomProfileView"),
-   fn("visibleProfilePoints"), fn("validRouteProfile"), fn("profileTreeCells"),
+   fn("visibleProfilePoints"), fn("validRouteProfile"), fn("profileTreeCells"), fn("describeTraceError"),
    fn("text")].join("\n");
 const apiExports = "\nreturn {parseWcsCapabilities, mdtCoverages, pickMdsCoverage, pickDeaDemCoverage," +
   " pickGeoCrs, pickElevFormat, parseCoverageDescription, pickFinestCoverage, describeElevChoice," +
@@ -63,7 +65,8 @@ const apiExports = "\nreturn {parseWcsCapabilities, mdtCoverages, pickMdsCoverag
   " profilePieces, routeProfileSamples, profileFromSamples, niceTicks, tickDecimals, profilePolylines," +
   " nearestProfilePoint, PROFILE_CHUNK_CELLS, elevTileFactor, routeProfileKey, profilePointAt," +
   " validRouteProfile, profileTreeCells, clampProfileView, zoomProfileView, panProfileView," +
-  " visibleProfilePoints, elevOutputCell, snapToCells, tileToCells, elevBandLat, packProfilePoints, unpackProfilePoints, PROFILE_MAX_PTS};";
+  " visibleProfilePoints, zoomRange, distDecimals, elevOutputCell, snapToCells, tileToCells, elevBandLat, packProfilePoints, unpackProfilePoints, PROFILE_MAX_PTS," +
+  " fmtTraceBytes, describeTraceGrid, describeTraceError};";
 const api = new Function("DOMParser", src + apiExports)(DOMParser);
 const ok=(c,m)=>{ if(!c){ console.error("FAIL: "+m); process.exitCode=1; } };
 
@@ -781,6 +784,17 @@ ok(api.sessionStamp(new Date(2026, 9, 5, 7, 3)) === "2026-10-05 07:03",
     const vis = api.visibleProfilePoints(pts, 250, 520);
     ok(vis.map(p => p.d).join() === "200,300,400,500,600", "lo visible más un vecino a cada lado: " + vis.map(p => p.d));
     ok(api.visibleProfilePoints(pts, 0, 1000).length === 11, "con la ruta entera, todos");
+    /* Eje de alturas: ancla contada desde abajo, topes de anchura, sin topes de dominio */
+    let r = api.zoomRange({ a: 500, b: 700 }, 0.25, 0.5, 0.1, 20000);
+    ok(r.a === 525 && r.b === 625, "acercar la altura con el ratón a un cuarto desde abajo: 550 m no se mueve: " + JSON.stringify(r));
+    r = api.zoomRange({ a: 600, b: 600.15 }, 0.5, 0.1, 0.1, 20000);
+    ok(Math.abs((r.b - r.a) - 0.1) < 1e-9, "acercar tiene tope (0,1 m a la vista)");
+    r = api.zoomRange({ a: 0, b: 15000 }, 0.5, 4, 0.1, 20000);
+    ok(r.b - r.a === 20000 && r.a === -2500, "alejar tiene tope, y puede bajar de cero (eje bloqueado): " + JSON.stringify(r));
+    /* Decimales de la lectura: los que distinguen un píxel */
+    ok(api.distDecimals(3.2, 1000) === 3 && api.distDecimals(0.1, 1000) === 4 && api.distDecimals(50, 1000) === 2,
+       "km: 3,2 m/px → 3 decimales; 0,1 m/px → 4; 50 m/px → 2 (nunca menos)");
+    ok(api.distDecimals(0.1, 1852) === 5 && api.distDecimals(1e-6, 1) === 6, "NM a 0,1 m/px → 5 (0,00005 NM ≈ 9 cm); tope de 6");
   }
 
   /* ---- marcas de eje ---- */
@@ -792,6 +806,27 @@ ok(api.sessionStamp(new Date(2026, 9, 5, 7, 3)) === "2026-10-05 07:03",
     t = api.niceTicks(0, 0.0123, 4);
     ok(t.step === 0.005 && api.tickDecimals(t.step) === 3, "en NM, pasos pequeños con sus decimales: " + t.ticks);
     ok(api.niceTicks(5, 5, 4).ticks.join() === "5", "sin rango: una sola marca");
+  }
+
+  /* ---- registro de depuración de la descarga del perfil ---- */
+  {
+    ok(api.fmtTraceBytes(812) === "812 B" && api.fmtTraceBytes(46285) === "45.2 kB"
+      && api.fmtTraceBytes(3 * 1024 * 1024) === "3.0 MB", "tamaños de respuesta legibles");
+    const g = api.parseAsciiGrid("ncols 3\nnrows 2\nxllcorner 0\nyllcorner 0\ncellsize 5\nNODATA_value -9999\n"
+      + "612.5 640 -9999\n700.25 655 630\n");
+    ok(api.describeTraceGrid(g) === "rejilla de 3 × 2 celdas de 5 · 1 sin dato · alturas 612.5–700.3 m",
+      "la rejilla recibida, resumida: " + api.describeTraceGrid(g));
+    ok(/no es una rejilla/.test(api.describeTraceGrid(null)), "una respuesta ilegible se dice");
+    const E = o => Object.assign(new Error(o.message || "x"), o);
+    ok(api.describeTraceError(E({ name: "TimeoutError" }), 0, 12000) === "sin respuesta en 12 s · se reintenta en 1 s",
+      "tiempo agotado: cuánto y cuándo se reintenta");
+    ok(api.describeTraceError(E({ status: 503, message: "no disponible" }), 2, 12000) === "HTTP 503: no disponible · se reintenta en 4 s",
+      "5xx: el estado, y la espera que toca a ese intento");
+    ok(!/reintenta/.test(api.describeTraceError(E({ status: 503 }), api.ELEV_RETRIES, 12000)),
+      "agotados los intentos, ya no se reintenta");
+    ok(api.describeTraceError(E({ owsCode: "InvalidSubsetting", message: "fuera" }), 0, 12000)
+      === "excepción del servicio InvalidSubsetting: fuera (fuera de cobertura: no es un error)",
+      "una excepción OGC lleva su código, y fuera de cobertura no se reintenta");
   }
 
   if (!process.exitCode) console.log("ELEVATION TESTS OK");

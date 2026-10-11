@@ -239,8 +239,8 @@
 
 <!-- Chuleta de atajos (tecla ?) -->
 <div id="shortcuts" class="dlg-overlay" hidden>
-  <div class="dlg-box">
-    <h2>Atajos de teclado</h2>
+  <div class="dlg-box no-actions">
+    <h2 class="dlg-head"><span class="dlg-title">Atajos de teclado</span><button type="button" class="dlg-close" id="shortcuts-close" title="Cerrar" aria-label="Cerrar">&#215;</button></h2>
     <div class="dlg-tabs" role="tablist">
       <button type="button" class="dlg-tab active" id="sh-tab-btn-nav" role="tab" aria-selected="true" aria-controls="sh-tab-nav">Navegaci&#243;n</button>
       <button type="button" class="dlg-tab" id="sh-tab-btn-act" role="tab" aria-selected="false" aria-controls="sh-tab-act">Actuar</button>
@@ -291,6 +291,12 @@
         <tr><td>R (con el mapa enfocado) o clic en la br&#250;jula</td><td>Volver a poner el norte arriba</td></tr>
         <tr><td>Bot&#243;n central (rueda) pulsado + arrastrar a izquierda/derecha</td><td>Girar el mapa alrededor del punto pulsado</td></tr>
       </table>
+      <table class="keys">
+        <tr><th colspan="2">Gr&#225;fica del perfil de una ruta</th></tr>
+        <tr><td>Rueda del rat&#243;n sobre la gr&#225;fica</td><td>Acercar / alejar la distancia hacia el puntero (de la ruta entera a 0,1 m por p&#237;xel)</td></tr>
+        <tr><td>May&#250;s + rueda, o rueda sobre el eje de alturas</td><td>Acercar / alejar la altura (bloquea el eje Y)</td></tr>
+        <tr><td>Arrastrar la gr&#225;fica</td><td>Desplazarla; con el eje Y bloqueado, tambi&#233;n en vertical</td></tr>
+      </table>
     </div>
     <div id="sh-tab-draw" class="dlg-tabpanel" hidden role="tabpanel">
       <table class="keys">
@@ -311,7 +317,6 @@
         <tr><td>Doble clic en el mapa</td><td>No hace zoom mientras se edita as&#237; un pol&#237;gono, una ruta o un c&#237;rculo</td></tr>
       </table>
     </div>
-    <div class="dlg-actions"><button class="btn" id="shortcuts-close">Cerrar</button></div>
   </div>
 </div>
 
@@ -483,8 +488,8 @@
      lleva su propio resultado y su propio aviso de error, y se recalcula
      SOLO, al cambiar cualquier dato: no hay botón «Calcular». -->
 <div id="geocalc-dialog" class="dlg-float" hidden>
-  <div class="dlg-box">
-    <h2>C&#225;lculos geod&#233;sicos</h2>
+  <div class="dlg-box no-actions">
+    <h2 class="dlg-head"><span class="dlg-title">C&#225;lculos geod&#233;sicos</span><button type="button" class="dlg-close" id="geocalc-close" title="Cerrar" aria-label="Cerrar">&#215;</button></h2>
     <div class="dlg-tabs" role="tablist">
       <button type="button" class="dlg-tab active" id="geocalc-tab-btn-elev" role="tab" aria-selected="true" aria-controls="geocalc-tab-elev">&#193;ngulo de elevaci&#243;n</button>
       <button type="button" class="dlg-tab" id="geocalc-tab-btn-gps" role="tab" aria-selected="false" aria-controls="geocalc-tab-gps">Vector GPS</button>
@@ -531,29 +536,46 @@
         <p class="dlg-hint sh-bad" id="gps-error" hidden></p>
       </div>
     </div>
-    <div class="dlg-actions">
-      <button class="btn" id="geocalc-close">Cerrar</button>
-    </div>
   </div>
 </div>
 
 <!-- Perfil de una ruta (63-route-profile.js): primero la barra de
      progreso de la descarga de las celdas MDS que recorre la ruta, luego
      la gráfica. Flotante y no modal, como la calculadora: se puede
-     mirar el mapa a la vez. El botón del pie es «Cancelar» mientras
-     descarga (aborta) y «Cerrar» con la gráfica ya dibujada. -->
+     mirar el mapa a la vez. Sin pie: el × de la cabecera (regla de los
+     diálogos de un solo botón) cancela mientras descarga (aborta) y
+     cierra con la gráfica ya dibujada; la gráfica se queda el resto. -->
 <div id="profile-dialog" class="dlg-float" hidden>
-  <div class="dlg-box">
-    <h2 id="profile-title">Perfil</h2>
+  <div class="dlg-box no-actions">
+    <h2 class="dlg-head"><span class="dlg-title" id="profile-title">Perfil</span><button type="button" class="dlg-close" id="profile-close" title="Cancelar la descarga" aria-label="Cancelar la descarga">&#215;</button></h2>
     <div id="profile-progress">
       <div id="profile-progress-label"></div>
       <div class="bar"><div id="profile-progress-fill"></div></div>
+      <!-- Depuración: qué pide la aplicación a cada servicio y qué le
+           llega, solo mientras descarga (se va con la barra). Scroll
+           propio: la ventana no crece con el registro. -->
+      <div id="profile-log" role="log" tabindex="0" aria-label="Detalle de la descarga"></div>
     </div>
     <p class="dlg-hint" id="profile-note" hidden></p>
-    <div id="profile-chart" aria-live="polite"></div>
-    <div class="dlg-actions">
-      <button class="btn" id="profile-close">Cancelar</button>
+    <!-- Controles de la gráfica (63-route-profile.js): zoom de cada eje
+         por separado, bloqueo del eje Y y vuelta a la vista entera. Lo
+         mismo, con el ratón: rueda = distancia; Mayús+rueda o rueda
+         sobre el eje de alturas = altura; arrastrar = desplazar. -->
+    <div id="profile-tools" hidden>
+      <span class="pf-tool-group" role="group" aria-label="Zoom de distancia">Distancia
+        <button class="btn pf-tool" id="pf-x-out" title="Alejar en distancia" aria-label="Alejar en distancia">−</button>
+        <button class="btn pf-tool" id="pf-x-in" title="Acercar en distancia (hasta 0,1 m por píxel)" aria-label="Acercar en distancia">+</button>
+      </span>
+      <span class="pf-tool-group" role="group" aria-label="Zoom de altura">Altura
+        <button class="btn pf-tool" id="pf-y-out" title="Alejar en altura (bloquea el eje Y)" aria-label="Alejar en altura">−</button>
+        <button class="btn pf-tool" id="pf-y-in" title="Acercar en altura (bloquea el eje Y)" aria-label="Acercar en altura">+</button>
+      </span>
+      <label class="pf-tool-group" title="La escala de alturas se queda quieta al desplazar o acercar la distancia; desmarcado, se ajusta sola a lo que se ve">
+        <input type="checkbox" id="pf-y-lock"> Bloquear eje Y</label>
+      <button class="btn" id="pf-reset" title="Ruta entera y altura automática">Ver todo</button>
+      <span class="pf-tools-hint">Rueda: distancia · Mayús+rueda o rueda sobre el eje: altura · arrastrar: desplazar</span>
     </div>
+    <div id="profile-chart" aria-live="polite"></div>
   </div>
 </div>
 

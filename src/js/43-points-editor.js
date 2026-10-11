@@ -819,7 +819,9 @@ function clampToViewport(box) {
 function setupDialog(box, { modal }) {
   box.setAttribute("role", "dialog");
   box.setAttribute("aria-modal", String(modal));
-  const title = box.querySelector("h2");
+  /* A header with its close button inside names the dialog by its
+     title text alone, or the name would end in "Cerrar".            */
+  const title = box.querySelector("h2 .dlg-title") || box.querySelector("h2");
   if (title) {
     if (!title.id) title.id = `dlg-title-${Math.random().toString(36).slice(2, 8)}`;
     box.setAttribute("aria-labelledby", title.id);
@@ -838,11 +840,16 @@ function setupDialog(box, { modal }) {
 
 /* Focus goes to the dialog on open and back to the opener on close.
    With `move` false it stays where it is (still recorded, so the
-   pairing with releaseFocus holds).                                 */
+   pairing with releaseFocus holds). The header's close button comes
+   first in the markup but is not where the work starts: focus goes to
+   the first visible control after it, or to it if there is nothing
+   else (the route profile while it downloads).                      */
 let focusReturn = [];
 function focusDialog(box, move = true) {
   focusReturn.push(document.activeElement);
-  const first = move && box.querySelector("button, input, select");
+  const first = move && ([...box.querySelectorAll("button, input, select")]
+    .find(el => !el.classList.contains("dlg-close") && el.offsetParent !== null)
+    || box.querySelector(".dlg-close"));
   if (first) first.focus();
 }
 function releaseFocus() {
@@ -854,7 +861,8 @@ function makeDialogMovable(box) {
   const handle = box.querySelector("h2");
   let from = null;
   handle.addEventListener("pointerdown", e => {
-    if (e.button !== 0) return;
+    /* the close button lives in the handle: its press is a click, not a drag */
+    if (e.button !== 0 || e.target.closest(".dlg-close")) return;
     const r = box.getBoundingClientRect();
     box.style.position = "fixed";
     box.style.margin = "0";
