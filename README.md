@@ -173,17 +173,53 @@ the flag clears by itself when the tiles come back.
 - draw polygons and open lines vertex by vertex
 - export the current view as a PNG image
 
-### Elevation (Spain)
+### Elevation
 
-- terrain (MDT) and surface (MDS) elevation under the pointer, queried
-  from the IGN's WCS services, with the difference between them — the
-  visible sign of buildings or vegetation
-- the answers accumulate as a readable grid of cells, which becomes an
-  ordinary layer of the tree when the mode is switched off: persistent,
-  toggleable and deletable like any other
-- metres or feet
-- coverage is Spain only, and each reading costs a request to a third
-  party, so the mode is off by default
+- right-click on the map → «Consultar elevación aquí»: terrain (MDT) and
+  surface (MDS) elevation of a ~40 m square around the point, drawn as a
+  readable grid of cells with the difference between them — the visible
+  sign of buildings or vegetation
+- each query becomes an ordinary layer of the tree, inside one folder per
+  session under «Elevaciones»: persistent, toggleable and deletable like
+  any other; hovering a cell shows its values in the coordinates box
+- the data sources are chosen in Properties → «Fuentes de datos», from a
+  list built into the application (or none, to skip that model): the
+  IGN's WCS services by default — MDT05 (5 m), MDT25 or MDT200 for the
+  terrain, MDS (5 m) for the surface; Spain only — and Digital Earth
+  Africa's Copernicus DEM as an alternative surface model (Africa, the
+  Canary Islands and the Iberian Peninsula up to 39° N, ~30 m cells);
+  each layer is named after the dataset and provider it came from
+  («Elevación 3 — MDT25 + MDS (IGN)»)
+- the first query to each service in a session reads its capabilities
+  once, picks the finest grid of the chosen dataset and the ASCII format
+  when offered (GeoTIFF otherwise), and notes the choice in the message
+  log
+- transient failures (timeout, network, 429, 5xx) are retried up to three
+  times with a growing pause; Digital Earth Africa gets a longer timeout,
+  since its first answer for an area takes 17–33 s (measured)
+- heights follow their own unit of altitude, independent of the unit of
+  distance (Properties → Preferencias)
+- each query costs a request to a third party, so nothing is requested
+  until you ask
+
+### Route profile
+
+- right-click on a route (or its properties dialog) → «Obtener perfil»:
+  the chosen terrain (MDT) and surface (MDS) models are downloaded along
+  the route in bounded chunks, with a progress bar, and drawn as an
+  elevation profile — distance from the start across, height up, MDT in
+  blue and MDS in green, leg vertices in bold
+- hovering the chart moves a red line across it and a red arrow along the
+  route on the map, pointing the way of travel
+- the mouse wheel zooms the chart around the pointer (from the whole route
+  down to 1 m per pixel, heights rescaled to what is shown) and dragging
+  pans it
+- only the cells the route actually crosses are kept, as a layer of the
+  «Perfiles de ruta» root folder that also stores the curves: from then on
+  the option reads «Mostrar perfil» and shows them without downloading
+  again; editing the route's waypoints asks for a new profile
+- routes longer than a configurable limit (10 NM by default) get no
+  profile, so a long route cannot fill the browser storage with cells
 
 ### Measurements
 
@@ -237,13 +273,17 @@ Imported KML/KMZ/GeoJSON content is parsed locally and is **not uploaded to an a
 
 The current build is not fully offline and makes external requests:
 
-- Leaflet CSS, JavaScript and default marker images, topojson-client and
-  html2canvas are loaded from `unpkg.com`;
+- Leaflet CSS, JavaScript and default marker images, topojson-client,
+  html2canvas and geotiff.js are loaded from `unpkg.com`;
 - JSZip is loaded from `cdnjs.cloudflare.com`;
 - place searches are sent to the public Nominatim service;
 - base-map tiles and WMS images are requested from their respective providers;
-- elevation readings are requested from the IGN's WCS services, and only while
-  elevation mode is switched on;
+- elevation queries and route profiles are requested from the chosen WCS
+  services (IGN by default, or Digital Earth Africa), and only when you ask
+  for one; a profile is a handful of sequential requests along the route,
+  under the same per-second cap. Digital Earth Africa currently answers
+  Chromium-based browsers (Chrome, Edge…) with 403 Forbidden; it works
+  from Firefox and Safari;
 - the Copernicus DEM base layer, if enabled, is requested from Sentinel Hub
   with the user's own instance ID.
 
@@ -456,6 +496,7 @@ This application currently uses or accesses:
 - [JSZip](https://stuk.github.io/jszip/)
 - [topojson-client](https://github.com/topojson/topojson-client)
 - [html2canvas](https://html2canvas.hertzen.com/)
+- [geotiff.js](https://geotiffjs.github.io/) (MIT) — reads elevation grids from services that only offer GeoTIFF
 - [leaflet-rotate](https://github.com/Raruto/leaflet-rotate) (GPL-3.0) — incorporated into the source (see License); not requested at runtime
 - [Material Design Icons](https://pictogrammers.com/library/mdi/) (Pictogrammers, Apache-2.0) — embedded at build time through [Iconify](https://iconify.design/); not requested at runtime
 - [OpenStreetMap](https://www.openstreetmap.org/)
@@ -464,6 +505,7 @@ This application currently uses or accesses:
 - Spanish PNOA, IGN WMTS, WMS and WCS services
 - [SRTM30 tiles from terrestris](https://ows.terrestris.de/) (SRTM data © NASA LP DAAC)
 - [Copernicus DEM through Sentinel Hub](https://dataspace.copernicus.eu/)
+- [Digital Earth Africa](https://www.digitalearthafrica.org/) WCS — Copernicus DEM GLO-30 (© DLR e.V. 2010-2014 and © Airbus Defence and Space GmbH 2014-2018, provided under COPERNICUS by the European Union and ESA)
 
 Their licenses, attribution requirements, acceptable-use policies and service limits apply independently.
 

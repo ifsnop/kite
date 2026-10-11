@@ -216,6 +216,11 @@
       <div class="dlg-row" id="ms-points-row"><span>Puntos</span>
         <button class="btn" id="ms-points">Ver y editar&#8230;</button>
       </div>
+      <!-- Solo con UNA ruta (no círculo); el motivo de estar deshabilitado
+           va en el title (sin MDS elegido, o ruta más larga que el límite) -->
+      <div class="dlg-row" id="ms-profile-row" hidden><span>Perfil del terreno</span>
+        <button class="btn" id="ms-profile">Obtener perfil</button>
+      </div>
     </div>
     <div id="style-imageoverlay" hidden>
       <div class="dlg-row"><span>Opacidad</span><input type="range" id="io-opacity" min="0" max="1" step="0.05"></div>
@@ -425,15 +430,18 @@
     <div class="dlg-tabs" role="tablist">
       <button type="button" class="dlg-tab active" id="props-tab-btn-prefs" role="tab" aria-selected="true" aria-controls="props-tab-prefs">Preferencias</button>
       <button type="button" class="dlg-tab" id="props-tab-btn-gnp" role="tab" aria-selected="false" aria-controls="props-tab-gnp">Índices de GeoJSON</button>
+      <button type="button" class="dlg-tab" id="props-tab-btn-sources" role="tab" aria-selected="false" aria-controls="props-tab-sources">Fuentes de datos</button>
     </div>
     <div id="props-tab-prefs" class="dlg-tabpanel" role="tabpanel">
-      <div class="dlg-row"><span>Unidad de medida</span><select id="props-unit">
+      <div class="dlg-row"><span>Unidad de distancia</span><select id="props-unit">
         <option value="m">Metros</option>
         <option value="km">Kilómetros</option>
         <option value="ft">Pies</option>
         <option value="mi">Millas</option>
         <option value="nm">Millas náuticas</option>
       </select></div>
+      <!-- Mismas opciones que props-unit, copiadas al cargar (43-points-editor.js) -->
+      <div class="dlg-row"><span>Unidad de altitud</span><select id="props-alt-unit"></select></div>
       <div class="dlg-row"><span>Latitud/longitud</span><select id="props-coord-format">
         <option value="dec">Grados decimales</option>
         <option value="dms">Grados, minutos y segundos</option>
@@ -444,11 +452,23 @@
       <p class="dlg-hint">Segmentos en que se divide un arco al terminar de dibujarlo con «Medir arco». El resultado es una ruta normal con ese número de tramos; cambiarlo solo afecta a los arcos que se dibujen después.</p>
       <div class="dlg-row"><span>Segmentos de un arco</span>
         <input type="number" id="props-arc-segments" min="2" max="720" step="1"></div>
+      <p class="dlg-hint">Longitud máxima de una ruta para «Obtener perfil». Acota lo que se descarga y, sobre todo, lo que el perfil deja guardado en el árbol: una celda de elevación por cada una que recorre la ruta.</p>
+      <div class="dlg-row"><span>Longitud máxima de un perfil</span>
+        <span class="props-with-unit"><input type="number" id="props-profile-max" min="0" step="any"><span id="props-profile-max-unit"></span></span></div>
     </div>
     <div id="props-tab-gnp" class="dlg-tabpanel" hidden role="tabpanel">
       <p class="dlg-hint">Asociaciones guardadas entre la estructura de <code>properties</code> de un GeoJSON y la propiedad usada como nombre.</p>
       <div class="gnp-editor-list" id="gnp-editor-list"></div>
       <div class="dlg-row"><span></span><button class="btn" id="gnp-editor-clear">Borrar todo</button></div>
+    </div>
+    <!-- Las opciones se rellenan desde el catálogo ELEV_SOURCES
+         (60-elevation.js): añadir una fuente en el código la añade aquí. -->
+    <div id="props-tab-sources" class="dlg-tabpanel" hidden role="tabpanel">
+      <p class="dlg-hint">Servicios WCS de los que «Consultar elevación aquí» (menú contextual del visor) descarga el terreno y la superficie. Con «Ninguna», ese modelo no se consulta: la cuadrícula muestra solo el otro, sin diferencia.</p>
+      <div class="dlg-row"><span>MDT (terreno)</span><select id="props-src-mdt"></select></div>
+      <p class="dlg-hint props-src-url" id="props-src-mdt-url"></p>
+      <div class="dlg-row"><span>MDS (superficie)</span><select id="props-src-mds"></select></div>
+      <p class="dlg-hint props-src-url" id="props-src-mds-url"></p>
     </div>
     <div class="dlg-actions">
       <button class="btn" id="props-cancel">Cancelar</button>
@@ -513,6 +533,26 @@
     </div>
     <div class="dlg-actions">
       <button class="btn" id="geocalc-close">Cerrar</button>
+    </div>
+  </div>
+</div>
+
+<!-- Perfil de una ruta (63-route-profile.js): primero la barra de
+     progreso de la descarga de las celdas MDS que recorre la ruta, luego
+     la gráfica. Flotante y no modal, como la calculadora: se puede
+     mirar el mapa a la vez. El botón del pie es «Cancelar» mientras
+     descarga (aborta) y «Cerrar» con la gráfica ya dibujada. -->
+<div id="profile-dialog" class="dlg-float" hidden>
+  <div class="dlg-box">
+    <h2 id="profile-title">Perfil</h2>
+    <div id="profile-progress">
+      <div id="profile-progress-label"></div>
+      <div class="bar"><div id="profile-progress-fill"></div></div>
+    </div>
+    <p class="dlg-hint" id="profile-note" hidden></p>
+    <div id="profile-chart" aria-live="polite"></div>
+    <div class="dlg-actions">
+      <button class="btn" id="profile-close">Cancelar</button>
     </div>
   </div>
 </div>
@@ -651,6 +691,12 @@
         crossorigin="anonymous" referrerpolicy="no-referrer"></script>
 <script src="https://unpkg.com/html2canvas@1.4.1/dist/html2canvas.min.js"
         integrity="sha384-ZZ1pncU3bQe8y31yfZdMFdSpttDoPmOZg2wguVK9almUodir1PghgT0eY7Mrty8H"
+        crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+<!-- GeoTIFF: solo para fuentes de elevación que no ofrecen rejilla ASCII
+     (Digital Earth Africa). Es el bundle de navegador, ya minificado y en
+     un solo archivo (sin trozos cargados aparte que el SRI no cubriría). -->
+<script src="https://unpkg.com/geotiff@2.1.3/dist-browser/geotiff.js"
+        integrity="sha384-m5adk5PRgt3JjiYbYoG8oXxc3EgRFKc1aCBgKzyxqxnbYpdiAMlHkR0gVDp03Q/H"
         crossorigin="anonymous" referrerpolicy="no-referrer"></script>
 <script>
 {{SCRIPTS}}

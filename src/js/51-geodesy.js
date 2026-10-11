@@ -96,12 +96,6 @@ const METERS_PER_NM = 1852;   /* milla náutica internacional        */
 const METERS_PER_FOOT = 0.3048; /* pie internacional, valor exacto    */
 const METERS_PER_MILE = 1609.344; /* milla terrestre (statute mile), valor exacto */
 
-/* Altitud en metros y en pies: en aeronáutica la altitud se maneja en
-   pies, igual que las distancias en millas náuticas.                  */
-const fmtAltitude = m =>
-  `${m.toFixed(1)} m / ${Math.round(m / METERS_PER_FOOT)} ft`;
-
-
 /* Unidades de las distancias y las áreas medidas (metros por unidad).
    Ya NO se eligen por elemento: es un ajuste global (`measureUnit`,
    panel de Propiedades, ver 43-points-editor.js) que manda a la vez
@@ -121,6 +115,19 @@ const fmtUnitDist = (m, unit) =>
    que una distancia.                                                  */
 const fmtUnitArea = (m2, unit) =>
   `${(m2 / POLY_UNIT_FACTOR[unit] ** 2).toFixed(2)} ${POLY_UNIT_LABEL[unit]}²`;
+
+/* Una altura (terreno, superficie o su diferencia) en la unidad de
+   ALTITUD de Propiedades (`altitudeUnit`), independiente de la de
+   distancias: en aeronáutica se mide en NM y se sube en pies, en
+   topografía todo va en metros. Los decimales dependen de la unidad, no son
+   los dos de una distancia: en m y ft basta uno (el modelo tiene
+   precisión de decímetros), pero 1 m son 0,0005 NM, así que en km, mi
+   y NM hacen falta cuatro para que la diferencia entre terreno y
+   superficie no se quede en cero. `fmtHeightValue` es la cifra sola,
+   para las celdas del mapa, donde no cabe la unidad en cada línea.   */
+const HEIGHT_DECIMALS = { m: 1, ft: 1, km: 4, mi: 4, nm: 4 };
+const fmtHeightValue = (m, unit) => (m / POLY_UNIT_FACTOR[unit]).toFixed(HEIGHT_DECIMALS[unit]);
+const fmtHeight = (m, unit) => `${fmtHeightValue(m, unit)} ${POLY_UNIT_LABEL[unit]}`;
 
 /* ---------- Ángulo de elevación entre dos alturas ----------
    Refracción atmosférica estándar: la luz y las ondas de radio se curvan

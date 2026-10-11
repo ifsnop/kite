@@ -36,9 +36,23 @@
     if (unit !== null) measureUnit = unit;
   } catch { /* unidad por defecto (NM) */ }
   try {
+    const unit = await dbLoadAltitudeUnit();
+    if (unit !== null) altitudeUnit = unit;
+  } catch { /* altitudes por defecto (pies) */ }
+  try {
+    const m = await dbLoadProfileMax();
+    if (m !== null) profileMaxM = m;
+  } catch { /* límite del perfil por defecto (10 NM) */ }
+  try {
     const fmt = await dbLoadCoordFormat();
     if (fmt !== null) coordFormat = fmt;
   } catch { /* formato por defecto (decimal) */ }
+  /* Solo la ELECCIÓN de fuentes: ningún servicio se consulta hasta la
+     primera «Consultar elevación aquí» (ver makeElevationSource).    */
+  try {
+    const sel = await dbLoadElevSources();
+    if (sel !== null) elevSources = sel;
+  } catch { /* fuentes por defecto (IGN) */ }
 
   /* La credencial de Copernicus antes que los mapas base: sin ella la
      capa no puede ni construir su URL (ver shWmsUrl).                */

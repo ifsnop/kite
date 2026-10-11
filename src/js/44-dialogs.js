@@ -935,6 +935,20 @@ function openStyleDialog(li, { isNew = false, focus = true } = {}) {
     msMeasures = single ? measurementValues(styleTargets[0]._measure) : null;
     $id("ms-values").hidden = !msMeasures;
     if (msMeasures) renderMeasureValues();
+    /* Perfil: de UNA ruta ya creada (mientras se dibuja aún no es una
+       ruta terminada). «Mostrar perfil» si ya lo tiene (sin red); si no,
+       «Obtener perfil», deshabilitado con el motivo en el title.     */
+    const route = single && !isNew && styleTargets[0]._measure.type === "route";
+    $id("ms-profile-row").hidden = !route;
+    if (route) {
+      const item = routeProfileCtxItem(styleTargets[0]);
+      const why = item.disabled();
+      $id("ms-profile").textContent = item.label;
+      $id("ms-profile").disabled = !!why;
+      $id("ms-profile").title = why || (item.label === "Mostrar perfil"
+        ? "Mostrar el perfil ya descargado de esta ruta"
+        : "Descargar las alturas MDT y MDS a lo largo de la ruta y dibujar su perfil");
+    }
   } else {
     const ops = styleTargets.map(t => ({ opacity: t._imageOverlay.opacity }));
     styleDraft = { ...ops[0] };
@@ -1164,6 +1178,22 @@ for (const ev of ["input", "change"]) {
    era una preferencia de sesión suelta, con un <select> repetido en
    cada diálogo de polígono/medición; unificada a petición explícita.  */
 let measureUnit = "nm";
+/* Unidad de las ALTITUDES, independiente de la de distancias (pedido
+   expreso: en aeronáutica la distancia va en NM y la altura en pies).
+   Manda en las cifras de las cuadrículas de elevación, su lectura en el
+   cuadro de coordenadas y el eje vertical del perfil de una ruta. Por
+   defecto pies, lo que ya proponía la calculadora para alturas con la
+   distancia en NM. Persistente (`dbSaveAltitudeUnit`).               */
+let altitudeUnit = "ft";
+/* Longitud máxima de una ruta para obtener su perfil, en metros: acota
+   la descarga y, sobre todo, lo que el perfil deja guardado en el árbol
+   (una celda por cada una que recorre). Por defecto 10 NM. En metros
+   escritos a mano (1852 por NM): METERS_PER_NM vive en 51-geodesy.js,
+   que carga DESPUÉS (zona muerta temporal).                          */
+const PROFILE_MAX_DEFAULT = 10 * 1852;
+const PROFILE_MAX_MIN = 100;
+const PROFILE_MAX_MAX = 100 * 1852;
+let profileMaxM = PROFILE_MAX_DEFAULT;
 let polyMeasures = null;   /* {area, perim} en m/m² del polígono abierto, o null */
 function renderPolyMeasures() {
   if (!polyMeasures) return;
@@ -1202,6 +1232,15 @@ function setMeasureUnit(unit) {
   renderPolyMeasures();
   renderMeasureValues();
   refreshMeasureLabels();
+  refreshProfileChart(); /* eje de distancias del perfil, si está abierto */
+}
+
+/* Igual que setMeasureUnit, para las altitudes: previsualización en vivo
+   desde Propiedades, que decide al Aceptar si se guarda.              */
+function setAltitudeUnit(unit) {
+  altitudeUnit = unit;
+  refreshElevCells();
+  refreshProfileChart();
 }
 
 /* ---------- Medidas de una medición (solo lectura) ---------- */

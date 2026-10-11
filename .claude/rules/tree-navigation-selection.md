@@ -100,7 +100,11 @@ paths:
   polígono o medición (`styleKind` "polygon"/"measure") se encuadran
   enteros con margen (`fitBoundsFramed`, 20%) en vez de zoom fijo, para
   no cortar una ruta ancha. El doble click sobre esas filas sigue la
-  escalera normal; solo cambió el botón 🔍.
+  escalera normal; solo cambió el botón 🔍. **Una capa de elevación
+  (`elevGrid`) también lleva 🔍** (pedido) aunque no tenga 🎨: `makeNode`
+  acepta `focusable` (por defecto, `styleable`), que pasan
+  `makeElevGridNode` y la rama `elevGrid` de `materializeRecords`; se
+  encuadra igual que un polígono (al zoom fijo 9 no se vería).
 - **El nombre de la fila NO activa la casilla** (sin `htmlFor` en el
   `<label>`): pinchar el nombre selecciona la fila; doble click sobre
   él alternaba visibilidad a medias. La casilla se pulsa aparte;

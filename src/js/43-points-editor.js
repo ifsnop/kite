@@ -307,7 +307,7 @@ function setMarkerDraggable(mk, on) {
    Por debajo del tope configurado (`vertexEditMax`, más abajo) se
    construyen manejadores; por encima, ninguno — demasiados manejadores
    son otros tantos nodos del DOM (los marcadores de Leaflet siempre lo
-   son, nunca van por canvas, como ya advierte ELEV_ACCUM_MAX_CELLS) y
+   son, nunca van por canvas) y
    el editor de texto ya cubre ese caso sin problema. Medido en el
    navegador (Chromium, construir los manejadores de un anillo
    sintético, sin la caché de geometría de por medio): 500 vértices,
@@ -1526,25 +1526,73 @@ const propsTabGnpBtn = document.getElementById("props-tab-btn-gnp");
 const propsTabPrefsBtn = document.getElementById("props-tab-btn-prefs");
 const propsTabGnp = document.getElementById("props-tab-gnp");
 const propsTabPrefs = document.getElementById("props-tab-prefs");
+const propsTabSourcesBtn = document.getElementById("props-tab-btn-sources");
+const propsTabSources = document.getElementById("props-tab-sources");
+const propsSrcSelect = {
+  mdt: document.getElementById("props-src-mdt"),
+  mds: document.getElementById("props-src-mds")
+};
 const propsUnitSelect = document.getElementById("props-unit");
+const propsAltUnitSelect = document.getElementById("props-alt-unit");
+/* Las mismas unidades que la distancia, por construcción (como hace la
+   calculadora con sus selectores)                                  */
+propsAltUnitSelect.innerHTML = propsUnitSelect.innerHTML;
+const propsProfileMaxInput = document.getElementById("props-profile-max");
 const propsCoordFormatSelect = document.getElementById("props-coord-format");
 const gnpVertexMaxInput = document.getElementById("gnp-vertex-max");
 const propsArcSegmentsInput = document.getElementById("props-arc-segments");
 
 let propsDraftGnp = null; /* clon de gnpStore mientras el panel está abierto */
-let propsOriginal = null; /* {unit, coordFormat, vertexEditMax, arcSegments} al abrir, para Cancelar */
+let propsOriginal = null; /* ajustes al abrir (unidades, formato, topes, fuentes…), para Cancelar */
 
+const PROPS_TABS = {
+  prefs: [propsTabPrefsBtn, propsTabPrefs],
+  gnp: [propsTabGnpBtn, propsTabGnp],
+  sources: [propsTabSourcesBtn, propsTabSources]
+};
 function showPropsTab(tab) {
-  const isGnp = tab === "gnp";
-  propsTabGnpBtn.classList.toggle("active", isGnp);
-  propsTabPrefsBtn.classList.toggle("active", !isGnp);
-  propsTabGnpBtn.setAttribute("aria-selected", String(isGnp));
-  propsTabPrefsBtn.setAttribute("aria-selected", String(!isGnp));
-  propsTabGnp.hidden = !isGnp;
-  propsTabPrefs.hidden = isGnp;
+  for (const [id, [btn, panel]] of Object.entries(PROPS_TABS)) {
+    btn.classList.toggle("active", id === tab);
+    btn.setAttribute("aria-selected", String(id === tab));
+    panel.hidden = id !== tab;
+  }
 }
-propsTabGnpBtn.addEventListener("click", () => showPropsTab("gnp"));
-propsTabPrefsBtn.addEventListener("click", () => showPropsTab("prefs"));
+for (const id of Object.keys(PROPS_TABS)) {
+  PROPS_TABS[id][0].addEventListener("click", () => showPropsTab(id));
+}
+
+/* Pestaña «Fuentes de datos»: un selector por modelo, rellenado desde
+   el catálogo ELEV_SOURCES (60-elevation.js) AL ABRIR, no al cargar:
+   este archivo va antes en el manifiesto y el catálogo aún no existe
+   (zona muerta temporal). Bajo cada selector, la dirección del servicio
+   elegido. No hay nada que previsualizar: la elección solo cuenta para
+   la próxima consulta; Cancelar la deshace y Aceptar la guarda.      */
+function renderPropsSourcesTab() {
+  for (const kind of ["mdt", "mds"]) {
+    const sel = propsSrcSelect[kind];
+    sel.innerHTML = "";
+    const opt = (label, value) => {
+      const o = document.createElement("option");
+      o.value = value;
+      o.textContent = label;
+      sel.appendChild(o);
+    };
+    for (const s of ELEV_SOURCES.filter(x => x.kind === kind)) opt(s.label, s.id);
+    opt("Ninguna", "");
+    sel.value = elevSources[kind] || "";
+    renderPropsSourceUrl(kind);
+  }
+}
+function renderPropsSourceUrl(kind) {
+  const s = elevSourceById(elevSources[kind]);
+  document.getElementById(`props-src-${kind}-url`).textContent = s ? s.base : "No se consulta.";
+}
+for (const kind of ["mdt", "mds"]) {
+  propsSrcSelect[kind].addEventListener("change", () => {
+    elevSources = { ...elevSources, [kind]: propsSrcSelect[kind].value || null };
+    renderPropsSourceUrl(kind);
+  });
+}
 
 function renderGnpEditor() {
   gnpEditorList.innerHTML = "";
@@ -1594,13 +1642,32 @@ document.getElementById("gnp-editor-clear").addEventListener("click", () => {
   renderGnpEditor();
 });
 
+/* El límite del perfil se guarda en metros y se enseña en la unidad de
+   distancia elegida: al cambiarla, se repinta convertido.            */
+function renderPropsProfileMax() {
+  propsProfileMaxInput.value = Number((profileMaxM / POLY_UNIT_FACTOR[measureUnit]).toPrecision(6));
+  document.getElementById("props-profile-max-unit").textContent = POLY_UNIT_LABEL[measureUnit];
+}
 function renderPropsPrefsTab() {
   propsUnitSelect.value = measureUnit;
+  propsAltUnitSelect.value = altitudeUnit;
+  renderPropsProfileMax();
   propsCoordFormatSelect.value = coordFormat;
   gnpVertexMaxInput.value = vertexEditMax;
   propsArcSegmentsInput.value = arcSegments;
 }
-propsUnitSelect.addEventListener("change", () => setMeasureUnit(propsUnitSelect.value));
+propsUnitSelect.addEventListener("change", () => {
+  setMeasureUnit(propsUnitSelect.value);
+  renderPropsProfileMax();
+});
+propsAltUnitSelect.addEventListener("change", () => setAltitudeUnit(propsAltUnitSelect.value));
+/* Mismo criterio que el tope de vértices: un valor ilegible o fuera de
+   [PROFILE_MAX_MIN, PROFILE_MAX_MAX] se descarta y vuelve el vigente. */
+propsProfileMaxInput.addEventListener("change", () => {
+  const m = Number(propsProfileMaxInput.value) * POLY_UNIT_FACTOR[measureUnit];
+  if (Number.isFinite(m) && m >= PROFILE_MAX_MIN && m <= PROFILE_MAX_MAX) profileMaxM = m;
+  renderPropsProfileMax();
+});
 propsCoordFormatSelect.addEventListener("change", () => {
   coordFormat = propsCoordFormatSelect.value;
   renderMeasureValues();
@@ -1645,9 +1712,11 @@ async function togglePropsDialog() {
   if (!propsDialog.hidden) { cancelPropsDialog(); return; }
   if (!gnpStore) gnpStore = await dbLoadGnp();
   propsDraftGnp = { ...gnpStore };
-  propsOriginal = { unit: measureUnit, coordFormat, vertexEditMax, arcSegments };
+  propsOriginal = { unit: measureUnit, altitudeUnit, profileMaxM, coordFormat, vertexEditMax,
+                    arcSegments, elevSources };
   renderGnpEditor();
   renderPropsPrefsTab();
+  renderPropsSourcesTab();
   showPropsTab("prefs");
   propsDialog.hidden = false;
   clampToViewport(propsBox);
@@ -1662,6 +1731,8 @@ function cancelPropsDialog() {
   if (!propsOriginal) return;
   /* Deshace la previsualización en vivo con el mismo camino que la aplicó. */
   if (propsOriginal.unit !== measureUnit) setMeasureUnit(propsOriginal.unit);
+  if (propsOriginal.altitudeUnit !== altitudeUnit) setAltitudeUnit(propsOriginal.altitudeUnit);
+  profileMaxM = propsOriginal.profileMaxM;
   if (propsOriginal.coordFormat !== coordFormat) {
     coordFormat = propsOriginal.coordFormat;
     renderMeasureValues();
@@ -1672,6 +1743,7 @@ function cancelPropsDialog() {
     syncVertexOwnerForDialog();
   }
   arcSegments = propsOriginal.arcSegments;
+  elevSources = propsOriginal.elevSources;
   propsDraftGnp = null;
   propsOriginal = null;
 }
@@ -1681,9 +1753,12 @@ document.getElementById("props-accept").addEventListener("click", () => {
   gnpStore = propsDraftGnp || {};
   dbSaveGnp(gnpStore);
   dbSaveMeasureUnit(measureUnit);
+  dbSaveAltitudeUnit(altitudeUnit);
+  dbSaveProfileMax(profileMaxM);
   dbSaveCoordFormat(coordFormat);
   dbSaveVertexEditMax(vertexEditMax);
   dbSaveArcSegments(arcSegments);
+  dbSaveElevSources(elevSources);
   propsDialog.hidden = true;
   releaseFocus();
   propsDraftGnp = null;

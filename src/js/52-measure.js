@@ -213,6 +213,7 @@ document.addEventListener("keydown", e => {
   if (!urlDialog.hidden) { closeUrlDialog(); return; }
   if (!descDialog.hidden) { hideLayerInfo({ dismiss: true }); return; }
   if (!geocalcDialog.hidden) { toggleGeocalcDialog(); return; }
+  if (!profileDialog.hidden) { closeProfileDialog(); return; }
   if (!colorPicker.hidden) { cancelColorPicker(); return; }
   if (!iconPicker.hidden) { cancelIconPicker(); return; }
   if (!ktpDialog.hidden) { closeKtpPicker(false); return; }
@@ -1164,40 +1165,38 @@ document.addEventListener("keyup", e => {
    rebinding every layer's popup while a tool is active.                */
 map.on("popupopen", e => { if (activeTool) e.popup.close(); });
 
-/* ================= Modo altura (MDT y MDS del IGN) =================
-   Los dos modelos se consultan por el MISMO camino: WCS 2.0, rejilla
-   ASCII, la misma ventana y el mismo recorte. Antes el terreno venía de
-   teselas Terrain-RGB y la superficie de un WCS, y comparar sus valores
-   —o restarlos para saber qué hay construido— no era fiable: distinto
+/* ================= Elevaciones (MDT y MDS por WCS) =================
+   Los dos modelos se consultan por el MISMO camino: WCS 2.0, la misma
+   ventana y el mismo recorte. Antes el terreno venía de teselas
+   Terrain-RGB y la superficie de un WCS, y comparar sus valores —o
+   restarlos para saber qué hay construido— no era fiable: distinto
    muestreo, distinta interpolación y distinto redondeo.
 
-   Cada consulta es una petición entera, así que se lanzan solo cuando el
-   cursor se para y se cachean por celdas.                             */
+   Qué servicio da cada modelo lo elige el usuario (Propiedades →
+   Fuentes de datos, catálogo ELEV_SOURCES en 60-elevation.js), y cada
+   consulta la pide él desde el menú contextual del visor, para la
+   tesela bajo el puntero: mover el ratón no pide nada.                */
 const ELEV_WINDOW = 20;      /* m: media ventana pedida alrededor del punto.
                                 Más ancha que las celdas del modelo (5 m),
-                                para que una consulta cubra varias celdas y
-                                el ratón pueda recorrerlas sin volver a pedir */
+                                para que una consulta cubra varias celdas */
 const ELEV_CELL = 25;        /* m: tamaño de la celda cacheada              */
-const ELEV_SETTLE_MS = 700;  /* el cursor debe pararse antes de pedir       */
 const ELEV_CACHE_MAX = 200;
-const ELEV_TIMEOUT = 12000;
-const ELEV_MAX_RPS = 4;      /* peticiones por segundo, entre las dos fuentes */
+const ELEV_TIMEOUT = 12000;  /* ms por intento; una fuente lenta lleva el suyo */
+const ELEV_MAX_RPS = 4;      /* peticiones por segundo, entre todas las fuentes */
 const ELEV_STATUS_QUIET = 20000;
-const ELEV_ATTRIB = 'MDT05/MDS PNOA \u00A9 <a href="https://www.ign.es">IGN</a> (CC BY 4.0)';
-/* Tope de celdas acumuladas en una sesión de modo altura: cada respuesta
-   aporta ~100-120 celdas (una tesela de 40 m sobre la malla nativa de
-   5 m), así que el tope permite explorar varias decenas de teselas antes
-   de avisar. Los marcadores de Leaflet son siempre nodos del DOM (no
-   pasan por canvas como el resto del visor), así que este tope es
-   también un tope de nodos del DOM, no solo de memoria.               */
-const ELEV_ACCUM_MAX_CELLS = 4000;
+/* Reintentos de una petición que falla por algo PASAJERO, con espera
+   creciente entre intentos. Medido contra Digital Earth Africa (octubre
+   de 2026): la primera petición a una zona tarda 17-33 s y la misma,
+   repetida, 1-5 s; el usuario tenía que repetir la consulta a mano. */
+const ELEV_RETRIES = 3;
+const ELEV_RETRY_DELAYS = [1000, 2000, 4000];
 
-let demOn = false;
-let demButton = null;
 const demTimes = [];
-const demStatusAt = { ok: 0, error: 0 };
+const demErrorAt = new Map(); /* clave (fuente) → último aviso de error */
 
-/* Tope de peticiones por segundo, compartido: son el mismo servidor */
+/* Tope de peticiones por segundo, compartido por todas las fuentes: el
+   descubrimiento de la primera consulta encadena varias peticiones
+   contra el mismo servicio, y cada consulta pide a todas a la vez.    */
 function demRateOk() {
   const now = Date.now();
   while (demTimes.length && now - demTimes[0] > 1000) demTimes.shift();
@@ -1206,21 +1205,71 @@ function demRateOk() {
   return true;
 }
 
-/* Un aviso por racha: moviendo el ratón se piden muchos puntos */
-function demStatus(kind, detail) {
+/* Un aviso de error por racha Y POR FUENTE: un servicio caído fallaría
+   igual en cada consulta seguida, y repetirlo no dice nada nuevo; pero
+   que falle el MDS no debe callar que el MDT tampoco responde.        */
+function demError(key, detail) {
   const now = Date.now();
-  if (now - demStatusAt[kind] < ELEV_STATUS_QUIET) return;
-  demStatusAt[kind] = now;
-  if (kind === "ok") navMessage("Altitud: datos recibidos del IGN.", { tone: "info" });
-  else navMessage(`Altitud: ${detail}.`);
+  if (now - (demErrorAt.get(key) || 0) < ELEV_STATUS_QUIET) return;
+  demErrorAt.set(key, now);
+  navMessage(`Elevación: ${detail}.`);
+}
+
+/* Lo mismo que demRateOk, pero ESPERANDO turno en vez de rendirse: un
+   perfil encadena decenas de peticiones que el usuario ya ha pedido,
+   y descartar la que no cabe dejaría un hueco en la gráfica.          */
+async function demRateWait(signal) {
+  while (!demRateOk()) await elevSleep(1000 / ELEV_MAX_RPS, signal);
+}
+
+/* Espera cancelable: abortar (cerrar el diálogo del perfil) no tiene
+   que esperar a que venza la pausa entre reintentos.                 */
+function elevSleep(ms, signal) {
+  return new Promise((resolve, reject) => {
+    if (signal && signal.aborted) { reject(signal.reason); return; }
+    const t = setTimeout(resolve, ms);
+    if (signal) signal.addEventListener("abort", () => { clearTimeout(t); reject(signal.reason); }, { once: true });
+  });
+}
+
+/* Qué fallos merecen otro intento: los PASAJEROS. Tiempo agotado, red
+   caída (`TypeError`, también el CORS de un 403 de CloudFront, que no se
+   distingue), límite del servicio (429) y errores del servidor (5xx).
+   No se reintenta lo que el servicio CONTESTA: una excepción OGC (fuera
+   de cobertura es una respuesta, no un fallo), el resto de 4xx, ni la
+   cancelación del propio usuario.                                     */
+function isRetryableElevError(err) {
+  if (!err || err.owsCode) return false;
+  if (err.name === "TimeoutError" || err.name === "TypeError") return true;
+  const s = err.status;
+  return s === 429 || (s >= 500 && s <= 599);
+}
+
+/* `attempt(i)` hace UN intento (i = 0, 1…). Pura salvo la espera, que
+   se inyecta para probarla en Node sin relojes.                       */
+async function withElevRetries(attempt, { signal = null, retries = ELEV_RETRIES,
+                                          delays = ELEV_RETRY_DELAYS, sleep = elevSleep } = {}) {
+  for (let i = 0; ; i++) {
+    try {
+      return await attempt(i);
+    } catch (err) {
+      if (i >= retries || !isRetryableElevError(err) || (signal && signal.aborted)) {
+        err.attempts = i + 1;
+        throw err;
+      }
+      await sleep(delays[Math.min(i, delays.length - 1)], signal);
+    }
+  }
 }
 
 /* ---------- Lectura de las respuestas del servicio ---------- */
 
 /* Pedir en latitud/longitud evita convertir coordenadas por nuestra
    cuenta y, con ello, toda una clase de errores. Solo se usa si el
-   servicio declara admitir un CRS geográfico.                        */
-const ELEV_GEO_CRS = [/EPSG\/0\/4326$/, /EPSG\/0\/4258$/];
+   servicio declara admitir un CRS geográfico. Los servicios lo
+   escriben de dos maneras: como URL (`…/EPSG/0/4326`, el IGN) o en
+   forma corta (`EPSG:4326`, Digital Earth Africa).                    */
+const ELEV_GEO_CRS = [/EPSG(\/0\/|:)4326$/, /EPSG(\/0\/|:)4258$/];
 const pickGeoCrs = list =>
   ELEV_GEO_CRS.reduce((found, re) => found || (list || []).find(c => re.test(c)), null) || null;
 
@@ -1228,7 +1277,7 @@ const pickGeoCrs = list =>
    prefiere a las geográficas: así lo que se consulta está en el mismo
    sistema que lo que se ve. La conversión la hace Leaflet con su propia
    proyección (`map.options.crs.project`), sin cálculos nuestros.     */
-const pickWebMercator = list => (list || []).find(c => /EPSG\/0\/3857$/.test(c)) || null;
+const pickWebMercator = list => (list || []).find(c => /EPSG(\/0\/|:)3857$/.test(c)) || null;
 
 /* Metros Web Mercator de una posición, exactamente como los calcula el
    visor para colocar las teselas                                      */

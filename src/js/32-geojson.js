@@ -393,6 +393,10 @@ function pushUndo(label) {
 async function applySnapshot(nodes) {
   clearSelection();
   rootGroup.clearLayers();
+  /* La lista viva de cuadrículas se rehace con el árbol: sin esto, cada
+     deshacer dejaba las de antes, y una ruta seguía «teniendo» un
+     perfil que ya no estaba (findRouteProfile).                      */
+  elevGridGroups.length = 0;
   showEmptyMessage();
   if (nodes.length) await restoreTree(nodes);
   scheduleSave();
@@ -523,6 +527,34 @@ async function dbLoadArcSegments() {
   });
 }
 
+/* Fuentes de elevación elegidas (Propiedades → Fuentes de datos): un id
+   del catálogo ELEV_SOURCES por modelo, o null = «Ninguna». Se valida
+   contra el catálogo ACTUAL al leer (validElevSources, 60-elevation.js):
+   una fuente retirada del código vuelve a la de por defecto.        */
+const ELEV_SOURCES_KEY = "elevSources";
+const ELEV_SOURCES_SCHEMA = 1;
+async function dbSaveElevSources(sel) {
+  const db = await openDb();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(DB_TREE, "readwrite");
+    tx.objectStore(DB_TREE).put({ v: ELEV_SOURCES_SCHEMA, mdt: sel.mdt, mds: sel.mds }, ELEV_SOURCES_KEY);
+    tx.oncomplete = resolve;
+    tx.onerror = () => reject(tx.error);
+  });
+}
+async function dbLoadElevSources() {
+  const db = await openDb();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(DB_TREE, "readonly");
+    const rq = tx.objectStore(DB_TREE).get(ELEV_SOURCES_KEY);
+    rq.onsuccess = () => {
+      const r = rq.result;
+      resolve(r && r.v === ELEV_SOURCES_SCHEMA ? validElevSources(r) : null);
+    };
+    rq.onerror = () => reject(rq.error);
+  });
+}
+
 /* Unidad de medida y formato de latitud/longitud: mismo patrón que
    VERTMAX_KEY/VERTMAX_SCHEMA, ajustes GLOBALES (panel de Propiedades,
    43-points-editor.js) que antes vivían solo en memoria, sin persistir
@@ -551,6 +583,61 @@ async function dbLoadMeasureUnit() {
       const r = rq.result;
       resolve(r && r.v === MEASURE_UNIT_SCHEMA && MEASURE_UNITS.includes(r.unit) ? r.unit : null);
     };
+    rq.onerror = () => reject(rq.error);
+  });
+}
+
+/* Unidad de las ALTITUDES (celdas de elevación, cuadro de coordenadas,
+   perfil de una ruta), independiente de la de distancias: en
+   aeronáutica se mide en millas náuticas y se sube en pies. Mismas
+   cinco unidades que la de distancia.                                 */
+const ALTITUDE_UNIT_KEY = "altitudeUnit";
+const ALTITUDE_UNIT_SCHEMA = 1;
+const validAltitudeUnit = r =>
+  (r && r.v === ALTITUDE_UNIT_SCHEMA && MEASURE_UNITS.includes(r.unit) ? r.unit : null);
+async function dbSaveAltitudeUnit(unit) {
+  const db = await openDb();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(DB_TREE, "readwrite");
+    tx.objectStore(DB_TREE).put({ v: ALTITUDE_UNIT_SCHEMA, unit }, ALTITUDE_UNIT_KEY);
+    tx.oncomplete = resolve;
+    tx.onerror = () => reject(tx.error);
+  });
+}
+async function dbLoadAltitudeUnit() {
+  const db = await openDb();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(DB_TREE, "readonly");
+    const rq = tx.objectStore(DB_TREE).get(ALTITUDE_UNIT_KEY);
+    rq.onsuccess = () => resolve(validAltitudeUnit(rq.result));
+    rq.onerror = () => reject(rq.error);
+  });
+}
+
+/* Longitud máxima de una ruta para obtener su perfil, en METROS (se
+   enseña en la unidad de distancia). Acota lo que un perfil descarga y,
+   sobre todo, lo que deja guardado en el árbol: una celda por cada una
+   recorrida. Fuera de [PROFILE_MAX_MIN, PROFILE_MAX_MAX] se descarta. */
+const PROFILE_MAX_KEY = "profileMax";
+const PROFILE_MAX_SCHEMA = 1;
+const validProfileMax = r =>
+  (r && r.v === PROFILE_MAX_SCHEMA && Number.isFinite(r.m)
+    && r.m >= PROFILE_MAX_MIN && r.m <= PROFILE_MAX_MAX ? r.m : null);
+async function dbSaveProfileMax(m) {
+  const db = await openDb();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(DB_TREE, "readwrite");
+    tx.objectStore(DB_TREE).put({ v: PROFILE_MAX_SCHEMA, m }, PROFILE_MAX_KEY);
+    tx.oncomplete = resolve;
+    tx.onerror = () => reject(tx.error);
+  });
+}
+async function dbLoadProfileMax() {
+  const db = await openDb();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(DB_TREE, "readonly");
+    const rq = tx.objectStore(DB_TREE).get(PROFILE_MAX_KEY);
+    rq.onsuccess = () => resolve(validProfileMax(rq.result));
     rq.onerror = () => reject(rq.error);
   });
 }
@@ -831,7 +918,9 @@ function serializeNode(li) {
               waypoints: measureWaypoints(li._measure) }];
   }
   if (li._elevGrid) {
-    return [{ ...base, t: "elevGrid", cells: li._elevGrid.cells }];
+    const rec = { ...base, t: "elevGrid", cells: li._elevGrid.cells };
+    if (li._elevGrid.profile) rec.profile = li._elevGrid.profile; /* perfil de ruta */
+    return [rec];
   }
   if (li._imageOverlay) {
     const o = li._imageOverlay;
@@ -894,7 +983,9 @@ function serializePendingRecords(records) {
                 style: rec.style, waypoints: measureWaypoints(rec._m) };
     }
     if (rec.t === "elevGrid") {
-      return { name: rec.name, checked: rec.checked, t: "elevGrid", cells: rec.cells };
+      const out = { name: rec.name, checked: rec.checked, t: "elevGrid", cells: rec.cells };
+      if (rec.profile) out.profile = rec.profile;
+      return out;
     }
     /* rec.t === "imageOverlay" */
     return { name: rec.name, checked: rec.checked, t: "imageOverlay",
@@ -1262,14 +1353,11 @@ async function materializeRecords(records, parentUl) {
       updateMeasurement(rec._m);
     } else if (rec.t === "elevGrid") {
       const li = makeNode({
-        name: rec.name, layer: rec._layer, styleable: false, checked: !!rec.checked,
-        onDelete: () => {
-          const i = elevGridGroups.indexOf(rec._layer);
-          if (i >= 0) elevGridGroups.splice(i, 1);
-        }
+        name: rec.name, layer: rec._layer, styleable: false, focusable: true, checked: !!rec.checked,
+        onDelete: () => forgetElevGridGroup(rec._layer)
       });
       rec._li = li;
-      li._elevGrid = { cells: rec.cells };
+      li._elevGrid = { cells: rec.cells, profile: rec.profile || null };
       parentUl.appendChild(li);
     } else if (rec.t === "imageOverlay") {
       const li = makeNode({ name: rec.name, layer: rec._layer, styleable: true, checked: !!rec.checked });

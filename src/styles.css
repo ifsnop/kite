@@ -593,6 +593,10 @@
   .elev-cell .ec-s { color: #2e7d32; }                    /* superficie */
   .elev-cell .ec-d { color: #b04a3a; }                    /* diferencia */
   .elev-cell .ec-d.alert { color: #d32f2f; font-weight: 700; } /* MDS > MDT + 1 m */
+  /* Consulta de elevación en marcha: sin aviso en el registro, el cursor
+     es la señal (ver syncElevBusy). `!important` y `*`: las capas
+     interactivas y el arrastre ponen su propio cursor.               */
+  .leaflet-container.elev-busy, .leaflet-container.elev-busy * { cursor: progress !important; }
 
   .coords-zoom { font-weight: 600; }
   /* La atribución se queda en una sola línea, la de abajo del todo */
@@ -670,6 +674,42 @@
   /* La calculadora geodésica va abajo a la derecha: arriba a la derecha
      está el diálogo de estilos y se taparían entre sí.                 */
   #geocalc-dialog { top: auto; bottom: 40px; }
+  /* El perfil también abajo a la derecha, más ancho: cabe una gráfica.
+     Altura de partida explícita (como #props-dialog) para que el tirador
+     dé espacio a la gráfica, que llena la caja y se redibuja al tamaño. */
+  #profile-dialog { top: auto; bottom: 40px; }
+  #profile-dialog .dlg-box {
+    display: flex; flex-direction: column; resize: both;
+    width: min(92vw, 46rem); height: min(70vh, 380px); min-width: 320px; min-height: 220px;
+  }
+  #profile-progress { margin: 10px 0 4px; }
+  #profile-progress[hidden] { display: none; }
+  #profile-progress-label { font-size: 13px; margin-bottom: 4px; }
+  #profile-progress .bar { height: 8px; background: var(--border); border-radius: 4px; overflow: hidden; }
+  #profile-progress-fill { height: 100%; width: 0; background: var(--accent); transition: width 0.15s; }
+  /* Rueda = zoom, arrastrar = desplazar (63-route-profile.js): la mano
+     solo con zoom, que es cuando hay algo que desplazar.             */
+  #profile-chart { flex: 1 1 auto; min-height: 120px; position: relative;
+                   touch-action: none; user-select: none; }
+  #profile-chart.zoomed { cursor: grab; }
+  #profile-chart.dragging { cursor: grabbing; }
+  #profile-chart svg { display: block; width: 100%; height: 100%; font: 11px system-ui, sans-serif; }
+  #profile-chart .pf-axis { stroke: var(--muted); stroke-width: 1; }
+  #profile-chart .pf-grid { stroke: var(--border); stroke-width: 1; }
+  #profile-chart .pf-vertex { stroke: var(--muted); stroke-width: 1; stroke-dasharray: 3 3; }
+  /* MDT azul, MDS verde (pedido); la leyenda usa las mismas clases */
+  #profile-chart .pf-line { fill: none; stroke-width: 1.5; }
+  #profile-chart .pf-line.mdt, #profile-chart .pf-legend.mdt { stroke: #1565c0; }
+  #profile-chart .pf-line.mds, #profile-chart .pf-legend.mds { stroke: #2e7d32; }
+  #profile-chart .pf-legend { stroke-width: 3; }
+  #profile-chart .pf-tick { fill: var(--text); }
+  #profile-chart .pf-tick.vertex { font-weight: 700; }
+  #profile-chart .pf-cursor { stroke: #b04a3a; stroke-width: 1; }
+  /* Flecha del mapa que sigue al cursor de la gráfica (mismo rojo) */
+  .pf-map-arrow { background: none; border: none; pointer-events: none; }
+  .pf-map-arrow svg { display: block; overflow: visible; }
+  .pf-map-arrow path { fill: #b04a3a; stroke: #fff; stroke-width: 1.5; stroke-linejoin: round; }
+  #profile-chart .pf-readout { fill: var(--text); font-weight: 600; }
   #geocalc-dialog .dlg-box { width: min(92vw, 30rem); }
   .geocalc-field { display: flex; gap: 6px; }
   #geocalc-dialog .dlg-row input[type="number"] { width: 110px; }
@@ -979,6 +1019,10 @@
     border-radius: 5px;
     font: inherit;
   }
+  /* Campo numérico con su unidad al lado (límite del perfil, que se
+     escribe en la unidad de distancia elegida)                      */
+  .props-with-unit { display: inline-flex; align-items: center; gap: 6px; }
+  .props-with-unit input[type="number"] { width: 80px; }
   .dlg-row input[type="range"] { width: 120px; }
   .dlg-row input[type="color"] {
     width: 34px;
@@ -1219,6 +1263,10 @@
     width: min(92vw, 34rem); height: min(70vh, 520px);
   }
   #shortcuts .dlg-tabpanel { overflow-y: auto; }
+  /* Preferencias ya no cabe en la altura de partida (dos unidades y el
+     límite del perfil): el panel scrollea por su cuenta, como la
+     chuleta, en vez de salirse por debajo de los botones.           */
+  #props-dialog .dlg-tabpanel { overflow-y: auto; }
   .gnp-list, .gnp-editor-list {
     flex: 1 1 auto; min-height: 4em;
     overflow-y: auto;
@@ -1242,6 +1290,9 @@
   }
   .dlg-tab.active { color: var(--text); border-bottom-color: var(--accent); font-weight: 600; }
   .dlg-tabpanel { flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; }
+  /* La dirección del servicio bajo cada selector de fuente: una URL
+     larga no tiene espacios por los que partir y desbordaría la caja. */
+  .props-src-url { margin-top: 0; overflow-wrap: anywhere; }
   /* Same trap as .dlg-row[hidden]/.color-field[hidden]: an author
      "display: flex" beats the UA "[hidden] { display: none }" rule
      regardless of specificity, so the inactive tab stayed visible

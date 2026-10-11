@@ -18,7 +18,7 @@ const SUITES = [
   ["utmtest.js",    "Conversión a UTM y husos"],
   ["daynight.js",   "Iluminación día/noche: punto subsolar y elevación solar en fechas y puntos de referencia"],
   ["coordfmt.js",   "Formato de coordenadas: decimal, GMS con espacios y GMS compacto"],
-  ["elevtest.js",   "Elevaciones: WCS del IGN, coberturas, formatos, rejilla"],
+  ["elevtest.js",   "Elevaciones: catálogo de fuentes WCS por conjunto de datos, reintentos, ASCII o GeoTIFF, rejilla, unidades y cálculo del perfil"],
   ["pnoahisttest.js", "PNOA histórico: descubrimiento de capas del WMS del IGN"],
   ["copernicustest.js", "Copernicus DEM: instance ID de Sentinel Hub y sus capas"],
   ["customtiles.js", "Custom Maps: validación de la URL del servidor, normalización y plantilla XYZ"],
@@ -88,9 +88,11 @@ const BROWSER = [
   ["browser/oneworld.mjs", "Navegador: una sola Tierra — sin copias en horizontal, con tope de arrastre y suelo de zoom"],
   ["browser/undo-create.mjs", "Navegador: crear un marcador, un polígono o una medición se puede deshacer y rehacer"],
   ["browser/arc-draw.mjs", "Navegador: medir un arco — centro, inicio y recorrido del perímetro, guardado como ruta de N tramos"],
-  ["browser/rotation.mjs", "Navegador: rotación del mapa — brújula, botón central, R, etiquetas horizontales, detección de capas, modo alturas, PNG y bordes del mundo"],
+  ["browser/rotation.mjs", "Navegador: rotación del mapa — brújula, botón central, R, etiquetas horizontales, detección de capas, consulta de elevación deshabilitada, PNG y bordes del mundo"],
   ["browser/rotation-core.mjs", "Navegador: giro incorporado — conversiones, marcadores, etiquetas, popups, arrastre, teselas, encuadre y pellizco con el mapa girado"],
   ["browser/keyboard-nav.mjs", "Navegador: teclado y rueda del visor — flechas, Re/Av Pág y rueda continuos, y el foco que se queda en el visor"],
+  ["browser/elev-sources.mjs", "Navegador: fuentes de elevación en Propiedades y consulta puntual desde el menú contextual — carpeta por sesión, unidad de altitud, GeoTIFF, MDT25, reintentos y descubrimiento una vez por sesión"],
+  ["browser/elev-profile.mjs", "Navegador: perfil de una ruta — MDT y MDS por trozos, dos curvas, «Mostrar perfil» sin red, flecha en el mapa, zoom y desplazamiento, malla común con la consulta puntual, clic derecho con el perfil debajo, huecos y cancelar"],
   ["browser/geocalc.mjs", "Navegador: calculadora geodésica — dos pestañas que se recalculan solas, presión, unidades que convierten, sin crecer y no modal"]
 ];
 

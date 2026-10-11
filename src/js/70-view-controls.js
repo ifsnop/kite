@@ -1,10 +1,6 @@
 /* ================= Controles de vista del visor ================= */
 
 let gratButton = null;
-let elevUnitButton = null;
-
-const DEM_BUTTON_TITLE = "Modo altura: consulta el MDT (terreno) y el MDS"
-  + " (superficie) del IGN bajo el cursor (Espa\u00F1a; requiere conexi\u00F3n)";
 
 /* Named so both the toolbar buttons and the viewer's context menu can
    trigger the same action without duplicating logic.                  */
@@ -50,29 +46,6 @@ const ViewControl = L.Control.extend({
     gc.style.fontWeight = "600";
     gc.title = "Centrar la vista en las islas Canarias";
     gc.addEventListener("click", e => { e.preventDefault(); centerCanaries(); });
-
-    demButton = L.DomUtil.create("a", "", bar);
-    demButton.href = "#";
-    demButton.textContent = "\u26F0";
-    demButton.title = DEM_BUTTON_TITLE;
-    demButton.addEventListener("click", e => {
-      e.preventDefault();
-      setAltitudeMode(!demOn);
-    });
-
-    elevUnitButton = L.DomUtil.create("a", "", bar);
-    elevUnitButton.href = "#";
-    elevUnitButton.textContent = elevUnit;
-    elevUnitButton.style.fontSize = "11px";
-    elevUnitButton.style.fontWeight = "600";
-    elevUnitButton.hidden = !demOn; /* solo tiene sentido con el modo altura activo */
-    elevUnitButton.title = "Unidad de la cuadrícula de elevaciones: metros / pies";
-    elevUnitButton.addEventListener("click", e => {
-      e.preventDefault();
-      elevUnit = elevUnit === "m" ? "ft" : "m";
-      elevUnitButton.textContent = elevUnit;
-      refreshElevCells();
-    });
 
     gratButton = L.DomUtil.create("a", "", bar);
     gratButton.href = "#";
@@ -404,30 +377,27 @@ const CoordsControl = L.Control.extend({
       d.textContent = "\u2014";
       return d;
     });
-    this._rows[4].hidden = this._rows[5].hidden = true; /* solo en modo altura */
+    this._rows[4].hidden = this._rows[5].hidden = true; /* solo sobre una celda descargada */
     this.updateZoom();
     return this._div;
   },
-  showElevation(on) {
-    for (const i of [4, 5]) {
-      this._rows[i].hidden = !on;
-      if (!on) this._rows[i].textContent = "\u2014";
+  /* Lo que se descargó en la celda bajo el cursor (elevCellAt), sin
+     red, en la unidad de Propiedades. Cada fila lleva el nombre del
+     modelo que la produce y solo aparece si ese modelo se consultó; la
+     diferencia, solo cuando los DOS valores son números de verdad.   */
+  showElevationCell(cell) {
+    const fmt = v => (v === null || v === undefined ? "sin datos" : fmtHeight(v, altitudeUnit));
+    const t = !!cell && hasMdt(cell), s = !!cell && hasMds(cell);
+    this._rows[4].hidden = !t;
+    this._rows[5].hidden = !s;
+    if (t) this._rows[4].textContent = `${ELEV_KIND_LABEL.mdt}: ${fmt(cell.mdt)}`;
+    if (s) {
+      let line = `${ELEV_KIND_LABEL.mds}: ${fmt(cell.mds)}`;
+      if (typeof cell.diff === "number") {
+        line += ` \u00B7 sobre el suelo ${cell.diff >= 0 ? "+" : ""}${fmtHeight(cell.diff, altitudeUnit)}`;
+      }
+      this._rows[5].textContent = line;
     }
-    this._terrain = this._surface = null;
-  },
-  /* Cada fila lleva el nombre del modelo que la produce: son fuentes
-     distintas y conviene saber cuál dice qué. La diferencia solo se
-     muestra cuando los DOS valores son números de verdad.           */
-  setElevation(which, txt, meters) {
-    const i = which === "terrain" ? 4 : 5;
-    const tag = which === "terrain" ? "MDT (terreno)" : "MDS (superficie)";
-    this[which === "terrain" ? "_terrain" : "_surface"] = meters;
-    let line = `${tag}: ${txt}`;
-    if (which === "surface" && typeof meters === "number" && typeof this._terrain === "number") {
-      const d = meters - this._terrain;
-      line += ` \u00B7 sobre el suelo ${d >= 0 ? "+" : ""}${d.toFixed(1)} m`;
-    }
-    this._rows[i].textContent = line;
   },
   /* El zoom no depende del cursor, así que se refresca aparte */
   updateZoom() {
@@ -452,12 +422,24 @@ map.on("zoomend", () => coordsControl.updateZoom());
 let coordsPending = null, coordsFrame = null;
 map.on("mousemove", e => {
   coordsPending = e.latlng;
-  if (demOn) elevRequest(e.latlng);
   if (coordsFrame) return;
   coordsFrame = requestAnimationFrame(() => {
     coordsFrame = null;
     coordsControl.update(coordsPending);
+    coordsControl.showElevationCell(elevCellAt(coordsPending.lat, coordsPending.lng));
   });
+});
+/* Fuera del visor no hay celda bajo el cursor: si no, la última lectura
+   se quedaría escrita como si siguiera siendo la del puntero. El
+   fotograma del último mousemove se cancela: llegaba DESPUÉS de salir
+   y volvía a pintar la celda que el ratón acababa de dejar.
+   `mouseleave` del contenedor y no el "mouseout" de Leaflet: el lienzo
+   de las capas vectoriales lleva `_leaflet_disable_events`, así que
+   saliendo desde ENCIMA de una cuadrícula (justo el caso) el mapa no
+   recibía su mouseout.                                               */
+map.getContainer().addEventListener("mouseleave", () => {
+  if (coordsFrame) { cancelAnimationFrame(coordsFrame); coordsFrame = null; }
+  coordsControl.showElevationCell(null);
 });
 
 /* ---------- Teclado del visor: desplazar (flechas) y zoom (Re/Av Pág) ----------
@@ -775,8 +757,10 @@ const CTX_MENU_ITEMS = [
         .catch(() => navMessage("No se pudieron copiar las coordenadas."));
     }
   },
-  { label: "Modo elevación", checked: () => demOn, action: () => setAltitudeMode(!demOn),
-    disabled: () => isMapRotated() && ALT_ROTATED_WHY },
+  /* Descarga MDT/MDS de la tesela bajo el puntero, con las fuentes de
+     Propiedades → Fuentes de datos (ver queryElevationAt).          */
+  { label: "Consultar elevación aquí", action: latlng => queryElevationAt(latlng),
+    disabled: () => elevQueryDisabled() },
   /* Las tres mediciones agrupadas en un submenú: son la misma familia y
      tres entradas sueltas desbordaban el menú.                        */
   {
@@ -885,6 +869,10 @@ function layerCtxItems(li) {
   const items = [{ label: "Ir al nodo en el panel", action: () => goToNodeAndBlink(li) }];
   if (infoHtmlFor(li) != null) items.push({ label: "Mostrar atributos", action: () => showLayerInfoAndBlink(li) });
   if (STYLE_EDITABLE_KINDS.has(styleKind(li))) items.push({ label: "Editar propiedades", action: () => editPropertiesAndBlink(li) });
+  /* Una ruta (también un arco, que es una ruta) da su perfil: «Obtener»
+     o, si ya lo tiene, «Mostrar»; el motivo de no poder obtenerlo va en
+     el ítem deshabilitado (sin fuentes, demasiado larga).            */
+  if (isRouteLi(li)) items.push(routeProfileCtxItem(li));
   return items;
 }
 
@@ -911,6 +899,20 @@ function ctxItemsFor(hits) {
     items.push({
       label: "Editar propiedades",
       items: editable.map(li => ({ label: li._name, action: () => editPropertiesAndBlink(li) }))
+    });
+  }
+  /* El perfil también aquí: una ruta casi nunca está sola bajo el
+     cursor, porque las celdas de su propio perfil (o de cualquier
+     cuadrícula de elevación) quedan debajo y el hit-testing las acierta
+     aunque no sean interactivas. Sin esto, tras el primer perfil la
+     opción desaparecía del menú. Una ruta: el ítem tal cual; varias,
+     un submenú por nombre.                                           */
+  const routes = hits.filter(isRouteLi);
+  if (routes.length === 1) items.push(routeProfileCtxItem(routes[0]));
+  else if (routes.length > 1) {
+    items.push({
+      label: "Perfil de ruta",
+      items: routes.map(li => ({ ...routeProfileCtxItem(li), label: li._name }))
     });
   }
   return [...items, { separator: true }, ...CTX_MENU_ITEMS];

@@ -12,8 +12,9 @@
    3) La detección de capas bajo el cursor (`layersAtPoint`) encuentra un
       polígono estrecho y diagonal a 45° — el caso que la criba de dos
       esquinas dejaba fuera.
-   4) El modo alturas no se puede activar con el mapa rotado, y girar el
-      mapa lo apaga.
+   4) La consulta de elevación no se puede lanzar con el mapa rotado:
+      su entrada del menú contextual sale deshabilitada, con el motivo,
+      y vuelve a estar disponible con el norte arriba.
    5) El PNG se genera con el mapa rotado, y la brújula sale en la
       captura solo cuando está girado.
    6) «Una sola Tierra»: a zoom mínimo y 45° no asoma fondo por las
@@ -176,30 +177,28 @@ const hit = await page.evaluate(() => {
 });
 ok(hit.includes("Diagonal"), "a 45°, un clic sobre el polígono diagonal lo encuentra: " + JSON.stringify(hit));
 
-/* ---------- 4. Modo alturas ---------- */
-const alt = await page.evaluate(async () => {
-  await setAltitudeMode(true);
-  const tried = demOn;
-  const disabled = demButton.classList.contains("disabled") && demButton.getAttribute("aria-disabled") === "true";
-  map.setBearing(0);
-  await setAltitudeMode(true);
-  const onNorthUp = demOn;
-  map.setBearing(20); /* girar con el modo activo lo apaga */
-  return { tried, disabled, onNorthUp, afterRotate: demOn };
-});
-ok(!alt.tried, "con el mapa rotado, el modo alturas no se activa");
-ok(alt.disabled, "y su botón se ve deshabilitado");
-ok(alt.onNorthUp, "con el norte arriba sí se activa");
-ok(!alt.afterRotate, "y girar el mapa lo apaga");
-const ctxDisabled = await page.evaluate(() => {
+/* ---------- 4. Consulta de elevación ---------- */
+const elevItem = () => page.evaluate(() => {
   openCtxMenu(map.getCenter(), 600, 400, []);
-  const b = [...document.querySelectorAll("#map-ctxmenu .ctx-menu-item")].find(x => /Modo elevación/.test(x.textContent));
-  const r = { disabled: b.disabled, title: b.title };
+  const b = [...document.querySelectorAll("#map-ctxmenu .ctx-menu-item")]
+    .find(x => /Consultar elevación/.test(x.textContent));
+  const r = b ? { disabled: b.disabled, title: b.title } : null;
   closeCtxMenu();
   return r;
 });
-ok(ctxDisabled.disabled && /rotado/.test(ctxDisabled.title),
-  "y en el menú contextual aparece deshabilitado, con el motivo: " + JSON.stringify(ctxDisabled));
+const rotatedItem = await elevItem();
+ok(rotatedItem && rotatedItem.disabled && /rotado/.test(rotatedItem.title),
+  "con el mapa rotado, «Consultar elevación aquí» sale deshabilitada, con el motivo: " + JSON.stringify(rotatedItem));
+const tried = await page.evaluate(async () => {
+  const before = elevGridGroups.length;
+  await queryElevationAt(map.getCenter());
+  return elevGridGroups.length - before;
+});
+ok(tried === 0, "y llamarla igualmente no consulta ni crea capa");
+await page.evaluate(() => map.setBearing(0));
+const northItem = await elevItem();
+ok(northItem && !northItem.disabled, "con el norte arriba vuelve a estar disponible: " + JSON.stringify(northItem));
+await page.evaluate(() => map.setBearing(45));
 
 /* ---------- 5. PNG: la brújula sale solo con el mapa girado ---------- */
 const png = await page.evaluate(async () => {

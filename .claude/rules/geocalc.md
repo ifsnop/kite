@@ -1,5 +1,5 @@
 ---
-description: Calculadora geodésica (botón 📐, una pestaña por cálculo): ángulo de elevación con cono y corrección por presión, vector GPS, cálculo inmediato, unidades copiadas de Propiedades, ventana flotante.
+description: Calculadora geodésica (botón 📐, una pestaña por cálculo): ángulo de elevación con cono y corrección por presión, vector GPS, cálculo inmediato, unidades copiadas de Propiedades (distancia y altitud), ventana flotante.
 paths:
   - "src/js/62-geocalc.js"
 ---
@@ -9,7 +9,7 @@ paths:
 - **Botón 📐 tras 🏷️ Propiedades, ventana flotante no modal** (`#geocalc-dialog`, `.dlg-float`, como el diálogo de estilos): el mapa sigue usable con ella abierta. Va abajo a la derecha (`bottom: 40px`) para no taparse con el diálogo de estilos, que ocupa arriba a la derecha. Escape la cierra (cadena de `52-measure.js`, tras la ficha de capa).
 - **Una pestaña por cálculo**: `geocalcTabs` (mismo patrón que `shTabs` de la chuleta), cada entrada `{ btn, panel, calc }`. Hoy dos: «Ángulo de elevación» y «Vector GPS». Añadir una = botón en `.dlg-tabs`, panel `.dlg-tabpanel` (con SU resultado `…-result` y SU aviso `…-error` dentro de un `.geocalc-out`) y una entrada con su función de cálculo.
 - **Se registra en su propio archivo** (`makeDialogMovable`/`setupDialog` en `62-geocalc.js`), no en la lista de `44-dialogs.js`: ese archivo carga antes y la caja aún no existiría (zona muerta temporal).
-- **Posición en el manifiesto: `62-`, detrás de la iluminación y NO entre `52-measure.js` y `60-elevation.js`.** `tests/elevtest.js` extrae por rango de texto desde `webMercatorHalf` (final de `52-measure.js`) hasta `parseMdsCoverage` (`60-elevation.js`): cualquier archivo colocado en medio entra en esa extracción y revienta la suite en Node (`document is not defined`).
+- **Posición en el manifiesto: `62-`, detrás de la iluminación y NO entre `52-measure.js` y `60-elevation.js`.** `tests/elevtest.js` extrae por rango de texto desde `webMercatorHalf` (final de `52-measure.js`) hasta `parseCoverageDescription` (`60-elevation.js`): cualquier archivo colocado en medio entra en esa extracción y revienta la suite en Node (`document is not defined`).
 - **Una pestaña más alta no debe sacar el pie de la pantalla** (`fitGeocalcBottom`, al cambiar de pestaña y al abrir). Sin arrastrar, la ventana está anclada abajo y crece hacia arriba sola; una vez arrastrada, `makeDialogMovable` la deja fijada POR ARRIBA y la pestaña alta (la de GPS) empujaba el pie fuera. `clampToViewport` (compartida) solo garantiza que el título sea alcanzable, no que quepa el cuadro: no se toca, el ajuste es de esta ventana.
 
 ## Cálculo inmediato, sin botón «Calcular»
@@ -22,7 +22,7 @@ paths:
 
 ## Unidades
 
-- **Copiadas de `#props-unit`**, no repetidas (`innerHTML` de `propsUnitSelect`): mismas unidades y mismo orden que Propiedades por construcción. Cada campo numérico con unidad tiene su selector INDEPENDIENTE (`geocalcUnitField`). Elevación, primera apertura (`seedGeocalcUnits`): distancia en `measureUnit`; alturas en pies si esa unidad es ft/mi/NM, en metros si es m/km. Después manda el usuario; no se persiste y no se sincroniza con el ajuste global. El vector GPS NO sigue `measureUnit`: sus unidades de partida son fijas (ver su punto).
+- **Copiadas de `#props-unit`**, no repetidas (`innerHTML` de `propsUnitSelect`): mismas unidades y mismo orden que Propiedades por construcción. Cada campo numérico con unidad tiene su selector INDEPENDIENTE (`geocalcUnitField`). Elevación, primera apertura (`seedGeocalcUnits`): distancia en `measureUnit` (unidad de distancia) y alturas en `altitudeUnit` (unidad de altitud de Propiedades; antes se deducía de la de distancia: pies con ft/mi/NM, metros con m/km). Después manda el usuario; no se persiste y no se sincroniza con el ajuste global. El vector GPS NO sigue `measureUnit`: sus unidades de partida son fijas (ver su punto).
 - **Cambiar la unidad de un campo CONVIERTE su valor** (`convertGeocalcField`), no lo reinterpreta: 1000 ft → 304.8 m. Solo el campo de ese selector; cada `<select>` recuerda su unidad anterior en `dataset.prev` (`change` solo trae la nueva; la asignación por código, que no dispara `change`, también lo actualiza). **Redondeo a 12 cifras significativas** (`toPrecision(12)`): las bastantes para que el ruido de coma flotante (304.79999999999995) desaparezca y para que ida y vuelta m → ft → m devuelva lo mismo. Con 10, 650 m volvían como «650.0000001» (el valor intermedio ya había perdido precisión). Vacío o ilegible se deja tal cual.
 
 ## Pestaña «Ángulo de elevación»

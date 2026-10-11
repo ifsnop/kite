@@ -197,7 +197,7 @@ misma función que usan los controles.
 ## Cuadro de coordenadas y atribución
 
 La línea inferior es SOLO para la atribución de Leaflet (crece con cada
-mapa base/modo altura activado). El cuadro de coordenadas va siempre por
+mapa base/fuente de elevación consultada). El cuadro de coordenadas va siempre por
 encima (`margin-bottom`) y **no lleva ancho máximo** (cortaría la línea
 de diferencia superficie/terreno, que es larga). La atribución va en una
 sola línea con elipsis si no cabe.

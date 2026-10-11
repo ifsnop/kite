@@ -8,7 +8,7 @@ const rootUl = document.createElement("ul");
 treeEl.appendChild(rootUl);
 
 /* rootGroup mock: records every add/remove by layer tag, in order, and
-   tracks membership (hasLayer) for visibleElevGridNodes.               */
+   tracks membership (hasLayer).                                        */
 let calls = [];
 const inMap = new Set();
 const rootGroup = {
@@ -107,7 +107,7 @@ const src = [
   fn("serializePendingRecords"),
   fn("extendBounds"), fn("extendBoundsFromRecords"), fn("subtreeBounds"),
   fn("findMatches"), fn("searchMatches"), fn("resolveMatch"),
-  fn("resolveRecordLi"), fn("wirePendingLayerEvents"), fn("visibleElevGridNodes"),
+  fn("resolveRecordLi"), fn("wirePendingLayerEvents"),
   fn("blinkLayer"),
   fn("removeRecordsFromMap"), fn("removeSubtreeFromMap"), fn("deleteNode"),
   /* materializeRecords y deleteNode recalculan el estado de los
@@ -134,7 +134,7 @@ const api = new Function(
   src + `\nreturn {
     materializeRecords, ensureMaterialized, serializeNode, serializeNodes, serializePendingRecords,
     subtreeBounds, findMatches, searchMatches, resolveMatch, resolveRecordLi,
-    wirePendingLayerEvents, visibleElevGridNodes, blinkLayer, deleteNode, selectFolderLayers,
+    wirePendingLayerEvents, blinkLayer, deleteNode, selectFolderLayers,
     clearSelection, SEL_COUNT_DEBOUNCE_MS,
     cuentas: () => ({ enVuelo: materializingNow, terminadas: materializeSeq })
   };`
@@ -145,7 +145,7 @@ const api = new Function(
 const {
   materializeRecords, ensureMaterialized, serializeNode, serializeNodes,
   subtreeBounds, findMatches, searchMatches, resolveMatch, resolveRecordLi,
-  wirePendingLayerEvents, visibleElevGridNodes, blinkLayer, deleteNode, selectFolderLayers,
+  wirePendingLayerEvents, blinkLayer, deleteNode, selectFolderLayers,
   clearSelection, SEL_COUNT_DEBOUNCE_MS
 } = api;
 
@@ -318,20 +318,6 @@ const folderRec = (name, collapsed, children) => ({ t: "folder", name, checked: 
   highlightCalls = [];
   const liAgain = await resolveRecordLi(clickRec);
   ok(liAgain === clickRec._li, "una segunda resolución usa rec._li directamente, sin nuevo recorrido");
-
-  /* ---------- visibleElevGridNodes: encuentra una capa de elevaciones
-     marcada dentro de una carpeta nunca desplegada ---------- */
-  const elevOuter = makeNode({ name: "elev-outer", isFolder: true, checked: true });
-  rootUl.appendChild(elevOuter);
-  const elevLayer = { tag: "elev1" };
-  rootGroup.addLayer(elevLayer); /* la marca "visible" para hasLayer */
-  const elevRec = { t: "elevGrid", name: "Elevación pendiente", checked: true, cells: [], _layer: elevLayer };
-  elevOuter._pending = [elevRec];
-
-  const foundElev = await visibleElevGridNodes();
-  ok(foundElev.length === 1 && foundElev[0]._name === "Elevación pendiente",
-     "encuentra la capa de elevaciones visible dentro de una carpeta pendiente: " + foundElev.length);
-  ok(!elevOuter._pending, "y materializa lo necesario para devolver un <li> real, listo para fusionar la sesión");
 
   /* ---------- selectFolderLayers: el botón ☑ de una carpeta ----------
      Selecciona de una vez todas las capas de la rama, incluidas las de

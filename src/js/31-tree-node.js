@@ -5,7 +5,7 @@
 function makeNode({ name, layer = null, isFolder = false, isFile = false,
                     style = null, checked = true, desc = null,
                     onDelete = null, onRename = null,
-                    styleable = layer !== null }) {
+                    styleable = layer !== null, focusable = styleable }) {
   const li = document.createElement("li");
   if (isFile) li.className = "file";
   li._name = name;
@@ -96,7 +96,7 @@ function makeNode({ name, layer = null, isFolder = false, isFile = false,
   label.title = name;
   row.appendChild(label);
 
-  row.appendChild(makeActions(li, isFolder || isFile, styleable, layer));
+  row.appendChild(makeActions(li, isFolder || isFile, styleable, layer, focusable));
 
   /* Shift+click toggles multi-selection without touching the checkbox.
      Only same-kind nodes can be selected together (marker layers with
@@ -252,7 +252,9 @@ function makeCaret(li) {
 
 /* Row action buttons: sort/collapse (containers), layer styles (layers),
    rename, move up/down and delete */
-function makeActions(li, sortable, styleable, layer) {
+/* `focusable`: lleva la lupa 🔍 aunque no tenga diálogo de propiedades
+   (una cuadrícula de elevación se encuadra, pero no tiene estilos).  */
+function makeActions(li, sortable, styleable, layer, focusable = styleable) {
   const box = document.createElement("span");
   box.className = "actions";
   const btn = (glyph, title, cls, fn) => {
@@ -272,11 +274,11 @@ function makeActions(li, sortable, styleable, layer) {
     btn("\u229F", "Colapsar esta carpeta y las interiores", "", () => collapseDescendants(li));
     btn("\uD83D\uDCBE", "Guardar esta carpeta en un archivo para volver a cargarla despu\u00E9s", "", () => exportNode(li));
   }
-  if (styleable) {
+  if (focusable) {
     btn("\uD83D\uDD0D", `Centrar la vista aqu\u00ED y acercar (zoom ${FOCUS_ZOOM})`, "",
         () => focusOnNode(li));
-    btn("\uD83C\uDFA8", "Editar propiedades", "", () => openStyleDialog(li));
   }
+  if (styleable) btn("\uD83C\uDFA8", "Editar propiedades", "", () => openStyleDialog(li));
   /* Un marcador siempre lleva el botón, oculto mientras no tenga ficha:
      con la iluminación real activa la gana (horas del sol), y
      refreshInfoButtons lo muestra/oculta sin reconstruir la fila.      */
@@ -388,10 +390,7 @@ function removeRecordsFromMap(records) {
   for (const rec of records) {
     if (rec.children) { removeRecordsFromMap(rec.children); continue; }
     if (rec._layer) rootGroup.removeLayer(rec._layer);
-    if (rec.t === "elevGrid") { /* mismo onDelete que materializeRecords le habría dado */
-      const i = elevGridGroups.indexOf(rec._layer);
-      if (i >= 0) elevGridGroups.splice(i, 1);
-    }
+    if (rec.t === "elevGrid") forgetElevGridGroup(rec._layer); /* el onDelete que habría tenido */
   }
 }
 /* Gemela recursiva del barrido anterior para lo YA materializado: cada
@@ -400,6 +399,9 @@ function removeRecordsFromMap(records) {
 function removeSubtreeFromMap(li) {
   const chk = li.querySelector(":scope > .node-row > input[type=checkbox]");
   if (chk && chk._layer) rootGroup.removeLayer(chk._layer);
+  /* deleteNode solo llama al onDelete de la raíz de la rama: una
+     cuadrícula dentro de una carpeta borrada se olvida aquí.         */
+  if (li._elevGrid && chk && chk._layer) forgetElevGridGroup(chk._layer);
   const ul = nodeUl(li);
   if (ul) for (const child of ul.children) removeSubtreeFromMap(child);
   if (li._pending) removeRecordsFromMap(li._pending);

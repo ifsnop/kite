@@ -52,6 +52,17 @@ paths:
     por presión, vector GPS), recalculadas solas, sin botón; la lógica
     pura vive en `51-geodesy.js`.
     Ver `geocalc.md`.
+11b. **Perfil de una ruta** (`63-route-profile.js`): descarga por trozos
+    del MDT y el MDS a lo largo de una ruta, gráfica SVG, flecha en el
+    mapa y capa de las celdas recorridas (con las curvas, para
+    «Mostrar perfil»); lo puro (trozos, muestras, un punto por celda,
+    posición en la ruta, clave de la geometría, validación, celdas del
+    árbol, marcas de eje) se prueba en Node. Va detrás de la
+    calculadora: usa el cliente WCS de `60-elevation.js`; su
+    `refreshProfileChart` (desde `setMeasureUnit`/`setAltitudeUnit`),
+    `routeProfileCtxItem` (menú contextual, diálogo de la ruta) y
+    `validRouteProfile` (`buildElevGridRecord`) se llaman desde archivos
+    anteriores solo en tiempo de ejecución. Ver `elevation-dem.md`.
 12. **Controles de vista**: autoescala, ES/IC, retícula, coordenadas.
 13. **Arranque**: restauración del árbol guardado. Al final, para que
     todo esté definido.
