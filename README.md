@@ -205,11 +205,16 @@ the flag clears by itself when the tiles come back.
 ### Route profile
 
 - right-click on a route (or its properties dialog) → «Obtener perfil»:
-  the chosen surface model (MDS) is downloaded along the route in bounded
-  chunks, with a progress bar, and drawn as an elevation profile —
-  distance from the start across, height up, leg vertices in bold
+  the chosen terrain (MDT) and surface (MDS) models are downloaded along
+  the route in bounded chunks, with a progress bar, and drawn as an
+  elevation profile — distance from the start across, height up, MDT in
+  blue and MDS in green, leg vertices in bold
+- hovering the chart moves a red line across it and a red arrow along the
+  route on the map, pointing the way of travel
 - only the cells the route actually crosses are kept, as a layer of the
-  session folder; the chart itself is not stored
+  «Perfiles de ruta» root folder that also stores the curves: from then on
+  the option reads «Mostrar perfil» and shows them without downloading
+  again; editing the route's waypoints asks for a new profile
 - routes longer than a configurable limit (10 NM by default) get no
   profile, so a long route cannot fill the browser storage with cells
 
