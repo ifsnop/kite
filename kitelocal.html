@@ -2884,7 +2884,7 @@ map.on("resize rotate", fitWorldMinZoom);
 
 /* Fecha de generación del código (versión): AÑOMESDIAHORAMINUTO.
    Actualizar en cada generación; se muestra junto al crédito de Leaflet. */
-const BUILD = "202610111712";
+const BUILD = "202610111755";
 /* Versión de release (la de package.json, horneada aquí por build.js
    al construir — ver «Versión y releases de GitHub» en CLAUDE.md): a
    diferencia de BUILD, que cambia en CADA generación, esta solo cambia
@@ -14687,6 +14687,57 @@ const ELEV_MAX_CANDIDATES = 8; /* DescribeCoverage como mucho, por fuente */
 const elevTileFactor = cellMeters =>
   Math.max(1, Math.ceil((cellMeters > 0 ? cellMeters : 0) / ELEV_WINDOW));
 
+/* ---------- Malla de salida fija ----------
+   El servicio no devuelve sus celdas: REPROYECTA las suyas (UTM en el
+   MDS del IGN) a una rejilla que fabrica para cada petición, con origen
+   en la esquina de la caja pedida y tamaño de celda = ancho / un número
+   entero que elige él. Comprobado contra el IGN y Digital Earth Africa
+   (octubre de 2026): mover la caja 2,3 m mueve la rejilla 2,3 m, y una
+   caja de 40 m da celdas de 6,667 m y una de 1000 m, de 6,80 m. Así,
+   la tesela de una consulta y los trozos de un perfil (que empiezan
+   donde caiga la ruta) no encajaban entre sí.
+   Arreglo: una malla FIJA por fuente, con origen 0 y celda propia; cada
+   caja se ajusta hacia fuera a esa malla y se pide con `scaleSize` (el
+   número de celdas por eje), que los dos servicios respetan. Toda
+   rejilla de una fuente comparte entonces la misma malla.
+   La celda es la del modelo en metros reales pasada al sistema pedido
+   con la latitud de su FRANJA de ELEV_BAND_DEG (Web Mercator estira la
+   escala con 1/cos φ): fija dentro de la franja, así que dos peticiones
+   de la misma zona caen en la misma malla. Redondeada al centímetro (o
+   a 1e-7°), lo mismo que se escribe en la petición: las esquinas salen
+   idénticas en cualquier caja. La celda del modelo va al decímetro: el
+   MDT05 (de su cobertura geográfica) y el MDS (5,004 m) comparten así
+   la misma malla.                                                    */
+const ELEV_BAND_DEG = 1;
+const elevBandLat = lat => (Math.floor(lat / ELEV_BAND_DEG) + 0.5) * ELEV_BAND_DEG;
+function elevOutputCell(cellMeters, lat) {
+  if (!(cellMeters > 0) || !Number.isFinite(lat)) return null;
+  const m = Math.max(0.1, Math.round(cellMeters * 10) / 10);
+  const c = Math.max(0.05, Math.cos(toRad(elevBandLat(lat))));
+  return {
+    web: Math.round(m / c * 100) / 100,
+    lat: Math.round(m / 111320 * 1e7) / 1e7,
+    lon: Math.round(m / (111320 * c) * 1e7) / 1e7
+  };
+}
+
+/* Un eje de la tesela de una consulta puntual, [a, b] con el punto `p`
+   dentro, llevado a la malla: cada borde a la línea MÁS CERCANA (dos
+   teselas vecinas comparten borde, así que redondean igual y no se
+   solapan ni dejan hueco), pero sin dejar fuera la celda del punto.  */
+function tileToCells(a, b, p, cell) {
+  const k = Math.floor(p / cell);
+  return { a: Math.min(Math.round(a / cell), k) * cell, b: Math.max(Math.round(b / cell), k + 1) * cell };
+}
+
+/* Un eje de la caja ajustado hacia fuera a la malla de paso `cell`
+   (origen 0): extremos y número de celdas, al menos una.            */
+function snapToCells(a, b, cell) {
+  const i0 = Math.floor(a / cell + 1e-9);
+  const i1 = Math.max(i0 + 1, Math.ceil(b / cell - 1e-9));
+  return { a: i0 * cell, b: i1 * cell, n: i1 - i0 };
+}
+
 /* La señal de UN intento: su propio tiempo máximo y, si la hay, la
    cancelación de quien pide (el diálogo del perfil). Sin AbortSignal.any
    (navegadores anteriores a 2024) manda solo el tiempo.              */
@@ -14773,18 +14824,43 @@ function makeElevationSource(source) {
      pueden convertir sus esquinas a latitud y longitud para dibujarla */
   const tag = (grid, crs) => (grid ? { ...grid, crs } : null);
 
+  /* La caja ajustada a la malla fija de la fuente y pedida con
+     `scaleSize` (ver «Malla de salida fija»). Los ejes de `scaleSize`
+     se llaman como los de `subset`: el IGN rechaza mezclar nombres
+     («The axis with the name 'Long' corresponds to the same axis as the
+     subset with the name 'x'»). Si el servicio no entiende `scaleSize`
+     (una excepción que no es fuera de cobertura ni pasajera), se anota
+     para toda la sesión y se pide la caja tal cual, como antes: sin
+     malla común, pero con datos.                                     */
+  async function fetchAligned(cfg, params, [axX, axY], box, cell, digits, signal) {
+    const scaled = !!cell && cfg.scaleSize !== false;
+    const xs = scaled ? snapToCells(box.x0, box.x1, cell.x) : { a: box.x0, b: box.x1 };
+    const ys = scaled ? snapToCells(box.y0, box.y1, cell.y) : { a: box.y0, b: box.y1 };
+    const extra = [
+      ["subset", `${axX}(${xs.a.toFixed(digits)},${xs.b.toFixed(digits)})`],
+      ["subset", `${axY}(${ys.a.toFixed(digits)},${ys.b.toFixed(digits)})`]
+    ];
+    if (scaled) extra.push(["scaleSize", `${axX}(${xs.n}),${axY}(${ys.n})`]);
+    try {
+      return await fetchGrid(cfg, params, extra, signal);
+    } catch (err) {
+      if (!scaled || isOutOfCoverage(err) || isRetryableElevError(err) || err.name === "AbortError") throw err;
+      cfg.scaleSize = false;
+      return fetchAligned(cfg, params, [axX, axY], box, null, digits, signal);
+    }
+  }
+
   /* Vía preferida: Web Mercator, el sistema del visor. `box` en metros
      Web Mercator. Salir de la cobertura es respuesta legítima y un tiempo
      agotado no dice nada de la vía: solo se abandona (`useWeb = false`)
      si el servicio no entiende la petición. `undefined` = vía no
      disponible, para que quien llama pruebe la siguiente.            */
-  async function fetchWebBox(cfg, { x0, y0, x1, y1 }, signal) {
+  async function fetchWebBox(cfg, box, lat, signal) {
     if (!cfg.webCrs || cfg.useWeb === false) return undefined;
+    const cell = elevOutputCell(cfg.cellMeters, lat);
     try {
-      return tag(await fetchGrid(cfg, { subsettingCrs: cfg.webCrs }, [
-        ["subset", `${cfg.axisX}(${x0.toFixed(2)},${x1.toFixed(2)})`],
-        ["subset", `${cfg.axisY}(${y0.toFixed(2)},${y1.toFixed(2)})`]
-      ], signal), "web");
+      return tag(await fetchAligned(cfg, { subsettingCrs: cfg.webCrs }, [cfg.axisX, cfg.axisY],
+        box, cell && { x: cell.web, y: cell.web }, 2, signal), "web");
     } catch (err) {
       if (isOutOfCoverage(err) || isRetryableElevError(err) || err.name === "AbortError") throw err;
       cfg.useWeb = false;
@@ -14798,11 +14874,10 @@ function makeElevationSource(source) {
   async function fetchGeoBox(cfg, { west, south, east, north }, signal) {
     if (!cfg.geoCrs || cfg.useGeo === false) return undefined;
     const ax = cfg.geographic ? cfg.axisX : "Long", ay = cfg.geographic ? cfg.axisY : "Lat";
+    const cell = elevOutputCell(cfg.cellMeters, (south + north) / 2);
     try {
-      return tag(await fetchGrid(cfg, { subsettingCrs: cfg.geoCrs }, [
-        ["subset", `${ax}(${west.toFixed(7)},${east.toFixed(7)})`],
-        ["subset", `${ay}(${south.toFixed(7)},${north.toFixed(7)})`]
-      ], signal), "geo");
+      return tag(await fetchAligned(cfg, { subsettingCrs: cfg.geoCrs }, [ax, ay],
+        { x0: west, y0: south, x1: east, y1: north }, cell && { x: cell.lon, y: cell.lat }, 7, signal), "geo");
     } catch (err) {
       if (isOutOfCoverage(err) || isRetryableElevError(err) || err.name === "AbortError") throw err;
       cfg.useGeo = false;
@@ -14833,14 +14908,21 @@ function makeElevationSource(source) {
     const p = toWebMercator(lat, lon);
     const cx = snapTile(p.x, tileWeb), cy = snapTile(p.y, tileWeb);
     const half = tileWeb / 2;
-    const web = await fetchWebBox(cfg, { x0: cx - half, y0: cy - half, x1: cx + half, y1: cy + half });
+    /* Bordes a la malla de salida (ver «Malla de salida fija»): el resto
+       del ajuste lo hace fetchAligned, que aquí ya no mueve nada.    */
+    const cell = elevOutputCell(cfg.cellMeters, lat);
+    const onCells = (a, b, v, c) => (c ? tileToCells(a, b, v, c) : { a, b });
+    const wx = onCells(cx - half, cx + half, p.x, cell && cell.web);
+    const wy = onCells(cy - half, cy + half, p.y, cell && cell.web);
+    const web = await fetchWebBox(cfg, { x0: wx.a, y0: wy.a, x1: wx.b, y1: wy.b }, lat);
     if (web !== undefined) return web;
 
     const tileLon = ELEV_TILE_GEO.lon * k, tileLat = ELEV_TILE_GEO.lat * k;
     const tlon = snapTile(lon, tileLon), tlat = snapTile(lat, tileLat);
     const halfLon = tileLon / 2, halfLat = tileLat / 2;
-    const geo = await fetchGeoBox(cfg,
-      { west: tlon - halfLon, south: tlat - halfLat, east: tlon + halfLon, north: tlat + halfLat });
+    const gx = onCells(tlon - halfLon, tlon + halfLon, lon, cell && cell.lon);
+    const gy = onCells(tlat - halfLat, tlat + halfLat, lat, cell && cell.lat);
+    const geo = await fetchGeoBox(cfg, { west: gx.a, south: gy.a, east: gx.b, north: gy.b });
     if (geo !== undefined) return geo;
 
     /* Respaldo: coordenadas nativas de la cobertura */
@@ -14935,7 +15017,7 @@ function makeElevationSource(source) {
         const a = toWebMercator(south, west), b = toWebMercator(north, east);
         const web = await fetchWebBox(cfg, {
           x0: Math.min(a.x, b.x), y0: Math.min(a.y, b.y), x1: Math.max(a.x, b.x), y1: Math.max(a.y, b.y)
-        }, signal);
+        }, (south + north) / 2, signal);
         if (web !== undefined) return { grid: web };
         const geo = await fetchGeoBox(cfg, { west, south, east, north }, signal);
         if (geo !== undefined) return { grid: geo };

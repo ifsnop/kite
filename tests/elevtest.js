@@ -63,7 +63,7 @@ const apiExports = "\nreturn {parseWcsCapabilities, mdtCoverages, pickMdsCoverag
   " profilePieces, routeProfileSamples, profileFromSamples, niceTicks, tickDecimals, profilePolylines," +
   " nearestProfilePoint, PROFILE_CHUNK_CELLS, elevTileFactor, routeProfileKey, profilePointAt," +
   " validRouteProfile, profileTreeCells, clampProfileView, zoomProfileView, panProfileView," +
-  " visibleProfilePoints, packProfilePoints, unpackProfilePoints, PROFILE_MAX_PTS};";
+  " visibleProfilePoints, elevOutputCell, snapToCells, tileToCells, elevBandLat, packProfilePoints, unpackProfilePoints, PROFILE_MAX_PTS};";
 const api = new Function("DOMParser", src + apiExports)(DOMParser);
 const ok=(c,m)=>{ if(!c){ console.error("FAIL: "+m); process.exitCode=1; } };
 
@@ -729,6 +729,31 @@ ok(api.sessionStamp(new Date(2026, 9, 5, 7, 3)) === "2026-10-05 07:03",
     ok(both[1].mdt === null && both[1].diff === null, "sin la otra: null, sin diferencia");
     const one = api.profileTreeCells(drive, null, { mdt: false, mds: true });
     ok(one.length === 2 && !("mdt" in one[0]), "con un solo modelo, sin la clave del otro");
+  }
+
+  /* ---- malla de salida fija: misma rejilla en cualquier caja ---- */
+  {
+    const c40 = api.elevOutputCell(5.004, 40.42);
+    ok(api.elevBandLat(40.42) === 40.5 && api.elevBandLat(-0.2) === -0.5, "franja de 1° por su centro");
+    ok(c40.web === 6.58 && c40.lat === 0.0000449 && c40.lon === 0.0000591, "5 m a 40,5°: 6,58 m Web Mercator, al cm y a 1e-7°: " + JSON.stringify(c40));
+    ok(JSON.stringify(api.elevOutputCell(5.0, 40.9)) === JSON.stringify(c40), "el MDT05 (5,0 m) y el MDS (5,004 m) comparten malla en la franja");
+    ok(api.elevOutputCell(30.9, 37.98).web === 38.95, "Copernicus a 37,98°N: 38,95 m");
+    ok(api.elevOutputCell(0, 40) === null && api.elevOutputCell(5, NaN) === null, "sin celda conocida, sin malla (la caja va tal cual)");
+    /* Dos cajas cualesquiera ajustadas a la misma malla comparten líneas */
+    const cell = 6.58;
+    const a = api.snapToCells(-412300, -412260, cell), b = api.snapToCells(-412297.7, -411300, cell);
+    const onGrid = v => Math.abs(v / cell - Math.round(v / cell)) < 1e-9;
+    ok(onGrid(a.a) && onGrid(a.b) && onGrid(b.a) && onGrid(b.b), "los extremos caen en la malla");
+    ok(a.a <= -412300 && a.b >= -412260 && a.n === Math.round((a.b - a.a) / cell), "ajuste hacia fuera, con su número de celdas: " + JSON.stringify(a));
+    ok(Math.abs((b.a - a.a) / cell - Math.round((b.a - a.a) / cell)) < 1e-9, "otra caja, desplazada 2,3 m: misma malla");
+    const exact = api.snapToCells(10 * cell, 20 * cell, cell);
+    ok(exact.n === 10 && Math.abs(exact.a - 10 * cell) < 1e-9, "una caja ya en la malla no crece");
+    ok(api.snapToCells(1, 1.0001, cell).n === 1, "al menos una celda");
+    /* Teselas de consultas puntuales vecinas: mismo borde, sin solape */
+    const T = 52.22, t1 = api.tileToCells(0, T, 10, cell), t2 = api.tileToCells(T, 2 * T, 60, cell);
+    ok(t1.b === t2.a, "dos teselas vecinas comparten borde (ni solape ni hueco): " + JSON.stringify([t1, t2]));
+    const edge = api.tileToCells(0, T, 52.1, cell);
+    ok(edge.a <= 0 + cell && edge.b >= 52.1 && edge.b - 52.1 <= cell, "la celda del punto pulsado, siempre dentro: " + JSON.stringify(edge));
   }
 
   /* ---- gráfica: zoom con ancla y desplazamiento ---- */

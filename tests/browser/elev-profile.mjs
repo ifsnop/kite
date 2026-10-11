@@ -28,7 +28,13 @@
       sin cambiar el zoom y se para en los extremos.
    8) Deshacer quita el perfil; con el MDT en «Ninguna», una sola curva
       y celdas sin MDT; un trozo que falla deja un hueco; cancelar a
-      mitad no deja nada.                                             */
+      mitad no deja nada.
+   9) Con el simulador haciendo lo que el servicio real (rejilla con
+      origen en la esquina pedida, `scaleSize` respetado): las celdas de
+      una consulta puntual y las del perfil coinciden al centímetro, y
+      todas las del perfil caen en una sola malla.
+  10) Un servicio que rechaza `scaleSize`: se prueba una vez y el
+      perfil sale igual sin él.                                       */
 import { launch, serve, openApp, reporter, READABLE } from "./_browser.mjs";
 
 const { ok, done } = reporter("BROWSER ROUTE PROFILE TESTS OK");
@@ -51,21 +57,27 @@ const desc = `<?xml version="1.0"?><wcs:CoverageDescriptions xmlns:wcs="http://w
   axisLabels="x y"><gml:lowerCorner>-16000 3000000</gml:lowerCorner><gml:upperCorner>1200000 4900000</gml:upperCorner></gml:Envelope>
   <gml:domainSet><gml:RectifiedGrid dimension="2"><gml:offsetVector>5 0</gml:offsetVector>
   <gml:offsetVector>0 -5</gml:offsetVector></gml:RectifiedGrid></gml:domainSet></wcs:CoverageDescriptions>`;
-/* Celdas de 6,5 m Web Mercator (≈ 5 m reales a 40°N), alineadas a una
-   malla fija como haría el servicio. MDS = 600 + 50·sen(x/300); el MDT,
-   10 m por debajo.                                                   */
+/* Como el servicio real (comprobado contra el IGN y Digital Earth
+   Africa): la rejilla empieza en la esquina de la caja pedida; con
+   `scaleSize`, tantas celdas como diga; sin él, celdas de ~6,5 m Web
+   Mercator (≈ 5 m reales a 40°N) que reparten el ancho en un número
+   entero que elige el servicio. MDS = 600 + 50·sen(x/300) en el centro
+   de cada celda; el MDT, 10 m por debajo.                            */
 const CS = 6.5;
+let rejectScale = false; /* paso 10: un servicio que no entiende scaleSize */
 function asciiFor(params, base) {
   const [[x0, x1], [y0, y1]] = params.getAll("subset").map(s => /\(([-\d.]+),([-\d.]+)\)/.exec(s).slice(1).map(Number));
-  const gx0 = Math.floor(x0 / CS) * CS, gy0 = Math.floor(y0 / CS) * CS;
-  const cols = Math.ceil((x1 - gx0) / CS), rows = Math.ceil((y1 - gy0) / CS);
+  const sc = params.get("scaleSize");
+  const [nx, ny] = sc ? sc.match(/\((\d+)\)/g).map(t => Number(t.slice(1, -1)))
+    : [Math.max(1, Math.round((x1 - x0) / CS)), Math.max(1, Math.round((y1 - y0) / CS))];
+  const gx0 = x0, gy0 = y0, cols = nx, rows = ny, CX = (x1 - x0) / nx, CY = (y1 - y0) / ny;
   const lines = [];
   for (let r = rows - 1; r >= 0; r--) {
     const row = [];
-    for (let c = 0; c < cols; c++) row.push((base + 50 * Math.sin((gx0 + (c + 0.5) * CS) / 300)).toFixed(2));
+    for (let c = 0; c < cols; c++) row.push((base + 50 * Math.sin((gx0 + (c + 0.5) * CX) / 300)).toFixed(2));
     lines.push(row.join(" "));
   }
-  return `ncols ${cols}\nnrows ${rows}\nxllcorner ${gx0}\nyllcorner ${gy0}\ncellsize ${CS}\nNODATA_value -9999\n${lines.join("\n")}\n`;
+  return `ncols ${cols}\nnrows ${rows}\nxllcorner ${gx0}\nyllcorner ${gy0}\ndx ${CX}\ndy ${CY}\nNODATA_value -9999\n${lines.join("\n")}\n`;
 }
 await page.route(/wcs-mds\.idee\.es|servicios\.idee\.es/, async route => {
   const u = new URL(route.request().url());
@@ -77,6 +89,11 @@ await page.route(/wcs-mds\.idee\.es|servicios\.idee\.es/, async route => {
   }
   if (request === "DescribeCoverage") return route.fulfill({ status: 200, contentType: "application/xml", body: desc });
   if (slow) await new Promise(r => setTimeout(r, slow));
+  if (rejectScale && params.get("scaleSize")) {
+    return route.fulfill({ status: 400, contentType: "application/xml", body: `<?xml version="1.0"?>
+      <ows:ExceptionReport xmlns:ows="http://www.opengis.net/ows/2.0"><ows:Exception exceptionCode="InvalidParameterValue"
+      locator="scaleSize"><ows:ExceptionText>scaleSize no soportado</ows:ExceptionText></ows:Exception></ows:ExceptionReport>` });
+  }
   const x0 = Number(/\(([-\d.]+),/.exec(params.getAll("subset")[0])[1]);
   if (failBox && failBox.host === u.host && Math.abs(x0 - failBox.x0) < 1) {
     return route.fulfill({ status: 500, contentType: "text/html", body: "<h1>Internal Server Error</h1>" });
@@ -464,8 +481,66 @@ const cancelled = await page.evaluate(async sel => {
 slow = 0;
 ok(cancelled.hidden && cancelled.groups === nodesBefore, "cancelar a mitad cierra y no deja nada: " + JSON.stringify(cancelled));
 
-/* Los 500 son los simulados del paso 8 */
-const realErrors = errors.filter(e => !/status of 500/.test(e));
+/* ---------- 9. Consulta puntual y perfil, en la misma malla ---------- */
+/* Celdas en Web Mercator, para comparar esquinas al centímetro */
+const aligned = await page.evaluate(async sel => {
+  demTimes.length = 0;
+  const li = eval(sel);
+  const before = elevGridGroups.length;
+  const at = li._measure.handles[0].getLatLng();
+  const p = L.latLng(at.lat + 0.00002, at.lng + 0.0009); /* sobre el primer tramo (al este) */
+  await queryElevationAt(p);
+  const q = elevGridGroups[before];
+  await obtainRouteProfile(li);
+  closeProfileDialog();
+  const pr = elevGridGroups.at(-1);
+  const W = ll => toWebMercator(ll[0], ll[1]);
+  const key = c => { const a = W(c.sw); return `${a.x.toFixed(2)}:${a.y.toFixed(2)}`; };
+  const qc = q._rects.map(r => r._cell), pc = pr._rects.map(r => r._cell);
+  const qMap = new Map(qc.map(c => [key(c), c]));
+  const box = qc.reduce((b, c) => ({ s: Math.min(b.s, c.sw[0]), n: Math.max(b.n, c.ne[0]),
+    w: Math.min(b.w, c.sw[1]), e: Math.max(b.e, c.ne[1]) }), { s: 90, n: -90, w: 180, e: -180 });
+  const inside = pc.filter(c => c.center[0] > box.s && c.center[0] < box.n && c.center[1] > box.w && c.center[1] < box.e);
+  const a0 = W(pc[0].sw), cell = W(pc[0].ne).x - a0.x;
+  const off = pc.filter(c => { const a = W(c.sw);
+    return [(a.x - a0.x) / cell, (a.y - a0.y) / cell].some(f => Math.abs(f - Math.round(f)) > 1e-3); }).length;
+  return { inside: inside.length, same: inside.filter(c => qMap.has(key(c))).length,
+           sameValue: inside.filter(c => { const o = qMap.get(key(c)); return o && o.mds === c.mds && o.mdt === c.mdt; }).length,
+           off, cell };
+}, routeLi);
+const scaled = coverages().slice(-12).filter(s => s.params.get("scaleSize")).length;
+ok(aligned.inside > 0 && aligned.same === aligned.inside && aligned.sameValue === aligned.inside,
+  "las celdas del perfil dentro de la tesela de una consulta puntual tienen sus mismas esquinas y valores: " + JSON.stringify(aligned));
+ok(aligned.off === 0, "todas las celdas del perfil en una sola malla: los trozos contiguos encajan");
+ok(scaled === 12, "cada recorte se pide con scaleSize: " + scaled);
+await page.evaluate(() => {
+  for (const name of ["Perfiles de ruta", "Elevaciones"]) {
+    const li = [...document.querySelectorAll("#tree li")].find(x => x._name === name);
+    if (li) deleteNode(li);
+  }
+});
+
+/* ---------- 10. Un servicio que no entiende scaleSize ---------- */
+await page.reload(); /* clientes nuevos: nada recordado de la sesión anterior */
+await page.waitForFunction(() => typeof map === "object" && document.querySelector("#tree ul.node-list"));
+rejectScale = true;
+const from = seen.length;
+const fallback = await page.evaluate(async sel => {
+  elevSources = { mdt: null, mds: "ign-mds" };
+  await obtainRouteProfile(eval(sel));
+  const r = { cells: elevGridGroups.length ? elevGridGroups.at(-1)._rects.length : 0,
+              note: document.getElementById("profile-note").hidden ? "" : document.getElementById("profile-note").textContent };
+  closeProfileDialog();
+  return r;
+}, routeLi);
+rejectScale = false;
+const asked10 = seen.slice(from).filter(x => x.request === "GetCoverage");
+ok(fallback.cells > 300 && !fallback.note, "sin scaleSize el perfil sale igual: " + JSON.stringify(fallback));
+ok(asked10.filter(x => x.params.get("scaleSize")).length === 1 && asked10.length >= 3,
+  "se prueba scaleSize una vez, y el resto de recortes ya va sin él: " + asked10.map(x => !!x.params.get("scaleSize")));
+
+/* Los 500 son los simulados del paso 8, y el 400 el del paso 10 */
+const realErrors = errors.filter(e => !/status of (500|400)/.test(e));
 ok(realErrors.length === 0, "sin errores en la consola: " + realErrors.join(" | "));
 await browser.close();
 srv.close();

@@ -333,6 +333,8 @@ De qué servicio sale cada modelo se elige en 🏷️ Propiedades → «Fuentes 
 
 La primera consulta a cada servicio, en cada sesión, lee qué ofrece y elige la malla más fina y, si puede, la rejilla en texto (ASCII); el registro de avisos (📋) deja constancia una vez de lo elegido: conjunto de datos, cobertura, formato y tamaño de celda.
 
+Las celdas de cada servicio se dibujan siempre sobre la **misma malla**: dos consultas vecinas encajan sin solaparse, y las celdas de un perfil de ruta (apartado 7.9) coinciden exactamente con las de una consulta puntual en la misma zona, con los mismos valores. Los servicios no entregan sus celdas originales, sino una rejilla recalculada para cada zona pedida; KITE les pide siempre la misma rejilla para que lo descargado en momentos distintos case.
+
 Cada consulta queda como una capa más del árbol, «Elevación 1», «Elevación 2»…, con el conjunto de datos y el proveedor de lo descargado en el nombre («Elevación 3 — MDT25 + MDS (IGN)», o «Elevación 4 — MDT05 (IGN) + COP-DEM GLO-30 (Digital Earth Africa)» con proveedores distintos), dentro de una carpeta por sesión («Sesión» con la fecha y la hora de su primera consulta; cada vez que se abre la aplicación empieza una sesión nueva) en la sección «Elevaciones»: se pueden ocultar, borrar o deshacer por separado. Volver a consultar la misma zona con las mismas fuentes no descarga nada: señala la capa que ya la tiene. Con el cursor encima de una celda, el cuadro de coordenadas muestra sus valores (apartado 4.3). La lupa 🔍 de la fila encuadra la cuadrícula en el mapa.
 
 ### 7.9 Obtener el perfil de una ruta
