@@ -46,7 +46,7 @@ const SUITES = [
   ["boot.js", "Arranque: el panel no concluye «no hay capas» antes de leer IndexedDB"],
   ["attribution.js", "Línea inferior del visor: versión, enlace al repositorio y escala"],
   ["minified.js", "kitelocal.min.html: el minificado que sirve Pages no viene roto del proceso"],
-  ["statics.js", "Comprobaciones estáticas: sin bytes NUL, todo id referido existe y toda función llamada está declarada"],
+  ["statics.js", "Comprobaciones estáticas: sin bytes NUL, todo id referido existe, toda función llamada está declarada y los diálogos de un solo botón lo llevan arriba a la derecha"],
   ["tristate.js", "Tercer estado de la casilla: indeterminada cuando la carpeta está a medias"],
   ["urlimport.js", "Reconocer lo descargado de una URL: nombre, tipo por contenido y extensión sintetizada"],
   ["multiedit.js", "Edición en bloque: qué se aplica a todos cuando los nodos no coinciden"],
@@ -92,7 +92,7 @@ const BROWSER = [
   ["browser/rotation-core.mjs", "Navegador: giro incorporado — conversiones, marcadores, etiquetas, popups, arrastre, teselas, encuadre y pellizco con el mapa girado"],
   ["browser/keyboard-nav.mjs", "Navegador: teclado y rueda del visor — flechas, Re/Av Pág y rueda continuos, y el foco que se queda en el visor"],
   ["browser/elev-sources.mjs", "Navegador: fuentes de elevación en Propiedades y consulta puntual desde el menú contextual — carpeta por sesión, unidad de altitud, GeoTIFF, MDT25, reintentos y descubrimiento una vez por sesión"],
-  ["browser/elev-profile.mjs", "Navegador: perfil de una ruta — MDT y MDS por trozos, dos curvas, «Mostrar perfil» sin red, flecha en el mapa, zoom de cada eje, bloqueo del eje Y, solo segmentos rectos, malla común con la consulta puntual, clic derecho con el perfil debajo, huecos y cancelar"],
+  ["browser/elev-profile.mjs", "Navegador: perfil de una ruta — MDT y MDS por trozos, dos curvas, lectura con MDS−MDT, × arriba a la derecha, «Mostrar perfil» sin red, flecha en el mapa, zoom de cada eje, bloqueo del eje Y, solo segmentos rectos, malla común con la consulta puntual, clic derecho con el perfil debajo, huecos y cancelar"],
   ["browser/geocalc.mjs", "Navegador: calculadora geodésica — dos pestañas que se recalculan solas, presión, unidades que convierten, sin crecer y no modal"]
 ];
 

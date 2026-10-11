@@ -757,6 +757,9 @@
     display: flex; flex-direction: column; resize: both;
     width: min(92vw, 46rem); height: min(75vh, 440px); min-width: 320px; min-height: 260px; /* + la barra de controles */
   }
+  /* Sin pie (el × está en la cabecera): todo lo de debajo de la barra
+     de controles es gráfica; el margen de abajo deja sitio al tirador. */
+  #profile-dialog .dlg-box.no-actions { padding-bottom: 6px; }
   #profile-progress { margin: 10px 0 4px; }
   #profile-progress[hidden] { display: none; }
   #profile-progress-label { font-size: 13px; margin-bottom: 4px; }
@@ -790,7 +793,11 @@
   .pf-map-arrow { background: none; border: none; pointer-events: none; }
   .pf-map-arrow svg { display: block; overflow: visible; }
   .pf-map-arrow path { fill: #b04a3a; stroke: #fff; stroke-width: 1.5; stroke-linejoin: round; }
-  #profile-chart .pf-readout { fill: var(--text); font-weight: 600; }
+  /* Halo del color del panel: la lectura cae encima de las curvas */
+  #profile-chart .pf-readout { fill: var(--text); font-weight: 600;
+                               stroke: var(--panel); stroke-width: 3px; stroke-linejoin: round; paint-order: stroke; }
+  /* MDS−MDT por encima del umbral: el mismo rojo que el aviso de las celdas */
+  #profile-chart .pf-diff.alert { fill: #d32f2f; }
   #geocalc-dialog .dlg-box { width: min(92vw, 30rem); }
   .geocalc-field { display: flex; gap: 6px; }
   #geocalc-dialog .dlg-row input[type="number"] { width: 110px; }
@@ -1079,6 +1086,27 @@
   }
   .dlg-box h2:active { cursor: grabbing; }
   .dlg-box h2::before { content: "\2725\00A0"; color: var(--muted); font-weight: 400; }
+  /* ---------- Diálogos con un solo botón, el de cerrar ----------
+     Regla del proyecto (.claude/rules/dialog-close-button.md): ese botón no lleva pie
+     propio, va como × arriba a la derecha, DENTRO del <h2> fijo (se ve
+     siempre, scrollee lo que scrollee) y el pie que ocupaba se lo queda
+     el contenido. Sin pie, el relleno de abajo lo pone la caja.      */
+  .dlg-box h2.dlg-head { display: flex; align-items: flex-start; }
+  .dlg-head .dlg-title { flex: 1 1 auto; min-width: 0; }
+  .dlg-close {
+    flex: none;
+    margin: -3px -8px 0 8px;
+    padding: 0 7px;
+    border: none;
+    border-radius: 5px;
+    background: none;
+    color: var(--muted);
+    font: 400 20px/1.1 system-ui, sans-serif;
+    cursor: pointer;
+  }
+  .dlg-close:hover { background: var(--border); color: var(--text); }
+  .dlg-close:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+  .dlg-box.no-actions { padding-bottom: 14px; }
   .dlg-row {
     display: flex;
     align-items: center;
@@ -1652,8 +1680,8 @@
 
 <!-- Chuleta de atajos (tecla ?) -->
 <div id="shortcuts" class="dlg-overlay" hidden>
-  <div class="dlg-box">
-    <h2>Atajos de teclado</h2>
+  <div class="dlg-box no-actions">
+    <h2 class="dlg-head"><span class="dlg-title">Atajos de teclado</span><button type="button" class="dlg-close" id="shortcuts-close" title="Cerrar" aria-label="Cerrar">&#215;</button></h2>
     <div class="dlg-tabs" role="tablist">
       <button type="button" class="dlg-tab active" id="sh-tab-btn-nav" role="tab" aria-selected="true" aria-controls="sh-tab-nav">Navegaci&#243;n</button>
       <button type="button" class="dlg-tab" id="sh-tab-btn-act" role="tab" aria-selected="false" aria-controls="sh-tab-act">Actuar</button>
@@ -1730,7 +1758,6 @@
         <tr><td>Doble clic en el mapa</td><td>No hace zoom mientras se edita as&#237; un pol&#237;gono, una ruta o un c&#237;rculo</td></tr>
       </table>
     </div>
-    <div class="dlg-actions"><button class="btn" id="shortcuts-close">Cerrar</button></div>
   </div>
 </div>
 
@@ -1902,8 +1929,8 @@
      lleva su propio resultado y su propio aviso de error, y se recalcula
      SOLO, al cambiar cualquier dato: no hay botón «Calcular». -->
 <div id="geocalc-dialog" class="dlg-float" hidden>
-  <div class="dlg-box">
-    <h2>C&#225;lculos geod&#233;sicos</h2>
+  <div class="dlg-box no-actions">
+    <h2 class="dlg-head"><span class="dlg-title">C&#225;lculos geod&#233;sicos</span><button type="button" class="dlg-close" id="geocalc-close" title="Cerrar" aria-label="Cerrar">&#215;</button></h2>
     <div class="dlg-tabs" role="tablist">
       <button type="button" class="dlg-tab active" id="geocalc-tab-btn-elev" role="tab" aria-selected="true" aria-controls="geocalc-tab-elev">&#193;ngulo de elevaci&#243;n</button>
       <button type="button" class="dlg-tab" id="geocalc-tab-btn-gps" role="tab" aria-selected="false" aria-controls="geocalc-tab-gps">Vector GPS</button>
@@ -1950,20 +1977,18 @@
         <p class="dlg-hint sh-bad" id="gps-error" hidden></p>
       </div>
     </div>
-    <div class="dlg-actions">
-      <button class="btn" id="geocalc-close">Cerrar</button>
-    </div>
   </div>
 </div>
 
 <!-- Perfil de una ruta (63-route-profile.js): primero la barra de
      progreso de la descarga de las celdas MDS que recorre la ruta, luego
      la gráfica. Flotante y no modal, como la calculadora: se puede
-     mirar el mapa a la vez. El botón del pie es «Cancelar» mientras
-     descarga (aborta) y «Cerrar» con la gráfica ya dibujada. -->
+     mirar el mapa a la vez. Sin pie: el × de la cabecera (regla de los
+     diálogos de un solo botón) cancela mientras descarga (aborta) y
+     cierra con la gráfica ya dibujada; la gráfica se queda el resto. -->
 <div id="profile-dialog" class="dlg-float" hidden>
-  <div class="dlg-box">
-    <h2 id="profile-title">Perfil</h2>
+  <div class="dlg-box no-actions">
+    <h2 class="dlg-head"><span class="dlg-title" id="profile-title">Perfil</span><button type="button" class="dlg-close" id="profile-close" title="Cancelar la descarga" aria-label="Cancelar la descarga">&#215;</button></h2>
     <div id="profile-progress">
       <div id="profile-progress-label"></div>
       <div class="bar"><div id="profile-progress-fill"></div></div>
@@ -1988,9 +2013,6 @@
       <span class="pf-tools-hint">Rueda: distancia · Mayús+rueda o rueda sobre el eje: altura · arrastrar: desplazar</span>
     </div>
     <div id="profile-chart" aria-live="polite"></div>
-    <div class="dlg-actions">
-      <button class="btn" id="profile-close">Cancelar</button>
-    </div>
   </div>
 </div>
 
@@ -2914,7 +2936,7 @@ map.on("resize rotate", fitWorldMinZoom);
 
 /* Fecha de generación del código (versión): AÑOMESDIAHORAMINUTO.
    Actualizar en cada generación; se muestra junto al crédito de Leaflet. */
-const BUILD = "202610111817";
+const BUILD = "202610112305";
 /* Versión de release (la de package.json, horneada aquí por build.js
    al construir — ver «Versión y releases de GitHub» en CLAUDE.md): a
    diferencia de BUILD, que cambia en CADA generación, esta solo cambia
@@ -10031,7 +10053,9 @@ function clampToViewport(box) {
 function setupDialog(box, { modal }) {
   box.setAttribute("role", "dialog");
   box.setAttribute("aria-modal", String(modal));
-  const title = box.querySelector("h2");
+  /* A header with its close button inside names the dialog by its
+     title text alone, or the name would end in "Cerrar".            */
+  const title = box.querySelector("h2 .dlg-title") || box.querySelector("h2");
   if (title) {
     if (!title.id) title.id = `dlg-title-${Math.random().toString(36).slice(2, 8)}`;
     box.setAttribute("aria-labelledby", title.id);
@@ -10050,11 +10074,16 @@ function setupDialog(box, { modal }) {
 
 /* Focus goes to the dialog on open and back to the opener on close.
    With `move` false it stays where it is (still recorded, so the
-   pairing with releaseFocus holds).                                 */
+   pairing with releaseFocus holds). The header's close button comes
+   first in the markup but is not where the work starts: focus goes to
+   the first visible control after it, or to it if there is nothing
+   else (the route profile while it downloads).                      */
 let focusReturn = [];
 function focusDialog(box, move = true) {
   focusReturn.push(document.activeElement);
-  const first = move && box.querySelector("button, input, select");
+  const first = move && ([...box.querySelectorAll("button, input, select")]
+    .find(el => !el.classList.contains("dlg-close") && el.offsetParent !== null)
+    || box.querySelector(".dlg-close"));
   if (first) first.focus();
 }
 function releaseFocus() {
@@ -10066,7 +10095,8 @@ function makeDialogMovable(box) {
   const handle = box.querySelector("h2");
   let from = null;
   handle.addEventListener("pointerdown", e => {
-    if (e.button !== 0) return;
+    /* the close button lives in the handle: its press is a click, not a drag */
+    if (e.button !== 0 || e.target.closest(".dlg-close")) return;
     const r = box.getBoundingClientRect();
     box.style.position = "fixed";
     box.style.margin = "0";
@@ -16828,11 +16858,19 @@ function setProfileNote(txt) {
   el.textContent = txt || "";
 }
 
+/* The header's × aborts while downloading and closes afterwards: its
+   name says which (it has no visible text to say it).             */
+function setProfileCloseLabel(txt) {
+  const btn = document.getElementById("profile-close");
+  btn.title = txt;
+  btn.setAttribute("aria-label", txt);
+}
+
 function openProfileDialog(title) {
   hideProfileArrow();
   document.getElementById("profile-title").textContent = title;
   document.getElementById("profile-progress").hidden = false;
-  document.getElementById("profile-close").textContent = "Cancelar";
+  setProfileCloseLabel("Cancelar la descarga");
   setProfileProgress(0, 0);
   setProfileNote("");
   profileData = null;
@@ -16849,7 +16887,7 @@ function openProfileDialog(title) {
 /* Fin de la descarga (o perfil ya guardado): fuera la barra, «Cerrar» */
 function profileDialogDone() {
   document.getElementById("profile-progress").hidden = true;
-  document.getElementById("profile-close").textContent = "Cerrar";
+  setProfileCloseLabel("Cerrar");
 }
 
 /* Cancelar (descargando) o Cerrar (con la gráfica): lo mismo, abortar
@@ -17086,6 +17124,7 @@ async function obtainRouteProfile(li) {
 const PF_MARGIN = { l: 64, r: 14, t: 26, b: 40 };
 const SVG_NS = "http://www.w3.org/2000/svg";
 const PF_SNAP_PX = 8;          /* la lectura de una serie, si tiene un punto a menos de esto */
+const PF_READOUT_LINE = 14;    /* px entre líneas de la lectura del cursor */
 const PF_MIN_M_PER_PX = 0.1;   /* zoom máximo: 0,1 m de ruta por píxel (pedido) */
 const PF_WHEEL_STEP = 0.0015;  /* factor de zoom = e^(píxeles de rueda × esto) */
 const PF_BUTTON_FACTOR = 2;    /* un botón − / + aleja o acerca al doble   */
@@ -17205,7 +17244,8 @@ const vertexDecimals = spanUnits => Math.max(2, Math.min(5, tickDecimals(spanUni
 
 /* La línea roja, la lectura y la flecha del mapa en la x (píxeles del
    SVG) del ratón. Cada serie da su altura si tiene una celda a la
-   vista de esa distancia (en un hueco, se omite).                  */
+   vista de esa distancia (en un hueco, se omite); con las dos, también
+   MDS−MDT, en rojo por encima de ELEV_ALERT_DIFF como en las celdas. */
 function showProfileCursor(x) {
   const lay = profileLayout, svg = profileChart.firstChild;
   if (!lay || !svg) return;
@@ -17218,16 +17258,41 @@ function showProfileCursor(x) {
   const snap = PF_SNAP_PX / lay.pw * (lay.x1 - lay.x0);
   /* tantos decimales como distinga un píxel: a 0,1 m/px, 4 en km */
   const fx = POLY_UNIT_FACTOR[measureUnit];
-  const read = [`${(d / fx).toFixed(distDecimals((lay.x1 - lay.x0) / lay.pw, fx))} ${POLY_UNIT_LABEL[measureUnit]}`];
+  const heights = [], at = {};
   for (const s of profileData.series) {
     const p = nearestProfilePoint(s.points, d);
-    if (p && Math.abs(p.d - d) <= snap) read.push(`${PROFILE_KIND_LABEL[s.kind]} ${fmtHeight(p.v, altitudeUnit)}`);
+    if (p && Math.abs(p.d - d) <= snap) {
+      at[s.kind] = p.v;
+      heights.push(`${PROFILE_KIND_LABEL[s.kind]} ${fmtHeight(p.v, altitudeUnit)}`);
+    }
   }
-  readout.textContent = read.join(" · ");
-  const right = px > PF_MARGIN.l + lay.pw / 2;
-  readout.setAttribute("x", right ? px - 6 : px + 6);
-  readout.setAttribute("text-anchor", right ? "end" : "start");
+  /* Una línea por dato (distancia, alturas, MDS−MDT): en una sola, con
+     la diferencia, no cabía a ningún lado de la línea roja y la cruzaba. */
+  const lines = [{ txt: `${(d / fx).toFixed(distDecimals((lay.x1 - lay.x0) / lay.pw, fx))} ${POLY_UNIT_LABEL[measureUnit]}` }];
+  if (heights.length) lines.push({ txt: heights.join(" · ") });
+  if (at.mdt !== undefined && at.mds !== undefined) {
+    const diff = at.mds - at.mdt;
+    lines.push({ txt: `MDS−MDT ${fmtDiff(diff)} ${POLY_UNIT_LABEL[altitudeUnit]}`,
+                 cls: `pf-diff${diff > ELEV_ALERT_DIFF ? " alert" : ""}` });
+  }
+  readout.textContent = "";
+  const spans = lines.map((l, i) => {
+    const span = document.createElementNS(SVG_NS, "tspan");
+    span.setAttribute("dy", i ? PF_READOUT_LINE : 0);
+    if (l.cls) span.setAttribute("class", l.cls);
+    span.textContent = l.txt;
+    return readout.appendChild(span);
+  });
   readout.setAttribute("visibility", "visible");
+  /* Del lado con más sitio; si no cabe, al otro; si tampoco, contra el
+     borde (una gráfica muy estrecha). */
+  const w = Math.max(...spans.map(sp => sp.getComputedTextLength()));
+  const fitsLeft = px - 6 - w >= 2, fitsRight = px + 6 + w <= lay.W - 2;
+  let right = px > PF_MARGIN.l + lay.pw / 2;
+  if (right ? !fitsLeft && fitsRight : !fitsRight && fitsLeft) right = !right;
+  const lx = right ? (fitsLeft ? px - 6 : w + 2) : (fitsRight ? px + 6 : lay.W - 2 - w);
+  readout.setAttribute("text-anchor", right ? "end" : "start");
+  for (const sp of spans) sp.setAttribute("x", lx);
   placeProfileArrow(d);
 }
 

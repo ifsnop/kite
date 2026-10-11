@@ -329,11 +329,19 @@ function setProfileNote(txt) {
   el.textContent = txt || "";
 }
 
+/* The header's × aborts while downloading and closes afterwards: its
+   name says which (it has no visible text to say it).             */
+function setProfileCloseLabel(txt) {
+  const btn = document.getElementById("profile-close");
+  btn.title = txt;
+  btn.setAttribute("aria-label", txt);
+}
+
 function openProfileDialog(title) {
   hideProfileArrow();
   document.getElementById("profile-title").textContent = title;
   document.getElementById("profile-progress").hidden = false;
-  document.getElementById("profile-close").textContent = "Cancelar";
+  setProfileCloseLabel("Cancelar la descarga");
   setProfileProgress(0, 0);
   setProfileNote("");
   profileData = null;
@@ -350,7 +358,7 @@ function openProfileDialog(title) {
 /* Fin de la descarga (o perfil ya guardado): fuera la barra, «Cerrar» */
 function profileDialogDone() {
   document.getElementById("profile-progress").hidden = true;
-  document.getElementById("profile-close").textContent = "Cerrar";
+  setProfileCloseLabel("Cerrar");
 }
 
 /* Cancelar (descargando) o Cerrar (con la gráfica): lo mismo, abortar
@@ -587,6 +595,7 @@ async function obtainRouteProfile(li) {
 const PF_MARGIN = { l: 64, r: 14, t: 26, b: 40 };
 const SVG_NS = "http://www.w3.org/2000/svg";
 const PF_SNAP_PX = 8;          /* la lectura de una serie, si tiene un punto a menos de esto */
+const PF_READOUT_LINE = 14;    /* px entre líneas de la lectura del cursor */
 const PF_MIN_M_PER_PX = 0.1;   /* zoom máximo: 0,1 m de ruta por píxel (pedido) */
 const PF_WHEEL_STEP = 0.0015;  /* factor de zoom = e^(píxeles de rueda × esto) */
 const PF_BUTTON_FACTOR = 2;    /* un botón − / + aleja o acerca al doble   */
@@ -706,7 +715,8 @@ const vertexDecimals = spanUnits => Math.max(2, Math.min(5, tickDecimals(spanUni
 
 /* La línea roja, la lectura y la flecha del mapa en la x (píxeles del
    SVG) del ratón. Cada serie da su altura si tiene una celda a la
-   vista de esa distancia (en un hueco, se omite).                  */
+   vista de esa distancia (en un hueco, se omite); con las dos, también
+   MDS−MDT, en rojo por encima de ELEV_ALERT_DIFF como en las celdas. */
 function showProfileCursor(x) {
   const lay = profileLayout, svg = profileChart.firstChild;
   if (!lay || !svg) return;
@@ -719,16 +729,41 @@ function showProfileCursor(x) {
   const snap = PF_SNAP_PX / lay.pw * (lay.x1 - lay.x0);
   /* tantos decimales como distinga un píxel: a 0,1 m/px, 4 en km */
   const fx = POLY_UNIT_FACTOR[measureUnit];
-  const read = [`${(d / fx).toFixed(distDecimals((lay.x1 - lay.x0) / lay.pw, fx))} ${POLY_UNIT_LABEL[measureUnit]}`];
+  const heights = [], at = {};
   for (const s of profileData.series) {
     const p = nearestProfilePoint(s.points, d);
-    if (p && Math.abs(p.d - d) <= snap) read.push(`${PROFILE_KIND_LABEL[s.kind]} ${fmtHeight(p.v, altitudeUnit)}`);
+    if (p && Math.abs(p.d - d) <= snap) {
+      at[s.kind] = p.v;
+      heights.push(`${PROFILE_KIND_LABEL[s.kind]} ${fmtHeight(p.v, altitudeUnit)}`);
+    }
   }
-  readout.textContent = read.join(" · ");
-  const right = px > PF_MARGIN.l + lay.pw / 2;
-  readout.setAttribute("x", right ? px - 6 : px + 6);
-  readout.setAttribute("text-anchor", right ? "end" : "start");
+  /* Una línea por dato (distancia, alturas, MDS−MDT): en una sola, con
+     la diferencia, no cabía a ningún lado de la línea roja y la cruzaba. */
+  const lines = [{ txt: `${(d / fx).toFixed(distDecimals((lay.x1 - lay.x0) / lay.pw, fx))} ${POLY_UNIT_LABEL[measureUnit]}` }];
+  if (heights.length) lines.push({ txt: heights.join(" · ") });
+  if (at.mdt !== undefined && at.mds !== undefined) {
+    const diff = at.mds - at.mdt;
+    lines.push({ txt: `MDS−MDT ${fmtDiff(diff)} ${POLY_UNIT_LABEL[altitudeUnit]}`,
+                 cls: `pf-diff${diff > ELEV_ALERT_DIFF ? " alert" : ""}` });
+  }
+  readout.textContent = "";
+  const spans = lines.map((l, i) => {
+    const span = document.createElementNS(SVG_NS, "tspan");
+    span.setAttribute("dy", i ? PF_READOUT_LINE : 0);
+    if (l.cls) span.setAttribute("class", l.cls);
+    span.textContent = l.txt;
+    return readout.appendChild(span);
+  });
   readout.setAttribute("visibility", "visible");
+  /* Del lado con más sitio; si no cabe, al otro; si tampoco, contra el
+     borde (una gráfica muy estrecha). */
+  const w = Math.max(...spans.map(sp => sp.getComputedTextLength()));
+  const fitsLeft = px - 6 - w >= 2, fitsRight = px + 6 + w <= lay.W - 2;
+  let right = px > PF_MARGIN.l + lay.pw / 2;
+  if (right ? !fitsLeft && fitsRight : !fitsRight && fitsLeft) right = !right;
+  const lx = right ? (fitsLeft ? px - 6 : w + 2) : (fitsRight ? px + 6 : lay.W - 2 - w);
+  readout.setAttribute("text-anchor", right ? "end" : "start");
+  for (const sp of spans) sp.setAttribute("x", lx);
   placeProfileArrow(d);
 }
 

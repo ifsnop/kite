@@ -37,6 +37,7 @@ nuevo, no que la regla no exista.
 | `tree-navigation-selection.md` | Árbol: visibilidad, checkbox de tres estados, teclado, selección, exportar/importar carpetas, arrastrar y soltar, deshacer/rehacer | `30-tree-walk.js`, `31-tree-node.js`, `40-panel-actions.js`, `41-selection.js`, `70-view-controls.js` |
 | `multi-edit-clipboard.md` | Editar varios nodos a la vez, portapapeles interno y del sistema | `44-dialogs.js`, `41-selection.js`, `40-panel-actions.js` |
 | `style-dialogs-ui.md` | Diálogo de estilos de capa, selector de color propio, mecánica de ventanas, ficha de información | `44-dialogs.js`, `43-points-editor.js` |
+| `dialog-close-button.md` | Regla: un diálogo cuyo único botón es el de cerrar lo lleva como × arriba a la derecha, sin pie | `src/index.html`, `src/styles.css`, `43-points-editor.js`, `44-dialogs.js` |
 | `measurements-drawing-vertex-editing.md` | Mediciones (ruta/círculo), dibujo de formas, edición interactiva de vértices | `52-measure.js`, `43-points-editor.js` |
 | `marker-icons.md` | Iconos MDI empotrados sin red, cómo ampliar el catálogo | `05-mdi-icons.js`, `fetch-icons.js` |
 | `units-coordinates-properties-panel.md` | Unidades de distancia y de altitud, formato de coordenadas, límite del perfil, panel Propiedades | `44-dialogs.js`, `43-points-editor.js` |

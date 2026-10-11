@@ -210,7 +210,8 @@ the flag clears by itself when the tiles come back.
   elevation profile — distance from the start across, height up, MDT in
   blue and MDS in green, leg vertices in bold
 - hovering the chart moves a red line across it and a red arrow along the
-  route on the map, pointing the way of travel
+  route on the map, pointing the way of travel; the readout gives the
+  distance, both heights and their MDS−MDT difference (red above 1 m)
 - the mouse wheel zooms the chart's distance around the pointer (from the
   whole route down to 0.1 m per pixel) and dragging pans it; Shift+wheel,
   or the wheel over the height axis, zooms the heights on their own

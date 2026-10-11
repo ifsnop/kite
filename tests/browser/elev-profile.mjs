@@ -182,13 +182,13 @@ async function runProfile() {
     document.getElementById("ms-profile").click();
     document.getElementById("style-cancel").click();
     const t0 = performance.now();
-    while (performance.now() - t0 < 20000 && document.getElementById("profile-close").textContent !== "Cerrar") {
+    while (performance.now() - t0 < 20000 && document.getElementById("profile-close").title !== "Cerrar") {
       await new Promise(r => setTimeout(r, 30));
     }
     await new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));
     obs.disconnect();
     return {
-      steps, button: document.getElementById("profile-close").textContent,
+      steps, button: document.getElementById("profile-close").title,
       progressHidden: document.getElementById("profile-progress").hidden,
       note: document.getElementById("profile-note").hidden ? "" : document.getElementById("profile-note").textContent
     };
@@ -243,6 +243,20 @@ const redraw = await page.evaluate(() => {
 });
 ok(redraw.includes("Distancia desde el inicio (NM)") && redraw.includes("Altura (ft)"),
   "cambiar las unidades la redibuja: " + JSON.stringify(redraw));
+/* Regla de los diálogos de un solo botón: el × arriba a la derecha y,
+   sin pie, la gráfica hasta abajo */
+const layout = await page.evaluate(() => {
+  const box = profileBox.getBoundingClientRect(), x = document.getElementById("profile-close");
+  const b = x.getBoundingClientRect(), chart = profileChart.getBoundingClientRect();
+  return { inHead: x.parentElement === profileBox.querySelector("h2"), right: Math.round(box.right - b.right),
+           top: Math.round(b.top - box.top), footer: !!profileBox.querySelector(".dlg-actions"),
+           gap: Math.round(box.bottom - chart.bottom),
+           name: document.getElementById(profileBox.getAttribute("aria-labelledby")).textContent,
+           title: document.getElementById("profile-title").textContent };
+});
+ok(layout.inHead && layout.right < 16 && layout.top < 16, "el × de cerrar, arriba a la derecha en la cabecera: " + JSON.stringify(layout));
+ok(!layout.footer && layout.gap < 12, "sin pie: la gráfica llega hasta abajo de la ventana: " + JSON.stringify(layout));
+ok(layout.name === layout.title, "la ventana se llama por su título, sin el «Cerrar» del ×: " + layout.name);
 
 /* ---------- 4. En el árbol: raíz «Perfiles de ruta» ---------- */
 await page.waitForFunction(() => [...document.querySelectorAll("#tree li")].some(li => /^Perfil de/.test(li._name || "")));
@@ -271,7 +285,9 @@ ok(menu1.hits.length === 2 && menu1.profile === "Mostrar perfil",
   "ruta y perfil bajo el cursor: el menú sigue ofreciendo el perfil, ya «Mostrar»: " + JSON.stringify(menu1));
 
 /* ---------- 6. Mostrar: sin red, sin capa nueva ---------- */
-await page.evaluate(() => closeProfileDialog());
+await page.click("#profile-close"); /* ratón real: el × vive en el asa de arrastre */
+ok(await page.evaluate(() => profileDialog.hidden && !profileBox.style.left),
+  "pulsar el × cierra la ventana, sin empezar a arrastrarla");
 const n0 = coverages().length + seen.length;
 const shown = await page.evaluate(async sel => {
   const li = eval(sel);
@@ -282,7 +298,7 @@ const shown = await page.evaluate(async sel => {
   document.getElementById("style-cancel").click();
   await new Promise(r2 => requestAnimationFrame(() => requestAnimationFrame(r2)));
   r.lines = document.querySelectorAll("#profile-chart polyline.pf-line").length;
-  r.close = document.getElementById("profile-close").textContent;
+  r.close = document.getElementById("profile-close").title;
   closeProfileDialog();
   ctxItemsFor([li]).find(i => i.label === "Mostrar perfil").action();
   await new Promise(r2 => requestAnimationFrame(() => requestAnimationFrame(r2)));
@@ -312,7 +328,11 @@ const arrowState = () => page.evaluate(wps => {
   return { shown: true, atVertex: p.distanceTo(a),
            offLine: Math.abs((b.x - a.x) * (a.y - p.y) - (a.x - p.x) * (b.y - a.y)) / a.distanceTo(b),
            between: p.y < a.y && p.y > b.y, rotate: profileArrow.getElement().firstChild.style.transform,
-           readout: document.getElementById("pf-readout").textContent,
+           readout: [...document.querySelectorAll("#pf-readout tspan")].map(t => t.textContent).join(" · "),
+           lines: document.querySelectorAll("#pf-readout tspan").length,
+           crosses: (r => { const c = document.getElementById("pf-cursor").getBoundingClientRect().left;
+             return r.left < c - 1 && r.right > c + 1; })(document.getElementById("pf-readout").getBoundingClientRect()),
+           diffAlert: !!document.querySelector("#pf-readout .pf-diff.alert"),
            cursor: document.getElementById("pf-cursor").getAttribute("visibility") };
 }, WAYPOINTS);
 let g = await chartGeom();
@@ -330,6 +350,14 @@ const afterClose = await arrowState();
 ok(atV.shown && atV.atVertex <= 2, "en el vértice de la gráfica, la flecha está en ese waypoint: " + JSON.stringify(atV));
 ok(atV.cursor === "visible" && /km · MDT [\d.]+ m · MDS [\d.]+ m/.test(atV.readout),
   "la línea roja y la lectura de las dos alturas: " + atV.readout);
+{
+  const m = atV.readout.match(/MDT ([\d.]+) m · MDS ([\d.]+) m · MDS−MDT ([+-][\d.]+) m$/);
+  const diff = m && +m[2] - +m[1];
+  ok(m && Math.abs(+m[3] - diff) < 0.11, "y su diferencia MDS−MDT, con signo: " + atV.readout);
+  ok(m && atV.diffAlert === diff > 1, "en rojo solo por encima de 1 m, como en las celdas: " + JSON.stringify(atV));
+  ok(atV.lines === 3 && !atV.crosses && !midLeg.crosses,
+    "en tres líneas (distancia, alturas, diferencia), a un lado de la línea roja sin cruzarla: " + JSON.stringify([atV.lines, atV.crosses, midLeg.crosses]));
+}
 ok(midLeg.offLine < 1 && midLeg.between, "a mitad de tramo, sobre la línea dibujada: " + JSON.stringify(midLeg));
 ok(/rotate\(-90deg\)/.test(midLeg.rotate), "apuntando en el sentido de la marcha (norte): " + midLeg.rotate);
 ok(!afterLeave.shown && !afterClose.shown, "al salir de la gráfica o cerrar, desaparece");
@@ -596,7 +624,7 @@ const cancelled = await page.evaluate(async sel => {
   demTimes.length = 0;
   openRouteProfile(eval(sel));
   await new Promise(r => setTimeout(r, 300));
-  document.getElementById("profile-close").click(); /* «Cancelar» */
+  document.getElementById("profile-close").click(); /* × = «Cancelar la descarga» */
   await new Promise(r => setTimeout(r, 2500));
   return { hidden: document.getElementById("profile-dialog").hidden, groups: elevGridGroups.length };
 }, routeLi);

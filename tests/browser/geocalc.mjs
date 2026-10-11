@@ -64,6 +64,7 @@ const opened = await page.evaluate(() => {
     visible: !dlg.hidden,
     tabs: [...dlg.querySelectorAll(".dlg-tab")].map(b => b.textContent),
     actions: [...dlg.querySelectorAll(".dlg-actions button")].map(b => b.textContent),
+    close: (x => x && x.parentElement.tagName + "|" + x.getAttribute("aria-label"))(dlg.querySelector("h2 .dlg-close")),
     coneIds: [...dlg.querySelectorAll("[id^='cone-'], #geocalc-tab-cone, #geocalc-calc")].length,
     hasBlanco: /blanco/i.test(dlg.textContent),
     props: opts("props-unit"), h1: opts("geocalc-h1-unit"), h2: opts("geocalc-h2-unit"), d: opts("geocalc-d-unit"),
@@ -78,7 +79,8 @@ const opened = await page.evaluate(() => {
 ok(opened.visible, "📐 abre la ventana");
 ok(opened.tabs.join("|") === "Ángulo de elevación|Vector GPS", "solo dos pestañas, sin «Cono de silencio»: " + opened.tabs.join("|"));
 ok(opened.coneIds === 0 && !opened.hasBlanco, "no queda rastro de la pestaña del cono (ni ids ni el texto «blanco»)");
-ok(opened.actions.join("|") === "Cerrar", "el pie solo tiene «Cerrar»; ya no hay «Calcular»: " + opened.actions.join("|"));
+ok(opened.actions.length === 0 && opened.close === "H2|Cerrar",
+  "sin pie ni «Calcular»: su único botón, «Cerrar», es el × de la cabecera: " + JSON.stringify([opened.actions, opened.close]));
 ok(JSON.stringify(opened.h1) === JSON.stringify(opened.props) && JSON.stringify(opened.h2) === JSON.stringify(opened.props)
   && JSON.stringify(opened.d) === JSON.stringify(opened.props), "las unidades de los tres campos son las de Propiedades, en su orden");
 ok(opened.units.join() === "ft,ft,nm", "primera apertura con NM global: alturas en pies, distancia en NM — " + opened.units.join());
