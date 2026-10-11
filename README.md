@@ -184,15 +184,34 @@ the flag clears by itself when the tiles come back.
   any other; hovering a cell shows its values in the coordinates box
 - the data sources are chosen in Properties → «Fuentes de datos», from a
   list built into the application (or none, to skip that model): the
-  IGN's WCS services by default (Spain, 5 m cells), and Digital Earth
+  IGN's WCS services by default — MDT05 (5 m), MDT25 or MDT200 for the
+  terrain, MDS (5 m) for the surface; Spain only — and Digital Earth
   Africa's Copernicus DEM as an alternative surface model (Africa, the
-  Canary Islands and southern Spain, ~30 m cells)
+  Canary Islands and the Iberian Peninsula up to 39° N, ~30 m cells);
+  each layer is named after the dataset and provider it came from
+  («Elevación 3 — MDT25 + MDS (IGN)»)
 - the first query to each service in a session reads its capabilities
-  once, picks the finest grid and the ASCII format when offered (GeoTIFF
-  otherwise), and notes the choice in the message log
-- heights follow the global unit of measure (m, km, ft, mi or NM)
+  once, picks the finest grid of the chosen dataset and the ASCII format
+  when offered (GeoTIFF otherwise), and notes the choice in the message
+  log
+- transient failures (timeout, network, 429, 5xx) are retried up to three
+  times with a growing pause; Digital Earth Africa gets a longer timeout,
+  since its first answer for an area takes 17–33 s (measured)
+- heights follow their own unit of altitude, independent of the unit of
+  distance (Properties → Preferencias)
 - each query costs a request to a third party, so nothing is requested
   until you ask
+
+### Route profile
+
+- right-click on a route (or its properties dialog) → «Obtener perfil»:
+  the chosen surface model (MDS) is downloaded along the route in bounded
+  chunks, with a progress bar, and drawn as an elevation profile —
+  distance from the start across, height up, leg vertices in bold
+- only the cells the route actually crosses are kept, as a layer of the
+  session folder; the chart itself is not stored
+- routes longer than a configurable limit (10 NM by default) get no
+  profile, so a long route cannot fill the browser storage with cells
 
 ### Measurements
 
@@ -251,10 +270,12 @@ The current build is not fully offline and makes external requests:
 - JSZip is loaded from `cdnjs.cloudflare.com`;
 - place searches are sent to the public Nominatim service;
 - base-map tiles and WMS images are requested from their respective providers;
-- elevation queries are requested from the chosen WCS services (IGN by
-  default, or Digital Earth Africa), and only when you ask for one. Digital
-  Earth Africa currently answers Chromium-based browsers (Chrome, Edge…)
-  with 403 Forbidden; it works from Firefox and Safari;
+- elevation queries and route profiles are requested from the chosen WCS
+  services (IGN by default, or Digital Earth Africa), and only when you ask
+  for one; a profile is a handful of sequential requests along the route,
+  under the same per-second cap. Digital Earth Africa currently answers
+  Chromium-based browsers (Chrome, Edge…) with 403 Forbidden; it works
+  from Firefox and Safari;
 - the Copernicus DEM base layer, if enabled, is requested from Sentinel Hub
   with the user's own instance ID.
 

@@ -1,5 +1,5 @@
 ---
-description: Calculadora geodésica (botón 📐, una pestaña por cálculo): ángulo de elevación con cono y corrección por presión, vector GPS, cálculo inmediato, unidades copiadas de Propiedades, ventana flotante.
+description: Calculadora geodésica (botón 📐, una pestaña por cálculo): ángulo de elevación con cono y corrección por presión, vector GPS, cálculo inmediato, unidades copiadas de Propiedades (distancia y altitud), ventana flotante.
 paths:
   - "src/js/62-geocalc.js"
 ---
@@ -22,7 +22,7 @@ paths:
 
 ## Unidades
 
-- **Copiadas de `#props-unit`**, no repetidas (`innerHTML` de `propsUnitSelect`): mismas unidades y mismo orden que Propiedades por construcción. Cada campo numérico con unidad tiene su selector INDEPENDIENTE (`geocalcUnitField`). Elevación, primera apertura (`seedGeocalcUnits`): distancia en `measureUnit`; alturas en pies si esa unidad es ft/mi/NM, en metros si es m/km. Después manda el usuario; no se persiste y no se sincroniza con el ajuste global. El vector GPS NO sigue `measureUnit`: sus unidades de partida son fijas (ver su punto).
+- **Copiadas de `#props-unit`**, no repetidas (`innerHTML` de `propsUnitSelect`): mismas unidades y mismo orden que Propiedades por construcción. Cada campo numérico con unidad tiene su selector INDEPENDIENTE (`geocalcUnitField`). Elevación, primera apertura (`seedGeocalcUnits`): distancia en `measureUnit` (unidad de distancia) y alturas en `altitudeUnit` (unidad de altitud de Propiedades; antes se deducía de la de distancia: pies con ft/mi/NM, metros con m/km). Después manda el usuario; no se persiste y no se sincroniza con el ajuste global. El vector GPS NO sigue `measureUnit`: sus unidades de partida son fijas (ver su punto).
 - **Cambiar la unidad de un campo CONVIERTE su valor** (`convertGeocalcField`), no lo reinterpreta: 1000 ft → 304.8 m. Solo el campo de ese selector; cada `<select>` recuerda su unidad anterior en `dataset.prev` (`change` solo trae la nueva; la asignación por código, que no dispara `change`, también lo actualiza). **Redondeo a 12 cifras significativas** (`toPrecision(12)`): las bastantes para que el ruido de coma flotante (304.79999999999995) desaparezca y para que ida y vuelta m → ft → m devuelva lo mismo. Con 10, 650 m volvían como «650.0000001» (el valor intermedio ya había perdido precisión). Vacío o ilegible se deja tal cual.
 
 ## Pestaña «Ángulo de elevación»

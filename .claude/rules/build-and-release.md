@@ -15,7 +15,7 @@ paths:
 src/index.html     plantilla: <head>, CSP, diálogos, <script> de CDN.
                    Dos marcadores: {{STYLES}} y {{SCRIPTS}}
 src/styles.css     todo el CSS
-src/js/*.js        20 archivos, en el orden del manifiesto de build.js
+src/js/*.js        24 archivos, en el orden del manifiesto de build.js
                    (el primero, 05-mdi-icons.js, es GENERADO)
 build.js           concatena src/ → kitelocal.html, y minifica ese
                    resultado → kitelocal.min.html

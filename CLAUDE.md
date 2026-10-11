@@ -39,12 +39,12 @@ nuevo, no que la regla no exista.
 | `style-dialogs-ui.md` | Diálogo de estilos de capa, selector de color propio, mecánica de ventanas, ficha de información | `44-dialogs.js`, `43-points-editor.js` |
 | `measurements-drawing-vertex-editing.md` | Mediciones (ruta/círculo), dibujo de formas, edición interactiva de vértices | `52-measure.js`, `43-points-editor.js` |
 | `marker-icons.md` | Iconos MDI empotrados sin red, cómo ampliar el catálogo | `05-mdi-icons.js`, `fetch-icons.js` |
-| `units-coordinates-properties-panel.md` | Unidad de medida global, formato de coordenadas, panel Propiedades | `44-dialogs.js`, `43-points-editor.js` |
-| `geocalc.md` | Calculadora geodésica (botón 📐): pestañas (elevación con cono y corrección por presión, vector GPS), cálculo inmediato, unidades copiadas de Propiedades, modelos de Tierra | `62-geocalc.js` |
-| `elevation-dem.md` | Elevaciones MDT/MDS por WCS: catálogo de fuentes elegibles (IGN, Digital Earth Africa), consulta puntual desde el menú contextual, carpeta por sesión, ASCII/GeoTIFF, unidades | `60-elevation.js` |
+| `units-coordinates-properties-panel.md` | Unidades de distancia y de altitud, formato de coordenadas, límite del perfil, panel Propiedades | `44-dialogs.js`, `43-points-editor.js` |
+| `geocalc.md` | Calculadora geodésica (botón 📐): pestañas (elevación con cono y corrección por presión, vector GPS), cálculo inmediato, unidades copiadas de Propiedades (distancia y altitud), modelos de Tierra | `62-geocalc.js` |
+| `elevation-dem.md` | Elevaciones MDT/MDS por WCS: catálogo por conjunto de datos (IGN MDT05/25/200 y MDS, Digital Earth Africa), consulta puntual desde el menú contextual, carpeta por sesión, ASCII/GeoTIFF, reintentos, unidad de altitud, perfil de una ruta | `60-elevation.js`, `63-route-profile.js` |
 | `accessibility.md` | ARIA del árbol y de los diálogos | `src/js/**`, `src/index.html` |
 | `persistence-indexeddb.md` | `DB_VERSION`/`TREE_SCHEMA`, serialización del árbol, claves del almacén | `src/js/**` |
-| `external-network.md` | Disciplina de peticiones de red externa | `40-panel-actions.js`, `60-elevation.js`, `12-copernicus.js` |
+| `external-network.md` | Disciplina de peticiones de red externa (tope, tiempo por intento, reintentos de lo pasajero) | `40-panel-actions.js`, `60-elevation.js`, `63-route-profile.js`, `12-copernicus.js` |
 | `base-maps.md` | Capas base, fuentes dinámicas, color de fondo, apilado | `10-map.js`, `11-base-panel.js`, `12-copernicus.js` |
 | `url-import.md` | Botón 🔗, descarga de una URL en dos pasos | `40-panel-actions.js`, `src/index.html` |
 | `context-menu.md` | Menú contextual del visor, hit-testing por geometría | `42-hittest.js`, `70-view-controls.js` |

@@ -17,6 +17,7 @@ paths:
   llame «propiedades» a ambos indistintamente.
 - **`disabled()` opcional en un ítem**: devuelve el MOTIVO (texto, va al `title`) o algo falso. El ítem se pinta deshabilitado, no se esconde. Hoy lo usa «Consultar elevación aquí» (`elevQueryDisabled`): mapa rotado, o las dos fuentes de elevación en «Ninguna».
 - **«Consultar elevación aquí»** (`queryElevationAt(latlng)`) sustituye al antiguo interruptor «Modo elevación» y al botón ⛰: una consulta puntual de la tesela bajo el puntero, una capa por consulta. Ver `elevation-dem.md`.
+- **«Obtener perfil»** en `layerCtxItems` sobre una ruta (`li._measure.type === "route"`, arcos incluidos), con `disabled: () => routeProfileDisabled(li)` (sin MDS, o ruta más larga que el límite). El `disabled()` genérico de `renderCtxItems` vale también para los ítems de capa. Ver `elevation-dem.md`, «Perfil de una ruta».
 - **«Medir ▸» es un submenú fijo de `CTX_MENU_ITEMS`** con Ruta, Círculo y Arco (cada uno alterna su herramienta con `setTool`); «Dibujar polígono o línea» queda fuera del grupo.
 - **Elegir una acción devuelve el foco al VISOR antes de ejecutarla**
   (clic del ítem en `renderCtxItems`): ocultar el menú lo dejaba en el
