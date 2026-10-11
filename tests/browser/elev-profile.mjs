@@ -20,9 +20,12 @@
    6) Mostrar: ni peticiones ni capa nueva, desde el botón y desde el
       menú; también tras recargar la página. Mover un vértice vuelve a
       «Obtener perfil».
-   7) La flecha del mapa sigue al cursor de la gráfica: en un vértice,
-      sobre ese waypoint; a mitad de tramo, sobre la línea; al salir de
-      la gráfica o cerrar, desaparece.
+   7) La flecha del mapa sigue al cursor de la gráfica (ratón real): en
+      un vértice, sobre ese waypoint; a mitad de tramo, sobre la línea;
+      al salir de la gráfica o cerrar, desaparece. La rueda acerca con
+      el punto bajo el ratón fijo, hasta 1 m por píxel, y aleja hasta la
+      ruta entera; la altura se ajusta a lo visible; arrastrar desplaza
+      sin cambiar el zoom y se para en los extremos.
    8) Deshacer quita el perfil; con el MDT en «Ninguna», una sola curva
       y celdas sin MDT; un trozo que falla deja un hueco; cancelar a
       mitad no deja nada.                                             */
@@ -270,47 +273,99 @@ ok(shown.lines >= 2 && shown.close === "Cerrar" && shown.menuLines >= 2, "y ense
 ok(coverages().length + seen.length === n0, "sin ninguna petición");
 ok((await treeOf()).count === 1, "ni capa nueva");
 
-/* ---------- 7. La flecha del mapa sigue al cursor ---------- */
-const arrow = await page.evaluate(async wps => {
-  const svg = document.querySelector("#profile-chart svg");
-  const r = svg.getBoundingClientRect();
-  const W = Number(svg.getAttribute("viewBox").split(" ")[2]);
-  const pw = W - PF_MARGIN.l - PF_MARGIN.r;
-  const move = d => svg.dispatchEvent(new MouseEvent("mousemove", { bubbles: true,
-    clientX: r.left + (PF_MARGIN.l + d / profileData.total * pw) * r.width / W, clientY: r.top + r.height / 2 }));
-  const frames = () => new Promise(res => requestAnimationFrame(() => requestAnimationFrame(res)));
+/* ---------- 7. La flecha del mapa sigue al cursor (ratón real) ---------- */
+const frames = () => page.evaluate(() => new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r))));
+/* Píxel de pantalla de una distancia con la vista actual de la gráfica */
+const chartGeom = () => page.evaluate(() => {
+  const r = profileChart.getBoundingClientRect();
+  return { left: r.left, top: r.top, height: r.height, pw: profileChart.clientWidth - PF_MARGIN.l - PF_MARGIN.r,
+           l: PF_MARGIN.l, view: { ...profileView }, total: profileData.total, vertices: profileData.vertices,
+           zoomed: profileChart.classList.contains("zoomed") };
+});
+const screenX = (g, d) => g.left + g.l + (d - g.view.x0) / (g.view.x1 - g.view.x0) * g.pw;
+const mouseAt = async (g, d) => { await page.mouse.move(screenX(g, d), g.top + g.height / 2); await frames(); };
+const arrowState = () => page.evaluate(wps => {
   const px = ll => map.latLngToContainerPoint(ll);
-  const out = {};
-  move(profileData.vertices[1]);
-  await frames();
-  out.shown = map.hasLayer(profileArrow);
-  out.atVertex = px(profileArrow.getLatLng()).distanceTo(px(wps[1]));
-  out.readout = document.getElementById("pf-readout").textContent;
-  out.cursorVisible = document.getElementById("pf-cursor").getAttribute("visibility");
-  /* A mitad del segundo tramo (hacia el norte): sobre la línea y apuntando arriba */
-  move((profileData.vertices[1] + profileData.vertices[2]) / 2);
-  await frames();
+  if (!map.hasLayer(profileArrow)) return { shown: false };
   const a = px(wps[1]), b = px(wps[2]), p = px(profileArrow.getLatLng());
-  out.offLine = Math.abs((b.x - a.x) * (a.y - p.y) - (a.x - p.x) * (b.y - a.y)) / a.distanceTo(b);
-  out.between = p.y < a.y && p.y > b.y;
-  out.rotate = profileArrow.getElement().firstChild.style.transform;
-  svg.dispatchEvent(new MouseEvent("mouseleave"));
-  await frames();
-  out.afterLeave = map.hasLayer(profileArrow);
-  move(100);
-  await frames();
-  closeProfileDialog();
-  out.afterClose = map.hasLayer(profileArrow);
-  out.inTree = layersAtPoint(L.latLng(wps[1]), px(wps[1])).length;
-  return out;
+  return { shown: true, atVertex: p.distanceTo(a),
+           offLine: Math.abs((b.x - a.x) * (a.y - p.y) - (a.x - p.x) * (b.y - a.y)) / a.distanceTo(b),
+           between: p.y < a.y && p.y > b.y, rotate: profileArrow.getElement().firstChild.style.transform,
+           readout: document.getElementById("pf-readout").textContent,
+           cursor: document.getElementById("pf-cursor").getAttribute("visibility") };
 }, WAYPOINTS);
-/* 2 px: el ratón va en píxeles enteros de la gráfica (~1,6 m cada uno aquí) */
-ok(arrow.shown && arrow.atVertex <= 2, "en el vértice de la gráfica, la flecha está en ese waypoint: " + JSON.stringify(arrow));
-ok(arrow.cursorVisible === "visible" && /km · MDT [\d.]+ m · MDS [\d.]+ m/.test(arrow.readout),
-  "la línea roja y la lectura de las dos alturas: " + arrow.readout);
-ok(arrow.offLine < 1 && arrow.between, "a mitad de tramo, sobre la línea dibujada: " + arrow.offLine);
-ok(/rotate\(-90deg\)/.test(arrow.rotate), "apuntando en el sentido de la marcha (norte): " + arrow.rotate);
-ok(!arrow.afterLeave && !arrow.afterClose, "al salir de la gráfica o cerrar, desaparece");
+let g = await chartGeom();
+await mouseAt(g, g.vertices[1]);
+const atV = await arrowState();
+await mouseAt(g, (g.vertices[1] + g.vertices[2]) / 2);
+const midLeg = await arrowState();
+await page.mouse.move(700, 150); /* fuera de la gráfica, sobre el mapa */
+await frames();
+const afterLeave = await arrowState();
+await mouseAt(g, 100);
+await page.evaluate(() => closeProfileDialog());
+const afterClose = await arrowState();
+/* 2 px: el ratón va en píxeles enteros de la gráfica (~3 m cada uno aquí) */
+ok(atV.shown && atV.atVertex <= 2, "en el vértice de la gráfica, la flecha está en ese waypoint: " + JSON.stringify(atV));
+ok(atV.cursor === "visible" && /km · MDT [\d.]+ m · MDS [\d.]+ m/.test(atV.readout),
+  "la línea roja y la lectura de las dos alturas: " + atV.readout);
+ok(midLeg.offLine < 1 && midLeg.between, "a mitad de tramo, sobre la línea dibujada: " + JSON.stringify(midLeg));
+ok(/rotate\(-90deg\)/.test(midLeg.rotate), "apuntando en el sentido de la marcha (norte): " + midLeg.rotate);
+ok(!afterLeave.shown && !afterClose.shown, "al salir de la gráfica o cerrar, desaparece");
+
+/* ---------- 7b. Rueda = zoom con ancla; arrastrar = desplazar ---------- */
+await page.evaluate(sel => routeProfileCtxItem(eval(sel)).action(), routeLi);
+await frames();
+g = await chartGeom();
+const yRange = () => page.evaluate(() => {
+  const ys = [...document.querySelectorAll("#profile-chart text.pf-tick[dominant-baseline=middle]")]
+    .filter(t => t.getAttribute("text-anchor") === "end").map(t => Number(t.textContent));
+  return Math.max(...ys) - Math.min(...ys);
+});
+const fullY = await yRange();
+ok(g.view.x0 === 0 && g.view.x1 === g.total && !g.zoomed, "abre con la ruta entera: " + JSON.stringify(g.view));
+/* Acercar con el ratón en el quiebro: el quiebro no se mueve */
+const anchorD = g.vertices[1];
+await mouseAt(g, anchorD);
+await page.mouse.wheel(0, -300);
+await frames();
+let g2 = await chartGeom();
+const anchorNow = g2.view.x0 + (screenX(g, anchorD) - g2.left - g2.l) / g2.pw * (g2.view.x1 - g2.view.x0);
+ok(g2.view.x1 - g2.view.x0 < g.total * 0.8 && g2.zoomed, "la rueda acerca: " + JSON.stringify(g2.view));
+ok(Math.abs(anchorNow - anchorD) < 2, `el punto bajo el ratón se queda bajo el ratón (${anchorNow.toFixed(1)} frente a ${anchorD.toFixed(1)} m)`);
+const zoomLabels = await page.evaluate(() => [...document.querySelectorAll("#profile-chart text.pf-tick.vertex")].map(t => t.textContent));
+ok(zoomLabels.length >= 1, "el quiebro sigue con su cifra en negrita: " + zoomLabels);
+/* Hasta el tope: 1 m por píxel */
+for (let i = 0; i < 12; i++) { await page.mouse.wheel(0, -400); await frames(); }
+g2 = await chartGeom();
+ok(Math.abs((g2.view.x1 - g2.view.x0) - g2.pw) < 1e-6, `tope de zoom: 1 m por píxel (${(g2.view.x1 - g2.view.x0).toFixed(1)} m en ${g2.pw} px)`);
+ok(await yRange() < fullY, "la altura se ajusta a lo que se ve");
+const zoomArrow = await (async () => { await mouseAt(g2, g2.vertices[1]); return arrowState(); })();
+ok(zoomArrow.shown && zoomArrow.atVertex <= 2, "con zoom, la flecha sigue cayendo en su sitio: " + zoomArrow.atVertex);
+/* Arrastrar 100 px a la derecha: se ven 100 m anteriores, sin cambiar el zoom */
+const sx = screenX(g2, (g2.view.x0 + g2.view.x1) / 2), sy = g2.top + g2.height / 2;
+await page.mouse.move(sx, sy);
+await page.mouse.down();
+const grabbing = await page.evaluate(() => profileChart.classList.contains("dragging"));
+await page.mouse.move(sx + 50, sy, { steps: 3 });
+await page.mouse.move(sx + 100, sy, { steps: 3 });
+await page.mouse.up();
+await frames();
+const g3 = await chartGeom();
+ok(grabbing && Math.abs((g3.view.x0 - g2.view.x0) + 100) < 1.5 && Math.abs((g3.view.x1 - g3.view.x0) - g2.pw) < 1e-6,
+  "arrastrar 100 px desplaza 100 m, mismo zoom: " + JSON.stringify([g2.view, g3.view]));
+await page.mouse.move(sx, sy);
+await page.mouse.down();
+await page.mouse.move(sx - 3000, sy, { steps: 5 });
+await page.mouse.up();
+await frames();
+const g4 = await chartGeom();
+ok(Math.abs(g4.view.x1 - g4.total) < 1e-6, "y se para al final de la ruta: " + JSON.stringify(g4.view));
+await mouseAt(g4, (g4.view.x0 + g4.view.x1) / 2); /* el arrastre dejó el ratón fuera de la gráfica */
+for (let i = 0; i < 15; i++) { await page.mouse.wheel(0, 600); await frames(); }
+const g5 = await chartGeom();
+ok(g5.view.x0 === 0 && g5.view.x1 === g5.total && !g5.zoomed, "alejar tiene tope en la ruta entera: " + JSON.stringify(g5.view));
+await page.evaluate(() => closeProfileDialog());
 
 /* ---------- 6b. Tras recargar, sigue siendo «Mostrar» ---------- */
 await page.evaluate(() => new Promise(r => setTimeout(r, 700))); /* guardado (debounce) */

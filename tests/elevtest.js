@@ -32,7 +32,8 @@ const arrows = [
   /* Perfil de una ruta (63-route-profile.js), solo lo puro */
   between("const PROFILE_CHUNK_CELLS", "/* ---------- Cálculo"),
   between("const tickDecimals", "/* Tramos continuos"),
-  between("const packProfilePoints", "/* Un perfil leído de fuera")
+  between("const packProfilePoints", "/* Un perfil leído de fuera"),
+  between("const panProfileView", "/* Los puntos que se ven")
 ].join("\n");
 /* nextNumberedName barre el árbol: aquí, un árbol de mentira */
 const fakeTree = "let fakeNames = []; const treeEl = { querySelectorAll: () => fakeNames.map(n => ({ _name: n })) };\n";
@@ -47,7 +48,8 @@ const src = "const parserErrorText = () => null;\nconst toRad = d => d * Math.PI
    fn("buildElevCells"), fn("elevCellHtml"), fn("pointInCell"), fn("sessionStamp"),
    fn("nextNumberedName"), fn("profilePieces"), fn("routeProfileSamples"), fn("profileFromSamples"),
    fn("niceTicks"), fn("profilePolylines"), fn("nearestProfilePoint"),
-   fn("routeProfileKey"), fn("profilePointAt"), fn("validRouteProfile"), fn("profileTreeCells"),
+   fn("routeProfileKey"), fn("profilePointAt"), fn("clampProfileView"), fn("zoomProfileView"),
+   fn("visibleProfilePoints"), fn("validRouteProfile"), fn("profileTreeCells"),
    fn("text")].join("\n");
 const apiExports = "\nreturn {parseWcsCapabilities, mdtCoverages, pickMdsCoverage, pickDeaDemCoverage," +
   " pickGeoCrs, pickElevFormat, parseCoverageDescription, pickFinestCoverage, describeElevChoice," +
@@ -60,7 +62,8 @@ const apiExports = "\nreturn {parseWcsCapabilities, mdtCoverages, pickMdsCoverag
   " validAltitudeUnit, validProfileMax, PROFILE_MAX_DEFAULT, ALTITUDE_UNIT_SCHEMA, PROFILE_MAX_SCHEMA," +
   " profilePieces, routeProfileSamples, profileFromSamples, niceTicks, tickDecimals, profilePolylines," +
   " nearestProfilePoint, PROFILE_CHUNK_CELLS, elevTileFactor, routeProfileKey, profilePointAt," +
-  " validRouteProfile, profileTreeCells, packProfilePoints, unpackProfilePoints, PROFILE_MAX_PTS};";
+  " validRouteProfile, profileTreeCells, clampProfileView, zoomProfileView, panProfileView," +
+  " visibleProfilePoints, packProfilePoints, unpackProfilePoints, PROFILE_MAX_PTS};";
 const api = new Function("DOMParser", src + apiExports)(DOMParser);
 const ok=(c,m)=>{ if(!c){ console.error("FAIL: "+m); process.exitCode=1; } };
 
@@ -726,6 +729,33 @@ ok(api.sessionStamp(new Date(2026, 9, 5, 7, 3)) === "2026-10-05 07:03",
     ok(both[1].mdt === null && both[1].diff === null, "sin la otra: null, sin diferencia");
     const one = api.profileTreeCells(drive, null, { mdt: false, mds: true });
     ok(one.length === 2 && !("mdt" in one[0]), "con un solo modelo, sin la clave del otro");
+  }
+
+  /* ---- gráfica: zoom con ancla y desplazamiento ---- */
+  {
+    const total = 10000, minSpan = 600; /* 600 px a 1 m por píxel */
+    const full = { x0: 0, x1: total };
+    let v = api.zoomProfileView(full, total, minSpan, 0.25, 0.5);
+    ok(v.x0 === 1250 && v.x1 === 6250, "acercar a la mitad con el ratón al 25 %: ese punto (2500 m) no se mueve: " + JSON.stringify(v));
+    ok(Math.abs((v.x0 + 0.25 * (v.x1 - v.x0)) - 2500) < 1e-9, "el ancla sigue bajo el ratón");
+    ok(JSON.stringify(api.zoomProfileView(full, total, minSpan, 0.5, 4)) === JSON.stringify(full),
+       "alejar tiene tope en la ruta entera");
+    v = api.zoomProfileView({ x0: 4000, x1: 5000 }, total, minSpan, 0.5, 0.01);
+    ok(v.x1 - v.x0 === minSpan && v.x0 === 4200, "acercar tiene tope en 1 m por píxel, centrado en el ancla: " + JSON.stringify(v));
+    v = api.zoomProfileView({ x0: 0, x1: 2000 }, total, minSpan, 0, 0.5);
+    ok(v.x0 === 0 && v.x1 === 1000, "con el ratón en el borde izquierdo, el inicio se queda");
+    v = api.zoomProfileView({ x0: 8000, x1: 10000 }, total, minSpan, 0.9, 3);
+    ok(v.x0 === 4000 && v.x1 === 10000, "alejar junto al final no se sale de la ruta: " + JSON.stringify(v));
+    ok(JSON.stringify(api.zoomProfileView({ x0: 0, x1: 300 }, 300, minSpan, 0.5, 0.5)) === '{"x0":0,"x1":300}',
+       "una ruta más corta que el tope no se acerca más");
+    v = api.panProfileView({ x0: 1000, x1: 2000 }, total, minSpan, 500);
+    ok(v.x0 === 1500 && v.x1 === 2500, "desplazar mantiene el zoom");
+    ok(api.panProfileView({ x0: 1000, x1: 2000 }, total, minSpan, -5000).x0 === 0
+       && api.panProfileView({ x0: 1000, x1: 2000 }, total, minSpan, 1e6).x1 === total, "y se para en los extremos");
+    const pts = Array.from({ length: 11 }, (_, i) => ({ d: i * 100, v: i }));
+    const vis = api.visibleProfilePoints(pts, 250, 520);
+    ok(vis.map(p => p.d).join() === "200,300,400,500,600", "lo visible más un vecino a cada lado: " + vis.map(p => p.d));
+    ok(api.visibleProfilePoints(pts, 0, 1000).length === 11, "con la ruta entera, todos");
   }
 
   /* ---- marcas de eje ---- */
