@@ -869,12 +869,10 @@ function layerCtxItems(li) {
   const items = [{ label: "Ir al nodo en el panel", action: () => goToNodeAndBlink(li) }];
   if (infoHtmlFor(li) != null) items.push({ label: "Mostrar atributos", action: () => showLayerInfoAndBlink(li) });
   if (STYLE_EDITABLE_KINDS.has(styleKind(li))) items.push({ label: "Editar propiedades", action: () => editPropertiesAndBlink(li) });
-  /* Una ruta (también un arco, que es una ruta) da su perfil; el motivo
-     de no poder va en el ítem deshabilitado (sin MDS, demasiado larga) */
-  if (li._measure && li._measure.type === "route") {
-    items.push({ label: "Obtener perfil", action: () => obtainRouteProfile(li),
-                 disabled: () => routeProfileDisabled(li) });
-  }
+  /* Una ruta (también un arco, que es una ruta) da su perfil: «Obtener»
+     o, si ya lo tiene, «Mostrar»; el motivo de no poder obtenerlo va en
+     el ítem deshabilitado (sin fuentes, demasiado larga).            */
+  if (isRouteLi(li)) items.push(routeProfileCtxItem(li));
   return items;
 }
 
@@ -901,6 +899,20 @@ function ctxItemsFor(hits) {
     items.push({
       label: "Editar propiedades",
       items: editable.map(li => ({ label: li._name, action: () => editPropertiesAndBlink(li) }))
+    });
+  }
+  /* El perfil también aquí: una ruta casi nunca está sola bajo el
+     cursor, porque las celdas de su propio perfil (o de cualquier
+     cuadrícula de elevación) quedan debajo y el hit-testing las acierta
+     aunque no sean interactivas. Sin esto, tras el primer perfil la
+     opción desaparecía del menú. Una ruta: el ítem tal cual; varias,
+     un submenú por nombre.                                           */
+  const routes = hits.filter(isRouteLi);
+  if (routes.length === 1) items.push(routeProfileCtxItem(routes[0]));
+  else if (routes.length > 1) {
+    items.push({
+      label: "Perfil de ruta",
+      items: routes.map(li => ({ ...routeProfileCtxItem(li), label: li._name }))
     });
   }
   return [...items, { separator: true }, ...CTX_MENU_ITEMS];

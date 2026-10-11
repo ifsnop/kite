@@ -390,10 +390,7 @@ function removeRecordsFromMap(records) {
   for (const rec of records) {
     if (rec.children) { removeRecordsFromMap(rec.children); continue; }
     if (rec._layer) rootGroup.removeLayer(rec._layer);
-    if (rec.t === "elevGrid") { /* mismo onDelete que materializeRecords le habría dado */
-      const i = elevGridGroups.indexOf(rec._layer);
-      if (i >= 0) elevGridGroups.splice(i, 1);
-    }
+    if (rec.t === "elevGrid") forgetElevGridGroup(rec._layer); /* el onDelete que habría tenido */
   }
 }
 /* Gemela recursiva del barrido anterior para lo YA materializado: cada
@@ -402,6 +399,9 @@ function removeRecordsFromMap(records) {
 function removeSubtreeFromMap(li) {
   const chk = li.querySelector(":scope > .node-row > input[type=checkbox]");
   if (chk && chk._layer) rootGroup.removeLayer(chk._layer);
+  /* deleteNode solo llama al onDelete de la raíz de la rama: una
+     cuadrícula dentro de una carpeta borrada se olvida aquí.         */
+  if (li._elevGrid && chk && chk._layer) forgetElevGridGroup(chk._layer);
   const ul = nodeUl(li);
   if (ul) for (const child of ul.children) removeSubtreeFromMap(child);
   if (li._pending) removeRecordsFromMap(li._pending);

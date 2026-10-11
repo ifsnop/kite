@@ -935,14 +935,19 @@ function openStyleDialog(li, { isNew = false, focus = true } = {}) {
     msMeasures = single ? measurementValues(styleTargets[0]._measure) : null;
     $id("ms-values").hidden = !msMeasures;
     if (msMeasures) renderMeasureValues();
-    /* «Obtener perfil»: de UNA ruta ya creada (mientras se dibuja aún no
-       es una ruta terminada). Deshabilitado con el motivo en el title. */
+    /* Perfil: de UNA ruta ya creada (mientras se dibuja aún no es una
+       ruta terminada). «Mostrar perfil» si ya lo tiene (sin red); si no,
+       «Obtener perfil», deshabilitado con el motivo en el title.     */
     const route = single && !isNew && styleTargets[0]._measure.type === "route";
     $id("ms-profile-row").hidden = !route;
     if (route) {
-      const why = routeProfileDisabled(styleTargets[0]);
+      const item = routeProfileCtxItem(styleTargets[0]);
+      const why = item.disabled();
+      $id("ms-profile").textContent = item.label;
       $id("ms-profile").disabled = !!why;
-      $id("ms-profile").title = why || "Descargar las alturas MDS a lo largo de la ruta y dibujar su perfil";
+      $id("ms-profile").title = why || (item.label === "Mostrar perfil"
+        ? "Mostrar el perfil ya descargado de esta ruta"
+        : "Descargar las alturas MDT y MDS a lo largo de la ruta y dibujar su perfil");
     }
   } else {
     const ops = styleTargets.map(t => ({ opacity: t._imageOverlay.opacity }));

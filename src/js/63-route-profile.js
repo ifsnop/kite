@@ -1,10 +1,12 @@
 /* ================= Perfil de una ruta =================
    «Obtener perfil» (menú contextual sobre una ruta, o su diálogo de
-   propiedades) descarga del MDS elegido en Propiedades → Fuentes de
-   datos las celdas que recorre la ruta y dibuja la altura a lo largo
-   de ella: distancia desde el inicio en horizontal (unidad de
-   distancia), altura en vertical (unidad de altitud), con los vértices
-   entre tramos marcados en negrita en el eje de distancias.
+   propiedades) descarga del MDT y del MDS elegidos en Propiedades →
+   Fuentes de datos las celdas que recorre la ruta y dibuja la altura a
+   lo largo de ella, una curva por modelo (MDT azul, MDS verde):
+   distancia desde el inicio en horizontal (unidad de distancia), altura
+   en vertical (unidad de altitud), con los vértices entre tramos
+   marcados en negrita en el eje de distancias. Una flecha sobre la ruta
+   en el mapa sigue a la línea vertical de la gráfica.
 
    La ventana de 40 m de «Consultar elevación aquí» daría cientos de
    peticiones para una ruta de kilómetros, así que aquí se pide por
@@ -16,11 +18,21 @@
    cualquier consulta (withElevRetries).
 
    Lo que queda en el árbol son SOLO las celdas recorridas, una capa
-   «Perfil de «Ruta N» — …» en la carpeta de la sesión: lo descargado y
-   no usado se descarta. La gráfica no se guarda; se vuelve a obtener.
-   La longitud de la ruta está acotada (profileMaxM, Preferencias) para
-   que una ruta larga no llene IndexedDB de celdas.                   */
+   «Perfil de «Ruta N» — …» en la carpeta raíz «Perfiles de ruta»: lo
+   descargado y no usado se descarta. La capa guarda además las curvas
+   (campo `profile`), atadas a la ruta por la GEOMETRÍA
+   (routeProfileKey): con eso «Obtener perfil» pasa a «Mostrar perfil»
+   y no se vuelve a descargar nada; editar la ruta cambia la clave y
+   vuelve a pedir uno nuevo. La longitud de la ruta está acotada
+   (profileMaxM, Preferencias) para que una ruta larga no llene
+   IndexedDB de celdas.                                               */
 const PROFILE_CHUNK_CELLS = 200;   /* celdas de lado, como mucho, por petición */
+const PROFILE_SECTION = "Perfiles de ruta";
+/* Cotas de un perfil leído de fuera (.kite.json, portapapeles): una
+   ruta de 100 NM a 5 m son ~37 000 celdas por serie; un arco, 721
+   vértices.                                                          */
+const PROFILE_MAX_PTS = 100000;
+const PROFILE_MAX_VERTICES = 10000;
 
 /* ---------- Cálculo (puro: se prueba en Node) ----------
    Los tramos van en metros Web Mercator, como los dibuja el visor
@@ -161,6 +173,88 @@ function nearestProfilePoint(points, d) {
   return best;
 }
 
+/* La geometría de una ruta como clave de su perfil: los waypoints a 7
+   decimales (~1 cm). Sin id nuevo en las rutas, y vale tras guardar,
+   deshacer, exportar o copiar; mover un vértice da otra clave, y el
+   perfil viejo deja de ser el de esta ruta.                          */
+function routeProfileKey(waypoints) {
+  return waypoints.map(p => `${p.lat.toFixed(7)},${p.lng.toFixed(7)}`).join(";");
+}
+
+/* Inversa de routeProfileSamples: el punto de la ruta (metros Web
+   Mercator, sobre la línea tal como se dibuja) a una distancia `d`
+   desde el inicio, y el ángulo de su tramo (grados, antihorario desde
+   el este, con y hacia el norte). Es lo que coloca la flecha del mapa
+   en el sitio que marca el cursor de la gráfica.                     */
+function profilePointAt(legs, vertices, d) {
+  if (!legs.length) return null;
+  let i = 0;
+  while (i < legs.length - 1 && d > vertices[i + 1]) i++;
+  const leg = legs[i];
+  const t = leg.dist > 0 ? Math.min(1, Math.max(0, (d - vertices[i]) / leg.dist)) : 0;
+  return {
+    x: leg.a.x + (leg.b.x - leg.a.x) * t, y: leg.a.y + (leg.b.y - leg.a.y) * t,
+    angle: Math.atan2(leg.b.y - leg.a.y, leg.b.x - leg.a.x) * 180 / Math.PI
+  };
+}
+
+/* Curva compacta para guardar: [d, v] con d a 0,1 m y v a 0,01 m (un
+   perfil de 10 NM son ~4000 pares por serie), y de vuelta.          */
+const packProfilePoints = points => points.map(p => [Math.round(p.d * 10) / 10,
+  typeof p.v === "number" ? Math.round(p.v * 100) / 100 : null]);
+const unpackProfilePoints = pts => pts.map(([d, v]) => ({ d, v }));
+
+/* Un perfil leído de fuera (árbol guardado, .kite.json, portapapeles)
+   es entrada ajena: forma exacta, números finitos, longitudes
+   acotadas y vértices crecientes, o null (la capa queda como una
+   cuadrícula normal, sin perfil que mostrar).                        */
+function validRouteProfile(p) {
+  const fin = x => typeof x === "number" && Number.isFinite(x);
+  if (!p || typeof p !== "object" || typeof p.key !== "string" || !p.key) return null;
+  if (!fin(p.total) || p.total <= 0) return null;
+  const v = p.vertices;
+  if (!Array.isArray(v) || v.length < 2 || v.length > PROFILE_MAX_VERTICES || !v.every(fin)) return null;
+  for (let i = 1; i < v.length; i++) if (v[i] < v[i - 1]) return null;
+  /* null = sin esa serie; undefined = serie mal formada */
+  const series = s => {
+    if (s === null || s === undefined) return null;
+    if (typeof s !== "object" || typeof s.src !== "string" || !Array.isArray(s.pts)) return undefined;
+    if (!s.pts.length || s.pts.length > PROFILE_MAX_PTS) return undefined;
+    const good = s.pts.every(q => Array.isArray(q) && q.length === 2 && fin(q[0]) && (q[1] === null || fin(q[1])));
+    return good ? { src: s.src, pts: s.pts } : undefined;
+  };
+  const mdt = series(p.mdt), mds = series(p.mds);
+  if (mdt === undefined || mds === undefined || (!mdt && !mds)) return null;
+  return { key: p.key, total: p.total, vertices: v, mdt, mds };
+}
+
+/* Celdas del árbol de un perfil, con la misma regla que buildElevCells:
+   manda la malla de `drive` (la más fina) y `other` aporta su valor en
+   el centro de cada celda (`valueAt(center)`, número o null). Solo las
+   celdas RECORRIDAS (los puntos de la curva) con algún dato. `kinds`:
+   los modelos consultados (el otro no lleva clave).                  */
+function profileTreeCells(drive, other, kinds) {
+  const cells = [];
+  for (const p of drive.points) {
+    if (!p.ref) continue;
+    const { grid, r, c } = p.ref;
+    const b = gridCellBounds(grid, r, c);
+    const sw = gridToLatLng(grid, b.x0, b.y0), ne = gridToLatLng(grid, b.x1, b.y1);
+    if (!sw || !ne) continue;
+    const center = [(sw[0] + ne[0]) / 2, (sw[1] + ne[1]) / 2];
+    const own = typeof p.v === "number" ? p.v : null;
+    const theirs = other ? other.valueAt(center) : null;
+    const mdt = drive.kind === "mdt" ? own : theirs, mds = drive.kind === "mds" ? own : theirs;
+    if (mdt === null && mds === null) continue;
+    const cell = { sw, ne, center };
+    if (kinds.mdt) cell.mdt = mdt;
+    if (kinds.mds) cell.mds = mds;
+    cell.diff = typeof mdt === "number" && typeof mds === "number" ? mds - mdt : null;
+    cells.push(cell);
+  }
+  return cells;
+}
+
 /* ---------- Diálogo ---------- */
 const profileDialog = document.getElementById("profile-dialog");
 const profileBox = profileDialog.querySelector(".dlg-box");
@@ -169,13 +263,16 @@ makeDialogMovable(profileBox);
 setupDialog(profileBox, { modal: false }); /* flotante: el mapa sigue vivo */
 
 let profileRun = null;   /* { ctl } mientras descarga                  */
-let profileData = null;  /* { points, vertices, total } ya calculado   */
+/* Lo que dibuja la gráfica: { total, vertices, series: [{ kind, label,
+   points }], legs, li }. `legs` y `li` son los de la ruta, para la
+   flecha del mapa.                                                   */
+let profileData = null;
 
-function setProfileProgress(done, total) {
+function setProfileProgress(done, total, what = "MDS") {
   const pct = total ? Math.round(100 * done / total) : 0;
   document.getElementById("profile-progress-fill").style.width = `${pct}%`;
   document.getElementById("profile-progress-label").textContent = total
-    ? `Descargando celdas MDS: ${pct} % (${done} de ${total} zona${total === 1 ? "" : "s"})`
+    ? `Descargando celdas ${what}: ${pct} % (${done} de ${total} zona${total === 1 ? "" : "s"})`
     : "Consultando el servicio…";
 }
 
@@ -186,6 +283,7 @@ function setProfileNote(txt) {
 }
 
 function openProfileDialog(title) {
+  hideProfileArrow();
   document.getElementById("profile-title").textContent = title;
   document.getElementById("profile-progress").hidden = false;
   document.getElementById("profile-close").textContent = "Cancelar";
@@ -198,27 +296,63 @@ function openProfileDialog(title) {
   focusDialog(profileBox);
 }
 
+/* Fin de la descarga (o perfil ya guardado): fuera la barra, «Cerrar» */
+function profileDialogDone() {
+  document.getElementById("profile-progress").hidden = true;
+  document.getElementById("profile-close").textContent = "Cerrar";
+}
+
 /* Cancelar (descargando) o Cerrar (con la gráfica): lo mismo, abortar
    lo que quede en vuelo. Cancelar a mitad no deja nada en el árbol. */
 function closeProfileDialog() {
   if (profileRun) profileRun.ctl.abort();
+  hideProfileArrow();
   if (profileDialog.hidden) return;
   profileDialog.hidden = true;
   releaseFocus();
 }
 document.getElementById("profile-close").addEventListener("click", closeProfileDialog);
 
-/* Por qué no se puede obtener el perfil de esta ruta, o false: es el
-   `disabled()` del menú contextual y el title del botón del diálogo.  */
+/* ---------- La ruta y su perfil ---------- */
+const isRouteLi = li => !!(li && li._measure && li._measure.type === "route");
+
+/* El perfil guardado de una geometría, o null. elevGridGroups ya es la
+   lista viva de cuadrículas (también las de carpetas nunca desplegadas;
+   borrar y deshacer la mantienen), así que no hace falta otro registro. */
+function findRouteProfile(key) {
+  const g = elevGridGroups.find(x => x._profile && x._profile.key === key);
+  return g ? g._profile : null;
+}
+const routeProfileOf = li => (isRouteLi(li) ? findRouteProfile(routeProfileKey(measureWaypoints(li._measure))) : null);
+
+/* Por qué no se puede OBTENER el perfil de esta ruta, o false: es el
+   `disabled()` del menú contextual y el title del botón del diálogo.
+   Mostrar uno ya guardado no pide nada y no tiene motivo para no.    */
 function routeProfileDisabled(li) {
-  const m = li && li._measure;
-  if (!m || m.type !== "route") return "Solo una ruta tiene perfil.";
-  if (!elevSources.mds) return "Sin fuente MDS: elígela en Propiedades → Fuentes de datos.";
+  if (!isRouteLi(li)) return "Solo una ruta tiene perfil.";
+  if (!elevSources.mdt && !elevSources.mds) return ELEV_NO_SOURCES_WHY;
+  const m = li._measure;
   if (m.totalDist > profileMaxM) {
     return `La ruta mide ${fmtUnitDist(m.totalDist, measureUnit)} y el límite de un perfil es `
       + `${fmtUnitDist(profileMaxM, measureUnit)} (Propiedades → Preferencias).`;
   }
   return false;
+}
+
+/* El ítem del menú contextual de una ruta, con una capa debajo o sin
+   ella (70-view-controls.js): «Mostrar» si ya tiene perfil.          */
+function routeProfileCtxItem(li) {
+  const has = !!routeProfileOf(li);
+  return { label: has ? "Mostrar perfil" : "Obtener perfil", action: () => openRouteProfile(li),
+           disabled: () => (has ? false : routeProfileDisabled(li)) };
+}
+
+/* Entrada única del botón y del menú: lo guardado si lo hay (sin red y
+   sin capa nueva), si no, descargarlo.                               */
+function openRouteProfile(li) {
+  const saved = routeProfileOf(li);
+  if (saved) showSavedProfile(li, saved);
+  else obtainRouteProfile(li);
 }
 
 /* Tramos de la ruta en metros Web Mercator, con su escala local y su
@@ -253,96 +387,148 @@ function makeProfileLookup(grids) {
   };
 }
 
-/* Registro de celda (el mismo que buildElevCells) de una celda recorrida */
-function profileCell(p) {
-  const { grid, r, c } = p.ref;
-  const b = gridCellBounds(grid, r, c);
-  const sw = gridToLatLng(grid, b.x0, b.y0), ne = gridToLatLng(grid, b.x1, b.y1);
-  if (!sw || !ne) return null;
-  return { sw, ne, center: [(sw[0] + ne[0]) / 2, (sw[1] + ne[1]) / 2], mds: p.v, diff: null };
+const PROFILE_KIND_LABEL = { mdt: "MDT", mds: "MDS" };
+const profileSeriesLabel = (kind, srcId) => {
+  const src = elevSourceById(srcId);
+  return src ? elevSourcesLabel([src]) : PROFILE_KIND_LABEL[kind];
+};
+
+/* El perfil guardado en la capa, a la gráfica tal cual */
+function showSavedProfile(li, prof) {
+  if (profileRun) profileRun.ctl.abort();
+  openProfileDialog(`Perfil: ${li._name}`);
+  profileDialogDone();
+  profileData = {
+    total: prof.total, vertices: prof.vertices, legs: profileLegs(li._measure), li,
+    series: ["mdt", "mds"].filter(k => prof[k]).map(k => ({
+      kind: k, label: profileSeriesLabel(k, prof[k].src), points: unpackProfilePoints(prof[k].pts)
+    }))
+  };
+  renderProfileChart();
 }
+
+const profileFailText = err => (err.name === "TimeoutError" ? "el servicio no responde"
+  : err.name === "TypeError"
+    ? "el servicio no está disponible o no admite consultas desde el navegador (CORS)"
+    : err.message);
 
 async function obtainRouteProfile(li) {
   const why = routeProfileDisabled(li);
   if (why) { navMessage(why); return; }
   if (profileRun) profileRun.ctl.abort();
   const m = li._measure;
-  const src = elevSourceById(elevSources.mds);
-  const client = sourceClient(src.id);
+  const key = routeProfileKey(measureWaypoints(m));
+  /* Las fuentes elegidas, MDT primero; una en «Ninguna» no se pide */
+  const runs = ["mdt", "mds"].filter(k => elevSources[k])
+    .map(kind => ({ kind, src: elevSourceById(elevSources[kind]), grids: [], failed: 0 }));
+  const what = runs.map(s => PROFILE_KIND_LABEL[s.kind]).join(" y ");
   const run = { ctl: new AbortController() };
   profileRun = run;
   openProfileDialog(`Perfil: ${li._name}`);
+  const notes = [];
   try {
-    const cfg = await client.discover();
-    if (run.ctl.signal.aborted) return;
-    const cellMeters = cfg.cellMeters > 0 ? cfg.cellMeters : 30;
     const legs = profileLegs(m);
-    const pieces = profilePieces(legs, cellMeters);
-    const grids = [];
-    let failed = 0, lastError = null, answered = false;
-    setProfileProgress(0, pieces.length);
-    for (let i = 0; i < pieces.length; i++) {
-      const q = pieces[i];
-      const sw = map.options.crs.unproject(L.point(q.x0, q.y0));
-      const ne = map.options.crs.unproject(L.point(q.x1, q.y1));
-      const res = await client.area({ south: sw.lat, west: sw.lng, north: ne.lat, east: ne.lng },
-        run.ctl.signal);
-      if (res.grid !== undefined) answered = true;
-      if (res.grid && res.grid.located) grids.push(res.grid);
-      if (res.error) { failed++; lastError = res.error; }
-      setProfileProgress(i + 1, pieces.length);
+    /* Descubrimiento de cada fuente: la que falla se cuenta y se sigue
+       con la otra; solo sin ninguna se da el perfil por perdido.     */
+    for (const s of runs) {
+      s.client = sourceClient(s.src.id);
+      try {
+        const cfg = await s.client.discover();
+        s.cell = cfg.cellMeters > 0 ? cfg.cellMeters : 30;
+        s.pieces = profilePieces(legs, s.cell);
+      } catch (err) {
+        if (run.ctl.signal.aborted) return;
+        s.dead = profileFailText(err);
+      }
+      if (run.ctl.signal.aborted) return;
     }
-    if (answered) addElevAttribution(src.id);
-    document.getElementById("profile-progress").hidden = true;
-    document.getElementById("profile-close").textContent = "Cerrar";
+    const live = runs.filter(s => !s.dead);
+    for (const s of runs.filter(x => x.dead)) notes.push(`${s.src.dataset}: ${s.dead}.`);
+    if (!live.length) throw Object.assign(new Error(runs.map(s => s.dead).join("; ")), { name: "ProfileError" });
 
-    const { samples, vertices, total } = routeProfileSamples(legs, cellMeters);
-    const points = profileFromSamples(samples, makeProfileLookup(grids));
-    const notes = [];
-    if (failed) notes.push(`${failed} de ${pieces.length} zonas sin respuesta (${lastError}): salen como huecos.`);
-    const cells = points.filter(p => p.ref && p.v !== null).map(profileCell).filter(Boolean);
-    if (!cells.length) {
-      notes.push("Sin datos de elevación a lo largo de la ruta (fuera de la cobertura de la fuente MDS elegida).");
+    /* Una sola cola, secuencial (el tope de peticiones por segundo es
+       de todas las fuentes): la barra cuenta las zonas de las dos.   */
+    const total = live.reduce((n, s) => n + s.pieces.length, 0);
+    let done = 0;
+    setProfileProgress(0, total, what);
+    for (const s of live) {
+      for (const q of s.pieces) {
+        const sw = map.options.crs.unproject(L.point(q.x0, q.y0));
+        const ne = map.options.crs.unproject(L.point(q.x1, q.y1));
+        const res = await s.client.area({ south: sw.lat, west: sw.lng, north: ne.lat, east: ne.lng },
+          run.ctl.signal);
+        if (res.grid !== undefined) s.answered = true;
+        if (res.grid && res.grid.located) s.grids.push(res.grid);
+        if (res.error) { s.failed++; s.lastError = res.error; }
+        setProfileProgress(++done, total, what);
+      }
+      if (s.answered) addElevAttribution(s.src.id);
+      if (s.failed) {
+        notes.push(`${s.src.dataset}: ${s.failed} de ${s.pieces.length} zonas sin respuesta (${s.lastError}): salen como huecos.`);
+      }
+    }
+    profileDialogDone();
+
+    /* Muestras a media celda de la malla MÁS FINA; cada serie funde
+       las de su propia celda (MDT200 da un punto cada 200 m).        */
+    const { samples, vertices, total: length } = routeProfileSamples(legs, Math.min(...live.map(s => s.cell)));
+    for (const s of live) {
+      s.lookup = makeProfileLookup(s.grids);
+      s.points = profileFromSamples(samples, s.lookup);
+    }
+    const withData = live.filter(s => s.points.some(p => typeof p.v === "number"));
+    if (!withData.length) {
+      notes.push("Sin datos de elevación a lo largo de la ruta (fuera de la cobertura de las fuentes elegidas).");
       setProfileNote(notes.join(" "));
       return;
     }
     setProfileNote(notes.join(" "));
-    profileData = { points, vertices, total };
+    const prof = { key, total: length, vertices, mdt: null, mds: null };
+    for (const s of withData) prof[s.kind] = { src: s.src.id, pts: packProfilePoints(s.points) };
+    profileData = {
+      total: length, vertices, legs, li,
+      series: withData.map(s => ({ kind: s.kind, label: elevSourcesLabel([s.src]), points: s.points }))
+    };
     renderProfileChart();
 
-    /* Al árbol, solo las celdas recorridas con dato */
+    /* Al árbol, solo las celdas recorridas: las de la malla más fina
+       (a igualdad, el terreno), con el valor de la otra en su centro. */
+    const [drive, other] = withData.length === 2 && withData[1].cell < withData[0].cell * 0.99
+      ? [withData[1], withData[0]] : withData;
+    const valueAt = other && (center => {
+      const hit = other.lookup(toWebMercator(center[0], center[1]));
+      return hit && typeof hit.value === "number" ? hit.value : null;
+    });
+    const kinds = { mdt: live.some(s => s.kind === "mdt"), mds: live.some(s => s.kind === "mds") };
+    const cells = profileTreeCells(drive, other ? { valueAt } : null, kinds);
     pushUndo("obtener perfil");
-    const folder = await ensureElevSessionFolder();
-    const node = makeElevGridNode(elevNodeName(`Perfil de «${li._name}»`, [src]), cells);
-    nodeUl(folder).appendChild(node);
+    const node = makeElevGridNode(elevNodeName(`Perfil de «${li._name}»`, live.map(s => s.src)), cells, prof);
+    ensureNamedSection(PROFILE_SECTION).appendChild(node);
     refreshAncestorChecks(node);
     scheduleSave();
   } catch (err) {
     if (run.ctl.signal.aborted) return;
-    document.getElementById("profile-progress").hidden = true;
-    document.getElementById("profile-close").textContent = "Cerrar";
-    const why = err.name === "TimeoutError" ? "el servicio no responde"
-      : err.name === "TypeError"
-        ? "el servicio no está disponible o no admite consultas desde el navegador (CORS)"
-        : err.message;
-    setProfileNote(`No se pudo obtener el perfil: ${why}.`);
+    profileDialogDone();
+    notes.push(`No se pudo obtener el perfil: ${err.name === "ProfileError" ? err.message : profileFailText(err)}.`);
+    setProfileNote(notes.join(" "));
   } finally {
     if (profileRun === run) profileRun = null;
   }
 }
 
 /* ---------- Gráfica (SVG propio) ---------- */
-const PF_MARGIN = { l: 64, r: 14, t: 14, b: 40 };
+const PF_MARGIN = { l: 64, r: 14, t: 26, b: 40 };
 const SVG_NS = "http://www.w3.org/2000/svg";
+const PF_SNAP_PX = 8; /* la lectura de una serie, si tiene un punto a menos de esto */
 
 function renderProfileChart() {
   if (!profileData || profileDialog.hidden) return;
-  const { points, vertices, total } = profileData;
+  const { series, vertices, total } = profileData;
   const W = profileChart.clientWidth, H = profileChart.clientHeight;
   if (W < 80 || H < 60) return;
   const pw = W - PF_MARGIN.l - PF_MARGIN.r, ph = H - PF_MARGIN.t - PF_MARGIN.b;
   const fx = POLY_UNIT_FACTOR[measureUnit], fy = POLY_UNIT_FACTOR[altitudeUnit];
-  const vals = points.filter(p => p.v !== null && p.v !== undefined).map(p => p.v / fy);
+  const vals = series.flatMap(s => s.points.filter(p => typeof p.v === "number").map(p => p.v / fy));
   let y0 = Math.min(...vals), y1 = Math.max(...vals);
   const pad = (y1 - y0) * 0.08 || Math.max(1 / fy, Math.abs(y0) * 0.05) || 1;
   y0 -= pad; y1 += pad;
@@ -387,36 +573,52 @@ function renderProfileChart() {
   parts.push(`<line class="pf-axis" x1="${PF_MARGIN.l}" x2="${PF_MARGIN.l}" y1="${PF_MARGIN.t}" y2="${H - PF_MARGIN.b}"/>`,
     `<line class="pf-axis" x1="${PF_MARGIN.l}" x2="${W - PF_MARGIN.r}" y1="${H - PF_MARGIN.b}" y2="${H - PF_MARGIN.b}"/>`,
     `<text class="pf-tick" x="${PF_MARGIN.l + pw / 2}" y="${H - 6}" text-anchor="middle">Distancia desde el inicio (${POLY_UNIT_LABEL[measureUnit]})</text>`,
-    `<text class="pf-tick" transform="translate(12 ${PF_MARGIN.t + ph / 2}) rotate(-90)" text-anchor="middle">Altura MDS (${POLY_UNIT_LABEL[altitudeUnit]})</text>`);
-  for (const line of profilePolylines(points, xOf, yOf)) {
-    parts.push(`<polyline class="pf-line" points="${line.map(p => `${p.x.toFixed(1)},${p.y.toFixed(1)}`).join(" ")}"/>`);
+    `<text class="pf-tick" transform="translate(12 ${PF_MARGIN.t + ph / 2}) rotate(-90)" text-anchor="middle">Altura (${POLY_UNIT_LABEL[altitudeUnit]})</text>`);
+  /* Las curvas (MDT azul, MDS verde, por su clase) y su leyenda en el
+     margen de arriba, fuera del área de la gráfica.                  */
+  let lx = PF_MARGIN.l;
+  for (const s of series) {
+    for (const line of profilePolylines(s.points, xOf, yOf)) {
+      parts.push(`<polyline class="pf-line ${s.kind}" points="${line.map(p => `${p.x.toFixed(1)},${p.y.toFixed(1)}`).join(" ")}"/>`);
+    }
+    parts.push(`<line class="pf-legend ${s.kind}" x1="${lx}" x2="${lx + 18}" y1="11" y2="11"/>`,
+      `<text class="pf-tick pf-legend-label" x="${lx + 22}" y="11" dominant-baseline="middle">${escapeHtml(s.label)}</text>`);
+    lx += 34 + s.label.length * 6.5;
   }
   parts.push(`<line class="pf-cursor" id="pf-cursor" y1="${PF_MARGIN.t}" y2="${H - PF_MARGIN.b}" visibility="hidden"/>`,
     `<text class="pf-readout" id="pf-readout" y="${PF_MARGIN.t + 10}" visibility="hidden"></text>`);
   profileChart.innerHTML = `<svg xmlns="${SVG_NS}" viewBox="0 0 ${W} ${H}" role="img" `
     + `aria-label="Perfil de alturas a lo largo de la ruta">${parts.join("")}</svg>`;
 
-  /* Lectura bajo el ratón: la celda más cercana a esa distancia */
+  /* Lectura bajo el ratón: la línea roja sigue al ratón, la flecha del
+     mapa a la línea, y cada serie da su altura si tiene una celda a la
+     vista de esa distancia (en un hueco, se omite).                  */
   const svg = profileChart.firstChild;
   const cursor = svg.querySelector("#pf-cursor"), readout = svg.querySelector("#pf-readout");
+  const snap = PF_SNAP_PX / pw * total;
   svg.addEventListener("mousemove", e => {
     const r = svg.getBoundingClientRect();
     const x = (e.clientX - r.left) * W / r.width;
     const d = Math.min(total, Math.max(0, (x - PF_MARGIN.l) / pw * xMax * fx));
-    const p = nearestProfilePoint(points, d);
-    if (!p) return;
-    const px = xOf(p.d);
+    const px = xOf(d);
     cursor.setAttribute("x1", px); cursor.setAttribute("x2", px);
     cursor.setAttribute("visibility", "visible");
-    readout.textContent = `${fmtUnitDist(p.d, measureUnit)} · ${fmtHeight(p.v, altitudeUnit)}`;
+    const read = [fmtUnitDist(d, measureUnit)];
+    for (const s of series) {
+      const p = nearestProfilePoint(s.points, d);
+      if (p && Math.abs(p.d - d) <= snap) read.push(`${PROFILE_KIND_LABEL[s.kind]} ${fmtHeight(p.v, altitudeUnit)}`);
+    }
+    readout.textContent = read.join(" · ");
     const right = px > PF_MARGIN.l + pw / 2;
     readout.setAttribute("x", right ? px - 6 : px + 6);
     readout.setAttribute("text-anchor", right ? "end" : "start");
     readout.setAttribute("visibility", "visible");
+    placeProfileArrow(d);
   });
   svg.addEventListener("mouseleave", () => {
     cursor.setAttribute("visibility", "hidden");
     readout.setAttribute("visibility", "hidden");
+    hideProfileArrow();
   });
 }
 
@@ -425,8 +627,52 @@ function renderProfileChart() {
 function refreshProfileChart() { renderProfileChart(); }
 new ResizeObserver(() => renderProfileChart()).observe(profileChart);
 
+/* ---------- Flecha en el mapa ----------
+   Punta de flecha roja (el color de la línea del cursor) sobre la
+   ruta, en la distancia que marca la gráfica y en el sentido de la
+   marcha. Va AL MAPA, no a rootGroup: no es una capa del árbol y no
+   debe entrar en el hit-testing del menú contextual. El marcador vive
+   en el panel que no gira, así que su giro suma el del mapa. Un
+   setLatLng por fotograma (llegan más mousemove que fotogramas). No
+   mueve la vista.                                                    */
+const PF_ARROW_SVG = `<svg viewBox="-13 -13 26 26" width="26" height="26" aria-hidden="true">`
+  + `<path d="M11 0 L-8 -8 L-3 0 L-8 8 Z"/></svg>`;
+let profileArrow = null;
+let arrowFrame = 0, arrowWant = null;
+
+function placeProfileArrow(d) {
+  arrowWant = d;
+  if (!arrowFrame) arrowFrame = requestAnimationFrame(() => { arrowFrame = 0; drawProfileArrow(arrowWant); });
+}
+
+function drawProfileArrow(d) {
+  const pd = profileData;
+  if (d === null || !pd || profileDialog.hidden || !pd.li.isConnected) { hideProfileArrow(); return; }
+  const p = profilePointAt(pd.legs, pd.vertices, d);
+  if (!p) return;
+  const ll = map.options.crs.unproject(L.point(p.x, p.y));
+  if (!profileArrow) {
+    profileArrow = L.marker(ll, {
+      icon: L.divIcon({ className: "pf-map-arrow", html: PF_ARROW_SVG, iconSize: [26, 26] }),
+      interactive: false, keyboard: false, zIndexOffset: 1000
+    });
+  }
+  profileArrow.setLatLng(ll);
+  if (!map.hasLayer(profileArrow)) profileArrow.addTo(map);
+  /* angle: antihorario con y al norte; en pantalla, horario, más el
+     giro del mapa (también horario).                                 */
+  profileArrow.getElement().firstChild.style.transform = `rotate(${map.getBearing() - p.angle}deg)`;
+}
+
+function hideProfileArrow() {
+  arrowWant = null;
+  if (arrowFrame) { cancelAnimationFrame(arrowFrame); arrowFrame = 0; }
+  if (profileArrow && map.hasLayer(profileArrow)) map.removeLayer(profileArrow);
+}
+
 /* Botón del diálogo de propiedades de la ruta (44-dialogs.js lo enseña
-   solo con una ruta ya creada, y lo deshabilita con el motivo).      */
+   solo con una ruta ya creada: «Mostrar perfil» si ya lo tiene, si no
+   «Obtener perfil», deshabilitado con el motivo).                    */
 document.getElementById("ms-profile").addEventListener("click", () => {
-  if (styleTargets.length === 1) obtainRouteProfile(styleTargets[0]);
+  if (styleTargets.length === 1) openRouteProfile(styleTargets[0]);
 });

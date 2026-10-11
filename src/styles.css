@@ -692,10 +692,18 @@
   #profile-chart .pf-axis { stroke: var(--muted); stroke-width: 1; }
   #profile-chart .pf-grid { stroke: var(--border); stroke-width: 1; }
   #profile-chart .pf-vertex { stroke: var(--muted); stroke-width: 1; stroke-dasharray: 3 3; }
-  #profile-chart .pf-line { fill: none; stroke: #2e7d32; stroke-width: 1.5; }
+  /* MDT azul, MDS verde (pedido); la leyenda usa las mismas clases */
+  #profile-chart .pf-line { fill: none; stroke-width: 1.5; }
+  #profile-chart .pf-line.mdt, #profile-chart .pf-legend.mdt { stroke: #1565c0; }
+  #profile-chart .pf-line.mds, #profile-chart .pf-legend.mds { stroke: #2e7d32; }
+  #profile-chart .pf-legend { stroke-width: 3; }
   #profile-chart .pf-tick { fill: var(--text); }
   #profile-chart .pf-tick.vertex { font-weight: 700; }
   #profile-chart .pf-cursor { stroke: #b04a3a; stroke-width: 1; }
+  /* Flecha del mapa que sigue al cursor de la gráfica (mismo rojo) */
+  .pf-map-arrow { background: none; border: none; pointer-events: none; }
+  .pf-map-arrow svg { display: block; overflow: visible; }
+  .pf-map-arrow path { fill: #b04a3a; stroke: #fff; stroke-width: 1.5; stroke-linejoin: round; }
   #profile-chart .pf-readout { fill: var(--text); font-weight: 600; }
   #geocalc-dialog .dlg-box { width: min(92vw, 30rem); }
   .geocalc-field { display: flex; gap: 6px; }

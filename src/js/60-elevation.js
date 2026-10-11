@@ -771,8 +771,17 @@ const isElevAlert = cell => typeof cell.diff === "number" && cell.diff > ELEV_AL
 const gridIconSize = font => [Math.round(font * 5.4), Math.round(font * 3.6)];
 /* Una capa por consulta guardada en el árbol: refreshElevCells debe
    recalcular relleno y texto de todas ellas, y el cuadro de
-   coordenadas busca en ellas la celda bajo el cursor.                */
+   coordenadas busca en ellas la celda bajo el cursor. Es además la
+   lista VIVA de cuadrículas del árbol (findRouteProfile busca aquí el
+   perfil de una ruta), así que una capa que sale del árbol sale de la
+   lista: su propio borrado, el de una carpeta que la contenga
+   (removeSubtreeFromMap/removeRecordsFromMap) y deshacer
+   (applySnapshot, que la vacía antes de reconstruir).               */
 const elevGridGroups = [];
+function forgetElevGridGroup(group) {
+  const i = elevGridGroups.indexOf(group);
+  if (i >= 0) elevGridGroups.splice(i, 1);
+}
 
 /* Esquinas de la rejilla a latitud/longitud según el sistema en que se
    pidió. Web Mercator lo deshace Leaflet con su propia proyección; el
@@ -1083,21 +1092,22 @@ async function ensureElevSessionFolder() {
   return elevSessionLi;
 }
 
-/* Una capa normal del árbol: persistente, con casilla, borrable */
-function makeElevGridNode(name, cells) {
+/* Una capa normal del árbol: persistente, con casilla, borrable. La de
+   un perfil de ruta lleva además sus curvas (`profile`, ver
+   63-route-profile.js), también en el grupo: así la encuentra
+   findRouteProfile aunque su fila no exista aún.                     */
+function makeElevGridNode(name, cells, profile = null) {
   /* En la lista ANTES de entrar en el mapa: al entrar pone sus cifras
      (syncElevLabels), y solo recorre las capas de la lista.          */
   const group = buildElevGridGroup(cells);
+  group._profile = profile;
   elevGridGroups.push(group);
   group.addTo(rootGroup);
   const li = makeNode({
     name, layer: group, styleable: false, focusable: true,
-    onDelete: () => {
-      const i = elevGridGroups.indexOf(group);
-      if (i >= 0) elevGridGroups.splice(i, 1);
-    }
+    onDelete: () => forgetElevGridGroup(group)
   });
-  li._elevGrid = { cells };
+  li._elevGrid = { cells, profile };
   return li;
 }
 
@@ -1158,9 +1168,13 @@ async function queryElevationAt(latlng) {
    rootGroup si está marcada; el DOM lo pone materializeRecords después. */
 function buildElevGridRecord(n) {
   const group = buildElevGridGroup(n.cells);
+  /* Entrada ajena (.kite.json, portapapeles): un perfil mal formado se
+     descarta y la capa queda como cuadrícula normal.                 */
+  group._profile = n.profile === undefined ? null : validRouteProfile(n.profile);
   elevGridGroups.push(group);
   if (n.checked) group.addTo(rootGroup);
-  return { t: "elevGrid", name: n.name, checked: !!n.checked, cells: n.cells, _layer: group };
+  return { t: "elevGrid", name: n.name, checked: !!n.checked, cells: n.cells,
+           profile: group._profile, _layer: group };
 }
 
 /* Reconstruye una ortofoto guardada (usado al restaurar el árbol), como

@@ -92,6 +92,8 @@ ok(!tableHtml.includes("<b>"), "escapa entrada hostil en la clave: " + tableHtml
 const ctxSrc = between("const CTX_MENU_ITEMS = [", "const ctxMenuEl")
   + fn("goToNodeAndBlink") + fn("showLayerInfoAndBlink") + fn("editPropertiesAndBlink")
   + constDecl("STYLE_EDITABLE_KINDS")
+  /* aquí ninguna capa es una ruta: el ítem del perfil no llega a pedirse */
+  + constDecl("isRouteLi")
   + fn("layerCtxItems") + fn("ctxItemsFor");
 global.infoHtmlFor = li => li._info || null; /* stub: evita depender de DOM/Leaflet */
 /* Se stubea lo que NO se está probando —highlightNode, showLayerInfo,

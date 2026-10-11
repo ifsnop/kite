@@ -393,6 +393,10 @@ function pushUndo(label) {
 async function applySnapshot(nodes) {
   clearSelection();
   rootGroup.clearLayers();
+  /* La lista viva de cuadrículas se rehace con el árbol: sin esto, cada
+     deshacer dejaba las de antes, y una ruta seguía «teniendo» un
+     perfil que ya no estaba (findRouteProfile).                      */
+  elevGridGroups.length = 0;
   showEmptyMessage();
   if (nodes.length) await restoreTree(nodes);
   scheduleSave();
@@ -914,7 +918,9 @@ function serializeNode(li) {
               waypoints: measureWaypoints(li._measure) }];
   }
   if (li._elevGrid) {
-    return [{ ...base, t: "elevGrid", cells: li._elevGrid.cells }];
+    const rec = { ...base, t: "elevGrid", cells: li._elevGrid.cells };
+    if (li._elevGrid.profile) rec.profile = li._elevGrid.profile; /* perfil de ruta */
+    return [rec];
   }
   if (li._imageOverlay) {
     const o = li._imageOverlay;
@@ -977,7 +983,9 @@ function serializePendingRecords(records) {
                 style: rec.style, waypoints: measureWaypoints(rec._m) };
     }
     if (rec.t === "elevGrid") {
-      return { name: rec.name, checked: rec.checked, t: "elevGrid", cells: rec.cells };
+      const out = { name: rec.name, checked: rec.checked, t: "elevGrid", cells: rec.cells };
+      if (rec.profile) out.profile = rec.profile;
+      return out;
     }
     /* rec.t === "imageOverlay" */
     return { name: rec.name, checked: rec.checked, t: "imageOverlay",
@@ -1346,13 +1354,10 @@ async function materializeRecords(records, parentUl) {
     } else if (rec.t === "elevGrid") {
       const li = makeNode({
         name: rec.name, layer: rec._layer, styleable: false, focusable: true, checked: !!rec.checked,
-        onDelete: () => {
-          const i = elevGridGroups.indexOf(rec._layer);
-          if (i >= 0) elevGridGroups.splice(i, 1);
-        }
+        onDelete: () => forgetElevGridGroup(rec._layer)
       });
       rec._li = li;
-      li._elevGrid = { cells: rec.cells };
+      li._elevGrid = { cells: rec.cells, profile: rec.profile || null };
       parentUl.appendChild(li);
     } else if (rec.t === "imageOverlay") {
       const li = makeNode({ name: rec.name, layer: rec._layer, styleable: true, checked: !!rec.checked });

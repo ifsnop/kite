@@ -31,7 +31,8 @@ const arrows = [
   between("const PROFILE_MAX_KEY", "async function dbSaveProfileMax"),
   /* Perfil de una ruta (63-route-profile.js), solo lo puro */
   between("const PROFILE_CHUNK_CELLS", "/* ---------- Cálculo"),
-  between("const tickDecimals", "/* Tramos continuos")
+  between("const tickDecimals", "/* Tramos continuos"),
+  between("const packProfilePoints", "/* Un perfil leído de fuera")
 ].join("\n");
 /* nextNumberedName barre el árbol: aquí, un árbol de mentira */
 const fakeTree = "let fakeNames = []; const treeEl = { querySelectorAll: () => fakeNames.map(n => ({ _name: n })) };\n";
@@ -46,6 +47,7 @@ const src = "const parserErrorText = () => null;\nconst toRad = d => d * Math.PI
    fn("buildElevCells"), fn("elevCellHtml"), fn("pointInCell"), fn("sessionStamp"),
    fn("nextNumberedName"), fn("profilePieces"), fn("routeProfileSamples"), fn("profileFromSamples"),
    fn("niceTicks"), fn("profilePolylines"), fn("nearestProfilePoint"),
+   fn("routeProfileKey"), fn("profilePointAt"), fn("validRouteProfile"), fn("profileTreeCells"),
    fn("text")].join("\n");
 const apiExports = "\nreturn {parseWcsCapabilities, mdtCoverages, pickMdsCoverage, pickDeaDemCoverage," +
   " pickGeoCrs, pickElevFormat, parseCoverageDescription, pickFinestCoverage, describeElevChoice," +
@@ -57,7 +59,8 @@ const apiExports = "\nreturn {parseWcsCapabilities, mdtCoverages, pickMdsCoverag
   " fmtHeight, fmtHeightValue, setUnit, nextNumberedName, setNames: n => { fakeNames = n; }," +
   " validAltitudeUnit, validProfileMax, PROFILE_MAX_DEFAULT, ALTITUDE_UNIT_SCHEMA, PROFILE_MAX_SCHEMA," +
   " profilePieces, routeProfileSamples, profileFromSamples, niceTicks, tickDecimals, profilePolylines," +
-  " nearestProfilePoint, PROFILE_CHUNK_CELLS, elevTileFactor};";
+  " nearestProfilePoint, PROFILE_CHUNK_CELLS, elevTileFactor, routeProfileKey, profilePointAt," +
+  " validRouteProfile, profileTreeCells, packProfilePoints, unpackProfilePoints, PROFILE_MAX_PTS};";
 const api = new Function("DOMParser", src + apiExports)(DOMParser);
 const ok=(c,m)=>{ if(!c){ console.error("FAIL: "+m); process.exitCode=1; } };
 
@@ -668,6 +671,61 @@ ok(api.sessionStamp(new Date(2026, 9, 5, 7, 3)) === "2026-10-05 07:03",
     ok(lines[0].some(p => p.y === 1), "y el pico no se pierde");
     const gappy = [{ d: 0, v: 1 }, { d: 1, v: 2 }, { d: 2, v: null }, { d: 3, v: 4 }];
     ok(api.profilePolylines(gappy, d => d * 100, v => v).length === 2, "un hueco corta la curva en dos");
+  }
+
+  /* ---- perfil: la ruta y su perfil guardado ---- */
+  {
+    const wps = [{ lat: 40.4168, lng: -3.7038 }, { lat: 40.4168, lng: -3.69 }];
+    const k = api.routeProfileKey(wps);
+    ok(k === api.routeProfileKey(wps.map(p => ({ ...p }))), "misma geometría, misma clave");
+    ok(k === api.routeProfileKey([{ lat: 40.41680000001, lng: -3.7038 }, wps[1]]), "ruido por debajo de 7 decimales: misma clave");
+    ok(k !== api.routeProfileKey([{ lat: 40.4169, lng: -3.7038 }, wps[1]]), "mover un vértice cambia la clave");
+
+    /* La flecha: inversa de routeProfileSamples sobre los mismos tramos */
+    const legs = [
+      { a: { x: 0, y: 0 }, b: { x: 1000, y: 0 }, dist: 1000, scale: 1 },
+      { a: { x: 1000, y: 0 }, b: { x: 1000, y: 500 }, dist: 500, scale: 1 }
+    ];
+    const vertices = [0, 1000, 1500];
+    const at = d => api.profilePointAt(legs, vertices, d);
+    ok(at(0).x === 0 && at(0).y === 0 && at(0).angle === 0, "inicio, hacia el este: " + JSON.stringify(at(0)));
+    ok(at(250).x === 250 && at(250).y === 0, "a mitad del primer tramo, sobre él");
+    ok(at(1000).x === 1000 && at(1000).y === 0, "el vértice, en su distancia exacta");
+    ok(at(1250).x === 1000 && at(1250).y === 250 && at(1250).angle === 90, "segundo tramo, hacia el norte: " + JSON.stringify(at(1250)));
+    ok(at(1500).y === 500 && at(9999).y === 500 && at(-5).x === 0, "fuera de rango: en los extremos");
+    const { samples } = api.routeProfileSamples(legs, 5);
+    ok(samples.every(s => { const p = at(s.d); return Math.hypot(p.x - s.x, p.y - s.y) < 1e-6; }),
+       "cada muestra de la curva cae en su sitio del mapa");
+
+    /* Guardar y validar */
+    const packed = api.packProfilePoints([{ d: 12.345, v: 601.23456 }, { d: 20, v: null }]);
+    ok(JSON.stringify(packed) === "[[12.3,601.23],[20,null]]", "curva compacta: " + JSON.stringify(packed));
+    ok(api.unpackProfilePoints(packed)[1].v === null, "y de vuelta, los huecos siguen siéndolo");
+    const good = { key: k, total: 1500, vertices, mdt: { src: "ign-mdt05", pts: packed }, mds: null };
+    ok(api.validRouteProfile(good) && api.validRouteProfile(good).mds === null, "perfil válido, con una sola serie");
+    ok(api.validRouteProfile(JSON.parse(JSON.stringify(good))), "sobrevive a JSON");
+    const bad = [null, "x", { ...good, key: "" }, { ...good, total: -1 }, { ...good, total: "1500" },
+      { ...good, vertices: [0, 1000, 900] }, { ...good, vertices: [0] }, { ...good, mdt: null },
+      { ...good, mdt: { src: "ign-mdt05", pts: [[1, "600"]] } }, { ...good, mdt: { src: 5, pts: packed } },
+      { ...good, mdt: { src: "x", pts: [[1, 2, 3]] } }, { ...good, mds: "nada" },
+      { ...good, mdt: { src: "x", pts: Array.from({ length: api.PROFILE_MAX_PTS + 1 }, (_, i) => [i, 1]) } }];
+    ok(bad.every(b => api.validRouteProfile(b) === null),
+       "basura, vértices decrecientes, sin series o desmesurado: descartado: "
+       + bad.map(b => !!api.validRouteProfile(b)).join());
+
+    /* Celdas del árbol: manda la malla de `drive`, la otra da su valor
+       en el centro; solo las recorridas con algún dato.               */
+    const grid = { crs: "geo", located: true, xll: -3.70, yll: 40.41, cellX: 0.001, cellY: 0.001,
+                   rows: 1, cols: 3, values: [[600, null, 610]] };
+    const drive = { kind: "mds", points: [
+      { d: 5, v: 600, ref: { grid, r: 0, c: 0 } }, { d: 15, v: null, ref: { grid, r: 0, c: 1 } },
+      { d: 25, v: 610, ref: { grid, r: 0, c: 2 } }, { d: 35, v: null, ref: null }] };
+    const both = api.profileTreeCells(drive, { valueAt: c => (c[1] < -3.699 ? 590 : null) }, { mdt: true, mds: true });
+    ok(both.length === 2, "la celda sin dato en ninguna y el hueco sin celda no entran: " + both.length);
+    ok(both[0].mds === 600 && both[0].mdt === 590 && both[0].diff === 10, "la otra malla en el centro, y su diferencia");
+    ok(both[1].mdt === null && both[1].diff === null, "sin la otra: null, sin diferencia");
+    const one = api.profileTreeCells(drive, null, { mdt: false, mds: true });
+    ok(one.length === 2 && !("mdt" in one[0]), "con un solo modelo, sin la clave del otro");
   }
 
   /* ---- marcas de eje ---- */
