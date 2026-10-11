@@ -685,8 +685,20 @@
   /* Sin pie (el × está en la cabecera): todo lo de debajo de la barra
      de controles es gráfica; el margen de abajo deja sitio al tirador. */
   #profile-dialog .dlg-box.no-actions { padding-bottom: 6px; }
-  #profile-progress { margin: 10px 0 4px; }
-  #profile-progress[hidden] { display: none; }
+  /* Descargando, barra + registro llenan la caja (la gráfica aún no
+     existe y va oculta); el registro scrollea dentro, sin agrandarla. */
+  #profile-progress { margin: 10px 0 4px; flex: 1 1 auto; min-height: 0;
+                      display: flex; flex-direction: column; }
+  #profile-progress[hidden], #profile-chart[hidden] { display: none; }
+  #profile-log {
+    flex: 1 1 auto; min-height: 60px; overflow: auto; margin-top: 8px;
+    padding: 4px 6px; border: 1px solid var(--border); border-radius: 5px;
+    font: 11px/1.45 ui-monospace, Consolas, monospace;
+    white-space: pre-wrap; overflow-wrap: anywhere; user-select: text;
+  }
+  #profile-log .pl-head { font-weight: 700; margin-top: 4px; }
+  #profile-log .pl-req { color: var(--muted); }
+  #profile-log .pl-err { color: #d32f2f; }
   #profile-progress-label { font-size: 13px; margin-bottom: 4px; }
   #profile-progress .bar { height: 8px; background: var(--border); border-radius: 4px; overflow: hidden; }
   #profile-progress-fill { height: 100%; width: 0; background: var(--accent); transition: width 0.15s; }

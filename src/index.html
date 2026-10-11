@@ -551,6 +551,10 @@
     <div id="profile-progress">
       <div id="profile-progress-label"></div>
       <div class="bar"><div id="profile-progress-fill"></div></div>
+      <!-- Depuración: qué pide la aplicación a cada servicio y qué le
+           llega, solo mientras descarga (se va con la barra). Scroll
+           propio: la ventana no crece con el registro. -->
+      <div id="profile-log" role="log" tabindex="0" aria-label="Detalle de la descarga"></div>
     </div>
     <p class="dlg-hint" id="profile-note" hidden></p>
     <!-- Controles de la gráfica (63-route-profile.js): zoom de cada eje

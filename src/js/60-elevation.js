@@ -260,6 +260,46 @@ function gridCellBounds(grid, r, c) {
   return { x0, y0, x1: x0 + grid.cellX, y1: y0 + grid.cellY };
 }
 
+/* ---------- Detalle de las peticiones (registro del perfil) ----------
+   Quien pide puede pasar `trace(kind, texto)` y ver cada petición tal
+   como sale y lo que vuelve: la dirección entera, el intento, el estado
+   HTTP, el tipo y tamaño de la respuesta, el tiempo y la rejilla leída.
+   Lo usa el diálogo del perfil mientras descarga (pedido). Puras, para
+   probarlas en Node.                                                  */
+const fmtTraceBytes = n => n < 1024 ? `${n} B`
+  : n < 1024 * 1024 ? `${(n / 1024).toFixed(1)} kB` : `${(n / 1024 / 1024).toFixed(1)} MB`;
+
+function describeTraceGrid(grid) {
+  if (!grid) return "la respuesta no es una rejilla de alturas legible";
+  let empty = 0, lo = Infinity, hi = -Infinity;
+  for (const row of grid.values) {
+    for (const v of row) {
+      if (v === null) empty++;
+      else { if (v < lo) lo = v; if (v > hi) hi = v; }
+    }
+  }
+  /* con dx/dy separados, iguales salvo por el último decimal: una sola cifra */
+  const cx = `${+grid.cellX.toPrecision(6)}`, cy = `${+grid.cellY.toPrecision(6)}`;
+  const cell = cx === cy ? cx : `${cx} × ${cy}`;
+  const range = lo <= hi ? ` · alturas ${lo.toFixed(1)}–${hi.toFixed(1)} m` : "";
+  return `rejilla de ${grid.cols} × ${grid.rows} celdas de ${cell} · ${empty} sin dato${range}`
+    + (grid.located ? "" : " · sin esquina: no se puede situar");
+}
+
+/* Un intento fallido; `attempt` cuenta desde 0. Dice si se reintenta y
+   cuándo, con los mismos criterios que withElevRetries.             */
+function describeTraceError(err, attempt, timeoutMs) {
+  const why = err.name === "TimeoutError" ? `sin respuesta en ${Math.round(timeoutMs / 1000)} s`
+    : err.name === "AbortError" ? "cancelada"
+    : err.name === "TypeError" ? "error de red, o el servicio no admite consultas desde el navegador (CORS)"
+    : err.owsCode ? `excepción del servicio ${err.owsCode}: ${err.message}`
+    : err.status ? `HTTP ${err.status}: ${err.message}` : err.message;
+  const out = isOutOfCoverage(err) ? " (fuera de cobertura: no es un error)" : "";
+  const again = attempt < ELEV_RETRIES && isRetryableElevError(err)
+    ? ` · se reintenta en ${ELEV_RETRY_DELAYS[Math.min(attempt, ELEV_RETRY_DELAYS.length - 1)] / 1000} s` : "";
+  return why + out + again;
+}
+
 /* ---------- Cliente WCS de elevaciones ----------
    El mismo para todas las fuentes del catálogo: solo cambian la
    dirección y qué coberturas son candidatas. Nada del servicio se
@@ -355,32 +395,56 @@ function makeElevationSource(source) {
      en el código HTTP, o leer ese XML como imagen, tira el dato que
      sirve. Cada intento lleva su propio tiempo máximo (ver
      withElevRetries: lo pasajero se reintenta, lo contestado no).     */
-  function request(params, { signal = null, extra = [], binary = false } = {}) {
-    return withElevRetries(async () => {
-      const r = await fetch(url(params, extra), { signal: elevAttemptSignal(timeout, signal) });
-      const xml = /xml|text\/plain/i.test(r.headers.get("content-type") || "");
-      if (binary && r.ok && !xml) return r.arrayBuffer();
-      const txt = await r.text();
-      const ex = parseOwsException(txt);
-      if (ex) throw Object.assign(new Error(ex.msg), { owsCode: ex.code });
-      if (!r.ok) throw Object.assign(new Error(describeHttp(r.status)), { status: r.status });
-      return txt;
+  function request(params, { signal = null, extra = [], binary = false, trace = null } = {}) {
+    const u = url(params, extra);
+    return withElevRetries(async attempt => {
+      const t0 = performance.now();
+      if (trace) trace("req", `${params.request}, intento ${attempt + 1}: ${u}`);
+      try {
+        const r = await fetch(u, { signal: elevAttemptSignal(timeout, signal) });
+        const type = r.headers.get("content-type") || "";
+        const got = bytes => trace && trace("res", `HTTP ${r.status} · ${type || "sin tipo"} · `
+          + `${fmtTraceBytes(bytes)} · ${Math.round(performance.now() - t0)} ms`);
+        const xml = /xml|text\/plain/i.test(type);
+        if (binary && r.ok && !xml) {
+          const buf = await r.arrayBuffer();
+          got(buf.byteLength);
+          return buf;
+        }
+        const txt = await r.text();
+        got(txt.length);
+        const ex = parseOwsException(txt);
+        if (ex) throw Object.assign(new Error(ex.msg), { owsCode: ex.code });
+        if (!r.ok) throw Object.assign(new Error(describeHttp(r.status)), { status: r.status });
+        return txt;
+      } catch (err) {
+        if (trace) trace("err", describeTraceError(err, attempt, timeout));
+        throw err;
+      }
     }, { signal });
   }
 
-  async function fetchGrid(cfg, params, extra, signal) {
+  /* `io` = { signal, trace }, los dos opcionales */
+  async function fetchGrid(cfg, params, extra, { signal = null, trace = null } = {}) {
     const geotiff = cfg.format.kind === "geotiff";
     const body = await request({
       request: "GetCoverage", coverageId: cfg.coverageId, format: cfg.format.name, ...params
-    }, { signal, extra, binary: geotiff });
-    return geotiff ? readGeoTiffGrid(body) : parseAsciiGrid(body);
+    }, { signal, extra, binary: geotiff, trace });
+    const grid = geotiff ? await readGeoTiffGrid(body) : parseAsciiGrid(body);
+    if (trace) trace("info", describeTraceGrid(grid));
+    return grid;
   }
 
-  function discover() {
-    if (config) return Promise.resolve(config);
-    if (discovering) return discovering;
+  /* `trace` solo ve las peticiones si es él quien descubre: hecho ya (o
+     en marcha para otro), se dice lo elegido.                       */
+  function discover(trace = null) {
+    if (config || discovering) {
+      if (trace) trace("info", config ? `descubrimiento ya hecho en esta sesión: ${describeElevChoice(source, config)}`
+        : "descubrimiento en marcha para otra consulta: se espera");
+      return config ? Promise.resolve(config) : discovering;
+    }
     discovering = (async () => {
-      const caps = parseWcsCapabilities(await request({ request: "GetCapabilities" }));
+      const caps = parseWcsCapabilities(await request({ request: "GetCapabilities" }, { trace }));
       if (!caps) throw new Error(`${label}: el servicio no declara coberturas`);
       const candidates = pickCoverage(caps.coverages).slice(0, ELEV_MAX_CANDIDATES);
       if (!candidates.length) throw new Error(`${label}: sin cobertura utilizable`);
@@ -388,8 +452,9 @@ function makeElevationSource(source) {
         : ["ArcGrid", "application/asc"]);
       if (!format) throw new Error(`${label}: no ofrece rejilla ASCII ni GeoTIFF`);
       /* Todas las candidatas a la vez: es una espera, no varias */
+      if (trace) trace("info", `coberturas candidatas: ${candidates.join(", ")} · formato ${format.name}`);
       const described = await Promise.all(candidates.map(id =>
-        request({ request: "DescribeCoverage", coverageId: id })
+        request({ request: "DescribeCoverage", coverageId: id }, { trace })
           .then(parseCoverageDescription, () => null)));
       const best = pickFinestCoverage(candidates.map((id, i) => ({ id, desc: described[i] })));
       if (!best) throw new Error(`${label}: no se pudo leer la descripción`);
@@ -401,6 +466,7 @@ function makeElevationSource(source) {
         ...best.desc
       };
       navMessage(describeElevChoice(source, config), { tone: "info" });
+      if (trace) trace("info", describeElevChoice(source, config));
       /* El conjunto de datos del catálogo, contra lo que el servicio dice
          publicar (INSPIRE SpatialDataSetIdentifier). Si no lo declara se
          sigue igual —la cobertura sí existe—, pero se avisa: el nombre
@@ -425,7 +491,7 @@ function makeElevationSource(source) {
      (una excepción que no es fuera de cobertura ni pasajera), se anota
      para toda la sesión y se pide la caja tal cual, como antes: sin
      malla común, pero con datos.                                     */
-  async function fetchAligned(cfg, params, [axX, axY], box, cell, digits, signal) {
+  async function fetchAligned(cfg, params, [axX, axY], box, cell, digits, io = {}) {
     const scaled = !!cell && cfg.scaleSize !== false;
     const xs = scaled ? snapToCells(box.x0, box.x1, cell.x) : { a: box.x0, b: box.x1 };
     const ys = scaled ? snapToCells(box.y0, box.y1, cell.y) : { a: box.y0, b: box.y1 };
@@ -435,11 +501,12 @@ function makeElevationSource(source) {
     ];
     if (scaled) extra.push(["scaleSize", `${axX}(${xs.n}),${axY}(${ys.n})`]);
     try {
-      return await fetchGrid(cfg, params, extra, signal);
+      return await fetchGrid(cfg, params, extra, io);
     } catch (err) {
       if (!scaled || isOutOfCoverage(err) || isRetryableElevError(err) || err.name === "AbortError") throw err;
       cfg.scaleSize = false;
-      return fetchAligned(cfg, params, [axX, axY], box, null, digits, signal);
+      if (io.trace) io.trace("info", "el servicio no acepta scaleSize: se pide la caja tal cual (sin malla fija) el resto de la sesión");
+      return fetchAligned(cfg, params, [axX, axY], box, null, digits, io);
     }
   }
 
@@ -448,15 +515,16 @@ function makeElevationSource(source) {
      agotado no dice nada de la vía: solo se abandona (`useWeb = false`)
      si el servicio no entiende la petición. `undefined` = vía no
      disponible, para que quien llama pruebe la siguiente.            */
-  async function fetchWebBox(cfg, box, lat, signal) {
+  async function fetchWebBox(cfg, box, lat, io = {}) {
     if (!cfg.webCrs || cfg.useWeb === false) return undefined;
     const cell = elevOutputCell(cfg.cellMeters, lat);
     try {
       return tag(await fetchAligned(cfg, { subsettingCrs: cfg.webCrs }, [cfg.axisX, cfg.axisY],
-        box, cell && { x: cell.web, y: cell.web }, 2, signal), "web");
+        box, cell && { x: cell.web, y: cell.web }, 2, io), "web");
     } catch (err) {
       if (isOutOfCoverage(err) || isRetryableElevError(err) || err.name === "AbortError") throw err;
       cfg.useWeb = false;
+      if (io.trace) io.trace("info", "el servicio no acepta recortes en Web Mercator: se pasa a geográficas el resto de la sesión");
       return undefined;
     }
   }
@@ -464,16 +532,17 @@ function makeElevationSource(source) {
   /* Respaldo: latitud y longitud. Si la cobertura es geográfica sus ejes
      ya tienen nombre (`latitude`/`longitude` en Digital Earth Africa);
      si no, los del IGN para el subsettingCrs geográfico.              */
-  async function fetchGeoBox(cfg, { west, south, east, north }, signal) {
+  async function fetchGeoBox(cfg, { west, south, east, north }, io = {}) {
     if (!cfg.geoCrs || cfg.useGeo === false) return undefined;
     const ax = cfg.geographic ? cfg.axisX : "Long", ay = cfg.geographic ? cfg.axisY : "Lat";
     const cell = elevOutputCell(cfg.cellMeters, (south + north) / 2);
     try {
       return tag(await fetchAligned(cfg, { subsettingCrs: cfg.geoCrs }, [ax, ay],
-        { x0: west, y0: south, x1: east, y1: north }, cell && { x: cell.lon, y: cell.lat }, 7, signal), "geo");
+        { x0: west, y0: south, x1: east, y1: north }, cell && { x: cell.lon, y: cell.lat }, 7, io), "geo");
     } catch (err) {
       if (isOutOfCoverage(err) || isRetryableElevError(err) || err.name === "AbortError") throw err;
       cfg.useGeo = false;
+      if (io.trace) io.trace("info", "el servicio tampoco acepta recortes en geográficas");
       return undefined;
     }
   }
@@ -600,19 +669,24 @@ function makeElevationSource(source) {
        cual —sin retícula— por Web Mercator o, si no, en geográficas. No
        pasa por la caché: son rejillas grandes que solo sirven a ese
        perfil. Mismos tres estados que `value`, y un fallo se devuelve en
-       `error` en vez de avisar: el perfil lo cuenta él al terminar.    */
-    async area({ south, west, north, east }, signal) {
+       `error` en vez de avisar: el perfil lo cuenta él al terminar.
+       `trace` (opcional) recibe el detalle de cada petición.          */
+    async area({ south, west, north, east }, signal, trace = null) {
       const cfg = await discover();
       const w = cfg.wgs84;
-      if (w && (north < w.south || south > w.north || east < w.west || west > w.east)) return { grid: null };
+      if (w && (north < w.south || south > w.north || east < w.west || west > w.east)) {
+        if (trace) trace("info", "fuera de la cobertura que declara el servicio: no se pide");
+        return { grid: null };
+      }
       await demRateWait(signal);
+      const io = { signal, trace };
       try {
         const a = toWebMercator(south, west), b = toWebMercator(north, east);
         const web = await fetchWebBox(cfg, {
           x0: Math.min(a.x, b.x), y0: Math.min(a.y, b.y), x1: Math.max(a.x, b.x), y1: Math.max(a.y, b.y)
-        }, (south + north) / 2, signal);
+        }, (south + north) / 2, io);
         if (web !== undefined) return { grid: web };
-        const geo = await fetchGeoBox(cfg, { west, south, east, north }, signal);
+        const geo = await fetchGeoBox(cfg, { west, south, east, north }, io);
         if (geo !== undefined) return { grid: geo };
         return { grid: undefined, error: `${label}: el servicio no admite recortes en Web Mercator ni en geográficas` };
       } catch (err) {

@@ -323,6 +323,33 @@ function setProfileProgress(done, total, what = "MDS") {
     : "Consultando el servicio…";
 }
 
+/* Registro de depuración de la descarga: lo que la aplicación pide a
+   cada servicio y lo que recibe (ver `trace` en 60-elevation.js). Vive
+   en el bloque de progreso y se va con él al terminar. Los mensajes de
+   un servicio son ajenos: siempre por textContent. Sigue al final
+   salvo que el usuario haya subido a leer.                         */
+const PROFILE_LOG_MAX = 3000; /* líneas; se descartan las más viejas */
+const PROFILE_LOG_PREFIX = { req: "→ ", res: "← ", err: "✗ ", info: "  ", head: "" };
+const profileLogBox = document.getElementById("profile-log");
+let profileLogStart = 0;
+
+function resetProfileLog() {
+  profileLogBox.textContent = "";
+  profileLogStart = performance.now();
+}
+
+function profileLog(kind, txt) {
+  const box = profileLogBox;
+  const atEnd = box.scrollHeight - box.scrollTop - box.clientHeight < 24;
+  const row = document.createElement("div");
+  row.className = `pl-${kind}`;
+  const secs = ((performance.now() - profileLogStart) / 1000).toFixed(1).padStart(6);
+  row.textContent = `${secs} s  ${PROFILE_LOG_PREFIX[kind] ?? ""}${txt}`;
+  box.appendChild(row);
+  while (box.childElementCount > PROFILE_LOG_MAX) box.firstChild.remove();
+  if (atEnd) box.scrollTop = box.scrollHeight;
+}
+
 function setProfileNote(txt) {
   const el = document.getElementById("profile-note");
   el.hidden = !txt;
@@ -341,6 +368,8 @@ function openProfileDialog(title) {
   hideProfileArrow();
   document.getElementById("profile-title").textContent = title;
   document.getElementById("profile-progress").hidden = false;
+  resetProfileLog();
+  profileChart.hidden = true; /* sin gráfica todavía: el sitio es del registro */
   setProfileCloseLabel("Cancelar la descarga");
   setProfileProgress(0, 0);
   setProfileNote("");
@@ -358,6 +387,7 @@ function openProfileDialog(title) {
 /* Fin de la descarga (o perfil ya guardado): fuera la barra, «Cerrar» */
 function profileDialogDone() {
   document.getElementById("profile-progress").hidden = true;
+  profileChart.hidden = false;
   setProfileCloseLabel("Cerrar");
 }
 
@@ -486,19 +516,25 @@ async function obtainRouteProfile(li) {
   profileRun = run;
   openProfileDialog(`Perfil: ${li._name}`);
   const notes = [];
+  const srcName = s => elevSourcesLabel([s.src]);
+  profileLog("head", `«${li._name}»: ${measureWaypoints(m).length} waypoints, `
+    + `${fmtUnitDist(m.totalDist, measureUnit)} · fuentes: ${runs.map(srcName).join(", ")}`);
   try {
     const legs = profileLegs(m);
     /* Descubrimiento de cada fuente: la que falla se cuenta y se sigue
        con la otra; solo sin ninguna se da el perfil por perdido.     */
     for (const s of runs) {
       s.client = sourceClient(s.src.id);
+      profileLog("head", `${srcName(s)} — ${s.src.base}`);
       try {
-        const cfg = await s.client.discover();
+        const cfg = await s.client.discover(profileLog);
         s.cell = cfg.cellMeters > 0 ? cfg.cellMeters : 30;
         s.pieces = profilePieces(legs, s.cell);
+        profileLog("info", `celda ${s.cell.toFixed(2)} m → ${s.pieces.length} zona(s) a lo largo de la ruta`);
       } catch (err) {
         if (run.ctl.signal.aborted) return;
         s.dead = profileFailText(err);
+        profileLog("err", `${srcName(s)}: ${s.dead}`);
       }
       if (run.ctl.signal.aborted) return;
     }
@@ -512,14 +548,17 @@ async function obtainRouteProfile(li) {
     let done = 0;
     setProfileProgress(0, total, what);
     for (const s of live) {
-      for (const q of s.pieces) {
+      for (const [i, q] of s.pieces.entries()) {
         const sw = map.options.crs.unproject(L.point(q.x0, q.y0));
         const ne = map.options.crs.unproject(L.point(q.x1, q.y1));
+        profileLog("head", `${srcName(s)} · zona ${i + 1} de ${s.pieces.length}: `
+          + `lat ${sw.lat.toFixed(5)}…${ne.lat.toFixed(5)}, lon ${sw.lng.toFixed(5)}…${ne.lng.toFixed(5)}`);
         const res = await s.client.area({ south: sw.lat, west: sw.lng, north: ne.lat, east: ne.lng },
-          run.ctl.signal);
+          run.ctl.signal, profileLog);
         if (res.grid !== undefined) s.answered = true;
         if (res.grid && res.grid.located) s.grids.push(res.grid);
-        if (res.error) { s.failed++; s.lastError = res.error; }
+        if (res.grid === null) profileLog("info", "sin datos en esta zona");
+        if (res.error) { s.failed++; s.lastError = res.error; profileLog("err", `zona sin respuesta: ${res.error}`); }
         setProfileProgress(++done, total, what);
       }
       if (s.answered) addElevAttribution(s.src.id);

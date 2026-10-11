@@ -206,7 +206,8 @@ the flag clears by itself when the tiles come back.
 
 - right-click on a route (or its properties dialog) → «Obtener perfil»:
   the chosen terrain (MDT) and surface (MDS) models are downloaded along
-  the route in bounded chunks, with a progress bar, and drawn as an
+  the route in bounded chunks, with a progress bar and a scrollable debug
+  log of every request sent and what came back, and drawn as an
   elevation profile — distance from the start across, height up, MDT in
   blue and MDS in green, leg vertices in bold
 - hovering the chart moves a red line across it and a red arrow along the

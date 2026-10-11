@@ -182,13 +182,22 @@ async function runProfile() {
     document.getElementById("ms-profile").click();
     document.getElementById("style-cancel").click();
     const t0 = performance.now();
+    /* Mientras descarga: alto de la ventana y si el registro ya scrollea */
+    const box = document.querySelector("#profile-dialog .dlg-box"), logEl = document.getElementById("profile-log");
+    const heights = [], chartShown = [];
+    let logScrolls = false;
     while (performance.now() - t0 < 20000 && document.getElementById("profile-close").title !== "Cerrar") {
+      heights.push(Math.round(box.getBoundingClientRect().height));
+      chartShown.push(!profileChart.hidden);
+      if (logEl.scrollHeight > logEl.clientHeight + 1) logScrolls = true;
       await new Promise(r => setTimeout(r, 30));
     }
     await new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));
     obs.disconnect();
     return {
       steps, button: document.getElementById("profile-close").title,
+      heights: [Math.min(...heights), Math.max(...heights)], chartShown: chartShown.some(Boolean), logScrolls,
+      log: [...logEl.children].map(e => `${e.className}|${e.textContent}`), chartAfter: !profileChart.hidden,
       progressHidden: document.getElementById("profile-progress").hidden,
       note: document.getElementById("profile-note").hidden ? "" : document.getElementById("profile-note").textContent
     };
@@ -202,7 +211,22 @@ ok(asked.some(s => s.host === "servicios.idee.es") && asked.some(s => s.host ===
   "pide al MDT y al MDS");
 ok(run1.steps.some(t => /^Descargando celdas MDT y MDS: \d+ % \(1 de \d+ zonas?\)$/.test(t))
   && run1.steps.some(t => /100 %/.test(t)), "la barra cuenta las zonas de las dos y llega al 100 %: " + JSON.stringify(run1.steps));
-ok(run1.button === "Cerrar" && run1.progressHidden && !run1.note, "al terminar, «Cerrar» y sin avisos: " + JSON.stringify(run1));
+ok(run1.button === "Cerrar" && run1.progressHidden && !run1.note, "al terminar, «Cerrar» y sin avisos: " + JSON.stringify({ ...run1, log: run1.log.length }));
+/* Registro de depuración: qué pide la aplicación y qué le llega */
+{
+  const L = run1.log;
+  const gets = L.filter(l => /^pl-req\|.*→ GetCoverage, intento 1: https:\/\/.*scaleSize=/.test(l));
+  const oks = L.filter(l => /^pl-res\|.*← HTTP 200 · .* · [\d.]+ (B|kB) · \d+ ms$/.test(l));
+  const grids = L.filter(l => /^pl-info\|.*rejilla de \d+ × \d+ celdas de [\d.]+ · \d+ sin dato · alturas [\d.]+–[\d.]+ m$/.test(l));
+  ok(gets.length === asked.length, `una línea por cada GetCoverage lanzado, con la dirección entera: ${gets.length} de ${asked.length}`);
+  ok(oks.length >= asked.length && grids.length === asked.length, `y lo recibido: estado, tipo, tamaño, tiempo y la rejilla leída: ${oks.length}, ${grids.length}`);
+  ok(L.some(l => /^pl-head\|.*MDT05 \(IGN\) · zona 1 de \d+: lat /.test(l)) && L.some(l => /^pl-head\|.*MDS \(IGN\) · zona 1 de/.test(l)),
+    "cada zona, con su fuente y su caja: " + L.filter(l => /^pl-head/.test(l)).slice(0, 4).join(" / "));
+  ok(L.some(l => /GetCapabilities, intento 1/.test(l) || /descubrimiento ya hecho/.test(l)), "y el descubrimiento de cada fuente");
+  ok(run1.heights[1] - run1.heights[0] <= 1 && run1.logScrolls,
+    "la ventana no crece con el registro, que scrollea por su cuenta: " + JSON.stringify(run1.heights));
+  ok(!run1.chartShown && run1.chartAfter, "descargando, el sitio es del registro; al terminar, de la gráfica");
+}
 
 /* ---------- 3. La gráfica ---------- */
 const readChart = () => page.evaluate(() => {
@@ -606,6 +630,12 @@ const lastMds = coverages().filter(s => s.host === "wcs-mds.idee.es").at(-1);
 failBox = { host: "wcs-mds.idee.es", x0: Number(/\(([-\d.]+),/.exec(lastMds.params.getAll("subset")[0])[1]) };
 const run2 = await runProfile();
 ok(/MDS: 1 de \d+ zonas sin respuesta .*tras 4 intentos.*huecos/.test(run2.note), "el trozo caído, dicho: " + run2.note);
+{
+  const fails = run2.log.filter(l => /^pl-err\|.*✗ HTTP 500/.test(l));
+  ok(fails.length === 4 && /se reintenta en 1 s$/.test(fails[0]) && !/reintenta/.test(fails[3])
+    && run2.log.some(l => /^pl-err\|.*zona sin respuesta/.test(l)),
+    "en el registro, cada intento fallido con su espera, y la zona perdida: " + JSON.stringify(fails));
+}
 const gaps = await page.evaluate(() => {
   const mds = profileData.series.find(s => s.kind === "mds"), mdt = profileData.series.find(s => s.kind === "mdt");
   return { holes: mds.points.some(p => !p.ref), mdtWhole: !mdt.points.some(p => !p.ref),
