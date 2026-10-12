@@ -115,6 +115,28 @@ for (const [nombre, archivo, puerto] of [["legible", READABLE, 8821], ["minifica
   ok(r.carpetaAMedias === "gris", et("y a medias queda indeterminada: " + r.carpetaAMedias));
   ok(r.aria === "mixed", et("con aria-checked=mixed: " + r.aria));
   ok(r.csp.length === 0, et("sin violaciones de CSP: " + JSON.stringify(r.csp)));
+
+  /* Ortofoto de Madrid: capa WMS sin capa elegible, con la cita que exigen
+     las condiciones del Ayuntamiento y acotada a su caja de cobertura */
+  const madrid = await page.evaluate(() => {
+    const st = baseState.get("madrid-orto");
+    if (!st) return null;
+    const capa = st.def.layer();
+    const o = capa.options;
+    const cobertura = L.latLngBounds(o.bounds);   /* Leaflet solo la normaliza al añadir la capa */
+    return { url: capa._url, capa: o.layers, formato: o.format, version: o.version,
+      credito: o.attribution, bounds: cobertura.toBBoxString(), dentro: cobertura.contains([40.42, -3.70]),
+      fuera: cobertura.contains([41.38, 2.17]), apagada: st.on === false };
+  });
+  ok(madrid !== null, et("existe la capa base «madrid-orto»"));
+  ok(madrid.url.startsWith("https://servpub.madrid.es/georaster/ORTOFOTOS/ORTOFOTO_MADRID/ows"),
+    et("Madrid: apunta al WMS del Ayuntamiento: " + madrid.url));
+  ok(madrid.capa === "ORTOFOTO_MADRID" && madrid.formato === "image/png" && madrid.version === "1.3.0",
+    et("Madrid: capa, formato y versión del GetCapabilities: " + JSON.stringify(madrid)));
+  ok(madrid.credito === "Origen de los datos: Ayuntamiento de Madrid",
+    et("Madrid: atribución exigida por sus condiciones: " + madrid.credito));
+  ok(madrid.dentro && !madrid.fuera, et("Madrid: solo pide teselas dentro de su cobertura: " + madrid.bounds));
+  ok(madrid.apagada, et("Madrid: apagada por defecto"));
   ok(errors.length === 0, et("sin errores de página: " + JSON.stringify(errors)));
 
   await ctx.close();

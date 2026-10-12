@@ -137,7 +137,7 @@ map.on("resize rotate", fitWorldMinZoom);
 
 /* Fecha de generación del código (versión): AÑOMESDIAHORAMINUTO.
    Actualizar en cada generación; se muestra junto al crédito de Leaflet. */
-const BUILD = "202610121540";
+const BUILD = "202610122310";
 /* Versión de release (la de package.json, horneada aquí por build.js
    al construir — ver «Versión y releases de GitHub» en CLAUDE.md): a
    diferencia de BUILD, que cambia en CADA generación, esta solo cambia
@@ -208,6 +208,10 @@ const IGN_CREDIT = "Cedido por &copy; Instituto Geogr\u00E1fico Nacional de Espa
 /* terrestris exige atribuci\u00F3n en sus AccessConstraints; el dato de
    elevaci\u00F3n bajo esas teselas es el SRTM de la NASA.                 */
 const SRTM_CREDIT = "SRTM 30m &copy; NASA LP DAAC \u2014 teselas de terrestris";
+/* Cita exigida por las condiciones generales de reutilización del
+   Ayuntamiento de Madrid (datos.madrid.es): "Origen de los datos:
+   Ayuntamiento de Madrid". Su GetCapabilities no declara <Attribution>. */
+const MADRID_CREDIT = "Origen de los datos: Ayuntamiento de Madrid";
 const COP_CREDIT = "Copernicus DEM \u2014 Copernicus Data Space / Sentinel Hub";
 /* Primer nivel con imagen real en Copernicus, y primer nivel en el que
    se dibuja la capa (por debajo se reescalar\u00eda a un coste desmedido).
@@ -309,6 +313,18 @@ const BASE_LAYERS = [
     layer: (wmsLayer) => L.tileLayer.wms(PNOA_HIST_URL, {
       layers: wmsLayer, format: "image/jpeg", version: "1.3.0", transparent: false,
       maxZoom: MAX_ZOOM, attribution: `PNOA hist\u00F3rico. ${IGN_CREDIT}` }) },
+
+  /* Ortofoto municipal de Madrid, WMS del Ayuntamiento con una sola capa
+     (ORTOFOTO_MADRID), sin credencial. Verificado contra el servicio real:
+     EPSG:3857, image/png y CORS abierto. `bounds` es su caja geográfica
+     declarada: fuera de ella no hay dato, y así no se piden teselas que
+     el servidor no puede rellenar. Sirve hasta z20 (10 cm/píxel).       */
+  { id: "madrid-orto", name: "Ortofoto Madrid (Ayuntamiento)", on: false, opacity: 1,
+    layer: () => L.tileLayer.wms(
+      "https://servpub.madrid.es/georaster/ORTOFOTOS/ORTOFOTO_MADRID/ows", {
+      layers: "ORTOFOTO_MADRID", format: "image/png", version: "1.3.0", transparent: false,
+      bounds: [[40.2788, -3.9367], [40.6671, -3.4793]],
+      maxNativeZoom: 20, maxZoom: MAX_ZOOM, attribution: MADRID_CREDIT }) },
 
   /* Servidor de teselas del propio usuario \u2014 t\u00EDpicamente una cach\u00E9/proxy
      delante de OpenStreetMap u otro servicio, para no descargar de golpe

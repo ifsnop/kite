@@ -71,6 +71,7 @@ La aplicación incorpora, apagados por defecto salvo la capa base de OpenStreetM
 | Relieve sombreado | Esri | Sombreado de relieve mundial |
 | Ortofoto PNOA (Máxima Actualidad) | Instituto Geográfico Nacional (España) | Ortofotografía aérea oficial del Plan Nacional de Ortofotografía Aérea |
 | PNOA histórico | Instituto Geográfico Nacional (España) | Serie histórica de ortofotografías del PNOA, por años disponibles |
+| Ortofoto Madrid | Ayuntamiento de Madrid (servicio WMS del Geoportal, sin credencial) | Ortofotografía municipal de la ciudad de Madrid; atribución «Origen de los datos: Ayuntamiento de Madrid» |
 | Modelo Digital del Terreno de España (WMS) | Instituto Geográfico Nacional (España) | Elevación del terreno (servicio de mapas, para visualización) |
 | Relieve SRTM30 | terrestris (servicio público sin coste, cobertura entre 56° S y 60° N) | Sombreado de relieve global derivado de la misión SRTM |
 | Copernicus DEM | Copernicus Data Space / Sentinel Hub, bajo credencial propia del usuario | Modelo digital de superficie global |

@@ -167,6 +167,7 @@ stacking order can be changed:
 - Esri World Terrain and Esri hillshade
 - IGN Base and MTN topographic maps (Spain)
 - PNOA orthophotography, current and historical (Spain)
+- Madrid city orthophotography (Ayuntamiento de Madrid WMS)
 - IGN terrain WMS (Spain)
 - SRTM30 relief (terrestris, 56°S–60°N)
 - Copernicus DEM through Sentinel Hub, which needs the user's own
@@ -525,6 +526,7 @@ This application currently uses or accesses:
 - [Nominatim](https://nominatim.org/)
 - Esri World Terrain and hillshade
 - Spanish PNOA, IGN WMTS, WMS and WCS services
+- [Ayuntamiento de Madrid orthophoto WMS](https://geoportal.madrid.es/) (data source: Ayuntamiento de Madrid)
 - [SRTM30 tiles from terrestris](https://ows.terrestris.de/) (SRTM data © NASA LP DAAC)
 - [Copernicus DEM through Sentinel Hub](https://dataspace.copernicus.eu/)
 - [Digital Earth Africa](https://www.digitalearthafrica.org/) WCS — Copernicus DEM GLO-30 (© DLR e.V. 2010-2014 and © Airbus Defence and Space GmbH 2014-2018, provided under COPERNICUS by the European Union and ESA)

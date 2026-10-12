@@ -138,7 +138,7 @@ Arrastrar una fila con el ratón la mueve de carpeta o cambia su orden entre her
 
 ### 4.1 Mapas base
 
-Un icono de capas, en la esquina superior derecha del mapa, despliega el panel de cartografías de fondo: OpenStreetMap, varias capas del Instituto Geográfico Nacional (mapa base, topográfico, ortofoto PNOA actual e histórica, modelo digital del terreno), un par de opciones de relieve sombreado, bajo credencial propia del usuario el modelo de superficie de Copernicus, y «Custom Maps», que pide sus teselas a un servidor propio del usuario. Se pueden combinar varias a la vez, cada una con su propio control de opacidad, y reordenarse con las flechas de cada fila (el orden de la lista es el orden de apilado en el mapa).
+Un icono de capas, en la esquina superior derecha del mapa, despliega el panel de cartografías de fondo: OpenStreetMap, varias capas del Instituto Geográfico Nacional (mapa base, topográfico, ortofoto PNOA actual e histórica, modelo digital del terreno), la ortofoto municipal de Madrid del Ayuntamiento, un par de opciones de relieve sombreado, bajo credencial propia del usuario el modelo de superficie de Copernicus, y «Custom Maps», que pide sus teselas a un servidor propio del usuario. Se pueden combinar varias a la vez, cada una con su propio control de opacidad, y reordenarse con las flechas de cada fila (el orden de la lista es el orden de apilado en el mapa).
 
 La primera fila del panel no es un mapa, sino el color de fondo del propio visor: el que se ve detrás de las teselas, en un hueco sin cobertura o en el borde del mundo. Por defecto es el mismo azul claro de siempre; su muestra de color abre el mismo selector integrado que los colores de una capa (apartado 6.1) y el cambio se recuerda entre sesiones.
 
