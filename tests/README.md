@@ -268,6 +268,16 @@ TOPOJSON TESTS OK
 
 **Qué cubre:** `topologyToGeoJson`: une los objetos con nombre de una topología en un único `FeatureCollection` (la conversión de arcos la prueba topojson-client, no nosotros).
 
+### `cogtest.js`
+
+**Salida de `npm test`:**
+```
+── Ortofotos COG: sistemas admitidos, GeoKeys, nivel y ventana, reparto de la tesela (máscara, nodata, alfa), blobs huérfanos y registros ajenos
+COG TESTS OK
+```
+
+**Qué cubre:** Lo puro de las ortofotos COG (`64-cog.js`): la tabla cerrada de sistemas (`cogCrsDef`: ETRS89 UTM, REGCAN95, ED50 con los parámetros peninsulares, Web Mercator, WGS84, y null para lo demás); el EPSG de las GeoKeys (`cogEpsg`: el proyectado manda, 32767 no es un código, un modelo proyectado sin código no se toma por geográfico); qué vista general leer (`pickOverview`: la más basta que siga siendo tan fina como la tesela); la ventana con margen, recortada y null fuera de la imagen (`tileWindow`); el reparto de una tesela (`warpTile`: vecino más próximo sin mezclar colores, máscara y nodata transparentes, alfa propio respetado, fuera de la ventana transparente) y que `cogGridPoint` hace la misma cuenta; qué blobs no nombra nadie, contando las instantáneas de deshacer (`orphanRasterIds`); qué registro leído de fuera es válido (`validCogRecord`); qué deja fuera un `.kite.json` (`withoutCogNodes`, a cualquier profundidad); y que un COG dentro de una carpeta nunca desplegada se serializa igual (`serializePendingRecords`).
+
 ### `shptest.js`
 
 **Salida de `npm test`:**
@@ -454,11 +464,11 @@ MINIFIED BUILD TESTS OK
 
 **Salida de `npm test`:**
 ```
-── Comprobaciones estáticas: sin bytes NUL, todo id referido existe, toda función llamada está declarada y los diálogos de un solo botón lo llevan arriba a la derecha
+── Comprobaciones estáticas: sin bytes NUL, todo id referido existe, toda función llamada está declarada, ningún nombre declarado dos veces y los diálogos de un solo botón lo llevan arriba a la derecha
 STATIC CHECKS OK
 ```
 
-**Qué cubre:** Las tres comprobaciones estáticas que antes se hacían a mano (y por eso casi nunca): que el archivo entregado no contenga ningún byte NUL — encontrado uno real, colado sin querer en un separador de un template literal de `navMessage` (`` `${tone}\0${txt}` `` en vez de un espacio), que no rompía nada en el navegador pero hacía que `grep` sin `-a` tratara el archivo como binario y dejara de encontrar nada en él; que todo `$id`/`getElementById` apunte a un `id` que exista en el HTML; y que TODA FUNCIÓN LLAMADA ESTÉ DECLARADA — un refactor puede borrar un ayudante que sigue en uso y `node --check` no lo ve, porque el archivo sigue siendo válido. La de las funciones exige mirar código y no texto: los comentarios en castellano llenos de paréntesis daban 369 falsos positivos, así que la suite lleva su propio `maskCode` (borra comentarios, cadenas, plantillas y regex conservando posiciones, y recorre los `${…}`, que SÍ contienen código). Cuenta como declarado todo lo que liga un nombre: declaraciones, claves de objeto, métodos abreviados, getters y parámetros; los globales del navegador van en una lista explícita. Verificado que falla con un `id` mal escrito y con un ayudante borrado. Además, la regla de los diálogos de un solo botón (`.claude/rules/dialog-close-button.md`): ningún pie `.dlg-actions` con un único botón, y todo × `.dlg-close` dentro de la cabecera `<h2 class="dlg-head">` de una caja `no-actions`; verificado que falla dejando el registro de avisos con solo «Cerrar».
+**Qué cubre:** Las tres comprobaciones estáticas que antes se hacían a mano (y por eso casi nunca): que el archivo entregado no contenga ningún byte NUL — encontrado uno real, colado sin querer en un separador de un template literal de `navMessage` (`` `${tone}\0${txt}` `` en vez de un espacio), que no rompía nada en el navegador pero hacía que `grep` sin `-a` tratara el archivo como binario y dejara de encontrar nada en él; que todo `$id`/`getElementById` apunte a un `id` que exista en el HTML; y que TODA FUNCIÓN LLAMADA ESTÉ DECLARADA — un refactor puede borrar un ayudante que sigue en uso y `node --check` no lo ve, porque el archivo sigue siendo válido. La de las funciones exige mirar código y no texto: los comentarios en castellano llenos de paréntesis daban 369 falsos positivos, así que la suite lleva su propio `maskCode` (borra comentarios, cadenas, plantillas y regex conservando posiciones, y recorre los `${…}`, que SÍ contienen código). Cuenta como declarado todo lo que liga un nombre: declaraciones, claves de objeto, métodos abreviados, getters y parámetros; los globales del navegador van en una lista explícita. Verificado que falla con un `id` mal escrito y con un ayudante borrado. Además, la regla de los diálogos de un solo botón (`.claude/rules/dialog-close-button.md`): ningún pie `.dlg-actions` con un único botón, y todo × `.dlg-close` dentro de la cabecera `<h2 class="dlg-head">` de una caja `no-actions`; verificado que falla dejando el registro de avisos con solo «Cerrar». Y que ningún nombre de nivel superior (`function`, `const`, `let`, `class` en la columna 0) se declare dos veces: todo `src/js` comparte un ámbito, y una `function` repetida pisa EN SILENCIO a la anterior — pasó al añadir el COG, cuyo `gridPoint` dejó sin el suyo a la consulta de elevación; verificado que falla volviendo a meter ese nombre.
 
 ### `tristate.js`
 
@@ -754,6 +764,16 @@ BROWSER URL IMPORT TESTS OK
 ```
 
 **Qué cubre:** Añadir contenido desde una dirección, de punta a punta: que el paso 1 diga qué ha llegado SIN tocar el árbol y que solo «Añadir al árbol» lo toque, colgando todo de una sección «Descargas» que se REUTILIZA —como «Lugares» o «Elevaciones»— con una «Descarga N» numerada por descarga dentro; que con el resultado en la mano «Descargar» quede deshabilitado y que tocar la dirección lo reactive invalidando el resultado; una URL sin extensión reconocida por su contenido; KMZ por la firma del zip; página HTML con la pista del enlace «Raw»; 404; tope de tamaño por `content-length`; y CANCELAR UNA DESCARGA EN VUELO con el botón, que durante la descarga pasa a «Cancelar descarga» —sin esperar al tope de 20 s—, dejando el diálogo abierto y la dirección puesta para reintentar. La suite sirve los ejemplos desde el MISMO origen que la aplicación, porque con `connect-src 'self' https:` otro puerto lo bloquearía la política y no el servidor.
+
+### `browser/cog.mjs`
+
+**Salida de `npm test`:**
+```
+── Navegador: ortofotos COG — UTM 30N y Web Mercator en su sitio, vista general, malla frente a proj4, giro, opacidad, recargar, deshacer, limpieza de blobs y subida de la base v3
+BROWSER COG TESTS OK
+```
+
+**Qué cubre:** Ortofotos COG de punta a punta, con geotiff.js y proj4 de verdad. La suite FABRICA sus GeoTIFF en mosaico byte a byte (512 × 512 px a 1 m centrados en la Puerta del Sol, un color por cuadrante, y una vista general de 256 × 256 con los mismos cuadrantes a media intensidad) y lee el color del LIENZO de la tesela en el centro de cada cuadrante: en ETRS89 UTM 30N y en Web Mercator cada uno cae en su sitio; a zoom 14 se lee la vista general; la malla de 16 × 16 se separa de proj4 punto a punto menos de 0,05 px; con el mapa girado 30° sigue en su sitio; el diálogo de propiedades enseña y aplica la opacidad; tras recargar vuelve con su opacidad y se pinta desde el blob guardado; borrar quita el nodo pero no los bytes, deshacer lo devuelve, y al arrancar se borran solo los bytes que ya no nombra nadie; un sistema que no está en la tabla (EPSG:2062) y una imagen de 16 bits se rechazan sin dejar nodo ni bytes; exportar avisa de que la ortofoto se queda fuera; y abrir esta versión sobre una base v3 con un árbol v7 conserva el árbol y deja la base en v4 con su almacén `rasters`.
 
 ### `browser/shp-import.mjs`
 

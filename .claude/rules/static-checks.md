@@ -23,6 +23,12 @@ Sobre `kitelocal.html`, automatizadas:
 - **Toda función llamada está declarada** (íd.): un refactor puede
   eliminar un helper todavía en uso sin que `node --check` lo detecte
   (sigue siendo sintácticamente válido).
+- **Ningún nombre de nivel superior declarado dos veces** (íd.): todo
+  `src/js` comparte un ámbito global, y una `function` repetida PISA
+  en silencio a la anterior (una `const` repetida, en cambio, rompe el
+  arranque y se ve). Pasó de verdad: el `gridPoint` nuevo del COG dejó
+  sin el suyo a la consulta de elevación, sin ningún error. Se miran
+  las declaraciones en la columna 0, que es como va el nivel superior.
 - **Regla de los diálogos de un solo botón** (íd.): ningún
   `.dlg-actions` con un único botón, y todo `.dlg-close` dentro de un
   `<h2 class="dlg-head">` de una caja `no-actions` (ver

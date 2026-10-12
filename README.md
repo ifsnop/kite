@@ -6,7 +6,7 @@
 
 **KML Interactive Tree Explorer**
 
-A privacy-first, browser-based viewer and organizer for **KML, KMZ, GeoJSON and shapefile** files. It preserves nested KML folder structures as an interactive layer tree, runs from one self-contained HTML file, and keeps imported data inside the user's browser.
+A privacy-first, browser-based viewer and organizer for **KML, KMZ, GeoJSON and shapefile** files, and Cloud Optimized GeoTIFF orthophotos. It preserves nested KML folder structures as an interactive layer tree, runs from one self-contained HTML file, and keeps imported data inside the user's browser.
 
 ### ▶ [Try the live demo](https://ifsnop.github.io/kite/)
 
@@ -71,6 +71,14 @@ KITE Local does not impose fixed limits on KML file size, imported features or v
   summary). Without a `.prj`, only coordinates already in degrees are
   accepted. Text encoding comes from the `.cpg`, or is detected (UTF-8,
   else Windows-1252). Z values are not imported
+- Cloud Optimized GeoTIFF orthophotos (`.tif`, 8-bit RGB or grey): dropped
+  onto the panel, validated, then copied as a Blob into the browser's own
+  IndexedDB store so they survive a reload. Drawn by a custom
+  `L.GridLayer` that reads only the window and overview level each tile
+  needs (geotiff.js `fromBlob`), reprojected per tile through a 16×16
+  proj4 grid (ETRS89/WGS84/ED50 UTM 28–31, REGCAN95, WGS84, ETRS89, Web
+  Mercator). Not included in `.kite.json` exports or the system
+  clipboard; a deleted one is purged from storage on the next start
 - KITE Local folder exports (`.kite.json`)
 - drag-and-drop import; dropping onto a folder imports inside it
 - tolerant XML parsing: a namespace prefix that a file uses but never
@@ -508,9 +516,9 @@ This application currently uses or accesses:
 - [JSZip](https://stuk.github.io/jszip/)
 - [topojson-client](https://github.com/topojson/topojson-client)
 - [html2canvas](https://html2canvas.hertzen.com/)
-- [geotiff.js](https://geotiffjs.github.io/) (MIT) — reads elevation grids from services that only offer GeoTIFF
+- [geotiff.js](https://geotiffjs.github.io/) (MIT) — reads elevation grids from services that only offer GeoTIFF, and COG orthophotos
 - [shapefile](https://github.com/mbostock/shapefile) (BSD-3-Clause) — reads `.shp` and `.dbf` into GeoJSON
-- [proj4js](https://proj4js.org/) (MIT) — reprojects shapefile coordinates from their `.prj`
+- [proj4js](https://proj4js.org/) (MIT) — reprojects shapefile coordinates from their `.prj`, and COG orthophotos per tile
 - [leaflet-rotate](https://github.com/Raruto/leaflet-rotate) (GPL-3.0) — incorporated into the source (see License); not requested at runtime
 - [Material Design Icons](https://pictogrammers.com/library/mdi/) (Pictogrammers, Apache-2.0) — embedded at build time through [Iconify](https://iconify.design/); not requested at runtime
 - [OpenStreetMap](https://www.openstreetmap.org/)

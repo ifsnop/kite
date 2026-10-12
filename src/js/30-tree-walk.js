@@ -120,7 +120,7 @@ function announceSelectionCount() {
 /* Nombre legible del tipo, para poder explicar por qué algo se queda
    fuera de una selección                                              */
 const KIND_LABEL = { marker: "marcadores", polygon: "pol\u00EDgonos", measure: "mediciones",
-  elevGrid: "cuadr\u00EDculas de elevaci\u00F3n", imageOverlay: "ortofotos" };
+  elevGrid: "cuadr\u00EDculas de elevaci\u00F3n", imageOverlay: "ortofotos", cog: "ortofotos COG" };
 
 /* Selecciona de una vez todas las capas de la rama que cuelga de un
    contenedor. Como solo pueden convivir capas del mismo tipo en la
@@ -497,7 +497,7 @@ function focusOnNode(li) {
   const b = subtreeBounds(li);
   if (!b.isValid()) { navMessage("Esta capa no tiene geometr\u00EDa que enfocar."); return; }
   const kind = styleKind(li);
-  if (kind === "polygon" || kind === "measure" || kind === "elevGrid") fitBoundsFramed(b);
+  if (kind === "polygon" || kind === "measure" || kind === "elevGrid" || kind === "cog") fitBoundsFramed(b);
   else map.setView(b.getCenter(), FOCUS_ZOOM);
 }
 

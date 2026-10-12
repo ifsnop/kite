@@ -504,8 +504,16 @@ const CLIPBOARD_MAX = 5 * 1024 * 1024; /* texto; por encima solo va el interno *
    sistema.                                                            */
 let clipboardText = null;
 
-function copyToSystemClipboard(nodes) {
+function copyToSystemClipboard(all) {
   if (!navigator.clipboard || !navigator.clipboard.writeText) return;
+  /* Una ortofoto COG no viaja a otra instancia (sus bytes están en el
+     almacén de ESTA): el interno sí la lleva, el del sistema no.    */
+  const { nodes, left } = withoutCogNodes(all);
+  if (left.length) {
+    navMessage(`Las ortofotos COG solo se pueden pegar en esta pestaña: ${left.map(n => `\u00AB${n}\u00BB`).join(", ")} `
+      + "no va al portapapeles del sistema.", { tone: "info" });
+  }
+  if (!nodes.length) return;
   const txt = JSON.stringify(treeExportDoc(nodes));
   /* Un árbol grande serializado son decenas de MB: escribirlo bloquea y
      el navegador puede rechazarlo. El portapapeles interno sigue

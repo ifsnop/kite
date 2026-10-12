@@ -83,6 +83,10 @@ paths:
   pulsación, vía menú del navegador).
 - Ctrl+V sigue pegando el interno desde cualquier sitio fuera de campos
   de texto; acotar al árbol es solo para lo que llega de FUERA.
+- **Las ortofotos COG no van al portapapeles del sistema**
+  (`withoutCogNodes` en `copyToSystemClipboard`, con aviso que las
+  nombra): sus bytes viven en el almacén de ESTA instancia. El interno
+  sí las lleva (comparten el mismo blob). Ver `cog.md`.
 - **Tope de tamaño** (`CLIPBOARD_MAX`, 5 MB de texto): por encima se
   avisa y se sigue (el interno aún funciona), remitiendo al botón 💾.
   Un `writeText` rechazado se captura sin tumbar el copiado interno.

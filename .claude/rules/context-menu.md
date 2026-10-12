@@ -12,7 +12,9 @@ paths:
   panel» (`highlightNode`), «Mostrar atributos» si hay algo que
   enseñar (`showLayerInfo`, solo lectura) y «Editar propiedades» si el
   tipo admite diálogo de estilos (`STYLE_EDITABLE_KINDS`, mismo criterio
-  que `openStyleDialog`). Nombrado distinto de «Mostrar atributos» a
+  que `openStyleDialog`; incluye `cog`, aunque una ortofoto COG —como una
+  de KMZ— no se acierta con el clic derecho: `subHitTest` no sabe de
+  rásteres, se edita desde su fila). Nombrado distinto de «Mostrar atributos» a
   propósito (dos ítems iguales confundirían), aunque el resto de la app
   llame «propiedades» a ambos indistintamente.
 - **`disabled()` opcional en un ítem**: devuelve el MOTIVO (texto, va al `title`) o algo falso. El ítem se pinta deshabilitado, no se esconde. Hoy lo usan «Consultar elevación aquí» (`elevQueryDisabled`: mapa rotado, o las dos fuentes de elevación en «Ninguna») y «Obtener perfil» (`routeProfileDisabled`).

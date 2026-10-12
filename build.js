@@ -65,6 +65,7 @@ const JS = [
   "61-daynight.js",       /* iluminación real día/noche (efecto WebGL) */
   "62-geocalc.js",        /* calculadora geodésica (ángulo de elevación) */
   "63-route-profile.js",  /* perfil de una ruta (MDS por trozos, gráfica SVG) */
+  "64-cog.js",            /* ortofotos COG: almacén "rasters", GridLayer reproyectada */
   "70-view-controls.js",  /* controles de vista y menú contextual */
   "99-boot.js"            /* arranque: restaurar el árbol guardado */
 ];

@@ -150,10 +150,15 @@ async function buildGeoJsonRecords(gj, prog, report, nameKeys = null) {
    panel reprograma un guardado (con un pequeño debounce).                    */
 
 const DB_NAME = "visor-kml";
-const DB_VERSION = 3;  /* esquema de la base: un único almacén "tree".
-                          Subir solo cuando cambie la estructura de almacenes;
-                          la migración es simplemente borrar lo anterior.     */
-const TREE_SCHEMA = 7; /* formato del árbol serializado. Subir solo cuando
+const DB_VERSION = 4;  /* esquema de la base: almacenes "tree" y "rasters".
+                          Subir solo cuando cambie la estructura de almacenes.
+                          v4 añade "rasters" (las ortofotos COG, ver
+                          64-cog.js) SIN borrar "tree": subir la versión
+                          vaciaba antes todos los almacenes, y añadir uno
+                          habría tirado el árbol de todo el mundo a cambio
+                          de nada. openDb crea solo los que falten; un
+                          almacén que deje de existir se borra allí.     */
+const TREE_SCHEMA = 8; /* formato del árbol serializado. Subir solo cuando
                           cambie el formato; un árbol guardado con otra
                           versión se descarta al leer.
                           v2: los nodos de capa admiten `mstyle` (estilo de
@@ -187,8 +192,20 @@ const TREE_SCHEMA = 7; /* formato del árbol serializado. Subir solo cuando
                           que es trivial y está acotado a un solo tipo
                           de nodo — no es la política por defecto para
                           la próxima subida de versión, que se evalúa
-                          aparte. */
+                          aparte.
+                          v8: nuevo tipo de nodo "cog" (ortofoto COG cuyos
+                          bytes viven en el almacén "rasters", ver
+                          64-cog.js). SEGUNDA excepción deliberada, y sin
+                          transformar nada: un árbol v7 ya es un v8
+                          válido (solo se añade un tipo), así que se lee
+                          tal cual (dbLoadTree, importTreeExport). Se sube
+                          igualmente para que una instancia ANTERIOR
+                          rechace un árbol que traiga el tipo nuevo. */
 const DB_TREE = "tree";
+const DB_RASTERS = "rasters";
+/* Los almacenes de DB_VERSION: openDb crea los que falten y borra los
+   que sobren, sin tocar los que siguen (ver DB_VERSION v4).          */
+const DB_STORES = [DB_TREE, DB_RASTERS];
 
 /* Sube en silencio un árbol v6 a la forma v7 (measure: a/b → waypoints),
    la ÚNICA excepción a «lo que no corresponda a la versión actual se
@@ -221,10 +238,11 @@ function openDb() {
   dbPromise = new Promise((resolve, reject) => {
     const rq = indexedDB.open(DB_NAME, DB_VERSION);
     rq.onupgradeneeded = () => {
-      /* Sin compatibilidad hacia atrás: se vacía cualquier esquema previo */
+      /* Se crea lo que falta y se borra lo que ya no existe; lo que
+         sigue se conserva con su contenido (ver DB_VERSION v4).      */
       const db = rq.result;
-      for (const s of [...db.objectStoreNames]) db.deleteObjectStore(s);
-      db.createObjectStore(DB_TREE);
+      for (const s of [...db.objectStoreNames]) if (!DB_STORES.includes(s)) db.deleteObjectStore(s);
+      for (const s of DB_STORES) if (!db.objectStoreNames.contains(s)) db.createObjectStore(s);
     };
     rq.onsuccess = () => {
       const db = rq.result;
@@ -883,7 +901,8 @@ async function dbLoadTree() {
     const rq = st.get("root");
     rq.onsuccess = () => {
       const rec = rq.result;
-      if (rec && rec.v === TREE_SCHEMA) { resolve(rec.nodes); return; }
+      /* v7 se lee tal cual: ya es un v8 válido (ver TREE_SCHEMA v8) */
+      if (rec && (rec.v === TREE_SCHEMA || rec.v === 7)) { resolve(rec.nodes); return; }
       /* Excepción deliberada (ver TREE_SCHEMA v7): un árbol v6 no se
          descarta, se sube en silencio. scheduleSave() lo dejará ya en
          v7 en cuanto el árbol restaurado sufra cualquier mutación.  */
@@ -925,6 +944,10 @@ function serializeNode(li) {
   if (li._imageOverlay) {
     const o = li._imageOverlay;
     return [{ ...base, t: "imageOverlay", box: o.box, dataUrl: o.dataUrl, opacity: o.opacity }];
+  }
+  if (li._cog) {
+    const c = li._cog;
+    return [{ ...base, t: "cog", rasterId: c.rasterId, box: c.box, opacity: c.opacity }];
   }
   /* li._isContainer evita este querySelector en toda capa hoja (la
      inmensa mayoría de los nodos de un árbol grande): solo carpetas y
@@ -987,6 +1010,10 @@ function serializePendingRecords(records) {
       if (rec.profile) out.profile = rec.profile;
       return out;
     }
+    if (rec.t === "cog") {
+      return { name: rec.name, checked: rec.checked, t: "cog",
+                rasterId: rec.rasterId, box: rec.box, opacity: rec.opacity };
+    }
     /* rec.t === "imageOverlay" */
     return { name: rec.name, checked: rec.checked, t: "imageOverlay",
               box: rec.box, dataUrl: rec.dataUrl, opacity: rec.opacity };
@@ -1033,7 +1060,11 @@ function treeExportDoc(nodes) {
 }
 
 function exportNode(li) {
-  const nodes = serializeNode(li);
+  const { nodes, left } = withoutCogNodes(serializeNode(li));
+  if (left.length) {
+    navMessage(`Las ortofotos COG no se exportan (pueden ocupar gigas): se queda${left.length > 1 ? "n" : ""} `
+      + `fuera ${left.map(n => `\u00AB${n}\u00BB`).join(", ")}.`, { sticky: true, tone: "info" });
+  }
   if (!nodes.length) { navMessage("No hay nada que descargar en este nodo."); return; }
   const doc = treeExportDoc(nodes);
   const url = URL.createObjectURL(new Blob([JSON.stringify(doc)], { type: "application/json" }));
@@ -1045,6 +1076,20 @@ function exportNode(li) {
      revocarlo en el acto cancela la descarga. Se libera más tarde.  */
   setTimeout(() => URL.revokeObjectURL(url), 60000);
   navMessage(`Descargado \u00AB${a.download}\u00BB.`, { tone: "info" }); /* confirma lo pedido: notificación, no alerta */
+}
+
+/* Quita los nodos "cog" de unos registros serializados, a cualquier
+   profundidad, y dice cuáles eran. Un .kite.json o el portapapeles
+   del sistema llevan el árbol en texto: los bytes de una ortofoto
+   (cientos de MB) no caben ahí, y una referencia a un almacén de ESTE
+   navegador no sirve en otro. PURA.                                  */
+function withoutCogNodes(nodes) {
+  const left = [];
+  const strip = list => list.flatMap(n => {
+    if (n.t === "cog") { left.push(n.name); return []; }
+    return n.children ? [{ ...n, children: strip(n.children) }] : [n];
+  });
+  return { nodes: strip(nodes), left };
 }
 
 /* Recognizes an exported tree among the dropped .json files; anything
@@ -1070,7 +1115,7 @@ async function importTreeExport(doc, fileName, insertBefore, dropTargetUl = null
      un .kite.json exportado por una v6 se sube en silencio en vez de
      rechazarse.                                                      */
   if (doc.schema === 6) upgradeMeasuresV6(doc.nodes);
-  else if (doc.schema !== TREE_SCHEMA) {
+  else if (doc.schema !== TREE_SCHEMA && doc.schema !== 7) { /* v7 = v8 sin COG */
     throw new Error(`formato de \u00E1rbol v${doc.schema}, incompatible con el actual v${TREE_SCHEMA}`);
   }
   if (!doc.nodes.length) throw new Error("el archivo no contiene ning\u00FAn nodo");
@@ -1207,10 +1252,11 @@ function saveTree() {
 }
 
 /* ---------- Reconstrucción del árbol desde el almacenamiento ---------- */
+const LEAF_RECORD_TYPES = new Set(["layer", "measure", "elevGrid", "imageOverlay", "cog"]);
 function countLayers(nodes) {
   let n = 0;
   for (const x of nodes) {
-    if (x.t === "layer" || x.t === "measure" || x.t === "elevGrid" || x.t === "imageOverlay") n++;
+    if (LEAF_RECORD_TYPES.has(x.t)) n++;
     else n += countLayers(x.children || []);
   }
   return n;
@@ -1242,6 +1288,11 @@ async function buildRecordsFromStorage(nodes, prog) {
       out.push(buildElevGridRecord(n));
     } else if (n.t === "imageOverlay") {
       out.push(buildImageOverlayRecord(n));
+    } else if (n.t === "cog") {
+      /* Un registro ajeno (un .kite.json manipulado) que no pasa la
+         validación se descarta: no hay nada que dibujar con él.    */
+      const rec = buildCogRecord(n);
+      if (rec) out.push(rec);
     } else if (n.t === "layer") {
       const layer = L.geoJSON(n.geo, n.style ? { style: n.style } : undefined);
       clearFillOnOpenPaths(layer); /* una línea no se rellena, ver esa función */
@@ -1270,7 +1321,7 @@ async function buildRecordsFromStorage(nodes, prog) {
       const children = await buildRecordsFromStorage(n.children || [], prog);
       out.push({ t: n.t, name: n.name, checked: !!n.checked, collapsed: !!n.collapsed, children });
     }
-    if (prog && (n.t === "layer" || n.t === "measure" || n.t === "elevGrid" || n.t === "imageOverlay") && ++prog.done % PROGRESS_BATCH === 0) {
+    if (prog && LEAF_RECORD_TYPES.has(n.t) && ++prog.done % PROGRESS_BATCH === 0) {
       prog.update(prog.done);
       await yieldFrame();
     }
@@ -1363,6 +1414,11 @@ async function materializeRecords(records, parentUl) {
       const li = makeNode({ name: rec.name, layer: rec._layer, styleable: true, checked: !!rec.checked });
       rec._li = li;
       li._imageOverlay = { box: rec.box, dataUrl: rec.dataUrl, opacity: rec.opacity };
+      parentUl.appendChild(li);
+    } else if (rec.t === "cog") {
+      const li = makeNode({ name: rec.name, layer: rec._layer, styleable: true, checked: !!rec.checked });
+      rec._li = li;
+      li._cog = { rasterId: rec.rasterId, box: rec.box, opacity: rec.opacity };
       parentUl.appendChild(li);
     }
     if (++n % PROGRESS_BATCH === 0) await yieldFrame();

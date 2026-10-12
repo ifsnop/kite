@@ -860,7 +860,7 @@ function showLayerInfoAndBlink(li) { showLayerInfo(li); blinkLayer(li); }
 function editPropertiesAndBlink(li) { openStyleDialog(li); blinkLayer(li); }
 /* Mismo criterio que usa openStyleDialog para rechazar una capa sin
    estilos editables (carpetas, cuadrículas de elevación…).            */
-const STYLE_EDITABLE_KINDS = new Set(["marker", "polygon", "measure", "imageOverlay"]);
+const STYLE_EDITABLE_KINDS = new Set(["marker", "polygon", "measure", "imageOverlay", "cog"]);
 
 /* Ítems de UNA capa: ir al nodo, mostrar propiedades si tiene algo que
    enseñar (igual criterio que el botón ℹ de la fila), y editar

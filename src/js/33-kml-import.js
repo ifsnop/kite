@@ -570,6 +570,13 @@ async function handleDroppedFiles(files, insertBefore, dropTargetUl = null) {
           continue;
         }
       }
+      else if (ext === "tif" || ext === "tiff") {
+        /* Una ortofoto COG: no pasa por addFileNode (no es vectorial),
+           entra como un nodo propio con sus bytes en IndexedDB.      */
+        await addCogNode(file, insertBefore, dropTargetUl);
+        scheduleSave();
+        continue;
+      }
       else if (ext === "json" || ext === "geojson" || ext === "topojson") {
         content = await file.text();
         /* The JSON family is told apart by its shape, not its extension:
@@ -606,7 +613,8 @@ async function handleDroppedFiles(files, insertBefore, dropTargetUl = null) {
 /* Lo que se acepta, dicho igual en todos los avisos que lo enumeran
    (handleDroppedFiles y el diálogo de 🔗).                          */
 const IMPORT_FORMATS = "KML, KMZ (incl. ortofotos), JSON (GeoJSON), TopoJSON, "
-  + `shapefiles (.shp con su .dbf y .prj, o en un .zip) y carpetas exportadas (${EXPORT_EXT})`;
+  + "shapefiles (.shp con su .dbf y .prj, o en un .zip), ortofotos COG (.tif) "
+  + `y carpetas exportadas (${EXPORT_EXT})`;
 
 /* ¿Hay una carpeta bajo el puntero? Mismo test de "esto es un
    contenedor" que ya usan dropZone() (reordenar interno) y

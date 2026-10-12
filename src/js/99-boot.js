@@ -98,9 +98,13 @@
     if (st.on && src && src.ensure) src.ensure();
   }
 
-  let nodes = null;
-  try { nodes = await dbLoadTree(); } catch { nodes = null; }
+  let nodes = null, treeRead = false;
+  try { nodes = await dbLoadTree(); treeRead = true; } catch { nodes = null; }
   if (nodes && nodes.length) await restoreTree(nodes);
+  /* Ortofotos COG que ya no nombra nadie (borradas en otra sesión): solo
+     si el árbol se leyó de verdad; con un fallo de lectura, borrar
+     sería tirar las de un árbol que sigue ahí.                       */
+  if (treeRead) cleanOrphanRasters().catch(() => {});
   /* Hasta aquí el panel decía «Inicializando…». Ahora sí se sabe si no
      hay nada que enseñar. Se mira `rootUl`, no `nodes`: si el usuario
      ha soltado un archivo mientras se leía IndexedDB, ensureRootUl ya
