@@ -69,7 +69,7 @@ Justo debajo aparecen los avisos de la sesión (en el color normal del texto si 
 
 ### 2.2 Zona para soltar archivos
 
-Debajo del árbol hay una franja que indica qué se puede soltar ahí: archivos KML y KMZ (incluidas las ortofotos que traiga incrustadas), JSON, GeoJSON y TopoJSON, o una carpeta previamente exportada por la propia aplicación (extensión «.kite.json»). Arrastrar cualquiera de esos archivos desde el escritorio y soltarlo sobre el panel —o sobre una carpeta concreta del árbol, para importar dentro de ella— es la vía más directa de cargar información.
+Debajo del árbol hay una franja que indica qué se puede soltar ahí: archivos KML y KMZ (incluidas las ortofotos que traiga incrustadas), JSON, GeoJSON y TopoJSON, shapefiles (el .shp con sus piezas, o el .zip que las contiene), o una carpeta previamente exportada por la propia aplicación (extensión «.kite.json»). Arrastrar cualquiera de esos archivos desde el escritorio y soltarlo sobre el panel —o sobre una carpeta concreta del árbol, para importar dentro de ella— es la vía más directa de cargar información.
 
 ### 2.3 Buscador del árbol
 
@@ -270,13 +270,21 @@ Cuando una capa procede de un KML con una descripción, o de un GeoJSON con prop
 
 ### 7.1 Importar un archivo con un polígono (o cualquier otro formato admitido)
 
-La vía más directa es arrastrar el archivo desde el escritorio y soltarlo sobre el panel de navegación (o sobre una carpeta concreta, para que entre dentro de ella). KITE Local reconoce KML, KMZ, GeoJSON, TopoJSON y su propio formato de carpetas exportadas, mirando el contenido del archivo, no su extensión. Si el archivo contiene algún elemento con datos incorrectos, ese elemento se descarta de forma aislada y el resto se carga con normalidad; al terminar aparece siempre un resumen de lo cargado y lo omitido, con la causa.
+La vía más directa es arrastrar el archivo desde el escritorio y soltarlo sobre el panel de navegación (o sobre una carpeta concreta, para que entre dentro de ella). KITE Local reconoce KML, KMZ, GeoJSON, TopoJSON, shapefiles y su propio formato de carpetas exportadas, mirando el contenido del archivo, no su extensión. Si el archivo contiene algún elemento con datos incorrectos, ese elemento se descarta de forma aislada y el resto se carga con normalidad; al terminar aparece siempre un resumen de lo cargado y lo omitido, con la causa.
 
 **Nombre de los elementos de un GeoJSON.** Un GeoJSON no dice cómo se llama cada elemento: solo trae propiedades. Por eso, al abrir uno cuyas propiedades no se hayan visto antes, aparece el diálogo «Elegir nombre», sin asumir que ninguna propiedad (ni siquiera «name») sea el nombre. Se marcan una o varias propiedades; **el orden en que se marcan es el orden en que se unen, separadas por « / »** (cada casilla muestra su número, y debajo se ve el nombre que saldría para el primer elemento). Si a un elemento le falta una de las propiedades elegidas, o la tiene vacía, simplemente se omite; si le faltan todas, se llama «Elemento N». Aceptar exige marcar al menos una. **Cancelar el diálogo cancela la carga de ese archivo**: no entra nada en el árbol y el aviso lo dice.
 
 La elección se recuerda para los archivos con la misma estructura de propiedades: la próxima vez se aplica sin preguntar y el registro de avisos (📋) deja constancia de que se usó una selección guardada. Para cambiarla, 🏷️ Propiedades → «Índices de GeoJSON».
 
-Cuando no se tiene el archivo en el disco pero sí su dirección web, el botón 🔗 de la cabecera ofrece el mismo resultado en dos pasos: se escribe o se pega la dirección y se pulsa «Descargar»; solo cuando la aplicación confirma qué ha llegado (tipo y tamaño) se activa «Añadir al árbol» para incorporarlo. Mientras no se pulse ese botón, nada llega al mapa.
+**Shapefiles.** Un shapefile no es un archivo sino varios con el mismo nombre: el `.shp` (las geometrías), el `.dbf` (los atributos), el `.prj` (el sistema de coordenadas) y, a veces, el `.cpg` (la codificación de los textos) y el `.shx`. Hay que **soltarlos todos a la vez** —se seleccionan juntos en el explorador de archivos y se arrastran— o soltar el `.zip` que los contiene; un `.zip` con varias capas da una carpeta por capa. Si llega una pieza sin su `.shp`, el aviso lo dice. Cada shapefile se trata como un GeoJSON: el nombre de los elementos se elige igual (diálogo «Elegir nombre», con los campos del `.dbf`), y valen las mismas preguntas sobre etiquetas HTML y duplicados.
+
+- **Sistema de coordenadas.** Lo más habitual en España es ETRS89 UTM (por ejemplo, EPSG:25830, huso 30): KITE Local lee el `.prj` y lo pasa a coordenadas geográficas. Si un shapefile llega **sin `.prj`**, solo se acepta si sus coordenadas ya son grados (y el resumen dice que se ha supuesto WGS84); si son metros, se rechaza, porque no hay forma de saber dónde colocarlo.
+- **ED50.** La cartografía antigua en ED50 se transforma con los parámetros estándar de la España peninsular; la precisión es de unos metros y el resumen lo advierte. Un datum que no se sabe transformar se dibuja, pero el resumen avisa de que puede estar desplazado decenas o cientos de metros.
+- **Textos con tildes.** Se usa la codificación que indique el `.cpg`; si no lo hay, se detecta si el `.dbf` está en UTF-8 y, si no, se lee como Windows-1252.
+- **Lo que no se conserva.** La altura (Z) de los shapefiles 3D no se importa: solo la posición. Un shapefile sin `.dbf` entra sin atributos (sus elementos se llaman «Elemento N»).
+- **Límites.** Hasta 300 MB entre `.shp` y `.dbf`, y hasta 100 000 elementos por shapefile; lo que pase de ahí se omite y se cuenta en el resumen.
+
+Cuando no se tiene el archivo en el disco pero sí su dirección web, el botón 🔗 de la cabecera ofrece el mismo resultado en dos pasos: se escribe o se pega la dirección y se pulsa «Descargar» (vale también un shapefile, en un `.zip`); solo cuando la aplicación confirma qué ha llegado (tipo y tamaño) se activa «Añadir al árbol» para incorporarlo. Mientras no se pulse ese botón, nada llega al mapa.
 
 ![Diálogo de añadir desde una dirección, tras descargar un archivo con éxito](img/17-anadir-url.png)
 *Figura 19. Tras descargar «remoto.kml», el diálogo confirma el tipo y el tamaño y habilita «Añadir al árbol».*

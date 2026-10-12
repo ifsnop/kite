@@ -265,8 +265,7 @@ async function runUrlFetch() {
     }
     if (!kind) {
       setUrlState("error", `No se reconoce el contenido descargado (${fmtBytes(bytes.length)}). `
-        + "Formatos admitidos: KML, KMZ, JSON (GeoJSON), TopoJSON y carpetas "
-        + `exportadas (${EXPORT_EXT}).`, true);
+        + `Formatos admitidos: ${IMPORT_FORMATS}.`, true);
       return;
     }
     const name = downloadFileName(url, kind);

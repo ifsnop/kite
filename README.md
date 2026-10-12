@@ -6,7 +6,7 @@
 
 **KML Interactive Tree Explorer**
 
-A privacy-first, browser-based viewer and organizer for **KML, KMZ and GeoJSON** files. It preserves nested KML folder structures as an interactive layer tree, runs from one self-contained HTML file, and keeps imported data inside the user's browser.
+A privacy-first, browser-based viewer and organizer for **KML, KMZ, GeoJSON and shapefile** files. It preserves nested KML folder structures as an interactive layer tree, runs from one self-contained HTML file, and keeps imported data inside the user's browser.
 
 ### ▶ [Try the live demo](https://ifsnop.github.io/kite/)
 
@@ -64,6 +64,13 @@ KITE Local does not impose fixed limits on KML file size, imported features or v
 - KML files, preserving nested `Document` and `Folder` structures
 - KMZ archives, including the images referenced by their ground overlays
 - GeoJSON, TopoJSON and plain JSON
+- Shapefiles: drop the `.shp` together with its `.dbf`, `.prj` and `.cpg`,
+  or the `.zip` that holds them (one folder per layer). Coordinates are
+  reprojected from the `.prj` with proj4 (ETRS89 UTM, the usual case in
+  Spain; ED50 with the standard peninsular parameters, flagged in the
+  summary). Without a `.prj`, only coordinates already in degrees are
+  accepted. Text encoding comes from the `.cpg`, or is detected (UTF-8,
+  else Windows-1252). Z values are not imported
 - KITE Local folder exports (`.kite.json`)
 - drag-and-drop import; dropping onto a folder imports inside it
 - tolerant XML parsing: a namespace prefix that a file uses but never
@@ -108,7 +115,7 @@ KITE Local does not impose fixed limits on KML file size, imported features or v
 
 ### Loading
 
-- drag KML, KMZ, GeoJSON, TopoJSON and exported `.kite.json` folders onto
+- drag KML, KMZ, GeoJSON, TopoJSON, shapefiles and exported `.kite.json` folders onto
   the panel, or drop them straight into a folder
 - **open a URL**: paste an address, download it, see what actually
   arrived — the format is recognised from the content, not the
@@ -279,8 +286,8 @@ Imported KML/KMZ/GeoJSON content is parsed locally and is **not uploaded to an a
 The current build is not fully offline and makes external requests:
 
 - Leaflet CSS, JavaScript and default marker images, topojson-client,
-  html2canvas and geotiff.js are loaded from `unpkg.com`;
-- JSZip is loaded from `cdnjs.cloudflare.com`;
+  html2canvas, geotiff.js and shapefile are loaded from `unpkg.com`;
+- JSZip and proj4js are loaded from `cdnjs.cloudflare.com`;
 - place searches are sent to the public Nominatim service;
 - base-map tiles and WMS images are requested from their respective providers;
 - elevation queries and route profiles are requested from the chosen WCS
@@ -502,6 +509,8 @@ This application currently uses or accesses:
 - [topojson-client](https://github.com/topojson/topojson-client)
 - [html2canvas](https://html2canvas.hertzen.com/)
 - [geotiff.js](https://geotiffjs.github.io/) (MIT) — reads elevation grids from services that only offer GeoTIFF
+- [shapefile](https://github.com/mbostock/shapefile) (BSD-3-Clause) — reads `.shp` and `.dbf` into GeoJSON
+- [proj4js](https://proj4js.org/) (MIT) — reprojects shapefile coordinates from their `.prj`
 - [leaflet-rotate](https://github.com/Raruto/leaflet-rotate) (GPL-3.0) — incorporated into the source (see License); not requested at runtime
 - [Material Design Icons](https://pictogrammers.com/library/mdi/) (Pictogrammers, Apache-2.0) — embedded at build time through [Iconify](https://iconify.design/); not requested at runtime
 - [OpenStreetMap](https://www.openstreetmap.org/)

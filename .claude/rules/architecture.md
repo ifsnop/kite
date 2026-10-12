@@ -17,6 +17,11 @@ paths:
 2. **Parseo KML**: estilos (`aabbggrr`→color+opacidad, `StyleMap` par
    *normal*), `<visibility>`, `<open>`, geometrías (MultiGeometry,
    polígonos con agujeros). GeoJSON con estilos simplestyle.
+2b. **Shapefile** (`34-shp-import.js`, detrás de la importación KML):
+    agrupa las piezas soltadas (`groupShapefileParts`), lee con la
+    librería `shapefile`, reproyecta con proj4 desde el `.prj` y entrega
+    un FeatureCollection a `addFileNode` (que acepta el objeto, no solo
+    texto). Ver `import-parsing.md`.
 3. **Árbol de navegación**: `makeNode(...)` es la fábrica ÚNICA de
    filas (caret, checkbox, color, etiqueta, acciones). Toda fila nueva
    se crea con ella. Utilidades: `nodeUl`, `deleteNode`,

@@ -268,6 +268,16 @@ TOPOJSON TESTS OK
 
 **Qué cubre:** `topologyToGeoJson`: une los objetos con nombre de una topología en un único `FeatureCollection` (la conversión de arcos la prueba topojson-client, no nosotros).
 
+### `shptest.js`
+
+**Salida de `npm test`:**
+```
+── Shapefile: agrupar piezas, codificación del .dbf, sin .prj, datum ED50 y reproyección en su sitio
+SHP TESTS OK
+```
+
+**Qué cubre:** Lo puro de importar un shapefile (`34-shp-import.js`), que llega en varias piezas: `groupShapefileParts` reparte lo soltado en orden de llegada —cada shapefile en el sitio de su `.shp`, piezas juntadas aunque cambien las mayúsculas, una pieza sin su `.shp` como huérfana con aviso, un `.shx` suelto sin aviso, y dentro de un zip la carpeta separa dos capas del mismo nombre—; `cpgEncoding` (UTF-8, 1252, «ANSI 1252», 88591, 65001, una etiqueta que ya entiende `TextDecoder`, y null para lo que no reconoce); `guessDbfEncoding` sin `.cpg` (UTF-8 válido o Windows-1252); `bboxLooksGeographic`, que decide si sin `.prj` las coordenadas pueden ser grados; `prjDatumFix`, que a un ED50 sin parámetros le pone los estándar DENTRO de su `DATUM` y respeta un `TOWGS84` propio o un ETRS89; `reprojectGeometry` en su sitio (polígono con agujero, punto, colección, y NaN para lo que no se proyecta); y las fechas del `.dbf` pasadas a texto. La lectura y la proyección de verdad van por CDN: las prueba `browser/shp-import.mjs`.
+
 ### `groundoverlaytest.js`
 
 **Salida de `npm test`:**
@@ -464,11 +474,11 @@ TRI-STATE CHECKBOX TESTS OK
 
 **Salida de `npm test`:**
 ```
-── Reconocer lo descargado de una URL: nombre, tipo por contenido y extensión sintetizada
+── Reconocer lo descargado de una URL: nombre, tipo por contenido (KMZ o shapefile en zip) y extensión sintetizada
 URL IMPORT TESTS OK
 ```
 
-**Qué cubre:** Las funciones puras que reconocen lo descargado de una dirección: `fileNameFromUrl` (consulta y fragmento fuera, `%20` decodificado, la raíz cae en el host, saneado de lo que no puede ir en un nombre), `isZipSignature`, `sniffTextKind` (KML con y sin prefijo de namespace y con BOM, HTML —el diagnóstico de quien pega la página en vez del «Raw»—, GPX y JSON truncado que no cuelan, y los tres tipos JSON por su FORMA) y `downloadFileName`, con el invariante de que la extensión resultante siempre cae en una rama viva de `handleDroppedFiles`: sin él, lo descargado se rechazaría a sí mismo. Y que `URL_KIND_EXT` y `URL_KIND_LABEL` cubran los mismos tipos.
+**Qué cubre:** Las funciones puras que reconocen lo descargado de una dirección: `fileNameFromUrl` (consulta y fragmento fuera, `%20` decodificado, la raíz cae en el host, saneado de lo que no puede ir en un nombre), `isZipSignature`, `zipEntryNames` (los nombres del directorio central de un zip sin descomprimirlo, también con comentario al final, y lista vacía —no una excepción— para un zip truncado), `sniffContentKind` (un zip con `.shp` y sin `.kml` es un shapefile; con `.kml` o sin ninguno de los dos, KMZ), `sniffTextKind` (KML con y sin prefijo de namespace y con BOM, HTML —el diagnóstico de quien pega la página en vez del «Raw»—, GPX y JSON truncado que no cuelan, y los tres tipos JSON por su FORMA) y `downloadFileName`, con el invariante de que la extensión resultante siempre cae en una rama viva de `handleDroppedFiles`: sin él, lo descargado se rechazaría a sí mismo. Y que `URL_KIND_EXT` y `URL_KIND_LABEL` cubran los mismos tipos.
 
 ### `multiedit.js`
 
@@ -744,6 +754,16 @@ BROWSER URL IMPORT TESTS OK
 ```
 
 **Qué cubre:** Añadir contenido desde una dirección, de punta a punta: que el paso 1 diga qué ha llegado SIN tocar el árbol y que solo «Añadir al árbol» lo toque, colgando todo de una sección «Descargas» que se REUTILIZA —como «Lugares» o «Elevaciones»— con una «Descarga N» numerada por descarga dentro; que con el resultado en la mano «Descargar» quede deshabilitado y que tocar la dirección lo reactive invalidando el resultado; una URL sin extensión reconocida por su contenido; KMZ por la firma del zip; página HTML con la pista del enlace «Raw»; 404; tope de tamaño por `content-length`; y CANCELAR UNA DESCARGA EN VUELO con el botón, que durante la descarga pasa a «Cancelar descarga» —sin esperar al tope de 20 s—, dejando el diálogo abierto y la dirección puesta para reintentar. La suite sirve los ejemplos desde el MISMO origen que la aplicación, porque con `connect-src 'self' https:` otro puerto lo bloquearía la política y no el servidor.
+
+### `browser/shp-import.mjs`
+
+**Salida de `npm test`:**
+```
+── Navegador: shapefiles — piezas sueltas, .zip y 🔗, EPSG:25830 en su sitio, codificación, ED50 y huérfanos
+BROWSER SHP IMPORT TESTS OK
+```
+
+**Qué cubre:** Importar shapefiles de punta a punta, con la librería `shapefile` y proj4 de verdad. La suite fabrica sus `.shp` y `.dbf` byte a byte con coordenadas UTM 30N calculadas por `latLngToUtm` de la propia aplicación, así que sabe dónde debe caer cada cosa: piezas sueltas en desorden y con mayúsculas dan un nodo, y la Puerta del Sol en EPSG:25830 cae a menos de 0,5 m; el `.cpg` UTF-8 se respeta y sin `.cpg` un `.dbf` en Latin-1 se lee bien; polilínea y polígono con agujero; sin `.dbf` entra y el resumen lo dice; una pieza sin su `.shp` se avisa; sin `.prj` y en metros se rechaza sin dejar nada a medias; las mismas cifras con un `.prj` ED50 se desplazan lo que toca (100–200 m) y el resumen lo dice; un `.zip` con dos shapefiles da dos nodos e ignora `__MACOSX`; y por 🔗 el diálogo reconoce el zip como «shapefile comprimido» y lo añade en «Descargas › Descarga N». Sirve el zip desde el mismo origen que la aplicación, por la CSP.
 
 ### `browser/oneworld.mjs`
 

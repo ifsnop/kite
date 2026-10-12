@@ -185,6 +185,10 @@ const GLOBALS = new Set([
      mismo que el resto: depender de una API del navegador tiene que ser
      una decisión, no un descuido.                                      */
   "URL", "decodeURIComponent", "TextDecoder", "File", "Uint8Array",
+  /* `DataView`: leer el directorio central de un zip descargado sin
+     descomprimirlo (zipEntryNames). `proj4`: la librería de
+     reproyección, que se llama como función (shpProjection).        */
+  "DataView", "proj4",
   /* `ResizeObserver`: la gráfica del perfil de una ruta se redibuja al
      tamaño de su ventana redimensionable (63-route-profile.js). En
      todos los navegadores objetivo desde 2020.                       */

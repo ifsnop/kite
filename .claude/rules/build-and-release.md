@@ -15,7 +15,7 @@ paths:
 src/index.html     plantilla: <head>, CSP, diálogos, <script> de CDN.
                    Dos marcadores: {{STYLES}} y {{SCRIPTS}}
 src/styles.css     todo el CSS
-src/js/*.js        24 archivos, en el orden del manifiesto de build.js
+src/js/*.js        25 archivos, en el orden del manifiesto de build.js
                    (el primero, 05-mdi-icons.js, es GENERADO)
 build.js           concatena src/ → kitelocal.html, y minifica ese
                    resultado → kitelocal.min.html
@@ -67,7 +67,7 @@ index.html         redirección de la raíz del sitio al minificado
 
 ## Dependencias externas
 
-- Leaflet 1.9.4 (CSS+JS, unpkg), JSZip 3.10.1 (cdnjs), topojson-client 3.1.0, html2canvas 1.4.1 y geotiff.js 2.1.3 (unpkg, `dist-browser/geotiff.js`: un solo archivo, sin trozos cargados aparte que el SRI no cubriría) llevan `integrity` (SRI) + `crossorigin`: el navegador verifica el hash antes de ejecutar, un CDN comprometido no puede colar otro contenido.
+- Leaflet 1.9.4 (CSS+JS, unpkg), JSZip 3.10.1 (cdnjs), topojson-client 3.1.0, html2canvas 1.4.1, geotiff.js 2.1.3 (unpkg, `dist-browser/geotiff.js`: un solo archivo, sin trozos cargados aparte que el SRI no cubriría), shapefile 0.6.6 (unpkg, `dist/shapefile.min.js`, UMD autocontenido) y proj4js 2.22.0 (cdnjs, `proj4.js`, un solo archivo con el lector de WKT dentro) llevan `integrity` (SRI) + `crossorigin`: el navegador verifica el hash antes de ejecutar, un CDN comprometido no puede colar otro contenido.
 - **Al subir versión de librería, sustituir su hash** o el navegador bloquea el arranque. Se obtiene de la doc de Leaflet, el botón de copiar de cdnjs, o `curl -sL <url> | openssl dgst -sha384 -binary | openssl base64 -A`.
 - El script empieza comprobando que `L` (Leaflet) existe, con aviso explicativo si no — este guardián va **lo primero del script**, antes de cualquier uso de `L`.
 - Sin SRI: teselas/iconos PNG (`<img>` no lo admite) y respuestas de APIs REST y WCS (Iconify, Nominatim, IGN, Digital Earth Africa) — son datos, no código.

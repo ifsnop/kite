@@ -32,7 +32,7 @@ nuevo, no que la regla no exista.
 |---|---|---|
 | `00-principles.md` | Principios no negociables, vocabulario, pendientes, checklist | **siempre** |
 | `architecture.md` | Orden y dependencias del manifiesto de `src/js` | `src/js/**`, `build.js` |
-| `import-parsing.md` | Parseo KML/KMZ/GeoJSON, namespaces, estilos, tolerancias, duplicados | `20-kml-geom.js`, `32-geojson.js`, `33-kml-import.js` |
+| `import-parsing.md` | Parseo KML/KMZ/GeoJSON y shapefile (piezas, `.prj`, ED50, codificación), namespaces, estilos, tolerancias, duplicados | `20-kml-geom.js`, `32-geojson.js`, `33-kml-import.js`, `34-shp-import.js` |
 | `build-and-release.md` | `build.js`, minificado, SRI, versión y proceso de release | `build.js`, `package.json`, `src/index.html`, `scripts/hooks/**`, `fetch-icons.js`, `.github/workflows/**` |
 | `tree-navigation-selection.md` | Árbol: visibilidad, checkbox de tres estados, teclado, selección, exportar/importar carpetas, arrastrar y soltar, deshacer/rehacer | `30-tree-walk.js`, `31-tree-node.js`, `40-panel-actions.js`, `41-selection.js`, `70-view-controls.js` |
 | `multi-edit-clipboard.md` | Editar varios nodos a la vez, portapapeles interno y del sistema | `44-dialogs.js`, `41-selection.js`, `40-panel-actions.js` |

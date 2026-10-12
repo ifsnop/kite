@@ -36,14 +36,14 @@
   object-src 'none'">
 <!-- Social sharing metadata (Open Graph + Twitter cards): shown as
      name + short description when the page link is shared -->
-<meta name="description" content="KITE Local (KML Interactive Tree Explorer): visor web de archivos KML, KMZ y GeoJSON sobre Leaflet: &#225;rbol de capas, mediciones geod&#233;sicas de distancia y rumbo, y estilos personalizables de marcadores y pol&#237;gonos. Un &#250;nico archivo HTML, sin instalaci&#243;n.">
+<meta name="description" content="KITE Local (KML Interactive Tree Explorer): visor web de archivos KML, KMZ, GeoJSON y shapefile sobre Leaflet: &#225;rbol de capas, mediciones geod&#233;sicas de distancia y rumbo, y estilos personalizables de marcadores y pol&#237;gonos. Un &#250;nico archivo HTML, sin instalaci&#243;n.">
 <meta property="og:type" content="website">
 <meta property="og:site_name" content="KITE Local">
 <meta property="og:title" content="KITE Local &#8212; KML Interactive Tree Explorer">
-<meta property="og:description" content="Carga archivos KML, KMZ y GeoJSON, organiza las capas en un &#225;rbol, mide distancias y rumbos geod&#233;sicos y personaliza marcadores y pol&#237;gonos. Funciona directamente en el navegador.">
+<meta property="og:description" content="Carga archivos KML, KMZ, GeoJSON y shapefile, organiza las capas en un &#225;rbol, mide distancias y rumbos geod&#233;sicos y personaliza marcadores y pol&#237;gonos. Funciona directamente en el navegador.">
 <meta name="twitter:card" content="summary_large_image">
 <meta name="twitter:title" content="KITE Local &#8212; KML Interactive Tree Explorer">
-<meta name="twitter:description" content="KITE Local: visor de KML/KMZ/GeoJSON con &#225;rbol de capas, mediciones geod&#233;sicas y estilos personalizables. Un &#250;nico archivo HTML.">
+<meta name="twitter:description" content="KITE Local: visor de KML/KMZ/GeoJSON/SHP con &#225;rbol de capas, mediciones geod&#233;sicas y estilos personalizables. Un &#250;nico archivo HTML.">
 <!-- The preview image MUST be an absolute URL and a raster format: no
      social scraper renders SVG, and none resolves a relative path (they
      fetch the image from their own servers, not from this page). It is
@@ -117,7 +117,7 @@
     </div>
   </header>
   <div id="tree" role="tree" aria-label="Árbol de capas" tabindex="0"></div>
-  <div id="dropzone">Arrastre aquí sus archivos KML/KMZ (incl. ortofotos), JSON/TopoJSON o carpetas exportadas (.kite.json)</div>
+  <div id="dropzone">Arrastre aquí sus archivos KML/KMZ (incl. ortofotos), JSON/TopoJSON, shapefiles (.shp con su .dbf y .prj, o en .zip) o carpetas exportadas (.kite.json)</div>
   <footer id="nav-search">
     <div class="nav-actions">
       <input type="text" id="search-box" placeholder="Buscar capas y carpetas&#8230;">
@@ -625,8 +625,8 @@
 <div id="url-dialog" class="dlg-overlay" hidden>
   <div class="dlg-box">
     <h2>A&#241;adir desde una direcci&#243;n</h2>
-    <p class="dlg-hint">Direcci&#243;n de un archivo KML, KMZ, JSON/GeoJSON, TopoJSON o de una
-      carpeta exportada (.kite.json). Se descarga primero y se a&#241;ade despu&#233;s, cuando
+    <p class="dlg-hint">Direcci&#243;n de un archivo KML, KMZ, JSON/GeoJSON, TopoJSON, de un
+      shapefile comprimido (.zip) o de una carpeta exportada (.kite.json). Se descarga primero y se a&#241;ade despu&#233;s, cuando
       vea qu&#233; ha llegado.</p>
     <!-- Un <textarea> y no un <input>: una dirección de descarga pasa de
          mil caracteres con facilidad (tokens de firma, parámetros de
@@ -719,6 +719,17 @@
      un solo archivo (sin trozos cargados aparte que el SRI no cubriría). -->
 <script src="https://unpkg.com/geotiff@2.1.3/dist-browser/geotiff.js"
         integrity="sha384-m5adk5PRgt3JjiYbYoG8oXxc3EgRFKc1aCBgKzyxqxnbYpdiAMlHkR0gVDp03Q/H"
+        crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+<!-- proj4js: reproyección de lo que no llega en WGS84 (el .prj de un
+     shapefile, casi siempre ETRS89 UTM). Un solo archivo, con el lector
+     de WKT dentro. -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/proj4js/2.22.0/proj4.js"
+        integrity="sha384-RCBbAm8IhfOOoFV7vqUhspSb+BCSvVSd84WJpv5VMq4rNiXJ88VMHtndxQntlbnd"
+        crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+<!-- shapefile (Mike Bostock): lee .shp y .dbf a GeoJSON. El .zip lo abre
+     JSZip y la proyección la pone proj4. -->
+<script src="https://unpkg.com/shapefile@0.6.6/dist/shapefile.min.js"
+        integrity="sha384-wRExQJZJ+OCxQWFRVHN+cFoS9UzH9snH/Gsx1sudJO/VJSah7wT04YcyWZKgQf8X"
         crossorigin="anonymous" referrerpolicy="no-referrer"></script>
 <script>
 {{SCRIPTS}}
