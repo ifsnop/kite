@@ -280,6 +280,34 @@ ok(await p2.evaluate(() => new Promise(r => {
 })), "y la base queda en v4 con su almacén «rasters»");
 await ctx2.close();
 
+/* ---------- 10. UTM de cualquier huso, norte y sur (EPSG:32636 era el que se rechazaba) ---------- */
+/* Primero, dos valores que no dependen de ninguna otra tabla: en el meridiano
+   central de un huso el este es 500 000 m, y el hemisferio sur parte de un
+   falso norte de 10 000 km (si faltara +south, el sur saldría en el norte). */
+const base0 = await page.evaluate(() => ({
+  n: proj4(cogCrsDef(32636)).forward([33, 0]), s: proj4(cogCrsDef(32736)).forward([33, 0]),
+  nLat: proj4(cogCrsDef(32636)).inverse([500000, 3320000])[1],
+  sLat: proj4(cogCrsDef(32736)).inverse([500000, 6680000])[1]
+}));
+ok(Math.abs(base0.n[0] - 500000) < 1e-6 && Math.abs(base0.n[1]) < 1e-6, "36N: lon 33°, lat 0° → 500000 E, 0 N: " + base0.n);
+ok(Math.abs(base0.s[0] - 500000) < 1e-6 && Math.abs(base0.s[1] - 1e7) < 1e-6, "36S: lat 0° → falso norte de 10 000 000 m: " + base0.s);
+ok(base0.nLat > 29.9 && base0.nLat < 30.1 && base0.sLat < -29.9 && base0.sLat > -30.1,
+  `los husos norte y sur se invierten a ±30°: ${base0.nLat} / ${base0.sLat}`);
+for (const [epsg, lat] of [[32636, 30.0], [32736, -30.0]]) {
+  const lon = 33.5;
+  const geo = await page.evaluate(([e, la, lo]) => {
+    const [x, y] = proj4(cogCrsDef(e)).forward([lo, la]);
+    return { model: 1, epsg: e, ox: x - 256, oy: y + 256, px: 1 };
+  }, [epsg, lat, lon]);
+  const nombre = `utm${epsg}.tif`;
+  await soltar(nombre, cogOf(geo));
+  const caja = await page.evaluate(`(() => { const li = ${liDe(nombre)}; if (!li) return null;
+    const b = nodeLayer(li).getBounds(); return { c: b.getCenter(), w: b.getEast() - b.getWest() }; })()`);
+  ok(caja && Math.abs(caja.c.lat - lat) < 0.001 && Math.abs(caja.c.lng - lon) < 0.001 && caja.w > 0.004 && caja.w < 0.006,
+    `EPSG:${epsg} se admite y cae en su sitio (centro ${caja && caja.c.lat},${caja && caja.c.lng}): ` + JSON.stringify(caja));
+}
+ok(!errors.length, "sin errores de página con los husos nuevos: " + errors.join(" | "));
+
 await browser.close();
 srv.close(); srv2.close();
 done();

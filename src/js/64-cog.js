@@ -38,24 +38,34 @@ const COG_CONCURRENCY = 4;
 /* Margen de la cuota del navegador que no se apura al copiar */
 const COG_QUOTA_MARGIN = 0.95;
 
-/* Sistemas admitidos: los de la cartografía española y su vecindad.
-   proj4 solo trae de serie 4326 y 3857; el resto se define aquí, y lo
-   que no esté se rechaza nombrándolo (no se supone nada).          */
+/* Sistemas admitidos. proj4 solo trae de serie 4326 y 3857; el resto se
+   define aquí, y lo que no esté se rechaza nombrándolo (no se supone
+   nada). Solo entran familias que el código EPSG determina POR
+   COMPLETO: UTM de WGS84 (todo el mundo, p. ej. Sentinel-2) y de ETRS89
+   (Europa), más los de la cartografía española. ED50 se queda en los
+   husos peninsulares: sus parámetros de transformación (ED50_TOWGS84)
+   solo valen en España, y en otro huso darían un desplazamiento sin
+   aviso.                                                            */
 function cogCrsDef(epsg) {
   if (epsg === 4326) return "+proj=longlat +datum=WGS84 +no_defs";
   if (epsg === 4258) return "+proj=longlat +ellps=GRS80 +towgs84=0,0,0,0,0,0,0 +no_defs";
   if (epsg === 3857) return "EPSG:3857";
   const utm = (zone, datum) => `+proj=utm +zone=${zone} ${datum} +units=m +no_defs`;
-  if (epsg >= 25828 && epsg <= 25831) return utm(epsg - 25800, "+ellps=GRS80 +towgs84=0,0,0,0,0,0,0");
-  if (epsg >= 32628 && epsg <= 32631) return utm(epsg - 32600, "+datum=WGS84");
+  /* ETRS89 / UTM 28N–38N */
+  if (epsg >= 25828 && epsg <= 25838) return utm(epsg - 25800, "+ellps=GRS80 +towgs84=0,0,0,0,0,0,0");
+  /* WGS84 / UTM norte (326zz) y sur (327zz): el hemisferio sur lleva
+     falso norte de 10 000 km, que proj4 solo aplica con +south       */
+  if (epsg >= 32601 && epsg <= 32660) return utm(epsg - 32600, "+datum=WGS84");
+  if (epsg >= 32701 && epsg <= 32760) return utm(epsg - 32700, "+datum=WGS84 +south");
   /* ED50, con los parámetros peninsulares (ver ED50_TOWGS84) */
   if (epsg >= 23028 && epsg <= 23031) return utm(epsg - 23000, `+ellps=intl +towgs84=${ED50_TOWGS84}`);
   /* REGCAN95 / UTM 27N y 28N: el PNOA de Canarias */
   if (epsg === 4082 || epsg === 4083) return utm(epsg - 4055, "+ellps=GRS80 +towgs84=0,0,0,0,0,0,0");
   return null;
 }
-const COG_CRS_LIST = "WGS84 (4326), ETRS89 (4258), Web Mercator (3857), ETRS89 UTM 28–31 "
-  + "(25828–25831), WGS84 UTM 28–31, ED50 UTM 28–31 y REGCAN95 UTM 27–28";
+const COG_CRS_LIST = "WGS84 (4326), ETRS89 (4258), Web Mercator (3857), ETRS89 UTM 28–38 "
+  + "(25828–25838), WGS84 UTM norte y sur (32601–32660, 32701–32760), ED50 UTM 28–31 "
+  + "y REGCAN95 UTM 27–28";
 
 /* El EPSG de las GeoKeys de la imagen: el proyectado si lo hay, si no
    el geográfico. 32767 es «definido por el usuario»: sin código no hay

@@ -22,7 +22,16 @@ ok(/\+zone=30 .*GRS80/.test(cogCrsDef(25830)), "ETRS89 UTM 30N: " + cogCrsDef(25
 ok(/\+zone=28 /.test(cogCrsDef(4083)), "REGCAN95 UTM 28N (Canarias): " + cogCrsDef(4083));
 ok(/\+zone=31 .*towgs84=-87,-98,-121/.test(cogCrsDef(23031)), "ED50 con los parámetros peninsulares");
 ok(cogCrsDef(3857) === "EPSG:3857" && /longlat/.test(cogCrsDef(4326)), "Web Mercator y WGS84");
-ok(cogCrsDef(2062) === null && cogCrsDef(25832) === null, "lo que no está en la tabla da null (y se rechaza nombrándolo)");
+ok(/\+zone=36 \+datum=WGS84 \+units=m/.test(cogCrsDef(32636)) && !/south/.test(cogCrsDef(32636)),
+  "WGS84 UTM 36N (Sentinel-2 sobre Oriente Próximo): " + cogCrsDef(32636));
+ok(/\+zone=36 .*\+south/.test(cogCrsDef(32736)), "y el hemisferio sur lleva +south: " + cogCrsDef(32736));
+ok(/\+zone=1 /.test(cogCrsDef(32601)) && /\+zone=60 /.test(cogCrsDef(32660)) && /\+zone=60 .*south/.test(cogCrsDef(32760)),
+  "los extremos de las dos familias WGS84 (1–60)");
+ok(/\+zone=32 .*GRS80/.test(cogCrsDef(25832)) && /\+zone=38 /.test(cogCrsDef(25838)), "ETRS89 UTM 32–38 (Europa central y oriental)");
+ok(cogCrsDef(32600) === null && cogCrsDef(32661) === null && cogCrsDef(32700) === null && cogCrsDef(32761) === null
+  && cogCrsDef(25839) === null && cogCrsDef(25827) === null, "fuera de los husos 1–60 y 28–38 no hay sistema");
+ok(cogCrsDef(23032) === null, "ED50 fuera de los husos peninsulares no se admite: sus parámetros solo valen en España");
+ok(cogCrsDef(2062) === null, "lo que no está en la tabla da null (y se rechaza nombrándolo)");
 
 ok(cogEpsg({ GTModelTypeGeoKey: 1, ProjectedCSTypeGeoKey: 25830 }) === 25830, "el proyectado manda");
 ok(cogEpsg({ GTModelTypeGeoKey: 2, GeographicTypeGeoKey: 4258 }) === 4258, "si no hay proyectado, el geográfico");

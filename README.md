@@ -76,8 +76,8 @@ KITE Local does not impose fixed limits on KML file size, imported features or v
   IndexedDB store so they survive a reload. Drawn by a custom
   `L.GridLayer` that reads only the window and overview level each tile
   needs (geotiff.js `fromBlob`), reprojected per tile through a 16×16
-  proj4 grid (ETRS89/WGS84/ED50 UTM 28–31, REGCAN95, WGS84, ETRS89, Web
-  Mercator). Not included in `.kite.json` exports or the system
+  proj4 grid (WGS84 UTM any zone north or south, ETRS89 UTM 28–38, ED50 UTM
+  28–31, REGCAN95, WGS84, ETRS89, Web Mercator). Not included in `.kite.json` exports or the system
   clipboard; a deleted one is purged from storage on the next start
 - KITE Local folder exports (`.kite.json`)
 - drag-and-drop import; dropping onto a folder imports inside it
