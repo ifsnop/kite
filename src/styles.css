@@ -7,7 +7,7 @@
     --accent: #2f6f4f;
     --accent-soft: #e7f0ea;
     --danger: #b04a3a;
-    --nav-width: 320px;
+    --nav-width: 400px;
   }
   * { box-sizing: border-box; }
   html, body { height: 100%; margin: 0; }
@@ -54,7 +54,11 @@
     color: var(--accent);
     background: var(--accent-soft);
   }
-  .nav-actions { display: flex; gap: 6px; margin-bottom: 6px; }
+  /* flex-wrap: red de seguridad si el panel se estrecha por debajo de lo
+     que necesitan "Activar todo"/"Desactivar todo"/"Colapsar todo" en
+     una sola fila — pasan a dos filas en vez de recortarse contra el
+     overflow:hidden de #nav-panel.                                    */
+  .nav-actions { display: flex; gap: 6px; margin-bottom: 6px; flex-wrap: wrap; }
   .nav-actions input[type="text"] {
     flex: 1;
     min-width: 0;
@@ -237,6 +241,32 @@
   .node-row.drop-after  { box-shadow: inset 0 -2px 0 var(--accent); }
   .node-row.drop-into   { background: var(--accent-soft); }
 
+  /* El nombre "respira" mientras dura una cascada de checkbox (activar
+     o desactivar una carpeta grande): junto con el spinner que sustituye
+     a la casilla (ver .spinner), es la segunda señal de que algo sigue
+     en curso. Ver beginCascadeFeedback/endCascadeFeedback.             */
+  @keyframes cascade-pulse { 0%, 100% { opacity: 1; } 50% { opacity: .45; } }
+  .node-row.cascading > label { animation: cascade-pulse 1.1s ease-in-out infinite; }
+
+  /* Spinner genérico: sustituye a la casilla de una carpeta/archivo
+     mientras cascadeVisibility sigue en marcha, y se reutiliza en el
+     aviso "Actualizando…" del visor (ver #cascade-status).            */
+  .spinner {
+    display: inline-block;
+    width: 12px;
+    height: 12px;
+    min-width: 12px;
+    border: 2px solid var(--border);
+    border-top-color: var(--accent);
+    border-radius: 50%;
+    animation: spin .7s linear infinite;
+  }
+  /* Misma trampa que .measure-bar a[hidden] y .color-field[hidden]: al
+     fijar `display` arriba, una regla de autor le gana a la UA
+     "[hidden] { display: none }" por especificidad, orden aparte.     */
+  .spinner[hidden] { display: none; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
   /* Flecha de colapso */
   .caret {
     width: 14px;
@@ -301,6 +331,7 @@
   .actions button:hover { color: var(--accent); background: #fff; }
   .actions button.delete:hover { color: var(--danger); }
   .actions button.az { font-size: 10px; font-weight: 600; }
+  .actions button[hidden] { display: none; }
   #nav-search {
     padding: 8px 14px;
     border-top: 1px solid var(--border);
@@ -342,7 +373,30 @@
   body.nav-hidden #nav-toggle { left: 0; }
 
   /* ================= Ventana del visor (derecha) ================= */
-  #map { flex: 1; background: #dfe8ef; }
+  /* --map-bg: por defecto NO está definida, así que var() cae en el
+     #dfe8ef de aquí; setMapBackground (10-map.js) la fija cuando el
+     usuario elige otro color desde el panel de mapas base.            */
+  #map { flex: 1; background: var(--map-bg, #dfe8ef); }
+
+  /* Aviso "Actualizando…" mientras dura una cascada de checkbox (ver
+     CascadeStatusControl, 10-map.js): tarjeta pequeña y no modal, no
+     tapa el mapa ni compite con los diálogos.                         */
+  .cascade-status {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 5px 10px;
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 999px;
+    font-size: 12.5px;
+    color: var(--text);
+    box-shadow: 0 1px 4px rgba(0,0,0,.15);
+  }
+  /* Misma trampa que .measure-bar a[hidden]: el `display: flex` de
+     arriba es una regla de autor y le gana a la UA "[hidden] { display:
+     none }" por especificidad, así que hace falta esta regla explícita. */
+  .cascade-status[hidden] { display: none; }
 
   .measure-bar a {
     font-size: 15px;
@@ -351,19 +405,76 @@
     cursor: pointer;
     user-select: none;
   }
+  /* Botón de iluminación real: en color, no en blanco y negro como el
+     resto de glifos de esta barra (pedido explícito). Misma
+     especificidad que `.active` de abajo: por eso esta regla va ANTES
+     — así, al activarse, `.active` gana por orden de cascada y el
+     icono se ve blanco sobre el fondo de acento, igual que cualquier
+     otro botón de esta barra.                                        */
+  .measure-bar a.dn-toggle { color: #f5a623; }
   .measure-bar a.active { background: var(--accent); color: #fff; }
+  .measure-bar a.disabled { opacity: .35; cursor: not-allowed; }
   /* Leaflet's own CSS sets ".leaflet-bar a { display: block }"; being an
      author rule it beats the browser's UA "[hidden] { display: none }"
      regardless of specificity, so the `hidden` property silently does
      nothing without this explicit override.                           */
   .measure-bar a[hidden] { display: none; }
-  .measure-handle {
+  /* Círculo blanco PEQUEÑO por defecto, sin cursor propio: un waypoint
+     de ruta o el centro/borde de un círculo son manejadores PERMANENTES
+     (existen aunque su diálogo de propiedades esté cerrado, ver
+     makeHandle en 52-measure.js) y sin ese diálogo abierto no se pueden
+     mover ni borrar — reportado como bug: el cursor cambiaba a "move" y
+     el círculo se veía tan grande como en modo edición, sugiriendo que
+     sí se podía arrastrar. Sin `cursor` propio aquí, se hereda el
+     "pointer" (mano) que Leaflet ya pone en `.leaflet-interactive`, que
+     es justo lo que no debe cambiar.
+     El punto visible vive en un `<span class="measure-dot">` INTERIOR
+     (insertado vía la opción `html` de `L.divIcon`, ver makeHandle/
+     setMeasureHandlesEditable) y NO en este `<div>` raíz — reportado de
+     nuevo como bug: el tamaño no cambiaba nunca entre presentación y
+     edición. Causa real: este `<div>` raíz es el mismo elemento que
+     Leaflet POSICIONA con un `transform` EN LÍNEA
+     (`translate3d(...)`, `L.DomUtil.setPosition`) en cada movimiento
+     del mapa, y un estilo en línea gana SIEMPRE a cualquier regla de
+     hoja de estilos sobre la misma propiedad, sin que la especificidad
+     pinte nada — así que un `transform: scale()` puesto aquí nunca
+     llegaba a verse: el navegador seguía pintando el `translate3d` de
+     Leaflet. Comprobado con un repro real (`getComputedStyle(el)
+     .transform` idéntico con el diálogo abierto y cerrado, y solo con
+     matriz de traslación, nunca de escala). El `<span>` interior no lo
+     toca Leaflet en ningún momento después de insertarlo, así que ahí
+     sí funciona: `position: absolute; inset: 0` lo hace ocupar el mismo
+     hit-box de 12×12 sin reducirlo (más fácil de acertar el clic), y es
+     donde vive `transform: scale()` de verdad.                        */
+  .measure-handle .measure-dot {
+    position: absolute;
+    inset: 0;
     background: #fff;
     border: 2px solid #444;
     border-radius: 50%;
     box-shadow: 0 1px 3px rgba(0,0,0,.4);
-    cursor: move;
+    transform: scale(.45);
   }
+  /* Manejador de un polígono en edición (nace así, ver beginVertexEdit),
+     o de una ruta/círculo con su diálogo de propiedades abierto (ver
+     setMeasureHandlesEditable): aspecto y cursor "move" de siempre. El
+     `cursor` sí puede quedarse en el `<div>` raíz: no es una propiedad
+     que Leaflet toque en línea.                                       */
+  .measure-handle.vertex-editable { cursor: move; }
+  .measure-handle.vertex-editable .measure-dot { transform: none; }
+  /* Vértice seleccionado (ruta o polígono): mismo círculo, resaltado con
+     el color de acento para que se distinga de un manejador cualquiera
+     sin cambiar de forma ni de tamaño.                                 */
+  .measure-handle.vertex-selected .measure-dot {
+    border-color: var(--accent);
+    box-shadow: 0 0 0 2px var(--accent), 0 1px 3px rgba(0,0,0,.4);
+  }
+  /* Cursor de "insertar vértice" mientras se mantiene Mayús con una ruta
+     o un polígono seleccionable (ver 52-measure.js): igual que
+     .leaflet-crosshair, hace falta empujar también .leaflet-interactive,
+     que trae su propio "cursor: pointer" con más especificidad efectiva
+     que el contenedor.                                                 */
+  .vertex-insert-cursor, .vertex-insert-cursor .leaflet-interactive { cursor: copy; }
   .measure-label { font-weight: 600; font-family: system-ui, sans-serif; }
 
   .coords-box {
@@ -397,7 +508,10 @@
   .base-box {
     background: #fff; border-radius: 4px;
     position: relative;
-    min-width: 48px; min-height: 48px; /* el icono, al salir del flujo, ya no lo garantiza */
+    /* el icono, al salir del flujo, ya no lo garantiza: sus 48 px más
+       el borde de 2 px de .leaflet-bar (border-box), o el icono se
+       salía de la caja y esta medía 4 px menos que la brújula        */
+    min-width: 52px; min-height: 52px;
   }
   .base-toggle {
     position: absolute; top: 0; right: 0;
@@ -408,6 +522,24 @@
     padding: 4px;
   }
   .base-toggle:hover { color: var(--accent); }
+  /* Brújula (rotación del mapa, 70-view-controls.js): mismo tamaño que
+     el botón de capas base, justo encima. Atenuada con el norte arriba;
+     resaltada en cuanto el mapa está girado, que es cuando importa.  */
+  .compass-box { background: #fff; border-radius: 4px; }
+  .compass-btn {
+    display: flex !important; align-items: center; justify-content: center;
+    width: 48px !important; height: 48px !important;
+    cursor: grab; touch-action: none; opacity: .55;
+  }
+  .compass-box.rotated .compass-btn { opacity: 1; }
+  .compass-box.dragging .compass-btn { cursor: grabbing; }
+  .compass-n { fill: #d62828; }
+  .compass-s { fill: #fff; stroke: #555; stroke-width: 1; }
+  /* Girando con el botón central: rosa de los vientos (roseCursor), en
+     todo el visor —capas interactivas incluidas— mientras dura.      */
+  .leaflet-container.map-rotating, .leaflet-container.map-rotating * {
+    cursor: var(--rotate-cursor) !important;
+  }
   .base-list {
     margin-top: 48px; /* hueco que dejaba el icono en flujo */
     padding: 6px 8px;
@@ -417,6 +549,9 @@
   }
   .base-list[hidden] { display: none; }
   .base-row { display: grid; grid-template-columns: auto 1fr auto; gap: 3px 6px; align-items: center; margin: 5px 0; }
+  /* No es una capa que se apague: separada del resto con una línea, no
+     con una casilla que no significaría nada aquí.                   */
+  .base-row-bg { padding-bottom: 6px; margin-bottom: 6px; border-bottom: 1px solid var(--border); }
   .base-moves { display: flex; gap: 2px; }
   .base-moves button {
     border: 1px solid var(--border); background: #fff; border-radius: 4px;
@@ -458,6 +593,10 @@
   .elev-cell .ec-s { color: #2e7d32; }                    /* superficie */
   .elev-cell .ec-d { color: #b04a3a; }                    /* diferencia */
   .elev-cell .ec-d.alert { color: #d32f2f; font-weight: 700; } /* MDS > MDT + 1 m */
+  /* Consulta de elevación en marcha: sin aviso en el registro, el cursor
+     es la señal (ver syncElevBusy). `!important` y `*`: las capas
+     interactivas y el arrastre ponen su propio cursor.               */
+  .leaflet-container.elev-busy, .leaflet-container.elev-busy * { cursor: progress !important; }
 
   .coords-zoom { font-weight: 600; }
   /* La atribución se queda en una sola línea, la de abajo del todo */
@@ -472,12 +611,45 @@
   .coords-alt { font-weight: 600; }
   .coords-alt[hidden], .coords-sup[hidden] { display: none; }
   .grat-label {
-    font: 10px ui-monospace, Consolas, monospace;
+    font: 13px ui-monospace, Consolas, monospace;
     color: #445;
     white-space: nowrap;
     text-shadow: 0 0 3px #fff, 0 0 3px #fff;
     pointer-events: none;
   }
+  /* Trayectoria e iconos del sol y la luna del modo de iluminación real
+     (61-daynight.js): NO es una capa de Leaflet, es un `<div>` propio,
+     hermano de `.leaflet-map-pane` (ver el comentario de `dnOverlay` en
+     el JS del porqué) — 61-daynight.js recoloca `.dn-path`/icono en
+     cada redibujado con `top`/`left` en píxeles, ya calculados con
+     `map.latLngToContainerPoint`, así que aquí solo hace falta el
+     aspecto, no la posición base.                                     */
+  .dn-celestial-overlay {
+    position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+    pointer-events: none;
+    z-index: 620; /* por encima del lienzo de sombreado (610): no debe quedar tapado por la sombra */
+    overflow: hidden; /* la línea es más ancha que el visor a propósito, para no recalcular en cada resize */
+  }
+  .dn-path {
+    /* left/top/width y el giro los pone dnPlaceParallel (61-daynight.js) */
+    position: absolute; height: 0; transform-origin: 50% 0;
+    border-top: 1.5px dashed;
+    opacity: .7;
+  }
+  .dn-sun-path { border-color: #f5a623; }
+  .dn-moon-path { border-color: #b9c4d6; }
+  /* Sombra oscura, no blanca como .grat-label, porque este icono cae
+     igual sobre tramos ya oscurecidos por la propia noche que dibuja el
+     efecto y una sombra clara ahí se perdería.                         */
+  .dn-sun-icon, .dn-moon-icon {
+    position: absolute;
+    transform: translate(-50%, -50%); /* centrado sobre el punto, no esquina superior izquierda */
+    font-size: 20px;
+    line-height: 1;
+    text-shadow: 0 0 3px rgba(0,0,0,.65), 0 0 3px rgba(0,0,0,.65);
+  }
+  .dn-sun-icon { color: #f5a623; }
+  .dn-moon-icon { color: #cdd8e8; }
 
   /* ================= Layer style dialog and icon picker ================= */
   .dlg-overlay {
@@ -499,8 +671,189 @@
     z-index: 2000;
   }
   .dlg-float[hidden] { display: none; }
-  /* Sub-dialogs of the style dialog always sit above it */
-  #icon-picker, #color-picker { z-index: 2100; }
+  /* La calculadora geodésica va abajo a la derecha: arriba a la derecha
+     está el diálogo de estilos y se taparían entre sí.                 */
+  #geocalc-dialog { top: auto; bottom: 40px; }
+  /* El perfil también abajo a la derecha, más ancho: cabe una gráfica.
+     Altura de partida explícita (como #props-dialog) para que el tirador
+     dé espacio a la gráfica, que llena la caja y se redibuja al tamaño. */
+  #profile-dialog { top: auto; bottom: 40px; }
+  #profile-dialog .dlg-box {
+    display: flex; flex-direction: column; resize: both;
+    width: min(92vw, 46rem); height: min(75vh, 440px); min-width: 320px; min-height: 260px; /* + la barra de controles */
+  }
+  /* Sin pie (el × está en la cabecera): todo lo de debajo de la barra
+     de controles es gráfica; el margen de abajo deja sitio al tirador. */
+  #profile-dialog .dlg-box.no-actions { padding-bottom: 6px; }
+  /* Descargando, barra + registro llenan la caja (la gráfica aún no
+     existe y va oculta); el registro scrollea dentro, sin agrandarla. */
+  #profile-progress { margin: 10px 0 4px; flex: 1 1 auto; min-height: 0;
+                      display: flex; flex-direction: column; }
+  #profile-progress[hidden], #profile-chart[hidden] { display: none; }
+  #profile-log {
+    flex: 1 1 auto; min-height: 60px; overflow: auto; margin-top: 8px;
+    padding: 4px 6px; border: 1px solid var(--border); border-radius: 5px;
+    font: 11px/1.45 ui-monospace, Consolas, monospace;
+    white-space: pre-wrap; overflow-wrap: anywhere; user-select: text;
+  }
+  #profile-log .pl-head { font-weight: 700; margin-top: 4px; }
+  #profile-log .pl-req { color: var(--muted); }
+  #profile-log .pl-err { color: #d32f2f; }
+  #profile-progress-label { font-size: 13px; margin-bottom: 4px; }
+  #profile-progress .bar { height: 8px; background: var(--border); border-radius: 4px; overflow: hidden; }
+  #profile-progress-fill { height: 100%; width: 0; background: var(--accent); transition: width 0.15s; }
+  /* Rueda = zoom, arrastrar = desplazar (63-route-profile.js): la mano
+     solo con zoom, que es cuando hay algo que desplazar.             */
+  #profile-chart { flex: 1 1 auto; min-height: 120px; position: relative;
+                   touch-action: none; user-select: none; }
+  #profile-chart.zoomed { cursor: grab; }
+  #profile-tools { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 14px;
+                   margin: 6px 0 2px; font-size: 13px; }
+  #profile-tools[hidden] { display: none; }
+  #profile-tools .pf-tool-group { display: inline-flex; align-items: center; gap: 4px; }
+  #profile-tools .pf-tool { min-width: 28px; padding: 1px 6px; }
+  #profile-tools .pf-tools-hint { color: var(--muted); font-size: 11px; }
+  #profile-chart.dragging { cursor: grabbing; }
+  #profile-chart svg { display: block; width: 100%; height: 100%; font: 11px system-ui, sans-serif; }
+  #profile-chart .pf-axis { stroke: var(--muted); stroke-width: 1; }
+  #profile-chart .pf-grid { stroke: var(--border); stroke-width: 1; }
+  #profile-chart .pf-vertex { stroke: var(--muted); stroke-width: 1; stroke-dasharray: 3 3; }
+  /* MDT azul, MDS verde (pedido); la leyenda usa las mismas clases */
+  #profile-chart .pf-line { fill: none; stroke-width: 1.5; }
+  #profile-chart .pf-line.mdt, #profile-chart .pf-legend.mdt { stroke: #1565c0; }
+  #profile-chart .pf-line.mds, #profile-chart .pf-legend.mds { stroke: #2e7d32; }
+  #profile-chart .pf-legend { stroke-width: 3; }
+  #profile-chart .pf-tick { fill: var(--text); }
+  #profile-chart .pf-tick.vertex { font-weight: 700; }
+  #profile-chart .pf-cursor { stroke: #b04a3a; stroke-width: 1; }
+  /* Flecha del mapa que sigue al cursor de la gráfica (mismo rojo) */
+  .pf-map-arrow { background: none; border: none; pointer-events: none; }
+  .pf-map-arrow svg { display: block; overflow: visible; }
+  .pf-map-arrow path { fill: #b04a3a; stroke: #fff; stroke-width: 1.5; stroke-linejoin: round; }
+  /* Halo del color del panel: la lectura cae encima de las curvas */
+  #profile-chart .pf-readout { fill: var(--text); font-weight: 600;
+                               stroke: var(--panel); stroke-width: 3px; stroke-linejoin: round; paint-order: stroke; }
+  /* MDS−MDT por encima del umbral: el mismo rojo que el aviso de las celdas */
+  #profile-chart .pf-diff.alert { fill: #d32f2f; }
+  #geocalc-dialog .dlg-box { width: min(92vw, 30rem); }
+  .geocalc-field { display: flex; gap: 6px; }
+  #geocalc-dialog .dlg-row input[type="number"] { width: 110px; }
+  /* Latitud y longitud van EN LA MISMA LÍNEA (un solo campo cada una, con
+     su texto de ayuda): texto (admite decimal y GMS), de ancho fijo para
+     que las dos quepan junto a la etiqueta.                             */
+  #geocalc-dialog .dlg-row input[type="text"] { flex: none; width: 140px; }
+  /* Las etiquetas largas («Altitud del centro de fases de la antena») no
+     deben empujar los campos fuera de la ventana.                       */
+  #geocalc-dialog .dlg-row > span:first-child { flex: 1 1 auto; min-width: 0; }
+  /* Desplegables de texto largo («Sobre la superficie (nivel del mar)»):
+     el tope de 190px de .dlg-row los cortaba. Solo los sueltos en la fila,
+     no los de unidad, que van dentro de .geocalc-field.                 */
+  #geocalc-dialog .dlg-row > select { max-width: 270px; }
+  /* Zona de resultado de ALTURA RESERVADA: el resultado y el aviso de
+     error se turnan en ella (un aviso borra el resultado), así que ni
+     calcular ni equivocarse hacen crecer la ventana —que está anclada
+     abajo y, al crecer, sube sola—. Tres líneas: el máximo de ambas
+     pestañas (elevación: ángulo, cono y altura corregida; vector GPS:
+     distancia, horizontal y orientación); un aviso, de dos, también cabe. */
+  .geocalc-out { margin-top: 10px; font-size: 13px; min-height: 4.2em; } /* 3 líneas de 1.4em */
+  /* Unidad fija (hPa) junto a un campo: misma altura de línea que un selector */
+  .geocalc-unit { align-self: center; min-width: 3.2em; }
+  .geocalc-out > p { margin: 0; }
+  /* Mismo tamaño que el texto de los campos (.dlg-row, 13px); pre-line:
+     los resultados de varias líneas llevan «\n» en el texto, sin HTML. */
+  .geocalc-result { font-size: 13px; line-height: 1.4; font-weight: 600; white-space: pre-line; }
+  /* Sub-dialog of the style dialog always sits above it */
+  #icon-picker { z-index: 2100; }
+  /* The colour picker is a POPOVER anchored to whichever button opened
+     it (openColorPicker positions it in JS), not a second modal window
+     stacked on top of the first — that was the bug: a full-screen
+     .dlg-overlay centred itself regardless of where the style dialog
+     was, and ended up covering its own Cancelar/Aceptar buttons. Sized
+     to its content (the 8-column swatch grid decides the width), not a
+     fixed guess. */
+  .color-popover {
+    position: fixed;
+    z-index: 2100;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    padding: 10px;
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    box-shadow: 0 8px 30px rgba(0,0,0,.25);
+  }
+  .color-popover[hidden] { display: none; }
+  /* Espectro propio: dos <canvas> (saturación/valor y matiz), en vez de
+     <input type="color">, que abriría el panel NATIVO del navegador —
+     imposible de cerrar o integrar por script (ver el comentario en
+     src/index.html). `touch-action: none` es lo que impide que arrastrar
+     sobre ellos haga scroll de la página en un dispositivo táctil.    */
+  .color-popover canvas {
+    display: block;
+    width: 100%;
+    border-radius: 5px;
+    border: 1px solid var(--border);
+    cursor: crosshair;
+    touch-action: none;
+  }
+  /* The hue ramp is a ONE-dimensional slider, not a 2D picking area like
+     the saturation/value square: a crosshair implies picking an exact
+     point on two axes, which is misleading on a bar that only moves
+     left-right. A grab hand is what the rest of the web uses for a
+     draggable slider handle.                                          */
+  #color-hue { cursor: grab; }
+  #color-hue:active { cursor: grabbing; }
+  /* Notación numérica del color (Hex/RGB/CMYK/HSV): mismo patrón que el
+     botón ⇅ de las coordenadas, pero con dos flechas porque aquí hay
+     más de dos formatos entre los que ciclar. */
+  .color-moderow {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+  }
+  .color-mode-arrow {
+    padding: 1px 8px;
+    line-height: 1.3;
+    border: 1px solid var(--border);
+    border-radius: 5px;
+    background: none;
+    color: var(--text);
+    cursor: pointer;
+  }
+  #color-mode-label { font-size: 12px; color: var(--muted); min-width: 4ch; text-align: center; }
+  .color-hexrow { display: flex; gap: 6px; align-items: center; }
+  .color-preview {
+    width: 24px;
+    height: 24px;
+    flex: none;
+    border-radius: 5px;
+    border: 1px solid var(--border);
+  }
+  /* One <input> per component (Hex: 1, RGB/HSV: 3, CMYK: 4) instead of a
+     single text field with a separator to parse ("255, 0, 0"): each
+     value is read straight from its own `<input>`, so there is no
+     separator-parsing logic to maintain and the browser's native number
+     spinner (arrows, wheel, drag) works on each channel for free.     */
+  .color-fields { display: flex; gap: 4px; flex: 1; min-width: 0; }
+  .color-field { display: flex; flex-direction: column; align-items: center; gap: 1px; flex: 1; min-width: 0; }
+  /* Same trap as `.measure-bar a[hidden]` etc.: an author rule that sets
+     `display` on the element beats the browser's UA `[hidden] { display:
+     none }` at equal specificity (author always wins over UA), so the
+     three unused fields would stay visible as empty flex columns
+     without this.                                                     */
+  .color-field[hidden] { display: none; }
+  .color-field-label { font-size: 10px; color: var(--muted); line-height: 1; }
+  .color-field input {
+    width: 100%;
+    min-width: 0;
+    font: inherit;
+    padding: 3px 4px;
+    border: 1px solid var(--border);
+    border-radius: 5px;
+    text-align: center;
+  }
   .ctx-menu {
     position: fixed;
     z-index: 2200;
@@ -528,7 +881,8 @@
      keyboard focus (Tab, no auto-focus on open) gets a thin outline
      instead of the same fill, so the two never look like two competing
      highlights when both a hovered row and a focused row exist at once. */
-  .ctx-menu-item:hover { background: var(--accent); color: #fff; }
+  .ctx-menu-item:hover:not(:disabled) { background: var(--accent); color: #fff; }
+  .ctx-menu-item:disabled { color: var(--muted); cursor: default; }
   .ctx-menu-item:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
   .ctx-menu-sep { height: 1px; margin: 4px 6px; background: var(--border); }
   .color-btn {
@@ -560,7 +914,12 @@
      vacía y lo dice en su marcador de posición; el nombre, con varios
      nodos, hace lo mismo con la lista de nombres.                     */
   .dlg-row input::placeholder { font-style: italic; color: var(--muted); opacity: 1; }
-  .color-swatches { display: grid; grid-template-columns: repeat(8, 24px); gap: 5px; margin-top: 8px; }
+  /* Fila de Cancelar/Aceptar propia del popover, no `.dlg-actions`: esa
+     clase lleva un `position: sticky` y un margen negativo pensados
+     para compensar el relleno horizontal de `.dlg-box` (16px), que el
+     popover no tiene (aquí el relleno es 10px por todos los lados). */
+  .color-actions { display: flex; justify-content: flex-end; gap: 8px; }
+  .color-swatches { display: grid; grid-template-columns: repeat(8, 24px); gap: 5px; }
   .color-swatches button {
     width: 24px;
     height: 24px;
@@ -610,8 +969,8 @@
      max-width/max-height de .dlg-box siguen valiendo como topes de
      cordura: por mucho que se estire, la ventana no se sale.         */
   #style-dialog .dlg-box, #icon-picker .dlg-box, #shortcuts .dlg-box,
-  #desc-dialog .dlg-box, #geojson-name-picker .dlg-box, #gnp-editor .dlg-box,
-  #points-dialog .dlg-box, #log-dialog .dlg-box { resize: both; }
+  #desc-dialog .dlg-box, #geojson-name-picker .dlg-box, #props-dialog .dlg-box,
+  #points-dialog .dlg-box, #log-dialog .dlg-box, #url-dialog .dlg-box { resize: both; }
   /* El título del diálogo de propiedades lleva el nombre del nodo, y un
      nombre de KML puede tener cientos de caracteres: con la anchura de
      ajuste al contenido de .dlg-box (tope 90vw) la ventana crecía con el
@@ -620,6 +979,10 @@
      `overflow-wrap` de .dlg-box h2, que parte también un nombre sin
      espacios).                                                        */
   #style-dialog .dlg-box { width: min(92vw, 24rem); }
+  /* Contenido fijo (tres párrafos cortos + un campo), no redimensionable
+     como #sh-creds, pero más ancho: explica el formato de servidor
+     exigido y 42ch se quedaría corto para leerlo con comodidad.       */
+  #custom-tiles-creds .dlg-box { width: min(92vw, 30rem); }
   /* Y la caja de edición del nombre ocupa lo que dé esa ventana, no los
      190 px de un control corto: el nombre es el campo más largo del
      diálogo, así que es el que debe crecer con ella.                  */
@@ -660,6 +1023,27 @@
   }
   .dlg-box h2:active { cursor: grabbing; }
   .dlg-box h2::before { content: "\2725\00A0"; color: var(--muted); font-weight: 400; }
+  /* ---------- Diálogos con un solo botón, el de cerrar ----------
+     Regla del proyecto (.claude/rules/dialog-close-button.md): ese botón no lleva pie
+     propio, va como × arriba a la derecha, DENTRO del <h2> fijo (se ve
+     siempre, scrollee lo que scrollee) y el pie que ocupaba se lo queda
+     el contenido. Sin pie, el relleno de abajo lo pone la caja.      */
+  .dlg-box h2.dlg-head { display: flex; align-items: flex-start; }
+  .dlg-head .dlg-title { flex: 1 1 auto; min-width: 0; }
+  .dlg-close {
+    flex: none;
+    margin: -3px -8px 0 8px;
+    padding: 0 7px;
+    border: none;
+    border-radius: 5px;
+    background: none;
+    color: var(--muted);
+    font: 400 20px/1.1 system-ui, sans-serif;
+    cursor: pointer;
+  }
+  .dlg-close:hover { background: var(--border); color: var(--text); }
+  .dlg-close:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+  .dlg-box.no-actions { padding-bottom: 14px; }
   .dlg-row {
     display: flex;
     align-items: center;
@@ -668,6 +1052,12 @@
     margin: 8px 0;
     font-size: 13px;
   }
+  /* Same trap as ".measure-bar a[hidden]" above: an author rule (this
+     "display: flex") beats the UA "[hidden] { display: none }" regardless
+     of specificity, so rows meant to disappear (perimeter/area on an open
+     shape, area/bearing on a line measurement) stayed visible and empty
+     instead of hidden. */
+  .dlg-row[hidden] { display: none; }
   .dlg-row input[type="number"] {
     width: 64px;
     padding: 3px 6px;
@@ -675,6 +1065,10 @@
     border-radius: 5px;
     font: inherit;
   }
+  /* Campo numérico con su unidad al lado (límite del perfil, que se
+     escribe en la unidad de distancia elegida)                      */
+  .props-with-unit { display: inline-flex; align-items: center; gap: 6px; }
+  .props-with-unit input[type="number"] { width: 80px; }
   .dlg-row input[type="range"] { width: 120px; }
   .dlg-row input[type="color"] {
     width: 34px;
@@ -708,7 +1102,12 @@
   .keys { border-collapse: collapse; font-size: 12.5px; width: 100%; }
   .keys th { text-align: left; padding: 8px 4px 3px; color: var(--muted); font-size: 11.5px; }
   .keys td { padding: 2px 10px 2px 4px; vertical-align: top; }
-  .keys td:first-child { white-space: nowrap; font-family: ui-monospace, Consolas, monospace; }
+  /* La columna de teclas ENVUELVE y tiene un ancho fijo, no el de su
+     texto más largo: con `nowrap`, «Mayús + clic sobre el primer
+     vértice, con el último seleccionado» empujaba la descripción fuera
+     del diálogo. El 40 % deja la frontera en el mismo sitio en todas
+     las pestañas; `pretty` evita una palabra suelta en la última línea. */
+  .keys td:first-child { width: 40%; text-wrap: pretty; font-family: ui-monospace, Consolas, monospace; }
   /* Redimensionar la ventana tiene que dar espacio AL CONTENIDO, que es
      para lo que se redimensiona. Antes el tirador estaba en el elemento
      interior y crecía él; ahora está en la caja, así que el interior
@@ -779,8 +1178,18 @@
   }
   .desc-body td, .desc-body th { border: 1px solid var(--border); padding: 2px 5px; text-align: left; }
   .desc-body img { max-width: 100%; height: auto; }
+  /* Horas del sol (iluminación real): separada de la ficha propia */
+  .desc-body .sun-times { margin-top: 12px; }
+  .desc-body .sun-times p { margin: 2px 0 6px; }
+  .desc-body .sun-table { width: 100%; font-variant-numeric: tabular-nums; }
   .dlg-hint { margin: 6px 0 0; font-size: 12px; color: var(--muted); }
   .dlg-hint.sh-bad { color: var(--danger); }
+  /* El resultado de la descarga NO es una nota al pie: es lo que se ha
+     venido a leer, así que va en el color normal del texto y solo se
+     pone en rojo cuando de verdad ha fallado algo. Mismo criterio que
+     los dos tonos de aviso del panel, donde `info` tampoco va en gris. */
+  #url-status { color: var(--text); }
+  #url-status.sh-bad { color: var(--danger); }
   /* La lista de puntos necesita su propio ancho: .dlg-box trae
      max-width 90vw, pensado para los diálogos anchos.                 */
   /* Ahora que el textarea llena la caja y no al revés, la MEDIDA DE
@@ -802,6 +1211,28 @@
     width: min(94vw, 680px); height: min(80vh, 560px);
     max-width: 94vw;
   }
+  /* El campo de la dirección LLENA la caja, en las dos direcciones: con
+     el tirador en la caja, un hijo que no crece con ella convierte
+     agrandar la ventana en añadir hueco vacío (la misma lección que la
+     lista de puntos y el registro). Y la caja necesita una altura de
+     partida explícita, porque un hijo en `flex: 1` sobre un contenedor
+     de altura automática se queda en nada.                           */
+  #url-dialog .dlg-box {
+    display: flex; flex-direction: column;
+    width: min(92vw, 560px); max-width: 94vw;
+  }
+  #url-dialog .url-field {
+    display: flex; flex-direction: column;
+    flex: 1 1 auto; min-height: 0;
+  }
+  #url-dialog .url-field textarea {
+    flex: 1 1 auto; min-height: 3.2em; resize: none;
+    /* Una dirección no lleva espacios, así que sin esto una URL larga
+       sin barras no partiría por ningún sitio y se saldría de la caja. */
+    overflow-wrap: anywhere;
+    font-family: ui-monospace, Consolas, monospace; font-size: 12.5px;
+  }
+
   /* El párrafo de ayuda prefiere ir en una línea (764 px medidos) y con
      eso marcaba el ancho mínimo del diálogo. Ya no puede: la caja lleva
      su propio `width`, así que nada de dentro la estira. Se conserva
@@ -843,23 +1274,76 @@
     border: 1px solid var(--border); border-radius: 4px; padding: 6px; box-sizing: border-box;
   }
   #points-text.bad { border-color: var(--danger); }
-  .sh-field { display: block; margin-top: 10px; font-size: 13px; }
-  .sh-field input {
+  .sh-field, .url-field { display: block; margin-top: 10px; font-size: 13px; }
+  .sh-field input, .url-field input, .url-field textarea {
     display: block; width: 100%; margin-top: 4px; font: inherit; padding: 4px 6px;
     border: 1px solid var(--border); border-radius: 4px; box-sizing: border-box;
   }
   .dlg-note { margin-left: auto; font-size: 12px; color: var(--muted); }
   /* Mismo criterio que .desc-body: llenan la caja en vez de quedarse en
      un tope fijo que ignoraba el redimensionado.                     */
-  #geojson-name-picker .dlg-box, #gnp-editor .dlg-box {
+  #geojson-name-picker .dlg-box {
     display: flex; flex-direction: column;
     width: min(92vw, 32rem);
   }
+  /* Por encima del panel Propiedades: se abre desde él al cambiar una
+     asociación guardada (mismo caso que #icon-picker).                */
+  #geojson-name-picker { z-index: 2100; }
+  /* El panel Propiedades lleva ALTURA DE PARTIDA explícita, mismo motivo
+     que #points-dialog/#log-dialog/#url-dialog: un hijo en `flex: 1`
+     sobre un contenedor de altura automática se queda en nada, así que
+     sin esto la lista de "Índices de GeoJSON" (que puede tener cientos
+     de entradas) hacía crecer la CAJA ENTERA con ella en vez de
+     scrollear por su cuenta — reportado explícitamente. Con la caja ya
+     acotada, `.gnp-editor-list` (`flex: 1 1 auto`, más abajo) sí se
+     constriñe de verdad y saca su propio scroll.                      */
+  #props-dialog .dlg-box {
+    display: flex; flex-direction: column;
+    width: min(92vw, 32rem); height: min(70vh, 480px);
+  }
+  /* Misma razón que #props-dialog: altura de partida explícita para que
+     el tirador (resize: both, ya puesto más abajo) dé espacio de verdad
+     al contenido en vez de crecer la caja entera con él.                */
+  #shortcuts .dlg-box {
+    display: flex; flex-direction: column;
+    width: min(92vw, 34rem); height: min(70vh, 520px);
+  }
+  #shortcuts .dlg-tabpanel { overflow-y: auto; }
+  /* Preferencias ya no cabe en la altura de partida (dos unidades y el
+     límite del perfil): el panel scrollea por su cuenta, como la
+     chuleta, en vez de salirse por debajo de los botones.           */
+  #props-dialog .dlg-tabpanel { overflow-y: auto; }
   .gnp-list, .gnp-editor-list {
     flex: 1 1 auto; min-height: 4em;
     overflow-y: auto;
     margin: 8px 0;
   }
+  /* ---------- Pestañas (compartidas por Propiedades y la ayuda) ----------
+     Mismo lenguaje visual que el resto de la aplicación (fila de botones
+     + paneles), sin componente nuevo. Cada panel llena el alto
+     disponible como ya hace .gnp-editor-list, para que redimensionar la
+     ventana (resize: both en ambos diálogos) dé espacio de verdad al
+     contenido.                                                          */
+  .dlg-tabs {
+    display: flex; gap: 4px;
+    border-bottom: 1px solid var(--border);
+    margin: 0 0 8px;
+  }
+  .dlg-tab {
+    background: none; border: none; border-bottom: 2px solid transparent;
+    padding: 6px 10px; font: inherit; font-size: 13px;
+    color: var(--muted); cursor: pointer;
+  }
+  .dlg-tab.active { color: var(--text); border-bottom-color: var(--accent); font-weight: 600; }
+  .dlg-tabpanel { flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; }
+  /* La dirección del servicio bajo cada selector de fuente: una URL
+     larga no tiene espacios por los que partir y desbordaría la caja. */
+  .props-src-url { margin-top: 0; overflow-wrap: anywhere; }
+  /* Same trap as .dlg-row[hidden]/.color-field[hidden]: an author
+     "display: flex" beats the UA "[hidden] { display: none }" rule
+     regardless of specificity, so the inactive tab stayed visible
+     without this explicit override.                                   */
+  .dlg-tabpanel[hidden] { display: none; }
   .gnp-row {
     display: flex;
     align-items: baseline;
@@ -868,6 +1352,12 @@
     font-size: 13px;
   }
   .gnp-row .gnp-key { font-weight: 600; }
+  /* Número de orden de marcado (1, 2, 3…); ancho fijo para que las
+     filas no bailen al marcar/desmarcar.                              */
+  .gnp-row .gnp-order {
+    display: inline-block; min-width: 1.6em; text-align: center;
+    font-size: 12px; font-weight: 600; color: var(--accent);
+  }
   .gnp-row .gnp-val {
     color: var(--muted);
     overflow: hidden;
@@ -883,8 +1373,7 @@
     border-bottom: 1px solid var(--border);
   }
   .gnp-editor-row .gnp-editor-keys { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  .gnp-editor-row select { font: inherit; }
-  #pos-format { padding: 1px 8px; line-height: 1.3; }
+  .gnp-editor-row .gnp-editor-sel { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 600; }
   .dlg-row input.bad { border-color: #c0392b; background: #fdf1ef; }
   /* The preview sits outside the button and only its height is fixed, so
      non-square icons (the 25×41 Leaflet pin) keep their aspect ratio */

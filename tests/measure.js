@@ -1,22 +1,27 @@
 /* Mediciones: estilo propio, medidas del diálogo de propiedades y
    renombrado sin perder la medida.
 
-   Tres cosas que antes no existían o estaban mal:
+   Cosas que antes no existían o estaban mal:
 
    1. Una medición no tenía estilo editable (`styleable: false`, colores
       fijos por tipo). Ahora lleva su propio estilo de trazo, se guarda
-      con el nodo y una LÍNEA nunca puede rellenarse — la misma regla
+      con el nodo y una RUTA nunca puede rellenarse — la misma regla
       que ya vale para cualquier trazo abierto.
-   2. El diálogo enseña sus medidas: distancia y rumbo de una línea,
-      radio y área de un círculo, con la misma unidad recordada que el
-      perímetro/área de un polígono. El área de un círculo es la del
-      CASQUETE esférico, no πr².
+   2. El diálogo enseña sus medidas: radio y área de un círculo,
+      distancia total y tramos de una ruta, con la misma unidad
+      recordada que el perímetro/área de un polígono. El área de un
+      círculo es la del CASQUETE esférico, no πr².
    3. Renombrar una medición perdía la distancia de su fila: startRename
       devolvía la etiqueta reescribiéndola con `li._name`, y el texto de
       una medición no es el nombre a secas sino "Nombre — 1,20 km · 45°".
       Con el nombre sin cambiar (o cancelando con Escape) setNodeName
       sale antes de llamar a _onRename, que es quien lo repinta, así que
-      la medida se quedaba borrada.                                    */
+      la medida se quedaba borrada.
+   4. La antigua herramienta "línea" (arrastre, siempre dos puntos) se
+      retiró: una ruta de 2 waypoints ES una línea, y además permite
+      insertar/borrar un punto, algo que el arrastre no ofrecía nunca.
+      `mtype: "line"` sigue reconociéndose SOLO al restaurar un árbol
+      guardado antes de este cambio (ver schemaupgrade.js).            */
 const { parseHTML } = require("linkedom");
 const { fn, constDecl, between } = require("./_extract");
 const ok = (c, m) => { if (!c) { console.error("FAIL: " + m); process.exitCode = 1; } };
@@ -27,20 +32,20 @@ const styleSrc = constDecl("MEASURE_COLORS") + "\n"
 const st = new Function(styleSrc
   + "\nreturn {defaultMeasureStyle, normalizePathStyle, MEASURE_COLORS};")();
 
-const lineStyle = st.normalizePathStyle(st.defaultMeasureStyle("line"));
+const routeStyle = st.normalizePathStyle(st.defaultMeasureStyle("route"));
 const circleStyle = st.normalizePathStyle(st.defaultMeasureStyle("circle"));
-ok(lineStyle.fill === false, "una línea de medición no se rellena: " + lineStyle.fill);
+ok(routeStyle.fill === false, "una ruta de medición no se rellena: " + routeStyle.fill);
 ok(circleStyle.fill === true, "un círculo sí: " + circleStyle.fill);
-ok(lineStyle.color === st.MEASURE_COLORS.line && circleStyle.color === st.MEASURE_COLORS.circle,
+ok(routeStyle.color === st.MEASURE_COLORS.route && circleStyle.color === st.MEASURE_COLORS.circle,
   "cada tipo conserva su color de siempre");
 /* El contorno nunca lleva opacidad propia, aquí tampoco */
-ok(lineStyle.opacity === 1 && circleStyle.opacity === 1, "el contorno va siempre opaco");
+ok(routeStyle.opacity === 1 && circleStyle.opacity === 1, "el contorno va siempre opaco");
 ok(circleStyle.fillOpacity === 0.1,
   "el relleno del círculo arranca muy translúcido, para no tapar el mapa: " + circleStyle.fillOpacity);
 
 /* ================= 2. Medidas: casquete esférico y lectura ================= */
 const geoSrc = between("/* ================= Geodesia", "/* Rumbo inicial de a")
-  + "\n" + fn("bearingDeg") + "\n" + constDecl("capArea");
+  + "\n" + fn("bearingDeg") + "\n" + constDecl("capArea") + "\n" + constDecl("circlePerimeter");
 /* map.distance de sustitución: haversine sobre la misma esfera que usa
    Leaflet (EARTH_R/toRad ya extraídos arriba), no una reimplementación. */
 const mapStub = `
@@ -52,7 +57,7 @@ const map = { distance(a, b) {
 } };
 `;
 const mv = new Function(geoSrc + mapStub + "\n" + fn("measurementValues")
-  + "\nreturn {measurementValues, capArea, EARTH_R};")();
+  + "\nreturn {measurementValues, capArea, circlePerimeter, EARTH_R};")();
 
 /* capArea: para un círculo pequeño es πr² con toda la precisión que
    hace falta; para uno grande se separa, y SIEMPRE por debajo (la
@@ -68,7 +73,9 @@ ok(mv.capArea(0) === 0, "radio cero, área cero");
 ok(Math.abs(mv.capArea(Math.PI * mv.EARTH_R / 2) - 2 * Math.PI * mv.EARTH_R ** 2) < 1,
   "un cuarto de vuelta de radio cubre medio globo");
 
-/* Una medición de mentira: solo hacen falta sus dos manejadores */
+/* Una medición de mentira: solo hacen falta sus dos manejadores. La
+   única de dos puntos que queda es el círculo (una línea de dos puntos
+   es ahora una ruta, probada más abajo con measurementValues real). */
 const fakeM = (type, a, b) => ({
   type,
   mOrigin: { getLatLng: () => a },
@@ -76,32 +83,37 @@ const fakeM = (type, a, b) => ({
 });
 const A = { lat: 40, lng: -3 }, B = { lat: 40, lng: -2 };
 
-const lineVals = mv.measurementValues(fakeM("line", A, B));
-ok(lineVals.circle === false, "una línea no es un círculo");
-ok(lineVals.area === null, "una línea no tiene área");
-ok(lineVals.brg !== null && Math.abs(lineVals.brg - 90) < 0.5,
-  "y sí rumbo, ~90° hacia el este: " + lineVals.brg);
-ok(lineVals.dist > 85000 && lineVals.dist < 86000,
-  "un grado de longitud a 40°N son ~85 km: " + lineVals.dist);
-
 const circVals = mv.measurementValues(fakeM("circle", A, B));
 ok(circVals.circle === true, "un círculo sí lo es");
-ok(circVals.brg === null, "un círculo no tiene rumbo: el radio apunta a todas partes");
+/* Su orientación es el rumbo centro → borde (A y B comparten latitud, así
+   que el borde queda al este, ~90°), y su perímetro el del círculo menor
+   sobre la esfera, no 2πr.                                              */
+ok(Math.abs(circVals.brg - 90) < 0.5, "la orientación de un círculo es el rumbo al borde: " + circVals.brg);
+ok(circVals.perim === mv.circlePerimeter(circVals.dist),
+  "su perímetro es el del círculo menor: " + circVals.perim);
 ok(circVals.area === mv.capArea(circVals.dist),
   "su área es la del casquete de su radio, no πr²");
-ok(circVals.dist === lineVals.dist, "y el radio se mide igual que la distancia");
+ok(circVals.dist > 85000 && circVals.dist < 86000,
+  "un grado de longitud a 40°N son ~85 km: " + circVals.dist);
 
 /* ---------- renderMeasureValues: unidades y filas que se ocultan ---------- */
 const { document } = parseHTML(`
   <span id="ms-dist-label"></span><span id="ms-dist"></span>
+  <div id="ms-center-row"><span id="ms-center"></span></div>
+  <div id="ms-perim-row"><span id="ms-perim"></span></div>
   <div id="ms-area-row"><span id="ms-area"></span></div>
-  <div id="ms-bearing-row"><span id="ms-bearing"></span></div>`);
+  <div id="ms-bearing-row"><span id="ms-bearing"></span></div>
+  <div id="ms-legs-row"><div id="ms-legs"></div></div>`);
 const units = constDecl("METERS_PER_NM") + "\n" + constDecl("METERS_PER_FOOT") + "\n"
-  + constDecl("POLY_UNIT_FACTOR") + "\n" + constDecl("POLY_UNIT_LABEL") + "\n"
+  + constDecl("METERS_PER_MILE") + "\n" + constDecl("POLY_UNIT_FACTOR") + "\n" + constDecl("POLY_UNIT_LABEL") + "\n"
   + constDecl("fmtUnitDist") + "\n" + constDecl("fmtUnitArea");
+/* renderMeasureValues ahora también escribe el centro de un círculo,
+   con formatCoord/coordFormat (43-points-editor.js) — se extraen tal
+   cual, con "dec" de partida, igual que hace tests/pointsedit.js.     */
+const coordSrc = fn("dmsParts") + "\n" + fn("formatCoord");
 const render = new Function("document",
-  "const $id = id => document.getElementById(id);\n" + units
-  + "\nlet measureUnit = 'm';\nlet msMeasures = null;\n"
+  "const $id = id => document.getElementById(id);\n" + units + "\n" + coordSrc
+  + "\nlet measureUnit = 'm';\nlet coordFormat = 'dec';\nlet msMeasures = null;\n"
   + fn("renderMeasureValues")
   + "\nreturn { fmtUnitDist, fmtUnitArea,"
   + " render(vals, unit) { msMeasures = vals; measureUnit = unit;"
@@ -121,7 +133,9 @@ ok(render.fmtUnitArea(1e6, "m") === "1000000.00 m²", "y en metros, un millón")
 render.render({ circle: false, dist: 1852, area: null, brg: 45 }, "m");
 ok($("ms-dist-label").textContent === "Distancia", "una línea mide DISTANCIA");
 ok($("ms-dist").textContent === "1852.00 m", "en metros: " + $("ms-dist").textContent);
+ok($("ms-center-row").hidden === true, "una línea no tiene centro que mostrar");
 ok($("ms-area-row").hidden === true, "y sin fila de área");
+ok($("ms-perim-row").hidden === true, "ni de perímetro");
 ok($("ms-bearing-row").hidden === false && $("ms-bearing").textContent === "45.0°",
   "el rumbo va en grados, con un decimal: " + $("ms-bearing").textContent);
 
@@ -131,14 +145,41 @@ ok($("ms-dist").textContent === "1.00 NM", "1852 m es 1 NM exacta: " + $("ms-dis
 /* El rumbo NO cambia con la unidad: no es una distancia */
 ok($("ms-bearing").textContent === "45.0°", "el rumbo sigue en grados");
 
-render.render({ circle: true, dist: 1000, area: mv.capArea(1000), brg: null }, "km");
+render.render({ circle: true, dist: 1000, area: mv.capArea(1000), brg: 270,
+  perim: mv.circlePerimeter(1000), center: { lat: 40.416775, lng: -3.703790 } }, "km");
 ok($("ms-dist-label").textContent === "Radio", "un círculo mide RADIO");
 ok($("ms-dist").textContent === "1.00 km", "1000 m es 1 km: " + $("ms-dist").textContent);
-ok($("ms-bearing-row").hidden === true, "y no enseña rumbo");
-ok($("ms-area-row").hidden === false, "pero sí área");
+/* La orientación (rumbo centro → borde) y el perímetro SÍ se enseñan */
+ok($("ms-bearing-row").hidden === false && $("ms-bearing").textContent === "270.0°",
+  "el círculo enseña su orientación: " + $("ms-bearing").textContent);
+ok($("ms-perim-row").hidden === false && $("ms-perim").textContent === "6.28 km",
+  "y su perímetro, en la unidad elegida: " + $("ms-perim").textContent);
+ok($("ms-area-row").hidden === false, "y el área");
 /* El área va en unidad AL CUADRADO: πr² de 1 km son ~3.14 km² */
 ok($("ms-area").textContent === "3.14 km²",
   "el área se convierte con el factor al cuadrado: " + $("ms-area").textContent);
+/* Centro del círculo, pedido explícitamente: solo visible para un
+   círculo, en el formato global de coordenadas.                      */
+ok($("ms-center-row").hidden === false, "el círculo muestra su centro");
+ok($("ms-center").textContent === "40.416775, -3.703790",
+  "en decimal por defecto: " + $("ms-center").textContent);
+
+/* Ruta: «Distancia total», sin fila de rumbo (no hay uno solo) y un
+   tramo por línea en #ms-legs.                                       */
+render.render({ circle: false, route: true, dist: 100000, area: null, brg: null,
+  legs: [{ dist: 50000, brg: 90 }, { dist: 50000, brg: 180 }] }, "km");
+ok($("ms-dist-label").textContent === "Distancia total", "una ruta mide DISTANCIA TOTAL: " + $("ms-dist-label").textContent);
+ok($("ms-dist").textContent === "100.00 km", "el total en km: " + $("ms-dist").textContent);
+ok($("ms-bearing-row").hidden === true, "una ruta no tiene un único rumbo");
+ok($("ms-perim-row").hidden === true, "ni perímetro: su longitud es la distancia total");
+ok($("ms-legs-row").hidden === false, "y sí una fila de tramos");
+ok($("ms-legs").children.length === 2, "un div por tramo: " + $("ms-legs").children.length);
+ok($("ms-legs").children[0].textContent === "Tramo 1: 50.00 km · 90.0°",
+  "cada tramo con su distancia y su rumbo: " + $("ms-legs").children[0].textContent);
+ok($("ms-legs").children[1].textContent === "Tramo 2: 50.00 km · 180.0°", "y el segundo tramo");
+/* Volver a una línea limpia la fila de tramos de la ruta anterior */
+render.render({ circle: false, dist: 1852, area: null, brg: 45 }, "m");
+ok($("ms-legs-row").hidden === true, "una línea no enseña tramos");
 
 /* ============ 3. La etiqueta va en la unidad elegida ============
    Antes la etiqueta del visor y la de la fila del árbol iban siempre en
@@ -147,12 +188,20 @@ ok($("ms-area").textContent === "3.14 km²",
    arrancan en NM.                                                     */
 const { document: doc3 } = parseHTML("<ul id='tree'></ul>");
 const Lstub = { latLng: (lat, lng) => ({ lat, lng }) };
-const labelApi = new Function("treeEl", "L", "document",
+/* Registra cada llamada en vez de tocar ningún diálogo real: lo que
+   importa aquí es que updateMeasurement/updateRouteMeasurement SIEMPRE
+   la invoquen (una sola vez cada una), no lo que ella misma haga —
+   eso lo prueba tests/browser/measure-dialog-live.mjs contra el
+   diálogo de verdad, en un navegador real.                           */
+let refreshCalls = [];
+const refreshOpenMeasureDialog = m => refreshCalls.push(m);
+const labelApi = new Function("treeEl", "L", "document", "refreshOpenMeasureDialog",
   geoSrc.replace(constDecl("capArea"), "") + mapStub + "\n" + units
   + "\nlet measureUnit = 'nm';\n"
-  + fn("midPoint") + "\n" + fn("updateMeasurement") + "\n" + fn("refreshMeasureLabels")
-  + "\nreturn {updateMeasurement, refreshMeasureLabels,"
-  + " setUnit: u => { measureUnit = u; }};")(doc3.getElementById("tree"), Lstub, doc3);
+  + fn("midPoint") + "\n" + fn("updateMeasurement") + "\n" + fn("updateRouteMeasurement")
+  + "\n" + fn("refreshMeasureLabels") + "\n" + fn("measurementValues")
+  + "\nreturn {updateMeasurement, refreshMeasureLabels, measurementValues,"
+  + " setUnit: u => { measureUnit = u; }};")(doc3.getElementById("tree"), Lstub, doc3, refreshOpenMeasureDialog);
 
 /* Una medición de mentira con lo justo que toca updateMeasurement */
 function fakeMeasure(type, a, b, name, treeLabel) {
@@ -163,10 +212,13 @@ function fakeMeasure(type, a, b, name, treeLabel) {
     label: { setLatLng() {}, setContent(t) { this.content = t; } }
   };
 }
-const mLbl = fakeMeasure("line", A, B, "Línea 1", null);
+const mLbl = fakeMeasure("circle", A, B, "Círculo 1", null);
+refreshCalls = [];
 labelApi.updateMeasurement(mLbl);
 ok(/^45\.99 NM · 89\.\d°$/.test(mLbl.label.content),
   "por defecto, NM y rumbo en grados: " + mLbl.label.content);
+ok(refreshCalls.length === 1 && refreshCalls[0] === mLbl,
+  "updateMeasurement avisa al diálogo (si estuviera abierto) de que hay valores nuevos: " + refreshCalls.length);
 labelApi.setUnit("km");
 labelApi.updateMeasurement(mLbl);
 ok(/^85\.18 km · /.test(mLbl.label.content),
@@ -177,7 +229,7 @@ ok(mLbl.label.content.startsWith(render.fmtUnitDist(85179.81, "km").slice(0, 5))
 
 /* refreshMeasureLabels alcanza filas Y registros pendientes ---------- */
 const rowLabel = { textContent: "" };
-const rowM = fakeMeasure("line", A, B, "Línea 1", rowLabel);
+const rowM = fakeMeasure("circle", A, B, "Círculo 1", rowLabel);
 const rowLi = doc3.createElement("li");
 rowLi._measure = rowM;
 doc3.getElementById("tree").appendChild(rowLi);
@@ -189,7 +241,7 @@ doc3.getElementById("tree").appendChild(pendLi);
 
 labelApi.setUnit("nm");
 labelApi.refreshMeasureLabels();
-ok(rowLabel.textContent === `Línea 1 — ${rowM.label.content}`,
+ok(rowLabel.textContent === `Círculo 1 — ${rowM.label.content}`,
   "la fila del árbol repite la etiqueta con el nombre delante: " + rowLabel.textContent);
 ok(/NM/.test(rowLabel.textContent), "y en la unidad nueva: " + rowLabel.textContent);
 ok(/NM/.test(pendM.label.content),
@@ -199,6 +251,41 @@ labelApi.setUnit("m");
 labelApi.refreshMeasureLabels();
 ok(/ m ·/.test(pendM.label.content) && / m ·/.test(rowM.label.content),
   "y vuelven a cambiar juntas: " + pendM.label.content);
+
+/* ---------- Ruta: tramo a tramo y el total ---------- */
+function fakeRoute(waypoints, name, treeLabel) {
+  return {
+    type: "route", treeName: name, treeLabel,
+    handles: waypoints.map(w => ({ getLatLng: () => w })),
+    legLabels: waypoints.slice(1).map(() => ({ setLatLng() {}, setContent(t) { this.content = t; } })),
+    geom: { setLatLngs() {} },
+    legs: [], totalDist: 0
+  };
+}
+const C = { lat: 41, lng: -2 }; /* tercer waypoint, para tener DOS tramos distintos */
+labelApi.setUnit("nm");
+const route = fakeRoute([A, B, C], "Ruta 1", null);
+refreshCalls = [];
+labelApi.updateMeasurement(route); /* despacha a updateRouteMeasurement */
+ok(route.legs.length === 2, "dos tramos para tres waypoints: " + route.legs.length);
+ok(refreshCalls.length === 1 && refreshCalls[0] === route,
+  "una ruta también avisa al diálogo en cada recálculo, no solo línea/círculo: " + refreshCalls.length);
+ok(route.totalDist === route.legs[0].dist + route.legs[1].dist,
+  "el total es la suma de los tramos, no la distancia origen-fin");
+ok(/NM/.test(route.legLabels[0].content) && /NM/.test(route.legLabels[1].content),
+  "cada tramo lleva su propia etiqueta, en la unidad elegida: " + route.legLabels.map(l => l.content));
+
+const routeRowLabel = { textContent: "" };
+route.treeLabel = routeRowLabel;
+labelApi.updateMeasurement(route);
+ok(routeRowLabel.textContent === `Ruta 1 — ${render.fmtUnitDist(route.totalDist, "nm")} total, 2 tramos`,
+  "la fila del árbol muestra el TOTAL, no un tramo suelto: " + routeRowLabel.textContent);
+
+const routeVals = labelApi.measurementValues(route);
+ok(routeVals.route === true && routeVals.circle === false && routeVals.brg === null,
+  "measurementValues marca route, no circle, y sin un único rumbo");
+ok(routeVals.dist === route.totalDist, "y su \"distancia\" es el total");
+ok(routeVals.legs === route.legs, "con el desglose por tramo tal cual lo calculó updateRouteMeasurement");
 
 /* ================= 4. Renombrar sin perder la medida ================= */
 const { document: doc2 } = parseHTML("<ul id='tree'></ul>");
@@ -283,5 +370,50 @@ ok(plabel.textContent === "Capa nueva" && plabel.title === "Capa nueva",
   "una capa sin medida se renombra como siempre: " + plabel.textContent);
 ok(pchk.getAttribute("aria-label") === "Activar o desactivar «Capa nueva»",
   "y la casilla mantiene su nombre accesible");
+
+
+/* ================= Arco: perímetro, puntos y barrido ================= */
+const arcSrc = between("/* ================= Geodesia", "/* Rumbo inicial de a")
+  + "\n" + fn("bearingDeg") + "\n" + fn("destPoint") + "\n" + constDecl("circlePerimeter")
+  + "\n" + fn("arcPoints") + "\n" + constDecl("ARC_SWEEP_MAX") + "\n" + fn("unwrapSweep");
+const arcMod = new Function("L", arcSrc
+  + "\nreturn {circlePerimeter, arcPoints, unwrapSweep, bearingDeg, EARTH_R, ARC_SWEEP_MAX};")(
+  { latLng: (lat, lng) => ({ lat, lng }) });
+const geoDist = (a, b) => {
+  const p1 = toRadT(a.lat), p2 = toRadT(b.lat);
+  const h = Math.sin((p2 - p1) / 2) ** 2
+    + Math.cos(p1) * Math.cos(p2) * Math.sin(toRadT(b.lng - a.lng) / 2) ** 2;
+  return 2 * arcMod.EARTH_R * Math.asin(Math.sqrt(h));
+};
+function toRadT(d) { return d * Math.PI / 180; }
+
+/* En metros coincide con 2πr; a miles de km se queda por debajo */
+ok(Math.abs(arcMod.circlePerimeter(1000) - 2 * Math.PI * 1000) / (2 * Math.PI * 1000) < 1e-6,
+  "a 1 km el perímetro es 2πr: " + arcMod.circlePerimeter(1000));
+ok(arcMod.circlePerimeter(1e6) < 2 * Math.PI * 1e6, "a 1000 km el círculo menor es MÁS corto que 2πr");
+ok(arcMod.circlePerimeter(0) === 0, "radio cero, perímetro cero");
+
+const ARC_C = { lat: 40, lng: -3 };
+const arcPts = arcMod.arcPoints(ARC_C, 50000, 90, 90, 8);
+ok(arcPts.length === 9, "N segmentos son N+1 puntos: " + arcPts.length);
+ok(arcPts.every(p => Math.abs(geoDist(ARC_C, p) - 50000) < 5), "todos los puntos caen sobre el círculo");
+ok(Math.abs(arcMod.bearingDeg(ARC_C, arcPts[0]) - 90) < 0.01, "el primero está en el rumbo de inicio");
+ok(Math.abs(arcMod.bearingDeg(ARC_C, arcPts[8]) - 180) < 0.01, "el último, tras barrer +90°, mira al sur");
+const ccw = arcMod.arcPoints(ARC_C, 50000, 90, -90, 8);
+ok(Math.abs(arcMod.bearingDeg(ARC_C, ccw[8]) - 0) < 0.01 || Math.abs(arcMod.bearingDeg(ARC_C, ccw[8]) - 360) < 0.01,
+  "con barrido negativo (antihorario) acaba al norte");
+const bigArc = arcMod.arcPoints(ARC_C, 50000, 0, 270, 27);
+ok(Math.abs(arcMod.bearingDeg(ARC_C, bigArc[27]) - 270) < 0.01, "un arco de más de 180° llega a su rumbo final");
+
+/* unwrapSweep: sigue el movimiento, no el rumbo absoluto */
+ok(arcMod.unwrapSweep(0, 90, 100) === 10, "avanzar 10° en sentido horario suma 10");
+ok(arcMod.unwrapSweep(0, 90, 80) === -10, "retroceder resta");
+ok(Math.abs(arcMod.unwrapSweep(10, 350, 5) - 25) < 1e-9, "cruzar el norte (350° → 5°) suma 15, no resta 345");
+ok(Math.abs(arcMod.unwrapSweep(-10, 5, 350) - -25) < 1e-9, "y al revés, en antihorario");
+let acc = 0, prev = 0;
+for (let b = 20; b <= 300; b += 20) { acc = arcMod.unwrapSweep(acc, prev, b); prev = b; }
+ok(Math.abs(acc - 300) < 1e-9, "pasar de 180° acumula sin saltos: " + acc);
+ok(arcMod.unwrapSweep(359, 0, 90) === arcMod.ARC_SWEEP_MAX, "nunca llega a la vuelta completa");
+ok(arcMod.unwrapSweep(-359, 0, 270) === -arcMod.ARC_SWEEP_MAX, "ni en antihorario");
 
 if (!process.exitCode) console.log("MEASURE TESTS OK");

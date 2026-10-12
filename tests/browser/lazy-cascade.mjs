@@ -153,6 +153,105 @@ const d = await page.evaluate(async () => {
 });
 ok(d < 5000, "una cascada sobre el árbol ya materializado termina en seguida: " + d + " ms");
 
+/* ---------- Feedback inmediato: spinner, fila que parpadea y aviso ----------
+   El bug reportado: sin feedback, el usuario no ve ningún cambio durante
+   los fotogramas que cascadeVisibility tarda en una carpeta grande y
+   vuelve a pulsar la misma casilla, con el resultado de que las capas
+   se encienden y se apagan solas de golpe. beginCascadeFeedback es la
+   PRIMERA línea de cascadeVisibility, así que debe verse YA en el mismo
+   evento "change" que dispara el click, sin esperar ni un fotograma.  */
+const feedback = await page.evaluate(async () => {
+  const li = [...document.querySelectorAll("#tree > ul > li")][0];
+  const fila = li.querySelector(":scope > .node-row");
+  const chk = fila.querySelector("input[type=checkbox]");
+  const status = document.querySelector(".cascade-status");
+  const snapshot = () => ({
+    chkHidden: chk.hidden, chkDisabled: chk.disabled,
+    spinnerVisible: !!(li._spinner && !li._spinner.hidden),
+    filaCascando: fila.classList.contains("cascading"),
+    ariaBusy: li.getAttribute("aria-busy"),
+    statusVisible: !!(status && !status.hidden)
+  });
+  chk.click();
+  const enElActo = snapshot(); /* sin ningún await de por medio */
+  await __reposo();
+  return { enElActo, alTerminar: snapshot() };
+});
+ok(feedback.enElActo.chkHidden === true && feedback.enElActo.chkDisabled === true,
+  "la casilla se oculta y deshabilita en el mismo evento change, antes de ceder el hilo: "
+  + JSON.stringify(feedback.enElActo));
+ok(feedback.enElActo.spinnerVisible === true, "el spinner que la sustituye aparece en el acto");
+ok(feedback.enElActo.filaCascando === true, "la fila se marca .cascading en el acto (el nombre parpadea)");
+ok(feedback.enElActo.ariaBusy === "true", "aria-busy se fija en el acto");
+ok(feedback.enElActo.statusVisible === true, "el aviso «Actualizando…» sobre el visor aparece en el acto");
+ok(feedback.alTerminar.chkHidden === false && feedback.alTerminar.chkDisabled === false,
+  "la casilla vuelve en cuanto la cascada termina");
+ok(feedback.alTerminar.spinnerVisible === false, "el spinner se oculta al terminar");
+ok(feedback.alTerminar.filaCascando === false, ".cascading se quita al terminar");
+ok(feedback.alTerminar.ariaBusy === null, "aria-busy se retira al terminar");
+ok(feedback.alTerminar.statusVisible === false, "el aviso del visor se oculta al terminar");
+
+/* ---------- Icono personalizado de un marcador aún sin fila ----------
+   Bug reportado: un marcador con un icono MDI (no la gota de Leaflet por
+   defecto), desactivado y dentro de una carpeta nunca desplegada, volvía
+   a la gota de Leaflet al activarlo tras recargar la página.
+
+   La causa estaba en `buildRecordsFromStorage` (el camino que reconstruye
+   desde IndexedDB, un .kite.json, deshacer o pegar): construía la capa
+   cruda de un marcador con `L.geoJSON`, que sin `pointToLayer` usa el
+   icono NATIVO de Leaflet, y el icono personalizado (`mstyle`) solo se
+   aplicaba más tarde, cuando `materializeRecords` construía su fila. Un
+   marcador que se queda en `_pending` (carpeta colapsada) nunca llega a
+   tener esa fila si se activa por la cascada del checkbox de la carpeta
+   (`cascadeVisibility` → `walkRecords`), que solo hace
+   `setLayerVisible` sobre la capa cruda — el icono correcto nunca se
+   llegaba a aplicar.                                                  */
+const e = await page.evaluate(async () => {
+  const nodes = [{
+    t: "folder", name: "Con icono", checked: false, collapsed: true,
+    children: [{
+      t: "layer", name: "Marcador con estrella", checked: false, style: null,
+      geo: { type: "Feature", properties: {},
+        geometry: { type: "Point", coordinates: [-3.7, 40.4] } },
+      mstyle: { icon: "star", color: "#ff0000", size: 30,
+                textSize: 13, textColor: "#000000", textAlways: false }
+    }]
+  }];
+  const records = await buildRecordsFromStorage(nodes, null);
+  const markerRec = records[0].children[0];
+  /* La capa cruda ya debe llevar el icono personalizado, ANTES de que
+     exista ninguna fila: es justo lo que arregla el fallo.           */
+  let marker = null;
+  markerRec._layer.eachLayer(l => { if (l instanceof L.Marker) marker = l; });
+  const iconTrasConstruir = marker.options.icon && marker.options.icon.options.className;
+
+  /* El camino real del fallo: la carpeta se queda colapsada (nunca se
+     despliega) y se activa por la cascada de SU checkbox.            */
+  document.getElementById("tree").innerHTML = ""; rootUl = null; rootGroup.clearLayers();
+  const ul = ensureRootUl();
+  const li = makeNode({ name: "Con icono", isFolder: true, checked: false });
+  ul.appendChild(li);
+  li.classList.add("collapsed");
+  syncExpanded(li);
+  li._pending = [markerRec];
+
+  li.querySelector(":scope > .node-row > input[type=checkbox]").click();
+  await __reposo();
+
+  return {
+    iconTrasConstruir,
+    enElMapa: rootGroup.hasLayer(markerRec._layer),
+    aunPendiente: !!li._pending,
+    iconoFinal: marker.options.icon && marker.options.icon.options.className
+  };
+});
+ok(e.iconTrasConstruir === "mdi-pin",
+  `buildRecordsFromStorage aplica el icono personalizado a la capa cruda, antes de cualquier fila: ${e.iconTrasConstruir}`);
+ok(e.enElMapa, "activar la carpeta por su checkbox añade el marcador pendiente al mapa");
+ok(e.aunPendiente, "sin desplegar la carpeta: el marcador sigue sin fila propia");
+ok(e.iconoFinal === "mdi-pin",
+  `y conserva su icono personalizado, no la gota de Leaflet por defecto: ${e.iconoFinal}`);
+
 ok(errors.length === 0, "sin errores de página: " + JSON.stringify(errors));
 
 await browser.close();

@@ -78,7 +78,29 @@ const map = L.map("map", {
      efecto elástico que aquí no se quiere.                           */
   maxBoundsViscosity: 1,
   zoomAnimation: hwAccelerated,
+  /* La rueda es nuestra (70-view-controls.js): zoom continuo como Re/Av
+     Pág, no el salto de nivel en nivel de Leaflet.                   */
+  scrollWheelZoom: false,
+  /* El pellizco se para en los límites de zoom en vez de pasarse y
+     rebotar (lo que dejaba puesto leaflet-rotate). El mapa es siempre
+     girable (08-map-rotation.js), solo con gestos propios: brújula y
+     botón central (70-view-controls.js).                             */
+  bounceAtZoomLimits: false,
 }).setView([40.4, -3.7], 6);
+
+/* Color de fondo del mapa: el que se ve fuera de las teselas (huecos
+   sin cobertura, o el borde del mundo — no hay desplazamiento infinito,
+   ver «Una sola Tierra»). Configurable desde la primera fila del panel
+   de mapas base (11-base-panel.js); MAP_BG_DEFAULT debe coincidir con
+   el `#dfe8ef` de styles.css, que es adonde cae `var(--map-bg, …)`
+   cuando nadie ha elegido otro — así el botón de esa fila puede mostrar
+   el color vigente sin tener que leerlo del DOM.                     */
+const MAP_BG_DEFAULT = "#dfe8ef";
+let mapBgColor = MAP_BG_DEFAULT;
+function setMapBackground(hex) {
+  mapBgColor = hex;
+  document.documentElement.style.setProperty("--map-bg", hex);
+}
 
 /* Suelo de zoom: el nivel en el que el mundo ya LLENA la ventana
    (`inside: true`). Por debajo, el mapa cabría entero con hueco a los
@@ -101,19 +123,28 @@ const map = L.map("map", {
    pone después el que conteste. Se le pregunta a Leaflet en vez de
    calcular el logaritmo a mano porque el redondeo a `zoomSnap` es suyo
    y tiene su propia letra pequeña.                                    */
+/* Con el mapa rotado, la que tiene que caber en el mundo es la caja de
+   la vista girada: `rotatedFitZoom` (08-map-rotation.js).    */
 function fitWorldMinZoom() {
   const previo = map.options.minZoom;
   map.options.minZoom = 0;
-  const z = map.getBoundsZoom(WORLD_BOUNDS, true);
+  const z = rotatedFitZoom(map, WORLD_BOUNDS);
   map.options.minZoom = previo;
   if (Number.isFinite(z) && z !== previo) map.setMinZoom(z);
 }
 fitWorldMinZoom();
-map.on("resize", fitWorldMinZoom);
+map.on("resize rotate", fitWorldMinZoom);
 
 /* Fecha de generación del código (versión): AÑOMESDIAHORAMINUTO.
    Actualizar en cada generación; se muestra junto al crédito de Leaflet. */
-const BUILD = "202609141800";
+const BUILD = "202610121238";
+/* Versión de release (la de package.json, horneada aquí por build.js
+   al construir — ver «Versión y releases de GitHub» en CLAUDE.md): a
+   diferencia de BUILD, que cambia en CADA generación, esta solo cambia
+   al preparar un release, y debe coincidir con el tag de GitHub que se
+   crea justo después del commit que la sube. Lo comprueba
+   .github/workflows/release.yml antes de publicar el Release.        */
+const VERSION = "{{VERSION}}";
 /* El enlace al repositorio va junto a la versión, que es lo que hace
    accionable saber qué build se está ejecutando: desde ahí se llega al
    código de esa versión. `target="_blank"` a propósito —salir de la
@@ -122,7 +153,7 @@ const BUILD = "202609141800";
    `window.opener`.                                                    */
 const REPO_URL = "https://github.com/ifsnop/kite";
 map.attributionControl.setPrefix(
-  `v${BUILD} | <a href="${REPO_URL}" target="_blank" rel="noopener"`
+  `v${VERSION} (${BUILD}) | <a href="${REPO_URL}" target="_blank" rel="noopener"`
   + ' title="Código fuente del proyecto en GitHub">GitHub</a>'
   + ' | <a href="https://leafletjs.com" title="A JavaScript library for interactive maps">Leaflet</a>');
 
@@ -137,6 +168,31 @@ map.attributionControl.setPrefix(
    INFERIOR delante de los que ya hubiera (insertBefore, no
    appendChild), y la atribución se creó con el mapa.                 */
 L.control.scale({ position: "bottomright" }).addTo(map);
+
+/* Aviso "Actualizando…" sobre el visor mientras una cascada de checkbox
+   (activar/desactivar una carpeta grande, ver cascadeVisibility en
+   30-tree-walk.js) sigue en marcha. Va en topleft, apilado bajo el
+   control de zoom y las barras de medición/vista que ya viven ahí: es
+   donde el resto de controles del visor se agrupan, y solo se ve
+   mientras dura la cascada. Se expone como dos funciones de módulo en
+   vez de la instancia del control para que quien las llame no necesite
+   saber nada de Leaflet; 10-map.js carga antes que 30-tree-walk.js en
+   el manifiesto de build.js, así que no hay problema de orden aunque
+   solo se invoquen en tiempo de ejecución, nunca al evaluar el módulo. */
+const CascadeStatusControl = L.Control.extend({
+  options: { position: "topleft" },
+  onAdd() {
+    this._div = L.DomUtil.create("div", "cascade-status");
+    this._div.hidden = true;
+    this._div.setAttribute("role", "status");
+    this._div.setAttribute("aria-live", "polite");
+    this._div.innerHTML = '<span class="spinner" aria-hidden="true"></span> Actualizando capas…';
+    return this._div;
+  }
+});
+const cascadeStatusControl = new CascadeStatusControl().addTo(map);
+function showCascadeStatus() { cascadeStatusControl.getContainer().hidden = false; }
+function hideCascadeStatus() { cascadeStatusControl.getContainer().hidden = true; }
 
 /* ================= Mapas base =================
    Se pueden encender a la vez y con la opacidad que se quiera, en vez de
@@ -158,6 +214,10 @@ const COP_CREDIT = "Copernicus DEM \u2014 Copernicus Data Space / Sentinel Hub";
    Ver la definici\u00f3n de la capa.                                       */
 const COP_MIN_NATIVE_ZOOM = 7;
 const COP_MIN_ZOOM = 6;
+/* Servidor propio del usuario (ver "Custom Maps" más abajo): al no ser
+   ningún servicio conocido no hay a quién dar crédito, solo dejar
+   claro que las teselas no vienen de la aplicación.                  */
+const CUSTOM_TILES_CREDIT = "Servidor de teselas personalizado";
 
 const BASE_LAYERS = [
   { id: "osm", name: "OpenStreetMap", on: true, opacity: 1,
@@ -248,7 +308,21 @@ const BASE_LAYERS = [
     dynamic: true, source: "pnoa-hist",
     layer: (wmsLayer) => L.tileLayer.wms(PNOA_HIST_URL, {
       layers: wmsLayer, format: "image/jpeg", version: "1.3.0", transparent: false,
-      maxZoom: MAX_ZOOM, attribution: `PNOA hist\u00F3rico. ${IGN_CREDIT}` }) }
+      maxZoom: MAX_ZOOM, attribution: `PNOA hist\u00F3rico. ${IGN_CREDIT}` }) },
+
+  /* Servidor de teselas del propio usuario \u2014 t\u00EDpicamente una cach\u00E9/proxy
+     delante de OpenStreetMap u otro servicio, para no descargar de golpe
+     el servicio p\u00FAblico ajeno. No es una fuente "dynamic" (no hay
+     cat\u00E1logo que descubrir ni nombre de capa que elegir, solo una URL):
+     lleva `source` para reutilizar el mecanismo de la tuerca \u2699 y el
+     estado "bloqueada sin configurar" (ver DYNAMIC_SOURCES,
+     12-copernicus.js), pero no `dynamic: true`, as\u00ED que el panel no le
+     ofrece ning\u00FAn <select> \u2014no hay nada entre lo que elegir. `layer()`
+     lee `buildCustomTilesUrl()` (11-base-panel.js) en el momento de
+     crearse, nunca antes: la URL puede no estar configurada todav\u00EDa.  */
+  { id: "custom", name: "Custom Maps", on: false, opacity: 1, source: "custom-tiles",
+    layer: () => L.tileLayer(buildCustomTilesUrl(), {
+      maxNativeZoom: 19, maxZoom: MAX_ZOOM, attribution: CUSTOM_TILES_CREDIT }) }
 ];
 
 /* Teselas fallidas seguidas (sin ninguna buena de por medio) antes de
@@ -287,6 +361,15 @@ function applyBaseLayer(id) {
       if (cat) st.wmsLayer = src.pickDefault(cat);
       else { if (src) src.ensure(); return; }
     }
+    /* Una fuente configurable SIN catálogo (hoy, "Custom Maps": no hay
+       nombre de capa que elegir, solo una URL) no tiene equivalente al
+       `ensure()`/`wmsLayer` de arriba: sin la URL puesta todavía no hay
+       nada que construir, así que se queda inerte hasta que se
+       configure (setCustomTilesUrl vuelve a llamar aquí al aceptar).  */
+    if (!st.def.dynamic) {
+      const src = dynSource(st.def);
+      if (src && src.blocked && src.blocked()) return;
+    }
     if (!st.layer) {
       st.layer = st.def.dynamic ? st.def.layer(st.wmsLayer) : st.def.layer();
       /* `noWrap` va AQUÍ y no repetido en las diez definiciones de
@@ -298,6 +381,9 @@ function applyBaseLayer(id) {
          (`_resetGrid`, al añadirse al mapa y en cada cambio de zoom),
          no en su constructor.                                         */
       st.layer.options.noWrap = true;
+      /* Y sin teselas fuera del mundo con el mapa girado (ver
+         08-map-rotation.js) */
+      confineTilesToWorld(st.layer, WORLD_BOUNDS);
       st.layer.setZIndex(st.zIndex);
       /* Una URL que no responda debe verse, no fallar en silencio */
       let errors = 0;

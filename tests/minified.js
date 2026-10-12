@@ -60,6 +60,16 @@ if (build) {
   ok(min.includes(build[1]),
     `el minificado lleva la misma versión (${build[1]}); si no, está sin regenerar`);
 }
+/* Mismo criterio con VERSION (la que hornea build.js desde
+   package.json): si el minificado quedara con un semver distinto,
+   sería la señal de un kitelocal.min.html regenerado a partir de un
+   package.json que ya no es el actual.                              */
+const version = /const VERSION = "(\d+\.\d+\.\d+)"/.exec(readable);
+ok(!!version, "el legible declara VERSION");
+if (version) {
+  ok(min.includes(version[1]),
+    `el minificado lleva la misma versión semántica (${version[1]}); si no, está sin regenerar`);
+}
 
 /* ---------- Sobrevive lo que no puede perderse ---------- */
 /* SRI: sin `integrity` el navegador bloquea Leaflet y la página queda
@@ -71,12 +81,45 @@ ok(count(min, /crossorigin=/g) === count(full, /crossorigin=/g),
   `y sus crossorigin=: ${count(min, /crossorigin=/g)}`);
 
 /* CSP: con default-src 'none', perder un origen deja muda a media
-   aplicación sin más síntoma que peticiones bloqueadas.             */
+   aplicación sin más síntoma que peticiones bloqueadas.
+
+   Se comprueba sobre el CONTENIDO del <meta>, no sobre el archivo
+   entero. Antes se buscaba cada origen con `min.includes(...)`, y eso
+   pasaba por casualidad: `nominatim.openstreetmap.org` y compañía
+   aparecen también en el JavaScript, así que la comprobación decía «la
+   CSP conserva X» sin haber mirado nunca la CSP. Se vio al abrir
+   `connect-src`: el origen desapareció de la política y la prueba
+   siguió en verde.                                                   */
 ok(/http-equiv="Content-Security-Policy"/.test(min), "la CSP sigue declarada");
-for (const origin of ["unpkg.com", "cdnjs.cloudflare.com", "nominatim.openstreetmap.org",
-                      "www.ign.es", "sh.dataspace.copernicus.eu", "default-src 'none'"]) {
-  ok(min.includes(origin), `la CSP conserva ${origin}`);
+const cspMatch = min.match(/http-equiv="Content-Security-Policy"\s+content="([^"]*)"/);
+ok(!!cspMatch, "y se puede leer su contenido");
+const csp = cspMatch ? cspMatch[1].replace(/\s+/g, " ").trim() : "";
+const directiva = nombre => {
+  const m = csp.match(new RegExp(`(?:^|;)\\s*${nombre}\\s([^;]*)`));
+  return m ? m[1].trim() : null;
+};
+ok(/default-src 'none'/.test(csp), "sigue cerrada por defecto: " + csp.slice(0, 40));
+/* Las listas de CÓDIGO siguen cerradas. Es lo que no se relajó al
+   permitir descargar datos de cualquier sitio: un origen ajeno puede
+   dar datos, nunca scripts ni estilos.                               */
+for (const [nombre, origen] of [["script-src", "https://unpkg.com"],
+                                ["script-src", "https://cdnjs.cloudflare.com"],
+                                ["style-src", "https://unpkg.com"]]) {
+  const d = directiva(nombre);
+  ok(!!d && d.includes(origen), `${nombre} conserva ${origen}: ${d}`);
+  ok(!!d && !/(^|\s)https:(\s|$)/.test(d), `y ${nombre} NO admite cualquier https: ${d}`);
 }
+/* connect-src e img-src SÍ son abiertas, y a propósito: la dirección de
+   la que se descarga (botón 🔗) o de la que se piden teselas (mapa base
+   «Custom Maps», su propio servidor) las elige el usuario, así que
+   enumerar orígenes es imposible por definición. Que esté aquí escrito
+   es lo que convierte abrirlas en una decisión visible y no en algo que
+   se cuela en un diff.                                                */
+ok(directiva("connect-src") === "'self' https:",
+  "connect-src admite cualquier https, y nada más: " + directiva("connect-src"));
+ok(directiva("img-src") === "'self' data: blob: https:",
+  "img-src admite cualquier https además de datos/blobs propios: " + directiva("img-src"));
+ok(!/http:/.test(csp), "sin http: en ninguna directiva: una página https no se degrada");
 /* Y lo que se quitó al empotrar los iconos sigue fuera también aquí */
 ok(!min.includes("api.iconify.design"), "sin resucitar api.iconify.design");
 

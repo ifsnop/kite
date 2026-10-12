@@ -83,6 +83,289 @@ document.getElementById("log-copy").addEventListener("click", () => {
     .catch(() => navMessage("No se pudo copiar al portapapeles."));
 });
 
+/* ---------- Añadir contenido desde una dirección (URL) ----------
+   Dos pasos, y son dos a propósito: lo que llega de una dirección
+   arbitraria puede ser cualquier cosa —una página de error, un HTML, un
+   formato que no entendemos—, así que primero se descarga y se dice QUÉ
+   ha llegado, y solo entonces el usuario decide meterlo en el árbol. Es
+   la misma edición diferida del resto de diálogos: hasta «Añadir al
+   árbol» no se toca nada.
+
+   Lo descargado se envuelve en un `File` y se entrega a
+   handleDroppedFiles, así que no se duplica ni una línea del camino de
+   importación: mismos formatos, mismos diálogos (etiquetas HTML,
+   propiedad-nombre, duplicados), mismo informe y mismo guardado.
+
+   VA AQUÍ, por encima del registro de diálogos del final del archivo:
+   `urlBox` se usa en ese bucle, que corre al EVALUAR el archivo, y
+   declararlo por debajo reventaría al cargar por zona muerta temporal
+   —el mismo tropiezo que ya costó una tarde con `descBody`—.        */
+const URL_TIMEOUT = 20000;                 /* tope de respuesta        */
+const URL_MAX_BYTES = 100 * 1024 * 1024;   /* tope de descarga         */
+
+const urlDialog = document.getElementById("url-dialog");
+const urlBox = urlDialog.querySelector(".dlg-box");
+const urlInput = document.getElementById("url-input");
+const urlStatus = document.getElementById("url-status");
+const urlFetchBtn = document.getElementById("url-fetch");
+const urlAddBtn = document.getElementById("url-add");
+
+let urlAbort = null;   /* descarga en vuelo, para poder cancelarla     */
+let urlSeq = 0;        /* descarta respuestas superadas, como placeSeq */
+let urlReady = null;   /* el borrador: { file, kind, size } o null     */
+
+/* Un único punto que mueve TODOS los controles: nadie toca `disabled`
+   ni `hidden` por su cuenta, que es como se acaba con un botón activo
+   en un estado que no lo admite.                                     */
+function setUrlState(state, text = "", bad = false) {
+  const descargando = state === "descargando";
+  urlInput.disabled = descargando;
+  /* Durante la descarga el botón primario CAMBIA DE PAPEL en vez de
+     deshabilitarse: esperar a que venza el tope de 20 s no es una
+     salida aceptable para quien acaba de pegar una dirección enorme. */
+  urlFetchBtn.textContent = descargando ? "Cancelar descarga" : "Descargar";
+  /* Con el resultado ya en la mano, volver a descargar la MISMA
+     dirección no hace nada que no esté hecho: quedan las dos salidas
+     que sí significan algo, añadirlo o cerrar. Y no es un callejón:
+     tocar la dirección invalida ese resultado y devuelve el diálogo al
+     estado inicial, con «Descargar» otra vez activo.                 */
+  urlFetchBtn.disabled = state === "listo";
+  urlAddBtn.hidden = state !== "listo";
+  urlStatus.hidden = !text;
+  urlStatus.textContent = text;
+  urlStatus.classList.toggle("sh-bad", bad);
+}
+
+/* Aborta lo que haya en vuelo. `motivo` viaja al `catch` para poder
+   distinguir el tope de tiempo de una cancelación del usuario.       */
+function abortUrlFetch(motivo) {
+  urlSeq++;
+  if (urlAbort) { urlAbort.abort(motivo); urlAbort = null; }
+}
+
+function closeUrlDialog() {
+  /* Cerrar aborta: una descarga cuyo resultado ya no tiene dónde
+     mostrarse solo ocupa conexión.                                   */
+  abortUrlFetch("cerrado");
+  urlReady = null;
+  urlDialog.hidden = true;
+  releaseFocus();
+}
+
+function openUrlDialog() {
+  urlReady = null;
+  setUrlState("inicial");
+  urlDialog.hidden = false;
+  clampToViewport(urlBox);
+  focusDialog(urlBox);
+  urlInput.focus();
+  /* Seleccionado, no borrado: lo normal al reabrir es corregir una
+     errata de la dirección anterior.                                 */
+  urlInput.select();
+}
+
+/* La descarga. Devuelve los bytes o lanza con un mensaje ya redactado.
+
+   La petición es deliberadamente SIMPLE: sin cabeceras propias y sin
+   credenciales. Cualquier cabecera no simple obliga al navegador a un
+   preflight OPTIONS que la mayoría de los alojamientos estáticos no
+   contesta, y convertiría en fallo lo que ahora funciona; y las cookies
+   del usuario no tienen nada que hacer en una descarga hacia un tercero.
+   Es justo el cambio «inocente» que alguien haría más adelante.      */
+async function fetchRemoteFile(url, signal, onBytes) {
+  const resp = await fetch(url, { signal, credentials: "omit", redirect: "follow" });
+  if (!resp.ok) throw new Error(`No se pudo descargar: ${describeHttp(resp.status)}.`);
+
+  /* Lo que el servidor DICE que ocupa, antes de traerse nada: es la
+     comprobación barata y evita empezar una descarga condenada.      */
+  const declarado = Number(resp.headers.get("content-length"));
+  if (Number.isFinite(declarado) && declarado > URL_MAX_BYTES) {
+    throw new Error(`El archivo ocupa ${fmtBytes(declarado)} y supera el tope de `
+      + `${fmtBytes(URL_MAX_BYTES)}.`);
+  }
+
+  /* Y lo que ocupa DE VERDAD, mientras llega: content-length puede
+     faltar (respuesta troceada) o mentir. Leer por trozos es además lo
+     que hace que cancelar surta efecto en el acto y lo que permite ir
+     diciendo cuánto lleva descargado.                                */
+  if (!resp.body || !resp.body.getReader) {
+    const buf = await resp.arrayBuffer();
+    if (buf.byteLength > URL_MAX_BYTES) {
+      throw new Error(`La descarga ocupa ${fmtBytes(buf.byteLength)} y supera el tope de `
+        + `${fmtBytes(URL_MAX_BYTES)}.`);
+    }
+    return new Uint8Array(buf);
+  }
+  const reader = resp.body.getReader();
+  const trozos = [];
+  let total = 0;
+  for (;;) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    total += value.length;
+    if (total > URL_MAX_BYTES) {
+      reader.cancel();
+      throw new Error(`La descarga ya supera el tope de ${fmtBytes(URL_MAX_BYTES)} `
+        + "y se ha interrumpido.");
+    }
+    trozos.push(value);
+    if (onBytes) onBytes(total);
+  }
+  const out = new Uint8Array(total);
+  let pos = 0;
+  for (const t of trozos) { out.set(t, pos); pos += t.length; }
+  return out;
+}
+
+/* Paso 1: descargar y reconocer. No toca el árbol. */
+async function runUrlFetch() {
+  /* Se quitan TODOS los blancos, no solo los de los extremos: una
+     dirección no puede llevarlos, y copiarla de un correo o de un PDF
+     arrastra saltos de línea con una facilidad pasmosa. Antes eso daba
+     un «no parece una dirección válida» que el usuario no entendía,
+     porque lo que él veía pegado estaba bien.                        */
+  const url = urlInput.value.replace(/\s+/g, "");
+  if (!url) { setUrlState("error", "Escriba la dirección del archivo que quiere descargar.", true); return; }
+  let parsed;
+  try { parsed = new URL(url); } catch { parsed = null; }
+  if (!parsed || (parsed.protocol !== "http:" && parsed.protocol !== "https:")) {
+    setUrlState("error", `«${url}» no parece una dirección válida. Debe empezar por `
+      + "http:// o https://.", true);
+    return;
+  }
+  /* La CSP admite https: y nada más. Sin este aviso, el rechazo llega
+     como el mismo TypeError sin detalle que un fallo de CORS y el
+     usuario se pondría a buscar por donde no es.                     */
+  if (parsed.protocol === "http:" && location.protocol === "https:") {
+    setUrlState("error", "La dirección usa http://. Desde una página servida por https "
+      + "solo se pueden descargar direcciones https://.", true);
+    return;
+  }
+
+  abortUrlFetch("reemplazada");
+  urlReady = null;
+  const seq = ++urlSeq;
+  const ctrl = urlAbort = new AbortController();
+  const timer = setTimeout(() => ctrl.abort("timeout"), URL_TIMEOUT);
+  setUrlState("descargando", "Descargando…");
+  try {
+    const bytes = await fetchRemoteFile(url, ctrl.signal,
+      n => { if (seq === urlSeq) setUrlState("descargando", `Descargando… ${fmtBytes(n)}`); });
+    if (seq !== urlSeq) return; /* superada o cancelada: no pinta nada */
+    if (!bytes.length) { setUrlState("error", "La descarga ha llegado vacía (0 bytes).", true); return; }
+
+    /* Los bytes primero (un zip no se decodifica), el texto después */
+    let texto = "";
+    try { texto = new TextDecoder("utf-8").decode(bytes); } catch { texto = ""; }
+    const kind = sniffContentKind(bytes, texto);
+    if (kind === "html") {
+      setUrlState("error", "Lo descargado es una página web (HTML), no un archivo de datos. "
+        + "Compruebe que la dirección apunta al archivo en crudo (en GitHub, el enlace «Raw»).", true);
+      return;
+    }
+    if (!kind) {
+      setUrlState("error", `No se reconoce el contenido descargado (${fmtBytes(bytes.length)}). `
+        + "Formatos admitidos: KML, KMZ, JSON (GeoJSON), TopoJSON y carpetas "
+        + `exportadas (${EXPORT_EXT}).`, true);
+      return;
+    }
+    const name = downloadFileName(url, kind);
+    urlReady = { file: new File([bytes], name), kind, size: bytes.length };
+    setUrlState("listo", `«${name}» — ${URL_KIND_LABEL[kind]}, ${fmtBytes(bytes.length)}. `
+      + "Pulse «Añadir al árbol» para insertarlo en una carpeta nueva.");
+    urlAddBtn.focus();
+  } catch (err) {
+    if (seq !== urlSeq) return;
+    /* Cancelar NO es un fallo: no se pinta en rojo ni se registra. El
+       tope de tiempo sí, y llega por el mismo camino, así que se
+       distinguen por el motivo del abort.                            */
+    if (err.name === "AbortError") {
+      if (ctrl.signal.reason === "timeout") {
+        setUrlState("error", `El servidor ha tardado más de ${URL_TIMEOUT / 1000} s en responder.`, true);
+      } else {
+        setUrlState("inicial", "Descarga cancelada.");
+      }
+      return;
+    }
+    /* Un fallo de red llega como TypeError SIN ningún detalle: el
+       navegador no le cuenta a la página por qué. Con diferencia, la
+       causa más frecuente es que el servidor no mande cabeceras CORS,
+       así que el mensaje lo dice y ofrece la salida que siempre
+       funciona en vez de dejar al usuario mirando «Failed to fetch». */
+    const msg = err instanceof TypeError
+      ? "No se ha podido conectar. Lo más probable es que el servidor no autorice la "
+        + "descarga desde otra página (CORS); el navegador no da más detalle. También "
+        + "puede ser que la dirección no exista o que no haya conexión. Si puede abrir "
+        + "el archivo en el navegador, descárguelo y arrástrelo al recuadro."
+      : err.message;
+    setUrlState("error", msg, true);
+    navMessage(`No se pudo descargar «${url}»: ${msg}`);
+  } finally {
+    clearTimeout(timer);
+    if (urlAbort === ctrl) urlAbort = null;
+  }
+}
+
+document.getElementById("url-btn").addEventListener("click", openUrlDialog);
+document.getElementById("url-close").addEventListener("click", closeUrlDialog);
+urlFetchBtn.addEventListener("click", () => {
+  /* El mismo botón hace las dos cosas según el estado: descargar, o
+     cancelar lo que esté descargando.                                */
+  if (urlFetchBtn.textContent === "Cancelar descarga") {
+    abortUrlFetch("cancelada");
+    setUrlState("inicial", "Descarga cancelada.");
+    urlInput.focus();
+    return;
+  }
+  runUrlFetch();
+});
+urlAddBtn.addEventListener("click", async () => {
+  if (!urlReady) return;
+  const { file } = urlReady;
+  /* Se cierra ANTES de importar: la importación abre sus propios
+     modales (etiquetas HTML, propiedad-nombre, duplicados) y no deben
+     apilarse sobre este. Del resumen, el progreso y el guardado se
+     encarga ya handleDroppedFiles, como con cualquier archivo.       */
+  closeUrlDialog();
+  /* Todo lo descargado cuelga de UNA sección «Descargas», como
+     «Lugares», «Marcadores», «Polígonos» o «Elevaciones»: se localiza
+     por nombre con ensureNamedSection, así que se reutiliza entre
+     descargas y sobrevive a la restauración sin enganche especial.
+
+     Y dentro, cada descarga en su propia «Descarga N», numerada con el
+     mismo nextNumberedName que las formas dibujadas, las mediciones y
+     los pines: deduce el número de los nombres que ya hay en el árbol
+     —pendientes incluidos—, así que sobrevive a una recarga y manda el
+     máximo, no la cuenta. Es exactamente la forma de «Elevaciones» con
+     sus «Elevación N» dentro.
+
+     La carpeta hace falta: sin ella el resultado depende del formato
+     —un GeoJSON crea su envoltorio y un KML vuelca su jerarquía tal
+     cual—, de modo que dos descargas se mezclarían dentro de la
+     sección sin saberse cuál trajo qué.                             */
+  pushUndo("añadir desde una dirección");
+  const seccion = ensureNamedSection("Descargas");
+  const carpeta = await createFolderNode(seccion.parentElement,
+    nextNumberedName("Descarga"));
+  await handleDroppedFiles([file], null, nodeUl(carpeta));
+  /* El conjunto de hijos de la carpeta nueva ha cambiado: su casilla
+     tiene que recalcularse, como en cualquier importación dentro de
+     una carpeta.                                                     */
+  refreshAncestorChecks(carpeta);
+  scheduleSave();
+});
+/* Editar la dirección invalida una descarga ya lista: si no, se podría
+   descargar A, escribir B y pulsar «Añadir» insertando A.           */
+urlInput.addEventListener("input", () => {
+  if (urlReady) { urlReady = null; setUrlState("inicial"); }
+});
+urlInput.addEventListener("keydown", e => {
+  if (e.key !== "Enter") return;
+  e.preventDefault();
+  /* Enter dispara la acción primaria VISIBLE */
+  if (!urlAddBtn.hidden) urlAddBtn.click(); else urlFetchBtn.click();
+});
+
 /* ---------- Diálogo de la credencial de Copernicus ----------
    Edición diferida como el resto: se escribe en la caja y solo
    «Aceptar» la guarda y rearma la capa.                              */
@@ -130,14 +413,64 @@ document.getElementById("sh-accept").addEventListener("click", () => {
   closeShCredsDialog();
 });
 
+/* ---------- Diálogo del servidor de teselas de "Custom Maps" ----------
+   Mismo patrón que el de la credencial de Copernicus, justo arriba:
+   edición diferida, «Aceptar» es lo único que guarda y rearma la capa. */
+const customTilesDialog = document.getElementById("custom-tiles-creds");
+const customTilesBox = customTilesDialog.querySelector(".dlg-box");
+const customTilesInput = document.getElementById("custom-tiles-input");
+const customTilesErrorEl = document.getElementById("custom-tiles-error");
+
+function closeCustomTilesDialog() {
+  customTilesDialog.hidden = true;
+  releaseFocus();
+}
+function openCustomTilesDialog() {
+  customTilesInput.value = customTilesUrl || "";
+  customTilesErrorEl.hidden = true;
+  customTilesDialog.hidden = false;
+  clampToViewport(customTilesBox);
+  focusDialog(customTilesBox);
+  customTilesInput.focus();
+  customTilesInput.select();
+}
+document.getElementById("custom-tiles-cancel").addEventListener("click", closeCustomTilesDialog);
+document.getElementById("custom-tiles-clear").addEventListener("click", () => {
+  /* Borrar actúa sobre el campo, no sobre el diálogo: mismo criterio
+     que sh-clear.                                                     */
+  setCustomTilesUrl(null);
+  customTilesInput.value = "";
+  customTilesErrorEl.hidden = true;
+  customTilesInput.focus();
+  navMessage("Servidor de teselas de Custom Maps borrado.", { tone: "info" });
+});
+document.getElementById("custom-tiles-accept").addEventListener("click", () => {
+  const txt = customTilesInput.value.trim();
+  if (!validCustomTilesUrl(txt)) {
+    customTilesErrorEl.textContent = "Debe ser una dirección https:// válida.";
+    customTilesErrorEl.hidden = false;
+    customTilesInput.focus();
+    return;
+  }
+  setCustomTilesUrl(txt);
+  closeCustomTilesDialog();
+});
+
 const descDialog = document.getElementById("desc-dialog");
 const descBox = descDialog.querySelector(".dlg-box");
 const descTitle = document.getElementById("desc-title");
 const descBody = document.getElementById("desc-body");
+const descEditBtn = document.getElementById("desc-edit");
+let descLayer = null; /* capa cuya ficha se muestra ahora */
+/* De la ficha de atributos (solo lectura) a la edición de la misma capa:
+   cierra la ficha y abre el diálogo de propiedades (pestaña Estilos). */
+descEditBtn.addEventListener("click", () => {
+  const li = descLayer;
+  hideLayerInfo({ dismiss: true });
+  if (li) openStyleDialog(li);
+});
 document.getElementById("desc-close").addEventListener("click", () => {
-  descDialog.hidden = true;
-  layerInfoDismissed = true;
-  releaseFocus();
+  hideLayerInfo({ dismiss: true });
 });
 /* ---------- Separador de las dos columnas de la ficha ----------
    Las properties son siempre clave/valor, así que la tabla tiene DOS
@@ -154,13 +487,21 @@ document.getElementById("desc-close").addEventListener("click", () => {
 
    Se guarda como FRACCIÓN, no en píxeles: la ficha se redimensiona, y
    un ancho en píxeles quedaría desproporcionado en cuanto la ventana
-   cambiara de tamaño. Se recuerda entre aperturas —como posFormat o
-   measureUnit— y no persiste entre sesiones.                         */
+   cambiara de tamaño. Y SÍ persiste entre sesiones (`dbSaveProps`/
+   `dbLoadProps`, más abajo) — depende de cómo son los archivos con los
+   que trabaja cada usuario, no de mirar un dato puntual, así que no
+   tendría sentido reajustarlo en cada arranque.                      */
 let propsKeyFrac = 0.38;
 const PROPS_MIN_FRAC = 0.12; /* que ninguna de las dos columnas desaparezca */
 
+/* Dos cuerpos comparten el reparto: la ficha y la pestaña «Atributos»
+   del diálogo de propiedades. Se declara aquí (no más abajo) por el orden:
+   `applyPropsSplit` se llama al abrir cualquiera de los dos.           */
+const styleAttrsBody = document.getElementById("style-attrs-body");
 function applyPropsSplit() {
-  descBody.style.setProperty("--props-key", (propsKeyFrac * 100).toFixed(2) + "%");
+  for (const body of [descBody, styleAttrsBody]) {
+    body.style.setProperty("--props-key", (propsKeyFrac * 100).toFixed(2) + "%");
+  }
 }
 
 /* El reparto SÍ persiste entre sesiones, a diferencia de la unidad de
@@ -182,55 +523,66 @@ function setPropsSplit(frac, { save = false } = {}) {
    tabla habría que volver a poner en cada apertura.
    Eventos de PUNTERO, como el arrastre de los diálogos: valen igual
    para ratón, lápiz y dedo.                                          */
-descBody.addEventListener("pointerdown", e => {
-  const grip = e.target.closest && e.target.closest(".props-grip");
-  if (!grip) return;
-  const wrap = grip.parentElement;
-  e.preventDefault();
-  grip.classList.add("dragging");
-  /* La captura mantiene los eventos aquí aunque el puntero se salga de
-     la ficha, que es lo que evita que el arrastre se quede pegado.  */
-  grip.setPointerCapture(e.pointerId);
-  const onMove = ev => {
-    const r = wrap.getBoundingClientRect();
-    if (!r.width) return;
-    setPropsSplit((ev.clientX - r.left) / r.width);
-  };
-  const onUp = () => {
-    setPropsSplit(propsKeyFrac, { save: true });
-    grip.removeEventListener("pointermove", onMove);
-    grip.removeEventListener("pointerup", onUp);
-    grip.removeEventListener("pointercancel", onUp);
-    grip.classList.remove("dragging");
-  };
-  grip.addEventListener("pointermove", onMove);
-  grip.addEventListener("pointerup", onUp);
-  grip.addEventListener("pointercancel", onUp);
-});
+function wirePropsGrip(container) {
+  container.addEventListener("pointerdown", e => {
+    const grip = e.target.closest && e.target.closest(".props-grip");
+    if (!grip) return;
+    const wrap = grip.parentElement;
+    e.preventDefault();
+    grip.classList.add("dragging");
+    /* La captura mantiene los eventos aquí aunque el puntero se salga de
+       la ficha, que es lo que evita que el arrastre se quede pegado.  */
+    grip.setPointerCapture(e.pointerId);
+    const onMove = ev => {
+      const r = wrap.getBoundingClientRect();
+      if (!r.width) return;
+      setPropsSplit((ev.clientX - r.left) / r.width);
+    };
+    const onUp = () => {
+      setPropsSplit(propsKeyFrac, { save: true });
+      grip.removeEventListener("pointermove", onMove);
+      grip.removeEventListener("pointerup", onUp);
+      grip.removeEventListener("pointercancel", onUp);
+      grip.classList.remove("dragging");
+    };
+    grip.addEventListener("pointermove", onMove);
+    grip.addEventListener("pointerup", onUp);
+    grip.addEventListener("pointercancel", onUp);
+  });
+}
+wirePropsGrip(descBody);
+wirePropsGrip(styleAttrsBody);
 
 
-for (const box of [styleBox, iconBox, colorBox, descBox, shortcutsBox, ktpBox, kdpBox, gnpBox, gnpEditorBox, shBox, pointsBox, logBox]) makeDialogMovable(box);
+/* colorPicker is NOT in this list: it is a popover anchored to whichever
+   button opened it (see openColorPicker/positionColorPicker), not a
+   draggable window with its own dialog role — that separate-window
+   treatment is exactly what the popover replaced.                    */
+for (const box of [styleBox, iconBox, descBox, shortcutsBox, ktpBox, kdpBox, gnpBox, propsBox, shBox, customTilesBox, pointsBox, logBox, urlBox]) makeDialogMovable(box);
 setupDialog(styleBox, { modal: false }); /* flotante: el mapa sigue vivo */
 setupDialog(iconBox, { modal: true });
-setupDialog(colorBox, { modal: true });
 setupDialog(descBox, { modal: false });
 setupDialog(shortcutsBox, { modal: true });
 setupDialog(ktpBox, { modal: true });
 setupDialog(kdpBox, { modal: true });
 setupDialog(gnpBox, { modal: true });
-setupDialog(gnpEditorBox, { modal: true });
+setupDialog(propsBox, { modal: true });
 setupDialog(shBox, { modal: true });
+setupDialog(customTilesBox, { modal: true });
 setupDialog(pointsBox, { modal: true });
 setupDialog(logBox, { modal: true });
+setupDialog(urlBox, { modal: true });
 window.addEventListener("resize", () => {
   /* a moved dialog must not fall off-screen */
-  for (const box of [styleBox, iconBox, colorBox, descBox, shortcutsBox, ktpBox, kdpBox, gnpBox, gnpEditorBox, shBox, pointsBox, logBox]) clampToViewport(box);
+  for (const box of [styleBox, iconBox, descBox, shortcutsBox, ktpBox, kdpBox, gnpBox, propsBox, shBox, customTilesBox, pointsBox, logBox, urlBox]) clampToViewport(box);
+  /* the popover's anchor button may have moved too; closing is simpler
+     and less confusing than reclamping a stale position              */
+  if (!colorPicker.hidden) closeColorPicker();
 });
 let styleTargets = [];    /* nodes being edited */
 let styleKindOpen = null; /* "marker" | "polygon" */
 let styleDraft = null;    /* working copy shown by the controls */
 let pendingIcon = null;   /* icon highlighted in the picker, not yet accepted */
-let posFormat = "dms";    /* coordinate notation, toggled with the ⇅ button */
 let posMarker = null;     /* sole marker whose position is being edited */
 let posOriginal = null;   /* its position when the dialog opened */
 let styleIsNew = false;   /* pin just created: cancelling removes it again */
@@ -243,6 +595,33 @@ let styleIsNew = false;   /* pin just created: cancelling removes it again */
    nodo `styleMixed` queda vacío y todo se aplica como siempre.        */
 let styleMixed = new Set();
 let styleTouched = new Set();
+/* Vista previa EN VIVO: los cambios llegan al mapa al momento y «Cancelar»
+   los deshace. `styleSnapshot` guarda, por nodo, el estilo que tenía al
+   abrir (los estilos se SUSTITUYEN, nunca se mutan, así que basta la
+   referencia). `styleLivePreview` son las propiedades que un selector
+   (color, icono) está probando ahora mismo sin haberlas aceptado: se
+   aplican como si estuvieran tocadas, pero sin marcarlas de verdad, para
+   que cancelar el selector no deje una propiedad mezclada igualada.   */
+let styleSnapshot = null;
+let styleLivePreview = new Set();
+let previewFrame = null;
+let stylePreviewed = false; /* algo llegó a la capa: Cancelar debe re-guardar */
+
+/* Único punto de verdad de "¿se puede mover/insertar/borrar algo de
+   este nodo ahora mismo?" — un vértice de un polígono o una ruta, o el
+   centro/borde de un círculo. BUG reportado: hasta ahora un polígono
+   se podía editar con solo tenerlo seleccionado en el árbol, y una
+   ruta o un círculo SIEMPRE, sin ningún diálogo de por medio. La
+   respuesta es siempre esta misma pregunta — que el diálogo de
+   estilos esté abierto mostrando EXACTAMENTE este nodo, no una
+   selección múltiple ni otro nodo — usada directamente por el círculo
+   (`attachCircleHandleDrag`, 52-measure.js) y, para ruta/polígono, indirectamente
+   a través de `vertexOwner` (`syncVertexOwnerForDialog`,
+   43-points-editor.js, que la sincroniza una sola vez al abrir/cerrar
+   el diálogo en vez de repetirla en cada gesto).                      */
+function styleDialogShows(li) {
+  return !!li && !styleDialog.hidden && styleTargets.length === 1 && styleTargets[0] === li;
+}
 
 /* Qué propiedad del borrador toca cada control. Sirve para lo mismo en
    los dos sentidos: marcar el control cuando los nodos no coinciden y
@@ -255,7 +634,7 @@ const CONTROL_PROP = {
   "pg-fill-color": "fillColor", "pg-fill-opacity": "fillOpacity",
   "pg-text-always": "textAlways",
   "ms-weight": "weight", "ms-color": "color", "ms-fill-color": "fillColor",
-  "ms-fill-opacity": "fillOpacity",
+  "ms-fill-opacity": "fillOpacity", "ms-show-labels": "showLabels",
   "io-opacity": "opacity"
 };
 
@@ -312,7 +691,7 @@ function touchControl(el) {
 function draftProps(props) {
   const out = {};
   for (const k of props) {
-    if (!styleMixed.has(k) || styleTouched.has(k)) out[k] = styleDraft[k];
+    if (!styleMixed.has(k) || styleTouched.has(k) || styleLivePreview.has(k)) out[k] = styleDraft[k];
   }
   return out;
 }
@@ -346,14 +725,52 @@ function joinNames(names, max = NAMES_PREVIEW_MAX) {
   return rest ? `${out.join(", ")} y ${rest} más` : out.join(", ");
 }
 
-function openStyleDialog(li, { isNew = false } = {}) {
+/* Pestañas del diálogo de propiedades. Mismo patrón que la chuleta
+   (`shTabs`, 43-points-editor.js): un mapa en vez de booleanos sueltos. */
+const styleTabs = {
+  styles: [$id("style-tab-btn-styles"), $id("style-tab-styles")],
+  attrs: [$id("style-tab-btn-attrs"), $id("style-tab-attrs")]
+};
+function showStyleTab(tab) {
+  for (const [key, [btn, panel]] of Object.entries(styleTabs)) {
+    const active = key === tab;
+    btn.classList.toggle("active", active);
+    btn.setAttribute("aria-selected", String(active));
+    panel.hidden = !active;
+  }
+}
+for (const key of Object.keys(styleTabs)) styleTabs[key][0].addEventListener("click", () => showStyleTab(key));
+
+/* Pestaña «Atributos»: la MISMA ficha que «Mostrar atributos»
+   (`infoHtmlFor`, ya saneada), de solo lectura. Es de UNA capa, como la
+   posición de un marcador: con varias seleccionadas la pestaña sigue ahí
+   y dice por qué no aplica, en vez de desaparecer.                      */
+function renderStyleAttrs() {
+  const hint = $id("style-attrs-empty");
+  let html = null;
+  let why = "";
+  if (styleTargets.length !== 1) why = "Los atributos son de cada capa: deje seleccionada una sola para verlos.";
+  else {
+    html = infoHtmlFor(styleTargets[0]);
+    if (html == null) why = "Esta capa no tiene atributos.";
+  }
+  styleAttrsBody.innerHTML = html == null ? "" : html;
+  hint.textContent = why;
+  hint.hidden = !why;
+  applyPropsSplit(); /* el reparto elegido sobrevive al cambio de capa */
+}
+
+/* `focus: false` cuando lo abre un clic en el VISOR (la ruta que se
+   está creando): el foco se queda en el mapa, o sus teclas (desplazar,
+   zoom, R) dejarían de llegar a mitad del dibujo.                   */
+function openStyleDialog(li, { isNew = false, focus = true } = {}) {
   /* The dialog is not modal, so another row's button may be pressed while
      it is open: that cancels the edit in progress before retargeting    */
   if (!styleDialog.hidden) closeStyleDialog(false);
   /* El panel de información (hover) es igual de flotante y puede quedar
      justo en el mismo sitio, tapando este diálogo sin ningún aviso de
      que hay algo debajo: se cierra antes de mostrar el de edición.    */
-  if (!descDialog.hidden) descDialog.hidden = true;
+  hideLayerInfo();
   const kind = styleKind(li);
   if (kind !== "marker" && kind !== "polygon" && kind !== "measure" && kind !== "imageOverlay") {
     navMessage("Esta capa no tiene estilos editables.");
@@ -376,7 +793,7 @@ function openStyleDialog(li, { isNew = false } = {}) {
   styleKindOpen = kind;
   styleIsNew = isNew;
   $id("style-title").textContent = styleTargets.length > 1
-    ? `Estilo de ${styleTargets.length} capas` : `Estilo: ${li._name}`;
+    ? `Propiedades de ${styleTargets.length} capas` : `Propiedades: ${li._name}`;
   $id("style-marker").hidden = kind !== "marker";
   $id("style-polygon").hidden = kind !== "polygon";
   $id("style-measure").hidden = kind !== "measure";
@@ -463,7 +880,7 @@ function openStyleDialog(li, { isNew = false } = {}) {
        posición de un marcador) y solo si hay de verdad un polígono cerrado */
     polyMeasures = single ? polygonMeasures(styleTargets[0]) : null;
     $id("pg-measures").hidden = !polyMeasures;
-    if (polyMeasures) { $id("pg-unit").value = measureUnit; renderPolyMeasures(); }
+    if (polyMeasures) renderPolyMeasures();
     /* La lista de puntos es la geometría de UN nodo, como la posición de
        un marcador: no tiene sentido en bloque, y con varios
        seleccionados NO se puede abrir. Pero la fila ya no desaparece:
@@ -482,10 +899,17 @@ function openStyleDialog(li, { isNew = false } = {}) {
     $id("pg-points-row").classList.toggle("dim", !!pointsWhy);
     $id("pg-points").disabled = !!pointsWhy;
     $id("pg-points").title = pointsWhy;
+    /* La edición interactiva de vértices (arrastrar/borrar/seleccionar
+       en el mapa) la activa justamente ESTE diálogo: se enciende al
+       final de la función (`syncVertexOwnerForDialog`, en
+       43-points-editor.js) y se apaga en `closeStyleDialog` — sin él
+       abierto, ningún vértice se puede tocar (bug reportado: antes
+       bastaba con la selección del árbol). `refreshOpenPolygonDialog`
+       mantiene el perímetro/área en vivo mientras se edita.           */
   } else if (kind === "measure") {
     const styles = styleTargets.map(t => normalizePathStyle(t._style));
     styleDraft = { ...styles[0] };
-    styleMixed = mixedProps(styles, ["weight", "color", "fillColor", "fillOpacity"]);
+    styleMixed = mixedProps(styles, ["weight", "color", "fillColor", "fillOpacity", "showLabels"]);
     /* Solo un círculo encierra superficie: para una línea el relleno no
        existe. Se DESHABILITA, no se esconde, igual que en las formas
        abiertas del diálogo de polígonos. Con una selección mixta manda
@@ -500,24 +924,93 @@ function openStyleDialog(li, { isNew = false } = {}) {
     setColorControl($id("ms-color"), styleDraft.color, styleMixed.has("color"));
     setColorControl($id("ms-fill-color"), styleDraft.fillColor, styleMixed.has("fillColor"));
     setValueControl($id("ms-fill-opacity"), styleDraft.fillOpacity, styleMixed.has("fillOpacity"));
+    setCheckControl($id("ms-show-labels"), styleDraft.showLabels, styleMixed.has("showLabels"));
+    /* Los puntos son la geometría de UNA medición, como la posición de un
+       marcador: no tiene sentido en bloque (a diferencia de un polígono,
+       aquí no hay "varios trazos en la capa" que distinguir).          */
+    $id("ms-points-row").classList.toggle("dim", !single);
+    $id("ms-points").disabled = !single;
+    $id("ms-points").title = single ? "" : "Deje seleccionada una sola medición para editar sus puntos.";
     /* Las medidas son de UNA medición, como la posición de un marcador */
     msMeasures = single ? measurementValues(styleTargets[0]._measure) : null;
     $id("ms-values").hidden = !msMeasures;
-    if (msMeasures) { $id("ms-unit").value = measureUnit; renderMeasureValues(); }
+    if (msMeasures) renderMeasureValues();
+    /* Perfil: de UNA ruta ya creada (mientras se dibuja aún no es una
+       ruta terminada). «Mostrar perfil» si ya lo tiene (sin red); si no,
+       «Obtener perfil», deshabilitado con el motivo en el title.     */
+    const route = single && !isNew && styleTargets[0]._measure.type === "route";
+    $id("ms-profile-row").hidden = !route;
+    if (route) {
+      const item = routeProfileCtxItem(styleTargets[0]);
+      const why = item.disabled();
+      $id("ms-profile").textContent = item.label;
+      $id("ms-profile").disabled = !!why;
+      $id("ms-profile").title = why || (item.label === "Mostrar perfil"
+        ? "Mostrar el perfil ya descargado de esta ruta"
+        : "Descargar las alturas MDT y MDS a lo largo de la ruta y dibujar su perfil");
+    }
   } else {
     const ops = styleTargets.map(t => ({ opacity: t._imageOverlay.opacity }));
     styleDraft = { ...ops[0] };
     styleMixed = mixedProps(ops, ["opacity"]);
     setValueControl($id("io-opacity"), styleDraft.opacity, styleMixed.has("opacity"));
   }
+  styleSnapshot = new Map(styleTargets.map(t => [t, {
+    mstyle: t._mstyle, style: t._style,
+    opacity: t._imageOverlay ? t._imageOverlay.opacity : undefined
+  }]));
+  styleLivePreview = new Set();
+  stylePreviewed = false;
+  renderStyleAttrs();
+  showStyleTab("styles"); /* siempre abre en Estilos, no recuerda la última */
   styleDialog.hidden = false;
   clampToViewport(styleBox);
-  focusDialog(styleBox);
+  focusDialog(styleBox, focus);
+  /* Última: styleTargets/styleKindOpen ya están fijados y el diálogo ya
+     está visible, que es justo lo que styleDialogShows comprueba.     */
+  syncVertexOwnerForDialog();
+  /* Foto para que Cancelar pueda revertir (ver closeStyleDialog). */
+  vertexEditSnapshot = captureVertexSnapshot();
+  /* Aspecto/cursor "editable" de los manejadores PERMANENTES de una
+     ruta o un círculo (los de un polígono ya nacen así, ver
+     beginVertexEdit): solo con un único nodo mostrado, igual que exige
+     styleDialogShows para todo lo demás — con selección múltiple ningún
+     gesto de vértice va a funcionar, así que tampoco deben parecerlo.  */
+  if (kind === "measure" && single) setMeasureHandlesEditable(li._measure, true);
 }
 
 /* `commit` false = cancel: the dragged position goes back and a pin that
    was created just to open this dialog is removed again.               */
 function closeStyleDialog(commit = false) {
+  /* Cerrar el diálogo de una ruta TODAVÍA EN DIBUJO (routeMeasurement,
+     52-measure.js) tiene que salir de ese modo pase lo que pase —
+     Aceptar guarda la ruta (isNew deja de importar, como cualquier
+     nodo ya aceptado), Cancelar la borra (isNew, ver más abajo)—, y
+     los dos casos deben terminar con `activeTool` de vuelta a `null`.
+     Reportado: cerrar con los botones del propio diálogo (a diferencia
+     de Escape, que ya lo hacía aparte) dejaba `routeMeasurement`
+     colgando y la herramienta activa, así que el siguiente click seguía
+     intentando añadir waypoints a un nodo ya borrado o ya terminado.
+     Se captura ANTES de que nada de lo de abajo toque `styleTargets`.  */
+  const closingLiveRoute = typeof routeMeasurement !== "undefined"
+    && routeMeasurement && styleTargets[0] && styleTargets[0]._measure === routeMeasurement;
+  /* Primero: sin esto, un polígono/ruta en edición se quedaría con sus
+     manejadores del mapa vivos después de cerrar el diálogo que los
+     activó — exactamente el bug reportado. Incondicional (cancelar o
+     aceptar): la edición ya es en vivo, no hay nada que revertir aquí,
+     solo retirar los manejadores temporales.                          */
+  teardownVertexOwner();
+  if (previewFrame) { cancelAnimationFrame(previewFrame); previewFrame = null; }
+  if (!commit) restoreStyleSnapshot();
+  /* Revierte mover/insertar/borrar un vértice, o arrastrar el
+     centro/borde de un círculo, hecho mientras el diálogo estuvo
+     abierto — mismo patrón que posMarker/posOriginal, un poco más
+     abajo. Se lee ANTES de limpiar styleTargets/styleKindOpen.        */
+  if (!commit) restoreVertexSnapshot(vertexEditSnapshot);
+  vertexEditSnapshot = null;
+  if (styleKindOpen === "measure" && styleTargets[0] && styleTargets[0]._measure) {
+    setMeasureHandlesEditable(styleTargets[0]._measure, false);
+  }
   if (dragFrame) { cancelAnimationFrame(dragFrame); dragFrame = null; }
   if (posMarker) {
     posMarker.off("drag", onMarkerDragged);
@@ -527,10 +1020,16 @@ function closeStyleDialog(commit = false) {
   if (!commit && styleIsNew && styleTargets.length) deleteNode(styleTargets[0]);
   const wasOpen = !styleDialog.hidden;
   styleDialog.hidden = true;
+  styleAttrsBody.innerHTML = ""; /* no retener el HTML de la capa cerrada */
+  /* El círculo no pasa por vertexOwner (teardownVertexOwner, arriba, ya
+     lo cubre para polígono/ruta): con styleDialog ya oculto,
+     anyEditModeActive deja de contar su arrastre como "en edición". */
+  refreshDoubleClickZoom();
   iconPicker.hidden = true;
-  colorPicker.hidden = true;
-  colorTarget = null;
-  if (wasOpen) { focusReturn = focusReturn.slice(0, -1); releaseFocus(); }
+  /* Guarded: closeColorPicker() itself pops a focusReturn entry, and it
+     would be the wrong one if the popover was already closed.        */
+  if (!colorPicker.hidden) closeColorPicker();
+  if (wasOpen) releaseFocus();
   styleTargets = [];
   styleKindOpen = null;
   styleDraft = null;
@@ -542,14 +1041,24 @@ function closeStyleDialog(commit = false) {
   msMeasures = null;
   styleMixed = new Set();
   styleTouched = new Set();
+  styleSnapshot = null;
+  styleLivePreview = new Set();
+  /* setTool(null) sees routeMeasurement already null and skips its own
+     "cancel the in-progress route" branch (52-measure.js), so no
+     recursive call back into closeStyleDialog happens here.           */
+  if (closingLiveRoute) { routeMeasurement = null; setTool(null); }
 }
 
-/* ---------- Position controls ---------- */
-const POS_FORMAT_LABEL = { dms: "g\u00B0 m' s\"", dec: "grados decimales" };
+/* ---------- Position controls ----------
+   El formato (decimal o GMS) ya no es un toggle propio de este diálogo:
+   sigue el ajuste GLOBAL `coordFormat` (panel Propiedades → Preferencias,
+   43-points-editor.js), el mismo que ya usan el centro de un círculo y
+   el editor de puntos de un polígono — antes era `posFormat`, un ⇅
+   propio de este diálogo, de sesión y sin persistir; unificado a
+   petición explícita, para que la notación se decida en un solo sitio.*/
 function renderCoords() {
-  $id("pos-format-label").textContent = POS_FORMAT_LABEL[posFormat];
-  $id("mk-lat").value = formatCoord(styleDraft.lat, true, posFormat);
-  $id("mk-lon").value = formatCoord(styleDraft.lng, false, posFormat);
+  $id("mk-lat").value = formatCoord(styleDraft.lat, true, coordFormat);
+  $id("mk-lon").value = formatCoord(styleDraft.lng, false, coordFormat);
   markCoordValidity();
 }
 /* Flags out-of-range or unreadable text without blocking typing */
@@ -578,17 +1087,6 @@ function onMarkerDragged() {
     renderCoords();
   });
 }
-/* Same idea as the notation switch of the native colour picker: one small
-   ⇅ button cycles through the notations, keeping whatever is typed in and
-   just re-expressing it                                                 */
-$id("pos-format").addEventListener("click", () => {
-  if (!styleDraft || !posMarker) return;
-  const { lat, lon } = markCoordValidity();
-  if (isFinite(lat)) styleDraft.lat = lat;
-  if (isFinite(lon)) styleDraft.lng = lon;
-  posFormat = posFormat === "dms" ? "dec" : "dms";
-  renderCoords();
-});
 for (const id of ["mk-lat", "mk-lon"]) {
   $id(id).addEventListener("input", () => { if (styleDraft && posMarker) markCoordValidity(); });
 }
@@ -635,7 +1133,8 @@ function readMeasureControls() {
     color: colorOf($id("ms-color")),
     opacity: 1, /* el contorno siempre opaco, como en los polígonos */
     fillColor: colorOf($id("ms-fill-color")),
-    fillOpacity: Number($id("ms-fill-opacity").value)
+    fillOpacity: Number($id("ms-fill-opacity").value),
+    showLabels: $id("ms-show-labels").checked
   });
 }
 /* Un único punto de reparto de "vuelca los controles en el borrador":
@@ -648,36 +1147,53 @@ function readStyleControls() {
   else readImageOverlayControls();
 }
 for (const id of ["mk-size", "mk-text-size", "mk-text-always"]) { /* colours: openColorPicker */
-  $id(id).addEventListener("input", () => { if (styleDraft) readMarkerControls(); });
+  $id(id).addEventListener("input", () => { if (styleDraft) { readMarkerControls(); schedulePreview(); } });
 }
 for (const id of ["pg-weight", "pg-fill-opacity"]) { /* colours: openColorPicker */
-  $id(id).addEventListener("input", () => { if (styleDraft) readPolygonControls(); });
+  $id(id).addEventListener("input", () => { if (styleDraft) { readPolygonControls(); schedulePreview(); } });
 }
 for (const id of ["ms-weight", "ms-fill-opacity"]) { /* colours: openColorPicker */
-  $id(id).addEventListener("input", () => { if (styleDraft) readMeasureControls(); });
+  $id(id).addEventListener("input", () => { if (styleDraft) { readMeasureControls(); schedulePreview(); } });
 }
-$id("pg-mode").addEventListener("change", () => { if (styleDraft) readPolygonControls(); });
-$id("pg-text-always").addEventListener("input", () => { if (styleDraft) readPolygonControls(); });
+$id("pg-mode").addEventListener("change", () => { if (styleDraft) { readPolygonControls(); schedulePreview(); } });
+$id("pg-text-always").addEventListener("input", () => { if (styleDraft) { readPolygonControls(); schedulePreview(); } });
+$id("ms-show-labels").addEventListener("input", () => { if (styleDraft) { readMeasureControls(); schedulePreview(); } });
 
 /* Qué ha tocado el usuario, por delegación sobre la caja entera: así un
    control nuevo queda cubierto con solo aparecer en CONTROL_PROP, sin
    depender de acordarse de añadirle su escucha. Los colores y el icono
    no disparan `input` y avisan desde sus propios selectores.         */
 for (const ev of ["input", "change"]) {
-  styleBox.addEventListener(ev, e => touchControl(e.target));
+  styleBox.addEventListener(ev, e => touchControl(e.target), true); /* capture: antes que cada control */
 }
 
 /* ---------- Perímetro y área (solo lectura) ---------- */
 /* Unidad de TODA medida de distancia y área: el perímetro y el área de
-   un polígono, las medidas de una medición y —desde que el usuario lo
-   pidió— las etiquetas que la medición pinta en el visor y en su fila
-   del árbol. Arranca en millas náuticas, que es la unidad de trabajo en
-   navegación aérea y marítima; se recuerda entre aperturas del diálogo,
-   como posFormat, y no persiste entre sesiones, como elevUnit.
-   Es UNA sola preferencia a propósito: hay dos <select> (uno por bloque
-   del diálogo) pero una única pregunta, "¿en qué unidad quiero leer
-   esto?", y dos respuestas distintas a la vez solo sorprenderían.    */
+   un polígono, las medidas de una medición y las etiquetas que la
+   medición pinta en el visor y en su fila del árbol. Arranca en millas
+   náuticas, que es la unidad de trabajo en navegación aérea y marítima.
+   Es un ajuste GLOBAL con un único control (panel Propiedades →
+   Preferencias, 43-points-editor.js) y SÍ persiste entre sesiones
+   (`dbSaveMeasureUnit`/`dbLoadMeasureUnit`, `32-geojson.js`) — antes
+   era una preferencia de sesión suelta, con un <select> repetido en
+   cada diálogo de polígono/medición; unificada a petición explícita.  */
 let measureUnit = "nm";
+/* Unidad de las ALTITUDES, independiente de la de distancias (pedido
+   expreso: en aeronáutica la distancia va en NM y la altura en pies).
+   Manda en las cifras de las cuadrículas de elevación, su lectura en el
+   cuadro de coordenadas y el eje vertical del perfil de una ruta. Por
+   defecto pies, lo que ya proponía la calculadora para alturas con la
+   distancia en NM. Persistente (`dbSaveAltitudeUnit`).               */
+let altitudeUnit = "ft";
+/* Longitud máxima de una ruta para obtener su perfil, en metros: acota
+   la descarga y, sobre todo, lo que el perfil deja guardado en el árbol
+   (una celda por cada una que recorre). Por defecto 10 NM. En metros
+   escritos a mano (1852 por NM): METERS_PER_NM vive en 51-geodesy.js,
+   que carga DESPUÉS (zona muerta temporal).                          */
+const PROFILE_MAX_DEFAULT = 10 * 1852;
+const PROFILE_MAX_MIN = 100;
+const PROFILE_MAX_MAX = 100 * 1852;
+let profileMaxM = PROFILE_MAX_DEFAULT;
 let polyMeasures = null;   /* {area, perim} en m/m² del polígono abierto, o null */
 function renderPolyMeasures() {
   if (!polyMeasures) return;
@@ -690,45 +1206,112 @@ function renderPolyMeasures() {
     $id("pg-area").textContent = fmtUnitArea(polyMeasures.area, measureUnit);
   }
 }
-/* Cambiar la unidad en CUALQUIERA de los dos bloques repinta también las
-   etiquetas de las mediciones del visor: la preferencia es única, así
-   que dejar el mapa con la unidad anterior lo pondría en desacuerdo con
-   la ventana que se acaba de tocar.                                   */
+/* Refresca el diálogo de propiedades EN VIVO mientras se arrastra,
+   borra o inserta un vértice de ESTE polígono — el mismo patrón que
+   refreshOpenMeasureDialog usa para una medición. Llamado desde
+   applyVertexEditRings en cada cambio; sin esto, editar un vértice con
+   el diálogo abierto solo se vería en el mapa hasta cerrarlo y volver a
+   abrirlo. No hace nada si el diálogo está cerrado, mostrando otro
+   nodo, o una selección múltiple (el perímetro/área es de cada uno).  */
+function refreshOpenPolygonDialog(li) {
+  if (styleDialog.hidden || styleTargets.length !== 1 || styleTargets[0] !== li) return;
+  polyMeasures = polygonMeasures(li);
+  $id("pg-measures").hidden = !polyMeasures;
+  if (polyMeasures) renderPolyMeasures();
+}
+/* Ajuste GLOBAL (panel de Propiedades, 43-points-editor.js), ya no un
+   <select> repetido en cada diálogo — reportado: aunque la preferencia
+   ya era única por debajo, tenerla en dos sitios distintos sugería que
+   cada uno tenía la suya. Repinta al momento lo que esté a la vista
+   (el propio diálogo de polígono/medición, si está abierto, y las
+   etiquetas del visor): es una PREVISUALIZACIÓN en vivo del panel de
+   Propiedades, que decide si de verdad se persiste al pulsar Aceptar
+   (ver renderPropsPrefsTab/togglePropsDialog).                        */
 function setMeasureUnit(unit) {
   measureUnit = unit;
-  $id("pg-unit").value = unit;
-  $id("ms-unit").value = unit;
   renderPolyMeasures();
   renderMeasureValues();
   refreshMeasureLabels();
+  refreshProfileChart(); /* eje de distancias del perfil, si está abierto */
 }
-$id("pg-unit").addEventListener("change", () => setMeasureUnit($id("pg-unit").value));
+
+/* Igual que setMeasureUnit, para las altitudes: previsualización en vivo
+   desde Propiedades, que decide al Aceptar si se guarda.              */
+function setAltitudeUnit(unit) {
+  altitudeUnit = unit;
+  refreshElevCells();
+  refreshProfileChart();
+}
 
 /* ---------- Medidas de una medición (solo lectura) ---------- */
-let msMeasures = null; /* {circle, dist, area, brg} de la medición abierta, o null */
+let msMeasures = null; /* {circle, route, dist, area, brg, legs} de la medición abierta, o null */
+
+/* Refresca el diálogo de propiedades EN VIVO mientras se arrastra un
+   extremo/waypoint de la medición que tiene abierta —el mismo patrón
+   que applyVertexEditRings ya usa para el perímetro/área de un
+   polígono—. Llamado desde updateMeasurement en cada recálculo; sin
+   esto, arrastrar con el diálogo abierto solo se veía en el mapa,
+   nunca en las cifras de la propia ventana, hasta cerrarla y volver a
+   abrirla. No hace nada si el diálogo no está mostrando ESTA medición
+   (cerrado, mostrando otro nodo, o una selección múltiple — la
+   posición no se edita en bloque, así que ahí tampoco hay nada vivo
+   que mostrar).                                                       */
+function refreshOpenMeasureDialog(m) {
+  if (styleDialog.hidden || styleTargets.length !== 1 || styleTargets[0]._measure !== m) return;
+  msMeasures = measurementValues(m);
+  renderMeasureValues();
+}
+
 function renderMeasureValues() {
   if (!msMeasures) return;
-  /* Un círculo se describe por su RADIO; una línea, por su distancia */
-  $id("ms-dist-label").textContent = msMeasures.circle ? "Radio" : "Distancia";
+  /* Un círculo se describe por su RADIO, una ruta por su TOTAL, una
+     línea por su distancia sin más.                                  */
+  $id("ms-dist-label").textContent = msMeasures.circle ? "Radio" : msMeasures.route ? "Distancia total" : "Distancia";
   $id("ms-dist").textContent = fmtUnitDist(msMeasures.dist, measureUnit);
+  /* Centro del círculo, pedido explícitamente: en el formato global de
+     coordenadas (Propiedades), igual que la posición de un marcador.  */
+  $id("ms-center-row").hidden = !msMeasures.circle;
+  if (msMeasures.circle) {
+    $id("ms-center").textContent = `${formatCoord(msMeasures.center.lat, true, coordFormat)}, `
+      + formatCoord(msMeasures.center.lng, false, coordFormat);
+  }
+  /* Solo el círculo tiene perímetro propio: la ruta ya enseña su
+     «Distancia total» en la primera fila.                              */
+  $id("ms-perim-row").hidden = !msMeasures.circle;
+  if (msMeasures.circle) $id("ms-perim").textContent = fmtUnitDist(msMeasures.perim, measureUnit);
   $id("ms-area-row").hidden = msMeasures.area === null;
   if (msMeasures.area !== null) {
     $id("ms-area").textContent = fmtUnitArea(msMeasures.area, measureUnit);
   }
-  /* El rumbo va SIEMPRE en grados: no es una distancia y la unidad
-     elegida no le afecta.                                            */
+  /* La orientación de un círculo es el rumbo centro → borde (el punto
+     que se arrastra para cambiar el radio). Va SIEMPRE en grados: no es
+     una distancia y la unidad elegida no le afecta. Una ruta no tiene un
+     único rumbo: esa fila se oculta y en su lugar se desglosa por tramo,
+     más abajo.                                                         */
   $id("ms-bearing-row").hidden = msMeasures.brg === null;
   if (msMeasures.brg !== null) $id("ms-bearing").textContent = `${msMeasures.brg.toFixed(1)}°`;
+  $id("ms-legs-row").hidden = !msMeasures.route;
+  if (msMeasures.route) {
+    const legs = $id("ms-legs");
+    legs.textContent = "";
+    msMeasures.legs.forEach((leg, i) => {
+      const row = document.createElement("div");
+      row.className = "dlg-note";
+      row.textContent = `Tramo ${i + 1}: ${fmtUnitDist(leg.dist, measureUnit)} · ${leg.brg.toFixed(1)}°`;
+      legs.appendChild(row);
+    });
+  }
 }
-$id("ms-unit").addEventListener("change", () => setMeasureUnit($id("ms-unit").value));
-
 function readImageOverlayControls() {
   styleDraft.opacity = Number($id("io-opacity").value);
 }
-$id("io-opacity").addEventListener("input", () => { if (styleDraft) readImageOverlayControls(); });
+$id("io-opacity").addEventListener("input", () => { if (styleDraft) { readImageOverlayControls(); schedulePreview(); } });
 
 $id("style-cancel").addEventListener("click", () => closeStyleDialog(false));
-$id("style-accept").addEventListener("click", () => {
+/* Extraída del listener de "Aceptar" para que finishRoute (52-measure.js)
+   pueda reutilizarla tal cual al terminar una ruta con doble click: debe
+   comportarse exactamente como pulsar este botón, no como un Cancelar. */
+function acceptStyleDialog() {
   if (!styleDraft) return;
   /* El nombre se aplica sea cual sea el tipo del nodo. Con varios, el
      campo va vacío y solo renombra si el usuario escribe algo: lo que
@@ -741,30 +1324,41 @@ $id("style-accept").addEventListener("click", () => {
   } else if (nombre) {
     for (const t of styleTargets) setNodeName(t, nombre);
   }
-  if (styleKindOpen === "marker") {
-    readMarkerControls();
-    if (posMarker) {
-      const { lat, lon } = markCoordValidity();
-      if (!isFinite(lat) || !isFinite(lon)) {
-        navMessage("Coordenadas no v\u00E1lidas: revise la latitud y la longitud.");
-        return; /* keep the dialog open so the value can be fixed */
-      }
-      styleDraft.lat = lat;
-      styleDraft.lng = lon;
-      posMarker.setLatLng([lat, lon]);
-      invalidateGeo(styleTargets[0]);
+  readStyleControls();
+  if (styleKindOpen === "marker" && posMarker) {
+    const { lat, lon } = markCoordValidity();
+    if (!isFinite(lat) || !isFinite(lon)) {
+      navMessage("Coordenadas no v\u00E1lidas: revise la latitud y la longitud.");
+      return; /* keep the dialog open so the value can be fixed */
     }
-    /* lat/lng live in the draft for the dialog only; they are a property
-       of the geometry, not of the style, so they never reach _mstyle.
-       Lo que no coincidía entre los nodos y nadie ha tocado se queda
-       como estaba en cada uno (draftProps).                           */
+    styleDraft.lat = lat;
+    styleDraft.lng = lon;
+    posMarker.setLatLng([lat, lon]);
+    invalidateGeo(styleTargets[0]);
+  }
+  applyDraftToTargets();
+  scheduleSave();
+  closeStyleDialog(true);
+}
+
+/* Vuelca el borrador en cada nodo. Lo usan Aceptar y la vista previa en
+   vivo: los cambios de estilo se ven en el mapa AL MOMENTO y Cancelar los
+   deshace desde `styleSnapshot` (`restoreStyleSnapshot`). lat/lng viven en
+   el borrador solo para el diálogo; son geometría, no estilo, y nunca
+   llegan a `_mstyle`. Lo que no coincidía entre los nodos y nadie ha
+   tocado se queda como estaba en cada uno (draftProps).                */
+function applyDraftToTargets() {
+  stylePreviewed = true;
+  /* Base = estilo con el que se abrió el diálogo, no el que dejó la vista
+     previa anterior: lo que deja de aplicarse (un selector cancelado sobre
+     una propiedad mezclada) vuelve así solo al valor de cada nodo.     */
+  if (styleKindOpen === "marker") {
     const pick = draftProps(["icon", "color", "size", "textSize", "textColor", "textAlways"]);
     for (const t of styleTargets) {
-      t._mstyle = { ...DEFAULT_MARKER_STYLE, ...(t._mstyle || {}), ...pick };
+      t._mstyle = { ...DEFAULT_MARKER_STYLE, ...(styleSnapshot.get(t).mstyle || {}), ...pick };
       applyMarkerStyle(t);
     }
   } else if (styleKindOpen === "polygon") {
-    readPolygonControls();
     const pick = draftProps(["weight", "color", "fillColor", "fillOpacity", "textAlways"]);
     /* El modo son dos booleanos que viajan juntos: o se aplican los dos
        o no se toca ninguno, o un nodo podría quedarse sin contorno NI
@@ -774,36 +1368,86 @@ $id("style-accept").addEventListener("click", () => {
       pick.fill = styleDraft.fill;
     }
     for (const t of styleTargets) {
-      t._style = { ...normalizePathStyle(t._style), ...pick };
+      t._style = { ...normalizePathStyle(styleSnapshot.get(t).style), ...pick };
       applyPolygonStyle(t);
     }
   } else if (styleKindOpen === "measure") {
-    readMeasureControls();
-    const pick = draftProps(["weight", "color", "fillColor", "fillOpacity"]);
+    const pick = draftProps(["weight", "color", "fillColor", "fillOpacity", "showLabels"]);
     for (const t of styleTargets) {
       /* El relleno se decide por capa, no en el diálogo: una selección
          puede mezclar líneas y círculos, y un trazo abierto relleno
          obliga a Leaflet a cerrarlo por su cuenta (misma regla que
          clearFillOnOpenPaths aplica en la propia capa).              */
-      t._style = { ...normalizePathStyle(t._style), ...pick,
+      t._style = { ...normalizePathStyle(styleSnapshot.get(t).style), ...pick,
         fill: t._measure.type === "circle" && styleDraft.fill !== false };
       applyPolygonStyle(t); /* una medición es un trazo más: mismo camino */
       t._measure.style = t._style; /* el registro pendiente lo serializa desde aquí */
+      setMeasureLabelsVisible(t._measure, t._style.showLabels);
     }
   } else {
-    readImageOverlayControls();
     const pick = draftProps(["opacity"]);
-    if ("opacity" in pick) {
-      for (const t of styleTargets) {
-        t._imageOverlay.opacity = pick.opacity;
-        const layer = nodeLayer(t);
-        if (layer) layer.setOpacity(pick.opacity);
-      }
+    for (const t of styleTargets) {
+      const op = "opacity" in pick ? pick.opacity : styleSnapshot.get(t).opacity;
+      t._imageOverlay.opacity = op;
+      const layer = nodeLayer(t);
+      if (layer) layer.setOpacity(op);
     }
   }
+}
+
+/* Una repintada por fotograma: un deslizador o el arrastre en el espectro
+   de color disparan decenas de eventos por segundo, y aplicar el estilo
+   reconstruye iconos y tooltips.                                       */
+function schedulePreview() {
+  if (previewFrame || !styleDraft) return;
+  previewFrame = requestAnimationFrame(() => {
+    previewFrame = null;
+    if (styleDraft) applyDraftToTargets();
+  });
+}
+
+/* Cancelar: cada nodo vuelve al estilo con el que se abrió el diálogo,
+   por el mismo camino que la vista previa (los `apply*`). */
+function restoreStyleSnapshot() {
+  if (!styleSnapshot || !stylePreviewed) return;
+  for (const [t, snap] of styleSnapshot) {
+    if (styleKindOpen === "marker") {
+      t._mstyle = snap.mstyle;
+      applyMarkerStyle(t);
+    } else if (styleKindOpen === "polygon") {
+      t._style = snap.style;
+      applyPolygonStyle(t);
+    } else if (styleKindOpen === "measure") {
+      t._style = snap.style;
+      applyPolygonStyle(t);
+      t._measure.style = t._style;
+      setMeasureLabelsVisible(t._measure, normalizePathStyle(t._style).showLabels !== false);
+    } else {
+      t._imageOverlay.opacity = snap.opacity;
+      const layer = nodeLayer(t);
+      if (layer) layer.setOpacity(snap.opacity);
+    }
+  }
+  /* un guardado automático pudo coincidir con la vista previa */
   scheduleSave();
-  closeStyleDialog(true);
-});
+}
+
+/* Vista previa de un selector de color del diálogo (lo llama
+   `defaultColorPreview`, incluida la restitución al cancelar el
+   popover): el color llega al mapa, y la propiedad cuenta como probada
+   mientras difiera del original — así un selector cancelado sobre una
+   propiedad mezclada devuelve a CADA nodo su propio valor. */
+function previewColorControl(btn, hex) {
+  if (!styleDraft) return;
+  const prop = CONTROL_PROP[btn.id];
+  if (prop) {
+    if (hex === colorOriginal && !styleTouched.has(prop)) styleLivePreview.delete(prop);
+    else styleLivePreview.add(prop);
+  }
+  readStyleControls();
+  schedulePreview();
+}
+$id("style-accept").addEventListener("click", acceptStyleDialog);
 
 /* ---------- Icon picker (Google Earth-like palette) ----------
    Rebuilt on each open so the previews use the colour currently in the
@@ -834,25 +1478,44 @@ function buildIconGrid(color) {
         for (const other of grid.querySelectorAll(".icon-opt")) {
           other.classList.toggle("chosen", other === b);
         }
+        previewIcon(name);
       });
       box.appendChild(b);
     }
     grid.appendChild(box);
   }
 }
+/* El icono también se ve en el mapa al pulsarlo en la rejilla; cancelar el
+   selector devuelve el que había al abrirlo (`iconOriginal`).          */
+let iconOriginal = null;
+function previewIcon(name) {
+  if (!styleDraft) return;
+  styleDraft.icon = name;
+  styleLivePreview.add("icon");
+  $id("icon-preview").src = iconUrl(name, colorOf($id("mk-color")), 20);
+  schedulePreview();
+}
 $id("icon-preview-btn").addEventListener("click", () => {
   if (!styleDraft) return;
+  iconOriginal = styleDraft.icon;
   pendingIcon = styleDraft.icon;
   buildIconGrid(colorOf($id("mk-color")));
   iconPicker.hidden = false;
   clampToViewport(iconBox);
   focusDialog(iconBox);
 });
-$id("icon-cancel").addEventListener("click", () => {
+function cancelIconPicker() {
+  if (styleDraft && iconOriginal) {
+    styleDraft.icon = iconOriginal;
+    styleLivePreview.delete("icon");
+    $id("icon-preview").src = iconUrl(iconOriginal, colorOf($id("mk-color")), 20);
+    schedulePreview();
+  }
   iconPicker.hidden = true;
   pendingIcon = null;
   releaseFocus();
-});
+}
+$id("icon-cancel").addEventListener("click", cancelIconPicker);
 $id("icon-accept").addEventListener("click", () => {
   if (styleDraft && pendingIcon) {
     styleDraft.icon = pendingIcon;

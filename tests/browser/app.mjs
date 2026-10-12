@@ -35,7 +35,7 @@ for (const [nombre, archivo, puerto] of [["legible", READABLE, 8821], ["minifica
     /* --- Escala y atribución --- */
     out.escala = [...document.querySelectorAll(".leaflet-control-scale div")].map(d => d.textContent);
     const attr = document.querySelector(".leaflet-control-attribution");
-    out.version = (attr.textContent.match(/v\d{12}/) || [])[0] || null;
+    out.version = (attr.textContent.match(/v\d+\.\d+\.\d+ \(\d{12}\)/) || [])[0] || null;
     out.enlaceGitHub = !!attr.querySelector('a[href*="github.com"]');
     /* La escala va ENCIMA de la atribución, en su misma esquina */
     out.escalaEncima = document.querySelector(".leaflet-control-scale")
@@ -60,13 +60,20 @@ for (const [nombre, archivo, puerto] of [["legible", READABLE, 8821], ["minifica
     document.getElementById("icon-cancel").click();
     document.getElementById("style-accept").click();
 
-    /* --- Una medición: etiqueta y diálogo, en la misma unidad --- */
-    const m = buildMeasurement("line", L.latLng(40, -3), L.latLng(40, -2));
-    finalizeMeasurement(m);
-    out.etiquetaMedida = m.label.getContent();
+    /* --- Una medición: etiqueta y diálogo, en la misma unidad ---
+       Una ruta de 2 waypoints es la línea de siempre (la herramienta
+       de arrastre se retiró: ver el comentario junto a MeasureControl
+       en 52-measure.js). */
+    const m = buildRouteMeasurement([{ lat: 40, lng: -3 }, { lat: 40, lng: -2 }]);
+    finalizeRouteMeasurement(m);
+    out.etiquetaMedida = m.legLabels[0].getContent();
     const mli = [...document.querySelectorAll("#tree li")].find(x => x._measure);
     openStyleDialog(mli);
     out.dlgMedida = document.getElementById("ms-dist").textContent;
+    /* Una ruta no tiene área: la fila debe estar REALMENTE oculta
+       (display: none), no solo marcada con la propiedad `hidden` sin
+       efecto visual — ver ".dlg-row[hidden]" en styles.css. */
+    out.areaOculta = getComputedStyle(document.getElementById("ms-area-row")).display === "none";
     document.getElementById("style-cancel").click();
 
     /* --- Tercer estado: una carpeta a medias --- */
@@ -94,7 +101,8 @@ for (const [nombre, archivo, puerto] of [["legible", READABLE, 8821], ["minifica
 
   ok(r.avisoInicial === "No hay capas cargadas.", et("el panel concluye el arranque: " + r.avisoInicial));
   ok(r.escala.length === 2, et("la escala pinta sus dos barras: " + JSON.stringify(r.escala)));
-  ok(/^v\d{12}$/.test(r.version || ""), et("la atribución lleva la versión: " + r.version));
+  ok(/^v\d+\.\d+\.\d+ \(\d{12}\)$/.test(r.version || ""),
+    et("la atribución lleva la versión delante del build: " + r.version));
   ok(r.enlaceGitHub, et("y el enlace al repositorio"));
   ok(r.escalaEncima, et("con la escala por encima de ella"));
   ok(r.iconoAplicado, et("un icono MDI empotrado llega al marcador"));
@@ -102,6 +110,7 @@ for (const [nombre, archivo, puerto] of [["legible", READABLE, 8821], ["minifica
     et("todos los iconos del selector se pintan: " + r.iconos));
   ok(/NM · \d/.test(r.etiquetaMedida), et("la medición se etiqueta en NM: " + r.etiquetaMedida));
   ok(r.dlgMedida.endsWith("NM"), et("y el diálogo dice lo mismo: " + r.dlgMedida));
+  ok(r.areaOculta, et("y la fila de área, sin sentido en una ruta, está REALMENTE oculta"));
   ok(r.carpetaEntera === "on", et("carpeta con todo activo: " + r.carpetaEntera));
   ok(r.carpetaAMedias === "gris", et("y a medias queda indeterminada: " + r.carpetaAMedias));
   ok(r.aria === "mixed", et("con aria-checked=mixed: " + r.aria));

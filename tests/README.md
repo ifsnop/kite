@@ -42,116 +42,805 @@ si algo falla, así que sirve tal cual en un gancho de git.
 
 ## Qué cubre cada suite
 
-| Fichero | Cubre |
-|---|---|
-| `kmltest.js` | Parseo de KML con prefijo, con espacio de nombres por defecto y sin ninguno; cadenas de `StyleMap` con ciclos; polígonos con agujeros; color `aabbggrr`. |
-| `repairtest.js` | Reparación de prefijos XML sin declarar (el fallo real de un KML de Google Earth), incluido el coste sobre un archivo grande. |
-| `htmltagstest.js` | `hasHtmlLikeTags`/`stripHtmlLikeTags` (regla del usuario: un `<...>` cuenta como etiqueta si tiene alguna letra dentro, para no confundir un "<"/">" usado como comparación) contra un caso real (`A27<_bol><fnt scale="80">    </fnt></_bol>`, restos de un exportador); falso positivo aceptado y documentado (`"A < B and C > D"`); `kmlNamesHaveHtmlTags`/`stripHtmlTagsFromKmlNames` sobre un documento KML completo, incluido el nombre de una carpeta, no solo de un placemark. |
-| `dupetest.js` | Fusión de marcadores duplicados —mismo nombre y misma posición—, en los DOS caminos de importación. KML (`findDuplicatePlacemarks`/`removeDuplicatePlacemarks`) y GeoJSON (`featureDupName`/`findDuplicateFeatures`/`removeDuplicateFeatures`), que antes no se miraba: un archivo entraba con sus duplicados dentro y sin preguntar. En el lado GeoJSON, tres trampas propias: las coordenadas van `[lng, lat]` (dos features con los números cambiados de sitio NO son el mismo punto, que es lo que delataría una lectura al revés), sin nombre en las properties no se agrupa —el «Elemento N» de respaldo lo da el índice y no dice nada— y la propiedad elegida en el selector de nombre es la que se compara. Y que el array se filtre EN EL SITIO: quien llamó ya tiene ese mismo array en la mano. |
-| `clamptest.js` | Validación de coordenadas y tolerancia de redondeo: se ajusta `180.00000044181039`, se rechaza una latitud de 32400. |
-| `utmtest.js` | UTM contra valores publicados, invariante del meridiano central, husos de Noruega y Svalbard, e ida y vuelta sobre una malla mundial. |
-| `coordfmt.js` | Formato de coordenadas: grados decimales, GMS con espacios (campos editables) y GMS compacto en negrita (caja de coordenadas del visor), acarreo de segundos/minutos e ida y vuelta con `parseCoord`. |
-| `elevtest.js` | Cliente WCS del IGN: elección de cobertura (malla de 5 m), de formato (`ArcGrid`), de CRS (3857), ejes por nombre, excepciones OGC y rejilla ASCII. |
-| `copernicustest.js` | Capa base de Copernicus DEM por Sentinel Hub: `validInstanceId` (UUID, con espacios alrededor, rechazando truncados y dígitos no hexadecimales); lectura de las capas de una configuración de usuario con `COP_WMS_OPTS` (lista plana, un solo grupo, sin exclusiones, sin confundir el `<Name>` de `<Style>`); y el `Invalid instance id` real del servicio, que llega con HTTP 400 y por tanto solo se puede leer del cuerpo. |
-| `navtest.js` | Recorrido del árbol, colapsos anidados, ámbito de Inicio/Fin, rangos con Mayús y flechas laterales. `createFolderNode` ("Nueva carpeta"): sin cursor va a la raíz; sobre una hoja se coloca como hermano justo después; sobre una carpeta ya desplegada entra dentro, al final; sobre una carpeta colapsada la despliega (llamando a `ensureMaterialized`) y entra dentro, al final. `cursorAfterDelete` (borrar con × o Supr): tras borrar una hoja el cursor pasa a la siguiente fila visible; al borrar la última fila cae hacia atrás; al borrar una carpeta entera salta toda su rama en vez de entrar en ella; con varios nodos contiguos salta todos los que desaparecen; al borrar el árbol entero no queda dónde aterrizar (`null`); un ancla que no es una fila tampoco. |
-| `a11ytreetest.js` | Accesibilidad del árbol (hallazgos de una auditoría con axe-core sobre el navegador real): `ensureRootUl` da `role="group"` al `<ul>` raíz (si no, `#tree` con `role=tree` queda con un hijo sin tipo válido, 3 violaciones en cascada); `setNodeName` mantiene el `aria-label` de la casilla —su único nombre accesible, ya que el `<label>` no lleva `for`— sincronizado al renombrar, incluido un renombrado sin cambios; `setSelCursor` mantiene `aria-activedescendant` de `#tree` apuntando a la fila con el cursor de teclado (único tabindex del árbol) y lo retira al perder el cursor. |
-| `selcorrect.js` | Cursor único y `topLevelSelection` (lo contenido viaja con su ancestro). |
-| `reporttest.js` | Informe de importación: cargados, omitidos, agrupación de causas y cuándo exige lectura. |
-| `placemarklayertest.js` | `buildPlacemarkLayer` devuelve `{ group, reported }`: un placemark con una única geometría inválida avisa UNA vez (no dos, contando también el genérico de `buildKmlRecords`); uno sin geometría alguna deja `reported` en `false` para que ese genérico sí dispare; el caso con una geometría válida no avisa. También: `<PolyStyle><outline>0</outline></PolyStyle>` (`style.polyOutline`) solo se pliega en `stroke` cuando el placemark tiene de verdad un `<Polygon>` — una línea sola con ese mismo `<Style>` compartido no debe quedar con `stroke:false` (invisible sin ningún error; bug real de un KML de rutas aéreas). |
-| `newfeat.js` | Saneado del HTML de las fichas, Ctrl+A en dos pasos y zonas de arrastre. |
-| `topojsontest.js` | `topologyToGeoJson`: une los objetos con nombre de una topología en un único `FeatureCollection` (la conversión de arcos la prueba topojson-client, no nosotros). |
-| `groundoverlaytest.js` | GroundOverlay: `parseLatLonBox` (límites, rotación, tolerancia de redondeo) y `resolveKmzEntry` (ruta exacta y por nombre de archivo suelto dentro del zip). |
-| `bytesfmt.js` | `fmtBytes`: las cuatro unidades (bytes/KB/MB/GB) y sus límites de tramo. |
-| `reordertest.js` | Orden de pintado: `bringLayerToFront` despacha por forma de la capa (`bringToFront`, `eachLayer` recursivo, `getElement`+`L.DomUtil.toFront`); `reorderPaintOrder` recorre el árbol y trae al frente solo las capas activadas, en su orden, reflejando un reordenamiento del DOM sin pasar por Leaflet real. |
-| `pngnametest.js` | `pngTimestamp`: `YYYYMMDD-HHMMSS` con zero-padding en cada campo (mes, día, hora, minuto, segundo), medianoche como `000000`, y forma correcta al usar la hora actual por defecto. |
-| `selbench.js` | Medición (no aserciones): coste de seleccionar miles de capas y de `topLevelSelection`. |
-| `geojsonnametest.js` | `geojsonFeatures`/`needsNamePicker`/`propsFingerprint`/`resolveFeatureName` (elegir y recordar la propiedad-nombre de un GeoJSON ambiguo); `stringifyPropValue`/`propertiesTableHtml` (tabla de `properties` del panel de información, con escapado de entrada hostil); `ctxItemsFor` (menú contextual con una, ninguna o varias capas bajo el cursor: ítems directos frente a submenú) y las dos envolturas que usa (`goToNodeAndBlink`, `showLayerInfoAndBlink`), extraídas de verdad y no stubeadas: que cada acción reciba la capa correcta y que las DOS la hagan parpadear, que con varias superpuestas es lo único que dice cuál se eligió. |
-| `cascadetest.js` | `cascadeVisibility`/`setAllChecked`: cede el hilo cada `CASCADE_BATCH` casillas en carpetas grandes y no en las pequeñas, un doble toggle rápido sobre la misma carpeta deja el estado de la ÚLTIMA intención y llama a `scheduleSave` una sola vez, una carpeta borrada a mitad de cascada deja de tocar `rootGroup` en vez de resucitar capas, y ambas alcanzan también los registros pendientes (`li._pending`) de una carpeta nunca desplegada, no solo las filas ya materializadas. |
-| `lazytree.js` | Construcción perezosa de filas para carpetas colapsadas: test diferencial (el mismo árbol construido con todo abierto y con una subcarpeta colapsada serializa exactamente igual); `ensureMaterialized` cede el hilo por lotes, cascada a una subcarpeta ya abierta y difiere una colapsada sin materializarla de más; una llamada reentrante no duplica filas; `subtreeBounds`/`findMatches`(`searchMatches`)+`resolveMatch` alcanzan capas dentro de una carpeta pendiente sin forzar su materialización salvo cuando hace falta llegar hasta una coincidencia; `serializeNode` sobre una carpeta pendiente no construye ninguna fila; `deleteNode` quita del mapa las capas marcadas que una carpeta pendiente escondía; `resolveRecordLi`/`wirePendingLayerEvents` resuelven un clic/hover sobre una capa pendiente a su `<li>` real y retiran el listener de espera al materializar (sin quedarse disparando por duplicado); `visibleElevGridNodes` encuentra una capa de elevaciones marcada dentro de una carpeta pendiente; `blinkLayer` (el parpadeo de identificación de "Ir al nodo en el panel") oculta/muestra la capa dos veces en orden, un parpadeo repetido cancela el anterior en vez de solaparse, y si el checkbox cambia mientras parpadea termina en su estado real en vez de forzarla visible. |
-| `pointsedit.js` | Editor de la lista de puntos de una capa de trazos: `pointsToText` (cabecera, tabuladores, altitud 0 cuando falta, un bloque por anillo separado por línea en blanco) y `textToPoints` (ida y vuelta, cabecera ignorada aunque venga repetida en medio al pegar dos veces, separación por comas/espacios/punto y coma, líneas en blanco de los extremos sin crear anillos vacíos, errores con su número de línea real, y 1000 puntos como tamaño objetivo). |
-| `msglog.js` | Avisos del panel: `msgStamp` (relleno con ceros en todos los campos y medianoche exacta, el fallo que ya se dio en `pngTimestamp`); fusión de un aviso repetido en una sola línea con `×N` y una sola entrada de registro; lo que NO se funde (texto distinto, mismo texto con otro tono, o línea ya expirada); que el repetido reinicia el temporizador, cancela el anterior y no cambia de sitio; que un `sticky` no arma temporizador; que el registro sobrevive a que la línea desaparezca; el tope `MSG_LOG_MAX` perdiendo la más antigua; el contador de entradas sin ver (un repetido no cuenta); y `logText` (orden cronológico, marca completa, tono y `×N` con la marca de la última). |
-| `naming.js` | `nextNumberedName`: autonumerado de las formas dibujadas y las mediciones deducido de los nombres existentes (no de un contador, que se reiniciaría al recargar porque una forma vuelve por el camino genérico `t:"layer"`). Cubre la secuencia, que manda el máximo y no la cuenta (huecos), que cada familia va por su cuenta, que una línea dibujada no reutiliza el número de una medición, el anclaje exacto del patrón (`Mi Línea 9` no cuenta como 9), los registros pendientes de carpetas nunca desplegadas —incluidos los anidados— y los nodos sin nombre. |
-| `measure.js` | Mediciones: `defaultMeasureStyle` (una línea nunca se rellena, un círculo sí y con relleno muy translúcido; cada tipo conserva su color y el contorno va siempre opaco); `capArea` —el área de un círculo es la del CASQUETE esférico, no πr²— coincidiendo con πr² a 1 km, quedando por debajo a 1000 km y dando medio globo para un cuarto de vuelta; `measurementValues` (una línea da distancia y rumbo y ninguna área, un círculo radio y área y ningún rumbo); `fmtUnitDist`/`fmtUnitArea` (las mismas funciones para el diálogo y para las etiquetas del visor; el área con el factor AL CUADRADO); `renderMeasureValues` (etiqueta Radio/Distancia, conversión de unidad, rumbo siempre en grados y filas de área/rumbo que se ocultan solas); `updateMeasurement`, que escribe la etiqueta en la unidad elegida —NM por defecto— y con el mismo formato que el diálogo, y `refreshMeasureLabels`, que al cambiar de unidad repinta tanto las filas del árbol como las mediciones de una carpeta nunca desplegada (`li._pending`), que están en el mapa sin fila; y `startRename` sobre una fila cuyo texto no es el nombre a secas —la regresión reportada: dejar el nombre igual, o cancelar con Escape, borraba la distancia de la fila—, más el caso normal de una capa sin medida. |
-| `icons.js` | Iconos MDI empotrados (`MDI_ICON_BODIES`, generado por `npm run icons`): que el catálogo `MDI_ICONS` y la tabla de cuerpos no se hayan desincronizado en NINGUNO de los dos sentidos —olvidar `npm run icons` tras añadir un icono es el fallo humano que queda—, que todos los cuerpos empiecen por una forma SVG y se dibujen con `currentColor`, y `mdiSvg` en sus tres formas (sin color deja `currentColor` para que lo tiña el CSS de `.mdi-pin`; con color lo sustituye, que es lo que necesita un `<img>` suelto; con tamaño lo escribe en el propio SVG, que es de donde sale el `width:auto` de `#icon-preview`). Además, sobre el archivo ENTREGADO: que no quede ninguna mención a `api.iconify.design` ni resto de `svgCache`/`fetchIconSvg`, y que `applyMarkerStyle` ya no sea `async` ni lleve contador de secuencia. Todo sin tocar la red: el CI no puede depender de que Iconify esté en pie, que es justo lo que este cambio elimina. |
-| `boot.js` | Aviso del hueco del árbol durante el arranque: `showLoadingMessage`/`showEmptyMessage` escriben cada uno su texto, nunca se apilan dos, dejan `rootUl` a null y usan `textContent` (no `innerHTML`). Y, sobre el archivo ENTREGADO —porque es un contrato de ORDEN DE EJECUCIÓN que ninguna función suelta puede comprobar—: que el árbol arranque en «Inicializando…» y NO haya un `showEmptyMessage()` a nivel de módulo (concluir «no hay capas» antes de leer IndexedDB era lo que hacía salir ese aviso a la vez que la barra «Restaurando capas…»), y que 99-boot.js concluya con `if (!rootUl) showEmptyMessage();` DESPUÉS de `dbLoadTree()` — mirando `rootUl` y no `nodes`, para no borrar el árbol de una importación que el usuario haya soltado mientras se leía. |
-| `attribution.js` | Línea inferior del visor: `BUILD` con forma AAAAMMDDHHMM, `REPO_URL` a GitHub, y el prefijo de la atribución mostrando versión + enlace al repositorio (por la constante, sin repetir la URL) + el crédito de Leaflet que su licencia pide, con `target="_blank"` y `rel="noopener"` — abrir en la misma pestaña abandonaría la sesión de trabajo. La escala es `L.control.scale` (la de Leaflet, no una propia) en `bottomright`, con sus valores por defecto, y **añadida después** de la atribución: ese orden ES su posición en pantalla, porque Leaflet inserta cada control nuevo de una esquina inferior delante de los que ya hubiera. Y que la escala NO esté en `HIDE_FOR_PNG`: una imagen de un mapa sin escala no se puede medir. |
-| `minified.js` | `kitelocal.min.html`, la derivada que sirve GitHub Pages y el único artefacto que ninguna otra suite mira (las 22 que extraen del archivo entregado lo hacen por marcadores de comentario, que el minificado no tiene). No prueba comportamiento —es el mismo código— sino que la TRANSFORMACIÓN no se ha llevado nada por delante: que se haya minificado de verdad (más pequeño, sin comentarios de bloque), que su `<script>` parsee (`node --check`), que lleve el mismo `BUILD` que el legible (comparando el VALOR, porque terser puede alinear la constante — es lo que caza un minificado sin regenerar), que sobrevivan los 5 `integrity`/`crossorigin`, la CSP con sus orígenes, el guardián de Leaflet antes del primer `L.map(`, los nombres de nivel superior (fija que dependemos de `mangle.toplevel: false`) y un cuerpo de icono MDI empotrado; y que `index.html` redirija al minificado. Verificado que falla de verdad con una versión desfasada, un `integrity` de menos y un script inválido. |
-| `statics.js` | Las dos comprobaciones estáticas que antes se hacían a mano (y por eso casi nunca): que todo `$id`/`getElementById` apunte a un `id` que exista en el HTML, y que **toda función llamada esté declarada** — un refactor puede borrar un ayudante que sigue en uso y `node --check` no lo ve, porque el archivo sigue siendo válido. La segunda exige mirar código y no texto: los comentarios en castellano llenos de paréntesis daban 369 falsos positivos, así que la suite lleva su propio `maskCode` (borra comentarios, cadenas, plantillas y regex conservando posiciones, y recorre los `${…}`, que SÍ contienen código). Cuenta como declarado todo lo que liga un nombre: declaraciones, claves de objeto, métodos abreviados, getters y parámetros; los globales del navegador van en una lista explícita. Verificado que falla con un `id` mal escrito y con un ayudante borrado. |
-| `tristate.js` | Tercer estado de la casilla de un contenedor (`indeterminate` nativo, dibujado como guion): `containerState` sobre los HIJOS DIRECTOS (todos/ninguno/mezcla, contenedor vacío y hoja devuelven null, una fila de mensaje no cuenta), el invariante que permite no bajar más de un nivel —un hijo mixto hace mixto al abuelo—, `aria-checked="mixed"`, que `applyContainerState` diga si cambió algo (es lo que corta la subida), `refreshAncestorChecks` propagando y deshaciendo la mezcla por toda la rama, los registros `_pending` de una carpeta colapsada (solos y conviviendo con filas, que es el estado real tras soltar un archivo dentro), la caché `rec._state` y el borrado recalculando desde el `<ul>` guardado antes de quitar la fila. Más un contrato de orden sobre el archivo entregado: `materializeRecords` recalcula la casilla de la carpeta que se queda pendiente. |
-| `multiedit.js` | Edición en bloque: las tres funciones puras que deciden qué se aplica a todos. `mixedProps` (en qué NO coinciden los nodos: por valor, y `false` frente a `undefined` cuentan como distintos), `draftProps` (una propiedad mezclada y no tocada no se aplica; una tocada sí, aunque valga `false` — el filtro es la presencia de la clave, no si el valor parece vacío) y `joinNames` (los nombres que quepan y el resto contado, con un nombre larguísimo recortado: los de un KML llegan a cientos de caracteres). |
-| `usage.js` | La línea de memoria del pie del panel: `memoryUsageText` da cifra servida por http(s) y devuelve null en los dos casos en que no la hay —`file://`, donde Chromium deja `performance.memory` congelada, y un navegador sin esa API, que no está en ninguna norma—, más un `usedJSHeapSize` no finito. `refreshMemoryUsage` ESCONDE la línea cuando no hay cifra en vez de escribir «no disponible» (sería ruido permanente en dos casos raros) y la devuelve al haberla. Y que el arranque no arme el temporizador si no hay nada que refrescar. |
-| `clipboard.js` | Copiar y pegar entre instancias de KITE de dominios distintos, por el portapapeles del sistema: que el envoltorio sea el MISMO que el de exportar (`treeExportDoc`, con sus tres versiones) y que `exportNode` lo comparta en vez de duplicarlo; `parseTreeExport` reconociendo lo nuestro y descartando texto suelto, JSON ajeno y un GeoJSON; que lo pegado de fuera nunca MUEVA (cortar en otra pestaña no puede borrar aquí); el orden que evita pegar dos veces —Ctrl+V deja un respaldo con `setTimeout(0)` y NO llama a `preventDefault`, que cancelaría el evento `paste`, y el evento cancela ese respaldo solo si trae algo nuestro—; las dos comprobaciones de versión; y el tope de tamaño, con el fallo de escritura capturado para que no tumbe el portapapeles interno. |
-| `browser/app.mjs` | **Navegador.** Que la aplicación ARRANQUE y funcione, pasando las mismas comprobaciones sobre `kitelocal.html` **y** `kitelocal.min.html` — o sea, ES la comprobación de paridad legible/minificado que antes era manual y obligatoria: si terser rompiera algo, el legible pasaría y el minificado no. Cubre el aviso con que concluye el arranque, las dos barras de la escala y que quede por encima de la atribución, la versión y el enlace al repositorio, aplicar un icono MDI empotrado a un marcador, que los 80 iconos del selector se PINTEN (no solo que estén en una tabla), la etiqueta y el diálogo de una medición en la misma unidad, el tercer estado de una carpeta con su `aria-checked="mixed"`, y cero violaciones de CSP y cero errores de página. |
-| `browser/clipboard.mjs` | **Navegador.** El viaje que ninguna suite de Node puede dar: copiar con **Ctrl+C de verdad** en un origen y pegar con **Ctrl+V de verdad** en otro (dos puertos son dos orígenes), por el portapapeles real del sistema. Comprueba que Ctrl+C deja el envoltorio de KITE en el portapapeles, que el segundo origen recibe la carpeta con sus tres puntos y sus tres capas en el mapa, y que pegar FUERA del árbol —en el editor de puntos— no importa nada y deja el JSON en el cuadro de texto, como se acordó. Y la regresión grave del corte: con teclado REAL, que Ctrl+X + Ctrl+V MUEVA —raíz con solo el destino, sin filas marcadas, 4 capas y no 8— porque al escribir en el portapapeles del sistema Ctrl+V leía de vuelta nuestro propio envoltorio y lo trataba como ajeno, que nunca mueve; más la otra mitad, que copiar siga copiando. |
-| `browser/geojson-html.mjs` | **Navegador.** El fallo reportado, de punta a punta: se suelta un GeoJSON con `<b>` en una property —escrito con los `<` ESCAPADOS como en los archivos reales, que es indistinguible tras `JSON.parse`—, se responde al diálogo y se mira lo que se ve. Comprueba que el diálogo habla de «propiedades» y no de «nombres», que la vista previa del selector de propiedad-nombre YA refleja la respuesta (porque la limpieza ocurre antes de leer `firstProps`), y las dos mitades: con «Eliminarlas» el nombre del árbol y la tabla salen limpios y el resumen dice cuántas propiedades se tocaron; con «Dejarlas» todo queda tal cual. En ambos casos nada se renderiza en negrita, un `<` de comparación no se toca y un número no se estropea. |
-| `browser/dialogs.mjs` | **Navegador.** Disposición de las DOCE ventanas en un viewport corto (1280×620, donde el fallo se reproduce): que `.dlg-actions` quede entera dentro de la caja **con el scroll arriba y con el scroll abajo** —si solo se viera arriba, el fallo seguiría a medias—, que el `<h2>` siga visible (es el asa de arrastre), y que las ocho elegidas tengan `resize: both` y las otras cuatro no. Además, que el selector de iconos y la chuleta SIGAN desbordando: el arreglo consiste en fijar los bordes, no en hacerlas caber a la fuerza. Y que encoger a mano la ventana de propiedades a 200 px no descuelgue sus botones. Además, el separador móvil de las dos columnas de la ficha de properties, con un arrastre REAL del ratón: `table-layout: fixed` (con el automático el ancho pedido se ignora), que arrastrar ensanche la clave y estreche el valor, que al extremo ninguna columna desaparezca, que el reparto se recuerde al cambiar de capa, y que una tabla venida de una `<description>` de KML NO lleve tirador. Y que el reparto se guarde en IndexedDB y se restaure al recargar EN EL MISMO contexto (cada contexto tiene su propio IndexedDB: en uno nuevo no habría nada que restaurar y la comprobación no diría nada). Verificado que falla con el pie despegado: «sobresalen 391 px» y «266 px». |
-| `browser/tree-move.mjs` | **Navegador.** Mover un nodo a otra rama recalcula la casilla de TRES ESTADOS de los dos extremos: la carpeta que lo pierde queda apagada y la que lo recibe, indeterminada. El arrastre se hace con eventos de arrastre REALES (`dragstart`/`dragover`/`drop` con su DataTransfer), no moviendo el `<li>` a mano: una primera versión hacía eso y seguía en rojo con el arreglo puesto, porque probaba mi reconstrucción del manejador en vez del manejador. Cubre las dos zonas de soltado (dentro de la carpeta y entre hermanos), varias carpetas de golpe —los contenedores de origen se capturan antes de mover—, y que vaciar una carpeta a medias le quite el guion, que dice «unas activas y otras no» de una carpeta sin hijos. Incluye los dos caminos de PEGAR, que ya recalculaban (`materializeRecords` el destino, `deleteNode` el origen): se reportaron como rotos y no lo estaban. Y el arrastre entero con el RATÓN de verdad, que antes era imposible: desde que no se usa el arrastre nativo de HTML5 —cuya sesión es un bucle de eventos anidado que deja la página sin temporizadores, fotogramas ni entrada— el gesto se puede automatizar. Se comprueba que un clic con tres píxeles de temblor NO arrastre nada, que no quede ningún `draggable` en el árbol y que Escape cancele a mitad. Trampa: con el ratón real hay que desplazar la fila a la vista antes de medir, o `elementFromPoint` devuelve el panel. Verificado en rojo contra el código anterior: 10 comprobaciones del recálculo. |
-| `browser/multiedit.mjs` | **Navegador.** El diálogo de estilos con VARIOS nodos seleccionados: que lo que no coincide salga marcado —la fila con «(varios)», el número en blanco, la casilla con el guion del árbol—, que tocar un control lo desmarque, y sobre todo que aceptar aplique SOLO lo tocado: el grosor que nadie movió sigue siendo el de cada uno, y cada marcador conserva su icono y su tamaño. El nombre: vacío con el resumen de nombres de marcador de posición, aceptar sin escribir no renombra, escribir renombra todos. Y el nombre siempre a la vista de un trazo, de punta a punta: etiqueta permanente al encenderlo, globo de click al apagarlo, cada trazo con SU nombre, repintada al renombrar y recuperada al restaurar el árbol. Y que el editor de puntos no trabaje en bloque: con varios seleccionados no abre ni pulsándolo a propósito, y la fila se ve deshabilitada —opacidad medida, que sin regla de `:disabled` un botón apagado se ve igual que uno vivo— diciendo por qué. Verificado en rojo contra el comportamiento anterior: 5 comprobaciones, entre ellas «el grosor … [2,2]», más 2 al volver a esconder la fila. |
-| `browser/lazy-cascade.mjs` | **Navegador.** Desplegar y marcar una carpeta grande casi a la vez, en los dos órdenes y también apagando. Las dos pasadas van por lotes (`materializeRecords` construye filas, `cascadeVisibility` enciende) y cada una miraba su propia foto del árbol, así que se repartían los nodos sin saberlo: medido con el archivo real, 150 encendidas de 466 y la carpeta en indeterminado. La suite usa 400 capas —más que el lote de 150, o no hay carrera que provocar— y comprueba además que ninguna fila diga una cosa y el mapa otra, y que la repetición de la cascada no gire en vacío. Verificado en rojo contra el código anterior: 8 comprobaciones, «150 de 400» y «250 marcadas» al apagar. |
-| `browser/oneworld.mjs` | **Navegador.** Una sola Tierra: que la capa base se cree con `noWrap` y no pida teselas fuera del mundo, que `maxBounds` acote a la franja Mercator (±85,051…, no ±90) con viscosidad 1 y que pedir un centro tres mundos más allá quede dentro, y que el suelo de zoom siga al tamaño de la ventana en LOS DOS SENTIDOS —el mundo llena la vista en ese zoom y no en el anterior—. Lo último es el fallo que tuvo `fitWorldMinZoom`: `getBoundsZoom` acaba en `Math.max(getMinZoom(), …)`, así que el suelo solo subía y tras encoger la ventana ya no se podía alejar; por eso se mide encogiendo DESPUÉS de agrandar. Verificado en rojo quitando las tres piezas: 7 comprobaciones. |
-| `hittest.js` | Acierto bajo el cursor del menú contextual, en píxeles de contenedor: `segDistSq` (perpendicular, más allá de los extremos, segmento degenerado), `nearPolyline` (el falso positivo reportado —un punto dentro de la caja envolvente de una diagonal y a 56 px de ella no acierta—, tolerancia inclusiva a tol y no a tol+1, y el **lado de cierre** del anillo, que `getLatLngs()` no repite y sin el cual el último lado no se probaba), `pointInRing` (ray-casting: escotadura de un polígono en L, alturas de vértice) y `pointInRings` (agujeros: el centro de uno queda fuera, su borde acierta por cercanía; por fuera del contorno acierta dentro de la tolerancia). |
-| `openshape.js` | Formas abiertas: `isOpenOnly` (una polilínea sí, un polígono no —incluido el orden de comprobación, que importa porque `L.Polygon` extiende `L.Polyline`—, un grupo con línea Y polígono tampoco, y el polígono se encuentra anidado) y `clearFillOnOpenPaths` (quita el relleno a la línea, respeta el del polígono del mismo grupo —el caso del placemark KML que comparte objeto de estilo—, no toca el resto del estilo, y llega a una capa suelta y a través de grupos anidados). |
-| `polyarea.js` | Perímetro y área de polígonos (diálogo de propiedades): `ringArea` (fórmula del exceso esférico) contra la aproximación plana de un cuadrado pequeño, invariante al sentido de recorrido, cero con menos de 3 puntos; `ringClosed` (primer y último punto iguales, con tolerancia `COORD_EPS`) distingue un anillo ABC sin repetir el punto de cierre (el caso de algunos JSON) de uno que sí lo repite; `ringPerimeter` con un anillo abierto suma solo los tramos consecutivos (sin el de cierre), con uno cerrado sí lo incluye; `polygonParts` separa exterior/agujeros tanto en un polígono simple como en un multipolígono anidado; área con agujero, calculada a mano y vía `polygonParts`, menor que sin él y próxima a la resta exterior−agujero. |
-| `toolstest.js` | `showLayerInfo`/`setTool`: el panel de información abre por hover salvo con el diálogo de estilos abierto o dibujando un polígono (guardas preexistentes); al salir de polígono —y también de línea o círculo, mismo bug— se suprime exactamente el siguiente hover residual (no más, no queda pegajoso); la guarda expira sola si no llega ningún hover; el cierre diferido por `mouseout` se cancela si el siguiente hover cae en otra capa (pasar de una a otra no debe cerrar ni parpadear); no hace nada si ya está cerrado; un panel abierto explícitamente (con foco de teclado dentro) no se autocierra. |
+Cada suite tiene aquí dos cosas, para que la salida de `npm test` y
+este documento se puedan seguir la pista una a la otra:
 
-## Dependencias
+- **Salida de `npm test`**: literalmente lo que la batería imprime
+  para esa suite, en un bloque de código — primero la línea
+  `── texto` con la que `run-all.js` la anuncia, y debajo la salida
+  propia de la suite (lo que ella misma escribe con `console.log`,
+  tal cual sale por la terminal). Quien vea fallar o pasar una suite
+  puede buscar aquí ese mismo texto y encontrar la fila que le
+  corresponde, sin adivinar. Dos suites (`repairtest.js`,
+  `utmtest.js`) imprimen además una cifra medida en el momento (un
+  tiempo en milisegundos, un error máximo): el texto de alrededor es
+  fijo, la cifra varía de una ejecución a otra.
+- **Qué cubre**: una explicación en prosa de qué comprueba la suite
+  por dentro —qué funciones ejercita y qué caso concreto, a menudo un
+  fallo real ya corregido, protege cada aserción—, con el detalle que
+  la sola línea de cabecera no puede dar. Las de `browser/`
+  necesitan un navegador de verdad (ver «Ejecutar»): son las últimas
+  en correr y las que se saltan, sin fallar, cuando no hay ninguno.
 
-- **linkedom** para DOM de HTML.
-- **@xmldom/xmldom** para XML: linkedom no implementa espacios de nombres
-  ni `getElementsByTagName("*")`, y las pruebas del parser darían falsos
-  negativos.
+**Este documento se actualiza en el MISMO cambio que la suite.** Casi
+ningún cambio crea una suite desde cero: lo normal es ampliar una ya
+existente con aserciones nuevas, y eso también cambia lo que esa suite
+prueba. El apartado «Qué cubre» de abajo se actualiza a la vez —y el
+bloque «Salida de `npm test`» también, si la salida por consola
+cambia—, no en una pasada aparte ni solo si alguien lo pide
+expresamente (ver el punto 6 de los principios en `CLAUDE.md`). Un
+apartado que describe una suite más vieja que su código deja de servir
+para lo que sirve este documento: que alguien pueda leer aquí qué
+prueba una suite sin tener que abrirla.
 
-## El extractor común (`_extract.js`)
+### `kmltest.js`
 
-Toda suite saca lo que prueba del `<script>` de `kitelocal.html` por el
-**mismo** módulo. **Una suite nueva no escribe su propio extractor**:
-
-```js
-const { script, fn, constDecl, between } = require("./_extract");
+**Salida de `npm test`:**
+```
+── Parseo de KML: espacios de nombres, estilos, geometrías
+KML PARSER TESTS OK
+NAMESPACE VARIANTS OK
+POLYGON STROKE/FILL TESTS OK
 ```
 
-- `fn("nombre")` — la declaración completa de una función.
-- `constDecl("NOMBRE")` — una `const NOMBRE … ;` de una sola sentencia.
-- `between("desde", "hasta")` — un tramo del script entre dos marcadores
-  literales, `desde` incluido y `hasta` excluido.
-- `script` — el texto entero, para lo que no encaje en lo anterior.
+**Qué cubre:** Parseo de KML con prefijo, con espacio de nombres por defecto y sin ninguno; cadenas de `StyleMap` con ciclos; polígonos con agujeros; color `aabbggrr`.
 
-Antes cada suite se traía su copia de la extracción, y el coste no era la
-duplicación: **cada copia aprendía las trampas por su cuenta, y tarde**.
-Tres funciones llegaron truncadas en silencio a la suite que las probaba
-—`collectWmsLayers`, `deleteNode`/`showLayerInfo` y `navMessage`—, cada
-una por algo que otra suite ya sabía. Las trampas, con su porqué, están
-documentadas en la cabecera de `_extract.js`; en resumen:
+### `repairtest.js`
 
-1. `async` va **antes** de `function`, así que buscar `function NOMBRE(`
-   se lo salta y deja un `await` huérfano.
-2. Una **desestructuración en la firma** (`deleteNode(li, {
-   pruneSelection = true } = {})`) mete pares `{}` en la lista de
-   parámetros: contar llaves desde la primera `{` cierra ahí y devuelve
-   la función cortada antes de su cuerpo. Se salta la lista de
-   parámetros por profundidad de paréntesis y solo después se cuentan
-   llaves.
-3. Un marcador que ya no existe: `indexOf` devuelve `-1` y `slice` lo lee
-   como «uno desde el final», así que renombrar un comentario del código
-   dejaba a la suite con un fragmento verosímil en lugar de un error.
-   `between` y `constDecl` **lanzan**.
+**Salida de `npm test`:**
+```
+── Reparación de prefijos XML sin declarar
+(KML sintético de 2.2 MB)
+  reparación: 8 ms, prefijos: xsi
+REPAIR TESTS OK
+```
 
-Y la red para la trampa que aún no ha aparecido: **todo lo extraído se
-comprueba que parsea** antes de devolverlo. Es lo que convierte la
-próxima en un error nombrado ahí y no en un fallo raro en la suite.
+**Qué cubre:** Reparación de prefijos XML sin declarar (el fallo real de un KML de Google Earth), incluido el coste sobre un archivo grande.
 
-`run-all.js` no usa el módulo a propósito: también lee el script, pero
-**después** de sus propias guardas (que exista el archivo, y que
-corresponda a `src/`), y requerirlo en la cabecera cambiaría esos avisos
-por un `ENOENT` en crudo.
+### `htmltagstest.js`
 
-## Convenciones
+**Salida de `npm test`:**
+```
+── Detección y limpieza de etiquetas tipo HTML en nombres de un KML
+HTML-LIKE TAGS TESTS OK
+```
 
-- Los mensajes de las aserciones describen **qué comportamiento** se
-  espera, no en qué línea está; al fallar, el mensaje debe bastar para
-  entender qué se ha roto.
-- Cuando una prueba nace de un fallo real, el comentario lo dice: sirve
-  para que nadie la "simplifique" sin saber qué protegía.
-- Los tests extraen funciones sueltas por nombre (`fn`), no rangos
-  amplios de texto: extraer rangos arrastraba código con efectos
-  secundarios. Ver «El extractor común».
+**Qué cubre:** `hasHtmlLikeTags`/`stripHtmlLikeTags` (regla del usuario: un `<...>` cuenta como etiqueta si tiene alguna letra dentro, para no confundir un "<"/">" usado como comparación) contra un caso real (`A27<_bol><fnt scale="80">    </fnt></_bol>`, restos de un exportador); falso positivo aceptado y documentado (`"A < B and C > D"`); `kmlNamesHaveHtmlTags`/`stripHtmlTagsFromKmlNames` sobre un documento KML completo, incluido el nombre de una carpeta, no solo de un placemark.
+
+### `dupetest.js`
+
+**Salida de `npm test`:**
+```
+── Fusión de marcadores duplicados: mismo nombre y posición, en KML y en GeoJSON
+DUPLICATE MARKER TESTS OK
+```
+
+**Qué cubre:** Fusión de marcadores duplicados —mismo nombre y misma posición—, en los DOS caminos de importación. KML (`findDuplicatePlacemarks`/`removeDuplicatePlacemarks`) y GeoJSON (`featureDupName`/`findDuplicateFeatures`/`removeDuplicateFeatures`), que antes no se miraba: un archivo entraba con sus duplicados dentro y sin preguntar. En el lado GeoJSON (el nombre sale de `composeFeatureName` con las claves elegidas, sin respaldo a `name`/`title`), tres trampas propias: las coordenadas van `[lng, lat]` (dos features con los números cambiados de sitio NO son el mismo punto, que es lo que delataría una lectura al revés), sin nombre en las properties no se agrupa —el «Elemento N» de respaldo lo da el índice y no dice nada— y la propiedad elegida en el selector de nombre es la que se compara. Y que el array se filtre EN EL SITIO: quien llamó ya tiene ese mismo array en la mano.
+
+### `clamptest.js`
+
+**Salida de `npm test`:**
+```
+── Coordenadas: validación y tolerancia de redondeo
+CLAMP TESTS OK
+```
+
+**Qué cubre:** Validación de coordenadas y tolerancia de redondeo: se ajusta `180.00000044181039`, se rechaza una latitud de 32400.
+
+### `utmtest.js`
+
+**Salida de `npm test`:**
+```
+── Conversión a UTM y husos
+error máximo ida y vuelta: 47.086 mm
+UTM TESTS OK
+```
+
+**Qué cubre:** UTM contra valores publicados, invariante del meridiano central, husos de Noruega y Svalbard, e ida y vuelta sobre una malla mundial.
+
+### `daynight.js`
+
+**Salida de `npm test`:**
+```
+── Iluminación día/noche: punto subsolar y elevación solar en fechas y puntos de referencia
+DAYNIGHT TESTS OK
+```
+
+**Qué cubre:** Las funciones puras del efecto de iluminación real (61-daynight.js): `subsolarPoint` contra las declinaciones de referencia de los solsticios (±23,44°) y equinoccios (≈0°) de 2026, y la longitud subsolar cerca de 0° al mediodía UTC; `solarElevationDeg` en el propio punto subsolar (90°), su antípoda (-90°), a 90° de distancia angular sobre el ecuador (0°) y en los polos con el sol sobre el ecuador (0° en ambos); `sublunarPoint` contra el porcentaje de iluminación lunar real publicado por un servicio externo para el 2026-09-25 (luna gibosa creciente, ~97%, derivado aquí de la separación angular entre el punto subsolar y el sublunar) y contra la cota física de la declinación lunar (±~28,6°) en los doce meses de 2026. Y las horas del sol y crepúsculos de la ficha de un marcador (`sunTimes`, `solarNoonMs`, `fmtSunClock`, `utcOffsetLabel`, `sunTimesHtml`): Madrid en el solsticio de junio contra la salida/puesta/mediodía de referencia (comprobados también con el ángulo horario analítico), el orden de los cuatro niveles de crepúsculo, que cada cruce devuelto esté de verdad a la elevación que dice (±0,05°), Wellington (el día solar es el más cercano a `now`, no el de calendario), el sol de medianoche de Tromsø y la noche polar a −78° y −85° (`state` en vez de una hora falsa), el ecuador en el equinoccio, y el formato (redondeo al minuto, `(+1 d)`/`(−1 d)`, `UTC+5:30`). No prueba el shader WebGL ni las trayectorias/iconos que dibuja sobre el mapa (no son funciones puras, se verifican a mano en el navegador).
+
+### `coordfmt.js`
+
+**Salida de `npm test`:**
+```
+── Formato de coordenadas: decimal, GMS con espacios y GMS compacto
+COORDINATE FORMAT TESTS OK
+```
+
+**Qué cubre:** Formato de coordenadas: grados decimales, GMS con espacios (campos editables) y GMS compacto en negrita (caja de coordenadas del visor), acarreo de segundos/minutos e ida y vuelta con `parseCoord`.
+
+### `elevtest.js`
+
+**Salida de `npm test`:**
+```
+── Elevaciones: catálogo de fuentes WCS por conjunto de datos, reintentos, ASCII o GeoTIFF, rejilla, unidades y cálculo del perfil
+ELEVATION TESTS OK
+```
+
+**Qué cubre:** Cliente WCS de elevaciones y su catálogo de fuentes. Catálogo POR CONJUNTO DE DATOS: el IGN ofrece MDT05, MDT25 y MDT200 (`mdtCoverages(paso)` sobre las 17 coberturas reales deja solo las de su paso, geográficas primero; MDT25 nunca pide las de 5 m), MDS (las absolutas, no las normalizadas) y Digital Earth Africa solo `dem_cop_30`, con su propio tiempo máximo; cada fuente con `dataset` y `provider`, y los conjuntos del catálogo existen en los `SpatialDataSetIdentifier` (INSPIRE) del GetCapabilities real del IGN (Digital Earth Africa no declara ninguno). Nombre de las capas (`elevNodeName`: «Elevación 3 — MDT25 + MDS (IGN)», proveedores distintos cada uno con el suyo, perfil) y `nextNumberedName` contando números con sufijo « — …». Elección de la cobertura de celda más fina con lo que dice su DescribeCoverage (`offsetVector`, o `GridLimits` y extensión; a igualdad, la geográfica). Formato: ASCII antes que GeoTIFF, GeoTIFF solo si no hay ASCII, nunca un GeoTIFF de color. CRS en forma URL y en forma corta. DescribeCoverage REAL de Digital Earth Africa y cajas WGS84 de su GetCapabilities (Tenerife dentro, Madrid fuera). Texto de la elección para el registro (con el conjunto). Validación de la elección guardada (fuente retirada o el id anterior `ign-mdt` → la de por defecto, «Ninguna» legítimo, un tipo en el hueco del otro no se cuela). Reintentos: qué se reintenta (tiempo agotado, red, 429, 5xx) y qué no (excepción OGC, otro 4xx, cancelación); con `fetch` simulado, dos 503 y un acierto dan éxito al tercer intento con espera de 1 s y 2 s, fuera de cobertura es un solo intento y un tiempo agotado perpetuo se rinde tras 4. Preferencias: unidad de altitud y límite del perfil validados al leer (10 NM por defecto). Perfil de una ruta (lo puro): trozos de petición acotados en celdas con su margen y la escala de Mercator; muestras a media celda o menos con los vértices exactamente en la suma de los tramos; un punto por celda recorrida, en la distancia media de su recorrido, con huecos (celda sin dato, zona sin rejilla) fundidos; la lectura bajo el ratón salta huecos; diezmado por columnas que conserva el pico y corta en los huecos; marcas de eje redondas con sus decimales; la clave de la geometría de una ruta (estable, insensible al ruido por debajo de 7 decimales, distinta al mover un vértice); la posición en el mapa de cada distancia de la gráfica (inicio, mitad de tramo, vértice exacto, extremos, ángulo, y cada muestra de la curva en su sitio); malla de salida fija (celda por franja de latitud, al cm y a 1e-7°, MDT05 y MDS en la misma malla, cajas desplazadas que caen en la misma malla, una ya ajustada que no crece, teselas vecinas con borde común y la celda del punto siempre dentro); ventana de la gráfica (zoom con el ancla fija bajo el ratón, topes en la ruta entera y en el tope de zoom, una ruta más corta que el tope no se acerca, desplazar sin cambiar el zoom y parado en los extremos, lo visible más un vecino por lado; zoom del eje de alturas con ancla desde abajo, topes de anchura y sin topes de dominio; decimales de la lectura que distinguen un píxel en km y en NM); curva compacta para guardar; validación de un perfil guardado (basura, vértices decrecientes, sin series, desmesurado → descartado); celdas del árbol de un perfil (la malla que manda, el otro modelo en el centro con su diferencia, solo las recorridas con algún dato, sin la clave del modelo no consultado); el detalle de depuración de la descarga (tamaños legibles, resumen de la rejilla recibida con sus huecos y alturas, y de cada intento fallido su motivo —tiempo agotado, HTTP, excepción OGC con su código, fuera de cobertura sin reintento— y la espera que le toca, que ya no hay agotados los intentos). Excepciones OGC, con `ExtentError` e `InvalidSubsetting` como «sin dato». Rejilla ASCII y desde un ráster GeoTIFF decodificado. Retícula fija y clave de tesela; celdas que solo llevan el modelo consultado (también tras JSON); cifras de la celda en la unidad de altitud (`fmtHeight`, cuatro decimales en km/mi/NM) y nombre de la carpeta de sesión.
+
+### `pnoahisttest.js`
+
+**Salida de `npm test`:**
+```
+── PNOA histórico: descubrimiento de capas del WMS del IGN
+PNOA HISTÓRICO TESTS OK
+```
+
+**Qué cubre:** `parseWmsCapabilities` sobre un recorte real del GetCapabilities del PNOA histórico del IGN: agrupa las capas seleccionables bajo sus grupos de título («PNOA anual», «PNOA10»), manda a un grupo «Vuelos históricos» las capas sueltas sin grupo propio, y excluye `infoVuelos` (capa de solo consulta, sin imagen) sin confundir el `<Name>` de un `<Style>` con el de la propia capa. `pnoaHistDefault` elige por defecto el año más reciente; `groupPnoaHistEntries` ordena «PNOA anual» por año descendente, deja «Vuelos históricos» en segundo lugar y coloca un grupo no anticipado («PNOA10») al final sin tenerlo hardcodeado. Un documento sin ninguna capa con `<Name>` devuelve `null`. Y `parseWmsServiceException` distingue el `ServiceExceptionReport` propio de WMS 1.3.0 del `ExceptionReport` de OWS que usa el WCS de elevaciones (mismo problema, dos esquemas de error distintos según el servicio), sin disparar nada ante una respuesta normal.
+
+### `copernicustest.js`
+
+**Salida de `npm test`:**
+```
+── Copernicus DEM: instance ID de Sentinel Hub y sus capas
+COPERNICUS / SENTINEL HUB TESTS OK
+```
+
+**Qué cubre:** Capa base de Copernicus DEM por Sentinel Hub: `validInstanceId` (UUID, con espacios alrededor, rechazando truncados y dígitos no hexadecimales); lectura de las capas de una configuración de usuario con `COP_WMS_OPTS` (lista plana, un solo grupo, sin exclusiones, sin confundir el `<Name>` de `<Style>`); y el `Invalid instance id` real del servicio, que llega con HTTP 400 y por tanto solo se puede leer del cuerpo.
+
+### `customtiles.js`
+
+**Salida de `npm test`:**
+```
+── Custom Maps: validación de la URL del servidor, normalización y plantilla XYZ
+CUSTOM MAPS TESTS OK
+```
+
+**Qué cubre:** Capa base «Custom Maps» (servidor de teselas del propio usuario, sin catálogo): `validCustomTilesUrl` acepta solo direcciones `https://` con forma de URL válida (con espacios alrededor tolerados, igual que el instance ID de Copernicus) y rechaza `http:`, texto suelto, vacío y otros esquemas (`ftp:`); `normalizeCustomTilesBase` quita la barra final (una o varias seguidas) y los espacios alrededor, para que `buildCustomTilesUrl` no pueda producir una barra duplicada al añadir `{z}/{x}/{y}.png`; y sin URL configurada, `buildCustomTilesUrl` no lanza excepción (queda para `blocked()` decidir si hay algo que construir, no esta función).
+
+### `navtest.js`
+
+**Salida de `npm test`:**
+```
+── Navegación del árbol y selección por rangos
+NAV TESTS OK
+```
+
+**Qué cubre:** Recorrido del árbol, colapsos anidados, ámbito de Inicio/Fin, rangos con Mayús y flechas laterales. `createFolderNode` ("Nueva carpeta"): sin cursor va a la raíz; sobre una hoja se coloca como hermano justo después; sobre una carpeta ya desplegada entra dentro, al final; sobre una carpeta colapsada la despliega (llamando a `ensureMaterialized`) y entra dentro, al final. `cursorAfterDelete` (borrar con × o Supr): tras borrar una hoja el cursor pasa a la siguiente fila visible; al borrar la última fila cae hacia atrás; al borrar una carpeta entera salta toda su rama en vez de entrar en ella; con varios nodos contiguos salta todos los que desaparecen; al borrar el árbol entero no queda dónde aterrizar (`null`); un ancla que no es una fila tampoco.
+
+### `a11ytreetest.js`
+
+**Salida de `npm test`:**
+```
+── Accesibilidad del árbol: role=group del <ul> raíz, aria-label de las casillas
+A11Y TREE TESTS OK
+```
+
+**Qué cubre:** Accesibilidad del árbol (hallazgos de una auditoría con axe-core sobre el navegador real): `ensureRootUl` da `role="group"` al `<ul>` raíz (si no, `#tree` con `role=tree` queda con un hijo sin tipo válido, 3 violaciones en cascada); `setNodeName` mantiene el `aria-label` de la casilla —su único nombre accesible, ya que el `<label>` no lleva `for`— sincronizado al renombrar, incluido un renombrado sin cambios; `setSelCursor` mantiene `aria-activedescendant` de `#tree` apuntando a la fila con el cursor de teclado (único tabindex del árbol) y lo retira al perder el cursor.
+
+### `selcorrect.js`
+
+**Salida de `npm test`:**
+```
+── Selección: cursor y nodos de nivel superior
+SELECTION CORRECTNESS OK
+```
+
+**Qué cubre:** Cursor único y `topLevelSelection` (lo contenido viaja con su ancestro). También `announceSelectionCount` (el aviso informativo con el número de nodos seleccionados, disparado por `toggleOne` igual que por `selectRange` o el botón ☑ de una carpeta): sin aviso con un solo nodo, aviso con el recuento al pasar a dos o más, un aviso nuevo por cada cambio de recuento mientras queden varios, ningún aviso al volver a uno solo, el tono siempre `"info"` (nunca un error), y que varios toques rápidos (Mayús+flecha mantenido) se funden en un único aviso con el recuento FINAL en vez de uno por toque — `announceSelectionCount` debate con `setTimeout` (`SEL_COUNT_DEBOUNCE_MS`) y el test controla el temporizador a mano, como `tests/msglog.js`.
+
+### `reporttest.js`
+
+**Salida de `npm test`:**
+```
+── Informe de importación
+REPORT TESTS OK
+```
+
+**Qué cubre:** Informe de importación: cargados, omitidos, agrupación de causas y cuándo exige lectura.
+
+### `placemarklayertest.js`
+
+**Salida de `npm test`:**
+```
+── buildPlacemarkLayer: un placemark sin geometría útil cuenta una sola vez; PolyStyle.outline no oculta una línea sin polígono
+PLACEMARK LAYER REPORT TESTS OK
+```
+
+**Qué cubre:** `buildPlacemarkLayer` devuelve `{ group, reported }`: un placemark con una única geometría inválida avisa UNA vez (no dos, contando también el genérico de `buildKmlRecords`); uno sin geometría alguna deja `reported` en `false` para que ese genérico sí dispare; el caso con una geometría válida no avisa. También: `<PolyStyle><outline>0</outline></PolyStyle>` (`style.polyOutline`) solo se pliega en `stroke` cuando el placemark tiene de verdad un `<Polygon>` — una línea sola con ese mismo `<Style>` compartido no debe quedar con `stroke:false` (invisible sin ningún error; bug real de un KML de rutas aéreas).
+
+### `newfeat.js`
+
+**Salida de `npm test`:**
+```
+── Saneado de fichas, Ctrl+A y zonas de arrastre
+NEW FEATURES OK
+```
+
+**Qué cubre:** Saneado del HTML de las fichas, Ctrl+A en dos pasos y zonas de arrastre.
+
+### `topojsontest.js`
+
+**Salida de `npm test`:**
+```
+── Conversión de TopoJSON a GeoJSON
+TOPOJSON TESTS OK
+```
+
+**Qué cubre:** `topologyToGeoJson`: une los objetos con nombre de una topología en un único `FeatureCollection` (la conversión de arcos la prueba topojson-client, no nosotros).
+
+### `groundoverlaytest.js`
+
+**Salida de `npm test`:**
+```
+── GroundOverlay: LatLonBox y resolución de assets del KMZ
+GROUND OVERLAY TESTS OK
+```
+
+**Qué cubre:** GroundOverlay: `parseLatLonBox` (límites, rotación, tolerancia de redondeo) y `resolveKmzEntry` (ruta exacta y por nombre de archivo suelto dentro del zip).
+
+### `bytesfmt.js`
+
+**Salida de `npm test`:**
+```
+── Formato de tamaños: bytes/KB/MB/GB
+BYTE FORMAT TESTS OK
+```
+
+**Qué cubre:** `fmtBytes`: las cuatro unidades (bytes/KB/MB/GB) y sus límites de tramo.
+
+### `reordertest.js`
+
+**Salida de `npm test`:**
+```
+── Orden de pintado: bringLayerToFront por tipo, reorderPaintOrder por árbol
+REORDER TESTS OK
+```
+
+**Qué cubre:** Orden de pintado: `bringLayerToFront` despacha por forma de la capa (`bringToFront`, `eachLayer` recursivo, `getElement`+`L.DomUtil.toFront`); `reorderPaintOrder` recorre el árbol y trae al frente solo las capas activadas, en su orden, reflejando un reordenamiento del DOM sin pasar por Leaflet real.
+
+### `pngnametest.js`
+
+**Salida de `npm test`:**
+```
+── Nombre de archivo del PNG exportado: marca de tiempo con zero-padding
+PNG FILENAME TESTS OK
+```
+
+**Qué cubre:** `pngTimestamp`: `YYYYMMDD-HHMMSS` con zero-padding en cada campo (mes, día, hora, minuto, segundo), medianoche como `000000`, y forma correcta al usar la hora actual por defecto.
+
+### `geojsonnametest.js`
+
+**Salida de `npm test`:**
+```
+── Propiedad-nombre de GeoJSON, tabla de properties y menú contextual con varias capas
+GEOJSON NAME PICKER / CTX MENU TESTS OK
+```
+
+**Qué cubre:** `geojsonFeatures`/`needsNamePicker`/`propsFingerprint`/`composeFeatureName`/`resolveFeatureName` (elegir y recordar las propiedades que componen el nombre de un GeoJSON: se pregunta siempre que haya claves —no se asume `name`/`title`—, varias claves se unen con « / » en el orden elegido, las ausentes o vacías se omiten y sin ninguna sale «Elemento N»); `stringifyPropValue`/`propertiesTableHtml` (tabla de `properties` del panel de información, con escapado de entrada hostil); `ctxItemsFor` (menú contextual con una, ninguna o varias capas bajo el cursor: ítems directos frente a submenú) y las TRES envolturas que usa (`goToNodeAndBlink`, `showLayerInfoAndBlink`, `editPropertiesAndBlink`), extraídas de verdad y no stubeadas: que cada acción reciba la capa correcta y que las TRES la hagan parpadear, que con varias superpuestas es lo único que dice cuál se eligió. «Editar propiedades» (el acceso directo al diálogo de estilos desde el menú contextual, pedido explícitamente) solo aparece para una capa de tipo editable (`STYLE_EDITABLE_KINDS`, con `styleKind` stubeado por un `_kind` de mentira en el `li`): con una sola capa editable aparece directo y distinto de «Mostrar atributos»; con varias, solo lista las de tipo editable en su submenú. El clic derecho DE VERDAD sobre el mapa, y que abra el diálogo real, se prueba en `tests/browser/context-menu.mjs`.
+
+### `cascadetest.js`
+
+**Salida de `npm test`:**
+```
+── Cascada de visibilidad por lotes: cesión del hilo, doble toggle rápido, borrado a mitad
+CASCADE TESTS OK
+```
+
+**Qué cubre:** `cascadeVisibility`/`setAllChecked`: cede el hilo cada `CASCADE_BATCH` casillas en carpetas grandes y no en las pequeñas, un doble toggle rápido sobre la misma carpeta deja el estado de la ÚLTIMA intención y llama a `scheduleSave` una sola vez, una carpeta borrada a mitad de cascada deja de tocar `rootGroup` en vez de resucitar capas, y ambas alcanzan también los registros pendientes (`li._pending`) de una carpeta nunca desplegada, no solo las filas ya materializadas.
+También `beginCascadeFeedback`/`endCascadeFeedback` (el feedback inmediato que evita que el usuario, al no ver ningún cambio todavía, vuelva a pulsar la misma casilla): la casilla queda `disabled`+`hidden`, el spinner visible y la fila marcada `.cascading` de forma SÍNCRONA, en el mismo tick que la llamada a `cascadeVisibility` y antes de la primera cesión del hilo; se avisa al visor (`showCascadeStatus`) una sola vez aunque el nodo tenga varias cascadas superpuestas (el doble toggle rápido) y se deja de avisar (`hideCascadeStatus`) solo cuando la ÚLTIMA de ellas termina — verificado con el contador `_cascadeActive`, no con un booleano, que se rompería con la segunda cascada reentrante.
+
+### `lazytree.js`
+
+**Salida de `npm test`:**
+```
+── Construcción perezosa de filas para carpetas colapsadas (materializeRecords/ensureMaterialized)
+LAZY TREE TESTS OK
+```
+
+**Qué cubre:** Construcción perezosa de filas para carpetas colapsadas: test diferencial (el mismo árbol construido con todo abierto y con una subcarpeta colapsada serializa exactamente igual); `ensureMaterialized` cede el hilo por lotes, cascada a una subcarpeta ya abierta y difiere una colapsada sin materializarla de más; una llamada reentrante no duplica filas; `subtreeBounds`/`findMatches` (`searchMatches`) + `resolveMatch` alcanzan capas dentro de una carpeta pendiente sin forzar su materialización salvo cuando hace falta llegar hasta una coincidencia; `serializeNode` sobre una carpeta pendiente no construye ninguna fila; `deleteNode` quita del mapa las capas marcadas que una carpeta pendiente escondía; `resolveRecordLi`/`wirePendingLayerEvents` resuelven un clic/hover sobre una capa pendiente a su `<li>` real y retiran el listener de espera al materializar (sin quedarse disparando por duplicado); `blinkLayer` (el parpadeo de identificación de "Ir al nodo en el panel") oculta/muestra la capa dos veces en orden, un parpadeo repetido cancela el anterior en vez de solaparse, y si el checkbox cambia mientras parpadea termina en su estado real en vez de forzarla visible.
+También `selectFolderLayers` (el botón ☑ de una carpeta): selecciona de una vez las capas de la rama, incluida la de una subcarpeta colapsada que `materializeSubtree` tiene que materializar primero, y avisa con el recuento (`announceSelectionCount`, tono `"info"`) igual que Mayús+clic o Ctrl+Mayús+clic — con una espera real (no un temporizador simulado, para no pisar los `setTimeout` de verdad que ya usa `blinkLayer` en esta misma suite) de `SEL_COUNT_DEBOUNCE_MS` antes de comprobar el aviso.
+
+### `pointsedit.js`
+
+**Salida de `npm test`:**
+```
+── Editor de la lista de puntos: formato TSV, anillos, errores
+POINTS EDITOR TESTS OK
+```
+
+**Qué cubre:** Editor de la lista de puntos de una capa de trazos: `pointsToText` (cabecera, tabuladores, altitud 0 cuando falta, un bloque por anillo separado por línea en blanco) y `textToPoints` (ida y vuelta, cabecera ignorada aunque venga repetida en medio al pegar dos veces, separación por comas/espacios/punto y coma, líneas en blanco de los extremos sin crear anillos vacíos, errores con su número de línea real, y 1000 puntos como tamaño objetivo).
+
+### `msglog.js`
+
+**Salida de `npm test`:**
+```
+── Avisos: fusión de repetidos con contador y registro de sesión
+MESSAGE LOG TESTS OK
+```
+
+**Qué cubre:** Avisos del panel: `msgStamp` (relleno con ceros en todos los campos y medianoche exacta, el fallo que ya se dio en `pngTimestamp`); fusión de un aviso repetido en una sola línea con `×N` y una sola entrada de registro; lo que NO se funde (texto distinto, mismo texto con otro tono, o línea ya expirada); que el repetido reinicia el temporizador, cancela el anterior y no cambia de sitio; que un `sticky` no arma temporizador; que el registro sobrevive a que la línea desaparezca; el tope `MSG_LOG_MAX` perdiendo la más antigua; el contador de entradas sin ver (un repetido no cuenta); y `logText` (orden cronológico, marca completa, tono y `×N` con la marca de la última).
+
+### `naming.js`
+
+**Salida de `npm test`:**
+```
+── Autonumerado de formas dibujadas y mediciones
+NAMING TESTS OK
+```
+
+**Qué cubre:** `nextNumberedName`: autonumerado de las formas dibujadas y las mediciones deducido de los nombres existentes (no de un contador, que se reiniciaría al recargar porque una forma vuelve por el camino genérico `t:"layer"`). Cubre la secuencia, que manda el máximo y no la cuenta (huecos), que cada familia va por su cuenta —incluida «Ruta», la medición multi-waypoint, con su propia serie independiente de «Línea»—, que una línea dibujada no reutiliza el número de una medición, el anclaje exacto del patrón (`Mi Línea 9` no cuenta como 9), los registros pendientes de carpetas nunca desplegadas —incluidos los anidados— y los nodos sin nombre.
+
+### `measure.js`
+
+**Salida de `npm test`:**
+```
+── Mediciones: estilo propio, medidas del diálogo, ruta multi-waypoint y renombrado sin perder la medida
+MEASURE TESTS OK
+```
+
+**Qué cubre:** Mediciones: `defaultMeasureStyle` (una ruta nunca se rellena, un círculo sí y con relleno muy translúcido; cada tipo conserva su color y el contorno va siempre opaco); `capArea` —el área de un círculo es la del CASQUETE esférico, no πr²— coincidiendo con πr² a 1 km, quedando por debajo a 1000 km y dando medio globo para un cuarto de vuelta; `measurementValues` (un círculo da radio, área y el CENTRO —pedido explícitamente, `center: m.mOrigin.getLatLng()`— y ningún rumbo, una ruta el total y el desglose por tramo sin un único rumbo — la antigua herramienta "línea", de arrastre y siempre dos puntos, se retiró: una ruta de 2 waypoints la sustituye, ver el punto 4 del comentario de cabecera); `fmtUnitDist`/`fmtUnitArea` (las mismas funciones para el diálogo y para las etiquetas del visor; el área con el factor AL CUADRADO, con `METERS_PER_MILE` entre las constantes ahora comprobadas, la quinta unidad —millas terrestres— junto a m/km/ft/NM); `renderMeasureValues` (etiqueta Radio/Distancia total, conversión de unidad, rumbo siempre en grados, filas de área/rumbo/centro que se ocultan solas —el centro solo se muestra para un círculo, formateado con `formatCoord`/`coordFormat`, el mismo ajuste global de Propiedades—, y la fila de tramos de una ruta con un `<div>` por tramo, numerado `Tramo N: …` para poder correlacionarlo con la etiqueta del mismo tramo en el visor, que desaparece de nuevo al volver a un círculo); `updateMeasurement`/`updateRouteMeasurement`, que escriben la etiqueta —o una por tramo, numerada igual que en el diálogo, en una ruta— en la unidad elegida y con el mismo formato que el diálogo (el total de una ruta es la SUMA de los tramos, no la distancia origen-fin) y avisan a `refreshOpenMeasureDialog` en cada recálculo (con un stub que solo registra la llamada; la integración completa contra el diálogo de verdad la prueba `tests/browser/measure-dialog-live.mjs`), y `refreshMeasureLabels`, que al cambiar de unidad repinta tanto las filas del árbol como las mediciones de una carpeta nunca desplegada (`li._pending`), que están en el mapa sin fila; y `startRename` sobre una fila cuyo texto no es el nombre a secas —la regresión reportada: dejar el nombre igual, o cancelar con Escape, borraba la distancia de la fila—, más el caso normal de una capa sin medida. Arco: `circlePerimeter` (2πR·sin(r/R), coincide con 2πr a 1 km y queda por debajo a 1000 km), `arcPoints` (N segmentos son N+1 puntos, todos sobre el círculo, extremos en los rumbos esperados, horario, antihorario y de más de 180°) y `unwrapSweep` (el barrido sigue el movimiento del ratón: cruza el norte sin saltos, acumula más allá de 180° y nunca llega a la vuelta completa). El círculo enseña ahora perímetro y orientación (`measurementValues`/`renderMeasureValues`).
+
+### `schemaupgrade.js`
+
+**Salida de `npm test`:**
+```
+── Subida silenciosa de TREE_SCHEMA v6 a v7: measure.a/b a measure.waypoints
+SCHEMA UPGRADE TESTS OK
+```
+
+**Qué cubre:** `upgradeMeasuresV6`, la única excepción a «lo que no corresponda a la versión actual se borra, no se migra»: una medición v6 con `a`/`b` sueltos sube a `waypoints` (array de 2, en el mismo orden) sin dejar los dos formatos a la vez, igual para línea que para círculo (no mira `mtype`); el resto del registro (nombre, `checked`, estilo) no se toca; alcanza mediciones anidadas dentro de carpetas colapsadas a varios niveles; un nodo `t:"layer"` no se altera; un registro que YA tiene `waypoints` (v7, o una ruta con más de 2) se deja tal cual sin inventar `a`/`b`; y un árbol vacío o sin mediciones no rompe nada.
+
+### `vertexedit.js`
+
+**Salida de `npm test`:**
+```
+── Edición interactiva de vértices de un polígono: arrastrar, borrar, mínimo por anillo, tope
+VERTEX EDIT TESTS OK
+```
+
+**Qué cubre:** Las funciones de bajo nivel de la edición interactiva de vértices de un polígono ya creado —`beginVertexEdit`/`endVertexEdit`/`removeVertexEditPoint`/`insertVertexEditPoint`—, ajenas a QUIÉN las dispara (hoy, tener su diálogo de propiedades abierto; ver `tests/browser/vertex-select.mjs` para esa parte), con un Leaflet de mentira mínimo (`L.Polygon`/`L.Polyline` de verdad, para que `instanceof` distinga cerrado de abierto). Cubre: por debajo del tope se construye un manejador por vértice reutilizando `pathRings` (el mismo recorrido de anillos/partes que ya usa el editor de texto); en una geometría con agujero, el mínimo se exige POR ANILLO —el agujero no baja de 3 sin que el borrado del anillo exterior se vea afectado—, y lo mismo para insertar (cae en el anillo del manejador elegido, o al final del primero si no hay ninguno); cada arrastre/borrado/inserción se aplica y se guarda AL MOMENTO (`scheduleSave`, comprobado en cada caso); y por encima del tope configurado (`vertexEditMax`, con `VERTEX_EDIT_MAX_DEFAULT` como punto de partida) no se construye ningún manejador (solo queda el editor de texto) y se avisa una vez, nombrando la capa, cuántos vértices tiene y el tope vigente — comprobado también que el tope es de verdad configurable en caliente (`setVertexEditMax`), no una constante. En un ÚNICO anillo simple, borrar el vértice que dejaría un anillo cerrado por debajo de 3 ya NO bloquea: lo ABRE (pasa a línea, mínimo 2) y el borrado se completa, con aviso del cambio — probado con un sustituto mínimo de `convertVertexEditShape` (cambia la capa fake de clase sin tocar el DOM); el real reconstruye la capa (`setPathLayerClosed`) y el gesto de CERRAR (Mayús+clic en el primer vértice con el último seleccionado), la matriz completa de casos negativos (un polígono de 4 o 5 nunca se abre borrando; uno con agujero tampoco aunque el agujero llegue a 3) y que Cancelar revierte todo esto (antes no era edición diferida; ya lo es) se prueban de punta a punta en `tests/browser/vertex-select.mjs`. Mover un vértice ya NO exige Ctrl (`wireVertexEditHandle` pasa `requireCtrl=false` a `attachVertexDrag`, extraída aquí tal cual): el arnés declara `document`/`L.DomEvent.on`/`off` y `activeTool` de mentira porque el mousedown de prueba ya no se corta en el chequeo de Ctrl y llega hasta el final de la función real — el arrastre de verdad (con `page.mouse`) y que el doble click NO haga zoom en modo edición —ni durante el dibujo ni editando un polígono/ruta/círculo ya creado, ver `anyEditModeActive`/`refreshDoubleClickZoom`— se prueban en `tests/browser/vertex-select.mjs`.
+
+### `icons.js`
+
+**Salida de `npm test`:**
+```
+── Iconos MDI empotrados: catálogo y tabla sincronizados, sin red en ejecución
+EMBEDDED ICONS TESTS OK
+```
+
+**Qué cubre:** Iconos MDI empotrados (`MDI_ICON_BODIES`, generado por `npm run icons`): que el catálogo `MDI_ICONS` y la tabla de cuerpos no se hayan desincronizado en NINGUNO de los dos sentidos —olvidar `npm run icons` tras añadir un icono es el fallo humano que queda—, que todos los cuerpos empiecen por una forma SVG y se dibujen con `currentColor`, y `mdiSvg` en sus tres formas (sin color deja `currentColor` para que lo tiña el CSS de `.mdi-pin`; con color lo sustituye, que es lo que necesita un `<img>` suelto; con tamaño lo escribe en el propio SVG, que es de donde sale el `width:auto` de `#icon-preview`). Además, sobre el archivo ENTREGADO: que no quede ninguna mención a `api.iconify.design` ni resto de `svgCache`/`fetchIconSvg`, y que `applyMarkerStyle` ya no sea `async` ni lleve contador de secuencia. Todo sin tocar la red: el CI no puede depender de que Iconify esté en pie, que es justo lo que este cambio elimina.
+
+### `boot.js`
+
+**Salida de `npm test`:**
+```
+── Arranque: el panel no concluye «no hay capas» antes de leer IndexedDB
+BOOT PLACEHOLDER TESTS OK
+```
+
+**Qué cubre:** Aviso del hueco del árbol durante el arranque: `showLoadingMessage`/`showEmptyMessage` escriben cada uno su texto, nunca se apilan dos, dejan `rootUl` a null y usan `textContent` (no `innerHTML`). Y, sobre el archivo ENTREGADO —porque es un contrato de ORDEN DE EJECUCIÓN que ninguna función suelta puede comprobar—: que el árbol arranque en «Inicializando…» y NO haya un `showEmptyMessage()` a nivel de módulo (concluir «no hay capas» antes de leer IndexedDB era lo que hacía salir ese aviso a la vez que la barra «Restaurando capas…»), y que 99-boot.js concluya con `if (!rootUl) showEmptyMessage();` DESPUÉS de `dbLoadTree()` — mirando `rootUl` y no `nodes`, para no borrar el árbol de una importación que el usuario haya soltado mientras se leía.
+
+### `attribution.js`
+
+**Salida de `npm test`:**
+```
+── Línea inferior del visor: versión, enlace al repositorio y escala
+ATTRIBUTION / SCALE TESTS OK
+```
+
+**Qué cubre:** Línea inferior del visor: `BUILD` con forma AAAAMMDDHHMM, `REPO_URL` a GitHub, y el prefijo de la atribución mostrando versión + enlace al repositorio (por la constante, sin repetir la URL) + el crédito de Leaflet que su licencia pide, con `target="_blank"` y `rel="noopener"` — abrir en la misma pestaña abandonaría la sesión de trabajo. La escala es `L.control.scale` (la de Leaflet, no una propia) en `bottomright`, con sus valores por defecto, y AÑADIDA DESPUÉS de la atribución: ese orden ES su posición en pantalla, porque Leaflet inserta cada control nuevo de una esquina inferior delante de los que ya hubiera. Y que la escala NO esté en `HIDE_FOR_PNG`: una imagen de un mapa sin escala no se puede medir.
+
+### `minified.js`
+
+**Salida de `npm test`:**
+```
+── kitelocal.min.html: el minificado que sirve Pages no viene roto del proceso
+MINIFIED BUILD TESTS OK
+```
+
+**Qué cubre:** `kitelocal.min.html`, la derivada que sirve GitHub Pages y el único artefacto que ninguna otra suite mira (las que extraen del archivo entregado lo hacen por marcadores de comentario, que el minificado no tiene). No prueba comportamiento —es el mismo código— sino que la TRANSFORMACIÓN no se ha llevado nada por delante: que se haya minificado de verdad (más pequeño, sin comentarios de bloque), que su `<script>` parsee (`node --check`), que lleve el mismo `BUILD` que el legible (comparando el VALOR, porque terser puede alinear la constante — es lo que caza un minificado sin regenerar), que sobrevivan los `integrity`/`crossorigin`, la CSP con sus orígenes, el guardián de Leaflet antes del primer `L.map(`, los nombres de nivel superior (fija que dependemos de `mangle.toplevel: false`) y un cuerpo de icono MDI empotrado; y que `index.html` redirija al minificado. Verificado que falla de verdad con una versión desfasada, un `integrity` de menos y un script inválido.
+
+### `statics.js`
+
+**Salida de `npm test`:**
+```
+── Comprobaciones estáticas: sin bytes NUL, todo id referido existe, toda función llamada está declarada y los diálogos de un solo botón lo llevan arriba a la derecha
+STATIC CHECKS OK
+```
+
+**Qué cubre:** Las tres comprobaciones estáticas que antes se hacían a mano (y por eso casi nunca): que el archivo entregado no contenga ningún byte NUL — encontrado uno real, colado sin querer en un separador de un template literal de `navMessage` (`` `${tone}\0${txt}` `` en vez de un espacio), que no rompía nada en el navegador pero hacía que `grep` sin `-a` tratara el archivo como binario y dejara de encontrar nada en él; que todo `$id`/`getElementById` apunte a un `id` que exista en el HTML; y que TODA FUNCIÓN LLAMADA ESTÉ DECLARADA — un refactor puede borrar un ayudante que sigue en uso y `node --check` no lo ve, porque el archivo sigue siendo válido. La de las funciones exige mirar código y no texto: los comentarios en castellano llenos de paréntesis daban 369 falsos positivos, así que la suite lleva su propio `maskCode` (borra comentarios, cadenas, plantillas y regex conservando posiciones, y recorre los `${…}`, que SÍ contienen código). Cuenta como declarado todo lo que liga un nombre: declaraciones, claves de objeto, métodos abreviados, getters y parámetros; los globales del navegador van en una lista explícita. Verificado que falla con un `id` mal escrito y con un ayudante borrado. Además, la regla de los diálogos de un solo botón (`.claude/rules/dialog-close-button.md`): ningún pie `.dlg-actions` con un único botón, y todo × `.dlg-close` dentro de la cabecera `<h2 class="dlg-head">` de una caja `no-actions`; verificado que falla dejando el registro de avisos con solo «Cerrar».
+
+### `tristate.js`
+
+**Salida de `npm test`:**
+```
+── Tercer estado de la casilla: indeterminada cuando la carpeta está a medias
+TRI-STATE CHECKBOX TESTS OK
+```
+
+**Qué cubre:** Tercer estado de la casilla de un contenedor (`indeterminate` nativo, dibujado como guion): `containerState` sobre los HIJOS DIRECTOS (todos/ninguno/mezcla, contenedor vacío y hoja devuelven null, una fila de mensaje no cuenta), el invariante que permite no bajar más de un nivel —un hijo mixto hace mixto al abuelo—, `aria-checked="mixed"`, que `applyContainerState` diga si cambió algo (es lo que corta la subida), `refreshAncestorChecks` propagando y deshaciendo la mezcla por toda la rama, los registros `_pending` de una carpeta colapsada (solos y conviviendo con filas, que es el estado real tras soltar un archivo dentro), la caché `rec._state` y el borrado recalculando desde el `<ul>` guardado antes de quitar la fila. Más un contrato de orden sobre el archivo entregado: `materializeRecords` recalcula la casilla de la carpeta que se queda pendiente.
+
+### `urlimport.js`
+
+**Salida de `npm test`:**
+```
+── Reconocer lo descargado de una URL: nombre, tipo por contenido y extensión sintetizada
+URL IMPORT TESTS OK
+```
+
+**Qué cubre:** Las funciones puras que reconocen lo descargado de una dirección: `fileNameFromUrl` (consulta y fragmento fuera, `%20` decodificado, la raíz cae en el host, saneado de lo que no puede ir en un nombre), `isZipSignature`, `sniffTextKind` (KML con y sin prefijo de namespace y con BOM, HTML —el diagnóstico de quien pega la página en vez del «Raw»—, GPX y JSON truncado que no cuelan, y los tres tipos JSON por su FORMA) y `downloadFileName`, con el invariante de que la extensión resultante siempre cae en una rama viva de `handleDroppedFiles`: sin él, lo descargado se rechazaría a sí mismo. Y que `URL_KIND_EXT` y `URL_KIND_LABEL` cubran los mismos tipos.
+
+### `multiedit.js`
+
+**Salida de `npm test`:**
+```
+── Edición en bloque: qué se aplica a todos cuando los nodos no coinciden
+MULTI-EDIT TESTS OK
+```
+
+**Qué cubre:** Edición en bloque: las tres funciones puras que deciden qué se aplica a todos. `mixedProps` (en qué NO coinciden los nodos: por valor, y `false` frente a `undefined` cuentan como distintos), `draftProps` (una propiedad mezclada y no tocada no se aplica; una tocada sí, aunque valga `false` — el filtro es la presencia de la clave, no si el valor parece vacío) y `joinNames` (los nombres que quepan y el resto contado, con un nombre larguísimo recortado: los de un KML llegan a cientos de caracteres).
+
+### `usage.js`
+
+**Salida de `npm test`:**
+```
+── Pie del panel: la línea de memoria se esconde si no hay cifra que dar
+USAGE INDICATORS TESTS OK
+```
+
+**Qué cubre:** La línea de memoria del pie del panel: `memoryUsageText` da cifra servida por http(s) y devuelve null en los dos casos en que no la hay —`file://`, donde Chromium deja `performance.memory` congelada, y un navegador sin esa API, que no está en ninguna norma—, más un `usedJSHeapSize` no finito. `refreshMemoryUsage` ESCONDE la línea cuando no hay cifra en vez de escribir «no disponible» (sería ruido permanente en dos casos raros) y la devuelve al haberla. Y que el arranque no arme el temporizador si no hay nada que refrescar.
+
+### `clipboard.js`
+
+**Salida de `npm test`:**
+```
+── Portapapeles del sistema: copiar y pegar entre instancias de distinto dominio
+SYSTEM CLIPBOARD TESTS OK
+```
+
+**Qué cubre:** Copiar y pegar entre instancias de KITE de dominios distintos, por el portapapeles del sistema: que el envoltorio sea el MISMO que el de exportar (`treeExportDoc`, con sus tres versiones) y que `exportNode` lo comparta en vez de duplicarlo; `parseTreeExport` reconociendo lo nuestro y descartando texto suelto, JSON ajeno y un GeoJSON; que lo pegado de fuera nunca MUEVA (cortar en otra pestaña no puede borrar aquí); el orden que evita pegar dos veces —Ctrl+V deja un respaldo con `setTimeout(0)` y NO llama a `preventDefault`, que cancelaría el evento `paste`, y el evento cancela ese respaldo solo si trae algo nuestro—; las dos comprobaciones de versión; y el tope de tamaño, con el fallo de escritura capturado para que no tumbe el portapapeles interno.
+
+### `hittest.js`
+
+**Salida de `npm test`:**
+```
+── Acierto bajo el cursor: geometría real, no caja envolvente
+HIT TEST OK
+```
+
+**Qué cubre:** Acierto bajo el cursor del menú contextual, en píxeles de contenedor: `segDistSq` (perpendicular, más allá de los extremos, segmento degenerado), `nearPolyline` (el falso positivo reportado —un punto dentro de la caja envolvente de una diagonal y a 56 px de ella no acierta—, tolerancia inclusiva a tol y no a tol+1, y el LADO DE CIERRE del anillo, que `getLatLngs()` no repite y sin el cual el último lado no se probaba), `pointInRing` (ray-casting: escotadura de un polígono en L, alturas de vértice) y `pointInRings` (agujeros: el centro de uno queda fuera, su borde acierta por cercanía; por fuera del contorno acierta dentro de la tolerancia).
+
+### `openshape.js`
+
+**Salida de `npm test`:**
+```
+── Formas abiertas: una línea no tiene área ni relleno
+OPEN SHAPE TESTS OK
+```
+
+**Qué cubre:** Formas abiertas: `isOpenOnly` (una polilínea sí, un polígono no —incluido el orden de comprobación, que importa porque `L.Polygon` extiende `L.Polyline`—, un grupo con línea Y polígono tampoco, y el polígono se encuentra anidado) y `clearFillOnOpenPaths` (quita el relleno a la línea, respeta el del polígono del mismo grupo —el caso del placemark KML que comparte objeto de estilo—, no toca el resto del estilo, y llega a una capa suelta y a través de grupos anidados).
+
+### `polyarea.js`
+
+**Salida de `npm test`:**
+```
+── Perímetro y área de polígonos: anillos cerrados/sin cerrar, agujeros, multipolígono
+POLYGON AREA/PERIMETER TESTS OK
+```
+
+**Qué cubre:** Perímetro y área de polígonos (diálogo de propiedades): `ringArea` (fórmula del exceso esférico) contra la aproximación plana de un cuadrado pequeño, invariante al sentido de recorrido, cero con menos de 3 puntos; `ringClosed` (primer y último punto iguales, con tolerancia `COORD_EPS`) distingue un anillo ABC sin repetir el punto de cierre (el caso de algunos JSON) de uno que sí lo repite; `ringPerimeter` con un anillo abierto suma solo los tramos consecutivos (sin el de cierre), con uno cerrado sí lo incluye; `polygonParts` separa exterior/agujeros tanto en un polígono simple como en un multipolígono anidado; área con agujero, calculada a mano y vía `polygonParts`, menor que sin él y próxima a la resta exterior−agujero.
+
+### `geocalc.js`
+
+**Salida de `npm test`:**
+```
+── Calculadora geodésica: elevación, cono, corrección por presión (ISA) y vector GPS, con su validación
+GEOCALC TESTS OK
+```
+
+**Qué cubre:** `elevationAngleDeg` en los tres modelos de la calculadora geodésica. Plano: 45° con Δh = d, 0° con alturas iguales, signo negativo al bajar y ±90° con distancia cero. Esfera y esfera con refracción 4/3: con alturas iguales el ángulo es exactamente −(d/R)/2 (R real o R·4/3), la refracción da menos caída que la esfera sola, a 200 m la esfera coincide con el plano, y un objetivo a nivel del mar justo en el horizonte geométrico se ve a −acos(R/(R+h)). `elevationInputError`: rechaza valores no finitos, distancia negativa, distancia cero con alturas iguales (no hay dirección), una altura en el centro de la Tierra y, solo en los modelos esféricos, más de media vuelta; con distancia cero y alturas distintas es válido. `silenceConeDeg`: complementario de la elevación (90° en la vertical → 0°, horizontal → 90°, sin recortar con elevación negativa) y elevación + cono = 90° en un caso realista. **Caso reportado del cono de silencio** (antena 24,21 m, aeronave 45000 ft, 12,2 NM): la oblicua da `asin(Δh/d)` ≈ 37,3° y la distancia de superficie `atan(Δh/d)` ≈ 31,2° (la diferencia con otras aplicaciones era la interpretación de la distancia, no la fórmula), el modelo de Tierra mueve menos de 0,15° y con el modelo por defecto el resultado es 37° de elevación y 53° de cono. `gpsVector` contra una formulación independiente en cartesianas 3D (ángulo entre radios con `atan2(|a×b|, a·b)`, cuerda como norma de la diferencia y acimut con las componentes este/norte del vector en A) en cinco pares —Madrid→Barcelona, Sídney→Tokio, un cruce de ±180°, un trayecto por el polo y una misma vertical—; referencias a mano (1° de longitud en el ecuador, rumbos 0/90/180/270°); la altitud alarga la cuerda pero no la distancia horizontal; misma vertical da la diferencia de altitudes y orientación `null` (no un 0° falso); y puntos a ~1 cm, donde la ley de los cosenos directa perdería cifras. `gpsVectorError`: valores no numéricos, latitud o longitud fuera de rango y altitud en el centro de la Tierra; los polos son válidos. **Distancia oblicua** (`kind = "slant"`, `surfaceFromSlant`): triángulo 3-4-5 en el plano; oblicua = Δh da ±90°; en esfera y con refracción, una distancia de superficie se convierte en cuerda con OTRA fórmula (coordenadas 2D del objetivo) y el ángulo por oblicua coincide con el de superficie, y `surfaceFromSlant` recupera la distancia; cruce con la cuerda y el arco de `gpsVector` (otro camino de código); a 1 cm no se pierden cifras (el `acos` directo las perdería); a 5 km de altura la cuerda de 1 cm corresponde a un arco a nivel del mar algo menor (factor R/(R+h)); sin tipo = superficie. Validación: oblicua menor que Δh es error (con tolerancia al redondeo de unidades, pero no un 0,1 % menos), 0 con alturas iguales no tiene dirección, mayor que el diámetro es imposible en la esfera (π·R lo es aunque como arco cupiera) y el modelo plano no la limita; el ángulo de un caso imposible es NaN, no un número falso. **Corrección de la altitud por presión (atmósfera estándar ISA):** la presión estándar es EXACTAMENTE 1013.25 hPa (no 1013.1) y el exponente barométrico `g·M/(R*·L)` = 5.25588 (inverso 0.190263); la presión a 0, 1, 2, 5, 10, 11, 15 y 20 km contra la tabla publicada de la atmósfera estándar; continuidad de valor y de pendiente en la tropopausa (11 km); la inversa deshace a la directa cada 500 m de −5 a 20 km, en las dos capas; con la presión estándar la altitud no cambia NI UN BIT, incluso fuera del rango ISA; en el nivel del mar la sensibilidad es 8.324 m/hPa = 27.31 ft/hPa (no los 30 de la regla del pulgar) y baja con la altitud (26.4 ft/hPa a 5000 ft, 20.5 a 45000 ft); una fórmula cerrada independiente por capa (troposfera: `(T0/L)(1 − (p0/QNH)^0.190263)`; estratosfera: `alt + Hs·ln(QNH/p0)` con `Hs = R*·T/(g·M)`); QNH mayor sube y menor baja la altitud verdadera, creciente en QNH y sin saltos al cruzar los 11 km; la presión en el avión es la misma en las dos atmósferas (`QNH·f(h) = p0·f(alt)`). `pressureInputError`: presión no numérica o fuera de 800–1100 hPa, altitud fuera de −5 a 20 km (o que la corrección saque de ahí) con otra presión, y ninguna exigencia con la estándar. Probado por mutación: con 1013.1 como presión estándar fallan la constante y toda la tabla.
+
+### `toolstest.js`
+
+**Salida de `npm test`:**
+```
+── showLayerInfo/setTool: el panel de información no se cuela ni queda pegado al salir de una herramienta de dibujo
+TOOLS TESTS OK
+```
+
+**Qué cubre:** `showLayerInfo`/`setTool`: el panel de información abre por hover salvo con el diálogo de estilos abierto o dibujando un polígono (guardas preexistentes); al salir de polígono —y también de ruta o círculo, mismo bug— se suprime exactamente el siguiente hover residual (no más, no queda pegajoso); la guarda expira sola si no llega ningún hover; el cierre diferido por `mouseout` se cancela si el siguiente hover cae en otra capa (pasar de una a otra no debe cerrar ni parpadear); no hace nada si ya está cerrado; un panel abierto explícitamente (con foco de teclado dentro) no se autocierra.
+
+### `rotation.js`
+
+**Salida de `npm test`:**
+```
+── Rotación del mapa: ángulo de la brújula, giro con el botón central, recorte de la retícula y arrastre limitado al mundo con el mapa girado; giro, transform y caja envolvente del código incorporado, y versión de Leaflet fijada
+ROTATION TESTS OK
+```
+
+**Qué cubre:** Las piezas puras de la rotación del mapa (`08-map-rotation.js`, derivado de leaflet-rotate). `pointerAngleDeg` (ángulo del puntero desde el centro de la brújula con el convenio de rumbo: 0 arriba, sentido horario, nunca negativo) y `dragBearing` (el rumbo durante un arrastre es el de partida más lo que gira el puntero, no su ángulo absoluto —el mapa no salta al primer movimiento—, cruza el norte sin restar 340°, se normaliza a [0, 360) y es libre, sin pasos). `pivotDragBearing` (giro con el botón central: medio grado por píxel en horizontal, derecha = horario, cruza el norte sin negativos, libre). `clipSegmentToRect` (Liang–Barsky: recorte de una línea de la retícula al visor; el primer extremo devuelto es el del lado de `p0`, que es por donde se pone la etiqueta; fuera de la vista → null, incluida una vertical exterior). `clampRotatedDragOffset` (arrastre limitado al mundo con el mapa girado): a 0° coincide con el recorte por ejes de Leaflet, a 90° el tope es el del eje del MAPA y no el de la pantalla, y con la vista más grande que el mundo el centro se queda en medio. Del giro incorporado: `rotateXY` (horario en pantalla, alrededor del pivote, ida y vuelta exacta), `rotatedTransformCss` (posición ya girada + `rotate(…rad)`) y `enclosingBox` (un cuadrado girado 45° mide 100·√2 y queda centrado). Guardián: la versión de Leaflet fijada en el HTML es `LEAFLET_PATCHED` (el código parchea sus internos) y ningún `<script>` carga ya leaflet-rotate.
+
+### `view-keys.js`
+
+**Salida de `npm test`:**
+```
+── Teclado y rueda del visor: velocidad de las flechas mantenidas, dirección combinada y nivel final del zoom continuo (teclas y rueda)
+VIEW KEYS TESTS OK
+```
+
+**Qué cubre:** Las piezas puras del teclado del visor (`70-view-controls.js`). `keyPanSpeed`: una flecha arranca ya a la velocidad base (sin pausa), constante hasta el umbral de aceleración, rampa lineal hasta el tope y nunca por encima; un tiempo negativo (marca de fotograma anterior al keydown) no la frena. `keyPanVector`: → es x positiva y ↑ y negativa (pantalla), dos flechas dan diagonal, opuestas se anulan, Mayús multiplica y una tecla que no es flecha no mueve nada. `keyZoomTarget`: un toque es ±1 nivel entero, mantenido sigue hasta el entero siguiente en la dirección del zoom (no vuelve atrás), ya en un entero se queda, desde un zoom fraccionario va al entero vecino (no a ±1 del fraccionario) y no se pasa del máximo ni del mínimo. `wheelLevels`: una muesca hacia arriba (100 px) acerca un nivel y una de 120 px hacia abajo aleja uno, no más; un delta pequeño de panel táctil da una fracción; rueda en modo líneas o páginas, como mucho un nivel por evento; sin delta vertical, nada. `wheelZoomTarget`: acercando va al entero siguiente y alejando al anterior, ya en un entero se queda (tres muescas = tres niveles), subir y bajar lo mismo deja donde estaba (sin el ±1 de las teclas) y no sale de [min, max].
+
+### `browser/app.mjs`
+
+**Salida de `npm test`:**
+```
+── Navegador: la aplicación arranca y funciona, en los DOS artefactos
+BROWSER APP TESTS OK
+```
+
+**Qué cubre:** Que la aplicación ARRANQUE y funcione, pasando las mismas comprobaciones sobre `kitelocal.html` Y `kitelocal.min.html` — o sea, ES la comprobación de paridad legible/minificado que antes era manual y obligatoria: si terser rompiera algo, el legible pasaría y el minificado no. Cubre el aviso con que concluye el arranque, las dos barras de la escala y que quede por encima de la atribución, la versión y el enlace al repositorio, aplicar un icono MDI empotrado a un marcador, que los 80 iconos del selector se PINTEN (no solo que estén en una tabla), la etiqueta y el diálogo de una medición en la misma unidad —incluida la fila de área, sin sentido en una ruta, REALMENTE oculta (`display` computado, no solo la propiedad `hidden`)—, el tercer estado de una carpeta con su `aria-checked="mixed"`, y cero violaciones de CSP y cero errores de página.
+
+### `browser/clipboard.mjs`
+
+**Salida de `npm test`:**
+```
+── Navegador: copiar y pegar entre instancias de distinto origen, con el portapapeles real
+BROWSER CLIPBOARD TESTS OK
+```
+
+**Qué cubre:** El viaje que ninguna suite de Node puede dar: copiar con Ctrl+C DE VERDAD en un origen y pegar con Ctrl+V DE VERDAD en otro (dos puertos son dos orígenes), por el portapapeles real del sistema. Comprueba que Ctrl+C deja el envoltorio de KITE en el portapapeles, que el segundo origen recibe la carpeta con sus tres puntos y sus tres capas en el mapa, y que pegar FUERA del árbol —en el editor de puntos— no importa nada y deja el JSON en el cuadro de texto, como se acordó. Y la regresión grave del corte: con teclado REAL, que Ctrl+X + Ctrl+V MUEVA —raíz con solo el destino, sin filas marcadas, 4 capas y no 8— porque al escribir en el portapapeles del sistema Ctrl+V leía de vuelta nuestro propio envoltorio y lo trataba como ajeno, que nunca mueve; más la otra mitad, que copiar siga copiando.
+
+### `browser/sun-times-info.mjs`
+
+**Salida de `npm test`:**
+```
+── Navegador: horas del sol y crepúsculos en la ficha de un marcador con la iluminación real activa
+BROWSER SUN TIMES INFO TESTS OK
+```
+
+**Qué cubre:** Lo que se VE y cuándo, activando la iluminación de verdad (☀, WebGL del navegador de pruebas). Apagada, un marcador sin nada no tiene ficha ni ℹ visible y uno con descripción no lleva la sección. Activa: el ℹ de un marcador sin nada aparece, la ficha trae salida, puesta y los tres crepúsculos con el desfase UTC, y abre con 9 filas desde el botón real; con ficha propia va primero la suya y detrás la sección; una capa con DOS marcadores no la tiene. Pasar el ratón NO abre la ventana en un marcador sin ficha propia y sí en uno con ella; «Mostrar atributos» aparece en el menú contextual. Al apagar vuelve todo a como estaba, y un marcador importado con la iluminación ya activa nace con su ℹ.
+
+### `browser/geojson-name.mjs`
+
+**Salida de `npm test`:**
+```
+── Navegador: nombre de GeoJSON con varias claves, selección guardada sin preguntar, cancelar y cambiarla desde Propiedades
+BROWSER GEOJSON NAME TESTS OK
+```
+
+**Qué cubre:** El flujo completo del selector de nombre, con un archivo que TRAE `name` a propósito para comprobar que no se asume. Aceptar arranca deshabilitado; una casilla por propiedad; cada casilla muestra su número de orden de marcado, desmarcar y volver a marcar renumera, la vista previa muestra la combinación con « / » y omite una clave de valor vacío. Una segunda importación con la misma forma de properties NO pregunta, usa lo guardado y deja constancia en el registro de avisos. Cancelar (botón o Escape) aborta la carga de ESE archivo —no entra en el árbol— con un aviso de cancelación y no de fallo. Desde el panel Propiedades, «Cambiar…» abre el mismo selector con la selección guardada y su orden, el cambio es diferido (Cancelar del panel lo descarta) y tras Aceptar la siguiente importación usa lo nuevo.
+
+### `browser/geojson-html.mjs`
+
+**Salida de `npm test`:**
+```
+── Navegador: etiquetas tipo HTML en properties de GeoJSON, de punta a punta
+BROWSER GEOJSON HTML TESTS OK
+```
+
+**Qué cubre:** El fallo reportado, de punta a punta: se suelta un GeoJSON con `<b>` en una property —escrito con los `<` ESCAPADOS como en los archivos reales, que es indistinguible tras `JSON.parse`—, se responde al diálogo y se mira lo que se ve. Comprueba que el diálogo habla de «propiedades» y no de «nombres», que la vista previa del selector de propiedad-nombre YA refleja la respuesta (porque la limpieza ocurre antes de leer `firstProps`), y las dos mitades: con «Eliminarlas» el nombre del árbol y la tabla salen limpios y el resumen dice cuántas propiedades se tocaron; con «Dejarlas» todo queda tal cual. En ambos casos nada se renderiza en negrita, un `<` de comparación no se toca y un número no se estropea.
+
+### `browser/dialogs.mjs`
+
+**Salida de `npm test`:**
+```
+── Navegador: las ventanas fijan cabecera y pie, y se redimensionan
+BROWSER DIALOG LAYOUT TESTS OK
+```
+
+**Qué cubre:** Disposición de las ventanas en un viewport corto (1280×620, donde el fallo se reproduce): que `.dlg-actions` quede entera dentro de la caja CON EL SCROLL ARRIBA Y CON EL SCROLL ABAJO —si solo se viera arriba, el fallo seguiría a medias—, que el `<h2>` siga visible (es el asa de arrastre), y que las ventanas con contenido que revelar tengan `resize: both` y las de confirmación no. Una ventana sin pie (su único botón, el de cerrar, es el × de la cabecera: la chuleta) se mide por ese ×, que además tiene que estar arriba a la derecha y dentro del `<h2>`. Además, que el selector de iconos y la chuleta (en su pestaña más larga, «Visor»: sin pie, las otras ya caben) SIGAN desbordando: el arreglo consiste en fijar los bordes, no en hacerlas caber a la fuerza. Y que encoger a mano la ventana de propiedades a 200 px no descuelgue sus botones. Además, el separador móvil de las dos columnas de la ficha de properties, con un arrastre REAL del ratón: `table-layout: fixed` (con el automático el ancho pedido se ignora), que arrastrar ensanche la clave y estreche el valor, que al extremo ninguna columna desaparezca, que el reparto se recuerde al cambiar de capa, y que una tabla venida de una `<description>` de KML NO lleve tirador. Y que el reparto se guarde en IndexedDB y se restaure al recargar EN EL MISMO contexto. Verificado que falla con el pie despegado.
+El popover de color, de punta a punta: que no se solape con los botones del diálogo de estilos (ni siquiera con las filas de la notación y de Cancelar/Aceptar añadidas, que lo hicieron más alto), que se abra y se cierre desde el panel de mapas base con un clic real, y que repetir el mismo botón grande cierre cancelando. Sobre todo, la edición DIFERIDA del propio popover: arrastrar por el espectro o teclear un hexadecimal y pulsar Intro solo PREVISUALIZA en vivo sobre el botón (y, para un marcador, su icono) sin tocar el borrador del diálogo de estilos ni cerrar nada — eso solo lo hace su propio «Aceptar», y «Cancelar» restaura el color que había al abrir. El mismo contrato se comprueba en el color de fondo del mapa, que además persiste en IndexedDB SOLO al aceptar (nunca durante la previsualización, y nunca si se cancela). Y las flechas ‹ › que ciclan la notación (Hex/RGB/CMYK/HSV) sin cambiar el color: cuántos campos se ven en cada una (1/3/3/4), escribir el mismo rojo puro campo a campo en RGB y leerlo de vuelta en los cuatro campos de CMYK. Y el cursor de cada zona del espectro: cruz sobre el cuadrado de saturación/valor, mano sobre la rampa de matiz.
+
+### `browser/tree-move.mjs`
+
+**Salida de `npm test`:**
+```
+── Navegador: mover un nodo de rama recalcula la casilla de los dos extremos
+BROWSER TREE MOVE TESTS OK
+```
+
+**Qué cubre:** Mover un nodo a otra rama recalcula la casilla de TRES ESTADOS de los dos extremos: la carpeta que lo pierde queda apagada y la que lo recibe, indeterminada. El arrastre se hace con eventos de arrastre REALES (`dragstart`/`dragover`/`drop` con su DataTransfer), no moviendo el `<li>` a mano: una primera versión hacía eso y seguía en rojo con el arreglo puesto, porque probaba una reconstrucción del manejador en vez del manejador real. Cubre las dos zonas de soltado (dentro de la carpeta y entre hermanos), varias carpetas de golpe —los contenedores de origen se capturan antes de mover—, y que vaciar una carpeta a medias le quite el guion, que dice «unas activas y otras no» de una carpeta sin hijos. Incluye los dos caminos de PEGAR, que ya recalculaban (`materializeRecords` el destino, `deleteNode` el origen). Y el arrastre entero con el RATÓN de verdad: se comprueba que un clic con tres píxeles de temblor NO arrastre nada, que no quede ningún `draggable` en el árbol y que Escape cancele a mitad.
+
+### `browser/multiedit.mjs`
+
+**Salida de `npm test`:**
+```
+── Navegador: editar varios nodos a la vez y el nombre siempre a la vista de un trazo
+BROWSER MULTI-EDIT TESTS OK
+```
+
+**Qué cubre:** El diálogo de estilos con VARIOS nodos seleccionados: que lo que no coincide salga marcado —la fila con «(varios)», el número en blanco, la casilla con el guion del árbol—, que tocar un control lo desmarque, y sobre todo que aceptar aplique SOLO lo tocado: el grosor que nadie movió sigue siendo el de cada uno, y cada marcador conserva su icono y su tamaño. El nombre: vacío con el resumen de nombres de marcador de posición, aceptar sin escribir no renombra, escribir renombra todos. Y el nombre siempre a la vista de un trazo, de punta a punta: etiqueta permanente al encenderlo, globo de click al apagarlo, cada trazo con SU nombre, repintada al renombrar y recuperada al restaurar el árbol. Y que el editor de puntos no trabaje en bloque: con varios seleccionados no abre ni pulsándolo a propósito, y la fila se ve deshabilitada —opacidad medida— diciendo por qué. Y que la pestaña «Atributos» del diálogo, que es de una sola capa, siga ahí con varias seleccionadas y pida dejar una sola.
+
+### `browser/live-preview.mjs`
+
+**Salida de `npm test`:**
+```
+── Navegador: el diálogo de estilos aplica en vivo tamaño, icono y color, y Cancelar los revierte
+BROWSER LIVE PREVIEW TESTS OK
+```
+
+**Qué cubre:** El diálogo de estilos aplica los cambios al mapa AL MOMENTO y «Cancelar» los deshace. Marcador: el tamaño llega a la capa mientras el diálogo sigue abierto y el marcador sigue siendo arrastrable; el color por el popover se ve al pulsar una muestra, Cancelar del popover lo devuelve, y Cancelar del diálogo deshace incluso un color ya aceptado en el popover; el icono se aplica al pulsarlo en la rejilla, Cancelar del selector lo devuelve y Aceptar lo deja. Polígono: grosor en vivo, revertido al cancelar, persistente al aceptar. Selección mixta: un color tocado llega a todos, y cancelar el popover devuelve a CADA uno el suyo (no el del primero).
+
+### `browser/lazy-cascade.mjs`
+
+**Salida de `npm test`:**
+```
+── Navegador: desplegar y marcar una carpeta grande a la vez no la deja a medio encender
+BROWSER LAZY CASCADE TESTS OK
+```
+
+**Qué cubre:** Desplegar y marcar una carpeta grande casi a la vez, en los dos órdenes y también apagando. Las dos pasadas van por lotes (`materializeRecords` construye filas, `cascadeVisibility` enciende) y cada una miraba su propia foto del árbol, así que se repartían los nodos sin saberlo: medido con un archivo real, 150 encendidas de 466 y la carpeta en indeterminado. La suite usa 400 capas —más que el lote de 150, o no hay carrera que provocar— y comprueba además que ninguna fila diga una cosa y el mapa otra, y que la repetición de la cascada no gire en vacío.
+Y el icono de un marcador dentro de una carpeta NUNCA desplegada: `buildRecordsFromStorage` debe dejarlo puesto en la capa cruda desde el momento en que la construye (comprobado con `mstyle.icon: "star"` antes de crear ninguna fila), y ese icono debe sobrevivir a activarlo por la cascada del checkbox de la carpeta sin que la carpeta llegue a desplegarse — el bug que esto prueba: un marcador con icono MDI, desactivado y en una carpeta colapsada, volvía a la gota de Leaflet por defecto al activarlo tras recargar.
+Y el feedback inmediato de esa misma cascada, de punta a punta en el navegador real: al pulsar la casilla, EN EL ACTO (sin ningún `await` de por medio) la casilla queda oculta y deshabilitada, su spinner visible, la fila con la clase `.cascading` (el nombre parpadea), `aria-busy="true"` y el aviso «Actualizando capas…» visible sobre el visor; al terminar la cascada, los cinco se restauran. Es la comprobación en navegador de `beginCascadeFeedback`/`endCascadeFeedback`, que `tests/cascadetest.js` ya prueba por dentro con stubs.
+
+### `browser/measure-dialog-live.mjs`
+
+**Salida de `npm test`:**
+```
+── Navegador: el diálogo de una medición se repinta en vivo al arrastrar, y 🔍 la encuadra con margen
+BROWSER MEASURE DIALOG LIVE TESTS OK
+```
+
+**Qué cubre:** Dos regresiones reportadas sobre una medición ya creada, comprobadas de punta a punta con eventos de ratón reales (`refreshOpenMeasureDialog` en sí lo prueba `tests/measure.js` con un stub, esto es la integración completa contra el diálogo de verdad). 1) Arrastrar (Ctrl+arrastre) el borde de un círculo o un waypoint intermedio de una ruta con el diálogo de propiedades ABIERTO repinta sus cifras —radio y área, o el desglose de tramos de una ruta— sin cerrar ni volver a abrir el diálogo; antes solo se veía el cambio en la etiqueta del mapa. 2) El botón 🔍 (`focusOnNode`) sobre una medición ya no usa el zoom de trabajo fijo (`FOCUS_ZOOM`): encuadra toda su geometría con margen (`fitBoundsFramed`), igual que ya hacía un polígono — comprobado con una ruta deliberadamente mucho más ancha que alta, el caso que peor encajaría en un zoom centrado fijo.
+
+### `browser/vertex-select.mjs`
+
+**Salida de `npm test`:**
+```
+── Navegador: seleccionar un vértice, Mayús+clic para insertar y Supr para borrar — en rutas y polígonos, sin diálogo
+BROWSER VERTEX SELECT TESTS OK
+```
+
+**Qué cubre:** El modelo de selección/inserción/borrado de vértices (`vertexOwner`/`vertexSelHandle`, `43-points-editor.js`) y su puerta única, `styleDialogShows` (`44-dialogs.js`), con eventos de ratón y teclado DE VERDAD — un `.on("click", …)` de Leaflet solo se dispara al recibir el evento nativo, así que las funciones a nivel de `tests/measure.js`/`tests/vertexedit.js` no bastan para esto. Reportado: se podía mover/insertar/borrar un vértice de un polígono o de una ruta, y mover el centro/borde de un círculo, SIN tener el diálogo de propiedades de ese nodo abierto. Sobre un polígono: seleccionarlo en el árbol YA NO activa nada por sí solo (ni siquiera se construyen los manejadores); abrir su diálogo (`openStyleDialog`) sí, y entonces un clic sin Ctrl sobre un manejador lo selecciona (clase `vertex-selected` incluida), con Mayús pulsado el mapa pide el cursor `vertex-insert-cursor` (y lo suelta al soltarlo), Mayús+clic inserta un vértice justo después del seleccionado, y Supr lo borra SIN tocar el nodo del árbol — solo cuando no hay ningún vértice seleccionado Supr vuelve a borrar el nodo, como siempre; cerrar el diálogo retira el owner y los manejadores, y a partir de ahí Supr vuelve a apuntar al nodo. Sobre una ruta —sus manejadores son PERMANENTES, a diferencia de los de un polígono, así que necesitan su propio guardia—: sin el diálogo abierto, ni un clic ni un clic derecho sobre un waypoint hacen nada; con el diálogo abierto, un clic lo selecciona y Supr lo borra; cerrado el diálogo, el clic derecho deja de borrar. Sobre un círculo: Ctrl+arrastre de su borde no mueve nada sin diálogo abierto, y sí con él, como siempre —la excepción más antigua de todas, ahora bajo la misma puerta—. Dos comprobaciones de coherencia añadidas después: el editor de texto de un polígono («Ver y editar…») retira sus manejadores interactivos al abrirse y los restaura al cerrarse, si el diálogo de estilos sigue abierto; y el tope de vértices editables es una preferencia de verdad (no una constante) — se edita desde el diálogo 🏷️, el campo arranca mostrando el valor vigente, cambiarlo persiste en IndexedDB (`dbLoadVertexEditMax`) y activa o inhibe EN EL ACTO la edición del nodo cuyo diálogo ya está abierto, con un aviso que nombra la capa, cuántos vértices tiene y el tope configurado.
+
+Cinco bloques más, para otros tantos bugs encontrados después: **regresión del crash de inserción en ruta** —insertar un waypoint (Mayús+clic) conecta la línea y pone la etiqueta de distancia/rumbo del tramo nuevo AL MOMENTO, sin mover nada más (antes, `insertRouteWaypoint` añadía el tooltip al mapa antes de posicionarlo y lanzaba una excepción ahí mismo, dejando el tramo sin dibujar hasta el siguiente arrastre); **aspecto/cursor pasivo**: un waypoint de ruta o el borde de un círculo, sin su diálogo abierto, no llevan la clase `vertex-editable` y su cursor es el `pointer` de siempre (no `move`), y sí la llevan con el diálogo abierto —comprobado con `getComputedStyle`—; **cerrar un trazo abierto**: Mayús+clic sobre el PRIMER vértice sin el ÚLTIMO seleccionado es un clic normal (lo selecciona, nada más), pero con el último ya seleccionado cierra la forma (pasa a `L.Polygon`, mismo número de vértices, sigue editándose igual después, y se queda cerrada tras Aceptar); **abrir un polígono cerrado**: borrar el vértice que dejaría un triángulo en 2 lo abre (pasa a `L.Polyline`) en vez de bloquear el borrado, con aviso nombrando la capa, y se completa el borrado y se queda como línea tras Aceptar; y **Cancelar revierte** — mover, insertar y borrar en un polígono, en una ruta, y el Ctrl+arrastre de un círculo, hecho todo con el diálogo abierto, deja la geometría EXACTAMENTE como estaba al abrirlo si se pulsa Cancelar (antes no se revertía nada: ahora es edición diferida, como el resto del diálogo).
+
+Otra tanda, sobre los mismos bugs vistos desde otro ángulo: **mover un vértice ya NO exige Ctrl** (arrastre real, sin tecla, mueve un vértice de polígono y un waypoint de ruta) y, junto a eso, **el doble click NO hace zoom mientras se edita un polígono** (`page.mouse.dblclick` real tras el arrastre: el zoom NO sube — reescrito desde la versión anterior de este mismo test, que entonces comprobaba justo lo contrario: en esa tanda el objetivo era solo que el zoom siguiera funcionando con normalidad tras quitar Ctrl; una tanda posterior pidió explícitamente que se DESACTIVE por completo mientras dura cualquier edición, ver `anyEditModeActive`/`refreshDoubleClickZoom`) y que vuelve a hacer zoom en cuanto se cierra el diálogo (`closeStyleDialog(true)`); **tecla Insertar**: con un vértice seleccionado añade uno justo detrás (y lo deja seleccionado); sin selección, añade uno al final — los dos EN LA POSICIÓN DEL RATÓN (`coordsPending`, fijada con un "mousemove" sintético antes de cada pulsación y comparada contra el propio valor leído, para no depender de un redondeo de píxel a la latitud/longitud original ni de dónde quedara el ratón real de otra prueba de este archivo), NO en la del vértice base — reportado como bug: antes duplicaba la posición del vértice, distinto de cómo ya se comportaba Mayús+clic; **matriz de abrir/cerrar con casos NEGATIVOS**, para blindar la regla exacta pedida — un polígono cerrado de 4 y de 5 vértices NUNCA se abre borrando (se queda cerrado, con uno menos, en cada borrado sucesivo); uno de exactamente 3 SÍ se abre borrando CUALQUIERA de los tres, no solo el primero; uno con un agujero nunca se abre aunque el agujero llegue a 3 (el guardia de un único anillo simple lo bloquea, en vez de convertirlo); una línea de 2 vértices no se puede cerrar con Mayús+clic (avisa por qué); y tras abrirse, se sigue editando con normalidad como línea.
+
+Una última tanda, sobre bugs nuevos reportados después: **aspecto/cursor de un manejador PERMANENTE (ruta/círculo) sobrevive a apagar y encender la visibilidad de la capa con su diálogo abierto** — reportado: Leaflet reconstruye el `<div>` del icono desde las OPCIONES del marcador al volver a añadirlo al mapa (`setLayerVisible` → `removeLayer`/`addLayer`), y una clase mutada solo en el DOM vivo (`classList.toggle`) no sobrevivía esa reconstrucción; `setMeasureHandlesEditable` pasó a usar `setIcon`, que sí deja la clase en las opciones. **Menú contextual en un manejador**: clic derecho sobre un waypoint de ruta SIN el diálogo de esa ruta abierto abre el menú contextual normal, con «Editar propiedades» incluido (antes no abría NUNCA nada, ver el bug de fondo en `## Menú contextual del visor`, CLAUDE.md); CON el diálogo abierto, sigue borrando el waypoint al instante, sin menú; un círculo —que nunca borra con clic derecho— siempre abre el menú, con o sin diálogo.
+
+Una tanda más, con tres bugs nuevos: **el punto visible SÍ encoge de verdad en presentación** — reportado: aunque la clase `vertex-editable` ya se aplicaba/retiraba bien (lo que el bloque de "aspecto/cursor pasivo" ya comprobaba), el TAMAÑO nunca cambiaba en pantalla. Causa real: `transform: scale()` vivía en el mismo `<div>` que Leaflet posiciona con un `transform` EN LÍNEA (que siempre gana a cualquier regla de hoja de estilos); se movió a un `<span class="measure-dot">` interior que Leaflet no toca. Este bloque mide ahora `getBoundingClientRect()` del propio `.measure-dot` —no solo la clase— para una ruta y para un círculo, en los tres momentos (antes de abrir el diálogo, con él abierto, y tras cerrarlo), así que una regresión de este tipo sí se detectaría. **Círculo: arrastrar YA NO exige Ctrl** —por uniformidad con ruta/polígono—, comprobado sin diálogo (sigue sin mover nada, con o sin Ctrl), con diálogo abierto (mueve el centro Y el borde sin Ctrl, con `map.dragging` reactivado al soltar) y que un doble click justo después no hace zoom (la misma trampa ya resuelta para ruta/polígono al quitarles Ctrl: sin desacoplar `map.dragging` de la tecla, el mapa competiría por el mismo gesto). Este bloque guarda y restaura la vista del mapa alrededor de sí mismo (`map.setView` con el centro/zoom de antes), porque más abajo hay pruebas que calculan su punto de doble click como una FRACCIÓN de la vista actual — sin restaurarla, el doble click real de este bloque desplaza el centro lo bastante como para dejar esas coordenadas fijas fuera de la vista más adelante (encontrado al escribir esta prueba: los dos bloques de después empezaron a fallar por marcadores fuera de pantalla). **Supr selecciona el VECINO tras borrar, para encadenar** — reportado: no quedaba nada seleccionado tras un borrado, así que borrar varios vértices seguidos exigía volver a hacer clic entre uno y otro; ahora el vecino (el siguiente, o el anterior si era el último) queda seleccionado solo. Comprobado en un polígono de 5 vértices (dos Supr seguidos, sin reseleccionar, hasta el mínimo), en uno CON AGUJERO (el vecino elegido pertenece al MISMO anillo que el borrado) y en una ruta de 4 waypoints (mismo encadenado).
+
+### `browser/route-live-draw.mjs`
+
+**Salida de `npm test`:**
+```
+── Navegador: crear una ruta se comporta como editarla, con su diálogo abierto y en vivo desde el 2º waypoint
+BROWSER ROUTE LIVE DRAW TESTS OK
+```
+
+**Qué cubre:** Que crear una ruta se comporte como EDITARLA (pedido explícitamente), con clics de ratón DE VERDAD sobre el contenedor del mapa (el listener que añade waypoints vive ahí, no en un objeto de mentira). El primer punto crea solo una vista previa (`routeDraft`), sin nodo en el árbol ni diálogo — un tramo necesita dos extremos. El segundo construye la medición REAL (`routeMeasurement`), la cuelga del árbol, abre su diálogo de propiedades (`isNew: true`, mismo patrón que un pin recién creado) y dicho diálogo ya muestra un tramo con su cifra (`Tramo 1: …`); un tercer punto añade un segundo tramo y actualiza el diálogo SIN cerrarlo, y `vertexOwner` ya apunta a esta ruta mientras se dibuja —se edita literalmente como cualquier ruta ya terminada—. Escape a medio dibujar borra el nodo recién creado (como cancelar un pin) y sale de la herramienta; terminar con doble click (que además añade un último waypoint en el punto del propio click, comprobado) deja el nodo y su diálogo TAL CUAL, sin cerrarlos.
+
+Un bloque más, para un bug reportado después: **cerrar el diálogo con sus PROPIOS botones también sale del modo dibujo**, no solo Escape — antes solo Escape limpiaba `routeMeasurement`/`activeTool`, así que pulsar «Cancelar» o «Aceptar» dejaba el estado de dibujo colgando y el siguiente click seguía intentando añadir waypoints a una medición ya borrada o ya terminada. Comprobado con un clic real sobre `#style-cancel` (borra el nodo, como Escape) y sobre `#style-accept` (lo GUARDA, con sus waypoints intactos, en vez de borrarlo), los dos saliendo de la herramienta (`activeTool === null`) y cerrando el diálogo.
+
+### `browser/props-panel.mjs`
+
+**Salida de `npm test`:**
+```
+── Navegador: panel Propiedades — unidad y formato de coordenadas globales, con Cancelar/Aceptar de verdad
+BROWSER PROPS PANEL TESTS OK
+```
+
+**Qué cubre:** El panel "Propiedades" (antes "gnp-editor", solo nombres recordados de GeoJSON con aplicación inmediata) con su pestaña de Preferencias —la que se ve al abrir, comprobado explícitamente: es la que se toca más a menudo, la de "Índices de GeoJSON" (antes "Nombres de GeoJSON") queda en segundo lugar— y su edición diferida real, contra un círculo cuyo diálogo de propiedades está YA ABIERTO al abrir Propiedades: cambiar la unidad o el formato de coordenadas se previsualiza EN VIVO en ese diálogo ya abierto (el `ms-dist`/`ms-center` cambian al momento, sin pulsar Aceptar), pero Cancelar (`cancelPropsDialog`) revierte `measureUnit`/`coordFormat` a lo que tenían al abrir el panel Y esas mismas cifras vuelven a su valor original; Aceptar, en cambio, deja los valores aplicados Y los persiste de verdad en IndexedDB (`dbLoadMeasureUnit`/`dbLoadCoordFormat` los devuelven tras cerrar). No repite lo que ya prueba `tests/browser/vertex-select.mjs` sobre el tope de vértices (`gnp-vertex-max`, ahora con el mismo Cancelar/Aceptar).
+
+Un bloque más, para un bug reportado después: **el diálogo de un marcador sigue el mismo `coordFormat` global**, ya no tiene su propio botón ⇅ (`posFormat`, retirado del todo: variable, listener y fila del HTML). Comprobado que `#pos-format` ya no existe en el DOM, que sus campos `mk-lat`/`mk-lon` cambian de notación EN VIVO si su diálogo está abierto a la vez que se cambia el formato en Propiedades, y que Cancelar/Aceptar se comportan igual que para el centro de un círculo (revierte / persiste).
+
+### `browser/context-menu.mjs`
+
+**Salida de `npm test`:**
+```
+── Navegador: menú contextual del visor — «Editar propiedades» abre el diálogo de propiedades (Estilos y Atributos)
+BROWSER CONTEXT MENU TESTS OK
+```
+
+**Qué cubre:** El ítem nuevo «Editar propiedades» del menú contextual del visor (`layerCtxItems`/`ctxItemsFor`, `70-view-controls.js`), con un clic derecho DE VERDAD sobre el mapa (no una llamada directa a `openCtxMenu`): pasa por el hit-testing real (`layersAtPoint`) y abre el diálogo de estilos real. Pedido explícitamente: acceso directo a las propiedades de un polígono/marcador/medición desde el propio mapa. Comprueba que aparece junto a «Ir al nodo en el panel» (y «Mostrar atributos» si la capa tiene ficha), que pulsarlo abre `#style-dialog` mostrando ESA capa (su nombre en el título) y cierra el menú, que el diálogo tiene dos pestañas (abre en «Estilos»; «Atributos» enseña la ficha de la capa, o dice que no tiene), que el botón 🎨 de la fila se llama «Editar propiedades», que «Mostrar atributos» sigue abriendo solo la ficha, que un clic derecho SIN ninguna capa debajo muestra el menú genérico sin «Editar propiedades», y que tras elegir «Mostrar atributos» o «Editar propiedades» con clics reales el foco queda en el visor y vuelve a él al cerrar el diálogo (no al panel de navegación), y lo mismo al cerrar con × la ficha abierta al pasar el ratón o una etiqueta (popup) del visor. La comprobación de que una capa de tipo NO editable (una cuadrícula de elevación) tampoco lo ofrece se queda en `tests/geojsonnametest.js`: sus celdas son `interactive: false` (`60-elevation.js`) y nunca llegan a ser un "hit" de un clic real, así que no hay forma de probarlo con una capa de verdad — solo a nivel de función, con un `_kind` de mentira.
+
+### `browser/url-import.mjs`
+
+**Salida de `npm test`:**
+```
+── Navegador: añadir desde una dirección, en dos pasos y con cancelación
+BROWSER URL IMPORT TESTS OK
+```
+
+**Qué cubre:** Añadir contenido desde una dirección, de punta a punta: que el paso 1 diga qué ha llegado SIN tocar el árbol y que solo «Añadir al árbol» lo toque, colgando todo de una sección «Descargas» que se REUTILIZA —como «Lugares» o «Elevaciones»— con una «Descarga N» numerada por descarga dentro; que con el resultado en la mano «Descargar» quede deshabilitado y que tocar la dirección lo reactive invalidando el resultado; una URL sin extensión reconocida por su contenido; KMZ por la firma del zip; página HTML con la pista del enlace «Raw»; 404; tope de tamaño por `content-length`; y CANCELAR UNA DESCARGA EN VUELO con el botón, que durante la descarga pasa a «Cancelar descarga» —sin esperar al tope de 20 s—, dejando el diálogo abierto y la dirección puesta para reintentar. La suite sirve los ejemplos desde el MISMO origen que la aplicación, porque con `connect-src 'self' https:` otro puerto lo bloquearía la política y no el servidor.
+
+### `browser/oneworld.mjs`
+
+**Salida de `npm test`:**
+```
+── Navegador: una sola Tierra — sin copias en horizontal, con tope de arrastre y suelo de zoom
+BROWSER ONE WORLD TESTS OK
+```
+
+**Qué cubre:** Una sola Tierra: que la capa base se cree con `noWrap` y no pida teselas fuera del mundo, que `maxBounds` acote a la franja Mercator (±85,051…, no ±90) con viscosidad 1 y que pedir un centro tres mundos más allá quede dentro, y que el suelo de zoom siga al tamaño de la ventana en LOS DOS SENTIDOS —el mundo llena la vista en ese zoom y no en el anterior—. Lo último es el fallo que tuvo `fitWorldMinZoom`: `getBoundsZoom` acaba en `Math.max(getMinZoom(), …)`, así que el suelo solo subía y tras encoger la ventana ya no se podía alejar; por eso se mide encogiendo DESPUÉS de agrandar.
+
+### `browser/undo-create.mjs`
+
+**Salida de `npm test`:**
+```
+── Navegador: crear un marcador, un polígono o una medición se puede deshacer y rehacer
+BROWSER UNDO CREATE TESTS OK
+```
+
+**Qué cubre:** Reportado como bug: crear un marcador (📍), dibujar un polígono (⬠), o crear una medición de ruta (⤳) o de círculo (◯) no llamaba a `pushUndo`, así que Ctrl+Z no las deshacía. La suite crea cada uno de los cuatro con gestos reales (clic/doble clic/arrastre, no llamadas directas a la función interna salvo `createPin`, que no es un gesto de arrastre) y comprueba que `undoLast()` lo quita del árbol y `redoLast()` lo devuelve. `pushUndo` se llama justo ANTES de la mutación en cada camino de creación (mismo patrón que ya usan borrar/mover/pegar), no dentro de «Aceptar»/«Cancelar» del diálogo de estilos: la creación ya es una acción completa y guardada desde el momento en que aparece en el árbol. El marcador y la ruta cierran su diálogo de propiedades con «Aceptar» antes de deshacer, para no mezclar esto con si deshacer debe además cerrar un diálogo abierto sobre el nodo que desaparece — cuestión aparte, no la que prueba esta suite.
+
+### `browser/arc-draw.mjs`
+
+**Salida de `npm test`:**
+```
+── Navegador: medir un arco — centro, inicio y recorrido del perímetro, guardado como ruta de N tramos
+BROWSER ARC DRAW TESTS OK
+```
+
+**Qué cubre:** La herramienta «Medir arco» con clics y movimientos de ratón DE VERDAD. Un clic sin arrastre fija el centro y deja el radio a medias; el siguiente fija el inicio y pasa a recorrer el perímetro (arrastrar del centro al inicio también vale). El barrido sigue al ratón: +90° en horario, −190° en antihorario (más de media vuelta). Al terminar sale una RUTA normal (`type "route"`, sin tipo propio) llamada «Arco N», con `arcSegments`+1 waypoints (16 por defecto, el valor de la preferencia al terminar), todos sobre el círculo, empezando en la orientación del inicio y acabando donde se hizo el último clic, con las etiquetas de tramo apagadas y sin abrir diálogo. Un clic sin barrido no crea nada y sigue dibujando; Escape a medias cancela sin dejar nodos; Ctrl+Z deshace; y tras recargar vuelve como la misma ruta. Con las etiquetas de tramo apagadas (nacen así), ni abrir el diálogo ni Cancelar —que restaura los vértices— las vuelven a mostrar, y marcar la casilla sí. Los `mousemove` se espacian 60 ms: Chromium agrupa los que llegan en un mismo fotograma.
+
+### `browser/rotation.mjs`
+
+**Salida de `npm test`:**
+```
+── Navegador: rotación del mapa — brújula, botón central, R, etiquetas horizontales, detección de capas, consulta de elevación deshabilitada, PNG y bordes del mundo
+BROWSER ROTATION TESTS OK
+```
+
+**Qué cubre:** La rotación del mapa con ratón y teclado de verdad. La brújula va encima del panel de mapas base (y no aparece ningún control de giro ajeno); arrastrarla 60° en sentido horario gira el mapa 60°, el norte queda en pantalla en esa dirección y la aguja lo señala; un clic sin arrastre y la tecla R con el foco en el visor vuelven a 0, pero una «r» escrita en el buscador no gira nada. La brújula y el botón de capas miden lo mismo y la brújula no lleva texto. Con el botón central, 120 px a la derecha giran 60° en sentido horario sin arrastrar el mapa, el punto pulsado se queda bajo el cursor (a menos de 1,5 px), el cursor es la rosa de los vientos mientras dura y se quita al soltar; un clic central sin mover no hace nada y el botón izquierdo sigue arrastrando sin girar. A 45° las etiquetas (de un polígono y de una medición) siguen horizontales y un clic sobre un polígono estrecho y diagonal lo encuentra (la criba de dos esquinas lo dejaba fuera: comprobado que falla sin el arreglo). Con el mapa girado, «Consultar elevación aquí» del menú contextual sale deshabilitada con el motivo y llamarla igualmente no crea capa; con el norte arriba vuelve a estar disponible. El PNG incluye la brújula solo con el mapa girado. A zoom mínimo y 45° el suelo de zoom sube, ninguna esquina cae fuera del mundo y ningún mapa base pide teselas fuera de rango (antes, 400 y aviso falso); arrastrar contra el borde del mundo girado no hace saltar la vista. La iluminación día/noche, leída píxel a píxel del lienzo WebGL a 70°, sombrea donde es de noche de verdad (sin el arreglo del shader, cero).
+
+### `browser/rotation-core.mjs`
+
+**Salida de `npm test`:**
+```
+── Navegador: giro incorporado — conversiones, marcadores, etiquetas, popups, arrastre, teselas, encuadre y pellizco con el mapa girado
+BROWSER ROTATION CORE TESTS OK
+```
+
+**Qué cubre:** Lo que antes daba leaflet-rotate y ahora es código propio (`08-map-rotation.js`), sobre el mapa real; los gestos van en `browser/rotation.mjs`. Guardián: `L.version` es `LEAFLET_PATCHED` y existen todos los originales de Leaflet en los que se delega (`leaflet`). `setBearing` normaliza (370° → 10°, −30° → 330°) y dispara `"rotate"`; existen `rotatePane`/`norotatePane`. A 0, 33,3, 45, 90, 180 y 270°: latlng → pantalla → latlng con ≤ 1 px, capa ↔ pantalla inversa exacta y el norte en pantalla hacia el ángulo girado. Marcador, etiqueta permanente y popup siguen pegados a su coordenada (≤ 1 px respecto a su posición con el norte arriba) y derechos (misma caja); el popup también en un segundo mapa CON animación de zoom (el visor de pruebas va sin GPU, sin ella). Arrastrar un marcador a 45° deja la coordenada bajo el puntero. A 0, 45 y 135°, las teselas pedidas y el lienzo cubren las cuatro esquinas de la vista. A 45°: `getBounds` contiene las esquinas, `fitBounds` deja la caja entera a la vista y `panInside` trae un punto de fuera. Pellizco a 60° (eventos sintéticos al manejador): separar los dedos al doble acerca un nivel y el punto entre ellos sigue debajo. Comprobado que fallan sin su arreglo: popup sin animación de zoom, teselas, `panInside` (los tres, fallos de leaflet-rotate 0.2.8 tal cual), arrastre del marcador y pellizco.
+
+### `browser/keyboard-nav.mjs`
+
+**Salida de `npm test`:**
+```
+── Navegador: teclado y rueda del visor — flechas, Re/Av Pág y rueda continuos, y el foco que se queda en el visor
+BROWSER KEYBOARD NAV TESTS OK
+```
+
+**Qué cubre:** Flechas y Re/Av Pág con teclas de verdad sobre el visor enfocado. Playwright no autorrepite (un `keyboard.down` es un solo keydown, como el primero de una pulsación real antes del retardo de repetición): con el comportamiento anterior, mantener un segundo daba un único paso, y los casos de «mantener» FALLAN sin el cambio (comprobado contra la versión anterior). Flechas: un toque desplaza 80 px; manteniendo, a los 100 ms ya se ha movido y en un segundo pasa de 500 px; al soltar se para sin seguir ni rebotar; → y ↓ a la vez dan una diagonal; con Mayús va más de 2,2 veces más rápido; contra el borde norte del mundo la vista se queda dentro y quieta; con el mapa a 90°, ↑ desplaza 80 px hacia arriba de la PANTALLA. Tras desplazar sin mover el ratón, las coordenadas son las del punto bajo el cursor (mousemove sintético). Zoom: un toque de Re Pág acerca exactamente un nivel y uno de Av Pág aleja uno; mantenida, a los 350 ms el zoom es fraccionario (continuo), en un segundo sube más de dos niveles y al soltar queda en uno entero, con el punto bajo el cursor quieto (≤ 3 px); en el zoom mínimo, Av Pág no baja de él. Con el foco en el buscador, flechas y Re Pág no mueven el mapa. La chuleta ya no pide «Ctrl + arrastrar» para un círculo de medición y dice que basta con su diálogo de propiedades abierto. Rueda: una muesca va por niveles fraccionarios a los 80 ms y se asienta exactamente un nivel más arriba con el punto bajo el cursor quieto (≤ 2 px); tres muescas seguidas son tres niveles; cinco deltas pequeños de panel táctil (medio nivel) acaban en el entero siguiente; hacia abajo aleja uno; Ctrl+rueda queda anulada (no amplía la página) y la rueda sobre el panel de mapas base no hace zoom. Foco: clicar un marcador deja el foco en el visor (no en su icono) y va igualmente a su nodo; tras un guardado del árbol Re Pág sigue haciendo zoom sin mover el cursor del árbol y R sigue poniendo el norte arriba; un marcador enfocado con Tab conserva el foco cuando se reordena el pintado; al crear una ruta, su diálogo se abre al segundo punto con el foco todavía en el visor, y Re Pág hace zoom. Los once casos de rueda y foco FALLAN sin el arreglo (comprobado quitando cada pieza).
+
+### `browser/elev-sources.mjs`
+
+**Salida de `npm test`:**
+```
+── Navegador: fuentes de elevación en Propiedades y consulta puntual desde el menú contextual — carpeta por sesión, unidad de altitud, GeoTIFF, MDT25, reintentos y descubrimiento una vez por sesión
+BROWSER ELEVATION SOURCES TESTS OK
+```
+
+**Qué cubre:** Las fuentes de elevación y la consulta puntual, con los servicios WCS FALSOS (`page.route`): el IGN con rejillas ASCII calculadas del recorte pedido, Digital Earth Africa con un GeoTIFF real de ese servicio (`tests/fixtures/dea-cop30-tenerife.tif`, LZW y float32 con hueco NaN); cada petición queda contada. Ya no hay botón ⛰ ni m/ft. Propiedades → «Fuentes de datos»: MDT05, MDT25 y MDT200 del IGN, los dos MDS y «Ninguna»; MDT05 y MDS del IGN por defecto, la dirección del servicio bajo el selector, Cancelar deshace y abrir el panel no consulta nada. Sin fuentes, la entrada del menú sale deshabilitada con el motivo. Desde el menú, la primera consulta crea «Elevaciones › Sesión AAAA-MM-DD HH:MM › Elevación 1 — MDT05 + MDS (IGN)» con sus 64 celdas (MDT, MDS y diferencia), pidiendo en Web Mercator, en ASCII aunque haya TIFF, y la cobertura de 5 m geográfica; ni «Consultando…» ni «añadida a…» en el registro, y una consulta ya descubierta no deja nada; la segunda va a la MISMA carpeta; GetCapabilities una vez por fuente, DescribeCoverage solo de las candidatas, y la elección (conjunto, cobertura, formato, celda) una sola vez en el registro; repetir la tesela no pide nada y lo dice. Las cifras de las celdas solo existen a la vista y desde el zoom 19 (ninguna a zoom 17). La unidad de ALTITUD las repinta y la de distancia no las toca; con el ratón encima el cuadro de coordenadas lee la celda (en pies, con la diferencia) sin pedir nada; al salir del visor desde encima de la cuadrícula esas filas se ocultan. La capa lleva 🔍 (y no 🎨) y la lupa la encuadra entera. Con el MDS en «Ninguna» no se le pide nada y las celdas no lo llevan. Con Digital Earth Africa, la tesela de Madrid ya pedida al IGN es otra consulta, pero cae fuera de su caja WGS84 y no se llega a pedir; un `InvalidSubsetting` con HTTP 404 es «sin dato» y la siguiente petición sigue en Web Mercator; el GeoTIFF se dibuja (2x2, solo superficie, la altura del ráster), su elección se anota una vez y la atribución de cada fuente aparece. Aceptar guarda la elección y la unidad de altitud; tras recargar siguen, y la consulta abre una carpeta de sesión nueva con la numeración seguida. Con MDT25 solo se describen y piden coberturas de 25 m y la capa lo lleva en el nombre. Dos 503 seguidos del MDS no llegan al usuario: al tercer intento la consulta crea la capa.
+
+### `browser/elev-profile.mjs`
+
+**Salida de `npm test`:**
+```
+── Navegador: perfil de una ruta — MDT y MDS por trozos, dos curvas, lectura con MDS−MDT, × arriba a la derecha, registro de la descarga, «Mostrar perfil» sin red, flecha en el mapa, zoom de cada eje, bloqueo del eje Y, solo segmentos rectos, malla común con la consulta puntual, clic derecho con el perfil debajo, huecos y cancelar
+BROWSER ROUTE PROFILE TESTS OK
+```
+
+**Qué cubre:** El perfil de una ruta de punta a punta, con el MDT y el MDS del IGN FALSOS (`page.route`: rejillas ASCII de celdas de ~5 m alineadas a una malla fija, altura en función de la posición, el MDT 10 m por debajo) y una ruta de dos tramos en Madrid (~2 km). «Obtener perfil» existe en una ruta y no en un círculo, habilitado con una sola fuente y deshabilitado con su motivo sin ninguna o con la ruta más larga que el límite de Preferencias; el botón del diálogo de la ruta, igual, y en el de un círculo no aparece. El clic derecho REAL (`layersAtPoint` + `ctxItemsFor`) sobre la ruta sola ofrece «Obtener perfil». La descarga va por trozos y a las dos fuentes (4 a 8 peticiones, no cientos), la barra cuenta las zonas de las dos y llega al 100 %, y el × de la cabecera pasa de «Cancelar la descarga» a «Cerrar». El registro de depuración de la descarga: una línea por cada GetCoverage lanzado, con su dirección entera (con `scaleSize`), y por lo recibido (HTTP 200, tipo, tamaño, tiempo, y la rejilla leída con sus celdas, huecos y alturas), una cabecera por zona con su fuente y su caja, y el descubrimiento; mientras descarga, la ventana no cambia de alto y el registro scrollea por su cuenta, sin gráfica todavía, que aparece al terminar. Con el trozo del MDS que da 500, los cuatro intentos fallidos con su espera («se reintenta en 1 s»…, el último ya no) y la zona perdida. Sin pie: el × está arriba a la derecha dentro del `<h2>`, la gráfica llega hasta abajo de la ventana, el diálogo se llama por su título (no «… Cerrar») y pulsar el × con el ratón real lo cierra sin empezar a arrastrarlo. La gráfica: una cifra en negrita por vértice (inicio, quiebro, final) en km, con el quiebro exactamente en la distancia del primer tramo; la curva del MDT en azul y la del MDS en verde (color calculado), leyenda con cada fuente; un punto por celda recorrida en cada serie; ejes con sus unidades («Altura (m)»), y cambiar la de distancia o la de altitud la redibuja. En el árbol, «Perfil de «Ruta 1» — MDT05 + MDS (IGN)» en la raíz «Perfiles de ruta» (no en «Elevaciones») con SOLO las celdas recorridas, con MDT, MDS y su diferencia, y las curvas guardadas. Con el perfil DEBAJO de la ruta (dos capas bajo el cursor: el fallo real), el clic derecho sigue ofreciendo el perfil, ya como «Mostrar perfil». Mostrar, desde el botón y desde el menú: la gráfica sin ninguna petición ni capa nueva. La lectura: distancia, las dos alturas y su diferencia MDS−MDT con signo (igual a la resta de las dos), en rojo solo por encima de 1 m, en tres líneas que no cruzan la línea roja. La flecha del mapa: con el ratón en el vértice de la gráfica, sobre ese waypoint (≤ 2 px); a mitad del segundo tramo, sobre la línea dibujada y girada hacia el norte; al salir de la gráfica o cerrar, desaparece. Con el ratón REAL (`page.mouse`): la rueda acerca con el quiebro fijo bajo el ratón (menos de 2 m), su cifra sigue en negrita, el tope es exactamente 0,1 m por píxel y la escala de alturas se estrecha a lo visible; con zoom la flecha sigue cayendo en el waypoint y la lectura da 4 decimales en km; arrastrar 100 px desplaza 10 m sin cambiar el zoom (cursor de mano mientras); el botón − de distancia aleja al doble, centrado, y arrastrar se para al final de la ruta; alejar se para en la ruta entera. Eje de alturas: con la gráfica aparece la barra y la altura es automática; la rueda sobre el eje acerca la altura (no la distancia) y bloquea el eje Y; Mayús+rueda también; bloqueado, zoom y arrastre de distancia no cambian la altura y arrastrar 40 px hacia abajo sube la ventana de alturas lo mismo; desmarcar el bloqueo vuelve a lo automático y marcarlo congela lo que se veía; los botones de altura acercan a la mitad y alejan al doble, centrados; «Ver todo» vuelve a la ruta entera con altura automática. Solo segmentos rectos: ningún `<path>`, y cada vértice de cada polilínea es un valor de celda (con la ruta entera, diezmado; con zoom, todos los visibles). Tras recargar la página, «Mostrar perfil» saca las dos curvas de lo guardado, sin pedir nada. Mover un vértice vuelve a «Obtener perfil» y devolverlo, a «Mostrar». Borrar la capa del perfil vuelve a «Obtener» y deshacer el borrado, a «Mostrar», sin cuadrículas sobrantes en la lista viva. Con el MDT en «Ninguna», una sola curva y celdas sin la clave del MDT. Un trozo del MDS que da 500 siempre se dice («MDS: 1 de N zonas sin respuesta … tras 4 intentos») y deja un hueco solo en su curva; cancelar a mitad cierra el diálogo y no deja nada. El simulador hace lo que el servicio real (rejilla con origen en la esquina pedida, `scaleSize` respetado): las celdas del perfil dentro de la tesela de una consulta puntual tienen sus mismas esquinas y valores, todas caen en una sola malla y cada recorte lleva `scaleSize`; un servicio que lo rechaza se prueba una vez y el perfil sale igual sin él.
+
+### `browser/geocalc.mjs`
+
+**Salida de `npm test`:**
+```
+── Navegador: calculadora geodésica — dos pestañas que se recalculan solas, presión, unidades que convierten, sin crecer y no modal
+BROWSER GEOCALC TESTS OK
+```
+
+**Qué cubre:** La ventana 📐 de cálculos geodésicos con la interfaz de verdad (clics, teclado, selectores), con los valores esperados calculados aquí aparte con otras fórmulas (vector al objetivo, ley de los cosenos para la oblicua, fórmulas cerradas por capa de la atmósfera).
+
+**Estructura:** el botón va justo detrás de 🏷️ Propiedades y la ventana arranca cerrada; solo dos pestañas («Ángulo de elevación» y «Vector GPS»), sin rastro de la del cono (ni ids ni el texto «blanco») y sin botón «Calcular» (ni pie: su único botón, «Cerrar», es el × de la cabecera); unidades de los campos = las de Propiedades en su orden; partida en pies/pies/NM, esfera + 4/3, distancia oblicua y presión 1013.25 hPa; diálogo no modal con `role` y título.
+
+**Ángulo de elevación, cálculo inmediato:** sin datos no hay resultado ni aviso ni marcas rojas, tampoco con un solo dato; el resultado aparece solo al completar el último, con ángulo Y cono de silencio, y cada cambio (distancia, altura, tipo, modelo) lo actualiza al momento. Caso reportado (24,21 m, 45000 ft, 12,2 NM): 37° / cono 53° como oblicua, 31° como superficie, `asin(Δh/d)` en plano, y el modelo de Tierra mueve menos de 0,15°. Cambiar la unidad convierte el valor y solo el suyo (45000 ft ↔ 13716 m, 12.2 NM ↔ 22.5944 km, ida y vuelta sin restos) sin mover el resultado, ni siquiera un instante.
+
+**Presión:** con la estándar no hay línea de altura corregida; con QNH 1030 a 45000 ft (estratosfera) el resultado y la tercera línea («Altura de destino corregida: … (+341.xx ft)») coinciden con la fórmula cerrada de esa capa, con signo negativo para QNH 1000, en la unidad de la altura de destino; en troposfera (3000 ft) con la suya. El ORIGEN no se corrige: con alturas iguales y presión estándar el ángulo es 0° y con QNH 1030 solo cuenta lo que sube el destino. Errores: 10 hPa avisa con el rango y marca la presión; presión vacía es «faltan datos» (sin aviso); 30 km con la estándar se calcula (sin corrección) y con otra presión avisa señalando la altura de destino y no la presión; oblicua menor que Δh avisa, igual a Δh da 90° y 0° de cono; distancia negativa avisa.
+
+**Vector GPS:** parte en m / m / NM con las opciones de Propiedades; Madrid en A y Barcelona en B en GMS (`40° 25' 00.48" N`…) con altitudes 650 y 12, y el resultado YA está al abrir la pestaña, sin tocar nada, igual al cálculo hecho aquí en cartesianas (distancia, distancia horizontal y orientación); latitud y longitud en la misma línea (misma altura, longitud a la derecha); la unidad del resultado (mi, km) y las de las altitudes actúan al instante, y cambiar una altitud recalcula; el selector GMS/decimal convierte las cuatro coordenadas (`40.416800`…), no toca las altitudes, vuelve exactamente a lo de partida, deja un campo ilegible como está y normaliza uno legible escrito en el otro formato; GMS escrito a mano sin espacios; campo vacío = sin resultado ni aviso ni marcas; mismos lat/lon dan «no definida» y no 0°; latitud 95° avisa y marca el campo.
+
+**Ventana:** el resultado tiene el tamaño de letra de los campos (numéricos y de texto); la caja mide lo mismo vacía, con 2 líneas, con 3 (presión) y con aviso, en las dos pestañas. No es modal (el centro del mapa no queda tapado y no hay `.dlg-overlay`); se arrastra por el título y, ya arrastrada, la pestaña alta deja «Cerrar» a la vista (antes se salía de la pantalla); Escape y «Cerrar» la cierran; al reabrir conserva lo escrito y los resultados ya están calculados.

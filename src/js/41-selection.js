@@ -18,11 +18,31 @@ function selectAllStep(cur) {
     { tone: "info" });
 }
 
+/* Supr borra el vértice seleccionado de una ruta o un polígono, con
+   PRIORIDAD sobre el borrado de nodos del árbol de abajo — "seleccionar
+   vértice" es un concepto más fino que "seleccionar nodo", y Supr debe
+   entenderse primero como referido a él. Ver 43-points-editor.js.
+   `stopImmediatePropagation` (no basta con no actuar) porque
+   deleteSelectedVertex ya deja `vertexSelHandle` en null al borrar: sin
+   cortar aquí, el SEGUNDO listener de más abajo volvería a comprobar la
+   selección de vértice DESPUÉS de que esta ya no exista y, al no
+   encontrar ninguna, borraría también el nodo del árbol en la misma
+   pulsación — justo lo que "prioridad" pretende evitar.               */
+document.addEventListener("keydown", e => {
+  if (e.key !== "Delete" || !vertexOwner || !vertexSelHandle) return;
+  if (/INPUT|TEXTAREA/.test(e.target.tagName)) return;
+  deleteSelectedVertex();
+  e.stopImmediatePropagation();
+});
 /* Supr borra toda la selección de golpe (fuera de campos de texto) */
 document.addEventListener("keydown", e => {
   if (e.key !== "Delete" || !selection.size) return;
   if (/INPUT|TEXTAREA/.test(e.target.tagName)) return;
-  if (activeTool === "polygon" && polyDraft) return; /* Supr es "borrar vértice" mientras se dibuja */
+  /* Supr es "borrar vértice" mientras se dibuja — un polígono usa
+     polyDraft; una ruta ya NO (ver routeDraft/routeMeasurement,
+     52-measure.js: crear una ruta se comporta como editarla).          */
+  if (activeTool === "polygon" && polyDraft) return;
+  if (activeTool === "route" && (routeDraft || routeMeasurement)) return;
   const items = topLevelSelection();
   const next = cursorAfterDelete(isRow(selCursor) ? selCursor : items[0], items);
   pushUndo(`borrar ${items.length} nodo(s)`);
@@ -167,12 +187,37 @@ function propertiesTableHtml(props) {
     + ' title="Arrastre para repartir el ancho entre clave y valor"></div></div>';
 }
 
-/* HTML a mostrar en el panel de información de la capa: la ficha KML si
-   la tiene, si no la tabla de properties de GeoJSON si las tiene, si no
-   null (nada que mostrar).                                           */
-function infoHtmlFor(li) {
+/* Ficha propia de la capa: la KML si la tiene, si no la tabla de
+   properties de GeoJSON si las tiene, si no null.                   */
+function baseInfoHtml(li) {
   if (li._desc) return sanitizeHtml(li._desc);
   const props = layerProperties(nodeLayer(li));
   return props ? propertiesTableHtml(props) : null;
+}
+
+/* HTML a mostrar en el panel de información de la capa: su ficha propia
+   más, con la iluminación real activa y un único marcador, las horas
+   del sol y crepúsculos (sunInfoHtmlFor, 61-daynight.js). null = nada
+   que mostrar.                                                       */
+function infoHtmlFor(li) {
+  const base = baseInfoHtml(li);
+  const sun = sunInfoHtmlFor(li);
+  return base == null && !sun ? null : (base || "") + sun;
+}
+
+/* ¿Tiene ficha? Versión barata de `infoHtmlFor(li) != null`, sin
+   construir el HTML: decide si se ve el botón ℹ de la fila.          */
+function hasInfo(li, layer = nodeLayer(li)) {
+  return !!(li._desc || layerProperties(layer) || (dayNightOn && soleMarkerOfLayer(layer)));
+}
+
+/* Al activar/desactivar la iluminación cambia qué marcadores tienen
+   ficha: se reajustan los ℹ de las filas ya construidas (las que se
+   construyan después lo deciden solas en makeActions).               */
+function refreshInfoButtons() {
+  for (const b of document.querySelectorAll(".actions .info-btn")) {
+    const li = b.closest("li");
+    if (li) b.hidden = !hasInfo(li);
+  }
 }
 

@@ -16,12 +16,65 @@
     if (frac !== null) setPropsSplit(frac);
   } catch { /* sin reparto guardado se usa el de por defecto */ }
 
+  /* Tope de vértices editables interactivamente: depende del hardware
+     de quien lo usa (ver VERTEX_EDIT_MAX_DEFAULT, 43-points-editor.js),
+     así que sin valor guardado se queda con ese valor de partida.     */
+  try {
+    const max = await dbLoadVertexEditMax();
+    if (max !== null) vertexEditMax = max;
+  } catch { /* tope por defecto */ }
+  try {
+    const n = await dbLoadArcSegments();
+    if (n !== null) arcSegments = n;
+  } catch { /* segmentos por defecto */ }
+
+  /* Unidad de medida y formato de coordenadas: ajustes globales, ahora
+     persistentes (panel de Propiedades, ver "Persistencia (IndexedDB)"
+     en CLAUDE.md).                                                    */
+  try {
+    const unit = await dbLoadMeasureUnit();
+    if (unit !== null) measureUnit = unit;
+  } catch { /* unidad por defecto (NM) */ }
+  try {
+    const unit = await dbLoadAltitudeUnit();
+    if (unit !== null) altitudeUnit = unit;
+  } catch { /* altitudes por defecto (pies) */ }
+  try {
+    const m = await dbLoadProfileMax();
+    if (m !== null) profileMaxM = m;
+  } catch { /* límite del perfil por defecto (10 NM) */ }
+  try {
+    const fmt = await dbLoadCoordFormat();
+    if (fmt !== null) coordFormat = fmt;
+  } catch { /* formato por defecto (decimal) */ }
+  /* Solo la ELECCIÓN de fuentes: ningún servicio se consulta hasta la
+     primera «Consultar elevación aquí» (ver makeElevationSource).    */
+  try {
+    const sel = await dbLoadElevSources();
+    if (sel !== null) elevSources = sel;
+  } catch { /* fuentes por defecto (IGN) */ }
+
   /* La credencial de Copernicus antes que los mapas base: sin ella la
      capa no puede ni construir su URL (ver shWmsUrl).                */
   try {
     const sh = await dbLoadSh();
     if (sh && validInstanceId(sh.instanceId)) shInstanceId = sh.instanceId.trim();
   } catch { /* sin credencial guardada la capa pedirá configurarla */ }
+
+  /* Igual que la de Copernicus, antes que los mapas base: sin ella
+     "Custom Maps" no puede construir su plantilla de teselas.         */
+  try {
+    const ct = await dbLoadCustomTilesUrl();
+    if (ct && validCustomTilesUrl(ct.url)) customTilesUrl = normalizeCustomTilesBase(ct.url);
+  } catch { /* sin URL guardada la capa pedirá configurarla */ }
+
+  /* Color de fondo del mapa: antes de pintar el panel de mapas base,
+     cuya primera fila lo muestra. Sin valor guardado se queda con el
+     de por defecto (MAP_BG_DEFAULT, el mismo que ya trae el CSS).    */
+  try {
+    const bg = await dbLoadMapBackground();
+    if (bg) setMapBackground(bg);
+  } catch { /* color por defecto */ }
 
   /* Mapas base: primero lo guardado, luego se pintan y se encienden */
   try { applySavedBases(await dbLoadBases()); } catch { /* valores por defecto */ }
@@ -38,7 +91,11 @@
      dejado de publicarse), sin esperar a que se abra el panel.       */
   for (const st of baseState.values()) {
     const src = dynSource(st.def);
-    if (st.on && src) src.ensure();
+    /* "Custom Maps" (source sin `dynamic: true`) no tiene catálogo que
+       descubrir, así que su fuente no aporta `ensure` — nada que
+       adelantar aquí, `applyBaseLayer` ya construyó su capa arriba
+       si la URL estaba configurada.                                   */
+    if (st.on && src && src.ensure) src.ensure();
   }
 
   let nodes = null;

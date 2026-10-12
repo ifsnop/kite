@@ -1,10 +1,11 @@
-const { fn, between } = require("./_extract");
+const { fn, between, constDecl } = require("./_extract");
 const ok = (c, m) => { if (!c) { console.error("FAIL: " + m); process.exitCode = 1; } };
 
 /* ---------- Elegir la propiedad-nombre (Fase 1) ---------- */
 const nameSrc = between("const GEOJSON_TYPES = new Set(", "async function buildGeoJsonRecords");
-const { geojsonFeatures, needsNamePicker, propsFingerprint, resolveFeatureName } =
-  new Function(nameSrc + "\nreturn {geojsonFeatures, needsNamePicker, propsFingerprint, resolveFeatureName};")();
+const { geojsonFeatures, needsNamePicker, propsFingerprint, composeFeatureName, resolveFeatureName } =
+  new Function(fn("stringifyPropValue") + "\n" + nameSrc
+    + "\nreturn {geojsonFeatures, needsNamePicker, propsFingerprint, composeFeatureName, resolveFeatureName};")();
 
 // geojsonFeatures
 ok(geojsonFeatures({ type: "FeatureCollection", features: [{ type: "Feature" }] }).length === 1,
@@ -22,11 +23,11 @@ threw = false;
 try { geojsonFeatures(null); } catch { threw = true; }
 ok(threw, "no es un objeto: lanza");
 
-// needsNamePicker
+// needsNamePicker: ya no se asume name/title, basta con que haya claves
 ok(needsNamePicker({}) === false, "properties vacío: no hace falta preguntar");
-ok(needsNamePicker({ name: "x" }) === false, "con name: no hace falta preguntar");
-ok(needsNamePicker({ title: "x" }) === false, "con title: no hace falta preguntar");
-ok(needsNamePicker({ ref: "A-04" }) === true, "solo otras claves: hace falta preguntar");
+ok(needsNamePicker({ name: "x" }) === true, "con name también se pregunta: no se asume");
+ok(needsNamePicker({ title: "x" }) === true, "con title también se pregunta: no se asume");
+ok(needsNamePicker({ ref: "A-04" }) === true, "con claves: hace falta preguntar");
 ok(needsNamePicker(null) === false, "no-objeto: no hace falta preguntar");
 
 // propsFingerprint
@@ -36,19 +37,32 @@ ok(propsFingerprint({ a: 1 }) !== propsFingerprint({ b: 1 }),
   "claves distintas: huella distinta");
 ok(propsFingerprint({}) === "[]", "sin claves: huella estable");
 
+// composeFeatureName
+ok(composeFeatureName({ ref: "A-04", mun: "Madrid" }, ["ref", "mun"]) === "A-04 / Madrid",
+  "une los valores con « / » en el orden elegido");
+ok(composeFeatureName({ ref: "A-04", mun: "Madrid" }, ["mun", "ref"]) === "Madrid / A-04",
+  "el orden de las claves manda, no el de las properties");
+ok(composeFeatureName({ ref: "A-04" }, ["ref", "mun"]) === "A-04",
+  "clave ausente: se omite, sin separador colgando");
+ok(composeFeatureName({ ref: "  ", mun: "Madrid" }, ["ref", "mun"]) === "Madrid",
+  "valor vacío o en blanco: se omite");
+ok(composeFeatureName({ n: 7, o: { a: 1 } }, ["n", "o"]) === '7 / {"a":1}',
+  "números y objetos se muestran como en la tabla de properties");
+ok(composeFeatureName({ ref: "x" }, ["otra"]) === "", "ninguna presente: cadena vacía");
+ok(composeFeatureName({ ref: "x" }, null) === "" && composeFeatureName(null, ["ref"]) === "",
+  "sin selección o sin properties: cadena vacía, no lanza");
+
 // resolveFeatureName
-ok(resolveFeatureName({ ref: "A-04" }, 0, "ref") === "A-04",
+ok(resolveFeatureName({ ref: "A-04" }, 0, ["ref"]) === "A-04",
   "usa la propiedad elegida cuando está presente");
-ok(resolveFeatureName({ tipo: "urbano" }, 2, "ref") === "Elemento 3",
-  "si el feature no tiene la clave elegida, cae en el nombrado automático");
-ok(resolveFeatureName({ name: "Casa" }, 0, "ref") === "Casa",
-  "nameProp elegido pero ausente en este feature: cae en name");
-ok(resolveFeatureName({ name: "Casa" }, 0, null) === "Casa",
-  "sin nameProp, usa name como siempre");
-ok(resolveFeatureName({ title: "Casa" }, 0, null) === "Casa",
-  "sin nameProp ni name, usa title como siempre");
+ok(resolveFeatureName({ tipo: "urbano" }, 2, ["ref"]) === "Elemento 3",
+  "si el feature no tiene la clave elegida, cae en Elemento N");
+ok(resolveFeatureName({ name: "Casa" }, 0, ["ref"]) === "Elemento 1",
+  "sin respaldo a name: no se asume como nombre");
+ok(resolveFeatureName({ name: "Casa" }, 0, null) === "Elemento 1",
+  "sin selección, name tampoco se usa");
 ok(resolveFeatureName({}, 4, null) === "Elemento 5",
-  "sin nada, cae en Elemento N (1-based)");
+  "sin nada, Elemento N (1-based)");
 
 /* ---------- Tabla de properties (Fase 3) ---------- */
 const propSrc = between("const escapeHtml = s =>", "function infoHtmlFor");
@@ -76,25 +90,32 @@ ok(!tableHtml.includes("<b>"), "escapa entrada hostil en la clave: " + tableHtml
    archivo (entre medias hay creación de DOM: ctxMenuEl, closeCtxMenu…),
    así que se extraen por separado.                                    */
 const ctxSrc = between("const CTX_MENU_ITEMS = [", "const ctxMenuEl")
-  + fn("goToNodeAndBlink") + fn("showLayerInfoAndBlink")
+  + fn("goToNodeAndBlink") + fn("showLayerInfoAndBlink") + fn("editPropertiesAndBlink")
+  + constDecl("STYLE_EDITABLE_KINDS")
+  /* aquí ninguna capa es una ruta: el ítem del perfil no llega a pedirse */
+  + constDecl("isRouteLi")
   + fn("layerCtxItems") + fn("ctxItemsFor");
 global.infoHtmlFor = li => li._info || null; /* stub: evita depender de DOM/Leaflet */
-/* Se stubea lo que NO se está probando —highlightNode, showLayerInfo y
-   el parpadeo en sí, que necesitan nodeLayer/setLayerVisible sobre <li>
-   reales y aquí los "li" son objetos sueltos {_name,_info}— pero las
-   dos envolturas del menú se extraen DE VERDAD: lo que se comprueba es
-   el enrutado (qué capa le llega a cada acción) y que las dos hagan
-   parpadear la capa, que es lo único que dice CUÁL de las que hay bajo
-   el cursor se ha elegido.                                            */
+/* Se stubea lo que NO se está probando —highlightNode, showLayerInfo,
+   openStyleDialog, styleKind y el parpadeo en sí, que necesitan
+   nodeLayer/setLayerVisible sobre <li> reales y aquí los "li" son
+   objetos sueltos {_name,_info,_kind}— pero las tres envolturas del
+   menú se extraen DE VERDAD: lo que se comprueba es el enrutado (qué
+   capa le llega a cada acción) y que las tres hagan parpadear la capa,
+   que es lo único que dice CUÁL de las que hay bajo el cursor se ha
+   elegido.                                                            */
 global.highlightCalls = [];
 global.showInfoCalls = [];
+global.editCalls = [];
 global.blinkCalls = [];
 const api = new Function(
-  "infoHtmlFor", "showLayerInfo", "highlightNode", "blinkLayer",
+  "infoHtmlFor", "showLayerInfo", "highlightNode", "openStyleDialog", "styleKind", "blinkLayer",
   ctxSrc + "\nreturn {CTX_MENU_ITEMS, ctxItemsFor};"
 )(global.infoHtmlFor,
   li => { global.showInfoCalls.push(li); },
   li => { global.highlightCalls.push(li); },
+  li => { global.editCalls.push(li); },
+  li => li._kind || null,
   li => { global.blinkCalls.push(li); });
 const { CTX_MENU_ITEMS, ctxItemsFor } = api;
 
@@ -111,22 +132,37 @@ ok(items[items.length - 1] === CTX_MENU_ITEMS[CTX_MENU_ITEMS.length - 1],
   "1 capa: CTX_MENU_ITEMS va al final");
 const liConInfo = { _name: "Parcela B", _info: "<table></table>" };
 items = ctxItemsFor([liConInfo]);
-ok(items.some(it => it.label === "Mostrar propiedades" && !it.items),
-  "1 capa con info: aparece 'Mostrar propiedades' directo");
+ok(items.some(it => it.label === "Mostrar atributos" && !it.items),
+  "1 capa con info: aparece 'Mostrar atributos' directo");
+ok(!items.some(it => it.label === "Editar propiedades"),
+  "sin _kind editable: 'Editar propiedades' no aparece");
+const liEditable = { _name: "Parcela E", _info: null, _kind: "polygon" };
+items = ctxItemsFor([liEditable]);
+ok(items.some(it => it.label === "Editar propiedades" && !it.items),
+  "1 capa de tipo editable: aparece 'Editar propiedades' directo, distinto de 'Mostrar atributos'");
 
 // 2+ hits: submenú con una entrada por capa
 const liA = { _name: "Parcela A", _info: null };
-const liB = { _name: "Parcela B", _info: "<table></table>" };
+const liB = { _name: "Parcela B", _info: "<table></table>", _kind: "polygon" };
 const liC = { _name: "Parcela C", _info: "<table></table>" };
 items = ctxItemsFor([liA, liB, liC]);
 const goTo = items.find(it => it.label === "Ir al nodo en el panel");
 ok(goTo && goTo.items && goTo.items.length === 3,
   "varias capas: 'Ir al nodo' es un submenú con una entrada por capa");
-const showInfo = items.find(it => it.label === "Mostrar propiedades");
+const showInfo = items.find(it => it.label === "Mostrar atributos");
 ok(showInfo && showInfo.items.length === 2,
-  "varias capas: 'Mostrar propiedades' solo lista las que tienen info");
+  "varias capas: 'Mostrar atributos' solo lista las que tienen info");
+const editProps = items.find(it => it.label === "Editar propiedades");
+ok(editProps && editProps.items.length === 1 && editProps.items[0].label === "Parcela B",
+  "varias capas: 'Editar propiedades' solo lista las de tipo editable");
 ok(items[items.length - 1] === CTX_MENU_ITEMS[CTX_MENU_ITEMS.length - 1],
   "varias capas: CTX_MENU_ITEMS también va al final");
+
+global.editCalls.length = 0;
+global.blinkCalls.length = 0;
+editProps.items[0].action();
+ok(global.editCalls[0] === liB, "el submenú de 'Editar propiedades' pasa la capa correcta");
+ok(global.blinkCalls[0] === liB, "y hace parpadear ESA capa");
 
 // invocar una entrada del submenú llama a la función correcta con la capa correcta
 global.highlightCalls.length = 0;
@@ -137,7 +173,7 @@ ok(global.blinkCalls[0] === liB, "y hace parpadear ESA capa, no otra");
 global.showInfoCalls.length = 0;
 global.blinkCalls.length = 0;
 showInfo.items[0].action();
-ok(global.showInfoCalls[0] === liB, "el submenú de 'Mostrar propiedades' pasa la capa correcta");
+ok(global.showInfoCalls[0] === liB, "el submenú de 'Mostrar atributos' pasa la capa correcta");
 /* Lo pedido: con varias capas superpuestas, la ficha sale con un nombre
    y unos datos que no dicen cuál de ellas es. El parpadeo sí.        */
 ok(global.blinkCalls[0] === liB,
@@ -147,13 +183,13 @@ ok(global.blinkCalls[0] === liB,
    es la misma para los dos caminos, no una para cada uno.            */
 global.showInfoCalls.length = 0;
 global.blinkCalls.length = 0;
-ctxItemsFor([liConInfo]).find(it => it.label === "Mostrar propiedades").action();
+ctxItemsFor([liConInfo]).find(it => it.label === "Mostrar atributos").action();
 ok(global.showInfoCalls[0] === liConInfo && global.blinkCalls[0] === liConInfo,
-  "con una sola capa, 'Mostrar propiedades' también parpadea");
+  "con una sola capa, 'Mostrar atributos' también parpadea");
 
-// ninguna capa con info: no aparece "Mostrar propiedades"
+// ninguna capa con info: no aparece "Mostrar atributos"
 items = ctxItemsFor([liA, { _name: "Parcela D", _info: null }]);
-ok(!items.some(it => it.label === "Mostrar propiedades"),
-  "varias capas, ninguna con info: 'Mostrar propiedades' no aparece");
+ok(!items.some(it => it.label === "Mostrar atributos"),
+  "varias capas, ninguna con info: 'Mostrar atributos' no aparece");
 
 if (!process.exitCode) console.log("GEOJSON NAME PICKER / CTX MENU TESTS OK");

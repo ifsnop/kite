@@ -17,8 +17,11 @@ const { ok, done } = reporter("BROWSER DIALOG LAYOUT TESTS OK");
 
 /* Las ocho con contenido que revelar llevan tirador; las cuatro
    confirmaciones cortas, no (ver el comentario de styles.css).      */
+/* Las que tienen contenido QUE REVELAR. `url-dialog` entró aquí por una
+   razón concreta: una dirección de descarga pasa de mil caracteres con
+   facilidad, y en una caja fija no se ve más que un trozo.          */
 const CON_RESIZE = new Set(["style-dialog", "icon-picker", "shortcuts", "desc-dialog",
-  "geojson-name-picker", "gnp-editor", "points-dialog", "log-dialog"]);
+  "geojson-name-picker", "props-dialog", "points-dialog", "log-dialog", "url-dialog"]);
 
 const browser = await launch();
 const srv = await serve(READABLE, 8871);
@@ -39,18 +42,35 @@ const medidas = await page.evaluate(() => {
   const abrir = {
     "style-dialog": () => openStyleDialog(liM),
     "icon-picker": () => { openStyleDialog(liM); document.getElementById("icon-preview-btn").click(); },
-    "shortcuts": () => { document.getElementById("shortcuts").hidden = false; },
+    /* La pestaña más larga: sin pie, las otras ya caben a 620 px */
+    "shortcuts": () => { document.getElementById("shortcuts").hidden = false; showShortcutsTab("view"); },
     "desc-dialog": () => {
       document.getElementById("desc-body").innerHTML =
         "<table>" + "<tr><td>clave</td><td>un valor bastante largo</td></tr>".repeat(80) + "</table>";
       document.getElementById("desc-dialog").hidden = false;
     },
-    "color-picker": () => { openStyleDialog(liM); openColorPicker(document.getElementById("mk-color")); },
+    /* El selector de color YA NO pasa por aquí: dejó de ser una ventana
+       con caja/cabecera/botones propios (era justo el problema — ver el
+       chequeo de solape más abajo), así que el marco de "botones
+       siempre a la vista al hacer scroll" no le aplica.               */
     "kml-tags-picker": () => confirmStripHtmlTags("archivo.kml"),
     "kml-dup-picker": () => { document.getElementById("kml-dup-picker").hidden = false; },
-    "geojson-name-picker": () => pickNameProperty(
-      Object.fromEntries(Array.from({ length: 60 }, (_, i) => ["clave" + i, "valor " + i])), "a.geojson", null),
-    "gnp-editor": () => { document.getElementById("gnp-editor").hidden = false; },
+    /* Con una dirección larguísima dentro, que es su caso real */
+    "url-dialog": () => {
+      document.getElementById("url-btn").click();
+      document.getElementById("url-input").value =
+        "https://ejemplo.com/descargas/" + "a".repeat(950) + "/datos.geojson";
+    },
+    "geojson-name-picker": () => {
+      const sample = Object.fromEntries(Array.from({ length: 60 }, (_, i) => ["clave" + i, "valor " + i]));
+      pickNameProperty(Object.keys(sample), "a.geojson", { sample });
+    },
+    /* Renombrado a "Propiedades": ahora con pestañas, la de nombres de
+       GeoJSON es la que puede llenarse de filas y desbordar.           */
+    "props-dialog": async () => {
+      gnpStore = Object.fromEntries(Array.from({ length: 40 }, (_, i) => [`["clave${i}"]`, ["clave" + i]]));
+      await togglePropsDialog();
+    },
     "points-dialog": () => openPointsDialog(liP),
     "log-dialog": () => { for (let i = 0; i < 80; i++) navMessage("aviso " + i, { tone: "info" }); toggleLog(); },
     "sh-creds": () => { document.getElementById("sh-creds").hidden = false; }
@@ -60,7 +80,10 @@ const medidas = await page.evaluate(() => {
   for (const [id, fn] of Object.entries(abrir)) {
     try { fn(); } catch (e) { out.push({ id, error: e.message }); continue; }
     const box = document.getElementById(id).querySelector(".dlg-box");
-    const acc = box.querySelector(".dlg-actions");
+    /* Con un solo botón, el de cerrar, no hay pie: el botón es el × de la
+       cabecera (regla de style-dialogs-ui.md), y es él el que debe verse. */
+    const pie = box.querySelector(".dlg-actions");
+    const acc = pie || box.querySelector(".dlg-close");
     const h2 = box.querySelector("h2");
     /* Cuánto se sale cada barra de la caja, arriba del scroll y abajo.
        Negativo = está dentro, que es lo que se quiere.               */
@@ -87,10 +110,14 @@ const medidas = await page.evaluate(() => {
     box.scrollTop = Math.max(1, Math.floor((box.scrollHeight - box.clientHeight) / 2));
     const rb2 = box.getBoundingClientRect();
     const huecos = {
-      abajo: Math.round(rb2.bottom - acc.getBoundingClientRect().bottom),
+      abajo: pie ? Math.round(rb2.bottom - pie.getBoundingClientRect().bottom) : 0,
       arriba: Math.round(h2.getBoundingClientRect().top - rb2.top)
     };
-    out.push({ id, arriba, abajo, huecos, desborda, resize: getComputedStyle(box).resize });
+    /* Sin pie, el × arriba a la derecha y dentro del asa de arrastre */
+    const x = !pie && acc.getBoundingClientRect();
+    const cierre = x && { enCabecera: acc.parentElement === h2,
+      derecha: Math.round(rb2.right - x.right), arriba: Math.round(x.top - rb2.top) };
+    out.push({ id, arriba, abajo, huecos, cierre, desborda, resize: getComputedStyle(box).resize });
     document.getElementById(id).hidden = true;
     document.getElementById("style-dialog").hidden = true;
     document.getElementById("icon-picker").hidden = true;
@@ -115,11 +142,15 @@ for (const m of medidas) {
      arriba y abajo, que es el relleno de la caja más su borde.     */
   ok(m.huecos.abajo <= 1, `${m.id}: la barra de botones cubre hasta abajo (quedan ${m.huecos.abajo} px)`);
   ok(m.huecos.arriba <= 1, `${m.id}: el título cubre hasta arriba (quedan ${m.huecos.arriba} px)`);
+  if (m.cierre) ok(m.cierre.enCabecera && m.cierre.derecha < 20 && m.cierre.arriba < 20,
+    `${m.id}: sin pie, su × está arriba a la derecha, en la cabecera: ${JSON.stringify(m.cierre)}`);
   /* Y el tirador, donde toca y solo donde toca */
   const esperado = CON_RESIZE.has(m.id);
   ok((m.resize === "both") === esperado,
     `${m.id}: ${esperado ? "debe" : "NO debe"} ser redimensionable (resize: ${m.resize})`);
 }
+
+ok(medidas.some(m => m.id === "shortcuts" && m.cierre), "la chuleta, de un solo botón, lo lleva como × en la cabecera");
 
 /* Las dos que fallaban tienen que SEGUIR desbordando: el arreglo
    consiste en fijar los bordes, no en hacerlas caber a la fuerza, que
@@ -128,6 +159,318 @@ for (const id of ["icon-picker", "shortcuts"]) {
   const m = medidas.find(x => x.id === id);
   ok(m && m.desborda, `${id}: su contenido sigue sin caber, y aun así los botones se ven`);
 }
+
+/* El fallo reportado: el selector de color se abría como una segunda
+   ventana CENTRADA en el viewport, sin mirar dónde estaba el diálogo de
+   estilos ni el botón que lo había abierto — con el diálogo desplazado
+   hacia el centro (o en un viewport pequeño), acababa tapando sus
+   propios Cancelar/Aceptar. Ahora es un popover anclado al botón, así
+   que comprobar que NO se solapa con los botones del diálogo de
+   estilos es la prueba directa del arreglo.                          */
+const solapeColor = await page.evaluate(() => {
+  const liM = [...document.querySelectorAll("#tree li")].find(x => x._mstyle);
+  openStyleDialog(liM);
+  openColorPicker(document.getElementById("mk-color"));
+  const pop = document.getElementById("color-picker").getBoundingClientRect();
+  const acc = document.querySelector("#style-dialog .dlg-box .dlg-actions").getBoundingClientRect();
+  const solapaX = pop.left < acc.right && pop.right > acc.left;
+  const solapaY = pop.top < acc.bottom && pop.bottom > acc.top;
+  document.getElementById("color-picker").hidden = true;
+  document.getElementById("style-dialog").hidden = true;
+  return { solapa: solapaX && solapaY, pop, acc };
+});
+ok(!solapeColor.solapa, "el popover de color no tapa los botones del diálogo de estilos: "
+  + JSON.stringify(solapeColor.pop) + " vs " + JSON.stringify(solapeColor.acc));
+
+/* Otro fallo reportado, en el mismo popover: abrirlo desde la fila
+   «Color de fondo» del panel de mapas base y luego pulsar en cualquier
+   otro sitio DEL MISMO PANEL no lo cerraba — solo Escape, o un clic
+   fuera del panel entero, funcionaban. La causa: el cierre escuchaba
+   "mousedown" en document, pero L.DomEvent.disableClickPropagation
+   (aplicado a `.base-box`, como a cualquier control de Leaflet) en
+   Leaflet 1.9.4 solo detiene mousedown/dblclick/contextmenu — NO
+   "click" (mismo hallazgo que ya deja escrito el comentario de
+   clickOnControl en 52-measure.js) —, así que ese mousedown nunca
+   llegaba a document. Hace falta un CLIC real del ratón (no un
+   `.click()` sintético vía evaluate, que no dispara mousedown) para
+   ejercitar de verdad ese camino.                                     */
+await page.click(".base-toggle");
+await page.waitForTimeout(150);
+await page.click(".base-row-bg .color-btn");
+const abiertoTrasBoton = !(await page.evaluate(() => document.getElementById("color-picker").hidden));
+/* Su propia etiqueta de texto («Color de fondo»): vecina del botón en la
+   misma fila y el mismo panel, pero fuera del popover y fuera del botón
+   — y sin `for`, así que pulsarla no activa ni cambia nada por su
+   cuenta, y el clic prueba solo lo que hace falta probar.             */
+await page.click(".base-row-bg label");
+await page.waitForTimeout(150);
+const cerradoTrasClicEnPanel = await page.evaluate(() => document.getElementById("color-picker").hidden);
+ok(abiertoTrasBoton, "el popover de color se abre desde la fila «Color de fondo»");
+ok(cerradoTrasClicEnPanel,
+  "y se cierra al pulsar en otro punto del MISMO panel de mapas base, no solo fuera de él");
+
+/* El fallo central reportado: el color de fondo del mapa aplicaba Y
+   GUARDABA en el mismo gesto, sin ninguna forma de probarlo y echarse
+   atrás. Ahora "aplicar" (`onPreview`, en vivo sobre el mapa) y
+   "guardar" (`onCommit`, en IndexedDB) son pasos distintos, y solo
+   Aceptar hace el segundo — Cancelar deshace el primero.              */
+const bgAntes = await page.evaluate(async () => ({
+  css: getComputedStyle(document.documentElement).getPropertyValue("--map-bg").trim(),
+  guardado: await dbLoadMapBackground()
+}));
+await page.click(".base-row-bg .color-btn");
+await page.waitForTimeout(150);
+let box = await (await page.$("#color-sv")).boundingBox();
+await page.mouse.move(box.x + box.width * 0.2, box.y + box.height * 0.8);
+await page.mouse.down();
+await page.mouse.move(box.x + box.width * 0.35, box.y + box.height * 0.65, { steps: 5 });
+await page.mouse.up();
+await page.waitForTimeout(80);
+const bgDurante = await page.evaluate(async () => ({
+  css: getComputedStyle(document.documentElement).getPropertyValue("--map-bg").trim(),
+  guardado: await dbLoadMapBackground()
+}));
+ok(bgDurante.css !== bgAntes.css,
+  `arrastrar en el espectro aplica el fondo del mapa EN VIVO, sin cerrar: ${bgAntes.css} → ${bgDurante.css}`);
+ok(JSON.stringify(bgDurante.guardado) === JSON.stringify(bgAntes.guardado),
+  "pero todavía no se ha guardado nada en IndexedDB: eso solo lo hace Aceptar");
+await page.click("#color-cancel");
+await page.waitForTimeout(80);
+const bgTrasCancelar = await page.evaluate(async () => ({
+  css: getComputedStyle(document.documentElement).getPropertyValue("--map-bg").trim(),
+  guardado: await dbLoadMapBackground()
+}));
+ok(bgTrasCancelar.css === bgAntes.css,
+  `Cancelar revierte el fondo del mapa al color que tenía al abrir el selector: ${bgDurante.css} → ${bgTrasCancelar.css}`);
+ok(JSON.stringify(bgTrasCancelar.guardado) === JSON.stringify(bgAntes.guardado),
+  "y sigue sin haberse guardado nada en IndexedDB");
+
+/* Repitiendo el mismo gesto pero con Aceptar: ahora sí debe persistir */
+await page.click(".base-row-bg .color-btn");
+await page.waitForTimeout(150);
+box = await (await page.$("#color-sv")).boundingBox();
+await page.mouse.move(box.x + box.width * 0.2, box.y + box.height * 0.8);
+await page.mouse.down();
+await page.mouse.move(box.x + box.width * 0.35, box.y + box.height * 0.65, { steps: 5 });
+await page.mouse.up();
+await page.waitForTimeout(80);
+const bgElegido = await page.evaluate(() =>
+  getComputedStyle(document.documentElement).getPropertyValue("--map-bg").trim());
+await page.click("#color-accept");
+await page.waitForTimeout(80);
+const bgTrasAceptar = await page.evaluate(async () => ({
+  css: getComputedStyle(document.documentElement).getPropertyValue("--map-bg").trim(),
+  guardado: await dbLoadMapBackground()
+}));
+ok(bgTrasAceptar.css === bgElegido, "Aceptar deja aplicado el color que se estaba previsualizando");
+ok(!!bgTrasAceptar.guardado && bgTrasAceptar.guardado.toLowerCase() === bgElegido.toLowerCase(),
+  `y esta vez SÍ queda guardado en IndexedDB: ${JSON.stringify(bgTrasAceptar.guardado)}`);
+
+await page.click(".base-toggle"); /* deja el panel como estaba para el resto de la suite */
+
+/* El fallo seguía sin arreglar del todo: cerrar «con un clic fuera»
+   depende de en qué contenedor se esté (el chequeo anterior), y no es
+   el gesto que alguien prueba primero de todos modos — lo natural es
+   volver a pulsar el mismo botón grande que lo abrió. Antes eso lo
+   REABRÍA (a propósito, para poder "refrescarlo"); ahora debe CERRARLO,
+   haya cambiado el color o no. Se comprueba en el propio diálogo de
+   estilos, sin depender de ningún control de Leaflet.                 */
+const toggleBoton = await page.evaluate(() => {
+  const liM = [...document.querySelectorAll("#tree li")].find(x => x._mstyle);
+  openStyleDialog(liM);
+  const btn = document.getElementById("mk-color");
+  btn.click();
+  const abierto1 = !document.getElementById("color-picker").hidden;
+  btn.click(); /* mismo botón, sin tocar el color: debe cerrar */
+  const cerrado = document.getElementById("color-picker").hidden;
+  document.getElementById("style-dialog").hidden = true;
+  return { abierto1, cerrado };
+});
+ok(toggleBoton.abierto1, "el popover se abre al pulsar el botón de color");
+ok(toggleBoton.cerrado,
+  "y se cierra al volver a pulsar EL MISMO botón, sin haber cambiado el color");
+
+/* El espectro es NUESTRO, no <input type="color">: ese control abre el
+   panel NATIVO del navegador, que vive fuera del DOM de la página y no
+   se puede cerrar, reposicionar ni tratar como parte de un único
+   diálogo integrado por ningún script — el motivo de fondo por el que
+   "un solo diálogo" no podía cumplirse mientras siguiera ahí. Guarda
+   estructural para que no vuelva a colarse.                          */
+ok(!(await page.$("#color-picker input[type=color]")),
+  "el popover no lleva ningún <input type=\"color\">: el espectro es propio");
+
+/* Arrastrar de verdad en el cuadrado de saturación/valor. El fallo
+   reportado: ningún gesto del popover cerraba nada por sí mismo salvo
+   uno que además GUARDABA, sin dar opción a echarse atrás. Ahora
+   arrastrar solo PREVISUALIZA sobre el botón —ni a mitad de gesto ni al
+   soltar cierra el popover— y Cancelar debe devolver el botón a como
+   estaba antes de tocar nada.                                        */
+const colorOriginalMk = await page.evaluate(() => {
+  const li = [...document.querySelectorAll("#tree li")].find(x => x._mstyle);
+  openStyleDialog(li);
+  return document.getElementById("mk-color").dataset.color;
+});
+await page.click("#mk-color");
+await page.waitForTimeout(150);
+box = await (await page.$("#color-sv")).boundingBox();
+await page.mouse.move(box.x + box.width * 0.7, box.y + box.height * 0.3);
+await page.mouse.down();
+await page.mouse.move(box.x + box.width * 0.8, box.y + box.height * 0.2);
+await page.waitForTimeout(80);
+ok(!(await page.evaluate(() => document.getElementById("color-picker").hidden)),
+  "arrastrar en el cuadrado NO cierra a mitad de gesto");
+await page.mouse.up();
+await page.waitForTimeout(150);
+const trasSoltarMk = await page.evaluate(() => ({
+  hidden: document.getElementById("color-picker").hidden,
+  boton: document.getElementById("mk-color").dataset.color
+}));
+ok(!trasSoltarMk.hidden, "y tampoco cierra al soltar: hace falta Aceptar para confirmar el cambio");
+ok(trasSoltarMk.boton !== colorOriginalMk,
+  `pero SÍ previsualiza en vivo sobre el botón mientras se arrastra: seguía en ${colorOriginalMk}`);
+await page.click("#color-cancel");
+const trasCancelarMk = await page.evaluate(() => ({
+  hidden: document.getElementById("color-picker").hidden,
+  boton: document.getElementById("mk-color").dataset.color
+}));
+ok(trasCancelarMk.hidden, "Cancelar cierra el popover");
+ok(trasCancelarMk.boton === colorOriginalMk,
+  `y Cancelar restaura el color ORIGINAL del botón: ${trasSoltarMk.boton} → ${trasCancelarMk.boton} (era ${colorOriginalMk})`);
+
+/* Repitiendo el arrastre pero Aceptando: el color se ve EN VIVO en el
+   mapa mientras se previsualiza (cambio de filosofía: antes esperaba al
+   Aceptar exterior), llega al borrador al Aceptar del popover, y el
+   Cancelar del diálogo exterior lo revierte en la capa.               */
+await page.waitForTimeout(100); /* deja pasar el fotograma de la vista previa anterior */
+const colorAntesCapa = await page.evaluate(() => {
+  const li = [...document.querySelectorAll("#tree li")].find(x => x._mstyle);
+  return li._mstyle.color;
+});
+await page.click("#mk-color");
+await page.waitForTimeout(150);
+box = await (await page.$("#color-sv")).boundingBox();
+await page.mouse.move(box.x + box.width * 0.7, box.y + box.height * 0.3);
+await page.mouse.down();
+await page.mouse.move(box.x + box.width * 0.8, box.y + box.height * 0.2);
+await page.mouse.up();
+await page.waitForTimeout(150);
+const previsualizadoMk = await page.evaluate(() => document.getElementById("mk-color").dataset.color);
+ok((await page.evaluate(() => {
+  const li = [...document.querySelectorAll("#tree li")].find(x => x._mstyle);
+  return li._mstyle.color;
+})) === previsualizadoMk,
+  "mientras el popover sigue abierto, el color ya está aplicado a la CAPA (vista previa en vivo)");
+await page.click("#color-accept");
+const trasAceptarMk = await page.evaluate(() => ({
+  hidden: document.getElementById("color-picker").hidden,
+  boton: document.getElementById("mk-color").dataset.color,
+  borrador: styleDraft.color
+}));
+ok(trasAceptarMk.hidden, "Aceptar cierra el popover");
+ok(trasAceptarMk.boton === previsualizadoMk, "y deja el color que se estaba previsualizando");
+ok(trasAceptarMk.borrador === previsualizadoMk,
+  "que ahora sí ha llegado al borrador del diálogo de estilos");
+await page.click("#style-cancel");
+ok((await page.evaluate(() => {
+  const li = [...document.querySelectorAll("#tree li")].find(x => x._mstyle);
+  return li._mstyle.color;
+})) === colorAntesCapa,
+  "y Cancelar en el diálogo de estilos devuelve a la capa el color con el que se abrió");
+await page.evaluate(() => {
+  const li = [...document.querySelectorAll("#tree li")].find(x => x._mstyle);
+  openStyleDialog(li);
+});
+
+/* El antiguo fallo más esquivo: escribir un hexadecimal y pulsar Intro.
+   Ya no puede reabrir nada porque ya no CIERRA nada — Intro solo
+   previsualiza, igual que el resto de gestos del popover.             */
+await page.click("#style-cancel");
+await page.evaluate(() => {
+  const li = [...document.querySelectorAll("#tree li")].find(x => x._mstyle);
+  openStyleDialog(li);
+});
+await page.click("#mk-color");
+await page.waitForTimeout(150);
+await page.click("#color-f0");
+await page.keyboard.press("Control+A");
+await page.keyboard.type("#ff00aa");
+await page.keyboard.press("Enter");
+await page.waitForTimeout(200);
+ok(!(await page.evaluate(() => document.getElementById("color-picker").hidden)),
+  "escribir un hex y pulsar Intro solo previsualiza: el popover sigue abierto");
+ok((await page.evaluate(() => document.getElementById("mk-color").dataset.color)) === "#ff00aa",
+  "y el color escrito ya se ve en el botón, antes de Aceptar");
+await page.click("#color-accept");
+ok(await page.evaluate(() => document.getElementById("color-picker").hidden),
+  "y Aceptar (no Intro) es lo que cierra el popover");
+ok((await page.evaluate(() => document.getElementById("mk-color").dataset.color)) === "#ff00aa",
+  "con el color escrito ya aplicado de verdad");
+await page.click("#style-cancel");
+
+/* Las flechas ‹ › ciclan la notación (Hex/RGB/CMYK/HSV) sin cambiar el
+   color: mismo papel que el botón ⇅ de las coordenadas, con más de dos
+   estados. Cada notación es UN CAMPO POR CANAL, no un texto con
+   separadores: Hex usa `#color-f0` en solitario, RGB/HSV los tres
+   primeros, CMYK los cuatro. Se comprueba escribiendo el MISMO rojo
+   puro en RGB, campo a campo, y leyéndolo de vuelta en CMYK.          */
+await page.evaluate(() => {
+  const li = [...document.querySelectorAll("#tree li")].find(x => x._mstyle);
+  openStyleDialog(li);
+});
+await page.click("#mk-color");
+await page.waitForTimeout(150);
+const etiquetaInicial = await page.evaluate(() => document.getElementById("color-mode-label").textContent);
+ok(etiquetaInicial === "HEX", `la notación por defecto es HEX: era «${etiquetaInicial}»`);
+const camposHex = await page.evaluate(() =>
+  [0, 1, 2, 3].map(i => !document.getElementById(`color-field-${i}`).hidden));
+ok(JSON.stringify(camposHex) === JSON.stringify([true, false, false, false]),
+  `en HEX solo se ve un campo: ${JSON.stringify(camposHex)}`);
+await page.click("#color-mode-next");
+const etiquetaRgb = await page.evaluate(() => document.getElementById("color-mode-label").textContent);
+ok(etiquetaRgb === "RGB", `la flecha › avanza a RGB: era «${etiquetaRgb}»`);
+const camposRgb = await page.evaluate(() =>
+  [0, 1, 2, 3].map(i => !document.getElementById(`color-field-${i}`).hidden));
+ok(JSON.stringify(camposRgb) === JSON.stringify([true, true, true, false]),
+  `en RGB se ven tres campos: ${JSON.stringify(camposRgb)}`);
+await page.fill("#color-f0", "255");
+await page.fill("#color-f1", "0");
+await page.fill("#color-f2", "0");
+await page.waitForTimeout(100);
+ok((await page.evaluate(() => document.getElementById("mk-color").dataset.color)) === "#ff0000",
+  "escribir 255/0/0 en los tres campos RGB aplica el rojo puro");
+await page.click("#color-mode-next");
+const camposCmyk = await page.evaluate(() =>
+  [0, 1, 2, 3].map(i => !document.getElementById(`color-field-${i}`).hidden));
+ok(JSON.stringify(camposCmyk) === JSON.stringify([true, true, true, true]),
+  `en CMYK se ven los cuatro campos: ${JSON.stringify(camposCmyk)}`);
+const enCmyk = await page.evaluate(() =>
+  [0, 1, 2, 3].map(i => document.getElementById(`color-f${i}`).value).join(", "));
+ok(/^0,\s*100,\s*100,\s*0$/.test(enCmyk),
+  `y CMYK lee el mismo rojo como cian 0 / magenta 100 / amarillo 100 / negro 0: «${enCmyk}»`);
+await page.click("#color-mode-prev");
+await page.click("#color-mode-prev"); /* CMYK → RGB → HEX: vuelve a la de partida */
+const etiquetaTrasCiclo = await page.evaluate(() => document.getElementById("color-mode-label").textContent);
+ok(etiquetaTrasCiclo === "HEX", `‹ retrocede igual, ciclando: llegó a «${etiquetaTrasCiclo}»`);
+await page.click("#color-cancel");
+await page.click("#style-cancel");
+
+/* La rampa de matiz es un deslizador de una dimensión, no un plano de
+   selección: debe mostrar una mano (`grab`), no una cruz (`crosshair`,
+   que sí corresponde al cuadrado de saturación/valor, un plano real). */
+await page.evaluate(() => {
+  const li = [...document.querySelectorAll("#tree li")].find(x => x._mstyle);
+  openStyleDialog(li);
+});
+await page.click("#mk-color");
+await page.waitForTimeout(150);
+const cursores = await page.evaluate(() => ({
+  sv: getComputedStyle(document.getElementById("color-sv")).cursor,
+  hue: getComputedStyle(document.getElementById("color-hue")).cursor
+}));
+ok(cursores.sv === "crosshair", `el cuadrado de saturación/valor sigue en cruz: era «${cursores.sv}»`);
+ok(cursores.hue === "grab", `la rampa de matiz es una mano, no una cruz: era «${cursores.hue}»`);
+await page.click("#color-cancel");
+await page.click("#style-cancel");
 
 /* Redimensionar a mano no puede descolgar los botones */
 const trasEstirar = await page.evaluate(() => {

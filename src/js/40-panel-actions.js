@@ -169,9 +169,12 @@ let placeSeq = 0; /* discards responses of superseded searches */
    nodos se pueden mover a cualquier carpeta. Cuesta lo que una búsqueda
    del panel y solo ocurre al crear una forma, nunca en un bucle.
    Cuenta también los registros PENDIENTES (li._pending) de las carpetas
-   nunca desplegadas: esos nodos existen aunque no tengan fila.        */
+   nunca desplegadas: esos nodos existen aunque no tengan fila.
+   Admite un sufijo « — …» tras el número: las capas de elevación lo
+   llevan («Elevación 3 — MDT25 + MDS (IGN)», ver elevNodeName), y sin
+   contarlas la siguiente volvería a ser la 1.                        */
 function nextNumberedName(base) {
-  const re = new RegExp(`^${base} (\\d+)$`);
+  const re = new RegExp(`^${base} (\\d+)(?: — .*)?$`);
   let max = 0;
   const consider = name => {
     const m = re.exec(name == null ? "" : String(name));
@@ -211,6 +214,8 @@ let placeAbort = null; /* petición en vuelo, para poder cancelarla */
 
 /* Traduce el fallo a algo accionable en vez de "error de red" */
 function describeHttp(status) {
+  if (status === 404) return "la dirección no existe (HTTP 404)";
+  if (status === 401) return "hace falta autenticación (HTTP 401)";
   if (status === 429) return "el servicio ha limitado las consultas; espere unos segundos";
   if (status === 403) return "el servicio ha rechazado la consulta";
   if (status >= 500) return `el servicio no est\u00E1 disponible (HTTP ${status})`;
@@ -271,6 +276,7 @@ function addPlaceMarker(r) {
   const lat = Number(r.lat), lon = Number(r.lon);
   if (!isFinite(lat) || !isFinite(lon)) { navMessage("El resultado no trae coordenadas v\u00E1lidas."); return; }
   const name = r.name || String(r.display_name).split(",")[0];
+  pushUndo("añadir un lugar");
   const layer = L.marker([lat, lon]).addTo(rootGroup);
   const li = makeNode({ name, layer, style: { color: DEFAULT_MARKER_STYLE.color } });
   ensureNamedSection(PLACES_SECTION).appendChild(li);
@@ -296,6 +302,7 @@ function addPlaceMarker(r) {
    it again (see `styleIsNew`).                                       */
 const PINS_SECTION = "Marcadores";
 function createPin() {
+  pushUndo("crear marcador");
   const marker = L.marker(map.getCenter()).addTo(rootGroup);
   /* Autonumerado como las formas dibujadas y las mediciones: con un
      nombre fijo, veinte pines se llamaban todos "Marcador" y no había

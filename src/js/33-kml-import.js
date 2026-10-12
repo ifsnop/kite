@@ -203,11 +203,10 @@ function removeDuplicatePlacemarks(groups) {
      agruparía nunca. Es el mismo criterio que el `if (!name) continue`
      del KML, donde un Placemark sin `<name>` tampoco entra en ningún
      grupo.                                                             */
-function featureDupName(props, nameProp) {
-  const name = (nameProp && props[nameProp]) || props.name || props.title;
-  return name ? String(name) : null;
+function featureDupName(props, nameKeys) {
+  return composeFeatureName(props, nameKeys) || null;
 }
-function findDuplicateFeatures(features, nameProp) {
+function findDuplicateFeatures(features, nameKeys) {
   const groups = new Map(); /* "name|lat|lng" -> [Feature] */
   for (const f of features) {
     const geom = f && f.geometry;
@@ -215,7 +214,7 @@ function findDuplicateFeatures(features, nameProp) {
     const [lng, lat] = geom.coordinates || [];
     if (!Number.isFinite(lat) || !Number.isFinite(lng)) continue;
     const props = (typeof f.properties === "object" && f.properties) || {};
-    const name = featureDupName(props, nameProp);
+    const name = featureDupName(props, nameKeys);
     if (!name) continue;
     const key = `${name}|${lat.toFixed(DUP_POS_DECIMALS)}|${lng.toFixed(DUP_POS_DECIMALS)}`;
     if (!groups.has(key)) groups.set(key, []);
@@ -260,16 +259,22 @@ function parseKmlDocument(content) {
   throw new Error(`XML no v\u00E1lido: ${why}`);
 }
 
-/* Asociaciones huella-de-properties → propiedad-nombre, cargadas
-   perezosamente desde IndexedDB (ver dbLoadGnp) la primera vez que
-   hace falta. gnpSessionUsed recuerda qué huellas ya se confirmaron en
-   ESTA carga de página, para no volver a preguntar por ellas dentro de
-   la misma sesión. addFileNode tiene un único punto de llamada y
-   siempre se espera con await dentro del bucle secuencial de
-   handleDroppedFiles, así que no hay condición de carrera entre
+/* Asociaciones huella-de-properties → claves-nombre (array ordenado),
+   cargadas perezosamente desde IndexedDB (ver dbLoadGnp) la primera vez
+   que hace falta. Una forma ya guardada se aplica SIN preguntar (se
+   cambia desde el panel Propiedades); addFileNode tiene un único punto
+   de llamada y siempre se espera con await dentro del bucle secuencial
+   de handleDroppedFiles, así que no hay condición de carrera entre
    importaciones concurrentes sobre este estado compartido.           */
 let gnpStore = null;
-const gnpSessionUsed = new Set();
+
+/* El usuario cerró el selector de nombre sin elegir: se aborta la carga
+   de ESE archivo (handleDroppedFiles lo distingue de un fallo real).   */
+function importCancelled() {
+  const err = new Error("carga cancelada");
+  err.cancelled = true;
+  return err;
+}
 
 /* Importa un archivo: crea su sección y construye su contenido.
    Para archivos grandes muestra las fases 2 y 3 del progreso:
@@ -354,20 +359,19 @@ async function addFileNode(name, kind, content, insertBefore = null, dropTargetU
         }
       }
       const firstProps = (features[0] && typeof features[0].properties === "object" && features[0].properties) || {};
-      let nameProp = null;
+      let nameKeys = null;
       if (needsNamePicker(firstProps)) {
         if (!gnpStore) gnpStore = await dbLoadGnp();
         const fp = propsFingerprint(firstProps);
         const stored = gnpStore[fp] || null;
-        if (stored && gnpSessionUsed.has(fp)) {
-          nameProp = stored; /* ya confirmada esta sesi\u00f3n: se aplica sin preguntar */
+        if (stored) {
+          nameKeys = stored;
+          navMessage(`\u00AB${name}\u00BB: nombre de los elementos seg\u00FAn la selecci\u00F3n guardada (${stored.join(NAME_JOIN)})`, { tone: "info" });
         } else {
-          nameProp = await pickNameProperty(firstProps, name, stored);
-          if (nameProp) {
-            gnpStore[fp] = nameProp;
-            gnpSessionUsed.add(fp);
-            await dbSaveGnp(gnpStore);
-          }
+          nameKeys = await pickNameProperty(Object.keys(firstProps), name, { sample: firstProps });
+          if (!nameKeys) throw importCancelled();
+          gnpStore[fp] = nameKeys;
+          await dbSaveGnp(gnpStore);
         }
       }
       /* DESPU\u00c9S del selector de propiedad-nombre: el nombre es media
@@ -375,7 +379,7 @@ async function addFileNode(name, kind, content, insertBefore = null, dropTargetU
          nombre que el usuario todav\u00eda no ha elegido. Misma pregunta y
          mismo di\u00e1logo que en KML, una sola vez por archivo y v\u00e1lida
          para todos sus grupos.                                        */
-      const dupGroups = findDuplicateFeatures(features, nameProp);
+      const dupGroups = findDuplicateFeatures(features, nameKeys);
       if (dupGroups.length) {
         if (await confirmMergeDuplicates(name, dupGroups)) {
           const removed = removeDuplicateFeatures(gj, dupGroups);
@@ -390,7 +394,7 @@ async function addFileNode(name, kind, content, insertBefore = null, dropTargetU
         update: d => progress.set(100 * d / total,
           `Construyendo capas de ${name}\u2026 (${d}/${total})`)
       } : null;
-      const records = await buildGeoJsonRecords(gj, prog, report, nameProp);
+      const records = await buildGeoJsonRecords(gj, prog, report, nameKeys);
       /* los GeoJSON arrancan colapsados SIEMPRE: nunca hace falta
          materializar sus filas al importar, van directas a pendientes  */
       li._pending = records;
@@ -536,6 +540,7 @@ async function handleDroppedFiles(files, insertBefore, dropTargetUl = null) {
       await addFileNode(file.name, kind, content, insertBefore, dropTargetUl, zip);
       scheduleSave();
     } catch (err) {
+      if (err.cancelled) { navMessage(`Carga de \u00AB${file.name}\u00BB cancelada.`, { tone: "info" }); continue; }
       navMessage(`No se pudo cargar \u00AB${file.name}\u00BB (${ext || "sin extensi\u00F3n"}, ${fmtBytes(file.size)}): ${err.message}`);
     } finally {
       if (big) progress.hide();
@@ -582,3 +587,116 @@ navPanel.addEventListener("drop", async e => {
   handleDroppedFiles([...e.dataTransfer.files], insertBefore, folderLi ? nodeUl(folderLi) : null);
 });
 
+
+/* ---------- Reconocimiento de lo descargado de una dirección ----------
+   Gemelo de handleDroppedFiles: mismos formatos y mismo contrato (un
+   `File` con nombre), pero aquí el nombre lo pone una URL y el
+   contenido llega sin que nadie prometa qué es.
+
+   Todo esto es PURO —ni DOM, ni red— justamente para poder probarlo en
+   Node, que es donde se comprueba lo comprobable.
+
+   La regla de fondo es la que el proyecto ya aplica a la familia JSON:
+   manda la FORMA del contenido, no la extensión. Aquí es aún más
+   necesario, porque media web sirve un GeoJSON desde una ruta que no
+   termina en nada.                                                     */
+
+/* Ramas vivas de handleDroppedFiles. Los tres tipos JSON comparten
+   extensión a propósito: esa rama vuelve a distinguirlos por su forma,
+   así que inventarles `.geojson` o `.topojson` no aportaría nada y sí
+   daría un nombre que el servidor no puso.                            */
+const URL_KIND_EXT = {
+  kml: ".kml", kmz: ".kmz", geojson: ".json", topojson: ".json", kite: EXPORT_EXT
+};
+/* Lo que se le dice al usuario que ha llegado */
+const URL_KIND_LABEL = {
+  kml: "KML", kmz: "KMZ (KML comprimido)", geojson: "GeoJSON", topojson: "TopoJSON",
+  kite: "carpeta exportada de KITE (.kite.json)"
+};
+
+/* Nombre de archivo que sugiere una dirección: el último segmento de su
+   ruta. Sin ruta útil (la raíz de un sitio) se usa el host, que al
+   menos dice de dónde salió; si no es una URL en absoluto, cadena
+   vacía y que decida quien llama.                                     */
+function fileNameFromUrl(url) {
+  let u;
+  try { u = new URL(String(url)); } catch { return ""; }
+  const last = u.pathname.split("/").filter(Boolean).pop() || "";
+  let name = last;
+  /* Una ruta puede traer %20 y compañía; si viene mal codificada, se
+     usa tal cual en vez de perder el nombre entero.                   */
+  try { name = decodeURIComponent(last); } catch { /* se queda como está */ }
+  return safeFileName(name || u.hostname || "");
+}
+
+/* Firma de un zip. Se mira ANTES de decodificar nada: un KMZ es binario
+   y pasar 100 MB de zip por TextDecoder no sirve para nada.           */
+function isZipSignature(bytes) {
+  return !!bytes && bytes.length >= 4
+    && bytes[0] === 0x50 && bytes[1] === 0x4B && bytes[2] === 0x03 && bytes[3] === 0x04;
+}
+
+/* Un JSON ya parseado: los MISMOS criterios que usa handleDroppedFiles
+   para repartir la familia JSON, y en el mismo orden.                 */
+const GEOJSON_DOC_TYPES = new Set([
+  "FeatureCollection", "Feature", "Point", "MultiPoint", "LineString",
+  "MultiLineString", "Polygon", "MultiPolygon", "GeometryCollection"
+]);
+function sniffJsonKind(doc) {
+  if (!doc || typeof doc !== "object") return null;
+  if (doc.app === EXPORT_KIND && Array.isArray(doc.nodes)) return "kite";
+  if (doc.type === "Topology") return "topojson";
+  if (GEOJSON_DOC_TYPES.has(doc.type)) return "geojson";
+  return null;
+}
+
+/* Texto ya decodificado. Devuelve además "html", que NO es un formato
+   admitido pero sí el diagnóstico más útil de todos: es lo que llega
+   cuando alguien pega la página de GitHub en vez del enlace «Raw».    */
+const SNIFF_HEAD = 4096; /* mirar el principio basta; no es un barrido */
+function sniffTextKind(text) {
+  /* Fuera el BOM y los blancos: un XML con BOM empieza por "﻿<"  */
+  const head = String(text || "").replace(/^﻿/, "").trimStart().slice(0, SNIFF_HEAD);
+  if (!head) return null;
+  if (head[0] === "<") {
+    if (/^<!doctype\s+html|^<html[\s>]/i.test(head)) return "html";
+    /* Namespace-agnóstico, como todo el parseo de KML de este archivo:
+       <kml>, <kml:kml> y cualquier otro prefijo valen igual.          */
+    if (/<\s*(?:[A-Za-z_][\w.-]*:)?kml[\s>]/i.test(head)) return "kml";
+    return null; /* otro XML (un GPX, una excepción OGC): no es nuestro */
+  }
+  if (head[0] === "{" || head[0] === "[") {
+    let doc;
+    try { doc = JSON.parse(text); } catch { return null; }
+    return sniffJsonKind(doc);
+  }
+  return null;
+}
+
+/* El de verdad: bytes primero (zip), texto después */
+function sniffContentKind(bytes, text) {
+  if (isZipSignature(bytes)) return "kmz";
+  return sniffTextKind(text);
+}
+
+/* Nombre final del `File` que se le pasa a handleDroppedFiles, que
+   despacha por EXTENSIÓN. Es el puente entre "sé lo que es" y "la
+   importación lo reconoce": si el nombre de la URL ya trae una
+   extensión de la misma rama se respeta —es el nombre que puso el
+   servidor—, y si no se le añade la que toca. Una dirección sin
+   extensión (`…/descarga?id=7`) acaba en `descarga.json` o
+   `descarga.kml`; una con extensión ajena (`export.php`) en
+   `export.php.json`, que es honesto y entra por la rama correcta.    */
+function downloadFileName(url, kind) {
+  const ext = URL_KIND_EXT[kind];
+  if (!ext) return "";
+  const base = fileNameFromUrl(url) || "descarga";
+  const lower = base.toLowerCase();
+  if (kind === "kite") return lower.endsWith(EXPORT_EXT) ? base : base + ext;
+  /* Misma RAMA, no misma extensión: un .geojson y un .topojson entran
+     los dos por la rama json, así que ninguno necesita renombrarse.  */
+  const same = kind === "kml" ? [".kml"]
+    : kind === "kmz" ? [".kmz"]
+    : [".json", ".geojson", ".topojson"];
+  return same.some(e => lower.endsWith(e)) ? base : base + ext;
+}

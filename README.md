@@ -1,5 +1,9 @@
 # KITE Local
 
+[![Tests](https://github.com/ifsnop/kite/actions/workflows/tests.yml/badge.svg)](https://github.com/ifsnop/kite/actions/workflows/tests.yml)
+[![Release](https://img.shields.io/github/v/release/ifsnop/kite)](https://github.com/ifsnop/kite/releases/latest)
+[![License: AGPL v3](https://img.shields.io/badge/License-AGPL%20v3-blue.svg)](LICENSE)
+
 **KML Interactive Tree Explorer**
 
 A privacy-first, browser-based viewer and organizer for **KML, KMZ and GeoJSON** files. It preserves nested KML folder structures as an interactive layer tree, runs from one self-contained HTML file, and keeps imported data inside the user's browser.
@@ -29,7 +33,7 @@ KITE Local focuses deliberately on that workflow:
 - **Take work out again.** Any folder can be exported as a portable
   `.kite.json` package, and the current view as a PNG image.
 
-It is an independent GPL-3.0 project and is **not affiliated with or endorsed by Google, Google Earth, QGIS, OpenStreetMap, Esri, Leaflet, Iconify or Instituto Geográfico Nacional de España**.
+It is an independent AGPL-3.0 project and is **not affiliated with or endorsed by Google, Google Earth, QGIS, OpenStreetMap, Esri, Leaflet, Iconify or Instituto Geográfico Nacional de España**.
 
 ## Key differentiators
 
@@ -87,7 +91,9 @@ KITE Local does not impose fixed limits on KML file size, imported features or v
   cheat sheet built in
 - collapse and expand folders; deep collapse of a whole branch
 - search by layer or folder name, with previous/next match
-- pan to a node, zoom to a node, and fit the map to loaded content
+- pan to a node, zoom to a node (a fixed level for a marker; a
+  margin-framed fit-to-bounds for a polygon, line or measurement), and fit
+  the map to loaded content
 - an information panel per layer: the original KML `description`
   (sanitized against an allow-list) or a table of the GeoJSON
   `properties`
@@ -95,6 +101,21 @@ KITE Local does not impose fixed limits on KML file size, imported features or v
   submenu instead of guessing one
 - export any folder or file as a portable `.kite.json` package
 - local storage usage indicator, and a session log of every notice shown
+- a Properties panel with a Preferences tab for global settings — measurement
+  unit, coordinate format and the interactive-vertex-edit cap — previewed
+  live in any open dialog but only saved on Accept, plus a second tab that
+  remembers which GeoJSON property was used as each file's name
+
+### Loading
+
+- drag KML, KMZ, GeoJSON, TopoJSON and exported `.kite.json` folders onto
+  the panel, or drop them straight into a folder
+- **open a URL**: paste an address, download it, see what actually
+  arrived — the format is recognised from the content, not the
+  extension — and only then add it to the tree. Downloads collect under a
+  «Descargas» section, one numbered folder each, so where something came
+  from stays visible whatever the format. A download in progress can be cancelled without waiting
+  for the timeout.
 
 ### Styling and editing
 
@@ -106,8 +127,13 @@ KITE Local does not impose fixed limits on KML file size, imported features or v
 - polygon and line outline width and colour
 - polygon fill colour and opacity, with an outline/fill/both selector
 - optional permanent polygon and line labels, like the marker ones
-- read-only perimeter (or length) and area, in metres, kilometres, feet
-  or nautical miles
+- read-only perimeter (or length) and area, in metres, kilometres, feet,
+  statute miles or nautical miles
+- interactive vertex editing on the map for an already-created polygon,
+  line or route, while its style dialog is open: drag a vertex to move it,
+  right-click to delete it, Shift+click or the Insert key to add one — with
+  a minimum per ring and an adjustable cap (500 by default) on how many
+  vertices get on-map handles before it falls back to the text editor
 - a point-list editor: one vertex per line, tab-separated, so a geometry
   can be copied into a spreadsheet and pasted back
 - ground-overlay image opacity
@@ -147,25 +173,74 @@ the flag clears by itself when the tiles come back.
 - draw polygons and open lines vertex by vertex
 - export the current view as a PNG image
 
-### Elevation (Spain)
+### Elevation
 
-- terrain (MDT) and surface (MDS) elevation under the pointer, queried
-  from the IGN's WCS services, with the difference between them — the
-  visible sign of buildings or vegetation
-- the answers accumulate as a readable grid of cells, which becomes an
-  ordinary layer of the tree when the mode is switched off: persistent,
-  toggleable and deletable like any other
-- metres or feet
-- coverage is Spain only, and each reading costs a request to a third
-  party, so the mode is off by default
+- right-click on the map → «Consultar elevación aquí»: terrain (MDT) and
+  surface (MDS) elevation of a ~40 m square around the point, drawn as a
+  readable grid of cells with the difference between them — the visible
+  sign of buildings or vegetation
+- each query becomes an ordinary layer of the tree, inside one folder per
+  session under «Elevaciones»: persistent, toggleable and deletable like
+  any other; hovering a cell shows its values in the coordinates box
+- the data sources are chosen in Properties → «Fuentes de datos», from a
+  list built into the application (or none, to skip that model): the
+  IGN's WCS services by default — MDT05 (5 m), MDT25 or MDT200 for the
+  terrain, MDS (5 m) for the surface; Spain only — and Digital Earth
+  Africa's Copernicus DEM as an alternative surface model (Africa, the
+  Canary Islands and the Iberian Peninsula up to 39° N, ~30 m cells);
+  each layer is named after the dataset and provider it came from
+  («Elevación 3 — MDT25 + MDS (IGN)»)
+- the first query to each service in a session reads its capabilities
+  once, picks the finest grid of the chosen dataset and the ASCII format
+  when offered (GeoTIFF otherwise), and notes the choice in the message
+  log
+- transient failures (timeout, network, 429, 5xx) are retried up to three
+  times with a growing pause; Digital Earth Africa gets a longer timeout,
+  since its first answer for an area takes 17–33 s (measured)
+- heights follow their own unit of altitude, independent of the unit of
+  distance (Properties → Preferencias)
+- each query costs a request to a third party, so nothing is requested
+  until you ask
+
+### Route profile
+
+- right-click on a route (or its properties dialog) → «Obtener perfil»:
+  the chosen terrain (MDT) and surface (MDS) models are downloaded along
+  the route in bounded chunks, with a progress bar and a scrollable debug
+  log of every request sent and what came back, and drawn as an
+  elevation profile — distance from the start across, height up, MDT in
+  blue and MDS in green, leg vertices in bold
+- hovering the chart moves a red line across it and a red arrow along the
+  route on the map, pointing the way of travel; the readout gives the
+  distance, both heights and their MDS−MDT difference (red above 1 m)
+- the mouse wheel zooms the chart's distance around the pointer (from the
+  whole route down to 0.1 m per pixel) and dragging pans it; Shift+wheel,
+  or the wheel over the height axis, zooms the heights on their own
+- heights rescale to what is shown unless the Y axis is locked; a toolbar
+  has −/+ for each axis, «Bloquear eje Y» and «Ver todo»; the curves are
+  straight segments between cell values
+- only the cells the route actually crosses are kept, as a layer of the
+  «Perfiles de ruta» root folder that also stores the curves: from then on
+  the option reads «Mostrar perfil» and shows them without downloading
+  again; editing the route's waypoints asks for a new profile
+- routes longer than a configurable limit (10 NM by default) get no
+  profile, so a long route cannot fill the browser storage with cells
 
 ### Measurements
 
-- geodesic line distance and initial bearing
+- geodesic route measurement: click each waypoint, double-click to finish —
+  distance and initial bearing per leg, plus the running total; a
+  two-waypoint route is the old straight-line measurement
 - geodesic circle radius and area
-- editable measurement handles
-- stroke and fill styling, and values shown in metres, kilometres, feet
-  or nautical miles — the same unit the map labels use
+- drag a waypoint, or a circle's centre or edge, to move it — no modifier
+  key needed; insert and delete route waypoints the same way as polygon
+  vertices (right-click, Shift+click, Insert, Delete)
+- while its dialog is open, a measurement's figures refresh live as it is
+  dragged, with no need to close and reopen the dialog, and the 🔍 action
+  fits the map to its full geometry with a margin instead of a fixed zoom
+  level
+- stroke and fill styling, and values shown in metres, kilometres, feet,
+  statute miles or nautical miles — the same unit the map labels use
 - persistent measurements stored with the workspace
 
 ## Quick start
@@ -203,13 +278,17 @@ Imported KML/KMZ/GeoJSON content is parsed locally and is **not uploaded to an a
 
 The current build is not fully offline and makes external requests:
 
-- Leaflet CSS, JavaScript and default marker images, topojson-client and
-  html2canvas are loaded from `unpkg.com`;
+- Leaflet CSS, JavaScript and default marker images, topojson-client,
+  html2canvas and geotiff.js are loaded from `unpkg.com`;
 - JSZip is loaded from `cdnjs.cloudflare.com`;
 - place searches are sent to the public Nominatim service;
 - base-map tiles and WMS images are requested from their respective providers;
-- elevation readings are requested from the IGN's WCS services, and only while
-  elevation mode is switched on;
+- elevation queries and route profiles are requested from the chosen WCS
+  services (IGN by default, or Digital Earth Africa), and only when you ask
+  for one; a profile is a handful of sequential requests along the route,
+  under the same per-second cap. Digital Earth Africa currently answers
+  Chromium-based browsers (Chrome, Edge…) with 403 Forbidden; it works
+  from Firefox and Safari;
 - the Copernicus DEM base layer, if enabled, is requested from Sentinel Hub
   with the user's own instance ID.
 
@@ -218,6 +297,8 @@ Material Design marker icons are **embedded in the file** and cost no request at
 These providers receive ordinary request metadata, and text entered in the place search is sent to Nominatim. The imported KML geometry itself is not sent by the application to these services.
 
 For controlled or offline deployments, vendor the JavaScript, CSS, image and icon dependencies locally, disable or replace the geocoder, and configure approved tile/WMS services.
+
+Opening a URL downloads exactly the address you paste, with no credentials attached, and the content is then processed locally like any dropped file. Nothing is sent anywhere: the download is the only request, and it goes to the server you named.
 
 ## Why not just use QGIS or Google Earth on the web?
 
@@ -286,10 +367,13 @@ The interface is primarily designed for mouse and keyboard use. Touch support an
 - Altitude is carried through import, storage and export, but it is not rendered: this is a 2D viewer. Two placemarks at the same latitude and longitude but different altitudes are still treated as duplicates.
 - KML style handling is partial: shared and inline styles for basic line and polygon appearance, and `StyleMap` normal-style references. (Namespaces are not a limitation — elements are matched by local name, so prefixed, default-namespaced and namespace-less KML all work.)
 - External services can change, rate-limit requests or become unavailable.
+- Opening a URL only works if that server allows other pages to read it (CORS headers). Most static hosts do; many portals do not, and the browser gives the page no detail about why. For those, download the file and drop it in — the dialog says so when it happens.
 - `.kite.json` is application-specific and currently requires a matching tree schema version.
 - The current interface is in Spanish.
 
 ## Security notes
+
+`connect-src` accepts any https origin, which is the one directive that had to be opened: the address a URL import downloads from is chosen by the user, so enumerating origins is impossible by definition. Nothing else was relaxed — `default-src 'none'` stands, and `script-src`, `style-src` and `img-src` keep their closed lists, so a remote origin can supply data but never code or styles. `http:` is deliberately excluded.
 
 Treat imported files as untrusted input. The viewer uses text insertion and explicit HTML escaping for marker labels, sanitizes KML `description` HTML against an allow-list, ships a restrictive `Content-Security-Policy` (`default-src 'none'` plus the specific origins it needs), and pins its CDN dependencies with Subresource Integrity. Marker icons are embedded rather than fetched, so no remote SVG is executed.
 
@@ -302,11 +386,13 @@ Do not use public tile, geocoding or CDN services for sensitive work without an 
 - **The sources are split.** The application is edited as `src/index.html`,
   `src/styles.css` and twenty JavaScript files, concatenated into the shipped
   file by `build.js`. The single-file product is the output, not the source.
-- **There are automated tests.** Thirty-six suites run under Node against the
-  shipped file, covering coordinate parsing and formatting, UTM, KML
-  namespaces and styles, geometry conversion, serialization, tree navigation
-  and selection, hit-testing, geodesic area and perimeter, and more. Run them
-  with `npm test`.
+- **There are automated tests.** Fifty-eight suites run against the shipped
+  file — most under Node, plus a set that drives a real headless browser —
+  covering coordinate parsing and formatting, UTM, KML namespaces and
+  styles, geometry conversion, serialization, tree navigation and
+  selection, hit-testing, geodesic area and perimeter, multi-waypoint route
+  measurement, interactive vertex editing, and more. Run them with
+  `npm test`.
 - **CDN dependencies carry Subresource Integrity**, so a compromised CDN
   cannot substitute other content, and marker icons are now embedded in the
   file rather than fetched.
@@ -376,13 +462,36 @@ Issues and pull requests are welcome. Include the browser/version, a minimal non
 
 Do not attach operational, confidential or personally identifiable geospatial data to a public issue.
 
+**One-time setup after cloning**, alongside `npm install`: link the pre-commit hook that keeps `BUILD` and the generated artifacts in sync automatically.
+
+```bash
+ln -s ../../scripts/hooks/pre-commit .git/hooks/pre-commit
+chmod +x scripts/hooks/pre-commit
+```
+
+`.git/hooks/` isn't tracked by git, so this symlink has to be created once per clone — the script itself lives at `scripts/hooks/pre-commit`, a normal tracked file, reviewable like anything else. Once linked, any commit that touches `src/` or `package.json` bumps `BUILD` (`src/js/10-map.js`) to the current timestamp, runs `npm run build`, and stages the regenerated `kitelocal.html`/`kitelocal.min.html` before the commit is created — a commit that only touches `docs/`, `tests/` or this file is left untouched. If the hook's own build or syntax check fails, the commit is aborted and the working tree is restored to exactly how it was, so the actual error (whatever broke `src/`) is the only thing left to look at. Without the symlink, nothing breaks — `BUILD` just stays whatever it was until someone bumps it (or the hook gets linked), and `npm run check`/CI still catch a stale artifact the same way they always have.
+
 If what you hit is a freeze or a slowdown rather than a wrong result, the [`debug` branch](https://github.com/ifsnop/kite/tree/debug) carries an instrumented build that answers questions a console error cannot — see [Diagnosing a freeze or a slowdown](#diagnosing-a-freeze-or-a-slowdown-debug-branch). Its output pastes straight into an issue.
+
+## Releasing
+
+Feature work and fixes land on branches, each through its own pull request into `main`. Cutting a release once every intended PR is merged:
+
+1. Bump `package.json`'s `"version"` and update the version shown in the two documents under `docs/` (the user manual and the security study), then commit — this is the release's final commit. The pre-commit hook (see "Contributing") notices `package.json` changing, bumps `BUILD` and runs `npm run build` on its own, so there's no separate manual build step here anymore.
+2. Tag that exact commit and push the tag: `git tag vX.Y.Z && git push origin vX.Y.Z`. The tag **must** match `package.json`'s version precisely (with a leading `v`).
+3. [`.github/workflows/release.yml`](.github/workflows/release.yml) takes it from there: it verifies the tag matches `package.json`, that `kitelocal.html`/`kitelocal.min.html` are up to date with `src/`, and runs the full test suite (`npm test`, with the browser suites required) — only then does it publish the GitHub Release itself, with auto-generated release notes from the merged PRs and both artifacts attached as downloadable assets for that exact version.
+
+If any of those checks fail, the workflow fails and **no Release is published** — the test run happens inside this same job specifically so a red suite stops it before the publish step ever runs, rather than racing independently against the separate `tests.yml` workflow that the same tag push also triggers. Fix what's missing (the version bump, `npm run build`, or the failing test), delete the bad tag (`git push --delete origin vX.Y.Z`), and tag the corrected commit.
+
+`package.json`'s `"version"` is the single source of truth: `build.js` bakes it into the app's attribution line (`v<version> (<build>) | GitHub | Leaflet`, bottom-right of the map) at build time, the same way it already inlines the page's CSS and JS.
 
 ## License
 
-This project is licensed under the **GNU General Public License v3.0 (GPL-3.0)**.
+This project is licensed under the **GNU Affero General Public License v3.0 (AGPL-3.0)**.
 
-See the repository's `LICENSE` file for the complete license text. Redistribution and modification are subject to the GPL-3.0 terms.
+See the repository's `LICENSE` file for the complete license text. Redistribution and modification are subject to the AGPL-3.0 terms.
+
+The map rotation code (`src/js/08-map-rotation.js`) is derived from [leaflet-rotate](https://github.com/Raruto/leaflet-rotate) 0.2.8 by Raruto and contributors (IvanSanchez, Fnicollet, Hyperknot), released under the GPL-3.0. It has been incorporated, cut down and modified, and is distributed as part of KITE Local under the AGPL-3.0, as section 13 of the GPLv3 allows; its authorship notice is kept in the file.
 
 ## Third-party services and libraries
 
@@ -392,6 +501,8 @@ This application currently uses or accesses:
 - [JSZip](https://stuk.github.io/jszip/)
 - [topojson-client](https://github.com/topojson/topojson-client)
 - [html2canvas](https://html2canvas.hertzen.com/)
+- [geotiff.js](https://geotiffjs.github.io/) (MIT) — reads elevation grids from services that only offer GeoTIFF
+- [leaflet-rotate](https://github.com/Raruto/leaflet-rotate) (GPL-3.0) — incorporated into the source (see License); not requested at runtime
 - [Material Design Icons](https://pictogrammers.com/library/mdi/) (Pictogrammers, Apache-2.0) — embedded at build time through [Iconify](https://iconify.design/); not requested at runtime
 - [OpenStreetMap](https://www.openstreetmap.org/)
 - [Nominatim](https://nominatim.org/)
@@ -399,6 +510,7 @@ This application currently uses or accesses:
 - Spanish PNOA, IGN WMTS, WMS and WCS services
 - [SRTM30 tiles from terrestris](https://ows.terrestris.de/) (SRTM data © NASA LP DAAC)
 - [Copernicus DEM through Sentinel Hub](https://dataspace.copernicus.eu/)
+- [Digital Earth Africa](https://www.digitalearthafrica.org/) WCS — Copernicus DEM GLO-30 (© DLR e.V. 2010-2014 and © Airbus Defence and Space GmbH 2014-2018, provided under COPERNICUS by the European Union and ESA)
 
 Their licenses, attribution requirements, acceptable-use policies and service limits apply independently.
 

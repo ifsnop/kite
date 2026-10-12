@@ -2,7 +2,8 @@ const { DOMParser } = require("@xmldom/xmldom");
 const { fn, constDecl } = require("./_extract");
 
 const src = [
-  constDecl("COORD_EPS"), constDecl("DUP_POS_DECIMALS"),
+  constDecl("COORD_EPS"), constDecl("DUP_POS_DECIMALS"), constDecl("NAME_JOIN"),
+  fn("stringifyPropValue"), fn("composeFeatureName"),
   fn("bareName"), fn("elsByTag"), constDecl("firstByTag"), fn("text"), fn("clampLatLng"), fn("clampDeg"), fn("parseCoords"),
   fn("findDuplicatePlacemarks"), fn("removeDuplicatePlacemarks"),
   fn("featureDupName"), fn("findDuplicateFeatures"), fn("removeDuplicateFeatures"),
@@ -97,17 +98,17 @@ const fc = features => ({ type: "FeatureCollection", features });
 const pt = (nombre, lat, lng) => feat(nombre === null ? {} : { name: nombre }, [lng, lat]);
 
 {
-  const g = findDuplicateFeatures([pt("Faro", 40.4, -3.7), pt("Faro", 40.4, -3.7)], null);
+  const g = findDuplicateFeatures([pt("Faro", 40.4, -3.7), pt("Faro", 40.4, -3.7)], ["name"]);
   ok(g.length === 1 && g[0].length === 2, "GeoJSON: mismo nombre y posición, un grupo de 2");
 }
 {
-  ok(findDuplicateFeatures([pt("Faro", 40.4, -3.7), pt("Faro", 41.0, -3.7)], null).length === 0,
+  ok(findDuplicateFeatures([pt("Faro", 40.4, -3.7), pt("Faro", 41.0, -3.7)], ["name"]).length === 0,
     "GeoJSON: mismo nombre en otro sitio no es duplicado");
-  ok(findDuplicateFeatures([pt("Faro", 40.4, -3.7), pt("Otro", 40.4, -3.7)], null).length === 0,
+  ok(findDuplicateFeatures([pt("Faro", 40.4, -3.7), pt("Otro", 40.4, -3.7)], ["name"]).length === 0,
     "GeoJSON: misma posición con otro nombre tampoco");
 }
 {
-  ok(findDuplicateFeatures([pt("Faro", 40.400001, -3.700001), pt("Faro", 40.400002, -3.7)], null).length === 1,
+  ok(findDuplicateFeatures([pt("Faro", 40.400001, -3.700001), pt("Faro", 40.400002, -3.7)], ["name"]).length === 1,
     "GeoJSON: el ruido de coma flotante entra en la misma tolerancia que en KML");
 }
 {
@@ -115,41 +116,43 @@ const pt = (nombre, lat, lng) => feat(nombre === null ? {} : { name: nombre }, [
      de sitio son puntos DISTINTOS, y agruparlos delataría una lectura
      al revés — el error fácil, porque el resto del proyecto usa
      lat/lng.                                                         */
-  ok(findDuplicateFeatures([feat({ name: "X" }, [-3.7, 40.4]), feat({ name: "X" }, [40.4, -3.7])], null).length === 0,
+  ok(findDuplicateFeatures([feat({ name: "X" }, [-3.7, 40.4]), feat({ name: "X" }, [40.4, -3.7])], ["name"]).length === 0,
     "GeoJSON: lng/lat intercambiados son sitios distintos, no un duplicado");
 }
 {
   /* Sin nombre propio no se agrupa, igual que un Placemark sin <name>:
      el «Elemento N» de respaldo lo da el índice, así que no dice nada
      sobre si dos fichas son la misma.                                */
-  ok(findDuplicateFeatures([pt(null, 40.4, -3.7), pt(null, 40.4, -3.7)], null).length === 0,
+  ok(findDuplicateFeatures([pt(null, 40.4, -3.7), pt(null, 40.4, -3.7)], ["name"]).length === 0,
     "GeoJSON: dos elementos sin nombre no se fusionan");
-  ok(featureDupName({}, null) === null, "sin name ni title no hay nombre con el que agrupar");
-  ok(featureDupName({ title: "T" }, null) === "T", "vale también `title`");
-  ok(featureDupName({ ref: "R", name: "N" }, "ref") === "R",
-    "y manda la propiedad elegida en el selector de nombre");
+  ok(featureDupName({}, ["name"]) === null, "sin ninguna de las claves elegidas no hay nombre con el que agrupar");
+  ok(featureDupName({ name: "N" }, null) === null, "sin selección no se asume `name` ni `title`");
+  ok(featureDupName({ ref: "R", name: "N" }, ["ref"]) === "R",
+    "manda la propiedad elegida en el selector de nombre");
+  ok(featureDupName({ ref: "R", mun: "M" }, ["ref", "mun"]) === "R / M",
+    "con varias claves, el nombre es la combinación en orden");
 }
 {
   /* La propiedad elegida cambia QUIÉN es duplicado de quién: con `ref`
-     estos dos son el mismo sitio; con el nombre por defecto, no.     */
+     estos dos son el mismo sitio; con `name`, no.     */
   const dos = [feat({ ref: "K1", name: "Uno" }, [-3.7, 40.4]),
                feat({ ref: "K1", name: "Dos" }, [-3.7, 40.4])];
-  ok(findDuplicateFeatures(dos, "ref").length === 1, "con la propiedad elegida, son duplicados");
-  ok(findDuplicateFeatures(dos, null).length === 0, "sin ella, no lo son");
+  ok(findDuplicateFeatures(dos, ["ref"]).length === 1, "con la propiedad elegida, son duplicados");
+  ok(findDuplicateFeatures(dos, ["name"]).length === 0, "con otra, no lo son");
 }
 {
   /* Una línea no tiene una posición única que comparar, igual que un
      Placemark sin <Point>.                                           */
   const linea = feat({ name: "Ruta" }, [[-3.7, 40.4], [-3.6, 40.5]], "LineString");
-  ok(findDuplicateFeatures([linea, linea], null).length === 0,
+  ok(findDuplicateFeatures([linea, linea], ["name"]).length === 0,
     "GeoJSON: una línea nunca se agrupa, aunque comparta nombre");
-  ok(findDuplicateFeatures([feat({ name: "X" }, []), feat({ name: "X" }, [])], null).length === 0,
+  ok(findDuplicateFeatures([feat({ name: "X" }, []), feat({ name: "X" }, [])], ["name"]).length === 0,
     "ni un punto sin coordenadas");
 }
 {
   const doc = fc([pt("A", 1, 1), pt("B", 2, 2), pt("A", 1, 1), pt("A", 1, 1)]);
   const arrayOriginal = doc.features;
-  const groups = findDuplicateFeatures(doc.features, null);
+  const groups = findDuplicateFeatures(doc.features, ["name"]);
   const removed = removeDuplicateFeatures(doc, groups);
   ok(removed === 2, "se retiran 2: " + removed);
   ok(doc.features.map(f => f.properties.name).join() === "A,B",
@@ -161,7 +164,7 @@ const pt = (nombre, lat, lng) => feat(nombre === null ? {} : { name: nombre }, [
 }
 {
   const doc = fc([pt("A", 1, 1), pt("B", 2, 2)]);
-  ok(findDuplicateFeatures(doc.features, null).length === 0, "sin duplicados, ningún grupo");
+  ok(findDuplicateFeatures(doc.features, ["name"]).length === 0, "sin duplicados, ningún grupo");
   ok(removeDuplicateFeatures(doc, []) === 0, "y nada que retirar");
   /* Un Feature suelto o una geometría pelada son UN elemento: no hay
      array que tocar y tampoco puede haber duplicados.                */

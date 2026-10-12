@@ -67,12 +67,11 @@ function geojsonFeatures(gj) {
   throw new Error("no parece un GeoJSON");
 }
 
-/* Un archivo es ambiguo cuando trae properties pero ninguna clave con la
-   que ya sabemos nombrar (name/title): solo entonces hace falta
-   preguntar qué propiedad usar.                                     */
+/* Hay que preguntar (o aplicar lo guardado) siempre que el primer Feature
+   traiga properties con alguna clave: NO se asume que `name` o `title`
+   sean el nombre, lo decide el usuario una vez por forma de properties. */
 function needsNamePicker(props) {
-  return !!(props && typeof props === "object" && Object.keys(props).length
-    && !props.name && !props.title);
+  return !!(props && typeof props === "object" && Object.keys(props).length);
 }
 
 /* Huella de la FORMA de properties (su conjunto de claves, no sus
@@ -83,20 +82,37 @@ function propsFingerprint(props) {
   return JSON.stringify(Object.keys(props || {}).sort());
 }
 
-/* nameProp es la clave elegida por el usuario (o recordada); si esa
-   capa concreta no la tiene, se cae en la cadena de siempre.        */
-function resolveFeatureName(props, index, nameProp) {
-  return String((nameProp && props[nameProp]) || props.name || props.title || `Elemento ${index + 1}`);
+/* Separador entre los valores de varias claves elegidas como nombre. */
+const NAME_JOIN = " / ";
+
+/* Une, EN EL ORDEN de `keys`, los valores presentes de esas claves.
+   Una clave ausente o de valor vacío se omite (no deja «A / »); si no
+   queda ninguna devuelve "" y quien llama decide el respaldo.         */
+function composeFeatureName(props, keys) {
+  if (!props || !Array.isArray(keys)) return "";
+  const parts = [];
+  for (const k of keys) {
+    const v = stringifyPropValue(props[k]).trim();
+    if (v) parts.push(v);
+  }
+  return parts.join(NAME_JOIN);
 }
 
-async function buildGeoJsonRecords(gj, prog, report, nameProp = null) {
+/* nameKeys es la lista ordenada elegida por el usuario (o recordada).
+   Sin `name`/`title` de respaldo a propósito: si el elemento no tiene
+   ninguna de esas claves, sale «Elemento N».                         */
+function resolveFeatureName(props, index, nameKeys) {
+  return composeFeatureName(props, nameKeys) || `Elemento ${index + 1}`;
+}
+
+async function buildGeoJsonRecords(gj, prog, report, nameKeys = null) {
   const features = geojsonFeatures(gj);
   const out = [];
 
   for (let i = 0; i < features.length; i++) {
     const feature = features[i];
     const props = (feature && typeof feature.properties === "object" && feature.properties) || {};
-    const name = resolveFeatureName(props, i, nameProp);
+    const name = resolveFeatureName(props, i, nameKeys);
     try {
       if (!feature || !validGeometry(feature.geometry)) {
         if (report) {
@@ -137,7 +153,7 @@ const DB_NAME = "visor-kml";
 const DB_VERSION = 3;  /* esquema de la base: un único almacén "tree".
                           Subir solo cuando cambie la estructura de almacenes;
                           la migración es simplemente borrar lo anterior.     */
-const TREE_SCHEMA = 6; /* formato del árbol serializado. Subir solo cuando
+const TREE_SCHEMA = 7; /* formato del árbol serializado. Subir solo cuando
                           cambie el formato; un árbol guardado con otra
                           versión se descarta al leer.
                           v2: los nodos de capa admiten `mstyle` (estilo de
@@ -158,8 +174,41 @@ const TREE_SCHEMA = 6; /* formato del árbol serializado. Subir solo cuando
                           por defecto, así que añadirle una clave
                           (textAlways) NO sube esta versión: un árbol
                           anterior se lee igual y subirla habría
-                          borrado el de todo el mundo a cambio de nada. */
+                          borrado el de todo el mundo a cambio de nada.
+                          v7: los nodos "measure" guardan `waypoints`
+                          (array de {lat,lng}, longitud 2 para línea/
+                          círculo, N para el nuevo mtype "route") en vez
+                          de los campos sueltos `a`/`b`. EXCEPCIÓN
+                          deliberada al principio de «sin compatibilidad
+                          hacia atrás»: un árbol v6 no se descarta, se
+                          sube en silencio con upgradeMeasuresV6 (ver
+                          más abajo) porque el único cambio de forma
+                          entre v6 y v7 es ese, y se sabe de antemano
+                          que es trivial y está acotado a un solo tipo
+                          de nodo — no es la política por defecto para
+                          la próxima subida de versión, que se evalúa
+                          aparte. */
 const DB_TREE = "tree";
+
+/* Sube en silencio un árbol v6 a la forma v7 (measure: a/b → waypoints),
+   la ÚNICA excepción a «lo que no corresponda a la versión actual se
+   borra, no se migra». Función PURA sobre el array de registros: no
+   toca IndexedDB ni el DOM, así que se puede probar aislada. No hace
+   falta mirar `mtype`: la transformación es idéntica para línea y
+   círculo (los únicos tipos que existían en v6, ambos con exactamente
+   dos puntos).                                                        */
+function upgradeMeasuresV6(nodes) {
+  for (const rec of nodes) {
+    if (rec.t === "measure" && !rec.waypoints && rec.a && rec.b) {
+      rec.waypoints = [rec.a, rec.b];
+      delete rec.a;
+      delete rec.b;
+    } else if (rec.children) {
+      upgradeMeasuresV6(rec.children);
+    }
+  }
+  return nodes;
+}
 
 /* One connection, reused. Opening the database on every save wastes
    handles and, worse, a stale connection blocks the upgrade of another
@@ -234,7 +283,7 @@ function sanitizeHtml(html) {
 
 /* El usuario cerró el panel explícitamente (Cerrar o Escape): el hover
    no debe reabrirlo hasta la próxima apertura explícita (botón ℹ o
-   «Mostrar propiedades» del menú contextual), o el cierre nunca "se
+   «Mostrar atributos» del menú contextual), o el cierre nunca "se
    queda cerrado" mientras el ratón siga pasando por capas.           */
 let layerInfoDismissed = false;
 
@@ -257,7 +306,7 @@ function cancelLayerInfoHide() {
 function scheduleLayerInfoHide() {
   if (descDialog.hidden || descBox.contains(document.activeElement)) return;
   cancelLayerInfoHide();
-  layerInfoHideTimer = setTimeout(() => { descDialog.hidden = true; layerInfoHideTimer = null; }, LAYER_INFO_HIDE_DELAY);
+  layerInfoHideTimer = setTimeout(() => { hideLayerInfo(); layerInfoHideTimer = null; }, LAYER_INFO_HIDE_DELAY);
 }
 
 /* One-shot guard set when LEAVING a drawing tool (see setTool): the
@@ -279,6 +328,18 @@ let suppressNextHover = false;
    (.dlg-float): the map stays interactive underneath, and with the
    dialog already open, moving to another layer only updates its
    content, without repositioning or closing the box.                 */
+/* Every hide goes through here so focusReturn stays paired with the open
+   (showLayerInfo always pushes one entry). Focus is restored only if it
+   was in the panel or already lost to <body>: a hover-opened panel that
+   times out must not pull focus away from wherever the user is now.   */
+function hideLayerInfo({ dismiss = false } = {}) {
+  if (descDialog.hidden) return;
+  const a = document.activeElement;
+  const hadFocus = !a || a === document.body || descBox.contains(a);
+  descDialog.hidden = true;
+  if (dismiss) layerInfoDismissed = true;
+  if (hadFocus) releaseFocus(); else focusReturn.pop();
+}
 function showLayerInfo(li, { focus = true } = {}) {
   cancelLayerInfoHide(); /* a real hover cancels any pending deferred close */
   if (!focus && suppressNextHover) { suppressNextHover = false; return; } /* residual hover right after leaving a drawing tool */
@@ -292,14 +353,23 @@ function showLayerInfo(li, { focus = true } = {}) {
   if (focus) layerInfoDismissed = false; /* explicit open: re-arms the hover */
   const html = infoHtmlFor(li);
   if (html == null) return;
+  /* Pasar el ratón solo abre la ficha propia de la capa: que un marcador
+     sin nada más tenga las horas del sol (con la iluminación activa) no
+     debe abrir una ventana cada vez que se cruza uno.                  */
+  if (!focus && baseInfoHtml(li) == null) return;
   descTitle.textContent = li._name;
   descBody.innerHTML = html;
+  descLayer = li;
+  descEditBtn.hidden = !STYLE_EDITABLE_KINDS.has(styleKind(li));
   applyPropsSplit(); /* el reparto elegido sobrevive al cambio de capa */
   const wasHidden = descDialog.hidden;
   descDialog.hidden = false;
   if (wasHidden) {
     clampToViewport(descBox);
     if (focus) focusDialog(descBox);
+    /* Opened by hovering the viewer: closing it must land back there,
+       not wherever focus happened to be when the cursor crossed it.   */
+    else focusReturn.push(map.getContainer());
   }
 }
 
@@ -323,6 +393,10 @@ function pushUndo(label) {
 async function applySnapshot(nodes) {
   clearSelection();
   rootGroup.clearLayers();
+  /* La lista viva de cuadrículas se rehace con el árbol: sin esto, cada
+     deshacer dejaba las de antes, y una ruta seguía «teniendo» un
+     perfil que ya no estaba (findRouteProfile).                      */
+  elevGridGroups.length = 0;
   showEmptyMessage();
   if (nodes.length) await restoreTree(nodes);
   scheduleSave();
@@ -390,6 +464,208 @@ async function dbLoadProps() {
   });
 }
 
+/* ---------- Tope de vértices editables interactivamente sobre el mapa ----------
+   Otra clave del mismo almacén: no hace falta subir DB_VERSION. Depende
+   del hardware de quien lo usa (ver VERTEX_EDIT_MAX_DEFAULT en
+   43-points-editor.js), así que es una preferencia y no una constante
+   fija — se edita en el mismo editor que las asociaciones de nombre de
+   GeoJSON (botón 🏷️, gnp-editor).                                    */
+const VERTMAX_KEY = "vertexEditMax";
+const VERTMAX_SCHEMA = 1;
+
+async function dbSaveVertexEditMax(max) {
+  const db = await openDb();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(DB_TREE, "readwrite");
+    tx.objectStore(DB_TREE).put({ v: VERTMAX_SCHEMA, max }, VERTMAX_KEY);
+    tx.oncomplete = resolve;
+    tx.onerror = () => reject(tx.error);
+  });
+}
+/* Validado como cualquier otro valor leído: un registro corrupto o un
+   0/negativo no debe colar un tope inservible (`beginVertexEdit`
+   comparte código para "sin trazo" y "por encima del tope", y un tope
+   de 0 desactivaría la edición interactiva para todo el mundo).       */
+async function dbLoadVertexEditMax() {
+  const db = await openDb();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(DB_TREE, "readonly");
+    const rq = tx.objectStore(DB_TREE).get(VERTMAX_KEY);
+    rq.onsuccess = () => {
+      const r = rq.result;
+      resolve(r && r.v === VERTMAX_SCHEMA && Number.isInteger(r.max) && r.max > 0 ? r.max : null);
+    };
+    rq.onerror = () => reject(rq.error);
+  });
+}
+
+/* Segmentos de un arco (herramienta «Medir arco»): mismo patrón que el
+   tope de vértices. Se valida contra el mismo rango que el campo del
+   panel (ARC_SEGMENTS_MIN/MAX, 43-points-editor.js).                  */
+const ARC_SEGMENTS_KEY = "arcSegments";
+const ARC_SEGMENTS_SCHEMA = 1;
+async function dbSaveArcSegments(n) {
+  const db = await openDb();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(DB_TREE, "readwrite");
+    tx.objectStore(DB_TREE).put({ v: ARC_SEGMENTS_SCHEMA, n }, ARC_SEGMENTS_KEY);
+    tx.oncomplete = resolve;
+    tx.onerror = () => reject(tx.error);
+  });
+}
+async function dbLoadArcSegments() {
+  const db = await openDb();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(DB_TREE, "readonly");
+    const rq = tx.objectStore(DB_TREE).get(ARC_SEGMENTS_KEY);
+    rq.onsuccess = () => {
+      const r = rq.result;
+      resolve(r && r.v === ARC_SEGMENTS_SCHEMA && Number.isInteger(r.n)
+        && r.n >= ARC_SEGMENTS_MIN && r.n <= ARC_SEGMENTS_MAX ? r.n : null);
+    };
+    rq.onerror = () => reject(rq.error);
+  });
+}
+
+/* Fuentes de elevación elegidas (Propiedades → Fuentes de datos): un id
+   del catálogo ELEV_SOURCES por modelo, o null = «Ninguna». Se valida
+   contra el catálogo ACTUAL al leer (validElevSources, 60-elevation.js):
+   una fuente retirada del código vuelve a la de por defecto.        */
+const ELEV_SOURCES_KEY = "elevSources";
+const ELEV_SOURCES_SCHEMA = 1;
+async function dbSaveElevSources(sel) {
+  const db = await openDb();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(DB_TREE, "readwrite");
+    tx.objectStore(DB_TREE).put({ v: ELEV_SOURCES_SCHEMA, mdt: sel.mdt, mds: sel.mds }, ELEV_SOURCES_KEY);
+    tx.oncomplete = resolve;
+    tx.onerror = () => reject(tx.error);
+  });
+}
+async function dbLoadElevSources() {
+  const db = await openDb();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(DB_TREE, "readonly");
+    const rq = tx.objectStore(DB_TREE).get(ELEV_SOURCES_KEY);
+    rq.onsuccess = () => {
+      const r = rq.result;
+      resolve(r && r.v === ELEV_SOURCES_SCHEMA ? validElevSources(r) : null);
+    };
+    rq.onerror = () => reject(rq.error);
+  });
+}
+
+/* Unidad de medida y formato de latitud/longitud: mismo patrón que
+   VERTMAX_KEY/VERTMAX_SCHEMA, ajustes GLOBALES (panel de Propiedades,
+   43-points-editor.js) que antes vivían solo en memoria, sin persistir
+   entre sesiones, y con un control repetido en varios diálogos
+   distintos (`measureUnit`) o propio de uno solo (el formato de
+   coordenadas de un marcador) — pedido explícitamente: un único sitio,
+   que además recuerde el valor entre sesiones.                       */
+const MEASURE_UNIT_KEY = "measureUnit";
+const MEASURE_UNIT_SCHEMA = 1;
+const MEASURE_UNITS = ["m", "km", "ft", "mi", "nm"];
+async function dbSaveMeasureUnit(unit) {
+  const db = await openDb();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(DB_TREE, "readwrite");
+    tx.objectStore(DB_TREE).put({ v: MEASURE_UNIT_SCHEMA, unit }, MEASURE_UNIT_KEY);
+    tx.oncomplete = resolve;
+    tx.onerror = () => reject(tx.error);
+  });
+}
+async function dbLoadMeasureUnit() {
+  const db = await openDb();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(DB_TREE, "readonly");
+    const rq = tx.objectStore(DB_TREE).get(MEASURE_UNIT_KEY);
+    rq.onsuccess = () => {
+      const r = rq.result;
+      resolve(r && r.v === MEASURE_UNIT_SCHEMA && MEASURE_UNITS.includes(r.unit) ? r.unit : null);
+    };
+    rq.onerror = () => reject(rq.error);
+  });
+}
+
+/* Unidad de las ALTITUDES (celdas de elevación, cuadro de coordenadas,
+   perfil de una ruta), independiente de la de distancias: en
+   aeronáutica se mide en millas náuticas y se sube en pies. Mismas
+   cinco unidades que la de distancia.                                 */
+const ALTITUDE_UNIT_KEY = "altitudeUnit";
+const ALTITUDE_UNIT_SCHEMA = 1;
+const validAltitudeUnit = r =>
+  (r && r.v === ALTITUDE_UNIT_SCHEMA && MEASURE_UNITS.includes(r.unit) ? r.unit : null);
+async function dbSaveAltitudeUnit(unit) {
+  const db = await openDb();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(DB_TREE, "readwrite");
+    tx.objectStore(DB_TREE).put({ v: ALTITUDE_UNIT_SCHEMA, unit }, ALTITUDE_UNIT_KEY);
+    tx.oncomplete = resolve;
+    tx.onerror = () => reject(tx.error);
+  });
+}
+async function dbLoadAltitudeUnit() {
+  const db = await openDb();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(DB_TREE, "readonly");
+    const rq = tx.objectStore(DB_TREE).get(ALTITUDE_UNIT_KEY);
+    rq.onsuccess = () => resolve(validAltitudeUnit(rq.result));
+    rq.onerror = () => reject(rq.error);
+  });
+}
+
+/* Longitud máxima de una ruta para obtener su perfil, en METROS (se
+   enseña en la unidad de distancia). Acota lo que un perfil descarga y,
+   sobre todo, lo que deja guardado en el árbol: una celda por cada una
+   recorrida. Fuera de [PROFILE_MAX_MIN, PROFILE_MAX_MAX] se descarta. */
+const PROFILE_MAX_KEY = "profileMax";
+const PROFILE_MAX_SCHEMA = 1;
+const validProfileMax = r =>
+  (r && r.v === PROFILE_MAX_SCHEMA && Number.isFinite(r.m)
+    && r.m >= PROFILE_MAX_MIN && r.m <= PROFILE_MAX_MAX ? r.m : null);
+async function dbSaveProfileMax(m) {
+  const db = await openDb();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(DB_TREE, "readwrite");
+    tx.objectStore(DB_TREE).put({ v: PROFILE_MAX_SCHEMA, m }, PROFILE_MAX_KEY);
+    tx.oncomplete = resolve;
+    tx.onerror = () => reject(tx.error);
+  });
+}
+async function dbLoadProfileMax() {
+  const db = await openDb();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(DB_TREE, "readonly");
+    const rq = tx.objectStore(DB_TREE).get(PROFILE_MAX_KEY);
+    rq.onsuccess = () => resolve(validProfileMax(rq.result));
+    rq.onerror = () => reject(rq.error);
+  });
+}
+
+const COORD_FORMAT_KEY = "coordFormat";
+const COORD_FORMAT_SCHEMA = 1;
+async function dbSaveCoordFormat(fmt) {
+  const db = await openDb();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(DB_TREE, "readwrite");
+    tx.objectStore(DB_TREE).put({ v: COORD_FORMAT_SCHEMA, fmt }, COORD_FORMAT_KEY);
+    tx.oncomplete = resolve;
+    tx.onerror = () => reject(tx.error);
+  });
+}
+async function dbLoadCoordFormat() {
+  const db = await openDb();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(DB_TREE, "readonly");
+    const rq = tx.objectStore(DB_TREE).get(COORD_FORMAT_KEY);
+    rq.onsuccess = () => {
+      const r = rq.result;
+      resolve(r && r.v === COORD_FORMAT_SCHEMA && (r.fmt === "dec" || r.fmt === "dms") ? r.fmt : null);
+    };
+    rq.onerror = () => reject(rq.error);
+  });
+}
+
 async function dbSaveBases(rec) {
   const db = await openDb();
   return new Promise((resolve, reject) => {
@@ -407,6 +683,39 @@ async function dbLoadBases() {
     rq.onsuccess = () => {
       const rec = rq.result;
       resolve(rec && rec.v === BASE_SCHEMA && rec.bases ? rec : null);
+    };
+    rq.onerror = () => reject(rq.error);
+  });
+}
+
+/* ---------- Color de fondo del mapa ----------
+   Otra clave del mismo almacén: no hace falta subir DB_VERSION. Sin
+   valor guardado (nunca se tocó, o el árbol viene de antes de este
+   cambio) `dbLoadMapBackground` devuelve null y el mapa se queda con el
+   color por defecto que ya trae el CSS (`#dfe8ef`) — compatibilidad
+   hacia atrás sin migrar nada.                                       */
+const MAPBG_KEY = "mapBackground";
+const MAPBG_SCHEMA = 1;
+
+async function dbSaveMapBackground(color) {
+  const db = await openDb();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(DB_TREE, "readwrite");
+    tx.objectStore(DB_TREE).put({ v: MAPBG_SCHEMA, color }, MAPBG_KEY);
+    tx.oncomplete = resolve;
+    tx.onerror = () => reject(tx.error);
+  });
+}
+/* Validado como cualquier otro valor leído (ver la vista guardada):
+   un registro corrupto no debe colar un `background` inválido.       */
+async function dbLoadMapBackground() {
+  const db = await openDb();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(DB_TREE, "readonly");
+    const rq = tx.objectStore(DB_TREE).get(MAPBG_KEY);
+    rq.onsuccess = () => {
+      const rec = rq.result;
+      resolve(rec && rec.v === MAPBG_SCHEMA && /^#[0-9a-f]{6}$/i.test(rec.color) ? rec.color : null);
     };
     rq.onerror = () => reject(rq.error);
   });
@@ -452,13 +761,57 @@ async function dbLoadSh() {
   });
 }
 
+/* ---------- Servidor de teselas de "Custom Maps" ----------
+   Otra clave del mismo almacén, mismo criterio que la credencial de
+   Sentinel Hub: es del usuario (su propio servidor de teselas, típico
+   caso: una caché/proxy delante de OpenStreetMap u otro servicio) y
+   solo vive en su navegador — nunca se serializa con el árbol ni viaja
+   en un .kite.json exportado.                                        */
+const CUSTOM_TILES_KEY = "customTilesUrl";
+const CUSTOM_TILES_SCHEMA = 1;
+
+async function dbSaveCustomTilesUrl(rec) {
+  const db = await openDb();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(DB_TREE, "readwrite");
+    tx.objectStore(DB_TREE).put({ v: CUSTOM_TILES_SCHEMA, ...rec }, CUSTOM_TILES_KEY);
+    tx.oncomplete = resolve;
+    tx.onerror = () => reject(tx.error);
+  });
+}
+/* Borrar la URL RETIRA la clave, no guarda un registro vacío: mismo
+   criterio que dbDeleteSh.                                            */
+async function dbDeleteCustomTilesUrl() {
+  const db = await openDb();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(DB_TREE, "readwrite");
+    tx.objectStore(DB_TREE).delete(CUSTOM_TILES_KEY);
+    tx.oncomplete = resolve;
+    tx.onerror = () => reject(tx.error);
+  });
+}
+async function dbLoadCustomTilesUrl() {
+  const db = await openDb();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(DB_TREE, "readonly");
+    const rq = tx.objectStore(DB_TREE).get(CUSTOM_TILES_KEY);
+    rq.onsuccess = () => {
+      const rec = rq.result;
+      resolve(rec && rec.v === CUSTOM_TILES_SCHEMA && typeof rec.url === "string" ? rec : null);
+    };
+    rq.onerror = () => reject(rq.error);
+  });
+}
+
 /* ---------- Nombres de GeoJSON recordados por forma de properties ----------
    Otra clave del mismo almacén: huella (JSON de las claves de properties,
-   ordenadas) → nombre de la propiedad elegida por el usuario para esa
-   forma. Así un archivo futuro con la misma forma de properties (esta
-   sesión u otra) no vuelve a preguntar.                              */
+   ordenadas) → ARRAY ORDENADO de claves que el usuario eligió para
+   componer el nombre (se unen con " / "). Un archivo futuro con la misma
+   forma de properties (esta sesión u otra) lo aplica sin preguntar.
+   v2: el valor pasó de una clave (string) a un array; lo guardado en v1
+   se descarta al leer.                                               */
 const GNP_KEY = "geojsonNameProps";
-const GNP_SCHEMA = 1;
+const GNP_SCHEMA = 2;
 
 async function dbSaveGnp(map) {
   const db = await openDb();
@@ -476,7 +829,13 @@ async function dbLoadGnp() {
     const rq = tx.objectStore(DB_TREE).get(GNP_KEY);
     rq.onsuccess = () => {
       const rec = rq.result;
-      resolve(rec && rec.v === GNP_SCHEMA && rec.map && typeof rec.map === "object" ? rec.map : {});
+      const out = {};
+      if (rec && rec.v === GNP_SCHEMA && rec.map && typeof rec.map === "object") {
+        for (const [fp, keys] of Object.entries(rec.map)) {
+          if (Array.isArray(keys) && keys.length && keys.every(k => typeof k === "string")) out[fp] = keys;
+        }
+      }
+      resolve(out);
     };
     rq.onerror = () => reject(rq.error);
   });
@@ -525,6 +884,10 @@ async function dbLoadTree() {
     rq.onsuccess = () => {
       const rec = rq.result;
       if (rec && rec.v === TREE_SCHEMA) { resolve(rec.nodes); return; }
+      /* Excepción deliberada (ver TREE_SCHEMA v7): un árbol v6 no se
+         descarta, se sube en silencio. scheduleSave() lo dejará ya en
+         v7 en cuanto el árbol restaurado sufra cualquier mutación.  */
+      if (rec && rec.v === 6) { resolve(upgradeMeasuresV6(rec.nodes)); return; }
       /* Versión distinta: se descarta el árbol, pero solo el árbol; la
          vista guardada es independiente y sigue siendo válida. El
          usuario pierde lo que tuviera cargado, así que el aviso es
@@ -551,12 +914,13 @@ function serializeNode(li) {
   const chk = li.querySelector(":scope > .node-row > input[type=checkbox]");
   const base = { name: li._name, checked: chk ? chk.checked : true };
   if (li._measure) {
-    const a = li._measure.mOrigin.getLatLng(), b = li._measure.mDest.getLatLng();
     return [{ ...base, t: "measure", mtype: li._measure.type, style: li._style,
-              a: { lat: a.lat, lng: a.lng }, b: { lat: b.lat, lng: b.lng } }];
+              waypoints: measureWaypoints(li._measure) }];
   }
   if (li._elevGrid) {
-    return [{ ...base, t: "elevGrid", cells: li._elevGrid.cells }];
+    const rec = { ...base, t: "elevGrid", cells: li._elevGrid.cells };
+    if (li._elevGrid.profile) rec.profile = li._elevGrid.profile; /* perfil de ruta */
+    return [rec];
   }
   if (li._imageOverlay) {
     const o = li._imageOverlay;
@@ -611,15 +975,17 @@ function serializePendingRecords(records) {
       return out;
     }
     if (rec.t === "measure") {
-      /* Posición siempre en vivo: los manejadores son arrastrables con
-         Ctrl+arrastre sobre el mapa aunque la fila siga pendiente (ver
-         buildMeasureRecord), así que cachear a/b se quedaría obsoleto. */
-      const a = rec._m.mOrigin.getLatLng(), b = rec._m.mDest.getLatLng();
+      /* Posición siempre en vivo: los manejadores son arrastrables
+         sobre el mapa aunque la fila siga pendiente (ver
+         buildMeasureRecord), así que cachear los waypoints se quedaría
+         obsoleto.                                                     */
       return { name: rec.name, checked: rec.checked, t: "measure", mtype: rec.mtype,
-                style: rec.style, a: { lat: a.lat, lng: a.lng }, b: { lat: b.lat, lng: b.lng } };
+                style: rec.style, waypoints: measureWaypoints(rec._m) };
     }
     if (rec.t === "elevGrid") {
-      return { name: rec.name, checked: rec.checked, t: "elevGrid", cells: rec.cells };
+      const out = { name: rec.name, checked: rec.checked, t: "elevGrid", cells: rec.cells };
+      if (rec.profile) out.profile = rec.profile;
+      return out;
     }
     /* rec.t === "imageOverlay" */
     return { name: rec.name, checked: rec.checked, t: "imageOverlay",
@@ -700,7 +1066,11 @@ async function importTreeExport(doc, fileName, insertBefore, dropTargetUl = null
   if (format !== EXPORT_FORMAT) {
     throw new Error(`archivo de formato v${format}, incompatible con el actual v${EXPORT_FORMAT}`);
   }
-  if (doc.schema !== TREE_SCHEMA) {
+  /* Misma excepci\u00F3n deliberada que dbLoadTree (ver TREE_SCHEMA v7):
+     un .kite.json exportado por una v6 se sube en silencio en vez de
+     rechazarse.                                                      */
+  if (doc.schema === 6) upgradeMeasuresV6(doc.nodes);
+  else if (doc.schema !== TREE_SCHEMA) {
     throw new Error(`formato de \u00E1rbol v${doc.schema}, incompatible con el actual v${TREE_SCHEMA}`);
   }
   if (!doc.nodes.length) throw new Error("el archivo no contiene ning\u00FAn nodo");
@@ -876,6 +1246,19 @@ async function buildRecordsFromStorage(nodes, prog) {
       const layer = L.geoJSON(n.geo, n.style ? { style: n.style } : undefined);
       clearFillOnOpenPaths(layer); /* una línea no se rellena, ver esa función */
       layer.bindPopup(escapeHtml(n.name), COMPACT_POPUP);
+      /* El icono personalizado se aplica AQUÍ, sobre la capa cruda, no
+         solo cuando materializeRecords construya su fila más adelante:
+         un marcador dentro de una carpeta colapsada puede pasar de
+         "pendiente" a "visible" con la cascada de la casilla de la
+         carpeta (cascadeVisibility → walkRecords) sin que su fila
+         llegue a crearse nunca — ese camino solo hace
+         setLayerVisible(rec._layer, checked), sin tocar el icono.
+         Reportado: un marcador con icono MDI (no la gota por defecto),
+         desactivado y dentro de una carpeta nunca desplegada, volvía a
+         la gota de Leaflet al activarlo tras recargar. Aplicarlo dos
+         veces (otra vez en materializeRecords, si la fila sí llega a
+         crearse) es inocuo: setIcon con el mismo icono no hace nada.  */
+      if (n.mstyle) styleMarkerIcon(layer, n.mstyle);
       if (n.checked) layer.addTo(rootGroup);
       const rec = { t: "layer", name: n.name, checked: !!n.checked, style: n.style || null,
                     geo: n.geo, mstyle: n.mstyle, desc: n.desc || null, _layer: layer };
@@ -970,14 +1353,11 @@ async function materializeRecords(records, parentUl) {
       updateMeasurement(rec._m);
     } else if (rec.t === "elevGrid") {
       const li = makeNode({
-        name: rec.name, layer: rec._layer, styleable: false, checked: !!rec.checked,
-        onDelete: () => {
-          const i = elevGridGroups.indexOf(rec._layer);
-          if (i >= 0) elevGridGroups.splice(i, 1);
-        }
+        name: rec.name, layer: rec._layer, styleable: false, focusable: true, checked: !!rec.checked,
+        onDelete: () => forgetElevGridGroup(rec._layer)
       });
       rec._li = li;
-      li._elevGrid = { cells: rec.cells };
+      li._elevGrid = { cells: rec.cells, profile: rec.profile || null };
       parentUl.appendChild(li);
     } else if (rec.t === "imageOverlay") {
       const li = makeNode({ name: rec.name, layer: rec._layer, styleable: true, checked: !!rec.checked });

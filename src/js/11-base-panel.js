@@ -4,13 +4,16 @@ const BaseControl = L.Control.extend({
   onAdd() {
     const box = L.DomUtil.create("div", "base-box leaflet-bar");
     /* Icono de capas dibujado en SVG: el emoji anterior salía diminuto y
-       dependía de la fuente del sistema                              */
+       dependía de la fuente del sistema. Coordenadas Y desplazadas
+       -0.45 respecto del dibujo original para centrar el bounding box
+       vertical real (antes [2, 22.9], centro 12.45) en el centro del
+       viewBox de 24 (12) — el eje X ya estaba centrado.               */
     box.innerHTML =
       '<button class="base-toggle" title="Mapas base" aria-label="Mapas base">'
       + '<svg viewBox="0 0 24 24" width="40" height="40" aria-hidden="true">'
-      + '<path fill="currentColor" d="M12 2 1.5 8 12 14l10.5-6L12 2Z"/>'
-      + '<path fill="currentColor" opacity=".65" d="M12 16.2 3.7 11.4 1.5 12.7 12 18.7l10.5-6-2.2-1.3L12 16.2Z"/>'
-      + '<path fill="currentColor" opacity=".4" d="M12 20.4 3.7 15.6 1.5 16.9 12 22.9l10.5-6-2.2-1.3L12 20.4Z"/>'
+      + '<path fill="currentColor" d="M12 1.55 1.5 7.55 12 13.55l10.5-6L12 1.55Z"/>'
+      + '<path fill="currentColor" opacity=".65" d="M12 15.75 3.7 10.95 1.5 12.25 12 18.25l10.5-6-2.2-1.3L12 15.75Z"/>'
+      + '<path fill="currentColor" opacity=".4" d="M12 19.95 3.7 15.15 1.5 16.45 12 22.45l10.5-6-2.2-1.3L12 19.95Z"/>'
       + '</svg></button>'
       + '<div class="base-list" hidden></div>';
     this._list = box.querySelector(".base-list");
@@ -47,6 +50,7 @@ function moveBaseLayer(id, delta) {
 function renderBasePanel() {
   const list = baseControl._list;
   list.innerHTML = "";
+  list.appendChild(buildMapBackgroundRow());
   const ids = [...baseState.keys()];
   for (const [id, st] of baseState) {
     const row = document.createElement("div");
@@ -69,13 +73,17 @@ function renderBasePanel() {
        (si no, se queda con el `disabled` de la primera pintada y no
        reacciona a encender/apagar la capa).                          */
     const sel = st.def.dynamic ? buildDynamicLayerSelect(id, st) : null;
-    /* La tuerca no se deshabilita con la capa apagada a propósito: ver
-       buildDynamicConfigButton.                                       */
-    const gear = st.def.dynamic ? buildDynamicConfigButton(st) : null;
+    /* La tuerca depende de tener una fuente CONFIGURABLE (`configure`),
+       no de ser "dynamic": "Custom Maps" tiene tuerca (una URL que
+       ajustar) pero no catálogo ni <select> entre el que elegir —a
+       diferencia de PNOA histórico/Copernicus, que tienen las dos
+       cosas. La tuerca no se deshabilita con la capa apagada a
+       propósito: ver buildDynamicConfigButton.                        */
+    const src = dynSource(st.def);
+    const gear = src && src.configure ? buildDynamicConfigButton(st) : null;
     /* Un selector bloqueado (sin credencial) no se rehabilita al
        encender la capa: no hay nada que elegir todavía.               */
-    const src = st.def.dynamic ? dynSource(st.def) : null;
-    const selLocked = !!(src && src.blocked && src.blocked());
+    const selLocked = !!(st.def.dynamic && src && src.blocked && src.blocked());
 
     chk.addEventListener("change", () => {
       st.on = chk.checked;
@@ -110,6 +118,43 @@ function renderBasePanel() {
     if (sel) row.append(sel);
     list.appendChild(row);
   }
+}
+
+/* Primera fila del panel, antes de cualquier capa: el color que se ve
+   DETRÁS de las teselas (huecos sin cobertura, o el borde del mundo —
+   no hay desplazamiento infinito, ver «Una sola Tierra»), no una capa
+   de mapa en sí. No lleva casilla propia porque no es algo que se
+   "encienda o apague"; comparte el mismo `toggleColorPicker` popover que
+   los colores del diálogo de estilos, con sus propios `onPreview`/
+   `onCommit`: no hay ningún diálogo exterior con Cancelar/Aceptar que
+   lo diferido, así que aquí ES el propio selector de color quien lo
+   hace — `onPreview` aplica el fondo al mapa EN VIVO mientras se elige
+   (sin guardarlo: es lo que se deshace si se cancela) y `onCommit`,
+   que solo se llama al pulsar «Aceptar» del selector, lo persiste.   */
+function buildMapBackgroundRow() {
+  const row = document.createElement("div");
+  row.className = "base-row base-row-bg";
+  row.appendChild(document.createElement("span")); /* alinea con la columna de las casillas */
+  const label = document.createElement("label");
+  label.textContent = "Color de fondo";
+  const tools = document.createElement("span");
+  tools.className = "base-tools";
+  const btn = document.createElement("button");
+  btn.type = "button";
+  btn.className = "color-btn";
+  btn.title = "Color de fondo del mapa";
+  btn.setAttribute("aria-label", "Color de fondo del mapa");
+  setColorButton(btn, mapBgColor);
+  btn.addEventListener("click", e => {
+    e.preventDefault();
+    toggleColorPicker(btn, {
+      onPreview: (target, hex) => { setColorButton(target, hex); setMapBackground(hex); },
+      onCommit: (target, hex) => { dbSaveMapBackground(hex).catch(() => {}); }
+    });
+  });
+  tools.appendChild(btn);
+  row.append(label, tools);
+  return row;
 }
 
 /* Selector de capa para una capa base "dynamic". El mecanismo no sabe
@@ -192,7 +237,7 @@ function buildDynamicConfigButton(st) {
   const src = dynSource(st.def);
   if (!src || !src.configure) return null;
   const blocked = src.blocked && src.blocked();
-  const label = blocked ? blocked.hint : "Cambiar o borrar la credencial";
+  const label = blocked ? blocked.hint : "Cambiar o borrar la configuración";
   const gear = document.createElement("button");
   gear.className = "base-gear";
   gear.textContent = "⚙";
@@ -200,6 +245,59 @@ function buildDynamicConfigButton(st) {
   gear.setAttribute("aria-label", label);
   gear.addEventListener("click", src.configure);
   return gear;
+}
+
+/* ---------- "Custom Maps": servidor de teselas del propio usuario ----------
+   A diferencia de PNOA histórico/Copernicus, aquí no hay ningún
+   catálogo que descubrir ni nombre de capa que elegir: una única URL
+   base, puesta por el usuario, a la que el código añade siempre
+   `{z}/{x}/{y}.png` (esquema XYZ). Por eso esta fuente solo aporta
+   `blocked`/`configure` a DYNAMIC_SOURCES (12-copernicus.js) y NO lleva
+   `dynamic: true` en su BASE_LAYERS (10-map.js): el panel no le ofrece
+   ningún <select>, solo la tuerca ⚙.                                   */
+let customTilesUrl = null; /* URL base del usuario, sin la barra final, o null */
+
+/* Quita cualquier barra final: `buildCustomTilesUrl` añade la suya
+   propia, y una URL con dos barras seguidas ("...\/\/{z}/...") es una
+   ruta distinta para muchos servidores.                                */
+function normalizeCustomTilesBase(url) {
+  return url.trim().replace(/\/+$/, "");
+}
+
+/* Se exige https (igual que connect-src, y por el mismo motivo: el
+   origen lo elige el usuario, así que no hay lista cerrada posible) y
+   una URL con forma válida — evita una petición condenada de antemano
+   y un error críptico del navegador en vez de uno propio y legible.    */
+function validCustomTilesUrl(txt) {
+  try {
+    return new URL(txt.trim()).protocol === "https:";
+  } catch {
+    return false;
+  }
+}
+
+/* Plantilla final que consume L.tileLayer. Se llama SOLO al crear la
+   capa (ver su `layer()` en BASE_LAYERS), nunca antes: `customTilesUrl`
+   puede no estar configurada todavía.                                  */
+function buildCustomTilesUrl() {
+  return `${normalizeCustomTilesBase(customTilesUrl || "")}/{z}/{x}/{y}.png`;
+}
+
+/* Cambiar (o borrar) la URL invalida la capa ya creada, cuya plantilla
+   lleva la URL anterior incrustada — mismo patrón que setInstanceId. */
+function setCustomTilesUrl(url) {
+  customTilesUrl = url ? normalizeCustomTilesBase(url) : null;
+  const st = baseState.get("custom");
+  if (st) {
+    if (st.layer && map.hasLayer(st.layer)) map.removeLayer(st.layer);
+    st.layer = null;
+    st.failed = false;
+    if (!customTilesUrl) st.on = false;
+  }
+  (customTilesUrl ? dbSaveCustomTilesUrl({ url: customTilesUrl }) : dbDeleteCustomTilesUrl()).catch(() => {});
+  scheduleBaseSave();
+  renderBasePanel();
+  if (st && st.on) applyBaseLayer("custom");
 }
 
 /* ---------- PNOA histórico (WMS del IGN) ----------

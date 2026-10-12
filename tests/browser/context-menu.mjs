@@ -1,0 +1,247 @@
+/* Menú contextual del visor: «Editar propiedades», nuevo.
+
+   Ya había «Ir al nodo en el panel» y, si la capa tiene algo que
+   enseñar, «Mostrar atributos» (el panel de SOLO LECTURA de la ficha
+   KML/`properties`, `showLayerInfo`). Pedido: un acceso directo al
+   diálogo de ESTILOS (el que abren el botón 🎨 o Alt+Intro) desde el
+   propio menú contextual, para no tener que ir al árbol primero. Se
+   llama «Editar propiedades», deliberadamente distinto de «Mostrar
+   propiedades» —si llevaran el mismo nombre, uno de los dos parecería
+   no hacer nada—, y solo aparece para los tipos de capa que
+   `openStyleDialog` acepta (`STYLE_EDITABLE_KINDS`, el mismo criterio
+   que ya usa ese diálogo para rechazar una capa sin estilos editables).
+
+   `tests/geojsonnametest.js` ya prueba el enrutado de `layerCtxItems`/
+   `ctxItemsFor` a nivel de función, con capas sueltas de mentira; aquí
+   hace falta lo que ese nivel no puede dar: un clic derecho DE VERDAD
+   sobre el mapa, que pase por el hit-testing real (`layersAtPoint`) y
+   abra el diálogo de estilos real.                                    */
+import { launch, serve, openApp, reporter, READABLE } from "./_browser.mjs";
+
+const { ok, done } = reporter("BROWSER CONTEXT MENU TESTS OK");
+const browser = await launch();
+const srv = await serve(READABLE, 8892);
+const { page, errors } = await openApp(browser, srv.url);
+
+const setup = await page.evaluate(async () => {
+  const ul = ensureRootUl();
+  const pol = L.polygon([[40.4, -3.7], [40.5, -3.7], [40.5, -3.6]]).addTo(rootGroup);
+  const li = makeNode({ name: "Parcela contextual", layer: pol, style: normalizePathStyle({}) });
+  ul.appendChild(li);
+  const centroid = pol.getBounds().getCenter();
+  const pt = map.latLngToContainerPoint(centroid);
+  const mapRect = map.getContainer().getBoundingClientRect();
+  return { x: mapRect.left + pt.x, y: mapRect.top + pt.y };
+});
+
+/* Clic derecho de verdad sobre el polígono */
+await page.mouse.move(setup.x, setup.y);
+await page.mouse.click(setup.x, setup.y, { button: "right" });
+await page.waitForTimeout(100);
+
+const menu = await page.evaluate(() => {
+  const items = [...document.querySelectorAll("#map-ctxmenu .ctx-menu-item")].map(b => b.textContent);
+  return { items, hidden: document.getElementById("map-ctxmenu").hidden };
+});
+ok(!menu.hidden, "clic derecho sobre el polígono abre el menú contextual");
+ok(menu.items.includes("Editar propiedades"), "y ofrece «Editar propiedades»: " + JSON.stringify(menu.items));
+ok(menu.items.includes("Mostrar atributos") === false || menu.items.includes("Editar propiedades"),
+  "distinto de «Mostrar atributos» (nombres no colisionan)");
+
+/* Pulsarlo abre el diálogo de estilos, mostrando ESTA capa */
+await page.evaluate(() => {
+  const btn = [...document.querySelectorAll("#map-ctxmenu .ctx-menu-item")]
+    .find(b => b.textContent === "Editar propiedades");
+  btn.click();
+});
+const opened = await page.evaluate(() => ({
+  dialogOpen: !styleDialog.hidden,
+  title: document.getElementById("style-title").textContent,
+  menuClosedAfter: document.getElementById("map-ctxmenu").hidden
+}));
+ok(opened.dialogOpen, "«Editar propiedades» abre el diálogo de estilos");
+ok(opened.title.includes("Parcela contextual"), "mostrando la capa correcta: " + opened.title);
+ok(opened.menuClosedAfter, "y cierra el menú contextual al elegir la acción");
+
+/* Dos pestañas: abre en Estilos, y Atributos enseña la ficha de la capa */
+const tabs0 = await page.evaluate(() => ({
+  estilos: !document.getElementById("style-tab-styles").hidden,
+  atributos: !document.getElementById("style-tab-attrs").hidden,
+  vacio: document.getElementById("style-attrs-empty").textContent
+}));
+ok(tabs0.estilos && !tabs0.atributos, "el diálogo abre en la pestaña Estilos: " + JSON.stringify(tabs0));
+ok(/no tiene atributos/.test(tabs0.vacio), "capa sin atributos: la pestaña lo dice: " + tabs0.vacio);
+await page.evaluate(() => closeStyleDialog(true));
+
+const boton = await page.evaluate(() => {
+  const li = [...document.querySelectorAll("#tree li")].find(x => x._name === "Parcela contextual");
+  const b = [...li.querySelectorAll(".actions button")].find(x => x.textContent === "\uD83C\uDFA8");
+  return { title: b.title, aria: b.getAttribute("aria-label") };
+});
+ok(boton.title === "Editar propiedades" && boton.aria === "Editar propiedades",
+  "el botón 🎨 de la fila se llama «Editar propiedades»: " + JSON.stringify(boton));
+
+const attrs = await page.evaluate(() => {
+  const li = [...document.querySelectorAll("#tree li")].find(x => x._name === "Parcela contextual");
+  li._desc = "<p>Atributo de prueba</p>";
+  openStyleDialog(li);
+  document.getElementById("style-tab-btn-attrs").click();
+  return {
+    estilos: !document.getElementById("style-tab-styles").hidden,
+    atributos: !document.getElementById("style-tab-attrs").hidden,
+    html: document.getElementById("style-attrs-body").textContent,
+    aceptar: document.getElementById("style-accept").offsetParent !== null,
+    seleccionada: document.getElementById("style-tab-btn-attrs").getAttribute("aria-selected")
+  };
+});
+ok(!attrs.estilos && attrs.atributos && /Atributo de prueba/.test(attrs.html),
+  "la pestaña Atributos muestra la ficha de la capa: " + JSON.stringify(attrs));
+ok(attrs.aceptar && attrs.seleccionada === "true", "Aceptar/Cancelar siguen visibles y la pestaña queda marcada");
+await page.evaluate(() => closeStyleDialog(true));
+const cerrado = await page.evaluate(() => document.getElementById("style-attrs-body").innerHTML);
+ok(cerrado === "", "al cerrar no se retiene el HTML de la capa");
+await page.evaluate(() => {
+  const li = [...document.querySelectorAll("#tree li")].find(x => x._name === "Parcela contextual");
+  delete li._desc;
+});
+
+/* «Mostrar atributos» sigue abriendo la ficha, no el diálogo de edición */
+const mostrar = await page.evaluate(() => {
+  const li = [...document.querySelectorAll("#tree li")].find(x => x._name === "Parcela contextual");
+  li._desc = "<p>Ficha</p>";
+  const item = layerCtxItems(li).find(i => i.label === "Mostrar atributos");
+  item.action();
+  const r = { ficha: !descDialog.hidden, estilo: !styleDialog.hidden };
+  descDialog.hidden = true;
+  delete li._desc;
+  return r;
+});
+ok(mostrar.ficha && !mostrar.estilo, "«Mostrar atributos» sigue abriendo solo la ficha: " + JSON.stringify(mostrar));
+
+/* La ficha de atributos lleva un botón que salta a la edición */
+const ficha = await page.evaluate(() => {
+  const li = [...document.querySelectorAll("#tree li")].find(x => x._name === "Parcela contextual");
+  li._desc = "<p>Descripción</p>";
+  showLayerInfo(li);
+  return { visible: !descDialog.hidden, boton: !document.getElementById("desc-edit").hidden };
+});
+ok(ficha.visible && ficha.boton, "la ficha de atributos ofrece «Editar propiedades» para una capa editable");
+await page.click("#desc-edit");
+const trasEditar = await page.evaluate(() => ({
+  ficha: descDialog.hidden, estilo: !styleDialog.hidden,
+  titulo: document.getElementById("style-title").textContent
+}));
+ok(trasEditar.ficha && trasEditar.estilo && trasEditar.titulo.includes("Parcela contextual"),
+  "cierra la ficha y abre el diálogo de estilos de esa capa: " + JSON.stringify(trasEditar));
+await page.evaluate(() => closeStyleDialog(true));
+
+/* El foco vuelve al VISOR al elegir una acción del menú, y al cerrar el
+   diálogo que abre. Sin eso, ocultar el menú dejaba el foco en el <body>,
+   donde las flechas y Re/Av Pág son del ÁRBOL: «Mostrar atributos» (y el
+   resto) acababa con el foco en el panel de navegación. Clics reales, no
+   `.click()`: lo que se mide es el foco que deja el ratón.            */
+const viewerFocused = () => page.evaluate(() => document.activeElement === map.getContainer());
+for (const [accion, cerrar] of [
+  ["Mostrar atributos", () => page.click("#desc-close")],
+  ["Editar propiedades", () => page.evaluate(() => closeStyleDialog(true))]
+]) {
+  await page.evaluate(() => {
+    const li = [...document.querySelectorAll("#tree li")].find(x => x._name === "Parcela contextual");
+    li._desc = "<p>Ficha</p>";
+  });
+  /* El parpadeo de la acción anterior apaga la capa unos 600 ms: sin
+     esperarlo, el clic derecho no encuentra nada debajo.             */
+  await page.waitForTimeout(900);
+  const at = await page.evaluate(() => {
+    const li = [...document.querySelectorAll("#tree li")].find(x => x._name === "Parcela contextual");
+    const pt = map.latLngToContainerPoint(nodeLayer(li).getBounds().getCenter());
+    const r = map.getContainer().getBoundingClientRect();
+    return { x: r.left + pt.x, y: r.top + pt.y };
+  });
+  await page.mouse.move(at.x, at.y);
+  await page.mouse.click(at.x, at.y, { button: "right" });
+  await page.waitForTimeout(100);
+  await page.click(`#map-ctxmenu .ctx-menu-item:text-is("${accion}")`);
+  await page.waitForTimeout(100);
+  ok(await page.evaluate(() => !!document.activeElement.closest("#desc-dialog, #style-dialog")),
+    `«${accion}»: el foco pasa al diálogo al abrirse`);
+  await cerrar();
+  await page.waitForTimeout(100);
+  ok(await viewerFocused(), `«${accion}»: al cerrar el diálogo el foco vuelve al visor`);
+  await page.evaluate(() => {
+    const li = [...document.querySelectorAll("#tree li")].find(x => x._name === "Parcela contextual");
+    delete li._desc;
+  });
+}
+
+/* Cerrar la ficha abierta al PASAR el ratón (sin robar el foco al
+   abrirse) o una etiqueta (popup) con su ×: el foco acaba en el visor,
+   no en el panel de navegación aunque estuviera allí al abrirse.      */
+await page.evaluate(() => {
+  const li = [...document.querySelectorAll("#tree li")].find(x => x._name === "Parcela contextual");
+  li._desc = "<p>Hover</p>";
+  li.querySelector(":scope > .node-row input[type=checkbox]").focus(); /* foco en el árbol */
+  layerInfoDismissed = false; /* los cierres anteriores lo dejaron armado */
+  showLayerInfo(li, { focus: false });
+});
+ok(await page.evaluate(() => !descDialog.hidden && !!document.activeElement.closest("#tree")),
+  "ficha abierta al pasar el ratón: no roba el foco al árbol");
+await page.click("#desc-close");
+await page.waitForTimeout(100);
+ok(await viewerFocused(), "cerrar con × una ficha abierta al pasar el ratón: el foco queda en el visor");
+await page.evaluate(() => {
+  const li = [...document.querySelectorAll("#tree li")].find(x => x._name === "Parcela contextual");
+  delete li._desc;
+});
+
+await page.evaluate(() => {
+  document.querySelector("#tree input[type=checkbox]").focus();
+  const m = L.marker(map.getCenter()).bindPopup("Etiqueta de prueba").addTo(map);
+  m.openPopup();
+  window.__popupMarker = m;
+});
+await page.click(".leaflet-popup-close-button");
+await page.waitForTimeout(100);
+ok(await viewerFocused(), "cerrar con × una etiqueta (popup) del visor: el foco queda en el visor");
+await page.evaluate(() => map.removeLayer(window.__popupMarker));
+
+/* Clic derecho en un punto del mapa SIN ninguna capa debajo: menú
+   genérico, sin "Editar propiedades" (no hay a qué aplicarlo). El caso
+   de una capa con un tipo no editable (elevGrid, sin estilos propios)
+   ya lo prueba tests/geojsonnametest.js a nivel de función — sus celdas
+   son `interactive: false` (60-elevation.js) y nunca llegan a ser un
+   "hit" de un clic real, así que no hay forma de probarlo aquí con una
+   capa de verdad.                                                     */
+await page.mouse.click(setup.x + 200, setup.y + 200, { button: "right" });
+await page.waitForTimeout(100);
+const menu2 = await page.evaluate(() =>
+  [...document.querySelectorAll("#map-ctxmenu .ctx-menu-item")].map(b => b.textContent));
+ok(!menu2.includes("Editar propiedades"),
+  "clic derecho sin ninguna capa debajo: no ofrece «Editar propiedades»: " + JSON.stringify(menu2));
+ok(menu2.includes("Copiar coordenadas"), "y sí el menú genérico del mapa: " + JSON.stringify(menu2));
+
+/* Las tres mediciones van agrupadas en un submenú «Medir», no sueltas */
+ok(menu2.includes("Medir ▸"), "el menú agrupa las mediciones en «Medir ▸»: " + JSON.stringify(menu2));
+ok(!menu2.includes("Medir ruta") && !menu2.includes("Medir círculo"),
+  "y ya no hay entradas sueltas «Medir ruta»/«Medir círculo»");
+const sub = await page.evaluate(() => {
+  const trigger = [...document.querySelectorAll("#map-ctxmenu .ctx-menu-item")]
+    .find(b => b.textContent === "Medir ▸");
+  trigger.click();
+  const subItems = [...document.querySelectorAll(".ctx-menu:not(#map-ctxmenu) .ctx-menu-item")]
+    .map(b => b.textContent);
+  const arco = [...document.querySelectorAll(".ctx-menu:not(#map-ctxmenu) .ctx-menu-item")]
+    .find(b => b.textContent === "Arco");
+  arco.click();
+  return { subItems, tool: activeTool };
+});
+ok(JSON.stringify(sub.subItems) === JSON.stringify(["Ruta", "Círculo", "Arco"]),
+  "el submenú ofrece Ruta, Círculo y Arco: " + JSON.stringify(sub.subItems));
+ok(sub.tool === "arc", "«Arco» activa la herramienta de arco: " + sub.tool);
+await page.evaluate(() => setTool(null));
+
+ok(errors.length === 0, "sin errores de página: " + JSON.stringify(errors));
+
+await browser.close();
+srv.close();
+done();

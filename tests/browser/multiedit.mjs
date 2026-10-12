@@ -86,6 +86,19 @@ ok(abierto.pesoMixto && abierto.colorMixto,
 ok(!abierto.rellenoMixto && !abierto.opacidadMixta,
   "y lo que sí coincide en todos, no: " + JSON.stringify([abierto.rellenoMixto, abierto.opacidadMixta]));
 
+/* La pestaña Atributos es de UNA capa: con varias sigue ahí y dice por qué */
+const atributos = await page.evaluate(() => {
+  document.getElementById("style-tab-btn-attrs").click();
+  return {
+    visible: !document.getElementById("style-tab-attrs").hidden,
+    aviso: document.getElementById("style-attrs-empty").textContent,
+    cuerpo: document.getElementById("style-attrs-body").innerHTML
+  };
+});
+ok(atributos.visible && /una sola/.test(atributos.aviso) && atributos.cuerpo === "",
+  "con varias capas, Atributos pide dejar una sola: " + JSON.stringify(atributos));
+await page.evaluate(() => showStyleTab("styles"));
+
 /* ---------- Tocar uno lo desmarca al momento ---------- */
 const desmarcado = await page.evaluate(() => {
   __tocarColor("pg-color", "#0000ff");

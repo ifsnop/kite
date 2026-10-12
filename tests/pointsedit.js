@@ -9,10 +9,15 @@ const { fn, between } = require("./_extract");
 /* clampLatLng valida cada punto, y arrastra COORD_EPS/clampDeg */
 const clampSrc = between("const COORD_EPS =", "/* Opciones del globo compacto");
 const constsSrc = between("const POINTS_HEADER", "/* Anillos de una capa");
-const src = clampSrc + constsSrc +
-  [fn("pointsToText"), fn("textToPoints")].join("\n");
+/* pointsToText/textToPoints pasan por formatCoord/parseCoord (decimal o
+   GMS, según `coordFormat` — un ajuste global, panel de Propiedades):
+   se extraen tal cual, con el mismo valor de partida "dec" que trae el
+   archivo real, para que estas pruebas sigan viendo el formato decimal
+   de siempre salvo que se pruebe explícitamente el modo GMS.          */
+const src = clampSrc + constsSrc + 'let coordFormat = "dec";\n' +
+  [fn("dmsParts"), fn("formatCoord"), fn("parseCoordRaw"), fn("parseCoord"), fn("pointsToText"), fn("textToPoints")].join("\n");
 const api = new Function(src +
-  "\nreturn {pointsToText, textToPoints, POINTS_HEADER};")();
+  "\nreturn {pointsToText, textToPoints, POINTS_HEADER, setCoordFormat: v => { coordFormat = v; }};")();
 const ok = (c, m) => { if (!c) { console.error("FAIL: " + m); process.exitCode = 1; } };
 
 const P = (lat, lng, alt) => (alt === undefined ? { lat, lng } : { lat, lng, alt });

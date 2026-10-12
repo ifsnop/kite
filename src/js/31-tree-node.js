@@ -5,12 +5,13 @@
 function makeNode({ name, layer = null, isFolder = false, isFile = false,
                     style = null, checked = true, desc = null,
                     onDelete = null, onRename = null,
-                    styleable = layer !== null }) {
+                    styleable = layer !== null, focusable = styleable }) {
   const li = document.createElement("li");
   if (isFile) li.className = "file";
   li._name = name;
   li._isContainer = isFolder || isFile; /* evita un querySelector redundante en serializeNode */
   li._cascadeGen = 0; /* ver cascadeVisibility */
+  li._cascadeActive = 0; /* ver beginCascadeFeedback/endCascadeFeedback */
   /* La ficha se asigna AQUÍ, antes de crear los botones: al hacerlo
      después, `makeActions` no la veía y el botón ℹ nunca aparecía.  */
   li._desc = desc;
@@ -64,6 +65,21 @@ function makeNode({ name, layer = null, isFolder = false, isFile = false,
   });
   row.appendChild(chk);
 
+  /* Solo los contenedores disparan cascadeVisibility, así que solo ellos
+     necesitan el spinner que la sustituye mientras dura (ver
+     beginCascadeFeedback/endCascadeFeedback en 30-tree-walk.js): sin
+     feedback inmediato, una carpeta con muchos marcadores tarda varios
+     fotogramas en mostrar algo y el usuario vuelve a pulsar, dejando la
+     rama encendida y apagada de golpe cuando por fin termina.        */
+  if (isFolder || isFile) {
+    const spin = document.createElement("span");
+    spin.className = "spinner";
+    spin.hidden = true;
+    spin.setAttribute("aria-hidden", "true");
+    li._spinner = spin;
+    row.appendChild(spin);
+  }
+
   if (style) {
     const swatch = document.createElement("span");
     swatch.className = "swatch";
@@ -80,7 +96,7 @@ function makeNode({ name, layer = null, isFolder = false, isFile = false,
   label.title = name;
   row.appendChild(label);
 
-  row.appendChild(makeActions(li, isFolder || isFile, styleable, layer));
+  row.appendChild(makeActions(li, isFolder || isFile, styleable, layer, focusable));
 
   /* Shift+click toggles multi-selection without touching the checkbox.
      Only same-kind nodes can be selected together (marker layers with
@@ -148,16 +164,39 @@ function makeNode({ name, layer = null, isFolder = false, isFile = false,
      queden estos. Sigue habiendo un hueco menor y aceptado para
      mediciones/elevaciones/ortofotos pendientes (mismo patrón, no
      enganchado por ser casos raros).                                  */
-  if (layer) {
-    layer._li = li; /* back-reference used by the context menu's hit-testing */
-    /* While drawing a polygon, a click inside another layer must fix a
-       vertex there, not highlight that layer in the tree               */
-    layer.on("click", () => { if (activeTool !== "polygon") highlightNode(li); });
-    layer.on("mouseover", () => showLayerInfo(li, { focus: false }));
-    layer.on("mouseout", scheduleLayerInfoHide);
-  }
+  if (layer) wireLayerEvents(li, layer);
 
   return li;
+}
+
+/* Cablea una capa de trazo/marcador a su nodo: resaltar en el árbol al
+   pulsarla en el visor, y el panel de información al pasar el ratón.
+   Extraído de `makeNode` para poder re-cablear una capa NUEVA cuando
+   `setPathLayerClosed` (43-points-editor.js) sustituye un L.Polygon por
+   un L.Polyline o viceversa al cerrar/abrir un trazo durante la edición
+   interactiva — Leaflet no puede cambiar la clase de un L.Path en vivo,
+   así que la capa se reconstruye entera y necesita el MISMO cableado.  */
+function wireLayerEvents(li, layer) {
+  layer._li = li; /* back-reference used by the context menu's hit-testing */
+  /* While drawing a polygon, a click inside another layer must fix a
+     vertex there, not highlight that layer in the tree. And for a
+     medición de ruta, `layer` ES el featureGroup que además contiene
+     sus manejadores de waypoint: Leaflet reenvía el "click" de un hijo
+     al grupo (_propagateEvent), así que sin este guardia, clicar un
+     vértice para seleccionarlo (ver wireRouteHandle, 52-measure.js,
+     con su diálogo de propiedades ya abierto) también dispararía
+     highlightNode, saltando el scroll del árbol a esa fila en cada
+     clic sobre el mapa — molesto mientras se está editando ahí
+     mismo, aunque ya no invalide el vértice elegido (la selección
+     del árbol dejó de tener ninguna relación con vertexOwner).      */
+  layer.on("click", e => {
+    if (activeTool === "polygon") return;
+    const t = e.originalEvent && e.originalEvent.target;
+    if (t && t.closest && t.closest(".measure-handle")) return;
+    highlightNode(li);
+  });
+  layer.on("mouseover", () => showLayerInfo(li, { focus: false }));
+  layer.on("mouseout", scheduleLayerInfoHide);
 }
 
 const nodeUl = li => li.querySelector(":scope > ul.node-list");
@@ -213,7 +252,9 @@ function makeCaret(li) {
 
 /* Row action buttons: sort/collapse (containers), layer styles (layers),
    rename, move up/down and delete */
-function makeActions(li, sortable, styleable, layer) {
+/* `focusable`: lleva la lupa 🔍 aunque no tenga diálogo de propiedades
+   (una cuadrícula de elevación se encuadra, pero no tiene estilos).  */
+function makeActions(li, sortable, styleable, layer, focusable = styleable) {
   const box = document.createElement("span");
   box.className = "actions";
   const btn = (glyph, title, cls, fn) => {
@@ -233,13 +274,17 @@ function makeActions(li, sortable, styleable, layer) {
     btn("\u229F", "Colapsar esta carpeta y las interiores", "", () => collapseDescendants(li));
     btn("\uD83D\uDCBE", "Guardar esta carpeta en un archivo para volver a cargarla despu\u00E9s", "", () => exportNode(li));
   }
-  if (styleable) {
+  if (focusable) {
     btn("\uD83D\uDD0D", `Centrar la vista aqu\u00ED y acercar (zoom ${FOCUS_ZOOM})`, "",
         () => focusOnNode(li));
-    btn("\uD83C\uDFA8", "Estilos de la capa", "", () => openStyleDialog(li));
   }
-  if (li._desc || layerProperties(layer)) {
-    btn("\u2139", "Ver informaci\u00F3n de la capa", "", () => showLayerInfo(li));
+  if (styleable) btn("\uD83C\uDFA8", "Editar propiedades", "", () => openStyleDialog(li));
+  /* Un marcador siempre lleva el botón, oculto mientras no tenga ficha:
+     con la iluminación real activa la gana (horas del sol), y
+     refreshInfoButtons lo muestra/oculta sin reconstruir la fila.      */
+  if (li._desc || layerProperties(layer) || layerKind(layer) === "marker") {
+    btn("\u2139", "Ver informaci\u00F3n de la capa", "info-btn", () => showLayerInfo(li));
+    box.lastChild.hidden = !hasInfo(li, layer);
   }
   btn("\u2191", "Subir", "", () => {
     const prev = li.previousElementSibling;
@@ -345,10 +390,7 @@ function removeRecordsFromMap(records) {
   for (const rec of records) {
     if (rec.children) { removeRecordsFromMap(rec.children); continue; }
     if (rec._layer) rootGroup.removeLayer(rec._layer);
-    if (rec.t === "elevGrid") { /* mismo onDelete que materializeRecords le habría dado */
-      const i = elevGridGroups.indexOf(rec._layer);
-      if (i >= 0) elevGridGroups.splice(i, 1);
-    }
+    if (rec.t === "elevGrid") forgetElevGridGroup(rec._layer); /* el onDelete que habría tenido */
   }
 }
 /* Gemela recursiva del barrido anterior para lo YA materializado: cada
@@ -357,6 +399,9 @@ function removeRecordsFromMap(records) {
 function removeSubtreeFromMap(li) {
   const chk = li.querySelector(":scope > .node-row > input[type=checkbox]");
   if (chk && chk._layer) rootGroup.removeLayer(chk._layer);
+  /* deleteNode solo llama al onDelete de la raíz de la rama: una
+     cuadrícula dentro de una carpeta borrada se olvida aquí.         */
+  if (li._elevGrid && chk && chk._layer) forgetElevGridGroup(chk._layer);
   const ul = nodeUl(li);
   if (ul) for (const child of ul.children) removeSubtreeFromMap(child);
   if (li._pending) removeRecordsFromMap(li._pending);
@@ -367,6 +412,12 @@ function deleteNode(li, { pruneSelection = true } = {}) {
       if (s === li || li.contains(s)) selection.delete(s);
     }
   }
+  /* Borrar directamente por el botón × de la fila no pasa por
+     clearSelection/selectNode (pruneSelection quita del Set a mano, sin
+     el punto único de setSelCursor), así que si el owner activo era este
+     nodo —o colgaba de él— hay que retirarlo aparte: si no, sus
+     manejadores (un polígono) quedarían huérfanos en el mapa.          */
+  if (vertexOwner && (vertexOwner.li === li || li.contains(vertexOwner.li))) teardownVertexOwner();
   removeSubtreeFromMap(li);
   /* Se guarda el contenedor ANTES de quitarlo: después ya no tiene
      padre, y los hermanos que quedan pueden dejar a la carpeta entera
