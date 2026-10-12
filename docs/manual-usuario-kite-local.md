@@ -370,6 +370,8 @@ En el árbol queda una capa «Perfil de «Ruta 1» — MDT05 + MDS (IGN)» en la
 
 Una ortofoto en formato **COG** (Cloud Optimized GeoTIFF, un `.tif` preparado para leerse a trozos), como las del PNOA, se añade **arrastrando el archivo `.tif`** al panel, igual que cualquier otro. KITE Local comprueba primero que se puede dibujar y, solo entonces, **copia el archivo al almacenamiento del navegador**: queda guardado con el árbol y vuelve al abrir la aplicación, sin tener que soltarlo de nuevo. El aviso dice qué ha entrado: tamaño en píxeles, sistema de coordenadas, número de vistas generales y lo que ocupa.
 
+**¿Tengo un ECW?** Es el formato de las descargas del Centro de Descargas del CNIG, y KITE Local **no lo puede abrir** (es un formato propietario). Si lo suelta, el aviso se lo dice y le da la orden de conversión. Conviértalo a COG con GDAL (necesita soporte ECW): `gdal_translate -of COG -co COMPRESS=JPEG hoja.ecw hoja.tif`. En QGIS para Windows, que lo trae: Ráster › Conversión › Traducir, con formato de salida COG. Después suelte el `.tif`.
+
 ![Una ortofoto COG de Sentinel-2 sobre Madrid, de 10 980 × 10 980 píxeles](img/25-ortofoto-cog.png)
 *Figura 23. Una imagen COG de 362 MB (Sentinel-2, color natural, UTM 30N) sobre Madrid. Solo se lee la parte que se ve, al detalle que pide el zoom. Contiene datos modificados de Copernicus Sentinel (2026).*
 

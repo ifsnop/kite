@@ -219,8 +219,11 @@ await soltar("raro.tif", cogOf({ ...geoUtm, epsg: 2062 }));
 ok(/EPSG:2062 no admitido/.test(await ultimo()), "un sistema que no está en la tabla se rechaza nombrándolo: " + await ultimo());
 await soltar("dem.tif", cogOf(geoUtm, 16));
 ok(/8 bits por canal/.test(await ultimo()), "16 bits (un modelo de elevación) se rechaza: " + await ultimo());
-ok((await keys()).length === 2 && await page.evaluate(`!(${liDe("raro.tif")}) && !(${liDe("dem.tif")})`),
-  "ninguno de los dos deja nodo ni bytes en el almacén");
+await soltar("hoja.ecw", [0, 1, 2, 3]);
+ok(/hoja\.ecw\u00BB es una ortofoto ECW/.test(await ultimo()) && /gdal_translate -of COG/.test(await ultimo()),
+  "un .ecw se reconoce y dice cómo pasarlo a COG, no el genérico «no soportado»: " + await ultimo());
+ok((await keys()).length === 2 && await page.evaluate(`!(${liDe("raro.tif")}) && !(${liDe("dem.tif")}) && !(${liDe("hoja.ecw")})`),
+  "ninguno de los tres deja nodo ni bytes en el almacén");
 
 /* ---------- 6. Exportar: se queda fuera, y se dice ---------- */
 await page.evaluate(`exportNode(${liDe("sol.tif")})`);

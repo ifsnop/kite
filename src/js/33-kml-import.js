@@ -595,6 +595,10 @@ async function handleDroppedFiles(files, insertBefore, dropTargetUl = null) {
         }
         kind = "geojson";
       }
+      else if (ext === "ecw") {
+        navMessage(ecwHint(file.name), { sticky: true });
+        continue;
+      }
       else {
         navMessage(`\u00AB${file.name}\u00BB no est\u00E1 soportado. Formatos admitidos: ${IMPORT_FORMATS}.`);
         continue;
@@ -615,6 +619,18 @@ async function handleDroppedFiles(files, insertBefore, dropTargetUl = null) {
 const IMPORT_FORMATS = "KML, KMZ (incl. ortofotos), JSON (GeoJSON), TopoJSON, "
   + "shapefiles (.shp con su .dbf y .prj, o en un .zip), ortofotos COG (.tif) "
   + `y carpetas exportadas (${EXPORT_EXT})`;
+
+/* ECW (el formato del Centro de Descargas del CNIG) no se lee: no hay
+   decodificador en JS, el SDK de Hexagon es propietario y de pago fuera
+   del escritorio, y el libecwj2 abierto solo entiende ECW v2 (el PNOA es
+   v3). Se reconoce para decir cómo pasarlo a COG, que sí se abre. Ver
+   cog.md.                                                             */
+function ecwHint(name) {
+  const base = String(name).replace(/\.ecw$/i, "");
+  return `\u00AB${name}\u00BB es una ortofoto ECW, un formato propietario que el navegador no puede leer. `
+    + `Convi\u00E9rtala a COG y suelte el .tif: gdal_translate -of COG -co COMPRESS=JPEG "${name}" "${base}.tif" `
+    + "(necesita GDAL con soporte ECW; QGIS para Windows lo trae: Ráster \u203A Conversión \u203A Traducir, formato COG).";
+}
 
 /* ¿Hay una carpeta bajo el puntero? Mismo test de "esto es un
    contenedor" que ya usan dropZone() (reordenar interno) y
