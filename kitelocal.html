@@ -2963,7 +2963,7 @@ map.on("resize rotate", fitWorldMinZoom);
 
 /* Fecha de generación del código (versión): AÑOMESDIAHORAMINUTO.
    Actualizar en cada generación; se muestra junto al crédito de Leaflet. */
-const BUILD = "202610122330";
+const BUILD = "202610130659";
 /* Versión de release (la de package.json, horneada aquí por build.js
    al construir — ver «Versión y releases de GitHub» en CLAUDE.md): a
    diferencia de BUILD, que cambia en CADA generación, esta solo cambia
@@ -7883,7 +7883,7 @@ async function handleDroppedFiles(files, insertBefore, dropTargetUl = null) {
 /* Lo que se acepta, dicho igual en todos los avisos que lo enumeran
    (handleDroppedFiles y el diálogo de 🔗).                          */
 const IMPORT_FORMATS = "KML, KMZ (incl. ortofotos), JSON (GeoJSON), TopoJSON, "
-  + "shapefiles (.shp con su .dbf y .prj, o en un .zip), ortofotos COG (.tif) "
+  + "shapefiles (.shp con su .dbf y .prj, o en un .zip), ortofotos COG y modelos de elevaci\u00F3n (.tif) "
   + `y carpetas exportadas (${EXPORT_EXT})`;
 
 /* ECW (el formato del Centro de Descargas del CNIG) no se lee: no hay
@@ -18120,6 +18120,12 @@ document.getElementById("ms-profile").addEventListener("click", () => {
      COG_GRID × COG_GRID puntos proyectados con proj4 (proyectarlos
      todos costaría 65 536 llamadas por tesela; la malla da error de
      una fracción de píxel, ver tests/cogtest.js).
+   - Un GeoTIFF de UNA banda con 16 o más bits (un modelo de elevación,
+     p. ej. un MDT del CNIG) entra por el mismo camino pero se pinta con
+     una rampa de color por altitud y sombreado de relieve (`warpDemTile`),
+     y el cuadro de coordenadas da su altitud bajo el cursor
+     (`demAltitudeAt`). Sigue siendo un nodo `cog`: no se guarda nada
+     más, el tipo se deduce de la propia imagen al abrirla.
    - Las teselas viven en `rotatePane`: con el mapa girado se piden
      para la caja de la vista girada (parche de GridLayer en
      08-map-rotation.js) y giran con el resto sin hacer nada.         */
@@ -18209,13 +18215,14 @@ function tileWindow(grid, w, h) {
   return win[0] < win[2] && win[1] < win[3] ? win : null;
 }
 
-/* Rellena `out` (RGBA, size × size) tomando para cada píxel de la
-   tesela el de origen que le corresponde: su posición sale de
-   interpolar la malla (G+1)² en coordenadas de la VENTANA leída. Vecino
-   más próximo, a propósito: una ortofoto es dato, y promediar píxeles
+/* Recorre los píxeles de una tesela (size × size) y, para cada uno,
+   busca el de origen que le corresponde: su posición sale de interpolar
+   la malla (G+1)² en coordenadas de la VENTANA leída. Vecino más
+   próximo, a propósito: una ortofoto es dato, y promediar píxeles
    inventaría colores que no están en la imagen. Fuera de la ventana,
-   la máscara o el nodata: transparente. PURA.                       */
-function warpTile(src, ww, wh, ch, mask, nodata, grid, G, size, out) {
+   deja el píxel transparente; dentro, llama a `paint(o, sx, sy)` con
+   el desplazamiento en `out` y el píxel de origen. PURA.            */
+function warpPixels(grid, G, size, ww, wh, out, paint) {
   const cell = size / G;
   const row = (G + 1) * 2;
   for (let v = 0; v < size; v++) {
@@ -18234,17 +18241,99 @@ function warpTile(src, ww, wh, ch, mask, nodata, grid, G, size, out) {
       const o = (v * size + u) * 4;
       const sx = Math.floor(x), sy = Math.floor(y);
       if (!(sx >= 0 && sy >= 0 && sx < ww && sy < wh)) { out[o + 3] = 0; continue; }
-      const p = sy * ww + sx;
-      if (mask && !mask[p]) { out[o + 3] = 0; continue; }
-      const s = p * ch;
-      const r = src[s], g = src[s + 1], b = src[s + 2];
-      if (nodata !== null && r === nodata && g === nodata && b === nodata) { out[o + 3] = 0; continue; }
-      out[o] = r;
-      out[o + 1] = g;
-      out[o + 2] = b;
-      out[o + 3] = ch === 4 ? src[s + 3] : 255;
+      paint(o, sx, sy);
     }
   }
+}
+
+/* Rellena `out` (RGBA) con una ortofoto: la máscara y el nodata dejan el
+   píxel transparente. PURA.                                         */
+function warpTile(src, ww, wh, ch, mask, nodata, grid, G, size, out) {
+  warpPixels(grid, G, size, ww, wh, out, (o, sx, sy) => {
+    const p = sy * ww + sx;
+    if (mask && !mask[p]) { out[o + 3] = 0; return; }
+    const s = p * ch;
+    const r = src[s], g = src[s + 1], b = src[s + 2];
+    if (nodata !== null && r === nodata && g === nodata && b === nodata) { out[o + 3] = 0; return; }
+    out[o] = r;
+    out[o + 1] = g;
+    out[o + 2] = b;
+    out[o + 3] = ch === 4 ? src[s + 3] : 255;
+  });
+}
+
+/* ---------- Modelos de elevación (GeoTIFF de una banda) ----------
+   Rampa hipsométrica (verde → amarillo → marrón → blanco) entre el
+   mínimo y el máximo de la propia imagen, con sombreado de relieve por
+   encima. El color es la altitud REAL de la celda (vecino más próximo,
+   sin interpolar); el sombreado solo ayuda a leer el relieve.        */
+const DEM_RAMP = [
+  [0, [56, 128, 60]], [0.25, [160, 190, 90]], [0.5, [225, 215, 130]],
+  [0.75, [170, 120, 70]], [1, [245, 245, 245]]
+];
+/* Luz del noroeste a 45°, el sombreado cartográfico de siempre. El
+   relieve se exagera ×2: con celdas de 200 m las pendientes son tan
+   suaves que sin ello apenas se nota. Es solo sombreado; la altitud la
+   da el color y la lectura bajo el cursor.                            */
+const DEM_LIGHT_AZIMUTH = 315, DEM_LIGHT_ALTITUDE = 45, DEM_Z_FACTOR = 2;
+const DEM_BLOCK = 128;
+
+/* Color de la rampa para t en [0, 1] (fuera, se recorta). PURA. */
+function demColor(t) {
+  const x = Number.isFinite(t) ? Math.min(1, Math.max(0, t)) : 0;
+  let k = 1;
+  while (k < DEM_RAMP.length - 1 && x > DEM_RAMP[k][0]) k++;
+  const [t0, c0] = DEM_RAMP[k - 1], [t1, c1] = DEM_RAMP[k];
+  const f = (x - t0) / (t1 - t0);
+  return c0.map((v, i) => v + (c1[i] - v) * f);
+}
+
+/* Claridad del relieve en [0, 1] para un píxel con las alturas de sus
+   vecinos (oeste, este, norte, sur) y el tamaño de celda en metros.
+   Llano da sin(altitud de la luz). PURA.                             */
+function demHillshade(zw, ze, zn, zs, cx, cy) {
+  const dzdx = (ze - zw) / (2 * cx), dzdy = (zn - zs) / (2 * cy);
+  const nx = -DEM_Z_FACTOR * dzdx, ny = -DEM_Z_FACTOR * dzdy;
+  const len = Math.sqrt(nx * nx + ny * ny + 1);
+  const az = DEM_LIGHT_AZIMUTH * Math.PI / 180, alt = DEM_LIGHT_ALTITUDE * Math.PI / 180;
+  const lx = Math.sin(az) * Math.cos(alt), ly = Math.cos(az) * Math.cos(alt), lz = Math.sin(alt);
+  return Math.max(0, (nx * lx + ny * ly + lz) / len);
+}
+
+/* Mínimo y máximo de las altitudes VÁLIDAS (sin nodata ni valores fuera
+   de rango, ver elevValue), o null si no hay ninguna. PURA.            */
+function demRange(values, nodata) {
+  let min = Infinity, max = -Infinity;
+  for (let i = 0; i < values.length; i++) {
+    const v = elevValue(Number(values[i]), nodata);
+    if (v === null) continue;
+    if (v < min) min = v;
+    if (v > max) max = v;
+  }
+  return min <= max ? { min, max } : null;
+}
+
+/* Pinta una tesela de elevación: `src` son las altitudes de la ventana
+   (ww × wh); `opt` trae el rango de la rampa (`min`, `max`) y el tamaño
+   de celda en metros del nivel leído (`cx`, `cy`). Una celda sin dato
+   (o fuera de la máscara) queda transparente; un vecino sin dato se
+   sustituye por la propia celda al sombrear. PURA.                    */
+function warpDemTile(src, ww, wh, mask, nodata, grid, G, size, out, opt) {
+  const span = opt.max - opt.min || 1;
+  const at = (x, y) => elevValue(Number(src[y * ww + x]), nodata);
+  warpPixels(grid, G, size, ww, wh, out, (o, sx, sy) => {
+    const p = sy * ww + sx;
+    const z = mask && !mask[p] ? null : at(sx, sy);
+    if (z === null) { out[o + 3] = 0; return; }
+    const nb = (x, y) => (x < 0 || y < 0 || x >= ww || y >= wh ? z : (at(x, y) ?? z));
+    const hs = demHillshade(nb(sx - 1, sy), nb(sx + 1, sy), nb(sx, sy - 1), nb(sx, sy + 1), opt.cx, opt.cy);
+    const k = 0.35 + 0.65 * hs;
+    const c = demColor((z - opt.min) / span);
+    out[o] = Math.min(255, c[0] * k);
+    out[o + 1] = Math.min(255, c[1] * k);
+    out[o + 2] = Math.min(255, c[2] * k);
+    out[o + 3] = 255;
+  });
 }
 
 /* Los ids de "rasters" que ya no nombra nadie: ni el árbol ni las
@@ -18327,10 +18416,16 @@ async function openCog(blob) {
   /* Vienen como array tipado (o un número suelto): Array.from los
      despliega, [].concat no.                                        */
   const list = v => (v === undefined ? [] : typeof v === "number" ? [v] : Array.from(v));
-  const bits = list(fd.BitsPerSample);
-  if (!bits.length || bits.some(b => b !== 8) || list(fd.SampleFormat).some(f => f !== 1)) {
-    throw new Error(`solo se dibujan ortofotos de 8 bits por canal (esta tiene ${bits.join("/") || "?"} bits): `
-      + "un modelo de elevación se consulta con «Consultar elevación aquí»");
+  const bits = list(fd.BitsPerSample), fmt = list(fd.SampleFormat);
+  const samples = Number(fd.SamplesPerPixel) || bits.length || 1;
+  /* Una ortofoto son canales de 8 bits; un modelo de elevación, una sola
+     banda de enteros (16/32 bits) o de coma flotante (32/64).         */
+  const isOrtho = bits.length > 0 && bits.every(b => b === 8) && fmt.every(f => f === 1);
+  const isDem = samples === 1 && bits.length === 1 && (fmt[0] === 3 ? bits[0] >= 32
+    : bits[0] >= 16 && (fmt.length === 0 || fmt[0] === 1 || fmt[0] === 2));
+  if (!isOrtho && !isDem) {
+    throw new Error("solo se dibujan ortofotos de 8 bits por canal y modelos de elevación de una banda "
+      + `(esta tiene ${samples} banda(s) de ${bits.join("/") || "?"} bits)`);
   }
   const epsg = cogEpsg(first.getGeoKeys());
   const def = epsg && cogCrsDef(epsg);
@@ -18383,15 +18478,41 @@ async function openCog(blob) {
   if (!validCogRecord({ rasterId: "0".repeat(32), box })) {
     throw new Error("la extensión de la imagen no cae en coordenadas válidas");
   }
+  const nodata = first.getGDALNoData();
+  const noData = Number.isFinite(nodata) ? nodata : null;
+  /* Modelo de elevación: el rango de la rampa sale de una muestra de la
+     imagen (hasta 512 × 512 del nivel más basto, por vecino más próximo)
+     y el tamaño de celda en metros, para el sombreado. En grados se pasa
+     a metros con la latitud central.                                  */
+  let dem = null, cellM = null;
+  if (isDem) {
+    const lv = levels[levels.length - 1];
+    let sample;
+    try {
+      sample = await lv.image.readRasters({
+        interleave: true, samples: [0], resampleMethod: "nearest",
+        width: Math.min(lv.w, 512), height: Math.min(lv.h, 512)
+      });
+    } catch (err) {
+      throw new Error(`no se pudo leer la banda de elevación (${err && err.message || err})`);
+    }
+    dem = demRange(sample, noData);
+    if (!dem) throw new Error("el modelo de elevación no trae ninguna altitud válida (todo es «sin datos»)");
+    if (dem.max === dem.min) dem.max = dem.min + 1;
+    const geographic = /\+proj=longlat/.test(def);
+    const cosLat = Math.cos((s + n) / 2 * Math.PI / 180);
+    cellM = geographic ? [Math.abs(rx) * 111320 * cosLat, Math.abs(ry) * 110574]
+      : epsg === 3857 ? [Math.abs(rx) * cosLat, Math.abs(ry) * cosLat]
+      : [Math.abs(rx), Math.abs(ry)];
+  }
   const notes = [];
   if (!fd.TileWidth) notes.push("no está en mosaico (no es un COG): cada tesela lee franjas enteras y puede ir lento");
   if (levels.length === 1 && Math.max(W, H) > 4096) {
     notes.push("no trae vistas generales: de lejos no se dibuja, hay que acercarse");
   }
-  const nodata = first.getGDALNoData();
   return {
-    levels, ox, oy, rx, ry, W, H, epsg, toSrc, box, notes,
-    nodata: Number.isFinite(nodata) ? nodata : null
+    levels, ox, oy, rx, ry, W, H, epsg, toSrc, box, notes, nodata: noData,
+    dem, cellM, blocks: new Map()
   };
 }
 
@@ -18454,6 +18575,42 @@ function cogGridPoint(grid, G, size, u, v) {
           (1 - ty) * ((1 - tx) * grid[k00 + 1] + tx * grid[k10 + 1]) + ty * ((1 - tx) * grid[k01 + 1] + tx * grid[k11 + 1])];
 }
 
+/* Altitud del píxel (ix, iy) del original de un modelo de elevación.
+   Lee bloques alineados de DEM_BLOCK² y guarda los últimos: el cursor
+   se mueve por decenas de píxeles de la misma zona, y cada lectura
+   decodifica un bloque entero. Devuelve null si no hay dato.        */
+async function demValueAtPixel(cog, ix, iy) {
+  if (!(ix >= 0 && iy >= 0 && ix < cog.W && iy < cog.H)) return null;
+  const bx = Math.floor(ix / DEM_BLOCK), by = Math.floor(iy / DEM_BLOCK);
+  const key = bx + ":" + by;
+  let blk = cog.blocks.get(key);
+  if (!blk) {
+    const x0 = bx * DEM_BLOCK, y0 = by * DEM_BLOCK;
+    const x1 = Math.min(cog.W, x0 + DEM_BLOCK), y1 = Math.min(cog.H, y0 + DEM_BLOCK);
+    blk = cog.levels[0].image.readRasters({ window: [x0, y0, x1, y1], interleave: true, samples: [0] })
+      .then(data => ({ data, x0, y0, w: x1 - x0 }));
+    cog.blocks.set(key, blk);
+    if (cog.blocks.size > 16) cog.blocks.delete(cog.blocks.keys().next().value);
+    blk.catch(() => cog.blocks.delete(key));
+  }
+  const b = await blk;
+  return elevValue(Number(b.data[(iy - b.y0) * b.w + (ix - b.x0)]), cog.nodata);
+}
+
+/* La altitud bajo el cursor según el modelo de elevación visible más
+   arriba que cubra el punto, o null. Sin red: lo lee del archivo
+   guardado en el navegador.                                        */
+async function demAltitudeAt(lat, lng) {
+  for (const layer of [...cogLayersOnMap].reverse()) {
+    const cog = layer._cog;
+    if (!cog || !cog.dem || !layer.options.bounds.contains([lat, lng])) continue;
+    const [X, Y] = cog.toSrc([lng, lat]);
+    const value = await demValueAtPixel(cog, Math.floor((X - cog.ox) / cog.rx), Math.floor((Y - cog.oy) / cog.ry));
+    if (value !== null) return { name: layer._li ? layer._li._name : "Modelo de elevación", value };
+  }
+  return null;
+}
+
 /* Pinta una tesela. Devuelve false si no hay nada que pintar (fuera de
    la imagen o, sin vista general, demasiado lejos).                 */
 async function renderCogTile(cog, coords, canvas) {
@@ -18471,12 +18628,18 @@ async function renderCogTile(cog, coords, canvas) {
   if (ww * wh > COG_MAX_WINDOW) return false;
   for (let k = 0; k < grid.length; k += 2) { grid[k] -= win[0]; grid[k + 1] -= win[1]; }
 
-  const src = await lv.image.readRGB({ window: win, interleave: true, enableAlpha: true });
-  const ch = Math.round(src.length / (ww * wh));
   const mask = lv.mask ? await lv.mask.readRasters({ window: win, interleave: true }) : null;
   const ctx = canvas.getContext("2d");
   const img = ctx.createImageData(size, size);
-  warpTile(src, ww, wh, ch, mask, cog.nodata, grid, G, size, img.data);
+  if (cog.dem) {
+    const vals = await lv.image.readRasters({ window: win, interleave: true, samples: [0] });
+    warpDemTile(vals, ww, wh, mask, cog.nodata, grid, G, size, img.data,
+      { min: cog.dem.min, max: cog.dem.max, cx: cog.cellM[0] * lv.fx, cy: cog.cellM[1] * lv.fy });
+  } else {
+    const src = await lv.image.readRGB({ window: win, interleave: true, enableAlpha: true });
+    const ch = Math.round(src.length / (ww * wh));
+    warpTile(src, ww, wh, ch, mask, cog.nodata, grid, G, size, img.data);
+  }
   ctx.putImageData(img, 0, 0);
   return true;
 }
@@ -18486,8 +18649,20 @@ async function renderCogTile(cog, coords, canvas) {
    (overlayPane, 400).                                                */
 map.createPane(COG_PANE, map.getPane("rotatePane")).style.zIndex = 300;
 
+/* Las capas COG que están en el mapa (para la altitud bajo el cursor) */
+const cogLayersOnMap = new Set();
+
 const CogLayer = L.GridLayer.extend({
   options: { pane: COG_PANE, tileSize: COG_TILE, keepBuffer: 1 },
+  onAdd(m) {
+    L.GridLayer.prototype.onAdd.call(this, m);
+    cogLayersOnMap.add(this);
+    cogById(this._rasterId).then(cog => { this._cog = cog; }, () => {});
+  },
+  onRemove(m) {
+    cogLayersOnMap.delete(this);
+    L.GridLayer.prototype.onRemove.call(this, m);
+  },
   initialize(rasterId, box, options) {
     L.GridLayer.prototype.initialize.call(this, options);
     this._rasterId = rasterId;
@@ -18565,8 +18740,11 @@ async function addCogNodeSteps(file, insertBefore, dropTargetUl) {
   refreshAncestorChecks(li);
 
   const levels = cog.levels.length - 1;
-  const txt = `«${file.name}»: ortofoto de ${cog.W} × ${cog.H} px (EPSG:${cog.epsg}, `
-    + `${levels} vista(s) general(es)), guardada en el navegador (${fmtBytes(file.size)}).`;
+  const what = cog.dem
+    ? `modelo de elevación de ${cog.W} × ${cog.H} px (EPSG:${cog.epsg}, de ${fmtHeight(cog.dem.min, "m")} `
+      + `a ${fmtHeight(cog.dem.max, "m")}, ${levels} vista(s) general(es))`
+    : `ortofoto de ${cog.W} × ${cog.H} px (EPSG:${cog.epsg}, ${levels} vista(s) general(es))`;
+  const txt = `«${file.name}»: ${what}, guardada en el navegador (${fmtBytes(file.size)}).`;
   if (cog.notes.length) navMessage(`${txt} Atención: ${cog.notes.join("; ")}.`, { sticky: true });
   else navMessage(txt, { tone: "info" });
   return li;
@@ -18962,6 +19140,7 @@ const CoordsControl = L.Control.extend({
     const fmt = v => (v === null || v === undefined ? "sin datos" : fmtHeight(v, altitudeUnit));
     const t = !!cell && hasMdt(cell), s = !!cell && hasMds(cell);
     this._rows[4].hidden = !t;
+    this._rows[4].title = "";
     this._rows[5].hidden = !s;
     if (t) this._rows[4].textContent = `${ELEV_KIND_LABEL.mdt}: ${fmt(cell.mdt)}`;
     if (s) {
@@ -18971,6 +19150,15 @@ const CoordsControl = L.Control.extend({
       }
       this._rows[5].textContent = line;
     }
+  },
+  /* Altitud bajo el cursor según un modelo de elevación cargado como
+     capa (demAltitudeAt, 64-cog.js): reutiliza la fila del MDT, que
+     showElevationCell dejó oculta porque no hay celda descargada.   */
+  showDemAltitude(r) {
+    if (!r) return;
+    this._rows[4].hidden = false;
+    this._rows[4].textContent = `Altitud: ${fmtHeight(r.value, altitudeUnit)}`;
+    this._rows[4].title = r.name;
   },
   /* El zoom no depende del cursor, así que se refresca aparte */
   updateZoom() {
@@ -18992,14 +19180,19 @@ map.on("zoomend", () => coordsControl.updateZoom());
 /* El ratón dispara decenas de eventos por segundo y cada lectura implica
    proyectar a UTM y reescribir varias filas: se hace una vez por
    fotograma, que es cuanto puede verse.                               */
-let coordsPending = null, coordsFrame = null;
+let coordsPending = null, coordsFrame = null, demSeq = 0;
 map.on("mousemove", e => {
   coordsPending = e.latlng;
   if (coordsFrame) return;
   coordsFrame = requestAnimationFrame(() => {
     coordsFrame = null;
     coordsControl.update(coordsPending);
-    coordsControl.showElevationCell(elevCellAt(coordsPending.lat, coordsPending.lng));
+    const cell = elevCellAt(coordsPending.lat, coordsPending.lng);
+    coordsControl.showElevationCell(cell);
+    /* La lectura del modelo es asíncrona: solo vale si el cursor sigue
+       donde se pidió (demSeq) y no hay ya una celda descargada.       */
+    const seq = ++demSeq, at = coordsPending;
+    if (!cell) demAltitudeAt(at.lat, at.lng).then(r => { if (seq === demSeq) coordsControl.showDemAltitude(r); }, () => {});
   });
 });
 /* Fuera del visor no hay celda bajo el cursor: si no, la última lectura
@@ -19012,6 +19205,7 @@ map.on("mousemove", e => {
    recibía su mouseout.                                               */
 map.getContainer().addEventListener("mouseleave", () => {
   if (coordsFrame) { cancelAnimationFrame(coordsFrame); coordsFrame = null; }
+  demSeq++;
   coordsControl.showElevationCell(null);
 });
 

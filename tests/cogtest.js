@@ -10,12 +10,14 @@
 const { between, constDecl, fn } = require("./_extract");
 const ok = (c, m) => { if (!c) { console.error("FAIL: " + m); process.exitCode = 1; } };
 
-const src = constDecl("ED50_TOWGS84") + "\n" + fn("withoutCogNodes") + "\n" + fn("cogGridPoint") + "\n"
+const src = constDecl("ED50_TOWGS84") + "\n" + constDecl("elevValue") + "\n" + fn("withoutCogNodes") + "\n" + fn("cogGridPoint") + "\n"
   + between("/* ================= Ortofotos COG", "/* ---------- Almacén \"rasters\"");
 const api = new Function(src + `\nreturn { cogCrsDef, cogEpsg, pickOverview, tileWindow, warpTile,
-  cogGridPoint, orphanRasterIds, validCogRecord, withoutCogNodes, COG_GRID, COG_TILE };`)();
+  cogGridPoint, orphanRasterIds, validCogRecord, withoutCogNodes, COG_GRID, COG_TILE,
+  demColor, demHillshade, demRange, warpDemTile, DEM_RAMP };`)();
 const { cogCrsDef, cogEpsg, pickOverview, tileWindow, warpTile, cogGridPoint,
-        orphanRasterIds, validCogRecord, withoutCogNodes } = api;
+        orphanRasterIds, validCogRecord, withoutCogNodes,
+        demColor, demHillshade, demRange, warpDemTile, DEM_RAMP } = api;
 
 /* ---------- Sistemas admitidos ---------- */
 ok(/\+zone=30 .*GRS80/.test(cogCrsDef(25830)), "ETRS89 UTM 30N: " + cogCrsDef(25830));
@@ -117,3 +119,44 @@ ok(JSON.stringify(guardado[0].children[0])
   "un COG pendiente se guarda con su id, su caja y su opacidad, sin la capa: " + JSON.stringify(guardado[0].children[0]));
 
 if (!process.exitCode) console.log("COG TESTS OK");
+
+/* ---------- Modelos de elevación ---------- */
+const near = (a, b, e = 1e-9) => Math.abs(a - b) <= e;
+ok(demColor(0).join() === DEM_RAMP[0][1].join() && demColor(1).join() === DEM_RAMP[DEM_RAMP.length - 1][1].join(),
+  "la rampa empieza y acaba en sus extremos");
+ok(demColor(0.5).join() === "225,215,130", "y pasa por su parada central: " + demColor(0.5));
+ok(demColor(-3).join() === demColor(0).join() && demColor(9).join() === demColor(1).join() && demColor(NaN).join() === demColor(0).join(),
+  "fuera de [0, 1] y NaN se recortan");
+ok(near(demColor(0.125)[0], (56 + 160) / 2) && near(demColor(0.125)[1], (128 + 190) / 2), "entre dos paradas interpola linealmente");
+
+const flat = demHillshade(100, 100, 100, 100, 5, 5);
+ok(near(flat, Math.sin(45 * Math.PI / 180)), "terreno llano: sin(altitud de la luz) = " + flat);
+/* La luz viene del noroeste: una ladera que mira al noroeste (sube hacia el este y el sur) se ilumina; la contraria, no */
+ok(demHillshade(100, 110, 100, 110, 5, 5) > flat, "ladera al noroeste, más clara que el llano");
+ok(demHillshade(110, 100, 110, 100, 5, 5) < flat, "ladera al sureste, más oscura");
+ok(demHillshade(0, 1000, 0, 1000, 5, 5) >= 0 && demHillshade(1000, 0, 1000, 0, 5, 5) >= 0, "nunca por debajo de 0");
+ok(Math.abs(demHillshade(100, 110, 100, 110, 50, 50) - flat) < Math.abs(demHillshade(100, 110, 100, 110, 5, 5) - flat),
+  "la misma diferencia de altura en celdas diez veces mayores es menos pendiente");
+
+const r1 = demRange(new Float32Array([-9999, 10, 250.5, NaN, 12000, -600, 3]), -9999);
+ok(r1 && r1.min === 3 && r1.max === 250.5, "el rango ignora nodata, NaN y valores fuera de [-500, 9000]: " + JSON.stringify(r1));
+ok(demRange(new Float32Array([-9999, NaN, 99999]), -9999) === null, "sin ninguna altitud válida, null");
+ok(demRange([5, 7], null).max === 7, "sin nodata declarado también");
+
+/* Una ventana de 4 × 4 con una malla identidad (G = 1, size = 4): cada píxel de la tesela es su celda */
+{
+  const grid = new Float64Array([0, 0, 4, 0, 0, 4, 4, 4]);
+  const win = new Float32Array(16).fill(100);
+  win[5] = -9999;                         /* (1, 1) sin dato */
+  const mask = new Uint8Array(16).fill(1); mask[10] = 0;   /* (2, 2) fuera de la máscara */
+  const out = new Uint8ClampedArray(4 * 4 * 4);
+  warpDemTile(win, 4, 4, mask, -9999, grid, 1, 4, out, { min: 0, max: 200, cx: 5, cy: 5 });
+  const px = (u, v) => [...out.slice((v * 4 + u) * 4, (v * 4 + u) * 4 + 4)];
+  const k = 0.35 + 0.65 * Math.sin(45 * Math.PI / 180);
+  const c = demColor(0.5).map(x => Math.round(x * k));
+  ok(px(0, 0)[3] === 255 && px(0, 0).slice(0, 3).every((v, i) => Math.abs(v - c[i]) <= 1),
+    "una celda llana lleva el color de su altitud sombreado como el llano: " + px(0, 0) + " frente a " + c);
+  ok(px(1, 1)[3] === 0, "una celda nodata queda transparente");
+  ok(px(2, 2)[3] === 0, "una celda fuera de la máscara también");
+  ok(px(1, 0)[3] === 255 && px(0, 1)[3] === 255, "y una vecina de un nodata sigue pintada (su vecino se sustituye por ella)");
+}

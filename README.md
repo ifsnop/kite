@@ -71,7 +71,9 @@ KITE Local does not impose fixed limits on KML file size, imported features or v
   summary). Without a `.prj`, only coordinates already in degrees are
   accepted. Text encoding comes from the `.cpg`, or is detected (UTF-8,
   else Windows-1252). Z values are not imported
-- Cloud Optimized GeoTIFF orthophotos (`.tif`, 8-bit RGB or grey): dropped
+- Cloud Optimized GeoTIFF orthophotos (`.tif`, 8-bit RGB or grey) and
+  single-band elevation models (16/32-bit integer or float, drawn with a
+  colour ramp and relief shading, altitude under the cursor): dropped
   onto the panel, validated, then copied as a Blob into the browser's own
   IndexedDB store so they survive a reload. Drawn by a custom
   `L.GridLayer` that reads only the window and overview level each tile

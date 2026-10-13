@@ -389,6 +389,7 @@ const CoordsControl = L.Control.extend({
     const fmt = v => (v === null || v === undefined ? "sin datos" : fmtHeight(v, altitudeUnit));
     const t = !!cell && hasMdt(cell), s = !!cell && hasMds(cell);
     this._rows[4].hidden = !t;
+    this._rows[4].title = "";
     this._rows[5].hidden = !s;
     if (t) this._rows[4].textContent = `${ELEV_KIND_LABEL.mdt}: ${fmt(cell.mdt)}`;
     if (s) {
@@ -398,6 +399,15 @@ const CoordsControl = L.Control.extend({
       }
       this._rows[5].textContent = line;
     }
+  },
+  /* Altitud bajo el cursor según un modelo de elevación cargado como
+     capa (demAltitudeAt, 64-cog.js): reutiliza la fila del MDT, que
+     showElevationCell dejó oculta porque no hay celda descargada.   */
+  showDemAltitude(r) {
+    if (!r) return;
+    this._rows[4].hidden = false;
+    this._rows[4].textContent = `Altitud: ${fmtHeight(r.value, altitudeUnit)}`;
+    this._rows[4].title = r.name;
   },
   /* El zoom no depende del cursor, así que se refresca aparte */
   updateZoom() {
@@ -419,14 +429,19 @@ map.on("zoomend", () => coordsControl.updateZoom());
 /* El ratón dispara decenas de eventos por segundo y cada lectura implica
    proyectar a UTM y reescribir varias filas: se hace una vez por
    fotograma, que es cuanto puede verse.                               */
-let coordsPending = null, coordsFrame = null;
+let coordsPending = null, coordsFrame = null, demSeq = 0;
 map.on("mousemove", e => {
   coordsPending = e.latlng;
   if (coordsFrame) return;
   coordsFrame = requestAnimationFrame(() => {
     coordsFrame = null;
     coordsControl.update(coordsPending);
-    coordsControl.showElevationCell(elevCellAt(coordsPending.lat, coordsPending.lng));
+    const cell = elevCellAt(coordsPending.lat, coordsPending.lng);
+    coordsControl.showElevationCell(cell);
+    /* La lectura del modelo es asíncrona: solo vale si el cursor sigue
+       donde se pidió (demSeq) y no hay ya una celda descargada.       */
+    const seq = ++demSeq, at = coordsPending;
+    if (!cell) demAltitudeAt(at.lat, at.lng).then(r => { if (seq === demSeq) coordsControl.showDemAltitude(r); }, () => {});
   });
 });
 /* Fuera del visor no hay celda bajo el cursor: si no, la última lectura
@@ -439,6 +454,7 @@ map.on("mousemove", e => {
    recibía su mouseout.                                               */
 map.getContainer().addEventListener("mouseleave", () => {
   if (coordsFrame) { cancelAnimationFrame(coordsFrame); coordsFrame = null; }
+  demSeq++;
   coordsControl.showElevationCell(null);
 });
 

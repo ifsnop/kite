@@ -617,7 +617,7 @@ async function handleDroppedFiles(files, insertBefore, dropTargetUl = null) {
 /* Lo que se acepta, dicho igual en todos los avisos que lo enumeran
    (handleDroppedFiles y el diálogo de 🔗).                          */
 const IMPORT_FORMATS = "KML, KMZ (incl. ortofotos), JSON (GeoJSON), TopoJSON, "
-  + "shapefiles (.shp con su .dbf y .prj, o en un .zip), ortofotos COG (.tif) "
+  + "shapefiles (.shp con su .dbf y .prj, o en un .zip), ortofotos COG y modelos de elevaci\u00F3n (.tif) "
   + `y carpetas exportadas (${EXPORT_EXT})`;
 
 /* ECW (el formato del Centro de Descargas del CNIG) no se lee: no hay
