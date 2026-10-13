@@ -270,6 +270,51 @@ ok(marcadores.tras[0].icon === "star" && marcadores.tras[1].icon === "airplane"
   && marcadores.tras[0].size === 24 && marcadores.tras[1].size === 41,
   "y cada uno conserva su icono y su tamaño: " + JSON.stringify(marcadores.tras));
 
+/* ---------- Activar «mostrar texto siempre» retira el globo que ya estuviera abierto ---------- */
+const globos = await page.evaluate(async () => {
+  /* Un globo cerrado se desvanece 200 ms antes de salir del DOM: se espera a que
+     el recuento llegue al esperado (con tope), no un tiempo fijo.              */
+  const abiertos = async esperado => {
+    for (let t = Date.now(); Date.now() - t < 2000; ) {
+      if (document.querySelectorAll(".leaflet-popup").length === esperado) break;
+      await new Promise(r => setTimeout(r, 25));
+    }
+    return document.querySelectorAll(".leaflet-popup").length;
+  };
+  const ul = __limpiar();
+  const r = {};
+  /* Un trazo con el globo de siempre abierto (lo que deja un clic sobre él) */
+  const t = __poly(ul, "Zona", { color: "#ff0000", weight: 2, fillColor: "#ff0000", fillOpacity: 0.35 });
+  nodeLayer(t).bindPopup("Zona", COMPACT_POPUP);
+  nodeLayer(t).openPopup(L.latLng(40.45, -3.65));
+  r.trazoAntes = await abiertos(1);
+  t._style.textAlways = true;
+  applyPolygonStyle(t);
+  r.trazoDespues = await abiertos(0);
+  r.trazoEtiqueta = __tip(t);
+  /* Un marcador con el suyo abierto */
+  const m = makeNode({ name: "Punto", layer: L.marker([40.5, -3.6]).addTo(rootGroup), style: { color: "#1b5e97" } });
+  ul.appendChild(m);
+  m._mstyle = { ...DEFAULT_MARKER_STYLE };
+  applyMarkerStyle(m);
+  nodeLayer(m).openPopup();
+  r.marcadorAntes = await abiertos(1);
+  m._mstyle.textAlways = true;
+  applyMarkerStyle(m);
+  r.marcadorDespues = await abiertos(0);
+  r.marcadorEtiqueta = !!nodeLayer(m).getTooltip();
+  /* Apagarla NO abre nada por su cuenta */
+  m._mstyle.textAlways = false;
+  applyMarkerStyle(m);
+  r.apagado = await abiertos(0);
+  return r;
+});
+ok(globos.trazoAntes === 1 && globos.trazoDespues === 0 && globos.trazoEtiqueta === "Zona",
+  "trazo: al activar el texto siempre se cierra el globo abierto y queda solo la etiqueta permanente: " + JSON.stringify(globos));
+ok(globos.marcadorAntes === 1 && globos.marcadorDespues === 0 && globos.marcadorEtiqueta,
+  "marcador: igual, sin la etiqueta doble: " + JSON.stringify(globos));
+ok(globos.apagado === 0, "y apagarla no deja ningún globo abierto");
+
 ok(errors.length === 0, "sin errores de página: " + JSON.stringify(errors));
 
 await browser.close();

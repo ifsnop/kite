@@ -274,9 +274,15 @@ function applyMarkerText(li, offset) {
   if (!s || !layer) return;
   const html = `<span style="font-size:${s.textSize}px;color:${s.textColor}">${escapeHtml(li._name)}</span>`;
   if (!offset) offset = buildMarkerIcon(s, null).textOffset;
+  /* Leaflet's unbindPopup() does NOT close a popup that is already open
+     (they stay up, autoClose is off): with the permanent label added
+     next, the name would show twice — the closable popup and the
+     tooltip. Turning "always show text" on replaces what was showing.  */
+  if (s.textAlways) layer.closePopup();
   layer.unbindPopup(); /* drop the group-level popup bound at creation */
   const each = l => {
     if (l instanceof L.Marker) {
+      if (s.textAlways) l.closePopup();
       l.unbindPopup();
       l.unbindTooltip();
       if (s.textAlways) {
@@ -327,6 +333,7 @@ function applyPolygonText(li) {
   const always = !!(li._style && li._style.textAlways);
   const tip = layer.getTooltip && layer.getTooltip();
   if (always) {
+    layer.closePopup(); /* an open one would stay up next to the label */
     layer.unbindPopup();
     layer.unbindTooltip();
     layer.bindTooltip(escapeHtml(li._name),
