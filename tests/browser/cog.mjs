@@ -315,8 +315,8 @@ ok(Math.abs(base0.n[0] - 500000) < 1e-6 && Math.abs(base0.n[1]) < 1e-6, "36N: lo
 ok(Math.abs(base0.s[0] - 500000) < 1e-6 && Math.abs(base0.s[1] - 1e7) < 1e-6, "36S: lat 0° → falso norte de 10 000 000 m: " + base0.s);
 ok(base0.nLat > 29.9 && base0.nLat < 30.1 && base0.sLat < -29.9 && base0.sLat > -30.1,
   `los husos norte y sur se invierten a ±30°: ${base0.nLat} / ${base0.sLat}`);
-for (const [epsg, lat] of [[32636, 30.0], [32736, -30.0]]) {
-  const lon = 33.5;
+/* Y EPSG:3043, ETRS89 / UTM 31N con ejes N-E: el GeoTIFF guarda este y norte igual que con el 25831 */
+for (const [epsg, lat, lon] of [[32636, 30.0, 33.5], [32736, -30.0, 33.5], [3043, 41.4, 2.17]]) {
   const geo = await page.evaluate(([e, la, lo]) => {
     const [x, y] = proj4(cogCrsDef(e)).forward([lo, la]);
     return { model: 1, epsg: e, ox: x - 256, oy: y + 256, px: 1 };
@@ -325,7 +325,7 @@ for (const [epsg, lat] of [[32636, 30.0], [32736, -30.0]]) {
   await soltar(nombre, cogOf(geo));
   const caja = await page.evaluate(`(() => { const li = ${liDe(nombre)}; if (!li) return null;
     const b = nodeLayer(li).getBounds(); return { c: b.getCenter(), w: b.getEast() - b.getWest() }; })()`);
-  ok(caja && Math.abs(caja.c.lat - lat) < 0.001 && Math.abs(caja.c.lng - lon) < 0.001 && caja.w > 0.004 && caja.w < 0.006,
+  ok(caja && Math.abs(caja.c.lat - lat) < 0.001 && Math.abs(caja.c.lng - lon) < 0.001 && Math.abs(caja.w - 512 / (111320 * Math.cos(lat * Math.PI / 180))) < 0.0003,
     `EPSG:${epsg} se admite y cae en su sitio (centro ${caja && caja.c.lat},${caja && caja.c.lng}): ` + JSON.stringify(caja));
 }
 ok(!errors.length, "sin errores de página con los husos nuevos: " + errors.join(" | "));

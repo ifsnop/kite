@@ -30,6 +30,11 @@ ok(/\+zone=36 .*\+south/.test(cogCrsDef(32736)), "y el hemisferio sur lleva +sou
 ok(/\+zone=1 /.test(cogCrsDef(32601)) && /\+zone=60 /.test(cogCrsDef(32660)) && /\+zone=60 .*south/.test(cogCrsDef(32760)),
   "los extremos de las dos familias WGS84 (1–60)");
 ok(/\+zone=32 .*GRS80/.test(cogCrsDef(25832)) && /\+zone=38 /.test(cogCrsDef(25838)), "ETRS89 UTM 32–38 (Europa central y oriental)");
+ok(/\+zone=31 .*GRS80/.test(cogCrsDef(3043)) && cogCrsDef(3043) === cogCrsDef(25831),
+  "EPSG:3043 (ETRS89 / UTM 31N, ejes N-E) es la misma proyección que 25831: " + cogCrsDef(3043));
+ok([3040, 3041, 3042, 3044, 3045, 3046, 3047, 3048, 3049, 3050].every(e => cogCrsDef(e) === cogCrsDef(e - 3040 + 25828)),
+  "y toda la familia 3040–3050 casa con 25828–25838 (huso = código − 3012)");
+ok(cogCrsDef(3039) === null && cogCrsDef(3051) === null, "fuera de los husos 28–38 no hay sistema");
 ok(cogCrsDef(32600) === null && cogCrsDef(32661) === null && cogCrsDef(32700) === null && cogCrsDef(32761) === null
   && cogCrsDef(25839) === null && cogCrsDef(25827) === null, "fuera de los husos 1–60 y 28–38 no hay sistema");
 ok(cogCrsDef(23032) === null, "ED50 fuera de los husos peninsulares no se admite: sus parámetros solo valen en España");

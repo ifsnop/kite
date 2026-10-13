@@ -57,8 +57,13 @@ function cogCrsDef(epsg) {
   if (epsg === 4258) return "+proj=longlat +ellps=GRS80 +towgs84=0,0,0,0,0,0,0 +no_defs";
   if (epsg === 3857) return "EPSG:3857";
   const utm = (zone, datum) => `+proj=utm +zone=${zone} ${datum} +units=m +no_defs`;
-  /* ETRS89 / UTM 28N–38N */
-  if (epsg >= 25828 && epsg <= 25838) return utm(epsg - 25800, "+ellps=GRS80 +towgs84=0,0,0,0,0,0,0");
+  /* ETRS89 / UTM 28N–38N, con los dos códigos del EPSG: 258zz (E, N) y
+     30zz (N, E: 3040 es el huso 28, 3043 el 31). Un GeoTIFF guarda
+     siempre x = este e y = norte, sea cual sea el orden de ejes del
+     código, así que es la misma proyección.                          */
+  const etrs = "+ellps=GRS80 +towgs84=0,0,0,0,0,0,0";
+  if (epsg >= 25828 && epsg <= 25838) return utm(epsg - 25800, etrs);
+  if (epsg >= 3040 && epsg <= 3050) return utm(epsg - 3012, etrs);
   /* WGS84 / UTM norte (326zz) y sur (327zz): el hemisferio sur lleva
      falso norte de 10 000 km, que proj4 solo aplica con +south       */
   if (epsg >= 32601 && epsg <= 32660) return utm(epsg - 32600, "+datum=WGS84");
@@ -70,7 +75,7 @@ function cogCrsDef(epsg) {
   return null;
 }
 const COG_CRS_LIST = "WGS84 (4326), ETRS89 (4258), Web Mercator (3857), ETRS89 UTM 28–38 "
-  + "(25828–25838), WGS84 UTM norte y sur (32601–32660, 32701–32760), ED50 UTM 28–31 "
+  + "(25828–25838 y 3040–3050), WGS84 UTM norte y sur (32601–32660, 32701–32760), ED50 UTM 28–31 "
   + "y REGCAN95 UTM 27–28";
 
 /* El EPSG de las GeoKeys de la imagen: el proyectado si lo hay, si no
