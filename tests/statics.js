@@ -185,6 +185,13 @@ const GLOBALS = new Set([
      mismo que el resto: depender de una API del navegador tiene que ser
      una decisión, no un descuido.                                      */
   "URL", "decodeURIComponent", "TextDecoder", "File", "Uint8Array",
+  /* `DataView`: leer el directorio central de un zip descargado sin
+     descomprimirlo (zipEntryNames). `proj4`: la librería de
+     reproyección, que se llama como función (shpProjection).        */
+  "DataView", "proj4",
+  /* `Float64Array`: la malla de puntos proyectados de una tesela COG
+     (renderCogTile, 64-cog.js).                                     */
+  "Float64Array",
   /* `ResizeObserver`: la gráfica del perfil de una ruta se redibuja al
      tamaño de su ventana redimensionable (63-route-profile.js). En
      todos los navegadores objetivo desde 2020.                       */
@@ -220,5 +227,19 @@ ok(closes.length >= 3, `se han encontrado botones × de cabecera: ${closes.lengt
 const misplaced = closes.filter(id => !new RegExp(
   `<div class="dlg-box no-actions">\\s*<h2 class="dlg-head">[^\\n]*?id="${id}"[^\\n]*?</h2>`).test(html));
 ok(misplaced.length === 0, "× de cerrar fuera de la cabecera de una caja sin pie: " + misplaced.join(", "));
+
+/* ---------- 5. Ningún nombre de nivel superior declarado dos veces ----------
+   Todo `src/js` comparte UN ámbito global. Una `const` repetida
+   rompe el arranque (se ve enseguida), pero una `function` repetida
+   pisa EN SILENCIO a la anterior: así una función nueva del COG
+   (`gridPoint`) dejó sin la suya a la consulta de elevación. Nivel
+   superior = en la columna 0, que es como va todo el código.     */
+const topNames = new Map();
+for (const m of code.matchAll(/^(?:async\s+)?(?:function\s*\*?|const|let|var|class)\s+([A-Za-z_$][\w$]*)/gm)) {
+  topNames.set(m[1], (topNames.get(m[1]) || 0) + 1);
+}
+ok(topNames.size > 300, `se han encontrado nombres de nivel superior: ${topNames.size}`);
+const twice = [...topNames].filter(([, n]) => n > 1).map(([k]) => k);
+ok(twice.length === 0, "nombre de nivel superior declarado dos veces (el segundo pisa al primero): " + twice.join(", "));
 
 if (!process.exitCode) console.log("STATIC CHECKS OK");

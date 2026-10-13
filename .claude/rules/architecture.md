@@ -17,6 +17,11 @@ paths:
 2. **Parseo KML**: estilos (`aabbggrr`→color+opacidad, `StyleMap` par
    *normal*), `<visibility>`, `<open>`, geometrías (MultiGeometry,
    polígonos con agujeros). GeoJSON con estilos simplestyle.
+2b. **Shapefile** (`34-shp-import.js`, detrás de la importación KML):
+    agrupa las piezas soltadas (`groupShapefileParts`), lee con la
+    librería `shapefile`, reproyecta con proj4 desde el `.prj` y entrega
+    un FeatureCollection a `addFileNode` (que acepta el objeto, no solo
+    texto). Ver `import-parsing.md`.
 3. **Árbol de navegación**: `makeNode(...)` es la fábrica ÚNICA de
    filas (caret, checkbox, color, etiqueta, acciones). Toda fila nueva
    se crea con ella. Utilidades: `nodeUl`, `deleteNode`,
@@ -63,6 +68,16 @@ paths:
     `routeProfileCtxItem` (menú contextual, diálogo de la ruta) y
     `validRouteProfile` (`buildElevGridRecord`) se llaman desde archivos
     anteriores solo en tiempo de ejecución. Ver `elevation-dem.md`.
+11c. **Ortofotos COG** (`64-cog.js`): almacén `rasters` (bytes como
+    `Blob`), `openCog` (validación, niveles y máscaras, CRS de las
+    GeoKeys), `CogLayer` (`L.GridLayer` en su pane `kiteCogPane`, dentro
+    de `rotatePane`) y `addCogNode`. Al CARGAR crea el pane
+    (`map.createPane`), así que va detrás de `10-map.js`; lo puro
+    (`cogCrsDef`, `pickOverview`, `tileWindow`, `warpTile`,
+    `cogGridPoint`, `orphanRasterIds`, `validCogRecord`) se prueba en
+    Node. `buildCogRecord`/`cleanOrphanRasters`/`addCogNode` se llaman
+    desde archivos anteriores (32, 33, 99) solo en tiempo de ejecución.
+    Ver `cog.md`.
 12. **Controles de vista**: autoescala, ES/IC, retícula, coordenadas.
 13. **Arranque**: restauración del árbol guardado. Al final, para que
     todo esté definido.

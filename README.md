@@ -6,7 +6,7 @@
 
 **KML Interactive Tree Explorer**
 
-A privacy-first, browser-based viewer and organizer for **KML, KMZ and GeoJSON** files. It preserves nested KML folder structures as an interactive layer tree, runs from one self-contained HTML file, and keeps imported data inside the user's browser.
+A privacy-first, browser-based viewer and organizer for **KML, KMZ, GeoJSON and shapefile** files, and Cloud Optimized GeoTIFF orthophotos. It preserves nested KML folder structures as an interactive layer tree, runs from one self-contained HTML file, and keeps imported data inside the user's browser.
 
 ### ▶ [Try the live demo](https://ifsnop.github.io/kite/)
 
@@ -64,6 +64,23 @@ KITE Local does not impose fixed limits on KML file size, imported features or v
 - KML files, preserving nested `Document` and `Folder` structures
 - KMZ archives, including the images referenced by their ground overlays
 - GeoJSON, TopoJSON and plain JSON
+- Shapefiles: drop the `.shp` together with its `.dbf`, `.prj` and `.cpg`,
+  or the `.zip` that holds them (one folder per layer). Coordinates are
+  reprojected from the `.prj` with proj4 (ETRS89 UTM, the usual case in
+  Spain; ED50 with the standard peninsular parameters, flagged in the
+  summary). Without a `.prj`, only coordinates already in degrees are
+  accepted. Text encoding comes from the `.cpg`, or is detected (UTF-8,
+  else Windows-1252). Z values are not imported
+- Cloud Optimized GeoTIFF orthophotos (`.tif`, 8-bit RGB or grey) and
+  single-band elevation models (16/32-bit integer or float, drawn with a
+  colour ramp and relief shading, altitude under the cursor): dropped
+  onto the panel, validated, then copied as a Blob into the browser's own
+  IndexedDB store so they survive a reload. Drawn by a custom
+  `L.GridLayer` that reads only the window and overview level each tile
+  needs (geotiff.js `fromBlob`), reprojected per tile through a 16×16
+  proj4 grid (WGS84 UTM any zone north or south, ETRS89 UTM 28–38 (EPSG:258xx and 3040–3050), ED50 UTM
+  28–31, REGCAN95, WGS84, ETRS89, Web Mercator). Not included in `.kite.json` exports or the system
+  clipboard; a deleted one is purged from storage on the next start
 - KITE Local folder exports (`.kite.json`)
 - drag-and-drop import; dropping onto a folder imports inside it
 - tolerant XML parsing: a namespace prefix that a file uses but never
@@ -108,7 +125,7 @@ KITE Local does not impose fixed limits on KML file size, imported features or v
 
 ### Loading
 
-- drag KML, KMZ, GeoJSON, TopoJSON and exported `.kite.json` folders onto
+- drag KML, KMZ, GeoJSON, TopoJSON, shapefiles and exported `.kite.json` folders onto
   the panel, or drop them straight into a folder
 - **open a URL**: paste an address, download it, see what actually
   arrived — the format is recognised from the content, not the
@@ -152,6 +169,7 @@ stacking order can be changed:
 - Esri World Terrain and Esri hillshade
 - IGN Base and MTN topographic maps (Spain)
 - PNOA orthophotography, current and historical (Spain)
+- Madrid city orthophotography (Ayuntamiento de Madrid WMS)
 - IGN terrain WMS (Spain)
 - SRTM30 relief (terrestris, 56°S–60°N)
 - Copernicus DEM through Sentinel Hub, which needs the user's own
@@ -279,8 +297,8 @@ Imported KML/KMZ/GeoJSON content is parsed locally and is **not uploaded to an a
 The current build is not fully offline and makes external requests:
 
 - Leaflet CSS, JavaScript and default marker images, topojson-client,
-  html2canvas and geotiff.js are loaded from `unpkg.com`;
-- JSZip is loaded from `cdnjs.cloudflare.com`;
+  html2canvas, geotiff.js and shapefile are loaded from `unpkg.com`;
+- JSZip and proj4js are loaded from `cdnjs.cloudflare.com`;
 - place searches are sent to the public Nominatim service;
 - base-map tiles and WMS images are requested from their respective providers;
 - elevation queries and route profiles are requested from the chosen WCS
@@ -501,13 +519,16 @@ This application currently uses or accesses:
 - [JSZip](https://stuk.github.io/jszip/)
 - [topojson-client](https://github.com/topojson/topojson-client)
 - [html2canvas](https://html2canvas.hertzen.com/)
-- [geotiff.js](https://geotiffjs.github.io/) (MIT) — reads elevation grids from services that only offer GeoTIFF
+- [geotiff.js](https://geotiffjs.github.io/) (MIT) — reads elevation grids from services that only offer GeoTIFF, and COG orthophotos
+- [shapefile](https://github.com/mbostock/shapefile) (BSD-3-Clause) — reads `.shp` and `.dbf` into GeoJSON
+- [proj4js](https://proj4js.org/) (MIT) — reprojects shapefile coordinates from their `.prj`, and COG orthophotos per tile
 - [leaflet-rotate](https://github.com/Raruto/leaflet-rotate) (GPL-3.0) — incorporated into the source (see License); not requested at runtime
 - [Material Design Icons](https://pictogrammers.com/library/mdi/) (Pictogrammers, Apache-2.0) — embedded at build time through [Iconify](https://iconify.design/); not requested at runtime
 - [OpenStreetMap](https://www.openstreetmap.org/)
 - [Nominatim](https://nominatim.org/)
 - Esri World Terrain and hillshade
 - Spanish PNOA, IGN WMTS, WMS and WCS services
+- [Ayuntamiento de Madrid orthophoto WMS](https://geoportal.madrid.es/) (data source: Ayuntamiento de Madrid)
 - [SRTM30 tiles from terrestris](https://ows.terrestris.de/) (SRTM data © NASA LP DAAC)
 - [Copernicus DEM through Sentinel Hub](https://dataspace.copernicus.eu/)
 - [Digital Earth Africa](https://www.digitalearthafrica.org/) WCS — Copernicus DEM GLO-30 (© DLR e.V. 2010-2014 and © Airbus Defence and Space GmbH 2014-2018, provided under COPERNICUS by the European Union and ESA)

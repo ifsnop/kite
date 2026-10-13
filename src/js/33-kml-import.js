@@ -285,9 +285,18 @@ function importCancelled() {
    tanto directamente en la raíz. Un GeoJSON, en cambio, es una lista
    plana de elementos sin jerarquía propia, así que ahí la carpeta
    contenedora sí aporta: agrupa lo que llegó junto.                    */
-async function addFileNode(name, kind, content, insertBefore = null, dropTargetUl = null, zip = null) {
-  const big = content.length > SIZE_THRESHOLD;
-  const report = makeImportReport(name);
+/* `content` es texto, salvo un GeoJSON que ya llega construido (un
+   shapefile convertido): pasarlo a texto para volver a leerlo sería
+   duplicar en memoria lo más grande de la importación. Sin texto que
+   medir, «grande» lo decide el número de elementos.                  */
+const BIG_FEATURE_COUNT = 5000;
+/* `report`: un informe ya empezado por quien llama (lo que se ve al leer
+   un shapefile —sin .prj, ED50…— va en el mismo resumen).             */
+async function addFileNode(name, kind, content, insertBefore = null, dropTargetUl = null, zip = null, report = null) {
+  const big = typeof content === "string"
+    ? content.length > SIZE_THRESHOLD
+    : geojsonFeatures(content).length > BIG_FEATURE_COUNT;
+  report = report || makeImportReport(name);
   coordClamped = 0;
   const ul = dropTargetUl || ensureRootUl();
   const wrap = kind !== "kml";
@@ -347,7 +356,7 @@ async function addFileNode(name, kind, content, insertBefore = null, dropTargetU
         progress.indet(`Procesando JSON de ${name}\u2026`);
         await yieldFrame();
       }
-      const gj = JSON.parse(content);
+      const gj = typeof content === "string" ? JSON.parse(content) : content;
       const features = geojsonFeatures(gj);
       /* ANTES de leer firstProps, para que la vista previa del selector
          de propiedad-nombre salga ya limpia. Mismo diálogo que para los
@@ -438,14 +447,17 @@ async function addFileNode(name, kind, content, insertBefore = null, dropTargetU
   return li;  /* null cuando el KML se ha volcado sin envoltorio */
 }
 
-/* Extrae el KML principal de un KMZ (zip). `onPct` recibe el porcentaje
-   descomprimido, la única fase con progreso medible de verdad           */
+/* Cotas de cualquier zip que se abra (KMZ o shapefile comprimido). En
+   kmlFromZip, `onPct` recibe el porcentaje descomprimido, la única fase
+   con progreso medible de verdad.                                      */
 const KMZ_MAX_ENTRIES = 2000;              /* entradas dentro del zip      */
 const KMZ_MAX_UNCOMPRESSED = 300 * 1024 * 1024; /* 300 MB descomprimidos    */
 const KMZ_MAX_RATIO = 200;                 /* descomprimido / comprimido    */
 
-async function kmzToKml(file, onPct) {
-  if (typeof JSZip === "undefined") throw new Error("no se pudo cargar el soporte de KMZ");
+/* Abre un zip (un KMZ o el .zip de un shapefile) y aplica las cotas
+   antes de descomprimir nada. `what` es cómo se le llama en el aviso. */
+async function loadZipChecked(file, what) {
+  if (typeof JSZip === "undefined") throw new Error(`no se pudo cargar el soporte de ${what}`);
   const zip = await JSZip.loadAsync(await file.arrayBuffer());
 
   /* Cotas preventivas contra zips desproporcionados ("zip bomb"): el
@@ -453,7 +465,7 @@ async function kmzToKml(file, onPct) {
      hostil o accidental agote la memoria del navegador.              */
   const entries = Object.values(zip.files).filter(f => !f.dir);
   if (entries.length > KMZ_MAX_ENTRIES) {
-    throw new Error(`el KMZ tiene demasiadas entradas (${entries.length} > ${KMZ_MAX_ENTRIES})`);
+    throw new Error(`el ${what} tiene demasiadas entradas (${entries.length} > ${KMZ_MAX_ENTRIES})`);
   }
   let uncompressed = 0;
   for (const f of entries) {
@@ -461,12 +473,26 @@ async function kmzToKml(file, onPct) {
     uncompressed += size;
   }
   if (uncompressed > KMZ_MAX_UNCOMPRESSED) {
-    throw new Error(`el KMZ ocupa demasiado descomprimido (${fmtBytes(uncompressed)})`);
+    throw new Error(`el ${what} ocupa demasiado descomprimido (${fmtBytes(uncompressed)})`);
   }
   if (file.size && uncompressed / file.size > KMZ_MAX_RATIO) {
     throw new Error(`relaci\u00F3n de compresi\u00F3n sospechosa (\u00D7${Math.round(uncompressed / file.size)})`);
   }
+  return zip;
+}
 
+async function kmzToKml(file, onPct) {
+  return kmlFromZip(await loadZipChecked(file, "KMZ"), onPct);
+}
+
+/* ¿Trae el zip algún KML? Un .zip puede ser un KMZ con otro nombre o
+   el de un shapefile: se decide por lo que lleva dentro.             */
+function zipHasKml(zip) {
+  return zip.file(/\.kml$/i).length > 0;
+}
+
+/* El KML principal de un zip ya abierto: doc.kml, o el primero que haya */
+async function kmlFromZip(zip, onPct) {
   const entry = zip.file(/(^|\/)doc\.kml$/i)[0] || zip.file(/\.kml$/i)[0];
   if (!entry) throw new Error("el KMZ no contiene ning\u00FAn .kml");
   const kml = await entry.async("string", onPct ? meta => onPct(meta.percent) : undefined);
@@ -500,7 +526,20 @@ const fmtBytes = n => {
 /* Procesa archivos soltados en la navegación; `insertBefore` permite
    insertarlos justo donde se hayan arrastrado                          */
 async function handleDroppedFiles(files, insertBefore, dropTargetUl = null) {
-  for (const file of files) {
+  /* Un shapefile son varios archivos (.shp, .dbf, .prj…) que llegan
+     sueltos en el mismo gesto: se agrupan por nombre ANTES del bucle, y
+     cada grupo entra una vez, en el sitio de su .shp.                  */
+  for (const item of groupShapefileParts(files)) {
+    if (item.orphan) {
+      navMessage(`\u00AB${item.orphan.name}\u00BB es parte de un shapefile y no ha llegado su .shp: `
+        + "suelte todas las piezas juntas (.shp, .dbf, .prj, .cpg) o el .zip que las contiene.");
+      continue;
+    }
+    if (item.shp) {
+      await importShapefileSafely(item.shp, insertBefore, dropTargetUl);
+      continue;
+    }
+    const file = item.file;
     const ext = (file.name.split(".").pop() || "").toLowerCase();
     const big = file.size > SIZE_THRESHOLD;
     try {
@@ -514,6 +553,29 @@ async function handleDroppedFiles(files, insertBefore, dropTargetUl = null) {
           : null);
         content = kmz.kml;
         zip = kmz.zip;
+      }
+      else if (ext === "zip") {
+        /* Un .zip se reparte por lo que lleva dentro: con KML es un KMZ
+           con otro nombre; si no, se buscan shapefiles.               */
+        const z = await loadZipChecked(file, "zip");
+        if (zipHasKml(z)) {
+          kind = "kml";
+          const kmz = await kmlFromZip(z, big
+            ? pct => progress.set(pct, `Descomprimiendo ${file.name}\u2026`)
+            : null);
+          content = kmz.kml;
+          zip = z;
+        } else {
+          await importShapefilesFromZip(z, file.name, insertBefore, dropTargetUl);
+          continue;
+        }
+      }
+      else if (ext === "tif" || ext === "tiff") {
+        /* Una ortofoto COG: no pasa por addFileNode (no es vectorial),
+           entra como un nodo propio con sus bytes en IndexedDB.      */
+        await addCogNode(file, insertBefore, dropTargetUl);
+        scheduleSave();
+        continue;
       }
       else if (ext === "json" || ext === "geojson" || ext === "topojson") {
         content = await file.text();
@@ -533,8 +595,12 @@ async function handleDroppedFiles(files, insertBefore, dropTargetUl = null) {
         }
         kind = "geojson";
       }
+      else if (ext === "ecw") {
+        navMessage(ecwHint(file.name), { sticky: true });
+        continue;
+      }
       else {
-        navMessage(`\u00AB${file.name}\u00BB no est\u00E1 soportado. Formatos admitidos: KML, KMZ (incl. ortofotos), JSON (GeoJSON), TopoJSON y carpetas exportadas (${EXPORT_EXT}).`);
+        navMessage(`\u00AB${file.name}\u00BB no est\u00E1 soportado. Formatos admitidos: ${IMPORT_FORMATS}.`);
         continue;
       }
       await addFileNode(file.name, kind, content, insertBefore, dropTargetUl, zip);
@@ -546,6 +612,24 @@ async function handleDroppedFiles(files, insertBefore, dropTargetUl = null) {
       if (big) progress.hide();
     }
   }
+}
+
+/* Lo que se acepta, dicho igual en todos los avisos que lo enumeran
+   (handleDroppedFiles y el diálogo de 🔗).                          */
+const IMPORT_FORMATS = "KML, KMZ (incl. ortofotos), JSON (GeoJSON), TopoJSON, "
+  + "shapefiles (.shp con su .dbf y .prj, o en un .zip), ortofotos COG y modelos de elevaci\u00F3n (.tif) "
+  + `y carpetas exportadas (${EXPORT_EXT})`;
+
+/* ECW (el formato del Centro de Descargas del CNIG) no se lee: no hay
+   decodificador en JS, el SDK de Hexagon es propietario y de pago fuera
+   del escritorio, y el libecwj2 abierto solo entiende ECW v2 (el PNOA es
+   v3). Se reconoce para decir cómo pasarlo a COG, que sí se abre. Ver
+   cog.md.                                                             */
+function ecwHint(name) {
+  const base = String(name).replace(/\.ecw$/i, "");
+  return `\u00AB${name}\u00BB es una ortofoto ECW, un formato propietario que el navegador no puede leer. `
+    + `Convi\u00E9rtala a COG y suelte el .tif: gdal_translate -of COG -co COMPRESS=JPEG "${name}" "${base}.tif" `
+    + "(necesita GDAL con soporte ECW; QGIS para Windows lo trae: Ráster \u203A Conversión \u203A Traducir, formato COG).";
 }
 
 /* ¿Hay una carpeta bajo el puntero? Mismo test de "esto es un
@@ -606,12 +690,13 @@ navPanel.addEventListener("drop", async e => {
    así que inventarles `.geojson` o `.topojson` no aportaría nada y sí
    daría un nombre que el servidor no puso.                            */
 const URL_KIND_EXT = {
-  kml: ".kml", kmz: ".kmz", geojson: ".json", topojson: ".json", kite: EXPORT_EXT
+  kml: ".kml", kmz: ".kmz", geojson: ".json", topojson: ".json", kite: EXPORT_EXT,
+  shpzip: ".zip"
 };
 /* Lo que se le dice al usuario que ha llegado */
 const URL_KIND_LABEL = {
   kml: "KML", kmz: "KMZ (KML comprimido)", geojson: "GeoJSON", topojson: "TopoJSON",
-  kite: "carpeta exportada de KITE (.kite.json)"
+  kite: "carpeta exportada de KITE (.kite.json)", shpzip: "shapefile comprimido (.zip)"
 };
 
 /* Nombre de archivo que sugiere una dirección: el último segmento de su
@@ -673,9 +758,46 @@ function sniffTextKind(text) {
   return null;
 }
 
-/* El de verdad: bytes primero (zip), texto después */
+/* Nombres de las entradas de un zip, leídos de su directorio central
+   (al final del archivo) sin descomprimir nada: basta para saber si
+   es un KMZ o un shapefile. Un zip que no se deja leer así (ZIP64,
+   truncado) da lista vacía y quien llama decide; nunca lanza.        */
+const ZIP_EOCD_MAX = 22 + 0xFFFF; /* registro final + comentario máximo */
+function zipEntryNames(bytes) {
+  if (!bytes || bytes.length < 22) return [];
+  const dv = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
+  const stop = Math.max(0, bytes.length - ZIP_EOCD_MAX);
+  let eocd = -1;
+  for (let i = bytes.length - 22; i >= stop; i--) {
+    if (dv.getUint32(i, true) === 0x06054B50) { eocd = i; break; }
+  }
+  if (eocd < 0) return [];
+  const count = Math.min(dv.getUint16(eocd + 10, true), KMZ_MAX_ENTRIES);
+  let p = dv.getUint32(eocd + 16, true);
+  const names = [];
+  const dec = new TextDecoder("utf-8");
+  for (let n = 0; n < count; n++) {
+    if (p + 46 > bytes.length || dv.getUint32(p, true) !== 0x02014B50) break;
+    const nameLen = dv.getUint16(p + 28, true);
+    const extra = dv.getUint16(p + 30, true);
+    const comment = dv.getUint16(p + 32, true);
+    if (p + 46 + nameLen > bytes.length) break;
+    names.push(dec.decode(bytes.subarray(p + 46, p + 46 + nameLen)));
+    p += 46 + nameLen + extra + comment;
+  }
+  return names;
+}
+
+/* El de verdad: bytes primero (zip), texto después. Un zip con .shp y
+   sin .kml es un shapefile; cualquier otro zip se sigue tratando como
+   KMZ, que es lo que era siempre (y su aviso, «no contiene ningún
+   .kml», sigue siendo el diagnóstico correcto).                      */
 function sniffContentKind(bytes, text) {
-  if (isZipSignature(bytes)) return "kmz";
+  if (isZipSignature(bytes)) {
+    const names = zipEntryNames(bytes);
+    const has = re => names.some(n => re.test(n));
+    return has(/\.shp$/i) && !has(/\.kml$/i) ? "shpzip" : "kmz";
+  }
   return sniffTextKind(text);
 }
 
@@ -697,6 +819,7 @@ function downloadFileName(url, kind) {
      los dos por la rama json, así que ninguno necesita renombrarse.  */
   const same = kind === "kml" ? [".kml"]
     : kind === "kmz" ? [".kmz"]
+    : kind === "shpzip" ? [".zip"]
     : [".json", ".geojson", ".topojson"];
   return same.some(e => lower.endsWith(e)) ? base : base + ext;
 }

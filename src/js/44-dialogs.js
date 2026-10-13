@@ -265,8 +265,7 @@ async function runUrlFetch() {
     }
     if (!kind) {
       setUrlState("error", `No se reconoce el contenido descargado (${fmtBytes(bytes.length)}). `
-        + "Formatos admitidos: KML, KMZ, JSON (GeoJSON), TopoJSON y carpetas "
-        + `exportadas (${EXPORT_EXT}).`, true);
+        + `Formatos admitidos: ${IMPORT_FORMATS}.`, true);
       return;
     }
     const name = downloadFileName(url, kind);
@@ -763,6 +762,10 @@ function renderStyleAttrs() {
 /* `focus: false` cuando lo abre un clic en el VISOR (la ruta que se
    está creando): el foco se queda en el mapa, o sus teclas (desplazar,
    zoom, R) dejarían de llegar a mitad del dibujo.                   */
+/* El estado editable de una ortofoto, de KMZ o COG: las dos solo
+   tienen opacidad, y el diálogo las trata igual.                     */
+const rasterState = t => t._imageOverlay || t._cog || null;
+
 function openStyleDialog(li, { isNew = false, focus = true } = {}) {
   /* The dialog is not modal, so another row's button may be pressed while
      it is open: that cancels the edit in progress before retargeting    */
@@ -772,7 +775,7 @@ function openStyleDialog(li, { isNew = false, focus = true } = {}) {
      que hay algo debajo: se cierra antes de mostrar el de edición.    */
   hideLayerInfo();
   const kind = styleKind(li);
-  if (kind !== "marker" && kind !== "polygon" && kind !== "measure" && kind !== "imageOverlay") {
+  if (kind !== "marker" && kind !== "polygon" && kind !== "measure" && kind !== "imageOverlay" && kind !== "cog") {
     navMessage("Esta capa no tiene estilos editables.");
     return;
   }
@@ -797,7 +800,8 @@ function openStyleDialog(li, { isNew = false, focus = true } = {}) {
   $id("style-marker").hidden = kind !== "marker";
   $id("style-polygon").hidden = kind !== "polygon";
   $id("style-measure").hidden = kind !== "measure";
-  $id("style-imageoverlay").hidden = kind !== "imageOverlay";
+  /* Una ortofoto de KMZ y una COG solo tienen opacidad: misma sección */
+  $id("style-imageoverlay").hidden = kind !== "imageOverlay" && kind !== "cog";
   const single = styleTargets.length === 1;
   styleMixed = new Set();
   styleTouched = new Set();
@@ -950,14 +954,14 @@ function openStyleDialog(li, { isNew = false, focus = true } = {}) {
         : "Descargar las alturas MDT y MDS a lo largo de la ruta y dibujar su perfil");
     }
   } else {
-    const ops = styleTargets.map(t => ({ opacity: t._imageOverlay.opacity }));
+    const ops = styleTargets.map(t => ({ opacity: rasterState(t).opacity }));
     styleDraft = { ...ops[0] };
     styleMixed = mixedProps(ops, ["opacity"]);
     setValueControl($id("io-opacity"), styleDraft.opacity, styleMixed.has("opacity"));
   }
   styleSnapshot = new Map(styleTargets.map(t => [t, {
     mstyle: t._mstyle, style: t._style,
-    opacity: t._imageOverlay ? t._imageOverlay.opacity : undefined
+    opacity: rasterState(t) ? rasterState(t).opacity : undefined
   }]));
   styleLivePreview = new Set();
   stylePreviewed = false;
@@ -1388,7 +1392,7 @@ function applyDraftToTargets() {
     const pick = draftProps(["opacity"]);
     for (const t of styleTargets) {
       const op = "opacity" in pick ? pick.opacity : styleSnapshot.get(t).opacity;
-      t._imageOverlay.opacity = op;
+      rasterState(t).opacity = op;
       const layer = nodeLayer(t);
       if (layer) layer.setOpacity(op);
     }
@@ -1423,7 +1427,7 @@ function restoreStyleSnapshot() {
       t._measure.style = t._style;
       setMeasureLabelsVisible(t._measure, normalizePathStyle(t._style).showLabels !== false);
     } else {
-      t._imageOverlay.opacity = snap.opacity;
+      rasterState(t).opacity = snap.opacity;
       const layer = nodeLayer(t);
       if (layer) layer.setOpacity(snap.opacity);
     }

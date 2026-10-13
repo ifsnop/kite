@@ -268,6 +268,26 @@ TOPOJSON TESTS OK
 
 **Qué cubre:** `topologyToGeoJson`: une los objetos con nombre de una topología en un único `FeatureCollection` (la conversión de arcos la prueba topojson-client, no nosotros).
 
+### `cogtest.js`
+
+**Salida de `npm test`:**
+```
+── Ortofotos COG: sistemas admitidos, GeoKeys, nivel y ventana, reparto de la tesela (máscara, nodata, alfa), modelos de elevación (rampa, sombreado, rango), blobs huérfanos y registros ajenos
+COG TESTS OK
+```
+
+**Qué cubre:** Lo puro de las ortofotos COG (`64-cog.js`): la tabla cerrada de sistemas (`cogCrsDef`: ETRS89 UTM 28–38 (también como EPSG:3040–3050), WGS84 UTM 1–60 norte y sur con `+south`, REGCAN95, ED50 solo en los husos peninsulares, Web Mercator, WGS84, y null fuera de esos rangos); el EPSG de las GeoKeys (`cogEpsg`: el proyectado manda, 32767 no es un código, un modelo proyectado sin código no se toma por geográfico); qué vista general leer (`pickOverview`: la más basta que siga siendo tan fina como la tesela); la ventana con margen, recortada y null fuera de la imagen (`tileWindow`); el reparto de una tesela (`warpTile`: vecino más próximo sin mezclar colores, máscara y nodata transparentes, alfa propio respetado, fuera de la ventana transparente) y que `cogGridPoint` hace la misma cuenta; qué blobs no nombra nadie, contando las instantáneas de deshacer (`orphanRasterIds`); qué registro leído de fuera es válido (`validCogRecord`); qué deja fuera un `.kite.json` (`withoutCogNodes`, a cualquier profundidad); y que un COG dentro de una carpeta nunca desplegada se serializa igual (`serializePendingRecords`). De los modelos de elevación: la rampa de color (extremos, parada central, recorte y NaN), el sombreado (llano = sin(altitud de la luz), más claro hacia el noroeste, más oscuro al sureste, nunca negativo y menos pendiente con celdas mayores), el rango de altitudes válidas (`demRange`) y `warpDemTile` (color, nodata, máscara y vecinos sin dato).
+
+### `shptest.js`
+
+**Salida de `npm test`:**
+```
+── Shapefile: agrupar piezas, codificación del .dbf, sin .prj, datum ED50 y reproyección en su sitio
+SHP TESTS OK
+```
+
+**Qué cubre:** Lo puro de importar un shapefile (`34-shp-import.js`), que llega en varias piezas: `groupShapefileParts` reparte lo soltado en orden de llegada —cada shapefile en el sitio de su `.shp`, piezas juntadas aunque cambien las mayúsculas, una pieza sin su `.shp` como huérfana con aviso, un `.shx` suelto sin aviso, y dentro de un zip la carpeta separa dos capas del mismo nombre—; `cpgEncoding` (UTF-8, 1252, «ANSI 1252», 88591, 65001, una etiqueta que ya entiende `TextDecoder`, y null para lo que no reconoce); `guessDbfEncoding` sin `.cpg` (UTF-8 válido o Windows-1252); `bboxLooksGeographic`, que decide si sin `.prj` las coordenadas pueden ser grados; `prjDatumFix`, que a un ED50 sin parámetros le pone los estándar DENTRO de su `DATUM` y respeta un `TOWGS84` propio o un ETRS89; `reprojectGeometry` en su sitio (polígono con agujero, punto, colección, y NaN para lo que no se proyecta); y las fechas del `.dbf` pasadas a texto. La lectura y la proyección de verdad van por CDN: las prueba `browser/shp-import.mjs`.
+
 ### `groundoverlaytest.js`
 
 **Salida de `npm test`:**
@@ -444,11 +464,11 @@ MINIFIED BUILD TESTS OK
 
 **Salida de `npm test`:**
 ```
-── Comprobaciones estáticas: sin bytes NUL, todo id referido existe, toda función llamada está declarada y los diálogos de un solo botón lo llevan arriba a la derecha
+── Comprobaciones estáticas: sin bytes NUL, todo id referido existe, toda función llamada está declarada, ningún nombre declarado dos veces y los diálogos de un solo botón lo llevan arriba a la derecha
 STATIC CHECKS OK
 ```
 
-**Qué cubre:** Las tres comprobaciones estáticas que antes se hacían a mano (y por eso casi nunca): que el archivo entregado no contenga ningún byte NUL — encontrado uno real, colado sin querer en un separador de un template literal de `navMessage` (`` `${tone}\0${txt}` `` en vez de un espacio), que no rompía nada en el navegador pero hacía que `grep` sin `-a` tratara el archivo como binario y dejara de encontrar nada en él; que todo `$id`/`getElementById` apunte a un `id` que exista en el HTML; y que TODA FUNCIÓN LLAMADA ESTÉ DECLARADA — un refactor puede borrar un ayudante que sigue en uso y `node --check` no lo ve, porque el archivo sigue siendo válido. La de las funciones exige mirar código y no texto: los comentarios en castellano llenos de paréntesis daban 369 falsos positivos, así que la suite lleva su propio `maskCode` (borra comentarios, cadenas, plantillas y regex conservando posiciones, y recorre los `${…}`, que SÍ contienen código). Cuenta como declarado todo lo que liga un nombre: declaraciones, claves de objeto, métodos abreviados, getters y parámetros; los globales del navegador van en una lista explícita. Verificado que falla con un `id` mal escrito y con un ayudante borrado. Además, la regla de los diálogos de un solo botón (`.claude/rules/dialog-close-button.md`): ningún pie `.dlg-actions` con un único botón, y todo × `.dlg-close` dentro de la cabecera `<h2 class="dlg-head">` de una caja `no-actions`; verificado que falla dejando el registro de avisos con solo «Cerrar».
+**Qué cubre:** Las tres comprobaciones estáticas que antes se hacían a mano (y por eso casi nunca): que el archivo entregado no contenga ningún byte NUL — encontrado uno real, colado sin querer en un separador de un template literal de `navMessage` (`` `${tone}\0${txt}` `` en vez de un espacio), que no rompía nada en el navegador pero hacía que `grep` sin `-a` tratara el archivo como binario y dejara de encontrar nada en él; que todo `$id`/`getElementById` apunte a un `id` que exista en el HTML; y que TODA FUNCIÓN LLAMADA ESTÉ DECLARADA — un refactor puede borrar un ayudante que sigue en uso y `node --check` no lo ve, porque el archivo sigue siendo válido. La de las funciones exige mirar código y no texto: los comentarios en castellano llenos de paréntesis daban 369 falsos positivos, así que la suite lleva su propio `maskCode` (borra comentarios, cadenas, plantillas y regex conservando posiciones, y recorre los `${…}`, que SÍ contienen código). Cuenta como declarado todo lo que liga un nombre: declaraciones, claves de objeto, métodos abreviados, getters y parámetros; los globales del navegador van en una lista explícita. Verificado que falla con un `id` mal escrito y con un ayudante borrado. Además, la regla de los diálogos de un solo botón (`.claude/rules/dialog-close-button.md`): ningún pie `.dlg-actions` con un único botón, y todo × `.dlg-close` dentro de la cabecera `<h2 class="dlg-head">` de una caja `no-actions`; verificado que falla dejando el registro de avisos con solo «Cerrar». Y que ningún nombre de nivel superior (`function`, `const`, `let`, `class` en la columna 0) se declare dos veces: todo `src/js` comparte un ámbito, y una `function` repetida pisa EN SILENCIO a la anterior — pasó al añadir el COG, cuyo `gridPoint` dejó sin el suyo a la consulta de elevación; verificado que falla volviendo a meter ese nombre.
 
 ### `tristate.js`
 
@@ -464,11 +484,11 @@ TRI-STATE CHECKBOX TESTS OK
 
 **Salida de `npm test`:**
 ```
-── Reconocer lo descargado de una URL: nombre, tipo por contenido y extensión sintetizada
+── Reconocer lo descargado de una URL: nombre, tipo por contenido (KMZ o shapefile en zip) y extensión sintetizada
 URL IMPORT TESTS OK
 ```
 
-**Qué cubre:** Las funciones puras que reconocen lo descargado de una dirección: `fileNameFromUrl` (consulta y fragmento fuera, `%20` decodificado, la raíz cae en el host, saneado de lo que no puede ir en un nombre), `isZipSignature`, `sniffTextKind` (KML con y sin prefijo de namespace y con BOM, HTML —el diagnóstico de quien pega la página en vez del «Raw»—, GPX y JSON truncado que no cuelan, y los tres tipos JSON por su FORMA) y `downloadFileName`, con el invariante de que la extensión resultante siempre cae en una rama viva de `handleDroppedFiles`: sin él, lo descargado se rechazaría a sí mismo. Y que `URL_KIND_EXT` y `URL_KIND_LABEL` cubran los mismos tipos.
+**Qué cubre:** Las funciones puras que reconocen lo descargado de una dirección: `fileNameFromUrl` (consulta y fragmento fuera, `%20` decodificado, la raíz cae en el host, saneado de lo que no puede ir en un nombre), `isZipSignature`, `zipEntryNames` (los nombres del directorio central de un zip sin descomprimirlo, también con comentario al final, y lista vacía —no una excepción— para un zip truncado), `sniffContentKind` (un zip con `.shp` y sin `.kml` es un shapefile; con `.kml` o sin ninguno de los dos, KMZ), `sniffTextKind` (KML con y sin prefijo de namespace y con BOM, HTML —el diagnóstico de quien pega la página en vez del «Raw»—, GPX y JSON truncado que no cuelan, y los tres tipos JSON por su FORMA) y `downloadFileName`, con el invariante de que la extensión resultante siempre cae en una rama viva de `handleDroppedFiles`: sin él, lo descargado se rechazaría a sí mismo. Y que `URL_KIND_EXT` y `URL_KIND_LABEL` cubran los mismos tipos.
 
 ### `multiedit.js`
 
@@ -578,7 +598,7 @@ VIEW KEYS TESTS OK
 BROWSER APP TESTS OK
 ```
 
-**Qué cubre:** Que la aplicación ARRANQUE y funcione, pasando las mismas comprobaciones sobre `kitelocal.html` Y `kitelocal.min.html` — o sea, ES la comprobación de paridad legible/minificado que antes era manual y obligatoria: si terser rompiera algo, el legible pasaría y el minificado no. Cubre el aviso con que concluye el arranque, las dos barras de la escala y que quede por encima de la atribución, la versión y el enlace al repositorio, aplicar un icono MDI empotrado a un marcador, que los 80 iconos del selector se PINTEN (no solo que estén en una tabla), la etiqueta y el diálogo de una medición en la misma unidad —incluida la fila de área, sin sentido en una ruta, REALMENTE oculta (`display` computado, no solo la propiedad `hidden`)—, el tercer estado de una carpeta con su `aria-checked="mixed"`, y cero violaciones de CSP y cero errores de página.
+**Qué cubre:** Que la aplicación ARRANQUE y funcione, pasando las mismas comprobaciones sobre `kitelocal.html` Y `kitelocal.min.html` — o sea, ES la comprobación de paridad legible/minificado que antes era manual y obligatoria: si terser rompiera algo, el legible pasaría y el minificado no. Cubre el aviso con que concluye el arranque, las dos barras de la escala y que quede por encima de la atribución, la versión y el enlace al repositorio, aplicar un icono MDI empotrado a un marcador, que los 80 iconos del selector se PINTEN (no solo que estén en una tabla), la etiqueta y el diálogo de una medición en la misma unidad —incluida la fila de área, sin sentido en una ruta, REALMENTE oculta (`display` computado, no solo la propiedad `hidden`)—, el tercer estado de una carpeta con su `aria-checked="mixed"`, la capa base «Ortofoto Madrid» (WMS del Ayuntamiento: capa, formato `image/png`, versión 1.3.0, la cita «Origen de los datos: Ayuntamiento de Madrid», acotada a su caja de cobertura y apagada por defecto), y cero violaciones de CSP y cero errores de página.
 
 ### `browser/clipboard.mjs`
 
@@ -744,6 +764,26 @@ BROWSER URL IMPORT TESTS OK
 ```
 
 **Qué cubre:** Añadir contenido desde una dirección, de punta a punta: que el paso 1 diga qué ha llegado SIN tocar el árbol y que solo «Añadir al árbol» lo toque, colgando todo de una sección «Descargas» que se REUTILIZA —como «Lugares» o «Elevaciones»— con una «Descarga N» numerada por descarga dentro; que con el resultado en la mano «Descargar» quede deshabilitado y que tocar la dirección lo reactive invalidando el resultado; una URL sin extensión reconocida por su contenido; KMZ por la firma del zip; página HTML con la pista del enlace «Raw»; 404; tope de tamaño por `content-length`; y CANCELAR UNA DESCARGA EN VUELO con el botón, que durante la descarga pasa a «Cancelar descarga» —sin esperar al tope de 20 s—, dejando el diálogo abierto y la dirección puesta para reintentar. La suite sirve los ejemplos desde el MISMO origen que la aplicación, porque con `connect-src 'self' https:` otro puerto lo bloquearía la política y no el servidor.
+
+### `browser/cog.mjs`
+
+**Salida de `npm test`:**
+```
+── Navegador: ortofotos COG — UTM 30N y Web Mercator en su sitio, vista general, malla frente a proj4, giro, opacidad, MDT con altitud bajo el cursor, recargar, deshacer, limpieza de blobs y subida de la base v3
+BROWSER COG TESTS OK
+```
+
+**Qué cubre:** Ortofotos COG de punta a punta, con geotiff.js y proj4 de verdad. La suite FABRICA sus GeoTIFF en mosaico byte a byte (512 × 512 px a 1 m centrados en la Puerta del Sol, un color por cuadrante, y una vista general de 256 × 256 con los mismos cuadrantes a media intensidad) y lee el color del LIENZO de la tesela en el centro de cada cuadrante: en ETRS89 UTM 30N y en Web Mercator cada uno cae en su sitio; a zoom 14 se lee la vista general; la malla de 16 × 16 se separa de proj4 punto a punto menos de 0,05 px; con el mapa girado 30° sigue en su sitio; el diálogo de propiedades enseña y aplica la opacidad; tras recargar vuelve con su opacidad y se pinta desde el blob guardado; borrar quita el nodo pero no los bytes, deshacer lo devuelve, y al arrancar se borran solo los bytes que ya no nombra nadie; los husos UTM de WGS84 (norte y sur) y de ETRS89, con el este de 500 000 m en el meridiano central, el falso norte del hemisferio sur y la caja de una imagen en 32636 y 32736 en su sitio; un sistema que no está en la tabla (EPSG:2062) y una imagen de 16 bits en tres canales se rechazan sin dejar nodo ni bytes, igual que un `.ecw`, que además se reconoce y da la receta de conversión a COG; un MDT GeoTIFF de 32 bits en coma flotante se admite, se pinta con la rampa (lo bajo verde, lo alto más claro), deja transparente su cuadrante sin dato, da la altitud exacta de la celda con `demAltitudeAt` y en el cuadro de coordenadas (en la unidad de Propiedades), y uno sin ninguna altitud válida se rechaza sin dejar restos; exportar avisa de que la ortofoto se queda fuera; y abrir esta versión sobre una base v3 con un árbol v7 conserva el árbol y deja la base en v4 con su almacén `rasters`.
+
+### `browser/shp-import.mjs`
+
+**Salida de `npm test`:**
+```
+── Navegador: shapefiles — piezas sueltas, .zip y 🔗, EPSG:25830 en su sitio, codificación, ED50 y huérfanos
+BROWSER SHP IMPORT TESTS OK
+```
+
+**Qué cubre:** Importar shapefiles de punta a punta, con la librería `shapefile` y proj4 de verdad. La suite fabrica sus `.shp` y `.dbf` byte a byte con coordenadas UTM 30N calculadas por `latLngToUtm` de la propia aplicación, así que sabe dónde debe caer cada cosa: piezas sueltas en desorden y con mayúsculas dan un nodo, y la Puerta del Sol en EPSG:25830 cae a menos de 0,5 m; el `.cpg` UTF-8 se respeta y sin `.cpg` un `.dbf` en Latin-1 se lee bien; polilínea y polígono con agujero; sin `.dbf` entra y el resumen lo dice; una pieza sin su `.shp` se avisa; sin `.prj` y en metros se rechaza sin dejar nada a medias; las mismas cifras con un `.prj` ED50 se desplazan lo que toca (100–200 m) y el resumen lo dice; un `.zip` con dos shapefiles da dos nodos e ignora `__MACOSX`; y por 🔗 el diálogo reconoce el zip como «shapefile comprimido» y lo añade en «Descargas › Descarga N». Sirve el zip desde el mismo origen que la aplicación, por la CSP.
 
 ### `browser/oneworld.mjs`
 

@@ -1,15 +1,16 @@
 ---
-description: Parseo de KML/KMZ/GeoJSON, namespaces, estilos, tolerancias de coordenadas, HTML en etiquetas y duplicados al importar.
+description: Parseo de KML/KMZ/GeoJSON/shapefile, namespaces, estilos, tolerancias de coordenadas, HTML en etiquetas y duplicados al importar.
 paths:
   - "src/js/20-kml-geom.js"
   - "src/js/32-geojson.js"
   - "src/js/33-kml-import.js"
+  - "src/js/34-shp-import.js"
 ---
 
 ## Estructura del árbol al importar
 
 - **Jerarquía del KML intocable**: se vuelca en la raíz tal cual (`<Document>`/`<Folder>`), sin envolverla en una carpeta extra.
-- **GeoJSON sí crea envoltorio**: es una lista plana sin jerarquía propia; la carpeta contenedora agrupa lo que llegó junto. Única importación que envuelve.
+- **GeoJSON sí crea envoltorio**: es una lista plana sin jerarquía propia; la carpeta contenedora agrupa lo que llegó junto. Única importación que envuelve (un shapefile entra como GeoJSON y envuelve igual: una carpeta por capa).
 - Construcción fallida a medias → se retira todo lo que hubiera entrado.
 
 ## Formatos y límites de entrada
@@ -39,6 +40,17 @@ paths:
 - **`msgLog`** (tope `MSG_LOG_MAX`): registro de sesión de TODOS los avisos, solo en memoria (no IndexedDB), accesible desde el botón 📋 (punto = hay entradas sin ver). Orden cronológico, más reciente abajo; al abrir baja el scroll del todo. `logText()` serializa para portapapeles.
 - `msgLog`/`navMessage` viven en `30-tree-walk.js`; `refreshLogButton` (archivo posterior) usa `getElementById` en cada llamada, no una `const` de módulo (zona muerta temporal).
 - **Frenos ad hoc que siguen activos**: `ELEV_STATUS_QUIET`, `savePending`, `updateNoticeShown`. `demError` agrupa los errores de cada servicio de elevación por racha y por fuente (un servicio caído fallaría igual en cada consulta seguida) — no quitar.
-- **Cotas de KMZ**: `KMZ_MAX_ENTRIES`, `KMZ_MAX_UNCOMPRESSED`, `KMZ_MAX_RATIO` frenan zips desproporcionados/hostiles antes de descomprimir.
+- **Cotas de KMZ**: `KMZ_MAX_ENTRIES`, `KMZ_MAX_UNCOMPRESSED`, `KMZ_MAX_RATIO` frenan zips desproporcionados/hostiles antes de descomprimir. Viven en `loadZipChecked(file, what)`, que usa TODO zip que se abra (KMZ y `.zip` de shapefile).
+
 - **CSP** (`<head>`): `default-src 'none'` + orígenes reales enumerados (unpkg, cdnjs, teselas del mapa/MDT). Añadir un origen nuevo exige añadirlo ahí también. `'unsafe-inline'` es inevitable con CSS/JS en el propio archivo.
 - **`connect-src` e `img-src` son la excepción deliberada**: abiertas a cualquier `https:` (nunca `http:`) porque el usuario elige el origen — el botón 🔗 para `connect-src`, y el mapa base «Custom Maps» (`base-maps.md`) para `img-src`, su propio servidor de teselas — enumerar es imposible por definición en los dos casos. `default-src 'none'` sigue vigente, `script-src`/`style-src` conservan sus listas cerradas (un origen ajeno puede dar datos, nunca código ni estilos). `tests/minified.js` lo comprueba **sobre el `<meta>`**, no con `includes` sobre el archivo entero (esos nombres también aparecen en el JS).
+
+## Shapefile (`34-shp-import.js`)
+
+- **Varias piezas en un gesto**: `handleDroppedFiles` pasa primero lo soltado por `groupShapefileParts` (PURA, solo mira `.name`): cada shapefile entra UNA vez en la posición de su `.shp`, con `.dbf`/`.prj`/`.cpg` juntados por nombre base sin distinguir mayúsculas (dentro de un zip la carpeta forma parte de la clave); una pieza sin su `.shp` es huérfana y se avisa; un `.shx` suelto, no (no aporta nada y quien suelta medio shapefile ya recibe el aviso de las otras piezas). El `.shx` no se usa: se lee de principio a fin.
+- **`.zip`**: rama propia de `handleDroppedFiles`. Con algún `.kml` dentro es un KMZ con otro nombre (`kmlFromZip`); si no, `importShapefilesFromZip`, un nodo por `.shp` (ignora `__MACOSX/`). Sin ninguno de los dos, error claro.
+- **Entra por `addFileNode` como GeoJSON YA CONSTRUIDO** (objeto, no texto: pasarlo a texto para volver a parsearlo duplicaría lo más grande en memoria; sin texto, «grande» lo decide `BIG_FEATURE_COUNT`). Hereda todo: etiquetas HTML, selector de propiedad-nombre (las claves son los campos del `.dbf`), duplicados, envoltorio, resumen, deshacer, retirada a medias. `addFileNode` acepta además un `report` ya empezado: lo visto al leer (sin `.prj`, ED50, tope) sale en el mismo resumen.
+- **Proyección** (`shpProjection`): el `.prj` (WKT de ESRI) va a proj4 tal cual; ETRS89 y WGS84 se tratan como equivalentes (proj4 los deja sin cambio de datum). **Trampa**: ED50 llega sin `TOWGS84` y proj4 sin él NO cambia de datum — todo quedaría ~120 m desplazado sin aviso. `prjDatumFix` le inyecta los estándar peninsulares (EPSG:1133, `-87,-98,-121`) y se anota en el resumen; un `TOWGS84` propio se respeta. Otro datum sin transformación y con otro elipsoide (`datum_type === 5`, `a ≠ 6378137`) se dibuja con aviso de posible desplazamiento. **Sin `.prj`**: solo si la caja de la cabecera cabe en grados (`bboxLooksGeographic`), anotando que se supone WGS84; en metros se rechaza (no hay forma honesta de colocarlo).
+- **Codificación del `.dbf`**: la del `.cpg` (`cpgEncoding`: UTF-8, 1252, «ANSI 1252», 88591, 65001 o una etiqueta de `TextDecoder`); sin `.cpg`, `guessDbfEncoding` (UTF-8 si los bytes lo son, si no Windows-1252). Fechas del `.dbf` (`Date`) → texto `AAAA-MM-DD`.
+- **Lectura registro a registro** (`shapefile.open` + `read()`, no `shapefile.read`, que lo junta todo sin tope): cotas `SHP_MAX_BYTES` (300 MB entre `.shp` y `.dbf`) y `SHP_MAX_FEATURES` (100 000; lo sobrante se cuenta con `warn`), cediendo el hilo cada `PROGRESS_BATCH` en los grandes. Una geometría que no se proyecta queda NaN y la rechaza `validGeometry` como cualquier otra.
+- **La Z se pierde**: la librería `shapefile` 0.6.6 solo lee x e y (también en PointZ/PolyLineZ). Documentado en el manual y en el estudio de seguridad (§5.1) como excepción a «la altitud se transporta»; si algún día hace falta, es cambiar de lector, no parchearlo.

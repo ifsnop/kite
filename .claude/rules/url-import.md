@@ -33,7 +33,9 @@ en el árbol. Camino hermano de arrastrar; admite los mismos formatos.
   camino de importación entero (formatos, diálogos, informe, guardado).
   Diálogo propio se cierra ANTES de llamarla (no se apilan).
 - **Tipo por CONTENIDO, no extensión** (`sniffContentKind`): bytes
-  primero (zip → KMZ, sin decodificar como texto), luego texto (`<kml>`
+  primero (zip, sin decodificar como texto: `zipEntryNames` lee los
+  nombres de su directorio central sin descomprimir; con `.shp` y sin
+  `.kml` es `shpzip`, que se guarda como `.zip`; cualquier otro, KMZ), luego texto (`<kml>`
   con/sin prefijo, familia JSON por forma). `html` se reconoce solo para
   RECHAZARLO con mensaje claro (típico: pegar la página de GitHub en vez
   del enlace «Raw»).

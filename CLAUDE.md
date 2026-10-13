@@ -32,7 +32,7 @@ nuevo, no que la regla no exista.
 |---|---|---|
 | `00-principles.md` | Principios no negociables, vocabulario, pendientes, checklist | **siempre** |
 | `architecture.md` | Orden y dependencias del manifiesto de `src/js` | `src/js/**`, `build.js` |
-| `import-parsing.md` | Parseo KML/KMZ/GeoJSON, namespaces, estilos, tolerancias, duplicados | `20-kml-geom.js`, `32-geojson.js`, `33-kml-import.js` |
+| `import-parsing.md` | Parseo KML/KMZ/GeoJSON y shapefile (piezas, `.prj`, ED50, codificación), namespaces, estilos, tolerancias, duplicados | `20-kml-geom.js`, `32-geojson.js`, `33-kml-import.js`, `34-shp-import.js` |
 | `build-and-release.md` | `build.js`, minificado, SRI, versión y proceso de release | `build.js`, `package.json`, `src/index.html`, `scripts/hooks/**`, `fetch-icons.js`, `.github/workflows/**` |
 | `tree-navigation-selection.md` | Árbol: visibilidad, checkbox de tres estados, teclado, selección, exportar/importar carpetas, arrastrar y soltar, deshacer/rehacer | `30-tree-walk.js`, `31-tree-node.js`, `40-panel-actions.js`, `41-selection.js`, `70-view-controls.js` |
 | `multi-edit-clipboard.md` | Editar varios nodos a la vez, portapapeles interno y del sistema | `44-dialogs.js`, `41-selection.js`, `40-panel-actions.js` |
@@ -43,6 +43,7 @@ nuevo, no que la regla no exista.
 | `units-coordinates-properties-panel.md` | Unidades de distancia y de altitud, formato de coordenadas, límite del perfil, panel Propiedades | `44-dialogs.js`, `43-points-editor.js` |
 | `geocalc.md` | Calculadora geodésica (botón 📐): pestañas (elevación con cono y corrección por presión, vector GPS), cálculo inmediato, unidades copiadas de Propiedades (distancia y altitud), modelos de Tierra | `62-geocalc.js` |
 | `elevation-dem.md` | Elevaciones MDT/MDS por WCS: catálogo por conjunto de datos (IGN MDT05/25/200 y MDS, Digital Earth Africa), consulta puntual desde el menú contextual, carpeta por sesión, ASCII/GeoTIFF, reintentos, unidad de altitud, perfil de una ruta | `60-elevation.js`, `63-route-profile.js` |
+| `cog.md` | Ortofotos COG: almacén `rasters` (Blob nativo), validación antes de copiar, CRS admitidos, `GridLayer` reproyectada por malla, niveles, limpieza al arrancar, lo que no se exporta | `64-cog.js`, `32-geojson.js`, `99-boot.js` |
 | `accessibility.md` | ARIA del árbol y de los diálogos | `src/js/**`, `src/index.html` |
 | `persistence-indexeddb.md` | `DB_VERSION`/`TREE_SCHEMA`, serialización del árbol, claves del almacén | `src/js/**` |
 | `external-network.md` | Disciplina de peticiones de red externa (tope, tiempo por intento, reintentos de lo pasajero) | `40-panel-actions.js`, `60-elevation.js`, `63-route-profile.js`, `12-copernicus.js` |

@@ -73,7 +73,8 @@ if (version) {
 
 /* ---------- Sobrevive lo que no puede perderse ---------- */
 /* SRI: sin `integrity` el navegador bloquea Leaflet y la página queda
-   en blanco. Son cinco recursos, cada uno con su `crossorigin`.     */
+   en blanco. Se cuentan contra el legible (no un número fijo): cada
+   recurso de CDN lleva el suyo, con su `crossorigin`.              */
 const count = (s, re) => (s.match(re) || []).length;
 ok(count(min, /integrity=/g) === count(full, /integrity=/g),
   `los ${count(full, /integrity=/g)} integrity= siguen ahí: ${count(min, /integrity=/g)}`);

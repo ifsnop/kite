@@ -52,6 +52,7 @@ const JS = [
   "31-tree-node.js",      /* árbol: fábrica de nodos */
   "32-geojson.js",        /* validación de GeoJSON y TopoJSON */
   "33-kml-import.js",     /* apertura tolerante del XML, importación */
+  "34-shp-import.js",     /* shapefiles: agrupar piezas, .prj, a GeoJSON */
   "40-panel-actions.js",  /* acciones del panel, buscador de lugares */
   "41-selection.js",      /* selección, Ctrl+A, portapapeles */
   "42-hittest.js",        /* acierto bajo el cursor del menú contextual */
@@ -64,6 +65,7 @@ const JS = [
   "61-daynight.js",       /* iluminación real día/noche (efecto WebGL) */
   "62-geocalc.js",        /* calculadora geodésica (ángulo de elevación) */
   "63-route-profile.js",  /* perfil de una ruta (MDS por trozos, gráfica SVG) */
+  "64-cog.js",            /* ortofotos COG: almacén "rasters", GridLayer reproyectada */
   "70-view-controls.js",  /* controles de vista y menú contextual */
   "99-boot.js"            /* arranque: restaurar el árbol guardado */
 ];
@@ -129,7 +131,7 @@ function build() {
      <strong>latitud, longitud y altitud</strong> de src/index.html).
      Contra gzip, conservar ese espacio no cuesta nada.
    - NO se activan `removeAttributeQuotes` ni `removeRedundantAttributes`
-     ni parientes: aquí los atributos son carga útil — los cinco
+     ni parientes: aquí los atributos son carga útil — cada
      `integrity` con su `crossorigin` (sin SRI el navegador bloquea
      Leaflet y la página queda en blanco) y el <meta> de la CSP.
 

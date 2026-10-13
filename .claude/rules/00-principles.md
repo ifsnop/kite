@@ -16,8 +16,11 @@ description: Principios no negociables, vocabulario y checklist de KITE Local. S
    siguiente build. `node tests/run-all.js` comprueba esto primero y
    falla si alguno de los dos no corresponde a `src/`.
 2. **Reusar librerías conocidas y estables; no reinventar.** CDN con
-   versión fijada: Leaflet 1.9.4, JSZip 3.10.1 (KMZ), geotiff.js 2.1.3
-   (solo para fuentes de elevación sin rejilla ASCII), Material Design
+   versión fijada: Leaflet 1.9.4, JSZip 3.10.1 (KMZ y .zip de
+   shapefile), geotiff.js 2.1.3 (fuentes de elevación sin rejilla
+   ASCII, y ortofotos COG), shapefile 0.6.6 (.shp/.dbf → GeoJSON),
+   proj4js 2.22.0 (reproyección del `.prj` de un shapefile y de las
+   teselas de una ortofoto COG), Material Design
    Icons EMPOTRADOS sin red en ejecución (`src/js/05-mdi-icons.js`,
    generado por `fetch-icons.js`/`npm run icons` — ver
    `marker-icons.md`), Nominatim (geocodificación; ~1 req/s, solo al
@@ -40,7 +43,11 @@ description: Principios no negociables, vocabulario y checklist de KITE Local. S
    ruta) sube un árbol v6 en silencio con `upgradeMeasuresV6`, por ser
    un cambio de forma trivial y acotado a un solo campo
    (`measure.a/b`→`measure.waypoints`) — no sienta precedente; la
-   próxima subida de `TREE_SCHEMA` se evalúa por su cuenta.
+   próxima subida de `TREE_SCHEMA` se evalúa por su cuenta. **Segunda
+   excepción, evaluada y decidida con el usuario**: `TREE_SCHEMA` 7→8
+   (nodo `cog`) lee un árbol v7 TAL CUAL, sin transformar nada (solo se
+   añade un tipo), y `DB_VERSION` 3→4 añade el almacén `rasters` SIN
+   vaciar `tree`. Ver `persistence-indexeddb.md`.
 5. **Robustez ante entradas ajenas.** KML/GeoJSON/KMZ/`.kite.json`/red
    se tratan como hostiles: validar antes de construir capas, aislar
    errores por entidad (una geometría mala no tumba la importación),

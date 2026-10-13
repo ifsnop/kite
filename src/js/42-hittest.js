@@ -192,6 +192,7 @@ function styleKind(li) {
   if (li._measure) kind = "measure";
   else if (li._elevGrid) kind = "elevGrid";
   else if (li._imageOverlay) kind = "imageOverlay";
+  else if (li._cog) kind = "cog";
   else kind = layerKind(nodeLayer(li));
   li._kind = kind;
   return kind;

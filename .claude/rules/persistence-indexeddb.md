@@ -8,14 +8,38 @@ paths:
 
 - Base `visor-kml` (nombre heredado, no se cambia: rompería el árbol/
   vista ya guardados de cualquier usuario). `DB_VERSION` versiona los
-  almacenes (hoy: solo `tree`); `TREE_SCHEMA` versiona el formato del
-  árbol serializado (`{ v, nodes }` bajo la clave `root`). Actual: **7**
-  — nodos `measure` guardan `waypoints` (array `{lat,lng}`, longitud 2
-  para línea/círculo, N para `mtype: "route"`) en vez de los antiguos
-  campos sueltos `a`/`b`. Lista completa por versión en el comentario de
-  la propia constante; anotar ahí la siguiente subida.
-  **Única excepción a «sin compatibilidad hacia atrás»** (principio
-  nº4): `dbLoadTree`/`importTreeExport` reconocen un árbol/archivo v6 y
+  almacenes (hoy **4**: `tree` y `rasters`, lista `DB_STORES`);
+  `TREE_SCHEMA` versiona el formato del árbol serializado (`{ v, nodes }`
+  bajo la clave `root`). Actual: **8** — nuevo tipo de nodo `cog`
+  (ortofoto COG, ver `cog.md`); la 7 trajo `waypoints` en las
+  mediciones. Lista completa por versión en el comentario de la propia
+  constante; anotar ahí la siguiente subida.
+- **Subir `DB_VERSION` YA NO vacía la base** (cambio de regla en la v4):
+  `onupgradeneeded` crea los almacenes de `DB_STORES` que falten y borra
+  los que no estén en la lista, sin tocar los que siguen. Antes se
+  borraba todo, y añadir el almacén `rasters` habría tirado el árbol de
+  todo el mundo a cambio de nada. `tests/browser/cog.mjs` abre la app
+  sobre una base v3 con un árbol v7 y comprueba que lo conserva.
+- **`TREE_SCHEMA` 8 acepta un árbol v7 TAL CUAL** (`dbLoadTree`,
+  `importTreeExport`): segunda excepción a «sin compatibilidad hacia
+  atrás», y sin transformar nada — la 8 solo AÑADE un tipo de nodo, así
+  que un v7 ya es un v8 válido. Se subió igualmente para que una
+  instancia ANTERIOR rechace un árbol/`.kite.json` con el tipo nuevo.
+  El pegado entre pestañas (`40-panel-actions.js`) sigue exigiendo la
+  misma versión.
+- **Almacén `rasters`** (`64-cog.js`): clave = id aleatorio de 32 hex
+  (`newRasterId`), valor = `{ blob, name, size }` con el `Blob`/`File`
+  NATIVO (nada de base64: Chromium lo guarda aparte, y uno ya en el
+  almacén de blobs lo referencia sin copiarlo — 362 MB en 31 ms). El
+  nodo `cog` guarda `{ rasterId, box, opacity }`, validado al leer
+  (`validCogRecord`). **Limpieza**: al arrancar, con el árbol leído de
+  verdad (`treeRead`), `cleanOrphanRasters` borra los ids que no nombra
+  ni el árbol actual (`serializeTree()`, que cubre lo soltado mientras
+  se leía) ni las pilas de deshacer/rehacer ni el portapapeles interno.
+  En sesión no se borra nada: deshacer un borrado tiene que poder
+  devolver la ortofoto.
+- **Primera excepción a «sin compatibilidad hacia atrás»** (principio
+  nº4; la segunda es la de v7 de arriba): `dbLoadTree`/`importTreeExport` reconocen un árbol/archivo v6 y
   lo suben en silencio con `upgradeMeasuresV6`, en vez de descartarlo.
   NO se aplica al pegado entre pestañas del portapapeles del sistema,
   que exige misma versión ahora mismo.

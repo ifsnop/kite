@@ -200,6 +200,9 @@ paths:
   `parseTreeExport` reconoce el envoltorio; si no lo es, sigue como
   GeoJSON.
 - Lo importado siempre se AÑADE: nunca sustituye ni fusiona.
+- **Una ortofoto COG no se exporta** (`withoutCogNodes` en `exportNode`,
+  con aviso que la nombra): sus bytes están en el almacén `rasters` de
+  este navegador, no en el árbol (ver `cog.md`).
 
 ## Arrastrar y soltar
 

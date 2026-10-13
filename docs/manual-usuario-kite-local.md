@@ -69,7 +69,7 @@ Justo debajo aparecen los avisos de la sesión (en el color normal del texto si 
 
 ### 2.2 Zona para soltar archivos
 
-Debajo del árbol hay una franja que indica qué se puede soltar ahí: archivos KML y KMZ (incluidas las ortofotos que traiga incrustadas), JSON, GeoJSON y TopoJSON, o una carpeta previamente exportada por la propia aplicación (extensión «.kite.json»). Arrastrar cualquiera de esos archivos desde el escritorio y soltarlo sobre el panel —o sobre una carpeta concreta del árbol, para importar dentro de ella— es la vía más directa de cargar información.
+Debajo del árbol hay una franja que indica qué se puede soltar ahí: archivos KML y KMZ (incluidas las ortofotos que traiga incrustadas), JSON, GeoJSON y TopoJSON, shapefiles (el .shp con sus piezas, o el .zip que las contiene), ortofotos en COG (.tif), o una carpeta previamente exportada por la propia aplicación (extensión «.kite.json»). Arrastrar cualquiera de esos archivos desde el escritorio y soltarlo sobre el panel —o sobre una carpeta concreta del árbol, para importar dentro de ella— es la vía más directa de cargar información.
 
 ### 2.3 Buscador del árbol
 
@@ -138,7 +138,7 @@ Arrastrar una fila con el ratón la mueve de carpeta o cambia su orden entre her
 
 ### 4.1 Mapas base
 
-Un icono de capas, en la esquina superior derecha del mapa, despliega el panel de cartografías de fondo: OpenStreetMap, varias capas del Instituto Geográfico Nacional (mapa base, topográfico, ortofoto PNOA actual e histórica, modelo digital del terreno), un par de opciones de relieve sombreado, bajo credencial propia del usuario el modelo de superficie de Copernicus, y «Custom Maps», que pide sus teselas a un servidor propio del usuario. Se pueden combinar varias a la vez, cada una con su propio control de opacidad, y reordenarse con las flechas de cada fila (el orden de la lista es el orden de apilado en el mapa).
+Un icono de capas, en la esquina superior derecha del mapa, despliega el panel de cartografías de fondo: OpenStreetMap, varias capas del Instituto Geográfico Nacional (mapa base, topográfico, ortofoto PNOA actual e histórica, modelo digital del terreno), la ortofoto municipal de Madrid del Ayuntamiento, un par de opciones de relieve sombreado, bajo credencial propia del usuario el modelo de superficie de Copernicus, y «Custom Maps», que pide sus teselas a un servidor propio del usuario. Se pueden combinar varias a la vez, cada una con su propio control de opacidad, y reordenarse con las flechas de cada fila (el orden de la lista es el orden de apilado en el mapa).
 
 La primera fila del panel no es un mapa, sino el color de fondo del propio visor: el que se ve detrás de las teselas, en un hueco sin cobertura o en el borde del mundo. Por defecto es el mismo azul claro de siempre; su muestra de color abre el mismo selector integrado que los colores de una capa (apartado 6.1) y el cambio se recuerda entre sesiones.
 
@@ -270,13 +270,21 @@ Cuando una capa procede de un KML con una descripción, o de un GeoJSON con prop
 
 ### 7.1 Importar un archivo con un polígono (o cualquier otro formato admitido)
 
-La vía más directa es arrastrar el archivo desde el escritorio y soltarlo sobre el panel de navegación (o sobre una carpeta concreta, para que entre dentro de ella). KITE Local reconoce KML, KMZ, GeoJSON, TopoJSON y su propio formato de carpetas exportadas, mirando el contenido del archivo, no su extensión. Si el archivo contiene algún elemento con datos incorrectos, ese elemento se descarta de forma aislada y el resto se carga con normalidad; al terminar aparece siempre un resumen de lo cargado y lo omitido, con la causa.
+La vía más directa es arrastrar el archivo desde el escritorio y soltarlo sobre el panel de navegación (o sobre una carpeta concreta, para que entre dentro de ella). KITE Local reconoce KML, KMZ, GeoJSON, TopoJSON, shapefiles, ortofotos COG (apartado 7.10) y su propio formato de carpetas exportadas, mirando el contenido del archivo, no su extensión. Si el archivo contiene algún elemento con datos incorrectos, ese elemento se descarta de forma aislada y el resto se carga con normalidad; al terminar aparece siempre un resumen de lo cargado y lo omitido, con la causa.
 
 **Nombre de los elementos de un GeoJSON.** Un GeoJSON no dice cómo se llama cada elemento: solo trae propiedades. Por eso, al abrir uno cuyas propiedades no se hayan visto antes, aparece el diálogo «Elegir nombre», sin asumir que ninguna propiedad (ni siquiera «name») sea el nombre. Se marcan una o varias propiedades; **el orden en que se marcan es el orden en que se unen, separadas por « / »** (cada casilla muestra su número, y debajo se ve el nombre que saldría para el primer elemento). Si a un elemento le falta una de las propiedades elegidas, o la tiene vacía, simplemente se omite; si le faltan todas, se llama «Elemento N». Aceptar exige marcar al menos una. **Cancelar el diálogo cancela la carga de ese archivo**: no entra nada en el árbol y el aviso lo dice.
 
 La elección se recuerda para los archivos con la misma estructura de propiedades: la próxima vez se aplica sin preguntar y el registro de avisos (📋) deja constancia de que se usó una selección guardada. Para cambiarla, 🏷️ Propiedades → «Índices de GeoJSON».
 
-Cuando no se tiene el archivo en el disco pero sí su dirección web, el botón 🔗 de la cabecera ofrece el mismo resultado en dos pasos: se escribe o se pega la dirección y se pulsa «Descargar»; solo cuando la aplicación confirma qué ha llegado (tipo y tamaño) se activa «Añadir al árbol» para incorporarlo. Mientras no se pulse ese botón, nada llega al mapa.
+**Shapefiles.** Un shapefile no es un archivo sino varios con el mismo nombre: el `.shp` (las geometrías), el `.dbf` (los atributos), el `.prj` (el sistema de coordenadas) y, a veces, el `.cpg` (la codificación de los textos) y el `.shx`. Hay que **soltarlos todos a la vez** —se seleccionan juntos en el explorador de archivos y se arrastran— o soltar el `.zip` que los contiene; un `.zip` con varias capas da una carpeta por capa. Si llega una pieza sin su `.shp`, el aviso lo dice. Cada shapefile se trata como un GeoJSON: el nombre de los elementos se elige igual (diálogo «Elegir nombre», con los campos del `.dbf`), y valen las mismas preguntas sobre etiquetas HTML y duplicados.
+
+- **Sistema de coordenadas.** Lo más habitual en España es ETRS89 UTM (por ejemplo, EPSG:25830, huso 30): KITE Local lee el `.prj` y lo pasa a coordenadas geográficas. Si un shapefile llega **sin `.prj`**, solo se acepta si sus coordenadas ya son grados (y el resumen dice que se ha supuesto WGS84); si son metros, se rechaza, porque no hay forma de saber dónde colocarlo.
+- **ED50.** La cartografía antigua en ED50 se transforma con los parámetros estándar de la España peninsular; la precisión es de unos metros y el resumen lo advierte. Un datum que no se sabe transformar se dibuja, pero el resumen avisa de que puede estar desplazado decenas o cientos de metros.
+- **Textos con tildes.** Se usa la codificación que indique el `.cpg`; si no lo hay, se detecta si el `.dbf` está en UTF-8 y, si no, se lee como Windows-1252.
+- **Lo que no se conserva.** La altura (Z) de los shapefiles 3D no se importa: solo la posición. Un shapefile sin `.dbf` entra sin atributos (sus elementos se llaman «Elemento N»).
+- **Límites.** Hasta 300 MB entre `.shp` y `.dbf`, y hasta 100 000 elementos por shapefile; lo que pase de ahí se omite y se cuenta en el resumen.
+
+Cuando no se tiene el archivo en el disco pero sí su dirección web, el botón 🔗 de la cabecera ofrece el mismo resultado en dos pasos: se escribe o se pega la dirección y se pulsa «Descargar» (vale también un shapefile, en un `.zip`); solo cuando la aplicación confirma qué ha llegado (tipo y tamaño) se activa «Añadir al árbol» para incorporarlo. Mientras no se pulse ese botón, nada llega al mapa.
 
 ![Diálogo de añadir desde una dirección, tras descargar un archivo con éxito](img/17-anadir-url.png)
 *Figura 19. Tras descargar «remoto.kml», el diálogo confirma el tipo y el tamaño y habilita «Añadir al árbol».*
@@ -358,6 +366,23 @@ En el árbol queda una capa «Perfil de «Ruta 1» — MDT05 + MDS (IGN)» en la
 
 ---
 
+### 7.10 Ver una ortofoto en COG
+
+Una ortofoto en formato **COG** (Cloud Optimized GeoTIFF, un `.tif` preparado para leerse a trozos), como las del PNOA, se añade **arrastrando el archivo `.tif`** al panel, igual que cualquier otro. KITE Local comprueba primero que se puede dibujar y, solo entonces, **copia el archivo al almacenamiento del navegador**: queda guardado con el árbol y vuelve al abrir la aplicación, sin tener que soltarlo de nuevo. El aviso dice qué ha entrado: tamaño en píxeles, sistema de coordenadas, número de vistas generales y lo que ocupa.
+
+**¿Tengo un ECW?** Es el formato de las descargas del Centro de Descargas del CNIG, y KITE Local **no lo puede abrir** (es un formato propietario). Si lo suelta, el aviso se lo dice y le da la orden de conversión. Conviértalo a COG con GDAL (necesita soporte ECW): `gdal_translate -of COG -co COMPRESS=JPEG hoja.ecw hoja.tif`. En QGIS para Windows, que lo trae: Ráster › Conversión › Traducir, con formato de salida COG. Después suelte el `.tif`.
+
+![Una ortofoto COG de Sentinel-2 sobre Madrid, de 10 980 × 10 980 píxeles](img/25-ortofoto-cog.png)
+*Figura 23. Una imagen COG de 362 MB (Sentinel-2, color natural, UTM 30N) sobre Madrid. Solo se lee la parte que se ve, al detalle que pide el zoom. Contiene datos modificados de Copernicus Sentinel (2026).*
+
+- **Solo se lee lo que se ve.** Para cada trozo del mapa se lee la parte justa de la imagen, al nivel de detalle que pide el zoom: una ortofoto de cientos de megabytes se mueve con fluidez. Si el `.tif` no está en mosaico, o no trae vistas generales, el aviso lo advierte: lo primero hace que vaya lento y lo segundo, que de lejos no se dibuje (hay que acercarse).
+- **Sistema de coordenadas.** Se admiten WGS84, ETRS89, Web Mercator y UTM en WGS84 (cualquier huso, norte o sur: es lo que traen, por ejemplo, las imágenes de Sentinel-2), en ETRS89 (husos 28 a 38, tanto con los códigos EPSG:25828–25838 como con los de ejes norte-este EPSG:3040–3050, como el 3043) y en ED50 (husos 28 a 31, los de la España peninsular), además de REGCAN95 para Canarias. Una imagen en otro sistema, o sin georreferenciar, se rechaza con un aviso que lo dice. Se pasa a la proyección del mapa al dibujarla, sin alterar la imagen guardada.
+- **Ortofotos de 8 bits por canal** (color o escala de grises) **y modelos de elevación** de una sola banda de 16 o más bits (un MDT del CNIG, por ejemplo). Una imagen de otro tipo, como una de 16 bits en color, se rechaza con un aviso que lo dice.
+- **Modelos de elevación.** Se arrastran igual que una ortofoto. Se dibujan con una **rampa de color por altitud** (del verde de lo más bajo al blanco de lo más alto, entre el mínimo y el máximo de la propia imagen) y un **sombreado de relieve** para que se lea la forma del terreno; el aviso de la carga dice el rango de altitudes. Las celdas sin dato quedan transparentes. Con el cursor sobre el modelo, el cuadro de coordenadas de la esquina inferior izquierda añade la fila **«Altitud»** con el valor de la celda, en la unidad de altitud de Propiedades (se supone que el archivo está en metros). Si hay a la vez celdas descargadas con «Consultar elevación aquí», manda su lectura. El sombreado y el color son solo una representación: no cambian ningún valor.
+- **Opacidad.** El botón 🎨 de su fila abre sus propiedades, con un deslizador de opacidad, como el de una ortofoto de KMZ. El botón 🔍 encuadra la imagen entera.
+- **Espacio.** Antes de copiar se comprueba que cabe en la cuota del navegador; si no, se avisa y no se crea nada. Al borrar la ortofoto del árbol, su copia se elimina la próxima vez que se abra la aplicación (hasta entonces, deshacer la puede recuperar).
+- **Lo que no viaja.** Una ortofoto COG no se incluye al exportar una carpeta (💾) ni al copiar al portapapeles del sistema para pegar en otra instancia: puede ocupar gigas, y el aviso nombra las que se quedan fuera. Copiar y pegar dentro de la misma pestaña sí funciona. Tampoco se añade desde una dirección (🔗): hay que descargarla y arrastrarla.
+
 ## 8. Atajos de teclado
 
 La misma información está disponible en cualquier momento con la tecla `?` o el botón de ayuda de la cabecera, organizada en pestañas («Navegación», «Actuar», «Visor», «Dibujar y editar») para no tener que scrollear una única tabla larga. Se cierra con la **×** de arriba a la derecha, con Escape o con la misma tecla `?`.
@@ -365,7 +390,7 @@ La misma información está disponible en cualquier momento con la tecla `?` o e
 Esa × es la norma de toda ventana cuyo único botón sería «Cerrar» (la chuleta, los cálculos geodésicos y el perfil de una ruta): en vez de un pie con un solo botón, la × en la barra del título, que se ve siempre, y ese espacio para el contenido.
 
 ![Chuleta de atajos de teclado completa](img/19-atajos.png)
-*Figura 23. Chuleta de atajos de teclado (tecla `?`), pestaña «Navegación».*
+*Figura 24. Chuleta de atajos de teclado (tecla `?`), pestaña «Navegación».*
 
 **Moverse por el árbol**
 
@@ -453,3 +478,5 @@ Esa × es la norma de toda ventana cuyo único botón sería «Cerrar» (la chul
 KITE Local guarda automáticamente, en el propio navegador y en el propio dispositivo (nunca en un servidor), el árbol completo de capas y la posición y el zoom del mapa, con un pequeño retardo tras cada cambio para no repetir el guardado en cada pulsación. Al volver a abrir la aplicación, el árbol y la vista se restauran tal como se dejaron. Este guardado es local a cada navegador: para llevar el mismo contenido a otro dispositivo hace falta exportarlo (apartado 7.6) o copiarlo por el portapapeles del sistema (apartado 7.5).
 
 Las **unidades de distancia y de altitud**, el **formato de latitud/longitud** y la **longitud máxima de un perfil**, elegidos en el panel 🏷️ Propiedades (apartado 2.1), sí se guardan y se restauran al volver a abrir la aplicación. También se guardan las **fuentes de elevación** elegidas en «Fuentes de datos». La cuadrícula de elevación no tiene unidad propia: usa la de altitud. Las capas de elevación y de perfil se guardan con el árbol, y la de un perfil guarda también sus curvas: «Mostrar perfil» las enseña sin volver a descargar.
+
+Las **ortofotos COG** (apartado 7.10) se guardan aparte, en un almacén propio del navegador: el árbol solo apunta a ellas. Es lo único del árbol que puede ocupar mucho espacio en el navegador. Una ortofoto borrada del árbol libera su espacio al volver a abrir la aplicación.

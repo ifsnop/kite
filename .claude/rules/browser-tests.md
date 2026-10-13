@@ -29,6 +29,12 @@ del sistema entre instancias. Viven en `tests/browser/`.
   copiar/pegar entre instancias.
 - **`tests/browser/app.mjs` compara legible vs. minificado**: si terser
   rompe algo, el legible pasa y el minificado no.
+- **`page.waitForFunction` NO espera a una promesa**: con un predicado
+  `async` (o que devuelva una `Promise`) vuelve al instante, porque la
+  promesa ya es «verdadera». Una lectura asíncrona (IndexedDB, `fetch`) se
+  sondea desde Node con un bucle sobre `await page.evaluate(...)`. Causó
+  un fallo intermitente (1 de cada 3) en `cog.mjs`, en la limpieza de
+  blobs huérfanos al arrancar: la comprobación corría contra el borrado.
 - **Se espera por CONDICIÓN, no por tiempo** (`openApp` aguarda a que
   `map` exista y el árbol esté resuelto) — nunca `waitForTimeout` fijo.
 - Coste: lanzar navegador 99 ms, cargar app 528 ms, `evaluate` 9 ms.
