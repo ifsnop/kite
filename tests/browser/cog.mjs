@@ -267,7 +267,13 @@ await cuadrantes(25830, c => c, "deshacer lo devuelve, y se vuelve a pintar");
 await page.evaluate(`${liDe("sol.tif")}.querySelector(".node-row button.delete").click()`);
 await page.evaluate(() => saveTree());
 await page.reload();
-await page.waitForFunction(async id => !(await dbRasterKeys()).includes(id), idSol);
+/* OJO: waitForFunction NO espera a una promesa (una Promise es «verdadera» y
+   vuelve al instante): con un predicado async la lectura de abajo corría contra
+   la limpieza del arranque y fallaba una de cada tres. Se sondea desde aquí. */
+for (let t = Date.now(); (await keys()).includes(idSol); ) {
+  if (Date.now() - t > 15000) break;
+  await new Promise(r => setTimeout(r, 50));
+}
 ok((await keys()).length === 1, "al arrancar se borran los bytes que ya no nombra nadie (y solo esos)");
 
 ok(!errors.length, "sin errores de página: " + errors.join(" | "));
