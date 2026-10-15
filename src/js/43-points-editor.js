@@ -1536,6 +1536,9 @@ const propsTabGnp = document.getElementById("props-tab-gnp");
 const propsTabPrefs = document.getElementById("props-tab-prefs");
 const propsTabSourcesBtn = document.getElementById("props-tab-btn-sources");
 const propsTabSources = document.getElementById("props-tab-sources");
+const propsTabFreqBtn = document.getElementById("props-tab-btn-freq");
+const propsTabFreq = document.getElementById("props-tab-freq");
+const propsFresnelFreqInput = document.getElementById("props-fresnel-freq");
 const propsSrcSelect = {
   mdt: document.getElementById("props-src-mdt"),
   mds: document.getElementById("props-src-mds")
@@ -1556,7 +1559,8 @@ let propsOriginal = null; /* ajustes al abrir (unidades, formato, topes, fuentes
 const PROPS_TABS = {
   prefs: [propsTabPrefsBtn, propsTabPrefs],
   gnp: [propsTabGnpBtn, propsTabGnp],
-  sources: [propsTabSourcesBtn, propsTabSources]
+  sources: [propsTabSourcesBtn, propsTabSources],
+  freq: [propsTabFreqBtn, propsTabFreq]
 };
 function showPropsTab(tab) {
   for (const [id, [btn, panel]] of Object.entries(PROPS_TABS)) {
@@ -1653,9 +1657,24 @@ document.getElementById("gnp-editor-clear").addEventListener("click", () => {
 /* El límite del perfil se guarda en metros y se enseña en la unidad de
    distancia elegida: al cambiarla, se repinta convertido.            */
 function renderPropsProfileMax() {
-  propsProfileMaxInput.value = Number((profileMaxM / POLY_UNIT_FACTOR[measureUnit]).toPrecision(6));
+  const f = POLY_UNIT_FACTOR[measureUnit];
+  propsProfileMaxInput.value = Number((profileMaxM / f).toPrecision(6));
+  /* Las cotas en la unidad vigente: el spinner del navegador las respeta */
+  propsProfileMaxInput.min = Number((PROFILE_MAX_MIN / f).toPrecision(6));
+  propsProfileMaxInput.max = Number((PROFILE_MAX_MAX / f).toPrecision(6));
   document.getElementById("props-profile-max-unit").textContent = POLY_UNIT_LABEL[measureUnit];
 }
+/* Pestaña «Frecuencias»: la del elipsoide de Fresnel del perfil. Se
+   previsualiza en vivo (el perfil, si está abierto, se redibuja) y solo
+   Aceptar la guarda; Cancelar vuelve a la de al abrir.                 */
+function renderPropsFreqTab() {
+  propsFresnelFreqInput.value = fresnelFreqMHz;
+}
+propsFresnelFreqInput.addEventListener("change", () => {
+  const v = readClampedNumber(propsFresnelFreqInput, FRESNEL_FREQ_MIN, FRESNEL_FREQ_MAX, "La frecuencia", "MHz");
+  if (v !== null) { fresnelFreqMHz = v; refreshProfileChart(); }
+  renderPropsFreqTab();
+});
 function renderPropsPrefsTab() {
   propsUnitSelect.value = measureUnit;
   propsAltUnitSelect.value = altitudeUnit;
@@ -1669,11 +1688,35 @@ propsUnitSelect.addEventListener("change", () => {
   renderPropsProfileMax();
 });
 propsAltUnitSelect.addEventListener("change", () => setAltitudeUnit(propsAltUnitSelect.value));
-/* Mismo criterio que el tope de vértices: un valor ilegible o fuera de
-   [PROFILE_MAX_MIN, PROFILE_MAX_MAX] se descarta y vuelve el vigente. */
+/* Lee un campo numérico de ajustes: vacío o ilegible → null (el llamador
+   deja el valor vigente); fuera de [min, max] se AJUSTA a la cota más
+   cercana y se avisa, en vez de volver en silencio al anterior (reportado
+   con el límite del perfil: 150 NM «se convertía» en otra cifra). Lo
+   comparten Propiedades y las torres del perfil (63-route-profile.js, que
+   la llama en tiempo de ejecución).                                    */
+function readClampedNumber(input, min, max, what, unit) {
+  const raw = input.value.trim();
+  const v = raw === "" ? NaN : Number(raw);
+  if (!Number.isFinite(v)) return null;
+  const c = Math.min(max, Math.max(min, v));
+  if (c !== v) {
+    const n = x => Number(x.toPrecision(6)).toLocaleString("es");
+    navMessage(`${what} va de ${n(min)} a ${n(max)} ${unit}: se queda en ${n(c)} ${unit}.`);
+  }
+  return c;
+}
+
+/* Un valor ilegible o vacío se descarta y vuelve el vigente; uno legible
+   pero fuera de [PROFILE_MAX_MIN, PROFILE_MAX_MAX] se ajusta al tope más
+   cercano y se avisa. Reportado: 150 NM (el máximo es 100) volvía en
+   silencio al valor anterior, y parecía que el número «se convertía».  */
 propsProfileMaxInput.addEventListener("change", () => {
-  const m = Number(propsProfileMaxInput.value) * POLY_UNIT_FACTOR[measureUnit];
-  if (Number.isFinite(m) && m >= PROFILE_MAX_MIN && m <= PROFILE_MAX_MAX) profileMaxM = m;
+  const f = POLY_UNIT_FACTOR[measureUnit];
+  const v = readClampedNumber(propsProfileMaxInput, PROFILE_MAX_MIN / f, PROFILE_MAX_MAX / f,
+    "La longitud máxima de un perfil", POLY_UNIT_LABEL[measureUnit]);
+  /* Se reclava en metros: v·f puede salirse de la cota por redondeo y
+     validProfileMax lo descartaría al leerlo.                          */
+  if (v !== null) profileMaxM = Math.min(PROFILE_MAX_MAX, Math.max(PROFILE_MAX_MIN, v * f));
   renderPropsProfileMax();
 });
 propsCoordFormatSelect.addEventListener("change", () => {
@@ -1720,10 +1763,11 @@ async function togglePropsDialog() {
   if (!propsDialog.hidden) { cancelPropsDialog(); return; }
   if (!gnpStore) gnpStore = await dbLoadGnp();
   propsDraftGnp = { ...gnpStore };
-  propsOriginal = { unit: measureUnit, altitudeUnit, profileMaxM, coordFormat, vertexEditMax,
+  propsOriginal = { unit: measureUnit, altitudeUnit, profileMaxM, fresnelFreqMHz, coordFormat, vertexEditMax,
                     arcSegments, elevSources };
   renderGnpEditor();
   renderPropsPrefsTab();
+  renderPropsFreqTab();
   renderPropsSourcesTab();
   showPropsTab("prefs");
   propsDialog.hidden = false;
@@ -1741,6 +1785,10 @@ function cancelPropsDialog() {
   if (propsOriginal.unit !== measureUnit) setMeasureUnit(propsOriginal.unit);
   if (propsOriginal.altitudeUnit !== altitudeUnit) setAltitudeUnit(propsOriginal.altitudeUnit);
   profileMaxM = propsOriginal.profileMaxM;
+  if (propsOriginal.fresnelFreqMHz !== fresnelFreqMHz) {
+    fresnelFreqMHz = propsOriginal.fresnelFreqMHz;
+    refreshProfileChart();
+  }
   if (propsOriginal.coordFormat !== coordFormat) {
     coordFormat = propsOriginal.coordFormat;
     renderMeasureValues();
@@ -1763,6 +1811,7 @@ document.getElementById("props-accept").addEventListener("click", () => {
   dbSaveMeasureUnit(measureUnit);
   dbSaveAltitudeUnit(altitudeUnit);
   dbSaveProfileMax(profileMaxM);
+  dbSaveFresnelFreq(fresnelFreqMHz);
   dbSaveCoordFormat(coordFormat);
   dbSaveVertexEditMax(vertexEditMax);
   dbSaveArcSegments(arcSegments);

@@ -1198,6 +1198,14 @@ const PROFILE_MAX_DEFAULT = 10 * 1852;
 const PROFILE_MAX_MIN = 100;
 const PROFILE_MAX_MAX = 100 * 1852;
 let profileMaxM = PROFILE_MAX_DEFAULT;
+/* Frecuencia (MHz) con la que se calcula el elipsoide de Fresnel del
+   perfil de una ruta (63-route-profile.js): ajuste global, en la pestaña
+   «Frecuencias» de Propiedades. 1090 MHz de partida. Va aquí y no en el
+   archivo del perfil porque Propiedades (43) la lee y el perfil carga
+   DESPUÉS (zona muerta temporal).                                      */
+const FRESNEL_FREQ_DEFAULT = 1090;
+const FRESNEL_FREQ_MIN = 1, FRESNEL_FREQ_MAX = 300000;
+let fresnelFreqMHz = FRESNEL_FREQ_DEFAULT;
 let polyMeasures = null;   /* {area, perim} en m/m² del polígono abierto, o null */
 function renderPolyMeasures() {
   if (!polyMeasures) return;

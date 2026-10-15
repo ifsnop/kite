@@ -295,7 +295,7 @@
         <tr><th colspan="2">Gr&#225;fica del perfil de una ruta</th></tr>
         <tr><td>Rueda del rat&#243;n sobre la gr&#225;fica</td><td>Acercar / alejar la distancia hacia el puntero (de la ruta entera a 0,1 m por p&#237;xel)</td></tr>
         <tr><td>May&#250;s + rueda, o rueda sobre el eje de alturas</td><td>Acercar / alejar la altura (bloquea el eje Y)</td></tr>
-        <tr><td>Arrastrar la gr&#225;fica</td><td>Desplazarla; con el eje Y bloqueado, tambi&#233;n en vertical</td></tr>
+        <tr><td>Arrastrar la gr&#225;fica</td><td>Desplazarla en distancia y en altura (arrastrar en vertical bloquea el eje Y en lo que se ve)</td></tr>
       </table>
     </div>
     <div id="sh-tab-draw" class="dlg-tabpanel" hidden role="tabpanel">
@@ -436,6 +436,7 @@
       <button type="button" class="dlg-tab active" id="props-tab-btn-prefs" role="tab" aria-selected="true" aria-controls="props-tab-prefs">Preferencias</button>
       <button type="button" class="dlg-tab" id="props-tab-btn-gnp" role="tab" aria-selected="false" aria-controls="props-tab-gnp">Índices de GeoJSON</button>
       <button type="button" class="dlg-tab" id="props-tab-btn-sources" role="tab" aria-selected="false" aria-controls="props-tab-sources">Fuentes de datos</button>
+      <button type="button" class="dlg-tab" id="props-tab-btn-freq" role="tab" aria-selected="false" aria-controls="props-tab-freq">Frecuencias</button>
     </div>
     <div id="props-tab-prefs" class="dlg-tabpanel" role="tabpanel">
       <div class="dlg-row"><span>Unidad de distancia</span><select id="props-unit">
@@ -457,7 +458,7 @@
       <p class="dlg-hint">Segmentos en que se divide un arco al terminar de dibujarlo con «Medir arco». El resultado es una ruta normal con ese número de tramos; cambiarlo solo afecta a los arcos que se dibujen después.</p>
       <div class="dlg-row"><span>Segmentos de un arco</span>
         <input type="number" id="props-arc-segments" min="2" max="720" step="1"></div>
-      <p class="dlg-hint">Longitud máxima de una ruta para «Obtener perfil». Acota lo que se descarga y, sobre todo, lo que el perfil deja guardado en el árbol: una celda de elevación por cada una que recorre la ruta.</p>
+      <p class="dlg-hint">Longitud máxima de una ruta para «Obtener perfil». Acota lo que se descarga y, sobre todo, lo que el perfil deja guardado en el árbol: una celda de elevación por cada una que recorre la ruta. Solo cuenta si alguna fuente elegida es de malla fina (5 a 30 m); con el MDT200 como única fuente no hay límite.</p>
       <div class="dlg-row"><span>Longitud máxima de un perfil</span>
         <span class="props-with-unit"><input type="number" id="props-profile-max" min="0" step="any"><span id="props-profile-max-unit"></span></span></div>
     </div>
@@ -474,6 +475,11 @@
       <p class="dlg-hint props-src-url" id="props-src-mdt-url"></p>
       <div class="dlg-row"><span>MDS (superficie)</span><select id="props-src-mds"></select></div>
       <p class="dlg-hint props-src-url" id="props-src-mds-url"></p>
+    </div>
+    <div id="props-tab-freq" class="dlg-tabpanel" hidden role="tabpanel">
+      <p class="dlg-hint">Frecuencia con la que se calcula el elipsoide de Fresnel del perfil de una ruta (casilla «Elipsoide de Fresnel» de su ventana). De 1 a 300&#8239;000 MHz; 1090 MHz de partida. Un valor fuera de rango se ajusta al l&#237;mite m&#225;s cercano.</p>
+      <div class="dlg-row"><span>Frecuencia c&#225;lculos de Fresnel</span>
+        <span class="props-with-unit"><input type="number" id="props-fresnel-freq" min="1" max="300000" step="any"><span>MHz</span></span></div>
     </div>
     <div class="dlg-actions">
       <button class="btn" id="props-cancel">Cancelar</button>
@@ -557,25 +563,54 @@
       <div id="profile-log" role="log" tabindex="0" aria-label="Detalle de la descarga"></div>
     </div>
     <p class="dlg-hint" id="profile-note" hidden></p>
-    <!-- Controles de la gráfica (63-route-profile.js): zoom de cada eje
-         por separado, bloqueo del eje Y y vuelta a la vista entera. Lo
-         mismo, con el ratón: rueda = distancia; Mayús+rueda o rueda
-         sobre el eje de alturas = altura; arrastrar = desplazar. -->
+    <!-- Cabecera de la gráfica (63-route-profile.js). A la izquierda, lo que
+         cambia la recta inicio–fin: la propia línea, el elipsoide de Fresnel
+         y las alturas de torre. A la derecha, el rectángulo de lectura del
+         cursor: tamaño FIJO (cuadrícula de 2 × 4, con guiones en reposo), para
+         que ni la gráfica ni nada salte al mover el ratón. Zoom con el ratón:
+         rueda = distancia; Mayús+rueda o rueda sobre el eje de alturas =
+         altura; arrastrar = desplazar. La frecuencia de Fresnel está en
+         Propiedades → Frecuencias. -->
     <div id="profile-tools" hidden>
-      <span class="pf-tool-group" role="group" aria-label="Zoom de distancia">Distancia
-        <button class="btn pf-tool" id="pf-x-out" title="Alejar en distancia" aria-label="Alejar en distancia">−</button>
-        <button class="btn pf-tool" id="pf-x-in" title="Acercar en distancia (hasta 0,1 m por píxel)" aria-label="Acercar en distancia">+</button>
-      </span>
-      <span class="pf-tool-group" role="group" aria-label="Zoom de altura">Altura
-        <button class="btn pf-tool" id="pf-y-out" title="Alejar en altura (bloquea el eje Y)" aria-label="Alejar en altura">−</button>
-        <button class="btn pf-tool" id="pf-y-in" title="Acercar en altura (bloquea el eje Y)" aria-label="Acercar en altura">+</button>
-      </span>
-      <label class="pf-tool-group" title="La escala de alturas se queda quieta al desplazar o acercar la distancia; desmarcado, se ajusta sola a lo que se ve">
-        <input type="checkbox" id="pf-y-lock"> Bloquear eje Y</label>
-      <button class="btn" id="pf-reset" title="Ruta entera y altura automática">Ver todo</button>
-      <span class="pf-tools-hint">Rueda: distancia · Mayús+rueda o rueda sobre el eje: altura · arrastrar: desplazar</span>
+      <div id="profile-opts">
+        <div class="pf-row">
+          <label class="pf-check" title="Recta negra entre la altura del primer y la del último punto de la ruta (MDS; si no está elegido, MDT), con las alturas de torre">
+            <input type="checkbox" id="pf-los"> Línea inicio–fin</label>
+          <label class="pf-check" title="Primera zona de Fresnel alrededor de la línea inicio–fin (contorno discontinuo) y, rellena, su zona del 60 %, que debe quedar libre de obstáculos. La frecuencia se elige en Propiedades → Frecuencias">
+            <input type="checkbox" id="pf-fresnel"> Elipsoide de Fresnel (60 %)</label>
+        </div>
+        <div class="pf-row">
+          <label class="pf-field" title="Altura de la torre en el inicio de la ruta, SOBRE EL TERRENO: sube ese extremo de la línea inicio–fin">
+            Torre inicio <input type="number" id="pf-tower-a" min="0" step="any"> <span class="pf-tower-unit"></span></label>
+          <label class="pf-field" title="Altura de la torre en el final de la ruta, SOBRE EL TERRENO: sube ese extremo de la línea inicio–fin">
+            Torre final <input type="number" id="pf-tower-b" min="0" step="any"> <span class="pf-tower-unit"></span></label>
+        </div>
+      </div>
+      <!-- Lectura bajo el cursor (showProfileCursor / setProfileInfo). Cada
+           valor se escribe con textContent. Las filas de lo que no está
+           activado quedan atenuadas, nunca ocultas. -->
+      <div id="profile-info" role="group" aria-label="Lectura bajo el cursor">
+        <div class="pf-info-row" data-k="dist"><i class="pf-key"></i><span class="pf-info-label">Distancia</span><b class="pf-info-val">—</b></div>
+        <div class="pf-info-row" data-k="mdt"><i class="pf-key mdt"></i><span class="pf-info-label">MDT</span><b class="pf-info-val">—</b></div>
+        <div class="pf-info-row" data-k="mds"><i class="pf-key mds"></i><span class="pf-info-label">MDS</span><b class="pf-info-val">—</b></div>
+        <div class="pf-info-row" data-k="diff"><i class="pf-key"></i><span class="pf-info-label">MDS−MDT</span><b class="pf-info-val">—</b></div>
+        <div class="pf-info-row" data-k="bulge"><i class="pf-key earth"></i><span class="pf-info-label">Curvatura</span><b class="pf-info-val">—</b></div>
+        <div class="pf-info-row" data-k="clear"><i class="pf-key los"></i><span class="pf-info-label">Despeje</span><b class="pf-info-val">—</b></div>
+        <div class="pf-info-row" data-k="fres"><i class="pf-key fresnel"></i><span class="pf-info-label">Fresnel 60 %</span><b class="pf-info-val">—</b></div>
+        <div class="pf-info-row" data-k="margin"><i class="pf-key fresnel"></i><span class="pf-info-label">Margen</span><b class="pf-info-val">—</b></div>
+      </div>
     </div>
     <div id="profile-chart" aria-live="polite"></div>
+    <!-- Pie: lo que cambia la vista de la gráfica entera (eje Y, curvatura) y
+         la vuelta a la ruta entera, con la pista de los gestos. -->
+    <div id="profile-foot" hidden>
+      <label class="pf-check" title="La escala de alturas se queda quieta al desplazar o acercar la distancia; desmarcado, se ajusta sola a lo que se ve">
+        <input type="checkbox" id="pf-y-lock"> Bloquear eje Y</label>
+      <label class="pf-check" title="Dibuja la curvatura de la Tierra con la refracción estándar de la atmósfera (radio efectivo 4/3): el terreno se eleva sobre la cuerda y el arco parte del nivel del mar">
+        <input type="checkbox" id="pf-earth"> Curvatura terrestre (k = 4/3)</label>
+      <button class="btn" id="pf-reset" title="Ruta entera y altura automática">Ver todo</button>
+      <span class="pf-hint">Rueda: distancia · Mayús+rueda: altura · arrastrar: desplazar</span>
+    </div>
   </div>
 </div>
 

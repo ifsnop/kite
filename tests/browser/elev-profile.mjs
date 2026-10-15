@@ -145,6 +145,12 @@ const where = await page.evaluate(() => {
   const keep = profileMaxM;
   profileMaxM = 1000;
   r.tooLong = item(route).disabled();
+  /* El límite es para mallas finas: con el MDT200 como única fuente no cuenta */
+  elevSources = { mdt: "ign-mdt200", mds: null };
+  r.coarseOnly = item(route).disabled();
+  elevSources = { mdt: "ign-mdt200", mds: "ign-mds" };
+  r.coarseWithMds = item(route).disabled();
+  elevSources = { mdt: "ign-mdt05", mds: "ign-mds" };
   openStyleDialog(route);
   r.btnTooLong = { hidden: document.getElementById("ms-profile-row").hidden,
                    disabled: document.getElementById("ms-profile").disabled,
@@ -160,10 +166,43 @@ const where = await page.evaluate(() => {
 ok(where.route === "Obtener perfil" && !where.circle, "«Obtener perfil» en una ruta y no en un círculo: " + JSON.stringify(where));
 ok(where.enabled === false && where.onlyMdt === false, "habilitado con fuentes (basta una) y ruta corta");
 ok(/Sin fuentes de elevación/.test(where.noSources), "sin ninguna fuente, deshabilitado con el motivo: " + where.noSources);
-ok(/límite de un perfil es 1\.00 km/.test(where.tooLong), "ruta más larga que el límite: " + where.tooLong);
+ok(/límite de un perfil con las fuentes elegidas es 1\.00 km/.test(where.tooLong), "ruta más larga que el límite: " + where.tooLong);
 ok(!where.btnTooLong.hidden && where.btnTooLong.disabled && where.btnTooLong.text === "Obtener perfil"
   && /límite/.test(where.btnTooLong.title), "el botón del diálogo de la ruta, igual: " + JSON.stringify(where.btnTooLong));
 ok(where.btnCircle, "y en el diálogo de un círculo no aparece");
+ok(where.coarseOnly === false, "MDT200 como única fuente: el límite no cuenta: " + where.coarseOnly);
+ok(/límite/.test(where.coarseWithMds), "MDT200 + MDS de 5 m: el límite sigue contando: " + where.coarseWithMds);
+
+/* El campo del límite: 150 NM (por encima de 100) se queda en 100 y avisa,
+   no vuelve en silencio al valor anterior (fallo reportado). */
+const limitField = await page.evaluate(() => {
+  const keep = { unit: measureUnit, max: profileMaxM };
+  setMeasureUnit("nm");
+  const inp = document.getElementById("props-profile-max");
+  const out = {};
+  const type = v => { inp.value = v; inp.dispatchEvent(new Event("change")); };
+  document.getElementById("nav-msg").textContent = "";
+  type("150");
+  out.high = { shown: inp.value, m: profileMaxM, max: inp.max, min: inp.min,
+               msg: document.getElementById("nav-msg").textContent };
+  type("0.001");
+  out.low = { m: profileMaxM };
+  type("25");
+  out.ok = { m: profileMaxM, shown: inp.value };
+  type("");
+  out.empty = { m: profileMaxM };
+  type("abc");
+  out.junk = { m: profileMaxM };
+  setMeasureUnit(keep.unit);
+  profileMaxM = keep.max;
+  return out;
+});
+ok(limitField.high.m === 100 * 1852 && limitField.high.shown === "100" && /va de .* a 100 NM.*se queda en 100 NM/.test(limitField.high.msg),
+  "150 NM se queda en 100 NM y lo dice: " + JSON.stringify(limitField.high));
+ok(limitField.high.max === "100" && Number(limitField.high.min) > 0, "el campo lleva sus cotas en la unidad vigente: " + JSON.stringify(limitField.high));
+ok(Math.abs(limitField.low.m - 100) < 1e-6, "por debajo del mínimo, se queda en el mínimo (100 m)");
+ok(limitField.ok.m === 25 * 1852 && limitField.ok.shown === "25", "un valor válido se guarda tal cual");
+ok(limitField.empty.m === 25 * 1852 && limitField.junk.m === 25 * 1852, "vacío o ilegible: vuelve el vigente");
 const menu0 = await menuAt();
 ok(menu0.hits.join() === "Ruta 1" && menu0.profile === "Obtener perfil",
   "clic derecho sobre la ruta sola: «Obtener perfil»: " + JSON.stringify(menu0));
@@ -271,7 +310,7 @@ ok(redraw.includes("Distancia desde el inicio (NM)") && redraw.includes("Altura 
    sin pie, la gráfica hasta abajo */
 const layout = await page.evaluate(() => {
   const box = profileBox.getBoundingClientRect(), x = document.getElementById("profile-close");
-  const b = x.getBoundingClientRect(), chart = profileChart.getBoundingClientRect();
+  const b = x.getBoundingClientRect(), chart = document.getElementById("profile-foot").getBoundingClientRect();
   return { inHead: x.parentElement === profileBox.querySelector("h2"), right: Math.round(box.right - b.right),
            top: Math.round(b.top - box.top), footer: !!profileBox.querySelector(".dlg-actions"),
            gap: Math.round(box.bottom - chart.bottom),
@@ -279,7 +318,7 @@ const layout = await page.evaluate(() => {
            title: document.getElementById("profile-title").textContent };
 });
 ok(layout.inHead && layout.right < 16 && layout.top < 16, "el × de cerrar, arriba a la derecha en la cabecera: " + JSON.stringify(layout));
-ok(!layout.footer && layout.gap < 12, "sin pie: la gráfica llega hasta abajo de la ventana: " + JSON.stringify(layout));
+ok(!layout.footer && layout.gap < 12, "sin pie de botones (.dlg-actions): lo último, los controles de la gráfica, llega hasta abajo de la ventana: " + JSON.stringify(layout));
 ok(layout.name === layout.title, "la ventana se llama por su título, sin el «Cerrar» del ×: " + layout.name);
 
 /* ---------- 4. En el árbol: raíz «Perfiles de ruta» ---------- */
@@ -345,6 +384,16 @@ const chartGeom = () => page.evaluate(() => {
 });
 const screenX = (g, d) => g.left + g.l + (d - g.view.x0) / (g.view.x1 - g.view.x0) * g.pw;
 const mouseAt = async (g, d) => { await page.mouse.move(screenX(g, d), g.top + g.height / 2); await frames(); };
+/* El rectángulo de lectura (#profile-info): las ocho filas, y su caja */
+const infoRows = () => page.evaluate(() => Object.fromEntries([...document.querySelectorAll("#profile-info .pf-info-row")]
+  .map(r => [r.dataset.k, { txt: r.querySelector(".pf-info-val").textContent, off: r.classList.contains("off"),
+                            alert: r.querySelector(".pf-info-val").classList.contains("alert") }])));
+const infoBox = () => page.evaluate(() => {
+  const b = document.getElementById("profile-info").getBoundingClientRect(), c = profileChart.getBoundingClientRect();
+  return { l: Math.round(b.left * 10) / 10, t: Math.round(b.top * 10) / 10, w: Math.round(b.width * 10) / 10, h: Math.round(b.height * 10) / 10,
+           aboveChart: b.bottom <= c.top + 1 };
+});
+const sameBox = (a, b) => a.l === b.l && a.t === b.t && a.w === b.w && a.h === b.h;
 const arrowState = () => page.evaluate(wps => {
   const px = ll => map.latLngToContainerPoint(ll);
   if (!map.hasLayer(profileArrow)) return { shown: false };
@@ -352,21 +401,22 @@ const arrowState = () => page.evaluate(wps => {
   return { shown: true, atVertex: p.distanceTo(a),
            offLine: Math.abs((b.x - a.x) * (a.y - p.y) - (a.x - p.x) * (b.y - a.y)) / a.distanceTo(b),
            between: p.y < a.y && p.y > b.y, rotate: profileArrow.getElement().firstChild.style.transform,
-           readout: [...document.querySelectorAll("#pf-readout tspan")].map(t => t.textContent).join(" · "),
-           lines: document.querySelectorAll("#pf-readout tspan").length,
-           crosses: (r => { const c = document.getElementById("pf-cursor").getBoundingClientRect().left;
-             return r.left < c - 1 && r.right > c + 1; })(document.getElementById("pf-readout").getBoundingClientRect()),
-           diffAlert: !!document.querySelector("#pf-readout .pf-diff.alert"),
+           readout: (v => `${v.dist} · MDT ${v.mdt} · MDS ${v.mds} · MDS−MDT ${v.diff}`)(Object.fromEntries(
+             [...document.querySelectorAll("#profile-info .pf-info-row")].map(r => [r.dataset.k, r.querySelector(".pf-info-val").textContent]))),
+           diffAlert: !!document.querySelector('#profile-info .pf-info-row[data-k="diff"] .pf-info-val.alert'),
            cursor: document.getElementById("pf-cursor").getAttribute("visibility") };
 }, WAYPOINTS);
 let g = await chartGeom();
 await mouseAt(g, g.vertices[1]);
 const atV = await arrowState();
+const boxV = await infoBox();
 await mouseAt(g, (g.vertices[1] + g.vertices[2]) / 2);
 const midLeg = await arrowState();
+const boxM = await infoBox();
 await page.mouse.move(700, 150); /* fuera de la gráfica, sobre el mapa */
 await frames();
 const afterLeave = await arrowState();
+const boxIdle = await infoBox(), rowsIdle = await infoRows();
 await mouseAt(g, 100);
 await page.evaluate(() => closeProfileDialog());
 const afterClose = await arrowState();
@@ -379,8 +429,13 @@ ok(atV.cursor === "visible" && /km · MDT [\d.]+ m · MDS [\d.]+ m/.test(atV.rea
   const diff = m && +m[2] - +m[1];
   ok(m && Math.abs(+m[3] - diff) < 0.11, "y su diferencia MDS−MDT, con signo: " + atV.readout);
   ok(m && atV.diffAlert === diff > 1, "en rojo solo por encima de 1 m, como en las celdas: " + JSON.stringify(atV));
-  ok(atV.lines === 3 && !atV.crosses && !midLeg.crosses,
-    "en tres líneas (distancia, alturas, diferencia), a un lado de la línea roja sin cruzarla: " + JSON.stringify([atV.lines, atV.crosses, midLeg.crosses]));
+  ok(boxV.aboveChart && sameBox(boxV, boxM) && sameBox(boxV, boxIdle) && boxV.h > 0,
+    "la lectura vive en su rectángulo, encima de la gráfica, y su caja no cambia entre lectura y reposo: " + JSON.stringify([boxV, boxM, boxIdle]));
+  ok(Object.values(rowsIdle).every(r => r.txt === "—"), "en reposo, guiones en todos los valores: " + JSON.stringify(rowsIdle));
+  ok(rowsIdle.bulge.off && rowsIdle.clear.off && rowsIdle.fres.off && rowsIdle.margin.off && !rowsIdle.mdt.off && !rowsIdle.diff.off,
+    "las filas de lo que no está activado (curvatura, despeje, Fresnel, margen) quedan atenuadas, no ocultas: " + JSON.stringify(rowsIdle));
+  ok(await page.evaluate(() => !document.getElementById("pf-readout") && ["pf-x-out", "pf-x-in", "pf-y-out", "pf-y-in", "pf-freq"].every(id => !document.getElementById(id))),
+    "ya no hay texto de lectura sobre la gráfica ni botones de zoom ni campo de frecuencia en la ventana");
 }
 ok(midLeg.offLine < 1 && midLeg.between, "a mitad de tramo, sobre la línea dibujada: " + JSON.stringify(midLeg));
 ok(/rotate\(-90deg\)/.test(midLeg.rotate), "apuntando en el sentido de la marcha (norte): " + midLeg.rotate);
@@ -429,15 +484,15 @@ await frames();
 const g3 = await chartGeom();
 ok(grabbing && Math.abs((g3.view.x0 - g2.view.x0) + 10) < 0.15 && Math.abs((g3.view.x1 - g3.view.x0) - 0.1 * g2.pw) < 1e-6,
   "arrastrar 100 px desplaza 10 m, mismo zoom: " + JSON.stringify([g2.view, g3.view]));
-/* Alejar con el botón − de distancia (al doble cada vez, centrado) y arrastrar hasta pasarse */
+/* Alejar con la rueda (sin botones: e^(462·0,0015) = 2, al doble, con el ratón en el centro) y arrastrar hasta pasarse */
 const span3 = g3.view.x1 - g3.view.x0, mid3 = (g3.view.x0 + g3.view.x1) / 2;
-await page.click("#pf-x-out");
+await mouseAt(g3, mid3);
+await page.mouse.wheel(0, 462);
 await frames();
 const gOut = await chartGeom();
-ok(Math.abs((gOut.view.x1 - gOut.view.x0) - 2 * span3) < 1e-6 && Math.abs((gOut.view.x0 + gOut.view.x1) / 2 - mid3) < 1e-6,
-  "el botón − de distancia aleja al doble, centrado: " + JSON.stringify(gOut.view));
-for (let i = 0; i < 4; i++) await page.click("#pf-x-out");
-await frames();
+ok(Math.abs((gOut.view.x1 - gOut.view.x0) / span3 - 2) < 0.01 && Math.abs((gOut.view.x0 + gOut.view.x1) / 2 - mid3) < 0.05,
+  "la rueda hacia abajo aleja (al doble con 462 px), con el centro en su sitio: " + JSON.stringify(gOut.view));
+for (let i = 0; i < 4; i++) { await page.mouse.wheel(0, 462); await frames(); }
 await page.mouse.move(sx, sy);
 await page.mouse.down();
 await page.mouse.move(sx - 3000, sy, { steps: 5 });
@@ -514,15 +569,16 @@ await page.click("#pf-y-lock");
 await frames();
 let y6s = await yState();
 ok(y6s.lock && y6s.yView && y6s.yView.a === y5s.auto.a && y6s.yView.b === y5s.auto.b, "marcarlo congela la altura que se veía");
-/* Botones de altura: al doble / a la mitad, centrados */
-await page.click("#pf-y-in");
+/* Mayús+rueda sobre la gráfica: altura, centrada en el ratón (ya no hay botones de zoom) */
+const gY = await chartGeom();
+await page.mouse.move(gY.left + gY.l + gY.pw / 2, gY.top + gY.height / 2);
+await page.keyboard.down("Shift");
+await page.mouse.wheel(0, -462);
 await frames();
-let y7s = await yState();
-ok(Math.abs(spanY(y7s.yView) - spanY(y6s.yView) / 2) < 1e-9
-  && Math.abs((y7s.yView.a + y7s.yView.b) - (y6s.yView.a + y6s.yView.b)) < 1e-9, "el botón + de altura acerca a la mitad, centrado");
-await page.click("#pf-y-out");
-await frames();
-ok(Math.abs(spanY((await yState()).yView) - spanY(y6s.yView)) < 1e-9, "y el − lo deshace");
+await page.keyboard.up("Shift");
+const y7s = await yState();
+ok(spanY(y7s.yView) < spanY(y6s.yView) * 0.55 && spanY(y7s.yView) > spanY(y6s.yView) * 0.45,
+  "Mayús+rueda hacia arriba acerca la altura a la mitad: " + JSON.stringify([y6s.yView, y7s.yView]));
 /* Ver todo */
 await page.click("#pf-reset");
 await frames();
@@ -556,6 +612,258 @@ for (let i = 0; i < 6; i++) { await page.mouse.wheel(0, -400); await frames(); }
 const stZoom = await straight();
 ok(stZoom.curves === 0 && stZoom.matched === stZoom.vertices && stZoom.vertices === stZoom.expected,
   "con zoom, una línea recta de valor a valor, todos los valores: " + JSON.stringify(stZoom));
+
+/* ---------- 7e. Línea inicio–fin y curvatura terrestre (k = 4/3) ---------- */
+await page.click("#pf-reset");
+await frames();
+const opt0 = await page.evaluate(() => ({ los: !!profileChart.querySelector(".pf-los"), earth: !!profileChart.querySelector(".pf-earth"),
+  losBox: document.getElementById("pf-los").checked, earthBox: document.getElementById("pf-earth").checked }));
+ok(!opt0.los && !opt0.earth && !opt0.losBox && !opt0.earthBox, "por defecto, sin recta ni curvatura: " + JSON.stringify(opt0));
+await page.click("#pf-los");
+await frames();
+const los1 = await page.evaluate(() => {
+  const ln = profileChart.querySelector("line.pf-los"), lay = profileLayout;
+  const mds = profileData.series.find(s => s.kind === "mds").points.filter(p => typeof p.v === "number");
+  return { y1: +ln.getAttribute("y1"), y2: +ln.getAttribute("y2"), x1: +ln.getAttribute("x1"), x2: +ln.getAttribute("x2"),
+           ey1: lay.yOf(mds[0].v), ey2: lay.yOf(mds[mds.length - 1].v), ex1: lay.xOf(lay.x0), ex2: lay.xOf(lay.x1),
+           stroke: getComputedStyle(ln).stroke, legend: !!profileChart.querySelector(".pf-legend.los"),
+           legendText: [...profileChart.querySelectorAll(".pf-legend-label")].map(t => t.textContent).join("|") };
+});
+ok(Math.abs(los1.y1 - los1.ey1) < 0.2 && Math.abs(los1.y2 - los1.ey2) < 0.2
+  && Math.abs(los1.x1 - los1.ex1) < 0.2 && Math.abs(los1.x2 - los1.ex2) < 0.2,
+  "la recta une la altura del MDS del primer y del último punto: " + JSON.stringify(los1));
+ok(los1.stroke === "rgb(0, 0, 0)" && los1.legend && /Línea inicio–fin \(MDS\)/.test(los1.legendText),
+  "negra y con su leyenda: " + JSON.stringify(los1));
+/* Sin el MDS, la recta sale del MDT */
+const losMdt = await page.evaluate(() => {
+  const keep = profileData.series;
+  profileData.series = keep.filter(s => s.kind === "mdt");
+  renderProfileChart();
+  const r = { text: [...profileChart.querySelectorAll(".pf-legend-label")].map(t => t.textContent).join("|"),
+              y1: +profileChart.querySelector("line.pf-los").getAttribute("y1"),
+              ey1: profileLayout.yOf(profileData.series[0].points.find(p => typeof p.v === "number").v) };
+  profileData.series = keep;
+  renderProfileChart();
+  return r;
+});
+ok(/Línea inicio–fin \(MDT\)/.test(losMdt.text) && Math.abs(losMdt.y1 - losMdt.ey1) < 0.2,
+  "sin MDS, la recta usa el MDT: " + JSON.stringify(losMdt));
+/* Con zoom la recta sigue siendo la misma recta (se dibuja solo lo visible) */
+await mouseAt(g5, g5.total / 2);
+for (let i = 0; i < 4; i++) { await page.mouse.wheel(0, -400); await frames(); }
+const losZoom = await page.evaluate(() => {
+  const ln = profileChart.querySelector("line.pf-los"), lay = profileLayout, l = lay.los;
+  const at = d => lay.yOf(l.a + (l.b - l.a) * d / lay.total);
+  return { y1: +ln.getAttribute("y1"), y2: +ln.getAttribute("y2"), e1: at(lay.x0), e2: at(lay.x1) };
+});
+ok(Math.abs(losZoom.y1 - losZoom.e1) < 0.2 && Math.abs(losZoom.y2 - losZoom.e2) < 0.2, "con zoom, sigue la misma recta: " + JSON.stringify(losZoom));
+await page.click("#pf-reset");
+await frames();
+
+await page.click("#pf-earth");
+await frames();
+const earth1 = await page.evaluate(() => {
+  const lay = profileLayout, mid = lay.total / 2, ph = lay.ph;
+  const lift = lay.lift(mid);
+  const mds = profileData.series.find(s => s.kind === "mds").points.find(p => typeof p.v === "number");
+  return { arc: !!profileChart.querySelector("polyline.pf-earth"), fill: !!profileChart.querySelector("polygon.pf-earth-fill"),
+           lift, expected: lay.total * lay.total / (8 * (4 / 3) * EARTH_R),
+           raise: lay.yOf(100, 0) - lay.yOf(100, mid), want: lift / (lay.ym.b - lay.ym.a) * ph,
+           seaLevelInView: lay.ym.a <= 0 && lay.ym.b >= 0,
+           axis: [...profileChart.querySelectorAll("text.pf-tick")].map(t => t.textContent).find(t => /^Altura/.test(t)),
+           legend: [...profileChart.querySelectorAll(".pf-legend-label")].map(t => t.textContent).join("|"),
+           stroke: getComputedStyle(profileChart.querySelector("polyline.pf-earth")).stroke };
+});
+ok(earth1.arc && earth1.fill, "con la curvatura, el arco de la Tierra y su relleno: " + JSON.stringify(earth1));
+ok(Math.abs(earth1.lift - earth1.expected) < 1e-6 && earth1.lift > 0, "el abultamiento central es L²/(8·k·R): " + earth1.lift);
+ok(Math.abs(earth1.raise - earth1.want) < 0.01, "el terreno se dibuja elevado ese abultamiento: " + JSON.stringify([earth1.raise, earth1.want]));
+ok(earth1.seaLevelInView, "el nivel del mar entra en la escala de alturas (el arco parte de 0)");
+ok(/Altura \+ curvatura k = 4\/3/.test(earth1.axis) && /Tierra/.test(earth1.legend), "el eje y la leyenda lo dicen: " + earth1.axis + " | " + earth1.legend);
+/* La lectura: alturas reales + curvatura + despeje con signo */
+await mouseAt(g5, g5.total / 2);
+const rd = await infoRows();
+ok(/^\+[\d.]+ m$/.test(rd.bulge.txt) && !rd.bulge.off, "la lectura da la curvatura: " + JSON.stringify(rd.bulge));
+ok(/^[+-][\d.]+ m$/.test(rd.clear.txt) && !rd.clear.off, "y el despeje de la recta sobre el terreno elevado: " + JSON.stringify(rd.clear));
+const clear = await page.evaluate(() => {
+  const lay = profileLayout, d = lay.dOf(lay.lastX);
+  const s = profileData.series.find(x => x.kind === lay.los.kind);
+  const p = nearestProfilePoint(s.points, d);
+  return { shown: document.querySelector('#profile-info [data-k="clear"] .pf-info-val').textContent,
+           want: lay.losAt(d) - (p.v + lay.lift(d)) };
+});
+ok(Math.abs(Number(clear.shown.replace(/[^\d.+-]/g, "").replace(/^[+]/, "")) - clear.want) < 0.11,
+  "el despeje = recta − (terreno + curvatura): " + JSON.stringify(clear));
+await page.click("#pf-los");
+await page.click("#pf-earth");
+await frames();
+const opt2 = await page.evaluate(() => ({ los: !!profileChart.querySelector(".pf-los"), earth: !!profileChart.querySelector(".pf-earth") }));
+const rowsOff = await infoRows();
+ok(!opt2.los && !opt2.earth && rowsOff.bulge.off && rowsOff.bulge.txt === "—" && rowsOff.clear.off && rowsOff.clear.txt === "—",
+  "desmarcadas, desaparecen del dibujo y sus filas de la lectura quedan atenuadas y en guiones: " + JSON.stringify([opt2, rowsOff.bulge, rowsOff.clear]));
+
+/* ---------- 7f. Torres, frecuencia y elipsoide de Fresnel ---------- */
+await page.evaluate(() => setAltitudeUnit("m"));
+await frames();
+const tw0 = await page.evaluate(() => ({ a: document.getElementById("pf-tower-a").value, b: document.getElementById("pf-tower-b").value,
+  unit: [...document.querySelectorAll(".pf-tower-unit")].map(x => x.textContent).join(),
+  fr: !!profileChart.querySelector(".pf-fresnel"), f: fresnelFreqMHz }));
+ok(tw0.a === "0" && tw0.b === "0" && tw0.f === 1090 && tw0.unit === "m,m" && !tw0.fr, "torres a 0, 1090 MHz de Propiedades, unidad de altitud y sin elipsoide: " + JSON.stringify(tw0));
+const setField = async (id, v) => { await page.fill("#" + id, v); await page.$eval("#" + id, el => el.dispatchEvent(new Event("change"))); await frames(); };
+await page.click("#pf-los");
+await setField("pf-tower-a", "30");
+await setField("pf-tower-b", "12.5");
+const tw1 = await page.evaluate(() => {
+  const lay = profileLayout, ln = profileChart.querySelector("line.pf-los");
+  const mds = profileData.series.find(s => s.kind === "mds").points.filter(p => typeof p.v === "number");
+  return { y1: +ln.getAttribute("y1"), y2: +ln.getAttribute("y2"), ey1: lay.yOf(mds[0].v + 30), ey2: lay.yOf(mds[mds.length - 1].v + 12.5),
+           towers: [...profileChart.querySelectorAll("line.pf-tower")].map(t => ({ h: Math.abs(+t.getAttribute("y1") - +t.getAttribute("y2")),
+             x: +t.getAttribute("x1") })), tower: profileTowerM, ex1: lay.xOf(0), ex2: lay.xOf(lay.total) };
+});
+ok(Math.abs(tw1.y1 - tw1.ey1) < 0.2 && Math.abs(tw1.y2 - tw1.ey2) < 0.2, "las torres suben los extremos de la recta: " + JSON.stringify(tw1));
+ok(tw1.towers.length === 2 && tw1.towers[0].h > tw1.towers[1].h && tw1.towers[1].h > 0 && Math.abs(tw1.towers[0].x - tw1.ex1) < 0.2,
+  "y se dibujan, del terreno a la antena: " + JSON.stringify(tw1.towers));
+/* en pies: el campo se reconvierte y lo guardado sigue siendo el mismo (metros) */
+await page.evaluate(() => setAltitudeUnit("ft"));
+await frames();
+const twFt = await page.evaluate(() => ({ a: document.getElementById("pf-tower-a").value, m: profileTowerM.a, unit: document.querySelector(".pf-tower-unit").textContent }));
+ok(Math.abs(+twFt.a - 30 / 0.3048) < 0.01 && twFt.m === 30 * 1 && twFt.unit === "ft", "al cambiar la unidad, el campo se reconvierte: " + JSON.stringify(twFt));
+await page.evaluate(() => setAltitudeUnit("m"));
+await frames();
+/* un valor fuera de rango se ajusta y avisa; ilegible vuelve */
+await page.evaluate(() => { document.getElementById("nav-msg").textContent = ""; });
+await setField("pf-tower-a", "999999");
+const twClamp = await page.evaluate(() => ({ v: document.getElementById("pf-tower-a").value, m: profileTowerM.a, msg: document.getElementById("nav-msg").textContent }));
+ok(twClamp.m === 10000 && twClamp.v === "10000" && /altura de torre va de 0 a 10\D?000 m/i.test(twClamp.msg), "una torre de 999999 m se queda en el tope y avisa: " + JSON.stringify(twClamp));
+await setField("pf-tower-a", "30");
+await setField("pf-tower-a", "");
+ok((await page.evaluate(() => profileTowerM.a)) === 30, "campo vacío: vuelve el vigente");
+/* Fresnel */
+await page.click("#pf-fresnel");
+await frames();
+const fr1 = await page.evaluate(() => {
+  const lay = profileLayout, d = lay.total / 2;
+  const el = profileChart.querySelector("polygon.pf-fresnel60"), full = profileChart.querySelector("polygon.pf-fresnel");
+  const pts = o => o.getAttribute("points").trim().split(/\s+/).map(p => p.split(",").map(Number));
+  const p60 = pts(el), pf = pts(full);
+  const n = (p60.length - 2) / 2;      /* n+1 puntos arriba, n+1 abajo */
+  const mid = Math.round(n / 2);
+  const h = p => Math.abs(p[mid][1] - p[p.length - 1 - mid][1]);
+  const r = lay.fresnel(d);
+  return { has60: !!el, hasFull: !!full, legend: [...profileChart.querySelectorAll(".pf-legend-label")].map(t => t.textContent).join("|"),
+           ratio: h(p60) / h(pf), want: 0.6, px: h(pf) / 2, wantPx: r / (lay.ym.b - lay.ym.a) * lay.ph, fill: getComputedStyle(el).fillOpacity };
+});
+ok(fr1.has60 && fr1.hasFull && /Fresnel 1090 MHz \(zona 60 %\)/.test(fr1.legend), "el elipsoide y su leyenda: " + JSON.stringify(fr1));
+ok(Math.abs(fr1.ratio - 0.6) < 0.03, "la zona rellena mide el 60 % del contorno: " + fr1.ratio);
+ok(Math.abs(fr1.px - fr1.wantPx) < 0.6, "el radio central es el de Fresnel (sqrt(λ·d·(L−d)/L)): " + JSON.stringify([fr1.px, fr1.wantPx]));
+/* La frecuencia ya no está en la ventana: es de Propiedades → Frecuencias (persistente, con Cancelar/Aceptar) */
+const r1090 = await page.evaluate(() => profileLayout.fresnel(profileLayout.total / 2));
+await page.evaluate(() => { togglePropsDialog(); });
+await page.waitForFunction(() => !document.getElementById("props-dialog").hidden);
+await page.click("#props-tab-btn-freq");
+const fq0 = await page.evaluate(() => ({ visible: !document.getElementById("props-tab-freq").hidden,
+  tabs: [...document.querySelectorAll("#props-dialog .dlg-tab")].map(t => t.textContent).join("|"),
+  label: document.querySelector("#props-tab-freq .dlg-row span").textContent, value: document.getElementById("props-fresnel-freq").value }));
+ok(fq0.visible && /Frecuencias/.test(fq0.tabs) && fq0.tabs.split("|").length === 4 && /^Frecuencia cálculos de Fresnel$/.test(fq0.label) && fq0.value === "1090",
+  "Propiedades tiene la pestaña «Frecuencias» con «Frecuencia cálculos de Fresnel» = 1090: " + JSON.stringify(fq0));
+await setField("props-fresnel-freq", "4360");
+const r4360 = await page.evaluate(() => ({ r: profileLayout.fresnel(profileLayout.total / 2), legend: [...profileChart.querySelectorAll(".pf-legend-label")].map(t => t.textContent).join("|") }));
+ok(Math.abs(r4360.r * 2 - r1090) < 1e-9 && /4360 MHz/.test(r4360.legend), "la frecuencia se previsualiza en vivo en el perfil abierto: a 4× la frecuencia, la mitad de radio: " + JSON.stringify([r1090, r4360]));
+await page.evaluate(() => { document.getElementById("nav-msg").textContent = ""; });
+await setField("props-fresnel-freq", "0");
+const fq1 = await page.evaluate(() => ({ f: fresnelFreqMHz, v: document.getElementById("props-fresnel-freq").value, msg: document.getElementById("nav-msg").textContent }));
+ok(fq1.f === 1 && fq1.v === "1" && /La frecuencia va de 1 a 300\D?000 MHz: se queda en 1 MHz/.test(fq1.msg), "una frecuencia de 0 se queda en el mínimo y avisa: " + JSON.stringify(fq1));
+await page.click("#props-cancel");
+await frames();
+ok(await page.evaluate(() => fresnelFreqMHz === 1090 && /1090 MHz/.test([...profileChart.querySelectorAll(".pf-legend-label")].map(t => t.textContent).join("|"))),
+  "Cancelar la deshace y el perfil vuelve a 1090 MHz");
+await page.evaluate(() => { togglePropsDialog(); });
+await page.waitForFunction(() => !document.getElementById("props-dialog").hidden);
+await page.click("#props-tab-btn-freq");
+await setField("props-fresnel-freq", "2400");
+await page.click("#props-accept");
+let saved = null;
+for (let i = 0; i < 40 && saved !== 2400; i++) { saved = await page.evaluate(() => dbLoadFresnelFreq()); if (saved !== 2400) await page.waitForTimeout(50); }
+ok(saved === 2400, "Aceptar la guarda en IndexedDB: " + saved);
+/* con la curvatura, el elipsoide sigue alrededor de la misma recta (el terreno es lo que sube) */
+const frNoEarth = await page.evaluate(() => profileChart.querySelector("polygon.pf-fresnel60").getAttribute("points"));
+await page.click("#pf-earth");
+await frames();
+const frEarth = await page.evaluate(() => ({ pts: profileChart.querySelector("polygon.pf-fresnel60") && profileChart.querySelector("polygon.pf-fresnel60").getAttribute("points"),
+  los: profileChart.querySelector("line.pf-los") && [profileChart.querySelector("line.pf-los").getAttribute("y1"), profileChart.querySelector("line.pf-los").getAttribute("y2")] }));
+ok(frEarth.pts && frEarth.los, "con la curvatura también se dibuja el elipsoide y la recta: " + JSON.stringify(frEarth).slice(0, 120));
+/* la lectura, con margen sobre la zona del 60 % */
+await mouseAt(g5, g5.total / 2);
+const rdF = await infoRows();
+ok(/^[\d.]+ m$/.test(rdF.fres.txt) && /^[+-][\d.]+ m$/.test(rdF.margin.txt) && !rdF.fres.off && !rdF.margin.off,
+  "la lectura da el radio al 60 % y el margen: " + JSON.stringify([rdF.fres, rdF.margin]));
+await page.click("#pf-earth");
+await page.click("#pf-fresnel");
+await page.click("#pf-los");
+await frames();
+const fr0 = await page.evaluate(() => ({ f: !!profileChart.querySelector(".pf-fresnel"), t: !!profileChart.querySelector(".pf-tower"), l: !!profileChart.querySelector(".pf-los") }));
+ok(!fr0.f && !fr0.t && !fr0.l, "todo desmarcado: sin elipsoide, torres ni recta (las alturas de torre se conservan): " + JSON.stringify(fr0));
+/* solo Fresnel (sin la recta marcada): el elipsoide sale igual, sin línea negra */
+await page.click("#pf-fresnel");
+await frames();
+const frOnly = await page.evaluate(() => ({ f: !!profileChart.querySelector(".pf-fresnel60"), l: !!profileChart.querySelector("line.pf-los") }));
+ok(frOnly.f && !frOnly.l, "solo el elipsoide: se dibuja alrededor de la recta sin pintarla: " + JSON.stringify(frOnly));
+await page.click("#pf-fresnel");
+await page.evaluate(() => { profileTowerM.a = 0; profileTowerM.b = 0; renderProfileChart(); });
+
+/* ---------- 7h. Disposición de la ventana ---------- */
+await page.click("#pf-reset");
+await frames();
+const L = await page.evaluate(() => {
+  const r = id => { const b = document.getElementById(id).getBoundingClientRect(); return { l: b.left, t: b.top, r: b.right, b: b.bottom }; };
+  const box = id => r(id);
+  return { los: box("pf-los"), fres: box("pf-fresnel"), ta: box("pf-tower-a"), tb: box("pf-tower-b"), info: box("profile-info"),
+           chart: box("profile-chart"), lock: box("pf-y-lock"), earth: box("pf-earth"), reset: box("pf-reset"),
+           hint: !!document.querySelector("#profile-foot .pf-hint"), footShown: !document.getElementById("profile-foot").hidden,
+           headShown: !document.getElementById("profile-tools").hidden };
+});
+const sameRow = (a, b) => Math.abs((a.t + a.b) / 2 - (b.t + b.b) / 2) < 6;
+ok(L.headShown && L.footShown, "con la gráfica, se ven la cabecera y el pie");
+ok(sameRow(L.los, L.fres) && L.fres.l > L.los.l, "«Línea inicio–fin» y «Elipsoide de Fresnel» van juntos, en una fila: " + JSON.stringify([L.los, L.fres]));
+ok(sameRow(L.ta, L.tb) && L.tb.l > L.ta.l && L.ta.t >= L.los.b - 4, "las dos torres, en una fila, debajo de la línea y el elipsoide: " + JSON.stringify([L.ta, L.tb, L.los]));
+ok(L.info.l >= L.tb.r && L.info.b <= L.chart.t + 1 && L.info.l > L.chart.l + (L.chart.r - L.chart.l) / 3,
+  "el rectángulo de lectura, a la derecha de las opciones y encima de la gráfica: " + JSON.stringify([L.info, L.chart]));
+ok(L.lock.t >= L.chart.b - 1 && sameRow(L.lock, L.earth) && sameRow(L.earth, L.reset) && L.earth.l > L.lock.l && L.reset.l > L.earth.l && L.hint,
+  "bajo la gráfica: Bloquear eje Y, Curvatura terrestre, Ver todo y la pista de gestos: " + JSON.stringify([L.lock, L.earth, L.reset]));
+const hit = await page.evaluate(() => ["pf-los", "pf-fresnel", "pf-y-lock", "pf-earth"].map(id => document.getElementById(id).closest("label").getBoundingClientRect().height));
+ok(hit.every(h => h >= 24), "cada casilla se pulsa por su etiqueta entera, de al menos 24 px de alto: " + hit);
+
+/* ---------- 7g. Arrastrar desplaza también la altura ---------- */
+await page.click("#pf-reset");
+await frames();
+await mouseAt(g5, g5.total / 2);
+for (let i = 0; i < 2; i++) { await page.mouse.wheel(0, -400); await frames(); }
+const dragState = () => page.evaluate(() => ({ yView: profileYView && { ...profileYView }, auto: { ...profileLayout.ym }, view: { ...profileView },
+  lock: document.getElementById("pf-y-lock").checked }));
+const dg0 = await dragState();
+const gDrag = await chartGeom();
+const dragX = screenX(gDrag, (gDrag.view.x0 + gDrag.view.x1) / 2), dragY = gDrag.top + gDrag.height / 2;
+/* arrastre casi horizontal (3 px de temblor vertical): no toca la altura */
+await page.mouse.move(dragX, dragY);
+await page.mouse.down();
+await page.mouse.move(dragX - 40, dragY + 3, { steps: 4 });
+await page.mouse.up();
+await frames();
+const dg1 = await dragState();
+ok(!dg1.yView && !dg1.lock && dg1.view.x0 > dg0.view.x0, "un arrastre horizontal con la mano algo torcida no bloquea la altura: " + JSON.stringify(dg1));
+/* arrastre con 60 px hacia abajo: bloquea y desplaza la altura */
+const ph60 = await page.evaluate(() => profileLayout.ph);
+await page.mouse.move(dragX, dragY);
+await page.mouse.down();
+await page.mouse.move(dragX, dragY + 60, { steps: 6 });
+await page.mouse.up();
+await frames();
+const dg2 = await dragState();
+const spanA = dg1.auto.b - dg1.auto.a;
+ok(dg2.lock && dg2.yView && Math.abs(spanY(dg2.yView) - spanA) < 1e-6 * spanA
+  && Math.abs((dg2.yView.a - dg1.auto.a) - 60 / ph60 * spanA) < 0.01 * spanA,
+  "arrastrar 60 px en vertical bloquea el eje y lo desplaza lo mismo (hacia abajo = ver más arriba): " + JSON.stringify([dg1.auto, dg2.yView]));
+await page.click("#pf-reset");
+await frames();
 await page.evaluate(() => closeProfileDialog());
 
 /* ---------- 6b. Tras recargar, sigue siendo «Mostrar» ---------- */
@@ -576,6 +884,13 @@ const reloaded = await page.evaluate(async sel => {
 ok(reloaded.label === "Mostrar perfil" && reloaded.lines >= 2 && reloaded.series.join() === "MDT05 (IGN),MDS (IGN)",
   "tras recargar, el perfil sale de lo guardado: " + JSON.stringify(reloaded));
 ok(seen.length === n1, "sin pedir nada");
+const frRestored = await page.evaluate(async () => {
+  const f = fresnelFreqMHz;
+  fresnelFreqMHz = FRESNEL_FREQ_DEFAULT;
+  await dbSaveFresnelFreq(FRESNEL_FREQ_DEFAULT); /* que lo que sigue parta de 1090 */
+  return f;
+});
+ok(frRestored === 2400, "la frecuencia de Fresnel guardada se restaura al arrancar: " + frRestored);
 await page.evaluate(() => { setMeasureUnit("km"); setAltitudeUnit("m"); });
 
 /* Mover un vértice: otra geometría, otro perfil */

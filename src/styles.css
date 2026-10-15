@@ -662,6 +662,11 @@
     justify-content: center;
   }
   .dlg-overlay[hidden] { display: none; }
+  /* Propiedades es modal y se abre a menudo con el perfil de una ruta (flotante,
+     mismo z-index y más tarde en el documento) a la vista, para ver el cambio
+     en vivo: tiene que quedar POR ENCIMA, o la ventana del perfil le tapaba
+     parte de las pestañas. */
+  #props-dialog { z-index: 2050; }
   /* The style dialog is NOT modal: it floats over the viewer so the map
      stays live underneath and the marker being edited can be dragged   */
   .dlg-float {
@@ -680,7 +685,7 @@
   #profile-dialog { top: auto; bottom: 40px; }
   #profile-dialog .dlg-box {
     display: flex; flex-direction: column; resize: both;
-    width: min(92vw, 46rem); height: min(75vh, 440px); min-width: 320px; min-height: 260px; /* + la barra de controles */
+    width: min(94vw, 60rem); height: min(82vh, 580px); min-width: 320px; min-height: 260px; /* + cabecera (4 filas de lectura) y pie */
   }
   /* Sin pie (el × está en la cabecera): todo lo de debajo de la barra
      de controles es gráfica; el margen de abajo deja sitio al tirador. */
@@ -702,17 +707,48 @@
   #profile-progress-label { font-size: 13px; margin-bottom: 4px; }
   #profile-progress .bar { height: 8px; background: var(--border); border-radius: 4px; overflow: hidden; }
   #profile-progress-fill { height: 100%; width: 0; background: var(--accent); transition: width 0.15s; }
-  /* Rueda = zoom, arrastrar = desplazar (63-route-profile.js): la mano
-     solo con zoom, que es cuando hay algo que desplazar.             */
+  /* Rueda = zoom, arrastrar = desplazar (63-route-profile.js), en
+     distancia y en altura: la mano siempre.                          */
   #profile-chart { flex: 1 1 auto; min-height: 120px; position: relative;
                    touch-action: none; user-select: none; }
-  #profile-chart.zoomed { cursor: grab; }
-  #profile-tools { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 14px;
-                   margin: 6px 0 2px; font-size: 13px; }
-  #profile-tools[hidden] { display: none; }
-  #profile-tools .pf-tool-group { display: inline-flex; align-items: center; gap: 4px; }
-  #profile-tools .pf-tool { min-width: 28px; padding: 1px 6px; }
-  #profile-tools .pf-tools-hint { color: var(--muted); font-size: 11px; }
+  #profile-chart { cursor: grab; }
+  /* Cabecera: a la izquierda lo que cambia la recta (línea, elipsoide,
+     torres); a la derecha el rectángulo de lectura, de tamaño fijo. Si no
+     caben, la lectura baja bajo las opciones. Pie: la vista (eje Y,
+     curvatura, ver todo) y la pista de gestos.                          */
+  #profile-tools { display: flex; flex-wrap: wrap; align-items: flex-start; gap: 6px 16px;
+                   margin: 6px 0 4px; font-size: 13px; }
+  #profile-tools[hidden], #profile-foot[hidden] { display: none; }
+  #profile-opts { flex: 1 1 17rem; display: flex; flex-direction: column; gap: 2px; }
+  .pf-row { display: flex; flex-wrap: wrap; align-items: center; gap: 0 16px; }
+  /* etiqueta entera clicable, y a una altura cómoda para el puntero */
+  .pf-check, .pf-field { display: inline-flex; align-items: center; gap: 6px; min-height: 26px; }
+  .pf-check { cursor: pointer; }
+  #profile-tools input[type="number"] { width: 64px; }
+  #profile-foot { display: flex; flex-wrap: wrap; align-items: center; gap: 2px 16px;
+                  margin: 4px 0 0; font-size: 13px; }
+  #profile-foot .pf-hint { flex: 1 1 8rem; min-width: 0; text-align: right; white-space: nowrap;
+                           overflow: hidden; text-overflow: ellipsis; color: var(--muted); font-size: 11px; }
+  /* Rectángulo de lectura: 2 columnas × 4 filas SIEMPRE (guiones en reposo,
+     filas apagadas atenuadas pero presentes), así su caja no cambia al
+     mover el ratón y la gráfica no salta. El valor manda (negrita, cifras
+     tabulares); la etiqueta es secundaria; cada línea lleva su clave de
+     trazo del color de su curva, y el texto sigue en tinta de texto.   */
+  #profile-info { flex: 0 0 26rem; max-width: 100%; box-sizing: border-box;
+                  display: grid; grid-template-columns: 1fr 1fr; grid-template-rows: repeat(4, auto);
+                  grid-auto-flow: column; gap: 0 18px; padding: 5px 10px;
+                  border: 1px solid var(--border); border-radius: 4px; background: var(--panel); }
+  .pf-info-row { display: flex; align-items: center; gap: 6px; min-width: 0; height: 20px; font-size: 12px; }
+  .pf-info-row.off { opacity: .45; }
+  .pf-info-label { color: var(--muted); white-space: nowrap; }
+  .pf-info-val { margin-left: auto; white-space: nowrap; font-variant-numeric: tabular-nums; color: var(--text); font-weight: 600; }
+  .pf-info-val.alert { color: #d32f2f; }
+  .pf-key { flex: 0 0 14px; height: 0; border-top: 3px solid transparent; }
+  .pf-key.mdt { border-top-color: #1565c0; }
+  .pf-key.mds { border-top-color: #2e7d32; }
+  .pf-key.earth { border-top-color: #8d6e63; }
+  .pf-key.los { border-top-color: #000; }
+  .pf-key.fresnel { border-top: 2px dashed #6a1b9a; }
   #profile-chart.dragging { cursor: grabbing; }
   #profile-chart svg { display: block; width: 100%; height: 100%; font: 11px system-ui, sans-serif; }
   #profile-chart .pf-axis { stroke: var(--muted); stroke-width: 1; }
@@ -722,6 +758,19 @@
   #profile-chart .pf-line { fill: none; stroke-width: 1.5; }
   #profile-chart .pf-line.mdt, #profile-chart .pf-legend.mdt { stroke: #1565c0; }
   #profile-chart .pf-line.mds, #profile-chart .pf-legend.mds { stroke: #2e7d32; }
+  /* Línea inicio–fin: negra (pedido); la Tierra, un marrón con relleno
+     suave por debajo */
+  #profile-chart .pf-los, #profile-chart .pf-legend.los { stroke: #000; }
+  #profile-chart .pf-los { stroke-width: 1.5; }
+  #profile-chart .pf-earth, #profile-chart .pf-legend.earth { stroke: #8d6e63; }
+  #profile-chart .pf-earth { fill: none; stroke-width: 1.5; }
+  #profile-chart .pf-earth-fill { fill: #8d6e63; fill-opacity: 0.18; stroke: none; }
+  /* Torres (negras, como la recta) y elipsoide de Fresnel: contorno de la
+     primera zona discontinuo y, dentro, la del 60 % rellena */
+  #profile-chart .pf-tower { stroke: #000; stroke-width: 3; }
+  #profile-chart .pf-fresnel { fill: none; stroke: #6a1b9a; stroke-width: 1; stroke-dasharray: 4 3; }
+  #profile-chart .pf-fresnel60 { fill: #6a1b9a; fill-opacity: 0.16; stroke: #6a1b9a; stroke-width: 1; }
+  #profile-chart .pf-legend.fresnel { stroke: #6a1b9a; }
   #profile-chart .pf-legend { stroke-width: 3; }
   #profile-chart .pf-tick { fill: var(--text); }
   #profile-chart .pf-tick.vertex { font-weight: 700; }
@@ -730,11 +779,6 @@
   .pf-map-arrow { background: none; border: none; pointer-events: none; }
   .pf-map-arrow svg { display: block; overflow: visible; }
   .pf-map-arrow path { fill: #b04a3a; stroke: #fff; stroke-width: 1.5; stroke-linejoin: round; }
-  /* Halo del color del panel: la lectura cae encima de las curvas */
-  #profile-chart .pf-readout { fill: var(--text); font-weight: 600;
-                               stroke: var(--panel); stroke-width: 3px; stroke-linejoin: round; paint-order: stroke; }
-  /* MDS−MDT por encima del umbral: el mismo rojo que el aviso de las celdas */
-  #profile-chart .pf-diff.alert { fill: #d32f2f; }
   #geocalc-dialog .dlg-box { width: min(92vw, 30rem); }
   .geocalc-field { display: flex; gap: 6px; }
   #geocalc-dialog .dlg-row input[type="number"] { width: 110px; }

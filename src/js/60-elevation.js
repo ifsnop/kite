@@ -816,7 +816,12 @@ const ELEV_SOURCES = [
     base: IGN_MDT_BASE, pickCoverage: mdtCoverages(25), attrib: IGN_MDT_ATTRIB("MDT25")
   },
   {
+    /* `coarse`: malla tan gruesa (200 m) que ni una ruta de 100 NM deja
+       más de ~900 celdas en el árbol; el límite de longitud de un perfil
+       (profileMaxM) existe para mallas finas y con ella como única fuente
+       no se aplica (profileLimitApplies, 63-route-profile.js).          */
     id: "ign-mdt200", kind: "mdt", label: "IGN — MDT200 (España, 200 m)", dataset: "MDT200", provider: "IGN",
+    coarse: true,
     base: IGN_MDT_BASE, pickCoverage: mdtCoverages(200), attrib: IGN_MDT_ATTRIB("MDT200")
   },
   {
@@ -918,6 +923,25 @@ function elevZoomBand(zoom) {
   return "full";
 }
 
+/* Las bandas de arriba y el tamaño de letra están medidos para celdas de
+   5 m (la malla de referencia). Una celda más gruesa (MDT25: 25 m; MDT200:
+   200 m; Copernicus: 30 m) mide el doble en píxeles cada nivel de zoom
+   antes, así que su texto cabe en un zoom MENOR: con la absoluta, una
+   celda de 200 m no mostraba nada hasta el 19 —donde ya mide unos 870 px
+   y su centro cae fuera de la pantalla— y el usuario la veía vacía aunque
+   el cuadro de coordenadas sí leyera su altura. `elevCellZoomUp` es
+   cuántos niveles se adelanta una celda: log2(metros / 5) por abajo,
+   con un cuarto de nivel de tolerancia (una de 5,004 m es de 5), y 0 para
+   las más finas (su comportamiento no cambia). Son metros de SUELO: la
+   altura de la celda en latitud, que no depende de la proyección.     */
+const ELEV_REF_CELL_M = 5;
+const METERS_PER_DEGREE_LAT = 111195;
+function elevCellZoomUp(cell) {
+  const m = (cell.ne[0] - cell.sw[0]) * METERS_PER_DEGREE_LAT;
+  if (!(m > ELEV_REF_CELL_M)) return 0;
+  return Math.max(0, Math.floor(Math.log2(m / ELEV_REF_CELL_M) + 0.25));
+}
+
 /* El aviso se decide siempre en METROS, con independencia de la unidad
    de visualización: es un umbral físico fijo, no una comodidad de
    pantalla.                                                          */
@@ -985,7 +1009,7 @@ function elevCellHtml(cell, band) {
    más de ELEV_ALERT_DIFF se colorea en rojo pastel; el resto de bandas
    siempre llevan el blanco translúcido de siempre.                   */
 function renderElevRect(rect, cell, zoom) {
-  const mini = elevZoomBand(zoom) === "mini";
+  const mini = elevZoomBand(zoom + elevCellZoomUp(cell)) === "mini";
   rect.setStyle({ fillColor: (mini && isElevAlert(cell)) ? GRID_ALERT_FILL : "#ffffff" });
 }
 
@@ -1006,14 +1030,18 @@ function cellIcon(html, font) {
    guarda cada capa.                                                  */
 function refreshElevCells() {
   const zoom = map.getZoom();
-  const band = elevZoomBand(zoom);
-  const font = gridFontSize(zoom);
   for (const g of elevGridGroups) {
     for (const rect of g._rects) {
       renderElevRect(rect, rect._cell, zoom);
-      if (rect._label) rect._label.setIcon(cellIcon(elevCellHtml(rect._cell, band), font));
+      if (rect._label) rect._label.setIcon(elevLabelIcon(rect._cell, zoom));
     }
   }
+}
+
+/* El icono de la cifra de una celda: banda y letra según su zoom EFECTIVO */
+function elevLabelIcon(cell, zoom) {
+  const z = zoom + elevCellZoomUp(cell);
+  return cellIcon(elevCellHtml(cell, elevZoomBand(z)), gridFontSize(z));
 }
 
 /* Las cifras son marcadores DOM, y Leaflet recoloca CADA UNO en cada
@@ -1026,21 +1054,42 @@ function refreshElevCells() {
    Con esto, el mismo perfil: 43-67 ms por paso de zoom (lo de los
    rectángulos) y 36 ms al pasar al zoom 20, antes 216-233 ms.        */
 const ELEV_LABEL_PAD = 0.25; /* margen alrededor de la vista, en fracción */
+/* Una celda mucho mayor que su cifra (MDT200 de cerca: cientos de
+   píxeles) puede tener el centro fuera de la pantalla y estar tapándola
+   entera: su cifra va entonces en el centro de lo que se VE de la celda
+   (`elevLabelAnchor`, pura) y se recoloca al moverse. Las pequeñas, en
+   su centro, como siempre.                                           */
+const ELEV_BIG_CELL_LABELS = 3; /* una celda es «grande» desde tantas cifras de ancho */
+function elevLabelAnchor(cell, plain, padded, big) {
+  if (!big) return padded.contains(cell.center) ? cell.center : null;
+  if (plain.contains(cell.center)) return cell.center;
+  const s = Math.max(cell.sw[0], plain.getSouth()), n = Math.min(cell.ne[0], plain.getNorth());
+  const w = Math.max(cell.sw[1], plain.getWest()), e = Math.min(cell.ne[1], plain.getEast());
+  return s < n && w < e ? [(s + n) / 2, (w + e) / 2] : null;
+}
+
 function syncElevLabels() {
   const zoom = map.getZoom();
-  const band = elevZoomBand(zoom);
-  const font = gridFontSize(zoom);
-  const view = band === "mini" ? null : map.getBounds().pad(ELEV_LABEL_PAD);
+  const plain = map.getBounds(), padded = plain.pad(ELEV_LABEL_PAD);
+  const pxPerDeg = 256 * 2 ** zoom / 360; /* en longitud, la proyección es lineal */
   for (const g of elevGridGroups) {
-    const shown = view && rootGroup.hasLayer(g) && view.intersects(g.getBounds());
+    const shown = rootGroup.hasLayer(g) && padded.intersects(g.getBounds());
     for (const rect of g._rects) {
-      const want = shown && view.contains(rect._cell.center);
-      if (want && !rect._label) {
-        rect._label = L.marker(rect._cell.center, { interactive: false });
-        rect._label._cell = rect._cell;
-        rect._label.setIcon(cellIcon(elevCellHtml(rect._cell, band), font));
+      const cell = rect._cell;
+      const z = zoom + elevCellZoomUp(cell);
+      let at = null;
+      if (shown && elevZoomBand(z) !== "mini") {
+        const big = (cell.ne[1] - cell.sw[1]) * pxPerDeg > ELEV_BIG_CELL_LABELS * gridIconSize(gridFontSize(z))[0];
+        at = elevLabelAnchor(cell, plain, padded, big);
+      }
+      if (at && !rect._label) {
+        rect._label = L.marker(at, { interactive: false });
+        rect._label._cell = cell;
+        rect._label.setIcon(elevLabelIcon(cell, zoom));
         g.addLayer(rect._label);
-      } else if (!want && rect._label) {
+      } else if (at) {
+        if (at !== cell.center) rect._label.setLatLng(at); /* solo las grandes se mueven */
+      } else if (rect._label) {
         g.removeLayer(rect._label);
         rect._label = null;
       }
