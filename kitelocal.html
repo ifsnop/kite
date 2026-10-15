@@ -797,6 +797,14 @@
   #profile-chart .pf-line { fill: none; stroke-width: 1.5; }
   #profile-chart .pf-line.mdt, #profile-chart .pf-legend.mdt { stroke: #1565c0; }
   #profile-chart .pf-line.mds, #profile-chart .pf-legend.mds { stroke: #2e7d32; }
+  /* Línea inicio–fin: negra (pedido); la Tierra, un marrón con relleno
+     suave por debajo */
+  #profile-chart .pf-los, #profile-chart .pf-legend.los { stroke: #000; }
+  #profile-chart .pf-los { stroke-width: 1.5; }
+  #profile-chart .pf-earth, #profile-chart .pf-legend.earth { stroke: #8d6e63; }
+  #profile-chart .pf-earth { fill: none; stroke-width: 1.5; }
+  #profile-chart .pf-earth-fill { fill: #8d6e63; fill-opacity: 0.18; stroke: none; }
+  #profile-chart .pf-diff.neg { fill: #d32f2f; }
   #profile-chart .pf-legend { stroke-width: 3; }
   #profile-chart .pf-tick { fill: var(--text); }
   #profile-chart .pf-tick.vertex { font-weight: 700; }
@@ -1910,7 +1918,7 @@
       <p class="dlg-hint">Segmentos en que se divide un arco al terminar de dibujarlo con «Medir arco». El resultado es una ruta normal con ese número de tramos; cambiarlo solo afecta a los arcos que se dibujen después.</p>
       <div class="dlg-row"><span>Segmentos de un arco</span>
         <input type="number" id="props-arc-segments" min="2" max="720" step="1"></div>
-      <p class="dlg-hint">Longitud máxima de una ruta para «Obtener perfil». Acota lo que se descarga y, sobre todo, lo que el perfil deja guardado en el árbol: una celda de elevación por cada una que recorre la ruta.</p>
+      <p class="dlg-hint">Longitud máxima de una ruta para «Obtener perfil». Acota lo que se descarga y, sobre todo, lo que el perfil deja guardado en el árbol: una celda de elevación por cada una que recorre la ruta. Solo cuenta si alguna fuente elegida es de malla fina (5 a 30 m); con el MDT200 como única fuente no hay límite.</p>
       <div class="dlg-row"><span>Longitud máxima de un perfil</span>
         <span class="props-with-unit"><input type="number" id="props-profile-max" min="0" step="any"><span id="props-profile-max-unit"></span></span></div>
     </div>
@@ -2025,6 +2033,10 @@
       </span>
       <label class="pf-tool-group" title="La escala de alturas se queda quieta al desplazar o acercar la distancia; desmarcado, se ajusta sola a lo que se ve">
         <input type="checkbox" id="pf-y-lock"> Bloquear eje Y</label>
+      <label class="pf-tool-group" title="Recta negra entre la altura del primer y la del último punto de la ruta (MDS; si no está elegido, MDT)">
+        <input type="checkbox" id="pf-los"> Línea inicio–fin</label>
+      <label class="pf-tool-group" title="Dibuja la curvatura de la Tierra con la refracción estándar de la atmósfera (radio efectivo 4/3): el terreno se eleva sobre la cuerda y el arco parte del nivel del mar">
+        <input type="checkbox" id="pf-earth"> Curvatura terrestre (k = 4/3)</label>
       <button class="btn" id="pf-reset" title="Ruta entera y altura automática">Ver todo</button>
       <span class="pf-tools-hint">Rueda: distancia · Mayús+rueda o rueda sobre el eje: altura · arrastrar: desplazar</span>
     </div>
@@ -2963,7 +2975,7 @@ map.on("resize rotate", fitWorldMinZoom);
 
 /* Fecha de generación del código (versión): AÑOMESDIAHORAMINUTO.
    Actualizar en cada generación; se muestra junto al crédito de Leaflet. */
-const BUILD = "202610130945";
+const BUILD = "202610151628";
 /* Versión de release (la de package.json, horneada aquí por build.js
    al construir — ver «Versión y releases de GitHub» en CLAUDE.md): a
    diferencia de BUILD, que cambia en CADA generación, esta solo cambia
@@ -11409,7 +11421,11 @@ document.getElementById("gnp-editor-clear").addEventListener("click", () => {
 /* El límite del perfil se guarda en metros y se enseña en la unidad de
    distancia elegida: al cambiarla, se repinta convertido.            */
 function renderPropsProfileMax() {
-  propsProfileMaxInput.value = Number((profileMaxM / POLY_UNIT_FACTOR[measureUnit]).toPrecision(6));
+  const f = POLY_UNIT_FACTOR[measureUnit];
+  propsProfileMaxInput.value = Number((profileMaxM / f).toPrecision(6));
+  /* Las cotas en la unidad vigente: el spinner del navegador las respeta */
+  propsProfileMaxInput.min = Number((PROFILE_MAX_MIN / f).toPrecision(6));
+  propsProfileMaxInput.max = Number((PROFILE_MAX_MAX / f).toPrecision(6));
   document.getElementById("props-profile-max-unit").textContent = POLY_UNIT_LABEL[measureUnit];
 }
 function renderPropsPrefsTab() {
@@ -11425,11 +11441,23 @@ propsUnitSelect.addEventListener("change", () => {
   renderPropsProfileMax();
 });
 propsAltUnitSelect.addEventListener("change", () => setAltitudeUnit(propsAltUnitSelect.value));
-/* Mismo criterio que el tope de vértices: un valor ilegible o fuera de
-   [PROFILE_MAX_MIN, PROFILE_MAX_MAX] se descarta y vuelve el vigente. */
+/* Un valor ilegible o vacío se descarta y vuelve el vigente; uno legible
+   pero fuera de [PROFILE_MAX_MIN, PROFILE_MAX_MAX] se ajusta al tope más
+   cercano y se avisa. Reportado: 150 NM (el máximo es 100) volvía en
+   silencio al valor anterior, y parecía que el número «se convertía».  */
 propsProfileMaxInput.addEventListener("change", () => {
-  const m = Number(propsProfileMaxInput.value) * POLY_UNIT_FACTOR[measureUnit];
-  if (Number.isFinite(m) && m >= PROFILE_MAX_MIN && m <= PROFILE_MAX_MAX) profileMaxM = m;
+  const raw = propsProfileMaxInput.value.trim();
+  const m = raw === "" ? NaN : Number(raw) * POLY_UNIT_FACTOR[measureUnit];
+  if (Number.isFinite(m)) {
+    const clamped = Math.min(PROFILE_MAX_MAX, Math.max(PROFILE_MAX_MIN, m));
+    profileMaxM = clamped;
+    if (clamped !== m) {
+      const f = POLY_UNIT_FACTOR[measureUnit], lbl = POLY_UNIT_LABEL[measureUnit];
+      const n = v => Number((v / f).toPrecision(6)).toLocaleString("es");
+      navMessage(`La longitud máxima de un perfil va de ${n(PROFILE_MAX_MIN)} a ${n(PROFILE_MAX_MAX)} ${lbl}: `
+        + `se queda en ${n(clamped)} ${lbl}.`);
+    }
+  }
   renderPropsProfileMax();
 });
 propsCoordFormatSelect.addEventListener("change", () => {
@@ -15809,7 +15837,12 @@ const ELEV_SOURCES = [
     base: IGN_MDT_BASE, pickCoverage: mdtCoverages(25), attrib: IGN_MDT_ATTRIB("MDT25")
   },
   {
+    /* `coarse`: malla tan gruesa (200 m) que ni una ruta de 100 NM deja
+       más de ~900 celdas en el árbol; el límite de longitud de un perfil
+       (profileMaxM) existe para mallas finas y con ella como única fuente
+       no se aplica (profileLimitApplies, 63-route-profile.js).          */
     id: "ign-mdt200", kind: "mdt", label: "IGN — MDT200 (España, 200 m)", dataset: "MDT200", provider: "IGN",
+    coarse: true,
     base: IGN_MDT_BASE, pickCoverage: mdtCoverages(200), attrib: IGN_MDT_ATTRIB("MDT200")
   },
   {
@@ -15911,6 +15944,25 @@ function elevZoomBand(zoom) {
   return "full";
 }
 
+/* Las bandas de arriba y el tamaño de letra están medidos para celdas de
+   5 m (la malla de referencia). Una celda más gruesa (MDT25: 25 m; MDT200:
+   200 m; Copernicus: 30 m) mide el doble en píxeles cada nivel de zoom
+   antes, así que su texto cabe en un zoom MENOR: con la absoluta, una
+   celda de 200 m no mostraba nada hasta el 19 —donde ya mide unos 870 px
+   y su centro cae fuera de la pantalla— y el usuario la veía vacía aunque
+   el cuadro de coordenadas sí leyera su altura. `elevCellZoomUp` es
+   cuántos niveles se adelanta una celda: log2(metros / 5) por abajo,
+   con un cuarto de nivel de tolerancia (una de 5,004 m es de 5), y 0 para
+   las más finas (su comportamiento no cambia). Son metros de SUELO: la
+   altura de la celda en latitud, que no depende de la proyección.     */
+const ELEV_REF_CELL_M = 5;
+const METERS_PER_DEGREE_LAT = 111195;
+function elevCellZoomUp(cell) {
+  const m = (cell.ne[0] - cell.sw[0]) * METERS_PER_DEGREE_LAT;
+  if (!(m > ELEV_REF_CELL_M)) return 0;
+  return Math.max(0, Math.floor(Math.log2(m / ELEV_REF_CELL_M) + 0.25));
+}
+
 /* El aviso se decide siempre en METROS, con independencia de la unidad
    de visualización: es un umbral físico fijo, no una comodidad de
    pantalla.                                                          */
@@ -15978,7 +16030,7 @@ function elevCellHtml(cell, band) {
    más de ELEV_ALERT_DIFF se colorea en rojo pastel; el resto de bandas
    siempre llevan el blanco translúcido de siempre.                   */
 function renderElevRect(rect, cell, zoom) {
-  const mini = elevZoomBand(zoom) === "mini";
+  const mini = elevZoomBand(zoom + elevCellZoomUp(cell)) === "mini";
   rect.setStyle({ fillColor: (mini && isElevAlert(cell)) ? GRID_ALERT_FILL : "#ffffff" });
 }
 
@@ -15999,14 +16051,18 @@ function cellIcon(html, font) {
    guarda cada capa.                                                  */
 function refreshElevCells() {
   const zoom = map.getZoom();
-  const band = elevZoomBand(zoom);
-  const font = gridFontSize(zoom);
   for (const g of elevGridGroups) {
     for (const rect of g._rects) {
       renderElevRect(rect, rect._cell, zoom);
-      if (rect._label) rect._label.setIcon(cellIcon(elevCellHtml(rect._cell, band), font));
+      if (rect._label) rect._label.setIcon(elevLabelIcon(rect._cell, zoom));
     }
   }
+}
+
+/* El icono de la cifra de una celda: banda y letra según su zoom EFECTIVO */
+function elevLabelIcon(cell, zoom) {
+  const z = zoom + elevCellZoomUp(cell);
+  return cellIcon(elevCellHtml(cell, elevZoomBand(z)), gridFontSize(z));
 }
 
 /* Las cifras son marcadores DOM, y Leaflet recoloca CADA UNO en cada
@@ -16019,21 +16075,42 @@ function refreshElevCells() {
    Con esto, el mismo perfil: 43-67 ms por paso de zoom (lo de los
    rectángulos) y 36 ms al pasar al zoom 20, antes 216-233 ms.        */
 const ELEV_LABEL_PAD = 0.25; /* margen alrededor de la vista, en fracción */
+/* Una celda mucho mayor que su cifra (MDT200 de cerca: cientos de
+   píxeles) puede tener el centro fuera de la pantalla y estar tapándola
+   entera: su cifra va entonces en el centro de lo que se VE de la celda
+   (`elevLabelAnchor`, pura) y se recoloca al moverse. Las pequeñas, en
+   su centro, como siempre.                                           */
+const ELEV_BIG_CELL_LABELS = 3; /* una celda es «grande» desde tantas cifras de ancho */
+function elevLabelAnchor(cell, plain, padded, big) {
+  if (!big) return padded.contains(cell.center) ? cell.center : null;
+  if (plain.contains(cell.center)) return cell.center;
+  const s = Math.max(cell.sw[0], plain.getSouth()), n = Math.min(cell.ne[0], plain.getNorth());
+  const w = Math.max(cell.sw[1], plain.getWest()), e = Math.min(cell.ne[1], plain.getEast());
+  return s < n && w < e ? [(s + n) / 2, (w + e) / 2] : null;
+}
+
 function syncElevLabels() {
   const zoom = map.getZoom();
-  const band = elevZoomBand(zoom);
-  const font = gridFontSize(zoom);
-  const view = band === "mini" ? null : map.getBounds().pad(ELEV_LABEL_PAD);
+  const plain = map.getBounds(), padded = plain.pad(ELEV_LABEL_PAD);
+  const pxPerDeg = 256 * 2 ** zoom / 360; /* en longitud, la proyección es lineal */
   for (const g of elevGridGroups) {
-    const shown = view && rootGroup.hasLayer(g) && view.intersects(g.getBounds());
+    const shown = rootGroup.hasLayer(g) && padded.intersects(g.getBounds());
     for (const rect of g._rects) {
-      const want = shown && view.contains(rect._cell.center);
-      if (want && !rect._label) {
-        rect._label = L.marker(rect._cell.center, { interactive: false });
-        rect._label._cell = rect._cell;
-        rect._label.setIcon(cellIcon(elevCellHtml(rect._cell, band), font));
+      const cell = rect._cell;
+      const z = zoom + elevCellZoomUp(cell);
+      let at = null;
+      if (shown && elevZoomBand(z) !== "mini") {
+        const big = (cell.ne[1] - cell.sw[1]) * pxPerDeg > ELEV_BIG_CELL_LABELS * gridIconSize(gridFontSize(z))[0];
+        at = elevLabelAnchor(cell, plain, padded, big);
+      }
+      if (at && !rect._label) {
+        rect._label = L.marker(at, { interactive: false });
+        rect._label._cell = cell;
+        rect._label.setIcon(elevLabelIcon(cell, zoom));
         g.addLayer(rect._label);
-      } else if (!want && rect._label) {
+      } else if (at) {
+        if (at !== cell.center) rect._label.setLatLng(at); /* solo las grandes se mueven */
+      } else if (rect._label) {
         g.removeLayer(rect._label);
         rect._label = null;
       }
@@ -17193,6 +17270,18 @@ function profilePieces(legs, cellMeters, maxCells = PROFILE_CHUNK_CELLS) {
   return out;
 }
 
+/* ¿Cuenta el límite de longitud (profileMaxM) con estas fuentes? Solo si
+   alguna de las elegidas tiene malla FINA: el límite existe para no
+   llenar el árbol de celdas, y una malla de 200 m (`coarse`) deja pocas
+   aunque la ruta sea larga. Con las dos en «Ninguna» no hay perfil y
+   da igual (routeProfileDisabled lo dice antes).                      */
+function profileLimitApplies(sources = elevSources) {
+  return ["mdt", "mds"].some(k => {
+    const s = sources[k] ? elevSourceById(sources[k]) : null;
+    return !!s && !s.coarse;
+  });
+}
+
 /* Muestras a lo largo de la ruta, a media celda o menos (así no se
    salta ninguna celda que la línea cruce), cada una con su distancia
    desde el inicio. Dentro de un tramo la distancia es proporcional
@@ -17262,7 +17351,8 @@ function niceTicks(min, max, n) {
 /* Decimales de las cifras de un eje: los que pide su paso */
 const tickDecimals = step => (step > 0 ? Math.min(6, Math.max(0, -Math.floor(Math.log10(step) + 1e-9))) : 2);
 
-/* Tramos continuos de la curva (los huecos la cortan), y en cada uno,
+/* Tramos continuos de la curva (los huecos la cortan; `yOf(v, d)` recibe
+   también la distancia, que la curvatura terrestre necesita), y en cada uno,
    si hay más puntos que píxeles, el mínimo y el máximo de cada columna
    en su orden: así no se pierde un pico al dibujar 7000 celdas en 600
    píxeles.                                                          */
@@ -17279,7 +17369,7 @@ function profilePolylines(points, xOf, yOf) {
   };
   points.forEach((p, i) => {
     if (p.v === null || p.v === undefined) { emit(); flush(); col = null; return; }
-    const x = xOf(p.d), y = yOf(p.v), c = Math.round(x);
+    const x = xOf(p.d), y = yOf(p.v, p.d), c = Math.round(x);
     if (c !== col) { emit(); col = c; }
     const pt = { x, y, i };
     if (!lo || y > lo.y) lo = pt;  /* y de pantalla: mayor = más bajo */
@@ -17324,6 +17414,36 @@ function zoomProfileView(view, total, minSpan, frac, factor) {
 /* Desplazar `dd` metros (arrastrar a la derecha = ver lo anterior) */
 const panProfileView = (view, total, minSpan, dd) =>
   clampProfileView(view.x0 + dd, view.x1 - view.x0, total, minSpan);
+
+/* ---------- Línea de vista y curvatura terrestre (puro) ----------
+   La refracción estándar de la atmósfera dobla la señal hacia el suelo
+   como si la Tierra tuviera un radio k veces mayor (k = 4/3). En vez de
+   curvar el rayo se levanta el terreno: a una distancia `d` de un
+   extremo de un trayecto de longitud `total`, la Tierra de radio k·R
+   asoma d·(total − d)/(2·k·R) sobre la cuerda que une los extremos, y
+   el rayo recto (la línea inicio–fin) se compara con terreno + eso.
+   `d` es la distancia a lo largo de la ruta: en una ruta con giros se
+   trata como un trayecto recto, que es lo único que un perfil dibuja.  */
+const PF_K_FACTOR = 4 / 3;
+function earthBulge(d, total, k = PF_K_FACTOR) {
+  if (!(total > 0) || d <= 0 || d >= total) return 0;
+  return d * (total - d) / (2 * k * EARTH_R);
+}
+
+/* Extremos de la línea inicio–fin: alturas del MDS (la superficie, lo que
+   de verdad tapa una señal) y, si no está elegido o no tiene dato, del
+   MDT. Primer y último valor NUMÉRICO de la serie: un hueco en un
+   extremo (celda sin dato) no impide dibujarla. `series`: las del
+   perfil, `{ kind, points }`. Devuelve `{ kind, a, b }` o null.      */
+function profileLosEnds(series) {
+  for (const kind of ["mds", "mdt"]) {
+    const s = series.find(x => x.kind === kind);
+    if (!s) continue;
+    const nums = s.points.filter(p => typeof p.v === "number");
+    if (nums.length) return { kind, a: nums[0].v, b: nums[nums.length - 1].v };
+  }
+  return null;
+}
 
 /* Zoom del eje de ALTURAS: el intervalo {a, b} (metros) con ancla `frac`
    contada desde abajo, y anchura entre minSpan y maxSpan. Sin topes de
@@ -17551,9 +17671,9 @@ function routeProfileDisabled(li) {
   if (!isRouteLi(li)) return "Solo una ruta tiene perfil.";
   if (!elevSources.mdt && !elevSources.mds) return ELEV_NO_SOURCES_WHY;
   const m = li._measure;
-  if (m.totalDist > profileMaxM) {
-    return `La ruta mide ${fmtUnitDist(m.totalDist, measureUnit)} y el límite de un perfil es `
-      + `${fmtUnitDist(profileMaxM, measureUnit)} (Propiedades → Preferencias).`;
+  if (profileLimitApplies() && m.totalDist > profileMaxM) {
+    return `La ruta mide ${fmtUnitDist(m.totalDist, measureUnit)} y el límite de un perfil con las `
+      + `fuentes elegidas es ${fmtUnitDist(profileMaxM, measureUnit)} (Propiedades → Preferencias).`;
   }
   return false;
 }
@@ -17771,12 +17891,19 @@ const PF_Y_MIN_SPAN = 0.1;     /* m: altura mínima a la vista               */
 const PF_Y_MAX_SPAN = 20000;   /* m: altura máxima a la vista               */
 
 let profileView = null;   /* { x0, x1 } en metros; null = la ruta entera */
+/* Opciones de la gráfica, de SESIÓN (como el resto de su estado, sin
+   guardar): sobreviven a abrir otro perfil porque son del modo de mirar
+   y no del perfil.                                                    */
+let profileShowLos = false; /* recta negra inicio–fin                      */
+let profileEarth = false;   /* curvatura terrestre con k = 4/3             */
 let profileYView = null;  /* { a, b } en metros: eje Y bloqueado; null = automático */
 let profileLayout = null; /* geometría de la última gráfica dibujada     */
 let profileFrame = 0;
 let profileDrag = null;   /* { x, y, view, yView } mientras se arrastra */
 const profileTools = document.getElementById("profile-tools");
 const profileYLock = document.getElementById("pf-y-lock");
+const profileLosBox = document.getElementById("pf-los");
+const profileEarthBox = document.getElementById("pf-earth");
 
 /* Anchura útil de la gráfica en píxeles, y el tope de zoom que da */
 const profilePlotWidth = () => profileChart.clientWidth - PF_MARGIN.l - PF_MARGIN.r;
@@ -17796,12 +17923,26 @@ function renderProfileChart() {
   profileView = { x0, x1 };
   const span = x1 - x0;
   const fx = POLY_UNIT_FACTOR[measureUnit], fy = POLY_UNIT_FACTOR[altitudeUnit];
+  /* Con la curvatura, el terreno se dibuja elevado lo que asoma la
+     Tierra sobre la cuerda entre los extremos (`lift`, metros): todo lo
+     que se pinta a una distancia d pasa por ahí.                      */
+  const lift = d => (profileEarth ? earthBulge(d, total) : 0);
+  /* Los extremos de la recta inicio–fin salen de la serie ENTERA, no de
+     la parte a la vista; `losAt` es su altura a la distancia d.        */
+  const los = profileShowLos ? profileLosEnds(series) : null;
+  const losAt = d => los.a + (los.b - los.a) * d / total;
   /* Lo visible de cada serie: la altura se ajusta a ESO, no a la ruta */
   const shown = series.map(s => ({ ...s, points: visibleProfilePoints(s.points, x0, x1) }));
   const vals = shown.flatMap(s => s.points.filter(p => typeof p.v === "number" && p.d >= x0 && p.d <= x1)
-    .map(p => p.v / fy));
-  if (!vals.length) vals.push(...shown.flatMap(s => s.points.filter(p => typeof p.v === "number").map(p => p.v / fy)));
+    .map(p => (p.v + lift(p.d)) / fy));
+  if (!vals.length) vals.push(...shown.flatMap(s => s.points.filter(p => typeof p.v === "number").map(p => (p.v + lift(p.d)) / fy)));
   if (!vals.length) vals.push(0);
+  /* La recta y el arco de la Tierra también tienen que caber a la vista
+     (el arco parte del nivel del mar, así que lo trae a la escala); el
+     punto más alto del arco es el central de lo visible, el más bajo el
+     borde más cercano a un extremo.                                  */
+  if (los) vals.push(losAt(x0) / fy, losAt(x1) / fy);
+  if (profileEarth) vals.push(lift(x0) / fy, lift(x1) / fy, lift(Math.min(x1, Math.max(x0, total / 2))) / fy);
   /* Alturas en METROS: automático = lo visible con un margen; con el
      eje bloqueado, el intervalo guardado, quieto.                    */
   let ym;
@@ -17813,9 +17954,10 @@ function renderProfileChart() {
   }
   const y0 = ym.a / fy, y1 = ym.b / fy;
   const xOf = d => PF_MARGIN.l + (d - x0) / span * pw;
-  const yOf = v => PF_MARGIN.t + (1 - (v / fy - y0) / (y1 - y0)) * ph;
   const yPix = u => PF_MARGIN.t + (1 - (u - y0) / (y1 - y0)) * ph;
-  profileLayout = { W, H, pw, ph, x0, x1, total, ym, xOf, yOf, dOf: x => x0 + (x - PF_MARGIN.l) / pw * span };
+  const yOf = (v, d = 0) => yPix((v + lift(d)) / fy);
+  profileLayout = { W, H, pw, ph, x0, x1, total, ym, xOf, yOf, lift, los, losAt,
+                    dOf: x => x0 + (x - PF_MARGIN.l) / pw * span };
 
   const parts = [`<clipPath id="pf-clip"><rect x="${PF_MARGIN.l}" y="${PF_MARGIN.t}" width="${pw}" height="${ph}"/></clipPath>`];
   const yt = niceTicks(y0, y1, Math.max(2, Math.floor(ph / 36)));
@@ -17855,10 +17997,22 @@ function renderProfileChart() {
   parts.push(`<line class="pf-axis" x1="${PF_MARGIN.l}" x2="${PF_MARGIN.l}" y1="${PF_MARGIN.t}" y2="${H - PF_MARGIN.b}"/>`,
     `<line class="pf-axis" x1="${PF_MARGIN.l}" x2="${W - PF_MARGIN.r}" y1="${H - PF_MARGIN.b}" y2="${H - PF_MARGIN.b}"/>`,
     `<text class="pf-tick" x="${PF_MARGIN.l + pw / 2}" y="${H - 6}" text-anchor="middle">Distancia desde el inicio (${POLY_UNIT_LABEL[measureUnit]})</text>`,
-    `<text class="pf-tick" transform="translate(12 ${PF_MARGIN.t + ph / 2}) rotate(-90)" text-anchor="middle">Altura (${POLY_UNIT_LABEL[altitudeUnit]})</text>`);
+    `<text class="pf-tick" transform="translate(12 ${PF_MARGIN.t + ph / 2}) rotate(-90)" text-anchor="middle">${profileEarth ? "Altura + curvatura k = 4/3" : "Altura"} (${POLY_UNIT_LABEL[altitudeUnit]})</text>`);
   /* Las curvas (MDT azul, MDS verde, por su clase), recortadas al área
      de la gráfica, y su leyenda en el margen de arriba.               */
   let lx = PF_MARGIN.l;
+  /* Tierra al fondo, bajo las curvas: un arco del nivel del mar con el
+     relleno suave por debajo, recortado como ellas.                   */
+  if (profileEarth) {
+    const n = Math.max(2, Math.min(400, Math.ceil(pw / 4)));
+    const arc = Array.from({ length: n + 1 }, (_, i) => {
+      const d = x0 + span * i / n;
+      return `${xOf(d).toFixed(1)},${yPix(earthBulge(d, total) / fy).toFixed(1)}`;
+    });
+    const floor = H - PF_MARGIN.b;
+    parts.push(`<polygon class="pf-earth-fill" clip-path="url(#pf-clip)" points="${arc.join(" ")} ${xOf(x1).toFixed(1)},${floor} ${xOf(x0).toFixed(1)},${floor}"/>`,
+      `<polyline class="pf-earth" clip-path="url(#pf-clip)" points="${arc.join(" ")}"/>`);
+  }
   for (const s of shown) {
     for (const line of profilePolylines(s.points, xOf, yOf)) {
       parts.push(`<polyline class="pf-line ${s.kind}" clip-path="url(#pf-clip)" points="${line.map(p => `${p.x.toFixed(1)},${p.y.toFixed(1)}`).join(" ")}"/>`);
@@ -17867,6 +18021,21 @@ function renderProfileChart() {
       `<text class="pf-tick pf-legend-label" x="${lx + 22}" y="11" dominant-baseline="middle">${escapeHtml(s.label)}</text>`);
     lx += 34 + s.label.length * 6.5;
   }
+  /* La recta, encima de las curvas; se dibuja solo lo visible (con 0,1 m
+     por píxel, los extremos de una ruta larga caerían a cientos de miles
+     de píxeles).                                                       */
+  const extras = [];
+  if (los) {
+    parts.push(`<line class="pf-los" clip-path="url(#pf-clip)" x1="${xOf(x0).toFixed(1)}" x2="${xOf(x1).toFixed(1)}" `
+      + `y1="${yPix(losAt(x0) / fy).toFixed(1)}" y2="${yPix(losAt(x1) / fy).toFixed(1)}"/>`);
+    extras.push({ cls: "los", label: `Línea inicio–fin (${PROFILE_KIND_LABEL[los.kind]})` });
+  }
+  if (profileEarth) extras.push({ cls: "earth", label: "Tierra (nivel del mar, k = 4/3)" });
+  for (const e of extras) {
+    parts.push(`<line class="pf-legend ${e.cls}" x1="${lx}" x2="${lx + 18}" y1="11" y2="11"/>`,
+      `<text class="pf-tick pf-legend-label" x="${lx + 22}" y="11" dominant-baseline="middle">${escapeHtml(e.label)}</text>`);
+    lx += 34 + e.label.length * 6.5;
+  }
   parts.push(`<line class="pf-cursor" id="pf-cursor" y1="${PF_MARGIN.t}" y2="${H - PF_MARGIN.b}" visibility="hidden"/>`,
     `<text class="pf-readout" id="pf-readout" y="${PF_MARGIN.t + 10}" visibility="hidden"></text>`);
   profileChart.innerHTML = `<svg xmlns="${SVG_NS}" viewBox="0 0 ${W} ${H}" role="img" `
@@ -17874,6 +18043,8 @@ function renderProfileChart() {
   profileChart.classList.toggle("zoomed", span < total - eps || !!profileYView);
   profileTools.hidden = false;
   profileYLock.checked = !!profileYView;
+  profileLosBox.checked = profileShowLos;
+  profileEarthBox.checked = profileEarth;
   if (lastX !== undefined) showProfileCursor(lastX);
 }
 
@@ -17913,6 +18084,19 @@ function showProfileCursor(x) {
     const diff = at.mds - at.mdt;
     lines.push({ txt: `MDS−MDT ${fmtDiff(diff)} ${POLY_UNIT_LABEL[altitudeUnit]}`,
                  cls: `pf-diff${diff > ELEV_ALERT_DIFF ? " alert" : ""}` });
+  }
+  /* Lo que responde a «¿hay línea de vista?»: cuánto asoma la Tierra a
+     esta distancia y cuánto pasa la recta por encima del terreno ya
+     elevado (negativo, en rojo = lo tapa). Las alturas de arriba siguen
+     siendo las reales, sin el abultamiento.                            */
+  const bulge = lay.lift(d);
+  if (profileEarth) {
+    lines.push({ txt: `Curvatura +${fmtHeightValue(bulge, altitudeUnit)} ${POLY_UNIT_LABEL[altitudeUnit]}` });
+  }
+  if (lay.los && at[lay.los.kind] !== undefined) {
+    const clear = lay.losAt(d) - (at[lay.los.kind] + bulge);
+    lines.push({ txt: `Despeje ${fmtDiff(clear)} ${POLY_UNIT_LABEL[altitudeUnit]}`,
+                 cls: `pf-diff${clear < 0 ? " neg" : ""}` });
   }
   readout.textContent = "";
   const spans = lines.map((l, i) => {
@@ -18044,6 +18228,8 @@ profileYLock.addEventListener("change", () => {
   profileYView = profileYLock.checked && profileLayout ? { ...profileLayout.ym } : null;
   scheduleProfileChart();
 });
+profileLosBox.addEventListener("change", () => { profileShowLos = profileLosBox.checked; scheduleProfileChart(); });
+profileEarthBox.addEventListener("change", () => { profileEarth = profileEarthBox.checked; scheduleProfileChart(); });
 document.getElementById("pf-reset").addEventListener("click", () => {
   profileView = null;
   profileYView = null;

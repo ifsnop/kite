@@ -457,7 +457,7 @@
       <p class="dlg-hint">Segmentos en que se divide un arco al terminar de dibujarlo con «Medir arco». El resultado es una ruta normal con ese número de tramos; cambiarlo solo afecta a los arcos que se dibujen después.</p>
       <div class="dlg-row"><span>Segmentos de un arco</span>
         <input type="number" id="props-arc-segments" min="2" max="720" step="1"></div>
-      <p class="dlg-hint">Longitud máxima de una ruta para «Obtener perfil». Acota lo que se descarga y, sobre todo, lo que el perfil deja guardado en el árbol: una celda de elevación por cada una que recorre la ruta.</p>
+      <p class="dlg-hint">Longitud máxima de una ruta para «Obtener perfil». Acota lo que se descarga y, sobre todo, lo que el perfil deja guardado en el árbol: una celda de elevación por cada una que recorre la ruta. Solo cuenta si alguna fuente elegida es de malla fina (5 a 30 m); con el MDT200 como única fuente no hay límite.</p>
       <div class="dlg-row"><span>Longitud máxima de un perfil</span>
         <span class="props-with-unit"><input type="number" id="props-profile-max" min="0" step="any"><span id="props-profile-max-unit"></span></span></div>
     </div>
@@ -572,6 +572,10 @@
       </span>
       <label class="pf-tool-group" title="La escala de alturas se queda quieta al desplazar o acercar la distancia; desmarcado, se ajusta sola a lo que se ve">
         <input type="checkbox" id="pf-y-lock"> Bloquear eje Y</label>
+      <label class="pf-tool-group" title="Recta negra entre la altura del primer y la del último punto de la ruta (MDS; si no está elegido, MDT)">
+        <input type="checkbox" id="pf-los"> Línea inicio–fin</label>
+      <label class="pf-tool-group" title="Dibuja la curvatura de la Tierra con la refracción estándar de la atmósfera (radio efectivo 4/3): el terreno se eleva sobre la cuerda y el arco parte del nivel del mar">
+        <input type="checkbox" id="pf-earth"> Curvatura terrestre (k = 4/3)</label>
       <button class="btn" id="pf-reset" title="Ruta entera y altura automática">Ver todo</button>
       <span class="pf-tools-hint">Rueda: distancia · Mayús+rueda o rueda sobre el eje: altura · arrastrar: desplazar</span>
     </div>

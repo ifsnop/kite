@@ -145,6 +145,12 @@ const where = await page.evaluate(() => {
   const keep = profileMaxM;
   profileMaxM = 1000;
   r.tooLong = item(route).disabled();
+  /* El límite es para mallas finas: con el MDT200 como única fuente no cuenta */
+  elevSources = { mdt: "ign-mdt200", mds: null };
+  r.coarseOnly = item(route).disabled();
+  elevSources = { mdt: "ign-mdt200", mds: "ign-mds" };
+  r.coarseWithMds = item(route).disabled();
+  elevSources = { mdt: "ign-mdt05", mds: "ign-mds" };
   openStyleDialog(route);
   r.btnTooLong = { hidden: document.getElementById("ms-profile-row").hidden,
                    disabled: document.getElementById("ms-profile").disabled,
@@ -160,10 +166,43 @@ const where = await page.evaluate(() => {
 ok(where.route === "Obtener perfil" && !where.circle, "«Obtener perfil» en una ruta y no en un círculo: " + JSON.stringify(where));
 ok(where.enabled === false && where.onlyMdt === false, "habilitado con fuentes (basta una) y ruta corta");
 ok(/Sin fuentes de elevación/.test(where.noSources), "sin ninguna fuente, deshabilitado con el motivo: " + where.noSources);
-ok(/límite de un perfil es 1\.00 km/.test(where.tooLong), "ruta más larga que el límite: " + where.tooLong);
+ok(/límite de un perfil con las fuentes elegidas es 1\.00 km/.test(where.tooLong), "ruta más larga que el límite: " + where.tooLong);
 ok(!where.btnTooLong.hidden && where.btnTooLong.disabled && where.btnTooLong.text === "Obtener perfil"
   && /límite/.test(where.btnTooLong.title), "el botón del diálogo de la ruta, igual: " + JSON.stringify(where.btnTooLong));
 ok(where.btnCircle, "y en el diálogo de un círculo no aparece");
+ok(where.coarseOnly === false, "MDT200 como única fuente: el límite no cuenta: " + where.coarseOnly);
+ok(/límite/.test(where.coarseWithMds), "MDT200 + MDS de 5 m: el límite sigue contando: " + where.coarseWithMds);
+
+/* El campo del límite: 150 NM (por encima de 100) se queda en 100 y avisa,
+   no vuelve en silencio al valor anterior (fallo reportado). */
+const limitField = await page.evaluate(() => {
+  const keep = { unit: measureUnit, max: profileMaxM };
+  setMeasureUnit("nm");
+  const inp = document.getElementById("props-profile-max");
+  const out = {};
+  const type = v => { inp.value = v; inp.dispatchEvent(new Event("change")); };
+  document.getElementById("nav-msg").textContent = "";
+  type("150");
+  out.high = { shown: inp.value, m: profileMaxM, max: inp.max, min: inp.min,
+               msg: document.getElementById("nav-msg").textContent };
+  type("0.001");
+  out.low = { m: profileMaxM };
+  type("25");
+  out.ok = { m: profileMaxM, shown: inp.value };
+  type("");
+  out.empty = { m: profileMaxM };
+  type("abc");
+  out.junk = { m: profileMaxM };
+  setMeasureUnit(keep.unit);
+  profileMaxM = keep.max;
+  return out;
+});
+ok(limitField.high.m === 100 * 1852 && limitField.high.shown === "100" && /va de .* a 100 NM.*se queda en 100 NM/.test(limitField.high.msg),
+  "150 NM se queda en 100 NM y lo dice: " + JSON.stringify(limitField.high));
+ok(limitField.high.max === "100" && Number(limitField.high.min) > 0, "el campo lleva sus cotas en la unidad vigente: " + JSON.stringify(limitField.high));
+ok(Math.abs(limitField.low.m - 100) < 1e-6, "por debajo del mínimo, se queda en el mínimo (100 m)");
+ok(limitField.ok.m === 25 * 1852 && limitField.ok.shown === "25", "un valor válido se guarda tal cual");
+ok(limitField.empty.m === 25 * 1852 && limitField.junk.m === 25 * 1852, "vacío o ilegible: vuelve el vigente");
 const menu0 = await menuAt();
 ok(menu0.hits.join() === "Ruta 1" && menu0.profile === "Obtener perfil",
   "clic derecho sobre la ruta sola: «Obtener perfil»: " + JSON.stringify(menu0));
@@ -556,6 +595,97 @@ for (let i = 0; i < 6; i++) { await page.mouse.wheel(0, -400); await frames(); }
 const stZoom = await straight();
 ok(stZoom.curves === 0 && stZoom.matched === stZoom.vertices && stZoom.vertices === stZoom.expected,
   "con zoom, una línea recta de valor a valor, todos los valores: " + JSON.stringify(stZoom));
+
+/* ---------- 7e. Línea inicio–fin y curvatura terrestre (k = 4/3) ---------- */
+await page.click("#pf-reset");
+await frames();
+const opt0 = await page.evaluate(() => ({ los: !!profileChart.querySelector(".pf-los"), earth: !!profileChart.querySelector(".pf-earth"),
+  losBox: document.getElementById("pf-los").checked, earthBox: document.getElementById("pf-earth").checked }));
+ok(!opt0.los && !opt0.earth && !opt0.losBox && !opt0.earthBox, "por defecto, sin recta ni curvatura: " + JSON.stringify(opt0));
+await page.click("#pf-los");
+await frames();
+const los1 = await page.evaluate(() => {
+  const ln = profileChart.querySelector("line.pf-los"), lay = profileLayout;
+  const mds = profileData.series.find(s => s.kind === "mds").points.filter(p => typeof p.v === "number");
+  return { y1: +ln.getAttribute("y1"), y2: +ln.getAttribute("y2"), x1: +ln.getAttribute("x1"), x2: +ln.getAttribute("x2"),
+           ey1: lay.yOf(mds[0].v), ey2: lay.yOf(mds[mds.length - 1].v), ex1: lay.xOf(lay.x0), ex2: lay.xOf(lay.x1),
+           stroke: getComputedStyle(ln).stroke, legend: !!profileChart.querySelector(".pf-legend.los"),
+           legendText: [...profileChart.querySelectorAll(".pf-legend-label")].map(t => t.textContent).join("|") };
+});
+ok(Math.abs(los1.y1 - los1.ey1) < 0.2 && Math.abs(los1.y2 - los1.ey2) < 0.2
+  && Math.abs(los1.x1 - los1.ex1) < 0.2 && Math.abs(los1.x2 - los1.ex2) < 0.2,
+  "la recta une la altura del MDS del primer y del último punto: " + JSON.stringify(los1));
+ok(los1.stroke === "rgb(0, 0, 0)" && los1.legend && /Línea inicio–fin \(MDS\)/.test(los1.legendText),
+  "negra y con su leyenda: " + JSON.stringify(los1));
+/* Sin el MDS, la recta sale del MDT */
+const losMdt = await page.evaluate(() => {
+  const keep = profileData.series;
+  profileData.series = keep.filter(s => s.kind === "mdt");
+  renderProfileChart();
+  const r = { text: [...profileChart.querySelectorAll(".pf-legend-label")].map(t => t.textContent).join("|"),
+              y1: +profileChart.querySelector("line.pf-los").getAttribute("y1"),
+              ey1: profileLayout.yOf(profileData.series[0].points.find(p => typeof p.v === "number").v) };
+  profileData.series = keep;
+  renderProfileChart();
+  return r;
+});
+ok(/Línea inicio–fin \(MDT\)/.test(losMdt.text) && Math.abs(losMdt.y1 - losMdt.ey1) < 0.2,
+  "sin MDS, la recta usa el MDT: " + JSON.stringify(losMdt));
+/* Con zoom la recta sigue siendo la misma recta (se dibuja solo lo visible) */
+await mouseAt(g5, g5.total / 2);
+for (let i = 0; i < 4; i++) { await page.mouse.wheel(0, -400); await frames(); }
+const losZoom = await page.evaluate(() => {
+  const ln = profileChart.querySelector("line.pf-los"), lay = profileLayout, l = lay.los;
+  const at = d => lay.yOf(l.a + (l.b - l.a) * d / lay.total);
+  return { y1: +ln.getAttribute("y1"), y2: +ln.getAttribute("y2"), e1: at(lay.x0), e2: at(lay.x1) };
+});
+ok(Math.abs(losZoom.y1 - losZoom.e1) < 0.2 && Math.abs(losZoom.y2 - losZoom.e2) < 0.2, "con zoom, sigue la misma recta: " + JSON.stringify(losZoom));
+await page.click("#pf-reset");
+await frames();
+
+await page.click("#pf-earth");
+await frames();
+const earth1 = await page.evaluate(() => {
+  const lay = profileLayout, mid = lay.total / 2, ph = lay.ph;
+  const lift = lay.lift(mid);
+  const mds = profileData.series.find(s => s.kind === "mds").points.find(p => typeof p.v === "number");
+  return { arc: !!profileChart.querySelector("polyline.pf-earth"), fill: !!profileChart.querySelector("polygon.pf-earth-fill"),
+           lift, expected: lay.total * lay.total / (8 * (4 / 3) * EARTH_R),
+           raise: lay.yOf(100, 0) - lay.yOf(100, mid), want: lift / (lay.ym.b - lay.ym.a) * ph,
+           seaLevelInView: lay.ym.a <= 0 && lay.ym.b >= 0,
+           axis: [...profileChart.querySelectorAll("text.pf-tick")].map(t => t.textContent).find(t => /^Altura/.test(t)),
+           legend: [...profileChart.querySelectorAll(".pf-legend-label")].map(t => t.textContent).join("|"),
+           stroke: getComputedStyle(profileChart.querySelector("polyline.pf-earth")).stroke };
+});
+ok(earth1.arc && earth1.fill, "con la curvatura, el arco de la Tierra y su relleno: " + JSON.stringify(earth1));
+ok(Math.abs(earth1.lift - earth1.expected) < 1e-6 && earth1.lift > 0, "el abultamiento central es L²/(8·k·R): " + earth1.lift);
+ok(Math.abs(earth1.raise - earth1.want) < 0.01, "el terreno se dibuja elevado ese abultamiento: " + JSON.stringify([earth1.raise, earth1.want]));
+ok(earth1.seaLevelInView, "el nivel del mar entra en la escala de alturas (el arco parte de 0)");
+ok(/Altura \+ curvatura k = 4\/3/.test(earth1.axis) && /Tierra/.test(earth1.legend), "el eje y la leyenda lo dicen: " + earth1.axis + " | " + earth1.legend);
+/* La lectura: alturas reales + curvatura + despeje con signo */
+await mouseAt(g5, g5.total / 2);
+const rd = await page.evaluate(() => {
+  const lay = profileLayout;
+  return { text: [...document.querySelectorAll("#pf-readout tspan")].map(t => t.textContent),
+           bulge: lay.lift(profileLayout.dOf(profileLayout.lastX)) };
+});
+ok(rd.text.some(t => /^Curvatura \+[\d.]+ m$/.test(t)), "la lectura da la curvatura: " + rd.text.join(" · "));
+ok(rd.text.some(t => /^Despeje [+-][\d.]+ m$/.test(t)), "y el despeje de la recta sobre el terreno elevado: " + rd.text.join(" · "));
+const clear = await page.evaluate(() => {
+  const lay = profileLayout, d = lay.dOf(lay.lastX);
+  const s = profileData.series.find(x => x.kind === lay.los.kind);
+  const p = nearestProfilePoint(s.points, d);
+  return { shown: document.querySelector("#pf-readout .pf-diff:last-child").textContent,
+           want: lay.losAt(d) - (p.v + lay.lift(d)) };
+});
+ok(Math.abs(Number(clear.shown.replace(/[^\d.+-]/g, "").replace(/^[+]/, "")) - clear.want) < 0.11,
+  "el despeje = recta − (terreno + curvatura): " + JSON.stringify(clear));
+await page.click("#pf-los");
+await page.click("#pf-earth");
+await frames();
+const opt2 = await page.evaluate(() => ({ los: !!profileChart.querySelector(".pf-los"), earth: !!profileChart.querySelector(".pf-earth"),
+  readout: !document.querySelector("#pf-readout .pf-diff:last-child") || !/Despeje|Curvatura/.test(document.getElementById("pf-readout").textContent) }));
+ok(!opt2.los && !opt2.earth, "desmarcadas, desaparecen: " + JSON.stringify(opt2));
 await page.evaluate(() => closeProfileDialog());
 
 /* ---------- 6b. Tras recargar, sigue siendo «Mostrar» ---------- */

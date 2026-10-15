@@ -1653,7 +1653,11 @@ document.getElementById("gnp-editor-clear").addEventListener("click", () => {
 /* El límite del perfil se guarda en metros y se enseña en la unidad de
    distancia elegida: al cambiarla, se repinta convertido.            */
 function renderPropsProfileMax() {
-  propsProfileMaxInput.value = Number((profileMaxM / POLY_UNIT_FACTOR[measureUnit]).toPrecision(6));
+  const f = POLY_UNIT_FACTOR[measureUnit];
+  propsProfileMaxInput.value = Number((profileMaxM / f).toPrecision(6));
+  /* Las cotas en la unidad vigente: el spinner del navegador las respeta */
+  propsProfileMaxInput.min = Number((PROFILE_MAX_MIN / f).toPrecision(6));
+  propsProfileMaxInput.max = Number((PROFILE_MAX_MAX / f).toPrecision(6));
   document.getElementById("props-profile-max-unit").textContent = POLY_UNIT_LABEL[measureUnit];
 }
 function renderPropsPrefsTab() {
@@ -1669,11 +1673,23 @@ propsUnitSelect.addEventListener("change", () => {
   renderPropsProfileMax();
 });
 propsAltUnitSelect.addEventListener("change", () => setAltitudeUnit(propsAltUnitSelect.value));
-/* Mismo criterio que el tope de vértices: un valor ilegible o fuera de
-   [PROFILE_MAX_MIN, PROFILE_MAX_MAX] se descarta y vuelve el vigente. */
+/* Un valor ilegible o vacío se descarta y vuelve el vigente; uno legible
+   pero fuera de [PROFILE_MAX_MIN, PROFILE_MAX_MAX] se ajusta al tope más
+   cercano y se avisa. Reportado: 150 NM (el máximo es 100) volvía en
+   silencio al valor anterior, y parecía que el número «se convertía».  */
 propsProfileMaxInput.addEventListener("change", () => {
-  const m = Number(propsProfileMaxInput.value) * POLY_UNIT_FACTOR[measureUnit];
-  if (Number.isFinite(m) && m >= PROFILE_MAX_MIN && m <= PROFILE_MAX_MAX) profileMaxM = m;
+  const raw = propsProfileMaxInput.value.trim();
+  const m = raw === "" ? NaN : Number(raw) * POLY_UNIT_FACTOR[measureUnit];
+  if (Number.isFinite(m)) {
+    const clamped = Math.min(PROFILE_MAX_MAX, Math.max(PROFILE_MAX_MIN, m));
+    profileMaxM = clamped;
+    if (clamped !== m) {
+      const f = POLY_UNIT_FACTOR[measureUnit], lbl = POLY_UNIT_LABEL[measureUnit];
+      const n = v => Number((v / f).toPrecision(6)).toLocaleString("es");
+      navMessage(`La longitud máxima de un perfil va de ${n(PROFILE_MAX_MIN)} a ${n(PROFILE_MAX_MAX)} ${lbl}: `
+        + `se queda en ${n(clamped)} ${lbl}.`);
+    }
+  }
   renderPropsProfileMax();
 });
 propsCoordFormatSelect.addEventListener("change", () => {

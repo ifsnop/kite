@@ -722,6 +722,14 @@
   #profile-chart .pf-line { fill: none; stroke-width: 1.5; }
   #profile-chart .pf-line.mdt, #profile-chart .pf-legend.mdt { stroke: #1565c0; }
   #profile-chart .pf-line.mds, #profile-chart .pf-legend.mds { stroke: #2e7d32; }
+  /* Línea inicio–fin: negra (pedido); la Tierra, un marrón con relleno
+     suave por debajo */
+  #profile-chart .pf-los, #profile-chart .pf-legend.los { stroke: #000; }
+  #profile-chart .pf-los { stroke-width: 1.5; }
+  #profile-chart .pf-earth, #profile-chart .pf-legend.earth { stroke: #8d6e63; }
+  #profile-chart .pf-earth { fill: none; stroke-width: 1.5; }
+  #profile-chart .pf-earth-fill { fill: #8d6e63; fill-opacity: 0.18; stroke: none; }
+  #profile-chart .pf-diff.neg { fill: #d32f2f; }
   #profile-chart .pf-legend { stroke-width: 3; }
   #profile-chart .pf-tick { fill: var(--text); }
   #profile-chart .pf-tick.vertex { font-weight: 700; }

@@ -40,6 +40,7 @@ const arrows = [
 /* nextNumberedName barre el árbol: aquí, un árbol de mentira */
 const fakeTree = "let fakeNames = []; const treeEl = { querySelectorAll: () => fakeNames.map(n => ({ _name: n })) };\n";
 const src = "const parserErrorText = () => null;\nconst toRad = d => d * Math.PI / 180;\n"
+  + "const EARTH_R = 6371000;\n"
   + "let altitudeUnit = 'm'; const setUnit = u => { altitudeUnit = u; };\n" + fakeTree
   + helpers + units + consts + arrows + "\n" +
   [fn("parseWcsCapabilities"), fn("pickMdsCoverage"),
@@ -48,7 +49,7 @@ const src = "const parserErrorText = () => null;\nconst toRad = d => d * Math.PI
    fn("parseOwsException"), fn("isRetryableElevError"), fn("withElevRetries"),
    fn("parseAsciiGrid"), fn("gridFromRaster"), fn("gridCellBounds"), fn("gridToLatLng"),
    fn("buildElevCells"), fn("elevCellHtml"), fn("pointInCell"), fn("sessionStamp"),
-   fn("nextNumberedName"), fn("profilePieces"), fn("routeProfileSamples"), fn("profileFromSamples"),
+   fn("nextNumberedName"), fn("elevLabelAnchor"), fn("profileLimitApplies"), fn("profilePieces"), fn("routeProfileSamples"), fn("profileFromSamples"),
    fn("niceTicks"), fn("profilePolylines"), fn("nearestProfilePoint"),
    fn("routeProfileKey"), fn("profilePointAt"), fn("clampProfileView"), fn("zoomProfileView"),
    fn("visibleProfilePoints"), fn("validRouteProfile"), fn("profileTreeCells"), fn("describeTraceError"),
@@ -66,6 +67,7 @@ const apiExports = "\nreturn {parseWcsCapabilities, mdtCoverages, pickMdsCoverag
   " nearestProfilePoint, PROFILE_CHUNK_CELLS, elevTileFactor, routeProfileKey, profilePointAt," +
   " validRouteProfile, profileTreeCells, clampProfileView, zoomProfileView, panProfileView," +
   " visibleProfilePoints, zoomRange, distDecimals, elevOutputCell, snapToCells, tileToCells, elevBandLat, packProfilePoints, unpackProfilePoints, PROFILE_MAX_PTS," +
+  " elevCellZoomUp, elevLabelAnchor, earthBulge, profileLosEnds, PF_K_FACTOR, profileLimitApplies," +
   " fmtTraceBytes, describeTraceGrid, describeTraceError};";
 const api = new Function("DOMParser", src + apiExports)(DOMParser);
 const ok=(c,m)=>{ if(!c){ console.error("FAIL: "+m); process.exitCode=1; } };
@@ -553,6 +555,32 @@ ok(api.fmtHeight(1609.344, "mi") === "1.0000 mi", api.fmtHeight(1609.344, "mi"))
 ok(api.fmtHeight(2500, "km") === "2.5000 km", api.fmtHeight(2500, "km"));
 ok(api.fmtHeightValue(-3.04, "m") === "-3.0", "negativos sin unidad: " + api.fmtHeightValue(-3.04, "m"));
 
+/* ---- celdas gruesas: el texto cabe en un zoom menor (MDT200 no mostraba cifra) ---- */
+{
+  const cellOf = (m, lat = 40.4) => ({ sw: [lat, -3.7], ne: [lat + m / 111195, -3.7 + m / 111195], center: [lat + m / 222390, -3.7 + m / 222390] });
+  ok(api.elevCellZoomUp(cellOf(5)) === 0 && api.elevCellZoomUp(cellOf(5.004)) === 0 && api.elevCellZoomUp(cellOf(4.9)) === 0,
+    "una celda de 5 m es la de referencia: ningún adelanto");
+  ok(api.elevCellZoomUp(cellOf(2)) === 0, "las más finas no cambian de comportamiento");
+  ok(api.elevCellZoomUp(cellOf(10)) === 1 && api.elevCellZoomUp(cellOf(25)) === 2 && api.elevCellZoomUp(cellOf(30)) === 2,
+    "MDT25 y Copernicus 30 m: dos niveles antes");
+  ok(api.elevCellZoomUp(cellOf(200)) === 5, "MDT200: cinco niveles antes (log2 de 40)");
+  ok(api.elevZoomBand(14 + api.elevCellZoomUp(cellOf(200))) === "diff" && api.elevZoomBand(15 + api.elevCellZoomUp(cellOf(200))) === "full"
+    && api.elevZoomBand(13 + api.elevCellZoomUp(cellOf(200))) === "mini", "una celda de 200 m escribe desde el zoom 14 (una línea) y 15 (todas)");
+  const box = (s, w, n, e) => ({ getSouth: () => s, getWest: () => w, getNorth: () => n, getEast: () => e,
+    contains: ([la, lo]) => la >= s && la <= n && lo >= w && lo <= e });
+  const plain = box(0, 0, 10, 10), padded = box(-2.5, -2.5, 12.5, 12.5);
+  const c = (s, w, n, e) => ({ sw: [s, w], ne: [n, e], center: [(s + n) / 2, (w + e) / 2] });
+  const small = c(11, 11, 12, 12);
+  ok(api.elevLabelAnchor(small, plain, padded, false) === small.center, "una celda pequeña a la vista (con margen): en su centro");
+  ok(api.elevLabelAnchor(c(20, 20, 21, 21), plain, padded, false) === null, "y fuera de la vista, sin cifra");
+  const big = c(-50, -50, 50, 50);
+  ok(api.elevLabelAnchor(big, plain, padded, true) === big.center, "una grande con su centro a la vista: en su centro");
+  const huge = c(-100, -100, 5, 100);
+  const a = api.elevLabelAnchor(huge, plain, padded, true);
+  ok(a && a[0] === 2.5 && a[1] === 5, "una grande con el centro fuera: en el centro de lo que se ve de ella: " + a);
+  ok(api.elevLabelAnchor(c(20, 20, 40, 40), plain, padded, true) === null, "una grande que no pisa la vista: sin cifra");
+}
+
 /* ---- elevZoomBand: qué se dibuja según el zoom ---- */
 ok(api.elevZoomBand(18) === "mini", "18: sin texto");
 ok(api.elevZoomBand(10) === "mini", "muy alejado: también sin texto");
@@ -806,6 +834,46 @@ ok(api.sessionStamp(new Date(2026, 9, 5, 7, 3)) === "2026-10-05 07:03",
     t = api.niceTicks(0, 0.0123, 4);
     ok(t.step === 0.005 && api.tickDecimals(t.step) === 3, "en NM, pasos pequeños con sus decimales: " + t.ticks);
     ok(api.niceTicks(5, 5, 4).ticks.join() === "5", "sin rango: una sola marca");
+  }
+
+  /* ---- límite de longitud: solo con alguna fuente de malla fina ---- */
+  {
+    const L = (mdt, mds) => api.profileLimitApplies({ mdt, mds });
+    ok(L("ign-mdt05", "ign-mds") === true, "MDT05 + MDS: el límite cuenta");
+    ok(L("ign-mdt25", null) === true, "MDT25 solo: el límite cuenta");
+    ok(L("ign-mdt200", null) === false, "MDT200 como única fuente: sin límite");
+    ok(L("ign-mdt200", "ign-mds") === true, "MDT200 + MDS de 5 m: el MDS fino manda");
+    ok(L(null, "dea-cop30") === true, "solo Copernicus 30 m: el límite cuenta");
+    ok(L(null, null) === false, "sin fuentes: no hay perfil que limitar");
+    ok(api.ELEV_SOURCES.filter(s => s.coarse).map(s => s.id).join() === "ign-mdt200",
+      "solo el MDT200 está marcado como grueso");
+  }
+
+  /* ---- curvatura terrestre (k = 4/3) y extremos de la línea inicio–fin ---- */
+  {
+    ok(Math.abs(api.PF_K_FACTOR - 4 / 3) < 1e-12, "k = 4/3");
+    ok(api.earthBulge(0, 100000) === 0 && api.earthBulge(100000, 100000) === 0, "el abultamiento es 0 en los extremos");
+    ok(api.earthBulge(-5, 1000) === 0 && api.earthBulge(2000, 1000) === 0, "fuera de la ruta, 0");
+    ok(api.earthBulge(10, 0) === 0, "ruta de longitud 0: 0");
+    /* centro de 100 km: L²/(8·k·R) = 1e10 / (8 · 4/3 · 6371000) = 147,15 m */
+    ok(Math.abs(api.earthBulge(50000, 100000) - 147.15) < 0.05, "100 km: ~147,1 m en el centro: " + api.earthBulge(50000, 100000));
+    ok(Math.abs(api.earthBulge(25000, 100000) - 0.75 * api.earthBulge(50000, 100000)) < 1e-9, "parábola: a un cuarto, 3/4 del centro");
+    ok(Math.abs(api.earthBulge(50000, 100000, 1) - 1e10 / (8 * 6371000)) < 1e-9, "con k = 1, la Tierra sin refracción");
+    const pts = (...v) => v.map((x, i) => ({ d: i * 10, v: x }));
+    const mdt = { kind: "mdt", points: pts(100, 120, 140) }, mds = { kind: "mds", points: pts(110, 130, 150) };
+    let e = api.profileLosEnds([mdt, mds]);
+    ok(e && e.kind === "mds" && e.a === 110 && e.b === 150, "con las dos, manda el MDS: " + JSON.stringify(e));
+    e = api.profileLosEnds([mdt]);
+    ok(e && e.kind === "mdt" && e.a === 100 && e.b === 140, "sin MDS, el MDT");
+    e = api.profileLosEnds([{ kind: "mds", points: pts(null, 5, 7, null) }, mdt]);
+    ok(e && e.kind === "mds" && e.a === 5 && e.b === 7, "salta los huecos de los extremos: " + JSON.stringify(e));
+    e = api.profileLosEnds([{ kind: "mds", points: pts(null, null) }, mdt]);
+    ok(e && e.kind === "mdt", "un MDS sin ningún dato cae al MDT");
+    ok(api.profileLosEnds([]) === null && api.profileLosEnds([{ kind: "mds", points: pts(null) }]) === null,
+      "sin datos, sin recta");
+    /* la curva recibe la distancia: el abultamiento se suma por punto */
+    const lines = api.profilePolylines([{ d: 0, v: 10 }, { d: 50, v: 10 }, { d: 100, v: 10 }], d => d, (v, d) => v + d);
+    ok(lines[0].map(p => p.y).join() === "10,60,110", "profilePolylines pasa la distancia a yOf");
   }
 
   /* ---- registro de depuración de la descarga del perfil ---- */
