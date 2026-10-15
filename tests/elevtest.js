@@ -29,6 +29,9 @@ const arrows = [
   between("const PROFILE_MAX_DEFAULT", "let profileMaxM"),
   between("const ALTITUDE_UNIT_KEY", "async function dbSaveAltitudeUnit"),
   between("const PROFILE_MAX_KEY", "async function dbSaveProfileMax"),
+  /* Frecuencia de Fresnel (Propiedades → Frecuencias) */
+  between("const FRESNEL_FREQ_DEFAULT", "let fresnelFreqMHz"),
+  between("const FRESNEL_FREQ_KEY", "async function dbSaveFresnelFreq"),
   /* Perfil de una ruta (63-route-profile.js), solo lo puro */
   between("const PROFILE_CHUNK_CELLS", "/* ---------- Cálculo"),
   between("const tickDecimals", "/* Tramos continuos"),
@@ -67,7 +70,7 @@ const apiExports = "\nreturn {parseWcsCapabilities, mdtCoverages, pickMdsCoverag
   " nearestProfilePoint, PROFILE_CHUNK_CELLS, elevTileFactor, routeProfileKey, profilePointAt," +
   " validRouteProfile, profileTreeCells, clampProfileView, zoomProfileView, panProfileView," +
   " visibleProfilePoints, zoomRange, distDecimals, elevOutputCell, snapToCells, tileToCells, elevBandLat, packProfilePoints, unpackProfilePoints, PROFILE_MAX_PTS," +
-  " elevCellZoomUp, elevLabelAnchor, earthBulge, profileLosEnds, PF_K_FACTOR, profileLimitApplies," +
+  " validFresnelFreq, FRESNEL_FREQ_SCHEMA, FRESNEL_FREQ_DEFAULT, FRESNEL_FREQ_MIN, FRESNEL_FREQ_MAX, elevCellZoomUp, elevLabelAnchor, fresnelRadius, PF_FRESNEL_ZONE, earthBulge, profileLosEnds, PF_K_FACTOR, profileLimitApplies," +
   " fmtTraceBytes, describeTraceGrid, describeTraceError};";
 const api = new Function("DOMParser", src + apiExports)(DOMParser);
 const ok=(c,m)=>{ if(!c){ console.error("FAIL: "+m); process.exitCode=1; } };
@@ -871,6 +874,23 @@ ok(api.sessionStamp(new Date(2026, 9, 5, 7, 3)) === "2026-10-05 07:03",
     ok(e && e.kind === "mdt", "un MDS sin ningún dato cae al MDT");
     ok(api.profileLosEnds([]) === null && api.profileLosEnds([{ kind: "mds", points: pts(null) }]) === null,
       "sin datos, sin recta");
+    /* ---- frecuencia guardada (Propiedades → Frecuencias) ---- */
+    const vf = f => api.validFresnelFreq({ v: api.FRESNEL_FREQ_SCHEMA, f });
+    ok(api.FRESNEL_FREQ_DEFAULT === 1090 && api.FRESNEL_FREQ_MIN === 1 && api.FRESNEL_FREQ_MAX === 300000, "frecuencia de Fresnel: 1090 MHz, de 1 a 300 000");
+    ok(vf(1090) === 1090 && vf(1) === 1 && vf(300000) === 300000 && vf(2400.5) === 2400.5, "frecuencias válidas, extremos incluidos");
+    ok(vf(0) === null && vf(-5) === null && vf(300001) === null && vf(NaN) === null && vf(Infinity) === null && vf("1090") === null, "fuera de rango o no numérica: descartada");
+    ok(api.validFresnelFreq({ v: api.FRESNEL_FREQ_SCHEMA + 1, f: 1090 }) === null && api.validFresnelFreq(null) === null && api.validFresnelFreq(undefined) === null,
+      "otra versión del registro, o ninguno: descartado");
+    /* ---- elipsoide de Fresnel ---- */
+    ok(api.PF_FRESNEL_ZONE === 0.6, "zona de Fresnel del 60 %");
+    const lambda = 299792458 / 1090e6;
+    ok(Math.abs(api.fresnelRadius(5000, 10000, 1090) - Math.sqrt(lambda * 5000 * 5000 / 10000)) < 1e-9
+      && Math.abs(api.fresnelRadius(5000, 10000, 1090) - 26.22) < 0.01, "centro de 10 km a 1090 MHz: ~26,2 m: " + api.fresnelRadius(5000, 10000, 1090));
+    ok(api.fresnelRadius(0, 10000, 1090) === 0 && api.fresnelRadius(10000, 10000, 1090) === 0
+      && api.fresnelRadius(-1, 10000, 1090) === 0 && api.fresnelRadius(20000, 10000, 1090) === 0, "0 en los extremos y fuera de la ruta");
+    ok(Math.abs(api.fresnelRadius(2000, 10000, 1090) - api.fresnelRadius(8000, 10000, 1090)) < 1e-9, "simétrico");
+    ok(Math.abs(api.fresnelRadius(5000, 10000, 4 * 1090) * 2 - api.fresnelRadius(5000, 10000, 1090)) < 1e-9, "cuatro veces la frecuencia, la mitad del radio");
+    ok(api.fresnelRadius(5000, 10000, 0) === 0 && api.fresnelRadius(5000, 0, 1090) === 0 && api.fresnelRadius(5000, 10000, NaN) === 0, "sin frecuencia o longitud válidas, 0");
     /* la curva recibe la distancia: el abultamiento se suma por punto */
     const lines = api.profilePolylines([{ d: 0, v: 10 }, { d: 50, v: 10 }, { d: 100, v: 10 }], d => d, (v, d) => v + d);
     ok(lines[0].map(p => p.y).join() === "10,60,110", "profilePolylines pasa la distancia a yOf");

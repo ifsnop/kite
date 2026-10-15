@@ -737,6 +737,11 @@
     justify-content: center;
   }
   .dlg-overlay[hidden] { display: none; }
+  /* Propiedades es modal y se abre a menudo con el perfil de una ruta (flotante,
+     mismo z-index y más tarde en el documento) a la vista, para ver el cambio
+     en vivo: tiene que quedar POR ENCIMA, o la ventana del perfil le tapaba
+     parte de las pestañas. */
+  #props-dialog { z-index: 2050; }
   /* The style dialog is NOT modal: it floats over the viewer so the map
      stays live underneath and the marker being edited can be dragged   */
   .dlg-float {
@@ -755,7 +760,7 @@
   #profile-dialog { top: auto; bottom: 40px; }
   #profile-dialog .dlg-box {
     display: flex; flex-direction: column; resize: both;
-    width: min(92vw, 46rem); height: min(75vh, 440px); min-width: 320px; min-height: 260px; /* + la barra de controles */
+    width: min(94vw, 60rem); height: min(82vh, 580px); min-width: 320px; min-height: 260px; /* + cabecera (4 filas de lectura) y pie */
   }
   /* Sin pie (el × está en la cabecera): todo lo de debajo de la barra
      de controles es gráfica; el margen de abajo deja sitio al tirador. */
@@ -777,17 +782,48 @@
   #profile-progress-label { font-size: 13px; margin-bottom: 4px; }
   #profile-progress .bar { height: 8px; background: var(--border); border-radius: 4px; overflow: hidden; }
   #profile-progress-fill { height: 100%; width: 0; background: var(--accent); transition: width 0.15s; }
-  /* Rueda = zoom, arrastrar = desplazar (63-route-profile.js): la mano
-     solo con zoom, que es cuando hay algo que desplazar.             */
+  /* Rueda = zoom, arrastrar = desplazar (63-route-profile.js), en
+     distancia y en altura: la mano siempre.                          */
   #profile-chart { flex: 1 1 auto; min-height: 120px; position: relative;
                    touch-action: none; user-select: none; }
-  #profile-chart.zoomed { cursor: grab; }
-  #profile-tools { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 14px;
-                   margin: 6px 0 2px; font-size: 13px; }
-  #profile-tools[hidden] { display: none; }
-  #profile-tools .pf-tool-group { display: inline-flex; align-items: center; gap: 4px; }
-  #profile-tools .pf-tool { min-width: 28px; padding: 1px 6px; }
-  #profile-tools .pf-tools-hint { color: var(--muted); font-size: 11px; }
+  #profile-chart { cursor: grab; }
+  /* Cabecera: a la izquierda lo que cambia la recta (línea, elipsoide,
+     torres); a la derecha el rectángulo de lectura, de tamaño fijo. Si no
+     caben, la lectura baja bajo las opciones. Pie: la vista (eje Y,
+     curvatura, ver todo) y la pista de gestos.                          */
+  #profile-tools { display: flex; flex-wrap: wrap; align-items: flex-start; gap: 6px 16px;
+                   margin: 6px 0 4px; font-size: 13px; }
+  #profile-tools[hidden], #profile-foot[hidden] { display: none; }
+  #profile-opts { flex: 1 1 17rem; display: flex; flex-direction: column; gap: 2px; }
+  .pf-row { display: flex; flex-wrap: wrap; align-items: center; gap: 0 16px; }
+  /* etiqueta entera clicable, y a una altura cómoda para el puntero */
+  .pf-check, .pf-field { display: inline-flex; align-items: center; gap: 6px; min-height: 26px; }
+  .pf-check { cursor: pointer; }
+  #profile-tools input[type="number"] { width: 64px; }
+  #profile-foot { display: flex; flex-wrap: wrap; align-items: center; gap: 2px 16px;
+                  margin: 4px 0 0; font-size: 13px; }
+  #profile-foot .pf-hint { flex: 1 1 8rem; min-width: 0; text-align: right; white-space: nowrap;
+                           overflow: hidden; text-overflow: ellipsis; color: var(--muted); font-size: 11px; }
+  /* Rectángulo de lectura: 2 columnas × 4 filas SIEMPRE (guiones en reposo,
+     filas apagadas atenuadas pero presentes), así su caja no cambia al
+     mover el ratón y la gráfica no salta. El valor manda (negrita, cifras
+     tabulares); la etiqueta es secundaria; cada línea lleva su clave de
+     trazo del color de su curva, y el texto sigue en tinta de texto.   */
+  #profile-info { flex: 0 0 26rem; max-width: 100%; box-sizing: border-box;
+                  display: grid; grid-template-columns: 1fr 1fr; grid-template-rows: repeat(4, auto);
+                  grid-auto-flow: column; gap: 0 18px; padding: 5px 10px;
+                  border: 1px solid var(--border); border-radius: 4px; background: var(--panel); }
+  .pf-info-row { display: flex; align-items: center; gap: 6px; min-width: 0; height: 20px; font-size: 12px; }
+  .pf-info-row.off { opacity: .45; }
+  .pf-info-label { color: var(--muted); white-space: nowrap; }
+  .pf-info-val { margin-left: auto; white-space: nowrap; font-variant-numeric: tabular-nums; color: var(--text); font-weight: 600; }
+  .pf-info-val.alert { color: #d32f2f; }
+  .pf-key { flex: 0 0 14px; height: 0; border-top: 3px solid transparent; }
+  .pf-key.mdt { border-top-color: #1565c0; }
+  .pf-key.mds { border-top-color: #2e7d32; }
+  .pf-key.earth { border-top-color: #8d6e63; }
+  .pf-key.los { border-top-color: #000; }
+  .pf-key.fresnel { border-top: 2px dashed #6a1b9a; }
   #profile-chart.dragging { cursor: grabbing; }
   #profile-chart svg { display: block; width: 100%; height: 100%; font: 11px system-ui, sans-serif; }
   #profile-chart .pf-axis { stroke: var(--muted); stroke-width: 1; }
@@ -804,7 +840,12 @@
   #profile-chart .pf-earth, #profile-chart .pf-legend.earth { stroke: #8d6e63; }
   #profile-chart .pf-earth { fill: none; stroke-width: 1.5; }
   #profile-chart .pf-earth-fill { fill: #8d6e63; fill-opacity: 0.18; stroke: none; }
-  #profile-chart .pf-diff.neg { fill: #d32f2f; }
+  /* Torres (negras, como la recta) y elipsoide de Fresnel: contorno de la
+     primera zona discontinuo y, dentro, la del 60 % rellena */
+  #profile-chart .pf-tower { stroke: #000; stroke-width: 3; }
+  #profile-chart .pf-fresnel { fill: none; stroke: #6a1b9a; stroke-width: 1; stroke-dasharray: 4 3; }
+  #profile-chart .pf-fresnel60 { fill: #6a1b9a; fill-opacity: 0.16; stroke: #6a1b9a; stroke-width: 1; }
+  #profile-chart .pf-legend.fresnel { stroke: #6a1b9a; }
   #profile-chart .pf-legend { stroke-width: 3; }
   #profile-chart .pf-tick { fill: var(--text); }
   #profile-chart .pf-tick.vertex { font-weight: 700; }
@@ -813,11 +854,6 @@
   .pf-map-arrow { background: none; border: none; pointer-events: none; }
   .pf-map-arrow svg { display: block; overflow: visible; }
   .pf-map-arrow path { fill: #b04a3a; stroke: #fff; stroke-width: 1.5; stroke-linejoin: round; }
-  /* Halo del color del panel: la lectura cae encima de las curvas */
-  #profile-chart .pf-readout { fill: var(--text); font-weight: 600;
-                               stroke: var(--panel); stroke-width: 3px; stroke-linejoin: round; paint-order: stroke; }
-  /* MDS−MDT por encima del umbral: el mismo rojo que el aviso de las celdas */
-  #profile-chart .pf-diff.alert { fill: #d32f2f; }
   #geocalc-dialog .dlg-box { width: min(92vw, 30rem); }
   .geocalc-field { display: flex; gap: 6px; }
   #geocalc-dialog .dlg-row input[type="number"] { width: 110px; }
@@ -1756,7 +1792,7 @@
         <tr><th colspan="2">Gr&#225;fica del perfil de una ruta</th></tr>
         <tr><td>Rueda del rat&#243;n sobre la gr&#225;fica</td><td>Acercar / alejar la distancia hacia el puntero (de la ruta entera a 0,1 m por p&#237;xel)</td></tr>
         <tr><td>May&#250;s + rueda, o rueda sobre el eje de alturas</td><td>Acercar / alejar la altura (bloquea el eje Y)</td></tr>
-        <tr><td>Arrastrar la gr&#225;fica</td><td>Desplazarla; con el eje Y bloqueado, tambi&#233;n en vertical</td></tr>
+        <tr><td>Arrastrar la gr&#225;fica</td><td>Desplazarla en distancia y en altura (arrastrar en vertical bloquea el eje Y en lo que se ve)</td></tr>
       </table>
     </div>
     <div id="sh-tab-draw" class="dlg-tabpanel" hidden role="tabpanel">
@@ -1897,6 +1933,7 @@
       <button type="button" class="dlg-tab active" id="props-tab-btn-prefs" role="tab" aria-selected="true" aria-controls="props-tab-prefs">Preferencias</button>
       <button type="button" class="dlg-tab" id="props-tab-btn-gnp" role="tab" aria-selected="false" aria-controls="props-tab-gnp">Índices de GeoJSON</button>
       <button type="button" class="dlg-tab" id="props-tab-btn-sources" role="tab" aria-selected="false" aria-controls="props-tab-sources">Fuentes de datos</button>
+      <button type="button" class="dlg-tab" id="props-tab-btn-freq" role="tab" aria-selected="false" aria-controls="props-tab-freq">Frecuencias</button>
     </div>
     <div id="props-tab-prefs" class="dlg-tabpanel" role="tabpanel">
       <div class="dlg-row"><span>Unidad de distancia</span><select id="props-unit">
@@ -1935,6 +1972,11 @@
       <p class="dlg-hint props-src-url" id="props-src-mdt-url"></p>
       <div class="dlg-row"><span>MDS (superficie)</span><select id="props-src-mds"></select></div>
       <p class="dlg-hint props-src-url" id="props-src-mds-url"></p>
+    </div>
+    <div id="props-tab-freq" class="dlg-tabpanel" hidden role="tabpanel">
+      <p class="dlg-hint">Frecuencia con la que se calcula el elipsoide de Fresnel del perfil de una ruta (casilla «Elipsoide de Fresnel» de su ventana). De 1 a 300&#8239;000 MHz; 1090 MHz de partida. Un valor fuera de rango se ajusta al l&#237;mite m&#225;s cercano.</p>
+      <div class="dlg-row"><span>Frecuencia c&#225;lculos de Fresnel</span>
+        <span class="props-with-unit"><input type="number" id="props-fresnel-freq" min="1" max="300000" step="any"><span>MHz</span></span></div>
     </div>
     <div class="dlg-actions">
       <button class="btn" id="props-cancel">Cancelar</button>
@@ -2018,29 +2060,54 @@
       <div id="profile-log" role="log" tabindex="0" aria-label="Detalle de la descarga"></div>
     </div>
     <p class="dlg-hint" id="profile-note" hidden></p>
-    <!-- Controles de la gráfica (63-route-profile.js): zoom de cada eje
-         por separado, bloqueo del eje Y y vuelta a la vista entera. Lo
-         mismo, con el ratón: rueda = distancia; Mayús+rueda o rueda
-         sobre el eje de alturas = altura; arrastrar = desplazar. -->
+    <!-- Cabecera de la gráfica (63-route-profile.js). A la izquierda, lo que
+         cambia la recta inicio–fin: la propia línea, el elipsoide de Fresnel
+         y las alturas de torre. A la derecha, el rectángulo de lectura del
+         cursor: tamaño FIJO (cuadrícula de 2 × 4, con guiones en reposo), para
+         que ni la gráfica ni nada salte al mover el ratón. Zoom con el ratón:
+         rueda = distancia; Mayús+rueda o rueda sobre el eje de alturas =
+         altura; arrastrar = desplazar. La frecuencia de Fresnel está en
+         Propiedades → Frecuencias. -->
     <div id="profile-tools" hidden>
-      <span class="pf-tool-group" role="group" aria-label="Zoom de distancia">Distancia
-        <button class="btn pf-tool" id="pf-x-out" title="Alejar en distancia" aria-label="Alejar en distancia">−</button>
-        <button class="btn pf-tool" id="pf-x-in" title="Acercar en distancia (hasta 0,1 m por píxel)" aria-label="Acercar en distancia">+</button>
-      </span>
-      <span class="pf-tool-group" role="group" aria-label="Zoom de altura">Altura
-        <button class="btn pf-tool" id="pf-y-out" title="Alejar en altura (bloquea el eje Y)" aria-label="Alejar en altura">−</button>
-        <button class="btn pf-tool" id="pf-y-in" title="Acercar en altura (bloquea el eje Y)" aria-label="Acercar en altura">+</button>
-      </span>
-      <label class="pf-tool-group" title="La escala de alturas se queda quieta al desplazar o acercar la distancia; desmarcado, se ajusta sola a lo que se ve">
-        <input type="checkbox" id="pf-y-lock"> Bloquear eje Y</label>
-      <label class="pf-tool-group" title="Recta negra entre la altura del primer y la del último punto de la ruta (MDS; si no está elegido, MDT)">
-        <input type="checkbox" id="pf-los"> Línea inicio–fin</label>
-      <label class="pf-tool-group" title="Dibuja la curvatura de la Tierra con la refracción estándar de la atmósfera (radio efectivo 4/3): el terreno se eleva sobre la cuerda y el arco parte del nivel del mar">
-        <input type="checkbox" id="pf-earth"> Curvatura terrestre (k = 4/3)</label>
-      <button class="btn" id="pf-reset" title="Ruta entera y altura automática">Ver todo</button>
-      <span class="pf-tools-hint">Rueda: distancia · Mayús+rueda o rueda sobre el eje: altura · arrastrar: desplazar</span>
+      <div id="profile-opts">
+        <div class="pf-row">
+          <label class="pf-check" title="Recta negra entre la altura del primer y la del último punto de la ruta (MDS; si no está elegido, MDT), con las alturas de torre">
+            <input type="checkbox" id="pf-los"> Línea inicio–fin</label>
+          <label class="pf-check" title="Primera zona de Fresnel alrededor de la línea inicio–fin (contorno discontinuo) y, rellena, su zona del 60 %, que debe quedar libre de obstáculos. La frecuencia se elige en Propiedades → Frecuencias">
+            <input type="checkbox" id="pf-fresnel"> Elipsoide de Fresnel (60 %)</label>
+        </div>
+        <div class="pf-row">
+          <label class="pf-field" title="Altura de la torre en el inicio de la ruta, SOBRE EL TERRENO: sube ese extremo de la línea inicio–fin">
+            Torre inicio <input type="number" id="pf-tower-a" min="0" step="any"> <span class="pf-tower-unit"></span></label>
+          <label class="pf-field" title="Altura de la torre en el final de la ruta, SOBRE EL TERRENO: sube ese extremo de la línea inicio–fin">
+            Torre final <input type="number" id="pf-tower-b" min="0" step="any"> <span class="pf-tower-unit"></span></label>
+        </div>
+      </div>
+      <!-- Lectura bajo el cursor (showProfileCursor / setProfileInfo). Cada
+           valor se escribe con textContent. Las filas de lo que no está
+           activado quedan atenuadas, nunca ocultas. -->
+      <div id="profile-info" role="group" aria-label="Lectura bajo el cursor">
+        <div class="pf-info-row" data-k="dist"><i class="pf-key"></i><span class="pf-info-label">Distancia</span><b class="pf-info-val">—</b></div>
+        <div class="pf-info-row" data-k="mdt"><i class="pf-key mdt"></i><span class="pf-info-label">MDT</span><b class="pf-info-val">—</b></div>
+        <div class="pf-info-row" data-k="mds"><i class="pf-key mds"></i><span class="pf-info-label">MDS</span><b class="pf-info-val">—</b></div>
+        <div class="pf-info-row" data-k="diff"><i class="pf-key"></i><span class="pf-info-label">MDS−MDT</span><b class="pf-info-val">—</b></div>
+        <div class="pf-info-row" data-k="bulge"><i class="pf-key earth"></i><span class="pf-info-label">Curvatura</span><b class="pf-info-val">—</b></div>
+        <div class="pf-info-row" data-k="clear"><i class="pf-key los"></i><span class="pf-info-label">Despeje</span><b class="pf-info-val">—</b></div>
+        <div class="pf-info-row" data-k="fres"><i class="pf-key fresnel"></i><span class="pf-info-label">Fresnel 60 %</span><b class="pf-info-val">—</b></div>
+        <div class="pf-info-row" data-k="margin"><i class="pf-key fresnel"></i><span class="pf-info-label">Margen</span><b class="pf-info-val">—</b></div>
+      </div>
     </div>
     <div id="profile-chart" aria-live="polite"></div>
+    <!-- Pie: lo que cambia la vista de la gráfica entera (eje Y, curvatura) y
+         la vuelta a la ruta entera, con la pista de los gestos. -->
+    <div id="profile-foot" hidden>
+      <label class="pf-check" title="La escala de alturas se queda quieta al desplazar o acercar la distancia; desmarcado, se ajusta sola a lo que se ve">
+        <input type="checkbox" id="pf-y-lock"> Bloquear eje Y</label>
+      <label class="pf-check" title="Dibuja la curvatura de la Tierra con la refracción estándar de la atmósfera (radio efectivo 4/3): el terreno se eleva sobre la cuerda y el arco parte del nivel del mar">
+        <input type="checkbox" id="pf-earth"> Curvatura terrestre (k = 4/3)</label>
+      <button class="btn" id="pf-reset" title="Ruta entera y altura automática">Ver todo</button>
+      <span class="pf-hint">Rueda: distancia · Mayús+rueda: altura · arrastrar: desplazar</span>
+    </div>
   </div>
 </div>
 
@@ -2975,7 +3042,7 @@ map.on("resize rotate", fitWorldMinZoom);
 
 /* Fecha de generación del código (versión): AÑOMESDIAHORAMINUTO.
    Actualizar en cada generación; se muestra junto al crédito de Leaflet. */
-const BUILD = "202610151628";
+const BUILD = "202610152205";
 /* Versión de release (la de package.json, horneada aquí por build.js
    al construir — ver «Versión y releases de GitHub» en CLAUDE.md): a
    diferencia de BUILD, que cambia en CADA generación, esta solo cambia
@@ -6476,6 +6543,32 @@ async function dbLoadProfileMax() {
     const tx = db.transaction(DB_TREE, "readonly");
     const rq = tx.objectStore(DB_TREE).get(PROFILE_MAX_KEY);
     rq.onsuccess = () => resolve(validProfileMax(rq.result));
+    rq.onerror = () => reject(rq.error);
+  });
+}
+
+/* Frecuencia del elipsoide de Fresnel, en MHz (pestaña «Frecuencias» de
+   Propiedades). Fuera de [FRESNEL_FREQ_MIN, FRESNEL_FREQ_MAX] se descarta. */
+const FRESNEL_FREQ_KEY = "fresnelFreq";
+const FRESNEL_FREQ_SCHEMA = 1;
+const validFresnelFreq = r =>
+  (r && r.v === FRESNEL_FREQ_SCHEMA && Number.isFinite(r.f)
+    && r.f >= FRESNEL_FREQ_MIN && r.f <= FRESNEL_FREQ_MAX ? r.f : null);
+async function dbSaveFresnelFreq(f) {
+  const db = await openDb();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(DB_TREE, "readwrite");
+    tx.objectStore(DB_TREE).put({ v: FRESNEL_FREQ_SCHEMA, f }, FRESNEL_FREQ_KEY);
+    tx.oncomplete = resolve;
+    tx.onerror = () => reject(tx.error);
+  });
+}
+async function dbLoadFresnelFreq() {
+  const db = await openDb();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(DB_TREE, "readonly");
+    const rq = tx.objectStore(DB_TREE).get(FRESNEL_FREQ_KEY);
+    rq.onsuccess = () => resolve(validFresnelFreq(rq.result));
     rq.onerror = () => reject(rq.error);
   });
 }
@@ -11304,6 +11397,9 @@ const propsTabGnp = document.getElementById("props-tab-gnp");
 const propsTabPrefs = document.getElementById("props-tab-prefs");
 const propsTabSourcesBtn = document.getElementById("props-tab-btn-sources");
 const propsTabSources = document.getElementById("props-tab-sources");
+const propsTabFreqBtn = document.getElementById("props-tab-btn-freq");
+const propsTabFreq = document.getElementById("props-tab-freq");
+const propsFresnelFreqInput = document.getElementById("props-fresnel-freq");
 const propsSrcSelect = {
   mdt: document.getElementById("props-src-mdt"),
   mds: document.getElementById("props-src-mds")
@@ -11324,7 +11420,8 @@ let propsOriginal = null; /* ajustes al abrir (unidades, formato, topes, fuentes
 const PROPS_TABS = {
   prefs: [propsTabPrefsBtn, propsTabPrefs],
   gnp: [propsTabGnpBtn, propsTabGnp],
-  sources: [propsTabSourcesBtn, propsTabSources]
+  sources: [propsTabSourcesBtn, propsTabSources],
+  freq: [propsTabFreqBtn, propsTabFreq]
 };
 function showPropsTab(tab) {
   for (const [id, [btn, panel]] of Object.entries(PROPS_TABS)) {
@@ -11428,6 +11525,17 @@ function renderPropsProfileMax() {
   propsProfileMaxInput.max = Number((PROFILE_MAX_MAX / f).toPrecision(6));
   document.getElementById("props-profile-max-unit").textContent = POLY_UNIT_LABEL[measureUnit];
 }
+/* Pestaña «Frecuencias»: la del elipsoide de Fresnel del perfil. Se
+   previsualiza en vivo (el perfil, si está abierto, se redibuja) y solo
+   Aceptar la guarda; Cancelar vuelve a la de al abrir.                 */
+function renderPropsFreqTab() {
+  propsFresnelFreqInput.value = fresnelFreqMHz;
+}
+propsFresnelFreqInput.addEventListener("change", () => {
+  const v = readClampedNumber(propsFresnelFreqInput, FRESNEL_FREQ_MIN, FRESNEL_FREQ_MAX, "La frecuencia", "MHz");
+  if (v !== null) { fresnelFreqMHz = v; refreshProfileChart(); }
+  renderPropsFreqTab();
+});
 function renderPropsPrefsTab() {
   propsUnitSelect.value = measureUnit;
   propsAltUnitSelect.value = altitudeUnit;
@@ -11441,23 +11549,35 @@ propsUnitSelect.addEventListener("change", () => {
   renderPropsProfileMax();
 });
 propsAltUnitSelect.addEventListener("change", () => setAltitudeUnit(propsAltUnitSelect.value));
+/* Lee un campo numérico de ajustes: vacío o ilegible → null (el llamador
+   deja el valor vigente); fuera de [min, max] se AJUSTA a la cota más
+   cercana y se avisa, en vez de volver en silencio al anterior (reportado
+   con el límite del perfil: 150 NM «se convertía» en otra cifra). Lo
+   comparten Propiedades y las torres del perfil (63-route-profile.js, que
+   la llama en tiempo de ejecución).                                    */
+function readClampedNumber(input, min, max, what, unit) {
+  const raw = input.value.trim();
+  const v = raw === "" ? NaN : Number(raw);
+  if (!Number.isFinite(v)) return null;
+  const c = Math.min(max, Math.max(min, v));
+  if (c !== v) {
+    const n = x => Number(x.toPrecision(6)).toLocaleString("es");
+    navMessage(`${what} va de ${n(min)} a ${n(max)} ${unit}: se queda en ${n(c)} ${unit}.`);
+  }
+  return c;
+}
+
 /* Un valor ilegible o vacío se descarta y vuelve el vigente; uno legible
    pero fuera de [PROFILE_MAX_MIN, PROFILE_MAX_MAX] se ajusta al tope más
    cercano y se avisa. Reportado: 150 NM (el máximo es 100) volvía en
    silencio al valor anterior, y parecía que el número «se convertía».  */
 propsProfileMaxInput.addEventListener("change", () => {
-  const raw = propsProfileMaxInput.value.trim();
-  const m = raw === "" ? NaN : Number(raw) * POLY_UNIT_FACTOR[measureUnit];
-  if (Number.isFinite(m)) {
-    const clamped = Math.min(PROFILE_MAX_MAX, Math.max(PROFILE_MAX_MIN, m));
-    profileMaxM = clamped;
-    if (clamped !== m) {
-      const f = POLY_UNIT_FACTOR[measureUnit], lbl = POLY_UNIT_LABEL[measureUnit];
-      const n = v => Number((v / f).toPrecision(6)).toLocaleString("es");
-      navMessage(`La longitud máxima de un perfil va de ${n(PROFILE_MAX_MIN)} a ${n(PROFILE_MAX_MAX)} ${lbl}: `
-        + `se queda en ${n(clamped)} ${lbl}.`);
-    }
-  }
+  const f = POLY_UNIT_FACTOR[measureUnit];
+  const v = readClampedNumber(propsProfileMaxInput, PROFILE_MAX_MIN / f, PROFILE_MAX_MAX / f,
+    "La longitud máxima de un perfil", POLY_UNIT_LABEL[measureUnit]);
+  /* Se reclava en metros: v·f puede salirse de la cota por redondeo y
+     validProfileMax lo descartaría al leerlo.                          */
+  if (v !== null) profileMaxM = Math.min(PROFILE_MAX_MAX, Math.max(PROFILE_MAX_MIN, v * f));
   renderPropsProfileMax();
 });
 propsCoordFormatSelect.addEventListener("change", () => {
@@ -11504,10 +11624,11 @@ async function togglePropsDialog() {
   if (!propsDialog.hidden) { cancelPropsDialog(); return; }
   if (!gnpStore) gnpStore = await dbLoadGnp();
   propsDraftGnp = { ...gnpStore };
-  propsOriginal = { unit: measureUnit, altitudeUnit, profileMaxM, coordFormat, vertexEditMax,
+  propsOriginal = { unit: measureUnit, altitudeUnit, profileMaxM, fresnelFreqMHz, coordFormat, vertexEditMax,
                     arcSegments, elevSources };
   renderGnpEditor();
   renderPropsPrefsTab();
+  renderPropsFreqTab();
   renderPropsSourcesTab();
   showPropsTab("prefs");
   propsDialog.hidden = false;
@@ -11525,6 +11646,10 @@ function cancelPropsDialog() {
   if (propsOriginal.unit !== measureUnit) setMeasureUnit(propsOriginal.unit);
   if (propsOriginal.altitudeUnit !== altitudeUnit) setAltitudeUnit(propsOriginal.altitudeUnit);
   profileMaxM = propsOriginal.profileMaxM;
+  if (propsOriginal.fresnelFreqMHz !== fresnelFreqMHz) {
+    fresnelFreqMHz = propsOriginal.fresnelFreqMHz;
+    refreshProfileChart();
+  }
   if (propsOriginal.coordFormat !== coordFormat) {
     coordFormat = propsOriginal.coordFormat;
     renderMeasureValues();
@@ -11547,6 +11672,7 @@ document.getElementById("props-accept").addEventListener("click", () => {
   dbSaveMeasureUnit(measureUnit);
   dbSaveAltitudeUnit(altitudeUnit);
   dbSaveProfileMax(profileMaxM);
+  dbSaveFresnelFreq(fresnelFreqMHz);
   dbSaveCoordFormat(coordFormat);
   dbSaveVertexEditMax(vertexEditMax);
   dbSaveArcSegments(arcSegments);
@@ -12931,6 +13057,14 @@ const PROFILE_MAX_DEFAULT = 10 * 1852;
 const PROFILE_MAX_MIN = 100;
 const PROFILE_MAX_MAX = 100 * 1852;
 let profileMaxM = PROFILE_MAX_DEFAULT;
+/* Frecuencia (MHz) con la que se calcula el elipsoide de Fresnel del
+   perfil de una ruta (63-route-profile.js): ajuste global, en la pestaña
+   «Frecuencias» de Propiedades. 1090 MHz de partida. Va aquí y no en el
+   archivo del perfil porque Propiedades (43) la lee y el perfil carga
+   DESPUÉS (zona muerta temporal).                                      */
+const FRESNEL_FREQ_DEFAULT = 1090;
+const FRESNEL_FREQ_MIN = 1, FRESNEL_FREQ_MAX = 300000;
+let fresnelFreqMHz = FRESNEL_FREQ_DEFAULT;
 let polyMeasures = null;   /* {area, perim} en m/m² del polígono abierto, o null */
 function renderPolyMeasures() {
   if (!polyMeasures) return;
@@ -17430,6 +17564,22 @@ function earthBulge(d, total, k = PF_K_FACTOR) {
   return d * (total - d) / (2 * k * EARTH_R);
 }
 
+/* Elipsoide de Fresnel: el radio de la PRIMERA zona a una distancia `d`
+   de un extremo de un trayecto de longitud `total` es
+   sqrt(λ·d·(total−d)/total), con λ = c/f. Se dibuja la zona del 60 %
+   (PF_FRESNEL_ZONE), la que ha de estar libre de obstáculos para no
+   perder señal de forma apreciable. Metros; 0 en los extremos y fuera.
+   La longitud es la de la ruta, no la de la cuerda: como la línea de
+   vista, trata la ruta como un trayecto recto. La frecuencia (MHz) es
+   el ajuste global `fresnelFreqMHz` (Propiedades → Frecuencias).      */
+const PF_FRESNEL_ZONE = 0.6;
+const PF_TOWER_MAX = 10000;     /* m */
+const PF_LIGHT_MS = 299792458;
+function fresnelRadius(d, total, freqMHz) {
+  if (!(total > 0) || !(freqMHz > 0) || d <= 0 || d >= total) return 0;
+  return Math.sqrt(PF_LIGHT_MS / (freqMHz * 1e6) * d * (total - d) / total);
+}
+
 /* Extremos de la línea inicio–fin: alturas del MDS (la superficie, lo que
    de verdad tapa una señal) y, si no está elegido o no tiene dato, del
    MDT. Primer y último valor NUMÉRICO de la serie: un hueco en un
@@ -17626,7 +17776,7 @@ function openProfileDialog(title) {
   profileView = null; /* un perfil nuevo empieza con la ruta entera */
   profileYView = null; /* y con la altura automática */
   profileLayout = null;
-  profileTools.hidden = true;
+  showProfileTools(false);
   profileChart.innerHTML = "";
   profileDialog.hidden = false;
   clampToViewport(profileBox);
@@ -17880,15 +18030,14 @@ async function obtainRouteProfile(li) {
    Las series se dibujan como `<polyline>`: SEGMENTOS RECTOS entre los
    valores de celdas consecutivas, sin curvas ni suavizado (la prueba lo
    comprueba vértice a vértice).                                      */
-const PF_MARGIN = { l: 64, r: 14, t: 26, b: 40 };
+const PF_MARGIN = { l: 64, r: 22, t: 26, b: 40 }; /* r: la última cifra del eje (centrada en el borde) cabe entera */
 const SVG_NS = "http://www.w3.org/2000/svg";
 const PF_SNAP_PX = 8;          /* la lectura de una serie, si tiene un punto a menos de esto */
-const PF_READOUT_LINE = 14;    /* px entre líneas de la lectura del cursor */
 const PF_MIN_M_PER_PX = 0.1;   /* zoom máximo: 0,1 m de ruta por píxel (pedido) */
 const PF_WHEEL_STEP = 0.0015;  /* factor de zoom = e^(píxeles de rueda × esto) */
-const PF_BUTTON_FACTOR = 2;    /* un botón − / + aleja o acerca al doble   */
 const PF_Y_MIN_SPAN = 0.1;     /* m: altura mínima a la vista               */
 const PF_Y_MAX_SPAN = 20000;   /* m: altura máxima a la vista               */
+const PF_DRAG_LOCK_PX = 8;     /* px verticales que convierten un arrastre en desplazamiento de altura */
 
 let profileView = null;   /* { x0, x1 } en metros; null = la ruta entera */
 /* Opciones de la gráfica, de SESIÓN (como el resto de su estado, sin
@@ -17896,14 +18045,25 @@ let profileView = null;   /* { x0, x1 } en metros; null = la ruta entera */
    y no del perfil.                                                    */
 let profileShowLos = false; /* recta negra inicio–fin                      */
 let profileEarth = false;   /* curvatura terrestre con k = 4/3             */
+let profileFresnel = false; /* elipsoide de Fresnel (zona del 60 %)        */
+/* Alturas de torre SOBRE EL TERRENO en el inicio y en el final, metros
+   (se escriben en la unidad de altitud): suben los extremos de la recta. */
+const profileTowerM = { a: 0, b: 0 };
 let profileYView = null;  /* { a, b } en metros: eje Y bloqueado; null = automático */
 let profileLayout = null; /* geometría de la última gráfica dibujada     */
 let profileFrame = 0;
 let profileDrag = null;   /* { x, y, view, yView } mientras se arrastra */
 const profileTools = document.getElementById("profile-tools");
+const profileFoot = document.getElementById("profile-foot");
+const profileInfoRows = Object.fromEntries([...document.querySelectorAll("#profile-info .pf-info-row")]
+  .map(r => [r.dataset.k, r]));
+/* Cabecera y pie van y vienen juntos: con la gráfica, no antes */
+const showProfileTools = on => { profileTools.hidden = !on; profileFoot.hidden = !on; };
 const profileYLock = document.getElementById("pf-y-lock");
 const profileLosBox = document.getElementById("pf-los");
 const profileEarthBox = document.getElementById("pf-earth");
+const profileFresnelBox = document.getElementById("pf-fresnel");
+const profileTowerInput = { a: document.getElementById("pf-tower-a"), b: document.getElementById("pf-tower-b") };
 
 /* Anchura útil de la gráfica en píxeles, y el tope de zoom que da */
 const profilePlotWidth = () => profileChart.clientWidth - PF_MARGIN.l - PF_MARGIN.r;
@@ -17929,8 +18089,10 @@ function renderProfileChart() {
   const lift = d => (profileEarth ? earthBulge(d, total) : 0);
   /* Los extremos de la recta inicio–fin salen de la serie ENTERA, no de
      la parte a la vista; `losAt` es su altura a la distancia d.        */
-  const los = profileShowLos ? profileLosEnds(series) : null;
+  const ground = (profileShowLos || profileFresnel) ? profileLosEnds(series) : null;
+  const los = ground && { kind: ground.kind, a: ground.a + profileTowerM.a, b: ground.b + profileTowerM.b };
   const losAt = d => los.a + (los.b - los.a) * d / total;
+  const fresnel = d => fresnelRadius(d, total, fresnelFreqMHz);
   /* Lo visible de cada serie: la altura se ajusta a ESO, no a la ruta */
   const shown = series.map(s => ({ ...s, points: visibleProfilePoints(s.points, x0, x1) }));
   const vals = shown.flatMap(s => s.points.filter(p => typeof p.v === "number" && p.d >= x0 && p.d <= x1)
@@ -17942,6 +18104,10 @@ function renderProfileChart() {
      punto más alto del arco es el central de lo visible, el más bajo el
      borde más cercano a un extremo.                                  */
   if (los) vals.push(losAt(x0) / fy, losAt(x1) / fy);
+  if (los && profileFresnel) {
+    const m = Math.min(x1, Math.max(x0, total / 2)); /* el radio es máximo en el centro */
+    vals.push((losAt(m) + fresnel(m)) / fy, (losAt(m) - fresnel(m)) / fy);
+  }
   if (profileEarth) vals.push(lift(x0) / fy, lift(x1) / fy, lift(Math.min(x1, Math.max(x0, total / 2))) / fy);
   /* Alturas en METROS: automático = lo visible con un margen; con el
      eje bloqueado, el intervalo guardado, quieto.                    */
@@ -17956,7 +18122,7 @@ function renderProfileChart() {
   const xOf = d => PF_MARGIN.l + (d - x0) / span * pw;
   const yPix = u => PF_MARGIN.t + (1 - (u - y0) / (y1 - y0)) * ph;
   const yOf = (v, d = 0) => yPix((v + lift(d)) / fy);
-  profileLayout = { W, H, pw, ph, x0, x1, total, ym, xOf, yOf, lift, los, losAt,
+  profileLayout = { W, H, pw, ph, x0, x1, total, ym, xOf, yOf, lift, los, losAt, fresnel,
                     dOf: x => x0 + (x - PF_MARGIN.l) / pw * span };
 
   const parts = [`<clipPath id="pf-clip"><rect x="${PF_MARGIN.l}" y="${PF_MARGIN.t}" width="${pw}" height="${ph}"/></clipPath>`];
@@ -18001,6 +18167,16 @@ function renderProfileChart() {
   /* Las curvas (MDT azul, MDS verde, por su clase), recortadas al área
      de la gráfica, y su leyenda en el margen de arriba.               */
   let lx = PF_MARGIN.l;
+  /* Una entrada de leyenda, solo si cabe entera: en una ventana estrecha
+     se pierde la última antes que verla cortada (los nombres, además,
+     están en el rectángulo de lectura).                                */
+  const legend = (cls, label) => {
+    const w = 34 + label.length * 6.5;
+    if (lx + w > W - PF_MARGIN.r + 12) return;
+    parts.push(`<line class="pf-legend ${cls}" x1="${lx}" x2="${lx + 18}" y1="11" y2="11"/>`,
+      `<text class="pf-tick pf-legend-label" x="${lx + 22}" y="11" dominant-baseline="middle">${escapeHtml(label)}</text>`);
+    lx += w;
+  };
   /* Tierra al fondo, bajo las curvas: un arco del nivel del mar con el
      relleno suave por debajo, recortado como ellas.                   */
   if (profileEarth) {
@@ -18013,44 +18189,104 @@ function renderProfileChart() {
     parts.push(`<polygon class="pf-earth-fill" clip-path="url(#pf-clip)" points="${arc.join(" ")} ${xOf(x1).toFixed(1)},${floor} ${xOf(x0).toFixed(1)},${floor}"/>`,
       `<polyline class="pf-earth" clip-path="url(#pf-clip)" points="${arc.join(" ")}"/>`);
   }
+  /* Elipsoide de Fresnel alrededor de la recta: el contorno de la primera
+     zona (discontinuo) y, dentro, la del 60 % rellena. Mismo marco que
+     el terreno: con la curvatura activa, el terreno ya va elevado y la
+     recta y el elipsoide siguen siendo rectos, así que lo que se ve
+     entrar en la zona es lo que de verdad la invade.                */
+  if (los && profileFresnel) {
+    const n = Math.max(2, Math.min(400, Math.ceil(pw / 4)));
+    const ring = k => {
+      const up = [], down = [];
+      for (let i = 0; i <= n; i++) {
+        const d = x0 + span * i / n, c = losAt(d), r = k * fresnel(d), x = xOf(d).toFixed(1);
+        up.push(`${x},${yPix((c + r) / fy).toFixed(1)}`);
+        down.push(`${x},${yPix((c - r) / fy).toFixed(1)}`);
+      }
+      return up.concat(down.reverse()).join(" ");
+    };
+    parts.push(`<polygon class="pf-fresnel" clip-path="url(#pf-clip)" points="${ring(1)}"/>`,
+      `<polygon class="pf-fresnel60" clip-path="url(#pf-clip)" points="${ring(PF_FRESNEL_ZONE)}"/>`);
+  }
   for (const s of shown) {
     for (const line of profilePolylines(s.points, xOf, yOf)) {
       parts.push(`<polyline class="pf-line ${s.kind}" clip-path="url(#pf-clip)" points="${line.map(p => `${p.x.toFixed(1)},${p.y.toFixed(1)}`).join(" ")}"/>`);
     }
-    parts.push(`<line class="pf-legend ${s.kind}" x1="${lx}" x2="${lx + 18}" y1="11" y2="11"/>`,
-      `<text class="pf-tick pf-legend-label" x="${lx + 22}" y="11" dominant-baseline="middle">${escapeHtml(s.label)}</text>`);
-    lx += 34 + s.label.length * 6.5;
+    legend(s.kind, s.label);
   }
   /* La recta, encima de las curvas; se dibuja solo lo visible (con 0,1 m
      por píxel, los extremos de una ruta larga caerían a cientos de miles
      de píxeles).                                                       */
   const extras = [];
-  if (los) {
+  if (los && profileShowLos) {
     parts.push(`<line class="pf-los" clip-path="url(#pf-clip)" x1="${xOf(x0).toFixed(1)}" x2="${xOf(x1).toFixed(1)}" `
       + `y1="${yPix(losAt(x0) / fy).toFixed(1)}" y2="${yPix(losAt(x1) / fy).toFixed(1)}"/>`);
     extras.push({ cls: "los", label: `Línea inicio–fin (${PROFILE_KIND_LABEL[los.kind]})` });
   }
-  if (profileEarth) extras.push({ cls: "earth", label: "Tierra (nivel del mar, k = 4/3)" });
-  for (const e of extras) {
-    parts.push(`<line class="pf-legend ${e.cls}" x1="${lx}" x2="${lx + 18}" y1="11" y2="11"/>`,
-      `<text class="pf-tick pf-legend-label" x="${lx + 22}" y="11" dominant-baseline="middle">${escapeHtml(e.label)}</text>`);
-    lx += 34 + e.label.length * 6.5;
+  /* Las torres: del terreno a la antena, en el inicio y en el final
+     (solo las que están a la vista y miden algo).                    */
+  if (los) {
+    for (const [d, g, h] of [[0, ground.a, profileTowerM.a], [total, ground.b, profileTowerM.b]]) {
+      if (!(h > 0) || d < x0 - eps || d > x1 + eps) continue;
+      parts.push(`<line class="pf-tower" clip-path="url(#pf-clip)" x1="${xOf(d).toFixed(1)}" x2="${xOf(d).toFixed(1)}" `
+        + `y1="${yPix(g / fy).toFixed(1)}" y2="${yPix((g + h) / fy).toFixed(1)}"/>`);
+    }
   }
-  parts.push(`<line class="pf-cursor" id="pf-cursor" y1="${PF_MARGIN.t}" y2="${H - PF_MARGIN.b}" visibility="hidden"/>`,
-    `<text class="pf-readout" id="pf-readout" y="${PF_MARGIN.t + 10}" visibility="hidden"></text>`);
+  if (los && profileFresnel) {
+    extras.push({ cls: "fresnel", label: `Fresnel ${fresnelFreqMHz} MHz (zona ${Math.round(PF_FRESNEL_ZONE * 100)} %)` });
+  }
+  if (profileEarth) extras.push({ cls: "earth", label: "Tierra (k = 4/3)" });
+  for (const e of extras) legend(e.cls, e.label);
+  parts.push(`<line class="pf-cursor" id="pf-cursor" y1="${PF_MARGIN.t}" y2="${H - PF_MARGIN.b}" visibility="hidden"/>`);
   profileChart.innerHTML = `<svg xmlns="${SVG_NS}" viewBox="0 0 ${W} ${H}" role="img" `
     + `aria-label="Perfil de alturas a lo largo de la ruta">${parts.join("")}</svg>`;
   profileChart.classList.toggle("zoomed", span < total - eps || !!profileYView);
-  profileTools.hidden = false;
+  showProfileTools(true);
   profileYLock.checked = !!profileYView;
   profileLosBox.checked = profileShowLos;
   profileEarthBox.checked = profileEarth;
+  profileFresnelBox.checked = profileFresnel;
+  syncProfileInputs();
   if (lastX !== undefined) showProfileCursor(lastX);
+  else setProfileInfo(null);
+}
+
+/* Los campos de torre (en la unidad de altitud) reflejan el estado; el que se está escribiendo no se pisa (un redibujo por
+   cambio de unidad o de tamaño no debe borrar lo tecleado), salvo con
+   `force` (al confirmar).                                            */
+function syncProfileInputs(force = false) {
+  const fy = POLY_UNIT_FACTOR[altitudeUnit];
+  const put = (el, v) => { if (force || document.activeElement !== el) el.value = v; };
+  put(profileTowerInput.a, Number((profileTowerM.a / fy).toPrecision(6)));
+  put(profileTowerInput.b, Number((profileTowerM.b / fy).toPrecision(6)));
+  for (const el of document.querySelectorAll(".pf-tower-unit")) el.textContent = POLY_UNIT_LABEL[altitudeUnit];
 }
 
 /* Cifras de los vértices: con zoom hacen falta más decimales que las
    dos de la ruta entera (a 0,1 m por píxel, una pantalla son ~0,04 NM). */
 const vertexDecimals = spanUnits => Math.max(2, Math.min(5, tickDecimals(spanUnits / 10) + 1));
+
+/* Rectángulo de lectura (#profile-info, fuera del SVG: no tapa las curvas
+   ni se mueve con el ratón). `values`: { clave: { txt, alert } } de las
+   filas con dato bajo el cursor, o null en reposo (todo guiones). Una fila
+   cuya opción no está activada, o cuya serie no existe, queda atenuada
+   —nunca oculta, para que la caja no cambie de tamaño— y sin valor. El
+   texto, por textContent: lo que sale de la lectura nunca es HTML.      */
+function setProfileInfo(values) {
+  const has = kind => !!profileData && profileData.series.some(s => s.kind === kind);
+  const on = {
+    dist: true, mdt: has("mdt"), mds: has("mds"), diff: has("mdt") && has("mds"),
+    bulge: profileEarth, clear: profileShowLos || profileFresnel,
+    fres: profileFresnel, margin: profileFresnel
+  };
+  for (const [k, row] of Object.entries(profileInfoRows)) {
+    const v = on[k] && values ? values[k] : null;
+    const val = row.querySelector(".pf-info-val");
+    val.textContent = v ? v.txt : "\u2014";
+    val.classList.toggle("alert", !!(v && v.alert));
+    row.classList.toggle("off", !on[k]);
+  }
+}
 
 /* La línea roja, la lectura y la flecha del mapa en la x (píxeles del
    SVG) del ratón. Cada serie da su altura si tiene una celda a la
@@ -18060,74 +18296,53 @@ function showProfileCursor(x) {
   const lay = profileLayout, svg = profileChart.firstChild;
   if (!lay || !svg) return;
   lay.lastX = x;
-  const cursor = svg.querySelector("#pf-cursor"), readout = svg.querySelector("#pf-readout");
+  const cursor = svg.querySelector("#pf-cursor");
   const d = Math.min(lay.x1, Math.max(lay.x0, lay.dOf(x)));
   const px = lay.xOf(d);
   cursor.setAttribute("x1", px); cursor.setAttribute("x2", px);
   cursor.setAttribute("visibility", "visible");
   const snap = PF_SNAP_PX / lay.pw * (lay.x1 - lay.x0);
   /* tantos decimales como distinga un píxel: a 0,1 m/px, 4 en km */
-  const fx = POLY_UNIT_FACTOR[measureUnit];
-  const heights = [], at = {};
+  const fx = POLY_UNIT_FACTOR[measureUnit], u = POLY_UNIT_LABEL[altitudeUnit];
+  const at = {};
   for (const s of profileData.series) {
     const p = nearestProfilePoint(s.points, d);
-    if (p && Math.abs(p.d - d) <= snap) {
-      at[s.kind] = p.v;
-      heights.push(`${PROFILE_KIND_LABEL[s.kind]} ${fmtHeight(p.v, altitudeUnit)}`);
-    }
+    if (p && Math.abs(p.d - d) <= snap) at[s.kind] = p.v;
   }
-  /* Una línea por dato (distancia, alturas, MDS−MDT): en una sola, con
-     la diferencia, no cabía a ningún lado de la línea roja y la cruzaba. */
-  const lines = [{ txt: `${(d / fx).toFixed(distDecimals((lay.x1 - lay.x0) / lay.pw, fx))} ${POLY_UNIT_LABEL[measureUnit]}` }];
-  if (heights.length) lines.push({ txt: heights.join(" · ") });
+  const diffTxt = v => `${fmtDiff(v)} ${u}`;
+  const info = { dist: { txt: `${(d / fx).toFixed(distDecimals((lay.x1 - lay.x0) / lay.pw, fx))} ${POLY_UNIT_LABEL[measureUnit]}` } };
+  for (const kind of ["mdt", "mds"]) if (at[kind] !== undefined) info[kind] = { txt: fmtHeight(at[kind], altitudeUnit) };
   if (at.mdt !== undefined && at.mds !== undefined) {
     const diff = at.mds - at.mdt;
-    lines.push({ txt: `MDS−MDT ${fmtDiff(diff)} ${POLY_UNIT_LABEL[altitudeUnit]}`,
-                 cls: `pf-diff${diff > ELEV_ALERT_DIFF ? " alert" : ""}` });
+    info.diff = { txt: diffTxt(diff), alert: diff > ELEV_ALERT_DIFF };
   }
   /* Lo que responde a «¿hay línea de vista?»: cuánto asoma la Tierra a
      esta distancia y cuánto pasa la recta por encima del terreno ya
-     elevado (negativo, en rojo = lo tapa). Las alturas de arriba siguen
-     siendo las reales, sin el abultamiento.                            */
+     elevado (negativo, en rojo = lo tapa). Las alturas siguen siendo
+     las reales, sin el abultamiento.                                   */
   const bulge = lay.lift(d);
-  if (profileEarth) {
-    lines.push({ txt: `Curvatura +${fmtHeightValue(bulge, altitudeUnit)} ${POLY_UNIT_LABEL[altitudeUnit]}` });
-  }
+  if (profileEarth) info.bulge = { txt: `+${fmtHeight(bulge, altitudeUnit)}` };
   if (lay.los && at[lay.los.kind] !== undefined) {
     const clear = lay.losAt(d) - (at[lay.los.kind] + bulge);
-    lines.push({ txt: `Despeje ${fmtDiff(clear)} ${POLY_UNIT_LABEL[altitudeUnit]}`,
-                 cls: `pf-diff${clear < 0 ? " neg" : ""}` });
+    info.clear = { txt: diffTxt(clear), alert: clear < 0 };
+    /* Con Fresnel: su radio al 60 % y lo que sobra (o falta) de despeje
+       una vez descontado; en rojo si el terreno entra en la zona.     */
+    if (profileFresnel) {
+      const r60 = PF_FRESNEL_ZONE * lay.fresnel(d), margin = clear - r60;
+      info.fres = { txt: fmtHeight(r60, altitudeUnit) };
+      info.margin = { txt: diffTxt(margin), alert: margin < 0 };
+    }
   }
-  readout.textContent = "";
-  const spans = lines.map((l, i) => {
-    const span = document.createElementNS(SVG_NS, "tspan");
-    span.setAttribute("dy", i ? PF_READOUT_LINE : 0);
-    if (l.cls) span.setAttribute("class", l.cls);
-    span.textContent = l.txt;
-    return readout.appendChild(span);
-  });
-  readout.setAttribute("visibility", "visible");
-  /* Del lado con más sitio; si no cabe, al otro; si tampoco, contra el
-     borde (una gráfica muy estrecha). */
-  const w = Math.max(...spans.map(sp => sp.getComputedTextLength()));
-  const fitsLeft = px - 6 - w >= 2, fitsRight = px + 6 + w <= lay.W - 2;
-  let right = px > PF_MARGIN.l + lay.pw / 2;
-  if (right ? !fitsLeft && fitsRight : !fitsRight && fitsLeft) right = !right;
-  const lx = right ? (fitsLeft ? px - 6 : w + 2) : (fitsRight ? px + 6 : lay.W - 2 - w);
-  readout.setAttribute("text-anchor", right ? "end" : "start");
-  for (const sp of spans) sp.setAttribute("x", lx);
+  setProfileInfo(info);
   placeProfileArrow(d);
 }
 
 function hideProfileCursor() {
   if (profileLayout) delete profileLayout.lastX;
   const svg = profileChart.firstChild;
-  if (svg && svg.querySelector) {
-    for (const id of ["#pf-cursor", "#pf-readout"]) {
-      const el = svg.querySelector(id);
-      if (el) el.setAttribute("visibility", "hidden");
-    }
-  }
+  const el = svg && svg.querySelector && svg.querySelector("#pf-cursor");
+  if (el) el.setAttribute("visibility", "hidden");
+  setProfileInfo(null);
   hideProfileArrow();
 }
 
@@ -18186,7 +18401,7 @@ profileChart.addEventListener("wheel", e => {
 profileChart.addEventListener("pointerdown", e => {
   if (!profileLayout || e.button !== 0) return;
   profileDrag = { x: chartX(e), y: chartY(e), view: { ...profileView },
-                  yView: profileYView && { ...profileYView } };
+                  yView: profileYView && { ...profileYView }, ym: { ...profileLayout.ym } };
   profileChart.setPointerCapture(e.pointerId);
   profileChart.classList.add("dragging");
 });
@@ -18197,10 +18412,15 @@ profileChart.addEventListener("pointermove", e => {
     const lay = profileLayout;
     const dd = -(x - profileDrag.x) / lay.pw * (profileDrag.view.x1 - profileDrag.view.x0);
     profileView = panProfileView(profileDrag.view, lay.total, profileMinSpan(), dd);
-    /* Con el eje Y bloqueado, arrastrar también desplaza en vertical
-       (hacia abajo = ver más arriba); en automático no hay qué mover. */
-    if (profileDrag.yView) {
-      const yv = profileDrag.yView, dm = (chartY(e) - profileDrag.y) / lay.ph * (yv.b - yv.a);
+    /* Arrastrar también desplaza en VERTICAL. Con el eje Y bloqueado,
+       desde el primer píxel (hacia abajo = ver más arriba). En
+       automático, al pasar de PF_DRAG_LOCK_PX en vertical: se bloquea
+       en lo que se veía y sigue la mano — un arrastre horizontal con la
+       mano algo torcida no toca la altura.                              */
+    let yv = profileDrag.yView;
+    if (!yv && Math.abs(chartY(e) - profileDrag.y) > PF_DRAG_LOCK_PX) yv = profileDrag.yView = profileDrag.ym;
+    if (yv) {
+      const dm = (chartY(e) - profileDrag.y) / lay.ph * (yv.b - yv.a);
       profileYView = { a: yv.a + dm, b: yv.b + dm };
     }
     lay.lastX = x;
@@ -18217,19 +18437,28 @@ profileChart.addEventListener("pointerup", endProfileDrag);
 profileChart.addEventListener("pointercancel", endProfileDrag);
 profileChart.addEventListener("pointerleave", () => { if (!profileDrag) hideProfileCursor(); });
 
-/* Barra de controles: −/+ de cada eje centrados, bloqueo del eje Y
-   (marcarlo congela lo que se ve; desmarcarlo vuelve al ajuste
-   automático) y «Ver todo» (ruta entera y altura automática).       */
-document.getElementById("pf-x-out").addEventListener("click", () => zoomProfileX(0.5, PF_BUTTON_FACTOR));
-document.getElementById("pf-x-in").addEventListener("click", () => zoomProfileX(0.5, 1 / PF_BUTTON_FACTOR));
-document.getElementById("pf-y-out").addEventListener("click", () => zoomProfileY(0.5, PF_BUTTON_FACTOR));
-document.getElementById("pf-y-in").addEventListener("click", () => zoomProfileY(0.5, 1 / PF_BUTTON_FACTOR));
+/* Controles: bloqueo del eje Y (marcarlo congela lo que se ve;
+   desmarcarlo vuelve al ajuste automático) y «Ver todo» (ruta entera y
+   altura automática). El zoom no tiene botones: es la rueda.         */
 profileYLock.addEventListener("change", () => {
   profileYView = profileYLock.checked && profileLayout ? { ...profileLayout.ym } : null;
   scheduleProfileChart();
 });
 profileLosBox.addEventListener("change", () => { profileShowLos = profileLosBox.checked; scheduleProfileChart(); });
 profileEarthBox.addEventListener("change", () => { profileEarth = profileEarthBox.checked; scheduleProfileChart(); });
+profileFresnelBox.addEventListener("change", () => { profileFresnel = profileFresnelBox.checked; scheduleProfileChart(); });
+/* Torres: `change` (al confirmar, no a cada tecla). Vacío vuelve al
+   vigente; fuera de rango se ajusta a la cota y se avisa, como el resto
+   de ajustes numéricos (`readClampedNumber`, 43-points-editor.js).     */
+for (const k of ["a", "b"]) {
+  profileTowerInput[k].addEventListener("change", () => {
+    const fy = POLY_UNIT_FACTOR[altitudeUnit];
+    const v = readClampedNumber(profileTowerInput[k], 0, PF_TOWER_MAX / fy, "La altura de torre", POLY_UNIT_LABEL[altitudeUnit]);
+    if (v !== null) profileTowerM[k] = Math.min(PF_TOWER_MAX, v * fy);
+    syncProfileInputs(true);
+    scheduleProfileChart();
+  });
+}
 document.getElementById("pf-reset").addEventListener("click", () => {
   profileView = null;
   profileYView = null;
@@ -20152,6 +20381,10 @@ setInterval(checkServerVersion, VERSION_CHECK_MS);
     const m = await dbLoadProfileMax();
     if (m !== null) profileMaxM = m;
   } catch { /* límite del perfil por defecto (10 NM) */ }
+  try {
+    const f = await dbLoadFresnelFreq();
+    if (f !== null) fresnelFreqMHz = f;
+  } catch { /* frecuencia de Fresnel por defecto (1090 MHz) */ }
   try {
     const fmt = await dbLoadCoordFormat();
     if (fmt !== null) coordFormat = fmt;

@@ -660,6 +660,32 @@ async function dbLoadProfileMax() {
   });
 }
 
+/* Frecuencia del elipsoide de Fresnel, en MHz (pestaña «Frecuencias» de
+   Propiedades). Fuera de [FRESNEL_FREQ_MIN, FRESNEL_FREQ_MAX] se descarta. */
+const FRESNEL_FREQ_KEY = "fresnelFreq";
+const FRESNEL_FREQ_SCHEMA = 1;
+const validFresnelFreq = r =>
+  (r && r.v === FRESNEL_FREQ_SCHEMA && Number.isFinite(r.f)
+    && r.f >= FRESNEL_FREQ_MIN && r.f <= FRESNEL_FREQ_MAX ? r.f : null);
+async function dbSaveFresnelFreq(f) {
+  const db = await openDb();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(DB_TREE, "readwrite");
+    tx.objectStore(DB_TREE).put({ v: FRESNEL_FREQ_SCHEMA, f }, FRESNEL_FREQ_KEY);
+    tx.oncomplete = resolve;
+    tx.onerror = () => reject(tx.error);
+  });
+}
+async function dbLoadFresnelFreq() {
+  const db = await openDb();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(DB_TREE, "readonly");
+    const rq = tx.objectStore(DB_TREE).get(FRESNEL_FREQ_KEY);
+    rq.onsuccess = () => resolve(validFresnelFreq(rq.result));
+    rq.onerror = () => reject(rq.error);
+  });
+}
+
 const COORD_FORMAT_KEY = "coordFormat";
 const COORD_FORMAT_SCHEMA = 1;
 async function dbSaveCoordFormat(fmt) {

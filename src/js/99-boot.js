@@ -44,6 +44,10 @@
     if (m !== null) profileMaxM = m;
   } catch { /* límite del perfil por defecto (10 NM) */ }
   try {
+    const f = await dbLoadFresnelFreq();
+    if (f !== null) fresnelFreqMHz = f;
+  } catch { /* frecuencia de Fresnel por defecto (1090 MHz) */ }
+  try {
     const fmt = await dbLoadCoordFormat();
     if (fmt !== null) coordFormat = fmt;
   } catch { /* formato por defecto (decimal) */ }
