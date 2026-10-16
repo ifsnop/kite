@@ -697,6 +697,33 @@ async function dbSaveCoordFormat(fmt) {
     tx.onerror = () => reject(tx.error);
   });
 }
+/* Tema de la interfaz: "auto" sigue al sistema (prefers-color-scheme),
+   "light"/"dark" lo fuerzan. Va aquí y no con la variable (43-points-
+   editor.js) porque dbLoadUiTheme lo necesita para validar.            */
+const UI_THEMES = ["auto", "light", "dark"];
+const UI_THEME_KEY = "uiTheme";
+const UI_THEME_SCHEMA = 1;
+async function dbSaveUiTheme(theme) {
+  const db = await openDb();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(DB_TREE, "readwrite");
+    tx.objectStore(DB_TREE).put({ v: UI_THEME_SCHEMA, theme }, UI_THEME_KEY);
+    tx.oncomplete = resolve;
+    tx.onerror = () => reject(tx.error);
+  });
+}
+async function dbLoadUiTheme() {
+  const db = await openDb();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(DB_TREE, "readonly");
+    const rq = tx.objectStore(DB_TREE).get(UI_THEME_KEY);
+    rq.onsuccess = () => {
+      const r = rq.result;
+      resolve(r && r.v === UI_THEME_SCHEMA && UI_THEMES.includes(r.theme) ? r.theme : null);
+    };
+    rq.onerror = () => reject(rq.error);
+  });
+}
 async function dbLoadCoordFormat() {
   const db = await openDb();
   return new Promise((resolve, reject) => {
