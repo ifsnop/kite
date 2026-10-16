@@ -1,5 +1,13 @@
 /* ================= Arranque: restaurar el árbol guardado ================= */
 (async () => {
+  /* El tema antes que nada: con «Automático» el CSS ya acertó sin JS,
+     pero quien lo fuerza contra el sistema vería un destello del otro
+     tema mientras se lee lo demás.                                    */
+  try {
+    const theme = await dbLoadUiTheme();
+    if (theme !== null) applyUiTheme(theme);
+  } catch { /* automático */ }
+
   /* La vista primero: así el mapa aparece donde se dejó mientras el
      árbol, que puede tardar, se reconstruye por detrás.              */
   try {

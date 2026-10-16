@@ -755,6 +755,16 @@ BROWSER CONTEXT MENU TESTS OK
 
 **Qué cubre:** El ítem nuevo «Editar propiedades» del menú contextual del visor (`layerCtxItems`/`ctxItemsFor`, `70-view-controls.js`), con un clic derecho DE VERDAD sobre el mapa (no una llamada directa a `openCtxMenu`): pasa por el hit-testing real (`layersAtPoint`) y abre el diálogo de estilos real. Pedido explícitamente: acceso directo a las propiedades de un polígono/marcador/medición desde el propio mapa. Comprueba que aparece junto a «Ir al nodo en el panel» (y «Mostrar atributos» si la capa tiene ficha), que pulsarlo abre `#style-dialog` mostrando ESA capa (su nombre en el título) y cierra el menú, que el diálogo tiene dos pestañas (abre en «Estilos»; «Atributos» enseña la ficha de la capa, o dice que no tiene), que el botón 🎨 de la fila se llama «Editar propiedades», que «Mostrar atributos» sigue abriendo solo la ficha, que un clic derecho SIN ninguna capa debajo muestra el menú genérico sin «Editar propiedades», y que tras elegir «Mostrar atributos» o «Editar propiedades» con clics reales el foco queda en el visor y vuelve a él al cerrar el diálogo (no al panel de navegación), y lo mismo al cerrar con × la ficha abierta al pasar el ratón o una etiqueta (popup) del visor. La comprobación de que una capa de tipo NO editable (una cuadrícula de elevación) tampoco lo ofrece se queda en `tests/geojsonnametest.js`: sus celdas son `interactive: false` (`60-elevation.js`) y nunca llegan a ser un "hit" de un clic real, así que no hay forma de probarlo con una capa de verdad — solo a nivel de función, con un `_kind` de mentira.
 
+### `browser/theme.mjs`
+
+**Salida de `npm test`:**
+```
+── Navegador: tema de la interfaz — automático según el sistema, claro/oscuro forzados, Cancelar/Aceptar y recarga, sin tocar el mapa
+BROWSER THEME TESTS OK
+```
+
+**Qué cubre:** El tema de la interfaz (`light-dark()` + `data-theme`, ver `.claude/rules/theme.md`) con colores COMPUTADOS en Chromium, no con la hoja de estilos leída como texto. En «Automático» (sin `data-theme`) el panel y el texto siguen a `prefers-color-scheme` y cambian EN VIVO al emularlo, sin recargar; un diálogo, los botones de zoom de Leaflet y la atribución se oscurecen con él (esta última exige `.leaflet-container` delante en el selector: Leaflet pinta la suya con una regla más específica). «Claro» forzado gana a un sistema oscuro y se previsualiza al momento; Cancelar vuelve a automático y no escribe nada en IndexedDB; Aceptar guarda (`dbLoadUiTheme`) y «Oscuro» sobrevive a recargar incluso contra un sistema claro, con `color-scheme: dark` (que es lo que oscurece los controles nativos), y el selector lo refleja al reabrir el panel. Y lo que NO cambia: el fondo del mapa es idéntico en claro y oscuro. No comprueba el contraste de cada color ni el aspecto — eso se mira con capturas.
+
 ### `browser/url-import.mjs`
 
 **Salida de `npm test`:**

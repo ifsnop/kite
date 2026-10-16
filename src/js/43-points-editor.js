@@ -1550,8 +1550,19 @@ const propsAltUnitSelect = document.getElementById("props-alt-unit");
 propsAltUnitSelect.innerHTML = propsUnitSelect.innerHTML;
 const propsProfileMaxInput = document.getElementById("props-profile-max");
 const propsCoordFormatSelect = document.getElementById("props-coord-format");
+const propsThemeSelect = document.getElementById("props-theme");
 const gnpVertexMaxInput = document.getElementById("gnp-vertex-max");
 const propsArcSegmentsInput = document.getElementById("props-arc-segments");
+
+/* Tema de la interfaz (UI_THEMES, 32-geojson.js). El CSS hace el resto:
+   sin data-theme manda prefers-color-scheme EN VIVO, así que "auto" no
+   necesita matchMedia ni escuchar cambios del sistema.                 */
+let uiTheme = "auto";
+function applyUiTheme(theme) {
+  uiTheme = theme;
+  if (theme === "auto") document.documentElement.removeAttribute("data-theme");
+  else document.documentElement.setAttribute("data-theme", theme);
+}
 
 let propsDraftGnp = null; /* clon de gnpStore mientras el panel está abierto */
 let propsOriginal = null; /* ajustes al abrir (unidades, formato, topes, fuentes…), para Cancelar */
@@ -1676,6 +1687,7 @@ propsFresnelFreqInput.addEventListener("change", () => {
   renderPropsFreqTab();
 });
 function renderPropsPrefsTab() {
+  propsThemeSelect.value = uiTheme;
   propsUnitSelect.value = measureUnit;
   propsAltUnitSelect.value = altitudeUnit;
   renderPropsProfileMax();
@@ -1688,6 +1700,7 @@ propsUnitSelect.addEventListener("change", () => {
   renderPropsProfileMax();
 });
 propsAltUnitSelect.addEventListener("change", () => setAltitudeUnit(propsAltUnitSelect.value));
+propsThemeSelect.addEventListener("change", () => applyUiTheme(propsThemeSelect.value));
 /* Lee un campo numérico de ajustes: vacío o ilegible → null (el llamador
    deja el valor vigente); fuera de [min, max] se AJUSTA a la cota más
    cercana y se avisa, en vez de volver en silencio al anterior (reportado
@@ -1763,7 +1776,7 @@ async function togglePropsDialog() {
   if (!propsDialog.hidden) { cancelPropsDialog(); return; }
   if (!gnpStore) gnpStore = await dbLoadGnp();
   propsDraftGnp = { ...gnpStore };
-  propsOriginal = { unit: measureUnit, altitudeUnit, profileMaxM, fresnelFreqMHz, coordFormat, vertexEditMax,
+  propsOriginal = { uiTheme, unit: measureUnit, altitudeUnit, profileMaxM, fresnelFreqMHz, coordFormat, vertexEditMax,
                     arcSegments, elevSources };
   renderGnpEditor();
   renderPropsPrefsTab();
@@ -1782,6 +1795,7 @@ function cancelPropsDialog() {
   releaseFocus();
   if (!propsOriginal) return;
   /* Deshace la previsualización en vivo con el mismo camino que la aplicó. */
+  if (propsOriginal.uiTheme !== uiTheme) applyUiTheme(propsOriginal.uiTheme);
   if (propsOriginal.unit !== measureUnit) setMeasureUnit(propsOriginal.unit);
   if (propsOriginal.altitudeUnit !== altitudeUnit) setAltitudeUnit(propsOriginal.altitudeUnit);
   profileMaxM = propsOriginal.profileMaxM;
@@ -1808,6 +1822,7 @@ document.getElementById("props-accept").addEventListener("click", () => {
   if (propsDialog.hidden) return;
   gnpStore = propsDraftGnp || {};
   dbSaveGnp(gnpStore);
+  dbSaveUiTheme(uiTheme);
   dbSaveMeasureUnit(measureUnit);
   dbSaveAltitudeUnit(altitudeUnit);
   dbSaveProfileMax(profileMaxM);

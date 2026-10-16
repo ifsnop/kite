@@ -73,17 +73,38 @@
       integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY="
       crossorigin="anonymous" referrerpolicy="no-referrer">
 <style>
+  /* Tema de la INTERFAZ (no del mapa): cada token lleva su par
+     light-dark(claro, oscuro). Sin `data-theme` manda el sistema
+     (`color-scheme: light dark` → prefers-color-scheme) y sin JS, así
+     que no hay parpadeo; Propiedades → Preferencias → Tema lo fuerza con
+     data-theme="light|dark" en <html> (applyUiTheme, 43-points-editor.js).
+     `color-scheme` también oscurece lo nativo (select, input, scroll).
+     Regla: un color de interfaz nuevo es un token de aquí, nunca un hex
+     suelto. Lo que se pinta SOBRE el mapa (teselas, etiquetas, celdas de
+     elevación, fondo del mapa) NO se tematiza: ver theme.md.          */
   :root {
-    --bg: #f7f7f5;
-    --panel: #ffffff;
-    --border: #e2e2df;
-    --text: #2b2b28;
-    --muted: #8a8a84;
-    --accent: #2f6f4f;
-    --accent-soft: #e7f0ea;
-    --danger: #b04a3a;
+    color-scheme: light dark;
+    --bg: light-dark(#f7f7f5, #1b1c1a);
+    --panel: light-dark(#ffffff, #252624);
+    --border: light-dark(#e2e2df, #3b3c39);
+    --text: light-dark(#2b2b28, #e6e6e1);
+    --muted: light-dark(#8a8a84, #9d9d96);
+    --muted-2: light-dark(#555555, #b4b4ad);
+    --accent: light-dark(#2f6f4f, #3f8a62);
+    --accent-soft: light-dark(#e7f0ea, #243a2e);
+    --danger: light-dark(#b04a3a, #d9705e);
+    --danger-soft: light-dark(#fdf1ef, #3d2420);
+    --alert: light-dark(#d32f2f, #ff6b61);
+    --surface: light-dark(#ffffff, #2f302d);
+    --surface-glass: light-dark(rgba(255,255,255,.85), rgba(37,38,36,.85));
+    --ink-strong: light-dark(#000000, #f2f2ee);
+    --shadow: light-dark(rgba(0,0,0,.25), rgba(0,0,0,.6));
+    --shadow-soft: light-dark(rgba(0,0,0,.15), rgba(0,0,0,.5));
+    --backdrop: light-dark(rgba(0,0,0,.25), rgba(0,0,0,.55));
     --nav-width: 400px;
   }
+  :root[data-theme="light"] { color-scheme: light; }
+  :root[data-theme="dark"] { color-scheme: dark; }
   * { box-sizing: border-box; }
   html, body { height: 100%; margin: 0; }
   body {
@@ -361,7 +382,7 @@
     height: 12px;
     min-width: 12px;
     border-radius: 3px;
-    border: 1px solid rgba(0,0,0,.25);
+    border: 1px solid var(--shadow);
   }
 
   /* Botones de acción de cada fila (visibles al pasar el ratón) */
@@ -403,7 +424,7 @@
     padding: 2px 3px;
     border-radius: 4px;
   }
-  .actions button:hover { color: var(--accent); background: #fff; }
+  .actions button:hover { color: var(--accent); background: var(--surface); }
   .actions button.delete:hover { color: var(--danger); }
   .actions button.az { font-size: 10px; font-weight: 600; }
   .actions button[hidden] { display: none; }
@@ -466,7 +487,7 @@
     border-radius: 999px;
     font-size: 12.5px;
     color: var(--text);
-    box-shadow: 0 1px 4px rgba(0,0,0,.15);
+    box-shadow: 0 1px 4px var(--shadow-soft);
   }
   /* Misma trampa que .measure-bar a[hidden]: el `display: flex` de
      arriba es una regla de autor y le gana a la UA "[hidden] { display:
@@ -557,7 +578,7 @@
        de coordenadas vive siempre por encima de ella. Con eso no hace
        falta limitar su ancho, y así cabe la línea de la diferencia
        entre superficie y terreno.                                  */
-    background: rgba(255,255,255,.85);
+    background: var(--surface-glass);
     border: 1px solid var(--border);
     border-radius: 4px;
     padding: 3px 8px;
@@ -581,7 +602,7 @@
      normal (pegado al borde izquierdo) se alejaba del punto donde el
      usuario lo había pulsado para desplegar.                         */
   .base-box {
-    background: #fff; border-radius: 4px;
+    background: var(--surface); border-radius: 4px;
     position: relative;
     /* el icono, al salir del flujo, ya no lo garantiza: sus 48 px más
        el borde de 2 px de .leaflet-bar (border-box), o el icono se
@@ -600,7 +621,7 @@
   /* Brújula (rotación del mapa, 70-view-controls.js): mismo tamaño que
      el botón de capas base, justo encima. Atenuada con el norte arriba;
      resaltada en cuanto el mapa está girado, que es cuando importa.  */
-  .compass-box { background: #fff; border-radius: 4px; }
+  .compass-box { background: var(--surface); border-radius: 4px; }
   .compass-btn {
     display: flex !important; align-items: center; justify-content: center;
     width: 48px !important; height: 48px !important;
@@ -609,7 +630,7 @@
   .compass-box.rotated .compass-btn { opacity: 1; }
   .compass-box.dragging .compass-btn { cursor: grabbing; }
   .compass-n { fill: #d62828; }
-  .compass-s { fill: #fff; stroke: #555; stroke-width: 1; }
+  .compass-s { fill: var(--surface); stroke: var(--muted-2); stroke-width: 1; }
   /* Girando con el botón central: rosa de los vientos (roseCursor), en
      todo el visor —capas interactivas incluidas— mientras dura.      */
   .leaflet-container.map-rotating, .leaflet-container.map-rotating * {
@@ -629,7 +650,7 @@
   .base-row-bg { padding-bottom: 6px; margin-bottom: 6px; border-bottom: 1px solid var(--border); }
   .base-moves { display: flex; gap: 2px; }
   .base-moves button {
-    border: 1px solid var(--border); background: #fff; border-radius: 4px;
+    border: 1px solid var(--border); background: var(--surface); border-radius: 4px;
     font-size: 9px; line-height: 1; padding: 2px 3px; cursor: pointer; color: var(--muted);
   }
   .base-moves button:disabled { opacity: .35; cursor: default; }
@@ -675,6 +696,26 @@
 
   .coords-zoom { font-weight: 600; }
   /* La atribución se queda en una sola línea, la de abajo del todo */
+  /* Controles de Leaflet = interfaz, no mapa: traen su blanco propio y
+     hay que llevarlos a los tokens (el mapa de debajo no se toca).   */
+  .leaflet-bar a {
+    background-color: var(--surface);
+    color: var(--text);
+    border-bottom-color: var(--border);
+  }
+  /* Sin `color` aquí ni en `.active`: pisaría el naranja del sol y el
+     blanco de un botón activo, que ganan por especificidad y orden.  */
+  .leaflet-bar a:not(.active):hover, .leaflet-bar a:not(.active):focus { background-color: var(--bg); }
+  .leaflet-bar a.leaflet-disabled { background-color: var(--bg); color: var(--muted); }
+  /* `.leaflet-container` delante: Leaflet pinta la atribución con
+     `.leaflet-container .leaflet-control-attribution`, más específico. */
+  .leaflet-container .leaflet-control-attribution,
+  .leaflet-container .leaflet-control-scale-line {
+    background: var(--surface-glass);
+    color: var(--muted-2);
+  }
+  .leaflet-container .leaflet-control-attribution a { color: var(--accent); }
+  .leaflet-container .leaflet-control-scale-line { border-color: var(--muted-2); text-shadow: none; }
   .leaflet-control-attribution {
     max-width: 100%;
     white-space: nowrap;
@@ -731,7 +772,7 @@
     position: fixed;
     inset: 0;
     z-index: 2000;
-    background: rgba(0,0,0,.25);
+    background: var(--backdrop);
     display: flex;
     align-items: center;
     justify-content: center;
@@ -778,7 +819,7 @@
   }
   #profile-log .pl-head { font-weight: 700; margin-top: 4px; }
   #profile-log .pl-req { color: var(--muted); }
-  #profile-log .pl-err { color: #d32f2f; }
+  #profile-log .pl-err { color: var(--alert); }
   #profile-progress-label { font-size: 13px; margin-bottom: 4px; }
   #profile-progress .bar { height: 8px; background: var(--border); border-radius: 4px; overflow: hidden; }
   #profile-progress-fill { height: 100%; width: 0; background: var(--accent); transition: width 0.15s; }
@@ -817,12 +858,12 @@
   .pf-info-row.off { opacity: .45; }
   .pf-info-label { color: var(--muted); white-space: nowrap; }
   .pf-info-val { margin-left: auto; white-space: nowrap; font-variant-numeric: tabular-nums; color: var(--text); font-weight: 600; }
-  .pf-info-val.alert { color: #d32f2f; }
+  .pf-info-val.alert { color: var(--alert); }
   .pf-key { flex: 0 0 14px; height: 0; border-top: 3px solid transparent; }
   .pf-key.mdt { border-top-color: #1565c0; }
   .pf-key.mds { border-top-color: #2e7d32; }
   .pf-key.earth { border-top-color: #8d6e63; }
-  .pf-key.los { border-top-color: #000; }
+  .pf-key.los { border-top-color: var(--ink-strong); }
   .pf-key.fresnel { border-top: 2px dashed #6a1b9a; }
   #profile-chart.dragging { cursor: grabbing; }
   #profile-chart svg { display: block; width: 100%; height: 100%; font: 11px system-ui, sans-serif; }
@@ -835,14 +876,14 @@
   #profile-chart .pf-line.mds, #profile-chart .pf-legend.mds { stroke: #2e7d32; }
   /* Línea inicio–fin: negra (pedido); la Tierra, un marrón con relleno
      suave por debajo */
-  #profile-chart .pf-los, #profile-chart .pf-legend.los { stroke: #000; }
+  #profile-chart .pf-los, #profile-chart .pf-legend.los { stroke: var(--ink-strong); }
   #profile-chart .pf-los { stroke-width: 1.5; }
   #profile-chart .pf-earth, #profile-chart .pf-legend.earth { stroke: #8d6e63; }
   #profile-chart .pf-earth { fill: none; stroke-width: 1.5; }
   #profile-chart .pf-earth-fill { fill: #8d6e63; fill-opacity: 0.18; stroke: none; }
   /* Torres (negras, como la recta) y elipsoide de Fresnel: contorno de la
      primera zona discontinuo y, dentro, la del 60 % rellena */
-  #profile-chart .pf-tower { stroke: #000; stroke-width: 3; }
+  #profile-chart .pf-tower { stroke: var(--ink-strong); stroke-width: 3; }
   #profile-chart .pf-fresnel { fill: none; stroke: #6a1b9a; stroke-width: 1; stroke-dasharray: 4 3; }
   #profile-chart .pf-fresnel60 { fill: #6a1b9a; fill-opacity: 0.16; stroke: #6a1b9a; stroke-width: 1; }
   #profile-chart .pf-legend.fresnel { stroke: #6a1b9a; }
@@ -900,7 +941,7 @@
     background: var(--panel);
     border: 1px solid var(--border);
     border-radius: 10px;
-    box-shadow: 0 8px 30px rgba(0,0,0,.25);
+    box-shadow: 0 8px 30px var(--shadow);
   }
   .color-popover[hidden] { display: none; }
   /* Espectro propio: dos <canvas> (saturación/valor y matiz), en vez de
@@ -979,7 +1020,7 @@
     background: var(--panel);
     border: 1px solid var(--border);
     border-radius: 8px;
-    box-shadow: 0 8px 30px rgba(0,0,0,.25);
+    box-shadow: 0 8px 30px var(--shadow);
     padding: 4px;
     min-width: 220px;
     font: 13px system-ui, sans-serif;
@@ -1052,7 +1093,7 @@
     background: var(--panel);
     border: 1px solid var(--border);
     border-radius: 10px;
-    box-shadow: 0 8px 30px rgba(0,0,0,.25);
+    box-shadow: 0 8px 30px var(--shadow);
     /* El relleno VERTICAL lo ponen las barras fija de arriba y abajo, no
        la caja: si lo pusiera la caja, quedaría una franja de 14 px por
        encima del título y otra por debajo de los botones por la que se
@@ -1493,7 +1534,7 @@
   }
   .gnp-editor-row .gnp-editor-keys { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .gnp-editor-row .gnp-editor-sel { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 600; }
-  .dlg-row input.bad { border-color: #c0392b; background: #fdf1ef; }
+  .dlg-row input.bad { border-color: var(--danger); background: var(--danger-soft); }
   /* The preview sits outside the button and only its height is fixed, so
      non-square icons (the 25×41 Leaflet pin) keep their aspect ratio */
   .icon-preview-wrap {
@@ -1936,6 +1977,11 @@
       <button type="button" class="dlg-tab" id="props-tab-btn-freq" role="tab" aria-selected="false" aria-controls="props-tab-freq">Frecuencias</button>
     </div>
     <div id="props-tab-prefs" class="dlg-tabpanel" role="tabpanel">
+      <div class="dlg-row"><span>Tema</span><select id="props-theme">
+        <option value="auto">Según el sistema</option>
+        <option value="light">Claro</option>
+        <option value="dark">Oscuro</option>
+      </select></div>
       <div class="dlg-row"><span>Unidad de distancia</span><select id="props-unit">
         <option value="m">Metros</option>
         <option value="km">Kilómetros</option>
@@ -3042,7 +3088,7 @@ map.on("resize rotate", fitWorldMinZoom);
 
 /* Fecha de generación del código (versión): AÑOMESDIAHORAMINUTO.
    Actualizar en cada generación; se muestra junto al crédito de Leaflet. */
-const BUILD = "202610152223";
+const BUILD = "202610162346";
 /* Versión de release (la de package.json, horneada aquí por build.js
    al construir — ver «Versión y releases de GitHub» en CLAUDE.md): a
    diferencia de BUILD, que cambia en CADA generación, esta solo cambia
@@ -6582,6 +6628,33 @@ async function dbSaveCoordFormat(fmt) {
     tx.objectStore(DB_TREE).put({ v: COORD_FORMAT_SCHEMA, fmt }, COORD_FORMAT_KEY);
     tx.oncomplete = resolve;
     tx.onerror = () => reject(tx.error);
+  });
+}
+/* Tema de la interfaz: "auto" sigue al sistema (prefers-color-scheme),
+   "light"/"dark" lo fuerzan. Va aquí y no con la variable (43-points-
+   editor.js) porque dbLoadUiTheme lo necesita para validar.            */
+const UI_THEMES = ["auto", "light", "dark"];
+const UI_THEME_KEY = "uiTheme";
+const UI_THEME_SCHEMA = 1;
+async function dbSaveUiTheme(theme) {
+  const db = await openDb();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(DB_TREE, "readwrite");
+    tx.objectStore(DB_TREE).put({ v: UI_THEME_SCHEMA, theme }, UI_THEME_KEY);
+    tx.oncomplete = resolve;
+    tx.onerror = () => reject(tx.error);
+  });
+}
+async function dbLoadUiTheme() {
+  const db = await openDb();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(DB_TREE, "readonly");
+    const rq = tx.objectStore(DB_TREE).get(UI_THEME_KEY);
+    rq.onsuccess = () => {
+      const r = rq.result;
+      resolve(r && r.v === UI_THEME_SCHEMA && UI_THEMES.includes(r.theme) ? r.theme : null);
+    };
+    rq.onerror = () => reject(rq.error);
   });
 }
 async function dbLoadCoordFormat() {
@@ -11411,8 +11484,19 @@ const propsAltUnitSelect = document.getElementById("props-alt-unit");
 propsAltUnitSelect.innerHTML = propsUnitSelect.innerHTML;
 const propsProfileMaxInput = document.getElementById("props-profile-max");
 const propsCoordFormatSelect = document.getElementById("props-coord-format");
+const propsThemeSelect = document.getElementById("props-theme");
 const gnpVertexMaxInput = document.getElementById("gnp-vertex-max");
 const propsArcSegmentsInput = document.getElementById("props-arc-segments");
+
+/* Tema de la interfaz (UI_THEMES, 32-geojson.js). El CSS hace el resto:
+   sin data-theme manda prefers-color-scheme EN VIVO, así que "auto" no
+   necesita matchMedia ni escuchar cambios del sistema.                 */
+let uiTheme = "auto";
+function applyUiTheme(theme) {
+  uiTheme = theme;
+  if (theme === "auto") document.documentElement.removeAttribute("data-theme");
+  else document.documentElement.setAttribute("data-theme", theme);
+}
 
 let propsDraftGnp = null; /* clon de gnpStore mientras el panel está abierto */
 let propsOriginal = null; /* ajustes al abrir (unidades, formato, topes, fuentes…), para Cancelar */
@@ -11537,6 +11621,7 @@ propsFresnelFreqInput.addEventListener("change", () => {
   renderPropsFreqTab();
 });
 function renderPropsPrefsTab() {
+  propsThemeSelect.value = uiTheme;
   propsUnitSelect.value = measureUnit;
   propsAltUnitSelect.value = altitudeUnit;
   renderPropsProfileMax();
@@ -11549,6 +11634,7 @@ propsUnitSelect.addEventListener("change", () => {
   renderPropsProfileMax();
 });
 propsAltUnitSelect.addEventListener("change", () => setAltitudeUnit(propsAltUnitSelect.value));
+propsThemeSelect.addEventListener("change", () => applyUiTheme(propsThemeSelect.value));
 /* Lee un campo numérico de ajustes: vacío o ilegible → null (el llamador
    deja el valor vigente); fuera de [min, max] se AJUSTA a la cota más
    cercana y se avisa, en vez de volver en silencio al anterior (reportado
@@ -11624,7 +11710,7 @@ async function togglePropsDialog() {
   if (!propsDialog.hidden) { cancelPropsDialog(); return; }
   if (!gnpStore) gnpStore = await dbLoadGnp();
   propsDraftGnp = { ...gnpStore };
-  propsOriginal = { unit: measureUnit, altitudeUnit, profileMaxM, fresnelFreqMHz, coordFormat, vertexEditMax,
+  propsOriginal = { uiTheme, unit: measureUnit, altitudeUnit, profileMaxM, fresnelFreqMHz, coordFormat, vertexEditMax,
                     arcSegments, elevSources };
   renderGnpEditor();
   renderPropsPrefsTab();
@@ -11643,6 +11729,7 @@ function cancelPropsDialog() {
   releaseFocus();
   if (!propsOriginal) return;
   /* Deshace la previsualización en vivo con el mismo camino que la aplicó. */
+  if (propsOriginal.uiTheme !== uiTheme) applyUiTheme(propsOriginal.uiTheme);
   if (propsOriginal.unit !== measureUnit) setMeasureUnit(propsOriginal.unit);
   if (propsOriginal.altitudeUnit !== altitudeUnit) setAltitudeUnit(propsOriginal.altitudeUnit);
   profileMaxM = propsOriginal.profileMaxM;
@@ -11669,6 +11756,7 @@ document.getElementById("props-accept").addEventListener("click", () => {
   if (propsDialog.hidden) return;
   gnpStore = propsDraftGnp || {};
   dbSaveGnp(gnpStore);
+  dbSaveUiTheme(uiTheme);
   dbSaveMeasureUnit(measureUnit);
   dbSaveAltitudeUnit(altitudeUnit);
   dbSaveProfileMax(profileMaxM);
@@ -20338,6 +20426,14 @@ setInterval(checkServerVersion, VERSION_CHECK_MS);
 
 /* ================= Arranque: restaurar el árbol guardado ================= */
 (async () => {
+  /* El tema antes que nada: con «Automático» el CSS ya acertó sin JS,
+     pero quien lo fuerza contra el sistema vería un destello del otro
+     tema mientras se lee lo demás.                                    */
+  try {
+    const theme = await dbLoadUiTheme();
+    if (theme !== null) applyUiTheme(theme);
+  } catch { /* automático */ }
+
   /* La vista primero: así el mapa aparece donde se dejó mientras el
      árbol, que puede tardar, se reconstruye por detrás.              */
   try {

@@ -86,6 +86,7 @@ const BROWSER = [
   ["browser/context-menu.mjs", "Navegador: menú contextual del visor — «Editar propiedades» abre el diálogo de propiedades (Estilos y Atributos)"],
   ["browser/route-live-draw.mjs", "Navegador: crear una ruta se comporta como editarla, con su diálogo abierto y en vivo desde el 2º waypoint"],
   ["browser/props-panel.mjs", "Navegador: panel Propiedades — unidad y formato de coordenadas globales, con Cancelar/Aceptar de verdad"],
+  ["browser/theme.mjs", "Navegador: tema de la interfaz — automático según el sistema, claro/oscuro forzados, Cancelar/Aceptar y recarga, sin tocar el mapa"],
   ["browser/url-import.mjs", "Navegador: añadir desde una dirección, en dos pasos y con cancelación"],
   ["browser/cog.mjs", "Navegador: ortofotos COG — UTM 30N y Web Mercator en su sitio, vista general, malla frente a proj4, giro, opacidad, MDT con altitud bajo el cursor, recargar, deshacer, limpieza de blobs y subida de la base v3"],
   ["browser/shp-import.mjs", "Navegador: shapefiles — piezas sueltas, .zip y 🔗, EPSG:25830 en su sitio, codificación, ED50 y huérfanos"],
