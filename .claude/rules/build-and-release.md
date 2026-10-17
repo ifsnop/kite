@@ -15,7 +15,7 @@ paths:
 src/index.html     plantilla: <head>, CSP, diálogos, <script> de CDN.
                    Dos marcadores: {{STYLES}} y {{SCRIPTS}}
 src/styles.css     todo el CSS
-src/js/*.js        26 archivos, en el orden del manifiesto de build.js
+src/js/*.js        28 archivos, en el orden del manifiesto de build.js
                    (el primero, 05-mdi-icons.js, es GENERADO)
 build.js           concatena src/ → kitelocal.html, y minifica ese
                    resultado → kitelocal.min.html
@@ -67,8 +67,8 @@ index.html         redirección de la raíz del sitio al minificado
 
 ## Dependencias externas
 
-- Leaflet 1.9.4 (CSS+JS, unpkg), JSZip 3.10.1 (cdnjs), topojson-client 3.1.0, html2canvas 1.4.1, geotiff.js 2.1.3 (unpkg, `dist-browser/geotiff.js`: un solo archivo, sin trozos cargados aparte que el SRI no cubriría — comprobado también para los decodificadores: JPEG, LZW, Deflate, PackBits, LERC y WebP van dentro como `Promise.resolve().then(…)`, ningún `import()` de red), shapefile 0.6.6 (unpkg, `dist/shapefile.min.js`, UMD autocontenido) y proj4js 2.22.0 (cdnjs, `proj4.js`, un solo archivo con el lector de WKT dentro) llevan `integrity` (SRI) + `crossorigin`: el navegador verifica el hash antes de ejecutar, un CDN comprometido no puede colar otro contenido.
-- **Al subir versión de librería, sustituir su hash** o el navegador bloquea el arranque. Se obtiene de la doc de Leaflet, el botón de copiar de cdnjs, o `curl -sL <url> | openssl dgst -sha384 -binary | openssl base64 -A`.
+- Leaflet 1.9.4 (CSS+JS, unpkg), JSZip 3.10.1 (cdnjs), topojson-client 3.1.0 y shapefile 0.6.6 van como `<script>` de `src/index.html`; **html2canvas 1.4.1, geotiff.js 2.1.3 y proj4js 2.22.0 se cargan BAJO DEMANDA** (`src/js/07-lazy-libs.js`, tabla `LAZY_LIBS`, `ensureLib`; ver `performance.md`) con la misma URL y el mismo SRI. Detalle de cada una: geotiff.js 2.1.3 (unpkg, `dist-browser/geotiff.js`: un solo archivo, sin trozos cargados aparte que el SRI no cubriría — comprobado también para los decodificadores: JPEG, LZW, Deflate, PackBits, LERC y WebP van dentro como `Promise.resolve().then(…)`, ningún `import()` de red), shapefile 0.6.6 (unpkg, `dist/shapefile.min.js`, UMD autocontenido) y proj4js 2.22.0 (cdnjs, `proj4.js`, un solo archivo con el lector de WKT dentro). Todas llevan `integrity` (SRI) + `crossorigin`, en la etiqueta o en el `<script>` que inserta `ensureLib`: el navegador verifica el hash antes de ejecutar, un CDN comprometido no puede colar otro contenido. `tests/lazylibs.js` comprueba la tabla (origen admitido por la CSP, versión fijada, hash de la longitud que toca) y `tests/browser/lazy-libs.mjs` que un contenido que no casa con el hash NO se ejecuta.
+- **Al subir versión de librería, sustituir su hash** (en `src/index.html`, o en `LAZY_LIBS` para html2canvas, geotiff.js y proj4js) o el navegador la bloquea: en el HTML, el arranque; en una bajo demanda, la función que la usa. Se obtiene de la doc de Leaflet, el botón de copiar de cdnjs, o `curl -sL <url> | openssl dgst -sha384 -binary | openssl base64 -A`.
 - El script empieza comprobando que `L` (Leaflet) existe, con aviso explicativo si no — este guardián va **lo primero del script**, antes de cualquier uso de `L`.
 - Sin SRI: teselas/iconos PNG (`<img>` no lo admite) y respuestas de APIs REST y WCS (Iconify, Nominatim, IGN, Digital Earth Africa) — son datos, no código.
 

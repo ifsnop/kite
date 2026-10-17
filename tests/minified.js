@@ -76,10 +76,13 @@ if (version) {
    en blanco. Se cuentan contra el legible (no un número fijo): cada
    recurso de CDN lleva el suyo, con su `crossorigin`.              */
 const count = (s, re) => (s.match(re) || []).length;
-ok(count(min, /integrity=/g) === count(full, /integrity=/g),
-  `los ${count(full, /integrity=/g)} integrity= siguen ahí: ${count(min, /integrity=/g)}`);
-ok(count(min, /crossorigin=/g) === count(full, /crossorigin=/g),
-  `y sus crossorigin=: ${count(min, /crossorigin=/g)}`);
+/* Con la comilla: es el ATRIBUTO de un <script>/<link>. Sin ella también
+   casaría `s.integrity = …` del cargador bajo demanda (07-lazy-libs.js),
+   que el minificado reescribe sin espacios.                          */
+ok(count(min, /integrity="/g) === count(full, /integrity="/g),
+  `los ${count(full, /integrity="/g)} integrity= siguen ahí: ${count(min, /integrity="/g)}`);
+ok(count(min, /crossorigin="/g) === count(full, /crossorigin="/g),
+  `y sus crossorigin=: ${count(min, /crossorigin="/g)}`);
 
 /* CSP: con default-src 'none', perder un origen deja muda a media
    aplicación sin más síntoma que peticiones bloqueadas.

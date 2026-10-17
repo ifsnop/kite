@@ -11,7 +11,11 @@ paths:
 Sobre `kitelocal.html`, automatizadas:
 
 - Todo recurso de librería lleva `integrity` y `crossorigin`
-  (`tests/minified.js`).
+  (`tests/minified.js`, contando el ATRIBUTO `integrity="`: el cargador
+  bajo demanda también escribe `integrity` en JS). Las tres de
+  `LAZY_LIBS` (origen admitido por la CSP, versión fijada, hash de la
+  longitud de sha384/512) y que ningún archivo use su global sin
+  `ensureLib`: `tests/lazylibs.js`.
 - El guardián de Leaflet precede a cualquier uso de `L` (íd.).
 - `BUILD` tiene la forma esperada y el mismo valor en ambos artefactos
   (`tests/attribution.js`, `tests/minified.js`).

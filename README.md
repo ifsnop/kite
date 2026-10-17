@@ -296,9 +296,13 @@ Imported KML/KMZ/GeoJSON content is parsed locally and is **not uploaded to an a
 
 The current build is not fully offline and makes external requests:
 
-- Leaflet CSS, JavaScript and default marker images, topojson-client,
-  html2canvas, geotiff.js and shapefile are loaded from `unpkg.com`;
-- JSZip and proj4js are loaded from `cdnjs.cloudflare.com`;
+- Leaflet CSS, JavaScript and default marker images, topojson-client and
+  shapefile are loaded from `unpkg.com`, and JSZip from
+  `cdnjs.cloudflare.com`, when the page opens;
+- html2canvas and geotiff.js (`unpkg.com`) and proj4js
+  (`cdnjs.cloudflare.com`) are loaded only the first time they are needed
+  (PNG export, GeoTIFF/COG reading, reprojecting a shapefile `.prj`), with
+  the same pinned version and integrity hash as before;
 - place searches are sent to the public Nominatim service;
 - base-map tiles and WMS images are requested from their respective providers;
 - elevation queries and route profiles are requested from the chosen WCS

@@ -4,7 +4,7 @@ const { fn, constDecl } = require("./_extract");
 /* HTML_LIKE_TAG_RE is a const the extracted functions close over. */
 const constSrc = constDecl("HTML_LIKE_TAG_RE");
 
-const src = [constSrc, fn("elsByTag"), fn("hasHtmlLikeTags"), fn("stripHtmlLikeTags"),
+const src = [constSrc, fn("bareName"), constDecl("prefixFallbackByDoc"), fn("mayNeedPrefixFallback"), fn("elsByTag"), fn("hasHtmlLikeTags"), fn("stripHtmlLikeTags"),
              fn("kmlNamesHaveHtmlTags"), fn("stripHtmlTagsFromKmlNames"),
              constDecl("propsOf"), fn("valueHasHtmlTags"),
              fn("geojsonPropsHaveHtmlTags"), fn("stripHtmlTagsFromGeojsonProps")].join("\n");

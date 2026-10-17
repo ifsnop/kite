@@ -17,10 +17,12 @@ description: Principios no negociables, vocabulario y checklist de KITE Local. S
    falla si alguno de los dos no corresponde a `src/`.
 2. **Reusar librerías conocidas y estables; no reinventar.** CDN con
    versión fijada: Leaflet 1.9.4, JSZip 3.10.1 (KMZ y .zip de
-   shapefile), geotiff.js 2.1.3 (fuentes de elevación sin rejilla
-   ASCII, y ortofotos COG), shapefile 0.6.6 (.shp/.dbf → GeoJSON),
-   proj4js 2.22.0 (reproyección del `.prj` de un shapefile y de las
-   teselas de una ortofoto COG), Material Design
+   shapefile), shapefile 0.6.6 (.shp/.dbf → GeoJSON), y **BAJO
+   DEMANDA** (`07-lazy-libs.js`, no bloquean el arranque; ver
+   `performance.md`): geotiff.js 2.1.3 (fuentes de elevación sin rejilla
+   ASCII, y ortofotos COG), proj4js 2.22.0 (reproyección del `.prj` de
+   un shapefile y de las teselas de una ortofoto COG) y html2canvas
+   1.4.1 (exportar PNG), Material Design
    Icons EMPOTRADOS sin red en ejecución (`src/js/05-mdi-icons.js`,
    generado por `fetch-icons.js`/`npm run icons` — ver
    `marker-icons.md`), Nominatim (geocodificación; ~1 req/s, solo al

@@ -2289,21 +2289,9 @@
 <script src="https://unpkg.com/topojson-client@3.1.0/dist/topojson-client.min.js"
         integrity="sha384-Ukv1p/xTma6P4/2bY5KzWBw+ydSpXmhCMtyciIQVDJ1RmOxtCYNMF1uXT9T63H67"
         crossorigin="anonymous" referrerpolicy="no-referrer"></script>
-<script src="https://unpkg.com/html2canvas@1.4.1/dist/html2canvas.min.js"
-        integrity="sha384-ZZ1pncU3bQe8y31yfZdMFdSpttDoPmOZg2wguVK9almUodir1PghgT0eY7Mrty8H"
-        crossorigin="anonymous" referrerpolicy="no-referrer"></script>
-<!-- GeoTIFF: solo para fuentes de elevación que no ofrecen rejilla ASCII
-     (Digital Earth Africa). Es el bundle de navegador, ya minificado y en
-     un solo archivo (sin trozos cargados aparte que el SRI no cubriría). -->
-<script src="https://unpkg.com/geotiff@2.1.3/dist-browser/geotiff.js"
-        integrity="sha384-m5adk5PRgt3JjiYbYoG8oXxc3EgRFKc1aCBgKzyxqxnbYpdiAMlHkR0gVDp03Q/H"
-        crossorigin="anonymous" referrerpolicy="no-referrer"></script>
-<!-- proj4js: reproyección de lo que no llega en WGS84 (el .prj de un
-     shapefile, casi siempre ETRS89 UTM). Un solo archivo, con el lector
-     de WKT dentro. -->
-<script src="https://cdnjs.cloudflare.com/ajax/libs/proj4js/2.22.0/proj4.js"
-        integrity="sha384-RCBbAm8IhfOOoFV7vqUhspSb+BCSvVSd84WJpv5VMq4rNiXJ88VMHtndxQntlbnd"
-        crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+<!-- html2canvas, geotiff.js y proj4js NO van aquí: se cargan bajo demanda
+     (src/js/07-lazy-libs.js, con su misma URL y su mismo SRI) porque solo
+     hacen falta para exportar PNG, leer GeoTIFF/COG y reproyectar un .prj. -->
 <!-- shapefile (Mike Bostock): lee .shp y .dbf a GeoJSON. El .zip lo abre
      JSZip y la proyección la pone proj4. -->
 <script src="https://unpkg.com/shapefile@0.6.6/dist/shapefile.min.js"
@@ -2417,6 +2405,85 @@ const MDI_ICON_BODIES = {
   "map-marker-alert": '<path fill="currentColor" d="M12 2c3.9 0 7 3.1 7 7c0 5.2-7 13-7 13S5 14.2 5 9c0-3.9 3.1-7 7-7m-1 4v6h2V6zm0 8v2h2v-2z"/>',
 };
 /* fin de MDI_ICON_BODIES */
+/* ================= Librerías que se cargan bajo demanda =================
+   html2canvas (exportar PNG), geotiff.js (fuentes de elevación sin rejilla
+   ASCII, ortofotos COG) y proj4js (el .prj de un shapefile, ortofotos COG)
+   solo hacen falta en esas funciones, pero estaban como <script> de
+   bloqueo en src/index.html: 646 KB sin comprimir (unos 194 KB por la
+   red) descargados y ejecutados ANTES de poder arrancar la aplicación,
+   la use quien la use para eso o no.
+
+   Medido (Chromium headless, carga en frío, mediana de 5): DOMContentLoaded
+   de 299 ms a 202 ms (−32 %) sin ellas; el primer pintado no cambia.
+
+   JSZip (KMZ), topojson-client y shapefile siguen en el HTML: los KMZ y
+   los shapefile son el uso corriente, y las dos últimas pesan 7 KB.
+
+   Reglas que no son obvias:
+   - **La integridad (SRI) y el origen no cambian**: la misma URL con
+     versión fijada y el mismo hash que tenían en el HTML, comprobados
+     por el navegador antes de ejecutar (`integrity` + `crossorigin`
+     funcionan igual en un <script> insertado por código). La CSP ya
+     admite esos dos orígenes (`script-src`). Al subir la versión de
+     una librería se cambia AQUÍ, no en el HTML (ver build-and-release.md).
+   - **Una sola carga por librería** aunque la pidan dos a la vez
+     (`lazyLibPromises`), y un FALLO se olvida (sin red, bloqueo del
+     SRI): el siguiente intento vuelve a probar, en vez de quedarse con
+     un error pegado hasta recargar la página.
+   - **Quien la use va por `ensureLib`, nunca por el global suelto**: el
+     global solo existe tras la primera carga.                          */
+const LAZY_LIBS = {
+  html2canvas: {
+    url: "https://unpkg.com/html2canvas@1.4.1/dist/html2canvas.min.js",
+    integrity: "sha384-ZZ1pncU3bQe8y31yfZdMFdSpttDoPmOZg2wguVK9almUodir1PghgT0eY7Mrty8H",
+    global: "html2canvas",
+    what: "exportar PNG"
+  },
+  /* El bundle de navegador, ya minificado y en un solo archivo (sin
+     trozos cargados aparte que el SRI no cubriría).                    */
+  geotiff: {
+    url: "https://unpkg.com/geotiff@2.1.3/dist-browser/geotiff.js",
+    integrity: "sha384-m5adk5PRgt3JjiYbYoG8oXxc3EgRFKc1aCBgKzyxqxnbYpdiAMlHkR0gVDp03Q/H",
+    global: "GeoTIFF",
+    what: "GeoTIFF"
+  },
+  /* Un solo archivo, con el lector de WKT dentro.                      */
+  proj4: {
+    url: "https://cdnjs.cloudflare.com/ajax/libs/proj4js/2.22.0/proj4.js",
+    integrity: "sha384-RCBbAm8IhfOOoFV7vqUhspSb+BCSvVSd84WJpv5VMq4rNiXJ88VMHtndxQntlbnd",
+    global: "proj4",
+    what: "proyecciones"
+  }
+};
+const lazyLibPromises = new Map();
+
+/* Carga la librería si hace falta y devuelve su global. Rechaza con
+   «no se pudo cargar el soporte de …», el mismo texto que los avisos
+   de antes, para que el usuario vea lo mismo.                         */
+function ensureLib(name) {
+  const lib = LAZY_LIBS[name];
+  if (!lib) return Promise.reject(new Error(`librería desconocida: ${name}`));
+  if (window[lib.global] !== undefined) return Promise.resolve(window[lib.global]);
+  let p = lazyLibPromises.get(name);
+  if (p) return p;
+  p = new Promise((resolve, reject) => {
+    const s = document.createElement("script");
+    s.src = lib.url;
+    s.integrity = lib.integrity;
+    s.crossOrigin = "anonymous";
+    s.referrerPolicy = "no-referrer";
+    s.onload = () => {
+      if (window[lib.global] !== undefined) resolve(window[lib.global]);
+      else { s.remove(); reject(new Error(`no se pudo cargar el soporte de ${lib.what}`)); }
+    };
+    s.onerror = () => { s.remove(); reject(new Error(`no se pudo cargar el soporte de ${lib.what}`)); };
+    document.head.appendChild(s);
+  });
+  lazyLibPromises.set(name, p);
+  /* Un fallo no se queda: el próximo intento vuelve a probar */
+  p.catch(() => lazyLibPromises.delete(name));
+  return p;
+}
 /* ---------- Map rotation ----------
    Derived from leaflet-rotate 0.2.8 (https://github.com/Raruto/leaflet-rotate),
    © Raruto and contributors (IvanSanchez, Fnicollet, Hyperknot),
@@ -2949,6 +3016,124 @@ function rotatedFitZoom(m, bounds) {
 function confineTilesToWorld(layer, bounds) {
   layer.options.bounds = bounds;
 }
+/* ================= Índice de oyentes de Leaflet =================
+   Cada capa que Leaflet añade al mapa registra sus propios oyentes en
+   él (`map.on(layer.getEvents(), layer)`: un marcador, `zoom` y
+   `viewreset`; un tooltip permanente, lo mismo; con animación de zoom,
+   además `zoomanim`). Y `Evented._on` empieza comprobando que el par
+   (función, contexto) no esté ya registrado RECORRIENDO la lista
+   entera de ese evento. Con N marcadores la lista tiene N entradas, así
+   que añadir el N-ésimo cuesta N y añadirlos todos, N².
+
+   Medido (Chromium headless, sin GPU): importar 10 000 marcadores tardó
+   1,8 s y 579 ms de ellos eran esa comprobación (`_on` ← `_layerAdd`);
+   añadir un grupo al mapa: 161 ms con 2 500, 478 con 5 000, 1 082 con
+   10 000 y 3 883 con 20 000 (al doblar el número, de 2,3 a 3,6 veces
+   más tiempo, no 2).
+
+   El arreglo no cambia lo que Leaflet hace, solo cómo lo averigua: a
+   las listas largas (INDEX_MIN o más) se les lleva al lado un índice
+   `Map(función → Set(contexto))` que responde «no está» sin recorrer
+   nada. Solo se acelera ese «no está», que es lo que ocurre al añadir;
+   un «sí está» (quitar un oyente, o un duplicado) sigue por la
+   búsqueda original, que además da la POSICIÓN que `_off` necesita.
+
+   Mantener el índice exige envolver también `_off`: al quitar un
+   oyente lo saca del índice, y si Leaflet sustituye la lista por una
+   copia (lo hace mientras se dispara el evento, para no alterar el
+   recorrido en curso) el índice se traslada a la copia. Un índice que
+   dijera «no está» de algo que sí está dejaría registrar un oyente
+   DOS veces, y un marcador se movería dos veces por zoom: por eso el
+   índice se construye entero de la lista real, nunca incrementalmente
+   desde cero, y se descarta al desactivar el parche.
+
+   Va ANTES de crear el mapa (10-map.js), como 08-map-rotation.js.     */
+
+const LEAFLET_EVENTS_ORIGINAL = {
+  _on: L.Evented.prototype._on,
+  _off: L.Evented.prototype._off,
+  _listens: L.Evented.prototype._listens
+};
+
+/* Por debajo de este tamaño recorrer la lista es más barato que
+   mantener el índice (la inmensa mayoría de los objetos de Leaflet
+   tienen uno o dos oyentes por evento).                             */
+const LISTENER_INDEX_MIN = 32;
+
+/* lista de oyentes → Map(función → Set(contexto)). Débil: la lista
+   desaparece con su evento y el índice con ella.                    */
+let listenerIndexes = new WeakMap();
+
+/* Leaflet guarda `undefined` como contexto cuando es el propio objeto */
+const listenerCtx = (self, context) => (context === self ? undefined : context);
+
+function buildListenerIndex(list) {
+  const index = new Map();
+  for (const l of list) {
+    let ctxs = index.get(l.fn);
+    if (!ctxs) index.set(l.fn, ctxs = new Set());
+    ctxs.add(l.ctx);
+  }
+  listenerIndexes.set(list, index);
+  return index;
+}
+
+function indexedListens(type, fn, context) {
+  if (fn && this._events) {
+    const list = this._events[type];
+    if (list && list.length >= LISTENER_INDEX_MIN) {
+      const ctxs = (listenerIndexes.get(list) || buildListenerIndex(list)).get(fn);
+      if (!ctxs || !ctxs.has(listenerCtx(this, context))) return false;
+    }
+  }
+  return LEAFLET_EVENTS_ORIGINAL._listens.call(this, type, fn, context);
+}
+
+function indexedOn(type, fn, context, once) {
+  const before = this._events && this._events[type];
+  const n = before ? before.length : 0;
+  LEAFLET_EVENTS_ORIGINAL._on.call(this, type, fn, context, once);
+  const list = this._events && this._events[type];
+  /* Si la lista creció, el oyente nuevo entra en su índice (si todavía
+     no hay índice, se construirá entero en la próxima consulta).      */
+  const index = list && list.length > n && listenerIndexes.get(list);
+  if (index) {
+    const ctx = listenerCtx(this, context);
+    let ctxs = index.get(fn);
+    if (!ctxs) index.set(fn, ctxs = new Set());
+    ctxs.add(ctx);
+  }
+}
+
+function indexedOff(type, fn, context) {
+  const before = this._events && this._events[type];
+  const index = before && listenerIndexes.get(before);
+  const result = LEAFLET_EVENTS_ORIGINAL._off.apply(this, arguments);
+  /* Con un solo argumento `_off` borra la lista entera: el índice se va con ella */
+  if (index && arguments.length > 1) {
+    const list = this._events && this._events[type];
+    if (list && list !== before) listenerIndexes.set(list, index); /* copia durante un `fire` */
+    const ctxs = index.get(fn);
+    if (ctxs) {
+      ctxs.delete(listenerCtx(this, context));
+      if (!ctxs.size) index.delete(fn);
+    }
+  }
+  return result;
+}
+
+/* Activar/desactivar el parche. Desactivarlo existe para que una
+   prueba pueda medir el «antes» y el «después» en la misma página
+   (tests/browser/perf-markers.mjs); los índices se descartan en los
+   dos sentidos porque dejan de mantenerse mientras está apagado.     */
+function setListenerIndex(on) {
+  const proto = L.Evented.prototype;
+  listenerIndexes = new WeakMap();
+  proto._on = on ? indexedOn : LEAFLET_EVENTS_ORIGINAL._on;
+  proto._off = on ? indexedOff : LEAFLET_EVENTS_ORIGINAL._off;
+  proto._listens = on ? indexedListens : LEAFLET_EVENTS_ORIGINAL._listens;
+}
+setListenerIndex(true);
 /* Leaflet es imprescindible: si el CDN falla o su hash de integridad no
    cuadra, el navegador lo bloquea, y sin este aviso quedaría una página
    en blanco sin explicación. Se corta aquí, diciendo qué mirar.      */
@@ -3088,7 +3273,7 @@ map.on("resize rotate", fitWorldMinZoom);
 
 /* Fecha de generación del código (versión): AÑOMESDIAHORAMINUTO.
    Actualizar en cada generación; se muestra junto al crédito de Leaflet. */
-const BUILD = "202610170007";
+const BUILD = "202610171358";
 /* Versión de release (la de package.json, horneada aquí por build.js
    al construir — ver «Versión y releases de GitHub» en CLAUDE.md): a
    diferencia de BUILD, que cambia en CADA generación, esta solo cambia
@@ -3989,6 +4174,33 @@ function bareName(el) {
   return i < 0 ? n : n.slice(i + 1);
 }
 
+/* ¿Puede existir un elemento que la consulta con comodín de namespace
+   NO encuentre y el filtrado a mano sí? Solo si alguno no tiene un
+   `localName` limpio (sin él, o con el prefijo dentro: un documento
+   analizado sin namespaces). Si TODOS lo tienen, `bareName` es su
+   `localName` y el filtrado a mano devuelve exactamente lo que la
+   consulta ya dio: repetirlo es trabajo perdido. Se averigua de una vez
+   por documento (un recorrido) y se recuerda; el documento no gana
+   elementos después de analizarse.
+
+   Medido (importar 10 000 marcadores): cada Placemark buscaba además
+   `Polygon` y `LineString`, que no tiene, y cada búsqueda vacía caía al
+   filtrado de TODOS sus descendientes con una llamada por elemento.   */
+const prefixFallbackByDoc = new WeakMap();
+function mayNeedPrefixFallback(root) {
+  const doc = root.ownerDocument || root;
+  let need = prefixFallbackByDoc.get(doc);
+  if (need === undefined) {
+    need = false;
+    for (const el of doc.getElementsByTagName("*")) {
+      const n = el.localName;
+      if (typeof n !== "string" || !n || n.includes(":")) { need = true; break; }
+    }
+    prefixFallbackByDoc.set(doc, need);
+  }
+  return need;
+}
+
 /* Búsqueda por nombre local. La vía rápida es la consulta con comodín de
    namespace; si no devuelve nada (documento sin namespaces), se filtra a
    mano. Con las dos, el parser funciona con KML con prefijo, sin él o
@@ -3998,12 +4210,30 @@ function elsByTag(root, name) {
   if (root.getElementsByTagNameNS) {
     const found = [...root.getElementsByTagNameNS("*", name)];
     if (found.length) return found;
+    if (!mayNeedPrefixFallback(root)) return [];
   }
   return [...root.getElementsByTagName("*")].filter(el => bareName(el) === name);
 }
-const firstByTag = (root, name) => elsByTag(root, name)[0] || null;
-const childrenByTag = (parent, name) =>
-  parent ? [...parent.children].filter(c => bareName(c) === name) : [];
+/* El primero, sin copiar la colección entera a un array para quedarse
+   con uno (la colección es «viva» y se detiene en el primer acierto).
+   Mismo resultado que `elsByTag(root, name)[0] || null`.             */
+function firstByTag(root, name) {
+  if (!root || !root.getElementsByTagName) return null;
+  if (root.getElementsByTagNameNS) {
+    const first = root.getElementsByTagNameNS("*", name)[0];
+    if (first) return first;
+    if (!mayNeedPrefixFallback(root)) return null;
+  }
+  for (const el of root.getElementsByTagName("*")) {
+    if (bareName(el) === name) return el;
+  }
+  return null;
+}
+function childrenByTag(parent, name) {
+  const out = [];
+  if (parent) for (const c of parent.children) if (bareName(c) === name) out.push(c);
+  return out;
+}
 
 /* KML usa color en formato aabbggrr; lo pasamos a {color:#rrggbb, opacity} */
 function kmlColor(hex) {
@@ -8472,6 +8702,9 @@ async function readShapefile(group, report) {
   } catch (err) {
     throw new Error(`el .shp no es válido (${err && err.message || err})`);
   }
+  /* proj4 solo hace falta con .prj; se pide aquí porque shpProjection
+     es síncrona (bajo demanda, 07-lazy-libs.js).                      */
+  if (prj && prj.trim()) await ensureLib("proj4");
   const project = shpProjection(prj, source.bbox, report);
 
   const big = bytes > SIZE_THRESHOLD;
@@ -13976,7 +14209,11 @@ function pngTimestamp(d = new Date()) {
 const HIDE_FOR_PNG = ".leaflet-control-zoom, .measure-bar, .base-box, .daynight-canvas, .dn-celestial-overlay";
 
 async function exportMapPng() {
-  if (typeof html2canvas === "undefined") {
+  /* Bajo demanda (07-lazy-libs.js): se pide ANTES de ocultar los
+     controles, o un fallo de red los dejaría escondidos.            */
+  try {
+    await ensureLib("html2canvas");
+  } catch {
     navMessage("No se pudo cargar el soporte para exportar PNG.");
     return;
   }
@@ -15457,11 +15694,11 @@ function gridFromRaster({ width, height, origin, resolution, data, nodata }) {
   };
 }
 
-/* GeoTIFF → rejilla, con geotiff.js (CDN, ver src/index.html). Sin
+/* GeoTIFF → rejilla, con geotiff.js (CDN, bajo demanda: 07-lazy-libs.js). Sin
    Pool de workers: decodificar unas pocas celdas no lo justifica, y la
    CSP (default-src 'none') bloquearía sus workers de `blob:`.         */
 async function readGeoTiffGrid(buf) {
-  if (typeof GeoTIFF === "undefined") throw new Error("no se pudo cargar el lector GeoTIFF");
+  await ensureLib("geotiff"); /* bajo demanda, ver 07-lazy-libs.js */
   const tiff = await GeoTIFF.fromArrayBuffer(buf);
   const image = await tiff.getImage();
   const data = await image.readRasters({ interleave: true, samples: [0] });
@@ -18896,8 +19133,8 @@ async function cleanOrphanRasters() {
    se puede dibujar; si se puede pero irá mal (sin mosaico, sin vistas
    generales), lo dice en `notes`.                                    */
 async function openCog(blob) {
-  if (typeof GeoTIFF === "undefined") throw new Error("no se pudo cargar el soporte de GeoTIFF");
-  if (typeof proj4 === "undefined") throw new Error("no se pudo cargar el soporte de proyecciones");
+  /* Bajo demanda (07-lazy-libs.js); en paralelo, que son dos descargas */
+  await Promise.all([ensureLib("geotiff"), ensureLib("proj4")]);
   let tiff, first;
   try {
     tiff = await GeoTIFF.fromBlob(blob);

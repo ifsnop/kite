@@ -128,6 +128,9 @@ const base = "http://127.0.0.1:8955", base2 = "http://127.0.0.1:8956";
 
 const browser = await launch();
 const { page, errors } = await openApp(browser, base + "/");
+/* proj4 y geotiff.js se cargan bajo demanda (07-lazy-libs.js): la suite usa
+   proj4 directamente para fabricar sus imágenes, así que lo pide ella.   */
+await page.evaluate(() => ensureLib("proj4"));
 
 /* La Puerta del Sol en UTM 30N y en Web Mercator, según la propia app */
 const SOL = [40.416775, -3.703790];
@@ -249,6 +252,7 @@ ok(await page.evaluate(() => msgLog.some(m => /no se exportan/.test(m.text) && /
 /* ---------- 7. Recargar: sigue ahí, desde IndexedDB ---------- */
 await page.evaluate(() => saveTree()); /* sin esperar al retardo de scheduleSave */
 await page.reload();
+await page.evaluate(() => ensureLib("proj4"));
 await page.waitForFunction(() => typeof map !== "undefined" && rootUl && rootUl.children.length >= 2);
 ok(await page.evaluate(`!!(${liDe("sol.tif")}) && ${liDe("sol.tif")}._cog.opacity === 0.4`),
   "tras recargar, el nodo vuelve con su opacidad");
@@ -267,6 +271,7 @@ await cuadrantes(25830, c => c, "deshacer lo devuelve, y se vuelve a pintar");
 await page.evaluate(`${liDe("sol.tif")}.querySelector(".node-row button.delete").click()`);
 await page.evaluate(() => saveTree());
 await page.reload();
+await page.evaluate(() => ensureLib("proj4"));
 /* OJO: waitForFunction NO espera a una promesa (una Promise es «verdadera» y
    vuelve al instante): con un predicado async la lectura de abajo corría contra
    la limpieza del arranque y fallaba una de cada tres. Se sondea desde aquí. */
