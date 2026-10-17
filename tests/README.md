@@ -797,6 +797,16 @@ BROWSER LAZY LIBS TESTS OK
 
 **Qué cubre:** `ensureLib` contra los CDN de verdad. **Antes/después en bytes**: al arrancar no existen `html2canvas`, `GeoTIFF` ni `proj4`, ninguna se pidió al CDN y los scripts de CDN del arranque pesan menos de 300 KB (el «antes» es esa cifra más lo que las tres pesan al pedirlas, medido de lo que responde el CDN: menos del 40 % de lo que se descargaba). **Una sola petición**: dos peticiones simultáneas de proj4, una descarga y un `<script>` con el SRI de la tabla y `crossorigin="anonymous"`; pedirla otra vez ya cargada no descarga nada. **El SRI sigue protegiendo**: con un CDN simulado que sirviera otro contenido para geotiff.js, el navegador lo bloquea (el global NO llega a existir), `ensureLib` rechaza con el mensaje de siempre, no deja un `<script>` muerto ni recuerda el fallo, y con el CDN bueno el siguiente intento funciona. **PNG**: la exportación real carga html2canvas, entrega un `.png` y deja los controles como estaban; con la descarga abortada avisa «No se pudo cargar el soporte para exportar PNG» SIN dejar los controles ocultos.
 
+### `browser/mobile-notice.mjs`
+
+**Salida de `npm test`:**
+```
+── Navegador: aviso al abrir desde un móvil — «Continuar» deja solo el mapa, el panel cabe y su flecha es alcanzable, se recuerda, y no lo reciben una tableta ni un escritorio estrecho
+BROWSER MOBILE NOTICE TESTS OK
+```
+
+**Qué cubre:** el aviso «Mejor desde un ordenador» (`50-splitter.js`), con dispositivos EMULADOS de verdad (táctil + `isMobile`). **Quién lo recibe**: un teléfono en vertical (390 × 844) y en horizontal (844 × 390). **Quién no**: una tableta táctil (820 × 1180), una ventana de escritorio de 390 px con ratón y un escritorio normal — sin aviso, sin `phone-layout`, sin nada guardado, y con el panel en sus 400 px de siempre. **El diálogo**: modal y accesible (`role="dialog"`, `aria-modal`, nombre «Mejor desde un ordenador»), cabe entero en la pantalla, el foco entra en él y «Cerrar» queda a la izquierda de lo que confirma. **«Continuar de todos modos»**: el aviso se cierra, el panel se oculta con el MISMO `nav-hidden` del botón ◀, el mapa ocupa los 390 px y Leaflet lo sabe (`invalidateSize`), la flecha ▶ está a la vista y la elección se guarda (`mobileView` = `map`). **Que no sea una trampa**: con el panel mostrado en el móvil, cabe en la pantalla y su flecha también, y con un TOQUE real (`tap`) se alterna panel ↔ mapa. Se comprobó que falla sin el ancho de móvil (la flecha queda fuera de la pantalla y el toque no llega). **Recordar**: al recargar no vuelve a preguntar y se aplica lo elegido. **«Cerrar»** se queda con el panel (ocupando la pantalla, con su flecha) y también se recuerda; **Escape** es «Cerrar», nunca «Continuar».
+
 ### `browser/theme.mjs`
 
 **Salida de `npm test`:**

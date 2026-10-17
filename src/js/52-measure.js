@@ -220,6 +220,7 @@ document.addEventListener("keydown", e => {
   if (!profileDialog.hidden) { closeProfileDialog(); return; }
   if (!colorPicker.hidden) { cancelColorPicker(); return; }
   if (!iconPicker.hidden) { cancelIconPicker(); return; }
+  if (!mobileDialog.hidden) { closeMobileNotice("nav"); return; }
   if (!ktpDialog.hidden) { closeKtpPicker(false); return; }
   if (!kdpDialog.hidden) { closeKdpPicker(false); return; }
   if (!gnpDialog.hidden) { closeGnpPicker(null); return; }

@@ -8,6 +8,13 @@
     if (theme !== null) applyUiTheme(theme);
   } catch { /* automático */ }
 
+  /* En un móvil, el aviso de «mejor desde un ordenador» (o lo que se
+     eligió la vez anterior): antes que nada para que no se vea el panel
+     de 400 px desbordado mientras se lee el resto.                     */
+  try {
+    initPhoneLayout(await dbLoadMobileView());
+  } catch { initPhoneLayout(null); }
+
   /* La vista primero: así el mapa aparece donde se dejó mientras el
      árbol, que puede tardar, se reconstruye por detrás.              */
   try {

@@ -724,6 +724,34 @@ async function dbLoadUiTheme() {
     rq.onerror = () => reject(rq.error);
   });
 }
+/* Qué eligió quien abrió la aplicación desde un móvil ante el aviso de
+   «mejor desde un ordenador» (50-splitter.js): "map" = continuar solo con
+   el mapa, "nav" = cerrar el aviso y quedarse con la navegación. Se
+   recuerda para no volver a preguntar en cada carga.                    */
+const MOBILE_VIEWS = ["map", "nav"];
+const MOBILE_VIEW_KEY = "mobileView";
+const MOBILE_VIEW_SCHEMA = 1;
+async function dbSaveMobileView(choice) {
+  const db = await openDb();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(DB_TREE, "readwrite");
+    tx.objectStore(DB_TREE).put({ v: MOBILE_VIEW_SCHEMA, choice }, MOBILE_VIEW_KEY);
+    tx.oncomplete = resolve;
+    tx.onerror = () => reject(tx.error);
+  });
+}
+async function dbLoadMobileView() {
+  const db = await openDb();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(DB_TREE, "readonly");
+    const rq = tx.objectStore(DB_TREE).get(MOBILE_VIEW_KEY);
+    rq.onsuccess = () => {
+      const r = rq.result;
+      resolve(r && r.v === MOBILE_VIEW_SCHEMA && MOBILE_VIEWS.includes(r.choice) ? r.choice : null);
+    };
+    rq.onerror = () => reject(rq.error);
+  });
+}
 async function dbLoadCoordFormat() {
   const db = await openDb();
   return new Promise((resolve, reject) => {

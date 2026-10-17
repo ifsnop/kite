@@ -467,6 +467,13 @@
   #nav-toggle:hover { color: var(--accent); }
   body.nav-hidden #nav-panel, body.nav-hidden #splitter { display: none; }
   body.nav-hidden #nav-toggle { left: 0; }
+  /* Pantalla de móvil (isPhoneScreen, 50-splitter.js): los 400 px del panel
+     no caben, y con el panel más ancho que la pantalla el botón de abajo
+     quedaría FUERA de ella —abierto el panel no habría forma de volver al
+     mapa—. El panel ocupa la pantalla menos el hueco del botón, que se
+     agranda a un tamaño que un dedo acierta.                            */
+  :root.phone-layout { --nav-width: calc(100vw - 34px); }
+  :root.phone-layout #nav-toggle { width: 28px; }
 
   /* ================= Ventana del visor (derecha) ================= */
   /* --map-bg: por defecto NO está definida, así que var() cae en el
@@ -1113,7 +1120,7 @@
      instead of stretching almost edge to edge.                       */
   /* Sin esto heredan el max-width: 90vw de .dlg-box y una caja de texto
      corto se estira a casi toda la pantalla.                          */
-  #kml-tags-picker .dlg-box, #kml-dup-picker .dlg-box, #sh-creds .dlg-box { max-width: 42ch; }
+  #kml-tags-picker .dlg-box, #kml-dup-picker .dlg-box, #sh-creds .dlg-box, #mobile-notice .dlg-box { max-width: 42ch; }
   /* ---------- Ventanas redimensionables ----------
      `resize: both` es el redimensionado nativo del navegador; su tirador
      va en la esquina inferior derecha y no estorba al arrastre por el
@@ -1926,6 +1933,20 @@
 </div>
 
 <!-- Confirmar si se eliminan etiquetas tipo HTML de los nombres de un KML -->
+<!-- Aviso al abrir la aplicación desde un móvil (src/js/50-splitter.js):
+     no hay sitio para el panel de navegación y el mapa a la vez. -->
+<div id="mobile-notice" class="dlg-overlay" hidden>
+  <div class="dlg-box">
+    <h2>Mejor desde un ordenador</h2>
+    <p class="dlg-hint">KITE Local está pensado para pantallas de escritorio: en la pantalla de un móvil no hay espacio para el panel de navegación y el mapa a la vez. Le recomendamos abrirlo desde un ordenador.</p>
+    <p class="dlg-hint">Si continúa de todos modos, se ocultará el panel de navegación y quedará solo el mapa. Si cierra este aviso, el panel de navegación ocupará toda la pantalla. En los dos casos, la flecha del borde alterna entre el panel y el mapa, y se recordará su elección.</p>
+    <div class="dlg-actions">
+      <button class="btn" id="mobile-close">Cerrar</button>
+      <button class="btn" id="mobile-continue">Continuar de todos modos</button>
+    </div>
+  </div>
+</div>
+
 <div id="kml-tags-picker" class="dlg-overlay" hidden>
   <div class="dlg-box">
     <h2 id="ktp-title">Etiquetas en los nombres</h2>
@@ -3273,7 +3294,7 @@ map.on("resize rotate", fitWorldMinZoom);
 
 /* Fecha de generación del código (versión): AÑOMESDIAHORAMINUTO.
    Actualizar en cada generación; se muestra junto al crédito de Leaflet. */
-const BUILD = "202610171358";
+const BUILD = "202610171428";
 /* Versión de release (la de package.json, horneada aquí por build.js
    al construir — ver «Versión y releases de GitHub» en CLAUDE.md): a
    diferencia de BUILD, que cambia en CADA generación, esta solo cambia
@@ -6861,6 +6882,34 @@ async function dbLoadUiTheme() {
     rq.onsuccess = () => {
       const r = rq.result;
       resolve(r && r.v === UI_THEME_SCHEMA && UI_THEMES.includes(r.theme) ? r.theme : null);
+    };
+    rq.onerror = () => reject(rq.error);
+  });
+}
+/* Qué eligió quien abrió la aplicación desde un móvil ante el aviso de
+   «mejor desde un ordenador» (50-splitter.js): "map" = continuar solo con
+   el mapa, "nav" = cerrar el aviso y quedarse con la navegación. Se
+   recuerda para no volver a preguntar en cada carga.                    */
+const MOBILE_VIEWS = ["map", "nav"];
+const MOBILE_VIEW_KEY = "mobileView";
+const MOBILE_VIEW_SCHEMA = 1;
+async function dbSaveMobileView(choice) {
+  const db = await openDb();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(DB_TREE, "readwrite");
+    tx.objectStore(DB_TREE).put({ v: MOBILE_VIEW_SCHEMA, choice }, MOBILE_VIEW_KEY);
+    tx.oncomplete = resolve;
+    tx.onerror = () => reject(tx.error);
+  });
+}
+async function dbLoadMobileView() {
+  const db = await openDb();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(DB_TREE, "readonly");
+    const rq = tx.objectStore(DB_TREE).get(MOBILE_VIEW_KEY);
+    rq.onsuccess = () => {
+      const r = rq.result;
+      resolve(r && r.v === MOBILE_VIEW_SCHEMA && MOBILE_VIEWS.includes(r.choice) ? r.choice : null);
     };
     rq.onerror = () => reject(rq.error);
   });
@@ -13722,11 +13771,60 @@ splitter.addEventListener("mousedown", e => {
   document.addEventListener("mouseup", onUp);
 });
 
-navToggle.addEventListener("click", () => {
-  const hidden = document.body.classList.toggle("nav-hidden");
+function setNavHidden(hidden) {
+  document.body.classList.toggle("nav-hidden", hidden);
   navToggle.innerHTML = hidden ? "&#9654;" : "&#9664;";
   map.invalidateSize();
-});
+}
+navToggle.addEventListener("click", () => setNavHidden(!document.body.classList.contains("nav-hidden")));
+
+/* ---------- Aviso al abrir la aplicación desde un móvil ----------
+   El panel de navegación (400 px) y el mapa no caben a la vez en una
+   pantalla de móvil, así que se recomienda un ordenador. Quien insiste
+   se queda solo con el mapa: el MISMO `nav-hidden` del botón de arriba,
+   no un estado nuevo, y la flecha sigue ahí para volver al panel.
+
+   «Móvil» = puntero táctil como principal Y lado corto de la ventana
+   por debajo de MOBILE_MAX_PX: así entra un teléfono en vertical o en
+   horizontal (lado corto ≈ 360-430) y no una tableta (≥ 768) ni una
+   ventana de escritorio estrecha, que tiene ratón y puede ensancharse.
+
+   En un móvil, con aviso o sin él, el panel ocupa la pantalla entera
+   (`phone-layout`, styles.css): con 400 px el botón para volver al mapa
+   quedaría fuera de ella. La elección se guarda (`mobileView`) y las
+   cargas siguientes la aplican sin preguntar.                          */
+const MOBILE_MAX_PX = 600;
+function isPhoneScreen() {
+  return window.matchMedia("(pointer: coarse)").matches
+    && Math.min(window.innerWidth, window.innerHeight) < MOBILE_MAX_PX;
+}
+
+const mobileDialog = document.getElementById("mobile-notice");
+const mobileBox = mobileDialog.querySelector(".dlg-box");
+setupDialog(mobileBox, { modal: true });
+makeDialogMovable(mobileBox);
+
+function closeMobileNotice(choice) {
+  if (mobileDialog.hidden) return;
+  mobileDialog.hidden = true;
+  releaseFocus();
+  if (choice === "map") setNavHidden(true);
+  dbSaveMobileView(choice).catch(() => { /* sin guardar, se vuelve a preguntar */ });
+}
+document.getElementById("mobile-close").addEventListener("click", () => closeMobileNotice("nav"));
+document.getElementById("mobile-continue").addEventListener("click", () => closeMobileNotice("map"));
+
+/* Arranque (99-boot.js): `saved` es lo que eligió la vez anterior, o null */
+function initPhoneLayout(saved) {
+  if (!isPhoneScreen()) return;
+  document.documentElement.classList.add("phone-layout");
+  map.invalidateSize();
+  if (saved === "map") { setNavHidden(true); return; }
+  if (saved === "nav") return;
+  mobileDialog.hidden = false;
+  clampToViewport(mobileBox);
+  focusDialog(mobileBox);
+}
 
 /* ================= Geodesia (sobre la esfera terrestre) ================= */
 const EARTH_R = 6371000; /* mismo radio que usa L.CRS.Earth.distance */
@@ -14373,6 +14471,7 @@ document.addEventListener("keydown", e => {
   if (!profileDialog.hidden) { closeProfileDialog(); return; }
   if (!colorPicker.hidden) { cancelColorPicker(); return; }
   if (!iconPicker.hidden) { cancelIconPicker(); return; }
+  if (!mobileDialog.hidden) { closeMobileNotice("nav"); return; }
   if (!ktpDialog.hidden) { closeKtpPicker(false); return; }
   if (!kdpDialog.hidden) { closeKdpPicker(false); return; }
   if (!gnpDialog.hidden) { closeGnpPicker(null); return; }
@@ -20648,6 +20747,13 @@ setInterval(checkServerVersion, VERSION_CHECK_MS);
     const theme = await dbLoadUiTheme();
     if (theme !== null) applyUiTheme(theme);
   } catch { /* automático */ }
+
+  /* En un móvil, el aviso de «mejor desde un ordenador» (o lo que se
+     eligió la vez anterior): antes que nada para que no se vea el panel
+     de 400 px desbordado mientras se lee el resto.                     */
+  try {
+    initPhoneLayout(await dbLoadMobileView());
+  } catch { initPhoneLayout(null); }
 
   /* La vista primero: así el mapa aparece donde se dejó mientras el
      árbol, que puede tardar, se reconstruye por detrás.              */
