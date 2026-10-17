@@ -34,7 +34,6 @@ const src = `
   const nodeUl = li => li.querySelector(':scope > ul.node-list');
   const scheduleSave = () => {}; const syncExpanded = () => {};
   const navMessage = () => {};
-  const announceSelectionCount = () => {}; /* su contenido lo prueba selcorrect.js */
   const materializeCalls = [];
   const ensureMaterialized = async li => { materializeCalls.push(li); }; /* nada pendiente en este árbol de prueba */
   const ensureRootUl = () => rootUl;
