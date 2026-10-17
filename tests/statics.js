@@ -169,11 +169,12 @@ const KEYWORDS = new Set(["if", "for", "while", "switch", "catch", "return", "ty
 /* Globales que el visor usa y nadie declara. Lista EXPLÍCITA: así,
    depender de una API nueva del navegador obliga a añadirla aquí, que
    es justo el momento de preguntarse si está disponible en todos los
-   navegadores objetivo. `html2canvas` es la única de librería, y su
-   ausencia ya la comprueba exportMapPng antes de usarla.             */
+   navegadores objetivo. Las librerías bajo demanda (html2canvas,
+   GeoTIFF, proj4) no se listan: llegan por `ensureLib` y de que nadie
+   use su global sin pedirla se ocupa tests/lazylibs.js.               */
 const GLOBALS = new Set([
   "AbortController", "Blob", "DOMParser", "Date", "Error", "Map", "Number",
-  "Promise", "RegExp", "Set", "String", "URLSearchParams",
+  "Promise", "RegExp", "Set", "String", "URLSearchParams", "WeakMap",
   "cancelAnimationFrame", "clearInterval", "clearTimeout", "encodeURIComponent", "fetch",
   "isFinite", "parseFloat", "parseInt", "requestAnimationFrame",
   "setInterval", "setTimeout",

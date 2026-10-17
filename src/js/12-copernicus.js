@@ -153,6 +153,33 @@ function bareName(el) {
   return i < 0 ? n : n.slice(i + 1);
 }
 
+/* ¿Puede existir un elemento que la consulta con comodín de namespace
+   NO encuentre y el filtrado a mano sí? Solo si alguno no tiene un
+   `localName` limpio (sin él, o con el prefijo dentro: un documento
+   analizado sin namespaces). Si TODOS lo tienen, `bareName` es su
+   `localName` y el filtrado a mano devuelve exactamente lo que la
+   consulta ya dio: repetirlo es trabajo perdido. Se averigua de una vez
+   por documento (un recorrido) y se recuerda; el documento no gana
+   elementos después de analizarse.
+
+   Medido (importar 10 000 marcadores): cada Placemark buscaba además
+   `Polygon` y `LineString`, que no tiene, y cada búsqueda vacía caía al
+   filtrado de TODOS sus descendientes con una llamada por elemento.   */
+const prefixFallbackByDoc = new WeakMap();
+function mayNeedPrefixFallback(root) {
+  const doc = root.ownerDocument || root;
+  let need = prefixFallbackByDoc.get(doc);
+  if (need === undefined) {
+    need = false;
+    for (const el of doc.getElementsByTagName("*")) {
+      const n = el.localName;
+      if (typeof n !== "string" || !n || n.includes(":")) { need = true; break; }
+    }
+    prefixFallbackByDoc.set(doc, need);
+  }
+  return need;
+}
+
 /* Búsqueda por nombre local. La vía rápida es la consulta con comodín de
    namespace; si no devuelve nada (documento sin namespaces), se filtra a
    mano. Con las dos, el parser funciona con KML con prefijo, sin él o
@@ -162,12 +189,30 @@ function elsByTag(root, name) {
   if (root.getElementsByTagNameNS) {
     const found = [...root.getElementsByTagNameNS("*", name)];
     if (found.length) return found;
+    if (!mayNeedPrefixFallback(root)) return [];
   }
   return [...root.getElementsByTagName("*")].filter(el => bareName(el) === name);
 }
-const firstByTag = (root, name) => elsByTag(root, name)[0] || null;
-const childrenByTag = (parent, name) =>
-  parent ? [...parent.children].filter(c => bareName(c) === name) : [];
+/* El primero, sin copiar la colección entera a un array para quedarse
+   con uno (la colección es «viva» y se detiene en el primer acierto).
+   Mismo resultado que `elsByTag(root, name)[0] || null`.             */
+function firstByTag(root, name) {
+  if (!root || !root.getElementsByTagName) return null;
+  if (root.getElementsByTagNameNS) {
+    const first = root.getElementsByTagNameNS("*", name)[0];
+    if (first) return first;
+    if (!mayNeedPrefixFallback(root)) return null;
+  }
+  for (const el of root.getElementsByTagName("*")) {
+    if (bareName(el) === name) return el;
+  }
+  return null;
+}
+function childrenByTag(parent, name) {
+  const out = [];
+  if (parent) for (const c of parent.children) if (bareName(c) === name) out.push(c);
+  return out;
+}
 
 /* KML usa color en formato aabbggrr; lo pasamos a {color:#rrggbb, opacity} */
 function kmlColor(hex) {

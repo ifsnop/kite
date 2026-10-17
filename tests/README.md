@@ -755,6 +755,48 @@ BROWSER CONTEXT MENU TESTS OK
 
 **Qué cubre:** El ítem nuevo «Editar propiedades» del menú contextual del visor (`layerCtxItems`/`ctxItemsFor`, `70-view-controls.js`), con un clic derecho DE VERDAD sobre el mapa (no una llamada directa a `openCtxMenu`): pasa por el hit-testing real (`layersAtPoint`) y abre el diálogo de estilos real. Pedido explícitamente: acceso directo a las propiedades de un polígono/marcador/medición desde el propio mapa. Comprueba que aparece junto a «Ir al nodo en el panel» (y «Mostrar atributos» si la capa tiene ficha), que pulsarlo abre `#style-dialog` mostrando ESA capa (su nombre en el título) y cierra el menú, que el diálogo tiene dos pestañas (abre en «Estilos»; «Atributos» enseña la ficha de la capa, o dice que no tiene), que el botón 🎨 de la fila se llama «Editar propiedades», que «Mostrar atributos» sigue abriendo solo la ficha, que un clic derecho SIN ninguna capa debajo muestra el menú genérico sin «Editar propiedades», y que tras elegir «Mostrar atributos» o «Editar propiedades» con clics reales el foco queda en el visor y vuelve a él al cerrar el diálogo (no al panel de navegación), y lo mismo al cerrar con × la ficha abierta al pasar el ratón o una etiqueta (popup) del visor. La comprobación de que una capa de tipo NO editable (una cuadrícula de elevación) tampoco lo ofrece se queda en `tests/geojsonnametest.js`: sus celdas son `interactive: false` (`60-elevation.js`) y nunca llegan a ser un "hit" de un clic real, así que no hay forma de probarlo con una capa de verdad — solo a nivel de función, con un `_kind` de mentira.
 
+### `xmllookup.js`
+
+**Salida de `npm test`:**
+```
+── Búsquedas por nombre local en el XML: mismos resultados que antes y sin el recorrido de todos los descendientes por búsqueda vacía
+XML LOOKUP TESTS OK
+```
+
+**Qué cubre:** `elsByTag`, `firstByTag` y `childrenByTag` (`12-copernicus.js`) reescritas para no copiar colecciones enteras ni repetir, en cada búsqueda vacía, el recorrido de todos los descendientes. La suite lleva la implementación ANTERIOR copiada (`legacy`) y fija tres cosas. **Equivalencia**: sobre un documento con namespace por defecto, con prefijo declarado, sin namespace y dos DOM simulados sin soporte de namespaces (uno sin `getElementsByTagNameNS` ni `localName`, otro con la consulta rota y el prefijo dentro del `localName`), desde el documento, desde un Placemark y desde una carpeta, y con nombres que existen y que no, las dos devuelven los MISMOS objetos en el mismo orden (más de 400 comparaciones). **Trabajo**, determinista: se cuentan las llamadas a `getElementsByTagName("*")` del patrón de búsquedas por Placemark (`Polygon`, `LineString`, `Point`, `coordinates`, `name`, `MultiGeometry`) sobre 3 000 puntos: 6 000 antes, 1 ahora. **El respaldo sigue vivo donde hace falta**: `mayNeedPrefixFallback` es cierto en los dos DOM simulados, falso en los tres documentos normales, y se recuerda por documento. Se comprobó que FALLA sin el respaldo (con la función devolviendo siempre falso, los dos DOM simulados dan 0 resultados).
+
+### `lazylibs.js`
+
+**Salida de `npm test`:**
+```
+── Librerías bajo demanda: mismo origen, versión y SRI, nadie usa el global sin ensureLib, una sola carga y un fallo que no se queda pegado
+LAZY LIBS TESTS OK
+```
+
+**Qué cubre:** `07-lazy-libs.js` (html2canvas, geotiff.js y proj4js dejaron de ser `<script>` de bloqueo). **Seguridad intacta**: cada entrada de `LAZY_LIBS` sale de un origen que la CSP admite (`script-src`), con la versión fijada en la URL y un SRI sha384/sha512 cuya longitud decodificada es la que toca; el HTML ya no las carga, y los `<script src>` que quedan siguen con `integrity` y `crossorigin`. **Nadie usa el global suelto**: se mira el CÓDIGO (sin comentarios ni cadenas) de cada archivo de `src/js` y todo el que use `html2canvas(`, `GeoTIFF.` o `proj4(`/`proj4.` pide la suya con `ensureLib`; y todo `ensureLib("x")` nombra una entrada que existe. **`ensureLib` con un DOM de mentira**: dos peticiones a la vez crean UN `<script>`, con la URL, el SRI, `crossorigin="anonymous"` y `no-referrer` de la tabla; una librería ya presente no se vuelve a pedir; un fallo (red o SRI) rechaza con el mensaje de siempre («no se pudo cargar el soporte de …»), retira el `<script>` muerto y NO se queda recordado (el siguiente intento vuelve a probar); un `<script>` que carga sin dejar su global también es un fallo; una librería desconocida se rechaza.
+
+### `browser/perf-markers.mjs`
+
+**Salida de `npm test`:**
+```
+── Navegador: índice de oyentes de Leaflet — mismo comportamiento con y sin el parche, trabajo y tiempo al añadir miles de marcadores
+  añadir al mapa (ms): 2 500 → 197 antes, 148 después; 10 000 → 1473 antes, 573 después
+BROWSER MARKER PERF TESTS OK
+```
+
+**Qué cubre:** el índice de oyentes de `L.Evented` (`09-leaflet-events.js`), comparando el ANTES y el DESPUÉS en la misma página (`setListenerIndex(false)` devuelve los métodos originales de Leaflet). **Equivalencia**: los mismos escenarios, con y sin el parche, dan el mismo resultado — 120 oyentes (más que el umbral del índice), duplicados rechazados, la misma función con otro contexto sí es otro oyente, quitar uno y volver a ponerlo (una sola vez), quitar algo que no está, `once` (una vez y se puede volver a registrar), quitar con un `fire` en marcha (Leaflet sustituye entonces la lista por una copia y el índice tiene que seguirla), quitar todos y empezar de nuevo, el propio objeto como contexto, y un marcador real que sigue al zoom sin que el mapa acumule oyentes al añadir, quitar y volver a añadir un grupo. **Trabajo**, determinista: cuántos oyentes recorre la búsqueda lineal original al añadir 4 000 marcadores (N²/2 sin el parche; con él, menos de 40·N, más de 100 veces menos). **Tiempo**, con holgura: añadir 10 000 marcadores es al menos un 20 % más rápido con el parche y su coste crece más despacio con N. Se comprobó que FALLA con un índice defectuoso: con `_on` que no actualiza el índice (se registran duplicados) y con una copia de la lista que no hereda el índice. Una `_off` que no actualiza el índice NO falla, y es correcto: un «está» de más cae a la búsqueda real, y solo un «no está» de más es peligroso.
+
+### `browser/lazy-libs.mjs`
+
+**Salida de `npm test`:**
+```
+── Navegador: html2canvas, geotiff.js y proj4 bajo demanda — el arranque ya no las descarga, una sola petición, el SRI sigue bloqueando y el PNG funciona
+  scripts de CDN al arrancar: 254 KB (antes 885 KB; las tres suman 631 KB)
+BROWSER LAZY LIBS TESTS OK
+```
+
+**Qué cubre:** `ensureLib` contra los CDN de verdad. **Antes/después en bytes**: al arrancar no existen `html2canvas`, `GeoTIFF` ni `proj4`, ninguna se pidió al CDN y los scripts de CDN del arranque pesan menos de 300 KB (el «antes» es esa cifra más lo que las tres pesan al pedirlas, medido de lo que responde el CDN: menos del 40 % de lo que se descargaba). **Una sola petición**: dos peticiones simultáneas de proj4, una descarga y un `<script>` con el SRI de la tabla y `crossorigin="anonymous"`; pedirla otra vez ya cargada no descarga nada. **El SRI sigue protegiendo**: con un CDN simulado que sirviera otro contenido para geotiff.js, el navegador lo bloquea (el global NO llega a existir), `ensureLib` rechaza con el mensaje de siempre, no deja un `<script>` muerto ni recuerda el fallo, y con el CDN bueno el siguiente intento funciona. **PNG**: la exportación real carga html2canvas, entrega un `.png` y deja los controles como estaban; con la descarga abortada avisa «No se pudo cargar el soporte para exportar PNG» SIN dejar los controles ocultos.
+
 ### `browser/theme.mjs`
 
 **Salida de `npm test`:**

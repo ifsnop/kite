@@ -56,7 +56,11 @@ function pngTimestamp(d = new Date()) {
 const HIDE_FOR_PNG = ".leaflet-control-zoom, .measure-bar, .base-box, .daynight-canvas, .dn-celestial-overlay";
 
 async function exportMapPng() {
-  if (typeof html2canvas === "undefined") {
+  /* Bajo demanda (07-lazy-libs.js): se pide ANTES de ocultar los
+     controles, o un fallo de red los dejaría escondidos.            */
+  try {
+    await ensureLib("html2canvas");
+  } catch {
     navMessage("No se pudo cargar el soporte para exportar PNG.");
     return;
   }

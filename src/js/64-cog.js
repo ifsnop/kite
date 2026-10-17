@@ -308,8 +308,8 @@ async function cleanOrphanRasters() {
    se puede dibujar; si se puede pero irá mal (sin mosaico, sin vistas
    generales), lo dice en `notes`.                                    */
 async function openCog(blob) {
-  if (typeof GeoTIFF === "undefined") throw new Error("no se pudo cargar el soporte de GeoTIFF");
-  if (typeof proj4 === "undefined") throw new Error("no se pudo cargar el soporte de proyecciones");
+  /* Bajo demanda (07-lazy-libs.js); en paralelo, que son dos descargas */
+  await Promise.all([ensureLib("geotiff"), ensureLib("proj4")]);
   let tiff, first;
   try {
     tiff = await GeoTIFF.fromBlob(blob);

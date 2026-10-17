@@ -225,6 +225,9 @@ async function readShapefile(group, report) {
   } catch (err) {
     throw new Error(`el .shp no es válido (${err && err.message || err})`);
   }
+  /* proj4 solo hace falta con .prj; se pide aquí porque shpProjection
+     es síncrona (bajo demanda, 07-lazy-libs.js).                      */
+  if (prj && prj.trim()) await ensureLib("proj4");
   const project = shpProjection(prj, source.bbox, report);
 
   const big = bytes > SIZE_THRESHOLD;

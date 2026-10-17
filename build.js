@@ -41,9 +41,13 @@ const JS = [
   "05-mdi-icons.js",      /* GENERADO por fetch-icons.js: cuerpos SVG empotrados.
                              Va el primero por ser datos puros, sin ninguna
                              dependencia, y para que nada pueda usarlo antes  */
+  "07-lazy-libs.js",      /* html2canvas, geotiff.js y proj4js bajo demanda
+                             (ensureLib): datos y una función, sin dependencias */
   "08-map-rotation.js",   /* rotación del mapa (derivada de leaflet-rotate):
                              parchea prototipos de Leaflet, así que va
                              ANTES de crear el mapa en 10-map.js          */
+  "09-leaflet-events.js", /* índice de oyentes de Leaflet (añadir N capas
+                             era O(N²)); parchea Evented, ANTES del mapa */
   "10-map.js",            /* mapa, capas de teselas, constantes globales */
   "11-base-panel.js",     /* panel de mapas base */
   "12-copernicus.js",     /* Copernicus DEM vía Sentinel Hub */

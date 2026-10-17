@@ -7,9 +7,14 @@ paths:
 
 ## Arquitectura (orden de secciones dentro del script)
 
-0. **Rotación del mapa** (`08-map-rotation.js`, derivado de leaflet-rotate):
-   parches de prototipo de Leaflet, ANTES de crear el mapa. Ver
-   `map-rotation.md`.
+0. **Parches de Leaflet y cargador**, todos ANTES de crear el mapa:
+   - `07-lazy-libs.js`: html2canvas, geotiff.js y proj4js bajo demanda
+     (`LAZY_LIBS`, `ensureLib`); datos y una función, sin dependencias.
+     Quien use una de ellas va por `ensureLib`, no por el global.
+   - **Rotación del mapa** (`08-map-rotation.js`, derivado de
+     leaflet-rotate): parches de prototipo. Ver `map-rotation.md`.
+   - `09-leaflet-events.js`: índice de oyentes de `L.Evented` (añadir N
+     capas al mapa era O(N²)). Ver `performance.md`.
 1. **Mapa base**: capas de teselas (OSM, Esri Terrain, PNOA, sin fondo)
    y `rootGroup` (`featureGroup` del que cuelga TODO). Prefijo de
    atribución (versión+repo) y escala aquí: su posición depende del

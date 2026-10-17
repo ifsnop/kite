@@ -751,21 +751,9 @@
 <script src="https://unpkg.com/topojson-client@3.1.0/dist/topojson-client.min.js"
         integrity="sha384-Ukv1p/xTma6P4/2bY5KzWBw+ydSpXmhCMtyciIQVDJ1RmOxtCYNMF1uXT9T63H67"
         crossorigin="anonymous" referrerpolicy="no-referrer"></script>
-<script src="https://unpkg.com/html2canvas@1.4.1/dist/html2canvas.min.js"
-        integrity="sha384-ZZ1pncU3bQe8y31yfZdMFdSpttDoPmOZg2wguVK9almUodir1PghgT0eY7Mrty8H"
-        crossorigin="anonymous" referrerpolicy="no-referrer"></script>
-<!-- GeoTIFF: solo para fuentes de elevación que no ofrecen rejilla ASCII
-     (Digital Earth Africa). Es el bundle de navegador, ya minificado y en
-     un solo archivo (sin trozos cargados aparte que el SRI no cubriría). -->
-<script src="https://unpkg.com/geotiff@2.1.3/dist-browser/geotiff.js"
-        integrity="sha384-m5adk5PRgt3JjiYbYoG8oXxc3EgRFKc1aCBgKzyxqxnbYpdiAMlHkR0gVDp03Q/H"
-        crossorigin="anonymous" referrerpolicy="no-referrer"></script>
-<!-- proj4js: reproyección de lo que no llega en WGS84 (el .prj de un
-     shapefile, casi siempre ETRS89 UTM). Un solo archivo, con el lector
-     de WKT dentro. -->
-<script src="https://cdnjs.cloudflare.com/ajax/libs/proj4js/2.22.0/proj4.js"
-        integrity="sha384-RCBbAm8IhfOOoFV7vqUhspSb+BCSvVSd84WJpv5VMq4rNiXJ88VMHtndxQntlbnd"
-        crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+<!-- html2canvas, geotiff.js y proj4js NO van aquí: se cargan bajo demanda
+     (src/js/07-lazy-libs.js, con su misma URL y su mismo SRI) porque solo
+     hacen falta para exportar PNG, leer GeoTIFF/COG y reproyectar un .prj. -->
 <!-- shapefile (Mike Bostock): lee .shp y .dbf a GeoJSON. El .zip lo abre
      JSZip y la proyección la pone proj4. -->
 <script src="https://unpkg.com/shapefile@0.6.6/dist/shapefile.min.js"

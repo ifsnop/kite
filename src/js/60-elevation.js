@@ -236,11 +236,11 @@ function gridFromRaster({ width, height, origin, resolution, data, nodata }) {
   };
 }
 
-/* GeoTIFF → rejilla, con geotiff.js (CDN, ver src/index.html). Sin
+/* GeoTIFF → rejilla, con geotiff.js (CDN, bajo demanda: 07-lazy-libs.js). Sin
    Pool de workers: decodificar unas pocas celdas no lo justifica, y la
    CSP (default-src 'none') bloquearía sus workers de `blob:`.         */
 async function readGeoTiffGrid(buf) {
-  if (typeof GeoTIFF === "undefined") throw new Error("no se pudo cargar el lector GeoTIFF");
+  await ensureLib("geotiff"); /* bajo demanda, ver 07-lazy-libs.js */
   const tiff = await GeoTIFF.fromArrayBuffer(buf);
   const image = await tiff.getImage();
   const data = await image.readRasters({ interleave: true, samples: [0] });
