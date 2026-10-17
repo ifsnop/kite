@@ -226,7 +226,7 @@ A11Y TREE TESTS OK
 SELECTION CORRECTNESS OK
 ```
 
-**Qué cubre:** Cursor único y `topLevelSelection` (lo contenido viaja con su ancestro). También `announceSelectionCount` (el aviso informativo con el número de nodos seleccionados, disparado por `toggleOne` igual que por `selectRange` o el botón ☑ de una carpeta): sin aviso con un solo nodo, aviso con el recuento al pasar a dos o más, un aviso nuevo por cada cambio de recuento mientras queden varios, ningún aviso al volver a uno solo, el tono siempre `"info"` (nunca un error), y que varios toques rápidos (Mayús+flecha mantenido) se funden en un único aviso con el recuento FINAL en vez de uno por toque — `announceSelectionCount` debate con `setTimeout` (`SEL_COUNT_DEBOUNCE_MS`) y el test controla el temporizador a mano, como `tests/msglog.js`.
+**Qué cubre:** Cursor único y `topLevelSelection` (lo contenido viaja con su ancestro). Y que seleccionar NO avisa de nada: ni «N nodos seleccionados» al pasar a dos o más (el aviso, `announceSelectionCount`, se retiró por ruido), ni al deseleccionar.
 
 ### `reporttest.js`
 
@@ -358,7 +358,7 @@ LAZY TREE TESTS OK
 ```
 
 **Qué cubre:** Construcción perezosa de filas para carpetas colapsadas: test diferencial (el mismo árbol construido con todo abierto y con una subcarpeta colapsada serializa exactamente igual); `ensureMaterialized` cede el hilo por lotes, cascada a una subcarpeta ya abierta y difiere una colapsada sin materializarla de más; una llamada reentrante no duplica filas; `subtreeBounds`/`findMatches` (`searchMatches`) + `resolveMatch` alcanzan capas dentro de una carpeta pendiente sin forzar su materialización salvo cuando hace falta llegar hasta una coincidencia; `serializeNode` sobre una carpeta pendiente no construye ninguna fila; `deleteNode` quita del mapa las capas marcadas que una carpeta pendiente escondía; `resolveRecordLi`/`wirePendingLayerEvents` resuelven un clic/hover sobre una capa pendiente a su `<li>` real y retiran el listener de espera al materializar (sin quedarse disparando por duplicado); `blinkLayer` (el parpadeo de identificación de "Ir al nodo en el panel") oculta/muestra la capa dos veces en orden, un parpadeo repetido cancela el anterior en vez de solaparse, y si el checkbox cambia mientras parpadea termina en su estado real en vez de forzarla visible.
-También `selectFolderLayers` (el botón ☑ de una carpeta): selecciona de una vez las capas de la rama, incluida la de una subcarpeta colapsada que `materializeSubtree` tiene que materializar primero, y avisa con el recuento (`announceSelectionCount`, tono `"info"`) igual que Mayús+clic o Ctrl+Mayús+clic — con una espera real (no un temporizador simulado, para no pisar los `setTimeout` de verdad que ya usa `blinkLayer` en esta misma suite) de `SEL_COUNT_DEBOUNCE_MS` antes de comprobar el aviso.
+También `selectFolderLayers` (el botón ☑ de una carpeta): selecciona de una vez las capas de la rama, incluida la de una subcarpeta colapsada que `materializeSubtree` tiene que materializar primero, y no avisa del recuento.
 
 ### `pointsedit.js`
 

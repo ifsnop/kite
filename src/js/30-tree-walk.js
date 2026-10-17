@@ -86,7 +86,6 @@ function selectRange(to) {
   for (const li of [...selection]) setSelected(li, false);
   for (const li of span) setSelected(li, true);
   setSelCursor(to);
-  announceSelectionCount();
 }
 
 /* Añade (o quita) un nodo sin arrastrar los intermedios: Ctrl+Shift */
@@ -95,26 +94,6 @@ function toggleOne(li) {
   setSelected(li, on);
   setSelCursor(li);
   selAnchor = li;
-  announceSelectionCount();
-}
-
-/* ---------- Aviso del número de nodos seleccionados ----------
-   Puramente informativo: es la forma rápida de saber, por ejemplo,
-   cuántos elementos hay dentro de una carpeta al seleccionarla entera
-   (ver selectFolderLayers). Con Mayús+flecha mantenido pulsado,
-   selectRange se dispara muchas veces por segundo con un recuento
-   distinto cada vez —y navMessage no funde líneas con texto distinto—,
-   así que se debate como el buscador del panel (SEARCH_DEBOUNCE_MS) en
-   vez de avisar en cada pulsación.                                    */
-const SEL_COUNT_DEBOUNCE_MS = 200;
-let selCountTimer = null;
-function announceSelectionCount() {
-  clearTimeout(selCountTimer);
-  selCountTimer = setTimeout(() => {
-    if (selection.size > 1) {
-      navMessage(`${selection.size} nodos seleccionados.`, { tone: "info" });
-    }
-  }, SEL_COUNT_DEBOUNCE_MS);
 }
 
 /* Nombre legible del tipo, para poder explicar por qué algo se queda
@@ -152,7 +131,6 @@ async function selectFolderLayers(li) {
   for (const n of layers) setSelected(n, true);
   setSelCursor(layers[layers.length - 1]);
   selAnchor = layers[0];
-  announceSelectionCount();
 }
 
 /* ---------- Recorrido del árbol, nodo a nodo ----------
