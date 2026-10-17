@@ -29,6 +29,8 @@ KITE Local reparte la pantalla en dos zonas, separadas por una barra que se pued
 
 Un botón con una flecha (◀ / ▶), en el borde entre ambos, oculta o vuelve a mostrar el panel de navegación por completo, para quien quiera ver el mapa a pantalla completa un momento sin perder lo cargado.
 
+**Desde un móvil.** KITE Local está pensado para pantallas de escritorio: en la de un teléfono no hay espacio para el panel de navegación y el mapa a la vez. Al abrirlo desde un móvil (pantalla táctil con el lado corto por debajo de 600 píxeles, en vertical o en horizontal; una tableta o una ventana estrecha de ordenador no cuentan) aparece un aviso, «Mejor desde un ordenador», que lo recomienda y ofrece dos salidas. «Continuar de todos modos» oculta el panel de navegación y deja solo el mapa. «Cerrar» (o la tecla Escape) deja el panel de navegación, que en un móvil ocupa toda la pantalla. En los dos casos la flecha del borde alterna entre el panel y el mapa, y la elección se recuerda: las siguientes veces no se vuelve a preguntar.
+
 ![Vista general de KITE Local, con el panel de navegación a la izquierda y el visor a la derecha](img/01-vista-general.png)
 *Figura 1. Vista general: panel de navegación (árbol con dos zonas, dos puntos de interés y una capa de sensores) y visor con la cartografía de fondo.*
 

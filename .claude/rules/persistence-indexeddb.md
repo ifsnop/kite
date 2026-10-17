@@ -80,6 +80,7 @@ paths:
 - **Tope de vértices editables** (`vertexEditMax`, `VERTMAX_SCHEMA`):
   número simple, validado al leer (`Number.isInteger` y `> 0`, para que
   no se cuele un tope de 0). Ver `measurements-drawing-vertex-editing.md`.
+- **Vista de móvil** (`mobileView`, `MOBILE_VIEW_KEY` = `"mobileView"`, `MOBILE_VIEW_SCHEMA`, `{ v, choice }`, `choice` uno de `MOBILE_VIEWS` = `map|nav`): qué se eligió ante el aviso «Mejor desde un ordenador»; clave propia del almacén `tree`, validada al leer, restaurada lo primero en `99-boot.js` (`initPhoneLayout`). No sube `DB_VERSION` ni `TREE_SCHEMA`. Ver `mobile-view.md`.
 - **Tema de la interfaz** (`uiTheme`, `UI_THEME_KEY` = `"uiTheme"`, `UI_THEME_SCHEMA`, `{ v, theme }`, `theme` uno de `UI_THEMES` = `auto|light|dark`): clave propia del almacén `tree`, como `coordFormat`; `dbLoadUiTheme` valida contra la lista y devuelve `null` si no cuadra. Restaurada lo primero en `99-boot.js`. No sube `DB_VERSION` ni `TREE_SCHEMA`. Ver `theme.md`.
 - **Unidad de medida y formato de coordenadas** (`measureUnit`,
   `coordFormat`): claves `MEASURE_UNIT_KEY`/`MEASURE_UNIT_SCHEMA` y

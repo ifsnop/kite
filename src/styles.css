@@ -392,6 +392,13 @@
   #nav-toggle:hover { color: var(--accent); }
   body.nav-hidden #nav-panel, body.nav-hidden #splitter { display: none; }
   body.nav-hidden #nav-toggle { left: 0; }
+  /* Pantalla de móvil (isPhoneScreen, 50-splitter.js): los 400 px del panel
+     no caben, y con el panel más ancho que la pantalla el botón de abajo
+     quedaría FUERA de ella —abierto el panel no habría forma de volver al
+     mapa—. El panel ocupa la pantalla menos el hueco del botón, que se
+     agranda a un tamaño que un dedo acierta.                            */
+  :root.phone-layout { --nav-width: calc(100vw - 34px); }
+  :root.phone-layout #nav-toggle { width: 28px; }
 
   /* ================= Ventana del visor (derecha) ================= */
   /* --map-bg: por defecto NO está definida, así que var() cae en el
@@ -1038,7 +1045,7 @@
      instead of stretching almost edge to edge.                       */
   /* Sin esto heredan el max-width: 90vw de .dlg-box y una caja de texto
      corto se estira a casi toda la pantalla.                          */
-  #kml-tags-picker .dlg-box, #kml-dup-picker .dlg-box, #sh-creds .dlg-box { max-width: 42ch; }
+  #kml-tags-picker .dlg-box, #kml-dup-picker .dlg-box, #sh-creds .dlg-box, #mobile-notice .dlg-box { max-width: 42ch; }
   /* ---------- Ventanas redimensionables ----------
      `resize: both` es el redimensionado nativo del navegador; su tirador
      va en la esquina inferior derecha y no estorba al arrastre por el

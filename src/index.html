@@ -388,6 +388,20 @@
 </div>
 
 <!-- Confirmar si se eliminan etiquetas tipo HTML de los nombres de un KML -->
+<!-- Aviso al abrir la aplicación desde un móvil (src/js/50-splitter.js):
+     no hay sitio para el panel de navegación y el mapa a la vez. -->
+<div id="mobile-notice" class="dlg-overlay" hidden>
+  <div class="dlg-box">
+    <h2>Mejor desde un ordenador</h2>
+    <p class="dlg-hint">KITE Local está pensado para pantallas de escritorio: en la pantalla de un móvil no hay espacio para el panel de navegación y el mapa a la vez. Le recomendamos abrirlo desde un ordenador.</p>
+    <p class="dlg-hint">Si continúa de todos modos, se ocultará el panel de navegación y quedará solo el mapa. Si cierra este aviso, el panel de navegación ocupará toda la pantalla. En los dos casos, la flecha del borde alterna entre el panel y el mapa, y se recordará su elección.</p>
+    <div class="dlg-actions">
+      <button class="btn" id="mobile-close">Cerrar</button>
+      <button class="btn" id="mobile-continue">Continuar de todos modos</button>
+    </div>
+  </div>
+</div>
+
 <div id="kml-tags-picker" class="dlg-overlay" hidden>
   <div class="dlg-box">
     <h2 id="ktp-title">Etiquetas en los nombres</h2>

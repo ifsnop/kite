@@ -43,6 +43,7 @@ nuevo, no que la regla no exista.
 | `units-coordinates-properties-panel.md` | Unidades de distancia y de altitud, formato de coordenadas, límite del perfil, panel Propiedades | `44-dialogs.js`, `43-points-editor.js` |
 | `geocalc.md` | Calculadora geodésica (botón 📐): pestañas (elevación con cono y corrección por presión, vector GPS), cálculo inmediato, unidades copiadas de Propiedades (distancia y altitud), modelos de Tierra | `62-geocalc.js` |
 | `elevation-dem.md` | Elevaciones MDT/MDS por WCS: catálogo por conjunto de datos (IGN MDT05/25/200 y MDS, Digital Earth Africa), consulta puntual desde el menú contextual, carpeta por sesión, ASCII/GeoTIFF, reintentos, unidad de altitud, perfil de una ruta | `60-elevation.js`, `63-route-profile.js` |
+| `mobile-view.md` | Aviso «Mejor desde un ordenador» en un móvil, solo el mapa si se insiste, diseño de móvil (panel a pantalla completa), elección recordada | `50-splitter.js`, `99-boot.js`, `index.html`, `styles.css` |
 | `theme.md` | Tema claro/oscuro de la interfaz: tokens `light-dark()`, `data-theme`, ajuste Tema de Propiedades, qué se tematiza (el cromo) y qué no (el contenido del mapa) | `styles.css`, `index.html`, `43-points-editor.js`, `99-boot.js` |
 | `cog.md` | Ortofotos COG: almacén `rasters` (Blob nativo), validación antes de copiar, CRS admitidos, `GridLayer` reproyectada por malla, niveles, limpieza al arrancar, lo que no se exporta | `64-cog.js`, `32-geojson.js`, `99-boot.js` |
 | `accessibility.md` | ARIA del árbol y de los diálogos | `src/js/**`, `src/index.html` |
