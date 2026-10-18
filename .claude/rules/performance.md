@@ -91,6 +91,7 @@ paths:
   librería nueva que solo use una función entra en `LAZY_LIBS`, no en
   `src/index.html`; `tests/lazylibs.js` exige que nadie use su global
   sin `ensureLib`.
+- **Polígonos de solo relleno sin costuras** (`09-canvas-seamless.js`): una tanda se dibuja en un lienzo auxiliar y se compone una vez. Cada tanda cuesta ~1,7 ms (componer desde otro lienzo vacía el auxiliar; medido sin GPU) y 3 000 tandas de dos polígonos tardaban 5 s por redibujado, así que hay tope (`SEAMLESS_MAX_RUNS` = 24) y una tanda de un solo polígono no se abre. Medido con el tope: 3 000 polígonos de un color, 14,7 ms frente a 5,8 sin el parche; 3 000 en parejas de colores distintos (el peor caso), 50 ms frente a 5. Ver `style-dialogs-ui.md`.
 - **Búsquedas por nombre local en el XML** (`elsByTag`, `firstByTag`,
   `childrenByTag`, `12-copernicus.js`): `firstByTag` copiaba la colección
   entera a un array para quedarse con el primero, y cada búsqueda VACÍA

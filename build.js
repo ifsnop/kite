@@ -57,6 +57,8 @@ const JS = [
                              ANTES de crear el mapa en 10-map.js          */
   "09-leaflet-events.js", /* índice de oyentes de Leaflet (añadir N capas
                              era O(N²)); parchea Evented, ANTES del mapa */
+  "09-canvas-seamless.js",/* polígonos de solo relleno sin costuras (L.Canvas._draw
+                             con tandas); parchea Canvas, ANTES del mapa      */
   "10-map.js",            /* mapa, capas de teselas, constantes globales */
   "11-base-panel.js",     /* panel de mapas base */
   "12-copernicus.js",     /* Copernicus DEM vía Sentinel Hub */

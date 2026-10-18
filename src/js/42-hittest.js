@@ -358,14 +358,15 @@ function clearFillOnOpenPaths(layer) {
   scan(layer);
 }
 
-/* Fill in defaults so every dialog control has a concrete value.
-   Stroke opacity is not editable: outlines are always fully opaque.  */
+/* Fill in defaults so every dialog control has a concrete value. The
+   outline opacity is editable (`opacity`, Leaflet's own key); anything
+   missing or out of range is a fully opaque outline.                  */
 function normalizePathStyle(s) {
   s = { color: "#3388ff", weight: 2, fillOpacity: 0.35, ...(s || {}) };
   if (!s.fillColor) s.fillColor = s.color;
   s.fill = s.fill !== false; /* Leaflet default: filled */
   s.stroke = s.stroke !== false; /* Leaflet default: outlined */
-  s.opacity = 1;
+  s.opacity = Number.isFinite(s.opacity) && s.opacity >= 0 && s.opacity <= 1 ? s.opacity : 1;
   s.showLabels = s.showLabels !== false; /* default: shown, current behaviour */
   return s;
 }

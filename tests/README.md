@@ -83,7 +83,7 @@ NAMESPACE VARIANTS OK
 POLYGON STROKE/FILL TESTS OK
 ```
 
-**Qué cubre:** Parseo de KML con prefijo, con espacio de nombres por defecto y sin ninguno; cadenas de `StyleMap` con ciclos; polígonos con agujeros; color `aabbggrr`.
+**Qué cubre:** Parseo de KML con prefijo, con espacio de nombres por defecto y sin ninguno; cadenas de `StyleMap` con ciclos; polígonos con agujeros; color `aabbggrr`. Y el estilo que recibe Leaflet frente al guardado: `polygonRenderStyle` (solo relleno → contorno de 1 px del color y la opacidad del relleno sin tocar el estilo guardado; contorno y relleno, solo contorno y estilo vacío sin cambios, con los valores por defecto de Leaflet explícitos) y la opacidad del contorno en `normalizePathStyle` (1 si falta o es inválida).
 
 ### `repairtest.js`
 
@@ -680,6 +680,16 @@ BROWSER LIVE PREVIEW TESTS OK
 ```
 
 **Qué cubre:** El diálogo de estilos aplica los cambios al mapa AL MOMENTO y «Cancelar» los deshace. Marcador: el tamaño llega a la capa mientras el diálogo sigue abierto y el marcador sigue siendo arrastrable; el color por el popover se ve al pulsar una muestra, Cancelar del popover lo devuelve, y Cancelar del diálogo deshace incluso un color ya aceptado en el popover; el icono se aplica al pulsarlo en la rejilla, Cancelar del selector lo devuelve y Aceptar lo deja. Polígono: grosor en vivo, revertido al cancelar, persistente al aceptar. Selección mixta: un color tocado llega a todos, y cancelar el popover devuelve a CADA uno el suyo (no el del primero).
+
+### `browser/seam-outline.mjs`
+
+**Salida de `npm test`:**
+```
+── Navegador: polígonos de solo relleno sin costura ni contorno entre ellos (tandas compuestas con la opacidad una sola vez), coste acotado y opacidad del contorno en Propiedades, sin tocar lo guardado
+BROWSER SEAM OUTLINE TESTS OK
+```
+
+**Qué cubre:** Dos polígonos de solo relleno que comparten un borde inclinado no dejan costura NI contorno: se mide el alfa del lienzo en una franja alrededor del borde —ninguna fila baja del 95 % del relleno y nada pasa del relleno (0,7 sobre 0,7 daría 0,91, que es el contorno oscuro del primer intento)—, con un control de dos tandas de un solo polígono que SÍ deja costura (se comprobó además que la suite falla sin el parche: 314 de 365 filas). Leaflet recibe «solo relleno» tal cual (`stroke: false`), y `li._style` y lo serializado conservan el color, ancho y opacidad del contorno elegidos; pasar a «contorno y relleno» los devuelve y el contorno se ve en el lienzo. El orden de pintado se conserva (en un solape manda el último pintado). El coste está acotado: con 100 tandas posibles se abren como mucho `SEAMLESS_MAX_RUNS`. El diálogo: el control de opacidad del contorno enseña lo guardado, aplica en vivo, Cancelar lo revierte, Aceptar lo deja en `serializeNode(...).style.opacity`, y elegir «solo relleno» desde el diálogo no pierde el color, el ancho ni la opacidad del contorno. Recargar: el árbol guardado vuelve con el mismo dibujo.
 
 ### `browser/lazy-cascade.mjs`
 
