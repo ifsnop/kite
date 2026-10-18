@@ -247,7 +247,7 @@ async function searchPlaces(query) {
       ? `el servicio ha tardado m\u00E1s de ${PLACE_TIMEOUT / 1000} s en responder`
       : err.message;
     placeStatus.textContent = "No se pudo consultar el servicio de b\u00FAsqueda.";
-    navMessage(`Error al buscar el lugar: ${why}.`);
+    navMessage(`Error al buscar el lugar: ${err instanceof TypeError ? netFailText(why) : why}.`);
     return;
   } finally {
     clearTimeout(timer);

@@ -291,7 +291,10 @@ async function runUrlFetch() {
        causa más frecuente es que el servidor no mande cabeceras CORS,
        así que el mensaje lo dice y ofrece la salida que siempre
        funciona en vez de dejar al usuario mirando «Failed to fetch». */
-    const msg = err instanceof TypeError
+    const msg = err instanceof TypeError && isOffline()
+      ? "No hay conexión a la red: no se puede descargar ahora. Si tiene el archivo en el "
+        + "equipo, arrástrelo al recuadro."
+      : err instanceof TypeError
       ? "No se ha podido conectar. Lo más probable es que el servidor no autorice la "
         + "descarga desde otra página (CORS); el navegador no da más detalle. También "
         + "puede ser que la dirección no exista o que no haya conexión. Si puede abrir "

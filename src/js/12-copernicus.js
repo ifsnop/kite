@@ -53,7 +53,7 @@ async function fetchCopernicusCatalog() {
   })().catch(err => {
     copDiscovering = null; /* permite reintentar en la próxima llamada */
     copError = err.name === "TimeoutError" ? "el servicio no responde"
-      : err.message === "Failed to fetch" ? "no se pudo conectar con Sentinel Hub"
+      : err.message === "Failed to fetch" ? netFailText("no se pudo conectar con Sentinel Hub")
       : err.message;
     throw err;
   });

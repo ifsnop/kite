@@ -145,4 +145,9 @@
   if (navigator.storage && navigator.storage.persist) {
     navigator.storage.persist().catch(() => {});
   }
+
+  /* Lo último: el uso sin conexión es una mejora que no debe competir
+     con el arranque (ni con la lectura de IndexedDB) por la red.     */
+  initOfflineIndicator();
+  registerOfflineWorker();
 })();

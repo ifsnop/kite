@@ -424,7 +424,7 @@ async function fetchPnoaHistoricoCatalog() {
   })().catch(err => {
     pnoaHistDiscovering = null; /* permite reintentar en la próxima llamada */
     pnoaHistError = err.name === "TimeoutError" ? "el servicio no responde"
-      : err.message === "Failed to fetch" ? "el servicio no admite consultas desde el navegador (CORS)"
+      : err.message === "Failed to fetch" ? netFailText("el servicio no admite consultas desde el navegador (CORS)")
       : err.message;
     throw err;
   });

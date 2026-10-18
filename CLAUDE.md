@@ -46,6 +46,7 @@ nuevo, no que la regla no exista.
 | `mobile-view.md` | Aviso «Mejor desde un ordenador» en un móvil, solo el mapa si se insiste, diseño de móvil (panel a pantalla completa), elección recordada | `50-splitter.js`, `99-boot.js`, `index.html`, `styles.css` |
 | `theme.md` | Tema claro/oscuro de la interfaz: tokens `light-dark()`, `data-theme`, ajuste Tema de Propiedades, qué se tematiza (el cromo) y qué no (el contenido del mapa) | `styles.css`, `index.html`, `43-points-editor.js`, `99-boot.js` |
 | `cog.md` | Ortofotos COG: almacén `rasters` (Blob nativo), validación antes de copiar, CRS admitidos, `GridLayer` reproyectada por malla, niveles, limpieza al arrancar, lo que no se exporta | `64-cog.js`, `32-geojson.js`, `99-boot.js` |
+| `offline.md` | Uso sin conexión: service worker `sw.js` (generado desde `src/sw.js`), qué guarda y qué deja pasar, lista de librerías mandada por la página, indicador «Sin conexión», `netFailText` | `src/sw.js`, `06-offline.js`, `07-lazy-libs.js`, `99-boot.js`, `build.js` |
 | `accessibility.md` | ARIA del árbol y de los diálogos | `src/js/**`, `src/index.html` |
 | `persistence-indexeddb.md` | `DB_VERSION`/`TREE_SCHEMA`, serialización del árbol, claves del almacén | `src/js/**` |
 | `external-network.md` | Disciplina de peticiones de red externa (tope, tiempo por intento, reintentos de lo pasajero) | `40-panel-actions.js`, `60-elevation.js`, `63-route-profile.js`, `12-copernicus.js` |

@@ -23,13 +23,18 @@
      `default-src 'none'` sigue en pie, `script-src`/`style-src`
      conservan sus listas cerradas (un origen ajeno puede dar datos,
      nunca código ni estilos) y `http:` queda fuera a propósito en las
-     dos, así que una página servida por https no puede degradarse.  -->
+     dos, así que una página servida por https no puede degradarse.
+
+     `worker-src 'self'` es el service worker del uso sin conexión
+     (sw.js, un archivo del mismo origen). Sin `blob:`: ningún worker se
+     construye desde datos, ni siquiera los de geotiff.js (ver cog.md).  -->
 <meta http-equiv="Content-Security-Policy" content="
   default-src 'none';
   script-src 'self' 'unsafe-inline' https://unpkg.com https://cdnjs.cloudflare.com;
   style-src 'self' 'unsafe-inline' https://unpkg.com;
   img-src 'self' data: blob: https:;
   connect-src 'self' https:;
+  worker-src 'self';
   font-src 'self';
   base-uri 'none';
   form-action 'none';
@@ -110,6 +115,8 @@
       <button class="btn" id="deactivate-all">Desactivar todo</button>
       <button class="btn" id="collapse-all">Colapsar todo</button>
     </div>
+    <div id="offline-badge" hidden role="status"
+         title="Sin conexión a la red. KITE sigue funcionando con lo guardado en este navegador; los mapas base, la b&#250;squeda de lugares y las elevaciones necesitan red.">Sin conexi&#243;n</div>
     <div id="nav-msg"></div>
     <div id="progress" hidden>
       <div id="progress-label"></div>

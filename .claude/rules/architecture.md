@@ -8,6 +8,11 @@ paths:
 ## Arquitectura (orden de secciones dentro del script)
 
 0. **Parches de Leaflet y cargador**, todos ANTES de crear el mapa:
+   - `06-offline.js`: uso sin conexión (lista de lo que guarda el
+     service worker, indicador «Sin conexión», `netFailText`); solo
+     DECLARA funciones, `99-boot.js` las llama al final. Va antes que
+     `07` pero lee `LAZY_LIBS` y `LEAFLET_PIN_URL` al llamarse. El
+     worker en sí es `src/sw.js`, fuera del manifiesto. Ver `offline.md`.
    - `07-lazy-libs.js`: html2canvas, geotiff.js y proj4js bajo demanda
      (`LAZY_LIBS`, `ensureLib`); datos y una función, sin dependencias.
      Quien use una de ellas va por `ensureLib`, no por el global.

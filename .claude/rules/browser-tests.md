@@ -24,6 +24,7 @@ del sistema entre instancias. Viven en `tests/browser/`.
   convierte el salto en FALLO.
 - Sin poder descargar Chromium: `KITE_BROWSER=/ruta/al/chrome` usa uno
   ya instalado (o `channel: "chrome"`/`"msedge"`, Firefox/WebKit).
+- **Sin service worker por defecto**: `openApp` crea el contexto con `serviceWorkers: "block"` (y también los `newContext` sueltos de `cog.mjs` y `lazy-libs.mjs`), porque con uno controlando la página `page.route` ya no ve lo que el worker contesta. Solo `offline.mjs` los permite, con `serveSite` (servidor que cambia en caliente entre `up`, `down` y `hang`). Ver `offline.md`.
 - **Se sirve por `http://`, nunca `file://`**: IndexedDB necesita
   origen real; dos puertos = dos orígenes, necesario para probar
   copiar/pegar entre instancias.
