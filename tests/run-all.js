@@ -79,6 +79,7 @@ const BROWSER = [
   ["browser/sun-times-info.mjs", "Navegador: horas del sol y crepúsculos en la ficha de un marcador con la iluminación real activa"],
   ["browser/geojson-name.mjs", "Navegador: nombre de GeoJSON con varias claves, selección guardada sin preguntar, cancelar y cambiarla desde Propiedades"],
   ["browser/geojson-html.mjs", "Navegador: etiquetas tipo HTML en properties de GeoJSON, de punta a punta"],
+  ["browser/seam-outline.mjs", "Navegador: polígonos de solo relleno sin costura ni contorno entre ellos (tandas compuestas con la opacidad una sola vez), coste acotado y opacidad del contorno en Propiedades, sin tocar lo guardado"],
   ["browser/dialogs.mjs", "Navegador: las ventanas fijan cabecera y pie, y se redimensionan"],
   ["browser/tree-move.mjs", "Navegador: mover un nodo de rama recalcula la casilla de los dos extremos"],
   ["browser/multiedit.mjs", "Navegador: editar varios nodos a la vez y el nombre siempre a la vista de un trazo"],

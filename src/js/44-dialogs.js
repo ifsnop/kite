@@ -632,7 +632,7 @@ function styleDialogShows(li) {
 const CONTROL_PROP = {
   "mk-color": "color", "mk-size": "size", "mk-text-size": "textSize",
   "mk-text-color": "textColor", "mk-text-always": "textAlways",
-  "pg-mode": "mode", "pg-weight": "weight", "pg-color": "color",
+  "pg-mode": "mode", "pg-weight": "weight", "pg-color": "color", "pg-opacity": "opacity",
   "pg-fill-color": "fillColor", "pg-fill-opacity": "fillOpacity",
   "pg-text-always": "textAlways",
   "ms-weight": "weight", "ms-color": "color", "ms-fill-color": "fillColor",
@@ -857,7 +857,7 @@ function openStyleDialog(li, { isNew = false, focus = true } = {}) {
     const styles = styleTargets.map(t => normalizePathStyle(t._style));
     styleDraft = { ...styles[0] };
     styleMixed = mixedProps(styles,
-      ["weight", "color", "fillColor", "fillOpacity", "textAlways"]);
+      ["weight", "color", "opacity", "fillColor", "fillOpacity", "textAlways"]);
     /* El modo son DOS booleanos en un solo selector: la mezcla se
        calcula sobre lo que el selector muestra, no sobre cada uno.   */
     if (styles.some(s => polygonModeOf(s) !== polygonModeOf(styles[0]))) styleMixed.add("mode");
@@ -879,6 +879,7 @@ function openStyleDialog(li, { isNew = false, focus = true } = {}) {
       !openOnly && styleMixed.has("mode"));
     setNumberControl($id("pg-weight"), styleDraft.weight, styleMixed.has("weight"));
     setColorControl($id("pg-color"), styleDraft.color, styleMixed.has("color"));
+    setValueControl($id("pg-opacity"), styleDraft.opacity, styleMixed.has("opacity"));
     setColorControl($id("pg-fill-color"), styleDraft.fillColor, styleMixed.has("fillColor"));
     setValueControl($id("pg-fill-opacity"), styleDraft.fillOpacity, styleMixed.has("fillOpacity"));
     setCheckControl($id("pg-text-always"), styleDraft.textAlways, styleMixed.has("textAlways"));
@@ -1119,7 +1120,7 @@ function readPolygonControls() {
   Object.assign(styleDraft, {
     weight: numOr($id("pg-weight"), styleDraft.weight || 1),
     color: colorOf($id("pg-color")),
-    opacity: 1, /* outlines are always fully opaque */
+    opacity: Number($id("pg-opacity").value),
     stroke: mode !== "fill",
     fill: mode !== "stroke",
     fillColor: colorOf($id("pg-fill-color")),
@@ -1138,7 +1139,7 @@ function readMeasureControls() {
   Object.assign(styleDraft, {
     weight: numOr($id("ms-weight"), styleDraft.weight || 1),
     color: colorOf($id("ms-color")),
-    opacity: 1, /* el contorno siempre opaco, como en los polígonos */
+    opacity: 1, /* la medición no edita la opacidad del contorno: siempre opaco */
     fillColor: colorOf($id("ms-fill-color")),
     fillOpacity: Number($id("ms-fill-opacity").value),
     showLabels: $id("ms-show-labels").checked
@@ -1156,7 +1157,7 @@ function readStyleControls() {
 for (const id of ["mk-size", "mk-text-size", "mk-text-always"]) { /* colours: openColorPicker */
   $id(id).addEventListener("input", () => { if (styleDraft) { readMarkerControls(); schedulePreview(); } });
 }
-for (const id of ["pg-weight", "pg-fill-opacity"]) { /* colours: openColorPicker */
+for (const id of ["pg-weight", "pg-opacity", "pg-fill-opacity"]) { /* colours: openColorPicker */
   $id(id).addEventListener("input", () => { if (styleDraft) { readPolygonControls(); schedulePreview(); } });
 }
 for (const id of ["ms-weight", "ms-fill-opacity"]) { /* colours: openColorPicker */
@@ -1374,7 +1375,7 @@ function applyDraftToTargets() {
       applyMarkerStyle(t);
     }
   } else if (styleKindOpen === "polygon") {
-    const pick = draftProps(["weight", "color", "fillColor", "fillOpacity", "textAlways"]);
+    const pick = draftProps(["weight", "color", "opacity", "fillColor", "fillOpacity", "textAlways"]);
     /* El modo son dos booleanos que viajan juntos: o se aplican los dos
        o no se toca ninguno, o un nodo podría quedarse sin contorno NI
        relleno, que es la combinación que el selector no ofrece.       */

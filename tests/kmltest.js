@@ -124,6 +124,11 @@ ok(plainGeo.stroke === undefined && plainGeo.fill === undefined, "sin señal: st
 ok(normalizePathStyle({}).stroke === true, "sin stroke -> por defecto true (contorno)");
 ok(normalizePathStyle({ stroke: false }).stroke === false, "stroke false se conserva");
 ok(normalizePathStyle({}).fill === true, "sin fill -> por defecto true (relleno)");
+/* Opacidad del contorno: editable, 1 si falta o no es válida */
+ok(normalizePathStyle({}).opacity === 1, "sin opacity -> contorno opaco");
+ok(normalizePathStyle({ opacity: 0.4 }).opacity === 0.4, "opacity del contorno se conserva");
+ok(normalizePathStyle({ opacity: 7 }).opacity === 1 && normalizePathStyle({ opacity: "x" }).opacity === 1,
+  "opacity fuera de [0,1] o no numérica -> 1");
 
 /* ---- polygonModeOf: traducción de los dos booleanos al selector único ---- */
 ok(polygonModeOf({ stroke: false, fill: true }) === "fill", "solo relleno");

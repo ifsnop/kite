@@ -20,6 +20,9 @@ paths:
      leaflet-rotate): parches de prototipo. Ver `map-rotation.md`.
    - `09-leaflet-events.js`: índice de oyentes de `L.Evented` (añadir N
      capas al mapa era O(N²)). Ver `performance.md`.
+   - `09-canvas-seamless.js`: `L.Canvas._draw` con «tandas» de polígonos
+     de solo relleno compuestas con la opacidad una sola vez (sin
+     costuras ni contornos entre vecinos). Ver `style-dialogs-ui.md`.
 1. **Mapa base**: capas de teselas (OSM, Esri Terrain, PNOA, sin fondo)
    y `rootGroup` (`featureGroup` del que cuelga TODO). Prefijo de
    atribución (versión+repo) y escala aquí: su posición depende del
