@@ -106,6 +106,15 @@
      para no hacer nada. Mismos valores que .color-btn:disabled.      */
   .btn:disabled { opacity: .35; cursor: default; }
   .btn:disabled:hover { border-color: var(--border); color: inherit; }
+  /* Aviso permanente mientras no haya red: discreto, con los tokens del
+     peligro pero sin llegar a ser una alerta (la aplicación funciona). */
+  #offline-badge {
+    margin: 4px 0 0; padding: 2px 8px; font-size: 11.5px; cursor: default;
+    color: var(--danger); background: var(--danger-soft);
+    border: 1px solid var(--danger); border-radius: 10px;
+    width: fit-content;
+  }
+  #offline-badge[hidden] { display: none; }
   #nav-msg { font-size: 12px; min-height: 0; }
   /* Solo hay DOS niveles de aviso: notificación (`info`) y alerta
      (`error`, el de por defecto). La notificación va en el color normal

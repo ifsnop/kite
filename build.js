@@ -30,6 +30,13 @@ const ROOT = __dirname;
 const SRC = path.join(ROOT, "src");
 const OUT = path.join(ROOT, "kitelocal.html");
 const OUT_MIN = path.join(ROOT, "kitelocal.min.html");
+/* El service worker (uso sin conexión) NO es parte del producto de un solo
+   archivo: solo importa servido por http(s), y el navegador exige que sea
+   un script propio del mismo origen (ni blob: ni data:, ni el propio HTML,
+   que se serviría como text/html). Se COPIA tal cual, sin transformar,
+   para que `sw.js` en la raíz sea siempre el de src/ (ver offline.md).   */
+const SW_SRC = path.join(SRC, "sw.js");
+const OUT_SW = path.join(ROOT, "sw.js");
 
 /* ORDEN DE CARGA. No es cosmético: todo comparte un mismo ámbito y hay
    dependencias de orden que ningún `node --check` detecta — una
@@ -41,6 +48,8 @@ const JS = [
   "05-mdi-icons.js",      /* GENERADO por fetch-icons.js: cuerpos SVG empotrados.
                              Va el primero por ser datos puros, sin ninguna
                              dependencia, y para que nada pueda usarlo antes  */
+  "06-offline.js",        /* uso sin conexión: lista del service worker, indicador
+                             «Sin conexión» y netFailText; solo DECLARA funciones */
   "07-lazy-libs.js",      /* html2canvas, geotiff.js y proj4js bajo demanda
                              (ensureLib): datos y una función, sin dependencias */
   "08-map-rotation.js",   /* rotación del mapa (derivada de leaflet-rotate):
@@ -198,14 +207,16 @@ if (process.argv.includes("--watch")) {
     process.exit(2);
   }
 
+  const sw = read(SW_SRC);
+
   if (process.argv.includes("--check")) {
-    /* Se comprueban LOS DOS y se dice cuál está desfasado: con un solo
+    /* Se comprueban TODOS y se dice cuál está desfasado: con un solo
        mensaje genérico habría que ir a mirar cuál de ellos falla.    */
-    const stale = [[OUT, out], [OUT_MIN, min]]
+    const stale = [[OUT, out], [OUT_MIN, min], [OUT_SW, sw]]
       .filter(([file, built]) => (fs.existsSync(file) ? read(file) : null) !== built)
       .map(([file]) => path.basename(file));
     if (!stale.length) {
-      console.log("✓ kitelocal.html y kitelocal.min.html están al día respecto de src/");
+      console.log("✓ kitelocal.html, kitelocal.min.html y sw.js están al día respecto de src/");
       process.exit(0);
     }
     console.error(`✗ ${stale.join(" y ")} NO coincide${stale.length > 1 ? "n" : ""} con src/: `
@@ -217,8 +228,10 @@ if (process.argv.includes("--watch")) {
 
   fs.writeFileSync(OUT, out);
   fs.writeFileSync(OUT_MIN, min);
+  fs.writeFileSync(OUT_SW, sw);
   const b = Buffer.byteLength(out, "utf8"), mb = Buffer.byteLength(min, "utf8");
   console.log(`✓ kitelocal.html generado desde src/ (${JS.length} archivos JS, ${b} bytes)`);
   console.log(`✓ kitelocal.min.html (${mb} bytes, ${(100 - 100 * mb / b).toFixed(0)}% menos) `
     + "— es lo que sirve GitHub Pages");
+  console.log(`✓ sw.js copiado de src/sw.js (${Buffer.byteLength(sw, "utf8")} bytes) — uso sin conexión`);
 })();

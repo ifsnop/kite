@@ -23,13 +23,18 @@
      `default-src 'none'` sigue en pie, `script-src`/`style-src`
      conservan sus listas cerradas (un origen ajeno puede dar datos,
      nunca código ni estilos) y `http:` queda fuera a propósito en las
-     dos, así que una página servida por https no puede degradarse.  -->
+     dos, así que una página servida por https no puede degradarse.
+
+     `worker-src 'self'` es el service worker del uso sin conexión
+     (sw.js, un archivo del mismo origen). Sin `blob:`: ningún worker se
+     construye desde datos, ni siquiera los de geotiff.js (ver cog.md).  -->
 <meta http-equiv="Content-Security-Policy" content="
   default-src 'none';
   script-src 'self' 'unsafe-inline' https://unpkg.com https://cdnjs.cloudflare.com;
   style-src 'self' 'unsafe-inline' https://unpkg.com;
   img-src 'self' data: blob: https:;
   connect-src 'self' https:;
+  worker-src 'self';
   font-src 'self';
   base-uri 'none';
   form-action 'none';
@@ -181,6 +186,15 @@
      para no hacer nada. Mismos valores que .color-btn:disabled.      */
   .btn:disabled { opacity: .35; cursor: default; }
   .btn:disabled:hover { border-color: var(--border); color: inherit; }
+  /* Aviso permanente mientras no haya red: discreto, con los tokens del
+     peligro pero sin llegar a ser una alerta (la aplicación funciona). */
+  #offline-badge {
+    margin: 4px 0 0; padding: 2px 8px; font-size: 11.5px; cursor: default;
+    color: var(--danger); background: var(--danger-soft);
+    border: 1px solid var(--danger); border-radius: 10px;
+    width: fit-content;
+  }
+  #offline-badge[hidden] { display: none; }
   #nav-msg { font-size: 12px; min-height: 0; }
   /* Solo hay DOS niveles de aviso: notificación (`info`) y alerta
      (`error`, el de por defecto). La notificación va en el color normal
@@ -1655,6 +1669,8 @@
       <button class="btn" id="deactivate-all">Desactivar todo</button>
       <button class="btn" id="collapse-all">Colapsar todo</button>
     </div>
+    <div id="offline-badge" hidden role="status"
+         title="Sin conexión a la red. KITE sigue funcionando con lo guardado en este navegador; los mapas base, la b&#250;squeda de lugares y las elevaciones necesitan red.">Sin conexi&#243;n</div>
     <div id="nav-msg"></div>
     <div id="progress" hidden>
       <div id="progress-label"></div>
@@ -2426,6 +2442,104 @@ const MDI_ICON_BODIES = {
   "map-marker-alert": '<path fill="currentColor" d="M12 2c3.9 0 7 3.1 7 7c0 5.2-7 13-7 13S5 14.2 5 9c0-3.9 3.1-7 7-7m-1 4v6h2V6zm0 8v2h2v-2z"/>',
 };
 /* fin de MDI_ICON_BODIES */
+/* ================= Uso sin conexión =================
+   Dos cosas independientes, ninguna toca los datos del usuario:
+
+   1. El service worker (sw.js, GENERADO desde src/sw.js) guarda el HTML y
+      las librerías de CDN para poder RECARGAR la página sin red (el
+      navegador descarta pestañas en segundo plano y las recarga al
+      volver). Solo existe servido por http(s); abierto por doble clic
+      (file://) no se registra nada y todo sigue como antes. Ver offline.md.
+   2. Un indicador «Sin conexión» y mensajes que dicen «sin conexión» en
+      vez de un error genérico: sin red, mapas base, búsqueda de lugares,
+      elevaciones o descargas no pueden funcionar, y conviene que se lea
+      como lo que es y no como un fallo del servicio.
+
+   Qué lista de librerías se guarda lo decide ESTE archivo, no el worker:
+   sale de las etiquetas <script>/<link> del propio documento y de
+   LAZY_LIBS, así que una versión nueva de una librería se cambia en un
+   solo sitio (su etiqueta o su entrada) y el worker la sigue.
+
+   Va antes que 07-lazy-libs.js en el manifiesto pero solo DECLARA
+   funciones: LAZY_LIBS y LEAFLET_PIN_URL se leen cuando se llama.       */
+
+const OFFLINE_WHY = "sin conexión a la red";
+const OFFLINE_WORKER = "sw.js";
+
+/* `navigator.onLine === false` es fiable en una sola dirección: false
+   significa SEGURO que no hay interfaz de red; true no prueba que haya
+   conectividad. Por eso solo se usa para explicar un fallo ya ocurrido
+   (nunca para impedir un intento).                                    */
+function isOffline() {
+  return typeof navigator !== "undefined" && navigator.onLine === false;
+}
+
+/* El texto de un fallo de red: «sin conexión» si es seguro que la hay,
+   y el genérico de cada sitio (CORS, servicio caído…) si no.          */
+function netFailText(generic) {
+  return isOffline() ? OFFLINE_WHY : generic;
+}
+
+/* Todo lo que el worker debe tener guardado: las etiquetas con integridad
+   del documento, las librerías bajo demanda y las dos imágenes del
+   marcador de Leaflet (un <img> no admite SRI, igual que hoy).         */
+function precacheItems() {
+  const seen = new Map();
+  const add = (url, integrity) => {
+    if (url && !seen.has(url)) seen.set(url, integrity ? { url, integrity } : { url });
+  };
+  for (const el of document.querySelectorAll("script[src][integrity], link[rel='stylesheet'][integrity]")) {
+    add(el.src || el.href, el.getAttribute("integrity"));
+  }
+  for (const lib of Object.values(LAZY_LIBS)) add(lib.url, lib.integrity);
+  add(LEAFLET_PIN_URL);
+  add(LEAFLET_PIN_SHADOW);
+  return [...seen.values()];
+}
+
+/* Registra el worker y le manda la lista. Todo en silencio: es una mejora
+   que nadie ha pedido en este momento, y que no exista (file://, un
+   alojamiento sin sw.js, un navegador que no lo admite) no es un fallo
+   que el usuario pueda arreglar.                                       */
+async function registerOfflineWorker() {
+  if (!("serviceWorker" in navigator) || !window.isSecureContext) return;
+  if (!/^https?:$/.test(location.protocol)) return;
+  try {
+    await navigator.serviceWorker.register(OFFLINE_WORKER);
+    if (isOffline()) return; /* nada que descargar; ya sirve lo guardado */
+    const reg = await navigator.serviceWorker.ready;
+    if (!reg.active) return;
+    reg.active.postMessage({
+      type: "precache",
+      items: precacheItems(),
+      /* Sin hash ni búsqueda: es la página que acaba de cargar y que el
+         worker no vio pasar (aún no controlaba nada).                */
+      pages: [location.origin + location.pathname]
+    });
+  } catch { /* ver arriba */ }
+}
+
+/* El indicador sigue a `navigator.onLine`; el mensaje solo sale en una
+   TRANSICIÓN (también al arrancar sin red, porque es lo que explica por
+   qué el mapa está en blanco), con tono de notificación: no es un fallo
+   de KITE.                                                              */
+function updateOfflineBadge(announce) {
+  const badge = document.getElementById("offline-badge");
+  if (!badge) return;
+  const off = isOffline();
+  badge.hidden = !off;
+  if (!announce) return;
+  navMessage(off
+    ? "Sin conexión: KITE sigue funcionando con lo guardado en este navegador. "
+      + "Los mapas base, la búsqueda de lugares y las elevaciones necesitan red."
+    : "Conexión recuperada.", { tone: "info" });
+}
+
+function initOfflineIndicator() {
+  updateOfflineBadge(isOffline());
+  window.addEventListener("offline", () => updateOfflineBadge(true));
+  window.addEventListener("online", () => updateOfflineBadge(true));
+}
 /* ================= Librerías que se cargan bajo demanda =================
    html2canvas (exportar PNG), geotiff.js (fuentes de elevación sin rejilla
    ASCII, ortofotos COG) y proj4js (el .prj de un shapefile, ortofotos COG)
@@ -3294,7 +3408,7 @@ map.on("resize rotate", fitWorldMinZoom);
 
 /* Fecha de generación del código (versión): AÑOMESDIAHORAMINUTO.
    Actualizar en cada generación; se muestra junto al crédito de Leaflet. */
-const BUILD = "202610171428";
+const BUILD = "202610180954";
 /* Versión de release (la de package.json, horneada aquí por build.js
    al construir — ver «Versión y releases de GitHub» en CLAUDE.md): a
    diferencia de BUILD, que cambia en CADA generación, esta solo cambia
@@ -4017,7 +4131,7 @@ async function fetchPnoaHistoricoCatalog() {
   })().catch(err => {
     pnoaHistDiscovering = null; /* permite reintentar en la próxima llamada */
     pnoaHistError = err.name === "TimeoutError" ? "el servicio no responde"
-      : err.message === "Failed to fetch" ? "el servicio no admite consultas desde el navegador (CORS)"
+      : err.message === "Failed to fetch" ? netFailText("el servicio no admite consultas desde el navegador (CORS)")
       : err.message;
     throw err;
   });
@@ -4095,7 +4209,7 @@ async function fetchCopernicusCatalog() {
   })().catch(err => {
     copDiscovering = null; /* permite reintentar en la próxima llamada */
     copError = err.name === "TimeoutError" ? "el servicio no responde"
-      : err.message === "Failed to fetch" ? "no se pudo conectar con Sentinel Hub"
+      : err.message === "Failed to fetch" ? netFailText("no se pudo conectar con Sentinel Hub")
       : err.message;
     throw err;
   });
@@ -9060,7 +9174,7 @@ async function searchPlaces(query) {
       ? `el servicio ha tardado m\u00E1s de ${PLACE_TIMEOUT / 1000} s en responder`
       : err.message;
     placeStatus.textContent = "No se pudo consultar el servicio de b\u00FAsqueda.";
-    navMessage(`Error al buscar el lugar: ${why}.`);
+    navMessage(`Error al buscar el lugar: ${err instanceof TypeError ? netFailText(why) : why}.`);
     return;
   } finally {
     clearTimeout(timer);
@@ -12498,7 +12612,10 @@ async function runUrlFetch() {
        causa más frecuente es que el servidor no mande cabeceras CORS,
        así que el mensaje lo dice y ofrece la salida que siempre
        funciona en vez de dejar al usuario mirando «Failed to fetch». */
-    const msg = err instanceof TypeError
+    const msg = err instanceof TypeError && isOffline()
+      ? "No hay conexión a la red: no se puede descargar ahora. Si tiene el archivo en el "
+        + "equipo, arrástrelo al recuadro."
+      : err instanceof TypeError
       ? "No se ha podido conectar. Lo más probable es que el servidor no autorice la "
         + "descarga desde otra página (CORS); el navegador no da más detalle. También "
         + "puede ser que la dirección no exista o que no haya conexión. Si puede abrir "
@@ -15848,7 +15965,7 @@ function describeTraceGrid(grid) {
 function describeTraceError(err, attempt, timeoutMs) {
   const why = err.name === "TimeoutError" ? `sin respuesta en ${Math.round(timeoutMs / 1000)} s`
     : err.name === "AbortError" ? "cancelada"
-    : err.name === "TypeError" ? "error de red, o el servicio no admite consultas desde el navegador (CORS)"
+    : err.name === "TypeError" ? netFailText("error de red, o el servicio no admite consultas desde el navegador (CORS)")
     : err.owsCode ? `excepción del servicio ${err.owsCode}: ${err.message}`
     : err.status ? `HTTP ${err.status}: ${err.message}` : err.message;
   const out = isOutOfCoverage(err) ? " (fuera de cobertura: no es un error)" : "";
@@ -16185,7 +16302,7 @@ function makeElevationSource(source) {
   const failText = err => {
     const why = err.name === "TimeoutError" ? "el servicio no responde"
       : err.name === "TypeError"
-        ? "el servicio no admite consultas desde el navegador (CORS) o no está disponible"
+        ? netFailText("el servicio no admite consultas desde el navegador (CORS) o no está disponible")
         : err.message;
     return err.attempts > 1 ? `${why} (tras ${err.attempts} intentos)` : why;
   };
@@ -18300,7 +18417,7 @@ function showSavedProfile(li, prof) {
 
 const profileFailText = err => (err.name === "TimeoutError" ? "el servicio no responde"
   : err.name === "TypeError"
-    ? "el servicio no está disponible o no admite consultas desde el navegador (CORS)"
+    ? netFailText("el servicio no está disponible o no admite consultas desde el navegador (CORS)")
     : err.message);
 
 async function obtainRouteProfile(li) {
@@ -20885,6 +21002,11 @@ setInterval(checkServerVersion, VERSION_CHECK_MS);
   if (navigator.storage && navigator.storage.persist) {
     navigator.storage.persist().catch(() => {});
   }
+
+  /* Lo último: el uso sin conexión es una mejora que no debe competir
+     con el arranque (ni con la lectura de IndexedDB) por la red.     */
+  initOfflineIndicator();
+  registerOfflineWorker();
 })();
 </script>
 </body>

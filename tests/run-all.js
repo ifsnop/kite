@@ -48,6 +48,7 @@ const SUITES = [
   ["boot.js", "Arranque: el panel no concluye «no hay capas» antes de leer IndexedDB"],
   ["attribution.js", "Línea inferior del visor: versión, enlace al repositorio y escala"],
   ["xmllookup.js", "Búsquedas por nombre local en el XML: mismos resultados que antes y sin el recorrido de todos los descendientes por búsqueda vacía"],
+  ["offline.js", "Uso sin conexión: qué guarda y qué deja pasar el service worker, qué acepta de la lista de la página, red primero con tope para el HTML y caché primero para las librerías, y la lista que manda la página sobre el HTML entregado"],
   ["lazylibs.js", "Librerías bajo demanda: mismo origen, versión y SRI, nadie usa el global sin ensureLib, una sola carga y un fallo que no se queda pegado"],
   ["minified.js", "kitelocal.min.html: el minificado que sirve Pages no viene roto del proceso"],
   ["statics.js", "Comprobaciones estáticas: sin bytes NUL, todo id referido existe, toda función llamada está declarada, ningún nombre declarado dos veces y los diálogos de un solo botón lo llevan arriba a la derecha"],
@@ -89,6 +90,7 @@ const BROWSER = [
   ["browser/route-live-draw.mjs", "Navegador: crear una ruta se comporta como editarla, con su diálogo abierto y en vivo desde el 2º waypoint"],
   ["browser/props-panel.mjs", "Navegador: panel Propiedades — unidad y formato de coordenadas globales, con Cancelar/Aceptar de verdad"],
   ["browser/perf-markers.mjs", "Navegador: índice de oyentes de Leaflet — mismo comportamiento con y sin el parche, trabajo y tiempo al añadir miles de marcadores"],
+  ["browser/offline.mjs", "Navegador: uso sin conexión — el worker guarda las librerías y la página, recargar sin red arranca con el árbol guardado y las librerías bajo demanda, una red colgada saca la copia, y con red se ve la versión nueva"],
   ["browser/lazy-libs.mjs", "Navegador: html2canvas, geotiff.js y proj4 bajo demanda — el arranque ya no las descarga, una sola petición, el SRI sigue bloqueando y el PNG funciona"],
   ["browser/mobile-notice.mjs", "Navegador: aviso al abrir desde un móvil — «Continuar» deja solo el mapa, el panel cabe y su flecha es alcanzable, se recuerda, y no lo reciben una tableta ni un escritorio estrecho"],
   ["browser/theme.mjs", "Navegador: tema de la interfaz — automático según el sistema, claro/oscuro forzados, Cancelar/Aceptar y recarga, sin tocar el mapa"],
@@ -134,10 +136,11 @@ if (missing.length) {
    enmascara justo este error. La comparación es por CONTENIDO, nunca
    por fecha: los mtime no sobreviven a un `git checkout`.
    Cubre también kitelocal.min.html, la derivada que sirve Pages: es el
-   artefacto que nadie mira, así que es justo el que se queda atrás.  */
+   artefacto que nadie mira, así que es justo el que se queda atrás. Y
+   sw.js (el service worker del uso sin conexión), copia de src/sw.js.  */
 try {
   execFileSync(process.execPath, [path.join(__dirname, "..", "build.js"), "--check"], { stdio: "pipe" });
-  console.log("✓ kitelocal.html y kitelocal.min.html están al día respecto de src/");
+  console.log("✓ kitelocal.html, kitelocal.min.html y sw.js están al día respecto de src/");
 } catch (e) {
   console.error((e.stdout || "") + (e.stderr || ""));
   process.exit(1);

@@ -15,7 +15,8 @@ paths:
 src/index.html     plantilla: <head>, CSP, diálogos, <script> de CDN.
                    Dos marcadores: {{STYLES}} y {{SCRIPTS}}
 src/styles.css     todo el CSS
-src/js/*.js        28 archivos, en el orden del manifiesto de build.js
+src/sw.js          service worker del uso sin conexión (ver offline.md)
+src/js/*.js        29 archivos, en el orden del manifiesto de build.js
                    (el primero, 05-mdi-icons.js, es GENERADO)
 build.js           concatena src/ → kitelocal.html, y minifica ese
                    resultado → kitelocal.min.html
@@ -38,12 +39,17 @@ kitelocal.min.html GENERADO a partir del anterior. Es lo que sirve
                    GitHub Pages (index.html redirige ahí). Se versiona
                    por lo mismo: Pages publica lo que hay en el
                    repositorio, sin construir nada
+sw.js              GENERADO: copia literal de src/sw.js, en la raíz del
+                   sitio (el ámbito de un worker es su carpeta). Se
+                   versiona y se sirve igual que los dos anteriores; sin
+                   él Pages no tendría de dónde registrarlo
 index.html         redirección de la raíz del sitio al minificado
 ```
 
 - `npm run build` construye; `npm run watch` reconstruye al guardar; `npm run check` comprueba sin escribir; `npm test` lanza la batería.
 - **`kitelocal.html` SÍ se versiona** aunque sea generado: es el producto, quien clone o descargue el archivo directo de GitHub debe obtener algo funcional sin Node. La comprobación de frescura (local + CI) evita la desincronización.
 - **Conflicto de merge en `kitelocal.html` → no se resuelve a mano**: resolver `src/`, `npm run build`, añadir el resultado. Marcado `-diff` en `.gitattributes`.
+- **`sw.js` es el tercer artefacto de `build.js --check`**: copiado sin transformar, no se minifica (6 KB, y los marcadores de las suites no lo leen). Está en `.gitattributes` como generado.
 - **El CI comprueba, no construye** (`npm run check` + `npm test`). Si reconstruyera, un push con `src/` cambiado y el archivo sin regenerar pasaría en verde publicando la versión vieja.
 - **El orden del manifiesto `JS` en `build.js` es carga útil**: ámbito global compartido, dependencias de orden que `node --check` no detecta (ver punto 10 del checklist). Mover un archivo de sitio es un cambio de comportamiento potencial.
 - `build.js` **valida el manifiesto en los dos sentidos**: archivo suelto sin declarar → se perdería en silencio; nombre declarado inexistente → aborta.
@@ -68,6 +74,7 @@ index.html         redirección de la raíz del sitio al minificado
 ## Dependencias externas
 
 - Leaflet 1.9.4 (CSS+JS, unpkg), JSZip 3.10.1 (cdnjs), topojson-client 3.1.0 y shapefile 0.6.6 van como `<script>` de `src/index.html`; **html2canvas 1.4.1, geotiff.js 2.1.3 y proj4js 2.22.0 se cargan BAJO DEMANDA** (`src/js/07-lazy-libs.js`, tabla `LAZY_LIBS`, `ensureLib`; ver `performance.md`) con la misma URL y el mismo SRI. Detalle de cada una: geotiff.js 2.1.3 (unpkg, `dist-browser/geotiff.js`: un solo archivo, sin trozos cargados aparte que el SRI no cubriría — comprobado también para los decodificadores: JPEG, LZW, Deflate, PackBits, LERC y WebP van dentro como `Promise.resolve().then(…)`, ningún `import()` de red), shapefile 0.6.6 (unpkg, `dist/shapefile.min.js`, UMD autocontenido) y proj4js 2.22.0 (cdnjs, `proj4.js`, un solo archivo con el lector de WKT dentro). Todas llevan `integrity` (SRI) + `crossorigin`, en la etiqueta o en el `<script>` que inserta `ensureLib`: el navegador verifica el hash antes de ejecutar, un CDN comprometido no puede colar otro contenido. `tests/lazylibs.js` comprueba la tabla (origen admitido por la CSP, versión fijada, hash de la longitud que toca) y `tests/browser/lazy-libs.mjs` que un contenido que no casa con el hash NO se ejecuta.
+- **El service worker del uso sin conexión sigue solo a las librerías**: la lista de qué guardar sale de las etiquetas con `integrity` del documento y de `LAZY_LIBS` (`precacheItems`, `06-offline.js`), así que subir una versión NO exige tocar `sw.js`; la copia vieja se poda en la siguiente apertura. Ver `offline.md`.
 - **Al subir versión de librería, sustituir su hash** (en `src/index.html`, o en `LAZY_LIBS` para html2canvas, geotiff.js y proj4js) o el navegador la bloquea: en el HTML, el arranque; en una bajo demanda, la función que la usa. Se obtiene de la doc de Leaflet, el botón de copiar de cdnjs, o `curl -sL <url> | openssl dgst -sha384 -binary | openssl base64 -A`.
 - El script empieza comprobando que `L` (Leaflet) existe, con aviso explicativo si no — este guardián va **lo primero del script**, antes de cualquier uso de `L`.
 - Sin SRI: teselas/iconos PNG (`<img>` no lo admite) y respuestas de APIs REST y WCS (Iconify, Nominatim, IGN, Digital Earth Africa) — son datos, no código.

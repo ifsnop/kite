@@ -291,7 +291,7 @@ function describeTraceGrid(grid) {
 function describeTraceError(err, attempt, timeoutMs) {
   const why = err.name === "TimeoutError" ? `sin respuesta en ${Math.round(timeoutMs / 1000)} s`
     : err.name === "AbortError" ? "cancelada"
-    : err.name === "TypeError" ? "error de red, o el servicio no admite consultas desde el navegador (CORS)"
+    : err.name === "TypeError" ? netFailText("error de red, o el servicio no admite consultas desde el navegador (CORS)")
     : err.owsCode ? `excepción del servicio ${err.owsCode}: ${err.message}`
     : err.status ? `HTTP ${err.status}: ${err.message}` : err.message;
   const out = isOutOfCoverage(err) ? " (fuera de cobertura: no es un error)" : "";
@@ -628,7 +628,7 @@ function makeElevationSource(source) {
   const failText = err => {
     const why = err.name === "TimeoutError" ? "el servicio no responde"
       : err.name === "TypeError"
-        ? "el servicio no admite consultas desde el navegador (CORS) o no está disponible"
+        ? netFailText("el servicio no admite consultas desde el navegador (CORS) o no está disponible")
         : err.message;
     return err.attempts > 1 ? `${why} (tras ${err.attempts} intentos)` : why;
   };

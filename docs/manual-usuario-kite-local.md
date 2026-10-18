@@ -395,6 +395,16 @@ Una ortofoto en formato **COG** (Cloud Optimized GeoTIFF, un `.tif` preparado pa
 - **Espacio.** Antes de copiar se comprueba que cabe en la cuota del navegador; si no, se avisa y no se crea nada. Al borrar la ortofoto del árbol, su copia se elimina la próxima vez que se abra la aplicación (hasta entonces, deshacer la puede recuperar).
 - **Lo que no viaja.** Una ortofoto COG no se incluye al exportar una carpeta (💾) ni al copiar al portapapeles del sistema para pegar en otra instancia: puede ocupar gigas, y el aviso nombra las que se quedan fuera. Copiar y pegar dentro de la misma pestaña sí funciona. Tampoco se añade desde una dirección (🔗): hay que descargarla y arrastrarla.
 
+### 7.11 Usar KITE Local sin conexión
+
+KITE Local puede volver a abrirse **sin red** cuando se usa **desde una dirección web** (la de GitHub Pages o la de su propio servidor): la primera vez que se abre con conexión, el navegador guarda la aplicación y las librerías que necesita, y a partir de ahí una pestaña que el navegador haya descartado para ahorrar memoria, o una que se recargue con F5, **vuelve a abrirse aunque no haya red**, con el árbol y las capas tal como estaban.
+
+- **Qué hace falta.** Haberla abierto al menos una vez con conexión, desde una dirección `https://` (o `localhost`). El navegador la guarda en segundo plano tras el arranque, sin avisar. Abierta con doble clic como archivo local no se guarda nada: el navegador lee el archivo del disco y lo que necesita de Internet (las librerías) depende de su caché normal.
+- **Qué funciona sin red.** Todo lo que no necesita servidores ajenos: el árbol y las capas guardadas, importar KML, KMZ, GeoJSON y shapefiles (también con su `.prj`), las mediciones y el dibujo, la calculadora geodésica, las ortofotos y modelos COG ya guardadas, los perfiles y cuadrículas de elevación ya descargados, exportar a PNG y exportar carpetas.
+- **Qué no.** Los mapas base (las teselas se piden a sus servidores: el visor queda con el color de fondo), la búsqueda de lugares, las consultas nuevas de elevación y perfiles, «Añadir desde una dirección» y los catálogos de PNOA histórico y Copernicus. Esas acciones avisan de que **no hay conexión** en lugar de dar un error confuso.
+- **El indicador.** Mientras no haya red aparece **«Sin conexión»** bajo la cabecera del panel, y un aviso lo explica al perder la red, al recuperarla y al abrir la aplicación ya sin ella.
+- **Versiones.** Con conexión se carga siempre la versión más reciente publicada, como antes. Si la red existe pero no responde, tras unos 4 segundos se abre la copia guardada.
+
 ## 8. Atajos de teclado
 
 La misma información está disponible en cualquier momento con la tecla `?` o el botón de ayuda de la cabecera, organizada en pestañas («Navegación», «Actuar», «Visor», «Dibujar y editar») para no tener que scrollear una única tabla larga. Se cierra con la **×** de arriba a la derecha, con Escape o con la misma tecla `?`.
@@ -490,5 +500,7 @@ Esa × es la norma de toda ventana cuyo único botón sería «Cerrar» (la chul
 KITE Local guarda automáticamente, en el propio navegador y en el propio dispositivo (nunca en un servidor), el árbol completo de capas y la posición y el zoom del mapa, con un pequeño retardo tras cada cambio para no repetir el guardado en cada pulsación. Al volver a abrir la aplicación, el árbol y la vista se restauran tal como se dejaron. Este guardado es local a cada navegador: para llevar el mismo contenido a otro dispositivo hace falta exportarlo (apartado 7.6) o copiarlo por el portapapeles del sistema (apartado 7.5).
 
 Las **unidades de distancia y de altitud**, el **formato de latitud/longitud** y la **longitud máxima de un perfil**, elegidos en el panel 🏷️ Propiedades (apartado 2.1), sí se guardan y se restauran al volver a abrir la aplicación. También se guardan las **fuentes de elevación** elegidas en «Fuentes de datos». La cuadrícula de elevación no tiene unidad propia: usa la de altitud. Las capas de elevación y de perfil se guardan con el árbol, y la de un perfil guarda también sus curvas: «Mostrar perfil» las enseña sin volver a descargar.
+
+La **copia de la aplicación para el uso sin conexión** (apartado 7.11) se guarda también en el navegador, aparte de los datos: solo contiene la propia aplicación y las librerías con versión fija que ya usa; nunca mapas, resultados de búsquedas ni nada de lo que descarga de servidores ajenos.
 
 Las **ortofotos COG** (apartado 7.10) se guardan aparte, en un almacén propio del navegador: el árbol solo apunta a ellas. Es lo único del árbol que puede ocupar mucho espacio en el navegador. Una ortofoto borrada del árbol libera su espacio al volver a abrir la aplicación.

@@ -558,7 +558,7 @@ function showSavedProfile(li, prof) {
 
 const profileFailText = err => (err.name === "TimeoutError" ? "el servicio no responde"
   : err.name === "TypeError"
-    ? "el servicio no está disponible o no admite consultas desde el navegador (CORS)"
+    ? netFailText("el servicio no está disponible o no admite consultas desde el navegador (CORS)")
     : err.message);
 
 async function obtainRouteProfile(li) {

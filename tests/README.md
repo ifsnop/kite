@@ -765,6 +765,16 @@ XML LOOKUP TESTS OK
 
 **Qué cubre:** `elsByTag`, `firstByTag` y `childrenByTag` (`12-copernicus.js`) reescritas para no copiar colecciones enteras ni repetir, en cada búsqueda vacía, el recorrido de todos los descendientes. La suite lleva la implementación ANTERIOR copiada (`legacy`) y fija tres cosas. **Equivalencia**: sobre un documento con namespace por defecto, con prefijo declarado, sin namespace y dos DOM simulados sin soporte de namespaces (uno sin `getElementsByTagNameNS` ni `localName`, otro con la consulta rota y el prefijo dentro del `localName`), desde el documento, desde un Placemark y desde una carpeta, y con nombres que existen y que no, las dos devuelven los MISMOS objetos en el mismo orden (más de 400 comparaciones). **Trabajo**, determinista: se cuentan las llamadas a `getElementsByTagName("*")` del patrón de búsquedas por Placemark (`Polygon`, `LineString`, `Point`, `coordinates`, `name`, `MultiGeometry`) sobre 3 000 puntos: 6 000 antes, 1 ahora. **El respaldo sigue vivo donde hace falta**: `mayNeedPrefixFallback` es cierto en los dos DOM simulados, falso en los tres documentos normales, y se recuerda por documento. Se comprobó que FALLA sin el respaldo (con la función devolviendo siempre falso, los dos DOM simulados dan 0 resultados).
 
+### `offline.js`
+
+**Salida de `npm test`:**
+```
+── Uso sin conexión: qué guarda y qué deja pasar el service worker, qué acepta de la lista de la página, red primero con tope para el HTML y caché primero para las librerías, y la lista que manda la página sobre el HTML entregado
+OFFLINE TESTS OK
+```
+
+**Qué cubre:** `src/sw.js` (evaluado en un contexto con `self`, Cache API y `fetch` de mentira) y `06-offline.js`. **Una sola fuente**: `sw.js` de la raíz es idéntico al de `src/`. **Qué acepta**: `validPrecacheItem` solo admite `unpkg.com` y `cdnjs.cloudflare.com` por `https:`, con la versión fijada en la ruta y un SRI `sha256/384/512` bien formado (una imagen puede ir sin él); rechaza origen ajeno, un dominio que solo EMPIEZA como uno admitido, `http:`, sin versión y basura. `isPageUrl` solo el HTML del ámbito. **Qué contesta**: navegaciones al HTML y librerías del CDN; deja pasar HEAD (aviso de versión nueva), POST, teselas, Nominatim, WCS, descargas por URL y el propio `sw.js`. **Comportamiento**: con red gana la red y la copia se refresca; sin red, la copia; sin red y sin copia, error de red normal; un 5xx con copia sirve la copia y un 404 se respeta sin pisarla; una librería sin copia va a la red; la precarga pide cada librería con `integrity`, `credentials: "omit"` y modo `cors` (el hash se verifica antes de guardar), ignora lo inválido y lo de otro origen, poda las URL que la página ya no nombra, trae la página que registró el worker y la raíz del ámbito, no vuelve a descargar lo guardado y, sin red, no borra nada. **La lista de la página** (`precacheItems()` con `linkedom` sobre el HTML ENTREGADO): exactamente las etiquetas con integridad, las tres de `LAZY_LIBS` y las dos imágenes del marcador, sin repetidas, y el worker las acepta todas. **`netFailText`/`isOffline`**: «sin conexión a la red» solo con `navigator.onLine === false`. **CSP**: `worker-src 'self'` y `script-src` sigue sin `blob:`. Se comprobó que falla si el worker guarda sin comprobar la respuesta o pide sin SRI.
+
 ### `lazylibs.js`
 
 **Salida de `npm test`:**
@@ -785,6 +795,16 @@ BROWSER MARKER PERF TESTS OK
 ```
 
 **Qué cubre:** el índice de oyentes de `L.Evented` (`09-leaflet-events.js`), comparando el ANTES y el DESPUÉS en la misma página (`setListenerIndex(false)` devuelve los métodos originales de Leaflet). **Equivalencia**: los mismos escenarios, con y sin el parche, dan el mismo resultado — 120 oyentes (más que el umbral del índice), duplicados rechazados, la misma función con otro contexto sí es otro oyente, quitar uno y volver a ponerlo (una sola vez), quitar algo que no está, `once` (una vez y se puede volver a registrar), quitar con un `fire` en marcha (Leaflet sustituye entonces la lista por una copia y el índice tiene que seguirla), quitar todos y empezar de nuevo, el propio objeto como contexto, y un marcador real que sigue al zoom sin que el mapa acumule oyentes al añadir, quitar y volver a añadir un grupo. **Trabajo**, determinista: cuántos oyentes recorre la búsqueda lineal original al añadir 4 000 marcadores (N²/2 sin el parche; con él, menos de 40·N, más de 100 veces menos). **Tiempo**, con holgura: añadir 10 000 marcadores es al menos un 20 % más rápido con el parche y su coste crece más despacio con N. Se comprobó que FALLA con un índice defectuoso: con `_on` que no actualiza el índice (se registran duplicados) y con una copia de la lista que no hereda el índice. Una `_off` que no actualiza el índice NO falla, y es correcto: un «está» de más cae a la búsqueda real, y solo un «no está» de más es peligroso.
+
+### `browser/offline.mjs`
+
+**Salida de `npm test`:**
+```
+── Navegador: uso sin conexión — el worker guarda las librerías y la página, recargar sin red arranca con el árbol guardado y las librerías bajo demanda, una red colgada saca la copia, y con red se ve la versión nueva
+BROWSER OFFLINE TESTS OK
+```
+
+**Qué cubre:** el recorrido de quien tiene una pestaña descartada, con un servidor propio (`serveSite`, `_browser.mjs`: `up`, `down` que corta la conexión y `hang` que no contesta) y con service workers PERMITIDOS (las demás suites los bloquean, ver `browser-tests.md`). **Con red**: el worker se registra, y quedan guardadas todas las librerías de la lista (las del HTML, las tres bajo demanda y las imágenes) y la página, sin ejecutar las bajo demanda. **Sin red** (servidor cortado y `setOffline`): el indicador «Sin conexión» y su aviso aparecen al perderla; se RECARGA y la aplicación arranca controlada por el worker, con el árbol guardado en IndexedDB, el indicador visible, geotiff.js, proj4 y html2canvas se cargan desde lo guardado con su SRI, sin violaciones de la CSP, y un fallo de red se explica como «sin conexión» y no como CORS. **Red colgada** (conexión aceptada y sin respuesta): la página sale con la copia pasado el tope de 4 s, no se queda esperando. **Con red otra vez**: la recarga trae la versión NUEVA del servidor (red primero, no caché primero) y el indicador desaparece. Se repitió 8 veces seguidas sin fallos, también contra `kitelocal.min.html`.
 
 ### `browser/lazy-libs.mjs`
 

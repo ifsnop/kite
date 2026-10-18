@@ -11,10 +11,14 @@ description: Principios no negociables, vocabulario y checklist de KITE Local. S
    Vue/React/TypeScript/empaquetadores: el build es concatenación
    literal. El producto que se lee/prueba/depura es el legible, sin
    minificar. `build.js` también escribe `kitelocal.min.html`
-   (derivada para GitHub Pages; no se edita ni se lee).
+   (derivada para GitHub Pages; no se edita ni se lee) y `sw.js` (copia
+   literal de `src/sw.js`: el service worker del uso sin conexión, que
+   no forma parte del producto de un solo archivo —solo importa servido
+   por http(s)— pero el navegador exige que sea un archivo propio; ver
+   `offline.md`).
    **Nunca se edita a mano un archivo generado** — se pierde en el
    siguiente build. `node tests/run-all.js` comprueba esto primero y
-   falla si alguno de los dos no corresponde a `src/`.
+   falla si alguno de los tres no corresponde a `src/`.
 2. **Reusar librerías conocidas y estables; no reinventar.** CDN con
    versión fijada: Leaflet 1.9.4, JSZip 3.10.1 (KMZ y .zip de
    shapefile), shapefile 0.6.6 (.shp/.dbf → GeoJSON), y **BAJO
