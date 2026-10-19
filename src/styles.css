@@ -1083,7 +1083,13 @@
   /* Contenido fijo (tres párrafos cortos + un campo), no redimensionable
      como #sh-creds, pero más ancho: explica el formato de servidor
      exigido y 42ch se quedaría corto para leerlo con comodidad.       */
-  #custom-tiles-creds .dlg-box { width: min(92vw, 30rem); }
+  #custom-tiles-creds .dlg-box, #custom-wms-creds .dlg-box { width: min(92vw, 30rem); }
+  /* Tesela de un servidor propio que no llegó (ver flagTileError). Leaflet
+     deja oculta (`visibility: hidden`) toda tesela que no cargó, y esa es
+     justo la que hay que ver. El contorno va por DENTRO (offset negativo)
+     para que dos vecinas no lo dupliquen ni se salga del mundo. Es
+     contenido del mapa, no cromo: rojo fijo, sin par claro/oscuro.      */
+  .leaflet-tile.tile-error { visibility: visible; outline: 2px solid #d32f2f; outline-offset: -2px; }
   /* Y la caja de edición del nombre ocupa lo que dé esa ventana, no los
      190 px de un control corto: el nombre es el campo más largo del
      diálogo, así que es el que debe crecer con ella.                  */

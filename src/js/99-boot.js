@@ -81,10 +81,15 @@
   } catch { /* sin credencial guardada la capa pedirá configurarla */ }
 
   /* Igual que la de Copernicus, antes que los mapas base: sin ella
-     "Custom Maps" no puede construir su plantilla de teselas.         */
+     "Custom Tile Map Service" no puede construir su plantilla de
+     teselas, ni "Custom Web Map Service" pedir su GetCapabilities.   */
   try {
     const ct = await dbLoadCustomTilesUrl();
     if (ct && validCustomTilesUrl(ct.url)) customTilesUrl = normalizeCustomTilesBase(ct.url);
+  } catch { /* sin URL guardada la capa pedirá configurarla */ }
+  try {
+    const cw = await dbLoadCustomWmsUrl();
+    if (cw && validCustomWmsUrl(cw.url)) customWmsUrl = normalizeCustomWmsBase(cw.url);
   } catch { /* sin URL guardada la capa pedirá configurarla */ }
 
   /* Color de fondo del mapa: antes de pintar el panel de mapas base,
@@ -110,10 +115,10 @@
      dejado de publicarse), sin esperar a que se abra el panel.       */
   for (const st of baseState.values()) {
     const src = dynSource(st.def);
-    /* "Custom Maps" (source sin `dynamic: true`) no tiene catálogo que
-       descubrir, así que su fuente no aporta `ensure` — nada que
-       adelantar aquí, `applyBaseLayer` ya construyó su capa arriba
-       si la URL estaba configurada.                                   */
+    /* "Custom Tile Map Service" (source sin `dynamic: true`) no tiene
+       catálogo que descubrir, así que su fuente no aporta `ensure` —
+       nada que adelantar aquí, `applyBaseLayer` ya construyó su capa
+       arriba si la URL estaba configurada.                            */
     if (st.on && src && src.ensure) src.ensure();
   }
 

@@ -227,6 +227,7 @@ document.addEventListener("keydown", e => {
   if (!propsDialog.hidden) { cancelPropsDialog(); return; }
   if (!shDialog.hidden) { closeShCredsDialog(); return; }
   if (!customTilesDialog.hidden) { closeCustomTilesDialog(); return; }
+  if (!customWmsDialog.hidden) { closeCustomWmsDialog(); return; }
   if (!pointsDialog.hidden) { closePointsDialog(); return; }
   /* Cancelar a medio dibujar una ruta (closeStyleDialog(false) borra el
      nodo por ser "isNew", mismo camino que un pin recién creado, y

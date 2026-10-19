@@ -22,10 +22,10 @@ paths:
 - **Capas dinámicas: una maquinaria, varias fuentes** (`DYNAMIC_SOURCES`,
   `dynSource`). Una capa `dynamic: true` declara un `source` que aporta
   `get`/`error`/`ensure`, `pickDefault` y `groups`. Hoy: `pnoa-hist`,
-  `copernicus`. Ni `applyBaseLayer` ni `buildDynamicLayerSelect` deben
+  `copernicus`, `custom-wms`. Ni `applyBaseLayer` ni `buildDynamicLayerSelect` deben
   nombrar una fuente concreta.
 - **Una fuente puede ser CONFIGURABLE sin ser `dynamic`** (`custom-tiles`,
-  Custom Maps): aporta `blocked`/`configure` pero no `get`/`groups`/
+  Custom Tile Map Service): aporta `blocked`/`configure` pero no `get`/`groups`/
   `pickDefault`/`ensure`, porque no hay catálogo que descubrir ni nombre
   de capa que elegir — solo una URL. La tuerca (`buildDynamicConfigButton`)
   y el estado bloqueado se leen de `dynSource(def)` sin mirar `dynamic`;
@@ -37,7 +37,7 @@ paths:
   ausente debe seguir ese mismo guardia, no asumir la forma completa.
 - **Fuente bloqueada** (`blocked()`): da `label`/`hint` cuando no se
   puede listar nada (Copernicus sin credencial → selector deshabilitado;
-  Custom Maps sin URL → tuerca sin capa que construir), no se
+  Custom Tile Map Service sin URL → tuerca sin capa que construir; Custom Web Map Service sin URL → selector «Requiere URL»), no se
   rehabilita solo con encender la capa. Al arrancar, una capa bloqueada
   guardada como encendida se APAGA en vez de fallar tesela a tesela —
   ese chequeo (`99-boot.js`) ya es genérico por `dynSource`, cubre
@@ -47,7 +47,7 @@ paths:
   siempre que haya `configure`, con o sin credencial/URL ya puesta, y
   con la capa apagada (si no, no se podría configurar una fuente aún no
   funcional ni retirar lo ya guardado).
-- **Custom Maps: URL del propio usuario, sin catálogo** (`customTilesUrl`,
+- **Custom Tile Map Service: URL del propio usuario, sin catálogo** (id `custom`, antes «Custom Maps»: solo cambió el título, lo guardado lo nombra por id; `customTilesUrl`,
   `setCustomTilesUrl`, `buildCustomTilesUrl`, diálogo
   `#custom-tiles-creds`, `11-base-panel.js`). El usuario pega solo la
   dirección BASE de su servidor (típicamente una caché/proxy delante de
@@ -63,7 +63,73 @@ paths:
   por definición), ver `import-parsing.md`. Cambiar o borrar la URL
   invalida la capa ya creada (su plantilla lleva la URL anterior
   incrustada), igual que `setInstanceId` con la credencial de
-  Copernicus.
+  Copernicus. Solo admite servidores de teselas (XYZ, el esquema de
+  OpenStreetMap, que el título y el diálogo llaman TMS); un servidor WMS
+  es la capa siguiente.
+- **Custom Web Map Service: WMS del propio usuario, CON catálogo**
+  (id `custom-wms`, `customWmsUrl`, `setCustomWmsUrl`, `normalizeCustomWmsBase`,
+  `fetchCustomWmsCatalog`, diálogo `#custom-wms-creds`, `11-base-panel.js`).
+  Es la fuente `dynamic` configurable: la dirección sale del diálogo de la
+  tuerca y las capas del GetCapabilities de ese servidor (mismo
+  `parseWmsCapabilities` que PNOA histórico y Copernicus; agrupadas por
+  `groupWmsEntries` en el orden que publica el servidor). Cosas que no son
+  obvias:
+  - **`normalizeCustomWmsBase` quita los parámetros de OGC**
+    (`CUSTOM_WMS_RESERVED`: service, request, version, layers, crs, bbox…)
+    y el ancla, porque a menudo se pega una petición GetCapabilities o
+    GetMap entera; conserva los propios del servidor (`map=` de MapServer)
+    y `customWmsCapabilitiesUrl` los respeta con `searchParams.set` (un
+    segundo `?` rompería la petición). `URLSearchParams` recodifica la
+    consulta (`/` → `%2F`): un servidor la decodifica igual.
+  - **Solo `https:` y sin usuario/contraseña** (`validCustomWmsUrl`):
+    `fetch` rechaza una URL con credenciales con un error críptico.
+  - **La versión de WMS la dicta el servidor** (`wmsCapabilitiesVersion`,
+    1.1.0/1.1.1/1.3.0; otra cosa → 1.3.0): se pide 1.3.0 y un servidor que
+    solo habla 1.1.1 contesta con la suya; Leaflet manda `crs` o `srs`
+    según la versión. Una capa guardada como encendida se levanta SIN
+    esperar al catálogo (con 1.3.0 supuesto), así que al llegar con otra
+    versión se rehace (`dropCustomWmsLayer`).
+  - **Consulta en vuelo + dirección cambiada**: `fetchCustomWmsCatalog`
+    captura la dirección al empezar y descarta lo que contesta una vieja
+    (`stale`), o pisaría catálogo y error de la nueva. (`setInstanceId`, de
+    Copernicus, no lo hace: el mismo riesgo, sin medir si importa.)
+  - **Formato de imagen del `<GetMap>`** (`wmsGetMapFormat`): el primero de
+    `CUSTOM_WMS_FORMATS` (PNG, JPEG, `image/jpg`) que el servidor declare en
+    `Capability/Request/GetMap` (parámetros y mayúsculas ignorados; los
+    formatos de otra operación no cuentan). Sin ninguno que sepamos
+    pedir, o sin `<GetMap>` legible, PNG como antes. **`transparent` solo
+    con PNG**: JPEG no tiene alfa, y algunos servidores rechazan
+    `transparent=true` con él. Como la versión, una capa ya creada se
+    rehace al llegar un formato distinto (`dropCustomWmsLayer`). El
+    CRS sigue fijo en EPSG:3857 (no se lee el de cada capa, heredado de
+    los padres); un servidor que no dibuje así falla tesela a tesela y
+    sale en rojo (`BASE_FAIL_TILES`).
+  - **`collectWmsLayers` acepta una raíz con `<Name>` y sin hijos** (un
+    servidor de una sola capa suele publicarla así); con hijos, la raíz
+    solo los agrupa. Cambio compartido con PNOA/Copernicus, cuyas raíces
+    siempre tienen hijos.
+  - Probado en `tests/customwms.js` (puro) y `tests/browser/custom-wms.mjs`
+    (de punta a punta contra un servidor simulado con `ctx.route`).
+- **Teselas que un servidor propio no entrega** (`diagnoseTiles: true` en las
+  dos `custom*` de BASE_LAYERS; `flagTileError`, `diagnoseTile`,
+  `tileFailureReason`, `11-base-panel.js`). Un WMS que falla contesta HTTP
+  200 con un `<ServiceException>` en XML; un `<img>` no lo descifra y
+  Leaflet deja la tesela con `visibility: hidden`, así que se ve la capa de
+  debajo sin ninguna pista. Dos cosas, SOLO para servidores del usuario (en
+  los conocidos las teselas fuera de cobertura son normales y rojo sería
+  ruido): (1) la tesela del `tileerror` lleva `.tile-error` (contorno rojo
+  de 2 px por dentro, `visibility: visible`, rojo fijo: es contenido del
+  mapa, no cromo); (2) la PRIMERA de cada capa WMS (`st.tileNoticed`, por
+  nombre de capa; se vacía al rehacer la capa) se vuelve a pedir con
+  `fetch` (`TILE_DIAG_TIMEOUT`) para leer el motivo y avisar con
+  `navMessage`: el texto de la excepción, el HTTP (`describeHttp`), «respuesta X
+  en vez de una imagen», o —si el `fetch` falla, típicamente por CORS— un
+  aviso sin motivo. Solo una vez por capa: un servidor que falla en medio
+  mapa daría decenas de peticiones repetidas a quien ya está fallando.
+  Independiente de `BASE_FAIL_TILES`/`failed` (que sigue contando 8 fallos
+  seguidos para poner la capa en rojo en el panel). El aviso es un
+  `navMessage` normal: caduca en pantalla, queda en el registro.
+  Probado en `tests/tilediag.js` y `tests/browser/custom-wms.mjs`.
 - **Copernicus DEM: Sentinel Hub, credencial DEL USUARIO** (`COP_WMS_BASE`,
   `shWmsUrl`, `setInstanceId`, diálogo `#sh-creds`). No existe WMS
   anónimo de Copernicus (EEA EU-DEM retirado; mirror AWS sin CORS). El
@@ -91,7 +157,7 @@ paths:
 - **Diálogo nuevo → definir su `max-width`**: `.dlg-box` trae
   `max-width: 90vw` (pensado para diálogos anchos). Cajas de texto corto
   van en la regla de `#kml-tags-picker, #kml-dup-picker, #sh-creds`
-  (`max-width: 42ch`) — `#custom-tiles-creds` es la excepción: contenido
+  (`max-width: 42ch`) — `#custom-tiles-creds` y `#custom-wms-creds` son la excepción: contenido
   igual de fijo (no redimensionable) pero con más texto explicando el
   formato de servidor exigido, así que lleva su propio
   `width: min(92vw, 30rem)` en vez de entrar en esa lista de 42ch.
