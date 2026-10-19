@@ -60,7 +60,7 @@ Toda la información que KITE Local puede mostrar procede de dos categorías bie
 
 ### 4.1 Cartografía y modelos de elevación de referencia
 
-La aplicación incorpora, apagados por defecto salvo la capa base de OpenStreetMap, un conjunto de fuentes de cartografía de fondo y modelos de elevación del terreno configuradas de fábrica. Fuera de la excepción explícita descrita justo debajo de la tabla («Custom Maps»), ninguna otra fuente puede añadirse sin modificar y volver a distribuir la propia aplicación (ver la restricción de red del apartado 6.2).
+La aplicación incorpora, apagados por defecto salvo la capa base de OpenStreetMap, un conjunto de fuentes de cartografía de fondo y modelos de elevación del terreno configuradas de fábrica. Fuera de la excepción explícita descrita justo debajo de la tabla («Custom Tile Map Service» y «Custom Web Map Service»), ninguna otra fuente puede añadirse sin modificar y volver a distribuir la propia aplicación (ver la restricción de red del apartado 6.2).
 
 | Capa | Proveedor / organismo | Naturaleza del dato |
 |---|---|---|
@@ -76,7 +76,7 @@ La aplicación incorpora, apagados por defecto salvo la capa base de OpenStreetM
 | Relieve SRTM30 | terrestris (servicio público sin coste, cobertura entre 56° S y 60° N) | Sombreado de relieve global derivado de la misión SRTM |
 | Copernicus DEM | Copernicus Data Space / Sentinel Hub, bajo credencial propia del usuario | Modelo digital de superficie global |
 
-**«Custom Maps» es la única excepción a esta lista cerrada, y es deliberada.** En vez de un proveedor fijo, pide sus teselas a la dirección que el propio usuario configura en el diálogo de esa capa —típicamente una caché o proxy propio delante de un servicio ya existente, para no cargar de tráfico ese servicio público—. Permanece apagada y sin ningún origen configurado hasta que el usuario introduce uno; la aplicación no elige, sugiere ni conoce de antemano ningún servidor para esta capa, y solo admite direcciones cifradas (https), nunca sin cifrar (http). Se detalla en el apartado 6.2.
+**«Custom Tile Map Service» y «Custom Web Map Service» son las únicas excepciones a esta lista cerrada, y son deliberadas.** En vez de un proveedor fijo, piden su cartografía a la dirección que el propio usuario configura en el diálogo de cada capa: la primera, teselas de un servidor propio —típicamente una caché o proxy delante de un servicio ya existente, para no cargar de tráfico ese servicio público—; la segunda, las capas que publica un servidor WMS, cuya lista se lee de su respuesta a una consulta `GetCapabilities` (la única petición de datos que la aplicación hace a esa dirección, además de las imágenes del mapa). Permanecen apagadas y sin ningún origen configurado hasta que el usuario introduce uno; la aplicación no elige, sugiere ni conoce de antemano ningún servidor para estas capas, y solo admite direcciones cifradas (https), nunca sin cifrar (http), ni direcciones con usuario y contraseña incrustados. Se detalla en el apartado 6.2.
 
 Además, dos servicios de consulta puntual, no cartografiados como capa de fondo:
 
@@ -153,9 +153,9 @@ La aplicación declara una política de seguridad de contenido (Content Security
 Hay dos excepciones deliberadas, y las dos comparten la misma justificación: en ambas el origen no puede enumerarse de antemano porque **es, precisamente, lo que el usuario decide** en el momento de usar la función, no algo que la aplicación elija.
 
 - **"Añadir desde una dirección"**, que debe poder conectarse al origen que el usuario escribe para descargar un archivo.
-- **El mapa base "Custom Maps"**, que debe poder pedir sus teselas al servidor que el usuario configure (apartado 4.1) — típicamente una caché o proxy propio delante de un servicio ya existente.
+- **Los mapas base "Custom Tile Map Service" y "Custom Web Map Service"**, que deben poder pedir sus teselas (y, la segunda, la lista de capas de su `GetCapabilities`) al servidor que el usuario configure (apartado 4.1) — típicamente una caché o proxy propio delante de un servicio ya existente, o un servidor WMS propio.
 
-Las dos conexiones se permiten solo hacia direcciones cifradas (https), nunca hacia direcciones sin cifrar (http), de modo que una aplicación servida de forma segura no pueda verse forzada a comunicarse por un canal inseguro. La restricción de código y de estilos (qué puede ejecutar la página, qué puede darle apariencia) no tiene ninguna excepción: sigue limitada, sin más, a las dos redes de distribución de las bibliotecas de terceros. La de imágenes de mapa sí se amplía a cualquier origen cifrado —es una regla del navegador, no puede limitarse a "solo si lo pide la capa Custom Maps"—, pero en la práctica ninguna de las demás capas de la tabla del apartado 4.1 llega a ejercer esa amplitud: sus direcciones están fijadas en el propio código de la aplicación, no aceptan ninguna entrada del usuario, y seguirían pidiendo exactamente esos mismos orígenes aunque la política fuera más estricta.
+Las dos conexiones se permiten solo hacia direcciones cifradas (https), nunca hacia direcciones sin cifrar (http), de modo que una aplicación servida de forma segura no pueda verse forzada a comunicarse por un canal inseguro. La restricción de código y de estilos (qué puede ejecutar la página, qué puede darle apariencia) no tiene ninguna excepción: sigue limitada, sin más, a las dos redes de distribución de las bibliotecas de terceros. La de imágenes de mapa sí se amplía a cualquier origen cifrado —es una regla del navegador, no puede limitarse a "solo si lo pide una de las capas Custom"—, pero en la práctica ninguna de las demás capas de la tabla del apartado 4.1 llega a ejercer esa amplitud: sus direcciones están fijadas en el propio código de la aplicación, no aceptan ninguna entrada del usuario, y seguirían pidiendo exactamente esos mismos orígenes aunque la política fuera más estricta.
 
 ### 6.3 Sin telemetría ni almacenamiento remoto
 
@@ -214,8 +214,9 @@ En la fecha de este documento, la batería está compuesta por 61 conjuntos de p
 - Descubrimiento de las capas disponibles del servicio de ortofoto histórica del IGN.
 - Configuración y uso de la credencial propia del usuario para el servicio Copernicus DEM.
 
-**Mapa base configurable por el usuario ("Custom Maps")**
+**Mapas base configurables por el usuario ("Custom Tile Map Service" y "Custom Web Map Service")**
 - Validación de la dirección del servidor de teselas (exige cifrado, rechaza texto sin forma de dirección válida), normalización antes de construir la petición y verificación de que la plantilla final se genera de forma correcta.
+- Para el servidor WMS: validación de la dirección (cifrada, sin credenciales incrustadas), normalización que retira los parámetros de OGC que se cuelan al pegar una petición completa y conserva los propios del servidor, construcción de la consulta `GetCapabilities`, lectura de la versión que anuncia el servidor, agrupación de sus capas y prueba de punta a punta en navegador contra un servidor simulado (consulta única, capa pedida, recarga y error del servidor).
 
 **Comportamiento de la interfaz y del árbol de capas**
 - Navegación y selección de elementos en el árbol de capas.
@@ -280,7 +281,7 @@ Esta acotación no debilita las garantías descritas en este documento —el ori
 
 Sobre la base de la revisión del código fuente, de la configuración de red y de seguridad declarada por la propia aplicación, y de la ejecución completa de su batería de pruebas automatizadas, este estudio concluye que:
 
-1. El origen de cada fuente de cartografía y de cada servicio auxiliar que KITE Local puede consultar está identificado, documentado y restringido por configuración a una lista cerrada de proveedores oficiales o reconocidos, salvo dos excepciones deliberadas y acotadas en las que el propio usuario elige el origen (descargar un archivo desde una dirección, y el mapa base "Custom Maps" contra un servidor de teselas propio), ambas descritas en el apartado 6.2.
+1. El origen de cada fuente de cartografía y de cada servicio auxiliar que KITE Local puede consultar está identificado, documentado y restringido por configuración a una lista cerrada de proveedores oficiales o reconocidos, salvo dos excepciones deliberadas y acotadas en las que el propio usuario elige el origen (descargar un archivo desde una dirección, y los mapas base "Custom Tile Map Service" y "Custom Web Map Service" contra un servidor propio), ambas descritas en el apartado 6.2.
 2. KITE Local no modifica la geometría, las coordenadas ni la altitud de los datos que carga y representa; las únicas intervenciones automáticas están acotadas a corregir errores menores y evitables del propio archivo de origen, tienen un alcance mínimo y verificable, y se comunican siempre a la persona usuaria.
 3. Este comportamiento está verificado por una batería de 60 conjuntos de pruebas automatizadas, ejecutadas contra el artefacto realmente distribuido, con resultado íntegramente satisfactorio en la fecha de este documento.
 

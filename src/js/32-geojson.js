@@ -860,7 +860,7 @@ async function dbLoadSh() {
   });
 }
 
-/* ---------- Servidor de teselas de "Custom Maps" ----------
+/* ---------- Servidor de teselas de "Custom Tile Map Service" ----------
    Otra clave del mismo almacén, mismo criterio que la credencial de
    Sentinel Hub: es del usuario (su propio servidor de teselas, típico
    caso: una caché/proxy delante de OpenStreetMap u otro servicio) y
@@ -897,6 +897,43 @@ async function dbLoadCustomTilesUrl() {
     rq.onsuccess = () => {
       const rec = rq.result;
       resolve(rec && rec.v === CUSTOM_TILES_SCHEMA && typeof rec.url === "string" ? rec : null);
+    };
+    rq.onerror = () => reject(rq.error);
+  });
+}
+
+/* ---------- Servidor de "Custom Web Map Service" ----------
+   Mismo criterio que el de teselas de arriba: la dirección del WMS es
+   del usuario, vive solo en su navegador y no viaja en un .kite.json.  */
+const CUSTOM_WMS_KEY = "customWmsUrl";
+const CUSTOM_WMS_SCHEMA = 1;
+
+async function dbSaveCustomWmsUrl(rec) {
+  const db = await openDb();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(DB_TREE, "readwrite");
+    tx.objectStore(DB_TREE).put({ v: CUSTOM_WMS_SCHEMA, ...rec }, CUSTOM_WMS_KEY);
+    tx.oncomplete = resolve;
+    tx.onerror = () => reject(tx.error);
+  });
+}
+async function dbDeleteCustomWmsUrl() {
+  const db = await openDb();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(DB_TREE, "readwrite");
+    tx.objectStore(DB_TREE).delete(CUSTOM_WMS_KEY);
+    tx.oncomplete = resolve;
+    tx.onerror = () => reject(tx.error);
+  });
+}
+async function dbLoadCustomWmsUrl() {
+  const db = await openDb();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(DB_TREE, "readonly");
+    const rq = tx.objectStore(DB_TREE).get(CUSTOM_WMS_KEY);
+    rq.onsuccess = () => {
+      const rec = rq.result;
+      resolve(rec && rec.v === CUSTOM_WMS_SCHEMA && typeof rec.url === "string" ? rec : null);
     };
     rq.onerror = () => reject(rq.error);
   });

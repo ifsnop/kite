@@ -1,4 +1,4 @@
-/* "Custom Maps": servidor de teselas del propio usuario, sin catálogo
+/* "Custom Tile Map Service": servidor de teselas del propio usuario, sin catálogo
    ni nombre de capa que elegir — solo una URL base a la que el código
    añade siempre {z}/{x}/{y}.png. Aquí se prueban las tres funciones
    puras: validación (solo https, forma de URL válida), normalización
@@ -42,4 +42,4 @@ ok(api("https://x.example.com/tiles").buildCustomTilesUrl()
 ok(api(null).buildCustomTilesUrl() === "/{z}/{x}/{y}.png",
   "sin URL configurada no lanza excepción (blocked() es quien evita construir la capa)");
 
-if (!process.exitCode) console.log("CUSTOM MAPS TESTS OK");
+if (!process.exitCode) console.log("CUSTOM TILE MAP SERVICE TESTS OK");

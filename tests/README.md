@@ -192,11 +192,31 @@ COPERNICUS / SENTINEL HUB TESTS OK
 
 **Salida de `npm test`:**
 ```
-── Custom Maps: validación de la URL del servidor, normalización y plantilla XYZ
-CUSTOM MAPS TESTS OK
+── Custom Tile Map Service: validación de la URL del servidor, normalización y plantilla XYZ
+CUSTOM TILE MAP SERVICE TESTS OK
 ```
 
-**Qué cubre:** Capa base «Custom Maps» (servidor de teselas del propio usuario, sin catálogo): `validCustomTilesUrl` acepta solo direcciones `https://` con forma de URL válida (con espacios alrededor tolerados, igual que el instance ID de Copernicus) y rechaza `http:`, texto suelto, vacío y otros esquemas (`ftp:`); `normalizeCustomTilesBase` quita la barra final (una o varias seguidas) y los espacios alrededor, para que `buildCustomTilesUrl` no pueda producir una barra duplicada al añadir `{z}/{x}/{y}.png`; y sin URL configurada, `buildCustomTilesUrl` no lanza excepción (queda para `blocked()` decidir si hay algo que construir, no esta función).
+**Qué cubre:** Capa base «Custom Tile Map Service» (antes «Custom Maps»; servidor de teselas del propio usuario, sin catálogo): `validCustomTilesUrl` acepta solo direcciones `https://` con forma de URL válida (con espacios alrededor tolerados, igual que el instance ID de Copernicus) y rechaza `http:`, texto suelto, vacío y otros esquemas (`ftp:`); `normalizeCustomTilesBase` quita la barra final (una o varias seguidas) y los espacios alrededor, para que `buildCustomTilesUrl` no pueda producir una barra duplicada al añadir `{z}/{x}/{y}.png`; y sin URL configurada, `buildCustomTilesUrl` no lanza excepción (queda para `blocked()` decidir si hay algo que construir, no esta función).
+
+### `tilediag.js`
+
+**Salida de `npm test`:**
+```
+── Teselas de un servidor propio con error: qué dijo el servidor en lugar de la imagen
+TILE DIAGNOSIS TESTS OK
+```
+
+**Qué cubre:** `tileFailureReason`, el motivo de una tesela fallida de «Custom Web Map Service»/«Custom Tile Map Service»: una imagen no es un fallo (ni con parámetros en el tipo); el error OGC que viaja con HTTP 200 se lee del cuerpo (y gana al código HTTP), sin espacios alrededor; una excepción sin mensaje (la del codificador JPEG de GeoServer) lo dice en vez de quedar en blanco; sin excepción, un HTTP de error usa el texto de `describeHttp` (404, 5xx); un 200 con una página o sin tipo dice «respuesta X en vez de una imagen»; y un mensaje largo se corta a 200 caracteres.
+
+### `customwms.js`
+
+**Salida de `npm test`:**
+```
+── Custom Web Map Service: dirección, GetCapabilities y capas del servidor del usuario
+CUSTOM WMS TESTS OK
+```
+
+**Qué cubre:** Capa base «Custom Web Map Service» (WMS del propio usuario, con catálogo): `validCustomWmsUrl` (solo `https://`, rechaza `http:`, otros esquemas, texto suelto, vacío y direcciones con usuario y contraseña); `normalizeCustomWmsBase` (quita espacios, ancla y los parámetros de OGC aunque vengan en mayúsculas o con una petición GetCapabilities/GetMap entera, y conserva los propios del servidor); `customWmsCapabilitiesUrl` (sobre una base con y sin consulta propia, sin un segundo `?`); `wmsCapabilitiesVersion` (1.3.0, 1.1.1 con raíz `WMT_MS_Capabilities`, con prefijo de namespace y comillas simples; lo no reconocido vuelve a 1.3.0); `wmsGetMapFormat` (PNG si lo hay en `<GetMap>`, JPEG si es lo único, alias `image/jpg`, parámetros y mayúsculas ignorados, formatos de otra operación sin contar, PNG por defecto); `groupWmsEntries` (grupos en el orden del servidor) y `collectWmsLayers` con un servidor de una sola capa publicada como raíz (y que una raíz con hijos no se duplique).
 
 ### `navtest.js`
 
@@ -846,6 +866,16 @@ BROWSER THEME TESTS OK
 ```
 
 **Qué cubre:** El tema de la interfaz (`light-dark()` + `data-theme`, ver `.claude/rules/theme.md`) con colores COMPUTADOS en Chromium, no con la hoja de estilos leída como texto. En «Automático» (sin `data-theme`) el panel y el texto siguen a `prefers-color-scheme` y cambian EN VIVO al emularlo, sin recargar; un diálogo, los botones de zoom de Leaflet y la atribución se oscurecen con él (esta última exige `.leaflet-container` delante en el selector: Leaflet pinta la suya con una regla más específica). «Claro» forzado gana a un sistema oscuro y se previsualiza al momento; Cancelar vuelve a automático y no escribe nada en IndexedDB; Aceptar guarda (`dbLoadUiTheme`) y «Oscuro» sobrevive a recargar incluso contra un sistema claro, con `color-scheme: dark` (que es lo que oscurece los controles nativos), y el selector lo refleja al reabrir el panel. Y lo que NO cambia: el fondo del mapa es idéntico en claro y oscuro. No comprueba el contraste de cada color ni el aspecto — eso se mira con capturas.
+
+### `browser/custom-wms.mjs`
+
+**Salida de `npm test`:**
+```
+── Navegador: mapas base propios — Custom Tile Map Service renombrada y Custom Web Map Service con su GetCapabilities, capas, versión del servidor, recarga y errores
+BROWSER CUSTOM WMS TESTS OK
+```
+
+**Qué cubre:** Los dos mapas base de servidor propio, de punta a punta, con un servidor WMS simulado (`ctx.route` sobre un dominio https de mentira; la CSP deja `connect-src`/`img-src` abiertas a https, así que sigue la misma ruta que uno real). La capa de teselas se llama «Custom Tile Map Service» y sigue sin selector. «Custom Web Map Service» sale bloqueada («Requiere URL») y sin ninguna petición; el diálogo no acepta `http://`; al aceptar una petición GetCapabilities PEGADA ENTERA (con `SERVICE`/`VERSION` en mayúsculas y un `map=` propio) sale UNA sola consulta con los parámetros de OGC una vez y el propio conservado; el selector ofrece las capas del servidor agrupadas como las publica; elegir dirección no enciende la capa; al encenderla pide `GetMap` de la primera capa en la versión que anunció el servidor (1.1.1 → `srs`), Web Mercator y `image/png`; cambiar la capa pide las de la otra; tras recargar sigue encendida, con su capa y con la versión rehecha al llegar el catálogo, y el diálogo enseña la dirección ya normalizada; «Borrar» la apaga y la bloquea; un servidor que solo anuncia JPEG recibe `GetMap` en `image/jpeg` y sin `transparent`; una excepción OGC del servidor se muestra tal cual («Servidor en mantenimiento»); Escape cierra el diálogo; sin violaciones de CSP. **Teselas con error**: con teselas que llegan bien no hay contornos rojos; con un servidor cuyo `GetMap` responde una excepción OGC con HTTP 200, TODAS las teselas llevan `.tile-error` con contorno rojo de 2 px y son visibles (Leaflet oculta las que no cargaron), el aviso trae el texto del servidor y nombra la capa, y solo se vuelve a pedir UNA tesela para diagnosticar. Se comprobó que falla si se ignora la versión del servidor.
 
 ### `browser/url-import.mjs`
 

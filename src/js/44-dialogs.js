@@ -415,7 +415,7 @@ document.getElementById("sh-accept").addEventListener("click", () => {
   closeShCredsDialog();
 });
 
-/* ---------- Diálogo del servidor de teselas de "Custom Maps" ----------
+/* ---------- Diálogo del servidor de teselas de "Custom Tile Map Service" ----------
    Mismo patrón que el de la credencial de Copernicus, justo arriba:
    edición diferida, «Aceptar» es lo único que guarda y rearma la capa. */
 const customTilesDialog = document.getElementById("custom-tiles-creds");
@@ -444,7 +444,7 @@ document.getElementById("custom-tiles-clear").addEventListener("click", () => {
   customTilesInput.value = "";
   customTilesErrorEl.hidden = true;
   customTilesInput.focus();
-  navMessage("Servidor de teselas de Custom Maps borrado.", { tone: "info" });
+  navMessage("Servidor de Custom Tile Map Service borrado.", { tone: "info" });
 });
 document.getElementById("custom-tiles-accept").addEventListener("click", () => {
   const txt = customTilesInput.value.trim();
@@ -456,6 +456,47 @@ document.getElementById("custom-tiles-accept").addEventListener("click", () => {
   }
   setCustomTilesUrl(txt);
   closeCustomTilesDialog();
+});
+
+/* ---------- Diálogo del servidor de "Custom Web Map Service" ----------
+   Gemelo del anterior: la dirección es de un WMS, y al aceptar el panel
+   le pide su GetCapabilities para ofrecer sus capas.                    */
+const customWmsDialog = document.getElementById("custom-wms-creds");
+const customWmsBox = customWmsDialog.querySelector(".dlg-box");
+const customWmsInput = document.getElementById("custom-wms-input");
+const customWmsErrorEl = document.getElementById("custom-wms-error");
+
+function closeCustomWmsDialog() {
+  customWmsDialog.hidden = true;
+  releaseFocus();
+}
+function openCustomWmsDialog() {
+  customWmsInput.value = customWmsUrl || "";
+  customWmsErrorEl.hidden = true;
+  customWmsDialog.hidden = false;
+  clampToViewport(customWmsBox);
+  focusDialog(customWmsBox);
+  customWmsInput.focus();
+  customWmsInput.select();
+}
+document.getElementById("custom-wms-cancel").addEventListener("click", closeCustomWmsDialog);
+document.getElementById("custom-wms-clear").addEventListener("click", () => {
+  setCustomWmsUrl(null);
+  customWmsInput.value = "";
+  customWmsErrorEl.hidden = true;
+  customWmsInput.focus();
+  navMessage("Servidor de Custom Web Map Service borrado.", { tone: "info" });
+});
+document.getElementById("custom-wms-accept").addEventListener("click", () => {
+  const txt = customWmsInput.value.trim();
+  if (!validCustomWmsUrl(txt)) {
+    customWmsErrorEl.textContent = "Debe ser una dirección https:// válida, sin usuario ni contraseña.";
+    customWmsErrorEl.hidden = false;
+    customWmsInput.focus();
+    return;
+  }
+  setCustomWmsUrl(txt);
+  closeCustomWmsDialog();
 });
 
 const descDialog = document.getElementById("desc-dialog");
@@ -560,7 +601,7 @@ wirePropsGrip(styleAttrsBody);
    button opened it (see openColorPicker/positionColorPicker), not a
    draggable window with its own dialog role — that separate-window
    treatment is exactly what the popover replaced.                    */
-for (const box of [styleBox, iconBox, descBox, shortcutsBox, ktpBox, kdpBox, gnpBox, propsBox, shBox, customTilesBox, pointsBox, logBox, urlBox]) makeDialogMovable(box);
+for (const box of [styleBox, iconBox, descBox, shortcutsBox, ktpBox, kdpBox, gnpBox, propsBox, shBox, customTilesBox, customWmsBox, pointsBox, logBox, urlBox]) makeDialogMovable(box);
 setupDialog(styleBox, { modal: false }); /* flotante: el mapa sigue vivo */
 setupDialog(iconBox, { modal: true });
 setupDialog(descBox, { modal: false });
@@ -571,12 +612,13 @@ setupDialog(gnpBox, { modal: true });
 setupDialog(propsBox, { modal: true });
 setupDialog(shBox, { modal: true });
 setupDialog(customTilesBox, { modal: true });
+setupDialog(customWmsBox, { modal: true });
 setupDialog(pointsBox, { modal: true });
 setupDialog(logBox, { modal: true });
 setupDialog(urlBox, { modal: true });
 window.addEventListener("resize", () => {
   /* a moved dialog must not fall off-screen */
-  for (const box of [styleBox, iconBox, descBox, shortcutsBox, ktpBox, kdpBox, gnpBox, propsBox, shBox, customTilesBox, pointsBox, logBox, urlBox]) clampToViewport(box);
+  for (const box of [styleBox, iconBox, descBox, shortcutsBox, ktpBox, kdpBox, gnpBox, propsBox, shBox, customTilesBox, customWmsBox, pointsBox, logBox, urlBox]) clampToViewport(box);
   /* the popover's anchor button may have moved too; closing is simpler
      and less confusing than reclamping a stale position              */
   if (!colorPicker.hidden) closeColorPicker();

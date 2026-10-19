@@ -135,7 +135,7 @@ export async function waitAppReady(page) {
      solo la clase capturaba a veces el intermedio: invisible mientras el
      arranque (99-boot.js) tuviera poco que leer de IndexedDB antes de
      resolver el árbol, hasta que una lectura más (la URL de "Custom
-     Maps") alargó lo suficiente esa ventana como para que el sondeo la
+     Tile Map Service") alargó lo suficiente esa ventana como para que el sondeo la
      viera. Comprobar el TEXTO del placeholder, no solo su clase, espera
      el estado de verdad final en los dos casos (con árbol guardado, hay
      `ul.node-list`, directamente).                                     */

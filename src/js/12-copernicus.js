@@ -110,8 +110,8 @@ const DYNAMIC_SOURCES = {
     },
     configure: () => openShCredsDialog()
   },
-  /* Sin catálogo ni `get`/`groups`/`pickDefault`/`ensure`: "Custom Maps"
-     no tiene nombre de capa que elegir, solo una URL — `blocked`/
+  /* Sin catálogo ni `get`/`groups`/`pickDefault`/`ensure`: "Custom Tile
+     Map Service" no tiene nombre de capa que elegir, solo una URL — `blocked`/
      `configure` son lo único que consulta buildDynamicConfigButton, y
      su BASE_LAYERS (10-map.js) no lleva `dynamic: true`, así que el
      panel tampoco intenta pedirle un <select> (buildDynamicLayerSelect
@@ -119,9 +119,25 @@ const DYNAMIC_SOURCES = {
   "custom-tiles": {
     blocked: () => customTilesUrl ? null : {
       label: "Requiere URL",
-      hint: "Configurar la URL del servidor de teselas de Custom Maps"
+      hint: "Configurar la URL del servidor de teselas de Custom Tile Map Service"
     },
     configure: () => openCustomTilesDialog()
+  },
+  /* A diferencia de la anterior, "Custom Web Map Service" sí tiene
+     catálogo (el GetCapabilities del servidor del usuario): fuente
+     completa, como Copernicus, bloqueada mientras no haya dirección.   */
+  "custom-wms": {
+    selectTitle: "Capa del servidor WMS",
+    get: () => customWmsCatalog,
+    error: () => customWmsError,
+    ensure: ensureCustomWmsCatalog,
+    pickDefault: entries => entries[0] && entries[0].name,
+    groups: groupWmsEntries,
+    blocked: () => customWmsUrl ? null : {
+      label: "Requiere URL",
+      hint: "Configurar la URL del servidor de Custom Web Map Service"
+    },
+    configure: () => openCustomWmsDialog()
   }
 };
 function dynSource(def) { return (def && def.source && DYNAMIC_SOURCES[def.source]) || null; }
@@ -129,8 +145,8 @@ function dynSource(def) { return (def && def.source && DYNAMIC_SOURCES[def.sourc
 function ensureDynamicCatalogs() {
   for (const st of baseState.values()) {
     const src = dynSource(st.def);
-    /* "Custom Maps" no tiene catálogo (su fuente no aporta `ensure`):
-       nada que adelantar al abrir el panel, solo la tuerca ⚙.         */
+    /* "Custom Tile Map Service" no tiene catálogo (su fuente no aporta
+       `ensure`): nada que adelantar al abrir el panel, solo la tuerca ⚙. */
     if (src && src.ensure) src.ensure();
   }
 }

@@ -17,7 +17,8 @@
      `connect-src` e `img-src` son la excepción, y es deliberada: desde
      que se puede añadir contenido desde una dirección que escribe el
      usuario (botón 🔗 de la cabecera) o pedirle sus teselas a un
-     servidor propio (mapa base «Custom Maps», ⚙ de su fila), enumerar
+     servidor propio (mapas base «Custom Tile Map Service» y «Custom Web
+     Map Service», ⚙ de su fila), enumerar
      orígenes es imposible por definición — el origen ES lo que el
      usuario elige. Las dos se abren a cualquier `https:` y NADA MÁS:
      `default-src 'none'` sigue en pie, `script-src`/`style-src`
@@ -733,16 +734,18 @@
   </div>
 </div>
 
-<!-- Servidor de teselas de "Custom Maps": una dirección propia del
+<!-- Servidor de teselas de "Custom Tile Map Service": una dirección propia del
      usuario (t&#237;picamente una cach&#233;/proxy delante de OpenStreetMap u
      otro servicio, para no descargar de golpe el servicio p&#250;blico
      ajeno), nunca de la aplicaci&#243;n. -->
 <div id="custom-tiles-creds" class="dlg-overlay" hidden>
   <div class="dlg-box">
-    <h2>Servidor de teselas personalizado</h2>
-    <p class="dlg-hint">La capa <em>Custom Maps</em> pide sus teselas a la direcci&#243;n que
-      pongas aqu&#237;, a&#241;adiendo <code>{z}/{x}/{y}.png</code> al final por su cuenta &#8212;
-      no hace falta escribirlo.</p>
+    <h2>Custom Tile Map Service (TMS)</h2>
+    <p class="dlg-hint">La capa <em>Custom Tile Map Service</em> solo admite servidores de
+      teselas (<em>Tile Map Service</em>): pide sus teselas a la direcci&#243;n que pongas
+      aqu&#237;, a&#241;adiendo <code>{z}/{x}/{y}.png</code> al final por su cuenta &#8212;
+      no hace falta escribirlo. Para un servidor WMS usa la capa
+      <em>Custom Web Map Service</em>.</p>
     <label class="sh-field">Direcci&#243;n base del servidor
       <input type="text" id="custom-tiles-input" spellcheck="false" autocomplete="off"
              placeholder="https://mi-cache.ejemplo.org/tiles/">
@@ -760,6 +763,38 @@
       <button class="btn" id="custom-tiles-cancel">Cancelar</button>
       <button class="btn" id="custom-tiles-clear">Borrar</button>
       <button class="btn" id="custom-tiles-accept">Aceptar</button>
+    </div>
+  </div>
+</div>
+
+<!-- Servidor de "Custom Web Map Service": la direcci&#243;n de un WMS del
+     usuario. Sus capas se descubren con su GetCapabilities. -->
+<div id="custom-wms-creds" class="dlg-overlay" hidden>
+  <div class="dlg-box">
+    <h2>Custom Web Map Service (WMS)</h2>
+    <p class="dlg-hint">La capa <em>Custom Web Map Service</em> lee de tu servidor WMS
+      (<em>Web Map Service</em>) la lista de capas que publica y te deja elegir una, que
+      puedes activar y desactivar como el resto de mapas base.</p>
+    <label class="sh-field">Direcci&#243;n del servidor WMS
+      <input type="text" id="custom-wms-input" spellcheck="false" autocomplete="off"
+             placeholder="https://mi-servidor.ejemplo.org/wms">
+    </label>
+    <p class="dlg-hint">El servidor debe responder en <strong>https</strong> a una consulta
+      <code>GetCapabilities</code> (<code>?service=WMS&amp;request=GetCapabilities</code>, que
+      la aplicaci&#243;n a&#241;ade por su cuenta &#8212;si pegas una petici&#243;n completa, se
+      quitan sus par&#225;metros de OGC&#8212;) con CORS abierto
+      (<code>Access-Control-Allow-Origin</code>), o el navegador impedir&#225; leer la lista
+      de capas. Debe poder dibujar en Web Mercator (<code>EPSG:3857</code>). El
+      formato de imagen se elige solo seg&#250;n lo que anuncie el servidor:
+      <code>image/png</code> (con transparencia) si lo sirve y, si no,
+      <code>image/jpeg</code>.</p>
+    <p class="dlg-hint">Se guarda solo en este navegador y &#250;nicamente se env&#237;a a la
+      direcci&#243;n que pongas. Nunca viaja en un <code>.kite.json</code> exportado.</p>
+    <p class="dlg-hint sh-bad" id="custom-wms-error" hidden></p>
+    <div class="dlg-actions">
+      <button class="btn" id="custom-wms-cancel">Cancelar</button>
+      <button class="btn" id="custom-wms-clear">Borrar</button>
+      <button class="btn" id="custom-wms-accept">Aceptar</button>
     </div>
   </div>
 </div>

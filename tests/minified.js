@@ -115,7 +115,7 @@ for (const [nombre, origen] of [["script-src", "https://unpkg.com"],
 }
 /* connect-src e img-src SÍ son abiertas, y a propósito: la dirección de
    la que se descarga (botón 🔗) o de la que se piden teselas (mapa base
-   «Custom Maps», su propio servidor) las elige el usuario, así que
+   «Custom Tile Map Service» y «Custom Web Map Service», su propio servidor) las elige el usuario, así que
    enumerar orígenes es imposible por definición. Que esté aquí escrito
    es lo que convierte abrirlas en una decisión visible y no en algo que
    se cuela en un diff.                                                */

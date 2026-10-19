@@ -74,7 +74,7 @@ function renderBasePanel() {
        reacciona a encender/apagar la capa).                          */
     const sel = st.def.dynamic ? buildDynamicLayerSelect(id, st) : null;
     /* La tuerca depende de tener una fuente CONFIGURABLE (`configure`),
-       no de ser "dynamic": "Custom Maps" tiene tuerca (una URL que
+       no de ser "dynamic": "Custom Tile Map Service" tiene tuerca (una URL que
        ajustar) pero no catálogo ni <select> entre el que elegir —a
        diferencia de PNOA histórico/Copernicus, que tienen las dos
        cosas. La tuerca no se deshabilita con la capa apagada a
@@ -247,7 +247,7 @@ function buildDynamicConfigButton(st) {
   return gear;
 }
 
-/* ---------- "Custom Maps": servidor de teselas del propio usuario ----------
+/* ---------- "Custom Tile Map Service": servidor de teselas del propio usuario ----------
    A diferencia de PNOA histórico/Copernicus, aquí no hay ningún
    catálogo que descubrir ni nombre de capa que elegir: una única URL
    base, puesta por el usuario, a la que el código añade siempre
@@ -292,12 +292,254 @@ function setCustomTilesUrl(url) {
     if (st.layer && map.hasLayer(st.layer)) map.removeLayer(st.layer);
     st.layer = null;
     st.failed = false;
+    st.tileNoticed.clear();
     if (!customTilesUrl) st.on = false;
   }
   (customTilesUrl ? dbSaveCustomTilesUrl({ url: customTilesUrl }) : dbDeleteCustomTilesUrl()).catch(() => {});
   scheduleBaseSave();
   renderBasePanel();
   if (st && st.on) applyBaseLayer("custom");
+}
+
+/* ---------- "Custom Web Map Service": servidor WMS del propio usuario ----------
+   Lo contrario de "Custom Tile Map Service": aquí SÍ hay catálogo. El
+   usuario da la dirección de su servidor WMS y las capas salen de su
+   GetCapabilities (mismo recorrido que PNOA histórico/Copernicus, con
+   `parseWmsCapabilities`), así que es una fuente "dynamic" completa
+   (`get`/`groups`/`pickDefault`/`ensure`) además de configurable. Sin
+   dirección está "bloqueada" y el <select> sale deshabilitado.        */
+const CUSTOM_WMS_TIMEOUT = 15000;
+/* Un servidor propio puede anidar sus capas en grupos (los títulos de
+   grupo ya etiquetan a sus hijos); las que cuelgan directamente de la
+   raíz van a este cajón.                                              */
+const CUSTOM_WMS_OPTS = { exclude: new Set(), rootGroup: "Capas del servidor" };
+/* Parámetros de OGC que pone el código (o `L.tileLayer.wms`) y que
+   deben salir de la dirección que pegue el usuario, que a menudo es una
+   petición GetCapabilities o GetMap entera. Los demás (p. ej. el
+   `map=/ruta.map` de MapServer) son parte de la dirección y se
+   conservan.                                                          */
+const CUSTOM_WMS_RESERVED = ["service", "request", "version", "wmtver", "layers", "styles", "crs", "srs",
+  "format", "transparent", "width", "height", "bbox"];
+const CUSTOM_WMS_VERSIONS = ["1.1.0", "1.1.1", "1.3.0"];
+/* Formatos de imagen que sabemos pedir, por orden de preferencia: PNG
+   (admite transparencia, que es lo que se quiere para superponer) y
+   JPEG (hay servidores que solo sirven este, típicamente ortofotos).  */
+const CUSTOM_WMS_FORMATS = ["image/png", "image/jpeg", "image/jpg"];
+
+let customWmsUrl = null;        /* dirección base del usuario, o null */
+let customWmsVersion = "1.3.0"; /* la que anunció su GetCapabilities */
+let customWmsFormat = "image/png"; /* el que eligió `wmsGetMapFormat` */
+let customWmsCatalog = null;    /* [{name, title, group}] una vez resuelto */
+let customWmsError = null;
+let customWmsDiscovering = null;
+
+/* Mismo criterio que validCustomTilesUrl, y además sin usuario ni
+   contraseña en la dirección: `fetch` rechaza una URL con credenciales
+   y el error sería críptico.                                           */
+function validCustomWmsUrl(txt) {
+  try {
+    const u = new URL(txt.trim());
+    return u.protocol === "https:" && !u.username && !u.password;
+  } catch {
+    return false;
+  }
+}
+
+/* Deja la dirección en lo que sirve de base: sin los parámetros de OGC
+   (se pegan a menudo con un GetCapabilities completo) y sin ancla.     */
+function normalizeCustomWmsBase(url) {
+  const u = new URL(url.trim());
+  u.hash = "";
+  for (const key of [...u.searchParams.keys()]) {
+    if (CUSTOM_WMS_RESERVED.includes(key.toLowerCase())) u.searchParams.delete(key);
+  }
+  return u.toString();
+}
+
+/* `searchParams.set` respeta los parámetros propios de la dirección
+   (`?map=...`) en vez de pegar un segundo `?`.                         */
+function customWmsCapabilitiesUrl(base) {
+  const u = new URL(base);
+  u.searchParams.set("service", "WMS");
+  u.searchParams.set("request", "GetCapabilities");
+  u.searchParams.set("version", "1.3.0");
+  return u.toString();
+}
+
+/* Un servidor que solo habla 1.1.1 responde a una petición 1.3.0 con su
+   propia versión; las teselas se piden entonces en esa (Leaflet cambia
+   `crs`/`srs` según la versión). Lo que no se reconozca se queda en
+   1.3.0, la que se pidió.                                              */
+function wmsCapabilitiesVersion(xmlText) {
+  const m = /<(?:[\w.-]+:)?WM(?:S|T_MS)_Capabilities\b[^>]*?\sversion\s*=\s*["']([^"']+)["']/.exec(xmlText);
+  return m && CUSTOM_WMS_VERSIONS.includes(m[1]) ? m[1] : "1.3.0";
+}
+
+/* Formato de imagen para GetMap: el primero de CUSTOM_WMS_FORMATS que el
+   servidor declare en su <GetMap>. Los parámetros se ignoran al comparar
+   ("image/png; mode=8bit") y se pide el tipo a secas. Si no declara
+   ninguno de los que sabemos pedir, o el documento no se lee, PNG: es lo
+   que se pedía antes, y si el servidor tampoco lo sirve las teselas
+   fallan a la vista (BASE_FAIL_TILES) en vez de elegir a ciegas.       */
+function wmsGetMapFormat(xmlText) {
+  const doc = new DOMParser().parseFromString(xmlText, "text/xml");
+  if (parserErrorText(doc)) return "image/png";
+  const getMap = firstByTag(doc, "GetMap");
+  if (!getMap) return "image/png";
+  const offered = childrenByTag(getMap, "Format").map(f => f.textContent.split(";")[0].trim().toLowerCase());
+  return CUSTOM_WMS_FORMATS.find(f => offered.includes(f)) || "image/png";
+}
+
+/* Agrupa para el <select> en el orden en que el servidor las publica */
+function groupWmsEntries(entries) {
+  const byGroup = new Map();
+  for (const e of entries) {
+    if (!byGroup.has(e.group)) byGroup.set(e.group, []);
+    byGroup.get(e.group).push(e);
+  }
+  return [...byGroup].map(([group, items]) => ({ group, items }));
+}
+
+/* Plantilla base de la capa. Se llama SOLO al crearla (ver su `layer()`
+   en BASE_LAYERS): la dirección puede no estar configurada todavía.   */
+function customWmsBase() { return customWmsUrl || ""; }
+
+async function fetchCustomWmsCatalog() {
+  if (customWmsCatalog) return customWmsCatalog;
+  if (customWmsDiscovering) return customWmsDiscovering;
+  const base = customWmsUrl;
+  /* Cambiar la dirección con una consulta en vuelo: lo que conteste la
+     vieja no vale para la nueva y no debe pisar su catálogo ni su error. */
+  const stale = () => base !== customWmsUrl;
+  customWmsError = null;
+  const discovering = (async () => {
+    const r = await fetch(customWmsCapabilitiesUrl(base),
+      { signal: AbortSignal.timeout(CUSTOM_WMS_TIMEOUT) });
+    const txt = await r.text();
+    /* El error OGC puede viajar en el cuerpo aunque el HTTP sea 200 */
+    const ex = parseWmsServiceException(txt);
+    if (ex) throw new Error(ex.msg);
+    if (!r.ok) throw new Error(describeHttp(r.status));
+    const entries = parseWmsCapabilities(txt, CUSTOM_WMS_OPTS);
+    if (!entries) throw new Error("la respuesta no es un GetCapabilities de WMS con capas");
+    if (!stale()) {
+      customWmsCatalog = entries;
+      /* Una capa ya creada (la guardada como encendida, que se levanta
+         sin esperar al catálogo) lleva la versión y el formato
+         supuestos: si el servidor habla otra cosa, se rehace.         */
+      const version = wmsCapabilitiesVersion(txt), format = wmsGetMapFormat(txt);
+      if (version !== customWmsVersion || format !== customWmsFormat) {
+        customWmsVersion = version;
+        customWmsFormat = format;
+        dropCustomWmsLayer();
+      }
+    }
+    return entries;
+  })().catch(err => {
+    if (customWmsDiscovering === discovering) customWmsDiscovering = null; /* permite reintentar */
+    if (!stale()) {
+      customWmsError = err.name === "TimeoutError" ? "el servidor no responde"
+        : err.message === "Failed to fetch" ? netFailText("no se pudo conectar con el servidor WMS (¿CORS?)")
+        : err.message;
+    }
+    throw err;
+  });
+  customWmsDiscovering = discovering;
+  return discovering;
+}
+
+function ensureCustomWmsCatalog() {
+  if (customWmsCatalog || !customWmsUrl) return;
+  fetchCustomWmsCatalog().then(onDynamicCatalogReady).catch(() => renderBasePanel());
+}
+
+/* Quita del mapa la capa ya creada, para que `applyBaseLayer` la rehaga
+   con la dirección y la versión de ahora. Devuelve su estado.          */
+function dropCustomWmsLayer() {
+  const st = baseState.get("custom-wms");
+  if (st) {
+    if (st.layer && map.hasLayer(st.layer)) map.removeLayer(st.layer);
+    st.layer = null;
+    st.failed = false;
+    st.tileNoticed.clear();
+  }
+  return st;
+}
+
+/* Cambiar (o borrar) la dirección invalida el catálogo y la capa ya
+   creada, cuya URL lleva dentro la anterior — mismo patrón que
+   setInstanceId.                                                       */
+function setCustomWmsUrl(url) {
+  customWmsUrl = url ? normalizeCustomWmsBase(url) : null;
+  customWmsCatalog = null; customWmsError = null; customWmsDiscovering = null;
+  customWmsVersion = "1.3.0";
+  customWmsFormat = "image/png";
+  const st = dropCustomWmsLayer();
+  if (st) {
+    st.wmsLayer = null;
+    if (!customWmsUrl) st.on = false;
+  }
+  (customWmsUrl ? dbSaveCustomWmsUrl({ url: customWmsUrl }) : dbDeleteCustomWmsUrl()).catch(() => {});
+  scheduleBaseSave();
+  if (customWmsUrl) ensureCustomWmsCatalog();
+  renderBasePanel();
+  if (st && st.on) applyBaseLayer("custom-wms");
+}
+
+/* ---------- Teselas que el servidor no entrega (servidores propios) ----------
+   Un servidor que contesta con un error (un WMS lo hace con HTTP 200 y
+   un <ServiceException> en XML) no deja ver nada: la tesela es un <img>
+   que no descifra esa respuesta, Leaflet la deja oculta y se ve lo que
+   hay debajo, sin pista de que falta algo. Dos cosas por eso, solo para
+   los servidores que pone el usuario (`diagnoseTiles` en BASE_LAYERS: en
+   los servicios conocidos las teselas fuera de cobertura son normales y
+   pintarlas de rojo sería ruido):
+   - la tesela se marca con un contorno rojo (`.tile-error`, styles.css);
+   - la PRIMERA de cada capa se vuelve a pedir con `fetch` para leer qué
+     dijo el servidor, y se avisa con ese texto. Una sola vez por capa:
+     con un servidor que falla en medio mapa serían decenas de peticiones
+     repetidas a un servicio que ya está fallando.                       */
+const TILE_DIAG_TIMEOUT = 10000;
+const TILE_REASON_MAX = 200;
+
+/* Qué dijo el servidor en lugar de la imagen, en una línea; null si lo
+   que llegó SÍ es una imagen. Función pura (tests/tilediag.js).        */
+function tileFailureReason(status, contentType, body) {
+  if (status >= 200 && status < 300 && /^image\//i.test(contentType)) return null;
+  const ex = parseWmsServiceException(body);
+  let reason;
+  if (ex) reason = ex.msg || "excepci\u00F3n del servicio sin mensaje";
+  else if (status < 200 || status >= 300) reason = describeHttp(status);
+  else reason = `respuesta ${contentType.split(";")[0].trim() || "sin tipo"} en vez de una imagen`;
+  return reason.length > TILE_REASON_MAX ? reason.slice(0, TILE_REASON_MAX) + "\u2026" : reason;
+}
+
+async function diagnoseTile(st, url) {
+  let reason;       /* undefined = no se pudo averiguar */
+  try {
+    const r = await fetch(url, { signal: AbortSignal.timeout(TILE_DIAG_TIMEOUT) });
+    const type = r.headers.get("content-type") || "";
+    /* Las imágenes no se leen como texto: solo interesa saber que llegaron */
+    const body = /^image\//i.test(type) ? "" : (await r.text()).slice(0, 20000);
+    reason = tileFailureReason(r.status, type, body);
+  } catch { /* red, CORS o tiempo: se avisa sin motivo */ }
+  const name = `\u00AB${st.def.name}\u00BB`;
+  if (reason === undefined) {
+    navMessage(`${name}: una tesela no se pudo cargar (contorno rojo) y no se pudo averiguar el motivo: `
+      + netFailText("el servidor no responde o no admite consultas desde el navegador (CORS)") + ".");
+  } else if (reason === null) {
+    navMessage(`${name}: una tesela fall\u00F3 y al pedirla de nuevo el servidor respondi\u00F3 bien (\u00BFlento o saturado?).`);
+  } else {
+    navMessage(`${name}: el servidor devolvi\u00F3 un error en una tesela (contorno rojo): ${reason}`);
+  }
+}
+
+function flagTileError(st, e) {
+  e.tile.classList.add("tile-error");
+  const key = st.wmsLayer || "";
+  if (st.tileNoticed.has(key)) return;
+  st.tileNoticed.add(key);
+  diagnoseTile(st, e.tile.src);
 }
 
 /* ---------- PNOA histórico (WMS del IGN) ----------
@@ -357,7 +599,15 @@ function collectWmsLayers(rootLayerEl, opts) {
     const nextGroup = (!name && children.length) ? title : groupTitle;
     children.forEach(child => walk(child, nextGroup));
   }
-  childrenByTag(rootLayerEl, "Layer").forEach(child => walk(child, rootGroup));
+  const topLevel = childrenByTag(rootLayerEl, "Layer");
+  topLevel.forEach(child => walk(child, rootGroup));
+  /* Un servidor con una sola capa suele publicarla como la propia raíz,
+     sin hijos: no es un grupo, es la capa. (Con hijos, la raíz solo los
+     agrupa.)                                                           */
+  const rootName = directChildText(rootLayerEl, "Name");
+  if (!topLevel.length && rootName && !exclude.has(rootName)) {
+    out.push({ name: rootName, title: directChildText(rootLayerEl, "Title") || rootName, group: rootGroup });
+  }
   return out;
 }
 
