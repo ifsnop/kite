@@ -37,8 +37,15 @@ function validInstanceId(txt) {
 async function fetchCopernicusCatalog() {
   if (copCatalog) return copCatalog;
   if (copDiscovering) return copDiscovering;
+  const instanceId = shInstanceId;
+  /* La consulta lleva el instance ID con el que empezó. Si la credencial
+     cambia (o se borra) mientras vuela, lo que conteste ya no es de la
+     configuración actual y no debe pisar su catálogo ni su error, ni
+     soltar la consulta nueva que `setInstanceId` ya lanzó. Una credencial
+     que vuelve a ser la misma SÍ la valida: es su propia respuesta.   */
+  const stale = () => instanceId !== shInstanceId;
   copError = null;
-  copDiscovering = (async () => {
+  const discovering = (async () => {
     const r = await fetch(`${shWmsUrl()}?service=WMS&request=GetCapabilities&version=1.3.0`,
       { signal: AbortSignal.timeout(COP_TIMEOUT) });
     const txt = await r.text();
@@ -48,16 +55,19 @@ async function fetchCopernicusCatalog() {
     if (!r.ok) throw new Error(describeHttp(r.status));
     const entries = parseWmsCapabilities(txt, COP_WMS_OPTS);
     if (!entries) throw new Error("tu configuración de Sentinel Hub no publica ninguna capa");
-    copCatalog = entries;
+    if (!stale()) copCatalog = entries;
     return entries;
   })().catch(err => {
-    copDiscovering = null; /* permite reintentar en la próxima llamada */
-    copError = err.name === "TimeoutError" ? "el servicio no responde"
-      : err.message === "Failed to fetch" ? netFailText("no se pudo conectar con Sentinel Hub")
-      : err.message;
+    if (copDiscovering === discovering) copDiscovering = null; /* permite reintentar en la próxima llamada */
+    if (!stale()) {
+      copError = err.name === "TimeoutError" ? "el servicio no responde"
+        : err.message === "Failed to fetch" ? netFailText("no se pudo conectar con Sentinel Hub")
+        : err.message;
+    }
     throw err;
   });
-  return copDiscovering;
+  copDiscovering = discovering;
+  return discovering;
 }
 
 function ensureCopernicusCatalog() {

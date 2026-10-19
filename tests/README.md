@@ -186,7 +186,7 @@ PNOA HISTÓRICO TESTS OK
 COPERNICUS / SENTINEL HUB TESTS OK
 ```
 
-**Qué cubre:** Capa base de Copernicus DEM por Sentinel Hub: `validInstanceId` (UUID, con espacios alrededor, rechazando truncados y dígitos no hexadecimales); lectura de las capas de una configuración de usuario con `COP_WMS_OPTS` (lista plana, un solo grupo, sin exclusiones, sin confundir el `<Name>` de `<Style>`); y el `Invalid instance id` real del servicio, que llega con HTTP 400 y por tanto solo se puede leer del cuerpo.
+**Qué cubre:** (también, con el `fetch` resuelto a mano sobre la función real) **cambiar la credencial con una consulta en vuelo**: la respuesta tardía de A no pisa el catálogo de B, ni deja catálogo con B aún en vuelo ni con la credencial borrada; el fallo de A no muestra su error con la credencial B ni suelta la consulta de B (una llamada mientras vuela reutiliza la suya); el error de B, la vigente, sí se guarda y permite reintentar; y si la credencial vuelve a ser A, su respuesta vale. Se comprobó que seis de estas comprobaciones fallan con el código anterior. Capa base de Copernicus DEM por Sentinel Hub: `validInstanceId` (UUID, con espacios alrededor, rechazando truncados y dígitos no hexadecimales); lectura de las capas de una configuración de usuario con `COP_WMS_OPTS` (lista plana, un solo grupo, sin exclusiones, sin confundir el `<Name>` de `<Style>`); y el `Invalid instance id` real del servicio, que llega con HTTP 400 y por tanto solo se puede leer del cuerpo.
 
 ### `customtiles.js`
 
