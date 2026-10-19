@@ -91,8 +91,12 @@ paths:
     versión se rehace (`dropCustomWmsLayer`).
   - **Consulta en vuelo + dirección cambiada**: `fetchCustomWmsCatalog`
     captura la dirección al empezar y descarta lo que contesta una vieja
-    (`stale`), o pisaría catálogo y error de la nueva. (`setInstanceId`, de
-    Copernicus, no lo hace: el mismo riesgo, sin medir si importa.)
+    (`stale`), o pisaría catálogo y error de la nueva. Mismo patrón en
+    `fetchCopernicusCatalog` (con el instance ID): además, el `catch` de una
+    consulta vieja soltaba `copDiscovering`, que ya era la de la credencial
+    nueva, y la siguiente llamada lanzaba una duplicada; ahora solo la
+    suelta quien la puso (`copDiscovering === discovering`). Una credencial
+    que vuelve a ser la misma (A→B→A) SÍ valida la respuesta de A.
   - **Formato de imagen del `<GetMap>`** (`wmsGetMapFormat`): el primero de
     `CUSTOM_WMS_FORMATS` (PNG, JPEG, `image/jpg`) que el servidor declare en
     `Capability/Request/GetMap` (parámetros y mayúsculas ignorados; los
