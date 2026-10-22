@@ -495,6 +495,17 @@ chmod +x scripts/hooks/pre-commit
 
 `.git/hooks/` isn't tracked by git, so this symlink has to be created once per clone — the script itself lives at `scripts/hooks/pre-commit`, a normal tracked file, reviewable like anything else. Once linked, any commit that touches `src/` or `package.json` bumps `BUILD` (`src/js/10-map.js`) to the current timestamp, runs `npm run build`, and stages the regenerated `kitelocal.html`/`kitelocal.min.html` before the commit is created — a commit that only touches `docs/`, `tests/` or this file is left untouched. If the hook's own build or syntax check fails, the commit is aborted and the working tree is restored to exactly how it was, so the actual error (whatever broke `src/`) is the only thing left to look at. Without the symlink, nothing breaks — `BUILD` just stays whatever it was until someone bumps it (or the hook gets linked), and `npm run check`/CI still catch a stale artifact the same way they always have.
 
+**Translations.** The interface is available in Spanish (the source language) and English, and picks the browser's language by default (Properties → Preferences → Language overrides it). The Spanish text in the code *is* the translation key (`tr("Cancelar")`), so there is no separate catalogue to keep in step; each language is one dictionary file, `src/js/04-i18n-<code>.js`. To add one:
+
+```bash
+node i18n-tool.js new fr "Français"   # creates src/js/04-i18n-fr.js with every key empty
+# add "04-i18n-fr.js", to the JS manifest in build.js, before "04-i18n-init.js"
+npm run i18n                          # how much of each language is translated
+node i18n-tool.js sync fr             # after the code changes: keep what is translated, add new keys
+```
+
+An empty value falls back to English, then to Spanish, so a partial translation is fine; English must stay complete (`npm test` checks it, along with placeholders and that no Spanish literal is left outside `tr()`). Right-to-left languages are not supported yet. The details are in `.claude/rules/i18n.md`.
+
 If what you hit is a freeze or a slowdown rather than a wrong result, the [`debug` branch](https://github.com/ifsnop/kite/tree/debug) carries an instrumented build that answers questions a console error cannot — see [Diagnosing a freeze or a slowdown](#diagnosing-a-freeze-or-a-slowdown-debug-branch). Its output pastes straight into an issue.
 
 ## Releasing

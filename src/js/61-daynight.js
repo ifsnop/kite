@@ -98,10 +98,10 @@ function sublunarPoint(date = new Date()) {
    de calendario local mezclaría dos días solares.                     */
 const SUN_HORIZON_DEG = -0.833; /* refracción + semidiámetro del disco */
 const SUN_EVENT_LEVELS = [
-  { dawn: "Crep\u00FAsculo astron\u00F3mico (inicio)", dusk: "Crep\u00FAsculo astron\u00F3mico (fin)", h: -18 },
-  { dawn: "Crep\u00FAsculo n\u00E1utico (inicio)", dusk: "Crep\u00FAsculo n\u00E1utico (fin)", h: -12 },
-  { dawn: "Crep\u00FAsculo civil (inicio)", dusk: "Crep\u00FAsculo civil (fin)", h: -6 },
-  { dawn: "Salida del sol", dusk: "Puesta del sol", h: SUN_HORIZON_DEG }
+  { dawn: tr("Crep\u00FAsculo astron\u00F3mico (inicio)"), dusk: tr("Crep\u00FAsculo astron\u00F3mico (fin)"), h: -18 },
+  { dawn: tr("Crep\u00FAsculo n\u00E1utico (inicio)"), dusk: tr("Crep\u00FAsculo n\u00E1utico (fin)"), h: -12 },
+  { dawn: tr("Crep\u00FAsculo civil (inicio)"), dusk: tr("Crep\u00FAsculo civil (fin)"), h: -6 },
+  { dawn: tr("Salida del sol"), dusk: tr("Puesta del sol"), h: SUN_HORIZON_DEG }
 ];
 
 /* Instante (ms) del mediodía solar más cercano a `nearMs` en la
@@ -172,17 +172,20 @@ function sunTimesHtml(lat, lng, now = new Date()) {
   const cell = (lv, key) => {
     if (lv.state === "ok") return lv[key] == null ? "\u2014" : fmtSunClock(lv[key], ref);
     const never = lv.state === "never";
-    const target = lv.h === SUN_HORIZON_DEG ? (never ? "al horizonte" : "del horizonte") : `${never ? "a" : "de"} \u2212${-lv.h}\u00B0`;
-    return `<span class="dlg-hint">no ocurre: el sol no ${never ? "llega" : "baja"} ${target}</span>`;
+    const deg = -lv.h;
+    const why = lv.h === SUN_HORIZON_DEG
+      ? (never ? tr("no ocurre: el sol no llega al horizonte") : tr("no ocurre: el sol no baja del horizonte"))
+      : (never ? tr("no ocurre: el sol no llega a \u2212{deg}\u00B0", { deg }) : tr("no ocurre: el sol no baja de \u2212{deg}\u00B0", { deg }));
+    return `<span class="dlg-hint">${why}</span>`;
   };
   const row = (label, value) => `<tr><td>${label}</td><td>${value}</td></tr>`;
   const rows = [
     ...r.levels.map(lv => row(lv.dawn, cell(lv, "rise"))),
-    row("Mediod\u00EDa solar", `${fmtSunClock(r.noon, ref)} <span class="dlg-hint">(elevaci\u00F3n ${r.maxElevation.toFixed(1)}\u00B0)</span>`),
+    row(tr("Mediod\u00EDa solar"), `${fmtSunClock(r.noon, ref)} <span class="dlg-hint">${tr("(elevaci\u00F3n {deg}\u00B0)", { deg: r.maxElevation.toFixed(1) })}</span>`),
     ...[...r.levels].reverse().map(lv => row(lv.dusk, cell(lv, "set")))
   ];
-  return '<div class="sun-times"><strong>Sol y crep\u00FAsculos</strong>'
-    + `<p class="dlg-hint">Horas locales del navegador (${utcOffsetLabel(now)}), d\u00EDa solar en curso.</p>`
+  return `<div class="sun-times"><strong>${tr("Sol y crep\u00FAsculos")}</strong>`
+    + `<p class="dlg-hint">${tr("Horas locales del navegador ({offset}), d\u00EDa solar en curso.", { offset: utcOffsetLabel(now) })}</p>`
     + `<table class="sun-table">${rows.join("")}</table></div>`;
 }
 
@@ -512,7 +515,7 @@ function toggleDayNight() {
   if (!dnInit()) {
     dayNightOn = false;
     refreshInfoButtons();
-    navMessage("Este navegador no admite WebGL: no se puede mostrar la iluminación real.");
+    navMessage(tr("Este navegador no admite WebGL: no se puede mostrar la iluminación real."));
     return;
   }
   if (dnButton) dnButton.classList.add("active");

@@ -74,9 +74,9 @@ function cogCrsDef(epsg) {
   if (epsg === 4082 || epsg === 4083) return utm(epsg - 4055, "+ellps=GRS80 +towgs84=0,0,0,0,0,0,0");
   return null;
 }
-const COG_CRS_LIST = "WGS84 (4326), ETRS89 (4258), Web Mercator (3857), ETRS89 UTM 28–38 "
+const COG_CRS_LIST = tr("WGS84 (4326), ETRS89 (4258), Web Mercator (3857), ETRS89 UTM 28–38 "
   + "(25828–25838 y 3040–3050), WGS84 UTM norte y sur (32601–32660, 32701–32760), ED50 UTM 28–31 "
-  + "y REGCAN95 UTM 27–28";
+  + "y REGCAN95 UTM 27–28");
 
 /* El EPSG de las GeoKeys de la imagen: el proyectado si lo hay, si no
    el geográfico. 32767 es «definido por el usuario»: sin código no hay
@@ -315,7 +315,7 @@ async function openCog(blob) {
     tiff = await GeoTIFF.fromBlob(blob);
     first = await tiff.getImage(0);
   } catch (err) {
-    throw new Error(`no es un GeoTIFF legible (${err && err.message || err})`);
+    throw new Error(tr("no es un GeoTIFF legible ({reason})", { reason: err && err.message || err }));
   }
   const fd = first.fileDirectory;
   /* Vienen como array tipado (o un número suelto): Array.from los
@@ -329,22 +329,22 @@ async function openCog(blob) {
   const isDem = samples === 1 && bits.length === 1 && (fmt[0] === 3 ? bits[0] >= 32
     : bits[0] >= 16 && (fmt.length === 0 || fmt[0] === 1 || fmt[0] === 2));
   if (!isOrtho && !isDem) {
-    throw new Error("solo se dibujan ortofotos de 8 bits por canal y modelos de elevación de una banda "
-      + `(esta tiene ${samples} banda(s) de ${bits.join("/") || "?"} bits)`);
+    throw new Error(tr("solo se dibujan ortofotos de 8 bits por canal y modelos de elevación de una banda "
+      + "(esta tiene {samples} banda(s) de {bits} bits)", { samples, bits: bits.join("/") || "?" }));
   }
   const epsg = cogEpsg(first.getGeoKeys());
   const def = epsg && cogCrsDef(epsg);
   if (!def) {
     throw new Error(epsg
-      ? `sistema de coordenadas EPSG:${epsg} no admitido (admitidos: ${COG_CRS_LIST})`
-      : "la imagen no está georreferenciada (no trae su sistema de coordenadas)");
+      ? tr("sistema de coordenadas EPSG:{epsg} no admitido (admitidos: {cogCrsList})", { epsg, cogCrsList: COG_CRS_LIST })
+      : tr("la imagen no está georreferenciada (no trae su sistema de coordenadas)"));
   }
   let ox, oy, rx, ry;
   try {
     [ox, oy] = first.getOrigin();
     [rx, ry] = first.getResolution();
   } catch {
-    throw new Error("georreferencia no admitida (imagen girada o sin origen)");
+    throw new Error(tr("georreferencia no admitida (imagen girada o sin origen)"));
   }
   const W = first.getWidth(), H = first.getHeight();
 
@@ -381,7 +381,7 @@ async function openCog(blob) {
   }
   const box = [s, w, n, e];
   if (!validCogRecord({ rasterId: "0".repeat(32), box })) {
-    throw new Error("la extensión de la imagen no cae en coordenadas válidas");
+    throw new Error(tr("la extensión de la imagen no cae en coordenadas válidas"));
   }
   const nodata = first.getGDALNoData();
   const noData = Number.isFinite(nodata) ? nodata : null;
@@ -399,10 +399,10 @@ async function openCog(blob) {
         width: Math.min(lv.w, 512), height: Math.min(lv.h, 512)
       });
     } catch (err) {
-      throw new Error(`no se pudo leer la banda de elevación (${err && err.message || err})`);
+      throw new Error(tr("no se pudo leer la banda de elevación ({reason})", { reason: err && err.message || err }));
     }
     dem = demRange(sample, noData);
-    if (!dem) throw new Error("el modelo de elevación no trae ninguna altitud válida (todo es «sin datos»)");
+    if (!dem) throw new Error(tr("el modelo de elevación no trae ninguna altitud válida (todo es «sin datos»)"));
     if (dem.max === dem.min) dem.max = dem.min + 1;
     const geographic = /\+proj=longlat/.test(def);
     const cosLat = Math.cos((s + n) / 2 * Math.PI / 180);
@@ -411,9 +411,9 @@ async function openCog(blob) {
       : [Math.abs(rx), Math.abs(ry)];
   }
   const notes = [];
-  if (!fd.TileWidth) notes.push("no está en mosaico (no es un COG): cada tesela lee franjas enteras y puede ir lento");
+  if (!fd.TileWidth) notes.push(tr("no está en mosaico (no es un COG): cada tesela lee franjas enteras y puede ir lento"));
   if (levels.length === 1 && Math.max(W, H) > 4096) {
-    notes.push("no trae vistas generales: de lejos no se dibuja, hay que acercarse");
+    notes.push(tr("no trae vistas generales: de lejos no se dibuja, hay que acercarse"));
   }
   return {
     levels, ox, oy, rx, ry, W, H, epsg, toSrc, box, notes, nodata: noData,
@@ -427,7 +427,7 @@ const cogOpened = new Map();
 function cogById(id) {
   if (!cogOpened.has(id)) {
     cogOpened.set(id, dbGetRaster(id).then(rec => {
-      if (!rec || !rec.blob) throw new Error("ya no está en el almacenamiento del navegador");
+      if (!rec || !rec.blob) throw new Error(tr("ya no está en el almacenamiento del navegador"));
       return openCog(rec.blob);
     }));
   }
@@ -511,7 +511,7 @@ async function demAltitudeAt(lat, lng) {
     if (!cog || !cog.dem || !layer.options.bounds.contains([lat, lng])) continue;
     const [X, Y] = cog.toSrc([lng, lat]);
     const value = await demValueAtPixel(cog, Math.floor((X - cog.ox) / cog.rx), Math.floor((Y - cog.oy) / cog.ry));
-    if (value !== null) return { name: layer._li ? layer._li._name : "Modelo de elevación", value };
+    if (value !== null) return { name: layer._li ? layer._li._name : tr("Modelo de elevación"), value };
   }
   return null;
 }
@@ -583,8 +583,8 @@ const CogLayer = L.GridLayer.extend({
       .then(() => done(null, tile), err => {
         if (!this._warned) {
           this._warned = true;
-          const name = this._li ? this._li._name : "una ortofoto";
-          navMessage(`No se puede dibujar «${name}»: ${err && err.message || err}.`);
+          const name = this._li ? this._li._name : tr("una ortofoto");
+          navMessage(tr("No se puede dibujar «{name}»: {reason}.", { name, reason: err && err.message || err }));
         }
         done(null, tile);
       });
@@ -598,7 +598,7 @@ function buildCogRecord(n) {
   const opacity = Number.isFinite(n.opacity) && n.opacity >= 0 && n.opacity <= 1 ? n.opacity : 1;
   const layer = new CogLayer(n.rasterId, n.box, { opacity });
   if (n.checked) layer.addTo(rootGroup);
-  return { t: "cog", name: String(n.name || "Ortofoto"), checked: !!n.checked,
+  return { t: "cog", name: String(n.name || tr("Ortofoto")), checked: !!n.checked,
            rasterId: n.rasterId, box: n.box, opacity, _layer: layer };
 }
 
@@ -613,29 +613,29 @@ async function addCogNode(file, insertBefore, dropTargetUl) {
   }
 }
 async function addCogNodeSteps(file, insertBefore, dropTargetUl) {
-  progress.indet(`Comprobando ${file.name}…`);
+  progress.indet(tr("Comprobando {name}…", { name: file.name }));
   await yieldFrame();
   const cog = await openCog(file);
   if (navigator.storage && navigator.storage.estimate) {
     const { usage = 0, quota = 0 } = await navigator.storage.estimate();
     if (quota && usage + file.size > quota * COG_QUOTA_MARGIN) {
-      throw new Error(`no cabe en el almacenamiento del navegador (ocupa ${fmtBytes(file.size)}; `
-        + `quedan unos ${fmtBytes(Math.max(0, quota * COG_QUOTA_MARGIN - usage))})`);
+      throw new Error(tr("no cabe en el almacenamiento del navegador (ocupa {size}; quedan unos {left})",
+        { size: fmtBytes(file.size), left: fmtBytes(Math.max(0, quota * COG_QUOTA_MARGIN - usage)) }));
     }
   }
-  progress.indet(`Guardando ${file.name} en el navegador…`);
+  progress.indet(tr("Guardando {name} en el navegador…", { name: file.name }));
   await yieldFrame();
   const id = newRasterId();
   try {
     await dbPutRaster(id, { blob: file, name: file.name, size: file.size });
   } catch (err) {
     const full = err && err.name === "QuotaExceededError";
-    throw new Error(full ? "no cabe en el almacenamiento del navegador"
-      : `no se pudo guardar en el navegador (${err && err.message || err})`);
+    throw new Error(full ? tr("no cabe en el almacenamiento del navegador")
+      : tr("no se pudo guardar en el navegador ({reason})", { reason: err && err.message || err }));
   }
   cogOpened.set(id, Promise.resolve(cog));
 
-  pushUndo("añadir ortofoto");
+  pushUndo(tr("añadir ortofoto"));
   const ul = dropTargetUl || ensureRootUl();
   const before = new Set(ul.children);
   const rec = buildCogRecord({ name: file.name, checked: true, rasterId: id, box: cog.box, opacity: 1 });
@@ -646,11 +646,12 @@ async function addCogNodeSteps(file, insertBefore, dropTargetUl) {
 
   const levels = cog.levels.length - 1;
   const what = cog.dem
-    ? `modelo de elevación de ${cog.W} × ${cog.H} px (EPSG:${cog.epsg}, de ${fmtHeight(cog.dem.min, "m")} `
-      + `a ${fmtHeight(cog.dem.max, "m")}, ${levels} vista(s) general(es))`
-    : `ortofoto de ${cog.W} × ${cog.H} px (EPSG:${cog.epsg}, ${levels} vista(s) general(es))`;
-  const txt = `«${file.name}»: ${what}, guardada en el navegador (${fmtBytes(file.size)}).`;
-  if (cog.notes.length) navMessage(`${txt} Atención: ${cog.notes.join("; ")}.`, { sticky: true });
+    ? tr("modelo de elevación de {w} × {h} px (EPSG:{epsg}, de {min} a {max}, {levels} vista(s) general(es))",
+      { w: cog.W, h: cog.H, epsg: cog.epsg, min: fmtHeight(cog.dem.min, "m"), max: fmtHeight(cog.dem.max, "m"), levels })
+    : tr("ortofoto de {w} × {h} px (EPSG:{epsg}, {levels} vista(s) general(es))",
+      { w: cog.W, h: cog.H, epsg: cog.epsg, levels });
+  const txt = tr("«{name}»: {what}, guardada en el navegador ({size}).", { name: file.name, what, size: fmtBytes(file.size) });
+  if (cog.notes.length) navMessage(tr("{txt} Atención: {notes}.", { txt, notes: cog.notes.join("; ") }), { sticky: true });
   else navMessage(txt, { tone: "info" });
   return li;
 }

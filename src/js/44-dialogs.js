@@ -14,8 +14,8 @@ function refreshLogButton() {
   if (!btn) return;
   btn.classList.toggle("unseen", msgLogUnseen > 0);
   btn.title = msgLogUnseen
-    ? `Registro de avisos (${msgLogUnseen} sin ver)`
-    : "Registro de avisos";
+    ? tr("Registro de avisos ({n} sin ver)", { n: msgLogUnseen })
+    : tr("Registro de avisos");
 }
 
 function renderLog() {
@@ -24,7 +24,7 @@ function renderLog() {
   if (!msgLog.length) {
     const p = document.createElement("p");
     p.className = "log-empty";
-    p.textContent = "No hay avisos en esta sesión.";
+    p.textContent = tr("No hay avisos en esta sesión.");
     list.appendChild(p);
     return;
   }
@@ -39,14 +39,14 @@ function renderLog() {
     time.textContent = msgStamp(e.first);
     const mark = document.createElement("span");
     mark.className = "log-mark";
-    if (e.sticky) { mark.textContent = "!"; mark.title = "Exigía confirmación"; }
+    if (e.sticky) { mark.textContent = "!"; mark.title = tr("Exigía confirmación"); }
     const text = document.createElement("span");
     text.className = "log-text";
     text.textContent = e.text;
     if (e.count > 1) {
       const rep = document.createElement("span");
       rep.className = "log-rep";
-      rep.textContent = ` ×${e.count}, última ${msgStamp(e.last)}`;
+      rep.textContent = " " + tr("×{count}, última {last}", { count: e.count, last: msgStamp(e.last) });
       text.appendChild(rep);
     }
     row.append(time, mark, text);
@@ -77,10 +77,10 @@ document.getElementById("log-clear").addEventListener("click", () => {
 });
 document.getElementById("log-copy").addEventListener("click", () => {
   const txt = logText();
-  if (!txt) { navMessage("El registro está vacío.", { tone: "info" }); return; }
+  if (!txt) { navMessage(tr("El registro está vacío."), { tone: "info" }); return; }
   navigator.clipboard.writeText(txt)
-    .then(() => navMessage("Registro copiado al portapapeles.", { tone: "info" }))
-    .catch(() => navMessage("No se pudo copiar al portapapeles."));
+    .then(() => navMessage(tr("Registro copiado al portapapeles."), { tone: "info" }))
+    .catch(() => navMessage(tr("No se pudo copiar al portapapeles.")));
 });
 
 /* ---------- Añadir contenido desde una dirección (URL) ----------
@@ -123,7 +123,8 @@ function setUrlState(state, text = "", bad = false) {
   /* Durante la descarga el botón primario CAMBIA DE PAPEL en vez de
      deshabilitarse: esperar a que venza el tope de 20 s no es una
      salida aceptable para quien acaba de pegar una dirección enorme. */
-  urlFetchBtn.textContent = descargando ? "Cancelar descarga" : "Descargar";
+  urlFetchBtn.textContent = descargando ? tr("Cancelar descarga") : tr("Descargar");
+  urlFetchBtn.dataset.mode = descargando ? "cancel" : "fetch";
   /* Con el resultado ya en la mano, volver a descargar la MISMA
      dirección no hace nada que no esté hecho: quedan las dos salidas
      que sí significan algo, añadirlo o cerrar. Y no es un callejón:
@@ -174,14 +175,14 @@ function openUrlDialog() {
    Es justo el cambio «inocente» que alguien haría más adelante.      */
 async function fetchRemoteFile(url, signal, onBytes) {
   const resp = await fetch(url, { signal, credentials: "omit", redirect: "follow" });
-  if (!resp.ok) throw new Error(`No se pudo descargar: ${describeHttp(resp.status)}.`);
+  if (!resp.ok) throw new Error(tr("No se pudo descargar: {why}.", { why: describeHttp(resp.status) }));
 
   /* Lo que el servidor DICE que ocupa, antes de traerse nada: es la
      comprobación barata y evita empezar una descarga condenada.      */
   const declarado = Number(resp.headers.get("content-length"));
   if (Number.isFinite(declarado) && declarado > URL_MAX_BYTES) {
-    throw new Error(`El archivo ocupa ${fmtBytes(declarado)} y supera el tope de `
-      + `${fmtBytes(URL_MAX_BYTES)}.`);
+    throw new Error(tr("El archivo ocupa {size} y supera el tope de {max}.",
+      { size: fmtBytes(declarado), max: fmtBytes(URL_MAX_BYTES) }));
   }
 
   /* Y lo que ocupa DE VERDAD, mientras llega: content-length puede
@@ -191,8 +192,8 @@ async function fetchRemoteFile(url, signal, onBytes) {
   if (!resp.body || !resp.body.getReader) {
     const buf = await resp.arrayBuffer();
     if (buf.byteLength > URL_MAX_BYTES) {
-      throw new Error(`La descarga ocupa ${fmtBytes(buf.byteLength)} y supera el tope de `
-        + `${fmtBytes(URL_MAX_BYTES)}.`);
+      throw new Error(tr("La descarga ocupa {size} y supera el tope de {max}.",
+        { size: fmtBytes(buf.byteLength), max: fmtBytes(URL_MAX_BYTES) }));
     }
     return new Uint8Array(buf);
   }
@@ -205,8 +206,8 @@ async function fetchRemoteFile(url, signal, onBytes) {
     total += value.length;
     if (total > URL_MAX_BYTES) {
       reader.cancel();
-      throw new Error(`La descarga ya supera el tope de ${fmtBytes(URL_MAX_BYTES)} `
-        + "y se ha interrumpido.");
+      throw new Error(tr("La descarga ya supera el tope de {max} y se ha interrumpido.",
+        { max: fmtBytes(URL_MAX_BYTES) }));
     }
     trozos.push(value);
     if (onBytes) onBytes(total);
@@ -225,20 +226,19 @@ async function runUrlFetch() {
      un «no parece una dirección válida» que el usuario no entendía,
      porque lo que él veía pegado estaba bien.                        */
   const url = urlInput.value.replace(/\s+/g, "");
-  if (!url) { setUrlState("error", "Escriba la dirección del archivo que quiere descargar.", true); return; }
+  if (!url) { setUrlState("error", tr("Escriba la dirección del archivo que quiere descargar."), true); return; }
   let parsed;
   try { parsed = new URL(url); } catch { parsed = null; }
   if (!parsed || (parsed.protocol !== "http:" && parsed.protocol !== "https:")) {
-    setUrlState("error", `«${url}» no parece una dirección válida. Debe empezar por `
-      + "http:// o https://.", true);
+    setUrlState("error", tr("«{url}» no parece una dirección válida. Debe empezar por http:// o https://.", { url }), true);
     return;
   }
   /* La CSP admite https: y nada más. Sin este aviso, el rechazo llega
      como el mismo TypeError sin detalle que un fallo de CORS y el
      usuario se pondría a buscar por donde no es.                     */
   if (parsed.protocol === "http:" && location.protocol === "https:") {
-    setUrlState("error", "La dirección usa http://. Desde una página servida por https "
-      + "solo se pueden descargar direcciones https://.", true);
+    setUrlState("error", tr("La dirección usa http://. Desde una página servida por https "
+      + "solo se pueden descargar direcciones https://."), true);
     return;
   }
 
@@ -247,31 +247,31 @@ async function runUrlFetch() {
   const seq = ++urlSeq;
   const ctrl = urlAbort = new AbortController();
   const timer = setTimeout(() => ctrl.abort("timeout"), URL_TIMEOUT);
-  setUrlState("descargando", "Descargando…");
+  setUrlState("descargando", tr("Descargando…"));
   try {
     const bytes = await fetchRemoteFile(url, ctrl.signal,
-      n => { if (seq === urlSeq) setUrlState("descargando", `Descargando… ${fmtBytes(n)}`); });
+      n => { if (seq === urlSeq) setUrlState("descargando", tr("Descargando… {size}", { size: fmtBytes(n) })); });
     if (seq !== urlSeq) return; /* superada o cancelada: no pinta nada */
-    if (!bytes.length) { setUrlState("error", "La descarga ha llegado vacía (0 bytes).", true); return; }
+    if (!bytes.length) { setUrlState("error", tr("La descarga ha llegado vacía (0 bytes)."), true); return; }
 
     /* Los bytes primero (un zip no se decodifica), el texto después */
     let texto = "";
     try { texto = new TextDecoder("utf-8").decode(bytes); } catch { texto = ""; }
     const kind = sniffContentKind(bytes, texto);
     if (kind === "html") {
-      setUrlState("error", "Lo descargado es una página web (HTML), no un archivo de datos. "
-        + "Compruebe que la dirección apunta al archivo en crudo (en GitHub, el enlace «Raw»).", true);
+      setUrlState("error", tr("Lo descargado es una página web (HTML), no un archivo de datos. "
+        + "Compruebe que la dirección apunta al archivo en crudo (en GitHub, el enlace «Raw»)."), true);
       return;
     }
     if (!kind) {
-      setUrlState("error", `No se reconoce el contenido descargado (${fmtBytes(bytes.length)}). `
-        + `Formatos admitidos: ${IMPORT_FORMATS}.`, true);
+      setUrlState("error", tr("No se reconoce el contenido descargado ({size}). Formatos admitidos: {formats}.",
+        { size: fmtBytes(bytes.length), formats: IMPORT_FORMATS }), true);
       return;
     }
     const name = downloadFileName(url, kind);
     urlReady = { file: new File([bytes], name), kind, size: bytes.length };
-    setUrlState("listo", `«${name}» — ${URL_KIND_LABEL[kind]}, ${fmtBytes(bytes.length)}. `
-      + "Pulse «Añadir al árbol» para insertarlo en una carpeta nueva.");
+    setUrlState("listo", tr("«{name}» — {kind}, {size}. Pulse «Añadir al árbol» para insertarlo en una carpeta nueva.",
+      { name, kind: URL_KIND_LABEL[kind], size: fmtBytes(bytes.length) }));
     urlAddBtn.focus();
   } catch (err) {
     if (seq !== urlSeq) return;
@@ -280,9 +280,9 @@ async function runUrlFetch() {
        distinguen por el motivo del abort.                            */
     if (err.name === "AbortError") {
       if (ctrl.signal.reason === "timeout") {
-        setUrlState("error", `El servidor ha tardado más de ${URL_TIMEOUT / 1000} s en responder.`, true);
+        setUrlState("error", tr("El servidor ha tardado más de {seconds} s en responder.", { seconds: URL_TIMEOUT / 1000 }), true);
       } else {
-        setUrlState("inicial", "Descarga cancelada.");
+        setUrlState("inicial", tr("Descarga cancelada."));
       }
       return;
     }
@@ -292,16 +292,16 @@ async function runUrlFetch() {
        así que el mensaje lo dice y ofrece la salida que siempre
        funciona en vez de dejar al usuario mirando «Failed to fetch». */
     const msg = err instanceof TypeError && isOffline()
-      ? "No hay conexión a la red: no se puede descargar ahora. Si tiene el archivo en el "
-        + "equipo, arrástrelo al recuadro."
+      ? tr("No hay conexión a la red: no se puede descargar ahora. Si tiene el archivo en el "
+        + "equipo, arrástrelo al recuadro.")
       : err instanceof TypeError
-      ? "No se ha podido conectar. Lo más probable es que el servidor no autorice la "
+      ? tr("No se ha podido conectar. Lo más probable es que el servidor no autorice la "
         + "descarga desde otra página (CORS); el navegador no da más detalle. También "
         + "puede ser que la dirección no exista o que no haya conexión. Si puede abrir "
-        + "el archivo en el navegador, descárguelo y arrástrelo al recuadro."
+        + "el archivo en el navegador, descárguelo y arrástrelo al recuadro.")
       : err.message;
     setUrlState("error", msg, true);
-    navMessage(`No se pudo descargar «${url}»: ${msg}`);
+    navMessage(tr("No se pudo descargar «{url}»: {msg}", { url, msg }));
   } finally {
     clearTimeout(timer);
     if (urlAbort === ctrl) urlAbort = null;
@@ -313,9 +313,9 @@ document.getElementById("url-close").addEventListener("click", closeUrlDialog);
 urlFetchBtn.addEventListener("click", () => {
   /* El mismo botón hace las dos cosas según el estado: descargar, o
      cancelar lo que esté descargando.                                */
-  if (urlFetchBtn.textContent === "Cancelar descarga") {
+  if (urlFetchBtn.dataset.mode === "cancel") {
     abortUrlFetch("cancelada");
-    setUrlState("inicial", "Descarga cancelada.");
+    setUrlState("inicial", tr("Descarga cancelada."));
     urlInput.focus();
     return;
   }
@@ -345,10 +345,10 @@ urlAddBtn.addEventListener("click", async () => {
      —un GeoJSON crea su envoltorio y un KML vuelca su jerarquía tal
      cual—, de modo que dos descargas se mezclarían dentro de la
      sección sin saberse cuál trajo qué.                             */
-  pushUndo("añadir desde una dirección");
-  const seccion = ensureNamedSection("Descargas");
+  pushUndo(tr("añadir desde una dirección"));
+  const seccion = ensureNamedSection(tr("Descargas"));
   const carpeta = await createFolderNode(seccion.parentElement,
-    nextNumberedName("Descarga"));
+    nextNumberedName(tr("Descarga")));
   await handleDroppedFiles([file], null, nodeUl(carpeta));
   /* El conjunto de hijos de la carpeta nueva ha cambiado: su casilla
      tiene que recalcularse, como en cualquier importación dentro de
@@ -398,15 +398,15 @@ document.getElementById("sh-clear").addEventListener("click", () => {
   shInput.value = "";
   shErrorEl.hidden = true;
   shInput.focus();
-  navMessage("Credencial de Copernicus borrada.", { tone: "info" });
+  navMessage(tr("Credencial de Copernicus borrada."), { tone: "info" });
 });
 document.getElementById("sh-accept").addEventListener("click", () => {
   const txt = shInput.value.trim();
   if (!validInstanceId(txt)) {
     /* No cerrar con un valor inválido: mismo criterio que las
        coordenadas del diálogo de estilos.                            */
-    shErrorEl.textContent = "El instance ID debe ser un UUID como "
-      + "12345678-90ab-cdef-1234-567890abcdef.";
+    shErrorEl.textContent = tr("El instance ID debe ser un UUID como "
+      + "12345678-90ab-cdef-1234-567890abcdef.");
     shErrorEl.hidden = false;
     shInput.focus();
     return;
@@ -444,12 +444,12 @@ document.getElementById("custom-tiles-clear").addEventListener("click", () => {
   customTilesInput.value = "";
   customTilesErrorEl.hidden = true;
   customTilesInput.focus();
-  navMessage("Servidor de Custom Tile Map Service borrado.", { tone: "info" });
+  navMessage(tr("Servidor de Custom Tile Map Service borrado."), { tone: "info" });
 });
 document.getElementById("custom-tiles-accept").addEventListener("click", () => {
   const txt = customTilesInput.value.trim();
   if (!validCustomTilesUrl(txt)) {
-    customTilesErrorEl.textContent = "Debe ser una dirección https:// válida.";
+    customTilesErrorEl.textContent = tr("Debe ser una dirección https:// válida.");
     customTilesErrorEl.hidden = false;
     customTilesInput.focus();
     return;
@@ -485,12 +485,12 @@ document.getElementById("custom-wms-clear").addEventListener("click", () => {
   customWmsInput.value = "";
   customWmsErrorEl.hidden = true;
   customWmsInput.focus();
-  navMessage("Servidor de Custom Web Map Service borrado.", { tone: "info" });
+  navMessage(tr("Servidor de Custom Web Map Service borrado."), { tone: "info" });
 });
 document.getElementById("custom-wms-accept").addEventListener("click", () => {
   const txt = customWmsInput.value.trim();
   if (!validCustomWmsUrl(txt)) {
-    customWmsErrorEl.textContent = "Debe ser una dirección https:// válida, sin usuario ni contraseña.";
+    customWmsErrorEl.textContent = tr("Debe ser una dirección https:// válida, sin usuario ni contraseña.");
     customWmsErrorEl.hidden = false;
     customWmsInput.focus();
     return;
@@ -766,7 +766,7 @@ function joinNames(names, max = NAMES_PREVIEW_MAX) {
     len += add;
   }
   const rest = names.length - out.length;
-  return rest ? `${out.join(", ")} y ${rest} más` : out.join(", ");
+  return rest ? tr("{list} y {rest} más", { list: out.join(", "), rest }) : out.join(", ");
 }
 
 /* Pestañas del diálogo de propiedades. Mismo patrón que la chuleta
@@ -793,10 +793,10 @@ function renderStyleAttrs() {
   const hint = $id("style-attrs-empty");
   let html = null;
   let why = "";
-  if (styleTargets.length !== 1) why = "Los atributos son de cada capa: deje seleccionada una sola para verlos.";
+  if (styleTargets.length !== 1) why = tr("Los atributos son de cada capa: deje seleccionada una sola para verlos.");
   else {
     html = infoHtmlFor(styleTargets[0]);
-    if (html == null) why = "Esta capa no tiene atributos.";
+    if (html == null) why = tr("Esta capa no tiene atributos.");
   }
   styleAttrsBody.innerHTML = html == null ? "" : html;
   hint.textContent = why;
@@ -821,7 +821,7 @@ function openStyleDialog(li, { isNew = false, focus = true } = {}) {
   hideLayerInfo();
   const kind = styleKind(li);
   if (kind !== "marker" && kind !== "polygon" && kind !== "measure" && kind !== "imageOverlay" && kind !== "cog") {
-    navMessage("Esta capa no tiene estilos editables.");
+    navMessage(tr("Esta capa no tiene estilos editables."));
     return;
   }
   /* Como borrar o arrastrar: actuar sobre un nodo seleccionado actúa
@@ -831,9 +831,9 @@ function openStyleDialog(li, { isNew = false, focus = true } = {}) {
   styleTargets = inSelection ? topLevelSelection().filter(n => !nodeUl(n)) : [li];
   const kinds = new Set(styleTargets.map(styleKind));
   if (kinds.size > 1) {
-    const names = [...kinds].map(k => KIND_LABEL[k] || k).join(" y ");
-    navMessage(`La selecci\u00F3n mezcla ${names}: los nodos de distinto tipo no se`
-      + " pueden editar de forma conjunta. Deje seleccionados solo los del mismo tipo.",
+    const names = new Intl.ListFormat(uiLang, { type: "conjunction" }).format([...kinds].map(k => KIND_LABEL[k] || k));
+    navMessage(tr("La selecci\u00F3n mezcla {names}: los nodos de distinto tipo no se"
+      + " pueden editar de forma conjunta. Deje seleccionados solo los del mismo tipo.", { names }),
       { sticky: true });
     styleTargets = [];
     return;
@@ -841,7 +841,7 @@ function openStyleDialog(li, { isNew = false, focus = true } = {}) {
   styleKindOpen = kind;
   styleIsNew = isNew;
   $id("style-title").textContent = styleTargets.length > 1
-    ? `Propiedades de ${styleTargets.length} capas` : `Propiedades: ${li._name}`;
+    ? tr("Propiedades de {n} capas", { n: styleTargets.length }) : tr("Propiedades: {name}", { name: li._name });
   $id("style-marker").hidden = kind !== "marker";
   $id("style-polygon").hidden = kind !== "polygon";
   $id("style-measure").hidden = kind !== "measure";
@@ -941,10 +941,10 @@ function openStyleDialog(li, { isNew = false, focus = true } = {}) {
        a secas no cuenta: son dos motivos distintos y el usuario no
        tiene por qué adivinar cuál le toca.                            */
     const pointsWhy = !single
-      ? "Los puntos son la geometría de cada capa: deje seleccionada una sola para editarlos."
+      ? tr("Los puntos son la geometría de cada capa: deje seleccionada una sola para editarlos.")
       : (solePath(styleTargets[0])
         ? ""
-        : "Esta capa tiene varios trazos: el editor trabaja sobre uno solo.");
+        : tr("Esta capa tiene varios trazos: el editor trabaja sobre uno solo."));
     $id("pg-points-row").hidden = false;
     $id("pg-points-row").classList.toggle("dim", !!pointsWhy);
     $id("pg-points").disabled = !!pointsWhy;
@@ -980,7 +980,7 @@ function openStyleDialog(li, { isNew = false, focus = true } = {}) {
        aquí no hay "varios trazos en la capa" que distinguir).          */
     $id("ms-points-row").classList.toggle("dim", !single);
     $id("ms-points").disabled = !single;
-    $id("ms-points").title = single ? "" : "Deje seleccionada una sola medición para editar sus puntos.";
+    $id("ms-points").title = single ? "" : tr("Deje seleccionada una sola medición para editar sus puntos.");
     /* Las medidas son de UNA medición, como la posición de un marcador */
     msMeasures = single ? measurementValues(styleTargets[0]._measure) : null;
     $id("ms-values").hidden = !msMeasures;
@@ -995,9 +995,9 @@ function openStyleDialog(li, { isNew = false, focus = true } = {}) {
       const why = item.disabled();
       $id("ms-profile").textContent = item.label;
       $id("ms-profile").disabled = !!why;
-      $id("ms-profile").title = why || (item.label === "Mostrar perfil"
-        ? "Mostrar el perfil ya descargado de esta ruta"
-        : "Descargar las alturas MDT y MDS a lo largo de la ruta y dibujar su perfil");
+      $id("ms-profile").title = why || (item.shown
+        ? tr("Mostrar el perfil ya descargado de esta ruta")
+        : tr("Descargar las alturas MDT y MDS a lo largo de la ruta y dibujar su perfil"));
     }
   } else {
     const ops = styleTargets.map(t => ({ opacity: rasterState(t).opacity }));
@@ -1256,7 +1256,7 @@ let polyMeasures = null;   /* {area, perim} en m/m² del polígono abierto, o nu
 function renderPolyMeasures() {
   if (!polyMeasures) return;
   /* Una línea tiene LONGITUD; solo un contorno cerrado tiene perímetro */
-  $id("pg-perim-label").textContent = polyMeasures.open ? "Longitud" : "Perímetro";
+  $id("pg-perim-label").textContent = polyMeasures.open ? trc("de una línea", "Longitud") : tr("Perímetro");
   $id("pg-perimeter").textContent = fmtUnitDist(polyMeasures.perim, measureUnit);
   /* area === null: anillo sin cerrar (algunos JSON), no hay área que mostrar */
   $id("pg-area-row").hidden = polyMeasures.area === null;
@@ -1324,7 +1324,7 @@ function renderMeasureValues() {
   if (!msMeasures) return;
   /* Un círculo se describe por su RADIO, una ruta por su TOTAL, una
      línea por su distancia sin más.                                  */
-  $id("ms-dist-label").textContent = msMeasures.circle ? "Radio" : msMeasures.route ? "Distancia total" : "Distancia";
+  $id("ms-dist-label").textContent = msMeasures.circle ? tr("Radio") : msMeasures.route ? tr("Distancia total") : tr("Distancia");
   $id("ms-dist").textContent = fmtUnitDist(msMeasures.dist, measureUnit);
   /* Centro del círculo, pedido explícitamente: en el formato global de
      coordenadas (Propiedades), igual que la posición de un marcador.  */
@@ -1355,7 +1355,7 @@ function renderMeasureValues() {
     msMeasures.legs.forEach((leg, i) => {
       const row = document.createElement("div");
       row.className = "dlg-note";
-      row.textContent = `Tramo ${i + 1}: ${fmtUnitDist(leg.dist, measureUnit)} · ${leg.brg.toFixed(1)}°`;
+      row.textContent = tr("Tramo {n}: {dist} · {brg}°", { n: i + 1, dist: fmtUnitDist(leg.dist, measureUnit), brg: leg.brg.toFixed(1) });
       legs.appendChild(row);
     });
   }
@@ -1386,7 +1386,7 @@ function acceptStyleDialog() {
   if (styleKindOpen === "marker" && posMarker) {
     const { lat, lon } = markCoordValidity();
     if (!isFinite(lat) || !isFinite(lon)) {
-      navMessage("Coordenadas no v\u00E1lidas: revise la latitud y la longitud.");
+      navMessage(tr("Coordenadas no v\u00E1lidas: revise la latitud y la longitud."));
       return; /* keep the dialog open so the value can be fixed */
     }
     styleDraft.lat = lat;

@@ -61,7 +61,7 @@ async function exportMapPng() {
   try {
     await ensureLib("html2canvas");
   } catch {
-    navMessage("No se pudo cargar el soporte para exportar PNG.");
+    navMessage(tr("No se pudo cargar el soporte para exportar PNG."));
     return;
   }
   let canvas;
@@ -74,13 +74,13 @@ async function exportMapPng() {
   try {
     canvas = await html2canvas(document.getElementById("map"), { useCORS: true });
   } catch (err) {
-    navMessage(`No se pudo generar la imagen: ${err.message}`);
+    navMessage(tr("No se pudo generar la imagen: {message}", { message: err.message }));
     return;
   } finally {
     hidden.forEach((el, i) => { el.style.display = prevDisplay[i]; });
   }
   canvas.toBlob(blob => {
-    if (!blob) { navMessage("No se pudo generar la imagen."); return; }
+    if (!blob) { navMessage(tr("No se pudo generar la imagen.")); return; }
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
@@ -89,7 +89,7 @@ async function exportMapPng() {
     setTimeout(() => URL.revokeObjectURL(url), 60000);
     /* Una descarga que ha ido bien es una NOTIFICACIÓN, no una alerta:
        solo confirma lo que el usuario acaba de pedir.                 */
-    navMessage(`Descargado «${a.download}».`, { tone: "info" });
+    navMessage(tr("Descargado «{download}».", { download: a.download }), { tone: "info" });
   }, "image/png");
 }
 
@@ -103,30 +103,30 @@ const MeasureControl = L.Control.extend({
        adem\u00E1s, una l\u00EDnea con arrastre no ten\u00EDa ninguna forma de a\u00F1adir
        ni de borrar un punto, algo que la ruta s\u00ED ofrece.              */
     toolButtons.route = makeToolButton(bar, "\u2933",
-      "Medir: click para cada waypoint, doble click para terminar", "route");
-    toolButtons.circle = makeToolButton(bar, "\u25EF", "Medir c\u00EDrculo: arrastra del centro al borde", "circle");
+      tr("Medir: click para cada waypoint, doble click para terminar"), "route");
+    toolButtons.circle = makeToolButton(bar, "\u25EF", tr("Medir c\u00EDrculo: arrastra del centro al borde"), "circle");
     /* El arco no es un tipo de medici\u00F3n propio: al terminar de dibujarlo
        se convierte en una ruta (ver finishArc), as\u00ED que solo la
        herramienta vive aqu\u00ED.                                         */
     toolButtons.arc = makeToolButton(bar, "\u25E0",
-      "Medir arco: arrastra (o haz clic) del centro al inicio del arco, recorre el per\u00EDmetro "
-      + "y haz clic donde acaba", "arc");
+      tr("Medir arco: arrastra (o haz clic) del centro al inicio del arco, recorre el per\u00EDmetro "
+      + "y haz clic donde acaba"), "arc");
     toolButtons.polygon = makeToolButton(bar, "\u2B20",
-      "Dibujar: click para cada v\u00E9rtice; doble click sobre el \u00FAltimo v\u00E9rtice cierra el "
-      + "pol\u00EDgono, doble click fuera termina la l\u00EDnea sin cerrarla", "polygon");
+      tr("Dibujar: click para cada v\u00E9rtice; doble click sobre el \u00FAltimo v\u00E9rtice cierra el "
+      + "pol\u00EDgono, doble click fuera termina la l\u00EDnea sin cerrarla"), "polygon");
 
     /* Not a drag tool like the other two: it acts on click, so it does not
        go through setTool and never disables panning                      */
     const pin = L.DomUtil.create("a", "", bar);
     pin.href = "#";
     pin.textContent = "\uD83D\uDCCD";
-    pin.title = "Crear un marcador en el centro de la vista";
+    pin.title = tr("Crear un marcador en el centro de la vista");
     pin.addEventListener("click", e => { e.preventDefault(); createPin(); });
 
     const png = L.DomUtil.create("a", "", bar);
     png.href = "#";
     png.textContent = "\uD83D\uDCF7";
-    png.title = "Exportar el visor como imagen PNG";
+    png.title = tr("Exportar el visor como imagen PNG");
     png.addEventListener("click", e => { e.preventDefault(); exportMapPng(); });
 
     L.DomEvent.disableClickPropagation(bar);
@@ -375,7 +375,7 @@ L.DomEvent.on(document, "mouseup", e => {
     return;
   }
   if (Math.abs(d.sweep) < ARC_MIN_SWEEP_DEG) {
-    navMessage("Recorre el per\u00EDmetro hasta donde debe acabar el arco y haz clic.");
+    navMessage(tr("Recorre el per\u00EDmetro hasta donde debe acabar el arco y haz clic."));
     return; /* sigue dibujando */
   }
   finishArc(d);
@@ -629,12 +629,13 @@ function updateRouteMeasurement(m) {
     /* El n\u00famero de tramo, primero: para poder correlacionar de un
        vistazo con el desglose del di\u00e1logo de propiedades
        (renderMeasureValues, 44-dialogs.js, que ya numera igual).      */
-    m.legLabels[i].setContent(`Tramo ${i + 1}: ${fmtUnitDist(dist, measureUnit)} \u00b7 ${brg.toFixed(1)}\u00b0`);
+    m.legLabels[i].setContent(tr("Tramo {n}: {dist} \u00b7 {brg}\u00b0", { n: i + 1, dist: fmtUnitDist(dist, measureUnit), brg: brg.toFixed(1) }));
   }
   m.totalDist = total;
   if (m.treeLabel) {
-    m.treeLabel.textContent = `${m.treeName} \u2014 ${fmtUnitDist(total, measureUnit)} total, `
-      + `${m.legs.length} tramo${m.legs.length === 1 ? "" : "s"}`;
+    m.treeLabel.textContent = trn(m.legs.length,
+      "{name} \u2014 {dist} total, {n} tramo", "{name} \u2014 {dist} total, {n} tramos",
+      { name: m.treeName, dist: fmtUnitDist(total, measureUnit) });
   }
 }
 
@@ -661,7 +662,7 @@ function refreshMeasureLabels() {
 /* Sección "Mediciones" y nodo de cada medición en la navegación */
 function ensureMeasureSection() {
   if (measureLi && measureLi.isConnected) return nodeUl(measureLi);
-  measureLi = makeNode({ name: "Mediciones", isFile: true });
+  measureLi = makeNode({ name: tr("Mediciones"), isFile: true });
   ensureRootUl().appendChild(measureLi);
   return nodeUl(measureLi);
 }
@@ -686,8 +687,8 @@ function makeMeasureLi(m) {
 
 /* `kind` es lo que el usuario cree que ha creado: un arco ES una ruta
    (m.type), pero se nombra y se deshace como arco.                    */
-const MEASURE_NAMES = { circle: "C\u00EDrculo", route: "Ruta", arc: "Arco" };
-const MEASURE_UNDO = { circle: "crear c\u00EDrculo", route: "crear ruta", arc: "crear arco" };
+const MEASURE_NAMES = { circle: tr("C\u00EDrculo"), route: tr("Ruta"), arc: tr("Arco") };
+const MEASURE_UNDO = { circle: tr("crear c\u00EDrculo"), route: tr("crear ruta"), arc: tr("crear arco") };
 
 function addMeasureNode(m, kind = m.type) {
   pushUndo(MEASURE_UNDO[kind]);
@@ -774,7 +775,7 @@ function measurementValues(m) {
    user finishes on a vertex, so a filled preview drawing the closing
    edge would promise a closed ring the gesture may never produce.     */
 const POLY_PREVIEW_STYLE = { color: "#16a34a", weight: 2, dashArray: "6 4" };
-const POLYGONS_SECTION = "Polígonos";
+const POLYGONS_SECTION = tr("Polígonos");
 
 function addPolyVertex(latlng) {
   if (activeTool === "route") { addRouteVertex(latlng); return; }
@@ -864,11 +865,11 @@ function finishPolygon(closed) {
   const min = closed ? 3 : 2;
   if (polyDraft.vertices.length < min) {
     navMessage(closed
-      ? "Faltan vértices para cerrar el polígono (mínimo 3)."
-      : "Faltan vértices para terminar la línea (mínimo 2).");
+      ? tr("Faltan vértices para cerrar el polígono (mínimo 3).")
+      : tr("Faltan vértices para terminar la línea (mínimo 2)."));
     return; /* sigue dibujando: no se descarta lo ya puesto */
   }
-  pushUndo(closed ? "crear polígono" : "crear línea");
+  pushUndo(closed ? tr("crear polígono") : tr("crear línea"));
   /* Solo contorno, sin relleno: se ve el mapa debajo nada más cerrarlo;
      el relleno es cosa del diálogo de estilos si hace falta.          */
   const style = normalizePathStyle({ fill: false });
@@ -877,7 +878,7 @@ function finishPolygon(closed) {
      lo está por construcción; una abierta NO, y por eso polygonMeasures
      distingue ahora ambos casos en vez de darlo por cerrado.          */
   const layer = (closed ? L.polygon : L.polyline)(polyDraft.vertices, style).addTo(rootGroup);
-  const li = makeNode({ name: nextNumberedName(closed ? "Polígono" : "Línea"), layer, style });
+  const li = makeNode({ name: nextNumberedName(closed ? tr("Polígono") : tr("Línea")), layer, style });
   ensureNamedSection(POLYGONS_SECTION).appendChild(li);
   refreshAncestorChecks(li);
   rootGroup.removeLayer(polyDraft.group);
@@ -900,7 +901,7 @@ function finishPolygon(closed) {
    `styleKindOpen === "measure"` desde aquí.                            */
 function finishRoute() {
   if (!routeMeasurement) {
-    navMessage("Faltan waypoints para terminar la ruta (mínimo 2).");
+    navMessage(tr("Faltan waypoints para terminar la ruta (mínimo 2)."));
     return; /* sigue dibujando: no se descarta lo ya puesto (solo hay un punto) */
   }
   acceptStyleDialog();
@@ -994,7 +995,7 @@ function removeRouteWaypoint(m, handle) {
   const i = m.handles.indexOf(handle);
   if (i === -1) return;
   if (m.handles.length <= 2) {
-    navMessage("Faltan waypoints para seguir siendo una ruta (mínimo 2).");
+    navMessage(tr("Faltan waypoints para seguir siendo una ruta (mínimo 2)."));
     return;
   }
   if (vertexSelHandle === handle) clearVertexSelection();
@@ -1218,7 +1219,7 @@ function demError(key, detail) {
   const now = Date.now();
   if (now - (demErrorAt.get(key) || 0) < ELEV_STATUS_QUIET) return;
   demErrorAt.set(key, now);
-  navMessage(`Elevación: ${detail}.`);
+  navMessage(tr("Elevación: {detail}.", { detail }));
 }
 
 /* Lo mismo que demRateOk, pero ESPERANDO turno en vez de rendirse: un

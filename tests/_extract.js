@@ -115,4 +115,14 @@ function between(from, to) {
   return script.slice(i, j);
 }
 
-module.exports = { HTML_PATH, script, fn, constDecl, between };
+/* Los textos de la interfaz pasan por tr()/trn()/N_() (03-i18n.js): el
+   código que estas suites extraen las llama como globales. Se instala el
+   núcleo ENTREGADO, en español —el idioma por defecto, el que esperan todos
+   los textos que las suites comparan—, para que nada de lo extraído tenga
+   que saber de idiomas. `uiLang` también: toLocaleString y Intl.ListFormat
+   lo leen. Los idiomas de verdad se prueban en tests/i18n.js.            */
+const i18nCore = new Function(between("/* ================= Idiomas de la interfaz", "/* ---- HTML estático")
+  + "\nreturn { tr, trn, trc, N_, UI_LANGS, I18N_DICT, registerLang, setUiLang };")();
+Object.assign(globalThis, { tr: i18nCore.tr, trn: i18nCore.trn, trc: i18nCore.trc, N_: i18nCore.N_, uiLang: "es" });
+
+module.exports = { HTML_PATH, script, fn, constDecl, between, i18nCore };

@@ -467,6 +467,8 @@
         <option value="light">Claro</option>
         <option value="dark">Oscuro</option>
       </select></div>
+      <!-- Las opciones salen de UI_LANGS (03-i18n.js): un idioma nuevo aparece solo -->
+      <div class="dlg-row"><span>Idioma</span><select id="props-lang"></select></div>
       <div class="dlg-row"><span>Unidad de distancia</span><select id="props-unit">
         <option value="m">Metros</option>
         <option value="km">Kilómetros</option>
@@ -491,7 +493,7 @@
         <span class="props-with-unit"><input type="number" id="props-profile-max" min="0" step="any"><span id="props-profile-max-unit"></span></span></div>
     </div>
     <div id="props-tab-gnp" class="dlg-tabpanel" hidden role="tabpanel">
-      <p class="dlg-hint">Asociaciones guardadas entre la estructura de <code>properties</code> de un GeoJSON y la propiedad usada como nombre.</p>
+      <p class="dlg-hint" data-i18n-html="html.gnp-intro">Asociaciones guardadas entre la estructura de <code>properties</code> de un GeoJSON y la propiedad usada como nombre.</p>
       <div class="gnp-editor-list" id="gnp-editor-list"></div>
       <div class="dlg-row"><span></span><button class="btn" id="gnp-editor-clear">Borrar todo</button></div>
     </div>
@@ -647,7 +649,7 @@
 <div id="points-dialog" class="dlg-overlay" hidden>
   <div class="dlg-box">
     <h2 id="points-title">Puntos de la capa</h2>
-    <p class="dlg-hint">Un punto por l&#237;nea, con <strong>latitud, longitud y altitud</strong>
+    <p class="dlg-hint" data-i18n-html="html.points-help">Un punto por l&#237;nea, con <strong>latitud, longitud y altitud</strong>
       separadas por tabulador. Se puede copiar y pegar directamente en una hoja de c&#225;lculo.
       Al pegar tambi&#233;n se admiten comas o espacios como separador.</p>
     <p class="dlg-hint" id="points-rings" hidden></p>
@@ -668,7 +670,7 @@
 <div id="log-dialog" class="dlg-overlay" hidden>
   <div class="dlg-box">
     <h2>Registro de avisos</h2>
-    <p class="dlg-hint">Avisos de esta sesi&#243;n, del m&#225;s antiguo al m&#225;s reciente. Los
+    <p class="dlg-hint" data-i18n-html="html.log-help">Avisos de esta sesi&#243;n, del m&#225;s antiguo al m&#225;s reciente. Los
       marcados con <strong>!</strong> exig&#237;an confirmaci&#243;n. Al cerrar la p&#225;gina se pierde.</p>
     <div class="log-list" id="log-list"></div>
     <div class="dlg-actions">
@@ -714,7 +716,7 @@
 <div id="sh-creds" class="dlg-overlay" hidden>
   <div class="dlg-box">
     <h2>Credencial de Copernicus</h2>
-    <p class="dlg-hint">Copernicus no publica ning&#250;n WMS an&#243;nimo: sus capas se sirven por
+    <p class="dlg-hint" data-i18n-html="html.copernicus-help">Copernicus no publica ning&#250;n WMS an&#243;nimo: sus capas se sirven por
       Sentinel Hub, que identifica cada petici&#243;n con un <em>instance ID</em> de tu propia
       cuenta. Se crea gratis en el panel de Copernicus Data Space, en
       <em>Dashboard &#8594; Configuration Utility</em>, donde adem&#225;s eliges qu&#233; capas publica
@@ -723,7 +725,7 @@
       <input type="text" id="sh-instance" spellcheck="false" autocomplete="off"
              placeholder="00000000-0000-0000-0000-000000000000">
     </label>
-    <p class="dlg-hint">Se guarda solo en este navegador y &#250;nicamente se env&#237;a a
+    <p class="dlg-hint" data-i18n-html="html.copernicus-storage">Se guarda solo en este navegador y &#250;nicamente se env&#237;a a
       <code>sh.dataspace.copernicus.eu</code>. Puedes borrarlo cuando quieras.</p>
     <p class="dlg-hint sh-bad" id="sh-error" hidden></p>
     <div class="dlg-actions">
@@ -741,7 +743,7 @@
 <div id="custom-tiles-creds" class="dlg-overlay" hidden>
   <div class="dlg-box">
     <h2>Custom Tile Map Service (TMS)</h2>
-    <p class="dlg-hint">La capa <em>Custom Tile Map Service</em> solo admite servidores de
+    <p class="dlg-hint" data-i18n-html="html.ctiles-help">La capa <em>Custom Tile Map Service</em> solo admite servidores de
       teselas (<em>Tile Map Service</em>): pide sus teselas a la direcci&#243;n que pongas
       aqu&#237;, a&#241;adiendo <code>{z}/{x}/{y}.png</code> al final por su cuenta &#8212;
       no hace falta escribirlo. Para un servidor WMS usa la capa
@@ -750,13 +752,13 @@
       <input type="text" id="custom-tiles-input" spellcheck="false" autocomplete="off"
              placeholder="https://mi-cache.ejemplo.org/tiles/">
     </label>
-    <p class="dlg-hint">Debe responder en <strong>https</strong> a peticiones del tipo
+    <p class="dlg-hint" data-i18n-html="html.ctiles-requirements">Debe responder en <strong>https</strong> a peticiones del tipo
       <code>.../{z}/{x}/{y}.png</code> (esquema XYZ est&#225;ndar: <code>z</code> = nivel de
       zoom, <code>x</code>/<code>y</code> = columna/fila de la tesela, igual que
       OpenStreetMap) con im&#225;genes PNG de 256&#215;256 &#8212;con canal alfa si se quiere
       transparencia&#8212; y CORS abierto (<code>Access-Control-Allow-Origin</code>), o el
       navegador bloquear&#225; las teselas aunque el servidor responda bien.</p>
-    <p class="dlg-hint">Se guarda solo en este navegador y &#250;nicamente se env&#237;a a la
+    <p class="dlg-hint" data-i18n-html="html.ctiles-storage">Se guarda solo en este navegador y &#250;nicamente se env&#237;a a la
       direcci&#243;n que pongas. Nunca viaja en un <code>.kite.json</code> exportado.</p>
     <p class="dlg-hint sh-bad" id="custom-tiles-error" hidden></p>
     <div class="dlg-actions">
@@ -772,14 +774,14 @@
 <div id="custom-wms-creds" class="dlg-overlay" hidden>
   <div class="dlg-box">
     <h2>Custom Web Map Service (WMS)</h2>
-    <p class="dlg-hint">La capa <em>Custom Web Map Service</em> lee de tu servidor WMS
+    <p class="dlg-hint" data-i18n-html="html.cwms-help">La capa <em>Custom Web Map Service</em> lee de tu servidor WMS
       (<em>Web Map Service</em>) la lista de capas que publica y te deja elegir una, que
       puedes activar y desactivar como el resto de mapas base.</p>
     <label class="sh-field">Direcci&#243;n del servidor WMS
       <input type="text" id="custom-wms-input" spellcheck="false" autocomplete="off"
              placeholder="https://mi-servidor.ejemplo.org/wms">
     </label>
-    <p class="dlg-hint">El servidor debe responder en <strong>https</strong> a una consulta
+    <p class="dlg-hint" data-i18n-html="html.cwms-requirements">El servidor debe responder en <strong>https</strong> a una consulta
       <code>GetCapabilities</code> (<code>?service=WMS&amp;request=GetCapabilities</code>, que
       la aplicaci&#243;n a&#241;ade por su cuenta &#8212;si pegas una petici&#243;n completa, se
       quitan sus par&#225;metros de OGC&#8212;) con CORS abierto
@@ -788,7 +790,7 @@
       formato de imagen se elige solo seg&#250;n lo que anuncie el servidor:
       <code>image/png</code> (con transparencia) si lo sirve y, si no,
       <code>image/jpeg</code>.</p>
-    <p class="dlg-hint">Se guarda solo en este navegador y &#250;nicamente se env&#237;a a la
+    <p class="dlg-hint" data-i18n-html="html.cwms-storage">Se guarda solo en este navegador y &#250;nicamente se env&#237;a a la
       direcci&#243;n que pongas. Nunca viaja en un <code>.kite.json</code> exportado.</p>
     <p class="dlg-hint sh-bad" id="custom-wms-error" hidden></p>
     <div class="dlg-actions">

@@ -256,7 +256,7 @@ function parseKmlDocument(content) {
     if (!why2) return { xml, repaired: prefixes };
     why = why2;
   }
-  throw new Error(`XML no v\u00E1lido: ${why}`);
+  throw new Error(tr("XML no v\u00E1lido: {why}", { why }));
 }
 
 /* Asociaciones huella-de-properties → claves-nombre (array ordenado),
@@ -271,7 +271,7 @@ let gnpStore = null;
 /* El usuario cerró el selector de nombre sin elegir: se aborta la carga
    de ESE archivo (handleDroppedFiles lo distingue de un fallo real).   */
 function importCancelled() {
-  const err = new Error("carga cancelada");
+  const err = new Error(tr("carga cancelada"));
   err.cancelled = true;
   return err;
 }
@@ -318,24 +318,24 @@ async function addFileNode(name, kind, content, insertBefore = null, dropTargetU
       if (big) {
         /* DOMParser es síncrono y monolítico: solo cabe indicar la fase
            y ceder un frame para que el indicador llegue a pintarse     */
-        progress.indet(`Procesando XML de ${name}\u2026`);
+        progress.indet(tr("Procesando XML de {name}\u2026", { name }));
         await yieldFrame();
       }
       const { xml, repaired } = parseKmlDocument(content);
       if (repaired.length) {
-        report.note(`prefijos XML sin declarar, corregidos al vuelo: ${repaired.join(", ")}`);
+        report.note(tr("prefijos XML sin declarar, corregidos al vuelo: {prefixes}", { prefixes: repaired.join(", ") }));
       }
       if (kmlNamesHaveHtmlTags(xml)) {
         if (await confirmStripHtmlTags(name)) {
           stripHtmlTagsFromKmlNames(xml);
-          report.note("etiquetas tipo HTML eliminadas de los nombres");
+          report.note(tr("etiquetas tipo HTML eliminadas de los nombres"));
         }
       }
       const dupGroups = findDuplicatePlacemarks(xml);
       if (dupGroups.length) {
         if (await confirmMergeDuplicates(name, dupGroups)) {
           const removed = removeDuplicatePlacemarks(dupGroups);
-          report.note(`${removed} placemark(s) duplicado(s) fusionado(s)`);
+          report.note(tr("{removed} placemark(s) duplicado(s) fusionado(s)", { removed }));
         }
       }
 
@@ -343,17 +343,17 @@ async function addFileNode(name, kind, content, insertBefore = null, dropTargetU
       const prog = big && total ? {
         done: 0,
         update: d => progress.set(100 * d / total,
-          `Construyendo capas de ${name}\u2026 (${d}/${total})`)
+          tr("Construyendo capas de {name}\u2026 ({d}/{total})", { name, d, total }))
       } : null;
       const styleIndex = buildStyleIndex(xml);
       const records = await buildKmlRecords(xml.documentElement, styleIndex, true, prog, report, zip);
       if (styleIndex.externalRefs) {
-        report.note(`${styleIndex.externalRefs} estilo(s) en archivos externos, no aplicados`);
+        report.note(tr("{externalRefs} estilo(s) en archivos externos, no aplicados", { externalRefs: styleIndex.externalRefs }));
       }
       await materializeRecords(records, target);
     } else {
       if (big) {
-        progress.indet(`Procesando JSON de ${name}\u2026`);
+        progress.indet(tr("Procesando JSON de {name}\u2026", { name }));
         await yieldFrame();
       }
       const gj = typeof content === "string" ? JSON.parse(content) : content;
@@ -364,7 +364,7 @@ async function addFileNode(name, kind, content, insertBefore = null, dropTargetU
       if (geojsonPropsHaveHtmlTags(features)) {
         if (await confirmStripHtmlTags(name, "properties")) {
           const n = stripHtmlTagsFromGeojsonProps(features);
-          report.note(`etiquetas tipo HTML eliminadas de ${n} propiedad(es)`);
+          report.note(tr("etiquetas tipo HTML eliminadas de {n} propiedad(es)", { n }));
         }
       }
       const firstProps = (features[0] && typeof features[0].properties === "object" && features[0].properties) || {};
@@ -375,7 +375,7 @@ async function addFileNode(name, kind, content, insertBefore = null, dropTargetU
         const stored = gnpStore[fp] || null;
         if (stored) {
           nameKeys = stored;
-          navMessage(`\u00AB${name}\u00BB: nombre de los elementos seg\u00FAn la selecci\u00F3n guardada (${stored.join(NAME_JOIN)})`, { tone: "info" });
+          navMessage(tr("\u00AB{name}\u00BB: nombre de los elementos seg\u00FAn la selecci\u00F3n guardada ({keys})", { name, keys: stored.join(NAME_JOIN) }), { tone: "info" });
         } else {
           nameKeys = await pickNameProperty(Object.keys(firstProps), name, { sample: firstProps });
           if (!nameKeys) throw importCancelled();
@@ -392,7 +392,7 @@ async function addFileNode(name, kind, content, insertBefore = null, dropTargetU
       if (dupGroups.length) {
         if (await confirmMergeDuplicates(name, dupGroups)) {
           const removed = removeDuplicateFeatures(gj, dupGroups);
-          report.note(`${removed} elemento(s) duplicado(s) fusionado(s)`);
+          report.note(tr("{removed} elemento(s) duplicado(s) fusionado(s)", { removed }));
         }
       }
       /* Se cuenta AQU\u00cd, no antes de fusionar: si no, la barra de
@@ -401,7 +401,7 @@ async function addFileNode(name, kind, content, insertBefore = null, dropTargetU
       const prog = big && total ? {
         done: 0,
         update: d => progress.set(100 * d / total,
-          `Construyendo capas de ${name}\u2026 (${d}/${total})`)
+          tr("Construyendo capas de {name}\u2026 ({d}/{total})", { name, d, total }))
       } : null;
       const records = await buildGeoJsonRecords(gj, prog, report, nameKeys);
       /* los GeoJSON arrancan colapsados SIEMPRE: nunca hace falta
@@ -423,11 +423,11 @@ async function addFileNode(name, kind, content, insertBefore = null, dropTargetU
   if (wrap) {
     const count = li._pending ? li._pending.length : nodeUl(li).children.length;
     if (!count) {
-      nodeUl(li).innerHTML = '<li class="empty">Sin geometr\u00EDas.</li>';
+      nodeUl(li).innerHTML = `<li class="empty">${tr("Sin geometr\u00EDas.")}</li>`;
     }
   } else {
     const added = [...ul.children].filter(n => !before.has(n));
-    if (!added.length) throw new Error("el archivo no contiene ninguna capa");
+    if (!added.length) throw new Error(tr("el archivo no contiene ninguna capa"));
     /* Se respeta el punto donde se soltó el archivo */
     if (insertBefore && insertBefore.parentElement === ul) {
       for (const n of added) ul.insertBefore(n, insertBefore);
@@ -437,8 +437,8 @@ async function addFileNode(name, kind, content, insertBefore = null, dropTargetU
      Si hay algo omitido o alguna advertencia, el aviso espera a que el
      usuario pulse "Aceptar"; si todo ha ido bien, se va solo.        */
   if (coordClamped) {
-    report.note(`${coordClamped} coordenada(s) fuera de rango por redondeo,`
-      + ` ajustadas al l\u00EDmite (menos de ${COORD_EPS}\u00B0)`);
+    report.note(tr("{n} coordenada(s) fuera de rango por redondeo, ajustadas al l\u00EDmite (menos de {eps}\u00B0)",
+      { n: coordClamped, eps: COORD_EPS }));
   }
   navMessage(report.summary(), {
     sticky: report.hasIssues,
@@ -457,7 +457,7 @@ const KMZ_MAX_RATIO = 200;                 /* descomprimido / comprimido    */
 /* Abre un zip (un KMZ o el .zip de un shapefile) y aplica las cotas
    antes de descomprimir nada. `what` es cómo se le llama en el aviso. */
 async function loadZipChecked(file, what) {
-  if (typeof JSZip === "undefined") throw new Error(`no se pudo cargar el soporte de ${what}`);
+  if (typeof JSZip === "undefined") throw new Error(tr("no se pudo cargar el soporte de {what}", { what }));
   const zip = await JSZip.loadAsync(await file.arrayBuffer());
 
   /* Cotas preventivas contra zips desproporcionados ("zip bomb"): el
@@ -465,7 +465,7 @@ async function loadZipChecked(file, what) {
      hostil o accidental agote la memoria del navegador.              */
   const entries = Object.values(zip.files).filter(f => !f.dir);
   if (entries.length > KMZ_MAX_ENTRIES) {
-    throw new Error(`el ${what} tiene demasiadas entradas (${entries.length} > ${KMZ_MAX_ENTRIES})`);
+    throw new Error(tr("el {what} tiene demasiadas entradas ({length} > {kmzMaxEntries})", { what, length: entries.length, kmzMaxEntries: KMZ_MAX_ENTRIES }));
   }
   let uncompressed = 0;
   for (const f of entries) {
@@ -473,10 +473,10 @@ async function loadZipChecked(file, what) {
     uncompressed += size;
   }
   if (uncompressed > KMZ_MAX_UNCOMPRESSED) {
-    throw new Error(`el ${what} ocupa demasiado descomprimido (${fmtBytes(uncompressed)})`);
+    throw new Error(tr("el {what} ocupa demasiado descomprimido ({size})", { what, size: fmtBytes(uncompressed) }));
   }
   if (file.size && uncompressed / file.size > KMZ_MAX_RATIO) {
-    throw new Error(`relaci\u00F3n de compresi\u00F3n sospechosa (\u00D7${Math.round(uncompressed / file.size)})`);
+    throw new Error(tr("relaci\u00F3n de compresi\u00F3n sospechosa (\u00D7{ratio})", { ratio: Math.round(uncompressed / file.size) }));
   }
   return zip;
 }
@@ -494,7 +494,7 @@ function zipHasKml(zip) {
 /* El KML principal de un zip ya abierto: doc.kml, o el primero que haya */
 async function kmlFromZip(zip, onPct) {
   const entry = zip.file(/(^|\/)doc\.kml$/i)[0] || zip.file(/\.kml$/i)[0];
-  if (!entry) throw new Error("el KMZ no contiene ning\u00FAn .kml");
+  if (!entry) throw new Error(tr("el KMZ no contiene ning\u00FAn .kml"));
   const kml = await entry.async("string", onPct ? meta => onPct(meta.percent) : undefined);
   /* Se devuelve tambi\u00E9n el zip (no solo el KML) para poder resolver, m\u00E1s
      adelante, las im\u00E1genes de los GroundOverlay que referencie el KML. */
@@ -531,8 +531,8 @@ async function handleDroppedFiles(files, insertBefore, dropTargetUl = null) {
      cada grupo entra una vez, en el sitio de su .shp.                  */
   for (const item of groupShapefileParts(files)) {
     if (item.orphan) {
-      navMessage(`\u00AB${item.orphan.name}\u00BB es parte de un shapefile y no ha llegado su .shp: `
-        + "suelte todas las piezas juntas (.shp, .dbf, .prj, .cpg) o el .zip que las contiene.");
+      navMessage(tr("\u00AB{name}\u00BB es parte de un shapefile y no ha llegado su .shp: "
+        + "suelte todas las piezas juntas (.shp, .dbf, .prj, .cpg) o el .zip que las contiene.", { name: item.orphan.name }));
       continue;
     }
     if (item.shp) {
@@ -549,7 +549,7 @@ async function handleDroppedFiles(files, insertBefore, dropTargetUl = null) {
         kind = "kml";
         /* Fase 1: descompresión, con progreso determinado de JSZip */
         const kmz = await kmzToKml(file, big
-          ? pct => progress.set(pct, `Descomprimiendo ${file.name}\u2026`)
+          ? pct => progress.set(pct, tr("Descomprimiendo {name}\u2026", { name: file.name }))
           : null);
         content = kmz.kml;
         zip = kmz.zip;
@@ -561,7 +561,7 @@ async function handleDroppedFiles(files, insertBefore, dropTargetUl = null) {
         if (zipHasKml(z)) {
           kind = "kml";
           const kmz = await kmlFromZip(z, big
-            ? pct => progress.set(pct, `Descomprimiendo ${file.name}\u2026`)
+            ? pct => progress.set(pct, tr("Descomprimiendo {name}\u2026", { name: file.name }))
             : null);
           content = kmz.kml;
           zip = z;
@@ -600,14 +600,14 @@ async function handleDroppedFiles(files, insertBefore, dropTargetUl = null) {
         continue;
       }
       else {
-        navMessage(`\u00AB${file.name}\u00BB no est\u00E1 soportado. Formatos admitidos: ${IMPORT_FORMATS}.`);
+        navMessage(tr("\u00AB{name}\u00BB no est\u00E1 soportado. Formatos admitidos: {importFormats}.", { name: file.name, importFormats: IMPORT_FORMATS }));
         continue;
       }
       await addFileNode(file.name, kind, content, insertBefore, dropTargetUl, zip);
       scheduleSave();
     } catch (err) {
-      if (err.cancelled) { navMessage(`Carga de \u00AB${file.name}\u00BB cancelada.`, { tone: "info" }); continue; }
-      navMessage(`No se pudo cargar \u00AB${file.name}\u00BB (${ext || "sin extensi\u00F3n"}, ${fmtBytes(file.size)}): ${err.message}`);
+      if (err.cancelled) { navMessage(tr("Carga de \u00AB{name}\u00BB cancelada.", { name: file.name }), { tone: "info" }); continue; }
+      navMessage(tr("No se pudo cargar \u00AB{name}\u00BB ({ext}, {size}): {message}", { name: file.name, ext: ext || tr("sin extensi\u00F3n"), size: fmtBytes(file.size), message: err.message }));
     } finally {
       if (big) progress.hide();
     }
@@ -616,9 +616,9 @@ async function handleDroppedFiles(files, insertBefore, dropTargetUl = null) {
 
 /* Lo que se acepta, dicho igual en todos los avisos que lo enumeran
    (handleDroppedFiles y el diálogo de 🔗).                          */
-const IMPORT_FORMATS = "KML, KMZ (incl. ortofotos), JSON (GeoJSON), TopoJSON, "
+const IMPORT_FORMATS = tr("KML, KMZ (incl. ortofotos), JSON (GeoJSON), TopoJSON, "
   + "shapefiles (.shp con su .dbf y .prj, o en un .zip), ortofotos COG y modelos de elevaci\u00F3n (.tif) "
-  + `y carpetas exportadas (${EXPORT_EXT})`;
+  + "y carpetas exportadas ({ext})", { ext: EXPORT_EXT });
 
 /* ECW (el formato del Centro de Descargas del CNIG) no se lee: no hay
    decodificador en JS, el SDK de Hexagon es propietario y de pago fuera
@@ -627,9 +627,10 @@ const IMPORT_FORMATS = "KML, KMZ (incl. ortofotos), JSON (GeoJSON), TopoJSON, "
    cog.md.                                                             */
 function ecwHint(name) {
   const base = String(name).replace(/\.ecw$/i, "");
-  return `\u00AB${name}\u00BB es una ortofoto ECW, un formato propietario que el navegador no puede leer. `
-    + `Convi\u00E9rtala a COG y suelte el .tif: gdal_translate -of COG -co COMPRESS=JPEG "${name}" "${base}.tif" `
-    + "(necesita GDAL con soporte ECW; QGIS para Windows lo trae: Ráster \u203A Conversión \u203A Traducir, formato COG).";
+  return tr("\u00AB{name}\u00BB es una ortofoto ECW, un formato propietario que el navegador no puede leer. "
+    + "Convi\u00E9rtala a COG y suelte el .tif: gdal_translate -of COG -co COMPRESS=JPEG \"{name}\" \"{base}.tif\" "
+    + "(necesita GDAL con soporte ECW; QGIS para Windows lo trae: Ráster \u203A Conversión \u203A Traducir, formato COG).",
+    { name, base });
 }
 
 /* ¿Hay una carpeta bajo el puntero? Mismo test de "esto es un
@@ -695,8 +696,8 @@ const URL_KIND_EXT = {
 };
 /* Lo que se le dice al usuario que ha llegado */
 const URL_KIND_LABEL = {
-  kml: "KML", kmz: "KMZ (KML comprimido)", geojson: "GeoJSON", topojson: "TopoJSON",
-  kite: "carpeta exportada de KITE (.kite.json)", shpzip: "shapefile comprimido (.zip)"
+  kml: "KML", kmz: tr("KMZ (KML comprimido)"), geojson: "GeoJSON", topojson: "TopoJSON",
+  kite: tr("carpeta exportada de KITE (.kite.json)"), shpzip: tr("shapefile comprimido (.zip)")
 };
 
 /* Nombre de archivo que sugiere una dirección: el último segmento de su

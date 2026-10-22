@@ -19,7 +19,6 @@
    Va antes que 07-lazy-libs.js en el manifiesto pero solo DECLARA
    funciones: LAZY_LIBS y LEAFLET_PIN_URL se leen cuando se llama.       */
 
-const OFFLINE_WHY = "sin conexión a la red";
 const OFFLINE_WORKER = "sw.js";
 
 /* `navigator.onLine === false` es fiable en una sola dirección: false
@@ -33,7 +32,7 @@ function isOffline() {
 /* El texto de un fallo de red: «sin conexión» si es seguro que la hay,
    y el genérico de cada sitio (CORS, servicio caído…) si no.          */
 function netFailText(generic) {
-  return isOffline() ? OFFLINE_WHY : generic;
+  return isOffline() ? tr("sin conexión a la red") : generic;
 }
 
 /* Todo lo que el worker debe tener guardado: las etiquetas con integridad
@@ -86,9 +85,9 @@ function updateOfflineBadge(announce) {
   badge.hidden = !off;
   if (!announce) return;
   navMessage(off
-    ? "Sin conexión: KITE sigue funcionando con lo guardado en este navegador. "
-      + "Los mapas base, la búsqueda de lugares y las elevaciones necesitan red."
-    : "Conexión recuperada.", { tone: "info" });
+    ? tr("Sin conexión: KITE sigue funcionando con lo guardado en este navegador. "
+      + "Los mapas base, la búsqueda de lugares y las elevaciones necesitan red.")
+    : tr("Conexión recuperada."), { tone: "info" });
 }
 
 function initOfflineIndicator() {

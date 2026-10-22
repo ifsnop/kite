@@ -146,7 +146,7 @@ document.getElementById("search-prev").addEventListener("click", () => gotoMatch
    for at most five results. Picking one drops a marker with the default
    marker style at the returned coordinates.                            */
 const PLACE_LIMIT = 5;
-const PLACES_SECTION = "Lugares";
+const PLACES_SECTION = tr("Lugares");
 const placeBox = document.getElementById("place-box");
 const placeResults = document.getElementById("place-results");
 const placeStatus = document.getElementById("place-status");
@@ -214,12 +214,12 @@ let placeAbort = null; /* petición en vuelo, para poder cancelarla */
 
 /* Traduce el fallo a algo accionable en vez de "error de red" */
 function describeHttp(status) {
-  if (status === 404) return "la dirección no existe (HTTP 404)";
-  if (status === 401) return "hace falta autenticación (HTTP 401)";
-  if (status === 429) return "el servicio ha limitado las consultas; espere unos segundos";
-  if (status === 403) return "el servicio ha rechazado la consulta";
-  if (status >= 500) return `el servicio no est\u00E1 disponible (HTTP ${status})`;
-  return `respuesta inesperada del servicio (HTTP ${status})`;
+  if (status === 404) return tr("la dirección no existe (HTTP 404)");
+  if (status === 401) return tr("hace falta autenticación (HTTP 401)");
+  if (status === 429) return tr("el servicio ha limitado las consultas; espere unos segundos");
+  if (status === 403) return tr("el servicio ha rechazado la consulta");
+  if (status >= 500) return tr("el servicio no est\u00E1 disponible (HTTP {status})", { status });
+  return tr("respuesta inesperada del servicio (HTTP {status})", { status });
 }
 
 async function searchPlaces(query) {
@@ -232,7 +232,7 @@ async function searchPlaces(query) {
 
   placeResults.hidden = false;
   placeList.innerHTML = "";
-  placeStatus.textContent = "Buscando\u2026";
+  placeStatus.textContent = tr("Buscando\u2026");
   const url = "https://nominatim.openstreetmap.org/search?format=jsonv2"
     + `&limit=${PLACE_LIMIT}&q=${encodeURIComponent(query)}`;
   let results;
@@ -240,14 +240,14 @@ async function searchPlaces(query) {
     const resp = await fetch(url, { headers: { Accept: "application/json" }, signal: ctrl.signal });
     if (!resp.ok) throw new Error(describeHttp(resp.status));
     results = await resp.json();
-    if (!Array.isArray(results)) throw new Error("respuesta con un formato inesperado");
+    if (!Array.isArray(results)) throw new Error(tr("respuesta con un formato inesperado"));
   } catch (err) {
     if (seq !== placeSeq) return; /* cancelada por otra búsqueda: sin ruido */
     const why = err.name === "AbortError"
-      ? `el servicio ha tardado m\u00E1s de ${PLACE_TIMEOUT / 1000} s en responder`
+      ? tr("el servicio ha tardado m\u00E1s de {seconds} s en responder", { seconds: PLACE_TIMEOUT / 1000 })
       : err.message;
-    placeStatus.textContent = "No se pudo consultar el servicio de b\u00FAsqueda.";
-    navMessage(`Error al buscar el lugar: ${err instanceof TypeError ? netFailText(why) : why}.`);
+    placeStatus.textContent = tr("No se pudo consultar el servicio de b\u00FAsqueda.");
+    navMessage(tr("Error al buscar el lugar: {reason}.", { reason: err instanceof TypeError ? netFailText(why) : why }));
     return;
   } finally {
     clearTimeout(timer);
@@ -255,10 +255,10 @@ async function searchPlaces(query) {
   }
   if (seq !== placeSeq) return; /* a newer search is already on screen */
   if (!results.length) {
-    placeStatus.textContent = `Sin resultados para \u00AB${query}\u00BB.`;
+    placeStatus.textContent = tr("Sin resultados para \u00AB{query}\u00BB.", { query });
     return;
   }
-  placeStatus.textContent = `${results.length} resultado(s) \u2014 elija uno`;
+  placeStatus.textContent = tr("{length} resultado(s) \u2014 elija uno", { length: results.length });
   for (const r of results) {
     const li = document.createElement("li");
     const b = document.createElement("button");
@@ -274,9 +274,9 @@ async function searchPlaces(query) {
    style (Leaflet pin, #1b5e97), the same one imported markers get.      */
 function addPlaceMarker(r) {
   const lat = Number(r.lat), lon = Number(r.lon);
-  if (!isFinite(lat) || !isFinite(lon)) { navMessage("El resultado no trae coordenadas v\u00E1lidas."); return; }
+  if (!isFinite(lat) || !isFinite(lon)) { navMessage(tr("El resultado no trae coordenadas v\u00E1lidas.")); return; }
   const name = r.name || String(r.display_name).split(",")[0];
-  pushUndo("añadir un lugar");
+  pushUndo(tr("añadir un lugar"));
   const layer = L.marker([lat, lon]).addTo(rootGroup);
   const li = makeNode({ name, layer, style: { color: DEFAULT_MARKER_STYLE.color } });
   ensureNamedSection(PLACES_SECTION).appendChild(li);
@@ -300,15 +300,15 @@ function addPlaceMarker(r) {
    current view and opened straight into the style dialog, where its
    icon, text, size and position can be set. Cancelling there removes
    it again (see `styleIsNew`).                                       */
-const PINS_SECTION = "Marcadores";
+const PINS_SECTION = tr("Marcadores");
 function createPin() {
-  pushUndo("crear marcador");
+  pushUndo(tr("crear marcador"));
   const marker = L.marker(map.getCenter()).addTo(rootGroup);
   /* Autonumerado como las formas dibujadas y las mediciones: con un
      nombre fijo, veinte pines se llamaban todos "Marcador" y no había
      forma de distinguirlos en el árbol.                              */
   const li = makeNode({
-    name: nextNumberedName("Marcador"), layer: marker, style: { color: DEFAULT_MARKER_STYLE.color }
+    name: nextNumberedName(tr("Marcador")), layer: marker, style: { color: DEFAULT_MARKER_STYLE.color }
   });
   ensureNamedSection(PINS_SECTION).appendChild(li);
   refreshAncestorChecks(li);
@@ -319,7 +319,7 @@ function createPin() {
 
 function runPlaceSearch() {
   const q = placeBox.value.trim();
-  if (!q) { navMessage("Escriba un lugar que buscar."); return; }
+  if (!q) { navMessage(tr("Escriba un lugar que buscar.")); return; }
   searchPlaces(q);
 }
 document.getElementById("place-btn").addEventListener("click", runPlaceSearch);
@@ -360,9 +360,9 @@ async function createFolderNode(cur, name) {
 const newFolderName = document.getElementById("new-folder-name");
 document.getElementById("new-folder-btn").addEventListener("click", async () => {
   const name = newFolderName.value.trim();
-  if (!name) { navMessage("Escriba un nombre para la carpeta."); return; }
+  if (!name) { navMessage(tr("Escriba un nombre para la carpeta.")); return; }
   const cur = isRow(selCursor) && selCursor.isConnected ? selCursor : null;
-  pushUndo("crear carpeta");
+  pushUndo(tr("crear carpeta"));
   const li = await createFolderNode(cur, name);
   newFolderName.value = "";
   moveCursorTo(li, false);
@@ -510,8 +510,9 @@ function copyToSystemClipboard(all) {
      almacén de ESTA): el interno sí la lleva, el del sistema no.    */
   const { nodes, left } = withoutCogNodes(all);
   if (left.length) {
-    navMessage(`Las ortofotos COG solo se pueden pegar en esta pestaña: ${left.map(n => `\u00AB${n}\u00BB`).join(", ")} `
-      + "no va al portapapeles del sistema.", { tone: "info" });
+    navMessage(trn(left.length, "Las ortofotos COG solo se pueden pegar en esta pestaña: {names} no va al portapapeles del sistema.",
+      "Las ortofotos COG solo se pueden pegar en esta pestaña: {names} no van al portapapeles del sistema.",
+      { names: left.map(n => `\u00AB${n}\u00BB`).join(", ") }), { tone: "info" });
   }
   if (!nodes.length) return;
   const txt = JSON.stringify(treeExportDoc(nodes));
@@ -519,9 +520,9 @@ function copyToSystemClipboard(all) {
      el navegador puede rechazarlo. El portapapeles interno sigue
      funcionando dentro de esta pestaña, así que se avisa y se sigue. */
   if (txt.length > CLIPBOARD_MAX) {
-    navMessage(`La selección ocupa ${fmtBytes(txt.length)} y no cabe en el portapapeles del `
+    navMessage(tr("La selección ocupa {size} y no cabe en el portapapeles del "
       + "sistema: se podrá pegar en esta pestaña, pero no en otra. Use el botón 💾 para "
-      + "llevarla a otra instancia.");
+      + "llevarla a otra instancia.", { size: fmtBytes(txt.length) }));
     return;
   }
   /* Se anota ANTES de escribir, no en el `then`: un Ctrl+V inmediato no
@@ -530,21 +531,22 @@ function copyToSystemClipboard(all) {
      nada que reconocer, así que anotarlo de más no hace daño.        */
   clipboardText = txt;
   navigator.clipboard.writeText(txt).catch(err => {
-    navMessage("No se pudo copiar al portapapeles del sistema "
-      + `(${err && err.message ? err.message : "permiso denegado"}): `
-      + "se podrá pegar en esta pestaña, pero no en otra.");
+    navMessage(tr("No se pudo copiar al portapapeles del sistema ({reason}): "
+      + "se podrá pegar en esta pestaña, pero no en otra.",
+      { reason: err && err.message ? err.message : tr("permiso denegado") }));
   });
 }
 
 function copySelection(cut) {
   const picked = topLevelSelection();
-  if (!picked.length) { navMessage("No hay nada seleccionado que copiar."); return; }
+  if (!picked.length) { navMessage(tr("No hay nada seleccionado que copiar.")); return; }
   const nodes = picked.flatMap(serializeNode);
   clipboard = { nodes, cut: cut ? picked : [], move: cut };
   copyToSystemClipboard(nodes);
   for (const li of treeEl.querySelectorAll(".node-row.cut")) li.classList.remove("cut");
   if (cut) for (const li of picked) nodeRow(li).classList.add("cut");
-  navMessage(`${picked.length} nodo(s) ${cut ? "cortado(s)" : "copiado(s)"}.`, { tone: "info" });
+  navMessage(cut ? tr("{n} nodo(s) cortado(s).", { n: picked.length }) : tr("{n} nodo(s) copiado(s).", { n: picked.length }),
+    { tone: "info" });
 }
 
 /* Respaldo pendiente de Ctrl+V: lo arma el keydown y lo cancela el
@@ -558,17 +560,17 @@ let pasteFallback = null;
    borrar nada aquí, así que pegar lo de fuera es siempre copiar.    */
 async function pasteClipboard(foreign = null) {
   const source = foreign ? { nodes: foreign, cut: [], move: false } : clipboard;
-  if (!source) { navMessage("El portapapeles est\u00E1 vac\u00EDo."); return; }
+  if (!source) { navMessage(tr("El portapapeles est\u00E1 vac\u00EDo.")); return; }
   const cur = selCursor;
   const intoFolder = cur && nodeUl(cur) && !cur.classList.contains("collapsed");
   const ul = intoFolder ? nodeUl(cur) : (cur ? cur.parentElement : ensureRootUl());
-  pushUndo("pegar");
+  pushUndo(tr("pegar"));
   const before = new Set(ul.children);
   try {
     const records = await buildRecordsFromStorage(source.nodes, null);
     await materializeRecords(records, ul);
   } catch (err) {
-    navMessage(`No se pudo pegar: ${err.message}`);
+    navMessage(tr("No se pudo pegar: {message}", { message: err.message }));
     return;
   }
   const added = [...ul.children].filter(n => !before.has(n));
@@ -586,7 +588,7 @@ async function pasteClipboard(foreign = null) {
 /* Alt+Intro: propiedades de lo seleccionado */
 function openPropertiesOfSelection() {
   const picked = topLevelSelection().filter(n => !nodeUl(n));
-  if (!picked.length) { navMessage("Seleccione una o varias capas para editar sus propiedades."); return; }
+  if (!picked.length) { navMessage(tr("Seleccione una o varias capas para editar sus propiedades.")); return; }
   openStyleDialog(picked[0]);
 }
 
@@ -731,18 +733,18 @@ document.addEventListener("paste", e => {
      mejor decirlo que reconstruir a medias.                         */
   const format = doc.format === undefined ? 0 : doc.format;
   if (format !== EXPORT_FORMAT) {
-    navMessage(`Lo pegado es de un formato de archivo v${format}, incompatible con el actual `
-      + `v${EXPORT_FORMAT}. Actualice las dos instancias de KITE Local a la misma versión.`);
+    navMessage(tr("Lo pegado es de un formato de archivo v{format}, incompatible con el actual "
+      + "v{current}. Actualice las dos instancias de KITE Local a la misma versión.", { format, current: EXPORT_FORMAT }));
     return;
   }
   if (doc.schema !== TREE_SCHEMA) {
-    navMessage(`Lo pegado usa un formato de árbol v${doc.schema}, incompatible con el actual `
-      + `v${TREE_SCHEMA}. Actualice las dos instancias de KITE Local a la misma versión.`);
+    navMessage(tr("Lo pegado usa un formato de árbol v{schema}, incompatible con el actual "
+      + "v{current}. Actualice las dos instancias de KITE Local a la misma versión.", { schema: doc.schema, current: TREE_SCHEMA }));
     return;
   }
-  if (!doc.nodes.length) { navMessage("Lo pegado no contiene ning\u00FAn nodo."); return; }
+  if (!doc.nodes.length) { navMessage(tr("Lo pegado no contiene ning\u00FAn nodo.")); return; }
 
   pasteClipboard(doc.nodes).then(() => {
-    navMessage(`Pegado(s) ${doc.nodes.length} nodo(s) desde el portapapeles.`, { tone: "info" });
+    navMessage(tr("Pegado(s) {length} nodo(s) desde el portapapeles.", { length: doc.nodes.length }), { tone: "info" });
   });
 });

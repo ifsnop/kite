@@ -98,8 +98,8 @@ function toggleOne(li) {
 
 /* Nombre legible del tipo, para poder explicar por qué algo se queda
    fuera de una selección                                              */
-const KIND_LABEL = { marker: "marcadores", polygon: "pol\u00EDgonos", measure: "mediciones",
-  elevGrid: "cuadr\u00EDculas de elevaci\u00F3n", imageOverlay: "ortofotos", cog: "ortofotos COG" };
+const KIND_LABEL = { marker: tr("marcadores"), polygon: tr("pol\u00EDgonos"), measure: tr("mediciones"),
+  elevGrid: tr("cuadr\u00EDculas de elevaci\u00F3n"), imageOverlay: tr("ortofotos"), cog: tr("ortofotos COG") };
 
 /* Selecciona de una vez todas las capas de la rama que cuelga de un
    contenedor. Como solo pueden convivir capas del mismo tipo en la
@@ -123,7 +123,7 @@ async function selectFolderLayers(li) {
   if (!ul) return;
   const layers = [...ul.querySelectorAll("li")]
     .filter(n => n._name !== undefined && !nodeUl(n)); /* capas, no contenedores */
-  if (!layers.length) { navMessage("Esta carpeta no contiene capas."); return; }
+  if (!layers.length) { navMessage(tr("Esta carpeta no contiene capas.")); return; }
 
   clearSelection();
   /* Ruta masiva: se marcan directas y el cursor se fija UNA vez, no una
@@ -303,8 +303,8 @@ function showTreePlaceholder(txt) {
   treeEl.appendChild(div);
   rootUl = null;
 }
-function showEmptyMessage() { showTreePlaceholder("No hay capas cargadas."); }
-function showLoadingMessage() { showTreePlaceholder("Inicializando…"); }
+function showEmptyMessage() { showTreePlaceholder(tr("No hay capas cargadas.")); }
+function showLoadingMessage() { showTreePlaceholder(tr("Inicializando…")); }
 /* Se arranca en «Inicializando…»; es el arranque (99-boot.js) quien
    concluye, ya con el árbol guardado leído, si de verdad no hay nada. */
 showLoadingMessage();
@@ -345,8 +345,8 @@ function msgStamp(ms) {
 function logText() {
   if (!msgLog.length) return "";
   return msgLog.map(e => {
-    const rep = e.count > 1 ? ` [x${e.count}, última ${msgStamp(e.last)}]` : "";
-    return `${msgStamp(e.first)}\t${e.tone === "info" ? "INFO " : "AVISO"}\t${e.text}${rep}`;
+    const rep = e.count > 1 ? " " + tr("[x{count}, última {last}]", { count: e.count, last: msgStamp(e.last) }) : "";
+    return `${msgStamp(e.first)}\t${e.tone === "info" ? "INFO " : tr("AVISO").padEnd(5)}\t${e.text}${rep}`;
   }).join("\n");
 }
 
@@ -423,7 +423,7 @@ function navMessage(txt, { sticky = false, tone = "error" } = {}) {
     if (!el.querySelector(".nav-msg-ok")) {
       const ok = document.createElement("button");
       ok.className = "btn nav-msg-ok";
-      ok.textContent = "Aceptar";
+      ok.textContent = tr("Aceptar");
       ok.addEventListener("click", clearNavMessage);
       el.appendChild(ok);
     }
@@ -442,9 +442,9 @@ function clearNavMessage() {
    abajo en el script.                                                 */
 if (!hwAccelerated) {
   navMessage(
-    "No se detecta aceleración por hardware en el navegador. " +
-    "Se aplica una mitigación automática (zoom sin animación), pero se recomienda " +
-    "habilitar la aceleración por hardware en el navegador (chrome://gpu) para un mejor rendimiento.",
+    tr("No se detecta aceleración por hardware en el navegador. "
+      + "Se aplica una mitigación automática (zoom sin animación), pero se recomienda "
+      + "habilitar la aceleración por hardware en el navegador (chrome://gpu) para un mejor rendimiento."),
     { sticky: true }
   );
 }
@@ -473,7 +473,7 @@ function fitBoundsFramed(bounds) {
    kil\u00F3metros, la de un perfil) y al zoom fijo ni se ver\u00EDa.        */
 function focusOnNode(li) {
   const b = subtreeBounds(li);
-  if (!b.isValid()) { navMessage("Esta capa no tiene geometr\u00EDa que enfocar."); return; }
+  if (!b.isValid()) { navMessage(tr("Esta capa no tiene geometr\u00EDa que enfocar.")); return; }
   const kind = styleKind(li);
   if (kind === "polygon" || kind === "measure" || kind === "elevGrid" || kind === "cog") fitBoundsFramed(b);
   else map.setView(b.getCenter(), FOCUS_ZOOM);

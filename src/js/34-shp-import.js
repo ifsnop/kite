@@ -161,13 +161,13 @@ function shpPropsToPlain(props) {
 function shpProjection(prjText, bbox, report) {
   if (!prjText || !prjText.trim()) {
     if (!bboxLooksGeographic(bbox)) {
-      throw new Error("falta el .prj y las coordenadas no son geográficas: "
-        + "no se sabe en qué sistema están");
+      throw new Error(tr("falta el .prj y las coordenadas no son geográficas: "
+        + "no se sabe en qué sistema están"));
     }
-    report.note("sin .prj: se suponen coordenadas geográficas WGS84");
+    report.note(tr("sin .prj: se suponen coordenadas geográficas WGS84"));
     return null;
   }
-  if (typeof proj4 === "undefined") throw new Error("no se pudo cargar el soporte de proyecciones");
+  if (typeof proj4 === "undefined") throw new Error(tr("no se pudo cargar el soporte de proyecciones"));
   const { wkt, ed50 } = prjDatumFix(prjText);
   let proj;
   try {
@@ -176,16 +176,16 @@ function shpProjection(prjText, bbox, report) {
     proj = null;
   }
   if (!proj || !proj.projName) {
-    throw new Error(`proyección del .prj no reconocida: «${prjText.trim().slice(0, 80)}…»`);
+    throw new Error(tr("proyección del .prj no reconocida: «{prj}…»", { prj: prjText.trim().slice(0, 80) }));
   }
   if (ed50) {
-    report.note("datum ED50 pasado a WGS84 con los parámetros estándar de la España "
-      + "peninsular (error de unos metros)");
+    report.note(tr("datum ED50 pasado a WGS84 con los parámetros estándar de la España "
+      + "peninsular (error de unos metros)"));
   } else if (proj.datum && proj.datum.datum_type === 5 && Math.abs(proj.a - 6378137) > 1) {
     /* Sin transformación de datum conocida y con otro elipsoide: se
        dibuja, pero puede estar desplazado y el usuario debe saberlo. */
-    report.note(`datum «${proj.datumCode || "desconocido"}» sin transformación a WGS84: `
-      + "la posición puede desplazarse decenas o cientos de metros");
+    report.note(tr("datum «{datum}» sin transformación a WGS84: "
+      + "la posición puede desplazarse decenas o cientos de metros", { datum: proj.datumCode || tr("desconocido") }));
   }
   const t = proj4(wkt, "WGS84");
   return xy => t.forward(xy);
@@ -202,10 +202,10 @@ const shpPartSize = part => (typeof part.size === "number" ? part.size
    todo sin tope) para poder cortar en SHP_MAX_FEATURES y ceder el hilo
    con progreso en los grandes.                                       */
 async function readShapefile(group, report) {
-  if (typeof shapefile === "undefined") throw new Error("no se pudo cargar el soporte de shapefiles");
+  if (typeof shapefile === "undefined") throw new Error(tr("no se pudo cargar el soporte de shapefiles"));
   const bytes = shpPartSize(group.shp) + (group.dbf ? shpPartSize(group.dbf) : 0);
   if (bytes > SHP_MAX_BYTES) {
-    throw new Error(`el shapefile es demasiado grande (${fmtBytes(bytes)}, tope ${fmtBytes(SHP_MAX_BYTES)})`);
+    throw new Error(tr("el shapefile es demasiado grande ({size}, tope {max})", { size: fmtBytes(bytes), max: fmtBytes(SHP_MAX_BYTES) }));
   }
   const shp = await shpPartBytes(group.shp);
   const dbf = group.dbf ? await shpPartBytes(group.dbf) : null;
@@ -214,16 +214,16 @@ async function readShapefile(group, report) {
   if (group.cpg) {
     const cpgText = new TextDecoder("utf-8").decode(await shpPartBytes(group.cpg));
     encoding = cpgEncoding(cpgText);
-    if (!encoding) report.note(`codificación del .cpg no reconocida («${cpgText.trim().slice(0, 30)}»): se usa UTF-8 o Windows-1252 según el contenido`);
+    if (!encoding) report.note(tr("codificación del .cpg no reconocida («{cpg}»): se usa UTF-8 o Windows-1252 según el contenido", { cpg: cpgText.trim().slice(0, 30) }));
   }
   if (!encoding && dbf) encoding = guessDbfEncoding(dbf);
-  if (!dbf) report.note("sin .dbf: los elementos no traen atributos");
+  if (!dbf) report.note(tr("sin .dbf: los elementos no traen atributos"));
 
   let source;
   try {
     source = await shapefile.open(shp, dbf || undefined, { encoding: encoding || "utf-8" });
   } catch (err) {
-    throw new Error(`el .shp no es válido (${err && err.message || err})`);
+    throw new Error(tr("el .shp no es válido ({why})", { why: err && err.message || err }));
   }
   /* proj4 solo hace falta con .prj; se pide aquí porque shpProjection
      es síncrona (bajo demanda, 07-lazy-libs.js).                      */
@@ -244,12 +244,12 @@ async function readShapefile(group, report) {
     }
     features.push(f);
     if (big && features.length % PROGRESS_BATCH === 0) {
-      progress.indet(`Leyendo ${group.name}… (${features.length} elementos)`);
+      progress.indet(tr("Leyendo {name}… ({length} elementos)", { name: group.name, length: features.length }));
       await yieldFrame();
     }
   }
   if (skipped) {
-    report.warn(`${skipped} elemento(s) omitidos: el tope es ${SHP_MAX_FEATURES} por shapefile`);
+    report.warn(tr("{skipped} elemento(s) omitidos: el tope es {shpMaxFeatures} por shapefile", { skipped, shpMaxFeatures: SHP_MAX_FEATURES }));
   }
   return { type: "FeatureCollection", features };
 }
@@ -266,8 +266,8 @@ async function importShapefileSafely(group, insertBefore, dropTargetUl) {
     await addFileNode(group.name, "geojson", gj, insertBefore, dropTargetUl, null, pre);
     scheduleSave();
   } catch (err) {
-    if (err.cancelled) { navMessage(`Carga de «${group.name}» cancelada.`, { tone: "info" }); return; }
-    navMessage(`No se pudo cargar «${group.name}» (shapefile, ${fmtBytes(size)}): ${err.message}`);
+    if (err.cancelled) { navMessage(tr("Carga de «{name}» cancelada.", { name: group.name }), { tone: "info" }); return; }
+    navMessage(tr("No se pudo cargar «{name}» (shapefile, {size}): {message}", { name: group.name, size: fmtBytes(size), message: err.message }));
   } finally {
     progress.hide();
   }
@@ -279,9 +279,9 @@ async function importShapefilesFromZip(zip, zipName, insertBefore, dropTargetUl)
   const entries = Object.values(zip.files).filter(f => !f.dir && !/(^|\/)__MACOSX\//.test(f.name));
   const items = groupShapefileParts(entries);
   const groups = items.filter(i => i.shp);
-  if (!groups.length) throw new Error("el zip no contiene ningún .kml ni .shp");
+  if (!groups.length) throw new Error(tr("el zip no contiene ningún .kml ni .shp"));
   for (const i of items) {
-    if (i.orphan) navMessage(`«${zipName}»: «${i.orphan.name}» no tiene su .shp dentro del zip.`);
+    if (i.orphan) navMessage(tr("«{zipName}»: «{name}» no tiene su .shp dentro del zip.", { zipName, name: i.orphan.name }));
   }
   for (const i of groups) await importShapefileSafely(i.shp, insertBefore, dropTargetUl);
 }

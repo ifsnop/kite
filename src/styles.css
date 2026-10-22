@@ -1006,7 +1006,7 @@
      el usuario lo toca.                                              */
   .dlg-row.mixed > span::after,
   .dlg-row.mixed > label::after {
-    content: " (varios)";
+    content: var(--txt-mixed, " (varios)"); /* el texto lo fija 04-i18n-init.js según el idioma */
     font-style: italic;
     color: var(--muted);
   }

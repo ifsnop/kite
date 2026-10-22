@@ -16,10 +16,14 @@ src/index.html     plantilla: <head>, CSP, diálogos, <script> de CDN.
                    Dos marcadores: {{STYLES}} y {{SCRIPTS}}
 src/styles.css     todo el CSS
 src/sw.js          service worker del uso sin conexión (ver offline.md)
-src/js/*.js        29 archivos, en el orden del manifiesto de build.js
-                   (el primero, 05-mdi-icons.js, es GENERADO)
+src/js/*.js        33 archivos, en el orden del manifiesto de build.js
+                   (03-i18n.js primero; 05-mdi-icons.js es GENERADO;
+                   04-i18n-xx.js, un diccionario por idioma)
 build.js           concatena src/ → kitelocal.html, y minifica ese
                    resultado → kitelocal.min.html
+i18n-tool.js       Claves de la interfaz y diccionarios (npm run i18n,
+                   sync/new/missing; ver i18n.md). Lo usa también
+                   tests/i18n.js. Necesita acorn (dependencia declarada)
 fetch-icons.js     GENERA src/js/05-mdi-icons.js (npm run icons). A mano,
                    NO forma parte del build: es lo único que habla con
                    Iconify y construir debe ser reproducible y sin red

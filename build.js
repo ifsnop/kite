@@ -45,9 +45,17 @@ const OUT_SW = path.join(ROOT, "sw.js");
    contrato solo existía como "está más arriba en el scroll"; aquí se
    lee y se revisa en el diff. Al mover un archivo de sitio, pensarlo. */
 const JS = [
+  "03-i18n.js",           /* idiomas de la interfaz: tr(), trn(), registro de idiomas y
+                             traductor del HTML. Sin dependencias; va el primero para
+                             que cualquier archivo posterior pueda llamar a tr() en su
+                             nivel superior, una vez fijado el idioma (04-i18n-init)  */
+  "04-i18n-en.js",        /* diccionario inglés (registerLang). Un idioma nuevo es un
+                             archivo igual a este y una línea más aquí, ANTES de init  */
+  "04-i18n-init.js",      /* fija el idioma elegido y traduce el HTML estático; va tras
+                             todos los diccionarios (necesita saber cuáles hay)       */
   "05-mdi-icons.js",      /* GENERADO por fetch-icons.js: cuerpos SVG empotrados.
-                             Va el primero por ser datos puros, sin ninguna
-                             dependencia, y para que nada pueda usarlo antes  */
+                             Datos puros, sin ninguna dependencia, y antes de
+                             todo lo que los use                              */
   "06-offline.js",        /* uso sin conexión: lista del service worker, indicador
                              «Sin conexión» y netFailText; solo DECLARA funciones */
   "07-lazy-libs.js",      /* html2canvas, geotiff.js y proj4js bajo demanda

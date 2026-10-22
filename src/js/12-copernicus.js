@@ -19,7 +19,7 @@ const COP_WMS_BASE = "https://sh.dataspace.copernicus.eu/ogc/wms/";
 const COP_TIMEOUT = 15000;
 /* La configuración del usuario puede publicar cualquier cosa, no solo
    elevación, y no hay grupos anidados que agrupar: una sola caja.    */
-const COP_WMS_OPTS = { exclude: new Set(), rootGroup: "Capas de tu configuración" };
+const COP_WMS_OPTS = { exclude: new Set(), rootGroup: N_("Capas de tu configuración") };
 
 let shInstanceId = null;       /* credencial del usuario, si la ha dado */
 let copCatalog = null;
@@ -54,14 +54,14 @@ async function fetchCopernicusCatalog() {
     if (ex) throw new Error(ex.msg);
     if (!r.ok) throw new Error(describeHttp(r.status));
     const entries = parseWmsCapabilities(txt, COP_WMS_OPTS);
-    if (!entries) throw new Error("tu configuración de Sentinel Hub no publica ninguna capa");
+    if (!entries) throw new Error(tr("tu configuración de Sentinel Hub no publica ninguna capa"));
     if (!stale()) copCatalog = entries;
     return entries;
   })().catch(err => {
     if (copDiscovering === discovering) copDiscovering = null; /* permite reintentar en la próxima llamada */
     if (!stale()) {
-      copError = err.name === "TimeoutError" ? "el servicio no responde"
-        : err.message === "Failed to fetch" ? netFailText("no se pudo conectar con Sentinel Hub")
+      copError = err.name === "TimeoutError" ? tr("el servicio no responde")
+        : err.message === "Failed to fetch" ? netFailText(tr("no se pudo conectar con Sentinel Hub"))
         : err.message;
     }
     throw err;
@@ -100,7 +100,7 @@ function setInstanceId(id) {
    corren con el script ya evaluado, así que no hay zona muerta.      */
 const DYNAMIC_SOURCES = {
   "pnoa-hist": {
-    selectTitle: "Año / vuelo",
+    selectTitle: tr("Año / vuelo"),
     get: () => pnoaHistCatalog,
     error: () => pnoaHistError,
     ensure: ensurePnoaHistCatalog,
@@ -108,15 +108,15 @@ const DYNAMIC_SOURCES = {
     groups: groupPnoaHistEntries
   },
   "copernicus": {
-    selectTitle: "Capa de Copernicus",
+    selectTitle: tr("Capa de Copernicus"),
     get: () => copCatalog,
     error: () => copError,
     ensure: ensureCopernicusCatalog,
     pickDefault: entries => entries[0] && entries[0].name,
     groups: entries => [{ group: COP_WMS_OPTS.rootGroup, items: entries }],
     blocked: () => shInstanceId ? null : {
-      label: "Requiere credencial",
-      hint: "Configurar la credencial de Sentinel Hub que exige Copernicus"
+      label: tr("Requiere credencial"),
+      hint: tr("Configurar la credencial de Sentinel Hub que exige Copernicus")
     },
     configure: () => openShCredsDialog()
   },
@@ -128,8 +128,8 @@ const DYNAMIC_SOURCES = {
      solo se llama para fuentes "dynamic").                            */
   "custom-tiles": {
     blocked: () => customTilesUrl ? null : {
-      label: "Requiere URL",
-      hint: "Configurar la URL del servidor de teselas de Custom Tile Map Service"
+      label: tr("Requiere URL"),
+      hint: tr("Configurar la URL del servidor de teselas de Custom Tile Map Service")
     },
     configure: () => openCustomTilesDialog()
   },
@@ -137,15 +137,15 @@ const DYNAMIC_SOURCES = {
      catálogo (el GetCapabilities del servidor del usuario): fuente
      completa, como Copernicus, bloqueada mientras no haya dirección.   */
   "custom-wms": {
-    selectTitle: "Capa del servidor WMS",
+    selectTitle: tr("Capa del servidor WMS"),
     get: () => customWmsCatalog,
     error: () => customWmsError,
     ensure: ensureCustomWmsCatalog,
     pickDefault: entries => entries[0] && entries[0].name,
     groups: groupWmsEntries,
     blocked: () => customWmsUrl ? null : {
-      label: "Requiere URL",
-      hint: "Configurar la URL del servidor de Custom Web Map Service"
+      label: tr("Requiere URL"),
+      hint: tr("Configurar la URL del servidor de Custom Web Map Service")
     },
     configure: () => openCustomWmsDialog()
   }

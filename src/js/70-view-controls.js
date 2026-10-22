@@ -28,7 +28,7 @@ const ViewControl = L.Control.extend({
     const fit = L.DomUtil.create("a", "", bar);
     fit.href = "#";
     fit.textContent = "\u2922";
-    fit.title = "Autoescalar: ajustar el zoom a lo cargado";
+    fit.title = tr("Autoescalar: ajustar el zoom a lo cargado");
     fit.addEventListener("click", e => { e.preventDefault(); fitToContent(); });
 
     const ib = L.DomUtil.create("a", "", bar);
@@ -36,7 +36,7 @@ const ViewControl = L.Control.extend({
     ib.textContent = "IB";
     ib.style.fontSize = "11px";
     ib.style.fontWeight = "600";
-    ib.title = "Centrar la vista en la pen\u00EDnsula y Baleares";
+    ib.title = tr("Centrar la vista en la pen\u00EDnsula y Baleares");
     ib.addEventListener("click", e => { e.preventDefault(); centerIberia(); });
 
     const gc = L.DomUtil.create("a", "", bar);
@@ -44,19 +44,19 @@ const ViewControl = L.Control.extend({
     gc.textContent = "GC";
     gc.style.fontSize = "11px";
     gc.style.fontWeight = "600";
-    gc.title = "Centrar la vista en las islas Canarias";
+    gc.title = tr("Centrar la vista en las islas Canarias");
     gc.addEventListener("click", e => { e.preventDefault(); centerCanaries(); });
 
     gratButton = L.DomUtil.create("a", "", bar);
     gratButton.href = "#";
     gratButton.textContent = "#";
-    gratButton.title = "Mostrar / ocultar paralelos y meridianos";
+    gratButton.title = tr("Mostrar / ocultar paralelos y meridianos");
     gratButton.addEventListener("click", e => { e.preventDefault(); toggleGraticule(); });
 
     dnButton = L.DomUtil.create("a", "dn-toggle", bar);
     dnButton.href = "#";
     dnButton.textContent = "☀";
-    dnButton.title = "Iluminación real: sombrea el mapa según la posición del sol ahora mismo (efecto visual)";
+    dnButton.title = tr("Iluminación real: sombrea el mapa según la posición del sol ahora mismo (efecto visual)");
     dnButton.addEventListener("click", e => { e.preventDefault(); toggleDayNight(); });
 
     L.DomEvent.disableClickPropagation(bar);
@@ -213,8 +213,8 @@ const CompassControl = L.Control.extend({
     const box = L.DomUtil.create("div", "compass-box leaflet-bar");
     const a = L.DomUtil.create("a", "compass-btn", box);
     a.href = "#";
-    a.title = "Brújula: arrastra para girar el mapa; clic (o R sobre el visor) vuelve a poner el norte arriba";
-    a.setAttribute("aria-label", "Brújula: clic para poner el norte arriba");
+    a.title = tr("Brújula: arrastra para girar el mapa; clic (o R sobre el visor) vuelve a poner el norte arriba");
+    a.setAttribute("aria-label", tr("Brújula: clic para poner el norte arriba"));
     a.innerHTML = COMPASS_SVG;
     compassEl = box;
     let drag = null, dragged = false;
@@ -386,7 +386,7 @@ const CoordsControl = L.Control.extend({
      modelo que la produce y solo aparece si ese modelo se consultó; la
      diferencia, solo cuando los DOS valores son números de verdad.   */
   showElevationCell(cell) {
-    const fmt = v => (v === null || v === undefined ? "sin datos" : fmtHeight(v, altitudeUnit));
+    const fmt = v => (v === null || v === undefined ? tr("sin datos") : fmtHeight(v, altitudeUnit));
     const t = !!cell && hasMdt(cell), s = !!cell && hasMds(cell);
     this._rows[4].hidden = !t;
     this._rows[4].title = "";
@@ -395,7 +395,7 @@ const CoordsControl = L.Control.extend({
     if (s) {
       let line = `${ELEV_KIND_LABEL.mds}: ${fmt(cell.mds)}`;
       if (typeof cell.diff === "number") {
-        line += ` \u00B7 sobre el suelo ${cell.diff >= 0 ? "+" : ""}${fmtHeight(cell.diff, altitudeUnit)}`;
+        line += " \u00B7 " + tr("sobre el suelo {diff}", { diff: (cell.diff >= 0 ? "+" : "") + fmtHeight(cell.diff, altitudeUnit) });
       }
       this._rows[5].textContent = line;
     }
@@ -406,12 +406,12 @@ const CoordsControl = L.Control.extend({
   showDemAltitude(r) {
     if (!r) return;
     this._rows[4].hidden = false;
-    this._rows[4].textContent = `Altitud: ${fmtHeight(r.value, altitudeUnit)}`;
+    this._rows[4].textContent = tr("Altitud: {height}", { height: fmtHeight(r.value, altitudeUnit) });
     this._rows[4].title = r.name;
   },
   /* El zoom no depende del cursor, así que se refresca aparte */
   updateZoom() {
-    this._rows[0].textContent = `zoom ${map.getZoom()} de ${map.getMaxZoom()}`;
+    this._rows[0].textContent = tr("zoom {zoom} de {max}", { zoom: map.getZoom(), max: map.getMaxZoom() });
   },
   update(latlng) {
     const { lat, lng } = latlng;
@@ -765,44 +765,44 @@ const easeOutCubic = k => 1 - Math.pow(1 - k, 3);
    la barra de herramientas.                                          */
 const CTX_MENU_ITEMS = [
   {
-    label: "Copiar coordenadas",
+    label: tr("Copiar coordenadas"),
     action(latlng) {
       const txt = `${formatCoord(latlng.lat, true, "dec")}, ${formatCoord(latlng.lng, false, "dec")}`;
       navigator.clipboard.writeText(txt)
-        .then(() => navMessage("Coordenadas copiadas al portapapeles.", { tone: "info" }))
-        .catch(() => navMessage("No se pudieron copiar las coordenadas."));
+        .then(() => navMessage(tr("Coordenadas copiadas al portapapeles."), { tone: "info" }))
+        .catch(() => navMessage(tr("No se pudieron copiar las coordenadas.")));
     }
   },
   /* Descarga MDT/MDS de la tesela bajo el puntero, con las fuentes de
      Propiedades → Fuentes de datos (ver queryElevationAt).          */
-  { label: "Consultar elevación aquí", action: latlng => queryElevationAt(latlng),
+  { label: tr("Consultar elevación aquí"), action: latlng => queryElevationAt(latlng),
     disabled: () => elevQueryDisabled() },
   /* Las tres mediciones agrupadas en un submenú: son la misma familia y
      tres entradas sueltas desbordaban el menú.                        */
   {
-    label: "Medir",
+    label: tr("Medir"),
     items: [
-      { label: "Ruta", action: () => setTool(activeTool === "route" ? null : "route") },
-      { label: "Círculo", action: () => setTool(activeTool === "circle" ? null : "circle") },
-      { label: "Arco", action: () => setTool(activeTool === "arc" ? null : "arc") }
+      { label: tr("Ruta"), action: () => setTool(activeTool === "route" ? null : "route") },
+      { label: tr("Círculo"), action: () => setTool(activeTool === "circle" ? null : "circle") },
+      { label: tr("Arco"), action: () => setTool(activeTool === "arc" ? null : "arc") }
     ]
   },
-  { label: "Dibujar polígono o línea", action: () => setTool(activeTool === "polygon" ? null : "polygon") },
+  { label: tr("Dibujar polígono o línea"), action: () => setTool(activeTool === "polygon" ? null : "polygon") },
   { separator: true },
-  { label: "Crear un pin", action: () => createPin() },
+  { label: tr("Crear un pin"), action: () => createPin() },
   { separator: true },
-  { label: "Exportar PNG", action: () => exportMapPng() },
+  { label: tr("Exportar PNG"), action: () => exportMapPng() },
   { separator: true },
-  { label: "Centrar en el contenido", action: () => fitToContent() },
-  { label: "Centrar en la península y Baleares", action: () => centerIberia() },
-  { label: "Centrar en las islas Canarias", action: () => centerCanaries() },
-  { label: "Paralelos y meridianos", checked: () => graticuleOn, action: () => toggleGraticule() }
+  { label: tr("Centrar en el contenido"), action: () => fitToContent() },
+  { label: tr("Centrar en la península y Baleares"), action: () => centerIberia() },
+  { label: tr("Centrar en las islas Canarias"), action: () => centerCanaries() },
+  { label: tr("Paralelos y meridianos"), checked: () => graticuleOn, action: () => toggleGraticule() }
 ];
 const ctxMenuEl = document.createElement("div");
 ctxMenuEl.id = "map-ctxmenu";
 ctxMenuEl.className = "ctx-menu";
 ctxMenuEl.setAttribute("role", "menu");
-ctxMenuEl.setAttribute("aria-label", "Menú contextual del visor");
+ctxMenuEl.setAttribute("aria-label", tr("Menú contextual del visor"));
 ctxMenuEl.hidden = true;
 document.body.appendChild(ctxMenuEl);
 let ctxSubmenuEl = null; /* como mucho un submenú abierto a la vez */
@@ -882,9 +882,9 @@ const STYLE_EDITABLE_KINDS = new Set(["marker", "polygon", "measure", "imageOver
    enseñar (igual criterio que el botón ℹ de la fila), y editar
    propiedades si el diálogo de estilos aplica a su tipo.              */
 function layerCtxItems(li) {
-  const items = [{ label: "Ir al nodo en el panel", action: () => goToNodeAndBlink(li) }];
-  if (infoHtmlFor(li) != null) items.push({ label: "Mostrar atributos", action: () => showLayerInfoAndBlink(li) });
-  if (STYLE_EDITABLE_KINDS.has(styleKind(li))) items.push({ label: "Editar propiedades", action: () => editPropertiesAndBlink(li) });
+  const items = [{ label: tr("Ir al nodo en el panel"), action: () => goToNodeAndBlink(li) }];
+  if (infoHtmlFor(li) != null) items.push({ label: tr("Mostrar atributos"), action: () => showLayerInfoAndBlink(li) });
+  if (STYLE_EDITABLE_KINDS.has(styleKind(li))) items.push({ label: tr("Editar propiedades"), action: () => editPropertiesAndBlink(li) });
   /* Una ruta (también un arco, que es una ruta) da su perfil: «Obtener»
      o, si ya lo tiene, «Mostrar»; el motivo de no poder obtenerlo va en
      el ítem deshabilitado (sin fuentes, demasiado larga).            */
@@ -902,18 +902,18 @@ function ctxItemsFor(hits) {
   const withInfo = hits.filter(li => infoHtmlFor(li) != null);
   const editable = hits.filter(li => STYLE_EDITABLE_KINDS.has(styleKind(li)));
   const items = [{
-    label: "Ir al nodo en el panel",
+    label: tr("Ir al nodo en el panel"),
     items: hits.map(li => ({ label: li._name, action: () => goToNodeAndBlink(li) }))
   }];
   if (withInfo.length) {
     items.push({
-      label: "Mostrar atributos",
+      label: tr("Mostrar atributos"),
       items: withInfo.map(li => ({ label: li._name, action: () => showLayerInfoAndBlink(li) }))
     });
   }
   if (editable.length) {
     items.push({
-      label: "Editar propiedades",
+      label: tr("Editar propiedades"),
       items: editable.map(li => ({ label: li._name, action: () => editPropertiesAndBlink(li) }))
     });
   }
@@ -927,7 +927,7 @@ function ctxItemsFor(hits) {
   if (routes.length === 1) items.push(routeProfileCtxItem(routes[0]));
   else if (routes.length > 1) {
     items.push({
-      label: "Perfil de ruta",
+      label: tr("Perfil de ruta"),
       items: routes.map(li => ({ ...routeProfileCtxItem(li), label: li._name }))
     });
   }
@@ -1151,7 +1151,7 @@ async function checkServerVersion() {
   if (tag !== serverVersionTag) {
     updateNoticeShown = true;
     navMessage(
-      "Hay una versión nueva de KITE Local en el servidor. Recarga la página cuando puedas (F5) para actualizar.",
+      tr("Hay una versión nueva de KITE Local en el servidor. Recarga la página cuando puedas (F5) para actualizar."),
       { sticky: true } /* tono por defecto ("error", en rojo): igual que los avisos de carga fallida, para que destaque */
     );
   }

@@ -45,7 +45,7 @@ function validGeometry(geom, depth = 0) {
    (une los objetos con nombre en una sola lista de features), para que a
    partir de aquí siga el proceso habitual de importar un JSON.        */
 function topologyToGeoJson(topology) {
-  if (typeof topojson === "undefined") throw new Error("no se pudo cargar el soporte de TopoJSON");
+  if (typeof topojson === "undefined") throw new Error(tr("no se pudo cargar el soporte de TopoJSON"));
   const features = [];
   for (const name of Object.keys(topology.objects || {})) {
     const fc = topojson.feature(topology, topology.objects[name]);
@@ -60,11 +60,11 @@ function topologyToGeoJson(topology) {
    buildGeoJsonRecords, y la reutiliza addFileNode para mirar el primer
    Feature antes de construir nada (elegir la propiedad-nombre).      */
 function geojsonFeatures(gj) {
-  if (!gj || typeof gj !== "object") throw new Error("no parece un GeoJSON");
+  if (!gj || typeof gj !== "object") throw new Error(tr("no parece un GeoJSON"));
   if (gj.type === "FeatureCollection") return Array.isArray(gj.features) ? gj.features : [];
   if (gj.type === "Feature") return [gj];
   if (GEOJSON_TYPES.has(gj.type)) return [{ type: "Feature", geometry: gj, properties: {} }];
-  throw new Error("no parece un GeoJSON");
+  throw new Error(tr("no parece un GeoJSON"));
 }
 
 /* Hay que preguntar (o aplicar lo guardado) siempre que el primer Feature
@@ -102,7 +102,7 @@ function composeFeatureName(props, keys) {
    Sin `name`/`title` de respaldo a propósito: si el elemento no tiene
    ninguna de esas claves, sale «Elemento N».                         */
 function resolveFeatureName(props, index, nameKeys) {
-  return composeFeatureName(props, nameKeys) || `Elemento ${index + 1}`;
+  return composeFeatureName(props, nameKeys) || tr("Elemento {n}", { n: index + 1 });
 }
 
 async function buildGeoJsonRecords(gj, prog, report, nameKeys = null) {
@@ -117,8 +117,8 @@ async function buildGeoJsonRecords(gj, prog, report, nameKeys = null) {
       if (!feature || !validGeometry(feature.geometry)) {
         if (report) {
           report.warn(feature && feature.geometry
-            ? `geometr\u00EDa no v\u00E1lida o fuera de rango (${feature.geometry.type || "sin tipo"})`
-            : "elemento sin geometr\u00EDa");
+            ? tr("geometr\u00EDa no v\u00E1lida o fuera de rango ({type})", { type: feature.geometry.type || tr("sin tipo") })
+            : tr("elemento sin geometr\u00EDa"));
         }
         continue;
       }
@@ -251,7 +251,7 @@ function openDb() {
       resolve(db);
     };
     rq.onerror = () => { dbPromise = null; reject(rq.error); };
-    rq.onblocked = () => navMessage("Otra pesta\u00F1a est\u00E1 usando el almacenamiento; ci\u00E9rrela para continuar.");
+    rq.onblocked = () => navMessage(tr("Otra pesta\u00F1a est\u00E1 usando el almacenamiento; ci\u00E9rrela para continuar."));
   }).catch(err => { dbPromise = null; throw err; });
   return dbPromise;
 }
@@ -426,20 +426,20 @@ function withUndo(label, fn) {
 
 async function undoLast() {
   const state = undoStack.pop();
-  if (!state) { navMessage("No hay nada que deshacer."); return; }
+  if (!state) { navMessage(tr("No hay nada que deshacer.")); return; }
   /* Antes de retroceder se guarda el presente, que es lo que habrá que
      recuperar al rehacer                                             */
   redoStack.push({ label: state.label, nodes: serializeTree() });
   await applySnapshot(state.nodes);
-  navMessage(`Deshecho: ${state.label}.`, { tone: "info" });
+  navMessage(tr("Deshecho: {label}.", { label: state.label }), { tone: "info" });
 }
 
 async function redoLast() {
   const state = redoStack.pop();
-  if (!state) { navMessage("No hay nada que rehacer."); return; }
+  if (!state) { navMessage(tr("No hay nada que rehacer.")); return; }
   undoStack.push({ label: state.label, nodes: serializeTree() });
   await applySnapshot(state.nodes);
-  navMessage(`Rehecho: ${state.label}.`, { tone: "info" });
+  navMessage(tr("Rehecho: {label}.", { label: state.label }), { tone: "info" });
 }
 
 /* ---------- Vista guardada (centro y zoom) ----------
@@ -1032,8 +1032,8 @@ async function dbLoadTree() {
          con elementos omitidos.                                     */
       if (rec) {
         st.delete("root");
-        navMessage("El árbol guardado en este navegador es de una versión "
-          + "anterior, incompatible con esta, y se ha eliminado.",
+        navMessage(tr("El árbol guardado en este navegador es de una versión "
+          + "anterior, incompatible con esta, y se ha eliminado."),
           { sticky: true });
       }
       resolve(null);
@@ -1180,10 +1180,11 @@ function treeExportDoc(nodes) {
 function exportNode(li) {
   const { nodes, left } = withoutCogNodes(serializeNode(li));
   if (left.length) {
-    navMessage(`Las ortofotos COG no se exportan (pueden ocupar gigas): se queda${left.length > 1 ? "n" : ""} `
-      + `fuera ${left.map(n => `\u00AB${n}\u00BB`).join(", ")}.`, { sticky: true, tone: "info" });
+    navMessage(trn(left.length, "Las ortofotos COG no se exportan (pueden ocupar gigas): se queda fuera {names}.",
+      "Las ortofotos COG no se exportan (pueden ocupar gigas): se quedan fuera {names}.",
+      { names: left.map(n => `\u00AB${n}\u00BB`).join(", ") }), { sticky: true, tone: "info" });
   }
-  if (!nodes.length) { navMessage("No hay nada que descargar en este nodo."); return; }
+  if (!nodes.length) { navMessage(tr("No hay nada que descargar en este nodo.")); return; }
   const doc = treeExportDoc(nodes);
   const url = URL.createObjectURL(new Blob([JSON.stringify(doc)], { type: "application/json" }));
   const a = document.createElement("a");
@@ -1193,7 +1194,7 @@ function exportNode(li) {
   /* Algunos navegadores leen el blob después de volver de click():
      revocarlo en el acto cancela la descarga. Se libera más tarde.  */
   setTimeout(() => URL.revokeObjectURL(url), 60000);
-  navMessage(`Descargado \u00AB${a.download}\u00BB.`, { tone: "info" }); /* confirma lo pedido: notificación, no alerta */
+  navMessage(tr("Descargado \u00AB{download}\u00BB.", { download: a.download }), { tone: "info" }); /* confirma lo pedido: notificación, no alerta */
 }
 
 /* Quita los nodos "cog" de unos registros serializados, a cualquier
@@ -1227,22 +1228,22 @@ async function importTreeExport(doc, fileName, insertBefore, dropTargetUl = null
   /* Dos comprobaciones distintas: el envoltorio y los registros */
   const format = doc.format === undefined ? 0 : doc.format;
   if (format !== EXPORT_FORMAT) {
-    throw new Error(`archivo de formato v${format}, incompatible con el actual v${EXPORT_FORMAT}`);
+    throw new Error(tr("archivo de formato v{format}, incompatible con el actual v{exportFormat}", { format, exportFormat: EXPORT_FORMAT }));
   }
   /* Misma excepci\u00F3n deliberada que dbLoadTree (ver TREE_SCHEMA v7):
      un .kite.json exportado por una v6 se sube en silencio en vez de
      rechazarse.                                                      */
   if (doc.schema === 6) upgradeMeasuresV6(doc.nodes);
   else if (doc.schema !== TREE_SCHEMA && doc.schema !== 7) { /* v7 = v8 sin COG */
-    throw new Error(`formato de \u00E1rbol v${doc.schema}, incompatible con el actual v${TREE_SCHEMA}`);
+    throw new Error(tr("formato de \u00E1rbol v{schema}, incompatible con el actual v{treeSchema}", { schema: doc.schema, treeSchema: TREE_SCHEMA }));
   }
-  if (!doc.nodes.length) throw new Error("el archivo no contiene ning\u00FAn nodo");
+  if (!doc.nodes.length) throw new Error(tr("el archivo no contiene ning\u00FAn nodo"));
   const ul = dropTargetUl || ensureRootUl();
   const before = new Set(ul.children);
   const total = countRecords(doc.nodes);
   const prog = total > PROGRESS_BATCH ? {
     done: 0,
-    update: d => progress.set(100 * d / total, `Construyendo ${fileName}\u2026 (${d}/${total})`)
+    update: d => progress.set(100 * d / total, tr("Construyendo {fileName}\u2026 ({d}/{total})", { fileName, d, total }))
   } : null;
   try {
     const records = await buildRecordsFromStorage(doc.nodes, prog);
@@ -1288,14 +1289,14 @@ async function refreshStorageUsage() {
   const el = document.getElementById("storage-usage");
   if (!el) return;
   if (!navigator.storage || !navigator.storage.estimate) {
-    el.textContent = "Almacenamiento usado: no disponible en este navegador.";
+    el.textContent = tr("Almacenamiento usado: no disponible en este navegador.");
     return;
   }
   try {
     const { usage } = await navigator.storage.estimate();
-    el.textContent = `Almacenamiento usado: ${fmtBytes(usage || 0)}`;
+    el.textContent = tr("Almacenamiento usado: {size}", { size: fmtBytes(usage || 0) });
   } catch {
-    el.textContent = "Almacenamiento usado: no disponible.";
+    el.textContent = tr("Almacenamiento usado: no disponible.");
   }
 }
 
@@ -1338,8 +1339,8 @@ function memoryUsageText() {
   if (location.protocol === "file:") return null;
   const m = performance.memory;
   if (!m || !isFinite(m.usedJSHeapSize)) return null;
-  return `Memoria de la pestaña: ${fmtBytes(m.usedJSHeapSize)}`
-    + ` de ${fmtBytes(m.jsHeapSizeLimit)}`;
+  return tr("Memoria de la pestaña: {used} de {limit}",
+    { used: fmtBytes(m.usedJSHeapSize), limit: fmtBytes(m.jsHeapSizeLimit) });
 }
 function refreshMemoryUsage() {
   const el = document.getElementById("memory-usage");
@@ -1362,7 +1363,7 @@ function saveTree() {
       /* Un solo aviso por racha de fallos, para no inundar el panel */
       if (!savePending) {
         savePending = true;
-        navMessage(`No se pudo guardar el estado en el navegador: ${err && err.message ? err.message : "error de almacenamiento"}.`);
+        navMessage(tr("No se pudo guardar el estado en el navegador: {reason}.", { reason: err && err.message ? err.message : tr("error de almacenamiento") }));
         setTimeout(() => { savePending = false; }, 5000);
       }
     });
@@ -1383,7 +1384,7 @@ async function restoreTree(nodes) {
   const total = countLayers(nodes);
   const prog = total > 500 ? {
     done: 0,
-    update: d => progress.set(100 * d / total, `Restaurando capas\u2026 (${d}/${total})`)
+    update: d => progress.set(100 * d / total, tr("Restaurando capas\u2026 ({d}/{total})", { d, total }))
   } : null;
   const records = await buildRecordsFromStorage(nodes, prog);
   if (prog) progress.hide();

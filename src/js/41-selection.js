@@ -13,8 +13,8 @@ function selectAllStep(cur) {
   setSelCursor(target[target.length - 1]);
   selAnchor = target[0];
   navMessage(already
-    ? `Seleccionado todo el \u00E1rbol (${target.length} nodos).`
-    : `Seleccionada la carpeta actual (${target.length} nodos). Ctrl+A otra vez para todo.`,
+    ? tr("Seleccionado todo el \u00E1rbol ({n} nodos).", { n: target.length })
+    : tr("Seleccionada la carpeta actual ({n} nodos). Ctrl+A otra vez para todo.", { n: target.length }),
     { tone: "info" });
 }
 
@@ -45,7 +45,7 @@ document.addEventListener("keydown", e => {
   if (activeTool === "route" && (routeDraft || routeMeasurement)) return;
   const items = topLevelSelection();
   const next = cursorAfterDelete(isRow(selCursor) ? selCursor : items[0], items);
-  pushUndo(`borrar ${items.length} nodo(s)`);
+  pushUndo(tr("borrar {n} nodo(s)", { n: items.length }));
   for (const s of items) deleteNode(s, { pruneSelection: false });
   clearSelection();
   if (next) selectNode(next, true);
@@ -80,27 +80,27 @@ const DEFAULT_MARKER_STYLE = {
    All names but LEAFLET_PIN are Material Design Icons served by Iconify. */
 const MDI_ICONS = [
   ["Leaflet", [LEAFLET_PIN]],
-  ["Banderas", ["flag", "flag-outline", "flag-checkered", "flag-variant",
+  [tr("Banderas"), ["flag", "flag-outline", "flag-checkered", "flag-variant",
     "flag-variant-outline", "flag-triangle"]],
-  ["Estrellas", ["star", "star-outline", "star-four-points",
+  [tr("Estrellas"), ["star", "star-outline", "star-four-points",
     "star-four-points-outline", "star-circle", "star-circle-outline", "star-face"]],
-  ["C\u00EDrculos numerados", ["numeric-0-circle", "numeric-1-circle",
+  [tr("C\u00EDrculos numerados"), ["numeric-0-circle", "numeric-1-circle",
     "numeric-2-circle", "numeric-3-circle", "numeric-4-circle", "numeric-5-circle",
     "numeric-6-circle", "numeric-7-circle", "numeric-8-circle", "numeric-9-circle",
     "numeric-9-plus-circle"]],
-  ["N\u00FAmeros en caja", ["numeric-0-box", "numeric-1-box", "numeric-2-box",
+  [tr("N\u00FAmeros en caja"), ["numeric-0-box", "numeric-1-box", "numeric-2-box",
     "numeric-3-box", "numeric-4-box", "numeric-5-box", "numeric-6-box",
     "numeric-7-box", "numeric-8-box", "numeric-9-box"]],
-  ["Aviaci\u00F3n", ["airplane", "airplane-takeoff", "airplane-landing",
+  [tr("Aviaci\u00F3n"), ["airplane", "airplane-takeoff", "airplane-landing",
     "airport", "helicopter", "radar", "parachute"]],
-  ["Barco", ["ferry", "sail-boat", "anchor", "submarine", "ship-wheel",
+  [tr("Barco"), ["ferry", "sail-boat", "anchor", "submarine", "ship-wheel",
     "lighthouse", "compass"]],
-  ["Transporte", ["car", "car-side", "bus", "bus-stop", "train",
+  [tr("Transporte"), ["car", "car-side", "bus", "bus-stop", "train",
     "subway-variant", "tram", "truck", "motorbike", "bike", "taxi", "rocket"]],
-  ["Figuras geom\u00E9tricas", ["circle", "circle-outline", "square",
+  [tr("Figuras geom\u00E9tricas"), ["circle", "circle-outline", "square",
     "square-outline", "triangle", "triangle-outline", "hexagon", "pentagon",
     "rhombus", "octagon"]],
-  ["Se\u00F1ales", ["sign-caution", "sign-direction", "sign-pole", "sign-text",
+  [tr("Se\u00F1ales"), ["sign-caution", "sign-direction", "sign-pole", "sign-text",
     "traffic-light", "road-variant", "alert", "alert-octagon", "map-marker-alert"]]
 ];
 
@@ -184,7 +184,7 @@ function propertiesTableHtml(props) {
     .join("");
   return `<div class="props-wrap"><table class="props">${rows}</table>`
     + '<div class="props-grip" role="separator" aria-orientation="vertical"'
-    + ' title="Arrastre para repartir el ancho entre clave y valor"></div></div>';
+    + ` title="${tr("Arrastre para repartir el ancho entre clave y valor")}"></div></div>`;
 }
 
 /* Ficha propia de la capa: la KML si la tiene, si no la tabla de
