@@ -206,8 +206,8 @@ const { document } = parseHTML(html);
 const lazy = between("const LAZY_LIBS", "const lazyLibPromises");
 const build = new Function("document", "navigator",
   lazy + "\n" + constDecl("LEAFLET_PIN_URL") + "\n" + constDecl("LEAFLET_PIN_SHADOW") + "\n" +
-  constDecl("OFFLINE_WHY") + "\n" + fn("isOffline") + "\n" + fn("netFailText") + "\n" + fn("precacheItems") +
-  "\nreturn { LAZY_LIBS, LEAFLET_PIN_URL, LEAFLET_PIN_SHADOW, OFFLINE_WHY, isOffline, netFailText, precacheItems };");
+  fn("isOffline") + "\n" + fn("netFailText") + "\n" + fn("precacheItems") +
+  "\nreturn { LAZY_LIBS, LEAFLET_PIN_URL, LEAFLET_PIN_SHADOW, isOffline, netFailText, precacheItems };");
 const env = build(document, { onLine: true });
 const items = env.precacheItems();
 const urls = items.map(i => i.url);
@@ -226,7 +226,7 @@ for (const it of items) ok(api.validPrecacheItem(it), "el worker acepta lo que l
 
 /* ---------- 5. «Sin conexión» solo con seguridad ---------- */
 const mk = onLine => build(document, onLine === undefined ? {} : { onLine });
-ok(mk(false).netFailText("genérico") === mk(false).OFFLINE_WHY, "sin interfaz de red: «sin conexión»");
+ok(mk(false).netFailText("genérico") === "sin conexión a la red", "sin interfaz de red: «sin conexión»");
 ok(mk(true).netFailText("genérico") === "genérico", "con interfaz de red: el texto de siempre (puede ser CORS)");
 ok(mk().netFailText("genérico") === "genérico", "navegador que no informa: el de siempre");
 ok(mk(false).isOffline() === true && mk(true).isOffline() === false, "isOffline");

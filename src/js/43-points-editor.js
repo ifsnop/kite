@@ -74,7 +74,7 @@ function textToPoints(text) {
     const f = line.includes("\t") ? line.split("\t").map(s => s.trim()).filter(s => s !== "")
       : /[,;]/.test(line) ? line.split(/[,;]+/).map(s => s.trim()).filter(s => s !== "")
       : line.split(/\s+/).filter(s => s !== "");
-    if (f.length < 2) { errors.push({ line: i + 1, text: raw, why: "hacen falta al menos latitud y longitud" }); return; }
+    if (f.length < 2) { errors.push({ line: i + 1, text: raw, why: tr("hacen falta al menos latitud y longitud") }); return; }
     /* Latitud y longitud PRIMERO: en una línea de texto basura los tres
        campos fallan, y decir "altitud no numérica" mandaría a mirar la
        columna equivocada. parseCoord acepta decimal o GMS sin necesitar
@@ -82,13 +82,13 @@ function textToPoints(text) {
        ESCRIBE, ver pointsToText).                                      */
     const lat = parseCoordRaw(f[0], true), lng = parseCoordRaw(f[1], false);
     if (!isFinite(lat) || !isFinite(lng)) {
-      errors.push({ line: i + 1, text: raw, why: "latitud o longitud no numérica" });
+      errors.push({ line: i + 1, text: raw, why: tr("latitud o longitud no numérica") });
       return;
     }
     const alt = f.length > 2 ? Number(f[2]) : undefined;
-    if (f.length > 2 && !isFinite(alt)) { errors.push({ line: i + 1, text: raw, why: "altitud no numérica" }); return; }
+    if (f.length > 2 && !isFinite(alt)) { errors.push({ line: i + 1, text: raw, why: tr("altitud no numérica") }); return; }
     const pos = clampLatLng(lat, lng, alt);
-    if (!pos) { errors.push({ line: i + 1, text: raw, why: "latitud o longitud fuera de rango" }); return; }
+    if (!pos) { errors.push({ line: i + 1, text: raw, why: tr("latitud o longitud fuera de rango") }); return; }
     if (!current) current = [];
     current.push(pos);
   });
@@ -397,9 +397,9 @@ function beginVertexEdit(li) {
   const total = liveRings.reduce((n, r) => n + r.length, 0);
   if (!total) return false;
   if (total > vertexEditMax) {
-    navMessage(`«${li._name}» tiene ${total} vértices, por encima del tope configurado para `
-      + `editarlos sobre el mapa (${vertexEditMax}). Usa «Ver y editar…» en su diálogo de estilos, `
-      + "o sube el tope desde 🏷️ (Ventana de Propiedades).");
+    navMessage(tr("«{name}» tiene {total} vértices, por encima del tope configurado para "
+      + "editarlos sobre el mapa ({max}). Usa «Ver y editar…» en su diálogo de estilos, "
+      + "o sube el tope desde 🏷️ (Ventana de Propiedades).", { name: li._name, total, max: vertexEditMax }));
     return false;
   }
   const rings = cloneLatLngRings(liveRings);
@@ -476,7 +476,7 @@ function tryCloseAtFirstVertex(handle, e) {
   const ring = vertexEdit.handleRings[0];
   if (handle !== ring[0] || vertexSelHandle !== ring[ring.length - 1]) return false;
   if (ring.length < 3) {
-    navMessage("Faltan vértices para cerrar el polígono (mínimo 3).");
+    navMessage(tr("Faltan vértices para cerrar el polígono (mínimo 3)."));
     return true;
   }
   clearVertexSelection();
@@ -532,14 +532,14 @@ function removeVertexEditPoint(handle) {
      bloquea el borrado que sigue.                                      */
   if (vertexEdit.closed && vertexEdit.handleRings.length === 1 && vertexEdit.rings[ri].length === 3) {
     convertVertexEditShape(false);
-    navMessage(`«${vertexEdit.li._name}» se ha abierto: por debajo de 3 vértices deja de ser un `
-      + "polígono cerrado.");
+    navMessage(tr("«{name}» se ha abierto: por debajo de 3 vértices deja de ser un "
+      + "polígono cerrado.", { name: vertexEdit.li._name }));
   }
   const min = vertexEdit.closed ? 3 : 2;
   if (vertexEdit.rings[ri].length <= min) {
     navMessage(vertexEdit.closed
-      ? "Faltan vértices para seguir siendo un polígono (mínimo 3 por anillo)."
-      : "Faltan vértices para seguir siendo una línea (mínimo 2).");
+      ? tr("Faltan vértices para seguir siendo un polígono (mínimo 3 por anillo).")
+      : tr("Faltan vértices para seguir siendo una línea (mínimo 2)."));
     return;
   }
   if (vertexSelHandle === handle) clearVertexSelection();
@@ -1339,15 +1339,21 @@ function closeKtpPicker(result) {
    `properties` de un GeoJSON. El diálogo es el mismo —mismo problema,
    misma decisión del usuario— y solo cambia de qué habla.            */
 const KTP_WORDING = {
-  names: { titulo: "Etiquetas en los nombres", donde: "nombres", origen: "el KML" },
-  properties: { titulo: "Etiquetas en las propiedades", donde: "propiedades", origen: "el archivo" }
+  names: {
+    titulo: () => tr("Etiquetas en los nombres"),
+    intro: file => tr("«{file}» tiene nombres con etiquetas de tipo HTML (texto entre «<» y «>»), "
+      + "probablemente restos de la herramienta que generó el KML. ¿Eliminarlas al importar?", { file })
+  },
+  properties: {
+    titulo: () => tr("Etiquetas en las propiedades"),
+    intro: file => tr("«{file}» tiene propiedades con etiquetas de tipo HTML (texto entre «<» y «>»), "
+      + "probablemente restos de la herramienta que generó el archivo. ¿Eliminarlas al importar?", { file })
+  }
 };
 function confirmStripHtmlTags(fileName, kind = "names") {
   const w = KTP_WORDING[kind] || KTP_WORDING.names;
-  ktpTitle.textContent = w.titulo;
-  ktpIntro.textContent = `«${fileName}» tiene ${w.donde} con etiquetas de tipo HTML `
-    + `(texto entre «<» y «>»), probablemente restos de la herramienta que generó `
-    + `${w.origen}. ¿Eliminarlas al importar?`;
+  ktpTitle.textContent = w.titulo();
+  ktpIntro.textContent = w.intro(fileName);
   ktpDialog.hidden = false;
   clampToViewport(ktpBox);
   focusDialog(ktpBox);
@@ -1372,11 +1378,10 @@ function closeKdpPicker(result) {
 }
 function confirmMergeDuplicates(fileName, groups) {
   const total = groups.reduce((n, g) => n + g.length - 1, 0);
-  /* "s", no "es": el plural se pega a «nombre» y a «repetido», no a
-     «marcador(es)». Decía «2 nombrees repetidoes».                    */
-  const plural = groups.length === 1 ? "" : "s";
-  kdpIntro.textContent = `«${fileName}» tiene ${groups.length} nombre${plural} repetido${plural} `
-    + `con la misma posición (${total} marcador(es) de más). ¿Fusionarlos y mantener solo uno de cada grupo?`;
+  kdpIntro.textContent = trn(groups.length,
+    "«{file}» tiene {n} nombre repetido con la misma posición ({total} marcador(es) de más). ¿Fusionarlos y mantener solo uno de cada grupo?",
+    "«{file}» tiene {n} nombres repetidos con la misma posición ({total} marcador(es) de más). ¿Fusionarlos y mantener solo uno de cada grupo?",
+    { file: fileName, total });
   kdpDialog.hidden = false;
   clampToViewport(kdpBox);
   focusDialog(kdpBox);
@@ -1426,7 +1431,7 @@ function refreshGnpOrder() {
   gnpAccept.disabled = !gnpOrder.length;
   if (gnpSample) {
     gnpResult.textContent = gnpOrder.length
-      ? `Nombre del primer elemento: \u00AB${composeFeatureName(gnpSample, gnpOrder) || "(vac\u00EDo)"}\u00BB`
+      ? tr("Nombre del primer elemento: \u00AB{name}\u00BB", { name: composeFeatureName(gnpSample, gnpOrder) || tr("(vac\u00EDo)") })
       : "";
   }
 }
@@ -1437,9 +1442,9 @@ function refreshGnpOrder() {
 function pickNameProperty(keys, fileName, { sample = null, selected = [] } = {}) {
   const editing = !sample;
   gnpIntro.textContent = editing
-    ? "Elige qu\u00E9 propiedades forman el nombre de los elementos. El orden en que las marques es el orden en que se unen con \u00AB / \u00BB."
-    : `Elige qu\u00E9 propiedades de \u00AB${fileName}\u00BB forman el nombre de cada elemento. El orden en que las marques es el orden en que se unen con \u00AB / \u00BB.`;
-  gnpNote.textContent = "Esta elecci\u00F3n se recuerda para futuros archivos con esta misma estructura y se puede cambiar en \uD83C\uDFF7\uFE0F Propiedades \u2192 \u00CDndices de GeoJSON.";
+    ? tr("Elige qu\u00E9 propiedades forman el nombre de los elementos. El orden en que las marques es el orden en que se unen con \u00AB / \u00BB.")
+    : tr("Elige qu\u00E9 propiedades de \u00AB{fileName}\u00BB forman el nombre de cada elemento. El orden en que las marques es el orden en que se unen con \u00AB / \u00BB.", { fileName });
+  gnpNote.textContent = tr("Esta elecci\u00F3n se recuerda para futuros archivos con esta misma estructura y se puede cambiar en \uD83C\uDFF7\uFE0F Propiedades \u2192 \u00CDndices de GeoJSON.");
   gnpSample = sample;
   gnpOrder = selected.filter(k => keys.includes(k));
   gnpList.innerHTML = "";
@@ -1551,6 +1556,24 @@ propsAltUnitSelect.innerHTML = propsUnitSelect.innerHTML;
 const propsProfileMaxInput = document.getElementById("props-profile-max");
 const propsCoordFormatSelect = document.getElementById("props-coord-format");
 const propsThemeSelect = document.getElementById("props-theme");
+const propsLangSelect = document.getElementById("props-lang");
+/* Idioma de la interfaz (03-i18n.js). A diferencia del tema no se puede
+   previsualizar —los textos ya pintados no se rehacen—: se guarda al
+   Aceptar y vale al recargar. Una opción por idioma registrado, con su
+   nombre en su propio idioma.                                          */
+{
+  const auto = document.createElement("option");
+  auto.value = "auto";
+  auto.textContent = tr("Automático");
+  propsLangSelect.appendChild(auto);
+  for (const [code, name] of Object.entries(UI_LANGS)) {
+    const o = document.createElement("option");
+    o.value = code;
+    o.lang = code; /* el nombre está en SU idioma: así lo lee un lector de pantalla */
+    o.textContent = name;
+    propsLangSelect.appendChild(o);
+  }
+}
 const gnpVertexMaxInput = document.getElementById("gnp-vertex-max");
 const propsArcSegmentsInput = document.getElementById("props-arc-segments");
 
@@ -1601,14 +1624,14 @@ function renderPropsSourcesTab() {
       sel.appendChild(o);
     };
     for (const s of ELEV_SOURCES.filter(x => x.kind === kind)) opt(s.label, s.id);
-    opt("Ninguna", "");
+    opt(tr("Ninguna"), "");
     sel.value = elevSources[kind] || "";
     renderPropsSourceUrl(kind);
   }
 }
 function renderPropsSourceUrl(kind) {
   const s = elevSourceById(elevSources[kind]);
-  document.getElementById(`props-src-${kind}-url`).textContent = s ? s.base : "No se consulta.";
+  document.getElementById(`props-src-${kind}-url`).textContent = s ? s.base : tr("No se consulta.");
 }
 for (const kind of ["mdt", "mds"]) {
   propsSrcSelect[kind].addEventListener("change", () => {
@@ -1623,7 +1646,7 @@ function renderGnpEditor() {
   if (!entries.length) {
     const p = document.createElement("p");
     p.className = "dlg-hint";
-    p.textContent = "Sin asociaciones guardadas todavía.";
+    p.textContent = tr("Sin asociaciones guardadas todavía.");
     gnpEditorList.appendChild(p);
     return;
   }
@@ -1642,7 +1665,7 @@ function renderGnpEditor() {
     sel.title = sel.textContent;
     const change = document.createElement("button");
     change.className = "btn";
-    change.textContent = "Cambiar\u2026";
+    change.textContent = tr("Cambiar\u2026");
     change.addEventListener("click", async () => {
       const picked = await pickNameProperty(keys, "", { selected: value });
       if (!picked) return;
@@ -1651,7 +1674,7 @@ function renderGnpEditor() {
     });
     const del = document.createElement("button");
     del.className = "btn";
-    del.textContent = "Borrar";
+    del.textContent = tr("Borrar");
     del.addEventListener("click", () => {
       delete propsDraftGnp[fp];
       renderGnpEditor();
@@ -1682,12 +1705,13 @@ function renderPropsFreqTab() {
   propsFresnelFreqInput.value = fresnelFreqMHz;
 }
 propsFresnelFreqInput.addEventListener("change", () => {
-  const v = readClampedNumber(propsFresnelFreqInput, FRESNEL_FREQ_MIN, FRESNEL_FREQ_MAX, "La frecuencia", "MHz");
+  const v = readClampedNumber(propsFresnelFreqInput, FRESNEL_FREQ_MIN, FRESNEL_FREQ_MAX, tr("La frecuencia"), "MHz");
   if (v !== null) { fresnelFreqMHz = v; refreshProfileChart(); }
   renderPropsFreqTab();
 });
 function renderPropsPrefsTab() {
   propsThemeSelect.value = uiTheme;
+  propsLangSelect.value = loadUiLangPref();
   propsUnitSelect.value = measureUnit;
   propsAltUnitSelect.value = altitudeUnit;
   renderPropsProfileMax();
@@ -1713,8 +1737,9 @@ function readClampedNumber(input, min, max, what, unit) {
   if (!Number.isFinite(v)) return null;
   const c = Math.min(max, Math.max(min, v));
   if (c !== v) {
-    const n = x => Number(x.toPrecision(6)).toLocaleString("es");
-    navMessage(`${what} va de ${n(min)} a ${n(max)} ${unit}: se queda en ${n(c)} ${unit}.`);
+    const n = x => Number(x.toPrecision(6)).toLocaleString(uiLang);
+    navMessage(tr("{what} va de {min} a {max} {unit}: se queda en {value} {unit}.",
+      { what, min: n(min), max: n(max), unit, value: n(c) }));
   }
   return c;
 }
@@ -1726,7 +1751,7 @@ function readClampedNumber(input, min, max, what, unit) {
 propsProfileMaxInput.addEventListener("change", () => {
   const f = POLY_UNIT_FACTOR[measureUnit];
   const v = readClampedNumber(propsProfileMaxInput, PROFILE_MAX_MIN / f, PROFILE_MAX_MAX / f,
-    "La longitud máxima de un perfil", POLY_UNIT_LABEL[measureUnit]);
+    tr("La longitud máxima de un perfil"), POLY_UNIT_LABEL[measureUnit]);
   /* Se reclava en metros: v·f puede salirse de la cota por redondeo y
      validProfileMax lo descartaría al leerlo.                          */
   if (v !== null) profileMaxM = Math.min(PROFILE_MAX_MAX, Math.max(PROFILE_MAX_MIN, v * f));
@@ -1831,6 +1856,10 @@ document.getElementById("props-accept").addEventListener("click", () => {
   dbSaveVertexEditMax(vertexEditMax);
   dbSaveArcSegments(arcSegments);
   dbSaveElevSources(elevSources);
+  if (propsLangSelect.value !== loadUiLangPref()) {
+    saveUiLangPref(propsLangSelect.value);
+    navMessage(tr("El idioma de la interfaz cambiará al recargar la página (F5)."), { tone: "info", sticky: true });
+  }
   propsDialog.hidden = true;
   releaseFocus();
   propsDraftGnp = null;
@@ -1864,16 +1893,16 @@ function openPointsDialogCommon(li, rings, { showRingsHint }) {
   pointsText.classList.remove("bad");
   pointsError.hidden = true;
   const total = rings.reduce((n, r) => n + r.length, 0);
-  $id("points-title").textContent = `Puntos de «${li._name}»`;
-  $id("points-count").textContent = `${total} punto${total === 1 ? "" : "s"}`;
+  $id("points-title").textContent = tr("Puntos de «{name}»", { name: li._name });
+  $id("points-count").textContent = trn(total, "{n} punto", "{n} puntos");
   /* Solo se explica la separación por anillos cuando de verdad hay más
      de uno: en el caso corriente sobra el detalle. Una medición nunca
      tiene más de un "anillo", así que aquí siempre queda oculta.      */
   const ringsHint = $id("points-rings");
   ringsHint.hidden = !showRingsHint || rings.length < 2;
   ringsHint.textContent = !showRingsHint || rings.length < 2 ? ""
-    : `Esta capa tiene ${rings.length} trazos (contorno exterior primero, luego los `
-      + "agujeros). Van separados por una línea en blanco; mantén esa separación.";
+    : tr("Esta capa tiene {n} trazos (contorno exterior primero, luego los "
+      + "agujeros). Van separados por una línea en blanco; mantén esa separación.", { n: rings.length });
   pointsDialog.hidden = false;
   clampToViewport(pointsBox);
   focusDialog(pointsBox);
@@ -1930,11 +1959,12 @@ $id("points-accept").addEventListener("click", () => {
     pointsText.focus();
   };
   if (errors.length) {
-    const list = errors.slice(0, 3).map(e => `línea ${e.line} (${e.why})`).join("; ");
-    return bad(`Hay ${errors.length} línea${errors.length === 1 ? "" : "s"} que no se entienden: `
-      + list + (errors.length > 3 ? "…" : "") + ".");
+    const list = errors.slice(0, 3).map(e => tr("línea {line} ({why})", { line: e.line, why: e.why })).join("; ")
+      + (errors.length > 3 ? "…" : "");
+    return bad(trn(errors.length, "Hay {n} línea que no se entiende: {list}.",
+      "Hay {n} líneas que no se entienden: {list}.", { list }));
   }
-  if (!rings.length) return bad("No queda ningún punto.");
+  if (!rings.length) return bad(tr("No queda ningún punto."));
 
   if (pointsTarget.measure) {
     const { li, measure } = pointsTarget;
@@ -1944,14 +1974,14 @@ $id("points-accept").addEventListener("click", () => {
        lee w.lat/w.lng como propiedades, así que la ruta las convierte
        explícitamente más abajo.                                      */
     if (measure.type === "circle") {
-      if (rings[0].length !== 2) return bad("Un círculo tiene exactamente 2 puntos: centro y borde.");
-      pushUndo("editar puntos");
+      if (rings[0].length !== 2) return bad(tr("Un círculo tiene exactamente 2 puntos: centro y borde."));
+      pushUndo(tr("editar puntos"));
       measure.mOrigin.setLatLng(rings[0][0]);
       measure.mDest.setLatLng(rings[0][1]);
       updateMeasurement(measure);
     } else {
-      if (rings[0].length < 2) return bad("Una ruta necesita al menos 2 waypoints.");
-      pushUndo("editar puntos");
+      if (rings[0].length < 2) return bad(tr("Una ruta necesita al menos 2 waypoints."));
+      pushUndo(tr("editar puntos"));
       if (vertexSelHandle && measure.handles.includes(vertexSelHandle)) clearVertexSelection();
       /* Reconstruye solo la parte GEOMÉTRICA del mismo objeto "measure"
          (el número de waypoints puede haber cambiado): retira lo viejo
@@ -1994,10 +2024,10 @@ $id("points-accept").addEventListener("click", () => {
   const short = rings.find(r => r.length < min);
   if (short) {
     return bad(closed
-      ? `Cada trazo de un polígono necesita al menos 3 puntos; hay uno con ${short.length}.`
-      : `Una línea necesita al menos 2 puntos; hay un trazo con ${short.length}.`);
+      ? tr("Cada trazo de un polígono necesita al menos 3 puntos; hay uno con {n}.", { n: short.length })
+      : tr("Una línea necesita al menos 2 puntos; hay un trazo con {n}.", { n: short.length }));
   }
-  pushUndo("editar puntos");
+  pushUndo(tr("editar puntos"));
   path.setLatLngs(nested || rings.length > 1 ? rings : rings[0]);
   invalidateGeo(li);   /* la geometría cambió: la caché serializada ya no vale */
   scheduleSave();

@@ -81,6 +81,7 @@ paths:
   número simple, validado al leer (`Number.isInteger` y `> 0`, para que
   no se cuele un tope de 0). Ver `measurements-drawing-vertex-editing.md`.
 - **Vista de móvil** (`mobileView`, `MOBILE_VIEW_KEY` = `"mobileView"`, `MOBILE_VIEW_SCHEMA`, `{ v, choice }`, `choice` uno de `MOBILE_VIEWS` = `map|nav`): qué se eligió ante el aviso «Mejor desde un ordenador»; clave propia del almacén `tree`, validada al leer, restaurada lo primero en `99-boot.js` (`initPhoneLayout`). No sube `DB_VERSION` ni `TREE_SCHEMA`. Ver `mobile-view.md`.
+- **Idioma de la interfaz NO está aquí**: vive en `localStorage` (`kite.uiLang`, `"auto"` o el código de un idioma registrado) porque hace falta de forma síncrona antes de ejecutar nada; es la única excepción a «los ajustes van en IndexedDB». Sin `UI_LANG_SCHEMA` (un valor desconocido se ignora) ni subida de `DB_VERSION`/`TREE_SCHEMA`. Ver `i18n.md`.
 - **Tema de la interfaz** (`uiTheme`, `UI_THEME_KEY` = `"uiTheme"`, `UI_THEME_SCHEMA`, `{ v, theme }`, `theme` uno de `UI_THEMES` = `auto|light|dark`): clave propia del almacén `tree`, como `coordFormat`; `dbLoadUiTheme` valida contra la lista y devuelve `null` si no cuadra. Restaurada lo primero en `99-boot.js`. No sube `DB_VERSION` ni `TREE_SCHEMA`. Ver `theme.md`.
 - **Unidad de medida y formato de coordenadas** (`measureUnit`,
   `coordFormat`): claves `MEASURE_UNIT_KEY`/`MEASURE_UNIT_SCHEMA` y

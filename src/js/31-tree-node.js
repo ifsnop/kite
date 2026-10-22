@@ -47,7 +47,7 @@ function makeNode({ name, layer = null, isFolder = false, isFile = false,
   /* Sin `for` en el <label> (ver más abajo), la casilla se queda sin
      nombre accesible: aria-label la compensa. startRename la mantiene al
      día si el nodo se renombra.                                        */
-  chk.setAttribute("aria-label", `Activar o desactivar «${name}»`);
+  chk.setAttribute("aria-label", tr("Activar o desactivar «{name}»", { name }));
   chk.addEventListener("change", () => {
     const ul = li.querySelector(":scope > ul.node-list");
     if (ul) {
@@ -239,7 +239,7 @@ function makeCaret(li) {
   const caret = document.createElement("span");
   caret.className = "caret";
   caret.textContent = "\u25BE";
-  caret.title = "Colapsar / desplegar";
+  caret.title = tr("Colapsar / desplegar");
   caret.addEventListener("click", () => {
     const collapsing = !li.classList.contains("collapsed");
     li.classList.toggle("collapsed");
@@ -267,35 +267,35 @@ function makeActions(li, sortable, styleable, layer, focusable = styleable) {
     box.appendChild(b);
   };
   if (sortable) {
-    btn("\u2611", "Seleccionar todas las capas de esta carpeta", "", () => selectFolderLayers(li));
-    btn("\u2610", "Quitar la selecci\u00F3n (igual que Escape)", "", () => clearSelection());
-    btn("AZ", "Ordenar alfab\u00E9ticamente (alterna ascendente/descendente)", "az",
-        () => withUndo(`ordenar \u00AB${li._name}\u00BB`, () => sortChildren(li)));
-    btn("\u229F", "Colapsar esta carpeta y las interiores", "", () => collapseDescendants(li));
-    btn("\uD83D\uDCBE", "Guardar esta carpeta en un archivo para volver a cargarla despu\u00E9s", "", () => exportNode(li));
+    btn("\u2611", tr("Seleccionar todas las capas de esta carpeta"), "", () => selectFolderLayers(li));
+    btn("\u2610", tr("Quitar la selecci\u00F3n (igual que Escape)"), "", () => clearSelection());
+    btn("AZ", tr("Ordenar alfab\u00E9ticamente (alterna ascendente/descendente)"), "az",
+        () => withUndo(tr("ordenar \u00AB{name}\u00BB", { name: li._name }), () => sortChildren(li)));
+    btn("\u229F", tr("Colapsar esta carpeta y las interiores"), "", () => collapseDescendants(li));
+    btn("\uD83D\uDCBE", tr("Guardar esta carpeta en un archivo para volver a cargarla despu\u00E9s"), "", () => exportNode(li));
   }
   if (focusable) {
-    btn("\uD83D\uDD0D", `Centrar la vista aqu\u00ED y acercar (zoom ${FOCUS_ZOOM})`, "",
+    btn("\uD83D\uDD0D", tr("Centrar la vista aqu\u00ED y acercar (zoom {zoom})", { zoom: FOCUS_ZOOM }), "",
         () => focusOnNode(li));
   }
-  if (styleable) btn("\uD83C\uDFA8", "Editar propiedades", "", () => openStyleDialog(li));
+  if (styleable) btn("\uD83C\uDFA8", tr("Editar propiedades"), "", () => openStyleDialog(li));
   /* Un marcador siempre lleva el botón, oculto mientras no tenga ficha:
      con la iluminación real activa la gana (horas del sol), y
      refreshInfoButtons lo muestra/oculta sin reconstruir la fila.      */
   if (li._desc || layerProperties(layer) || layerKind(layer) === "marker") {
-    btn("\u2139", "Ver informaci\u00F3n de la capa", "info-btn", () => showLayerInfo(li));
+    btn("\u2139", tr("Ver informaci\u00F3n de la capa"), "info-btn", () => showLayerInfo(li));
     box.lastChild.hidden = !hasInfo(li, layer);
   }
-  btn("\u2191", "Subir", "", () => {
+  btn("\u2191", tr("Subir"), "", () => {
     const prev = li.previousElementSibling;
     if (prev) { li.parentElement.insertBefore(li, prev); scheduleSave(); }
   });
-  btn("\u2193", "Bajar", "", () => {
+  btn("\u2193", tr("Bajar"), "", () => {
     const next = li.nextElementSibling;
     if (next) { li.parentElement.insertBefore(next, li); scheduleSave(); }
   });
-  btn("\u00D7", "Borrar", "delete", () => {
-    pushUndo(`borrar \u00AB${li._name}\u00BB`);
+  btn("\u00D7", tr("Borrar"), "delete", () => {
+    pushUndo(tr("borrar \u00AB{name}\u00BB", { name: li._name }));
     /* si el nodo forma parte de la selección, se borra toda la selección */
     if (selection.has(li) && selection.size > 1) {
       const items = topLevelSelection();
@@ -325,7 +325,7 @@ async function sortChildren(li) {
   const dir = (li._sortAsc = li._sortAsc !== true) ? 1 : -1;
   [...ul.children]
     .filter(c => c._name !== undefined) /* ignora filas de mensaje */
-    .sort((a, b) => dir * a._name.localeCompare(b._name, "es", { numeric: true, sensitivity: "base" }))
+    .sort((a, b) => dir * a._name.localeCompare(b._name, uiLang, { numeric: true, sensitivity: "base" }))
     .forEach(c => ul.appendChild(c));
   scheduleSave();
 }
@@ -341,7 +341,7 @@ function setNodeName(li, name) {
   const label = li.querySelector(":scope > .node-row > label");
   if (label) { label.textContent = name; label.title = name; }
   const chk = li.querySelector(":scope > .node-row > input[type=checkbox]");
-  if (chk) chk.setAttribute("aria-label", `Activar o desactivar «${name}»`);
+  if (chk) chk.setAttribute("aria-label", tr("Activar o desactivar «{name}»", { name }));
   if (li._onRename) li._onRename(name);
   if (li._mstyle) applyMarkerText(li); /* the marker text shows the name */
   /* Y la etiqueta permanente de un trazo, por lo mismo: enseña el
@@ -543,7 +543,7 @@ document.addEventListener("pointerup", async e => {
   dragItems = null;
   if (!destino) return;   /* soltado fuera de cualquier fila válida */
 
-  pushUndo("mover nodos");
+  pushUndo(tr("mover nodos"));
   /* Los contenedores de ORIGEN, antes de tocar nada: en cuanto los
      nodos se mueven ya cuelgan del destino y no queda desde dónde
      recalcular la rama que los pierde. Un Set porque una selección
@@ -657,12 +657,12 @@ function makeImportReport(fileName) {
         .sort((a, b) => b[1] - a[1])
         .slice(0, MAX_REPORT_DETAIL)
         .map(([why, n]) => `${why} (\u00D7${n})`);
-      const parts = [`\u00AB${this.file}\u00BB: ${this.loaded} elemento(s) cargado(s)`];
-      if (this.kinds.size) parts.push(`tipos: ${[...this.kinds].join(", ")}`);
-      if (this.skipped) parts.push(`${this.skipped} omitido(s)`);
-      if (top.length) parts.push(`causas: ${top.join(", ")}`);
+      const parts = [tr("\u00AB{file}\u00BB: {loaded} elemento(s) cargado(s)", { file: this.file, loaded: this.loaded })];
+      if (this.kinds.size) parts.push(tr("tipos: {kinds}", { kinds: [...this.kinds].join(", ") }));
+      if (this.skipped) parts.push(tr("{skipped} omitido(s)", { skipped: this.skipped }));
+      if (top.length) parts.push(tr("causas: {causes}", { causes: top.join(", ") }));
       if (this.causes.size > MAX_REPORT_DETAIL) {
-        parts.push(`y ${this.causes.size - MAX_REPORT_DETAIL} causa(s) m\u00E1s`);
+        parts.push(tr("y {n} causa(s) m\u00E1s", { n: this.causes.size - MAX_REPORT_DETAIL }));
       }
       for (const n of this.notes) parts.push(n);
       return parts.join("; ") + ".";
@@ -691,7 +691,7 @@ async function buildKmlRecords(el, styleIndex, inheritedVisible, prog, report, z
       /* <open>: solo desplegada si es 1 (0 o ausente → colapsada) */
       const collapsed = directChildText(child, "open") !== "1";
       const children = await buildKmlRecords(child, styleIndex, visible, prog, report, zip);
-      out.push({ t: "folder", name: text(child, "name") || "Carpeta",
+      out.push({ t: "folder", name: text(child, "name") || tr("Carpeta"),
                  checked: children.some(c => c.checked), collapsed, children });
     } else if (tag === "Placemark") {
       const name = text(child, "name") || "Placemark";
@@ -702,7 +702,7 @@ async function buildKmlRecords(el, styleIndex, inheritedVisible, prog, report, z
           /* Ya se cont\u00F3 arriba con una causa concreta (p. ej. "punto sin
              coordenadas v\u00E1lidas"); solo hace falta este gen\u00E9rico cuando
              el placemark no ten\u00EDa ninguna geometr\u00EDa que intentar.      */
-          if (!reported && report) report.warn(`\u00AB${name}\u00BB sin geometr\u00EDa utilizable`);
+          if (!reported && report) report.warn(tr("\u00AB{name}\u00BB sin geometr\u00EDa utilizable", { name }));
           continue;
         }
         const visible = inheritedVisible && ownVisibility(child);
@@ -723,7 +723,7 @@ async function buildKmlRecords(el, styleIndex, inheritedVisible, prog, report, z
         await yieldFrame();
       }
     } else if (tag === "GroundOverlay") {
-      const name = text(child, "name") || "Ortofoto";
+      const name = text(child, "name") || tr("Ortofoto");
       try {
         const overlay = await buildGroundOverlay(child, zip, report, name);
         if (overlay) {

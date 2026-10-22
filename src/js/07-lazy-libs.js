@@ -30,7 +30,7 @@ const LAZY_LIBS = {
     url: "https://unpkg.com/html2canvas@1.4.1/dist/html2canvas.min.js",
     integrity: "sha384-ZZ1pncU3bQe8y31yfZdMFdSpttDoPmOZg2wguVK9almUodir1PghgT0eY7Mrty8H",
     global: "html2canvas",
-    what: "exportar PNG"
+    what: N_("exportar PNG")
   },
   /* El bundle de navegador, ya minificado y en un solo archivo (sin
      trozos cargados aparte que el SRI no cubriría).                    */
@@ -38,14 +38,14 @@ const LAZY_LIBS = {
     url: "https://unpkg.com/geotiff@2.1.3/dist-browser/geotiff.js",
     integrity: "sha384-m5adk5PRgt3JjiYbYoG8oXxc3EgRFKc1aCBgKzyxqxnbYpdiAMlHkR0gVDp03Q/H",
     global: "GeoTIFF",
-    what: "GeoTIFF"
+    what: N_("GeoTIFF")
   },
   /* Un solo archivo, con el lector de WKT dentro.                      */
   proj4: {
     url: "https://cdnjs.cloudflare.com/ajax/libs/proj4js/2.22.0/proj4.js",
     integrity: "sha384-RCBbAm8IhfOOoFV7vqUhspSb+BCSvVSd84WJpv5VMq4rNiXJ88VMHtndxQntlbnd",
     global: "proj4",
-    what: "proyecciones"
+    what: N_("proyecciones")
   }
 };
 const lazyLibPromises = new Map();
@@ -55,7 +55,7 @@ const lazyLibPromises = new Map();
    de antes, para que el usuario vea lo mismo.                         */
 function ensureLib(name) {
   const lib = LAZY_LIBS[name];
-  if (!lib) return Promise.reject(new Error(`librería desconocida: ${name}`));
+  if (!lib) return Promise.reject(new Error(tr("librería desconocida: {name}", { name })));
   if (window[lib.global] !== undefined) return Promise.resolve(window[lib.global]);
   let p = lazyLibPromises.get(name);
   if (p) return p;
@@ -67,9 +67,9 @@ function ensureLib(name) {
     s.referrerPolicy = "no-referrer";
     s.onload = () => {
       if (window[lib.global] !== undefined) resolve(window[lib.global]);
-      else { s.remove(); reject(new Error(`no se pudo cargar el soporte de ${lib.what}`)); }
+      else { s.remove(); reject(new Error(tr("no se pudo cargar el soporte de {what}", { what: tr(lib.what) }))); }
     };
-    s.onerror = () => { s.remove(); reject(new Error(`no se pudo cargar el soporte de ${lib.what}`)); };
+    s.onerror = () => { s.remove(); reject(new Error(tr("no se pudo cargar el soporte de {what}", { what: tr(lib.what) }))); };
     document.head.appendChild(s);
   });
   lazyLibPromises.set(name, p);

@@ -110,7 +110,10 @@ export async function openApp(browser, url, opts = {}) {
      `page.route` ya no ve las peticiones que el worker contesta (lo
      usan las pruebas de librerías bajo demanda y de WCS). Solo
      offline.mjs lo quiere, y lo pide con `serviceWorkers: "allow"`.  */
-  const ctx = await browser.newContext({ serviceWorkers: "block", ...opts });
+  /* `locale: "es-ES"`: las suites comparan textos en español y «Automático»
+     sigue al navegador (Playwright arranca en en-US); lo de los idiomas lo
+     prueba browser/i18n.mjs, que pasa el suyo.                          */
+  const ctx = await browser.newContext({ serviceWorkers: "block", locale: "es-ES", ...opts });
   const page = await ctx.newPage();
   const errors = [];
   page.on("pageerror", e => errors.push("pageerror: " + e.message));

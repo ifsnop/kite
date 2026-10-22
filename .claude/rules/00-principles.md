@@ -40,7 +40,9 @@ description: Principios no negociables, vocabulario y checklist de KITE Local. S
    librería así exige la misma justificación.
 3. **Código limpio, comentado en inglés.** Comentarios en inglés,
    explican el *porqué* no el *qué*; textos de interfaz y mensajes al
-   usuario en español. Funciones pequeñas, una responsabilidad. Al
+   usuario escritos EN ESPAÑOL dentro de `tr("…")` — el español es la
+   clave y el inglés (y cualquier otro idioma) va en un diccionario;
+   ver `i18n.md`. Funciones pequeñas, una responsabilidad. Al
    terminar un cambio, `grep` y eliminar referencias muertas.
 4. **Sin código de compatibilidad hacia atrás.** El almacenamiento está
    versionado; lo que no corresponda a la versión actual se BORRA, no
@@ -129,8 +131,12 @@ Parcialmente hecho (no confundir con pendiente):
 3. Si muta el árbol → `scheduleSave()`. Si cambia lo serializado →
    actualizar `serializeTree`/`buildFromNodes` y subir `TREE_SCHEMA`.
 4. Si crea muchas capas → procesar por lotes con progreso.
-5. Textos de interfaz en español; comentarios en inglés; mensajes al
-   usuario vía `navMessage`.
+5. Textos de interfaz en español **dentro de `tr()`** (plurales `trn()`,
+   homónimos `trc()`; en el HTML estático, tal cual y se traducen al
+   arrancar); nunca concatenados sino con `{variables}`; después
+   `node i18n-tool.js sync en` y traducir lo nuevo (`tests/i18n.js` falla
+   si falta). Comentarios en inglés; mensajes al usuario vía
+   `navMessage`. Nunca comparar un texto de interfaz: se guarda un estado.
 6. Respetar gestos reservados (Shift, Ctrl); no tocar la vista del
    usuario sin que lo pida. Shift+click en navegación respeta la regla
    de selección del mismo tipo.

@@ -176,10 +176,12 @@ function calcElevation() {
   geocalcShowError("geocalc-error", "geocalc-elev-result", err);
   if (err) return;
   const deg = elevationAngleDeg(h1, h2c, d, model, kind);
-  let text = `Ángulo de elevación: ${deg.toFixed(3)}°\nCono de silencio: ${silenceConeDeg(deg).toFixed(3)}°`;
+  let text = tr("Ángulo de elevación: {deg}°", { deg: deg.toFixed(3) })
+    + "\n" + tr("Cono de silencio: {deg}°", { deg: silenceConeDeg(deg).toFixed(3) });
   if (q !== ISA_P0_HPA) {
     const u = gcH2.sel.value, delta = h2c - h2;
-    text += `\nAltura de destino corregida: ${fmtUnitDist(h2c, u)} (${delta >= 0 ? "+" : ""}${fmtUnitDist(delta, u)})`;
+    text += "\n" + tr("Altura de destino corregida: {height} ({delta})",
+      { height: fmtUnitDist(h2c, u), delta: (delta >= 0 ? "+" : "") + fmtUnitDist(delta, u) });
   }
   gcEl("geocalc-elev-result").textContent = text;
 }
@@ -249,9 +251,10 @@ function calcGps() {
   const v = gpsVector(a, b), u = gcGpsDUnit.value;
   const dist = m => `${(m / POLY_UNIT_FACTOR[u]).toFixed(3)} ${POLY_UNIT_LABEL[u]}`; /* 3 decimales: a 1 cm de precisión en NM */
   gcEl("gps-result").textContent =
-    `Distancia: ${dist(v.slant)}\nDistancia horizontal: ${dist(v.horizontal)}\n` +
-    (v.bearing === null ? "Orientación: no definida (mismas latitud y longitud)"
-      : `Orientación: ${v.bearing.toFixed(3)}°`);
+    tr("Distancia: {dist}", { dist: dist(v.slant) }) + "\n" +
+    tr("Distancia horizontal: {dist}", { dist: dist(v.horizontal) }) + "\n" +
+    (v.bearing === null ? tr("Orientación: no definida (mismas latitud y longitud)")
+      : tr("Orientación: {deg}°", { deg: v.bearing.toFixed(3) }));
 }
 
 /* ---------- Abrir y cerrar ---------- */

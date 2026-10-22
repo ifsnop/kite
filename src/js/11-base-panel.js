@@ -9,7 +9,7 @@ const BaseControl = L.Control.extend({
        vertical real (antes [2, 22.9], centro 12.45) en el centro del
        viewBox de 24 (12) — el eje X ya estaba centrado.               */
     box.innerHTML =
-      '<button class="base-toggle" title="Mapas base" aria-label="Mapas base">'
+      `<button class="base-toggle" title="${tr("Mapas base")}" aria-label="${tr("Mapas base")}">`
       + '<svg viewBox="0 0 24 24" width="40" height="40" aria-hidden="true">'
       + '<path fill="currentColor" d="M12 1.55 1.5 7.55 12 13.55l10.5-6L12 1.55Z"/>'
       + '<path fill="currentColor" opacity=".65" d="M12 15.75 3.7 10.95 1.5 12.25 12 18.25l10.5-6-2.2-1.3L12 15.75Z"/>'
@@ -61,12 +61,12 @@ function renderBasePanel() {
     chk.id = `base-${id}`;
     const label = document.createElement("label");
     label.htmlFor = chk.id;
-    label.textContent = st.def.name + (st.failed ? " (sin respuesta)" : "");
+    label.textContent = st.def.name + (st.failed ? " " + tr("(sin respuesta)") : "");
     const slider = document.createElement("input");
     slider.type = "range";
     slider.min = 0; slider.max = 1; slider.step = 0.05;
     slider.value = st.opacity;
-    slider.title = "Opacidad";
+    slider.title = tr("Opacidad");
     slider.disabled = !st.on;
     /* Se crea aqu\u00ED, antes del listener del checkbox, para que ese
        listener pueda deshabilitarlo/habilitarlo igual que al slider
@@ -100,8 +100,8 @@ function renderBasePanel() {
     /* Subir y bajar en el apilado: la primera de la lista va al fondo */
     const moves = document.createElement("span");
     moves.className = "base-moves";
-    for (const [glyph, delta, title] of [["\u25B2", -1, "Bajar en el apilado"],
-                                         ["\u25BC", 1, "Subir en el apilado"]]) {
+    for (const [glyph, delta, title] of [["\u25B2", -1, tr("Bajar en el apilado")],
+                                         ["\u25BC", 1, tr("Subir en el apilado")]]) {
       const b = document.createElement("button");
       b.textContent = glyph;
       b.title = title;
@@ -136,14 +136,14 @@ function buildMapBackgroundRow() {
   row.className = "base-row base-row-bg";
   row.appendChild(document.createElement("span")); /* alinea con la columna de las casillas */
   const label = document.createElement("label");
-  label.textContent = "Color de fondo";
+  label.textContent = tr("Color de fondo");
   const tools = document.createElement("span");
   tools.className = "base-tools";
   const btn = document.createElement("button");
   btn.type = "button";
   btn.className = "color-btn";
-  btn.title = "Color de fondo del mapa";
-  btn.setAttribute("aria-label", "Color de fondo del mapa");
+  btn.title = tr("Color de fondo del mapa");
+  btn.setAttribute("aria-label", tr("Color de fondo del mapa"));
   setColorButton(btn, mapBgColor);
   btn.addEventListener("click", e => {
     e.preventDefault();
@@ -188,19 +188,19 @@ function buildDynamicLayerSelect(id, st) {
   if (error) {
     const opt = document.createElement("option");
     opt.disabled = true; opt.selected = true;
-    opt.textContent = `No disponible: ${error}`;
+    opt.textContent = tr("No disponible: {error}", { error });
     sel.appendChild(opt);
   } else if (!catalog) {
     const opt = document.createElement("option");
     opt.disabled = true; opt.selected = true;
-    opt.textContent = "Cargando cat\u00E1logo\u2026";
+    opt.textContent = tr("Cargando cat\u00E1logo\u2026");
     sel.appendChild(opt);
   } else {
     if (!st.wmsLayer || !catalog.some(e => e.name === st.wmsLayer)) {
       const hadSaved = !!st.wmsLayer;
       st.wmsLayer = src.pickDefault(catalog);
       if (hadSaved) {
-        navMessage(`La capa guardada para \u00AB${st.def.name}\u00BB ya no est\u00E1 disponible; se usa ${st.wmsLayer}.`,
+        navMessage(tr("La capa guardada para \u00AB{name}\u00BB ya no est\u00E1 disponible; se usa {wmsLayer}.", { name: st.def.name, wmsLayer: st.wmsLayer }),
           { tone: "info" });
       }
       if (st.on) applyBaseLayer(id);
@@ -208,7 +208,7 @@ function buildDynamicLayerSelect(id, st) {
     }
     for (const group of src.groups(catalog)) {
       const og = document.createElement("optgroup");
-      og.label = group.group;
+      og.label = tr(group.group);
       for (const entry of group.items) {
         const opt = document.createElement("option");
         opt.value = entry.name;
@@ -237,7 +237,7 @@ function buildDynamicConfigButton(st) {
   const src = dynSource(st.def);
   if (!src || !src.configure) return null;
   const blocked = src.blocked && src.blocked();
-  const label = blocked ? blocked.hint : "Cambiar o borrar la configuración";
+  const label = blocked ? blocked.hint : tr("Cambiar o borrar la configuración");
   const gear = document.createElement("button");
   gear.className = "base-gear";
   gear.textContent = "⚙";
@@ -312,7 +312,7 @@ const CUSTOM_WMS_TIMEOUT = 15000;
 /* Un servidor propio puede anidar sus capas en grupos (los títulos de
    grupo ya etiquetan a sus hijos); las que cuelgan directamente de la
    raíz van a este cajón.                                              */
-const CUSTOM_WMS_OPTS = { exclude: new Set(), rootGroup: "Capas del servidor" };
+const CUSTOM_WMS_OPTS = { exclude: new Set(), rootGroup: N_("Capas del servidor") };
 /* Parámetros de OGC que pone el código (o `L.tileLayer.wms`) y que
    deben salir de la dirección que pegue el usuario, que a menudo es una
    petición GetCapabilities o GetMap entera. Los demás (p. ej. el
@@ -421,7 +421,7 @@ async function fetchCustomWmsCatalog() {
     if (ex) throw new Error(ex.msg);
     if (!r.ok) throw new Error(describeHttp(r.status));
     const entries = parseWmsCapabilities(txt, CUSTOM_WMS_OPTS);
-    if (!entries) throw new Error("la respuesta no es un GetCapabilities de WMS con capas");
+    if (!entries) throw new Error(tr("la respuesta no es un GetCapabilities de WMS con capas"));
     if (!stale()) {
       customWmsCatalog = entries;
       /* Una capa ya creada (la guardada como encendida, que se levanta
@@ -438,8 +438,8 @@ async function fetchCustomWmsCatalog() {
   })().catch(err => {
     if (customWmsDiscovering === discovering) customWmsDiscovering = null; /* permite reintentar */
     if (!stale()) {
-      customWmsError = err.name === "TimeoutError" ? "el servidor no responde"
-        : err.message === "Failed to fetch" ? netFailText("no se pudo conectar con el servidor WMS (¿CORS?)")
+      customWmsError = err.name === "TimeoutError" ? tr("el servidor no responde")
+        : err.message === "Failed to fetch" ? netFailText(tr("no se pudo conectar con el servidor WMS (¿CORS?)"))
         : err.message;
     }
     throw err;
@@ -508,9 +508,9 @@ function tileFailureReason(status, contentType, body) {
   if (status >= 200 && status < 300 && /^image\//i.test(contentType)) return null;
   const ex = parseWmsServiceException(body);
   let reason;
-  if (ex) reason = ex.msg || "excepci\u00F3n del servicio sin mensaje";
+  if (ex) reason = ex.msg || tr("excepci\u00F3n del servicio sin mensaje");
   else if (status < 200 || status >= 300) reason = describeHttp(status);
-  else reason = `respuesta ${contentType.split(";")[0].trim() || "sin tipo"} en vez de una imagen`;
+  else reason = tr("respuesta {type} en vez de una imagen", { type: contentType.split(";")[0].trim() || tr("sin tipo") });
   return reason.length > TILE_REASON_MAX ? reason.slice(0, TILE_REASON_MAX) + "\u2026" : reason;
 }
 
@@ -525,12 +525,12 @@ async function diagnoseTile(st, url) {
   } catch { /* red, CORS o tiempo: se avisa sin motivo */ }
   const name = `\u00AB${st.def.name}\u00BB`;
   if (reason === undefined) {
-    navMessage(`${name}: una tesela no se pudo cargar (contorno rojo) y no se pudo averiguar el motivo: `
-      + netFailText("el servidor no responde o no admite consultas desde el navegador (CORS)") + ".");
+    navMessage(tr("{name}: una tesela no se pudo cargar (contorno rojo) y no se pudo averiguar el motivo: {why}.",
+      { name, why: netFailText(tr("el servidor no responde o no admite consultas desde el navegador (CORS)")) }));
   } else if (reason === null) {
-    navMessage(`${name}: una tesela fall\u00F3 y al pedirla de nuevo el servidor respondi\u00F3 bien (\u00BFlento o saturado?).`);
+    navMessage(tr("{name}: una tesela fall\u00F3 y al pedirla de nuevo el servidor respondi\u00F3 bien (\u00BFlento o saturado?).", { name }));
   } else {
-    navMessage(`${name}: el servidor devolvi\u00F3 un error en una tesela (contorno rojo): ${reason}`);
+    navMessage(tr("{name}: el servidor devolvi\u00F3 un error en una tesela (contorno rojo): {reason}", { name, reason }));
   }
 }
 
@@ -559,7 +559,7 @@ const PNOA_HIST_TIMEOUT = 10000;
 const PNOA_HIST_EXCLUDE = new Set(["infoVuelos"]);
 /* Los vuelos sueltos que cuelgan de la raíz sin grupo propio (SIGPAC,
    AMS_1956-1957…) necesitan un cajón con nombre; el servicio no lo da. */
-const PNOA_HIST_WMS_OPTS = { exclude: PNOA_HIST_EXCLUDE, rootGroup: "Vuelos históricos" };
+const PNOA_HIST_WMS_OPTS = { exclude: PNOA_HIST_EXCLUDE, rootGroup: N_("Vuelos históricos") };
 
 let pnoaHistCatalog = null;    /* [{name, title, group}] una vez resuelto */
 let pnoaHistError = null;      /* mensaje legible si el descubrimiento falló */
@@ -641,14 +641,14 @@ function groupPnoaHistEntries(entries) {
     if (!byGroup.has(e.group)) byGroup.set(e.group, []);
     byGroup.get(e.group).push(e);
   }
-  const annual = byGroup.get("PNOA anual");
+  const annual = byGroup.get(N_("PNOA anual"));
   if (annual) {
     annual.sort((a, b) =>
       (Number((/^PNOA(\d{4})$/.exec(b.name) || [])[1]) || 0)
       - (Number((/^PNOA(\d{4})$/.exec(a.name) || [])[1]) || 0));
   }
   const groups = [];
-  for (const name of ["PNOA anual", "Vuelos históricos"]) {
+  for (const name of [N_("PNOA anual"), N_("Vuelos históricos")]) {
     if (byGroup.has(name)) { groups.push({ group: name, items: byGroup.get(name) }); byGroup.delete(name); }
   }
   for (const [name, items] of byGroup) groups.push({ group: name, items });
@@ -668,13 +668,13 @@ async function fetchPnoaHistoricoCatalog() {
     if (ex) throw new Error(ex.msg);
     if (!r.ok) throw new Error(describeHttp(r.status));
     const entries = parseWmsCapabilities(txt, PNOA_HIST_WMS_OPTS);
-    if (!entries) throw new Error("el servicio no declara capas");
+    if (!entries) throw new Error(tr("el servicio no declara capas"));
     pnoaHistCatalog = entries;
     return entries;
   })().catch(err => {
     pnoaHistDiscovering = null; /* permite reintentar en la próxima llamada */
-    pnoaHistError = err.name === "TimeoutError" ? "el servicio no responde"
-      : err.message === "Failed to fetch" ? netFailText("el servicio no admite consultas desde el navegador (CORS)")
+    pnoaHistError = err.name === "TimeoutError" ? tr("el servicio no responde")
+      : err.message === "Failed to fetch" ? netFailText(tr("el servicio no admite consultas desde el navegador (CORS)"))
       : err.message;
     throw err;
   });

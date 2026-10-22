@@ -137,7 +137,7 @@ map.on("resize rotate", fitWorldMinZoom);
 
 /* Fecha de generación del código (versión): AÑOMESDIAHORAMINUTO.
    Actualizar en cada generación; se muestra junto al crédito de Leaflet. */
-const BUILD = "202610192233";
+const BUILD = "202610221808";
 /* Versión de release (la de package.json, horneada aquí por build.js
    al construir — ver «Versión y releases de GitHub» en CLAUDE.md): a
    diferencia de BUILD, que cambia en CADA generación, esta solo cambia
@@ -154,7 +154,7 @@ const VERSION = "{{VERSION}}";
 const REPO_URL = "https://github.com/ifsnop/kite";
 map.attributionControl.setPrefix(
   `v${VERSION} (${BUILD}) | <a href="${REPO_URL}" target="_blank" rel="noopener"`
-  + ' title="Código fuente del proyecto en GitHub">GitHub</a>'
+  + ` title="${tr("Código fuente del proyecto en GitHub")}">GitHub</a>`
   + ' | <a href="https://leafletjs.com" title="A JavaScript library for interactive maps">Leaflet</a>');
 
 /* Escala del mapa: la de Leaflet (L.control.scale), no una propia —
@@ -186,7 +186,7 @@ const CascadeStatusControl = L.Control.extend({
     this._div.hidden = true;
     this._div.setAttribute("role", "status");
     this._div.setAttribute("aria-live", "polite");
-    this._div.innerHTML = '<span class="spinner" aria-hidden="true"></span> Actualizando capas…';
+    this._div.innerHTML = '<span class="spinner" aria-hidden="true"></span> ' + tr("Actualizando capas…");
     return this._div;
   }
 });
@@ -222,8 +222,8 @@ const COP_MIN_ZOOM = 6;
    "Custom Web Map Service" más abajo): al no ser ningún servicio
    conocido no hay a quién dar crédito, solo dejar claro que las
    teselas no vienen de la aplicación.                                */
-const CUSTOM_TILES_CREDIT = "Servidor de teselas personalizado";
-const CUSTOM_WMS_CREDIT = "Servidor WMS personalizado";
+const CUSTOM_TILES_CREDIT = tr("Servidor de teselas personalizado");
+const CUSTOM_WMS_CREDIT = tr("Servidor WMS personalizado");
 
 const BASE_LAYERS = [
   { id: "osm", name: "OpenStreetMap", on: true, opacity: 1,
@@ -234,7 +234,7 @@ const BASE_LAYERS = [
   /* Esri World Terrain: cobertura global solo hasta z9; más allá el
      servidor devuelve teselas de "Map data not yet available", así que
      con maxNativeZoom Leaflet reescala el último nivel recibido.     */
-  { id: "terrain", name: "F\u00EDsico (Esri World Terrain)", on: false, opacity: 1,
+  { id: "terrain", name: tr("F\u00EDsico (Esri World Terrain)"), on: false, opacity: 1,
     layer: () => L.tileLayer(
       "https://server.arcgisonline.com/ArcGIS/rest/services/World_Terrain_Base/MapServer/tile/{z}/{y}/{x}",
       { maxNativeZoom: 9, maxZoom: MAX_ZOOM,
@@ -244,24 +244,24 @@ const BASE_LAYERS = [
     layer: () => L.tileLayer(IGN_WMTS("ign-base", "IGNBaseTodo"),
       { maxNativeZoom: 19, maxZoom: MAX_ZOOM, attribution: `IGN Base. ${IGN_CREDIT}` }) },
 
-  { id: "mtn", name: "Mapa topogr\u00E1fico MTN (IGN)", on: false, opacity: 1,
+  { id: "mtn", name: tr("Mapa topogr\u00E1fico MTN (IGN)"), on: false, opacity: 1,
     layer: () => L.tileLayer(IGN_WMTS("mapa-raster", "MTN"),
       { maxNativeZoom: 19, maxZoom: MAX_ZOOM, attribution: `MTN r\u00E1ster. ${IGN_CREDIT}` }) },
 
   /* El WMTS del IGN no sirve ninguna capa llamada "Relieve" (devolvía
      404 en todas las teselas). Se usa el sombreado mundial de Esri, del
      mismo servidor que la capa física, que sí está publicado.       */
-  { id: "relieve", name: "Relieve sombreado (Esri)", on: false, opacity: 1,
+  { id: "relieve", name: tr("Relieve sombreado (Esri)"), on: false, opacity: 1,
     layer: () => L.tileLayer(
       "https://server.arcgisonline.com/ArcGIS/rest/services/Elevation/World_Hillshade/MapServer/tile/{z}/{y}/{x}",
       { maxNativeZoom: 19, maxZoom: MAX_ZOOM, attribution: "Hillshade &copy; Esri" }) },
 
-  { id: "pnoa", name: "Ortofoto PNOA (IGN)", on: false, opacity: 1,
+  { id: "pnoa", name: tr("Ortofoto PNOA (IGN)"), on: false, opacity: 1,
     layer: () => L.tileLayer("https://tms-pnoa-ma.idee.es/1.0.0/pnoa-ma/{z}/{x}/{y}.jpeg",
       { tms: true, maxNativeZoom: 19, maxZoom: MAX_ZOOM,
         attribution: `PNOA M\u00E1xima Actualidad. ${IGN_CREDIT}` }) },
 
-  { id: "mdt", name: "MDT de Espa\u00F1a (IGN, WMS)", on: false, opacity: 1,
+  { id: "mdt", name: tr("MDT de Espa\u00F1a (IGN, WMS)"), on: false, opacity: 1,
     layer: () => L.tileLayer.wms("https://servicios.idee.es/wms-inspire/mdt", {
       layers: "EL.ElevationGridCoverage", format: "image/png", version: "1.3.0",
       transparent: true, maxZoom: MAX_ZOOM, attribution: `MDT WMS. ${IGN_CREDIT}` }) },
@@ -278,7 +278,7 @@ const BASE_LAYERS = [
      encima de ese nivel (comprobado hasta z16), pero la malla es de 30 m
      y esos niveles ya son interpolación: serían peticiones que no
      añaden detalle. Mismo trato que la capa física de Esri.           */
-  { id: "srtm", name: "Relieve SRTM30 (terrestris)", on: false, opacity: 1,
+  { id: "srtm", name: tr("Relieve SRTM30 (terrestris)"), on: false, opacity: 1,
     layer: () => L.tileLayer.wms("https://ows.terrestris.de/osm/service", {
       layers: "SRTM30-Colored-Hillshade", format: "image/png", version: "1.1.1",
       transparent: false, maxNativeZoom: 9, maxZoom: MAX_ZOOM,
@@ -310,7 +310,7 @@ const BASE_LAYERS = [
   /* No es una sola capa fija: `layer()` recibe el nombre de capa WMS
      elegido en el selector (ver "PNOA hist\u00F3rico" m\u00E1s abajo), descubierto
      contra el GetCapabilities real del servicio en vez de hardcodearlo. */
-  { id: "pnoa-hist", name: "PNOA hist\u00F3rico (IGN)", on: false, opacity: 1,
+  { id: "pnoa-hist", name: tr("PNOA hist\u00F3rico (IGN)"), on: false, opacity: 1,
     dynamic: true, source: "pnoa-hist",
     layer: (wmsLayer) => L.tileLayer.wms(PNOA_HIST_URL, {
       layers: wmsLayer, format: "image/jpeg", version: "1.3.0", transparent: false,
@@ -321,7 +321,7 @@ const BASE_LAYERS = [
      EPSG:3857, image/png y CORS abierto. `bounds` es su caja geográfica
      declarada: fuera de ella no hay dato, y así no se piden teselas que
      el servidor no puede rellenar. Sirve hasta z20 (10 cm/píxel).       */
-  { id: "madrid-orto", name: "Ortofoto Madrid (Ayuntamiento)", on: false, opacity: 1,
+  { id: "madrid-orto", name: tr("Ortofoto Madrid (Ayuntamiento)"), on: false, opacity: 1,
     layer: () => L.tileLayer.wms(
       "https://servpub.madrid.es/georaster/ORTOFOTOS/ORTOFOTO_MADRID/ows", {
       layers: "ORTOFOTO_MADRID", format: "image/png", version: "1.3.0", transparent: false,
@@ -429,7 +429,7 @@ function applyBaseLayer(id) {
         if (st.def.diagnoseTiles) flagTileError(st, e);
         if (++errors < BASE_FAIL_TILES || st.failed) return;
         st.failed = true;
-        navMessage(`El mapa base \u00AB${st.def.name}\u00BB no responde; puede que el servicio haya cambiado.`);
+        navMessage(tr("El mapa base \u00AB{name}\u00BB no responde; puede que el servicio haya cambiado.", { name: st.def.name }));
         renderBasePanel();
       });
       /* Y dejar de responder no es para siempre: una tesela que S\u00CD llega

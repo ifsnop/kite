@@ -7,7 +7,13 @@ paths:
 
 ## Arquitectura (orden de secciones dentro del script)
 
-0. **Parches de Leaflet y cargador**, todos ANTES de crear el mapa:
+0. **Idiomas de la interfaz** (`03-i18n.js`, `04-i18n-en.js`,
+   `04-i18n-init.js`), lo PRIMERO del manifiesto: `tr()`/`trn()`/
+   `trc()`/`N_()`, el registro de idiomas y el traductor del HTML
+   estático. Los diccionarios (`04-i18n-xx.js`) van antes de
+   `04-i18n-init.js`, que fija el idioma; desde ahí `tr()` vale en el
+   nivel superior de cualquier módulo. Sin dependencias. Ver `i18n.md`.
+0b. **Parches de Leaflet y cargador**, todos ANTES de crear el mapa:
    - `06-offline.js`: uso sin conexión (lista de lo que guarda el
      service worker, indicador «Sin conexión», `netFailText`); solo
      DECLARA funciones, `99-boot.js` las llama al final. Va antes que

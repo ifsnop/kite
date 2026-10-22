@@ -97,24 +97,24 @@ function buildPlacemarkLayer(pm, style, report) {
     try {
       const rings = parsePolygon(polyEl);
       if (rings) layers.push(L.polygon(rings, style));
-      else fail("polígono sin anillo exterior válido");
-    } catch (err) { fail(`polígono ilegible (${err.message})`); }
+      else fail(tr("polígono sin anillo exterior válido"));
+    } catch (err) { fail(tr("polígono ilegible ({message})", { message: err.message })); }
   }
   for (const lineEl of elsByTag(geomRoot, "LineString")) {
     try {
       const el = firstByTag(lineEl, "coordinates");
       const pts = el ? parseCoords(el.textContent) : [];
       if (pts.length >= 2) layers.push(L.polyline(pts, style));
-      else fail("línea con menos de dos puntos válidos");
-    } catch (err) { fail(`línea ilegible (${err.message})`); }
+      else fail(tr("línea con menos de dos puntos válidos"));
+    } catch (err) { fail(tr("línea ilegible ({message})", { message: err.message })); }
   }
   for (const ptEl of elsByTag(geomRoot, "Point")) {
     try {
       const el = firstByTag(ptEl, "coordinates");
       const pts = el ? parseCoords(el.textContent) : [];
       if (pts.length) layers.push(L.marker(pts[0]));
-      else fail("punto sin coordenadas válidas");
-    } catch (err) { fail(`punto ilegible (${err.message})`); }
+      else fail(tr("punto sin coordenadas válidas"));
+    } catch (err) { fail(tr("punto ilegible ({message})", { message: err.message })); }
   }
   if (!layers.length) return { group: null, reported };
 
@@ -163,26 +163,26 @@ async function buildGroundOverlay(el, zip, report, name) {
   const fail = why => { if (report) report.warn(`«${name}»: ${why}`); return null; };
 
   const parsedBox = parseLatLonBox(el);
-  if (!parsedBox) return fail("sin <LatLonBox> o con límites no válidos");
+  if (!parsedBox) return fail(tr("sin <LatLonBox> o con límites no válidos"));
   const { north, south, east, west, rotation } = parsedBox;
   if (rotation !== 0 && report) {
-    report.note(`«${name}» tiene rotación de ${rotation}° en el KML; se muestra sin rotar`);
+    report.note(tr("«{name}» tiene rotación de {rotation}° en el KML; se muestra sin rotar", { name, rotation }));
   }
 
   const iconEl = firstByTag(el, "Icon");
   const href = iconEl && text(iconEl, "href");
-  if (!href) return fail("sin <Icon><href>");
+  if (!href) return fail(tr("sin <Icon><href>"));
   const entry = resolveKmzEntry(zip, href);
-  if (!entry) return fail(`la imagen «${href}» no está disponible`);
+  if (!entry) return fail(tr("la imagen «{href}» no está disponible", { href }));
   const ext = (href.split(/[?#]/)[0].split(".").pop() || "").toLowerCase();
   const mime = KMZ_IMAGE_MIME[ext];
-  if (!mime) return fail(`formato de imagen no reconocido (${ext || "sin extensión"})`);
+  if (!mime) return fail(tr("formato de imagen no reconocido ({ext})", { ext: ext || tr("sin extensión") }));
 
   let dataUrl;
   try {
     dataUrl = `data:${mime};base64,${await entry.async("base64")}`;
   } catch (err) {
-    return fail(`no se pudo leer la imagen del KMZ (${err.message})`);
+    return fail(tr("no se pudo leer la imagen del KMZ ({message})", { message: err.message }));
   }
 
   const box = { north, south, east, west };
