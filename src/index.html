@@ -604,16 +604,22 @@
     <div id="profile-tools" hidden>
       <div id="profile-opts">
         <div class="pf-row">
-          <label class="pf-check" title="Recta negra entre la altura del primer y la del último punto de la ruta (MDS; si no está elegido, MDT), con las alturas de torre">
+          <label class="pf-check" title="Recta negra entre las dos torres (MDS; si no está elegido, MDT), con sus alturas de torre. Antes de la torre de inicio y después de la final sigue, discontinua, hasta los extremos de la ruta">
             <input type="checkbox" id="pf-los"> Línea inicio–fin</label>
-          <label class="pf-check" title="Primera zona de Fresnel alrededor de la línea inicio–fin (contorno discontinuo) y, rellena, su zona del 60 %, que debe quedar libre de obstáculos. La frecuencia se elige en Propiedades → Frecuencias">
+          <label class="pf-check" title="Primera zona de Fresnel alrededor de la línea inicio–fin, entre las dos torres (contorno discontinuo) y, rellena, su zona del 60 %, que debe quedar libre de obstáculos. La frecuencia se elige en Propiedades → Frecuencias">
             <input type="checkbox" id="pf-fresnel"> Elipsoide de Fresnel (60 %)</label>
         </div>
-        <div class="pf-row">
-          <label class="pf-field" title="Altura de la torre en el inicio de la ruta, SOBRE EL TERRENO: sube ese extremo de la línea inicio–fin">
-            Torre inicio <input type="number" id="pf-tower-a" min="0" step="any"> <span class="pf-tower-unit"></span></label>
-          <label class="pf-field" title="Altura de la torre en el final de la ruta, SOBRE EL TERRENO: sube ese extremo de la línea inicio–fin">
-            Torre final <input type="number" id="pf-tower-b" min="0" step="any"> <span class="pf-tower-unit"></span></label>
+        <div class="pf-row towers">
+          <label class="pf-field" title="Altura de la torre de inicio, SOBRE EL TERRENO: sube ese extremo de la línea inicio–fin">
+            <span class="pf-lbl">Torre inicio</span> <input type="number" id="pf-tower-a" min="0" step="any"> <span class="pf-tower-unit"></span></label>
+          <label class="pf-field" title="Vértice de la ruta donde está la torre de inicio: lo anterior queda fuera del enlace, para ver los obstáculos de detrás">
+            en <select id="pf-tower-a-at"></select></label>
+        </div>
+        <div class="pf-row towers">
+          <label class="pf-field" title="Altura de la torre final, SOBRE EL TERRENO: sube ese extremo de la línea inicio–fin">
+            <span class="pf-lbl">Torre final</span> <input type="number" id="pf-tower-b" min="0" step="any"> <span class="pf-tower-unit"></span></label>
+          <label class="pf-field" title="Vértice de la ruta donde está la torre final: lo posterior queda fuera del enlace, para ver los obstáculos de más allá">
+            en <select id="pf-tower-b-at"></select></label>
         </div>
       </div>
       <!-- Lectura bajo el cursor (showProfileCursor / setProfileInfo). Cada
@@ -636,8 +642,13 @@
     <div id="profile-foot" hidden>
       <label class="pf-check" title="La escala de alturas se queda quieta al desplazar o acercar la distancia; desmarcado, se ajusta sola a lo que se ve">
         <input type="checkbox" id="pf-y-lock"> Bloquear eje Y</label>
-      <label class="pf-check" title="Dibuja la curvatura de la Tierra con la refracción estándar de la atmósfera (radio efectivo 4/3): el terreno se eleva sobre la cuerda y el arco parte del nivel del mar">
-        <input type="checkbox" id="pf-earth"> Curvatura terrestre (k = 4/3)</label>
+      <label class="pf-field" title="Cómo se dibuja la curvatura de la Tierra con la refracción estándar de la atmósfera (radio efectivo 4/3). Clásica: la Tierra se arquea entre las torres y el terreno se eleva sobre la cuerda. Tierra plana: el terreno queda sobre una base recta y la línea de vista y el elipsoide se curvan hacia arriba. Desde el inicio: la Tierra cae desde la torre de inicio y la línea es recta. El despeje es el mismo en los tres">
+        Curvatura terrestre <select id="pf-curve">
+          <option value="none">Ninguna</option>
+          <option value="classic">Clásica (k = 4/3)</option>
+          <option value="flat">Tierra plana, rayo curvo</option>
+          <option value="origin">Desde el inicio</option>
+        </select></label>
       <button class="btn" id="pf-reset" title="Ruta entera y altura automática">Ver todo</button>
       <span class="pf-hint">Rueda: distancia · Mayús+rueda: altura · arrastrar: desplazar</span>
     </div>
