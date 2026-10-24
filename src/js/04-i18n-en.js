@@ -133,6 +133,7 @@ registerLang("en", "English", {
   "No hay nada que rehacer.": "There is nothing to redo.",
   "Rehecho: {label}.": "Redone: {label}.",
   "El árbol guardado en este navegador es de una versión anterior, incompatible con esta, y se ha eliminado.": "The tree saved in this browser comes from an earlier, incompatible version and has been deleted.",
+  "Faltan en el almacenamiento los datos de {n} capas guardadas; se han quitado del árbol.": { one: "The data of {n} saved layer is missing from storage; it has been removed from the tree.", other: "The data of {n} saved layers is missing from storage; they have been removed from the tree." },
   "Las ortofotos COG no se exportan (pueden ocupar gigas): se quedan fuera {names}.": { one: "COG orthophotos are not exported (they can take up gigabytes): {names} is left out.", other: "COG orthophotos are not exported (they can take up gigabytes): {names} are left out." },
   "No hay nada que descargar en este nodo.": "There is nothing to download in this node.",
   "Descargado «{download}».": "Downloaded “{download}”.",

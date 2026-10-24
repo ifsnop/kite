@@ -284,12 +284,6 @@ const dbGetRaster = id => dbRasterTx("readonly", st => st.get(id));
 const dbRasterKeys = () => dbRasterTx("readonly", st => st.getAllKeys());
 const dbDeleteRasters = ids => dbRasterTx("readwrite", st => { for (const id of ids) st.delete(id); return null; });
 
-function newRasterId() {
-  const b = new Uint8Array(16);
-  crypto.getRandomValues(b);
-  return [...b].map(x => x.toString(16).padStart(2, "0")).join("");
-}
-
 /* Al arrancar, con el árbol ya restaurado: se borran los blobs que nada
    nombra (una ortofoto borrada en otra sesión). En sesión no se borra
    nada, porque deshacer puede devolver el nodo.                       */
@@ -625,7 +619,7 @@ async function addCogNodeSteps(file, insertBefore, dropTargetUl) {
   }
   progress.indet(tr("Guardando {name} en el navegador…", { name: file.name }));
   await yieldFrame();
-  const id = newRasterId();
+  const id = newStoreId();
   try {
     await dbPutRaster(id, { blob: file, name: file.name, size: file.size });
   } catch (err) {

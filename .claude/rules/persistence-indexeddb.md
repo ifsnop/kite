@@ -8,9 +8,9 @@ paths:
 
 - Base `visor-kml` (nombre heredado, no se cambia: rompería el árbol/
   vista ya guardados de cualquier usuario). `DB_VERSION` versiona los
-  almacenes (hoy **4**: `tree` y `rasters`, lista `DB_STORES`);
-  `TREE_SCHEMA` versiona el formato del árbol serializado (`{ v, nodes }`
-  bajo la clave `root`). Actual: **8** — nuevo tipo de nodo `cog`
+  almacenes (hoy **5**: `tree`, `rasters` y `segments`, lista
+  `DB_STORES`); `TREE_SCHEMA` versiona el formato del árbol serializado
+  (`{ v, nodes }` bajo la clave `root`). Actual: **8** — nuevo tipo de nodo `cog`
   (ortofoto COG, ver `cog.md`); la 7 trajo `waypoints` en las
   mediciones. Lista completa por versión en el comentario de la propia
   constante; anotar ahí la siguiente subida.
@@ -27,8 +27,41 @@ paths:
   instancia ANTERIOR rechace un árbol/`.kite.json` con el tipo nuevo.
   El pegado entre pestañas (`40-panel-actions.js`) sigue exigiendo la
   misma versión.
+- **Guardado en dos niveles** (`DB_VERSION` 5, `32-geojson.js`, «Guardado
+  en dos niveles»): el `root` guardado es un ESQUELETO; la parte pesada de
+  cada hoja (`layer` → `geo`+`desc`, `elevGrid` → `cells`+`profile`,
+  `imageOverlay` → `dataUrl`; `HEAVY_FIELDS`) va al almacén `segments`, y
+  la hoja lleva `p: [segmento, índice]`. Cada guardado escribe como mucho
+  UN segmento nuevo con lo nuevo o cambiado (bitácora); al arrancar,
+  `segmentPlan` borra los muertos y funde los pequeños o medio muertos,
+  **en la misma transacción que la lectura** (`dbLoadTree`): fuera de
+  ella, un archivo soltado al arrancar podría perder sus segmentos.
+  `TREE_SCHEMA` NO cambia: memoria, deshacer, portapapeles y `.kite.json`
+  siguen con todo en línea; el reparto vive solo en `dbSaveTree`/
+  `dbLoadTree`.
+  - **Qué ha cambiado se sabe por IDENTIDAD** (`payloadsKnown`: `WeakMap`
+    objeto pesado → (ficha/perfil → ref), más un `Map` para las cadenas
+    `dataUrl`): la geometría cacheada (`li._geo`, `rec.geo`) nunca se
+    modifica en el sitio. **REGLA**: todo código que altere una geometría
+    tiene que pasar por `invalidateGeo` (o crear un objeto nuevo); si la
+    mutara en el sitio, el guardado la daría por escrita y el cambio se
+    perdería al recargar. Lo mismo para `cells`/`profile`.
+  - **Auto-reparación entre pestañas**: cada guardado lista las claves de
+    `segments` (pocas) y reescribe lo conocido cuyo segmento ya no está
+    (otra pestaña lo limpió al arrancar). Lo que aun así falte al leer se
+    quita del árbol con aviso sticky (`joinPayloads`).
+  - **Por qué segmentos y no una clave por capa**, medido con 22k capas:
+    una clave por capa tardaba 9,4 s en el primer guardado y 1,16 s en
+    leerse (frente a 0,24 s del `root` único). Pocos registros grandes.
+  - **TERCERA excepción** a «sin compatibilidad hacia atrás», decidida con
+    el usuario: un `root` v8 con todo en línea (anterior a v5) se lee TAL
+    CUAL (`joinPayloads` deja pasar las hojas sin `p`) y el primer
+    guardado lo reparte. Una instancia anterior no puede abrir una base v5.
+  - Pruebas: `tests/splitsave.js` (lo puro) y `tests/browser/split-save.mjs`
+    (disco = memoria tras cada operación, 200 al azar, fusión, dos
+    pestañas, subida desde v4).
 - **Almacén `rasters`** (`64-cog.js`): clave = id aleatorio de 32 hex
-  (`newRasterId`), valor = `{ blob, name, size }` con el `Blob`/`File`
+  (`newStoreId`, el mismo generador que el de los segmentos), valor = `{ blob, name, size }` con el `Blob`/`File`
   NATIVO (nada de base64: Chromium lo guarda aparte, y uno ya en el
   almacén de blobs lo referencia sin copiarlo — 362 MB en 31 ms). El
   nodo `cog` guarda `{ rasterId, box, opacity }`, validado al leer

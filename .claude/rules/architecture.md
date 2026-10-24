@@ -45,7 +45,9 @@ paths:
    filas (caret, checkbox, color, etiqueta, acciones). Toda fila nueva
    se crea con ella. Utilidades: `nodeUl`, `deleteNode`,
    `startRename`, `sortChildren`, `highlightNode`, `wireDrag`.
-4. **Persistencia**: serialización del árbol completo a IndexedDB.
+4. **Persistencia**: serialización del árbol completo a IndexedDB, guardado
+   en dos niveles (esqueleto en `root` + segmentos con lo pesado; ver
+   `persistence-indexeddb.md`).
 5. **Acciones del panel**: búsqueda, buscador de lugares (Nominatim),
    crear carpeta, seleccionar todo, selección masiva con teclado.
 6. **Estilos de capa**: `makeDialogMovable`, selector de color,

@@ -2753,6 +2753,7 @@ registerLang("en", "English", {
   "No hay nada que rehacer.": "There is nothing to redo.",
   "Rehecho: {label}.": "Redone: {label}.",
   "El árbol guardado en este navegador es de una versión anterior, incompatible con esta, y se ha eliminado.": "The tree saved in this browser comes from an earlier, incompatible version and has been deleted.",
+  "Faltan en el almacenamiento los datos de {n} capas guardadas; se han quitado del árbol.": { one: "The data of {n} saved layer is missing from storage; it has been removed from the tree.", other: "The data of {n} saved layers is missing from storage; they have been removed from the tree." },
   "Las ortofotos COG no se exportan (pueden ocupar gigas): se quedan fuera {names}.": { one: "COG orthophotos are not exported (they can take up gigabytes): {names} is left out.", other: "COG orthophotos are not exported (they can take up gigabytes): {names} are left out." },
   "No hay nada que descargar en este nodo.": "There is nothing to download in this node.",
   "Descargado «{download}».": "Downloaded “{download}”.",
@@ -4743,7 +4744,7 @@ map.on("resize rotate", fitWorldMinZoom);
 
 /* Fecha de generación del código (versión): AÑOMESDIAHORAMINUTO.
    Actualizar en cada generación; se muestra junto al crédito de Leaflet. */
-const BUILD = "202610240153";
+const BUILD = "202610241858";
 /* Versión de release (la de package.json, horneada aquí por build.js
    al construir — ver «Versión y releases de GitHub» en CLAUDE.md): a
    diferencia de BUILD, que cambia en CADA generación, esta solo cambia
@@ -8060,14 +8061,28 @@ async function buildGeoJsonRecords(gj, prog, report, nameKeys = null) {
    panel reprograma un guardado (con un pequeño debounce).                    */
 
 const DB_NAME = "visor-kml";
-const DB_VERSION = 4;  /* esquema de la base: almacenes "tree" y "rasters".
-                          Subir solo cuando cambie la estructura de almacenes.
+const DB_VERSION = 5;  /* esquema de la base: almacenes "tree", "rasters" y
+                          "segments". Subir solo cuando cambie la
+                          estructura de almacenes.
                           v4 añade "rasters" (las ortofotos COG, ver
                           64-cog.js) SIN borrar "tree": subir la versión
                           vaciaba antes todos los almacenes, y añadir uno
                           habría tirado el árbol de todo el mundo a cambio
                           de nada. openDb crea solo los que falten; un
-                          almacén que deje de existir se borra allí.     */
+                          almacén que deje de existir se borra allí.
+                          v5 añade "segments": la parte PESADA de cada hoja
+                          (geometría y ficha de una capa, celdas de una
+                          cuadrícula, imagen de una superposición) sale
+                          del "root" guardado, que pasa a ser un esqueleto
+                          con referencias `p: [segmento, índice]` (ver
+                          «Guardado en dos niveles» más abajo). Una
+                          instancia anterior no puede abrir una base v5
+                          (VersionError), así que nunca leerá un esqueleto
+                          sin geometría. TERCERA excepción deliberada a
+                          «sin compatibilidad hacia atrás», decidida con
+                          el usuario: un "root" v8 con todo en línea se
+                          sigue leyendo tal cual, sin transformar nada, y
+                          el primer guardado lo reparte.                 */
 const TREE_SCHEMA = 8; /* formato del árbol serializado. Subir solo cuando
                           cambie el formato; un árbol guardado con otra
                           versión se descarta al leer.
@@ -8113,9 +8128,229 @@ const TREE_SCHEMA = 8; /* formato del árbol serializado. Subir solo cuando
                           rechace un árbol que traiga el tipo nuevo. */
 const DB_TREE = "tree";
 const DB_RASTERS = "rasters";
+const DB_SEGMENTS = "segments";
 /* Los almacenes de DB_VERSION: openDb crea los que falten y borra los
    que sobren, sin tocar los que siguen (ver DB_VERSION v4).          */
-const DB_STORES = [DB_TREE, DB_RASTERS];
+const DB_STORES = [DB_TREE, DB_RASTERS, DB_SEGMENTS];
+
+/* Id aleatorio de 32 hex para las claves que no deben chocar entre
+   pestañas: blobs de "rasters" y segmentos de "segments".           */
+function newStoreId() {
+  const b = new Uint8Array(16);
+  crypto.getRandomValues(b);
+  return [...b].map(x => x.toString(16).padStart(2, "0")).join("");
+}
+
+/* ================= Guardado en dos niveles =================
+   IndexedDB no modifica un valor en parte: `put` lo reescribe entero, y
+   el structured clone de ese `put` corre SÍNCRONO en el hilo principal.
+   Con el árbol entero como un solo valor, cualquier cambio —plegar una
+   carpeta, marcar una capa— reescribía todo. Medido (Chromium sin GPU,
+   7 copias de un .kite.json real, 114 MB, 22.078 capas): 330 ms de
+   bloqueo 400 ms después de CADA acción, con el trabajo propio de la
+   acción por debajo de 40 ms. Y con la composición de un árbol real de
+   usuario (fichas 39 MB, polígonos 34 MB): 460 ms, de ellos 370 solo
+   por la geometría.
+
+   Ahora el "root" es un ESQUELETO (nombres, casillas, colapso, estilos:
+   2,9 MB con 22k capas → 18-20 ms) y lo pesado va a "segments", que se
+   escribe como un registro de bitácora: cada guardado añade como mucho
+   UN segmento con lo nuevo o cambiado desde el anterior. Importar es un
+   segmento grande; mover un marcador, uno diminuto. Al arrancar se
+   borran los segmentos muertos y se funden los pequeños o medio
+   muertos (segmentPlan).
+
+   Por qué segmentos y no una clave por capa (medido, 22k capas): una
+   clave por capa tardaba 9,4 s en el primer guardado y 1,16 s en leerse
+   al arrancar, frente a 0,24 s del "root" único; cada registro de
+   IndexedDB tiene un coste fijo alto. Hay que tener POCOS registros.
+
+   Saber qué ha cambiado no exige marcar nada en los ~100 sitios que
+   llaman a scheduleSave: la parte pesada se reconoce por IDENTIDAD.
+   `li._geo`/`rec.geo` es un objeto que nadie modifica en el sitio: todo
+   cambio de geometría pasa por invalidateGeo (31-tree-node.js), y el
+   siguiente toGeoJSON() crea otro objeto. Igual las celdas de una
+   cuadrícula y la cadena de una superposición. Cualquier código nuevo
+   que altere geometría SIN invalidateGeo perdería ese cambio al
+   recargar (antes también: la caché ya dependía de lo mismo).          */
+
+/* La parte pesada de una hoja serializada, o null si no tiene. `key` es
+   lo que la identifica (objeto o cadena) y `disc` lo que la acompaña y
+   también puede cambiar (la ficha de una capa, el perfil de una
+   cuadrícula): dos nodos con la misma geometría y distinta ficha son
+   dos cargas distintas. PURA.                                         */
+const HEAVY_FIELDS = { layer: ["geo", "desc"], elevGrid: ["cells", "profile"], imageOverlay: ["dataUrl"] };
+function heavyPart(n) {
+  const fields = HEAVY_FIELDS[n.t];
+  if (!fields) return null;
+  const key = n[fields[0]];
+  if (!key || (typeof key !== "object" && typeof key !== "string")) return null;
+  return { key, disc: fields[1] ? n[fields[1]] : undefined, fields };
+}
+/* La parte pesada, solo cuando hace falta escribirla. Un campo vacío no
+   se guarda, igual que serializeNode no lo pone.                     */
+function heavyPayload(n, fields) {
+  const out = {};
+  for (const f of fields) if (n[f]) out[f] = n[f];
+  return out;
+}
+/* El registro sin su parte pesada y con la referencia. A mano y no con
+   `{ ...rest }`: con 22k hojas por guardado, la desestructuración con
+   resto costaba de 5 a 19 ms medidos.                                */
+function skeletonLeaf(n, fields, ref) {
+  const out = {};
+  for (const k in n) if (!fields.includes(k)) out[k] = n[k];
+  out.p = ref;
+  return out;
+}
+
+/* Qué cargas ya están en disco y dónde: objeto pesado → (disc → ref).
+   Un WeakMap para los objetos, que así no retiene nada que el árbol ya
+   no use; las cadenas (dataUrl) no pueden ir en un WeakMap y van en un
+   Map que se rehace en cada guardado con las que siguen en el árbol.  */
+const newPayloadIndex = () => ({ obj: new WeakMap(), str: new Map() });
+function payloadRef(index, key, disc) {
+  const m = typeof key === "string" ? index.str.get(key) : index.obj.get(key);
+  return m ? m.get(disc) : undefined;
+}
+function rememberPayload(index, key, disc, ref) {
+  const table = typeof key === "string" ? index.str : index.obj;
+  let m = table.get(key);
+  if (!m) table.set(key, m = new Map());
+  m.set(disc, ref);
+}
+
+/* Reparte unos registros serializados en esqueleto + entradas del
+   segmento nuevo `segId`. Una carga ya conocida reutiliza su ref SOLO si
+   su segmento sigue en disco (`liveSegs`): si otra pestaña lo borró al
+   arrancar, se vuelve a escribir aquí (auto-reparación). `fresh` guarda
+   lo nuevo de este guardado, que pasa a `known` solo cuando la
+   transacción se complete (commitPayloads): si fallara, el siguiente
+   guardado lo reescribiría. PURA salvo por leer `known`.             */
+function splitPayloads(nodes, known, segId, liveSegs) {
+  const entries = [], fresh = newPayloadIndex(), freshList = [], strings = new Map();
+  const walk = list => list.map(n => {
+    if (n.children) return { ...n, children: walk(n.children) };
+    const h = heavyPart(n);
+    if (!h) return n;
+    let ref = payloadRef(fresh, h.key, h.disc);
+    if (!ref) {
+      const old = payloadRef(known, h.key, h.disc);
+      if (old && liveSegs.has(old[0])) ref = old;
+    }
+    if (!ref) {
+      ref = [segId, entries.length];
+      entries.push(heavyPayload(n, h.fields));
+      rememberPayload(fresh, h.key, h.disc, ref);
+      freshList.push([h.key, h.disc, ref]);
+    }
+    if (typeof h.key === "string") {
+      let m = strings.get(h.key);
+      if (!m) strings.set(h.key, m = new Map());
+      m.set(h.disc, ref);
+    }
+    return skeletonLeaf(n, h.fields, ref);
+  });
+  return { skeleton: walk(nodes), entries, freshList, strings };
+}
+function commitPayloads(known, out) {
+  for (const [key, disc, ref] of out.freshList) rememberPayload(known, key, disc, ref);
+  known.str = out.strings; /* solo las cadenas que siguen en el árbol */
+}
+
+/* Hojas del esqueleto que apuntan a un segmento, en orden. PURA. */
+function skeletonRefs(nodes, out = []) {
+  for (const n of nodes) {
+    if (n.children) skeletonRefs(n.children, out);
+    else if (Array.isArray(n.p)) out.push(n);
+  }
+  return out;
+}
+
+/* Qué hacer con los segmentos al arrancar, a partir del esqueleto
+   leído: borrar los que nada nombra y fundir en uno nuevo los que
+   tienen más entradas muertas que vivas o son pequeños (si hay más de
+   uno pequeño). Un segmento grande y sano (una importación) no se toca:
+   reescribirlo costaría lo mismo que el guardado entero que se evita.
+   PURA: `sizes` es Map(segId → nº de entradas).                      */
+const SEG_SMALL = 64;
+function segmentPlan(nodes, sizes) {
+  const live = new Map(); /* segId → Set(índices vivos) */
+  for (const n of skeletonRefs(nodes)) {
+    const [seg, i] = n.p;
+    if (!sizes.has(seg)) continue;
+    let s = live.get(seg);
+    if (!s) live.set(seg, s = new Set());
+    s.add(i);
+  }
+  const drop = [], small = [], compact = [];
+  for (const [seg, total] of sizes) {
+    const s = live.get(seg);
+    if (!s) drop.push(seg);
+    else if (s.size * 2 < total) compact.push(seg);
+    else if (total < SEG_SMALL) small.push(seg);
+  }
+  if (small.length > 1 || (small.length && compact.length)) compact.push(...small);
+  return { drop, compact };
+}
+
+/* Mueve al segmento nuevo `segId` las entradas vivas de los segmentos a
+   fundir, reescribiendo `p` en el esqueleto (que se MUTA, como
+   upgradeMeasuresV6). Dos hojas con la misma ref siguen compartiéndola.
+   Devuelve las entradas del segmento nuevo. PURA salvo esa mutación. */
+function compactSegments(nodes, segs, compact, segId) {
+  const moving = new Set(compact), moved = new Map(), entries = [];
+  for (const n of skeletonRefs(nodes)) {
+    const [seg, i] = n.p;
+    if (!moving.has(seg)) continue;
+    const k = seg + "|" + i;
+    let ref = moved.get(k);
+    if (!ref) {
+      const e = segs.get(seg)[i];
+      if (e === undefined) continue; /* la cuenta joinPayloads como perdida */
+      moved.set(k, ref = [segId, entries.length]);
+      entries.push(e);
+    }
+    n.p = ref;
+  }
+  return entries;
+}
+
+/* Devuelve a cada hoja su parte pesada (MUTA el esqueleto, recién leído
+   de disco) y quita las que apuntan a algo que ya no está: una base
+   tocada a mano, o una carrera entre pestañas que la auto-reparación no
+   llegó a cubrir. `remember(key, disc, ref)` siembra el índice de lo ya
+   guardado para que el primer guardado no lo reescriba todo. Un
+   registro con su parte pesada EN LÍNEA (un "root" v8 de antes de los
+   segmentos) pasa tal cual. Devuelve cuántas hojas se perdieron. PURA
+   salvo la mutación y `remember`.                                     */
+function joinPayloads(nodes, segs, remember = () => {}) {
+  let missing = 0;
+  const walk = list => {
+    for (let i = list.length - 1; i >= 0; i--) {
+      const n = list[i];
+      if (n.children) { walk(n.children); continue; }
+      if (!Array.isArray(n.p)) continue;
+      const seg = segs.get(n.p[0]);
+      const e = Array.isArray(seg) ? seg[n.p[1]] : undefined;
+      const ok = e && typeof e === "object" && (
+        (n.t === "layer" && e.geo && typeof e.geo === "object") ||
+        (n.t === "elevGrid" && Array.isArray(e.cells)) ||
+        (n.t === "imageOverlay" && typeof e.dataUrl === "string"));
+      if (!ok) { list.splice(i, 1); missing++; continue; }
+      const ref = n.p;
+      delete n.p;
+      Object.assign(n, e);
+      const h = heavyPart(n);
+      if (h) remember(h.key, h.disc, ref);
+    }
+  };
+  walk(nodes);
+  return missing;
+}
+
+/* Lo ya escrito en "segments" en esta sesión (y lo leído al arrancar) */
+let payloadsKnown = newPayloadIndex();
 
 /* Sube en silencio un árbol v6 a la forma v7 (measure: a/b → waypoints),
    la ÚNICA excepción a «lo que no corresponda a la versión actual se
@@ -8165,13 +8400,30 @@ function openDb() {
   }).catch(err => { dbPromise = null; throw err; });
   return dbPromise;
 }
-async function dbSaveTree(nodes) {
+/* Una sola transacción sobre "tree" y "segments": el esqueleto nunca
+   puede quedar en disco apuntando a un segmento que no llegó. Primero
+   se listan los segmentos que hay (pocos registros: barato) para que el
+   reparto sepa cuáles de los ya conocidos siguen vivos. `onCost` recibe
+   lo que tardó la parte SÍNCRONA de los `put`, que es donde se clona y
+   lo que bloquea el hilo: el retardo de scheduleSave se ajusta a eso.  */
+async function dbSaveTree(nodes, onCost = () => {}) {
   const db = await openDb();
   return new Promise((resolve, reject) => {
-    const tx = db.transaction(DB_TREE, "readwrite");
-    tx.objectStore(DB_TREE).put({ v: TREE_SCHEMA, nodes }, "root");
-    tx.oncomplete = resolve;
+    const tx = db.transaction([DB_TREE, DB_SEGMENTS], "readwrite");
+    const segs = tx.objectStore(DB_SEGMENTS);
+    let out = null;
+    const rq = segs.getAllKeys();
+    rq.onsuccess = () => {
+      const t0 = performance.now();
+      const segId = newStoreId();
+      out = splitPayloads(nodes, payloadsKnown, segId, new Set(rq.result));
+      if (out.entries.length) segs.put(out.entries, segId);
+      tx.objectStore(DB_TREE).put({ v: TREE_SCHEMA, nodes: out.skeleton }, "root");
+      onCost(performance.now() - t0);
+    };
+    tx.oncomplete = () => { if (out) commitPayloads(payloadsKnown, out); resolve(); };
     tx.onerror = () => reject(tx.error);
+    tx.onabort = () => reject(tx.error);
   });
 }
 /* ================= Ficha del elemento =================
@@ -8921,34 +9173,72 @@ function validView(rec) {
   return { lat, lng, zoom };
 }
 
+/* Lee el árbol y sus segmentos y, en la MISMA transacción, borra los
+   segmentos muertos y funde los pequeños (segmentPlan). Tiene que ser la
+   misma: un archivo soltado mientras arranca la aplicación guarda sus
+   segmentos en una transacción posterior, y una limpieza hecha aparte
+   podría verlos sin nadie que los nombre y borrarlos.               */
 async function dbLoadTree() {
   const db = await openDb();
   return new Promise((resolve, reject) => {
-    const tx = db.transaction(DB_TREE, "readwrite");
+    const tx = db.transaction([DB_TREE, DB_SEGMENTS], "readwrite");
     const st = tx.objectStore(DB_TREE);
-    const rq = st.get("root");
-    rq.onsuccess = () => {
-      const rec = rq.result;
+    const segStore = tx.objectStore(DB_SEGMENTS);
+    let rec, keys, nodes = null, missing = 0;
+    const rqRoot = st.get("root");
+    const rqKeys = segStore.getAllKeys();
+    const rqVals = segStore.getAll();
+    rqRoot.onsuccess = () => { rec = rqRoot.result; };
+    rqKeys.onsuccess = () => { keys = rqKeys.result; };
+    /* Las peticiones de una transacción terminan en orden: aquí ya están
+       las otras dos.                                                  */
+    rqVals.onsuccess = () => {
+      const segs = new Map(keys.map((k, i) => [k, rqVals.result[i]]));
       /* v7 se lee tal cual: ya es un v8 válido (ver TREE_SCHEMA v8) */
-      if (rec && (rec.v === TREE_SCHEMA || rec.v === 7)) { resolve(rec.nodes); return; }
+      if (rec && (rec.v === TREE_SCHEMA || rec.v === 7)) nodes = rec.nodes;
       /* Excepción deliberada (ver TREE_SCHEMA v7): un árbol v6 no se
          descarta, se sube en silencio. scheduleSave() lo dejará ya en
          v7 en cuanto el árbol restaurado sufra cualquier mutación.  */
-      if (rec && rec.v === 6) { resolve(upgradeMeasuresV6(rec.nodes)); return; }
+      else if (rec && rec.v === 6) nodes = upgradeMeasuresV6(rec.nodes);
       /* Versión distinta: se descarta el árbol, pero solo el árbol; la
          vista guardada es independiente y sigue siendo válida. El
          usuario pierde lo que tuviera cargado, así que el aviso es
          sticky (exige "Aceptar"), igual que un resumen de importación
          con elementos omitidos.                                     */
-      if (rec) {
+      else if (rec) {
         st.delete("root");
         navMessage(tr("El árbol guardado en este navegador es de una versión "
           + "anterior, incompatible con esta, y se ha eliminado."),
           { sticky: true });
       }
-      resolve(null);
+      const plan = segmentPlan(nodes || [], new Map([...segs].map(([k, v]) => [k, Array.isArray(v) ? v.length : 0])));
+      for (const seg of plan.drop) { segStore.delete(seg); segs.delete(seg); }
+      if (plan.compact.length) {
+        const segId = newStoreId();
+        const entries = compactSegments(nodes, segs, plan.compact, segId);
+        for (const seg of plan.compact) { segStore.delete(seg); segs.delete(seg); }
+        segs.set(segId, entries);
+        segStore.put(entries, segId);
+        /* Las refs del esqueleto cambiaron: se reescribe AHORA, antes de
+           que joinPayloads le devuelva la parte pesada (el clon del put
+           se hace en el acto).                                       */
+        st.put({ v: TREE_SCHEMA, nodes }, "root");
+      }
+      if (nodes) {
+        missing = joinPayloads(nodes, segs, (key, disc, ref) => rememberPayload(payloadsKnown, key, disc, ref));
+      }
     };
-    rq.onerror = () => reject(rq.error);
+    tx.oncomplete = () => {
+      if (missing) {
+        navMessage(trn(missing,
+          "Faltan en el almacenamiento los datos de {n} capa guardada; se ha quitado del árbol.",
+          "Faltan en el almacenamiento los datos de {n} capas guardadas; se han quitado del árbol."),
+          { sticky: true });
+      }
+      resolve(nodes);
+    };
+    tx.onerror = () => reject(tx.error);
+    tx.onabort = () => reject(tx.error);
   });
 }
 
@@ -9265,8 +9555,11 @@ function saveTree() {
     .then(() => {
       const t0 = performance.now();
       const nodes = serializeTree();
-      saveCost = performance.now() - t0;
-      return dbSaveTree(nodes);
+      const serializing = performance.now() - t0;
+      /* El coste que cuenta es el que BLOQUEA el hilo: serializar más el
+         clon síncrono de los put. Midiendo solo lo primero (3-10 ms), el
+         retardo se quedaba en 400 ms aunque el put tardara 330.      */
+      return dbSaveTree(nodes, putting => { saveCost = serializing + putting; });
     })
     .then(refreshStorageUsage)
     .catch(err => {
@@ -21245,12 +21538,6 @@ const dbGetRaster = id => dbRasterTx("readonly", st => st.get(id));
 const dbRasterKeys = () => dbRasterTx("readonly", st => st.getAllKeys());
 const dbDeleteRasters = ids => dbRasterTx("readwrite", st => { for (const id of ids) st.delete(id); return null; });
 
-function newRasterId() {
-  const b = new Uint8Array(16);
-  crypto.getRandomValues(b);
-  return [...b].map(x => x.toString(16).padStart(2, "0")).join("");
-}
-
 /* Al arrancar, con el árbol ya restaurado: se borran los blobs que nada
    nombra (una ortofoto borrada en otra sesión). En sesión no se borra
    nada, porque deshacer puede devolver el nodo.                       */
@@ -21586,7 +21873,7 @@ async function addCogNodeSteps(file, insertBefore, dropTargetUl) {
   }
   progress.indet(tr("Guardando {name} en el navegador…", { name: file.name }));
   await yieldFrame();
-  const id = newRasterId();
+  const id = newStoreId();
   try {
     await dbPutRaster(id, { blob: file, name: file.name, size: file.size });
   } catch (err) {

@@ -80,6 +80,36 @@ paths:
   justo antes (`--js-flags=--expose-gc`) los dos daban ~260-300. Antes de
   dar una regresión por real, comparar en la MISMA página activando y
   desactivando el cambio, o forzando el GC en ambas.
+- **El guardado no reescribe lo inmutable** (`DB_VERSION` 5, ver
+  `persistence-indexeddb.md`). IndexedDB no modifica un valor en parte y el
+  structured clone del `put` es SÍNCRONO en el hilo principal: con el árbol
+  como un único valor, CADA acción (plegar, marcar, borrar) iba seguida, a
+  los 400 ms, de un bloqueo proporcional a TODO lo guardado. Medido
+  (Chromium sin GPU, 7 copias de un `.kite.json` real, 114 MB, 22.078
+  capas): 330 ms tras cada acción, con la acción en sí por debajo de 40 ms
+  — el árbol nunca fue el problema. Con la composición de un árbol real
+  (fichas 39 MB, polígonos 34 MB): 460 ms, 370 de ellos por la geometría.
+  Ahora solo se reescribe el esqueleto: 32-46 ms por guardado en total, sin
+  ninguna tarea larga; arranque 253 → 304 ms. `saveCost` mide además el
+  clon síncrono del `put` (antes solo `serializeTree`, 3-10 ms, y el
+  retardo nunca pasaba de 400 ms aunque el `put` tardara 330). Descartado
+  tras medir: guardar la ficha ya saneada como arreglo de la pausa (−12 %
+  con la composición real; sí recorta el arranque un 44 %, pendiente como
+  mejora aparte), una clave por capa (ver arriba) y guardar en inactividad
+  (mueve la pausa, no la quita).
+- **Activar una carpeta con ~1.000 marcadores: se deja como está, decidido
+  con el usuario** (2026-10-24). Medido SIN perfilador (el de CDP la
+  inflaba a 89 ms): la cascada tarda ~185 ms la primera vez, con una tarea
+  larga de 55-84 ms en 5 de cada 6 ejecuciones, y 130-190 ms después, casi
+  siempre sin ella. Es Leaflet: cada marcador con el pin crea DOS `<img>`
+  (pin y sombra) más su pintado, por software en la VM. Probado y
+  descartado: ceder el hilo por tiempo (cada 8 ms) en vez de cada
+  `CASCADE_BATCH` — la cascada sube a 281-497 ms, porque cada fotograma
+  extra repinta todos los marcadores. Lo que sí funcionaba era quitar la
+  sombra del pin (~100 ms, −45 %, tarea larga en 1 de 6), pero cambia el
+  aspecto y el usuario prefirió conservarla; una imagen única pin+sombra
+  quedó sin hacer. No reabrir sin un caso nuevo o una traza de un equipo
+  con GPU.
 - **Las librerías que solo usa una función no bloquean el arranque**
   (`07-lazy-libs.js`): html2canvas, geotiff.js y proj4js eran 646 KB sin
   comprimir (≈ 194 KB por la red) ejecutados antes de poder arrancar.

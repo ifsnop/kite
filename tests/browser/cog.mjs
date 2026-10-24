@@ -303,8 +303,8 @@ ok(await p2.evaluate(() => [...rootUl.children].some(li => li._name === "Viejo")
   "abrir esta versión sobre una base v3 conserva el árbol (v7, leído tal cual)");
 ok(await p2.evaluate(() => new Promise(r => {
   const rq = indexedDB.open("visor-kml");
-  rq.onsuccess = () => { const ok = rq.result.version === 4 && rq.result.objectStoreNames.contains("rasters"); rq.result.close(); r(ok); };
-})), "y la base queda en v4 con su almacén «rasters»");
+  rq.onsuccess = () => { const ok = rq.result.version === DB_VERSION && rq.result.objectStoreNames.contains("rasters"); rq.result.close(); r(ok); };
+})), "y la base queda en la versión actual con su almacén «rasters»");
 await ctx2.close();
 
 /* ---------- 10. UTM de cualquier huso, norte y sur (EPSG:32636 era el que se rechazaba) ---------- */
