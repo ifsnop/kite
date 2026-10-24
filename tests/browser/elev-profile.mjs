@@ -614,17 +614,26 @@ ok(stZoom.curves === 0 && stZoom.matched === stZoom.vertices && stZoom.vertices 
   "con zoom, una línea recta de valor a valor, todos los valores: " + JSON.stringify(stZoom));
 
 /* ---------- 7e. Línea inicio–fin y curvatura terrestre (k = 4/3) ---------- */
+/* La recta es una polilínea muestreada (se curva con «Tierra plana»): sus extremos */
+await page.evaluate(() => {
+  window.losEnds = (cls = "pf-los") => {
+    const ln = profileChart.querySelector("polyline." + cls);
+    if (!ln) return null;
+    const p = ln.getAttribute("points").trim().split(/\s+/).map(t => t.split(",").map(Number));
+    return { x1: p[0][0], y1: p[0][1], x2: p[p.length - 1][0], y2: p[p.length - 1][1], n: p.length };
+  };
+});
 await page.click("#pf-reset");
 await frames();
 const opt0 = await page.evaluate(() => ({ los: !!profileChart.querySelector(".pf-los"), earth: !!profileChart.querySelector(".pf-earth"),
-  losBox: document.getElementById("pf-los").checked, earthBox: document.getElementById("pf-earth").checked }));
-ok(!opt0.los && !opt0.earth && !opt0.losBox && !opt0.earthBox, "por defecto, sin recta ni curvatura: " + JSON.stringify(opt0));
+  losBox: document.getElementById("pf-los").checked, curve: document.getElementById("pf-curve").value }));
+ok(!opt0.los && !opt0.earth && !opt0.losBox && opt0.curve === "none", "por defecto, sin recta ni curvatura: " + JSON.stringify(opt0));
 await page.click("#pf-los");
 await frames();
 const los1 = await page.evaluate(() => {
-  const ln = profileChart.querySelector("line.pf-los"), lay = profileLayout;
+  const ln = profileChart.querySelector("polyline.pf-los"), lay = profileLayout, e = window.losEnds();
   const mds = profileData.series.find(s => s.kind === "mds").points.filter(p => typeof p.v === "number");
-  return { y1: +ln.getAttribute("y1"), y2: +ln.getAttribute("y2"), x1: +ln.getAttribute("x1"), x2: +ln.getAttribute("x2"),
+  return { y1: e.y1, y2: e.y2, x1: e.x1, x2: e.x2,
            ey1: lay.yOf(mds[0].v), ey2: lay.yOf(mds[mds.length - 1].v), ex1: lay.xOf(lay.x0), ex2: lay.xOf(lay.x1),
            stroke: getComputedStyle(ln).stroke, legend: !!profileChart.querySelector(".pf-legend.los"),
            legendText: [...profileChart.querySelectorAll(".pf-legend-label")].map(t => t.textContent).join("|") };
@@ -640,7 +649,7 @@ const losMdt = await page.evaluate(() => {
   profileData.series = keep.filter(s => s.kind === "mdt");
   renderProfileChart();
   const r = { text: [...profileChart.querySelectorAll(".pf-legend-label")].map(t => t.textContent).join("|"),
-              y1: +profileChart.querySelector("line.pf-los").getAttribute("y1"),
+              y1: window.losEnds().y1,
               ey1: profileLayout.yOf(profileData.series[0].points.find(p => typeof p.v === "number").v) };
   profileData.series = keep;
   renderProfileChart();
@@ -652,15 +661,15 @@ ok(/Línea inicio–fin \(MDT\)/.test(losMdt.text) && Math.abs(losMdt.y1 - losMd
 await mouseAt(g5, g5.total / 2);
 for (let i = 0; i < 4; i++) { await page.mouse.wheel(0, -400); await frames(); }
 const losZoom = await page.evaluate(() => {
-  const ln = profileChart.querySelector("line.pf-los"), lay = profileLayout, l = lay.los;
+  const lay = profileLayout, l = lay.los, e = window.losEnds();
   const at = d => lay.yOf(l.a + (l.b - l.a) * d / lay.total);
-  return { y1: +ln.getAttribute("y1"), y2: +ln.getAttribute("y2"), e1: at(lay.x0), e2: at(lay.x1) };
+  return { y1: e.y1, y2: e.y2, e1: at(lay.x0), e2: at(lay.x1) };
 });
 ok(Math.abs(losZoom.y1 - losZoom.e1) < 0.2 && Math.abs(losZoom.y2 - losZoom.e2) < 0.2, "con zoom, sigue la misma recta: " + JSON.stringify(losZoom));
 await page.click("#pf-reset");
 await frames();
 
-await page.click("#pf-earth");
+await page.selectOption("#pf-curve", "classic");
 await frames();
 const earth1 = await page.evaluate(() => {
   const lay = profileLayout, mid = lay.total / 2, ph = lay.ph;
@@ -694,7 +703,7 @@ const clear = await page.evaluate(() => {
 ok(Math.abs(Number(clear.shown.replace(/[^\d.+-]/g, "").replace(/^[+]/, "")) - clear.want) < 0.11,
   "el despeje = recta − (terreno + curvatura): " + JSON.stringify(clear));
 await page.click("#pf-los");
-await page.click("#pf-earth");
+await page.selectOption("#pf-curve", "none");
 await frames();
 const opt2 = await page.evaluate(() => ({ los: !!profileChart.querySelector(".pf-los"), earth: !!profileChart.querySelector(".pf-earth") }));
 const rowsOff = await infoRows();
@@ -713,9 +722,9 @@ await page.click("#pf-los");
 await setField("pf-tower-a", "30");
 await setField("pf-tower-b", "12.5");
 const tw1 = await page.evaluate(() => {
-  const lay = profileLayout, ln = profileChart.querySelector("line.pf-los");
+  const lay = profileLayout, e = window.losEnds();
   const mds = profileData.series.find(s => s.kind === "mds").points.filter(p => typeof p.v === "number");
-  return { y1: +ln.getAttribute("y1"), y2: +ln.getAttribute("y2"), ey1: lay.yOf(mds[0].v + 30), ey2: lay.yOf(mds[mds.length - 1].v + 12.5),
+  return { y1: e.y1, y2: e.y2, ey1: lay.yOf(mds[0].v + 30), ey2: lay.yOf(mds[mds.length - 1].v + 12.5),
            towers: [...profileChart.querySelectorAll("line.pf-tower")].map(t => ({ h: Math.abs(+t.getAttribute("y1") - +t.getAttribute("y2")),
              x: +t.getAttribute("x1") })), tower: profileTowerM, ex1: lay.xOf(0), ex2: lay.xOf(lay.total) };
 });
@@ -786,17 +795,17 @@ for (let i = 0; i < 40 && saved !== 2400; i++) { saved = await page.evaluate(() 
 ok(saved === 2400, "Aceptar la guarda en IndexedDB: " + saved);
 /* con la curvatura, el elipsoide sigue alrededor de la misma recta (el terreno es lo que sube) */
 const frNoEarth = await page.evaluate(() => profileChart.querySelector("polygon.pf-fresnel60").getAttribute("points"));
-await page.click("#pf-earth");
+await page.selectOption("#pf-curve", "classic");
 await frames();
 const frEarth = await page.evaluate(() => ({ pts: profileChart.querySelector("polygon.pf-fresnel60") && profileChart.querySelector("polygon.pf-fresnel60").getAttribute("points"),
-  los: profileChart.querySelector("line.pf-los") && [profileChart.querySelector("line.pf-los").getAttribute("y1"), profileChart.querySelector("line.pf-los").getAttribute("y2")] }));
+  los: profileChart.querySelector("polyline.pf-los") && window.losEnds() }));
 ok(frEarth.pts && frEarth.los, "con la curvatura también se dibuja el elipsoide y la recta: " + JSON.stringify(frEarth).slice(0, 120));
 /* la lectura, con margen sobre la zona del 60 % */
 await mouseAt(g5, g5.total / 2);
 const rdF = await infoRows();
 ok(/^[\d.]+ m$/.test(rdF.fres.txt) && /^[+-][\d.]+ m$/.test(rdF.margin.txt) && !rdF.fres.off && !rdF.margin.off,
   "la lectura da el radio al 60 % y el margen: " + JSON.stringify([rdF.fres, rdF.margin]));
-await page.click("#pf-earth");
+await page.selectOption("#pf-curve", "none");
 await page.click("#pf-fresnel");
 await page.click("#pf-los");
 await frames();
@@ -805,10 +814,143 @@ ok(!fr0.f && !fr0.t && !fr0.l, "todo desmarcado: sin elipsoide, torres ni recta 
 /* solo Fresnel (sin la recta marcada): el elipsoide sale igual, sin línea negra */
 await page.click("#pf-fresnel");
 await frames();
-const frOnly = await page.evaluate(() => ({ f: !!profileChart.querySelector(".pf-fresnel60"), l: !!profileChart.querySelector("line.pf-los") }));
+const frOnly = await page.evaluate(() => ({ f: !!profileChart.querySelector(".pf-fresnel60"), l: !!profileChart.querySelector(".pf-los") }));
 ok(frOnly.f && !frOnly.l, "solo el elipsoide: se dibuja alrededor de la recta sin pintarla: " + JSON.stringify(frOnly));
 await page.click("#pf-fresnel");
 await page.evaluate(() => { profileTowerM.a = 0; profileTowerM.b = 0; renderProfileChart(); });
+
+/* ---------- 7g0. Tres maneras de dibujar la curvatura, y torres en vértices ---------- */
+await page.click("#pf-reset");
+await page.click("#pf-los");
+await frames();
+const curveState = async mode => {
+  await page.selectOption("#pf-curve", mode);
+  await frames();
+  return page.evaluate(() => {
+    const lay = profileLayout, mid = lay.total / 2, e = window.losEnds(), sea = profileChart.querySelector("polyline.pf-earth");
+    const seaY = sea && sea.getAttribute("points").trim().split(/\s+/).map(t => +t.split(",")[1]);
+    return { lift0: lay.lift(0), liftMid: lay.lift(mid), liftEnd: lay.lift(lay.total), bendMid: lay.bend(mid), bendEnd: lay.bend(lay.total),
+             seaFlat: !!seaY && Math.max(...seaY) - Math.min(...seaY) < 0.01, sea: !!sea,
+             axis: [...profileChart.querySelectorAll("text.pf-tick")].map(t => t.textContent).find(t => /^Altura/.test(t)),
+             legend: [...profileChart.querySelectorAll(".pf-legend-label")].map(t => t.textContent).join("|"),
+             straight: (() => { const p = profileChart.querySelector("polyline.pf-los").getAttribute("points").trim().split(/\s+/).map(t => t.split(",").map(Number));
+               const a = p[0], b = p[p.length - 1], q = p[Math.floor(p.length / 2)];
+               return Math.abs(q[1] - (a[1] + (b[1] - a[1]) * (q[0] - a[0]) / (b[0] - a[0]))) < 0.05; })(),
+             total: lay.total, y: e.y1 };
+  });
+};
+const R2k = 2 * (4 / 3) * 6371000;
+const cNone = await curveState("none");
+ok(!cNone.sea && cNone.liftMid === 0 && cNone.bendMid === 0 && cNone.axis === "Altura (m)", "sin curvatura: ni arco ni corrección: " + JSON.stringify(cNone));
+const cFlat = await curveState("flat");
+ok(cFlat.sea && cFlat.seaFlat && cFlat.liftMid === 0 && Math.abs(cFlat.bendMid + cFlat.total * cFlat.total / 4 / R2k) < 1e-9 && cFlat.bendEnd === 0,
+  "tierra plana: el nivel del mar es una recta y la línea baja L²/(8kR) en el centro: " + JSON.stringify(cFlat));
+ok(/Tierra plana/.test(cFlat.legend) && cFlat.axis === "Altura (m)", "con su leyenda: " + cFlat.legend);
+const cOrg = await curveState("origin");
+ok(cOrg.lift0 === 0 && Math.abs(cOrg.liftEnd + cOrg.total * cOrg.total / R2k) < 1e-9 && cOrg.bendMid === 0 && cOrg.straight,
+  "desde el inicio: la Tierra cae L²/(2kR) en el final y la línea sigue recta: " + JSON.stringify(cOrg));
+ok(/desde el inicio/.test(cOrg.legend) && /^Altura − caída k = 4\/3/.test(cOrg.axis), "con su leyenda y su eje: " + cOrg.legend + " | " + cOrg.axis);
+const cCls = await curveState("classic");
+ok(Math.abs(cCls.liftMid - cCls.total * cCls.total / 4 / R2k) < 1e-9 && cCls.liftEnd === 0 && cCls.bendMid === 0 && /^Altura \+ curvatura/.test(cCls.axis),
+  "clásica, como siempre: " + JSON.stringify(cCls));
+await page.selectOption("#pf-curve", "none");
+
+/* Torres en vértices intermedios */
+const towerSel = await page.evaluate(() => ({
+  a: [...document.getElementById("pf-tower-a-at").options].map(o => o.textContent + (o.disabled ? " [x]" : "")),
+  b: [...document.getElementById("pf-tower-b-at").options].map(o => o.textContent + (o.disabled ? " [x]" : "")),
+  va: document.getElementById("pf-tower-a-at").value, vb: document.getElementById("pf-tower-b-at").value }));
+ok(towerSel.a.length === 3 && /^1 · Inicio · 0\.00 /.test(towerSel.a[0]) && /^2 · \d/.test(towerSel.a[1]) && /^3 · Final · /.test(towerSel.a[2])
+  && towerSel.va === "0" && towerSel.vb === "2" && /\[x\]$/.test(towerSel.a[2]) && /\[x\]$/.test(towerSel.b[0]) && !/\[x\]/.test(towerSel.b[1]),
+  "un vértice por opción (numerados desde 1), inicio y final por defecto, y el orden se impone deshabilitando: " + JSON.stringify(towerSel));
+await setField("pf-tower-a", "20");
+await page.selectOption("#pf-tower-a-at", "1");
+await page.click("#pf-fresnel");
+await frames();
+const tv = await page.evaluate(() => {
+  const lay = profileLayout, v1 = profileData.vertices[1], x1 = lay.xOf(v1);
+  const ext = window.losEnds("pf-los-ext"), los = window.losEnds();
+  const fr = profileChart.querySelector("polygon.pf-fresnel").getAttribute("points").trim().split(/\s+/).map(t => +t.split(",")[0]);
+  const tw = [...profileChart.querySelectorAll("line.pf-tower")].map(t => +t.getAttribute("x1"));
+  return { x1, extEnd: ext && ext.x2, extStart: ext && ext.x1, ex0: lay.xOf(0), losStart: los.x1, losEnd: los.x2, ex2: lay.xOf(lay.total),
+           frMin: Math.min(...fr), tw, at: { ...profileTowerAt }, dash: ext && getComputedStyle(profileChart.querySelector("polyline.pf-los-ext")).strokeDasharray,
+           bOpts: [...document.getElementById("pf-tower-b-at").options].map(o => o.disabled).join() };
+});
+ok(Math.abs(tv.losStart - tv.x1) < 0.2 && Math.abs(tv.losEnd - tv.ex2) < 0.2, "la línea continua empieza en la torre del vértice 2: " + JSON.stringify(tv));
+ok(Math.abs(tv.extStart - tv.ex0) < 0.2 && Math.abs(tv.extEnd - tv.x1) < 0.2 && tv.dash !== "none", "y antes de ella sigue, discontinua, hasta el inicio de la ruta: " + JSON.stringify(tv));
+ok(Math.abs(tv.frMin - tv.x1) < 0.2, "Fresnel solo entre las torres: " + tv.frMin + " vs " + tv.x1);
+ok(tv.tw.length === 1 && Math.abs(tv.tw[0] - tv.x1) < 0.2 && tv.bOpts === "true,true,false", "la torre se dibuja en su vértice y el final no puede quedar antes: " + JSON.stringify([tv.tw, tv.bOpts]));
+/* La lectura: despeje fuera de las torres solo con la línea dibujada; Fresnel y margen, solo entre ellas */
+await mouseAt(g5, g5.vertices[1] / 2);
+const rdOut = await infoRows();
+await mouseAt(g5, (g5.vertices[1] + g5.vertices[2]) / 2);
+const rdIn = await infoRows();
+ok(/^[+-][\d.]+ m$/.test(rdOut.clear.txt) && rdOut.fres.txt === "—" && rdOut.margin.txt === "—", "antes de la torre: despeje de la prolongación, sin Fresnel: " + JSON.stringify([rdOut.clear, rdOut.fres, rdOut.margin]));
+ok(/^[+-][\d.]+ m$/.test(rdIn.clear.txt) && /^[\d.]+ m$/.test(rdIn.fres.txt) && /^[+-][\d.]+ m$/.test(rdIn.margin.txt), "entre ellas: despeje, Fresnel y margen: " + JSON.stringify([rdIn.clear, rdIn.fres, rdIn.margin]));
+await page.click("#pf-los");
+await frames();
+await mouseAt(g5, g5.vertices[1] / 2);
+const rdNoLine = await infoRows();
+ok(rdNoLine.clear.txt === "—", "sin la línea marcada, fuera de las torres no hay despeje que leer: " + JSON.stringify(rdNoLine.clear));
+await page.click("#pf-los");
+/* la torre final en el vértice 2, con la de inicio en el 1: nada tras ella, la línea se prolonga hasta el final de la ruta */
+await page.selectOption("#pf-tower-a-at", "0");
+await page.selectOption("#pf-tower-b-at", "1");
+await frames();
+const tb = await page.evaluate(() => {
+  const lay = profileLayout, ext = window.losEnds("pf-los-ext"), los = window.losEnds(), x1 = lay.xOf(profileData.vertices[1]);
+  return { at: { ...profileTowerAt }, extStart: ext && ext.x1, extEnd: ext && ext.x2, losEnd: los.x2, x1, ex2: lay.xOf(lay.total),
+           aOpts: [...document.getElementById("pf-tower-a-at").options].map(o => o.disabled).join() };
+});
+ok(tb.at.a === 0 && tb.at.b === 1 && Math.abs(tb.losEnd - tb.x1) < 0.2 && Math.abs(tb.extStart - tb.x1) < 0.2 && Math.abs(tb.extEnd - tb.ex2) < 0.2 && tb.aOpts === "false,true,true",
+  "la torre final en el vértice 2: la línea continua acaba allí y la prolongación llega al final: " + JSON.stringify(tb));
+/* Presentación: velo fuera del enlace, vértices de torre con tinta, antenas con su altura, y puntos bajo el cursor */
+await page.selectOption("#pf-tower-b-at", "2");
+await page.selectOption("#pf-tower-a-at", "1");
+await frames();
+await mouseAt(g5, (g5.vertices[1] + g5.vertices[2]) / 2);
+const pres = await page.evaluate(() => {
+  const lay = profileLayout, q = sel => [...profileChart.querySelectorAll(sel)];
+  const veil = q("rect.pf-outside").map(r => ({ x: +r.getAttribute("x"), w: +r.getAttribute("width") }));
+  return { veil, ex0: lay.xOf(0), x1: lay.xOf(profileData.vertices[1]),
+           towerLines: q("line.pf-vertex.tower").map(l => +l.getAttribute("x1")), plainLines: q("line.pf-vertex:not(.tower)").length,
+           antennas: q("circle.pf-antenna").length, labels: q("text.pf-tower-label").map(t => t.textContent),
+           dots: q("#pf-dots circle").map(c => c.getAttribute("class").replace("pf-dot ", "")).sort().join(),
+           dotR: q("#pf-dots circle").map(c => +c.getAttribute("r")), ring: getComputedStyle(q("#pf-dots circle")[0]).strokeWidth,
+           lineW: getComputedStyle(q("polyline.pf-line")[0]).strokeWidth };
+});
+ok(pres.veil.length === 1 && Math.abs(pres.veil[0].x - pres.ex0) < 0.2 && Math.abs(pres.veil[0].w - (pres.x1 - pres.ex0)) < 0.2,
+  "el velo cubre solo lo anterior a la torre de inicio: " + JSON.stringify(pres.veil));
+ok(pres.towerLines.length === 2 && Math.abs(pres.towerLines[0] - pres.x1) < 0.2 && pres.plainLines === 1,
+  "los vértices de las torres llevan tinta y el otro queda apagado: " + JSON.stringify([pres.towerLines, pres.plainLines]));
+ok(pres.antennas === 2 && pres.labels.length === 1 && /^20(\.0)? m$/.test(pres.labels[0]),
+  "una antena por torre, y la altura rotulada solo en la que mide algo: " + JSON.stringify([pres.antennas, pres.labels]));
+ok(pres.dots === "los,mds,mdt" && pres.dotR.every(r => r >= 4) && pres.ring === "2px" && pres.lineW === "2px",
+  "bajo el cursor, un punto de al menos 8 px con anillo de 2 px en cada curva y en la recta; las curvas, a 2 px: " + JSON.stringify([pres.dots, pres.dotR, pres.ring, pres.lineW]));
+await page.mouse.move(5, 5);
+await frames();
+ok((await page.evaluate(() => profileChart.querySelectorAll("#pf-dots circle").length)) === 0, "sin cursor sobre la gráfica, sin puntos");
+/* tema oscuro: los pasos oscuros validados (contraste ≥ 3:1 sobre el panel) */
+await page.emulateMedia({ colorScheme: "dark" });
+const dark = await page.evaluate(() => { const c = sel => getComputedStyle(profileChart.querySelector(sel)).stroke;
+  return { mdt: c("polyline.pf-line.mdt"), mds: c("polyline.pf-line.mds"), fres: c("polygon.pf-fresnel") }; });
+await page.emulateMedia({ colorScheme: "light" });
+ok(dark.mdt === "rgb(63, 148, 230)" && dark.mds === "rgb(69, 168, 75)" && dark.fres === "rgb(168, 111, 224)", "en oscuro, MDT, MDS y Fresnel usan sus pasos oscuros: " + JSON.stringify(dark));
+await page.selectOption("#pf-tower-a-at", "0");
+await frames();
+/* los vértices son de la RUTA: otro perfil, otros vértices; las alturas se conservan */
+const keyReset = await page.evaluate(() => {
+  const key = profileData.key;
+  setProfileData({ ...profileData, key: key + "-otra" });
+  const other = { ...profileTowerAt, h: profileTowerM.a };
+  setProfileData({ ...profileData, key });
+  return other;
+});
+ok(keyReset.a === 0 && keyReset.b === null && keyReset.h === 20, "otra ruta: los vértices vuelven a los extremos y la altura se conserva: " + JSON.stringify(keyReset));
+await page.click("#pf-fresnel");
+await page.click("#pf-los");
+await page.evaluate(() => { profileTowerM.a = 0; profileTowerM.b = 0; renderProfileChart(); });
+await frames();
 
 /* ---------- 7h. Disposición de la ventana ---------- */
 await page.click("#pf-reset");
@@ -816,20 +958,21 @@ await frames();
 const L = await page.evaluate(() => {
   const r = id => { const b = document.getElementById(id).getBoundingClientRect(); return { l: b.left, t: b.top, r: b.right, b: b.bottom }; };
   const box = id => r(id);
-  return { los: box("pf-los"), fres: box("pf-fresnel"), ta: box("pf-tower-a"), tb: box("pf-tower-b"), info: box("profile-info"),
-           chart: box("profile-chart"), lock: box("pf-y-lock"), earth: box("pf-earth"), reset: box("pf-reset"),
+  return { los: box("pf-los"), fres: box("pf-fresnel"), ta: box("pf-tower-a"), tb: box("pf-tower-b"), sa: box("pf-tower-a-at"), sb: box("pf-tower-b-at"), info: box("profile-info"),
+           chart: box("profile-chart"), lock: box("pf-y-lock"), earth: box("pf-curve"), reset: box("pf-reset"),
            hint: !!document.querySelector("#profile-foot .pf-hint"), footShown: !document.getElementById("profile-foot").hidden,
            headShown: !document.getElementById("profile-tools").hidden };
 });
 const sameRow = (a, b) => Math.abs((a.t + a.b) / 2 - (b.t + b.b) / 2) < 6;
 ok(L.headShown && L.footShown, "con la gráfica, se ven la cabecera y el pie");
 ok(sameRow(L.los, L.fres) && L.fres.l > L.los.l, "«Línea inicio–fin» y «Elipsoide de Fresnel» van juntos, en una fila: " + JSON.stringify([L.los, L.fres]));
-ok(sameRow(L.ta, L.tb) && L.tb.l > L.ta.l && L.ta.t >= L.los.b - 4, "las dos torres, en una fila, debajo de la línea y el elipsoide: " + JSON.stringify([L.ta, L.tb, L.los]));
-ok(L.info.l >= L.tb.r && L.info.b <= L.chart.t + 1 && L.info.l > L.chart.l + (L.chart.r - L.chart.l) / 3,
+ok(sameRow(L.ta, L.sa) && sameRow(L.tb, L.sb) && L.sa.l > L.ta.l && L.sb.l > L.tb.l && L.tb.t >= L.ta.b - 4 && L.ta.t >= L.los.b - 4,
+  "cada torre con su vértice en una fila, la de inicio sobre la final, debajo de la línea y el elipsoide: " + JSON.stringify([L.ta, L.sa, L.tb, L.sb, L.los]));
+ok(L.info.l >= Math.max(L.sa.r, L.sb.r) && L.info.b <= L.chart.t + 1 && L.info.l > L.chart.l + (L.chart.r - L.chart.l) / 3,
   "el rectángulo de lectura, a la derecha de las opciones y encima de la gráfica: " + JSON.stringify([L.info, L.chart]));
 ok(L.lock.t >= L.chart.b - 1 && sameRow(L.lock, L.earth) && sameRow(L.earth, L.reset) && L.earth.l > L.lock.l && L.reset.l > L.earth.l && L.hint,
   "bajo la gráfica: Bloquear eje Y, Curvatura terrestre, Ver todo y la pista de gestos: " + JSON.stringify([L.lock, L.earth, L.reset]));
-const hit = await page.evaluate(() => ["pf-los", "pf-fresnel", "pf-y-lock", "pf-earth"].map(id => document.getElementById(id).closest("label").getBoundingClientRect().height));
+const hit = await page.evaluate(() => ["pf-los", "pf-fresnel", "pf-y-lock", "pf-curve"].map(id => document.getElementById(id).closest("label").getBoundingClientRect().height));
 ok(hit.every(h => h >= 24), "cada casilla se pulsa por su etiqueta entera, de al menos 24 px de alto: " + hit);
 
 /* ---------- 7g. Arrastrar desplaza también la altura ---------- */

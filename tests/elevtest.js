@@ -70,7 +70,7 @@ const apiExports = "\nreturn {parseWcsCapabilities, mdtCoverages, pickMdsCoverag
   " nearestProfilePoint, PROFILE_CHUNK_CELLS, elevTileFactor, routeProfileKey, profilePointAt," +
   " validRouteProfile, profileTreeCells, clampProfileView, zoomProfileView, panProfileView," +
   " visibleProfilePoints, zoomRange, distDecimals, elevOutputCell, snapToCells, tileToCells, elevBandLat, packProfilePoints, unpackProfilePoints, PROFILE_MAX_PTS," +
-  " validFresnelFreq, FRESNEL_FREQ_SCHEMA, FRESNEL_FREQ_DEFAULT, FRESNEL_FREQ_MIN, FRESNEL_FREQ_MAX, elevCellZoomUp, elevLabelAnchor, fresnelRadius, PF_FRESNEL_ZONE, earthBulge, profileLosEnds, PF_K_FACTOR, profileLimitApplies," +
+  " validFresnelFreq, FRESNEL_FREQ_SCHEMA, FRESNEL_FREQ_DEFAULT, FRESNEL_FREQ_MIN, FRESNEL_FREQ_MAX, elevCellZoomUp, elevLabelAnchor, fresnelRadius, PF_FRESNEL_ZONE, profileCurve, PF_CURVE_MODES, profileTowerSpan, profileLosEnds, PF_K_FACTOR, profileLimitApplies," +
   " fmtTraceBytes, describeTraceGrid, describeTraceError};";
 const api = new Function("DOMParser", src + apiExports)(DOMParser);
 const ok=(c,m)=>{ if(!c){ console.error("FAIL: "+m); process.exitCode=1; } };
@@ -855,13 +855,49 @@ ok(api.sessionStamp(new Date(2026, 9, 5, 7, 3)) === "2026-10-05 07:03",
   /* ---- curvatura terrestre (k = 4/3) y extremos de la línea inicio–fin ---- */
   {
     ok(Math.abs(api.PF_K_FACTOR - 4 / 3) < 1e-12, "k = 4/3");
-    ok(api.earthBulge(0, 100000) === 0 && api.earthBulge(100000, 100000) === 0, "el abultamiento es 0 en los extremos");
-    ok(api.earthBulge(-5, 1000) === 0 && api.earthBulge(2000, 1000) === 0, "fuera de la ruta, 0");
-    ok(api.earthBulge(10, 0) === 0, "ruta de longitud 0: 0");
+    /* profileCurve: tres maneras de dibujar la misma curvatura */
+    const R = 6371000, L = 100000, kR2 = 2 * (4 / 3) * R;
+    const cls = api.profileCurve("classic", 0, L), flat = api.profileCurve("flat", 0, L);
+    const org = api.profileCurve("origin", 0, L), none = api.profileCurve("none", 0, L);
+    ok(cls.lift(0) === 0 && cls.lift(L) === 0, "clásica: el abultamiento es 0 en las torres");
     /* centro de 100 km: L²/(8·k·R) = 1e10 / (8 · 4/3 · 6371000) = 147,15 m */
-    ok(Math.abs(api.earthBulge(50000, 100000) - 147.15) < 0.05, "100 km: ~147,1 m en el centro: " + api.earthBulge(50000, 100000));
-    ok(Math.abs(api.earthBulge(25000, 100000) - 0.75 * api.earthBulge(50000, 100000)) < 1e-9, "parábola: a un cuarto, 3/4 del centro");
-    ok(Math.abs(api.earthBulge(50000, 100000, 1) - 1e10 / (8 * 6371000)) < 1e-9, "con k = 1, la Tierra sin refracción");
+    ok(Math.abs(cls.lift(L / 2) - 147.15) < 0.05, "100 km: ~147,1 m en el centro: " + cls.lift(L / 2));
+    ok(Math.abs(cls.lift(25000) - 0.75 * cls.lift(L / 2)) < 1e-9, "parábola: a un cuarto, 3/4 del centro");
+    ok(cls.lift(-5000) < 0 && cls.lift(L + 5000) < 0, "fuera de las torres la Tierra cae: abultamiento negativo");
+    ok(Math.abs(api.profileCurve("classic", 0, L, 1).lift(L / 2) - 1e10 / (8 * R)) < 1e-9, "con k = 1, la Tierra sin refracción");
+    ok(Math.abs(cls.lift(30000) - 30000 * 70000 / kR2) < 1e-9, "c(d) = (d−dA)·(dB−d)/(2·k·R)");
+    ok(cls.bend(5000) === 0, "clásica: la línea no se curva");
+    ok(flat.lift(12345) === 0 && Math.abs(flat.bend(L / 2) + cls.lift(L / 2)) < 1e-9 && flat.bend(0) === 0,
+      "tierra plana: el terreno no se toca y la línea baja lo que la clásica sube");
+    ok(org.lift(0) === 0 && Math.abs(org.lift(L) + L * L / kR2) < 1e-9 && org.lift(30000) < 0 && org.bend(30000) === 0,
+      "desde el inicio: 0 en la torre de inicio, −L²/(2·k·R) en la final, línea sin curvar");
+    ok(none.lift(5) === 0 && none.bend(5) === 0 && api.profileCurve("raro", 0, L).lift(L / 2) === 0, "sin curvatura (o modo desconocido): todo 0");
+    ok(api.PF_CURVE_MODES.join() === "none,classic,flat,origin", "los modos: ninguna, clásica, plana, desde el inicio");
+    /* El DESPEJE (línea − terreno) no depende del modo, tampoco fuera de las torres: la línea dibujada es la cuerda
+       entre las antenas ya elevadas más bend, y al terreno se le suma lift. */
+    {
+      const dA = 12000, dB = 83000, ya = 340, yb = 95;     /* antenas sobre el nivel del mar */
+      const clearAt = (mode, d, terrain) => {
+        const c = api.profileCurve(mode, dA, dB);
+        const A = ya + c.lift(dA), B = yb + c.lift(dB);
+        const line = A + (B - A) * (d - dA) / (dB - dA) + c.bend(d);
+        return line - (terrain + c.lift(d));
+      };
+      let worst = 0;
+      for (const d of [0, 5000, dA, 30000, 47500, 70000, dB, 90000, L])
+        for (const terrain of [0, 250, 410.5]) {
+          const ref = clearAt("none", d, terrain) + (api.profileCurve("classic", dA, dB).lift(d) * -1);
+          for (const mode of ["classic", "flat", "origin"]) worst = Math.max(worst, Math.abs(clearAt(mode, d, terrain) - ref));
+        }
+      ok(worst < 1e-9, "el despeje es el mismo en clásica, plana y desde el inicio (también fuera de las torres): " + worst);
+    }
+    /* profileTowerSpan: vértices de las torres */
+    const vx = [0, 10, 20, 30, 40];
+    const sp = (a, b) => JSON.stringify(api.profileTowerSpan(vx, { a, b }));
+    ok(sp(0, null) === '{"ia":0,"ib":4}' && sp(1, 3) === '{"ia":1,"ib":3}' && sp(0, 1) === '{"ia":0,"ib":1}', "torres: por defecto los extremos, o los vértices pedidos");
+    ok(sp(3, 2) === '{"ia":3,"ib":4}' && sp(2, 2) === '{"ia":2,"ib":4}', "final antes (o igual) que el inicio: el final vuelve al último");
+    ok(sp(4, null) === '{"ia":0,"ib":4}' && sp(-1, 9) === '{"ia":0,"ib":4}' && sp(1.5, "2") === '{"ia":0,"ib":4}', "fuera de rango o no entero: los extremos");
+    ok(JSON.stringify(api.profileTowerSpan([0, 10], undefined)) === '{"ia":0,"ib":1}', "sin estado: los extremos");
     const pts = (...v) => v.map((x, i) => ({ d: i * 10, v: x }));
     const mdt = { kind: "mdt", points: pts(100, 120, 140) }, mds = { kind: "mds", points: pts(110, 130, 150) };
     let e = api.profileLosEnds([mdt, mds]);
@@ -874,6 +910,11 @@ ok(api.sessionStamp(new Date(2026, 9, 5, 7, 3)) === "2026-10-05 07:03",
     ok(e && e.kind === "mdt", "un MDS sin ningún dato cae al MDT");
     ok(api.profileLosEnds([]) === null && api.profileLosEnds([{ kind: "mds", points: pts(null) }]) === null,
       "sin datos, sin recta");
+    /* con los vértices de las torres: el valor con dato más cercano a cada uno */
+    e = api.profileLosEnds([mdt, mds], 10, 20);
+    ok(e && e.kind === "mds" && e.a === 130 && e.b === 150, "torres en vértices intermedios: el dato más cercano: " + JSON.stringify(e));
+    e = api.profileLosEnds([{ kind: "mds", points: pts(1, null, 3, null, 5) }, mdt], 10, 30);
+    ok(e && e.a === 1 && e.b === 3 || e && e.a === 3 && e.b === 5, "un vértice en un hueco toma el vecino con dato: " + JSON.stringify(e));
     /* ---- frecuencia guardada (Propiedades → Frecuencias) ---- */
     const vf = f => api.validFresnelFreq({ v: api.FRESNEL_FREQ_SCHEMA, f });
     ok(api.FRESNEL_FREQ_DEFAULT === 1090 && api.FRESNEL_FREQ_MIN === 1 && api.FRESNEL_FREQ_MAX === 300000, "frecuencia de Fresnel: 1090 MHz, de 1 a 300 000");

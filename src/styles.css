@@ -26,6 +26,15 @@
     --shadow: light-dark(rgba(0,0,0,.25), rgba(0,0,0,.6));
     --shadow-soft: light-dark(rgba(0,0,0,.15), rgba(0,0,0,.5));
     --backdrop: light-dark(rgba(0,0,0,.25), rgba(0,0,0,.55));
+    /* Gráfica del perfil: MDT, MDS y Fresnel validados juntos con el
+       validador del skill dataviz (paso claro sobre blanco, paso oscuro
+       sobre --panel: contraste ≥ 3:1, ΔE normal ≥ 24, CVD ≥ 21). La
+       Tierra no es una serie sino contexto: un marrón apagado.         */
+    --pf-mdt: light-dark(#1565c0, #3f94e6);
+    --pf-mds: light-dark(#2e7d32, #45a84b);
+    --pf-fresnel: light-dark(#7b1fa2, #a86fe0);
+    --pf-earth: light-dark(#8d6e63, #b09a90);
+    --pf-outside: light-dark(rgba(0,0,0,.05), rgba(0,0,0,.26)); /* velo de lo que queda fuera del enlace: apaga en los dos temas */
     --nav-width: 400px;
   }
   :root[data-theme="light"] { color-scheme: light; }
@@ -781,6 +790,12 @@
   /* etiqueta entera clicable, y a una altura cómoda para el puntero */
   .pf-check, .pf-field { display: inline-flex; align-items: center; gap: 6px; min-height: 26px; }
   .pf-check { cursor: pointer; }
+  /* Las dos filas de torre alinean sus columnas: el texto de la etiqueta y
+     el primer campo tienen ancho fijo, así los campos y los desplegables
+     «en» quedan uno bajo otro; la unidad también (m, ft, NM…).          */
+  #profile-opts .pf-lbl { display: inline-block; min-width: 6.4em; }
+  #profile-opts .pf-row.towers .pf-field:first-child { min-width: 14.5rem; }
+  #profile-opts .pf-tower-unit { display: inline-block; min-width: 1.8em; }
   #profile-tools input[type="number"] { width: 64px; }
   #profile-foot { display: flex; flex-wrap: wrap; align-items: center; gap: 2px 16px;
                   margin: 4px 0 0; font-size: 13px; }
@@ -801,37 +816,58 @@
   .pf-info-val { margin-left: auto; white-space: nowrap; font-variant-numeric: tabular-nums; color: var(--text); font-weight: 600; }
   .pf-info-val.alert { color: var(--alert); }
   .pf-key { flex: 0 0 14px; height: 0; border-top: 3px solid transparent; }
-  .pf-key.mdt { border-top-color: #1565c0; }
-  .pf-key.mds { border-top-color: #2e7d32; }
-  .pf-key.earth { border-top-color: #8d6e63; }
+  .pf-key.mdt { border-top-color: var(--pf-mdt); }
+  .pf-key.mds { border-top-color: var(--pf-mds); }
+  .pf-key.earth { border-top-color: var(--pf-earth); }
   .pf-key.los { border-top-color: var(--ink-strong); }
-  .pf-key.fresnel { border-top: 2px dashed #6a1b9a; }
+  .pf-key.fresnel { border-top: 2px dashed var(--pf-fresnel); }
   #profile-chart.dragging { cursor: grabbing; }
   #profile-chart svg { display: block; width: 100%; height: 100%; font: 11px system-ui, sans-serif; }
   #profile-chart .pf-axis { stroke: var(--muted); stroke-width: 1; }
   #profile-chart .pf-grid { stroke: var(--border); stroke-width: 1; }
-  #profile-chart .pf-vertex { stroke: var(--muted); stroke-width: 1; stroke-dasharray: 3 3; }
-  /* MDT azul, MDS verde (pedido); la leyenda usa las mismas clases */
-  #profile-chart .pf-line { fill: none; stroke-width: 1.5; }
-  #profile-chart .pf-line.mdt, #profile-chart .pf-legend.mdt { stroke: #1565c0; }
-  #profile-chart .pf-line.mds, #profile-chart .pf-legend.mds { stroke: #2e7d32; }
+  /* Los vértices son referencia, no dato: punteados y apagados, y solo los
+     de las torres (cuando hay recta) llevan tinta y línea continua. */
+  #profile-chart .pf-vertex { stroke: var(--muted); stroke-width: 1; stroke-dasharray: 2 4; opacity: .55; }
+  #profile-chart .pf-vertex.tower { stroke: var(--ink-strong); stroke-dasharray: none; opacity: .5; }
+  /* Lo que queda fuera del enlace (antes de la torre de inicio, después de
+     la final): un velo apenas perceptible, bajo las curvas */
+  #profile-chart .pf-outside { fill: var(--pf-outside); stroke: none; }
+  /* MDT azul, MDS verde (pedido); la leyenda usa las mismas clases. Trazo
+     de 2 px redondeado, el de todas las líneas de datos. */
+  #profile-chart .pf-line { fill: none; stroke-width: 2; stroke-linejoin: round; stroke-linecap: round; }
+  #profile-chart .pf-line.mdt, #profile-chart .pf-legend.mdt { stroke: var(--pf-mdt); }
+  #profile-chart .pf-line.mds, #profile-chart .pf-legend.mds { stroke: var(--pf-mds); }
   /* Línea inicio–fin: negra (pedido); la Tierra, un marrón con relleno
      suave por debajo */
   #profile-chart .pf-los, #profile-chart .pf-legend.los { stroke: var(--ink-strong); }
-  #profile-chart .pf-los { stroke-width: 1.5; }
-  #profile-chart .pf-earth, #profile-chart .pf-legend.earth { stroke: #8d6e63; }
+  #profile-chart .pf-los, #profile-chart .pf-los-ext { fill: none; stroke: var(--ink-strong); stroke-width: 2; stroke-linecap: round; }
+  /* su prolongación fuera de las torres */
+  #profile-chart .pf-los-ext { stroke-dasharray: 5 4; }
+  #profile-chart .pf-earth, #profile-chart .pf-legend.earth { stroke: var(--pf-earth); }
   #profile-chart .pf-earth { fill: none; stroke-width: 1.5; }
-  #profile-chart .pf-earth-fill { fill: #8d6e63; fill-opacity: 0.18; stroke: none; }
+  #profile-chart .pf-earth-fill { fill: var(--pf-earth); fill-opacity: 0.12; stroke: none; }
   /* Torres (negras, como la recta) y elipsoide de Fresnel: contorno de la
      primera zona discontinuo y, dentro, la del 60 % rellena */
-  #profile-chart .pf-tower { stroke: var(--ink-strong); stroke-width: 3; }
-  #profile-chart .pf-fresnel { fill: none; stroke: #6a1b9a; stroke-width: 1; stroke-dasharray: 4 3; }
-  #profile-chart .pf-fresnel60 { fill: #6a1b9a; fill-opacity: 0.16; stroke: #6a1b9a; stroke-width: 1; }
-  #profile-chart .pf-legend.fresnel { stroke: #6a1b9a; }
+  #profile-chart .pf-tower { stroke: var(--ink-strong); stroke-width: 3; stroke-linecap: round; }
+  /* Antena (punto con anillo del color de la superficie, para que no se
+     confunda con la línea que cruza) y su altura sobre el terreno, con un
+     halo del fondo para leerse sobre las curvas */
+  #profile-chart .pf-antenna { fill: var(--ink-strong); stroke: var(--panel); stroke-width: 2; }
+  #profile-chart .pf-tower-label { fill: var(--text); font-weight: 600; paint-order: stroke;
+                                   stroke: var(--panel); stroke-width: 3px; stroke-linejoin: round; }
+  #profile-chart .pf-fresnel { fill: none; stroke: var(--pf-fresnel); stroke-width: 1; stroke-dasharray: 4 3; }
+  #profile-chart .pf-fresnel60 { fill: var(--pf-fresnel); fill-opacity: 0.12; stroke: var(--pf-fresnel); stroke-width: 1; }
+  #profile-chart .pf-legend.fresnel { stroke: var(--pf-fresnel); }
+  /* Puntos de lectura sobre cada curva bajo el cursor (≥ 8 px, anillo de
+     superficie de 2 px); la lectura sigue en el rectángulo de arriba */
+  #profile-chart .pf-dot { stroke: var(--panel); stroke-width: 2; }
+  #profile-chart .pf-dot.mdt { fill: var(--pf-mdt); }
+  #profile-chart .pf-dot.mds { fill: var(--pf-mds); }
+  #profile-chart .pf-dot.los { fill: var(--ink-strong); }
   #profile-chart .pf-legend { stroke-width: 3; }
   #profile-chart .pf-tick { fill: var(--text); }
   #profile-chart .pf-tick.vertex { font-weight: 700; }
-  #profile-chart .pf-cursor { stroke: #b04a3a; stroke-width: 1; }
+  #profile-chart .pf-cursor { stroke: var(--danger); stroke-width: 1; }
   /* Flecha del mapa que sigue al cursor de la gráfica (mismo rojo) */
   .pf-map-arrow { background: none; border: none; pointer-events: none; }
   .pf-map-arrow svg { display: block; overflow: visible; }
