@@ -49,7 +49,7 @@ nuevo, no que la regla no exista.
 | `offline.md` | Uso sin conexión: service worker `sw.js` (generado desde `src/sw.js`), qué guarda y qué deja pasar, lista de librerías mandada por la página, indicador «Sin conexión», `netFailText` | `src/sw.js`, `06-offline.js`, `07-lazy-libs.js`, `99-boot.js`, `build.js` |
 | `i18n.md` | Idiomas de la interfaz (español, inglés, y cómo añadir otro): el texto en español es la clave, `tr()`/`trn()`/`trc()`/`N_()`, diccionarios, preferencia, HTML estático, `i18n-tool.js`, pruebas | `src/js/**`, `src/index.html`, `src/styles.css`, `i18n-tool.js`, `tests/i18n.js`, `tests/browser/i18n.mjs`, `tests/_extract.js` |
 | `accessibility.md` | ARIA del árbol y de los diálogos | `src/js/**`, `src/index.html` |
-| `persistence-indexeddb.md` | `DB_VERSION`/`TREE_SCHEMA`, serialización del árbol, claves del almacén | `src/js/**` |
+| `persistence-indexeddb.md` | `DB_VERSION`/`TREE_SCHEMA`, serialización del árbol, guardado en dos niveles (esqueleto + segmentos), claves del almacén | `src/js/**` |
 | `external-network.md` | Disciplina de peticiones de red externa (tope, tiempo por intento, reintentos de lo pasajero) | `40-panel-actions.js`, `60-elevation.js`, `63-route-profile.js`, `12-copernicus.js` |
 | `base-maps.md` | Capas base, fuentes dinámicas, color de fondo, apilado | `10-map.js`, `11-base-panel.js`, `12-copernicus.js` |
 | `url-import.md` | Botón 🔗, descarga de una URL en dos pasos | `40-panel-actions.js`, `src/index.html` |

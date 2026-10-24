@@ -55,7 +55,10 @@ description: Principios no negociables, vocabulario y checklist de KITE Local. S
    excepción, evaluada y decidida con el usuario**: `TREE_SCHEMA` 7→8
    (nodo `cog`) lee un árbol v7 TAL CUAL, sin transformar nada (solo se
    añade un tipo), y `DB_VERSION` 3→4 añade el almacén `rasters` SIN
-   vaciar `tree`. Ver `persistence-indexeddb.md`.
+   vaciar `tree`. **Tercera, también decidida con el usuario**:
+   `DB_VERSION` 4→5 (guardado en dos niveles, almacén `segments`) lee un
+   `root` v8 con todo en línea TAL CUAL y el primer guardado lo reparte.
+   Ver `persistence-indexeddb.md`.
 5. **Robustez ante entradas ajenas.** KML/GeoJSON/KMZ/`.kite.json`/red
    se tratan como hostiles: validar antes de construir capas, aislar
    errores por entidad (una geometría mala no tumba la importación),
