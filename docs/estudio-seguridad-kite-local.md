@@ -5,7 +5,7 @@
 | | |
 |---|---|
 | **Documento** | Estudio de seguridad — KITE Local (KML Interactive Tree Explorer) |
-| **Versión del documento** | 1.3 |
+| **Versión del documento** | 1.4 |
 | **Fecha** | 29 de octubre de 2026 |
 | **Preparado por** | Diego Torres |
 | **Versión de la aplicación auditada** | v1.10.0 (202610241902) |
@@ -56,7 +56,7 @@ El código fuente es público y auditable en su totalidad (repositorio indicado 
 
 ## 4. Origen y procedencia de la información geoespacial
 
-Toda la información que KITE Local puede mostrar procede de dos categorías bien diferenciadas: servicios cartográficos de referencia, configurados de fábrica y con origen declarado, y archivos que el propio usuario aporta.
+Toda la información que KITE Local puede mostrar procede de dos categorías bien diferenciadas: servicios cartográficos de referencia, configurados de fábrica y con origen declarado, y archivos que el propio usuario aporta. La lista exacta de servidores con los que la aplicación puede comunicarse, con lo que recibe cada uno y cuándo, está en el Anexo A.
 
 ### 4.1 Cartografía y modelos de elevación de referencia
 
@@ -150,6 +150,8 @@ La rotación del mapa no se obtiene de ninguna red externa: el código que la ha
 ### 6.2 Política de seguridad de contenido con lista cerrada de orígenes
 
 La aplicación declara una política de seguridad de contenido (Content Security Policy) que restringe, a nivel de navegador, con qué orígenes puede comunicarse o de qué orígenes puede cargar código, estilos o imágenes. Por defecto, todo está denegado; se autoriza explícitamente, uno a uno, cada origen necesario: las dos redes de distribución de las bibliotecas de terceros para código y para hojas de estilo, y la lista cerrada de servicios cartográficos oficiales enumerados en el apartado 4.1 para imágenes de mapa. Ningún origen no declarado en esa lista puede servir código, estilos o imágenes de mapa a la aplicación, aunque el código de la propia aplicación intentara solicitarlo — con las dos excepciones deliberadas, y solo esas dos, descritas a continuación.
+
+La lista exacta de orígenes está en el Anexo A.
 
 Hay dos excepciones deliberadas, y las dos comparten la misma justificación: en ambas el origen no puede enumerarse de antemano porque **es, precisamente, lo que el usuario decide** en el momento de usar la función, no algo que la aplicación elija.
 
@@ -250,7 +252,7 @@ En la fecha de este documento, la batería está compuesta por 97 conjuntos de p
 - Que el archivo optimizado para su publicación en línea se comporte exactamente igual que el archivo legible que constituye el producto de referencia.
 - Librerías de uso ocasional (exportar a imagen, ortofotos COG, reproyección): se cargan solo cuando se necesitan, con la misma huella de integridad que las demás, y un contenido que no coincide no se ejecuta.
 - Uso sin conexión: qué guarda y qué deja pasar el service worker (ver apartado 6.4), con la lista de librerías que manda la propia página.
-- Coherencia de la documentación: los recuentos de conjuntos de pruebas de este estudio frente a la batería real, las versiones de las cabeceras de los dos documentos, las figuras del manual (existentes, numeradas y con texto alternativo), su manifiesto de capturas con la huella de cada imagen y las referencias entre apartados.
+- Coherencia de la documentación: los recuentos de conjuntos de pruebas de este estudio frente a la batería real, las versiones de las cabeceras de los dos documentos, las figuras del manual (existentes, numeradas y con texto alternativo), su manifiesto de capturas con la huella de cada imagen y las referencias entre apartados. Además: que todo servidor que aparece en el código esté en el Anexo A (y ninguno que ya no se use), que la política de contenido solo admita cualquier origen cifrado en las dos directivas documentadas, que la tabla de atajos del manual sea la de la propia aplicación, que cada entrada del menú contextual esté descrita y que cada ventana de la aplicación tenga su sitio en el manual.
 
 **Pruebas de extremo a extremo sobre un navegador real**
 - Arranque correcto de la aplicación, tanto en su versión legible como en la optimizada para publicación.
@@ -312,3 +314,62 @@ Sobre la base de la revisión del código fuente, de la configuración de red y 
 3. Este comportamiento está verificado por una batería de 97 conjuntos de pruebas automatizadas, ejecutadas contra el artefacto realmente distribuido, con resultado íntegramente satisfactorio en la fecha de este documento.
 
 Estas tres garantías, tomadas en conjunto, sustentan el uso de KITE Local como herramienta de consulta y visualización fiel de información geoespacial dentro del alcance descrito en el apartado 8.
+
+---
+
+## Anexo A. Servidores con los que puede comunicarse la aplicación
+
+Lista exhaustiva de los servidores que aparecen en el código de la aplicación, tal como se extraen de él en cada ejecución de las pruebas automatizadas (apartado 7.2): todo servidor del código está en este anexo, y ninguno de este anexo está sin usar. Todas las direcciones son cifradas (https). La aplicación no añade identificadores propios, cookies ni telemetría a ninguna de estas peticiones (apartado 6.3); como en cualquier petición web, cada servidor ve la dirección de red y los datos habituales del navegador.
+
+La política de contenido (apartado 6.2) admite cualquier origen cifrado solo en dos directivas: `img-src` (imágenes de mapa) y `connect-src` (las consultas descritas en este anexo y la descarga desde una dirección elegida por el usuario). Para código y hojas de estilo, solo `unpkg.com` y `cdnjs.cloudflare.com`.
+
+### A.1 Servicios de datos
+
+Se contactan solo cuando el usuario activa la capa o lanza la función que se indica.
+
+| Servidor | Proveedor | Para qué | Cuándo | Qué se le envía |
+|---|---|---|---|---|
+| `tile.openstreetmap.org` | Fundación OpenStreetMap | Teselas del mapa base «OpenStreetMap», activo por defecto | Al mostrar el mapa con esa capa activa | El nivel y la posición de cada tesela |
+| `nominatim.openstreetmap.org` | Fundación OpenStreetMap | Buscador de lugares | Solo al pulsar «Buscar» o Intro | El texto buscado |
+| `server.arcgisonline.com` | Esri | Teselas de «Físico (Esri World Terrain)» y «Relieve sombreado (Esri)» | Con esas capas activas | El nivel y la posición de cada tesela |
+| `ows.terrestris.de` | terrestris | Teselas de «Relieve SRTM30 (terrestris)» (WMS) | Con la capa activa | La zona visible que pide cada tesela |
+| `www.ign.es` | Instituto Geográfico Nacional | «IGN Base» y «Mapa topográfico MTN (IGN)» (WMTS) y «PNOA histórico (IGN)» (WMS, con su lista de años y la consulta del vuelo bajo el cursor) | Con esas capas activas | El nivel y la posición de cada tesela; en el PNOA histórico, además, la zona visible y el punto consultado |
+| `tms-pnoa-ma.idee.es` | Instituto Geográfico Nacional | «Ortofoto PNOA (IGN)» actual | Con la capa activa | El nivel y la posición de cada tesela |
+| `servicios.idee.es` | Instituto Geográfico Nacional | «MDT de España (IGN, WMS)» como capa de visualización y el servicio de cobertura (WCS) del terreno para la consulta de elevación y el perfil de una ruta | Con la capa activa, o al lanzar la consulta o el perfil | Qué ofrece el servicio y las coordenadas de la zona o de la ruta pedida |
+| `wcs-mds.idee.es` | Instituto Geográfico Nacional | Servicio de cobertura (WCS) del modelo de superficie, para la consulta de elevación y el perfil | Al lanzar la consulta o el perfil con esa fuente elegida | Qué ofrece el servicio y las coordenadas de la zona o de la ruta pedida |
+| `ows.digitalearth.africa` | Digital Earth Africa | Servicio de cobertura (WCS) de Copernicus DEM GLO-30, modelo de superficie alternativo | Solo si se elige esa fuente en Propiedades y se lanza la consulta o el perfil | Qué ofrece el servicio y las coordenadas de la zona o de la ruta pedida |
+| `sh.dataspace.copernicus.eu` | Copernicus Data Space / Sentinel Hub | Capa «Copernicus DEM» de la configuración propia del usuario | Solo si el usuario ha introducido su identificador de configuración y activa la capa | Ese identificador (en la dirección) y la zona visible |
+| `servpub.madrid.es` | Ayuntamiento de Madrid | «Ortofoto Madrid (Ayuntamiento)» (WMS) | Con la capa activa | La zona visible que pide cada tesela |
+| `ovc.catastro.meh.es` | Dirección General del Catastro | Parcela catastral (consulta de coordenadas y servicio INSPIRE de parcelas) | Solo al elegir «Parcela catastral» en el menú contextual | Las coordenadas del punto pulsado y, después, la referencia catastral que devuelve |
+
+### A.2 Bibliotecas de terceros (código)
+
+Cada archivo lleva su huella de integridad (SRI): el navegador no lo ejecuta si no coincide (apartado 6.1).
+
+| Servidor | Proveedor | Qué se descarga | Cuándo | Qué se le envía |
+|---|---|---|---|---|
+| `unpkg.com` | unpkg (distribución de paquetes npm) | Leaflet 1.9.4 (hoja de estilo y script), topojson-client 3.1.0 y shapefile 0.6.6; bajo demanda, html2canvas 1.4.1 y geotiff.js 2.1.3 | Al abrir la aplicación; las dos últimas, solo al usar su función | Nada propio: el navegador pide el archivo |
+| `cdnjs.cloudflare.com` | Cloudflare (cdnjs) | JSZip 3.10.1; bajo demanda, proj4js 2.22.0 | Al abrir la aplicación; proj4js, solo al usar su función | Nada propio: el navegador pide el archivo |
+
+### A.3 Direcciones que aparecen en el código y con las que no se comunica por su cuenta
+
+| Servidor | Proveedor | Qué es | Cuándo | Qué se le envía |
+|---|---|---|---|---|
+| `github.com` | GitHub | Enlace al repositorio del código, en la atribución del mapa | Solo si el usuario lo pulsa | Nada: el navegador abre la página |
+| `leafletjs.com` | Leaflet | Enlace al crédito de Leaflet, en la atribución del mapa | Solo si el usuario lo pulsa | Nada: el navegador abre la página |
+| `www.openstreetmap.org` | Fundación OpenStreetMap | Enlace al aviso de copyright, en la atribución del mapa base | Solo si el usuario lo pulsa | Nada: el navegador abre la página |
+| `www.digitalearthafrica.org` | Digital Earth Africa | Enlace al crédito del modelo Copernicus DEM, en la atribución | Solo si el usuario lo pulsa | Nada: el navegador abre la página |
+| `raw.githubusercontent.com` | GitHub | Imagen de vista previa de la página, en sus metadatos: la leen quienes comparten el enlace, no la aplicación | Nunca por la aplicación | Nada |
+| `www.w3.org` | W3C | Identificadores de espacios de nombres XML y SVG, que se usan al leer un KML y al dibujar | Nunca se contacta: son nombres, no direcciones que se pidan | Nada |
+
+### A.4 Direcciones de ejemplo en la ayuda
+
+| Servidor | Proveedor | Qué es | Cuándo | Qué se le envía |
+|---|---|---|---|---|
+| `ejemplo.com` | Ninguno (dirección ficticia) | Ejemplo en el texto de ayuda de «Añadir desde una dirección» | Nunca | Nada |
+| `mi-cache.ejemplo.org` | Ninguno (dirección ficticia) | Ejemplo en el diálogo de «Custom Tile Map Service» | Nunca | Nada |
+| `mi-servidor.ejemplo.org` | Ninguno (dirección ficticia) | Ejemplo en el diálogo de «Custom Web Map Service» | Nunca | Nada |
+
+### A.5 Servidores que elige el usuario
+
+Tres funciones se comunican con la dirección que escribe el usuario, que no puede conocerse de antemano: «Añadir desde una dirección» (descarga un archivo, con un tope de tiempo y de tamaño), «Custom Tile Map Service» (teselas) y «Custom Web Map Service» (la lista de capas del servidor y sus teselas). Solo admiten direcciones cifradas (https); las dos capas «Custom», además, sin usuario ni contraseña incrustados, y permanecen apagadas y sin ninguna dirección hasta que el usuario introduce una (apartados 4.1 y 6.2).

@@ -229,7 +229,18 @@ La **rueda del ratón** hace el mismo zoom suave hacia el puntero, sin necesidad
 
 ## 5. El menú contextual del visor
 
-Un clic derecho sobre el mapa abre un menú con las acciones más habituales: copiar las coordenadas del punto, consultar la elevación en ese punto (apartado 7.8), traer la parcela catastral que hay en él (apartado 7.12), las herramientas de medición (agrupadas en un submenú «Medir»: ruta, círculo y arco) y de dibujo, crear un pin, exportar a PNG, y los distintos encuadres y la retícula.
+Un clic derecho sobre el mapa abre un menú con las acciones más habituales. Sobre una zona sin ninguna capa debajo, sus entradas son estas:
+
+- **«Copiar coordenadas»**: copia al portapapeles la posición del punto pulsado, en grados decimales.
+- **«Consultar elevación aquí»**: descarga el terreno y la superficie de la zona alrededor del punto (apartado 7.8). Sale deshabilitada, con el motivo al pasar el ratón, si el mapa está girado o si las dos fuentes de elevación están en «Ninguna».
+- **«Parcela catastral»**: trae la parcela que hay en el punto pulsado como una capa del árbol (apartado 7.12).
+- **«Medir»**: un submenú con las tres herramientas de medición, **«Ruta»**, **«Círculo»** y **«Arco»** (apartado 4.2). Elegir una activa la herramienta; elegirla otra vez, la desactiva.
+- **«Dibujar polígono o línea»**: activa o desactiva la herramienta de dibujo (apartados 4.2 y 7.3).
+- **«Crear un pin»**: añade un marcador en el centro de la vista y abre su diálogo de estilo.
+- **«Exportar PNG»**: guarda una imagen del mapa tal como se ve (apartado 4.2).
+- **«Centrar en el contenido»**: encuadra todo lo cargado, como el botón de autoescalar.
+- **«Centrar en la península y Baleares»** y **«Centrar en las islas Canarias»**: los mismos encuadres que los botones IB y GC.
+- **«Paralelos y meridianos»**: muestra u oculta la retícula geográfica; con ✓ cuando está activa.
 
 ![Menú contextual genérico, sobre una zona del mapa sin ninguna capa debajo](img/menu-contextual.png)
 *Figura 20. Menú contextual sobre una zona vacía del mapa.*
@@ -501,8 +512,8 @@ Esa × es la norma de toda ventana cuyo único botón sería «Cerrar» (la chul
 
 | Tecla | Acción |
 |---|---|
-| ↑ / ↓ | Nodo anterior / siguiente |
-| → / ← | Desplegar y entrar / colapsar y subir |
+| ↑ ↓ | Nodo anterior / siguiente |
+| → ← | Desplegar y entrar / colapsar y subir |
 | Re Pág / Av Pág | Saltar diez nodos |
 | Inicio / Fin | Primero / último de la carpeta actual |
 
@@ -521,7 +532,7 @@ Esa × es la norma de toda ventana cuyo único botón sería «Cerrar» (la chul
 | Tecla | Acción |
 |---|---|
 | Espacio | Activar o desactivar la capa |
-| F2 | Renombrar (también desde las propiedades) |
+| F2 | Renombrar (también en las propiedades) |
 | Intro (renombrando) | Confirma el nuevo nombre |
 | Esc (renombrando) | Cancela y restaura el nombre anterior |
 | Supr | Borrar lo seleccionado |
@@ -537,8 +548,8 @@ Esa × es la norma de toda ventana cuyo único botón sería «Cerrar» (la chul
 | Gesto | Acción |
 |---|---|
 | Mayús + arrastrar | Zoom a un rectángulo |
-| Arrastrar (sobre el centro o el borde de un círculo de medición, con su diálogo abierto) | Moverlo o cambiar su radio (no hace falta ninguna tecla) |
-| Doble clic en una capa | Ir a ella; repetido, acercar por peldaños |
+| Arrastrar el centro o el borde de un círculo de medición (con su diálogo de propiedades abierto) | Moverlo o cambiar su radio |
+| Doble clic en una fila | Ir a la capa; repetido, acercar |
 | Flechas (con el mapa enfocado) | Desplazar el mapa; mantenida, se desliza sin pausa y acelera (Mayús: más rápido; dos a la vez: diagonal) |
 | Re Pág / Av Pág (con el mapa enfocado) | Acercar / alejar un nivel de zoom hacia el puntero; mantenida, zoom continuo que al soltar se ajusta al nivel siguiente |
 | Rueda del ratón | Zoom continuo hacia el puntero; al parar se ajusta al nivel siguiente |
@@ -552,7 +563,7 @@ Esa × es la norma de toda ventana cuyo único botón sería «Cerrar» (la chul
 |---|---|
 | Rueda del ratón sobre la gráfica | Acercar / alejar la distancia hacia el puntero (de la ruta entera a 0,1 m por píxel) |
 | Mayús + rueda, o rueda sobre el eje de alturas | Acercar / alejar la altura (bloquea el eje Y) |
-| Arrastrar la gráfica | Desplazarla en distancia y en altura (arrastrar más de unos píxeles en vertical bloquea el eje Y en lo que se ve) |
+| Arrastrar la gráfica | Desplazarla en distancia y en altura (arrastrar en vertical bloquea el eje Y en lo que se ve) |
 
 **Dibujar polígonos y rutas**
 
@@ -571,10 +582,11 @@ Esa × es la norma de toda ventana cuyo único botón sería «Cerrar» (la chul
 | Abrir sus propiedades (🎨 o Alt+Intro) | Activa mover/borrar/insertar vértices sobre el mapa |
 | Clic en un vértice | Seleccionarlo |
 | Arrastrar un vértice | Moverlo (no hace falta ninguna tecla) |
-| Clic derecho sobre un vértice | Quitarlo |
+| Clic derecho sobre un vértice | Quitarlo (sin las propiedades abiertas, abre el menú contextual del mapa en su lugar) |
 | Mayús + clic en el mapa, o tecla Insertar | Insertar un vértice tras el seleccionado (o al final, si no hay ninguno) |
 | Mayús + clic sobre el primer vértice, con el último seleccionado | Cerrar una línea abierta (sin añadir ningún vértice) |
-| Supr | Quitar el vértice seleccionado (antes que borrar el nodo) y dejar seleccionado el SIGUIENTE, para poder seguir pulsando Supr y quitar varios vértices seguidos sin tener que volver a hacer clic; en un contorno cerrado de exactamente 3 vértices, lo abre en línea en vez de bloquear el borrado |
+| Supr | Quitar el vértice seleccionado (antes que borrar el nodo) y dejar seleccionado el siguiente, para seguir quitando con Supr sin volver a hacer clic; en un contorno cerrado de exactamente 3 vértices, lo abre en línea en vez de bloquear el borrado |
+| Doble clic en el mapa | No hace zoom mientras se edita así un polígono, una ruta o un círculo |
 
 ---
 

@@ -1919,7 +1919,7 @@
         <tr><td>Clic derecho sobre un v&#233;rtice</td><td>Quitarlo (sin las propiedades abiertas, abre el men&#250; contextual del mapa en su lugar)</td></tr>
         <tr><td>May&#250;s + clic en el mapa, o tecla Insertar</td><td>Insertar un v&#233;rtice tras el seleccionado (o al final, si no hay ninguno)</td></tr>
         <tr><td>May&#250;s + clic sobre el primer v&#233;rtice, con el &#250;ltimo seleccionado</td><td>Cerrar una l&#237;nea abierta (sin a&#241;adir ning&#250;n v&#233;rtice)</td></tr>
-        <tr><td>Supr</td><td>Quitar el v&#233;rtice seleccionado (antes que borrar el nodo); en un contorno cerrado de exactamente 3 v&#233;rtices, lo abre en l&#237;nea en vez de bloquear el borrado</td></tr>
+        <tr><td>Supr</td><td>Quitar el v&#233;rtice seleccionado (antes que borrar el nodo) y dejar seleccionado el siguiente, para seguir quitando con Supr sin volver a hacer clic; en un contorno cerrado de exactamente 3 v&#233;rtices, lo abre en l&#237;nea en vez de bloquear el borrado</td></tr>
         <tr><td>Doble clic en el mapa</td><td>No hace zoom mientras se edita as&#237; un pol&#237;gono, una ruta o un c&#237;rculo</td></tr>
       </table>
     </div>
@@ -3334,7 +3334,7 @@ registerLang("en", "English", {
   "Insertar un vértice tras el seleccionado (o al final, si no hay ninguno)": "Insert a vertex after the selected one (or at the end, if none is selected)",
   "Mayús + clic sobre el primer vértice, con el último seleccionado": "Shift + click on the first vertex, with the last one selected",
   "Cerrar una línea abierta (sin añadir ningún vértice)": "Close an open line (without adding any vertex)",
-  "Quitar el vértice seleccionado (antes que borrar el nodo); en un contorno cerrado de exactamente 3 vértices, lo abre en línea en vez de bloquear el borrado": "Remove the selected vertex (before deleting the node); on a closed outline of exactly 3 vertices, it opens it into a line instead of blocking the deletion",
+  "Quitar el vértice seleccionado (antes que borrar el nodo) y dejar seleccionado el siguiente, para seguir quitando con Supr sin volver a hacer clic; en un contorno cerrado de exactamente 3 vértices, lo abre en línea en vez de bloquear el borrado": "Remove the selected vertex (before deleting the node) and leave the next one selected, to keep removing with Del without clicking again; on a closed outline of exactly 3 vertices, it opens it into a line instead of blocking the deletion",
   "Doble clic en el mapa": "Double-click on the map",
   "No hace zoom mientras se edita así un polígono, una ruta o un círculo": "It does not zoom while a polygon, route or circle is being edited this way",
   "Ficha": "Info card",
@@ -4762,7 +4762,7 @@ map.on("resize rotate", fitWorldMinZoom);
 
 /* Fecha de generación del código (versión): AÑOMESDIAHORAMINUTO.
    Actualizar en cada generación; se muestra junto al crédito de Leaflet. */
-const BUILD = "202610292259";
+const BUILD = "202610292332";
 /* Versión de release (la de package.json, horneada aquí por build.js
    al construir — ver «Versión y releases de GitHub» en CLAUDE.md): a
    diferencia de BUILD, que cambia en CADA generación, esta solo cambia

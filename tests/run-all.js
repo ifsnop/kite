@@ -19,7 +19,7 @@ const SUITES = [
   ["daynight.js",   "Iluminación día/noche: punto subsolar y elevación solar en fechas y puntos de referencia"],
   ["coordfmt.js",   "Formato de coordenadas: decimal, GMS con espacios y GMS compacto"],
   ["elevtest.js",   "Elevaciones: catálogo de fuentes WCS por conjunto de datos, reintentos, ASCII o GeoTIFF, rejilla, unidades y cálculo del perfil"],
-  ["docs.js", "Documentación: recuentos de suites del estudio, versiones de las cabeceras, figuras del manual (existen, con texto alternativo y numeradas en orden), anclas y apartados, manifiesto de capturas y tests/README.md frente a run-all.js"],
+  ["docs.js", "Documentación: recuentos de suites, versiones, figuras, anclas y manifiesto de capturas; servidores del código frente al Anexo A del estudio y su política de contenido; atajos de la chuleta, menú contextual y ventanas frente al manual; y tests/README.md frente a run-all.js"],
   ["cadastretest.js", "Parcela catastral: direcciones y referencia validada, RCCOOR y GetParcel reales, agujeros y varias partes, Latin-1, excepciones OGC, entradas hostiles y lectura con tope"],
   ["pnoahisttest.js", "PNOA histórico: descubrimiento de capas del WMS del IGN"],
   ["copernicustest.js", "Copernicus DEM: instance ID de Sentinel Hub y sus capas"],
