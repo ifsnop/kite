@@ -40,70 +40,17 @@
   10) Un servicio que rechaza `scaleSize`: se prueba una vez y el
       perfil sale igual sin él.                                       */
 import { launch, serve, openApp, reporter, READABLE } from "./_browser.mjs";
+import { ignFakes, IGN_ROUTE } from "./_fakes.mjs";
 
 const { ok, done } = reporter("BROWSER ROUTE PROFILE TESTS OK");
 const browser = await launch();
 const srv = await serve(READABLE, 8946);
 const { page, errors } = await openApp(browser, srv.url, { viewport: { width: 1400, height: 900 } });
 
-/* ---------- MDT y MDS falsos ---------- */
-const seen = [];
-let failBox = null;   /* (host, x0) del recorte que falla siempre (paso 8) */
-let slow = 0;         /* ms de espera por respuesta (paso 8, cancelar) */
-const caps = cov => `<?xml version="1.0"?><wcs:Capabilities xmlns:wcs="http://www.opengis.net/wcs/2.0"
-  xmlns:crs="http://www.opengis.net/wcs/crs/1.0"><wcs:ServiceMetadata><wcs:formatSupported>ArcGrid</wcs:formatSupported>
-  <wcs:Extension><crs:CrsMetadata><crs:crsSupported>http://www.opengis.net/def/crs/EPSG/0/3857</crs:crsSupported>
-  <crs:crsSupported>http://www.opengis.net/def/crs/EPSG/0/25830</crs:crsSupported></crs:CrsMetadata></wcs:Extension>
-  </wcs:ServiceMetadata><wcs:Contents><wcs:CoverageSummary><wcs:CoverageId>${cov}</wcs:CoverageId></wcs:CoverageSummary>
-  </wcs:Contents></wcs:Capabilities>`;
-const desc = `<?xml version="1.0"?><wcs:CoverageDescriptions xmlns:wcs="http://www.opengis.net/wcs/2.0"
-  xmlns:gml="http://www.opengis.net/gml/3.2"><gml:Envelope srsName="http://www.opengis.net/def/crs/EPSG/0/25830"
-  axisLabels="x y"><gml:lowerCorner>-16000 3000000</gml:lowerCorner><gml:upperCorner>1200000 4900000</gml:upperCorner></gml:Envelope>
-  <gml:domainSet><gml:RectifiedGrid dimension="2"><gml:offsetVector>5 0</gml:offsetVector>
-  <gml:offsetVector>0 -5</gml:offsetVector></gml:RectifiedGrid></gml:domainSet></wcs:CoverageDescriptions>`;
-/* Como el servicio real (comprobado contra el IGN y Digital Earth
-   Africa): la rejilla empieza en la esquina de la caja pedida; con
-   `scaleSize`, tantas celdas como diga; sin él, celdas de ~6,5 m Web
-   Mercator (≈ 5 m reales a 40°N) que reparten el ancho en un número
-   entero que elige el servicio. MDS = 600 + 50·sen(x/300) en el centro
-   de cada celda; el MDT, 10 m por debajo.                            */
-const CS = 6.5;
-let rejectScale = false; /* paso 10: un servicio que no entiende scaleSize */
-function asciiFor(params, base) {
-  const [[x0, x1], [y0, y1]] = params.getAll("subset").map(s => /\(([-\d.]+),([-\d.]+)\)/.exec(s).slice(1).map(Number));
-  const sc = params.get("scaleSize");
-  const [nx, ny] = sc ? sc.match(/\((\d+)\)/g).map(t => Number(t.slice(1, -1)))
-    : [Math.max(1, Math.round((x1 - x0) / CS)), Math.max(1, Math.round((y1 - y0) / CS))];
-  const gx0 = x0, gy0 = y0, cols = nx, rows = ny, CX = (x1 - x0) / nx, CY = (y1 - y0) / ny;
-  const lines = [];
-  for (let r = rows - 1; r >= 0; r--) {
-    const row = [];
-    for (let c = 0; c < cols; c++) row.push((base + 50 * Math.sin((gx0 + (c + 0.5) * CX) / 300)).toFixed(2));
-    lines.push(row.join(" "));
-  }
-  return `ncols ${cols}\nnrows ${rows}\nxllcorner ${gx0}\nyllcorner ${gy0}\ndx ${CX}\ndy ${CY}\nNODATA_value -9999\n${lines.join("\n")}\n`;
-}
-await page.route(/wcs-mds\.idee\.es|servicios\.idee\.es/, async route => {
-  const u = new URL(route.request().url());
-  const mdt = u.host === "servicios.idee.es";
-  const params = u.searchParams, request = params.get("request");
-  seen.push({ request, params, host: u.host });
-  if (request === "GetCapabilities") {
-    return route.fulfill({ status: 200, contentType: "application/xml", body: caps(mdt ? "Elevacion4258_5" : "mds05") });
-  }
-  if (request === "DescribeCoverage") return route.fulfill({ status: 200, contentType: "application/xml", body: desc });
-  if (slow) await new Promise(r => setTimeout(r, slow));
-  if (rejectScale && params.get("scaleSize")) {
-    return route.fulfill({ status: 400, contentType: "application/xml", body: `<?xml version="1.0"?>
-      <ows:ExceptionReport xmlns:ows="http://www.opengis.net/ows/2.0"><ows:Exception exceptionCode="InvalidParameterValue"
-      locator="scaleSize"><ows:ExceptionText>scaleSize no soportado</ows:ExceptionText></ows:Exception></ows:ExceptionReport>` });
-  }
-  const x0 = Number(/\(([-\d.]+),/.exec(params.getAll("subset")[0])[1]);
-  if (failBox && failBox.host === u.host && Math.abs(x0 - failBox.x0) < 1) {
-    return route.fulfill({ status: 500, contentType: "text/html", body: "<h1>Internal Server Error</h1>" });
-  }
-  return route.fulfill({ status: 200, contentType: "text/plain", body: asciiFor(params, mdt ? 590 : 600) });
-});
+/* ---------- MDT y MDS falsos (tests/browser/_fakes.mjs) ---------- */
+const fake = ignFakes();
+const seen = fake.seen;
+await page.route(IGN_ROUTE, fake.handler);
 const coverages = () => seen.filter(s => s.request === "GetCoverage");
 
 /* Ruta de dos tramos en Madrid: ~1,2 km al este y ~0,9 km al norte */
@@ -1085,7 +1032,7 @@ await page.evaluate(() => {
 });
 
 const lastMds = coverages().filter(s => s.host === "wcs-mds.idee.es").at(-1);
-failBox = { host: "wcs-mds.idee.es", x0: Number(/\(([-\d.]+),/.exec(lastMds.params.getAll("subset")[0])[1]) };
+fake.failBox = { host: "wcs-mds.idee.es", x0: Number(/\(([-\d.]+),/.exec(lastMds.params.getAll("subset")[0])[1]) };
 const run2 = await runProfile();
 ok(/MDS: 1 de \d+ zonas sin respuesta .*tras 4 intentos.*huecos/.test(run2.note), "el trozo caído, dicho: " + run2.note);
 {
@@ -1104,9 +1051,9 @@ await page.evaluate(() => {
   closeProfileDialog();
   deleteNode([...document.querySelectorAll("#tree li")].find(x => x._name === "Perfiles de ruta"));
 });
-failBox = null;
+fake.failBox = null;
 
-slow = 800;
+fake.slow = 800;
 const nodesBefore = await page.evaluate(() => elevGridGroups.length);
 const cancelled = await page.evaluate(async sel => {
   demTimes.length = 0;
@@ -1116,7 +1063,7 @@ const cancelled = await page.evaluate(async sel => {
   await new Promise(r => setTimeout(r, 2500));
   return { hidden: document.getElementById("profile-dialog").hidden, groups: elevGridGroups.length };
 }, routeLi);
-slow = 0;
+fake.slow = 0;
 ok(cancelled.hidden && cancelled.groups === nodesBefore, "cancelar a mitad cierra y no deja nada: " + JSON.stringify(cancelled));
 
 /* ---------- 9. Consulta puntual y perfil, en la misma malla ---------- */
@@ -1161,7 +1108,7 @@ await page.evaluate(() => {
 /* ---------- 10. Un servicio que no entiende scaleSize ---------- */
 await page.reload(); /* clientes nuevos: nada recordado de la sesión anterior */
 await page.waitForFunction(() => typeof map === "object" && document.querySelector("#tree ul.node-list"));
-rejectScale = true;
+fake.rejectScale = true;
 const from = seen.length;
 const fallback = await page.evaluate(async sel => {
   elevSources = { mdt: null, mds: "ign-mds" };
@@ -1171,7 +1118,7 @@ const fallback = await page.evaluate(async sel => {
   closeProfileDialog();
   return r;
 }, routeLi);
-rejectScale = false;
+fake.rejectScale = false;
 const asked10 = seen.slice(from).filter(x => x.request === "GetCoverage");
 ok(fallback.cells > 300 && !fallback.note, "sin scaleSize el perfil sale igual: " + JSON.stringify(fallback));
 ok(asked10.filter(x => x.params.get("scaleSize")).length === 1 && asked10.length >= 3,

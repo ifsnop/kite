@@ -19,6 +19,8 @@ const SUITES = [
   ["daynight.js",   "Iluminación día/noche: punto subsolar y elevación solar en fechas y puntos de referencia"],
   ["coordfmt.js",   "Formato de coordenadas: decimal, GMS con espacios y GMS compacto"],
   ["elevtest.js",   "Elevaciones: catálogo de fuentes WCS por conjunto de datos, reintentos, ASCII o GeoTIFF, rejilla, unidades y cálculo del perfil"],
+  ["docs.js", "Documentación: recuentos de suites del estudio, versiones de las cabeceras, figuras del manual (existen, con texto alternativo y numeradas en orden), anclas y apartados, manifiesto de capturas y tests/README.md frente a run-all.js"],
+  ["cadastretest.js", "Parcela catastral: direcciones y referencia validada, RCCOOR y GetParcel reales, agujeros y varias partes, Latin-1, excepciones OGC, entradas hostiles y lectura con tope"],
   ["pnoahisttest.js", "PNOA histórico: descubrimiento de capas del WMS del IGN"],
   ["copernicustest.js", "Copernicus DEM: instance ID de Sentinel Hub y sus capas"],
   ["customtiles.js", "Custom Tile Map Service: validación de la URL del servidor, normalización y plantilla XYZ"],
@@ -112,6 +114,7 @@ const BROWSER = [
   ["browser/keyboard-nav.mjs", "Navegador: teclado y rueda del visor — flechas, Re/Av Pág y rueda continuos, y el foco que se queda en el visor"],
   ["browser/elev-sources.mjs", "Navegador: fuentes de elevación en Propiedades y consulta puntual desde el menú contextual — carpeta por sesión, unidad de altitud, GeoTIFF, MDT25, reintentos y descubrimiento una vez por sesión"],
   ["browser/elev-profile.mjs", "Navegador: perfil de una ruta — MDT y MDS por trozos, dos curvas, lectura con MDS−MDT, × arriba a la derecha, registro de la descarga, «Mostrar perfil» sin red, flecha en el mapa, zoom de cada eje, bloqueo del eje Y, solo segmentos rectos, malla común con la consulta puntual, clic derecho con el perfil debajo, huecos y cancelar"],
+  ["browser/cadastre.mjs", "Navegador: parcela catastral desde el menú contextual — capa y ficha, dos peticiones simples, repetir no pide el polígono, sin parcela, excepción OGC sin reintentos, 503 reintentado con cursor de espera, deshacer, recargar y atribución"],
   ["browser/geocalc.mjs", "Navegador: calculadora geodésica — dos pestañas que se recalculan solas, presión, unidades que convierten, sin crecer y no modal"],
   ["browser/i18n.mjs", "Navegador: idioma de la interfaz — «Automático» según el navegador, español e inglés sin español colado, el ajuste de Propiedades (guarda al Aceptar, vale al recargar) y un idioma nuevo sin tocar código"]
 ];

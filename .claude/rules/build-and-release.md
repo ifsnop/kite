@@ -16,7 +16,7 @@ src/index.html     plantilla: <head>, CSP, diálogos, <script> de CDN.
                    Dos marcadores: {{STYLES}} y {{SCRIPTS}}
 src/styles.css     todo el CSS
 src/sw.js          service worker del uso sin conexión (ver offline.md)
-src/js/*.js        33 archivos, en el orden del manifiesto de build.js
+src/js/*.js        34 archivos, en el orden del manifiesto de build.js
                    (03-i18n.js primero; 05-mdi-icons.js es GENERADO;
                    04-i18n-xx.js, un diccionario por idioma)
 build.js           concatena src/ → kitelocal.html, y minifica ese
@@ -93,8 +93,8 @@ Dos números, cadencia y origen distintos:
 Proceso de release (creación del Release en sí sigue siendo decisión humana, no automatizada):
 
 1. Ramas con PR a `main`.
-2. Al reunir todos los PR de un release: **a mano**, subir `package.json.version`, actualizar versión en cabecera de los dos documentos de `docs/`, commitear (commit final del release). El hook de pre-commit ve `package.json` y se encarga de `BUILD` + `npm run build`.
+2. Al reunir todos los PR de un release: **a mano**, subir `package.json.version`, regenerar las capturas (`npm run capturas`), revisar el estudio de seguridad (recuentos, fecha, resultado verificado), actualizar versión en cabecera de los dos documentos de `docs/`, commitear (commit final del release). `tests/docs.js` falla si algo de esto queda a medias. El hook de pre-commit ve `package.json` y se encarga de `BUILD` + `npm run build`.
 3. `git tag vX.Y.Z && git push origin vX.Y.Z` sobre ese commit — el tag debe coincidir EXACTAMENTE con `package.json.version`.
-4. `.github/workflows/release.yml` (disparado por el push del tag) comprueba tag↔`package.json`, `npm run check`, y **que las 58 suites de `npm test` pasan** (con navegador, `KITE_REQUIRE_BROWSER=1`) — corren DENTRO de este job, no dependiendo de `tests.yml` (que se dispara aparte con el mismo push pero sin relación `needs`; antes un tag con tests en rojo podía publicarse porque `release.yml` nunca ejecutaba `npm test`). Si todo cuadra, publica el Release (notas automáticas, dos artefactos adjuntos). Si no, falla en rojo y no publica — hay que arreglar, borrar el tag y recrearlo sobre el commit correcto.
+4. `.github/workflows/release.yml` (disparado por el push del tag) comprueba tag↔`package.json`, `npm run check`, y **que todas las suites de `npm test` pasan** (con navegador, `KITE_REQUIRE_BROWSER=1`) — corren DENTRO de este job, no dependiendo de `tests.yml` (que se dispara aparte con el mismo push pero sin relación `needs`; antes un tag con tests en rojo podía publicarse porque `release.yml` nunca ejecutaba `npm test`). Si todo cuadra, publica el Release (notas automáticas, dos artefactos adjuntos). Si no, falla en rojo y no publica — hay que arreglar, borrar el tag y recrearlo sobre el commit correcto.
 
 **El bump de versión es a mano, antes de tagear, no una Action tras crear el tag**: el tag se crea sobre la punta de `main`; si el bump fuera posterior, el tag apuntaría a un commit sin esa versión todavía, obligando a mover el tag (`-f`). Bumpear antes evita el problema.

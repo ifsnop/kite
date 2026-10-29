@@ -50,8 +50,9 @@ nuevo, no que la regla no exista.
 | `i18n.md` | Idiomas de la interfaz (español, inglés, y cómo añadir otro): el texto en español es la clave, `tr()`/`trn()`/`trc()`/`N_()`, diccionarios, preferencia, HTML estático, `i18n-tool.js`, pruebas | `src/js/**`, `src/index.html`, `src/styles.css`, `i18n-tool.js`, `tests/i18n.js`, `tests/browser/i18n.mjs`, `tests/_extract.js` |
 | `accessibility.md` | ARIA del árbol y de los diálogos | `src/js/**`, `src/index.html` |
 | `persistence-indexeddb.md` | `DB_VERSION`/`TREE_SCHEMA`, serialización del árbol, guardado en dos niveles (esqueleto + segmentos), claves del almacén | `src/js/**` |
-| `external-network.md` | Disciplina de peticiones de red externa (tope, tiempo por intento, reintentos de lo pasajero) | `40-panel-actions.js`, `60-elevation.js`, `63-route-profile.js`, `12-copernicus.js` |
+| `external-network.md` | Disciplina de peticiones de red externa (tope, tiempo por intento, reintentos de lo pasajero) | `40-panel-actions.js`, `60-elevation.js`, `63-route-profile.js`, `65-cadastre.js`, `12-copernicus.js` |
 | `base-maps.md` | Capas base, fuentes dinámicas, color de fondo, apilado | `10-map.js`, `11-base-panel.js`, `12-copernicus.js` |
+| `cadastre.md` | Parcela catastral desde el menú contextual: RCCOOR + WFS INSPIRE del Catastro, GML en ISO-8859-1, orden de ejes, validación de lo recibido, capa normal del árbol, repetidas | `65-cadastre.js` |
 | `url-import.md` | Botón 🔗, descarga de una URL en dos pasos | `40-panel-actions.js`, `src/index.html` |
 | `context-menu.md` | Menú contextual del visor, hit-testing por geometría | `42-hittest.js`, `70-view-controls.js` |
 | `map-rotation.md` | Rotación del mapa (código propio derivado de leaflet-rotate): qué se conservó y qué no, pellizco, fallos del plugin corregidos, brújula, botón central, tecla R, «una sola Tierra» girada, etiquetas horizontales, retícula, día/noche, consulta de elevación, PNG | `08-map-rotation.js`, `10-map.js`, `42-hittest.js`, `60-elevation.js`, `61-daynight.js`, `70-view-controls.js` |
@@ -59,7 +60,7 @@ nuevo, no que la regla no exista.
 | `performance.md` | Reglas de rendimiento nacidas de medir | `src/js/**` |
 | `browser-tests.md` | Suites de Playwright (`tests/browser`) | `tests/browser/**` |
 | `static-checks.md` | Comprobaciones estáticas sobre `kitelocal.html` | `tests/statics.js`, `tests/minified.js`, `tests/attribution.js` |
-| `docs-maintenance.md` | Mantenimiento obligatorio de `docs/` | `docs/**` |
+| `docs-maintenance.md` | Mantenimiento obligatorio de `docs/`: cuándo hay captura (cambio de aspecto Y funcionalidad nueva), `npm run capturas`, qué vigila `tests/docs.js`, exenciones y cadencia de revisión | `docs/**`, `tools/capturas.mjs`, `tests/docs.js` |
 
 **Al reorganizar `.claude/rules/` en el futuro**: la fuente de verdad de
 cada regla es su propio archivo, no este índice. Si se añade, renombra o

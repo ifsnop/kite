@@ -30,7 +30,8 @@ description: Principios no negociables, vocabulario y checklist de KITE Local. S
    Icons EMPOTRADOS sin red en ejecución (`src/js/05-mdi-icons.js`,
    generado por `fetch-icons.js`/`npm run icons` — ver
    `marker-icons.md`), Nominatim (geocodificación; ~1 req/s, solo al
-   pulsar Enter/botón, nunca por tecla, `limit=5`). Antes de escribir
+   pulsar Enter/botón, nunca por tecla, `limit=5`), Catastro (parcela
+   bajo el clic, solo al pedirla; ver `cadastre.md`). Antes de escribir
    código propio, comprobar si Leaflet ya lo resuelve. Excepción:
    `leaflet-pin` es el PNG de Leaflet, no un SVG de MDI, no coloreable.
    **La rotación del mapa es código INCORPORADO**, no CDN
@@ -168,8 +169,17 @@ Parcialmente hecho (no confundir con pendiente):
     temporal). `node --check` no lo detecta.
 12. **Al reportar cambios de código, mostrar `git diff --stat`.**
 13. **Revisar `docs/`** si el cambio afecta a lo que describe: opción,
-    diálogo, atajo o flujo (`manual-usuario...md`, con capturas si
-    cambió el aspecto); origen de capa, política de red,
-    transformación de datos importados o alcance de tests
-    (`estudio-seguridad...md`). Si ninguno habla de ello, no hace
-    falta tocarlos — pero comprobarlo es parte del cambio.
+    diálogo, atajo o flujo (`manual-usuario...md`); origen de capa,
+    servidor contactado, política de red, transformación de datos
+    importados o alcance de tests (`estudio-seguridad...md`). Si
+    ninguno habla de ello, no hace falta tocarlos — pero comprobarlo es
+    parte del cambio. **Captura en el manual, en DOS casos**: (a) cambia
+    el aspecto de algo ya capturado, y (b) se introduce **funcionalidad
+    nueva con algo que ver**: un diálogo, control, opción de menú,
+    indicador o estado visual lleva su captura, además de la prosa.
+    Las capturas NO se hacen a mano: se añade (o se ajusta) su
+    escenario en `tools/capturas.mjs` en el mismo cambio y se
+    regeneran con `npm run capturas`. Un apartado que no necesita
+    captura (gestual o ya cubierto por otra figura) se anota como
+    exención en la matriz de `docs-maintenance.md`. Los números de
+    `docs/` (suites, versión, figuras) los vigila `tests/docs.js`.

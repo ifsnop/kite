@@ -639,10 +639,11 @@
   .elev-cell .ec-s { color: #2e7d32; }                    /* superficie */
   .elev-cell .ec-d { color: #b04a3a; }                    /* diferencia */
   .elev-cell .ec-d.alert { color: #d32f2f; font-weight: 700; } /* MDS > MDT + 1 m */
-  /* Consulta de elevación en marcha: sin aviso en el registro, el cursor
-     es la señal (ver syncElevBusy). `!important` y `*`: las capas
+  /* Consulta de elevación o de parcela catastral en marcha: sin aviso en el
+     registro, el cursor es la señal (ver syncElevBusy, syncCadastreBusy). `!important` y `*`: las capas
      interactivas y el arrastre ponen su propio cursor.               */
-  .leaflet-container.elev-busy, .leaflet-container.elev-busy * { cursor: progress !important; }
+  .leaflet-container.elev-busy, .leaflet-container.elev-busy *,
+  .leaflet-container.cadastre-busy, .leaflet-container.cadastre-busy * { cursor: progress !important; }
 
   .coords-zoom { font-weight: 600; }
   /* La atribución se queda en una sola línea, la de abajo del todo */

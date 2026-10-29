@@ -99,6 +99,13 @@ paths:
     Node. `buildCogRecord`/`cleanOrphanRasters`/`addCogNode` se llaman
     desde archivos anteriores (32, 33, 99) solo en tiempo de ejecución.
     Ver `cog.md`.
+11d. **Parcela catastral** (`65-cadastre.js`): dos consultas al Catastro
+    (referencia por coordenadas y polígono por WFS INSPIRE), validación
+    de lo recibido y capa normal del árbol; lo puro (URLs, referencia,
+    GML → GeoJSON, bytes con su codificación) se prueba en Node. Va tras
+    `64-cog.js` y usa `withElevRetries` (`52`), `describeHttp` (`40`) y
+    `makeNode`; el menú contextual (`70`) la llama solo en tiempo de
+    ejecución. Ver `cadastre.md`.
 12. **Controles de vista**: autoescala, ES/IC, retícula, coordenadas.
 13. **Arranque**: restauración del árbol guardado. Al final, para que
     todo esté definido.

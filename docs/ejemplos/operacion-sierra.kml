@@ -1,0 +1,67 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Datos FICTICIOS para las capturas del manual (docs/manual-usuario-kite-local.md):
+     una zona de operación y unos puntos de interés cerca de Madrid.
+     Base → Punto de control: 1,92 NM a 108,2°. Las capturas se regeneran con npm run capturas. -->
+<kml xmlns="http://www.opengis.net/kml/2.2">
+  <Document>
+    <name>Operación Sierra</name>
+    <open>1</open>
+    <Style id="zonaA">
+      <LineStyle><color>ff194ae6</color><width>2</width></LineStyle>
+      <PolyStyle><color>59194ae6</color></PolyStyle>
+    </Style>
+    <Style id="zonaAAmp">
+      <LineStyle><color>ffc06515</color><width>2</width></LineStyle>
+      <PolyStyle><color>40c06515</color></PolyStyle>
+    </Style>
+    <Style id="zonaB">
+      <LineStyle><color>ff327d2e</color><width>2</width></LineStyle>
+      <PolyStyle><color>59327d2e</color></PolyStyle>
+    </Style>
+    <Style id="trayecto">
+      <LineStyle><color>fff48542</color><width>3</width></LineStyle>
+    </Style>
+    <Folder>
+      <name>Zonas</name>
+      <open>1</open>
+      <Placemark>
+        <name>Zona A</name>
+        <styleUrl>#zonaA</styleUrl>
+        <Polygon><outerBoundaryIs><LinearRing><coordinates>
+          -3.72,40.42,0 -3.70,40.42,0 -3.70,40.40,0 -3.72,40.40,0 -3.72,40.42,0
+        </coordinates></LinearRing></outerBoundaryIs></Polygon>
+      </Placemark>
+      <Placemark>
+        <name>Zona A (ampliación)</name>
+        <styleUrl>#zonaAAmp</styleUrl>
+        <Polygon><outerBoundaryIs><LinearRing><coordinates>
+          -3.715,40.405,0 -3.695,40.405,0 -3.695,40.395,0 -3.715,40.395,0 -3.715,40.405,0
+        </coordinates></LinearRing></outerBoundaryIs></Polygon>
+      </Placemark>
+      <Placemark>
+        <name>Zona B</name>
+        <styleUrl>#zonaB</styleUrl>
+        <Polygon><outerBoundaryIs><LinearRing><coordinates>
+          -3.68,40.41,0 -3.66,40.41,0 -3.66,40.39,0 -3.68,40.39,0 -3.68,40.41,0
+        </coordinates></LinearRing></outerBoundaryIs></Polygon>
+      </Placemark>
+    </Folder>
+    <Folder>
+      <name>Puntos de interés</name>
+      <open>1</open>
+      <Placemark>
+        <name>Base</name>
+        <Point><coordinates>-3.71,40.415,0</coordinates></Point>
+      </Placemark>
+      <Placemark>
+        <name>Punto de control</name>
+        <Point><coordinates>-3.67,40.405,0</coordinates></Point>
+      </Placemark>
+    </Folder>
+    <Placemark>
+      <name>Trayecto</name>
+      <styleUrl>#trayecto</styleUrl>
+      <LineString><coordinates>-3.715,40.418,0 -3.665,40.398,0</coordinates></LineString>
+    </Placemark>
+  </Document>
+</kml>
