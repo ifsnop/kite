@@ -182,4 +182,8 @@ Parcialmente hecho (no confundir con pendiente):
     regeneran con `npm run capturas`. Un apartado que no necesita
     captura (gestual o ya cubierto por otra figura) se anota como
     exención en la matriz de `docs-maintenance.md`. Los números de
-    `docs/` (suites, versión, figuras) los vigila `tests/docs.js`.
+    `docs/` (suites, versión, figuras) los vigila `tests/docs.js`, y también
+    que un **servidor nuevo** esté en el Anexo A del estudio, que un **atajo**
+    esté en la chuleta Y en el apartado 8 del manual con las mismas palabras,
+    que una **entrada de menú contextual** esté en el apartado 5 y que una
+    **ventana nueva** tenga su sitio en el manual (`DIALOG_DOC`).

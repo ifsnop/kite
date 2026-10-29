@@ -64,13 +64,34 @@ actualizarlos.** Ver punto 13 del checklist en `00-principles.md`.
 
 ## Qué vigila `tests/docs.js`
 
-Recuentos de suites del estudio frente a `run-all.js` (y falla si no
-encuentra ninguna frase, para que reescribirla no lo desactive), versión de
-la cabecera de los dos documentos frente a `package.json`, imágenes
-(existen, texto alternativo, pie numerado en orden, sin huérfanas),
-anclas del índice y referencias «apartado X.Y», el manifiesto de capturas y
-que cada suite de `run-all.js` tenga su sección en `tests/README.md`. Un
-número de `docs/` que se pueda evitar, se evita («todas las suites»).
+- **Números y referencias**: recuentos de suites del estudio frente a `run-all.js`
+  (y falla si no encuentra ninguna frase, para que reescribirla no lo desactive),
+  versión de la cabecera de los dos documentos frente a `package.json`, imágenes
+  (existen, texto alternativo, pie numerado en orden, sin huérfanas), anclas del
+  índice y referencias «apartado X.Y», manifiesto de capturas y que cada suite de
+  `run-all.js` tenga su sección en `tests/README.md`. Un número de `docs/` que se
+  pueda evitar, se evita («todas las suites»).
+- **Servidores** (Anexo A del estudio): los servidores que salen de los literales
+  de `src/js` (con `acorn`; los comentarios no cuentan), de `src/sw.js` y de
+  `index.html` están TODOS en la primera columna de las tablas del Anexo A, y todo
+  servidor del anexo está en el código. **Un servidor nuevo en el código = una fila
+  en el Anexo A en el mismo cambio** (proveedor, para qué, cuándo, qué se le
+  envía); uno retirado, fuera del anexo. También lo que no recibe tráfico
+  (enlaces de la atribución, `www.w3.org`, direcciones de ejemplo de la ayuda).
+- **Política de contenido** (`<meta>` CSP de `index.html`): solo `img-src` y
+  `connect-src` admiten `https:` abierto (la excepción documentada en el 6.2 del
+  estudio), ninguna fuente es `*` ni `http:`, todo host de la política está en el
+  anexo y el anexo nombra esas dos directivas.
+- **Atajos**: las tablas del apartado 8 del manual son las de la chuleta de la
+  aplicación (`#shortcuts`), cabeceras y filas, **con las mismas palabras y en el
+  mismo orden**. La chuleta es la fuente (es lo que ve el usuario): un atajo nuevo
+  va a la chuleta (con `node i18n-tool.js sync en`) y se copia al manual tal cual.
+- **Menú contextual**: cada etiqueta `label: tr("…")` de `CTX_MENU_ITEMS`,
+  `layerCtxItems`, `ctxItemsFor` y `routeProfileCtxItem` aparece entre « » en el
+  apartado 5 del manual. Una entrada nueva se describe ahí con su etiqueta exacta.
+- **Ventanas**: cada `dlg-overlay`/`dlg-float` de `index.html` tiene en
+  `DIALOG_DOC` (en `tests/docs.js`) la frase con que el manual la describe o una
+  exención con su motivo. Una ventana nueva sin decidir hace fallar la prueba.
 
 ## Matriz de cobertura del manual (exenciones)
 
@@ -154,19 +175,16 @@ PR y en la tabla «Registro de revisiones» de abajo. Cada paso, con su método:
    regla y qué apartado). Por cada afirmación con número, valor por defecto,
    límite o nombre de botón: comprobarla en el código (`grep -F`) o en la
    aplicación. Empezar por lo más tocado. Discrepancia = se corrige en el acto.
-2. **Completitud.** Cada diálogo (`grep -o 'id="[a-z-]*"' src/index.html` sobre
-   los `dlg-overlay`/`dlg-float`), cada entrada de `CTX_MENU_ITEMS`
-   (`70-view-controls.js`), cada control de Propiedades y cada botón de la
-   cabecera aparece en el manual con apartado y figura, o en la matriz de
-   exenciones de arriba. Los huecos se cierran o se anotan.
-3. **Estudio de seguridad: afirmación → prueba.** Servidores contactados por el
-   código frente a los citados en el estudio:
-   ```
-   node -e 'const fs=require("fs"),p=require("path");const st=fs.readFileSync("docs/estudio-seguridad-kite-local.md","utf8").toLowerCase();const h=new Map();for(const f of fs.readdirSync("src/js").filter(f=>/\.js$/.test(f)&&!/^(05-|04-i18n)/.test(f)).map(f=>"src/js/"+f).concat(["src/index.html"]))for(const m of fs.readFileSync(f,"utf8").matchAll(/https?:\/\/([a-z0-9.-]+\.[a-z]{2,})/gi))h.set(m[1].toLowerCase(),f);for(const [k,f] of [...h].sort())console.log((st.includes(k)?"  en estudio ":"  NO estudio ")+k.padEnd(40)+p.basename(f))'
-   ```
-   (hoy el estudio nombra organismos, no hosts: la lista cerrada exacta es una
-   mejora pendiente, ver «Pendiente»). Cada garantía de los apartados 4–6 apunta a
-   una suite de `run-all.js`, y cada suite figura en alguna área del 7.2.
+2. **Completitud.** Las entradas del menú contextual, las ventanas de
+   `index.html` y los atajos ya los comprueba `tests/docs.js`; queda a mano lo que
+   la prueba no ve: cada control de Propiedades y cada botón de la cabecera con su
+   apartado y figura (o en la matriz de exenciones de arriba), y que las ventanas
+   con captura la tengan. Los huecos se cierran o se anotan.
+3. **Estudio de seguridad: afirmación → prueba.** Los servidores y la política de
+   contenido ya los comprueba `tests/docs.js` (Anexo A). A mano: cada garantía de
+   los apartados 4–6 apunta a una suite de `run-all.js`, cada suite figura en
+   alguna área del 7.2, y lo que el Anexo A dice que se envía a cada servidor sigue
+   siendo cierto (leer la petición en el código del servicio).
 4. **Lectura.** Alguien (o un agente sin contexto) hace las tareas 7.1–7.12 con
    SOLO el manual y anota dónde se atasca. Párrafos de más de ~10 líneas se
    parten en pasos; los mismos nombres de botón en todo el documento (`grep -n`
@@ -212,11 +230,11 @@ número en el texto, solo en los pies.)
 | Fecha | Alcance | Resultado |
 |---|---|---|
 | 2026-10-29 | Parcial: capturas rehechas con script, recuentos del estudio, checklist, cobertura de 7.2, textos del manual con errores (7.3, 3.4, 2.1) y explicación de etiquetas HTML y duplicados | 97 de 97 suites; las 44 figuras revisadas una a una. **No** se hizo la revisión C completa |
+| 2026-10-29 | Fases 2 y 3 de `tests/docs.js` (servidores, política de contenido, atajos, menú, ventanas) | Las pruebas encontraron 9 filas de atajos distintas (una era un error de la chuleta: Supr), 13 de las 20 etiquetas del menú sin citar en el apartado 5 y 22 servidores sin documentar; corregido |
 
-### Pendiente (comprobaciones automáticas por fases, de `tests/docs.js`)
+### Pendiente (comprobaciones automáticas, de `tests/docs.js`)
 
-Fase 2: anexo del estudio con los servidores exactos y prueba de que todo host
-de `src/js` y de la CSP está en él. Fase 3: tabla de atajos del manual frente a
-`#shortcuts`, entradas de `CTX_MENU_ITEMS` en el apartado 5, diálogos de
-`index.html` en el manual. Fase 4: cuadro de límites y valores por defecto con su
-constante del código. Mientras no existan, la revisión C.1–C.3 las hace a mano.
+Fase 4: un cuadro de límites y valores por defecto del manual (300 MB, 100 000
+elementos, 10 NM, 15 s…) con el nombre de su constante en el código, y una prueba
+que extraiga esas constantes y las compare. Mientras no exista, la revisión C.1 las
+comprueba a mano.

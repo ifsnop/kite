@@ -713,7 +713,7 @@ registerLang("en", "English", {
   "Insertar un vértice tras el seleccionado (o al final, si no hay ninguno)": "Insert a vertex after the selected one (or at the end, if none is selected)",
   "Mayús + clic sobre el primer vértice, con el último seleccionado": "Shift + click on the first vertex, with the last one selected",
   "Cerrar una línea abierta (sin añadir ningún vértice)": "Close an open line (without adding any vertex)",
-  "Quitar el vértice seleccionado (antes que borrar el nodo); en un contorno cerrado de exactamente 3 vértices, lo abre en línea en vez de bloquear el borrado": "Remove the selected vertex (before deleting the node); on a closed outline of exactly 3 vertices, it opens it into a line instead of blocking the deletion",
+  "Quitar el vértice seleccionado (antes que borrar el nodo) y dejar seleccionado el siguiente, para seguir quitando con Supr sin volver a hacer clic; en un contorno cerrado de exactamente 3 vértices, lo abre en línea en vez de bloquear el borrado": "Remove the selected vertex (before deleting the node) and leave the next one selected, to keep removing with Del without clicking again; on a closed outline of exactly 3 vertices, it opens it into a line instead of blocking the deletion",
   "Doble clic en el mapa": "Double-click on the map",
   "No hace zoom mientras se edita así un polígono, una ruta o un círculo": "It does not zoom while a polygon, route or circle is being edited this way",
   "Ficha": "Info card",
