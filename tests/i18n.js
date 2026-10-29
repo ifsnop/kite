@@ -75,6 +75,7 @@ const KEEP = new Map([
   ["PNOA Máxima Actualidad. {}", "Crédito del IGN"],
   ["PNOA histórico. {}", "Crédito del IGN"],
   ["Copernicus DEM © DLR e.V. 2010-2014 y © Airbus Defence and Space GmbH 2014-2018 (Copernicus, UE/ESA), vía <a href=\"https://www.digitalearthafrica.org\">Digital Earth Africa</a>", "Crédito de Copernicus"],
+  ["\u00A9 Direcci\u00F3n General del Catastro", "Crédito del Catastro"],
   ["Leaflet no disponible: se detiene el arranque", "Error de arranque: el idioma aún no se ha leído"],
   ["Iluminación día/noche: WebGL no disponible", "console.error para quien depura"],
   ["fallo al compilar el shader", "Error interno de WebGL"],

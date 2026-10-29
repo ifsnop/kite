@@ -5,8 +5,8 @@
 | | |
 |---|---|
 | **Documento** | Estudio de seguridad — KITE Local (KML Interactive Tree Explorer) |
-| **Versión del documento** | 1.2 |
-| **Fecha** | 24 de septiembre de 2026 |
+| **Versión del documento** | 1.3 |
+| **Fecha** | 29 de octubre de 2026 |
 | **Preparado por** | Diego Torres |
 | **Versión de la aplicación auditada** | v1.10.0 (202610241902) |
 | **Repositorio público del código fuente** | https://github.com/ifsnop/kite |
@@ -19,7 +19,7 @@ KITE Local es una aplicación de visualización y consulta de información geoes
 
 1. **El origen de cada capa de información es conocido, declarado y verificable.** Tanto la cartografía de fondo como los servicios auxiliares (elevación del terreno, búsqueda de topónimos) proceden de organismos oficiales o de proveedores identificados, y la propia aplicación restringe por configuración los orígenes de red a los que puede conectarse — con dos excepciones deliberadas y acotadas en las que el propio usuario elige el origen (descargar un archivo desde una dirección, y un mapa base de teselas de un servidor propio), descritas en el apartado 6.2.
 2. **La aplicación no modifica los datos geoespaciales que muestra.** La geometría, las coordenadas y la altitud de cada elemento cargado se conservan tal como están definidas en el archivo de origen a lo largo de todo el ciclo de vida (carga, visualización, guardado y exportación). Las únicas excepciones son un número reducido de correcciones controladas, de alcance mínimo, siempre notificadas al usuario y nunca aplicadas en silencio, que se describen en detalle en el apartado 4.
-3. **El comportamiento descrito está verificado mediante una batería de pruebas automatizadas** que se ejecuta contra el propio archivo que se distribuye —no contra una copia aparte del código— y que en la fecha de este documento supera sus 60 conjuntos de comprobaciones sin ninguna incidencia.
+3. **El comportamiento descrito está verificado mediante una batería de pruebas automatizadas** que se ejecuta contra el propio archivo que se distribuye —no contra una copia aparte del código— y que en la fecha de este documento supera sus 97 conjuntos de comprobaciones sin ninguna incidencia.
 
 El documento está dirigido a personal auditor y experto en seguridad, no a personal programador: describe el comportamiento de la aplicación, su alcance y sus garantías, sin entrar en detalles de implementación.
 
@@ -78,11 +78,12 @@ La aplicación incorpora, apagados por defecto salvo la capa base de OpenStreetM
 
 **«Custom Tile Map Service» y «Custom Web Map Service» son las únicas excepciones a esta lista cerrada, y son deliberadas.** En vez de un proveedor fijo, piden su cartografía a la dirección que el propio usuario configura en el diálogo de cada capa: la primera, teselas de un servidor propio —típicamente una caché o proxy delante de un servicio ya existente, para no cargar de tráfico ese servicio público—; la segunda, las capas que publica un servidor WMS, cuya lista se lee de su respuesta a una consulta `GetCapabilities` (la única petición de datos que la aplicación hace a esa dirección, además de las imágenes del mapa). Permanecen apagadas y sin ningún origen configurado hasta que el usuario introduce uno; la aplicación no elige, sugiere ni conoce de antemano ningún servidor para estas capas, y solo admite direcciones cifradas (https), nunca sin cifrar (http), ni direcciones con usuario y contraseña incrustados. Se detalla en el apartado 6.2.
 
-Además, dos servicios de consulta puntual, no cartografiados como capa de fondo:
+Además, tres servicios de consulta puntual, no cartografiados como capa de fondo:
 
 - **Modelos digitales del terreno (MDT) y de superficie (MDS)**, usados por la consulta de elevación, que el usuario lanza expresamente sobre un punto desde el menú contextual del visor (nunca al mover el ratón). Los servicios posibles forman una lista cerrada fijada en el código de la aplicación; el usuario solo elige, en el panel «Propiedades», cuál de ellos usar para cada modelo o ninguno, y no puede escribir una dirección propia. Hoy son: el **MDT y el MDS del Instituto Geográfico Nacional** (servicios de cobertura del propio IGN, la opción de partida), con altitud ortométrica (sobre el nivel medio del mar) y cobertura limitada al territorio español; del MDT, tres conjuntos de datos publicados por el propio servicio (identificadores INSPIRE **MDT05**, **MDT25** y **MDT200**, de celdas de 5, 25 y 200 m, comprobados en su declaración de capacidades), y del MDS, el conjunto **MDS**; y, como MDS alternativo, el **Copernicus DEM GLO-30** (modelo de superficie de la Agencia Espacial Europea y la Unión Europea, producido por DLR y Airbus) servido por **Digital Earth Africa**, con altitudes referidas al geoide EGM2008, celdas de unos 30 m y cobertura en África, Canarias y la península hasta los 39° N. Cada capa descargada lleva en su nombre el conjunto de datos y el proveedor de los que procede (por ejemplo «MDT25 + MDS (IGN)»). La primera consulta a cada servicio, en cada sesión, lee qué coberturas y formatos ofrece y, dentro del conjunto elegido, la malla más fina; esa elección queda anotada en el registro de avisos de la sesión.
 
 Las peticiones a estos servicios siguen una disciplina fija: tope de peticiones por segundo entre todos ellos, tiempo máximo de respuesta por intento (mayor para Digital Earth Africa, que tarda hasta medio minuto en la primera petición a una zona) y **reintento automático solo ante fallos pasajeros** (el servicio no responde, error del servidor o límite de peticiones), hasta tres veces con una pausa creciente; una respuesta del servicio —incluida «fuera de cobertura»— nunca se reintenta, y un fallo que agota los intentos se comunica al usuario. El **perfil de una ruta** pide al MDT y al MDS elegidos el terreno que recorre la ruta por zonas acotadas, una tras otra y respetando ese mismo tope, solo para rutas por debajo de una longitud máxima configurable (10 millas náuticas de partida); obtenido una vez, se guarda con la capa del perfil y volver a mostrarlo no hace ninguna petición. Mientras descarga, su ventana muestra para depuración **cada petición tal como sale** (la dirección completa y el número de intento) **y lo que vuelve** (estado HTTP, tipo y tamaño de la respuesta, tiempo, la rejilla leída o el fallo y si se reintenta): solo lo que la aplicación pide porque el usuario lo ha pedido, y desaparece al terminar la descarga. Esas curvas guardadas, como todo lo que llega en un árbol exportado o pegado, se validan al leerse (forma, números finitos, longitudes acotadas, distancias crecientes): un perfil que no las cumple se descarta y la capa queda como una cuadrícula sin perfil. Ninguno de los dos procesos altera los valores recibidos: el perfil toma, para cada celda que recorre la ruta, el valor de esa celda tal cual, sin interpolar, y deja como hueco lo que el servicio no devolvió; con dos mallas de distinto tamaño, cada celda fina lleva el valor de la celda gruesa que la contiene, también sin interpolar. Los servicios no entregan su malla original: la remuestrean a una rejilla que construyen para cada petición. KITE fija esa rejilla —origen y tamaño de celda constantes por servicio, indicando el número de celdas con el parámetro estándar `scaleSize` de WCS 2.0— para que lo descargado en peticiones distintas coincida celda a celda; fija la geometría de la rejilla, no los valores, que son los que el servicio devuelve. Si un servicio no admite ese parámetro, se pide como antes.
+- **Catastro (Dirección General del Catastro)**, usado exclusivamente por la opción «Parcela catastral» del menú contextual del visor, que el usuario lanza expresamente sobre un punto (nunca al mover el ratón ni al abrir un archivo). Son dos consultas a un único servidor del organismo (`ovc.catastro.meh.es`) fijado en el código, sin dirección configurable por el usuario: la primera envía las coordenadas del punto pulsado y devuelve la referencia catastral de la parcela y su dirección; la segunda envía esa referencia —que se valida antes de usarla: exactamente 14 caracteres alfanuméricos— y devuelve el polígono de la parcela y su superficie, en un formato estándar (GML de INSPIRE). Las peticiones son simples (sin credenciales, sin cookies ni cabeceras propias), con tiempo máximo por intento, reintento solo ante fallos pasajeros (hasta dos veces) y un tope de 5 MB en la respuesta. Lo recibido se trata como entrada no confiable y se valida entera antes de dibujar nada: coordenadas finitas y dentro de rango, número de puntos coherente con el declarado, anillos válidos, un máximo de vértices y el sistema de coordenadas declarado por el propio servicio (si no es el esperado, no se dibuja, para no colocar la parcela con los ejes cambiados); una respuesta que no cumple se rechaza con un aviso y no deja nada en el árbol. Las únicas transformaciones son el cambio del orden de los ejes (el servicio da latitud y longitud, el visor longitud y latitud) y, si el servicio dejara un anillo sin cerrar, cerrarlo; ni se simplifica ni se ajusta el contorno. El resultado es una capa más del árbol, con la referencia, la dirección, la superficie, la etiqueta y la fecha de alta como atributos, y la atribución «© Dirección General del Catastro» en el pie del visor.
 - **Nominatim**, el servicio de geocodificación de OpenStreetMap, usado exclusivamente por el buscador de lugares del panel. La consulta se realiza únicamente cuando el usuario pulsa el botón de búsqueda o la tecla Intro —nunca mientras escribe— y respetando el límite de una petición por segundo que exige la política de uso pública de ese servicio.
 
 Cada capa de cartografía activada muestra en el pie del visor la atribución del proveedor correspondiente, tal y como exigen las licencias de uso de esos servicios (por ejemplo, la licencia CC BY 4.0 del IGN o la atribución de OpenStreetMap).
@@ -183,7 +184,7 @@ Esta forma de proceder asegura que lo que las pruebas certifican es, literalment
 
 ### 7.2 Alcance actual de la batería de pruebas
 
-En la fecha de este documento, la batería está compuesta por 61 conjuntos de pruebas independientes, agrupados por área, y todos ellos superados sin ninguna incidencia en la última ejecución realizada para este estudio. Las áreas cubiertas incluyen, entre otras:
+En la fecha de este documento, la batería está compuesta por 97 conjuntos de pruebas independientes, agrupados por área, y todos ellos superados sin ninguna incidencia en la última ejecución realizada para este estudio. Las áreas cubiertas incluyen, entre otras:
 
 **Interpretación de archivos y formatos de origen**
 - Lectura de archivos KML, con independencia del prefijo de espacio de nombres que use cada archivo.
@@ -204,11 +205,21 @@ En la fecha de este documento, la batería está compuesta por 61 conjuntos de p
 - Cálculo de perímetros y superficies de polígonos, incluidos anillos abiertos o cerrados, huecos interiores y multipolígonos.
 - Tratamiento de formas geométricas abiertas (una línea no tiene superficie ni puede rellenarse).
 - Mediciones de ruta con varios tramos: distancia y rumbo de cada tramo por separado y el total, con su propia numeración independiente de la de las figuras dibujadas.
+- Medición de arcos: el arco se construye a partir del centro, el inicio y el recorrido del perímetro, en el sentido en que se mueve el ratón y con aperturas de más de media vuelta, y queda guardado como una ruta ordinaria de tantos tramos como indique la preferencia correspondiente.
+- Posición del sol y de la luna, y horas de salida, puesta y crepúsculos, contrastadas con fechas y puntos de referencia. La iluminación día/noche es un efecto visual: no interviene en ninguna medición ni en ningún dato.
+- Giro del mapa: la conversión entre posiciones de pantalla y del mapa mantiene un error inferior a un píxel con el mapa girado en seis ángulos distintos, de modo que girar la vista no cambia ninguna coordenada mostrada ni medida; límite del desplazamiento al mundo con el mapa girado y versión de la biblioteca de mapas fijada.
 - Edición interactiva de vértices de un polígono o de los waypoints de una ruta ya creados (arrastrar, insertar, borrar), con el mínimo exigido por anillo y un tope configurable de cuántos vértices reciben manejador en el mapa, siempre bajo edición diferida (revertible con «Cancelar»).
 - Guardado automático entre sesiones: la estructura del árbol y la parte pesada de cada capa (geometría, ficha, imagen) se guardan por separado y, al leerlas, se recompone exactamente el mismo árbol; una capa repetida comparte su copia guardada sin que editar una altere las otras; lo que falta en el almacenamiento se retira del árbol y se avisa, nunca se dibuja incompleto.
 
 **Consistencia y deduplicación**
 - Fusión de marcadores duplicados por nombre y posición, tanto en archivos KML como en archivos GeoJSON, siempre bajo confirmación del usuario (ver apartado 5.2).
+
+**Parcela catastral**
+- Las direcciones de las dos consultas al Catastro (la longitud y la latitud en su sitio, la referencia en mayúsculas) y el rechazo de una referencia con caracteres que no sean letras y cifras antes de que llegue a una dirección.
+- La lectura de las respuestas REALES del Catastro (una finca con su superficie y sus 35 puntos, una calle sin parcela, y el error de una referencia inexistente, que llega con código de éxito) y de otras fabricadas: con agujeros, varias partes, anillo sin cerrar y coordenadas con altura.
+- Rechazo de datos hostiles o corruptos: coordenadas no numéricas, no finitas o fuera de rango, número de puntos que no cuadra, anillos degenerados, un sistema de coordenadas distinto del esperado, una referencia inválida y una parcela con más vértices que el máximo.
+- Lectura de los textos en la codificación que declara el servicio (ISO-8859-1), para que las tildes y eñes de las direcciones no se estropeen, y corte de una respuesta que supere el tope de tamaño aunque el servicio declare otro.
+- De punta a punta en un navegador real, con el Catastro simulado: la capa y su ficha en el árbol, las dos peticiones y su forma (simples, sin cabeceras ni cookies), que repetir no vuelve a descargar el polígono, el aviso cuando no hay parcela, que una excepción del servicio no se reintenta y un fallo pasajero sí, y que deshacer y recargar conservan lo esperado.
 
 **Modelos de elevación del terreno**
 - Catálogo de servicios de elevación por conjunto de datos (contrastado con los identificadores que declara el IGN) y validación de la elección guardada contra él; elección de la cobertura de malla más fina dentro de cada conjunto y del formato de texto (ASCII) antes que el binario (GeoTIFF); lectura de rejillas en los dos formatos (con una respuesta real de Digital Earth Africa) y de las descripciones de cobertura del IGN y de Digital Earth Africa; tratamiento de la falta de cobertura como ausencia de dato, nunca como valor; combinación del terreno y la superficie por posición, también con mallas de distinto tamaño; reintentos solo ante fallos pasajeros, con su número y su pausa; y el cálculo del perfil de una ruta (un punto por celda recorrida, vértices exactamente en la suma de los tramos, huecos donde no hay dato, la posición en el mapa de cada punto de la gráfica, las celdas guardadas con la regla de la malla más fina y la validación de un perfil guardado).
@@ -226,12 +237,20 @@ En la fecha de este documento, la batería está compuesta por 61 conjuntos de p
 - Construcción diferida de árboles de gran tamaño sin bloquear la interfaz.
 - Edición conjunta de varios elementos a la vez, sin aplicar por error un valor no confirmado a todos ellos.
 - Registro de avisos de la sesión, incluida la fusión de avisos repetidos.
+- Idioma de la interfaz: cada texto tiene su traducción al inglés con los mismos marcadores, ningún texto en español queda fuera del sistema de traducción y «Automático» sigue al idioma del navegador.
+- Tema claro y oscuro de la interfaz (automático según el sistema, o forzado), sin tocar el contenido del mapa.
+- Aviso al abrir la aplicación desde un móvil y diseño del panel en ese caso.
+- Teclado y rueda del visor: velocidad de las flechas mantenidas, zoom continuo y foco que se queda en el mapa.
+- Pie del panel: la cifra de memoria se esconde cuando no hay un dato fiable que dar.
 
 **Comprobaciones sobre el propio artefacto entregado**
 - Que todo elemento de la interfaz referenciado internamente exista realmente.
 - Que toda función invocada esté efectivamente definida en el archivo entregado.
 - Que la versión visible en la aplicación y el enlace al repositorio público sean correctos.
 - Que el archivo optimizado para su publicación en línea se comporte exactamente igual que el archivo legible que constituye el producto de referencia.
+- Librerías de uso ocasional (exportar a imagen, ortofotos COG, reproyección): se cargan solo cuando se necesitan, con la misma huella de integridad que las demás, y un contenido que no coincide no se ejecuta.
+- Uso sin conexión: qué guarda y qué deja pasar el service worker (ver apartado 6.4), con la lista de librerías que manda la propia página.
+- Coherencia de la documentación: los recuentos de conjuntos de pruebas de este estudio frente a la batería real, las versiones de las cabeceras de los dos documentos, las figuras del manual (existentes, numeradas y con texto alternativo), su manifiesto de capturas con la huella de cada imagen y las referencias entre apartados.
 
 **Pruebas de extremo a extremo sobre un navegador real**
 - Arranque correcto de la aplicación, tanto en su versión legible como en la optimizada para publicación.
@@ -248,6 +267,11 @@ En la fecha de este documento, la batería está compuesta por 61 conjuntos de p
 - Importación de shapefiles con la lectura y la reproyección reales: un punto conocido en ETRS89 UTM 30N cae a menos de medio metro de su posición, textos con tildes en las dos codificaciones habituales, polígonos con agujeros, ED50 desplazado lo que corresponde y advertido, rechazo sin restos de un archivo métrico sin sistema declarado, un .zip con varias capas y su descarga desde una dirección.
 - Límite del desplazamiento del mapa a una única representación del planeta, sin duplicados horizontales.
 - Selección, inserción y borrado de vértices sobre el mapa en una ruta o un polígono ya creados, activos únicamente mientras su diálogo de propiedades está abierto.
+- Giro del mapa en un navegador real: la brújula y el botón central, las etiquetas que se quedan horizontales, la detección de capas bajo el cursor, las teselas y el encuadre con el mapa girado, y la exportación a imagen.
+- Medición de un arco de principio a fin, y que queda guardado como ruta de N tramos.
+- Teclado y rueda del visor con pulsaciones reales: desplazamiento continuo, zoom por niveles y foco.
+- Tema de la interfaz con los colores calculados por el navegador, el aviso de móvil con una pantalla táctil emulada y el cambio de idioma de principio a fin.
+- Uso sin conexión con un service worker real: se guardan las librerías y la página, y recargar sin red arranca con el árbol guardado.
 - Creación de una ruta de medición como una edición en vivo desde su segundo waypoint, con el diálogo de propiedades ya abierto y actualizándose a cada punto añadido.
 - Repintado en vivo de las cifras del diálogo de una medición mientras se arrastra uno de sus manejadores, y encuadre de toda su geometría con margen al pulsar el botón de enfoque.
 - El menú contextual del visor abre «Editar propiedades» directamente sobre la capa señalada. Ese diálogo incluye una pestaña «Atributos» con la misma ficha que «Mostrar atributos» (`infoHtmlFor`, ya saneada por `sanitizeHtml` o escapada): no añade superficie nueva.
@@ -263,7 +287,7 @@ Esta batería de pruebas se ejecuta de forma obligatoria en cada cambio propuest
 
 ### 7.4 Resultado verificado para este documento
 
-Como parte de la elaboración de este estudio se ha vuelto a ejecutar la batería completa de pruebas contra la versión de la aplicación identificada en la cabecera de este documento. Resultado: **61 de 61 conjuntos de pruebas superados, sin ninguna incidencia.**
+Como parte de la elaboración de este estudio se ha vuelto a ejecutar la batería completa de pruebas contra la versión de la aplicación identificada en la cabecera de este documento. Resultado: **97 de 97 conjuntos de pruebas superados, sin ninguna incidencia.**
 
 ---
 
@@ -285,6 +309,6 @@ Sobre la base de la revisión del código fuente, de la configuración de red y 
 
 1. El origen de cada fuente de cartografía y de cada servicio auxiliar que KITE Local puede consultar está identificado, documentado y restringido por configuración a una lista cerrada de proveedores oficiales o reconocidos, salvo dos excepciones deliberadas y acotadas en las que el propio usuario elige el origen (descargar un archivo desde una dirección, y los mapas base "Custom Tile Map Service" y "Custom Web Map Service" contra un servidor propio), ambas descritas en el apartado 6.2.
 2. KITE Local no modifica la geometría, las coordenadas ni la altitud de los datos que carga y representa; las únicas intervenciones automáticas están acotadas a corregir errores menores y evitables del propio archivo de origen, tienen un alcance mínimo y verificable, y se comunican siempre a la persona usuaria.
-3. Este comportamiento está verificado por una batería de 60 conjuntos de pruebas automatizadas, ejecutadas contra el artefacto realmente distribuido, con resultado íntegramente satisfactorio en la fecha de este documento.
+3. Este comportamiento está verificado por una batería de 97 conjuntos de pruebas automatizadas, ejecutadas contra el artefacto realmente distribuido, con resultado íntegramente satisfactorio en la fecha de este documento.
 
 Estas tres garantías, tomadas en conjunto, sustentan el uso de KITE Local como herramienta de consulta y visualización fiel de información geoespacial dentro del alcance descrito en el apartado 8.

@@ -777,6 +777,9 @@ const CTX_MENU_ITEMS = [
      Propiedades → Fuentes de datos (ver queryElevationAt).          */
   { label: tr("Consultar elevación aquí"), action: latlng => queryElevationAt(latlng),
     disabled: () => elevQueryDisabled() },
+  /* Polígono y ficha de la parcela catastral bajo el puntero (ver
+     queryCadastralParcelAt).                                        */
+  { label: tr("Parcela catastral"), action: latlng => queryCadastralParcelAt(latlng) },
   /* Las tres mediciones agrupadas en un submenú: son la misma familia y
      tres entradas sueltas desbordaban el menú.                        */
   {
