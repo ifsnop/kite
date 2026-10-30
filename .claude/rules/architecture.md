@@ -84,6 +84,17 @@ paths:
     decorativo, sin persistencia. Además aporta a la ficha de un marcador
     las horas del sol y crepúsculos (`sunTimes`/`sunTimesHtml`, puras y
     testeadas; ver `style-dialogs-ui.md`, «Ficha del elemento»).
+9b. **Anillos de alcance y sectores** (`53-range-rings.js`, tras `52`):
+    diálogo con vista previa y creación de capas normales; usa
+    `makeNode`, `ensureNamedSection`, `nextNumberedName` (40) y
+    `POLYGONS_SECTION` (52); la geometría pura vive en `51-geodesy.js`.
+    **Sin DOM al cargar el archivo**: los elementos se enlazan la primera
+    vez que se abre (`rangeDialogUi`). Varias pruebas de Node extraen un
+    tramo del script que atraviesa archivos vecinos (`elevtest.js` desde
+    mitad de `52` hasta `60`, `polyarea.js` de `51` a `52`) y lo ejecutan:
+    un `document.getElementById` a nivel superior lo rompe. `openRangeDialog`
+    se llama desde el menú contextual (`70`) solo en tiempo de ejecución.
+    Ver `measurements-drawing-vertex-editing.md`.
 11. **Calculadora geodésica** (`62-geocalc.js`): ventana flotante con
     una pestaña por cálculo (ángulo de elevación con cono y corrección
     por presión, vector GPS), recalculadas solas, sin botón; la lógica

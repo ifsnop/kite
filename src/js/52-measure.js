@@ -207,6 +207,7 @@ document.addEventListener("keydown", e => {
   if (!shortcutsDialog.hidden) { toggleShortcuts(); return; }
   if (!logDialog.hidden) { toggleLog(); return; }
   if (!urlDialog.hidden) { closeUrlDialog(); return; }
+  if (isRangeDialogOpen()) { cancelRangeDialog(); return; }
   if (!descDialog.hidden) { hideLayerInfo({ dismiss: true }); return; }
   if (!geocalcDialog.hidden) { toggleGeocalcDialog(); return; }
   if (!profileDialog.hidden) { closeProfileDialog(); return; }

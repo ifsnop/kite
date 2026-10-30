@@ -239,6 +239,7 @@ Un clic derecho sobre el mapa abre un menú con las acciones más habituales, ag
 - **«Crear»**: un submenú para dibujar o colocar algo nuevo.
   - **«Polígono o línea»**: activa o desactiva la herramienta de dibujo (apartados 4.2 y 7.3).
   - **«Pin»**: añade un marcador en el centro de la vista y abre su diálogo de estilo.
+  - **«Anillos de alcance…»** y **«Sector…»**: abren el diálogo del apartado 7.13 con el punto pulsado como centro.
 
 Los encuadres (autoescalar, península y Baleares, islas Canarias), la retícula de paralelos y meridianos y la exportación a PNG no están en este menú: tienen su botón en las barras de herramientas del visor (apartado 4.2).
 
@@ -513,6 +514,23 @@ La ficha de la capa (el botón ℹ, o «Mostrar atributos» en su menú) trae la
 - **Fallos.** Un fallo pasajero del servicio (no responde, error del servidor) se repite solo hasta dos veces; si no se consigue, aparece un aviso con la causa, y no queda nada a medias en el árbol. Sin conexión, la opción avisa de que no hay red.
 - **Atribución.** La primera vez de cada sesión se añade «© Dirección General del Catastro» a la línea inferior del mapa.
 
+### 7.13 Dibujar anillos de alcance y sectores
+
+Con el botón derecho sobre el mapa, **«Crear» › «Anillos de alcance…»** o **«Crear» › «Sector…»** abre un diálogo con el punto pulsado como **centro** (su latitud y longitud, en el formato elegido en Propiedades, se pueden corregir). Los cambios se ven **al momento** sobre el mapa, en naranja y a trazos; **«Cancelar»** o `Escape` los quitan sin dejar nada.
+
+![El diálogo de anillos de alcance, con cuatro radios y radiales cada 45°](img/anillos-dialogo.png)
+*Figura 46. «Anillos de alcance»: cuatro radios (1, 2, 3 y 4 NM, en la unidad elegida en Propiedades) y una radial cada 45°.*
+
+- **«Anillos concéntricos»**: una lista de **radios** en la unidad de distancia de Propiedades, separados por comas o espacios y con punto decimal (`10, 20, 30`); se ordenan solos. Hasta 40 anillos, de hasta 10 000 km. Con **«Radiales cada»** (de 1° a 180°; 0 = ninguna) salen además líneas desde el centro hasta el anillo mayor, empezando por el norte.
+- **«Sector»**: **azimut inicial y final** en grados (0° = norte, en sentido horario: de 330° a 30° es un sector de 60° que pasa por el norte), **radio exterior** y, si se quiere una corona en vez de una cuña, **radio interior** menor que el exterior.
+
+Si algo no es válido, el diálogo lo dice debajo de los campos y «Aceptar» queda deshabilitado hasta corregirlo.
+
+Al aceptar se añade al árbol, dentro de la sección «Polígonos»: una carpeta **«Anillos de alcance N»** con un polígono por radio (llamado como su radio: «10 NM») y, si se pidieron, una línea «Radiales cada 45°»; o un polígono **«Sector N»**. Son capas normales: se pueden renombrar, cambiar de color y de grosor, exportar a KML o GeoJSON y borrar como cualquier otra, y **deshacer** (`Ctrl + Z`) quita de una vez todo el conjunto. Cada vértice está exactamente a su radio del centro sobre la esfera terrestre, no es una aproximación de pantalla.
+
+![Cuatro anillos con radiales y un sector en forma de corona, y sus nodos en el árbol](img/anillos-resultado.png)
+*Figura 47. Resultado: la carpeta «Anillos de alcance 1» con sus cuatro anillos y las radiales, y «Sector 1», una corona entre 5 y 6 NM de 300° a 60° por el norte.*
+
 ## 8. Atajos de teclado
 
 La misma información está disponible en cualquier momento con la tecla `?` o el botón de ayuda de la cabecera, organizada en pestañas («Navegación», «Actuar», «Visor», «Dibujar y editar») para no tener que scrollear una única tabla larga. Se cierra con la **×** de arriba a la derecha, con Escape o con la misma tecla `?`.
@@ -520,7 +538,7 @@ La misma información está disponible en cualquier momento con la tecla `?` o e
 Esa × es la norma de toda ventana cuyo único botón sería «Cerrar» (la chuleta, los cálculos geodésicos y el perfil de una ruta): en vez de un pie con un solo botón, la × en la barra del título, que se ve siempre, y ese espacio para el contenido.
 
 ![Chuleta de atajos de teclado completa](img/atajos.png)
-*Figura 46. Chuleta de atajos de teclado (tecla `?`), pestaña «Navegación». Las otras tres son «Actuar», «Visor» y «Dibujar y editar».*
+*Figura 48. Chuleta de atajos de teclado (tecla `?`), pestaña «Navegación». Las otras tres son «Actuar», «Visor» y «Dibujar y editar».*
 
 **Moverse por el árbol**
 

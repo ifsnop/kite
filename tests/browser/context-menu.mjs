@@ -248,8 +248,8 @@ const medirSub = await submenu("Medir ▸");
 ok(JSON.stringify(medirSub.labels) === JSON.stringify(["Ruta", "Círculo", "Arco"]),
   "el submenú «Medir» ofrece Ruta, Círculo y Arco, y sustituye al de «Consultas»: " + JSON.stringify(medirSub.labels));
 const crearSub = await submenu("Crear ▸");
-ok(JSON.stringify(crearSub.labels) === JSON.stringify(["Polígono o línea", "Pin"]),
-  "el submenú «Crear» ofrece Polígono o línea y Pin: " + JSON.stringify(crearSub.labels));
+ok(JSON.stringify(crearSub.labels) === JSON.stringify(["Polígono o línea", "Pin", "Anillos de alcance…", "Sector…"]),
+  "el submenú «Crear» ofrece Polígono o línea, Pin, Anillos de alcance y Sector: " + JSON.stringify(crearSub.labels));
 
 const arco = await submenu("Medir ▸", "Arco");
 ok(arco.tool === "arc" && arco.menuHidden, "«Arco» activa la herramienta de arco y cierra el menú: " + JSON.stringify(arco));

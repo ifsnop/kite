@@ -800,7 +800,10 @@ const CTX_MENU_ITEMS = [
     label: tr("Crear"),
     items: [
       { label: tr("Polígono o línea"), action: () => setTool(activeTool === "polygon" ? null : "polygon") },
-      { label: tr("Pin"), action: () => createPin() }
+      { label: tr("Pin"), action: () => createPin() },
+      /* Estas dos SÍ usan el punto pulsado: es el centro por defecto */
+      { label: tr("Anillos de alcance…"), action: latlng => openRangeDialog("rings", latlng) },
+      { label: tr("Sector…"), action: latlng => openRangeDialog("sector", latlng) }
     ]
   }
 ];

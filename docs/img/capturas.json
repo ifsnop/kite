@@ -8,6 +8,18 @@
       "version": "1.11.0",
       "build": "202610300109"
     },
+    "anillos-dialogo.png": {
+      "sha256": "0c2c9a82135c9f7e39b5e9f5b7c51aa696c235308e571165719c63b05aad2cb4",
+      "section": "7.13",
+      "version": "1.11.0",
+      "build": "202610300142"
+    },
+    "anillos-resultado.png": {
+      "sha256": "cc807a28d9dac90bb5fedba334f71d9b7aaaf3d31f27538fc90668ac56efd18a",
+      "section": "7.13",
+      "version": "1.11.0",
+      "build": "202610300142"
+    },
     "arbol-estructura.png": {
       "sha256": "259b40249b07857a0990d99777182ab704b28fe2020a1a992ce01225002732f6",
       "section": "3",

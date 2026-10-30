@@ -794,6 +794,37 @@ scenario("parcela-catastral.png", "7.12", async out => {
 }, ["parcela-ficha.png"]);
 
 /* ===== Tema oscuro y aviso de móvil ===== */
+/* ===== 7.13 Anillos de alcance y sectores ===== */
+scenario("anillos-dialogo.png", "7.13", async out => {
+  const { ctx, page } = await openApp();
+  await sierra(page);
+  await view(page, CENTER, 12);
+  await settle(page);
+  const q = await pt(page, 40.405, -3.69);
+  await page.mouse.click(q.x, q.y, { button: "right" });
+  await page.locator("#map-ctxmenu .ctx-menu-item", { hasText: "Crear" }).click();
+  await page.locator(".ctx-menu:not(#map-ctxmenu) .ctx-menu-item", { hasText: "Anillos de alcance" }).click();
+  await page.waitForSelector("#range-dialog:not([hidden])");
+  await page.fill("#rg-radii", "1, 2, 3, 4");
+  await page.fill("#rg-radials", "45");
+  await page.waitForFunction(() => rangePreview && rangePreview.getLayers().length === 5);
+  await page.waitForTimeout(250);
+  await dialog(page, out, "range-dialog");
+  /* Aceptar, y un sector (de 300° a 60°, por el norte) al lado */
+  await page.click("#rg-accept");
+  await page.evaluate(() => {
+    openRangeDialog("sector", { lat: 40.405, lng: -3.69 });
+    const set = (id, v) => { const e = document.getElementById(id); e.value = v; e.dispatchEvent(new Event("input")); };
+    set("rg-az1", "300"); set("rg-az2", "60"); set("rg-rout", "6"); set("rg-rin", "5");
+  });
+  await page.waitForFunction(() => rangePreview && rangePreview.getLayers().length === 1);
+  await page.click("#rg-accept");
+  await settle(page);
+  await page.mouse.move(VIEW.width - 300, 120);
+  await fullShot(page, path.join(path.dirname(out), "anillos-resultado.png"));
+  await ctx.close();
+}, ["anillos-resultado.png"]);
+
 scenario("tema-oscuro.png", "2.1", async out => {
   /* «Según el sistema» con un sistema en oscuro: cambia el cromo, no el mapa */
   const { ctx, page } = await openApp({ colorScheme: "dark" });

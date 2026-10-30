@@ -722,6 +722,39 @@
   </div>
 </div>
 
+<!-- Anillos de alcance y sectores (menú contextual › Crear). Modal, con
+     vista previa en vivo sobre el mapa: Cancelar no deja nada. Los campos
+     de distancia van en la unidad global (Propiedades); la posición, en
+     el formato global de coordenadas. -->
+<div id="range-dialog" class="dlg-overlay" hidden>
+  <div class="dlg-box">
+    <h2><span class="dlg-title" id="rg-title">Anillos de alcance</span></h2>
+    <div class="dlg-row"><label for="rg-mode">Forma</label>
+      <select id="rg-mode">
+        <option value="rings">Anillos concéntricos</option>
+        <option value="sector">Sector</option>
+      </select>
+    </div>
+    <div class="dlg-row"><label for="rg-lat">Latitud del centro</label><input type="text" id="rg-lat" autocomplete="off" spellcheck="false"></div>
+    <div class="dlg-row"><label for="rg-lng">Longitud del centro</label><input type="text" id="rg-lng" autocomplete="off" spellcheck="false"></div>
+    <div id="rg-rings-fields">
+      <div class="dlg-row"><label for="rg-radii">Radios</label><input type="text" id="rg-radii" autocomplete="off" spellcheck="false"><span class="rg-unit"></span></div>
+      <div class="dlg-row"><label for="rg-radials">Radiales cada</label><input type="number" id="rg-radials" min="0" max="180" step="1"><span class="rg-deg">&#176;</span></div>
+    </div>
+    <div id="rg-sector-fields" hidden>
+      <div class="dlg-row"><label for="rg-az1">Azimut inicial</label><input type="number" id="rg-az1" min="0" max="360" step="1"><span class="rg-deg">&#176;</span></div>
+      <div class="dlg-row"><label for="rg-az2">Azimut final</label><input type="number" id="rg-az2" min="0" max="360" step="1"><span class="rg-deg">&#176;</span></div>
+      <div class="dlg-row"><label for="rg-rout">Radio exterior</label><input type="number" id="rg-rout" min="0" step="any"><span class="rg-unit"></span></div>
+      <div class="dlg-row"><label for="rg-rin">Radio interior</label><input type="number" id="rg-rin" min="0" step="any"><span class="rg-unit"></span></div>
+    </div>
+    <p class="dlg-hint sh-bad" id="rg-status" hidden></p>
+    <div class="dlg-actions">
+      <button class="btn" id="rg-cancel">Cancelar</button>
+      <button class="btn" id="rg-accept">Aceptar</button>
+    </div>
+  </div>
+</div>
+
 <!-- Credencial de Sentinel Hub: el instance ID con el que Copernicus
      autentica sus servicios OGC. Es del usuario, no de la aplicación. -->
 <div id="sh-creds" class="dlg-overlay" hidden>

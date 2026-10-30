@@ -873,6 +873,16 @@
   .pf-map-arrow { background: none; border: none; pointer-events: none; }
   .pf-map-arrow svg { display: block; overflow: visible; }
   .pf-map-arrow path { fill: #b04a3a; stroke: #fff; stroke-width: 1.5; stroke-linejoin: round; }
+  /* Anillos de alcance: etiquetas a la izquierda y campos de ancho fijo
+     a la derecha (el de radios, de texto, algo más ancho).              */
+  #range-dialog .dlg-box { width: min(92vw, 26rem); }
+  #range-dialog .dlg-row input[type="number"] { width: 110px; }
+  #range-dialog .dlg-row input[type="text"] { flex: none; width: 190px; }
+  #range-dialog .dlg-row > select { max-width: 200px; }
+  #range-dialog .dlg-row > label { flex: 1 1 auto; min-width: 0; }
+  /* La unidad (NM, km…) y el grado van tras el campo, con ancho fijo para
+     que los campos queden alineados en todas las filas.                 */
+  #range-dialog .rg-unit, #range-dialog .rg-deg { flex: none; width: 2.4em; color: var(--muted); }
   #geocalc-dialog .dlg-box { width: min(92vw, 30rem); }
   .geocalc-field { display: flex; gap: 6px; }
   #geocalc-dialog .dlg-row input[type="number"] { width: 110px; }
