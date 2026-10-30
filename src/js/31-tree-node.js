@@ -2,13 +2,20 @@
    Crea la fila completa (caret, checkbox, color, etiqueta y acciones
    de renombrar / subir / bajar / borrar) para cualquier tipo de nodo:
    archivo, carpeta, capa (placemark / feature) o medición.            */
+/* `sortable` decide los botones de carpeta (☑ ☐ AZ ⊟ ▦): un servicio
+   ArcGIS es un contenedor con capa propia que no los quiere. `fixed` es
+   una fila que refleja un catálogo ajeno (una capa de un servicio): ni se
+   mueve, ni se borra, ni se renombra por separado. `extra` son botones
+   propios de ese tipo de fila ({ glyph, title, cls, fn }).             */
 function makeNode({ name, layer = null, isFolder = false, isFile = false,
                     style = null, checked = true, desc = null,
                     onDelete = null, onRename = null,
-                    styleable = layer !== null, focusable = styleable }) {
+                    styleable = layer !== null, focusable = styleable,
+                    sortable = isFolder || isFile, fixed = false, extra = [] }) {
   const li = document.createElement("li");
   if (isFile) li.className = "file";
   li._name = name;
+  li._fixed = fixed;
   li._isContainer = isFolder || isFile; /* evita un querySelector redundante en serializeNode */
   li._cascadeGen = 0; /* ver cascadeVisibility */
   li._cascadeActive = 0; /* ver beginCascadeFeedback/endCascadeFeedback */
@@ -96,7 +103,7 @@ function makeNode({ name, layer = null, isFolder = false, isFile = false,
   label.title = name;
   row.appendChild(label);
 
-  row.appendChild(makeActions(li, isFolder || isFile, styleable, layer, focusable));
+  row.appendChild(makeActions(li, sortable, styleable, layer, focusable, { fixed, extra }));
 
   /* Shift+click toggles multi-selection without touching the checkbox.
      Only same-kind nodes can be selected together (marker layers with
@@ -150,7 +157,7 @@ function makeNode({ name, layer = null, isFolder = false, isFile = false,
     li.appendChild(ul);
   }
 
-  wireDrag(li, row);
+  if (!fixed) wireDrag(li, row);
 
   /* Click en la capa dentro del visor → resaltarla en la navegación.
      Al pasar el ratón, el panel de información (Ficha KML o properties
@@ -254,7 +261,7 @@ function makeCaret(li) {
    rename, move up/down and delete */
 /* `focusable`: lleva la lupa 🔍 aunque no tenga diálogo de propiedades
    (una cuadrícula de elevación se encuadra, pero no tiene estilos).  */
-function makeActions(li, sortable, styleable, layer, focusable = styleable) {
+function makeActions(li, sortable, styleable, layer, focusable = styleable, { fixed = false, extra = [] } = {}) {
   const box = document.createElement("span");
   box.className = "actions";
   const btn = (glyph, title, cls, fn) => {
@@ -291,6 +298,11 @@ function makeActions(li, sortable, styleable, layer, focusable = styleable) {
     btn("\u2139", tr("Ver informaci\u00F3n de la capa"), "info-btn", () => showLayerInfo(li));
     box.lastChild.hidden = !hasInfo(li, layer);
   }
+  for (const x of extra) {
+    btn(x.glyph, x.title, x.cls || "", x.fn);
+    if (x.mode) box.lastChild.dataset.mode = x.mode; /* el estado del botón, nunca su texto (i18n.md) */
+  }
+  if (fixed) return box;
   btn("\u2191", tr("Subir"), "", () => {
     const prev = li.previousElementSibling;
     if (prev) { li.parentElement.insertBefore(li, prev); scheduleSave(); }
@@ -303,7 +315,7 @@ function makeActions(li, sortable, styleable, layer, focusable = styleable) {
     pushUndo(tr("borrar \u00AB{name}\u00BB", { name: li._name }));
     /* si el nodo forma parte de la selección, se borra toda la selección */
     if (selection.has(li) && selection.size > 1) {
-      const items = topLevelSelection();
+      const items = movableSelection();
       const next = cursorAfterDelete(isRow(selCursor) ? selCursor : items[0], items);
       for (const s of items) deleteNode(s, { pruneSelection: false });
       clearSelection();
@@ -357,6 +369,7 @@ function setNodeName(li, name) {
 
 /* Renombrado en línea: la etiqueta se sustituye por un input */
 function startRename(li) {
+  if (li._fixed) return; /* el nombre de la capa de un servicio es el del servidor */
   const label = li.querySelector(":scope > .node-row > label");
   const input = document.createElement("input");
   input.type = "text";
@@ -393,6 +406,8 @@ function startRename(li) {
    ningún checkbox.                                                    */
 function removeRecordsFromMap(records) {
   for (const rec of records) {
+    /* Un contenedor con capa propia (un servicio ArcGIS) la quita también */
+    if (rec.children && rec._layer) rootGroup.removeLayer(rec._layer);
     if (rec.children) { removeRecordsFromMap(rec.children); continue; }
     if (rec._layer) rootGroup.removeLayer(rec._layer);
     if (rec.t === "elevGrid") forgetElevGridGroup(rec._layer); /* el onDelete que habría tenido */
@@ -506,7 +521,7 @@ document.addEventListener("pointermove", e => {
     if (Math.hypot(e.clientX - dragPress.x, e.clientY - dragPress.y) < DRAG_THRESHOLD_PX) return;
     /* Arrastrar un nodo seleccionado arrastra toda la selección;
        arrastrar uno no seleccionado la descarta y lo lleva solo.    */
-    if (selection.has(dragPress.li)) dragItems = topLevelSelection();
+    if (selection.has(dragPress.li)) dragItems = movableSelection();
     else { clearSelection(); dragItems = [dragPress.li]; }
     dragLi = dragPress.li;
     treeEl.classList.add("dragging");
@@ -582,6 +597,8 @@ document.addEventListener("pointerup", async e => {
 
 /* No se puede soltar un nodo dentro de sí mismo ni de su propia rama */
 function validDrop(li) {
+  /* Ni dentro de un servicio ArcGIS ni entre sus capas: su contenido es el del servidor */
+  if (li._fixed) return false;
   return dragItems && dragItems.every(item => item !== li && !item.contains(li));
 }
 
@@ -600,7 +617,7 @@ function dropZone(row, li, clientY) {
   const edge = Math.min(6, r.height / 3);
   if (y < edge) return "drop-before";
   if (y > r.height - edge) return "drop-after";
-  return nodeUl(li) ? "drop-into" : (y < r.height / 2 ? "drop-before" : "drop-after");
+  return nodeUl(li) && !li._arcgis ? "drop-into" : (y < r.height / 2 ? "drop-before" : "drop-after");
 }
 /* La marca de destino la lleva UNA fila cada vez. Barrer el árbol entero
    en cada `dragover` —que se dispara decenas de veces por segundo—

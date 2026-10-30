@@ -172,7 +172,7 @@ const DB_VERSION = 5;  /* esquema de la base: almacenes "tree", "rasters" y
                           el usuario: un "root" v8 con todo en línea se
                           sigue leyendo tal cual, sin transformar nada, y
                           el primer guardado lo reparte.                 */
-const TREE_SCHEMA = 8; /* formato del árbol serializado. Subir solo cuando
+const TREE_SCHEMA = 9; /* formato del árbol serializado. Subir solo cuando
                           cambie el formato; un árbol guardado con otra
                           versión se descarta al leer.
                           v2: los nodos de capa admiten `mstyle` (estilo de
@@ -214,7 +214,17 @@ const TREE_SCHEMA = 8; /* formato del árbol serializado. Subir solo cuando
                           válido (solo se añade un tipo), así que se lee
                           tal cual (dbLoadTree, importTreeExport). Se sube
                           igualmente para que una instancia ANTERIOR
-                          rechace un árbol que traiga el tipo nuevo. */
+                          rechace un árbol que traiga el tipo nuevo.
+                          v9: nuevos tipos de nodo "arcgis" (un servicio
+                          ArcGIS MapServer: su dirección, extent, opacidad
+                          y las capas del catálogo) y "arcgisLayer" (cada
+                          capa, hija de su servicio; ver 66-arcgis.js).
+                          CUARTA excepción deliberada, misma forma que la
+                          v8: un árbol v8 (y el v7 que ya se leía) se lee
+                          tal cual porque solo se AÑADEN tipos, y se sube
+                          para que una instancia anterior rechace un árbol
+                          con servicios en vez de leer un "arcgis" con
+                          hijos como una carpeta y estropearlo. */
 const DB_TREE = "tree";
 const DB_RASTERS = "rasters";
 const DB_SEGMENTS = "segments";
@@ -1283,8 +1293,9 @@ async function dbLoadTree() {
        las otras dos.                                                  */
     rqVals.onsuccess = () => {
       const segs = new Map(keys.map((k, i) => [k, rqVals.result[i]]));
-      /* v7 se lee tal cual: ya es un v8 válido (ver TREE_SCHEMA v8) */
-      if (rec && (rec.v === TREE_SCHEMA || rec.v === 7)) nodes = rec.nodes;
+      /* v8 y v7 se leen tal cual: ya son un v9 válido, solo se han ido
+         añadiendo tipos de nodo (ver TREE_SCHEMA v8 y v9)             */
+      if (rec && (rec.v === TREE_SCHEMA || rec.v === 8 || rec.v === 7)) nodes = rec.nodes;
       /* Excepción deliberada (ver TREE_SCHEMA v7): un árbol v6 no se
          descarta, se sube en silencio. scheduleSave() lo dejará ya en
          v7 en cuanto el árbol restaurado sufra cualquier mutación.  */
@@ -1356,6 +1367,23 @@ function serializeNode(li) {
     const c = li._cog;
     return [{ ...base, t: "cog", rasterId: c.rasterId, box: c.box, opacity: c.opacity }];
   }
+  /* Un servicio ArcGIS y sus capas son contenedores con forma propia: van
+     ANTES de la rama de carpeta, que los guardaría como una carpeta más. */
+  if (li._arcgisLayer) {
+    const rec = { ...base, t: "arcgisLayer", id: li._arcgisLayer.id };
+    if (li._arcgisLayer.data) rec.data = true;
+    if (li._isContainer) {
+      rec.collapsed = li.classList.contains("collapsed");
+      rec.children = li._pending ? serializePendingRecords(li._pending) : serializeNodes(nodeUl(li));
+    }
+    return [rec];
+  }
+  if (li._arcgis) {
+    const a = li._arcgis;
+    return [{ ...base, t: "arcgis", collapsed: li.classList.contains("collapsed"), url: a.url,
+              opacity: a.opacity, tile: a.tile, extent: a.extent, attribution: a.attribution,
+              children: li._pending ? serializePendingRecords(li._pending) : serializeNodes(nodeUl(li)) }];
+  }
   /* li._isContainer evita este querySelector en toda capa hoja (la
      inmensa mayoría de los nodos de un árbol grande): solo carpetas y
      archivos pueden tener un <ul class="node-list"> de verdad.       */
@@ -1420,6 +1448,19 @@ function serializePendingRecords(records) {
     if (rec.t === "cog") {
       return { name: rec.name, checked: rec.checked, t: "cog",
                 rasterId: rec.rasterId, box: rec.box, opacity: rec.opacity };
+    }
+    /* Explícitos: lo que no se reconozca cae en el último caso, el de
+       una ortofoto de KMZ, y un servicio saldría estropeado.          */
+    if (rec.t === "arcgis") {
+      return { name: rec.name, checked: rec.checked, t: "arcgis", collapsed: rec.collapsed, url: rec.url,
+                opacity: rec.opacity, tile: rec.tile, extent: rec.extent, attribution: rec.attribution,
+                children: serializePendingRecords(rec.children) };
+    }
+    if (rec.t === "arcgisLayer") {
+      const out = { name: rec.name, checked: rec.checked, t: "arcgisLayer", id: rec.id };
+      if (rec.data) out.data = true;
+      if (rec.children) { out.collapsed = rec.collapsed; out.children = serializePendingRecords(rec.children); }
+      return out;
     }
     /* rec.t === "imageOverlay" */
     return { name: rec.name, checked: rec.checked, t: "imageOverlay",
@@ -1529,7 +1570,7 @@ async function importTreeExport(doc, fileName, insertBefore, dropTargetUl = null
      un .kite.json exportado por una v6 se sube en silencio en vez de
      rechazarse.                                                      */
   if (doc.schema === 6) upgradeMeasuresV6(doc.nodes);
-  else if (doc.schema !== TREE_SCHEMA && doc.schema !== 7) { /* v7 = v8 sin COG */
+  else if (doc.schema !== TREE_SCHEMA && doc.schema !== 8 && doc.schema !== 7) { /* v8 = v9 sin servicios ArcGIS; v7 = v8 sin COG */
     throw new Error(tr("formato de \u00E1rbol v{schema}, incompatible con el actual v{treeSchema}", { schema: doc.schema, treeSchema: TREE_SCHEMA }));
   }
   if (!doc.nodes.length) throw new Error(tr("el archivo no contiene ning\u00FAn nodo"));
@@ -1540,12 +1581,16 @@ async function importTreeExport(doc, fileName, insertBefore, dropTargetUl = null
     done: 0,
     update: d => progress.set(100 * d / total, tr("Construyendo {fileName}\u2026 ({d}/{total})", { fileName, d, total }))
   } : null;
+  /* Lo que llega de un archivo ajeno no consulta ningún servidor sin que
+     el usuario lo encienda (ver buildArcgisRecord) */
+  const foreign = { hosts: new Set() };
   try {
-    const records = await buildRecordsFromStorage(doc.nodes, prog);
+    const records = await buildRecordsFromStorage(doc.nodes, prog, { foreign });
     await materializeRecords(records, ul);
   } finally {
     if (prog) progress.hide();
   }
+  arcgisForeignNotice(foreign);
   /* Honour the drop position: move whatever was just appended */
   if (insertBefore && insertBefore.parentElement === ul) {
     for (const li of [...ul.children]) {
@@ -1567,6 +1612,7 @@ const SAVE_MIN_MS = 400, SAVE_MAX_MS = 3000;
    mientras el usuario sigue navegando o escribiendo.                   */
 function scheduleSave() {
   scheduleReorder(); /* toda mutación del árbol también puede haber cambiado el orden de pintado */
+  scheduleArcgisSync(); /* y, de un servicio ArcGIS, qué capas pide al servidor (66-arcgis.js) */
   clearTimeout(saveTimer);
   const wait = Math.min(SAVE_MAX_MS, Math.max(SAVE_MIN_MS, saveCost * 4));
   saveTimer = setTimeout(saveTree, wait);
@@ -1696,10 +1742,17 @@ async function restoreTree(nodes) {
    su fila llega a materializarse, así que esto SIEMPRE recorre el
    árbol entero sin mirar `collapsed` — es materializeRecords quien
    decide cuánto DOM construir a partir de estos registros.        */
-async function buildRecordsFromStorage(nodes, prog) {
+async function buildRecordsFromStorage(nodes, prog, opts = {}) {
   const out = [];
   for (const n of nodes) {
-    if (n.t === "measure") {
+    if (n.t === "arcgis") {
+      /* Un servicio que no pasa la validación se descarta entero, como un COG */
+      const rec = buildArcgisRecord(n, opts);
+      if (rec) out.push(rec);
+    } else if (n.t === "arcgisLayer") {
+      /* Una capa de servicio solo existe dentro de su servicio (que las
+         construye él): una suelta, de un archivo manipulado, no es nada. */
+    } else if (n.t === "measure") {
       out.push(buildMeasureRecord(n));
     } else if (n.t === "elevGrid") {
       out.push(buildElevGridRecord(n));
@@ -1735,7 +1788,7 @@ async function buildRecordsFromStorage(nodes, prog) {
       wirePendingLayerEvents(rec);
       out.push(rec);
     } else {
-      const children = await buildRecordsFromStorage(n.children || [], prog);
+      const children = await buildRecordsFromStorage(n.children || [], prog, opts);
       out.push({ t: n.t, name: n.name, checked: !!n.checked, collapsed: !!n.collapsed, children });
     }
     if (prog && LEAF_RECORD_TYPES.has(n.t) && ++prog.done % PROGRESS_BATCH === 0) {
@@ -1837,6 +1890,8 @@ async function materializeRecords(records, parentUl) {
       rec._li = li;
       li._cog = { rasterId: rec.rasterId, box: rec.box, opacity: rec.opacity };
       parentUl.appendChild(li);
+    } else if (rec.t === "arcgis" || rec.t === "arcgisLayer") {
+      await materializeArcgisRecord(rec, parentUl);
     }
     if (++n % PROGRESS_BATCH === 0) await yieldFrame();
   }

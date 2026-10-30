@@ -193,6 +193,8 @@ function styleKind(li) {
   else if (li._elevGrid) kind = "elevGrid";
   else if (li._imageOverlay) kind = "imageOverlay";
   else if (li._cog) kind = "cog";
+  else if (li._arcgis) kind = "arcgis";
+  else if (li._arcgisLayer) kind = "arcgisLayer";
   else kind = layerKind(nodeLayer(li));
   li._kind = kind;
   return kind;

@@ -99,7 +99,8 @@ function toggleOne(li) {
 /* Nombre legible del tipo, para poder explicar por qué algo se queda
    fuera de una selección                                              */
 const KIND_LABEL = { marker: tr("marcadores"), polygon: tr("pol\u00EDgonos"), measure: tr("mediciones"),
-  elevGrid: tr("cuadr\u00EDculas de elevaci\u00F3n"), imageOverlay: tr("ortofotos"), cog: tr("ortofotos COG") };
+  elevGrid: tr("cuadr\u00EDculas de elevaci\u00F3n"), imageOverlay: tr("ortofotos"), cog: tr("ortofotos COG"),
+  arcgis: tr("servicios ArcGIS"), arcgisLayer: tr("capas de servicios ArcGIS") };
 
 /* Selecciona de una vez todas las capas de la rama que cuelga de un
    contenedor. Como solo pueden convivir capas del mismo tipo en la
@@ -220,6 +221,26 @@ function topLevelSelection() {
   return out;
 }
 
+/* Lo que se puede mover, copiar o borrar: la selección sin las filas
+   `_fixed` (las capas de un servicio ArcGIS, que son el catálogo del
+   servidor y solo viajan con su servicio). Se AVISA si había alguna: que
+   Supr no haga nada sin decir por qué parecería un fallo.             */
+function movableSelection() {
+  const all = topLevelSelection();
+  const out = all.filter(li => !li._fixed);
+  if (out.length < all.length) {
+    navMessage(tr("Las capas de un servicio de mapas van con su servicio: no se mueven, copian ni borran por separado."), { tone: "info" });
+  }
+  return out;
+}
+/* La fila del servicio ArcGIS a la que pertenece una fila (ella misma, o
+   de la que cuelgan sus capas); null si no es de ninguno. Nada se suelta
+   ni se pega DENTRO de un servicio: va a continuación de él.          */
+function arcgisServiceOf(li) {
+  for (let p = li; p && p !== treeEl; p = p.parentElement) if (p._arcgis) return p;
+  return null;
+}
+
 /* Where the cursor should land after deleting `items` (the top-level
    nodes about to be removed — a single row, or topLevelSelection()):
    the next surviving row after `anchor`, skipping anything that IS one
@@ -253,7 +274,7 @@ function extendBounds(bounds, l) {
 function extendBoundsFromRecords(bounds, records) {
   for (const rec of records) {
     if (rec.children) extendBoundsFromRecords(bounds, rec.children);
-    else extendBounds(bounds, rec._layer);
+    if (!rec.children || rec._layer) extendBounds(bounds, rec._layer); /* un servicio ArcGIS: contenedor con capa propia */
   }
 }
 function subtreeBounds(li) {
@@ -477,7 +498,7 @@ function focusOnNode(li) {
   const b = subtreeBounds(li);
   if (!b.isValid()) { navMessage(tr("Esta capa no tiene geometr\u00EDa que enfocar.")); return; }
   const kind = styleKind(li);
-  if (kind === "polygon" || kind === "measure" || kind === "elevGrid" || kind === "cog") fitBoundsFramed(b);
+  if (kind === "polygon" || kind === "measure" || kind === "elevGrid" || kind === "cog" || kind === "arcgis") fitBoundsFramed(b);
   else map.setView(b.getCenter(), FOCUS_ZOOM);
 }
 
@@ -605,6 +626,10 @@ function applyContainerState(li) {
   chk.indeterminate = indeterminate;
   /* Un lector de pantalla espera "mixed", no una casilla a medias */
   li.setAttribute("aria-checked", indeterminate ? "mixed" : String(checked));
+  /* Un contenedor con capa propia (un servicio ArcGIS) está en el mapa
+     mientras alguna de las suyas esté activa: si no, apagar la última
+     dejaría la imagen del servidor puesta sin ninguna capa pedida.   */
+  if (chk._layer) applyVisibility(chk);
   return true;
 }
 
@@ -712,7 +737,9 @@ async function cascadeVisibility(li, checked) {
         rec.checked = checked;
         rec._state = checked ? "on" : "off"; /* la rama queda uniforme */
         if (rec.children) { if (!(await walkRecords(rec.children))) return false; }
-        else setLayerVisible(rec._layer, checked);
+        /* Un contenedor con capa propia (un servicio ArcGIS) la enciende
+           también: no basta con sus hijos, que no tienen capa.         */
+        if (!rec.children || rec._layer) setLayerVisible(rec._layer, checked);
         if (!(await yieldMaybe())) return false;
       }
       return true;

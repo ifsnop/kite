@@ -10,9 +10,10 @@ paths:
   vista ya guardados de cualquier usuario). `DB_VERSION` versiona los
   almacenes (hoy **5**: `tree`, `rasters` y `segments`, lista
   `DB_STORES`); `TREE_SCHEMA` versiona el formato del árbol serializado
-  (`{ v, nodes }` bajo la clave `root`). Actual: **8** — nuevo tipo de nodo `cog`
-  (ortofoto COG, ver `cog.md`); la 7 trajo `waypoints` en las
-  mediciones. Lista completa por versión en el comentario de la propia
+  (`{ v, nodes }` bajo la clave `root`). Actual: **9** — nuevos tipos de nodo
+  `arcgis`/`arcgisLayer` (un servicio ArcGIS y sus capas, ver
+  `arcgis.md`; la 8 trajo `cog`, ver `cog.md`; la 7, `waypoints` en las
+  mediciones). Lista completa por versión en el comentario de la propia
   constante; anotar ahí la siguiente subida.
 - **Subir `DB_VERSION` YA NO vacía la base** (cambio de regla en la v4):
   `onupgradeneeded` crea los almacenes de `DB_STORES` que falten y borra
@@ -20,6 +21,11 @@ paths:
   borraba todo, y añadir el almacén `rasters` habría tirado el árbol de
   todo el mundo a cambio de nada. `tests/browser/cog.mjs` abre la app
   sobre una base v3 con un árbol v7 y comprueba que lo conserva.
+- **`TREE_SCHEMA` 9 acepta un árbol v8 (y v7) TAL CUAL** (`dbLoadTree`,
+  `importTreeExport`): cuarta excepción, misma forma que la siguiente —
+  solo se AÑADEN tipos de nodo—, y se subió para que una instancia
+  ANTERIOR rechace un árbol con servicios ArcGIS en vez de leer un `arcgis`
+  con hijos como una carpeta. Probado en `tests/browser/arcgis.mjs`.
 - **`TREE_SCHEMA` 8 acepta un árbol v7 TAL CUAL** (`dbLoadTree`,
   `importTreeExport`): segunda excepción a «sin compatibilidad hacia
   atrás», y sin transformar nada — la 8 solo AÑADE un tipo de nodo, así

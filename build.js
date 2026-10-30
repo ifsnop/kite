@@ -95,6 +95,7 @@ const JS = [
   "63-route-profile.js",  /* perfil de una ruta (MDS por trozos, gráfica SVG) */
   "64-cog.js",            /* ortofotos COG: almacén "rasters", GridLayer reproyectada */
   "65-cadastre.js",       /* parcela catastral (menú contextual): RCCOOR + WFS INSPIRE del Catastro */
+  "66-arcgis.js",         /* servicios ArcGIS (MapServer) como nodo del árbol: /export por teselas y /query */
   "70-view-controls.js",  /* controles de vista y menú contextual */
   "99-boot.js"            /* arranque: restaurar el árbol guardado */
 ];
@@ -172,7 +173,17 @@ const MINIFY_OPTS = {
   conservativeCollapse: true,
   removeComments: true,
   minifyCSS: true,
-  minifyJS: true
+  minifyJS: true,
+  /* Por defecto el minificador trata `<?…?>` y `<%…%>` como fragmentos de
+     plantilla PHP/ASP: los sustituye por un marcador con letras
+     ALEATORIAS antes de pasar el script a terser y los devuelve después.
+     Aquí `<?xml …?>` es un literal de JS (35-export-formats.js), y esas
+     letras entraban en la tabla de frecuencias con la que terser elige
+     los nombres cortos: ante un empate, cada ejecución daba un nombre
+     distinto y `--check` fallaba una de cada seis sin tocar nada.
+     Medido: 3 resultados distintos en 14 ejecuciones del mismo HTML; con
+     la lista vacía, 1 en 30. Nada de aquí es una plantilla de servidor. */
+  ignoreCustomFragments: []
 };
 const minifyHtml = html => minify(html, MINIFY_OPTS);
 

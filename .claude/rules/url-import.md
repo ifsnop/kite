@@ -57,6 +57,7 @@ en el árbol. Camino hermano de arrastrar; admite los mismos formatos.
   cabeceras propias — cualquier cabecera no simple obliga a un
   *preflight* `OPTIONS` que la mayoría de alojamientos estáticos no
   contesta. No añadir cabeceras a esta petición sin pensarlo.
+- **Una dirección de MapServer ArcGIS no es un archivo** (`arcgisServiceBase`, ver `arcgis.md`): `runUrlFetch` lee su catálogo (`?f=json`, tope `ARCGIS_JSON_MAX`) y «Añadir al árbol» crea un nodo de servicio en vez de importar un archivo. `importIntoNewDownload(file, undoLabel)` es lo que hace «Añadir al árbol» con un archivo (`pushUndo` + «Descargas› Descarga N» + `handleDroppedFiles`) y lo reutiliza «Traer como datos».
 - No se tocó el pegado del árbol: la URL se pega dentro del campo del
   diálogo; el escucha de `paste` global tiene semántica delicada (corte,
   `clipboardText`, sus dos guardias — ver `multi-edit-clipboard.md`).

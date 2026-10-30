@@ -285,6 +285,18 @@
       "version": "1.11.0",
       "build": "202610300013"
     },
+    "servicio-arcgis-datos.png": {
+      "sha256": "b575a36b11bfdfb64d59c4ff0ffcc391c7d3a7d64eccdc81ce326afdafa4ed29",
+      "section": "7.16",
+      "version": "1.11.0",
+      "build": "202610302228"
+    },
+    "servicio-arcgis.png": {
+      "sha256": "f34ee5982e27de2834f6aad8c7b2e65845d894635372dc66ad7a4496d1378915",
+      "section": "7.16",
+      "version": "1.11.0",
+      "build": "202610302228"
+    },
     "sin-conexion.png": {
       "sha256": "643682b869ecb6b29af217bf67721f18b4bfca82f410d259e7a8404d009ce72e",
       "section": "7.11",
@@ -302,6 +314,12 @@
       "section": "2.1",
       "version": "1.11.0",
       "build": "202610300109"
+    },
+    "url-arcgis.png": {
+      "sha256": "7262494d9190aab3fbb9387b2a8af22044602d21728ed7a3cc60f561c21a214b",
+      "section": "7.16",
+      "version": "1.11.0",
+      "build": "202610302228"
     },
     "vista-general.png": {
       "sha256": "db580f0253ebca59b23dcd1db746a39936a540d53f3ddccad87e99cefbed00f5",
