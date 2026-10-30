@@ -1197,6 +1197,16 @@ BROWSER EXPORT MENU TESTS OK
 
 **Qué cubre:** el minimenú del botón 💾 con clics y descargas reales sobre «Operación Sierra». Ofrece exactamente «Archivo de KITE (.kite.json)», «KML (.kml)» y «GeoJSON (.geojson)»; se cierra con Escape (y ese Escape no llega al árbol), con un clic fuera y volviendo a pulsar 💾, y abrir el de otra fila sustituye al anterior en vez de apilarse. Las tres descargas llevan el nombre y la extensión debidos; el KML es XML bien formado con un `Placemark` por capa, el GeoJSON una FeatureCollection con el nombre del nodo y un polígono por entidad, y el `.kite.json` sigue siendo el envoltorio de siempre. Una rama que nadie ha desplegado (un `Document` sin `<open>`) se exporta con la altitud y su carpeta en `properties.folder` SIN construir ni una fila: se lee de los registros pendientes, como el guardado. El KML exportado vuelve a importarse con el importador real y trae sus tres capas, y una capa suelta también lleva 💾. Sin errores de página ni violaciones de la CSP.
 
+### `browser/focus-zoom.mjs`
+
+**Salida de `npm test`:**
+```
+── Navegador: la lupa de un marcador centra el visor y acerca al zoom 14, siempre igual, y un polígono se encuadra entero sin ese zoom
+BROWSER FOCUS ZOOM TESTS OK
+```
+
+**Qué cubre:** el botón 🔍 de la fila de un marcador (clic real) lo deja centrado en el visor y acerca al zoom 14 (`FOCUS_ZOOM`, antes 9), tanto viniendo de un zoom 4 como de uno 18: es siempre el mismo, no depende de dónde estuviera la vista. El título del botón lo dice («zoom 14»). La lupa de un polígono de 2° NO usa ese zoom: lo encuadra entero con margen (`fitBoundsFramed`), con un zoom menor de 10 y distinto de 14, y las cuatro esquinas caben en el visor. Sin errores de página.
+
 ### `browser/i18n.mjs`
 
 **Salida de `npm test`:**

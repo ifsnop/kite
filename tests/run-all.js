@@ -129,6 +129,7 @@ const BROWSER = [
   ["browser/rings.mjs", "Navegador: anillos de alcance y sectores desde «Crear» — el centro es el punto pulsado, vista previa en vivo, entradas inválidas con su motivo, Cancelar y Escape sin dejar nada, carpeta de anillos a su radio, deshacer, sector entre azimuts, y recargar (también cruzando el antimeridiano)"],
   ["browser/gpx-import.mjs", "Navegador: importar un GPX — waypoints, ruta y track con su <name> sin selector, altitud y tiempos, la pregunta de las etiquetas HTML y el fallo limpio de lo que no es un GPX"],
   ["browser/export-menu.mjs", "Navegador: el menú de 💾 — se abre y se cierra (Escape, clic fuera, segunda pulsación), exporta KML, GeoJSON y .kite.json con descarga real, sin desplegar la carpeta, y el KML vuelve a importarse"],
+  ["browser/focus-zoom.mjs", "Navegador: la lupa de un marcador centra el visor y acerca al zoom 14, siempre igual, y un polígono se encuadra entero sin ese zoom"],
   ["browser/i18n.mjs", "Navegador: idioma de la interfaz — «Automático» según el navegador, español e inglés sin español colado, el ajuste de Propiedades (guarda al Aceptar, vale al recargar) y un idioma nuevo sin tocar código"]
 ];
 
