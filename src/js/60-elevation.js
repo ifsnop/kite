@@ -1238,7 +1238,7 @@ function elevCellAt(lat, lng) {
 }
 
 /* ---------- Consulta puntual (menú contextual del visor) ----------
-   «Consultar elevación aquí» pide a las fuentes elegidas la tesela de
+   «Consultas › Elevación» pide a las fuentes elegidas la tesela de
    la retícula que contiene el punto pulsado y la convierte en una capa
    del árbol. Todo lo descargado en una carga de página cuelga de UNA
    carpeta «Sesión AAAA-MM-DD HH:MM» dentro de la sección «Elevaciones»,

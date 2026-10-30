@@ -186,13 +186,13 @@ La primera reúne las herramientas que dibujan sobre el mapa:
 - **Medir ruta** (⤳): un clic por cada waypoint, doble clic para terminar — como varias líneas encadenadas, con la distancia y el rumbo de cada tramo por separado y el total. Una ruta de solo 2 waypoints es una línea recta de toda la vida; con más, sirve para planificar un trayecto con varias escalas.
 - **Medir círculo** (◯): arrastrar del centro al borde calcula el radio, el perímetro, la superficie y la orientación (el rumbo del centro al borde).
 - **Medir arco** (◠): tres gestos. Primero el **centro**; después el **inicio del arco**, que fija a la vez el radio y la orientación (los dos primeros valen como un arrastre del centro al inicio, o como dos clics); por último se **recorre el perímetro** desde el inicio con el ratón y un clic marca dónde acaba. El sentido (horario o antihorario) lo decide hacia dónde se mueve el ratón, y se pueden hacer arcos de más de media vuelta. Escape cancela. Al terminar, el arco **se convierte en una ruta normal** («Arco 1», «Arco 2»…) de tantos tramos como indique la preferencia «Segmentos de un arco» (16 de partida, ver 🏷️ Propiedades): la ruta ya no recuerda centro, radio ni apertura y se edita como cualquier otra. Sus etiquetas de tramo salen apagadas para no tapar el arco; se encienden con la casilla «Mostrar las etiquetas…» de su diálogo.
-- **Dibujar polígono o línea** (⬠): un clic por cada vértice; un doble clic sobre el último vértice cierra la figura, y un doble clic fuera de un vértice la deja como una línea abierta. Mientras se dibuja, un vértice ya puesto se puede arrastrar a otra posición antes de cerrar la figura, y quitar con el botón derecho.
-- **Crear un pin** (📍): añade un marcador en el centro de la vista actual y abre directamente su diálogo de estilo.
+- **Dibujar polígono o línea** (⬠): un clic por cada vértice; un doble clic sobre el último vértice cierra la figura, y un doble clic fuera de un vértice la deja como una línea abierta. Mientras se dibuja, un vértice ya puesto se puede arrastrar a otra posición antes de cerrar la figura, y quitar con el botón derecho. Está también en el menú contextual, «Crear» › «Polígono o línea».
+- **Crear un pin** (📍): añade un marcador en el centro de la vista actual y abre directamente su diálogo de estilo (también desde el menú contextual, «Crear» › «Pin»).
 - **Exportar PNG** (📷): guarda una imagen del mapa tal como se ve, sin los controles superpuestos, pero con el cuadro de coordenadas, la escala y la atribución (que la licencia de la cartografía exige conservar).
 
 La segunda barra reúne los controles de la propia vista:
 
-- **Autoescalar** (⤢): ajusta el zoom para encuadrar todo lo cargado.
+- **Autoescalar** (⤢): ajusta el zoom para encuadrar todo lo cargado. Como los demás encuadres, la retícula y la exportación a PNG, solo está en las barras de herramientas: el menú contextual no los repite.
 - **IB / GC**: centran la vista en la península y Baleares, o en las islas Canarias.
 - **Paralelos y meridianos** (#): muestra u oculta la retícula geográfica.
 - **Iluminación real** (☀, en color): sombrea la parte del mundo visible en el mapa según sea de día, de noche o esté en penumbra de crepúsculo en ese momento, calculado a partir de la posición real del sol y la hora del propio dispositivo. Con el efecto activo se dibuja también, con línea discontinua, la trayectoria del sol y de la luna, con un icono en su posición actual (☀ y ☽) que se va moviendo junto con la sombra. Es un efecto puramente visual (no se usa para ninguna medición) y no aparece en el PNG exportado. Además, mientras está activo, la ficha de un marcador (botón ℹ de su fila o «Mostrar atributos» del menú contextual) añade la sección «Sol y crepúsculos» con las horas de inicio del crepúsculo astronómico, náutico y civil, la salida del sol, el mediodía solar (con su elevación) y, en orden inverso, la puesta y el fin de cada crepúsculo, para la posición de ese marcador y el día solar en curso. Las horas son las locales del navegador, con su desfase UTC indicado (y «(+1 d)»/«(−1 d)» si caen en otro día); cerca de los polos, una fila puede decir que el evento no ocurre porque el sol no baja de esa elevación o no llega a ella. Aparece también en marcadores que no tienen descripción ni propiedades propias (a los que el botón ℹ se les muestra al activar la iluminación y se les quita al apagarla), y detrás de su ficha propia si la tienen; una capa con varios marcadores no la muestra, porque no hay un único punto del que hablar. Pasar el ratón por encima de un marcador sin ficha propia no abre nada.
@@ -217,7 +217,7 @@ También se puede girar con el ratón: manteniendo pulsado el **botón central**
 
 Con el mapa girado giran también los mapas base, las capas, la retícula de paralelos y meridianos y la iluminación real; las etiquetas (nombres, medidas, cifras de las cuadrículas de elevación) se quedan **horizontales**, para poder leerlas. Los rumbos de las mediciones siguen siendo geográficos (0° = norte), no relativos a la pantalla. Dibujar, medir, editar vértices, el menú contextual y el zoom de caja (Mayús + arrastrar) funcionan igual que con el norte arriba. Exportar a PNG guarda la imagen girada tal como se ve, y en ese caso incluye la brújula, para que la imagen diga dónde está el norte.
 
-La orientación no se guarda: al volver a abrir la aplicación, el mapa arranca con el norte arriba. **Limitación actual:** la consulta de elevación no está disponible con el mapa girado: su entrada del menú contextual aparece deshabilitada hasta poner el norte arriba. Las cuadrículas de elevación ya descargadas sí se ven giradas.
+La orientación no se guarda: al volver a abrir la aplicación, el mapa arranca con el norte arriba. **Limitación actual:** la consulta de elevación no está disponible con el mapa girado: su entrada del menú contextual («Consultas» › «Elevación») aparece deshabilitada hasta poner el norte arriba. Las cuadrículas de elevación ya descargadas sí se ven giradas.
 
 ### 4.5 Moverse con el teclado y la rueda
 
@@ -229,26 +229,29 @@ La **rueda del ratón** hace el mismo zoom suave hacia el puntero, sin necesidad
 
 ## 5. El menú contextual del visor
 
-Un clic derecho sobre el mapa abre un menú con las acciones más habituales. Sobre una zona sin ninguna capa debajo, sus entradas son estas:
+Un clic derecho sobre el mapa abre un menú con las acciones más habituales, agrupadas por tema. Sobre una zona sin ninguna capa debajo, tiene cuatro entradas:
 
 - **«Copiar coordenadas»**: copia al portapapeles la posición del punto pulsado, en grados decimales.
-- **«Consultar elevación aquí»**: descarga el terreno y la superficie de la zona alrededor del punto (apartado 7.8). Sale deshabilitada, con el motivo al pasar el ratón, si el mapa está girado o si las dos fuentes de elevación están en «Ninguna».
-- **«Parcela catastral»**: trae la parcela que hay en el punto pulsado como una capa del árbol (apartado 7.12).
+- **«Consultas»**: un submenú con las dos consultas a un servicio sobre el punto pulsado, cada una por su cuenta.
+  - **«Elevación»**: descarga el terreno y la superficie de la zona alrededor del punto (apartado 7.8). Sale deshabilitada, con el motivo al pasar el ratón, si el mapa está girado o si las dos fuentes de elevación están en «Ninguna».
+  - **«Parcela catastral»**: trae la parcela que hay en el punto pulsado como una capa del árbol (apartado 7.12).
 - **«Medir»**: un submenú con las tres herramientas de medición, **«Ruta»**, **«Círculo»** y **«Arco»** (apartado 4.2). Elegir una activa la herramienta; elegirla otra vez, la desactiva.
-- **«Dibujar polígono o línea»**: activa o desactiva la herramienta de dibujo (apartados 4.2 y 7.3).
-- **«Crear un pin»**: añade un marcador en el centro de la vista y abre su diálogo de estilo.
-- **«Exportar PNG»**: guarda una imagen del mapa tal como se ve (apartado 4.2).
-- **«Centrar en el contenido»**: encuadra todo lo cargado, como el botón de autoescalar.
-- **«Centrar en la península y Baleares»** y **«Centrar en las islas Canarias»**: los mismos encuadres que los botones IB y GC.
-- **«Paralelos y meridianos»**: muestra u oculta la retícula geográfica; con ✓ cuando está activa.
+- **«Crear»**: un submenú para dibujar o colocar algo nuevo.
+  - **«Polígono o línea»**: activa o desactiva la herramienta de dibujo (apartados 4.2 y 7.3).
+  - **«Pin»**: añade un marcador en el centro de la vista y abre su diálogo de estilo.
+
+Los encuadres (autoescalar, península y Baleares, islas Canarias), la retícula de paralelos y meridianos y la exportación a PNG no están en este menú: tienen su botón en las barras de herramientas del visor (apartado 4.2).
 
 ![Menú contextual genérico, sobre una zona del mapa sin ninguna capa debajo](img/menu-contextual.png)
-*Figura 20. Menú contextual sobre una zona vacía del mapa.*
+*Figura 20. Menú contextual sobre una zona vacía del mapa: cuatro entradas, tres de ellas con submenú.*
+
+![El menú contextual con el submenú «Consultas» abierto, con las entradas Elevación y Parcela catastral](img/menu-consultas.png)
+*Figura 21. El submenú «Consultas», que se abre al pasar el ratón por encima o con un clic: «Elevación» y «Parcela catastral», cada una por su cuenta.*
 
 Si el clic derecho cae sobre una capa, el menú antepone «Ir al nodo en el panel» (que despliega el árbol hasta esa fila, la selecciona y la hace parpadear en el mapa para identificarla), «Mostrar atributos» si la capa tiene algo que mostrar (la ficha KML o la tabla de propiedades de un GeoJSON, la misma que el botón ℹ) y, si su tipo admite el diálogo de propiedades, **«Editar propiedades»**, que lo abre directamente —el mismo diálogo, con sus pestañas «Estilos» y «Atributos», que el botón 🎨 o Alt+Intro, sin tener que ir antes al árbol—. Sobre una ruta (también un arco) añade **«Obtener perfil»** (apartado 7.9), o **«Mostrar perfil»** si ya lo tiene; «Obtener» sale deshabilitada —con el motivo al pasar el ratón— si no hay ninguna fuente de elevación elegida o si la ruta es más larga que el límite de Preferencias. Cuando hay varias capas superpuestas exactamente bajo el cursor, estas opciones se convierten en un submenú con una entrada por capa, para elegir sobre cuál de todas se quiere actuar; la del perfil sigue estando aunque bajo la ruta haya una cuadrícula de elevación (por ejemplo, las celdas de su propio perfil), y con varias rutas debajo es un submenú «Perfil de ruta» con una entrada por ruta.
 
 ![Menú contextual con un submenú, al haber dos zonas superpuestas bajo el cursor](img/menu-contextual-submenu.png)
-*Figura 21. Con «Zona A» y «Zona A (ampliación)» superpuestas en ese punto, «Ir al nodo en el panel» se convierte en un submenú con una entrada por cada una.*
+*Figura 22. Con «Zona A» y «Zona A (ampliación)» superpuestas en ese punto, «Ir al nodo en el panel» se convierte en un submenú con una entrada por cada una.*
 
 ---
 
@@ -263,22 +266,22 @@ Cada muestra de color del diálogo (marcador, texto, contorno, relleno…) abre,
 Icono, color y tamaño del marcador; tamaño y color del texto; si el nombre se muestra siempre o solo al pulsar sobre el marcador; y, cuando la capa es un único marcador, su posición exacta, en el formato elegido en el panel 🏷️ Propiedades (apartado 2.1) — grados decimales o grados/minutos/segundos, el mismo ajuste global que usa el centro de un círculo de medición. Mientras el diálogo está abierto, el propio marcador puede arrastrarse por el mapa para ajustar su posición a mano.
 
 ![Diálogo de estilo de un marcador, con icono, colores, tamaños y posición](img/estilo-marcador.png)
-*Figura 22. Estilo de la capa «Base»: icono, color y tamaño del marcador, tamaño y color del texto, y sus coordenadas.*
+*Figura 23. Estilo de la capa «Base»: icono, color y tamaño del marcador, tamaño y color del texto, y sus coordenadas.*
 
 El botón «Cambiar…» junto al icono abre el catálogo completo de iconos disponibles (banderas, estrellas, círculos numerados, aviación, barco, transporte, figuras geométricas y más), con la gota clásica de Leaflet siempre la primera.
 
 ![Selector de iconos, con la gota de Leaflet y varias categorías de iconos](img/selector-iconos.png)
-*Figura 23. Catálogo de iconos: la gota clásica al frente y, debajo, las categorías temáticas.*
+*Figura 24. Catálogo de iconos: la gota clásica al frente y, debajo, las categorías temáticas.*
 
 ### 6.2 Estilo de un polígono o una línea
 
 Ancho, color y opacidad del contorno; un selector de tres opciones —contorno y relleno, solo contorno o solo relleno— en vez de dos casillas sueltas, porque «ni una cosa ni la otra» no es una combinación que tenga sentido ofrecer; color y opacidad del relleno; si el nombre se muestra siempre; y, en modo de solo lectura, el perímetro y el área en la unidad elegida. Un botón «Ver y editar…» abre además la lista completa de vértices como texto (uno por línea, con latitud, longitud y altitud separadas por tabulador), pensada para poder copiarla y pegarla directamente en una hoja de cálculo.
 
 ![Diálogo de estilo de un polígono, con contorno, relleno y medidas](img/estilo-poligono.png)
-*Figura 24. Estilo de «Zona A»: modo de contorno/relleno, colores, medidas de solo lectura y acceso al editor de vértices.*
+*Figura 25. Estilo de «Zona A»: modo de contorno/relleno, colores, medidas de solo lectura y acceso al editor de vértices.*
 
 ![Editor de la lista de puntos de un polígono, en formato de texto tabulado](img/editor-puntos.png)
-*Figura 25. Lista de vértices de «Zona A», lista para copiarse a una hoja de cálculo.*
+*Figura 26. Lista de vértices de «Zona A», lista para copiarse a una hoja de cálculo.*
 
 Una figura abierta (una línea, no un polígono cerrado) no tiene superficie que rellenar: sus controles de relleno aparecen entonces deshabilitados en vez de ocultos, para que se note que existen pero no aplican a ese caso.
 
@@ -295,21 +298,21 @@ Mientras el diálogo de un polígono está abierto, el doble clic sobre el mapa 
 Igual que un polígono en cuanto a trazo y relleno, pero con sus medidas propias en modo de solo lectura: un círculo muestra **radio, perímetro, área, orientación (el rumbo del centro al borde) y las coordenadas de su centro**; una ruta, la distancia total y la de cada uno de sus tramos por separado, numerados «Tramo 1», «Tramo 2»… (una ruta de solo 2 waypoints muestra un único tramo, con su distancia y su rumbo — el equivalente de la antigua «línea»). Una casilla «Mostrar las etiquetas de distancia y rumbo» permite ocultar esas etiquetas sobre el mapa sin borrar la medición, para despejar la vista cuando hay varias mediciones juntas o se va a exportar una imagen del mapa; se muestran por defecto. Un botón «Ver y editar…», igual que en un polígono (apartado 6.2), abre la lista de waypoints como texto tabulado: un círculo siempre con dos (centro y borde), una ruta con los que tenga (mínimo 2). **También aquí manda la misma regla que en 6.2, con «Cancelar» incluido**: mover el centro o el borde de un círculo, o un waypoint de una ruta —los tres, arrastrando sin más, ya no hace falta ninguna tecla— y, en una ruta, seleccionar, borrar e insertar waypoints igual que los vértices de un polígono, `Insertar` incluido, solo funciona con este diálogo abierto para esa medición; sin él, sus manejadores se ven como un punto pequeño sin cursor propio (con el diálogo abierto crecen y el cursor cambia a una cruz de mover, y ese aspecto se conserva aunque se apague y encienda la visibilidad de la capa mientras tanto), y el botón derecho abre el menú contextual normal en vez de borrar. Con el diálogo abierto, arrastrar actualiza estas cifras al momento, sin necesidad de cerrarlo y volver a abrirlo, y «Cancelar» revierte cualquier cambio hecho mientras estuvo abierto. Con una sola ruta ya creada, el diálogo trae además el botón **«Obtener perfil»** (apartado 7.9), deshabilitado con el motivo en las mismas condiciones que en el menú contextual, que pasa a **«Mostrar perfil»** cuando la ruta ya tiene uno.
 
 ![Diálogo de estilo de una medición, con distancia y rumbo de solo lectura](img/estilo-medicion.png)
-*Figura 26. Estilo de «Ruta 1»: mismo tipo de controles que un polígono, con la distancia y el rumbo de la medición debajo.*
+*Figura 27. Estilo de «Ruta 1»: mismo tipo de controles que un polígono, con la distancia y el rumbo de la medición debajo.*
 
 ### 6.4 Editar varias capas a la vez
 
 Con más de una capa seleccionada, el diálogo de estilos se abre igual, pero con una regla importante: **un valor que no coincide en todas las capas seleccionadas no se aplica a menos que se toque expresamente**. La fila correspondiente se marca como «(varios)» y, al modificar ese control, deja de estarlo y pasa a aplicarse a toda la selección; lo que no se toca se queda exactamente como estaba en cada capa. Esto evita que, por ejemplo, cambiar solo el color de varias capas de golpe termine igualando también sus grosores o sus rellenos sin haberlo pedido.
 
 ![El diálogo de estilos con dos capas seleccionadas, con las filas que no coinciden marcadas como varios](img/editar-varios.png)
-*Figura 27. Propiedades de dos capas a la vez («Zona A» y «Zona B»): lo que no coincide —aquí, los colores— lleva «(varios)» y no se cambia si no se toca; el nombre muestra los de las dos capas y el editor de puntos queda deshabilitado.*
+*Figura 28. Propiedades de dos capas a la vez («Zona A» y «Zona B»): lo que no coincide —aquí, los colores— lleva «(varios)» y no se cambia si no se toca; el nombre muestra los de las dos capas y el editor de puntos queda deshabilitado.*
 
 ### 6.5 Ficha de información y propiedades
 
 Cuando una capa procede de un KML con una descripción, o de un GeoJSON con propiedades, el botón ℹ de su fila —o pasar el ratón por encima de la capa en el mapa, o «Mostrar atributos» del menú contextual— abre una ficha con esa información: el texto original en el caso de un KML (filtrado de cualquier contenido peligroso, conservando el texto) o una tabla de clave y valor en el caso de un GeoJSON. Si el tipo de capa admite edición (marcador, forma, medición…), la ficha lleva un botón «Editar propiedades» que la cierra y abre el diálogo de propiedades de esa misma capa (estilos y atributos: color, tamaño, posición, etc.).
 
 ![Ficha de propiedades de un elemento GeoJSON, en tabla de clave y valor](img/ficha-propiedades.png)
-*Figura 28. Propiedades de «Sensor 1», tal como venían en el archivo GeoJSON de origen.*
+*Figura 29. Propiedades de «Sensor 1», tal como venían en el archivo GeoJSON de origen.*
 
 ---
 
@@ -324,15 +327,15 @@ La vía más directa es arrastrar el archivo desde el escritorio y soltarlo sobr
 La elección se recuerda para los archivos con la misma estructura de propiedades: la próxima vez se aplica sin preguntar y el registro de avisos (📋) deja constancia de que se usó una selección guardada. Para cambiarla, 🏷️ Propiedades → «Índices de GeoJSON».
 
 ![El diálogo Elegir nombre con dos propiedades marcadas y numeradas](img/elegir-nombre.png)
-*Figura 29. El diálogo «Elegir nombre» al abrir «sensores.geojson», con «name» y «categoria» marcadas por ese orden: cada casilla lleva su número y, debajo, se ve el nombre que saldría para el primer elemento.*
+*Figura 30. El diálogo «Elegir nombre» al abrir «sensores.geojson», con «name» y «categoria» marcadas por ese orden: cada casilla lleva su número y, debajo, se ve el nombre que saldría para el primer elemento.*
 
 **Nombres con etiquetas HTML y marcadores duplicados.** Dos preguntas más pueden salir al importar un KML o un GeoJSON, **una vez por archivo** y solo si hace falta. Si los nombres (o las propiedades de un GeoJSON) traen marcado de tipo HTML —texto entre `<` y `>`, normalmente resto de la herramienta que generó el archivo—, el aviso «Etiquetas en los nombres» pregunta si se quitan al importar («Eliminarlas») o se dejan («Dejarlas»; se conservan como texto: la aplicación nunca las interpreta como código). Si el archivo trae marcadores con el mismo nombre y la misma posición (con menos de unos 1,1 m de diferencia), el aviso «Marcadores duplicados» pregunta si se fusionan, quedándose uno de cada grupo («Fusionar»), o se mantienen todos («Mantener todos»). En un GeoJSON, el nombre que cuenta es el que se eligió en «Elegir nombre», y esta pregunta llega después. El resumen de la importación deja constancia de las etiquetas quitadas y de los duplicados fusionados.
 
 ![El aviso Etiquetas en los nombres, con los botones Dejarlas y Eliminarlas](img/etiquetas-html.png)
-*Figura 30. El aviso «Etiquetas en los nombres» de un KML cuyos nombres traen marcado HTML.*
+*Figura 31. El aviso «Etiquetas en los nombres» de un KML cuyos nombres traen marcado HTML.*
 
 ![El aviso Marcadores duplicados, con los botones Mantener todos y Fusionar](img/duplicados.png)
-*Figura 31. El aviso «Marcadores duplicados» de un KML con un nombre repetido en la misma posición.*
+*Figura 32. El aviso «Marcadores duplicados» de un KML con un nombre repetido en la misma posición.*
 
 **Shapefiles.** Un shapefile no es un archivo sino varios con el mismo nombre: el `.shp` (las geometrías), el `.dbf` (los atributos), el `.prj` (el sistema de coordenadas) y, a veces, el `.cpg` (la codificación de los textos) y el `.shx`. Hay que **soltarlos todos a la vez** —se seleccionan juntos en el explorador de archivos y se arrastran— o soltar el `.zip` que los contiene; un `.zip` con varias capas da una carpeta por capa. Si llega una pieza sin su `.shp`, el aviso lo dice. Cada shapefile se trata como un GeoJSON: el nombre de los elementos se elige igual (diálogo «Elegir nombre», con los campos del `.dbf`), y valen las mismas preguntas sobre etiquetas HTML y duplicados.
 
@@ -345,7 +348,7 @@ La elección se recuerda para los archivos con la misma estructura de propiedade
 Cuando no se tiene el archivo en el disco pero sí su dirección web, el botón 🔗 de la cabecera ofrece el mismo resultado en dos pasos: se escribe o se pega la dirección y se pulsa «Descargar» (vale también un shapefile, en un `.zip`); solo cuando la aplicación confirma qué ha llegado (tipo y tamaño) se activa «Añadir al árbol» para incorporarlo. Mientras no se pulse ese botón, nada llega al mapa.
 
 ![Diálogo de añadir desde una dirección, tras descargar un archivo con éxito](img/anadir-url.png)
-*Figura 32. Tras descargar «remoto.kml», el diálogo confirma el tipo y el tamaño y habilita «Añadir al árbol».*
+*Figura 33. Tras descargar «remoto.kml», el diálogo confirma el tipo y el tamaño y habilita «Añadir al árbol».*
 
 Todo lo incorporado por esta vía queda dentro de una carpeta «Descargas», con una subcarpeta numerada por descarga («Descarga 1», «Descarga 2»…), para que varias descargas sucesivas no se mezclen entre sí.
 
@@ -354,7 +357,7 @@ Todo lo incorporado por esta vía queda dentro de una carpeta «Descargas», con
 Se pulsa la herramienta «Medir ruta» (⤳) de la barra de dibujo: un clic marca cada waypoint y un doble clic termina la ruta (siempre queda abierta; no se puede cerrar en anillo). Para una distancia y un rumbo sueltos basta con dos waypoints —origen y destino—, exactamente como una línea de toda la vida. **Desde ese segundo waypoint, dibujar una ruta se comporta como editarla**: la medición ya cuelga de una fila del árbol, dentro de una carpeta «Mediciones», con su propio nombre autonumerado («Ruta 1», «Ruta 2»…), y su diálogo de propiedades se abre solo, mostrando distancia y rumbo ya calculados — sin esperar a terminar el dibujo. Cada waypoint que se añade después actualiza esas cifras al momento. Cancelar el diálogo a medio dibujar —con `Escape` o con su propio botón «Cancelar»— borra la ruta, igual que cancelar un marcador recién creado, y sale del modo de dibujo; pulsar «Aceptar», o terminar con doble clic (se comporta exactamente igual que «Aceptar»), en cambio la GUARDA con los waypoints que tenga hasta ese momento, cierra el diálogo —señal visual de que la edición ha terminado— y sale del modo de dibujo.
 
 ![Una medición de ruta recién creada, con su etiqueta de distancia y rumbo sobre el mapa](img/medicion-mapa.png)
-*Figura 33. Medición de ruta entre «Base» y «Punto de control»: 1,92 millas náuticas a un rumbo de 108,2°, con su fila («Ruta 1») en la carpeta «Mediciones» del árbol.*
+*Figura 34. Medición de ruta entre «Base» y «Punto de control»: 1,92 millas náuticas a un rumbo de 108,2°, con su fila («Ruta 1») en la carpeta «Mediciones» del árbol.*
 
 Para editar una ruta ya creada, con su diálogo de propiedades abierto (ver 6.3), basta con arrastrar uno de sus waypoints —ya no hace falta `Ctrl`—; con el botón derecho se quita uno (sin poder bajar de 2). **Sin el diálogo abierto**, el botón derecho sobre un waypoint no borra nada: abre el menú contextual normal del mapa, con acceso directo a «Editar propiedades». La unidad de distancia (metros, kilómetros, pies, millas o millas náuticas —esta última la unidad por defecto, la habitual en navegación aérea y marítima—) y el formato de coordenadas se eligen una sola vez, en el panel 🏷️ Propiedades (apartado 2.1), y se aplican a la vez a todas las mediciones y a todos los polígonos, tanto en su diálogo de estilo como en las etiquetas que se ven sobre el mapa.
 
@@ -365,7 +368,7 @@ Para una ruta con varias escalas, en vez de un solo tramo, se añaden más de do
 La herramienta «Medir círculo» (◯) se arrastra del centro al borde y da el radio, el perímetro y la superficie. La herramienta «Dibujar polígono o línea» (⬠) es distinta: no se arrastra, se hace un clic por cada vértice; un doble clic sobre el último vértice cierra la figura como un polígono con superficie, y un doble clic en cualquier otro punto la deja como una línea abierta, sin relleno.
 
 ![Un polígono a medio dibujar, con sus vértices y la línea provisional en verde discontinuo](img/dibujar-poligono.png)
-*Figura 34. Un polígono a medio dibujar con «Dibujar polígono o línea» (⬠, resaltada en la barra): cada clic pone un vértice y el trazo provisional se ve en verde discontinuo. Un doble clic sobre el último vértice lo cierra.*
+*Figura 35. Un polígono a medio dibujar con «Dibujar polígono o línea» (⬠, resaltada en la barra): cada clic pone un vértice y el trazo provisional se ve en verde discontinuo. Un doble clic sobre el último vértice lo cierra.*
 
 ### 7.4 Personalizar un marcador
 
@@ -379,10 +382,10 @@ Al ser una aplicación que corre en el navegador, dos pestañas —o dos instala
 2. En la segunda instancia —en otra pestaña, otra ventana o incluso otro ordenador con acceso al portapapeles compartido—, se pone el cursor donde se quiera recibir el contenido y se pulsa `Ctrl + V`. La carpeta y sus capas aparecen ahí, con su geometría y sus estilos intactos.
 
 ![Selección de la carpeta "Zonas" tras copiarla con Ctrl+C](img/copiar-origen.png)
-*Figura 35. Instancia de origen: la carpeta «Zonas» seleccionada justo después de `Ctrl + C`.*
+*Figura 36. Instancia de origen: la carpeta «Zonas» seleccionada justo después de `Ctrl + C`.*
 
 ![La misma carpeta, ya pegada en una segunda instancia vacía](img/pegar-destino.png)
-*Figura 36. Instancia de destino, antes vacía: tras `Ctrl + V`, la carpeta «Zonas» aparece con sus tres capas.*
+*Figura 37. Instancia de destino, antes vacía: tras `Ctrl + V`, la carpeta «Zonas» aparece con sus tres capas.*
 
 Este mecanismo copia siempre; nunca mueve nada de la instancia de origen, aunque en esa misma instancia (no entre dos distintas) `Ctrl + X` sí corta de verdad. Pegar solo se interpreta como una importación de capas cuando el cursor está sobre el árbol: pegar en cualquier otro campo de texto de la aplicación —por ejemplo, en el editor de vértices— pega el texto tal cual, sin intentar interpretarlo.
 
@@ -396,10 +399,10 @@ El botón 💾 de una carpeta o un archivo la descarga entera a un archivo con e
 
 ### 7.8 Consultar la altitud del terreno
 
-Con el botón derecho sobre el mapa, **«Consultar elevación aquí»** descarga la altitud del terreno (MDT) y de la superficie (MDS) de una pequeña zona cuadrada alrededor del punto pulsado (unos 40 m de lado) y la dibuja como una cuadrícula: cada celda lleva el terreno, la superficie y la diferencia entre ambos —lo que hay construido o la vegetación—, en la **unidad de altitud** de Propiedades (metros, pies, kilómetros, millas o millas náuticas; cambiarla repinta las cifras; la unidad de distancia no las toca). Por debajo del zoom 19 las celdas de 5 m no llevan texto y se colorean en rojo cuando la superficie supera al terreno en más de un metro; las de malla más gruesa escriben antes, porque ya son más grandes en pantalla (las del MDT25 y de Copernicus, dos niveles de zoom antes; las del MDT200, cinco: desde el zoom 14 una línea y desde el 15 todas). Si una celda es tan grande que su centro queda fuera de la pantalla, su cifra se coloca en la parte que se ve. Cada consulta necesita conexión y es una petición expresa: mover el ratón no consulta nada. Mientras la consulta está en marcha, el cursor sobre el mapa es el de espera; no hay aviso de «consultando», ni otro al terminar: la capa nueva aparece en el árbol.
+Con el botón derecho sobre el mapa, **«Consultas» › «Elevación»** descarga la altitud del terreno (MDT) y de la superficie (MDS) de una pequeña zona cuadrada alrededor del punto pulsado (unos 40 m de lado) y la dibuja como una cuadrícula: cada celda lleva el terreno, la superficie y la diferencia entre ambos —lo que hay construido o la vegetación—, en la **unidad de altitud** de Propiedades (metros, pies, kilómetros, millas o millas náuticas; cambiarla repinta las cifras; la unidad de distancia no las toca). Por debajo del zoom 19 las celdas de 5 m no llevan texto y se colorean en rojo cuando la superficie supera al terreno en más de un metro; las de malla más gruesa escriben antes, porque ya son más grandes en pantalla (las del MDT25 y de Copernicus, dos niveles de zoom antes; las del MDT200, cinco: desde el zoom 14 una línea y desde el 15 todas). Si una celda es tan grande que su centro queda fuera de la pantalla, su cifra se coloca en la parte que se ve. Cada consulta necesita conexión y es una petición expresa: mover el ratón no consulta nada. Mientras la consulta está en marcha, el cursor sobre el mapa es el de espera; no hay aviso de «consultando», ni otro al terminar: la capa nueva aparece en el árbol.
 
 ![Una consulta de elevación: la capa Elevación 1 en el árbol y sus celdas de 5 metros en el mapa](img/consulta-elevacion.png)
-*Figura 37. Una consulta de elevación (datos de ejemplo, no de un servicio real): en el árbol, «Elevaciones › Sesión … › Elevación 1 — MDT05 + MDS (IGN)»; en el mapa, sus celdas de 5 m con el terreno, la superficie y la diferencia (en rojo, la que pasa de 1 m). Arriba, en el registro, la elección de cada servicio.*
+*Figura 38. Una consulta de elevación (datos de ejemplo, no de un servicio real): en el árbol, «Elevaciones › Sesión … › Elevación 1 — MDT05 + MDS (IGN)»; en el mapa, sus celdas de 5 m con el terreno, la superficie y la diferencia (en rojo, la que pasa de 1 m). Arriba, en el registro, la elección de cada servicio.*
 
 De qué servicio sale cada modelo se elige en 🏷️ Propiedades → «Fuentes de datos» (apartado 2.1). De partida son los del **Instituto Geográfico Nacional** (cobertura solo sobre España): el MDT05 y el MDS, de celdas de 5 m; como MDT se puede elegir también el MDT25 o el MDT200 (celdas de 25 y 200 m: la zona descargada crece con la celda para que quepan al menos dos). Como MDS hay también **Digital Earth Africa** (Copernicus DEM, celdas de unos 30 m, cobertura en África, Canarias y la península hasta los 39° N: Andalucía, Murcia, el sur de Extremadura, de Castilla-La Mancha y de la Comunidad Valenciana). Este servicio tarda bastante en la primera petición a una zona (medio minuto, comprobado) y mucho menos en las siguientes; la aplicación lo espera más que a los demás y, si una petición falla por algo pasajero (el servicio no responde, error del servidor), la repite sola hasta tres veces, con una pausa creciente entre intentos. Solo si los cuatro intentos fallan aparece el aviso, que dice cuántos fueron. Desde Chrome, Edge y demás navegadores basados en Chromium, Digital Earth Africa rechaza las consultas; con Firefox o Safari funciona. Con un modelo en «Ninguna» no se le pregunta: las celdas muestran solo el otro, sin diferencia. Si las dos están en «Ninguna», la entrada del menú aparece deshabilitada. Con dos mallas de distinto tamaño (por ejemplo MDT25 y MDS), las celdas son las de la más fina y cada una lleva el valor de la gruesa que la contiene.
 
@@ -414,7 +417,7 @@ Cada consulta queda como una capa más del árbol, «Elevación 1», «Elevació
 Con el botón derecho sobre una ruta, **«Obtener perfil»** (o el mismo botón en su diálogo de propiedades, apartado 6.3) descarga del MDT y del MDS elegidos en «Fuentes de datos» las celdas que recorre la ruta y dibuja su perfil: la distancia desde el inicio en horizontal, en la unidad de distancia, y la altura en vertical, en la unidad de altitud, con **una curva por modelo: el terreno (MDT) en azul y la superficie (MDS) en verde**, y una leyenda arriba con el nombre de cada fuente. Si uno de los dos modelos está en «Ninguna», se dibuja solo el otro. Los vértices donde cambia de tramo se marcan con una línea discontinua y su distancia en **negrita** bajo el eje, y coinciden exactamente con la suma de las distancias de los tramos que se leen en el mapa. Cambiar cualquiera de las dos unidades en Propiedades redibuja la gráfica, y la ventana se puede mover y agrandar. No tiene botones abajo: se cierra con la **×** de arriba a la derecha (o con Escape), y todo el espacio por debajo de la barra de controles es gráfica.
 
 ![El menú contextual sobre una ruta, con la entrada Obtener perfil](img/menu-ruta-perfil.png)
-*Figura 38. El menú contextual sobre una ruta: «Obtener perfil» junto a «Ir al nodo en el panel» y «Editar propiedades».*
+*Figura 39. El menú contextual sobre una ruta: «Obtener perfil» junto a «Ir al nodo en el panel» y «Editar propiedades».*
 
 **La rueda del ratón sobre la gráfica acerca o aleja la distancia**, con el punto que hay bajo el ratón fijo en su sitio, para ver de cerca una zona concreta: alejar llega como mucho a la ruta entera, y acercar, a 0,1 metros de ruta por píxel (la lectura de la distancia gana decimales para distinguirlo). **Arrastrar la gráfica con el botón izquierdo la desplaza** (el cursor es una mano) para ver la zona contigua, sin cambiar el zoom; se para al principio y al final de la ruta. **También en altura**: si el arrastre se desvía unos píxeles en vertical, la escala de alturas se bloquea en lo que se veía y la gráfica sigue a la mano en las dos direcciones (arrastrar hacia abajo muestra lo que hay más arriba); un arrastre horizontal con la mano algo torcida no toca la altura. Las cifras de los vértices que caen en la parte visible siguen en negrita, con más decimales si hace falta.
 
@@ -443,7 +446,7 @@ Para leerla de un vistazo, la gráfica sigue unas reglas fijas: las curvas y la 
 Al pasar el ratón por la gráfica, una línea vertical roja lo sigue y el **rectángulo de lectura** de arriba a la derecha —siempre del mismo tamaño, con guiones cuando el ratón no está sobre la gráfica y con las filas de lo que no está activado atenuadas— da la distancia y la altura de cada modelo en ese punto (cada fila lleva un trazo del color de su curva) y, con los dos, **su diferencia «MDS−MDT»** con signo (lo que sobresale la superficie —edificios, vegetación— por encima del terreno), **en rojo cuando pasa de 1 metro**, como en las celdas de elevación; a la vez, **una flecha roja sobre la ruta en el mapa** marca ese mismo punto y apunta en el sentido de la marcha, moviéndose con la línea. La vista del mapa no se mueve: si la ruta no está a la vista, la flecha tampoco. Al sacar el ratón de la gráfica o cerrar la ventana, la flecha desaparece.
 
 ![Ventana del perfil de una ruta con la línea inicio–fin, el elipsoide de Fresnel y la curvatura terrestre](img/perfil-ruta.png)
-*Figura 39. Ventana del perfil de una ruta de 40 km (datos de ejemplo, no de un servicio real) con el MDT (azul) y el MDS (verde), y la línea inicio–fin, el elipsoide de Fresnel de 1090 MHz y la curvatura terrestre activados. Arriba a la izquierda, las opciones de la recta y las dos torres (25 y 40 m, con el vértice donde está cada una; sus antenas, con la altura rotulada); arriba a la derecha, el rectángulo de lectura del cursor, con la distancia, las alturas, la diferencia MDS−MDT, la curvatura, el despeje, el radio de Fresnel al 60 % y el margen (en rojo los valores negativos o por encima de 1 m); debajo de la gráfica, el bloqueo del eje Y, el desplegable de curvatura, «Ver todo» y la pista de gestos; arriba a la derecha de la ventana, la × de cerrar. Bajo el cursor, un punto sobre cada curva y sobre la recta indica de qué altura habla la lectura.*
+*Figura 40. Ventana del perfil de una ruta de 40 km (datos de ejemplo, no de un servicio real) con el MDT (azul) y el MDS (verde), y la línea inicio–fin, el elipsoide de Fresnel de 1090 MHz y la curvatura terrestre activados. Arriba a la izquierda, las opciones de la recta y las dos torres (25 y 40 m, con el vértice donde está cada una; sus antenas, con la altura rotulada); arriba a la derecha, el rectángulo de lectura del cursor, con la distancia, las alturas, la diferencia MDS−MDT, la curvatura, el despeje, el radio de Fresnel al 60 % y el margen (en rojo los valores negativos o por encima de 1 m); debajo de la gráfica, el bloqueo del eje Y, el desplegable de curvatura, «Ver todo» y la pista de gestos; arriba a la derecha de la ventana, la × de cerrar. Bajo el cursor, un punto sobre cada curva y sobre la recta indica de qué altura habla la lectura.*
 
 La descarga se hace por zonas a lo largo de la ruta, una tras otra y de las dos fuentes, con una **barra de progreso** que dice qué porcentaje lleva y cuántas zonas faltan, y debajo un **registro de la descarga**, para depuración: cada petición que la aplicación lanza a cada servicio (su dirección completa y el intento), lo que recibe (estado, tipo y tamaño de la respuesta, tiempo y la rejilla de celdas leída, con sus alturas mínima y máxima) y los fallos, con la espera antes de reintentar. Tiene su propia barra de scroll, así que la ventana no crece, y sigue lo último salvo que se suba a leer; se puede seleccionar y copiar. Al terminar la descarga, el registro desaparece y su sitio es para la gráfica; mientras tanto, la **×** de la ventana la cancela sin dejar nada. Una zona que no responde ni tras sus reintentos deja un hueco en la curva de su modelo, y la ventana dice cuántas fallaron y de qué fuente. Al terminar, la misma × solo cierra.
 
@@ -458,7 +461,7 @@ Una ortofoto en formato **COG** (Cloud Optimized GeoTIFF, un `.tif` preparado pa
 **¿Tengo un ECW?** Es el formato de las descargas del Centro de Descargas del CNIG, y KITE Local **no lo puede abrir** (es un formato propietario). Si lo suelta, el aviso se lo dice y le da la orden de conversión. Conviértalo a COG con GDAL (necesita soporte ECW): `gdal_translate -of COG -co COMPRESS=JPEG hoja.ecw hoja.tif`. En QGIS para Windows, que lo trae: Ráster › Conversión › Traducir, con formato de salida COG. Después suelte el `.tif`.
 
 ![Una ortofoto COG de Sentinel-2 sobre Madrid, de 10 980 × 10 980 píxeles](img/ortofoto-cog.png)
-*Figura 40. Una imagen COG de 362 MB (Sentinel-2, color natural, UTM 30N) sobre Madrid. Solo se lee la parte que se ve, al detalle que pide el zoom. Contiene datos modificados de Copernicus Sentinel (2026).*
+*Figura 41. Una imagen COG de 362 MB (Sentinel-2, color natural, UTM 30N) sobre Madrid. Solo se lee la parte que se ve, al detalle que pide el zoom. Contiene datos modificados de Copernicus Sentinel (2026).*
 
 - **Solo se lee lo que se ve.** Para cada trozo del mapa se lee la parte justa de la imagen, al nivel de detalle que pide el zoom: una ortofoto de cientos de megabytes se mueve con fluidez. Si el `.tif` no está en mosaico, o no trae vistas generales, el aviso lo advierte: lo primero hace que vaya lento y lo segundo, que de lejos no se dibuje (hay que acercarse).
 - **Sistema de coordenadas.** Se admiten WGS84, ETRS89, Web Mercator y UTM en WGS84 (cualquier huso, norte o sur: es lo que traen, por ejemplo, las imágenes de Sentinel-2), en ETRS89 (husos 28 a 38, tanto con los códigos EPSG:25828–25838 como con los de ejes norte-este EPSG:3040–3050, como el 3043) y en ED50 (husos 28 a 31, los de la España peninsular), además de REGCAN95 para Canarias. Una imagen en otro sistema, o sin georreferenciar, se rechaza con un aviso que lo dice. Se pasa a la proyección del mapa al dibujarla, sin alterar la imagen guardada.
@@ -479,19 +482,19 @@ KITE Local puede volver a abrirse **sin red** cuando se usa **desde una direcci�
 - **Versiones.** Con conexión se carga siempre la versión más reciente publicada, como antes. Si la red existe pero no responde, tras unos 4 segundos se abre la copia guardada.
 
 ![La cabecera del panel con el indicador Sin conexión y el aviso que lo explica](img/sin-conexion.png)
-*Figura 41. Sin conexión: el indicador «Sin conexión» bajo los botones y, debajo, el aviso que lo explica. El árbol y las capas guardadas siguen disponibles.*
+*Figura 42. Sin conexión: el indicador «Sin conexión» bajo los botones y, debajo, el aviso que lo explica. El árbol y las capas guardadas siguen disponibles.*
 
 ### 7.12 Consultar una parcela catastral
 
-Con el botón derecho sobre el mapa, **«Parcela catastral»** pregunta a la **Dirección General del Catastro** qué parcela hay exactamente en el punto pulsado y la añade al árbol como un polígono más, dentro de la sección «Catastro», con el nombre «Parcela» seguido de su referencia catastral (por ejemplo, «Parcela 0443112VK4704C»). Hay que pulsar DENTRO de la finca: sobre una calle, una plaza o un camino el Catastro no tiene parcela y lo dice con un aviso.
+Con el botón derecho sobre el mapa, **«Consultas» › «Parcela catastral»** pregunta a la **Dirección General del Catastro** qué parcela hay exactamente en el punto pulsado y la añade al árbol como un polígono más, dentro de la sección «Catastro», con el nombre «Parcela» seguido de su referencia catastral (por ejemplo, «Parcela 0443112VK4704C»). Hay que pulsar DENTRO de la finca: sobre una calle, una plaza o un camino el Catastro no tiene parcela y lo dice con un aviso.
 
 ![La parcela catastral de la calle de la Paz 11, en Madrid, dibujada en naranja sobre el mapa, y su fila en el árbol](img/parcela-catastral.png)
-*Figura 42. La parcela de la calle de la Paz 11 (Madrid), dibujada en naranja, y su fila «Parcela 0443112VK4704C» en la sección «Catastro» del árbol. La atribución del Catastro ha pasado a la línea inferior.*
+*Figura 43. La parcela de la calle de la Paz 11 (Madrid), dibujada en naranja, y su fila «Parcela 0443112VK4704C» en la sección «Catastro» del árbol. La atribución del Catastro ha pasado a la línea inferior.*
 
 La ficha de la capa (el botón ℹ, o «Mostrar atributos» en su menú) trae la **referencia catastral**, la **dirección** de la finca tal como la da el Catastro, la **superficie catastral en m²**, la etiqueta de la parcela y su **fecha de alta**. El polígono se dibuja en naranja con un relleno suave y es una capa como las demás: se puede ocultar, renombrar, cambiar de estilo (🎨), borrar, deshacer, exportar y copiar. El polígono es el que publica el Catastro: KITE Local solo cambia el orden de las coordenadas para dibujarlo y no lo simplifica ni lo ajusta.
 
 ![La ficha de la parcela, con su referencia catastral, dirección, superficie, etiqueta y fecha de alta](img/parcela-ficha.png)
-*Figura 43. La ficha de la parcela: referencia catastral, dirección, superficie en m², etiqueta y fecha de alta.*
+*Figura 44. La ficha de la parcela: referencia catastral, dirección, superficie en m², etiqueta y fecha de alta.*
 
 - **Es una consulta expresa.** Solo se pide algo al Catastro cuando se elige esta opción; mover el ratón o abrir un archivo no consulta nada. Mientras dura, el cursor sobre el mapa es el de espera. Se envían las coordenadas del punto pulsado y, después, la referencia que el Catastro ha devuelto. La vista no se mueve. A diferencia de la consulta de elevación (apartado 7.8), funciona también con el mapa girado.
 - **Cada parcela una vez.** Si se vuelve a pulsar sobre una parcela que ya está en el árbol, no se descarga otra vez: se señala la fila y se avisa. (Tras recargar la aplicación, una parcela ya guardada vuelve a poder pedirse y entraría duplicada.)
@@ -506,7 +509,7 @@ La misma información está disponible en cualquier momento con la tecla `?` o e
 Esa × es la norma de toda ventana cuyo único botón sería «Cerrar» (la chuleta, los cálculos geodésicos y el perfil de una ruta): en vez de un pie con un solo botón, la × en la barra del título, que se ve siempre, y ese espacio para el contenido.
 
 ![Chuleta de atajos de teclado completa](img/atajos.png)
-*Figura 44. Chuleta de atajos de teclado (tecla `?`), pestaña «Navegación». Las otras tres son «Actuar», «Visor» y «Dibujar y editar».*
+*Figura 45. Chuleta de atajos de teclado (tecla `?`), pestaña «Navegación». Las otras tres son «Actuar», «Visor» y «Dibujar y editar».*
 
 **Moverse por el árbol**
 

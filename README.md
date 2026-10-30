@@ -193,7 +193,7 @@ the flag clears by itself when the tiles come back.
 
 ### Elevation
 
-- right-click on the map → «Consultar elevación aquí»: terrain (MDT) and
+- right-click on the map → «Consultas» › «Elevación»: terrain (MDT) and
   surface (MDS) elevation of a ~40 m square around the point, drawn as a
   readable grid of cells with the difference between them — the visible
   sign of buildings or vegetation

@@ -10,7 +10,7 @@
       por defecto, dirección del servicio elegido; Cancelar deshace y
       Aceptar guarda.
    3) Sin fuentes, la entrada del menú contextual sale deshabilitada.
-   4) «Consultar elevación aquí» desde el menú: crea «Sesión …» ›
+   4) «Consultas › Elevación» desde el menú: crea «Sesión …» ›
       «Elevación 1» en la sección «Elevaciones»; una segunda consulta va
       a la MISMA carpeta; repetir la tesela no pide nada; GetCapabilities
       UNA vez por fuente y la elección (cobertura, formato, celda) UNA
@@ -138,8 +138,9 @@ async function queryViaMenu(ll) {
     const latlng = L.latLng(lat, lng);
     map.setView(latlng, 20, { animate: false });
     openCtxMenu(latlng, 600, 400, []);
-    const item = [...document.querySelectorAll("#map-ctxmenu .ctx-menu-item")]
-      .find(x => /Consultar elevación aquí/.test(x.textContent));
+    [...document.querySelectorAll("#map-ctxmenu .ctx-menu-item")].find(x => x.textContent === "Consultas ▸").click();
+    const item = [...document.querySelectorAll(".ctx-menu:not(#map-ctxmenu) .ctx-menu-item")]
+      .find(x => x.textContent === "Elevación");
     if (!item || item.disabled) return { item: !!item, disabled: item && item.disabled };
     item.click();
     const t0 = performance.now();
@@ -202,7 +203,8 @@ const noSrc = await page.evaluate(() => {
   const keep = elevSources;
   elevSources = { mdt: null, mds: null };
   openCtxMenu(map.getCenter(), 600, 400, []);
-  const b = [...document.querySelectorAll("#map-ctxmenu .ctx-menu-item")].find(x => /Consultar elevación/.test(x.textContent));
+  [...document.querySelectorAll("#map-ctxmenu .ctx-menu-item")].find(x => x.textContent === "Consultas ▸").click();
+  const b = [...document.querySelectorAll(".ctx-menu:not(#map-ctxmenu) .ctx-menu-item")].find(x => x.textContent === "Elevación");
   const r = { disabled: b.disabled, title: b.title };
   closeCtxMenu();
   elevSources = keep;

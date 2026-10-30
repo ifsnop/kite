@@ -8,7 +8,7 @@ paths:
 
 ## Parcela catastral (`65-cadastre.js`)
 
-«Parcela catastral» del menú contextual del visor (`CTX_MENU_ITEMS`, tras «Consultar elevación aquí») trae el polígono de la parcela bajo el puntero como una capa del árbol. Pedido por el usuario (mejora nº 7 de la lista de ideas); Dirección General del Catastro, solo territorio de régimen común (**País Vasco y Navarra tienen catastro propio y el servicio no responde por ellos**).
+«Parcela catastral» del menú contextual del visor (`CTX_MENU_ITEMS`, submenú «Consultas», junto a «Elevación») trae el polígono de la parcela bajo el puntero como una capa del árbol. Pedido por el usuario (mejora nº 7 de la lista de ideas); Dirección General del Catastro, solo territorio de régimen común (**País Vasco y Navarra tienen catastro propio y el servicio no responde por ellos**).
 
 ### Las dos consultas (comprobadas con curl, 29-10-2026; CORS `*` en ambas)
 

@@ -759,10 +759,11 @@ const easeOutCubic = k => 1 - Math.pow(1 - k, 3);
 
 /* ---------- Menú contextual del visor (botón derecho) ---------- */
 /* Extensible a propósito: cada entrada es {label, action(latlng)} y
-   nuevas opciones solo necesitan sumarse a este array. Un `checked()`
-   opcional la convierte en un interruptor (se pinta con ✓ y
-   role="menuitemcheckbox"), como ya hacen los botones equivalentes de
-   la barra de herramientas.                                          */
+   nuevas opciones solo necesitan sumarse a este array. Lo que ya tiene
+   su botón en la barra del visor (encuadres, retícula, PNG) no está aquí.
+   Un grupo de entradas del mismo tema es un submenú (`items`), con las
+   hojas independientes entre sí; un `disabled()` opcional vale también
+   dentro de un submenú.                                               */
 const CTX_MENU_ITEMS = [
   {
     label: tr("Copiar coordenadas"),
@@ -773,13 +774,18 @@ const CTX_MENU_ITEMS = [
         .catch(() => navMessage(tr("No se pudieron copiar las coordenadas.")));
     }
   },
-  /* Descarga MDT/MDS de la tesela bajo el puntero, con las fuentes de
-     Propiedades → Fuentes de datos (ver queryElevationAt).          */
-  { label: tr("Consultar elevación aquí"), action: latlng => queryElevationAt(latlng),
-    disabled: () => elevQueryDisabled() },
-  /* Polígono y ficha de la parcela catastral bajo el puntero (ver
-     queryCadastralParcelAt).                                        */
-  { label: tr("Parcela catastral"), action: latlng => queryCadastralParcelAt(latlng) },
+  /* Las dos consultas a un servicio sobre el punto pulsado, cada una por
+     su cuenta: «Elevación» descarga MDT/MDS de la tesela bajo el puntero
+     con las fuentes de Propiedades → Fuentes de datos (ver
+     queryElevationAt), «Parcela catastral» el polígono y la ficha de la
+     parcela (ver queryCadastralParcelAt).                              */
+  {
+    label: tr("Consultas"),
+    items: [
+      { label: tr("Elevación"), action: latlng => queryElevationAt(latlng), disabled: () => elevQueryDisabled() },
+      { label: tr("Parcela catastral"), action: latlng => queryCadastralParcelAt(latlng) }
+    ]
+  },
   /* Las tres mediciones agrupadas en un submenú: son la misma familia y
      tres entradas sueltas desbordaban el menú.                        */
   {
@@ -790,16 +796,13 @@ const CTX_MENU_ITEMS = [
       { label: tr("Arco"), action: () => setTool(activeTool === "arc" ? null : "arc") }
     ]
   },
-  { label: tr("Dibujar polígono o línea"), action: () => setTool(activeTool === "polygon" ? null : "polygon") },
-  { separator: true },
-  { label: tr("Crear un pin"), action: () => createPin() },
-  { separator: true },
-  { label: tr("Exportar PNG"), action: () => exportMapPng() },
-  { separator: true },
-  { label: tr("Centrar en el contenido"), action: () => fitToContent() },
-  { label: tr("Centrar en la península y Baleares"), action: () => centerIberia() },
-  { label: tr("Centrar en las islas Canarias"), action: () => centerCanaries() },
-  { label: tr("Paralelos y meridianos"), checked: () => graticuleOn, action: () => toggleGraticule() }
+  {
+    label: tr("Crear"),
+    items: [
+      { label: tr("Polígono o línea"), action: () => setTool(activeTool === "polygon" ? null : "polygon") },
+      { label: tr("Pin"), action: () => createPin() }
+    ]
+  }
 ];
 const ctxMenuEl = document.createElement("div");
 ctxMenuEl.id = "map-ctxmenu";
@@ -938,7 +941,7 @@ function ctxItemsFor(hits) {
 }
 
 /* Construye las filas de un menú (principal o submenú) dentro de
-   `container`: separadores, ítems normales/checkbox, y disparadores de
+   `container`: separadores, ítems normales, y disparadores de
    submenú (`.items`, con "▸" al final y aria-haspopup). Un disparador
    despliega su submenú con solo pasar el ratón por encima, como un menú
    contextual de escritorio; el clic se conserva porque es el único
@@ -982,11 +985,8 @@ function renderCtxItems(container, items, latlng) {
       btn.addEventListener("mouseenter", open);
       btn.addEventListener("click", e => { e.stopPropagation(); open(); });
     } else {
-      const isToggle = typeof item.checked === "function";
-      const on = isToggle && item.checked();
-      btn.setAttribute("role", isToggle ? "menuitemcheckbox" : "menuitem");
-      if (isToggle) btn.setAttribute("aria-checked", String(on));
-      btn.textContent = (on ? "✓ " : "") + item.label;
+      btn.setAttribute("role", "menuitem");
+      btn.textContent = item.label;
       /* `disabled()` opcional: devuelve el MOTIVO (texto) o algo falso.
          Deshabilitado, no escondido: se ve que existe y por qué no va. */
       const why = typeof item.disabled === "function" && item.disabled();

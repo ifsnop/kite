@@ -180,15 +180,16 @@ ok(hit.includes("Diagonal"), "a 45°, un clic sobre el polígono diagonal lo enc
 /* ---------- 4. Consulta de elevación ---------- */
 const elevItem = () => page.evaluate(() => {
   openCtxMenu(map.getCenter(), 600, 400, []);
-  const b = [...document.querySelectorAll("#map-ctxmenu .ctx-menu-item")]
-    .find(x => /Consultar elevación/.test(x.textContent));
+  [...document.querySelectorAll("#map-ctxmenu .ctx-menu-item")].find(x => x.textContent === "Consultas ▸").click();
+  const b = [...document.querySelectorAll(".ctx-menu:not(#map-ctxmenu) .ctx-menu-item")]
+    .find(x => x.textContent === "Elevación");
   const r = b ? { disabled: b.disabled, title: b.title } : null;
   closeCtxMenu();
   return r;
 });
 const rotatedItem = await elevItem();
 ok(rotatedItem && rotatedItem.disabled && /rotado/.test(rotatedItem.title),
-  "con el mapa rotado, «Consultar elevación aquí» sale deshabilitada, con el motivo: " + JSON.stringify(rotatedItem));
+  "con el mapa rotado, «Consultas › Elevación» sale deshabilitada, con el motivo: " + JSON.stringify(rotatedItem));
 const tried = await page.evaluate(async () => {
   const before = elevGridGroups.length;
   await queryElevationAt(map.getCenter());
