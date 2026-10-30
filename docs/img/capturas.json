@@ -177,22 +177,28 @@
       "build": "202610300013"
     },
     "menu-consultas.png": {
-      "sha256": "e0f4a51ef9564a043931fce5dc3d94302aeba133bf12b5058c8c5b968ee0762e",
+      "sha256": "1b68c84dd86bf1f28eee2b8b588b862edf74c980e15eba9b7808e7aa7a611b64",
       "section": "5",
       "version": "1.11.0",
-      "build": "202610300013"
+      "build": "202610300202"
     },
     "menu-contextual-submenu.png": {
-      "sha256": "d568ec55ca1e47bb7b349f6bafb59822ea540af0e56943211c3f3285b0724620",
+      "sha256": "e3845dc488ae3ca8cebcc923cdf563af591a2ed400fbd1b2a34ada5619d5f4f3",
       "section": "5",
       "version": "1.11.0",
-      "build": "202610300013"
+      "build": "202610300202"
     },
     "menu-contextual.png": {
-      "sha256": "107a04a5db649645a454d4810aec8598102f964574523a18dfda13783f17eeea",
+      "sha256": "e5f29592bbd656f186f857ecf1f091794c68ce9d2f484839efacc6237401c56c",
       "section": "5",
       "version": "1.11.0",
-      "build": "202610300013"
+      "build": "202610300202"
+    },
+    "menu-copiar.png": {
+      "sha256": "405f6b14b79a72da99b44d30fde23196735278efa7fc7dde2fea66e65cd5016a",
+      "section": "5",
+      "version": "1.11.0",
+      "build": "202610300202"
     },
     "menu-exportar.png": {
       "sha256": "37273a8cf1bf57d9697cedcf24457473aff192a2eea81aa82f2315c15e985c6a",
@@ -201,10 +207,10 @@
       "build": "202610300021"
     },
     "menu-ruta-perfil.png": {
-      "sha256": "8494e0848137589ce2c68ec5d1c8d2cc2c4749218989184f3f69066472e61951",
+      "sha256": "b2bbb89f4a1e0e6a869259f96c1ac21d1744c8b494ccf090749f96b37faec25b",
       "section": "7.9",
       "version": "1.11.0",
-      "build": "202610300013"
+      "build": "202610300202"
     },
     "ortofoto-cog.png": {
       "sha256": "a62fef4dfe38f057fef923a4382468e2fd8e5c88b251e90829e7391e4a914d7e",

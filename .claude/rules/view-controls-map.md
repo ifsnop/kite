@@ -20,6 +20,17 @@ paths:
 - Descartar un árbol de otra versión borra **solo** la clave `root`, no
   el almacén entero: la vista es independiente y sigue siendo válida.
 
+## Enlace a la vista
+
+«Copiar ▸ Enlace a esta vista» del menú contextual (`copyViewLink`, `70-view-controls.js`) copia `<dirección sin ancla>#map=zoom/lat/lng[/giro]&base=id,id`: la vista ENTERA (centro y zoom del mapa, no el punto pulsado), el giro solo si hay (`buildViewHash`, 6 decimales en coordenadas, 2 en el zoom, nunca notación científica) y los mapas base ENCENDIDOS que sean públicos.
+
+- **Qué mapas viajan** (`linkBaseIds`/`LINK_BASE_IDS`): los que no son `dynamic` ni tienen `source` — un mapa con dirección o credencial propias (Custom Tile/Web Map Service, Copernicus) o que exige elegir capa de un catálogo (PNOA histórico) llegaría bloqueado al otro lado (ver `base-maps.md`: la URL propia nunca sale del navegador). Si hay uno encendido, el aviso de copiar lo dice. Un mapa nuevo viaja solo si es estático y sin fuente; si no, no hay que hacer nada.
+- **Entrada AJENA** (`parseViewHash`): solo `#map=` con tres o cuatro números llanos (`LINK_NUM`: sin `+`, exponente, coma ni espacios), zoom 0–25, |lat| ≤ 85, |lng| ≤ 180, tope `LINK_MAX_HASH` (400); lo demás devuelve `null` y no hace nada. `base` es una lista de ids que se filtra uno a uno contra `LINK_BASE_IDS` (desconocidos, propios y repetidos fuera); `base=` vacío = «ninguno encendido», sin `base` el enlace no toca los mapas. Nada se decodifica ni se inserta como HTML.
+- **Al arrancar** (`99-boot.js`): se lee `location.hash` y su ancla se quita en el acto (`clearViewHash`, `history.replaceState`) para que recargar no lo repita; el enlace manda sobre la vista guardada (se aplica tras leerla y antes de soltar `viewRestoring`) y sus mapas sobre los guardados (`setLinkBases(…, false)` tras `applySavedBases`, antes de pintar el panel). **Trampa**: los `moveend` de ese `setView` llegan con `viewRestoring` aún puesto y no guardan nada, así que tras soltarlo se llama `scheduleViewSave()`; si no, recargar volvía a la vista de antes del enlace. Los mapas se guardan con `scheduleBaseSave()`. `tests/boot.js` fija el orden.
+- **Con la aplicación abierta**: `hashchange` (pegar el enlace en la barra) hace lo mismo en vivo: `applyViewLink` (`setView`, `setBearing`, `setLinkBases(ids, true)` que además repinta el panel y guarda). Un ancla que empieza por `#map=` se quita siempre, válida o no; una ajena (`#otra`) se deja.
+- **`file://`**: el enlace es la dirección del archivo y solo sirve en ese equipo; el aviso lo dice. El portapapeles falla en un contexto no seguro (`navigator.clipboard` ausente): aviso de error, sin lanzar.
+- Probado en `tests/viewlink.js` (puro: construir, ida y vuelta, 20 entradas hostiles), `tests/boot.js` (el orden) y `tests/browser/view-link.mjs` (abrir, guardar, copiar con el portapapeles real, otra pestaña, `hashchange`, direcciones manipuladas).
+
 ## Lo que consume el visor
 
 Dos cotas bajo el árbol (`#usage`):

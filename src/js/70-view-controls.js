@@ -766,13 +766,20 @@ const easeOutCubic = k => 1 - Math.pow(1 - k, 3);
    dentro de un submenú.                                               */
 const CTX_MENU_ITEMS = [
   {
-    label: tr("Copiar coordenadas"),
-    action(latlng) {
-      const txt = `${formatCoord(latlng.lat, true, "dec")}, ${formatCoord(latlng.lng, false, "dec")}`;
-      navigator.clipboard.writeText(txt)
-        .then(() => navMessage(tr("Coordenadas copiadas al portapapeles."), { tone: "info" }))
-        .catch(() => navMessage(tr("No se pudieron copiar las coordenadas.")));
-    }
+    label: tr("Copiar"),
+    items: [
+      {
+        label: tr("Coordenadas"),
+        action(latlng) {
+          const txt = `${formatCoord(latlng.lat, true, "dec")}, ${formatCoord(latlng.lng, false, "dec")}`;
+          navigator.clipboard.writeText(txt)
+            .then(() => navMessage(tr("Coordenadas copiadas al portapapeles."), { tone: "info" }))
+            .catch(() => navMessage(tr("No se pudieron copiar las coordenadas.")));
+        }
+      },
+      /* La vista ENTERA (centro, zoom, giro y mapas base), no el punto pulsado */
+      { label: tr("Enlace a esta vista"), action: () => copyViewLink() }
+    ]
   },
   /* Las dos consultas a un servicio sobre el punto pulsado, cada una por
      su cuenta: «Elevación» descarga MDT/MDS de la tesela bajo el puntero
@@ -1112,6 +1119,100 @@ function applySavedBases(saved) {
     if (typeof rec.wmsLayer === "string" && rec.wmsLayer) st.wmsLayer = rec.wmsLayer;
   }
 }
+
+/* ---------- Enlace a la vista ----------
+   `#map=zoom/lat/lng[/giro]&base=id,id`: el centro, el zoom, el giro (solo
+   si lo hay) y los mapas base ENCENDIDOS que cualquiera puede tener. No
+   lleva el árbol (vive en el navegador de cada uno) ni los mapas con
+   dirección o credencial propias (Custom Tile/Web Map Service, Copernicus,
+   PNOA histórico, que necesita elegir capa de un catálogo): llegarían
+   bloqueados al otro lado. Lo que llega en la dirección es entrada AJENA:
+   `parseViewHash` solo acepta números llanos y ids conocidos, con tope de
+   longitud, y nunca nada de ello se inserta como HTML.                  */
+const linkBaseIds = defs => defs.filter(d => !d.dynamic && !d.source).map(d => d.id);
+const LINK_BASE_IDS = new Set(linkBaseIds(BASE_LAYERS));
+const LINK_MAX_HASH = 400;
+const LINK_NUM = /^-?\d+(?:\.\d+)?$/;
+
+function buildViewHash(view, bearing, baseIds) {
+  const b = ((bearing % 360) + 360) % 360;
+  let h = `#map=${+view.zoom.toFixed(2)}/${+view.lat.toFixed(6)}/${+view.lng.toFixed(6)}`;
+  if (Number.isFinite(b) && b >= 0.05) h += `/${+b.toFixed(1)}`;
+  return `${h}&base=${baseIds.join(",")}`;
+}
+
+/* Devuelve `{ lat, lng, zoom, bearing, bases }` (bearing 0 si no viene, bases
+   null si el enlace no habla de ellas) o null si no es un enlace válido.   */
+function parseViewHash(hash) {
+  const text = String(hash || "");
+  if (!text.startsWith("#map=") || text.length > LINK_MAX_HASH) return null;
+  const params = new Map();
+  for (const part of text.slice(1).split("&")) {
+    const i = part.indexOf("=");
+    if (i > 0) params.set(part.slice(0, i), part.slice(i + 1));
+  }
+  const nums = String(params.get("map")).split("/");
+  if ((nums.length !== 3 && nums.length !== 4) || !nums.every(n => LINK_NUM.test(n))) return null;
+  const [zoom, lat, lng, bearing = 0] = nums.map(Number);
+  if (!(zoom >= 0 && zoom <= 25) || !(Math.abs(lat) <= 85) || !(Math.abs(lng) <= 180)) return null;
+  let bases = null;
+  if (params.has("base")) {
+    bases = [...new Set(params.get("base").split(",").filter(id => LINK_BASE_IDS.has(id)))];
+  }
+  return { lat, lng, zoom, bearing: ((bearing % 360) + 360) % 360, bases };
+}
+
+/* Enciende exactamente los mapas públicos de la lista y apaga los demás
+   públicos; los propios del usuario (dirección o credencial) no se tocan.
+   `live`: con el panel ya dibujado (un enlace pegado con la aplicación
+   abierta); al arrancar basta fijar el estado, que lo pinta el arranque. */
+function setLinkBases(ids, live) {
+  for (const [id, st] of baseState) {
+    if (!LINK_BASE_IDS.has(id)) continue;
+    st.on = ids.includes(id);
+    if (live) applyBaseLayer(id);
+  }
+  if (live) { renderBasePanel(); scheduleBaseSave(); }
+}
+
+/* La dirección sin ninguna ancla vieja (en `file://` es la del archivo) */
+const viewLinkUrl = hash => location.href.split("#")[0] + hash;
+
+function currentViewHash() {
+  const c = map.getCenter();
+  const on = [...baseState].filter(([id, st]) => st.on && LINK_BASE_IDS.has(id)).map(([id]) => id);
+  return buildViewHash({ lat: c.lat, lng: c.lng, zoom: map.getZoom() }, map.getBearing(), on);
+}
+
+function copyViewLink() {
+  const privateOn = [...baseState].some(([id, st]) => st.on && !LINK_BASE_IDS.has(id));
+  const note = location.protocol === "file:"
+    ? tr("Enlace a la vista copiado. Solo sirve en este equipo: la aplicación está abierta como archivo.")
+    : privateOn ? tr("Enlace a la vista copiado. Los mapas con dirección propia no viajan en el enlace.")
+    : tr("Enlace a la vista copiado al portapapeles.");
+  const fail = () => navMessage(tr("No se pudo copiar el enlace."));
+  if (!navigator.clipboard) { fail(); return; }
+  navigator.clipboard.writeText(viewLinkUrl(currentViewHash()))
+    .then(() => navMessage(note, { tone: "info" })).catch(fail);
+}
+
+/* Aplica un enlace con la aplicación ya arrancada y quita el ancla, para
+   que recargar no lo vuelva a aplicar y el siguiente pegado sea otro
+   `hashchange`. Al arrancar lo hace 99-boot.js por su cuenta, antes de
+   restaurar nada.                                                      */
+function clearViewHash() {
+  try { history.replaceState(null, "", location.pathname + location.search); } catch { /* sin historial: se queda */ }
+}
+function applyViewLink(link) {
+  map.setView([link.lat, link.lng], link.zoom, { animate: false });
+  map.setBearing(link.bearing);
+  if (link.bases) setLinkBases(link.bases, true);
+}
+window.addEventListener("hashchange", () => {
+  const link = parseViewHash(location.hash);
+  if (link) applyViewLink(link);
+  if (location.hash.startsWith("#map=")) clearViewHash();
+});
 
 /* La vista se guarda al terminar de moverla, no durante: `moveend` ya
    llega una vez por gesto, y el retardo agrupa los encadenados.      */

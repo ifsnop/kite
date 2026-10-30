@@ -221,8 +221,8 @@ ok(!menu2.includes("Editar propiedades"),
 /* El menú genérico son cuatro filas, sin separadores: lo que ya tiene su
    botón en la barra del visor (encuadres, retícula, PNG) no está aquí, y lo
    del mismo tema va en un submenú.                                        */
-ok(JSON.stringify(menu2) === JSON.stringify(["Copiar coordenadas", "Consultas ▸", "Medir ▸", "Crear ▸"]),
-  "el menú genérico: Copiar coordenadas, Consultas ▸, Medir ▸ y Crear ▸, y nada más: " + JSON.stringify(menu2));
+ok(JSON.stringify(menu2) === JSON.stringify(["Copiar ▸", "Consultas ▸", "Medir ▸", "Crear ▸"]),
+  "el menú genérico: Copiar ▸, Consultas ▸, Medir ▸ y Crear ▸, y nada más: " + JSON.stringify(menu2));
 ok(await page.evaluate(() => document.querySelectorAll("#map-ctxmenu .ctx-menu-sep").length === 0), "sin separadores");
 for (const viejo of ["Exportar PNG", "Centrar en el contenido", "Centrar en la península y Baleares",
   "Centrar en las islas Canarias", "Paralelos y meridianos", "Dibujar polígono o línea", "Crear un pin",
@@ -241,6 +241,8 @@ const submenu = (disparador, pulsar = null) => page.evaluate(([d, p]) => {
   return { labels, tool: activeTool, menuHidden: document.getElementById("map-ctxmenu").hidden };
 }, [disparador, pulsar]);
 
+ok(JSON.stringify((await submenu("Copiar ▸")).labels) === JSON.stringify(["Coordenadas", "Enlace a esta vista"]),
+  "«Copiar» ofrece las coordenadas y el enlace a la vista");
 ok(JSON.stringify((await submenu("Consultas ▸")).labels) === JSON.stringify(["Elevación", "Parcela catastral"]),
   "«Consultas» ofrece Elevación y Parcela catastral, cada una por su cuenta");
 /* Pasar a otro disparador cambia de submenú: solo hay uno abierto a la vez */

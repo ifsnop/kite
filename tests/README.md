@@ -630,6 +630,16 @@ ROTATION TESTS OK
 
 **Qué cubre:** Las piezas puras de la rotación del mapa (`08-map-rotation.js`, derivado de leaflet-rotate). `pointerAngleDeg` (ángulo del puntero desde el centro de la brújula con el convenio de rumbo: 0 arriba, sentido horario, nunca negativo) y `dragBearing` (el rumbo durante un arrastre es el de partida más lo que gira el puntero, no su ángulo absoluto —el mapa no salta al primer movimiento—, cruza el norte sin restar 340°, se normaliza a [0, 360) y es libre, sin pasos). `pivotDragBearing` (giro con el botón central: medio grado por píxel en horizontal, derecha = horario, cruza el norte sin negativos, libre). `clipSegmentToRect` (Liang–Barsky: recorte de una línea de la retícula al visor; el primer extremo devuelto es el del lado de `p0`, que es por donde se pone la etiqueta; fuera de la vista → null, incluida una vertical exterior). `clampRotatedDragOffset` (arrastre limitado al mundo con el mapa girado): a 0° coincide con el recorte por ejes de Leaflet, a 90° el tope es el del eje del MAPA y no el de la pantalla, y con la vista más grande que el mundo el centro se queda en medio. Del giro incorporado: `rotateXY` (horario en pantalla, alrededor del pivote, ida y vuelta exacta), `rotatedTransformCss` (posición ya girada + `rotate(…rad)`) y `enclosingBox` (un cuadrado girado 45° mide 100·√2 y queda centrado). Guardián: la versión de Leaflet fijada en el HTML es `LEAFLET_PATCHED` (el código parchea sus internos) y ningún `<script>` carga ya leaflet-rotate.
 
+### `viewlink.js`
+
+**Salida de `npm test`:**
+```
+── Enlace a la vista: construir y leer #map=…, qué mapas base viajan, ida y vuelta, giro normalizado y entrada hostil rechazada
+VIEW LINK TESTS OK
+```
+
+**Qué cubre:** `buildViewHash` y `parseViewHash` (`70-view-controls.js`), puras. Qué mapas base viajan (`linkBaseIds`): los estáticos y sin fuente; Custom Tile/Web Map Service, Copernicus y PNOA histórico, no. Construir: sin giro no hay cuarto número, con giro sí (y uno negativo se lleva a [0, 360)), `base=` vacío significa «ninguno», 6 decimales en las coordenadas y 2 en el zoom, nunca notación científica. Ida y vuelta de una vista con giro y dos mapas; sin `base` el enlace no habla de mapas (`null`). **Entrada hostil**, con 21 casos rechazados: sin ancla o con otra, sin `map`, faltan o sobran números, texto, exponente, signo `+`, coma decimal, espacios, `NaN`, `Infinity`, zoom 26 o negativo, latitud 86, longitud 181, un número vacío, `<script>`, doble signo y más de 400 caracteres; y `null`, `undefined` o un número en vez de texto. Dentro de un enlace válido, los ids desconocidos, propios, con marcado o repetidos se descartan uno a uno, los parámetros ajenos se ignoran y no se decodifica nada (`%2C` no es una coma).
+
 ### `rings.js`
 
 **Salida de `npm test`:**
@@ -1096,6 +1106,16 @@ BROWSER GEOCALC TESTS OK
 **Vector GPS:** parte en m / m / NM con las opciones de Propiedades; Madrid en A y Barcelona en B en GMS (`40° 25' 00.48" N`…) con altitudes 650 y 12, y el resultado YA está al abrir la pestaña, sin tocar nada, igual al cálculo hecho aquí en cartesianas (distancia, distancia horizontal y orientación); latitud y longitud en la misma línea (misma altura, longitud a la derecha); la unidad del resultado (mi, km) y las de las altitudes actúan al instante, y cambiar una altitud recalcula; el selector GMS/decimal convierte las cuatro coordenadas (`40.416800`…), no toca las altitudes, vuelve exactamente a lo de partida, deja un campo ilegible como está y normaliza uno legible escrito en el otro formato; GMS escrito a mano sin espacios; campo vacío = sin resultado ni aviso ni marcas; mismos lat/lon dan «no definida» y no 0°; latitud 95° avisa y marca el campo.
 
 **Ventana:** el resultado tiene el tamaño de letra de los campos (numéricos y de texto); la caja mide lo mismo vacía, con 2 líneas, con 3 (presión) y con aviso, en las dos pestañas. No es modal (el centro del mapa no queda tapado y no hay `.dlg-overlay`); se arrastra por el título y, ya arrastrada, la pestaña alta deja «Cerrar» a la vista (antes se salía de la pantalla); Escape y «Cerrar» la cierran; al reabrir conserva lo escrito y los resultados ya están calculados.
+
+### `browser/view-link.mjs`
+
+**Salida de `npm test`:**
+```
+── Navegador: enlaces a la vista — abrir #map=… manda sobre lo guardado y se quita de la dirección, copiarlo con el portapapeles real, abrirlo en otra pestaña, pegarlo con la aplicación abierta y direcciones manipuladas
+BROWSER VIEW LINK TESTS OK
+```
+
+**Qué cubre:** abrir la aplicación con `#map=9/40.5/-3.5/30&base=osm,pnoa` fija centro, zoom, giro y exactamente esos mapas, y quita el ancla de la dirección; recargando sin ancla la vista y los mapas siguen (se guardan) pero el giro no (cada arranque sin enlace empieza con el norte arriba). «Copiar ▸ Enlace a esta vista» (clic derecho real, portapapeles real) ofrece «Coordenadas» y el enlace, que lleva la vista entera y no el punto pulsado; con un mapa propio (Custom) encendido no lo incluye y el aviso lo explica. Abrir ese enlace en otra pestaña manda sobre la vista y los mapas guardados por la primera. Pegarlo en la misma pestaña (`hashchange`) mueve la vista, deja el norte arriba si no trae giro, cambia los mapas y quita el ancla; sin `base` no toca los mapas. Direcciones manipuladas (texto, zoom 99, latitud 95, exponente, números de menos): no cambian nada y su ancla se quita; un enlace válido con ids inventados, con marcado o propios aplica la vista, descarta los ids y no inyecta nada en la página; un ancla ajena (`#otra`) se deja. Sin errores de página ni violaciones de la CSP.
 
 ### `browser/rings.mjs`
 

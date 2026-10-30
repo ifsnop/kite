@@ -440,6 +440,19 @@ scenario("menu-consultas.png", "5", async out => {
   await ctx.close();
 });
 
+scenario("menu-copiar.png", "5", async out => {
+  const { ctx, page } = await openApp();
+  await sierra(page);
+  await page.mouse.move(1000, 100);
+  await page.mouse.click(1000, 100, { button: "right" });
+  await page.waitForSelector("#map-ctxmenu:not([hidden])");
+  await page.locator("#map-ctxmenu .ctx-menu-item", { hasText: "Copiar" }).hover();
+  await page.waitForSelector(".ctx-menu:not(#map-ctxmenu)");
+  await page.waitForTimeout(200);
+  await fullShot(page, out);
+  await ctx.close();
+});
+
 scenario("menu-contextual-submenu.png", "5", async out => {
   const { ctx, page } = await openApp();
   await sierra(page);

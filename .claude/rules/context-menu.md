@@ -9,7 +9,7 @@ paths:
 
 - `CTX_MENU_ITEMS`: lista genérica, en click derecho sin capa. **Cuatro
   filas, sin separadores, agrupadas por tema** (pedido, 30-10-2026):
-  «Copiar coordenadas»; **«Consultas ▸»** con «Elevación» y «Parcela
+  **«Copiar ▸»** con «Coordenadas» y «Enlace a esta vista» (`copyViewLink`, ver `view-controls-map.md`); **«Consultas ▸»** con «Elevación» y «Parcela
   catastral» (dos entradas distintas que se activan por separado, no una
   combinada); **«Medir ▸»** con Ruta, Círculo y Arco; **«Crear ▸»** con
   «Polígono o línea», «Pin», «Anillos de alcance…» y «Sector…». **Fuera, a propósito**: los tres «Centrar…»,
