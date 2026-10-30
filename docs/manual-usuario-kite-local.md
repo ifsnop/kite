@@ -129,7 +129,7 @@ Al activar o desactivar una carpeta con muchas capas dentro, la casilla se susti
 
 Al pasar el ratón por una fila aparecen, según lo que sea:
 
-- **En una carpeta o un archivo**: seleccionar todas sus capas (☑) o quitar la selección (☐), ordenar alfabéticamente (AZ, que alterna ascendente y descendente), colapsar la carpeta y todas las de dentro, y guardarla o exportarla a un archivo (💾; también lo llevan las capas sueltas).
+- **En una carpeta o un archivo**: seleccionar todas sus capas (☑) o quitar la selección (☐), ordenar alfabéticamente (AZ, que alterna ascendente y descendente), colapsar la carpeta y todas las de dentro, guardarla o exportarla a un archivo (💾; también lo llevan las capas sueltas) y abrir la tabla de atributos de sus capas (▦, apartado 7.15).
 - **En una capa**: centrar la vista y acercar el zoom a un nivel fijo (🔍), y abrir su diálogo de propiedades (🎨 «Editar propiedades»), con las pestañas «Estilos» y «Atributos». Sobre un polígono, una medición o una capa de elevaciones, en vez de un zoom fijo, la lupa encuadra toda su geometría con un margen alrededor —más útil para una figura o una ruta que puede ser mucho más grande, o más alargada, que lo que cabría en un solo nivel de zoom centrado, y para una cuadrícula de elevaciones, que a ese zoom ni se vería—. Una capa de elevaciones lleva la lupa pero no 🎨: no tiene estilos que editar.
 - **Si la capa tiene una ficha o propiedades que enseñar**: un botón adicional (ℹ) para verlas.
 - **En cualquier fila**: subir (↑) y bajar (↓) un puesto entre sus hermanas, y borrar (×).
@@ -548,6 +548,20 @@ Lo que **no** viaja en el enlace: el árbol de capas (cada navegador guarda el s
 
 Si la aplicación se tiene abierta como archivo del disco (doble clic), el enlace apunta a ese archivo y **solo sirve en ese equipo**; el aviso también lo dice. Para compartirlo con otras personas hay que abrir la aplicación desde una dirección web (por ejemplo la de GitHub Pages).
 
+### 7.15 Ver los atributos de una carpeta y exportarlos
+
+Los archivos que se cargan suelen traer, además de la geometría, **atributos** de cada elemento: las propiedades de un GeoJSON o de un shapefile, y los datos extendidos (`ExtendedData`) de un KML. Al pasar el ratón por una carpeta o un archivo aparece el botón **▦**, que abre la **«Tabla de atributos»**: una fila por cada capa de dentro, con su nombre, y una columna por cada atributo que alguna tenga.
+
+![La tabla de atributos de «sensores.geojson», ordenada por la columna «name»](img/tabla-atributos.png)
+*Figura 49. La tabla de atributos de un GeoJSON de dos sensores: una fila por capa y una columna por atributo. La flecha junto a «name» indica que está ordenada por esa columna.*
+
+- **Ordenar**: pulsar el encabezado de una columna ordena por ella, y pulsarlo otra vez invierte el sentido. Una columna de números se ordena como números (9 antes que 10) y una de texto sin distinguir mayúsculas y entendiendo las cifras («Zona 2» antes que «Zona 10»); las celdas vacías van siempre al final.
+- **Filtrar**: el campo de arriba deja solo las filas cuyo nombre o cuyo valor de algún atributo contiene el texto, sin distinguir mayúsculas. El contador dice cuántas capas se ven de cuántas hay.
+- **Ir a una capa**: pulsar una fila selecciona esa capa en el árbol —desplegando lo necesario— y la hace parpadear en el mapa, sin cambiar la vista; un doble clic además centra el mapa en ella. La tabla es una ventana flotante, no modal: se puede seguir usando el mapa con ella abierta.
+- **Exportar CSV** descarga lo que se ve, con el filtro y el orden puestos, en un archivo con codificación UTF-8 que Excel abre bien, separado por comas y con el punto como separador decimal. Por seguridad, un valor que empiece por `=` o `@` (o por `+` o `-` sin que siga una cifra) lleva delante un apóstrofo, para que una hoja de cálculo no lo interprete como una fórmula que alguien haya escondido en un archivo ajeno.
+
+La tabla es una **instantánea** de lo que había al abrirla: si se cambia el árbol con ella abierta, hay que cerrarla y volver a abrirla. Abrirla **no despliega** las carpetas, y funciona con carpetas de decenas de miles de capas porque solo dibuja las filas que se ven. Los atributos de un KML (`ExtendedData`) se leen como texto, tal cual vienen en el archivo, y quedan guardados con la capa; si el elemento tiene además una `description`, la ficha del elemento (ℹ) enseña esa, y los atributos se ven en la tabla.
+
 ## 8. Atajos de teclado
 
 La misma información está disponible en cualquier momento con la tecla `?` o el botón de ayuda de la cabecera, organizada en pestañas («Navegación», «Actuar», «Visor», «Dibujar y editar») para no tener que scrollear una única tabla larga. Se cierra con la **×** de arriba a la derecha, con Escape o con la misma tecla `?`.
@@ -555,7 +569,7 @@ La misma información está disponible en cualquier momento con la tecla `?` o e
 Esa × es la norma de toda ventana cuyo único botón sería «Cerrar» (la chuleta, los cálculos geodésicos y el perfil de una ruta): en vez de un pie con un solo botón, la × en la barra del título, que se ve siempre, y ese espacio para el contenido.
 
 ![Chuleta de atajos de teclado completa](img/atajos.png)
-*Figura 49. Chuleta de atajos de teclado (tecla `?`), pestaña «Navegación». Las otras tres son «Actuar», «Visor» y «Dibujar y editar».*
+*Figura 50. Chuleta de atajos de teclado (tecla `?`), pestaña «Navegación». Las otras tres son «Actuar», «Visor» y «Dibujar y editar».*
 
 **Moverse por el árbol**
 

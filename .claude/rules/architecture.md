@@ -95,6 +95,12 @@ paths:
     un `document.getElementById` a nivel superior lo rompe. `openRangeDialog`
     se llama desde el menú contextual (`70`) solo en tiempo de ejecución.
     Ver `measurements-drawing-vertex-editing.md`.
+9c. **Tabla de atributos** (`54-attr-table.js`, tras `53`): ventana de filas
+    de las capas de una carpeta con orden, filtro y CSV; lo puro
+    (`collectAttrRows`, `attrSort`, `attrFilter`, `toCsv`) se prueba en
+    Node y el DOM se enlaza al abrir. Usa `resolveRecordLi` (`40`) y
+    `goToNodeAndBlink` (`70`) solo en tiempo de ejecución. `toCsv` lo
+    reutilizará el perfil de una ruta. Ver `style-dialogs-ui.md`.
 11. **Calculadora geodésica** (`62-geocalc.js`): ventana flotante con
     una pestaña por cálculo (ángulo de elevación con cono y corrección
     por presión, vector GPS), recalculadas solas, sin botón; la lógica

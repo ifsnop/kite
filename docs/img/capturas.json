@@ -285,6 +285,12 @@
       "version": "1.11.0",
       "build": "202610300013"
     },
+    "tabla-atributos.png": {
+      "sha256": "3fc241e7821e1795232493069e0a4ac27be544587e8ac7b545154425e3074a79",
+      "section": "7.15",
+      "version": "1.11.0",
+      "build": "202610300211"
+    },
     "tema-oscuro.png": {
       "sha256": "6103245576724af332250e776633717410aec5ac0b1c0edd6d841019940642cb",
       "section": "2.1",

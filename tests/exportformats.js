@@ -16,7 +16,7 @@ return { haversineM, geoToFeatures, recordFeatures, exportRoot, simpleStyle, put
 /* El importador real, para la ida y vuelta */
 const coordsSrc = [constDecl("COORD_EPS"), "let coordClamped = 0;", fn("clampDeg"), fn("clampLatLng")].join("\n");
 const imp = new Function(between("/* Nombre sin prefijo", "/* Crea las capas Leaflet de un placemark")
-  + "\nreturn { elsByTag, text, directChildText, ownVisibility, buildStyleIndex, placemarkStyle, parseCoords, parsePolygon, kmlColor };")();
+  + "\nreturn { elsByTag, text, directChildText, ownVisibility, buildStyleIndex, placemarkStyle, parseCoords, parsePolygon, kmlColor, parseExtendedData };")();
 const gj = new Function(coordsSrc + "\n" + fn("geojsonStyle") + "\n"
   + between("const GEOJSON_TYPES = new Set(", "/* Convierte una topología TopoJSON")
   + "\nreturn { geojsonStyle, validGeometry };")();
@@ -137,6 +137,9 @@ ok(pos.length === 1 && pos[0][0] === 40.4 && pos[0][1] === -3.7 && pos[0][2] ===
 ok(imp.elsByTag(doc, "IconStyle").length === 1, "el color del marcador va en IconStyle");
 ok(/<Data name="ref"><value>A-1<\/value>/.test(k.text) && /<Data name="n"><value>7<\/value>/.test(k.text),
   "las properties van a ExtendedData");
+/* Y vuelven: el importador lee ExtendedData como properties (siempre texto) */
+const back2 = imp.parseExtendedData(pPoint);
+ok(back2 && back2.ref === "A-1" && back2.n === "7" && back2.name === "orig", "ida y vuelta de las properties por ExtendedData: " + JSON.stringify(back2));
 
 const pPoly = pmByName("Polígono");
 const rings = imp.parsePolygon(imp.elsByTag(pPoly, "Polygon")[0]);

@@ -883,6 +883,33 @@
   /* La unidad (NM, km…) y el grado van tras el campo, con ancho fijo para
      que los campos queden alineados en todas las filas.                 */
   #range-dialog .rg-unit, #range-dialog .rg-deg { flex: none; width: 2.4em; color: var(--muted); }
+  /* Tabla de atributos: arriba a la derecha, como la de estilos (la de
+     estilos y ella a la vez son raras), con altura de partida explícita
+     para que la tabla llene la caja y el tirador le dé espacio.        */
+  #attr-dialog .dlg-box {
+    display: flex; flex-direction: column; resize: both;
+    width: min(94vw, 52rem); height: min(78vh, 560px); min-width: 320px; min-height: 220px;
+  }
+  .attr-bar { display: flex; align-items: center; gap: 10px; margin: 6px 0; }
+  .attr-bar input { flex: 1 1 auto; min-width: 0; }
+  #attr-scroll { flex: 1 1 auto; min-height: 0; overflow: auto; border: 1px solid var(--border); border-radius: 5px; }
+  /* `table-layout: fixed` y anchos por <col>: con filas que entran y salen
+     al desplazar, el ancho automático bailaría. El ancho total lo pone el
+     código (suma de columnas); si no cabe, scroll horizontal.           */
+  #attr-table { table-layout: fixed; border-collapse: collapse; font-size: 12px; }
+  #attr-table th, #attr-table td {
+    padding: 0 6px; height: 24px; box-sizing: border-box; text-align: left;
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  }
+  #attr-table thead th {
+    position: sticky; top: 0; z-index: 1; background: var(--panel); cursor: pointer; user-select: none;
+    border-bottom: 1px solid var(--border); font-weight: 600;
+  }
+  #attr-table thead th:hover { background: var(--accent-soft); }
+  #attr-table tbody tr[data-i] { cursor: pointer; }
+  #attr-table tbody tr[data-i]:hover { background: var(--accent-soft); }
+  #attr-table tbody tr[data-i] td { border-bottom: 1px solid var(--border); }
+  #attr-table .attr-spacer td { padding: 0; border: 0; }
   #geocalc-dialog .dlg-box { width: min(92vw, 30rem); }
   .geocalc-field { display: flex; gap: 6px; }
   #geocalc-dialog .dlg-row input[type="number"] { width: 110px; }

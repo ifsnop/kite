@@ -87,6 +87,7 @@ const JS = [
   "51-geodesy.js",        /* geodesia y UTM */
   "52-measure.js",        /* herramientas de medición */
   "53-range-rings.js",    /* anillos de alcance y sectores (menú contextual › Crear); sin DOM al cargar */
+  "54-attr-table.js",     /* tabla de atributos de una carpeta (botón ▦); sin DOM al cargar */
   "60-elevation.js",      /* elevaciones: WCS, cuadrícula */
   "61-daynight.js",       /* iluminación real día/noche (efecto WebGL) */
   "62-geocalc.js",        /* calculadora geodésica (ángulo de elevación) */

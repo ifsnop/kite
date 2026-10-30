@@ -838,6 +838,19 @@ scenario("anillos-dialogo.png", "7.13", async out => {
   await ctx.close();
 }, ["anillos-resultado.png"]);
 
+/* ===== 7.15 Tabla de atributos ===== */
+scenario("tabla-atributos.png", "7.15", async out => {
+  const { ctx, page } = await openApp();
+  await sierra(page);
+  await onRow(page, "sensores.geojson", li => li.querySelector(':scope > .node-row button[aria-label^="Tabla de atributos"]').click());
+  await page.waitForSelector("#attr-dialog:not([hidden])");
+  /* Ordenada por la segunda columna, para que se vea la flecha del orden */
+  await page.click("#attr-head th:nth-child(2)");
+  await page.waitForTimeout(250);
+  await dialog(page, out, "attr-dialog");
+  await ctx.close();
+});
+
 scenario("tema-oscuro.png", "2.1", async out => {
   /* «Según el sistema» con un sistema en oscuro: cambia el cromo, no el mapa */
   const { ctx, page } = await openApp({ colorScheme: "dark" });

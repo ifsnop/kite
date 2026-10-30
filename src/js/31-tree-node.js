@@ -278,6 +278,7 @@ function makeActions(li, sortable, styleable, layer, focusable = styleable) {
   if (sortable || layer) {
     btn("\uD83D\uDCBE", tr("Guardar o exportar a un archivo (KITE, KML o GeoJSON)"), "", b => openExportMenu(b, li));
   }
+  if (sortable) btn("\u25A6", tr("Tabla de atributos de esta carpeta"), "", () => openAttrTable(li));
   if (focusable) {
     btn("\uD83D\uDD0D", tr("Centrar la vista aqu\u00ED y acercar (zoom {zoom})", { zoom: FOCUS_ZOOM }), "",
         () => focusOnNode(li));

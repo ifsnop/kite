@@ -755,6 +755,28 @@
   </div>
 </div>
 
+<!-- Tabla de atributos de una carpeta (botón ▦ de su fila). Flotante y no
+     modal, como la de estilos: se puede mirar y seguir usando el mapa.
+     Una instantánea de solo lectura; las filas que se ven son las únicas
+     que están en el DOM (hay carpetas de decenas de miles de capas). -->
+<div id="attr-dialog" class="dlg-float" hidden>
+  <div class="dlg-box">
+    <h2 id="attr-title">Tabla de atributos</h2>
+    <div class="attr-bar">
+      <input type="search" id="attr-filter" placeholder="Filtrar filas&#8230;" aria-label="Filtrar filas" autocomplete="off" spellcheck="false">
+      <span class="dlg-note" id="attr-count"></span>
+    </div>
+    <p class="dlg-hint" id="attr-note" hidden></p>
+    <div id="attr-scroll">
+      <table id="attr-table"><colgroup id="attr-cols"></colgroup><thead id="attr-head"></thead><tbody id="attr-body"></tbody></table>
+    </div>
+    <div class="dlg-actions">
+      <button class="btn" id="attr-close">Cerrar</button>
+      <button class="btn" id="attr-csv">Exportar CSV</button>
+    </div>
+  </div>
+</div>
+
 <!-- Credencial de Sentinel Hub: el instance ID con el que Copernicus
      autentica sus servicios OGC. Es del usuario, no de la aplicación. -->
 <div id="sh-creds" class="dlg-overlay" hidden>

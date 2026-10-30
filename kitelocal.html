@@ -964,6 +964,33 @@
   /* La unidad (NM, km…) y el grado van tras el campo, con ancho fijo para
      que los campos queden alineados en todas las filas.                 */
   #range-dialog .rg-unit, #range-dialog .rg-deg { flex: none; width: 2.4em; color: var(--muted); }
+  /* Tabla de atributos: arriba a la derecha, como la de estilos (la de
+     estilos y ella a la vez son raras), con altura de partida explícita
+     para que la tabla llene la caja y el tirador le dé espacio.        */
+  #attr-dialog .dlg-box {
+    display: flex; flex-direction: column; resize: both;
+    width: min(94vw, 52rem); height: min(78vh, 560px); min-width: 320px; min-height: 220px;
+  }
+  .attr-bar { display: flex; align-items: center; gap: 10px; margin: 6px 0; }
+  .attr-bar input { flex: 1 1 auto; min-width: 0; }
+  #attr-scroll { flex: 1 1 auto; min-height: 0; overflow: auto; border: 1px solid var(--border); border-radius: 5px; }
+  /* `table-layout: fixed` y anchos por <col>: con filas que entran y salen
+     al desplazar, el ancho automático bailaría. El ancho total lo pone el
+     código (suma de columnas); si no cabe, scroll horizontal.           */
+  #attr-table { table-layout: fixed; border-collapse: collapse; font-size: 12px; }
+  #attr-table th, #attr-table td {
+    padding: 0 6px; height: 24px; box-sizing: border-box; text-align: left;
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  }
+  #attr-table thead th {
+    position: sticky; top: 0; z-index: 1; background: var(--panel); cursor: pointer; user-select: none;
+    border-bottom: 1px solid var(--border); font-weight: 600;
+  }
+  #attr-table thead th:hover { background: var(--accent-soft); }
+  #attr-table tbody tr[data-i] { cursor: pointer; }
+  #attr-table tbody tr[data-i]:hover { background: var(--accent-soft); }
+  #attr-table tbody tr[data-i] td { border-bottom: 1px solid var(--border); }
+  #attr-table .attr-spacer td { padding: 0; border: 0; }
   #geocalc-dialog .dlg-box { width: min(92vw, 30rem); }
   .geocalc-field { display: flex; gap: 6px; }
   #geocalc-dialog .dlg-row input[type="number"] { width: 110px; }
@@ -2362,6 +2389,28 @@
   </div>
 </div>
 
+<!-- Tabla de atributos de una carpeta (botón ▦ de su fila). Flotante y no
+     modal, como la de estilos: se puede mirar y seguir usando el mapa.
+     Una instantánea de solo lectura; las filas que se ven son las únicas
+     que están en el DOM (hay carpetas de decenas de miles de capas). -->
+<div id="attr-dialog" class="dlg-float" hidden>
+  <div class="dlg-box">
+    <h2 id="attr-title">Tabla de atributos</h2>
+    <div class="attr-bar">
+      <input type="search" id="attr-filter" placeholder="Filtrar filas&#8230;" aria-label="Filtrar filas" autocomplete="off" spellcheck="false">
+      <span class="dlg-note" id="attr-count"></span>
+    </div>
+    <p class="dlg-hint" id="attr-note" hidden></p>
+    <div id="attr-scroll">
+      <table id="attr-table"><colgroup id="attr-cols"></colgroup><thead id="attr-head"></thead><tbody id="attr-body"></tbody></table>
+    </div>
+    <div class="dlg-actions">
+      <button class="btn" id="attr-close">Cerrar</button>
+      <button class="btn" id="attr-csv">Exportar CSV</button>
+    </div>
+  </div>
+</div>
+
 <!-- Credencial de Sentinel Hub: el instance ID con el que Copernicus
      autentica sus servicios OGC. Es del usuario, no de la aplicación. -->
 <div id="sh-creds" class="dlg-overlay" hidden>
@@ -2769,6 +2818,7 @@ registerLang("en", "English", {
   "ordenar «{name}»": "sort “{name}”",
   "Colapsar esta carpeta y las interiores": "Collapse this folder and the ones inside it",
   "Guardar o exportar a un archivo (KITE, KML o GeoJSON)": "Save or export to a file (KITE, KML or GeoJSON)",
+  "Tabla de atributos de esta carpeta": "Attribute table of this folder",
   "Centrar la vista aquí y acercar (zoom {zoom})": "Center the view here and zoom in (zoom {zoom})",
   "Editar propiedades": "Edit properties",
   "Ver información de la capa": "Show layer information",
@@ -3085,6 +3135,15 @@ registerLang("en", "English", {
   "crear sector": "create sector",
   "crear anillos de alcance": "create range rings",
   "Radiales cada {step}°": "Radials every {step}°",
+  /* 54-attr-table.js */
+  "Nombre": "Name",
+  "{n} capas": { one: "{n} layer", other: "{n} layers" },
+  "{shown} de {n} capas": "{shown} of {n} layers",
+  "Esa capa ya no está en el árbol.": "That layer is no longer in the tree.",
+  "Atributos de «{name}»": "Attributes of “{name}”",
+  "Esta carpeta no tiene ninguna capa.": "This folder has no layers.",
+  "Ninguna de estas capas trae atributos: solo se ven sus nombres.": "None of these layers has attributes: only their names are shown.",
+  "Se muestran los primeros {n} atributos.": "The first {n} attributes are shown.",
   /* 60-elevation.js */
   "error del servicio": "service error",
   "la respuesta no es una rejilla de alturas legible": "the response is not a readable height grid",
@@ -3289,7 +3348,6 @@ registerLang("en", "English", {
   "Sin conexión": "Offline",
   "Arrastre aquí sus archivos KML/KMZ (incl. ortofotos), GPX, JSON/TopoJSON, shapefiles (.shp con su .dbf y .prj, o en .zip), ortofotos COG (.tif) o carpetas exportadas (.kite.json)": "Drop your KML/KMZ files (incl. orthophotos), GPX, JSON/TopoJSON, shapefiles (.shp with its .dbf and .prj, or in a .zip), COG orthophotos (.tif) or exported folders (.kite.json) here",
   "Propiedades": "Properties",
-  "Nombre": "Name",
   "Estilos": "Styles",
   "Atributos": "Attributes",
   "Color del marcador": "Marker color",
@@ -3511,6 +3569,8 @@ registerLang("en", "English", {
   "Azimut final": "End azimuth",
   "Radio exterior": "Outer radius",
   "Radio interior": "Inner radius",
+  "Tabla de atributos": "Attribute table",
+  "Exportar CSV": "Export CSV",
   "Credencial de Copernicus": "Copernicus credentials",
   "Instance ID": "Instance ID",
   "Custom Tile Map Service (TMS)": "Custom Tile Map Service (TMS)",
@@ -3555,9 +3615,11 @@ registerLang("en", "English", {
   "Detalle de la descarga": "Download details",
   "Lectura bajo el cursor": "Reading under the cursor",
   "Lista de puntos de la capa": "List of the layer's points",
+  "Filtrar filas": "Filter rows",
   "Buscar un lugar y añadir marcador…": "Search for a place and add a marker…",
   "Nombre de carpeta": "Folder name",
   "Buscar capas y carpetas…": "Search layers and folders…",
+  "Filtrar filas…": "Filter rows…",
   /* Bloques de HTML de index.html (data-i18n-html): el valor es el HTML entero */
   "html.gnp-intro": "Associations saved between the structure of the <code>properties</code> of a GeoJSON and the property used as the name.",
   "html.points-help": "One point per line, with <strong>latitude, longitude and altitude</strong> separated by a tab. It can be copied and pasted directly into a spreadsheet. When pasting, commas or spaces are also accepted as separators.",
@@ -4850,7 +4912,7 @@ map.on("resize rotate", fitWorldMinZoom);
 
 /* Fecha de generación del código (versión): AÑOMESDIAHORAMINUTO.
    Actualizar en cada generación; se muestra junto al crédito de Leaflet. */
-const BUILD = "202610300211";
+const BUILD = "202610300221";
 /* Versión de release (la de package.json, horneada aquí por build.js
    al construir — ver «Versión y releases de GitHub» en CLAUDE.md): a
    diferencia de BUILD, que cambia en CADA generación, esta solo cambia
@@ -6305,6 +6367,31 @@ function parsePolygon(polyEl) {
   return rings;
 }
 
+/* Los datos propios de un Placemark: <ExtendedData> con <Data name><value>
+   y <SchemaData><SimpleData name>. Salen como `properties` (siempre
+   texto: KML no tiene tipos aquí), y así una capa de KML tiene la misma
+   tabla de atributos que una de GeoJSON. Entrada AJENA: tope de campos,
+   primer valor de un nombre repetido y nombres que no pueden ser
+   propiedades (`__proto__`) fuera. null si no hay ninguno.            */
+const EXT_MAX_FIELDS = 200;
+function parseExtendedData(pm) {
+  const ext = childrenByTag(pm, "ExtendedData")[0];
+  if (!ext) return null;
+  const props = {};
+  let n = 0;
+  const put = (key, value) => {
+    if (!key || key === "__proto__" || n >= EXT_MAX_FIELDS) return;
+    if (Object.prototype.hasOwnProperty.call(props, key)) return;
+    props[key] = value;
+    n++;
+  };
+  for (const d of childrenByTag(ext, "Data")) put(d.getAttribute("name"), directChildText(d, "value") || "");
+  for (const sd of childrenByTag(ext, "SchemaData")) {
+    for (const s of childrenByTag(sd, "SimpleData")) put(s.getAttribute("name"), s.textContent.trim());
+  }
+  return n ? props : null;
+}
+
 /* Crea las capas Leaflet de un placemark (polígonos, líneas y puntos).
    Cada geometría se construye por separado: una mala no tumba al resto
    del placemark ni, por tanto, a la importación entera.              */
@@ -6352,6 +6439,13 @@ function buildPlacemarkLayer(pm, style, report) {
     } catch (err) { fail(tr("punto ilegible ({message})", { message: err.message })); }
   }
   if (!layers.length) return { group: null, reported };
+
+  /* `feature.properties` en cada subcapa es lo que lee layerProperties y lo
+     que `toGeoJSON` vuelca al guardar, así que sobrevive a recargar. Sin
+     `geometry` a propósito: 43-points-editor.js la lee de `poly.feature`
+     para los polígonos de GeoJSON, y un KML no tiene geometría en crudo. */
+  const data = parseExtendedData(pm);
+  if (data) for (const l of layers) l.feature = { type: "Feature", properties: data };
 
   const group = L.featureGroup(layers);
   const name = text(pm, "name");
@@ -7525,6 +7619,7 @@ function makeActions(li, sortable, styleable, layer, focusable = styleable) {
   if (sortable || layer) {
     btn("\uD83D\uDCBE", tr("Guardar o exportar a un archivo (KITE, KML o GeoJSON)"), "", b => openExportMenu(b, li));
   }
+  if (sortable) btn("\u25A6", tr("Tabla de atributos de esta carpeta"), "", () => openAttrTable(li));
   if (focusable) {
     btn("\uD83D\uDD0D", tr("Centrar la vista aqu\u00ED y acercar (zoom {zoom})", { zoom: FOCUS_ZOOM }), "",
         () => focusOnNode(li));
@@ -12412,8 +12507,11 @@ function nodeLayer(li) {
 /* properties de un GeoJSON importado, si las tiene: L.geoJSON(feature,...)
    deja `.feature.properties` en la subcapa, y ese properties sobrevive
    íntegro el ciclo guardar/restaurar (toGeoJSON / L.geoJSON de nuevo).
-   Capas KML (marker/polyline directos, sin .feature) devuelven null:
-   su información va por li._desc, no por aquí.                       */
+   Capas KML sin <ExtendedData> (marker/polyline directos, sin .feature)
+   devuelven null: su información va por li._desc, no por aquí. Con
+   <ExtendedData> sí tienen `.feature.properties`, y entonces una capa de
+   KML tiene tabla de atributos igual que una de GeoJSON (la <description>
+   sigue mandando en la ficha: baseInfoHtml).                          */
 function layerProperties(layer) {
   if (!layer || typeof layer.getLayers !== "function") return null;
   const sub = layer.getLayers()[0];
@@ -17282,6 +17380,7 @@ document.addEventListener("keydown", e => {
   if (!logDialog.hidden) { toggleLog(); return; }
   if (!urlDialog.hidden) { closeUrlDialog(); return; }
   if (isRangeDialogOpen()) { cancelRangeDialog(); return; }
+  if (isAttrDialogOpen()) { closeAttrDialog(); return; }
   if (!descDialog.hidden) { hideLayerInfo({ dismiss: true }); return; }
   if (!geocalcDialog.hidden) { toggleGeocalcDialog(); return; }
   if (!profileDialog.hidden) { closeProfileDialog(); return; }
@@ -18591,6 +18690,254 @@ function acceptRangeDialog() {
   refreshAncestorChecks(top);
   scheduleSave();
   highlightNode(top);
+}
+/* ================= Tabla de atributos =================
+   Botón ▦ de una carpeta o archivo: una fila por capa de dentro y una
+   columna por atributo (las `properties` de GeoJSON, de un shapefile o de
+   un <ExtendedData> de KML), para ordenar, filtrar, ir a una capa y
+   exportar a CSV. Es una INSTANTÁNEA de solo lectura de lo que había al
+   abrirla.
+
+   Se lee del árbol SIN construir filas: las capas de una carpeta nunca
+   desplegada son registros pendientes (`li._pending`) con su capa ya
+   construida, y de ahí salen sus propiedades. Solo al pulsar una fila se
+   materializa lo necesario para llegar a ella (`resolveRecordLi`).
+   Una carpeta puede tener decenas de miles de capas: la tabla pinta solo
+   las filas que se ven (`renderAttrRows`).
+
+   Lo puro va arriba y se prueba en Node (tests/attrtable.js). Sin DOM al
+   cargar el archivo, como 53-range-rings.js: el diálogo se enlaza al
+   abrirlo.                                                             */
+
+const ATTR_ROW_PX = 24;       /* alto fijo de fila: sin él no hay ventana de filas */
+const ATTR_COL_PX = 150;
+const ATTR_NAME_COL_PX = 210;
+const ATTR_MAX_COLS = 80;     /* un archivo con cientos de campos no cabe ni se lee */
+const ATTR_OVERSCAN = 6;
+
+/* ---------- Lo puro ---------- */
+
+/* Las filas de un subárbol: [{ name, props, li | rec }], en el orden del
+   árbol. `li` es una capa ya con fila; `rec`, un registro pendiente.
+   Solo capas con geometría de verdad (no mediciones, cuadrículas ni
+   ortofotos). `props` puede ser null.                                  */
+function collectAttrRows(root) {
+  const rows = [];
+  const fromRecords = recs => {
+    for (const rec of recs) {
+      if (Array.isArray(rec.children)) fromRecords(rec.children);
+      else if (rec.t === "layer") rows.push({ name: rec.name, props: layerProperties(rec._layer), rec });
+    }
+  };
+  const fromLi = li => {
+    if (li._name === undefined) return; /* mensajes tipo «Sin geometrías» */
+    if (li._isContainer) {
+      if (li._pending) fromRecords(li._pending);
+      const ul = nodeUl(li);
+      if (ul) for (const child of ul.children) fromLi(child);
+      return;
+    }
+    if (li._measure || li._elevGrid || li._imageOverlay || li._cog) return;
+    rows.push({ name: li._name, props: layerProperties(nodeLayer(li)), li });
+  };
+  fromLi(root);
+  return rows;
+}
+
+/* Las columnas: la unión de las claves en el orden en que se ven por
+   primera vez, con tope. `key: null` es la del nombre del nodo.        */
+function attrColumns(rows, max = ATTR_MAX_COLS) {
+  const keys = new Set();
+  for (const r of rows) {
+    if (!r.props) continue;
+    for (const k of Object.keys(r.props)) { keys.add(k); if (keys.size >= max) break; }
+    if (keys.size >= max) break;
+  }
+  return { cols: [{ key: null }, ...[...keys].map(key => ({ key }))], capped: keys.size >= max };
+}
+
+/* El texto de una celda: el nombre del nodo (key null) o la propiedad */
+const attrCell = (row, key) => key === null ? String(row.name) : (row.props && key in row.props ? stringifyPropValue(row.props[key]) : "");
+
+/* ¿Una columna entera es numérica? Entonces se ordena por valor y no por
+   texto («10» después de «9»). Las celdas vacías no cuentan.            */
+function attrIsNumeric(rows, key) {
+  let seen = false;
+  for (const r of rows) {
+    const v = attrCell(r, key).trim();
+    if (v === "") continue;
+    if (!/^-?\d+(?:[.,]\d+)?(?:[eE][+-]?\d+)?$/.test(v)) return false;
+    seen = true;
+  }
+  return seen;
+}
+
+/* Orden estable; las celdas vacías siempre al final, en cualquier sentido */
+function attrSort(rows, key, dir) {
+  const numeric = attrIsNumeric(rows, key);
+  const val = r => attrCell(r, key).trim();
+  const cmp = (a, b) => {
+    const x = val(a), y = val(b);
+    if (x === "" || y === "") return x === y ? 0 : x === "" ? 1 : -1;
+    const c = numeric ? Number(x.replace(",", ".")) - Number(y.replace(",", "."))
+      : x.localeCompare(y, uiLang, { numeric: true, sensitivity: "base" });
+    return dir * c;
+  };
+  return rows.map((r, i) => [r, i]).sort((p, q) => cmp(p[0], q[0]) || p[1] - q[1]).map(p => p[0]);
+}
+
+/* Filtro de texto, sin distinguir mayúsculas, sobre el nombre y todos los valores */
+function attrFilter(rows, term) {
+  const t = String(term || "").trim().toLowerCase();
+  if (!t) return rows;
+  return rows.filter(r => {
+    if (String(r.name).toLowerCase().includes(t)) return true;
+    return !!r.props && Object.values(r.props).some(v => stringifyPropValue(v).toLowerCase().includes(t));
+  });
+}
+
+/* CSV (RFC 4180): coma, comillas dobles duplicadas, CRLF. Un valor que
+   una hoja de cálculo leería como FÓRMULA (empieza por =, @ o por + / -
+   sin que siga una cifra) lleva delante un apóstrofo: es la defensa
+   estándar contra un archivo ajeno que lo aprovecha, y no toca los
+   números negativos. Los números llevan punto decimal, como todo lo que
+   escribe la aplicación.                                               */
+const csvCell = v => {
+  let s = String(v);
+  if (/^[=@\t\r]/.test(s) || /^[+-](?![\d.])/.test(s)) s = "'" + s;
+  return /[",\r\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+};
+const toCsv = (header, rows) => [header, ...rows].map(r => r.map(csvCell).join(",")).join("\r\n") + "\r\n";
+
+/* ---------- El diálogo (se enlaza al abrirlo) ---------- */
+
+let attrUi = null;
+/* Lo que muestra: las filas de la instantánea, las columnas, el orden y el filtro */
+const attrState = { li: null, rows: [], cols: [], view: [], sortKey: undefined, sortDir: 1, frame: 0 };
+const isAttrDialogOpen = () => !!attrUi && !attrUi.dialog.hidden;
+
+function attrDialogUi() {
+  if (attrUi) return attrUi;
+  const el = id => document.getElementById(id);
+  const dialog = el("attr-dialog");
+  attrUi = {
+    dialog, box: dialog.querySelector(".dlg-box"), title: el("attr-title"), filter: el("attr-filter"),
+    count: el("attr-count"), note: el("attr-note"), scroll: el("attr-scroll"), table: el("attr-table"),
+    head: el("attr-head"), body: el("attr-body"), colgroup: el("attr-cols"), csv: el("attr-csv")
+  };
+  makeDialogMovable(attrUi.box);
+  setupDialog(attrUi.box, { modal: false });
+  attrUi.filter.addEventListener("input", () => { updateAttrView(); });
+  attrUi.scroll.addEventListener("scroll", scheduleAttrRender);
+  new ResizeObserver(scheduleAttrRender).observe(attrUi.scroll);
+  /* Pulsar el encabezado ordena (otra vez, invierte); la fila, va a la capa */
+  attrUi.head.addEventListener("click", e => {
+    const th = e.target.closest("th[data-c]");
+    if (!th) return;
+    const key = attrState.cols[Number(th.dataset.c)].key;
+    attrState.sortDir = attrState.sortKey === key ? -attrState.sortDir : 1;
+    attrState.sortKey = key;
+    updateAttrView();
+  });
+  attrUi.body.addEventListener("click", e => { const tr_ = e.target.closest("tr[data-i]"); if (tr_) gotoAttrRow(Number(tr_.dataset.i), false); });
+  attrUi.body.addEventListener("dblclick", e => { const tr_ = e.target.closest("tr[data-i]"); if (tr_) gotoAttrRow(Number(tr_.dataset.i), true); });
+  el("attr-close").addEventListener("click", closeAttrDialog);
+  attrUi.csv.addEventListener("click", exportAttrCsv);
+  return attrUi;
+}
+
+const attrColLabel = col => col.key === null ? tr("Nombre") : col.key;
+
+/* Cabecera y anchos: solo cuando cambian las columnas (al abrir) o el orden */
+function renderAttrHead() {
+  const ui = attrUi, st = attrState;
+  ui.colgroup.innerHTML = st.cols.map(c => `<col style="width:${c.key === null ? ATTR_NAME_COL_PX : ATTR_COL_PX}px">`).join("");
+  ui.table.style.width = `${st.cols.reduce((n, c) => n + (c.key === null ? ATTR_NAME_COL_PX : ATTR_COL_PX), 0)}px`;
+  ui.head.innerHTML = "<tr>" + st.cols.map((c, i) => {
+    const on = st.sortKey === c.key;
+    const arrow = on ? (st.sortDir === 1 ? " ▲" : " ▼") : "";
+    return `<th data-c="${i}" scope="col" aria-sort="${on ? (st.sortDir === 1 ? "ascending" : "descending") : "none"}" title="${escapeHtml(attrColLabel(c))}">`
+      + `${escapeHtml(attrColLabel(c))}${arrow}</th>`;
+  }).join("") + "</tr>";
+}
+
+/* Las filas visibles (más un margen) entre dos separadores del alto de las
+   que no se pintan: la barra de desplazamiento mide lo de la lista entera. */
+function renderAttrRows() {
+  attrState.frame = 0;
+  if (!isAttrDialogOpen()) return;
+  const ui = attrUi, st = attrState, n = st.view.length, cols = st.cols.length;
+  const first = Math.max(0, Math.floor(ui.scroll.scrollTop / ATTR_ROW_PX) - ATTR_OVERSCAN);
+  const last = Math.min(n, first + Math.ceil(ui.scroll.clientHeight / ATTR_ROW_PX) + 2 * ATTR_OVERSCAN);
+  const spacer = rows => rows > 0 ? `<tr class="attr-spacer" aria-hidden="true"><td colspan="${cols}" style="height:${rows * ATTR_ROW_PX}px"></td></tr>` : "";
+  let html = spacer(first);
+  for (let i = first; i < last; i++) {
+    const row = st.view[i];
+    html += `<tr data-i="${i}">` + st.cols.map(c => {
+      const v = attrCell(row, c.key);
+      return `<td${v.length > 22 ? ` title="${escapeHtml(v.slice(0, 500))}"` : ""}>${escapeHtml(v)}</td>`;
+    }).join("") + "</tr>";
+  }
+  ui.body.innerHTML = html + spacer(n - last);
+}
+const scheduleAttrRender = () => { if (!attrState.frame) attrState.frame = requestAnimationFrame(renderAttrRows); };
+
+/* Filtra y ordena la instantánea y repinta */
+function updateAttrView() {
+  const ui = attrUi, st = attrState;
+  let view = attrFilter(st.rows, ui.filter.value);
+  if (st.sortKey !== undefined) view = attrSort(view, st.sortKey, st.sortDir);
+  st.view = view;
+  ui.count.textContent = view.length === st.rows.length
+    ? trn(view.length, "{n} capa", "{n} capas", { n: view.length })
+    : tr("{shown} de {n} capas", { shown: view.length, n: st.rows.length });
+  ui.scroll.scrollTop = 0;
+  renderAttrHead();
+  renderAttrRows();
+}
+
+async function gotoAttrRow(i, zoom) {
+  const row = attrState.view[i];
+  if (!row) return;
+  const li = row.li && row.li.isConnected ? row.li : (row.rec ? await resolveRecordLi(row.rec) : null);
+  if (!li) { navMessage(tr("Esa capa ya no está en el árbol.")); return; }
+  goToNodeAndBlink(li);
+  if (zoom) focusOnNode(li);
+}
+
+function openAttrTable(li) {
+  const ui = attrDialogUi();
+  const rows = collectAttrRows(li);
+  const { cols, capped } = attrColumns(rows);
+  Object.assign(attrState, { li, rows, cols, view: rows, sortKey: undefined, sortDir: 1 });
+  ui.title.textContent = tr("Atributos de «{name}»", { name: li._name });
+  ui.filter.value = "";
+  const notes = [];
+  if (!rows.length) notes.push(tr("Esta carpeta no tiene ninguna capa."));
+  else if (cols.length === 1) notes.push(tr("Ninguna de estas capas trae atributos: solo se ven sus nombres."));
+  if (capped) notes.push(tr("Se muestran los primeros {n} atributos.", { n: ATTR_MAX_COLS }));
+  ui.note.textContent = notes.join(" ");
+  ui.note.hidden = !notes.length;
+  ui.csv.disabled = !rows.length;
+  ui.dialog.hidden = false;
+  clampToViewport(ui.box);
+  focusDialog(ui.box);
+  updateAttrView();
+}
+
+function closeAttrDialog() {
+  attrUi.dialog.hidden = true;
+  Object.assign(attrState, { li: null, rows: [], view: [] }); /* no retener la instantánea */
+  attrUi.body.innerHTML = "";
+  releaseFocus();
+}
+
+/* Lo que se ve, tal como se ve: con el filtro y el orden puestos */
+function exportAttrCsv() {
+  const st = attrState;
+  if (!st.view.length) return;
+  const csv = toCsv(st.cols.map(attrColLabel), st.view.map(r => st.cols.map(c => attrCell(r, c.key))));
+  downloadBlob(new Blob(["﻿" + csv], { type: "text/csv;charset=utf-8" }), safeFileName(st.li._name) + ".csv");
 }
 /* ---------- Retícula fija de peticiones ----------
    Cada consulta pide la tesela de la retícula que contiene el punto

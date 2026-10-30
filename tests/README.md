@@ -630,6 +630,16 @@ ROTATION TESTS OK
 
 **Qué cubre:** Las piezas puras de la rotación del mapa (`08-map-rotation.js`, derivado de leaflet-rotate). `pointerAngleDeg` (ángulo del puntero desde el centro de la brújula con el convenio de rumbo: 0 arriba, sentido horario, nunca negativo) y `dragBearing` (el rumbo durante un arrastre es el de partida más lo que gira el puntero, no su ángulo absoluto —el mapa no salta al primer movimiento—, cruza el norte sin restar 340°, se normaliza a [0, 360) y es libre, sin pasos). `pivotDragBearing` (giro con el botón central: medio grado por píxel en horizontal, derecha = horario, cruza el norte sin negativos, libre). `clipSegmentToRect` (Liang–Barsky: recorte de una línea de la retícula al visor; el primer extremo devuelto es el del lado de `p0`, que es por donde se pone la etiqueta; fuera de la vista → null, incluida una vertical exterior). `clampRotatedDragOffset` (arrastre limitado al mundo con el mapa girado): a 0° coincide con el recorte por ejes de Leaflet, a 90° el tope es el del eje del MAPA y no el de la pantalla, y con la vista más grande que el mundo el centro se queda en medio. Del giro incorporado: `rotateXY` (horario en pantalla, alrededor del pivote, ida y vuelta exacta), `rotatedTransformCss` (posición ya girada + `rotate(…rad)`) y `enclosingBox` (un cuadrado girado 45° mide 100·√2 y queda centrado). Guardián: la versión de Leaflet fijada en el HTML es `LEAFLET_PATCHED` (el código parchea sus internos) y ningún `<script>` carga ya leaflet-rotate.
 
+### `attrtable.js`
+
+**Salida de `npm test`:**
+```
+── Tabla de atributos: columnas, orden (numérico, texto, vacíos al final), filtro, CSV con defensa de fórmulas, filas de carpetas sin desplegar y lectura de <ExtendedData> de KML
+ATTR TABLE TESTS OK
+```
+
+**Qué cubre:** lo puro de `54-attr-table.js` y `parseExtendedData` (`20-kml-geom.js`). Columnas: el nombre primero y la unión de las claves en el orden en que se ven, con tope y aviso. Celdas: nombre, valor como texto, vacío si falta, un objeto anidado como JSON. Orden: una columna es numérica solo si todos sus valores no vacíos lo son (9 antes que 10, coma o punto decimal, notación científica; «12 m» la hace de texto); el texto se ordena entendiendo las cifras y sin distinguir mayúsculas, los vacíos van SIEMPRE al final (también en descendente), los empates son estables y la lista original no se toca. Filtro por nombre y por valor, también dentro de un objeto. CSV: comillas, comas y saltos de línea, y la defensa de fórmulas (`=`, `@`, `+x`, `-x` y tabulador llevan apóstrofo; `-5`, `+3.5` y `-.5` no). Filas de un árbol de mentira: registros pendientes y filas, a cualquier profundidad, sin mediciones, cuadrículas, ortofotos ni mensajes, con su `rec` o su `li` para llegar a ellas. `<ExtendedData>`: `Data/value`, `SchemaData/SimpleData` recortado, el primero de un nombre repetido, sin datos es `null`, nombre vacío no cuenta, un `Data` sin `value` es cadena vacía, `__proto__` no es un atributo (`constructor` y `toString` sí, como propios), tope de 200 campos y prefijo de namespace.
+
 ### `viewlink.js`
 
 **Salida de `npm test`:**
@@ -1106,6 +1116,16 @@ BROWSER GEOCALC TESTS OK
 **Vector GPS:** parte en m / m / NM con las opciones de Propiedades; Madrid en A y Barcelona en B en GMS (`40° 25' 00.48" N`…) con altitudes 650 y 12, y el resultado YA está al abrir la pestaña, sin tocar nada, igual al cálculo hecho aquí en cartesianas (distancia, distancia horizontal y orientación); latitud y longitud en la misma línea (misma altura, longitud a la derecha); la unidad del resultado (mi, km) y las de las altitudes actúan al instante, y cambiar una altitud recalcula; el selector GMS/decimal convierte las cuatro coordenadas (`40.416800`…), no toca las altitudes, vuelve exactamente a lo de partida, deja un campo ilegible como está y normaliza uno legible escrito en el otro formato; GMS escrito a mano sin espacios; campo vacío = sin resultado ni aviso ni marcas; mismos lat/lon dan «no definida» y no 0°; latitud 95° avisa y marca el campo.
 
 **Ventana:** el resultado tiene el tamaño de letra de los campos (numéricos y de texto); la caja mide lo mismo vacía, con 2 líneas, con 3 (presión) y con aviso, en las dos pestañas. No es modal (el centro del mapa no queda tapado y no hay `.dlg-overlay`); se arrastra por el título y, ya arrastrada, la pestaña alta deja «Cerrar» a la vista (antes se salía de la pantalla); Escape y «Cerrar» la cierran; al reabrir conserva lo escrito y los resultados ya están calculados.
+
+### `browser/attr-table.mjs`
+
+**Salida de `npm test`:**
+```
+── Navegador: tabla de atributos de una carpeta — <ExtendedData> de KML, sin desplegar la carpeta, filtro, orden numérico, CSV real con defensa de fórmulas, ir a una capa, recargar y 5 000 capas con solo las filas visibles
+BROWSER ATTR TABLE TESTS OK
+```
+
+**Qué cubre:** un KML con `<ExtendedData>` (que el importador no leía) cargado como carpeta cerrada. El botón ▦ abre «Atributos de «Datos»» con las columnas Nombre, ref, pob y uso, cuatro filas (la de solo descripción también) y SIN desplegar la carpeta (sus capas siguen siendo registros pendientes). Filtrar por nombre y por el valor de un atributo, con el contador «1 de 4 capas». Ordenar por población como números (64 000 antes que 513 000), `aria-sort` en la cabecera, invertir y el vacío siempre al final. «Exportar CSV» (descarga real): `Datos.csv`, BOM, cabecera, el orden de la pantalla, `=SUMA(A1)` con apóstrofo y `a, "b"` con comillas. Pulsar una fila materializa y selecciona la capa en el árbol sin cerrar la tabla (no es modal); Escape la cierra. Una carpeta sin atributos enseña solo el nombre y avisa. Tras recargar siguen los atributos del KML (se guardan con la capa). Una carpeta de 5 000 capas pinta menos de 80 filas, al desplazar hasta el final aparece la última (`P4999`), la barra mide las 5 000 filas y filtrar «P42» deja 111. Sin errores de página ni violaciones de la CSP.
 
 ### `browser/view-link.mjs`
 
