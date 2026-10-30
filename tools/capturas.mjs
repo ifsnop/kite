@@ -851,6 +851,20 @@ scenario("tabla-atributos.png", "7.15", async out => {
   await ctx.close();
 });
 
+scenario("estilo-atributo.png", "7.15", async out => {
+  const { ctx, page } = await openApp();
+  await sierra(page);
+  await onRow(page, "sensores.geojson", li => li.querySelector(':scope > .node-row button[aria-label^="Tabla de atributos"]').click());
+  await page.waitForSelector("#attr-dialog:not([hidden])");
+  await page.click("#attr-style");
+  await page.waitForSelector("#attrstyle-dialog:not([hidden])");
+  await page.selectOption("#as-attr", "categoria");
+  await page.waitForTimeout(300);
+  await dialog(page, out, "attrstyle-dialog");
+  await page.click("#as-cancel");
+  await ctx.close();
+});
+
 scenario("tema-oscuro.png", "2.1", async out => {
   /* «Según el sistema» con un sistema en oscuro: cambia el cromo, no el mapa */
   const { ctx, page } = await openApp({ colorScheme: "dark" });

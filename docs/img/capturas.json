@@ -122,6 +122,12 @@
       "version": "1.11.0",
       "build": "202610300013"
     },
+    "estilo-atributo.png": {
+      "sha256": "76678a4ef8986b6c9380bc9bf661ed43a8c4e6a24325036e136f5d0816bb368d",
+      "section": "7.15",
+      "version": "1.11.0",
+      "build": "202610300221"
+    },
     "estilo-marcador.png": {
       "sha256": "07409f6ecb6ea160eb67181d458761ad22210ec2740401092d21383b89b45b92",
       "section": "6.1",

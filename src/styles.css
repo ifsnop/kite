@@ -910,6 +910,14 @@
   #attr-table tbody tr[data-i]:hover { background: var(--accent-soft); }
   #attr-table tbody tr[data-i] td { border-bottom: 1px solid var(--border); }
   #attr-table .attr-spacer td { padding: 0; border: 0; }
+  /* Estilo por atributo: una fila por clase (color, valor o tramo, recuento) */
+  #attrstyle-dialog .dlg-box { width: min(92vw, 26rem); }
+  #attrstyle-dialog .dlg-row > label { flex: 1 1 auto; min-width: 0; }
+  #attrstyle-dialog .dlg-row > select { max-width: 230px; }
+  #attrstyle-dialog .dlg-row input[type="number"] { width: 80px; }
+  #as-classes { margin: 8px 0 4px; max-height: 40vh; overflow-y: auto; }
+  .as-class { justify-content: flex-start; margin: 4px 0; }
+  .as-class .as-label { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   #geocalc-dialog .dlg-box { width: min(92vw, 30rem); }
   .geocalc-field { display: flex; gap: 6px; }
   #geocalc-dialog .dlg-row input[type="number"] { width: 110px; }

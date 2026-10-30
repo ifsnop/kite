@@ -630,6 +630,16 @@ ROTATION TESTS OK
 
 **Qué cubre:** Las piezas puras de la rotación del mapa (`08-map-rotation.js`, derivado de leaflet-rotate). `pointerAngleDeg` (ángulo del puntero desde el centro de la brújula con el convenio de rumbo: 0 arriba, sentido horario, nunca negativo) y `dragBearing` (el rumbo durante un arrastre es el de partida más lo que gira el puntero, no su ángulo absoluto —el mapa no salta al primer movimiento—, cruza el norte sin restar 340°, se normaliza a [0, 360) y es libre, sin pasos). `pivotDragBearing` (giro con el botón central: medio grado por píxel en horizontal, derecha = horario, cruza el norte sin negativos, libre). `clipSegmentToRect` (Liang–Barsky: recorte de una línea de la retícula al visor; el primer extremo devuelto es el del lado de `p0`, que es por donde se pone la etiqueta; fuera de la vista → null, incluida una vertical exterior). `clampRotatedDragOffset` (arrastre limitado al mundo con el mapa girado): a 0° coincide con el recorte por ejes de Leaflet, a 90° el tope es el del eje del MAPA y no el de la pantalla, y con la vista más grande que el mundo el centro se queda en medio. Del giro incorporado: `rotateXY` (horario en pantalla, alrededor del pivote, ida y vuelta exacta), `rotatedTransformCss` (posición ya girada + `rotate(…rad)`) y `enclosingBox` (un cuadrado girado 45° mide 100·√2 y queda centrado). Guardián: la versión de Leaflet fijada en el HTML es `LEAFLET_PATCHED` (el código parchea sus internos) y ningún `<script>` carga ya leaflet-rotate.
 
+### `attrstyle.js`
+
+**Salida de `npm test`:**
+```
+── Estilo por atributo: paletas, rampa, rupturas (iguales y cuantiles), categorías con «Otros» y «sin valor», graduado, y el estilo de un marcador
+ATTR STYLE TESTS OK
+```
+
+**Qué cubre:** la clasificación pura de `55-attr-style.js`. Paletas: 12 colores categóricos válidos y distintos, los grises de «sin valor» y «Otros» que no se confunden con ninguno, y una rampa que oscurece de principio a fin (se lee sin color). `rampColor`: extremos y paradas exactas, interpolación, acotado fuera de [0, 1] y NaN. `attrNumber`. `breakEdges`: intervalos iguales, todos iguales (tramo degenerado), cuantiles de 1..10, bordes que no se repiten con valores repetidos y negativos. `edgeClass`: un valor en un borde va al tramo de arriba y el máximo al último. Categorías: más frecuentes primero con empates alfabéticos, «sin valor» al final, distingue mayúsculas y recorta espacios, y con más valores de los que caben, 11 + «Otros» (o 10 + «Otros» + «sin valor») con todas las filas clasificadas y los recuentos sumando. Graduado: 5 tramos con sus etiquetas, el tramo de cada fila, lo no numérico en «sin valor», un único valor, ningún número, clases acotadas a 2–9, cuantiles con unas 25 capas por clase y con muchos repetidos (menos clases, ninguna fila perdida). Estilo de un marcador: la gota de Leaflet pasa a un icono coloreable, un icono MDI conserva icono y tamaño, y el estilo de partida no se muta.
+
 ### `attrtable.js`
 
 **Salida de `npm test`:**
@@ -1116,6 +1126,16 @@ BROWSER GEOCALC TESTS OK
 **Vector GPS:** parte en m / m / NM con las opciones de Propiedades; Madrid en A y Barcelona en B en GMS (`40° 25' 00.48" N`…) con altitudes 650 y 12, y el resultado YA está al abrir la pestaña, sin tocar nada, igual al cálculo hecho aquí en cartesianas (distancia, distancia horizontal y orientación); latitud y longitud en la misma línea (misma altura, longitud a la derecha); la unidad del resultado (mi, km) y las de las altitudes actúan al instante, y cambiar una altitud recalcula; el selector GMS/decimal convierte las cuatro coordenadas (`40.416800`…), no toca las altitudes, vuelve exactamente a lo de partida, deja un campo ilegible como está y normaliza uno legible escrito en el otro formato; GMS escrito a mano sin espacios; campo vacío = sin resultado ni aviso ni marcas; mismos lat/lon dan «no definida» y no 0°; latitud 95° avisa y marca el campo.
 
 **Ventana:** el resultado tiene el tamaño de letra de los campos (numéricos y de texto); la caja mide lo mismo vacía, con 2 líneas, con 3 (presión) y con aviso, en las dos pestañas. No es modal (el centro del mapa no queda tapado y no hay `.dlg-overlay`); se arrastra por el título y, ya arrastrada, la pestaña alta deja «Cerrar» a la vista (antes se salía de la pantalla); Escape y «Cerrar» la cierran; al reabrir conserva lo escrito y los resultados ya están calculados.
+
+### `browser/attr-style.mjs`
+
+**Salida de `npm test`:**
+```
+── Navegador: estilo por atributo — categorías y graduado desde la tabla de una carpeta cerrada, vista previa en vivo, Cancelar y Escape lo devuelven todo, Aceptar sin desplegar con deshacer y recarga, y marcadores
+BROWSER ATTR STYLE TESTS OK
+```
+
+**Qué cubre:** un KML con cinco polígonos y dos marcadores con `<ExtendedData>`, en una carpeta cerrada. Desde la tabla, «Estilo por atributo…» ofrece los atributos (`tipo`, `n`), abre en categorías con el graduado deshabilitado para `tipo` (no es numérico), una clase por valor con su recuento («3 capas» incluye los marcadores) y «(sin valor)», y dice a cuántas capas se aplica. **En vivo**: las capas del mismo valor comparten color, los distintos no, el color de la clase está en trazo y relleno, la capa sin atributo sale en el gris de «sin valor» y un marcador con la gota de Leaflet pasa a un icono coloreable; sin desplegar la carpeta. Con `n` se habilita el graduado, 2 clases con tramos «1 – 25.5» y «25.5 – 50» y los colores primero y último de la rampa; cuantiles sigue sumando todas las capas. **Cancelar** devuelve polígonos y marcadores a su estilo original, y Escape también (con la tabla debajo aún abierta). **Aceptar** deja los colores, los escribe en el registro de cada capa pendiente (`style.color`, `mstyle.color` y el icono `circle`) sin desplegar la carpeta; Ctrl+Z devuelve todo a su estilo original y Ctrl+Y lo repite; tras recargar siguen los colores, y al desplegar la carpeta la fila lleva su estilo y su muestra de color. Sin errores de página ni violaciones de la CSP.
 
 ### `browser/attr-table.mjs`
 

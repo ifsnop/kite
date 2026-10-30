@@ -101,6 +101,12 @@ paths:
     Node y el DOM se enlaza al abrir. Usa `resolveRecordLi` (`40`) y
     `goToNodeAndBlink` (`70`) solo en tiempo de ejecución. `toCsv` lo
     reutilizará el perfil de una ruta. Ver `style-dialogs-ui.md`.
+9d. **Estilo por atributo** (`55-attr-style.js`, tras `54`): clasificación
+    pura (categorías y graduado) y diálogo modal con vista previa sobre la
+    tabla de atributos; usa `layerKind`, `normalizePathStyle`,
+    `buildMarkerIcon`, `applyPolygonStyle`/`applyMarkerStyle` (42) y
+    `attrState`/`attrIsNumeric`/`attrCell` (54). Sin DOM al cargar. Ver
+    `style-dialogs-ui.md`.
 11. **Calculadora geodésica** (`62-geocalc.js`): ventana flotante con
     una pestaña por cálculo (ángulo de elevación con cono y corrección
     por presión, vector GPS), recalculadas solas, sin botón; la lógica

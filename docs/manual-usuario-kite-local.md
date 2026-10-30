@@ -560,6 +560,13 @@ Los archivos que se cargan suelen traer, además de la geometría, **atributos**
 - **Ir a una capa**: pulsar una fila selecciona esa capa en el árbol —desplegando lo necesario— y la hace parpadear en el mapa, sin cambiar la vista; un doble clic además centra el mapa en ella. La tabla es una ventana flotante, no modal: se puede seguir usando el mapa con ella abierta.
 - **Exportar CSV** descarga lo que se ve, con el filtro y el orden puestos, en un archivo con codificación UTF-8 que Excel abre bien, separado por comas y con el punto como separador decimal. Por seguridad, un valor que empiece por `=` o `@` (o por `+` o `-` sin que siga una cifra) lleva delante un apóstrofo, para que una hoja de cálculo no lo interprete como una fórmula que alguien haya escondido en un archivo ajeno.
 
+- **«Estilo por atributo…»** colorea las capas de la carpeta según un atributo. En el diálogo se elige el atributo y el tipo: **«Categorías»** da un color a cada valor distinto (los más frecuentes primero; si hay más de doce, el resto se junta en «Otros», y las capas sin ese atributo van en gris como «(sin valor)»), y **«Graduado»**, solo con un atributo numérico, reparte las capas en 2 a 9 clases por **intervalos iguales** entre el mínimo y el máximo, o por **cuantiles** (las mismas capas en cada clase), con una escala de claro a oscuro. Cada clase muestra su color —que se puede cambiar pulsándolo—, su valor o tramo y cuántas capas tiene.
+
+![El diálogo de estilo por atributo, con una clase por categoría](img/estilo-atributo.png)
+*Figura 50. «Estilo por atributo» de los dos sensores, por el atributo «categoria»: una clase por valor, con su color y su recuento.*
+
+  El resultado se ve **al momento** en el mapa, y **«Cancelar»** (o `Escape`) devuelve cada capa a su estilo. Al **aceptar**, cada capa queda con su color como estilo normal —se puede cambiar después como cualquier otro (apartado 6), y `Ctrl + Z` deshace el conjunto entero—; la clasificación se hace una vez y no se actualiza si luego cambia un atributo. Los polígonos y las líneas toman el color en el trazo y en el relleno; los marcadores, en el icono: uno con la gota por defecto de Leaflet, que no se puede colorear, pasa a un punto del color de su clase, y uno con otro icono lo conserva y solo cambia de color.
+
 La tabla es una **instantánea** de lo que había al abrirla: si se cambia el árbol con ella abierta, hay que cerrarla y volver a abrirla. Abrirla **no despliega** las carpetas, y funciona con carpetas de decenas de miles de capas porque solo dibuja las filas que se ven. Los atributos de un KML (`ExtendedData`) se leen como texto, tal cual vienen en el archivo, y quedan guardados con la capa; si el elemento tiene además una `description`, la ficha del elemento (ℹ) enseña esa, y los atributos se ven en la tabla.
 
 ## 8. Atajos de teclado
@@ -569,7 +576,7 @@ La misma información está disponible en cualquier momento con la tecla `?` o e
 Esa × es la norma de toda ventana cuyo único botón sería «Cerrar» (la chuleta, los cálculos geodésicos y el perfil de una ruta): en vez de un pie con un solo botón, la × en la barra del título, que se ve siempre, y ese espacio para el contenido.
 
 ![Chuleta de atajos de teclado completa](img/atajos.png)
-*Figura 50. Chuleta de atajos de teclado (tecla `?`), pestaña «Navegación». Las otras tres son «Actuar», «Visor» y «Dibujar y editar».*
+*Figura 51. Chuleta de atajos de teclado (tecla `?`), pestaña «Navegación». Las otras tres son «Actuar», «Visor» y «Dibujar y editar».*
 
 **Moverse por el árbol**
 

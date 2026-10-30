@@ -130,7 +130,7 @@ function attrDialogUi() {
   attrUi = {
     dialog, box: dialog.querySelector(".dlg-box"), title: el("attr-title"), filter: el("attr-filter"),
     count: el("attr-count"), note: el("attr-note"), scroll: el("attr-scroll"), table: el("attr-table"),
-    head: el("attr-head"), body: el("attr-body"), colgroup: el("attr-cols"), csv: el("attr-csv")
+    head: el("attr-head"), body: el("attr-body"), colgroup: el("attr-cols"), csv: el("attr-csv"), style: el("attr-style")
   };
   makeDialogMovable(attrUi.box);
   setupDialog(attrUi.box, { modal: false });
@@ -150,6 +150,7 @@ function attrDialogUi() {
   attrUi.body.addEventListener("dblclick", e => { const tr_ = e.target.closest("tr[data-i]"); if (tr_) gotoAttrRow(Number(tr_.dataset.i), true); });
   el("attr-close").addEventListener("click", closeAttrDialog);
   attrUi.csv.addEventListener("click", exportAttrCsv);
+  attrUi.style.addEventListener("click", openAttrStyleDialog);
   return attrUi;
 }
 
@@ -226,6 +227,7 @@ function openAttrTable(li) {
   ui.note.textContent = notes.join(" ");
   ui.note.hidden = !notes.length;
   ui.csv.disabled = !rows.length;
+  ui.style.disabled = cols.length < 2; /* sin atributos no hay con qué colorear */
   ui.dialog.hidden = false;
   clampToViewport(ui.box);
   focusDialog(ui.box);

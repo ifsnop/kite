@@ -773,6 +773,38 @@
     <div class="dlg-actions">
       <button class="btn" id="attr-close">Cerrar</button>
       <button class="btn" id="attr-csv">Exportar CSV</button>
+      <button class="btn" id="attr-style">Estilo por atributo&#8230;</button>
+    </div>
+  </div>
+</div>
+
+<!-- Estilo por atributo (desde la tabla de atributos). Modal, con vista
+     previa en vivo sobre el mapa: Cancelar devuelve cada capa a su estilo.
+     Una clasificación hecha una vez: al aceptar quedan estilos normales. -->
+<div id="attrstyle-dialog" class="dlg-overlay" hidden>
+  <div class="dlg-box">
+    <h2>Estilo por atributo</h2>
+    <div class="dlg-row"><label for="as-attr">Atributo</label><select id="as-attr"></select></div>
+    <div class="dlg-row"><label for="as-mode">Tipo</label>
+      <select id="as-mode">
+        <option value="categories">Categor&#237;as</option>
+        <option value="graduated">Graduado</option>
+      </select>
+    </div>
+    <div id="as-grad-fields" hidden>
+      <div class="dlg-row"><label for="as-n">Clases</label><input type="number" id="as-n" min="2" max="9" step="1"></div>
+      <div class="dlg-row"><label for="as-method">M&#233;todo</label>
+        <select id="as-method">
+          <option value="equal">Intervalos iguales</option>
+          <option value="quantile">Cuantiles</option>
+        </select>
+      </div>
+    </div>
+    <div id="as-classes"></div>
+    <p class="dlg-hint" id="as-summary"></p>
+    <div class="dlg-actions">
+      <button class="btn" id="as-cancel">Cancelar</button>
+      <button class="btn" id="as-accept">Aceptar</button>
     </div>
   </div>
 </div>
