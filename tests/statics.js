@@ -197,6 +197,11 @@ const GLOBALS = new Set([
      tamaño de su ventana redimensionable (63-route-profile.js). En
      todos los navegadores objetivo desde 2020.                       */
   "ResizeObserver",
+  /* `Image`, `XMLSerializer` y `getComputedStyle`: exportar la gráfica del
+     perfil como PNG (63-route-profile.js): se serializa su SVG con los
+     estilos ya calculados y se dibuja en un lienzo. Disponibles en todos
+     los navegadores objetivo; sin librería, a diferencia de html2canvas. */
+  "Image", "XMLSerializer", "getComputedStyle",
   "html2canvas"
 ]);
 

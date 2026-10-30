@@ -68,6 +68,7 @@ const SUITES = [
   ["geocalc.js",          "Calculadora geodésica: elevación, cono, corrección por presión (ISA) y vector GPS, con su validación"],
   ["toolstest.js",        "showLayerInfo/setTool: el panel de información no se cuela ni queda pegado al salir de una herramienta de dibujo"],
   ["rotation.js",         "Rotación del mapa: ángulo de la brújula, giro con el botón central, recorte de la retícula y arrastre limitado al mundo con el mapa girado; giro, transform y caja envolvente del código incorporado, y versión de Leaflet fijada"],
+  ["profileexport.js", "Exportar el perfil de ruta a CSV: una fila por distancia de cualquier serie, huecos vacíos, unidades de la gráfica, posición de cada punto y sin notación científica"],
   ["attrstyle.js", "Estilo por atributo: paletas, rampa, rupturas (iguales y cuantiles), categorías con «Otros» y «sin valor», graduado, y el estilo de un marcador"],
   ["attrtable.js", "Tabla de atributos: columnas, orden (numérico, texto, vacíos al final), filtro, CSV con defensa de fórmulas, filas de carpetas sin desplegar y lectura de <ExtendedData> de KML"],
   ["viewlink.js", "Enlace a la vista: construir y leer #map=…, qué mapas base viajan, ida y vuelta, giro normalizado y entrada hostil rechazada"],

@@ -39,6 +39,7 @@
       todas las del perfil caen en una sola malla.
   10) Un servicio que rechaza `scaleSize`: se prueba una vez y el
       perfil sale igual sin él.                                       */
+import fs from "node:fs";
 import { launch, serve, openApp, reporter, READABLE } from "./_browser.mjs";
 import { ignFakes, IGN_ROUTE } from "./_fakes.mjs";
 
@@ -267,6 +268,47 @@ const layout = await page.evaluate(() => {
 ok(layout.inHead && layout.right < 16 && layout.top < 16, "el × de cerrar, arriba a la derecha en la cabecera: " + JSON.stringify(layout));
 ok(!layout.footer && layout.gap < 12, "sin pie de botones (.dlg-actions): lo último, los controles de la gráfica, llega hasta abajo de la ventana: " + JSON.stringify(layout));
 ok(layout.name === layout.title, "la ventana se llama por su título, sin el «Cerrar» del ×: " + layout.name);
+
+/* ---------- 3b. Exportar el perfil: CSV (ruta entera) y PNG (lo que se ve) ---------- */
+const units = await page.evaluate(() => ({ d: POLY_UNIT_LABEL[measureUnit], fd: POLY_UNIT_FACTOR[measureUnit],
+  a: POLY_UNIT_LABEL[altitudeUnit], w: profileChart.clientWidth, h: profileChart.clientHeight }));
+const [csvDl] = await Promise.all([page.waitForEvent("download"), page.click("#pf-csv")]);
+const csv = fs.readFileSync(await csvDl.path(), "utf8");
+const csvLines = csv.split("\r\n");
+ok(csvDl.suggestedFilename() === "Ruta 1-perfil.csv", "nombre del CSV: " + csvDl.suggestedFilename());
+ok(csvLines[0] === `\uFEFFDistancia (${units.d}),Latitud,Longitud,MDT (${units.a}),MDS (${units.a})`, "BOM y cabecera con las unidades de la gráfica: " + JSON.stringify(csvLines[0]));
+const body = csvLines.slice(1, -1).map(r => r.split(","));
+ok(body.length > 380 && body.length < 1000 && body.every(r => r.length === 5), "una fila por distancia de las dos series: " + body.length);
+ok(body.every((r, i) => i === 0 || Number(r[0]) > Number(body[i - 1][0])), "en orden y sin repetir");
+ok(Math.abs(Number(body[0][1]) - WAYPOINTS[0].lat) < 1e-4 && Math.abs(Number(body[0][2]) - WAYPOINTS[0].lng) < 1e-4, "la primera fila, en el primer waypoint: " + body[0]);
+const end = body.at(-1);
+ok(Math.abs(Number(end[1]) - WAYPOINTS[2].lat) < 5e-4 && Math.abs(Number(end[2]) - WAYPOINTS[2].lng) < 5e-4, "la \u00FAltima, en el \u00FAltimo (ruta ENTERA aunque haya zoom): " + end);
+ok(Math.abs(Number(end[0]) * units.fd - route.total) < 20, "y su distancia es la de la ruta: " + end[0] + " " + units.d);
+const both = body.filter(r => r[3] !== "" && r[4] !== "");
+ok(both.length > 300 && both.every(r => Number(r[4]) > Number(r[3])), "con las dos series, el MDS por encima del MDT (como los servicios simulados): " + both.length);
+ok(body.every(r => r[3] === "" || Number(r[3]) > 0) && body.every(r => r[4] === "" || Number(r[4]) > 0), "ninguna celda con un 0 inventado: lo que falta va vac\u00EDo");
+
+const [pngDl] = await Promise.all([page.waitForEvent("download"), page.click("#pf-png")]);
+const png = fs.readFileSync(await pngDl.path());
+ok(pngDl.suggestedFilename() === "Ruta 1-perfil.png", "nombre del PNG: " + pngDl.suggestedFilename());
+ok(png.subarray(0, 8).toString("hex") === "89504e470d0a1a0a", "es un PNG");
+const wh = [png.readUInt32BE(16), png.readUInt32BE(20)];
+ok(wh[0] === 2 * units.w && wh[1] === 2 * (units.h + 30), `al doble de tama\u00F1o, con 30 px de t\u00EDtulo: ${wh} frente a ${units.w}\u00D7${units.h}`);
+ok(png.length > 8000, "no est\u00E1 en blanco (pesa " + png.length + " bytes)");
+const px = await page.evaluate(async b64 => {
+  const img = new Image();
+  await new Promise(r => { img.onload = r; img.src = "data:image/png;base64," + b64; });
+  const c = document.createElement("canvas");
+  c.width = img.width; c.height = img.height;
+  const g = c.getContext("2d");
+  g.drawImage(img, 0, 0);
+  const d = g.getImageData(0, 0, c.width, c.height).data;
+  const near = (r, g2, b, t) => { let n = 0; for (let i = 0; i < d.length; i += 4) if (Math.abs(d[i] - r) < 8 && Math.abs(d[i + 1] - g2) < 8 && Math.abs(d[i + 2] - b) < 8) n++; return n; };
+  return { mdt: near(21, 101, 192), mds: near(46, 125, 50), corner: [d[0], d[1], d[2], d[3]] };
+}, png.toString("base64"));
+ok(px.mdt > 300 && px.mds > 300, "las dos curvas, en sus colores, con los estilos resueltos: " + JSON.stringify(px));
+ok(px.corner[3] === 255, "con fondo (no transparente): " + px.corner);
+ok(await page.evaluate(() => !profileChart.querySelector("svg").outerHTML.includes("data:image")), "y la gr\u00E1fica de la pantalla no se toc\u00F3");
 
 /* ---------- 4. En el árbol: raíz «Perfiles de ruta» ---------- */
 await page.waitForFunction(() => [...document.querySelectorAll("#tree li")].some(li => /^Perfil de/.test(li._name || "")));

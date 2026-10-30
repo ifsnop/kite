@@ -2292,6 +2292,8 @@
           <option value="origin">Desde el inicio</option>
         </select></label>
       <button class="btn" id="pf-reset" title="Ruta entera y altura automática">Ver todo</button>
+      <button class="btn" id="pf-png" title="Guardar la gráfica, tal como se ve, como imagen PNG">PNG</button>
+      <button class="btn" id="pf-csv" title="Guardar los datos de la ruta entera como CSV: distancia, latitud, longitud y la altura de cada serie">CSV</button>
       <span class="pf-hint">Rueda: distancia · Mayús+rueda: altura · arrastrar: desplazar</span>
     </div>
   </div>
@@ -3308,6 +3310,13 @@ registerLang("en", "English", {
   "{n} · Final · {dist} {unit}": "{n} · End · {dist} {unit}",
   "{n} · {dist} {unit}": "{n} · {dist} {unit}",
   "La altura de torre": "The tower height",
+  "Distancia ({unit})": "Distance ({unit})",
+  "Latitud": "Latitude",
+  "Longitud": "Longitude",
+  "perfil": "profile",
+  "el navegador no pudo dibujar la gráfica": "the browser could not draw the chart",
+  "no se pudo generar la imagen": "the image could not be generated",
+  "No se pudo exportar el perfil: {message}": "The profile could not be exported: {message}",
   /* 64-cog.js */
   "WGS84 (4326), ETRS89 (4258), Web Mercator (3857), ETRS89 UTM 28–38 (25828–25838 y 3040–3050), WGS84 UTM norte y sur (32601–32660, 32701–32760), ED50 UTM 28–31 y REGCAN95 UTM 27–28": "WGS84 (4326), ETRS89 (4258), Web Mercator (3857), ETRS89 UTM 28–38 (25828–25838 and 3040–3050), WGS84 UTM north and south (32601–32660, 32701–32760), ED50 UTM 28–31 and REGCAN95 UTM 27–28",
   "no es un GeoTIFF legible ({reason})": "not a readable GeoTIFF ({reason})",
@@ -3403,8 +3412,6 @@ registerLang("en", "English", {
   "Tamaño del texto": "Text size",
   "Color del texto": "Text color",
   "Mostrar el texto siempre (si no, solo al hacer click)": "Always show the text (otherwise only on click)",
-  "Latitud": "Latitude",
-  "Longitud": "Longitude",
   "También puede arrastrar el marcador por el mapa mientras esta ventana esté abierta.": "You can also drag the marker on the map while this window is open.",
   "Estilo": "Style",
   "Contorno y relleno": "Outline and fill",
@@ -3602,6 +3609,8 @@ registerLang("en", "English", {
   "Tierra plana, rayo curvo": "Flat Earth, curved ray",
   "Desde el inicio": "From the start",
   "Ver todo": "Show all",
+  "PNG": "PNG",
+  "CSV": "CSV",
   "Rueda: distancia · Mayús+rueda: altura · arrastrar: desplazar": "Wheel: distance · Shift+wheel: height · drag: pan",
   "Puntos de la capa": "Points of the layer",
   "Añadir desde una dirección": "Add from an address",
@@ -3654,6 +3663,8 @@ registerLang("en", "English", {
   "La escala de alturas se queda quieta al desplazar o acercar la distancia; desmarcado, se ajusta sola a lo que se ve": "The height scale stays still when you pan or zoom the distance; unchecked, it adjusts itself to what is visible",
   "Cómo se dibuja la curvatura de la Tierra con la refracción estándar de la atmósfera (radio efectivo 4/3). Clásica: la Tierra se arquea entre las torres y el terreno se eleva sobre la cuerda. Tierra plana: el terreno queda sobre una base recta y la línea de vista y el elipsoide se curvan hacia arriba. Desde el inicio: la Tierra cae desde la torre de inicio y la línea es recta. El despeje es el mismo en los tres": "How the curvature of the Earth is drawn, with standard atmospheric refraction (effective radius 4/3). Classic: the Earth arches between the towers and the terrain is raised above the chord. Flat Earth: the terrain stays on a straight base and the line of sight and the ellipsoid curve upwards. From the start: the Earth drops away from the start tower and the line is straight. The clearance is the same in all three",
   "Ruta entera y altura automática": "Whole route and automatic height",
+  "Guardar la gráfica, tal como se ve, como imagen PNG": "Save the chart, as it looks, as a PNG image",
+  "Guardar los datos de la ruta entera como CSV: distancia, latitud, longitud y la altura de cada serie": "Save the data of the whole route as CSV: distance, latitude, longitude and the height of each series",
   "Árbol de capas": "Layer tree",
   "Elegir color": "Choose color",
   "Unidad de la altura de origen": "Unit of the origin height",
@@ -4970,7 +4981,7 @@ map.on("resize rotate", fitWorldMinZoom);
 
 /* Fecha de generación del código (versión): AÑOMESDIAHORAMINUTO.
    Actualizar en cada generación; se muestra junto al crédito de Leaflet. */
-const BUILD = "202610300235";
+const BUILD = "202610300251";
 /* Versión de release (la de package.json, horneada aquí por build.js
    al construir — ver «Versión y releases de GitHub» en CLAUDE.md): a
    diferencia de BUILD, que cambia en CADA generación, esta solo cambia
@@ -22815,6 +22826,117 @@ document.getElementById("pf-reset").addEventListener("click", () => {
   profileYView = null;
   scheduleProfileChart();
 });
+
+/* ---------- Exportar el perfil: CSV e imagen ----------
+   El CSV es la ruta ENTERA (no lo que se ve) en las unidades de la
+   gráfica; el PNG, la gráfica TAL COMO se ve, con su zoom.             */
+
+/* Las filas del CSV: una por cada distancia donde ALGUNA serie tiene un
+   punto (las dos mallas son distintas, 5 m y 25 m por ejemplo: la unión,
+   con la celda vacía donde una serie no tiene punto), en orden, con la
+   latitud y la longitud de ese punto de la ruta (`locate(d)`, d en
+   metros; null = vacías). Lo vacío es vacío, nunca un 0 inventado: un
+   hueco del servicio sigue siendo un hueco. PURA.                       */
+function profileCsv(data, u, locate) {
+  const distances = new Set();
+  const lookups = data.series.map(s => {
+    const m = new Map();
+    for (const p of s.points) { distances.add(p.d); if (typeof p.v === "number" && Number.isFinite(p.v)) m.set(p.d, p.v); }
+    return m;
+  });
+  const rows = [...distances].sort((a, b) => a - b).map(d => {
+    const at = locate(d);
+    return [+(d / u.distFactor).toFixed(5), at ? +at.lat.toFixed(6) : "", at ? +at.lng.toFixed(6) : "",
+      ...lookups.map(m => m.has(d) ? +(m.get(d) / u.altFactor).toFixed(u.altDecimals) : "")];
+  });
+  const header = [tr("Distancia ({unit})", { unit: u.distLabel }), tr("Latitud"), tr("Longitud"),
+    ...data.series.map(s => `${s.kind.toUpperCase()} (${u.altLabel})`)];
+  return "\uFEFF" + toCsv(header, rows); /* BOM: Excel lee UTF-8 */
+}
+
+/* El nombre de los archivos: el de la ruta, sin lo que un sistema de archivos no admite */
+const profileExportName = () => `${safeFileName((profileData.li && profileData.li._name) || tr("Ruta"))}-${tr("perfil")}`;
+
+function exportProfileCsv() {
+  if (!profileData) return;
+  const data = profileData;
+  const locate = d => {
+    const p = profilePointAt(data.legs, data.vertices, d);
+    if (!p) return null;
+    const ll = map.options.crs.unproject(L.point(p.x, p.y));
+    return { lat: ll.lat, lng: ll.lng };
+  };
+  const text = profileCsv(data, { distFactor: POLY_UNIT_FACTOR[measureUnit], altFactor: POLY_UNIT_FACTOR[altitudeUnit],
+    altDecimals: HEIGHT_DECIMALS[altitudeUnit], distLabel: POLY_UNIT_LABEL[measureUnit], altLabel: POLY_UNIT_LABEL[altitudeUnit] }, locate);
+  downloadBlob(new Blob([text], { type: "text/csv;charset=utf-8" }), `${profileExportName()}.csv`);
+}
+
+/* Lo que pinta la hoja de estilos de la página (clases `.pf-*` con
+   variables `var(--…)` y `light-dark()`) no existe en un SVG suelto: se
+   copia a cada elemento su valor CALCULADO, que ya es un color de verdad,
+   y la imagen sale igual que en pantalla, en el tema que haya.         */
+const PF_EXPORT_PROPS = ["fill", "fill-opacity", "stroke", "stroke-width", "stroke-opacity", "stroke-dasharray",
+  "stroke-linecap", "stroke-linejoin", "opacity", "font-family", "font-size", "font-weight", "text-anchor",
+  "dominant-baseline", "paint-order", "visibility"];
+const PF_EXPORT_TITLE_PX = 30;
+const PF_EXPORT_SCALE = 2;
+
+function inlineSvgStyles(src, dst) {
+  const from = [src, ...src.querySelectorAll("*")], to = [dst, ...dst.querySelectorAll("*")];
+  from.forEach((el, i) => {
+    const cs = getComputedStyle(el);
+    for (const p of PF_EXPORT_PROPS) to[i].style.setProperty(p, cs.getPropertyValue(p));
+  });
+}
+
+/* El SVG de la gráfica listo para exportar: con los estilos dentro, sin el
+   cursor ni los puntos de lectura (son del ratón), con fondo y un título.  */
+function profileExportSvg() {
+  const svg = profileChart.querySelector("svg");
+  if (!svg) return null;
+  const W = profileChart.clientWidth, H = profileChart.clientHeight;
+  const clone = svg.cloneNode(true);
+  inlineSvgStyles(svg, clone);
+  for (const id of ["pf-cursor", "pf-dots"]) { const n = clone.querySelector("#" + id); if (n) n.remove(); }
+  clone.setAttribute("width", W);
+  clone.setAttribute("height", H);
+  const box = getComputedStyle(profileBox);
+  const title = `${(profileData.li && profileData.li._name) || tr("Ruta")} \u2014 ${profileData.series.map(s => s.label).join(" + ")}`;
+  const outer = `<svg xmlns="${SVG_NS}" width="${W}" height="${H + PF_EXPORT_TITLE_PX}" viewBox="0 0 ${W} ${H + PF_EXPORT_TITLE_PX}">`
+    + `<rect width="100%" height="100%" fill="${box.backgroundColor}"/>`
+    + `<text x="${PF_MARGIN.l}" y="20" fill="${box.color}" font-family="system-ui, sans-serif" font-size="14" font-weight="600">${escapeHtml(title)}</text>`
+    + `<g transform="translate(0 ${PF_EXPORT_TITLE_PX})">${new XMLSerializer().serializeToString(clone)}</g></svg>`;
+  return { svg: outer, w: W, h: H + PF_EXPORT_TITLE_PX };
+}
+
+/* SVG → <img> (un `data:`, que la CSP admite) → lienzo al doble de tamaño → PNG.
+   Sin html2canvas: un SVG propio no la necesita y no pide ninguna librería.   */
+async function exportProfilePng() {
+  if (!profileData) return;
+  const out = profileExportSvg();
+  if (!out) return;
+  try {
+    const img = new Image();
+    await new Promise((resolve, reject) => {
+      img.onload = resolve;
+      img.onerror = () => reject(new Error(tr("el navegador no pudo dibujar la gráfica")));
+      img.src = "data:image/svg+xml;charset=utf-8," + encodeURIComponent(out.svg);
+    });
+    const canvas = document.createElement("canvas");
+    canvas.width = out.w * PF_EXPORT_SCALE;
+    canvas.height = out.h * PF_EXPORT_SCALE;
+    const g = canvas.getContext("2d");
+    g.scale(PF_EXPORT_SCALE, PF_EXPORT_SCALE);
+    g.drawImage(img, 0, 0, out.w, out.h);
+    const blob = await new Promise(resolve => canvas.toBlob(resolve, "image/png"));
+    if (!blob) throw new Error(tr("no se pudo generar la imagen"));
+    downloadBlob(blob, `${profileExportName()}.png`);
+  } catch (err) {
+    navMessage(tr("No se pudo exportar el perfil: {message}", { message: err.message }));
+  }
+}
+document.getElementById("pf-csv").addEventListener("click", exportProfileCsv);
+document.getElementById("pf-png").addEventListener("click", exportProfilePng);
 
 /* Cambiar una unidad en Propiedades (setMeasureUnit/setAltitudeUnit) o
    el tamaño de la ventana redibuja la gráfica, sin volver a pedir nada
