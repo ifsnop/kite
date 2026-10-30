@@ -36,6 +36,32 @@ const { ctx, page, errors } = await openApp(browser, srv.url);
 
 /* Lo que ve el servidor simulado */
 const peticiones = [];
+/* Los datos de las capas: 5 entidades por capa, de 2 en 2 (maxRecordCount 2) */
+const FEATS = id => Array.from({ length: 5 }, (_, i) => ({ type: "Feature", id: i + 1,
+  properties: { OBJECTID: i + 1, NAME_TXT: `Zona ${id}-${i + 1}`, ...(id === 6 ? { LABEL: '<FNT name="x"> C </FNT> FL195' } : {}) },
+  geometry: { type: "Polygon", coordinates: [[[-4 + i * 0.1, 40], [-3.9 + i * 0.1, 40], [-3.9 + i * 0.1, 40.1], [-4 + i * 0.1, 40]]] } }));
+let qmodo = "ok";   /* "ok" | "error" | "503" | "big" | "hang" */
+let fallos503 = 0;
+const json = (route, body) => route.fulfill({ status: 200, headers: { ...CORS, "Content-Type": "application/json" }, body: JSON.stringify(body) });
+async function datos(route, q, id, esQuery) {
+  if (!esQuery) {
+    return json(route, { name: CATALOG.layers.find(l => l.id === id).name, type: "Feature Layer", capabilities: "Map,Query,Data",
+      supportedQueryFormats: "JSON, geoJSON, PBF", maxRecordCount: 2, advancedQueryCapabilities: { supportsPagination: id !== 23 },
+      fields: [{ name: "OBJECTID", type: "esriFieldTypeOID" }] });
+  }
+  if (q.returnCountOnly) return json(route, { count: qmodo === "big" ? 100001 : 5 });
+  if (qmodo === "error") return json(route, { error: { code: 400, message: "Consulta rota", details: [] } });
+  if (qmodo === "503" && fallos503++ === 0) return route.fulfill({ status: 503, headers: CORS, body: "no" });
+  if (qmodo === "hang") return new Promise(() => {});
+  const all = FEATS(id), off = Number(q.resultOffset || 0), cnt = Number(q.resultRecordCount || 2);
+  /* La capa 23 no pagina: ignora el desplazamiento y corta en su límite */
+  const slice = id === 23 ? all.slice(0, 2) : all.slice(off, off + cnt);
+  const cortado = id === 23 || off + cnt < all.length;
+  const body = { type: "FeatureCollection", features: slice };
+  if (id === 6) body.exceededTransferLimit = cortado;       /* la otra forma del indicador */
+  else body.properties = { exceededTransferLimit: cortado };
+  return json(route, body);
+}
 let modo = "ok"; /* "ok" | "error" (HTTP 200 con un {error} en el cuerpo, como ArcGIS) */
 await ctx.route(HOST + "/**", route => {
   const u = new URL(route.request().url());
@@ -48,9 +74,11 @@ await ctx.route(HOST + "/**", route => {
     }
     return route.fulfill({ status: 200, headers: { ...CORS, "Content-Type": "image/png" }, body: PNG });
   }
+  const capa = /\/MapServer\/(\d+)(\/query)?$/.exec(u.pathname);
+  if (capa) return datos(route, q, Number(capa[1]), !!capa[2]);
   return route.fulfill({ status: 200, headers: { ...CORS, "Content-Type": "application/json" }, body: JSON.stringify(CATALOG) });
 });
-const catalogos = () => peticiones.filter(p => p.f === "json" || p.f === "pjson").length;
+const catalogos = () => peticiones.filter(p => (p.f === "json" || p.f === "pjson") && p.ruta.endsWith("/MapServer")).length;
 const exports_ = () => peticiones.filter(p => p.ruta.endsWith("/export"));
 const esperar = async (cond, msg) => {
   for (let i = 0; i < 120; i++) { if (await cond()) return true; await page.waitForTimeout(50); }
@@ -319,6 +347,126 @@ await p2.waitForFunction(() => typeof rootUl !== "undefined" && rootUl && rootUl
 ok(await p2.evaluate(() => TREE_SCHEMA === 9 && [...rootUl.children].some(li => li._name === "Viejo v8")),
   "con TREE_SCHEMA 9, un árbol guardado en v8 se lee tal cual");
 await ctx2.close();
+
+/* ---------- 15. Traer una capa como datos ---------- */
+const traer = nombre => page.evaluate(n => {
+  const li = [...document.querySelectorAll("#tree li.arcgis-service li")].find(l => l._name === n);
+  li.querySelector(".arcgis-data").click();
+}, nombre);
+const botonDatos = nombre => page.evaluate(n => {
+  const b = [...document.querySelectorAll("#tree li.arcgis-service li")].find(l => l._name === n).querySelector(".arcgis-data");
+  return b ? { modo: b.dataset.mode, glifo: b.textContent, titulo: b.title } : null;
+}, nombre);
+const nombrar = async clave => {
+  await page.waitForFunction(() => !document.getElementById("geojson-name-picker").hidden);
+  await page.click(`#gnp-list .gnp-row[data-key="${clave}"] input`);
+  await page.click("#gnp-accept");
+};
+/* Los nombres de TODO el árbol, también de lo que no tiene fila: un GeoJSON llega colapsado */
+const nombresArbol = () => page.evaluate(() => {
+  const out = [];
+  const walk = ns => ns.forEach(n => { out.push(n.name); if (n.children) walk(n.children); });
+  walk(serializeTree());
+  return out;
+});
+const consultas = id => peticiones.filter(p => p.ruta.endsWith(`/MapServer/${id}/query`) && !p.returnCountOnly);
+
+ok(await page.evaluate(() => [...document.querySelectorAll("#tree li.arcgis-service li")]
+  .filter(l => l._arcgisLayer.data).every(l => !!l.querySelector(".arcgis-data"))
+  && ![...document.querySelectorAll("#tree li.arcgis-service li")].find(l => l._name === "Grupo").querySelector(":scope > .node-row .arcgis-data")),
+  "solo las capas con datos llevan el botón ⤓ (el grupo no)");
+let bd = await botonDatos("TMA_CTA");
+ok(bd.modo === "fetch" && /Traer las entidades de esta capa/.test(bd.titulo), "con su título: " + JSON.stringify(bd));
+
+/* A. Tres páginas, de 2 en 2 */
+peticiones.length = 0;
+await traer("TMA_CTA");
+await page.waitForFunction(() => !document.getElementById("geojson-name-picker").hidden);
+const ficha = peticiones.filter(p => p.ruta.endsWith("/MapServer/10") && p.f === "json");
+const cuenta = peticiones.filter(p => p.returnCountOnly === "true");
+const paginas = consultas(10);
+ok(ficha.length === 1 && cuenta.length === 1, "pide la ficha de la capa y el recuento una vez cada uno");
+ok(paginas.map(p => p.resultOffset).join() === "0,2,4" && paginas.every(p => p.resultRecordCount === "2"),
+  "y los datos en tres páginas de 2: " + JSON.stringify(paginas.map(p => [p.resultOffset, p.resultRecordCount])));
+ok(paginas.every(p => p.orderByFields === "OBJECTID" && p.outSR === "4326" && p.outFields === "*" && p.f === "geojson"
+  && p.returnGeometry === "true" && p.where === "1=1" && !p.geometry),
+  "con orden estable, WGS84, todos los atributos, GeoJSON y sin filtro espacial: " + JSON.stringify(paginas[0]));
+await nombrar("NAME_TXT");
+await esperar(async () => (await nombresArbol()).includes("Zona 10-5"), "las cinco entidades en el árbol");
+let nombres = await nombresArbol();
+ok(nombres.includes("Descargas") && nombres.includes("Descarga 1") && ["Zona 10-1", "Zona 10-2", "Zona 10-3", "Zona 10-4", "Zona 10-5"].every(n => nombres.includes(n)),
+  "entran en «Descargas › Descarga 1» como una importación normal, con el nombre elegido");
+ok(await page.evaluate(() => document.getElementById("progress").hidden), "la barra de progreso se oculta");
+bd = await botonDatos("TMA_CTA");
+ok(bd.modo === "fetch", "y el botón vuelve a su estado");
+await page.keyboard.press("Control+z");
+await esperar(async () => !(await nombresArbol()).includes("Zona 10-1"), "deshacer quita lo traído");
+ok(!(await nombresArbol()).includes("Descarga 1"), "entero, con su carpeta «Descarga 1»");
+
+/* B. Las etiquetas HTML de los atributos: la pregunta de siempre */
+await traer("CTR");
+await page.waitForFunction(() => !document.getElementById("kml-tags-picker").hidden);
+ok(await page.evaluate(() => /propiedades/.test(document.getElementById("ktp-intro").textContent)), "una capa con etiquetas en sus atributos abre la pregunta de las etiquetas HTML");
+await page.click("#ktp-accept");
+await nombrar("NAME_TXT");
+await esperar(async () => (await nombresArbol()).includes("Zona 6-1"), "las entidades de CTR");
+ok(await page.evaluate(() => {
+  let label = null;
+  const walk = ns => ns.forEach(n => { if (n.name === "Zona 6-1" && n.geo) label = n.geo.features[0].properties.LABEL; if (n.children) walk(n.children); });
+  walk(serializeTree());
+  return typeof label === "string" && !/FNT/.test(label) && /FL195/.test(label);
+}), "respondida «Eliminarlas», la etiqueta ya no está en el atributo y el texto sí");
+ok(consultas(6).map(p => p.resultOffset).join() === "0,2,4", "el indicador de corte en lo alto de la respuesta también pagina");
+
+/* C. Un {error} del servicio: una sola vez y sin carpeta nueva */
+qmodo = "error";
+peticiones.length = 0;
+const antes = (await nombresArbol()).filter(n => /^Descarga \d+$/.test(n)).length;
+await traer("TMA_CTA");
+await esperar(() => page.evaluate(() => /Consulta rota/.test(document.getElementById("nav-msg").textContent)), "el aviso con el texto del servidor");
+ok(consultas(10).length === 1, "un {error} no se reintenta: " + consultas(10).length + " consulta(s)");
+ok((await nombresArbol()).filter(n => /^Descarga \d+$/.test(n)).length === antes, "y no deja ninguna carpeta");
+ok((await botonDatos("TMA_CTA")).modo === "fetch" && await page.evaluate(() => document.getElementById("progress").hidden), "el botón y la barra vuelven a su estado");
+
+/* D. Un 503 pasajero sí se reintenta */
+qmodo = "503"; fallos503 = 0;
+peticiones.length = 0;
+await traer("TMA_CTA");
+/* Con el nombre ya elegido en A para esta forma de atributos, el selector no vuelve a preguntar */
+await esperar(async () => (await nombresArbol()).includes("Zona 10-1"), "lo traído tras el reintento");
+ok(consultas(10).filter(p => p.resultOffset === "0").length === 2, "tras un 503 repite la primera página y sigue: " + JSON.stringify(consultas(10).map(p => p.resultOffset)));
+ok(await page.evaluate(() => document.getElementById("geojson-name-picker").hidden),
+  "y con la misma forma de atributos usa el nombre ya elegido, sin volver a preguntar");
+
+/* E. Demasiadas entidades: se rechaza sin pedir ninguna */
+qmodo = "big";
+peticiones.length = 0;
+await traer("TMA_CTA");
+await esperar(() => page.evaluate(() => /100001 entidades/.test(document.getElementById("nav-msg").textContent)), "el aviso del tope");
+ok(consultas(10).length === 0, "sin pedir ni una página");
+
+/* F. Cancelar una descarga en vuelo */
+qmodo = "hang";
+peticiones.length = 0;
+await traer("TMA_CTA");
+await esperar(() => consultas(10).length === 1, "la consulta en vuelo");
+bd = await botonDatos("TMA_CTA");
+ok(bd.modo === "cancel" && /Cancelar/.test(bd.titulo), "mientras descarga el botón pasa a cancelar: " + JSON.stringify(bd));
+await traer("TMA_CTA");
+await esperar(() => page.evaluate(() => /cancelada/.test(document.getElementById("nav-msg").textContent)), "el aviso de cancelación");
+bd = await botonDatos("TMA_CTA");
+ok(bd.modo === "fetch" && await page.evaluate(() => document.getElementById("progress").hidden && document.getElementById("geojson-name-picker").hidden),
+  "pulsarlo otra vez cancela en el acto, sin diálogo ni barra");
+
+/* G. Un servidor sin paginación corta en su límite: se importa lo que hay y se dice */
+qmodo = "ok";
+peticiones.length = 0;
+await traer("TMA_CTA_texto");
+await esperar(async () => (await nombresArbol()).includes("Zona 23-2"), "las dos entidades que entregó");
+ok(consultas(23).length === 1 && consultas(23)[0].resultOffset === undefined && consultas(23)[0].orderByFields === undefined,
+  "sin paginación, UNA consulta sin desplazamiento ni orden");
+ok(await page.evaluate(() => /entregó 2 de 5 entidades/.test(document.getElementById("nav-msg").textContent)), "y el aviso dice cuántas de cuántas");
+ok(!(await nombresArbol()).includes("Zona 23-3"), "sin inventar las demás");
 
 ok((await page.evaluate(() => window.__csp)).length === 0, "sin violaciones de CSP: " + JSON.stringify(await page.evaluate(() => window.__csp)));
 ok(errors.filter(e => !/Failed to load resource/.test(e)).length === 0, "sin errores de página: " + JSON.stringify(errors));

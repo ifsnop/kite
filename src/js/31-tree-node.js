@@ -298,7 +298,10 @@ function makeActions(li, sortable, styleable, layer, focusable = styleable, { fi
     btn("\u2139", tr("Ver informaci\u00F3n de la capa"), "info-btn", () => showLayerInfo(li));
     box.lastChild.hidden = !hasInfo(li, layer);
   }
-  for (const x of extra) btn(x.glyph, x.title, x.cls || "", x.fn);
+  for (const x of extra) {
+    btn(x.glyph, x.title, x.cls || "", x.fn);
+    if (x.mode) box.lastChild.dataset.mode = x.mode; /* el estado del botón, nunca su texto (i18n.md) */
+  }
   if (fixed) return box;
   btn("\u2191", tr("Subir"), "", () => {
     const prev = li.previousElementSibling;

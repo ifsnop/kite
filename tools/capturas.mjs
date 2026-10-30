@@ -819,47 +819,94 @@ const arcgisRoute = page => page.route(`${ARCGIS_HOST}/**`, async route => {
   const u = new URL(route.request().url());
   const headers = { "access-control-allow-origin": "*" };
   try {
-    if (!u.pathname.endsWith("/export")) {
+    /* El catálogo es el fixture; lo demás (imágenes de /export, ficha de una capa, recuento y
+       entidades de /query) se pide al servicio de verdad, una vez por ejecución */
+    if (u.pathname.endsWith("/MapServer")) {
       return await route.fulfill({ status: 200, contentType: "application/json", headers, body: fixture("arcgis-mapserver.json") });
     }
-    if (NO_BG) return await route.fulfill({ status: 200, contentType: "image/png", headers, body: BLANK_TILE });
-    if (!arcgisCache.has(u.search)) {
-      const r = await route.fetch({ url: ARCGIS_REAL + "/export" + u.search,
+    const isImage = u.pathname.endsWith("/export");
+    if (NO_BG && isImage) return await route.fulfill({ status: 200, contentType: "image/png", headers, body: BLANK_TILE });
+    const key = u.pathname + u.search;
+    if (!arcgisCache.has(key)) {
+      const r = await route.fetch({ url: ARCGIS_REAL + u.pathname.slice(u.pathname.indexOf("/MapServer") + "/MapServer".length) + u.search,
         headers: { "user-agent": `KITE-Local-capturas/${PKG.version} (+https://github.com/ifsnop/kite)` } });
-      arcgisCache.set(u.search, await r.body());
+      arcgisCache.set(key, { type: r.headers()["content-type"] || "application/json", body: await r.body() });
     }
-    return await route.fulfill({ status: 200, contentType: "image/png", headers, body: arcgisCache.get(u.search) });
+    const hit = arcgisCache.get(key);
+    return await route.fulfill({ status: 200, contentType: hit.type, headers, body: hit.body });
   } catch { /* contexto cerrado */ }
 });
 
-scenario("servicio-arcgis.png", "7.16", async out => {
-  const { ctx, page } = await openApp({ route: arcgisRoute });
+/* Pega la dirección en 🔗, lee el catálogo (y fotografía el diálogo si se pide) y lo añade */
+async function arcgisAdd(page, dialogShot = null) {
   await view(page, [40.4, -3.7], 8);
   await settle(page);
   await page.click("#url-btn");
   await page.fill("#url-input", ARCGIS_BASE);
   await page.click("#url-fetch");
   await page.waitForFunction(() => /Servicio de mapas ArcGIS/.test(document.getElementById("url-status").textContent));
-  await dialog(page, path.join(path.dirname(out), "url-arcgis.png"), "url-dialog");
+  if (dialogShot) await dialog(page, dialogShot, "url-dialog");
   await page.click("#url-add");
   await page.waitForFunction(() => !!document.querySelector("#tree li.arcgis-service"));
+}
+/* Marca o desmarca capas del servicio por nombre */
+const arcgisToggle = (page, names) => page.evaluate(ns => {
+  for (const n of ns) {
+    const li = [...document.querySelectorAll("#tree li.arcgis-service li")].find(l => l._name === n);
+    li.querySelector(":scope > .node-row > input[type=checkbox]").click();
+  }
+}, names);
+/* Espera a que todas las teselas del servicio hayan llegado */
+const arcgisSettled = page => page.waitForFunction(() => {
+  const l = [...arcgisLayersOnMap][0];
+  const t = l ? Object.values(l._tiles) : [];
+  return t.length > 0 && t.every(x => x.el.complete);
+}, null, { timeout: 40000 });
+
+scenario("servicio-arcgis.png", "7.16", async out => {
+  const { ctx, page } = await openApp({ route: arcgisRoute });
+  await arcgisAdd(page, path.join(path.dirname(out), "url-arcgis.png"));
   /* Las capas del servidor que se enseñan: las visibles de partida más el CTR y su rótulo */
+  await arcgisToggle(page, ["CTR", "CTR_texto"]);
+  await arcgisSettled(page);
+  await settle(page, { ms: 600 });
+  /* El ratón sobre una capa con datos: se ve su botón ⤓ */
+  const r = await rowRect(page, "CTR");
+  await page.mouse.move(r.x + r.width / 2, r.y + r.height / 2);
+  await fullShot(page, out);
+  await ctx.close();
+}, ["url-arcgis.png"]);
+
+scenario("servicio-arcgis-datos.png", "7.16", async out => {
+  const { ctx, page } = await openApp({ route: arcgisRoute });
+  await arcgisAdd(page);
+  await arcgisSettled(page);
+  /* ⤓ sobre TMA_CTA: lo que trae entra por el camino normal (etiquetas HTML, nombre de los elementos) */
+  await page.evaluate(() => [...document.querySelectorAll("#tree li.arcgis-service li")]
+    .find(l => l._name === "TMA_CTA").querySelector(".arcgis-data").click());
+  await page.waitForFunction(() => !document.getElementById("kml-tags-picker").hidden, null, { timeout: 40000 });
+  await page.click("#ktp-accept");
+  await page.waitForFunction(() => !document.getElementById("geojson-name-picker").hidden);
+  await page.click('#gnp-list .gnp-row[data-key="NAME_TXT"] input');
+  await page.click("#gnp-accept");
+  await page.waitForFunction(() => [...document.querySelectorAll("#tree li")].some(l => l._name === "Descarga 1"), null, { timeout: 40000 });
+  /* El servicio plegado y apagado, para ver solo lo traído, ya como capas normales */
   await page.evaluate(() => {
-    for (const n of ["CTR", "CTR_texto"]) {
-      const li = [...document.querySelectorAll("#tree li.arcgis-service li")].find(l => l._name === n);
-      li.querySelector(":scope > .node-row > input[type=checkbox]").click();
+    const svc = document.querySelector("#tree li.arcgis-service");
+    svc.querySelector(":scope > .node-row > input[type=checkbox]").click();
+    svc.classList.add("collapsed");
+    syncExpanded(svc);
+    for (const n of ["Descargas", "Descarga 1"]) {
+      const li = [...document.querySelectorAll("#tree li")].find(l => l._name === n);
+      li.classList.remove("collapsed");
+      syncExpanded(li);
     }
   });
-  await page.waitForFunction(() => {
-    const l = [...arcgisLayersOnMap][0];
-    const t = l ? Object.values(l._tiles) : [];
-    return t.length > 0 && t.every(x => x.el.complete) && l._ids.length > 4;
-  }, null, { timeout: 40000 });
   await settle(page, { ms: 600 });
   await page.mouse.move(VIEW.width - 300, 120);
   await fullShot(page, out);
   await ctx.close();
-}, ["url-arcgis.png"]);
+});
 
 /* ===== Tema oscuro y aviso de móvil ===== */
 /* ===== 7.13 Anillos de alcance y sectores ===== */

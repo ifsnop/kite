@@ -132,7 +132,7 @@ Al pasar el ratón por una fila aparecen, según lo que sea:
 - **En una carpeta o un archivo**: seleccionar todas sus capas (☑) o quitar la selección (☐), ordenar alfabéticamente (AZ, que alterna ascendente y descendente), colapsar la carpeta y todas las de dentro, guardarla o exportarla a un archivo (💾; también lo llevan las capas sueltas) y abrir la tabla de atributos de sus capas (▦, apartado 7.15).
 - **En una capa**: centrar la vista y acercar el zoom a un nivel fijo, el 14, a escala de calle (🔍), y abrir su diálogo de propiedades (🎨 «Editar propiedades»), con las pestañas «Estilos» y «Atributos». Sobre un polígono, una medición o una capa de elevaciones, en vez de un zoom fijo, la lupa encuadra toda su geometría con un margen alrededor —más útil para una figura o una ruta que puede ser mucho más grande, o más alargada, que lo que cabría en un solo nivel de zoom centrado, y para una cuadrícula de elevaciones, que a ese zoom ni se vería—. Una capa de elevaciones lleva la lupa pero no 🎨: no tiene estilos que editar.
 - **Si la capa tiene una ficha o propiedades que enseñar**: un botón adicional (ℹ) para verlas.
-- **En un servicio de mapas ArcGIS**: guardarlo o exportarlo (💾), centrar la vista en la zona que cubre (🔍) y su opacidad (🎨). Sus filas de capas no llevan ningún botón (apartado 7.16).
+- **En un servicio de mapas ArcGIS**: guardarlo o exportarlo (💾), centrar la vista en la zona que cubre (🔍) y su opacidad (🎨). Sus filas de capas solo llevan, si la capa ofrece datos, el botón **⤓** que los trae (apartado 7.16).
 - **En cualquier otra fila**: subir (↑) y bajar (↓) un puesto entre sus hermanas, y borrar (×).
 
 ![Una fila seleccionada, con sus botones de acción visibles al pasar el ratón](img/fila-seleccionada.png)
@@ -587,7 +587,11 @@ Un servicio **ArcGIS REST (MapServer)** publica un mapa con varias capas —por 
 *Figura 51. «Añadir desde una dirección» con un servicio ArcGIS: tras «Descargar» dice cómo se llama el servicio, cuántas capas tiene y cuántas ofrecen datos, y espera a «Añadir al árbol».*
 
 ![Un servicio ArcGIS en el árbol, con una fila por capa, y sus capas dibujadas sobre el mapa](img/servicio-arcgis.png)
-*Figura 52. Un servicio ArcGIS en el árbol, con una fila por capa: las marcadas se dibujan sobre el mapa tal como las pinta el servidor, rótulos incluidos.*
+*Figura 52. Un servicio ArcGIS en el árbol, con una fila por capa: las marcadas se dibujan sobre el mapa tal como las pinta el servidor, rótulos incluidos. Al pasar el ratón por una capa con datos (aquí «CTR») aparece a la derecha su botón ⤓.*
+
+- **Traer los datos de una capa (⤓).** Al pasar el ratón por una capa que ofrece datos aparece el botón **⤓** («Traer las entidades de esta capa como datos (GeoJSON)»). La aplicación pide al servidor, **una sola vez por pulsación**, la ficha de la capa, cuántas entidades tiene y después todas ellas —de 2 000 en 2 000 como máximo, con todos sus atributos y la geometría en grados—, y las entrega al mismo camino que un archivo GeoJSON arrastrado: **«Descargas › Descarga N»**, con la misma pregunta por las etiquetas HTML de los atributos, el mismo selector del nombre de los elementos, el resumen y **«Deshacer»**. Son ya capas normales: se pueden medir, estilar por atributo (apartado 7.15), exportar o ver en la tabla de atributos. Mientras descarga, la barra de progreso dice cuántas lleva y el botón pasa a **✕**: pulsarlo otra vez **cancela** en el acto. Lo que trae es la capa **entera**, no solo lo que se ve; una capa de más de 100 000 entidades se rechaza, y un servidor que no pagina entrega solo lo que su límite permite (el aviso dice cuántas de cuántas). Un error del servicio no se reintenta; un fallo pasajero (503, tiempo agotado, sin red), hasta dos veces.
+![El resultado de traer como datos la capa TMA_CTA: una carpeta «Descarga 1» con sus 48 elementos y el aviso de la importación](img/servicio-arcgis-datos.png)
+*Figura 53. «Traer como datos» sobre la capa TMA_CTA, con el servicio apagado y plegado: bajo «Descargas › Descarga 1» han entrado sus 48 zonas como capas normales (el aviso de la importación dice que se eliminaron las etiquetas HTML de 288 atributos, tras preguntarlo).*
 
 - **Propiedades (🎨)** del servicio: solo la **opacidad**, con vista previa y «Cancelar» como en cualquier otro diálogo. **🔍** centra la vista en la zona que cubre.
 - **Las filas de las capas no se tocan**: reflejan el catálogo del servidor, así que no se renombran, no se mueven, no se copian y no se borran por separado (`Supr` y `F2` sobre una de ellas no hacen nada y lo explican). El servicio entero sí se renombra, se mueve, se copia y se borra como cualquier nodo, y **«Deshacer»** lo devuelve.
@@ -595,7 +599,7 @@ Un servicio **ArcGIS REST (MapServer)** publica un mapa con varias capas —por 
 - **Rótulos cortados.** El servidor dibuja el mapa en trozos de 512 píxeles; un rótulo que cae justo en el borde de un trozo puede salir cortado.
 - **Si el servidor falla**, las imágenes que no llegan se señalan con un contorno rojo, la primera vez se avisa con el motivo que da el propio servidor, y si siguen sin llegar el nombre del servicio se pone en rojo hasta que vuelvan a llegar.
 - **Qué se guarda.** Se guarda, con el árbol, la dirección del servicio, su lista de capas y cuáles están marcadas: al volver a abrir la aplicación **no se vuelve a pedir el catálogo**, pero un servicio guardado como activo sí vuelve a pedir sus imágenes. El servicio **sí viaja** en un archivo `.kite.json` (💾), pero no en KML ni en GeoJSON (el aviso lo nombra: sus capas son un catálogo remoto, no datos). Al abrir el `.kite.json` de otra persona, o pegar desde otra pestaña, el servicio **llega apagado**, con todas sus capas, y un aviso dice de qué servidor se trata: no se consulta ningún servidor hasta que se enciende.
-- **Privacidad.** Como con cualquier mapa base, el servidor ve la dirección IP del usuario y las zonas del mapa que consulta. Del contenido de los archivos cargados no le llega nada (ver el estudio de seguridad).
+- **Privacidad.** Como con cualquier mapa base, el servidor ve la dirección IP del usuario y las zonas del mapa que consulta; al traer los datos de una capa, además, qué capa. Del contenido de los archivos cargados no le llega nada (ver el estudio de seguridad).
 
 ## 8. Atajos de teclado
 
@@ -604,7 +608,7 @@ La misma información está disponible en cualquier momento con la tecla `?` o e
 Esa × es la norma de toda ventana cuyo único botón sería «Cerrar» (la chuleta, los cálculos geodésicos y el perfil de una ruta): en vez de un pie con un solo botón, la × en la barra del título, que se ve siempre, y ese espacio para el contenido.
 
 ![Chuleta de atajos de teclado completa](img/atajos.png)
-*Figura 53. Chuleta de atajos de teclado (tecla `?`), pestaña «Navegación». Las otras tres son «Actuar», «Visor» y «Dibujar y editar».*
+*Figura 54. Chuleta de atajos de teclado (tecla `?`), pestaña «Navegación». Las otras tres son «Actuar», «Visor» y «Dibujar y editar».*
 
 **Moverse por el árbol**
 

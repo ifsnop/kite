@@ -6,15 +6,18 @@
    `layers=show:` y la validación de un registro ajeno.                  */
 const fs = require("fs");
 const path = require("path");
-const { fn, between } = require("./_extract");
-const consts = between("const ARCGIS_MAX_LAYERS", "/* Base address of a MapServer");
+const { fn, between, constDecl } = require("./_extract");
+const consts = between("const ARCGIS_MAX_LAYERS", "/* Base address of a MapServer")
+  + between("const ARCGIS_QUERY_TIMEOUT", "const arcgisLayerInfoUrl") + constDecl("arcgisLayerInfoUrl") + constDecl("arcgisCountUrl");
 const src = consts + [
   fn("describeHttp"), fn("arcgisServiceBase"), fn("arcgisServiceName"), fn("arcgisErrorText"),
   fn("arcgisTileReason"), fn("arcgisExtent4326"), fn("parseArcgisCatalog"), fn("arcgisCatalogRecord"),
-  fn("sanitizeArcgisRecord"), fn("arcgisShowIds"), fn("tileBbox3857"), fn("arcgisExportUrl")].join("\n");
+  fn("sanitizeArcgisRecord"), fn("arcgisShowIds"), fn("tileBbox3857"), fn("arcgisExportUrl"),
+  fn("arcgisQueryUrl"), fn("parseArcgisLayerInfo"), fn("arcgisCountOf"), fn("mergeArcgisPages")].join("\n");
 const api = new Function(src + "\nreturn {arcgisServiceBase, arcgisServiceName, arcgisErrorText," +
   " arcgisTileReason, arcgisExtent4326, parseArcgisCatalog, arcgisCatalogRecord, sanitizeArcgisRecord," +
-  " arcgisShowIds, tileBbox3857, arcgisExportUrl, ARCGIS_MAX_LAYERS, ARCGIS_MAX_DEPTH};")();
+  " arcgisShowIds, tileBbox3857, arcgisExportUrl, ARCGIS_MAX_LAYERS, ARCGIS_MAX_DEPTH," +
+  " arcgisLayerInfoUrl, arcgisCountUrl, arcgisQueryUrl, parseArcgisLayerInfo, arcgisCountOf, mergeArcgisPages, ARCGIS_PAGE_MAX};")();
 const ok = (c, m) => { if (!c) { console.error("FAIL: " + m); process.exitCode = 1; } };
 const same = (a, b, m) => ok(JSON.stringify(a) === JSON.stringify(b), m + " — " + JSON.stringify(a) + " ≠ " + JSON.stringify(b));
 
@@ -192,5 +195,58 @@ const groupData = good(); groupData.children[0] = { t: "arcgisLayer", name: "g",
 ok(!api.sanitizeArcgisRecord(groupData).children[0].data, "un grupo no lleva `data`");
 same(api.arcgisShowIds(api.sanitizeArcgisRecord(groupData).children).includes(901), true, "el hijo del grupo sí cuenta");
 same(api.arcgisShowIds(null), [], "sin hijos");
+
+/* ---------- Traer los datos de una capa ---------- */
+same(api.arcgisLayerInfoUrl(BASE, 10), BASE + "/10?f=json", "URL de la ficha de la capa");
+same(api.arcgisCountUrl(BASE, 10), BASE + "/10/query?where=1%3D1&returnCountOnly=true&f=json", "URL del recuento");
+same(api.arcgisQueryUrl(BASE, 10), BASE + "/10/query?where=1%3D1&outFields=*&returnGeometry=true&outSR=4326&f=geojson",
+  "sin paginación: una sola petición, todos los atributos, geometría, WGS84 y GeoJSON");
+same(api.arcgisQueryUrl(BASE, 10, { offset: 4000, count: 2000, orderBy: "OBJECTID" }),
+  BASE + "/10/query?where=1%3D1&outFields=*&returnGeometry=true&outSR=4326&orderByFields=OBJECTID&resultOffset=4000&resultRecordCount=2000&f=geojson",
+  "con paginación: orden estable por el campo OID, desplazamiento y tamaño de página");
+ok(!/geometry=|inSR|spatialRel|maxAllowableOffset|geometryPrecision/.test(api.arcgisQueryUrl(BASE, 10, { offset: 0, count: 5, orderBy: "OBJECTID" })),
+  "sin filtro espacial ni simplificación: la capa entera a resolución completa");
+same(api.arcgisQueryUrl(BASE, 10, { offset: 0, count: 5, orderBy: "A B&x=1" }).includes("orderByFields=A%20B%26x%3D1"), true, "el campo de orden va codificado");
+
+const info = api.parseArcgisLayerInfo(JSON.parse(fs.readFileSync(path.join(__dirname, "fixtures", "arcgis-layer10.json"), "utf8")));
+ok(!info.error, "la ficha REAL de la capa TMA_CTA se lee: " + info.error);
+ok(info.name === "TMA_CTA" && info.pagination === true && info.maxRecord === 2000, "nombre, paginación y 2 000 por página: " + JSON.stringify(info));
+same(info.oidField, "OBJECTID", "el campo OID sale de `fields` cuando no hay `objectIdField`");
+const LI = o => Object.assign({ type: "Feature Layer", capabilities: "Map,Query,Data", supportedQueryFormats: "JSON, geoJSON, PBF", maxRecordCount: 1000,
+  advancedQueryCapabilities: { supportsPagination: true }, objectIdField: "FID" }, o);
+same(api.parseArcgisLayerInfo(LI({})).oidField, "FID", "objectIdField si lo trae");
+same(api.parseArcgisLayerInfo(LI({ maxRecordCount: 50000 })).maxRecord, api.ARCGIS_PAGE_MAX, "nunca más de 2 000 por página aunque el servidor admita más");
+same(api.parseArcgisLayerInfo(LI({ maxRecordCount: -3 })).maxRecord, 1000, "un maxRecordCount absurdo se queda en 1 000");
+same(api.parseArcgisLayerInfo(LI({ advancedQueryCapabilities: { supportsPagination: false } })).pagination, false, "sin paginación");
+same(api.parseArcgisLayerInfo(LI({ advancedQueryCapabilities: undefined })).pagination, false, "sin capacidades avanzadas: sin paginación");
+same(api.parseArcgisLayerInfo(LI({ objectIdField: "a; drop" })).oidField, null, "un campo de orden con forma rara no se manda");
+ok(api.parseArcgisLayerInfo(LI({ supportedQueryFormats: "JSON, PBF" })).error, "un servidor que no sabe GeoJSON se rechaza diciéndolo");
+ok(api.parseArcgisLayerInfo(LI({ supportedQueryFormats: undefined })).error, "sin formatos declarados tampoco se supone");
+ok(api.parseArcgisLayerInfo(LI({ capabilities: "Map" })).error, "sin capacidad Query");
+ok(api.parseArcgisLayerInfo(LI({ type: "Group Layer" })).error, "un grupo no tiene entidades");
+ok(api.parseArcgisLayerInfo(LI({ type: "Raster Layer" })).error, "una capa ráster tampoco");
+ok(api.parseArcgisLayerInfo({ error: { code: 400, message: "Invalid layer" } }).error.includes("Invalid layer"), "el {error} del servicio");
+for (const bad of [null, 5, "x"]) ok(api.parseArcgisLayerInfo(bad).error, "no es una ficha: " + JSON.stringify(bad));
+
+same(api.arcgisCountOf({ count: 48 }), { count: 48 }, "recuento");
+same(api.arcgisCountOf({ count: 0 }), { count: 0 }, "recuento cero");
+for (const bad of [{ count: -1 }, { count: "5" }, { count: 1.5 }, {}, null]) ok(api.arcgisCountOf(bad).error, "recuento no válido: " + JSON.stringify(bad));
+ok(api.arcgisCountOf({ error: { code: 400, message: "x" } }).error.includes("x"), "recuento con {error}");
+
+const feat = (id, extra) => ({ type: "Feature", id, properties: { n: id }, geometry: null, ...extra });
+const page = (ids, props) => ({ type: "FeatureCollection", features: ids.map(i => feat(i)), ...props });
+let m = api.mergeArcgisPages([page([1, 2], { properties: { exceededTransferLimit: true } }), page([3, 4], { properties: { exceededTransferLimit: true } }), page([5])]);
+ok(m.fc.features.map(f => f.id).join() === "1,2,3,4,5" && m.exceeded === false && m.bad === 0, "tres páginas en una, en orden, y la última ya no corta: " + JSON.stringify([m.fc.features.length, m.exceeded]));
+m = api.mergeArcgisPages([page([1, 2], { exceededTransferLimit: true })]);
+ok(m.exceeded === true && m.fc.features.length === 2, "el indicador de corte también vale en lo alto de la respuesta");
+m = api.mergeArcgisPages([page([1, 2], { properties: { exceededTransferLimit: true } })]);
+ok(m.exceeded === true, "y dentro de `properties`");
+m = api.mergeArcgisPages([page([1, 2, 3]), page([3, 4])]);
+ok(m.fc.features.map(f => f.id).join() === "1,2,3,4", "una entidad repetida entre páginas queda una vez");
+m = api.mergeArcgisPages([{ type: "FeatureCollection", features: [feat(undefined), feat(undefined), null, 5, feat("a"), feat(1)] }]);
+ok(m.fc.features.length === 4, "sin id no se puede deduplicar, y lo que no es una entidad se salta: " + m.fc.features.length);
+m = api.mergeArcgisPages([page([1]), { type: "Otra" }, null, { features: "no" }]);
+ok(m.bad === 3 && m.fc.features.length === 1, "páginas que no son una FeatureCollection se cuentan y no rompen: " + m.bad);
+ok(api.mergeArcgisPages([]).fc.features.length === 0, "sin páginas, vacío");
 
 if (!process.exitCode) console.log("ARCGIS TESTS OK");

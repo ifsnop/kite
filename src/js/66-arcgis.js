@@ -265,6 +265,85 @@ function arcgisExportUrl(base, bbox, px, dpi, ids) {
     + "&dpi=" + dpi + "&format=png32&transparent=true&layers=show:" + ids.join(",") + "&f=image";
 }
 
+/* ---------- Traer los datos de una capa (/query) ----------
+   Tres peticiones, todas GET simples: la ficha de la capa (qué admite), el
+   recuento (para no empezar algo desmesurado) y los datos por páginas.
+   Parámetros que se piden: where=1=1 (todas), outFields=* (todos los
+   atributos: los necesitan la tabla y el estilo por atributo),
+   returnGeometry, outSR=4326 (GeoJSON va en WGS84 y el servidor reproyecta)
+   y, con paginación, orderByFields=<OID> (páginas estables, sin huecos ni
+   repetidas). NO se manda geometría de filtro ni simplificación: se trae la
+   capa entera a resolución completa.                                      */
+const ARCGIS_QUERY_TIMEOUT = 30000;      /* POR INTENTO */
+const ARCGIS_MAX_FEATURES = 100000;      /* el mismo tope que un shapefile (SHP_MAX_FEATURES) */
+const ARCGIS_PAGE_MAX = 2000;            /* nunca más por página, aunque el servidor admita más */
+const ARCGIS_MAX_PAGES = 500;            /* cinturón contra un servidor que no avanza */
+const ARCGIS_RETRIES = 2;
+const ARCGIS_OID_RE = /^[A-Za-z_][A-Za-z0-9_.]{0,63}$/;
+
+const arcgisLayerInfoUrl = (base, id) => `${base}/${id}?f=json`;
+const arcgisCountUrl = (base, id) => `${base}/${id}/query?where=1%3D1&returnCountOnly=true&f=json`;
+function arcgisQueryUrl(base, id, { offset = 0, count = null, orderBy = null } = {}) {
+  let u = `${base}/${id}/query?where=1%3D1&outFields=*&returnGeometry=true&outSR=4326`;
+  if (orderBy) u += "&orderByFields=" + encodeURIComponent(orderBy);
+  if (count !== null) u += `&resultOffset=${offset}&resultRecordCount=${count}`;
+  return u + "&f=geojson";
+}
+
+/* La ficha de una capa (`<servicio>/<id>?f=json`) → lo que decide cómo se
+   pide: si sabe devolver GeoJSON, si pagina y de cuánto en cuánto, y por
+   qué campo ordenar. Devuelve { error } o { name, pagination, maxRecord, oidField }. */
+function parseArcgisLayerInfo(json) {
+  if (!json || typeof json !== "object") return { error: tr("la respuesta no es la ficha de una capa") };
+  if (json.error) return { error: arcgisErrorText(json.error) };
+  if (json.type !== "Feature Layer" && json.type !== "Table") return { error: tr("esta capa no tiene entidades que traer") };
+  if (typeof json.capabilities === "string" && !/\bQuery\b/i.test(json.capabilities)) {
+    return { error: tr("el servicio no permite consultar los datos de esta capa") };
+  }
+  const formats = typeof json.supportedQueryFormats === "string" ? json.supportedQueryFormats : "";
+  if (!/geojson/i.test(formats)) {
+    return { error: tr("el servidor no sabe devolver esta capa como GeoJSON (admite: {formats})", { formats: formats.slice(0, 80) || tr("sin datos") }) };
+  }
+  const adv = json.advancedQueryCapabilities;
+  const max = Number.isInteger(json.maxRecordCount) && json.maxRecordCount > 0 ? json.maxRecordCount : 1000;
+  let oid = typeof json.objectIdField === "string" ? json.objectIdField : null;
+  if (!oid && Array.isArray(json.fields)) {
+    const f = json.fields.find(x => x && x.type === "esriFieldTypeOID" && typeof x.name === "string");
+    oid = f ? f.name : null;
+  }
+  return { name: typeof json.name === "string" ? json.name : "", pagination: !!(adv && adv.supportsPagination === true),
+           maxRecord: Math.min(max, ARCGIS_PAGE_MAX), oidField: oid && ARCGIS_OID_RE.test(oid) ? oid : null };
+}
+
+function arcgisCountOf(json) {
+  if (json && json.error) return { error: arcgisErrorText(json.error) };
+  if (json && Number.isInteger(json.count) && json.count >= 0) return { count: json.count };
+  return { error: tr("la respuesta del recuento no es válida") };
+}
+
+/* Las páginas de un /query en UNA FeatureCollection. Repetidas por `id` se
+   dejan una vez (si el orden no era estable una entidad puede salir en dos
+   páginas), y `exceeded` es lo que dijo la ÚLTIMA: el indicador de que el
+   servidor cortó vive en lo alto o dentro de `properties` según la versión. */
+function mergeArcgisPages(pages) {
+  const features = [], seen = new Set();
+  let exceeded = false, bad = 0;
+  for (const p of pages) {
+    if (!p || p.type !== "FeatureCollection" || !Array.isArray(p.features)) { bad++; continue; }
+    for (const f of p.features) {
+      if (!f || typeof f !== "object") continue;
+      if (f.id !== undefined && f.id !== null) {
+        const k = typeof f.id + ":" + f.id;
+        if (seen.has(k)) continue;
+        seen.add(k);
+      }
+      features.push(f);
+    }
+    exceeded = !!(p.exceededTransferLimit || (p.properties && p.properties.exceededTransferLimit));
+  }
+  return { fc: { type: "FeatureCollection", features }, exceeded, bad };
+}
+
 /* ---------- La capa de teselas ---------- */
 const ARCGIS_REDRAW_MS = 300;
 /* Una tesela vacía (GIF de 1×1 transparente) para cuando no hay ninguna
@@ -420,7 +499,10 @@ async function materializeArcgisRecord(rec, parentUl) {
     ? makeNode({ name: rec.name, layer: rec._layer, isFolder: true, sortable: false,
                  styleable: true, focusable: true, checked: !!rec.checked })
     : makeNode({ name: rec.name, isFolder: isGroup, sortable: false, styleable: false,
-                 focusable: false, fixed: true, checked: !!rec.checked });
+                 focusable: false, fixed: true, checked: !!rec.checked,
+                 /* `li` se resuelve al PULSAR, ya asignado */
+                 extra: rec.data ? [{ glyph: "\u2913", title: tr("Traer las entidades de esta capa como datos (GeoJSON)"),
+                   cls: "arcgis-data", mode: "fetch", fn: b => arcgisFetchLayerData(li, b) }] : [] });
   rec._li = li;
   /* Antes de nada más: styleKind guarda su resultado en la primera consulta */
   if (isService) {
@@ -463,4 +545,124 @@ async function addArcgisServiceNode(cat, base) {
   navMessage(tr("Servicio «{name}» añadido: {n} capa(s), {shown} visible(s). Marque las que quiera ver.",
     { name: rec.name, n: cat.count, shown }), { tone: "info" });
   return rec._li;
+}
+
+/* ---------- «Traer como datos» ---------- */
+
+/* Una petición SIMPLE (sin cabeceras propias ni credenciales: sin
+   preflight, ver url-import.md) con tiempo máximo POR INTENTO y reintentos
+   solo de lo pasajero (withElevRetries). Un {error} del servicio se
+   contesta con HTTP 200 y NO se reintenta (owsCode): repetirlo daría lo
+   mismo. Devuelve { json, size }.                                       */
+function arcgisGetJson(url, signal, cap) {
+  return withElevRetries(async () => {
+    const t = AbortSignal.timeout(ARCGIS_QUERY_TIMEOUT);
+    const resp = await fetch(url, { credentials: "omit", signal: signal ? AbortSignal.any([signal, t]) : t });
+    if (!resp.ok) {
+      const err = new Error(describeHttp(resp.status));
+      err.status = resp.status;
+      throw err;
+    }
+    const bytes = await readCapped(resp, cap);
+    let json;
+    try { json = JSON.parse(new TextDecoder("utf-8").decode(bytes)); }
+    catch { throw Object.assign(new Error(tr("la respuesta del servicio no es JSON")), { owsCode: "json" }); }
+    if (json && json.error) throw Object.assign(new Error(arcgisErrorText(json.error)), { owsCode: "arcgis" });
+    return { json, size: bytes.length };
+  }, { signal, retries: ARCGIS_RETRIES });
+}
+
+/* El mensaje de un fallo de red/cancelación, en una frase */
+function arcgisFailText(err) {
+  if (err && err.name === "TimeoutError") return tr("el servidor no responde");
+  if (err instanceof TypeError) return netFailText(tr("no se pudo conectar con el servicio (¿CORS?)"));
+  return (err && err.message) || String(err);
+}
+
+/* Lo que se descarga de UNA capa: ficha, recuento y páginas. Devuelve
+   { fc, partial: { got, total } | null }. `onProgress(got, total, bytes)`
+   alimenta la barra.                                                     */
+async function arcgisDownloadLayer(base, id, signal, onProgress) {
+  const info = parseArcgisLayerInfo((await arcgisGetJson(arcgisLayerInfoUrl(base, id), signal, ARCGIS_JSON_MAX)).json);
+  if (info.error) throw new Error(info.error);
+  const counted = arcgisCountOf((await arcgisGetJson(arcgisCountUrl(base, id), signal, ARCGIS_JSON_MAX)).json);
+  if (counted.error) throw new Error(counted.error);
+  const total = counted.count;
+  if (!total) throw new Error(tr("la capa no tiene ninguna entidad"));
+  if (total > ARCGIS_MAX_FEATURES) {
+    throw new Error(tr("la capa tiene {n} entidades y el máximo que se trae de una vez es {max}", { n: total, max: ARCGIS_MAX_FEATURES }));
+  }
+  const pages = [];
+  let offset = 0, bytes = 0;
+  for (let i = 0; i < ARCGIS_MAX_PAGES; i++) {
+    const url = arcgisQueryUrl(base, id, info.pagination
+      ? { offset, count: info.maxRecord, orderBy: info.oidField } : {});
+    const { json, size } = await arcgisGetJson(url, signal, URL_MAX_BYTES - bytes);
+    bytes += size;
+    pages.push(json);
+    const got = Array.isArray(json.features) ? json.features.length : 0;
+    offset += got;
+    if (onProgress) onProgress(Math.min(offset, total), total, bytes);
+    const exceeded = !!(json.exceededTransferLimit || (json.properties && json.properties.exceededTransferLimit));
+    if (!info.pagination || !exceeded || !got || offset >= total) break;
+  }
+  const merged = mergeArcgisPages(pages);
+  if (!merged.fc.features.length) throw new Error(tr("el servidor no devolvió ninguna entidad"));
+  /* Sin paginación el servidor corta en su límite: se trae lo que hay y se dice */
+  const partial = !info.pagination && merged.exceeded ? { got: merged.fc.features.length, total } : null;
+  return { fc: merged.fc, partial };
+}
+
+/* Las descargas en vuelo, por fila: { ctrl, cancelled }. Pulsar otra vez el
+   botón la cancela. Se apunta aparte que fue el usuario (`cancelled`) en vez
+   de leer el motivo del aborto: según el sitio por el que se corte, el
+   navegador rechaza con un AbortError o con el propio motivo, y un fallo
+   de verdad no debe contarse como cancelación.                        */
+const arcgisDataRuns = new Map();
+
+function arcgisSetDataButton(button, running) {
+  if (!button) return;
+  button.dataset.mode = running ? "cancel" : "fetch";
+  button.textContent = running ? "\u2715" : "\u2913";
+  const title = running ? tr("Cancelar la descarga de esta capa") : tr("Traer las entidades de esta capa como datos (GeoJSON)");
+  button.title = title;
+  button.setAttribute("aria-label", title);
+}
+
+/* El botón ⤓ de una capa con datos: la descarga se entrega al camino normal
+   de importación como un archivo .geojson, dentro de una «Descarga N», así
+   que hereda la pregunta de las etiquetas HTML, el nombre de los elementos,
+   los duplicados, el resumen y deshacer.                                  */
+async function arcgisFetchLayerData(li, button) {
+  const running = arcgisDataRuns.get(li);
+  if (running) { running.cancelled = true; running.ctrl.abort(); return; }
+  const service = arcgisServiceOf(li);
+  if (!service) return;
+  const name = li._name;
+  const run = { ctrl: new AbortController(), cancelled: false };
+  arcgisDataRuns.set(li, run);
+  arcgisSetDataButton(button, true);
+  progress.indet(tr("Consultando «{name}»…", { name }));
+  try {
+    const { fc, partial } = await arcgisDownloadLayer(service._arcgis.url, li._arcgisLayer.id, run.ctrl.signal,
+      (got, total, bytes) => progress.set(100 * got / total,
+        tr("Trayendo «{name}»… {got} de {total} entidades ({size})", { name, got, total, size: fmtBytes(bytes) })));
+    progress.hide();
+    if (partial) {
+      navMessage(tr("«{name}»: el servidor entregó {got} de {total} entidades (no admite paginación).", { name, ...partial }),
+        { sticky: true });
+    }
+    await importIntoNewDownload(new File([JSON.stringify(fc)], safeFileName(name) + ".geojson"),
+      tr("traer datos de «{name}»", { name }));
+  } catch (err) {
+    progress.hide();
+    if (run.cancelled) {
+      navMessage(tr("Descarga de «{name}» cancelada.", { name }), { tone: "info" });
+    } else {
+      navMessage(tr("No se pudieron traer los datos de «{name}»: {why}", { name, why: arcgisFailText(err) }));
+    }
+  } finally {
+    arcgisDataRuns.delete(li);
+    arcgisSetDataButton(button, false);
+  }
 }
