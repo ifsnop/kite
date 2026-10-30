@@ -77,6 +77,7 @@ const JS = [
   "33-kml-import.js",     /* apertura tolerante del XML, importación */
   "34-shp-import.js",     /* shapefiles: agrupar piezas, .prj, a GeoJSON */
   "35-export-formats.js", /* exportar a KML y GeoJSON (registros → texto) y minimenú de 💾 */
+  "36-gpx-import.js",     /* importar GPX: waypoints, rutas y tracks a un FeatureCollection */
   "40-panel-actions.js",  /* acciones del panel, buscador de lugares */
   "41-selection.js",      /* selección, Ctrl+A, portapapeles */
   "42-hittest.js",        /* acierto bajo el cursor del menú contextual */

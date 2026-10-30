@@ -1722,7 +1722,7 @@
     </div>
   </header>
   <div id="tree" role="tree" aria-label="Árbol de capas" tabindex="0"></div>
-  <div id="dropzone">Arrastre aquí sus archivos KML/KMZ (incl. ortofotos), JSON/TopoJSON, shapefiles (.shp con su .dbf y .prj, o en .zip), ortofotos COG (.tif) o carpetas exportadas (.kite.json)</div>
+  <div id="dropzone">Arrastre aquí sus archivos KML/KMZ (incl. ortofotos), GPX, JSON/TopoJSON, shapefiles (.shp con su .dbf y .prj, o en .zip), ortofotos COG (.tif) o carpetas exportadas (.kite.json)</div>
   <footer id="nav-search">
     <div class="nav-actions">
       <input type="text" id="search-box" placeholder="Buscar capas y carpetas&#8230;">
@@ -2298,7 +2298,7 @@
 <div id="url-dialog" class="dlg-overlay" hidden>
   <div class="dlg-box">
     <h2>A&#241;adir desde una direcci&#243;n</h2>
-    <p class="dlg-hint">Direcci&#243;n de un archivo KML, KMZ, JSON/GeoJSON, TopoJSON, de un
+    <p class="dlg-hint">Direcci&#243;n de un archivo KML, KMZ, GPX, JSON/GeoJSON, TopoJSON, de un
       shapefile comprimido (.zip) o de una carpeta exportada (.kite.json). Se descarga primero y se a&#241;ade despu&#233;s, cuando
       vea qu&#233; ha llegado.</p>
     <!-- Un <textarea> y no un <input>: una dirección de descarga pasa de
@@ -2794,7 +2794,7 @@ registerLang("en", "English", {
   "«{name}» no está soportado. Formatos admitidos: {importFormats}.": "“{name}” is not supported. Supported formats: {importFormats}.",
   "Carga de «{name}» cancelada.": "Loading of “{name}” canceled.",
   "No se pudo cargar «{name}» ({ext}, {size}): {message}": "Could not load “{name}” ({ext}, {size}): {message}",
-  "KML, KMZ (incl. ortofotos), JSON (GeoJSON), TopoJSON, shapefiles (.shp con su .dbf y .prj, o en un .zip), ortofotos COG y modelos de elevación (.tif) y carpetas exportadas ({ext})": "KML, KMZ (incl. orthophotos), JSON (GeoJSON), TopoJSON, shapefiles (.shp with its .dbf and .prj, or in a .zip), COG orthophotos and elevation models (.tif) and exported folders ({ext})",
+  "KML, KMZ (incl. ortofotos), GPX, JSON (GeoJSON), TopoJSON, shapefiles (.shp con su .dbf y .prj, o en un .zip), ortofotos COG y modelos de elevación (.tif) y carpetas exportadas ({ext})": "KML, KMZ (incl. orthophotos), GPX, JSON (GeoJSON), TopoJSON, shapefiles (.shp with its .dbf and .prj, or in a .zip), COG orthophotos and elevation models (.tif) and exported folders ({ext})",
   "«{name}» es una ortofoto ECW, un formato propietario que el navegador no puede leer. Conviértala a COG y suelte el .tif: gdal_translate -of COG -co COMPRESS=JPEG \"{name}\" \"{base}.tif\" (necesita GDAL con soporte ECW; QGIS para Windows lo trae: Ráster › Conversión › Traducir, formato COG).": "“{name}” is an ECW orthophoto, a proprietary format that the browser cannot read. Convert it to COG and drop the .tif: gdal_translate -of COG -co COMPRESS=JPEG \"{name}\" \"{base}.tif\" (needs GDAL with ECW support; QGIS for Windows includes it: Raster › Conversion › Translate, COG format).",
   "KMZ (KML comprimido)": "KMZ (compressed KML)",
   "carpeta exportada de KITE (.kite.json)": "exported KITE folder (.kite.json)",
@@ -2824,6 +2824,15 @@ registerLang("en", "English", {
   "Archivo de KITE (.kite.json)": "KITE file (.kite.json)",
   "KML (.kml)": "KML (.kml)",
   "GeoJSON (.geojson)": "GeoJSON (.geojson)",
+  /* 36-gpx-import.js */
+  "no es un archivo GPX (falta el elemento <gpx>)": "not a GPX file (the <gpx> element is missing)",
+  "waypoint sin coordenadas válidas": "waypoint without valid coordinates",
+  "ruta con menos de dos puntos válidos": "route with fewer than two valid points",
+  "track sin ningún segmento con dos puntos válidos": "track without any segment of two valid points",
+  "{n} punto(s) sin coordenadas válidas omitidos": "{n} point(s) without valid coordinates left out",
+  "{n} segmento(s) de menos de dos puntos omitidos": "{n} segment(s) of fewer than two points left out",
+  "se corta en {max} puntos: es el tope por archivo GPX": "cut off at {max} points: that is the limit per GPX file",
+  "el archivo GPX no contiene ningún waypoint, ruta ni track": "the GPX file contains no waypoint, route or track",
   /* 40-panel-actions.js */
   "Lugares": "Places",
   "la dirección no existe (HTTP 404)": "the address does not exist (HTTP 404)",
@@ -3211,7 +3220,7 @@ registerLang("en", "English", {
   "Desactivar todo": "Disable all",
   "Colapsar todo": "Collapse all",
   "Sin conexión": "Offline",
-  "Arrastre aquí sus archivos KML/KMZ (incl. ortofotos), JSON/TopoJSON, shapefiles (.shp con su .dbf y .prj, o en .zip), ortofotos COG (.tif) o carpetas exportadas (.kite.json)": "Drop your KML/KMZ files (incl. orthophotos), JSON/TopoJSON, shapefiles (.shp with its .dbf and .prj, or in a .zip), COG orthophotos (.tif) or exported folders (.kite.json) here",
+  "Arrastre aquí sus archivos KML/KMZ (incl. ortofotos), GPX, JSON/TopoJSON, shapefiles (.shp con su .dbf y .prj, o en .zip), ortofotos COG (.tif) o carpetas exportadas (.kite.json)": "Drop your KML/KMZ files (incl. orthophotos), GPX, JSON/TopoJSON, shapefiles (.shp with its .dbf and .prj, or in a .zip), COG orthophotos (.tif) or exported folders (.kite.json) here",
   "Propiedades": "Properties",
   "Nombre": "Name",
   "Estilos": "Styles",
@@ -3424,7 +3433,7 @@ registerLang("en", "English", {
   "Puntos de la capa": "Points of the layer",
   "Copiar": "Copy",
   "Añadir desde una dirección": "Add from an address",
-  "Dirección de un archivo KML, KMZ, JSON/GeoJSON, TopoJSON, de un shapefile comprimido (.zip) o de una carpeta exportada (.kite.json). Se descarga primero y se añade después, cuando vea qué ha llegado.": "Address of a KML, KMZ, JSON/GeoJSON, TopoJSON file, of a compressed shapefile (.zip) or of an exported folder (.kite.json). It is downloaded first and added afterwards, once you have seen what arrived.",
+  "Dirección de un archivo KML, KMZ, GPX, JSON/GeoJSON, TopoJSON, de un shapefile comprimido (.zip) o de una carpeta exportada (.kite.json). Se descarga primero y se añade después, cuando vea qué ha llegado.": "Address of a KML, KMZ, GPX, JSON/GeoJSON, TopoJSON file, of a compressed shapefile (.zip) or of an exported folder (.kite.json). It is downloaded first and added afterwards, once you have seen what arrived.",
   "Añadir al árbol": "Add to tree",
   "Credencial de Copernicus": "Copernicus credentials",
   "Instance ID": "Instance ID",
@@ -4765,7 +4774,7 @@ map.on("resize rotate", fitWorldMinZoom);
 
 /* Fecha de generación del código (versión): AÑOMESDIAHORAMINUTO.
    Actualizar en cada generación; se muestra junto al crédito de Leaflet. */
-const BUILD = "202610300109";
+const BUILD = "202610300142";
 /* Versión de release (la de package.json, horneada aquí por build.js
    al construir — ver «Versión y releases de GitHub» en CLAUDE.md): a
    diferencia de BUILD, que cambia en CADA generación, esta solo cambia
@@ -10103,7 +10112,9 @@ function importCancelled() {
 const BIG_FEATURE_COUNT = 5000;
 /* `report`: un informe ya empezado por quien llama (lo que se ve al leer
    un shapefile —sin .prj, ED50…— va en el mismo resumen).             */
-async function addFileNode(name, kind, content, insertBefore = null, dropTargetUl = null, zip = null, report = null) {
+/* `presetNameKeys`: un formato que define él mismo qué es el nombre (el
+   <name> de un GPX) lo da hecho y no se pregunta ni se recuerda nada.  */
+async function addFileNode(name, kind, content, insertBefore = null, dropTargetUl = null, zip = null, report = null, presetNameKeys = null) {
   const big = typeof content === "string"
     ? content.length > SIZE_THRESHOLD
     : geojsonFeatures(content).length > BIG_FEATURE_COUNT;
@@ -10179,8 +10190,8 @@ async function addFileNode(name, kind, content, insertBefore = null, dropTargetU
         }
       }
       const firstProps = (features[0] && typeof features[0].properties === "object" && features[0].properties) || {};
-      let nameKeys = null;
-      if (needsNamePicker(firstProps)) {
+      let nameKeys = presetNameKeys;
+      if (!nameKeys && needsNamePicker(firstProps)) {
         if (!gnpStore) gnpStore = await dbLoadGnp();
         const fp = propsFingerprint(firstProps);
         const stored = gnpStore[fp] || null;
@@ -10406,6 +10417,11 @@ async function handleDroppedFiles(files, insertBefore, dropTargetUl = null) {
         }
         kind = "geojson";
       }
+      else if (ext === "gpx") {
+        await importGpxFile(file, big, insertBefore, dropTargetUl);
+        scheduleSave();
+        continue;
+      }
       else if (ext === "ecw") {
         navMessage(ecwHint(file.name), { sticky: true });
         continue;
@@ -10427,7 +10443,7 @@ async function handleDroppedFiles(files, insertBefore, dropTargetUl = null) {
 
 /* Lo que se acepta, dicho igual en todos los avisos que lo enumeran
    (handleDroppedFiles y el diálogo de 🔗).                          */
-const IMPORT_FORMATS = tr("KML, KMZ (incl. ortofotos), JSON (GeoJSON), TopoJSON, "
+const IMPORT_FORMATS = tr("KML, KMZ (incl. ortofotos), GPX, JSON (GeoJSON), TopoJSON, "
   + "shapefiles (.shp con su .dbf y .prj, o en un .zip), ortofotos COG y modelos de elevaci\u00F3n (.tif) "
   + "y carpetas exportadas ({ext})", { ext: EXPORT_EXT });
 
@@ -10502,12 +10518,12 @@ navPanel.addEventListener("drop", async e => {
    así que inventarles `.geojson` o `.topojson` no aportaría nada y sí
    daría un nombre que el servidor no puso.                            */
 const URL_KIND_EXT = {
-  kml: ".kml", kmz: ".kmz", geojson: ".json", topojson: ".json", kite: EXPORT_EXT,
+  kml: ".kml", kmz: ".kmz", gpx: ".gpx", geojson: ".json", topojson: ".json", kite: EXPORT_EXT,
   shpzip: ".zip"
 };
 /* Lo que se le dice al usuario que ha llegado */
 const URL_KIND_LABEL = {
-  kml: "KML", kmz: tr("KMZ (KML comprimido)"), geojson: "GeoJSON", topojson: "TopoJSON",
+  kml: "KML", kmz: tr("KMZ (KML comprimido)"), gpx: "GPX", geojson: "GeoJSON", topojson: "TopoJSON",
   kite: tr("carpeta exportada de KITE (.kite.json)"), shpzip: tr("shapefile comprimido (.zip)")
 };
 
@@ -10560,7 +10576,8 @@ function sniffTextKind(text) {
     /* Namespace-agnóstico, como todo el parseo de KML de este archivo:
        <kml>, <kml:kml> y cualquier otro prefijo valen igual.          */
     if (/<\s*(?:[A-Za-z_][\w.-]*:)?kml[\s>]/i.test(head)) return "kml";
-    return null; /* otro XML (un GPX, una excepción OGC): no es nuestro */
+    if (/<\s*(?:[A-Za-z_][\w.-]*:)?gpx[\s>]/i.test(head)) return "gpx";
+    return null; /* otro XML (una excepción OGC…): no es nuestro */
   }
   if (head[0] === "{" || head[0] === "[") {
     let doc;
@@ -10631,6 +10648,7 @@ function downloadFileName(url, kind) {
      los dos por la rama json, así que ninguno necesita renombrarse.  */
   const same = kind === "kml" ? [".kml"]
     : kind === "kmz" ? [".kmz"]
+    : kind === "gpx" ? [".gpx"]
     : kind === "shpzip" ? [".zip"]
     : [".json", ".geojson", ".topojson"];
   return same.some(e => lower.endsWith(e)) ? base : base + ext;
@@ -11276,6 +11294,150 @@ function openExportMenu(btn, li) {
   });
   listen(window, "scroll", closeExportMenu);
   listen(window, "blur", closeExportMenu);
+}
+/* ================= Importar GPX =================
+   GPX 1.0 y 1.1 (waypoints, rutas y tracks). Se convierte a un
+   FeatureCollection y entra por addFileNode como un shapefile (ver
+   34-shp-import.js): hereda la pregunta de etiquetas HTML, los
+   duplicados, el envoltorio, el resumen, deshacer y la retirada a medias.
+   La conversión es PURA (se prueba en Node, tests/gpxtest.js) y
+   namespace-agnóstica como el resto del XML de la aplicación.
+
+   El nombre de cada elemento sale de su <name> (`GPX_NAME_KEYS`): en un
+   GeoJSON cualquiera nunca se asume qué propiedad es el nombre, pero un
+   GPX lo define el propio formato y preguntarlo en cada archivo no
+   aportaría nada.                                                      */
+
+const GPX_NAME_KEYS = ["name"];
+/* Cota de una entrada hostil: un track real de varios días ronda los 10⁵
+   puntos; con diez veces más se avisa y se corta, en vez de colgar el
+   navegador construyendo arrays.                                       */
+const GPX_MAX_POINTS = 2000000;
+const GPX_TEXT_FIELDS = ["name", "desc", "cmt", "src", "sym", "type"];
+
+/* Una posición <wpt>/<rtept>/<trkpt> → [lng, lat(, alt)], o null si le
+   falta o se sale de rango algo que no es redondeo. La altitud (<ele>) va
+   como tercer elemento solo si es un número finito; nunca se inventa 0. */
+function gpxPosition(el) {
+  const lat = el.getAttribute("lat"), lon = el.getAttribute("lon");
+  if (lat == null || lon == null || String(lat).trim() === "" || String(lon).trim() === "") return null;
+  const eleText = directChildText(el, "ele");
+  const ele = eleText == null || eleText === "" ? undefined : Number(eleText);
+  const pair = clampLatLng(Number(lat), Number(lon), ele);
+  if (!pair) return null;
+  return pair.length > 2 ? [pair[1], pair[0], pair[2]] : [pair[1], pair[0]];
+}
+
+/* <time> de un punto: ISO 8601 tal cual lo escribió el archivo, siempre
+   que sea una fecha que el navegador entienda; si no, null.            */
+function gpxTime(el) {
+  const t = directChildText(el, "time");
+  return t && Number.isFinite(Date.parse(t)) ? t : null;
+}
+
+/* Propiedades de un elemento: solo lo que el archivo trae, con `gpx`
+   diciendo qué era (waypoint, route o track).                          */
+function gpxProps(el, kind) {
+  const p = {};
+  for (const f of GPX_TEXT_FIELDS) {
+    const v = directChildText(el, f);
+    if (v) p[f] = v;
+  }
+  const link = childrenByTag(el, "link")[0];
+  const href = link && link.getAttribute("href");
+  if (href) p.link = href; /* texto, nunca un enlace vivo: se muestra escapado */
+  if (kind === "waypoint") {
+    const time = gpxTime(el);
+    if (time) p.time = time;
+  }
+  p.gpx = kind;
+  return p;
+}
+
+/* Los puntos válidos de una lista de <rtept>/<trkpt>, con sus tiempos
+   alineados. Lleva la cuenta global para la cota y devuelve cuántos
+   puntos se descartaron por inválidos.                                 */
+function gpxLine(pointEls, ctx) {
+  const coords = [], times = [];
+  for (const el of pointEls) {
+    if (ctx.points >= GPX_MAX_POINTS) { ctx.capped = true; break; }
+    ctx.points++;
+    const pos = gpxPosition(el);
+    if (!pos) { ctx.badPoints++; continue; }
+    coords.push(pos);
+    times.push(gpxTime(el));
+  }
+  return { coords, times };
+}
+
+/* GPX → FeatureCollection. `report` es el de la importación: un elemento
+   perdido es un `warn`, y lo que solo se ajusta o se descarta de dentro
+   de un elemento, una `note`.                                          */
+function gpxToGeoJson(text, report) {
+  const { xml, repaired } = parseKmlDocument(text); /* mismo XML tolerante que el KML */
+  if (repaired.length) {
+    report.note(tr("prefijos XML sin declarar, corregidos al vuelo: {prefixes}", { prefixes: repaired.join(", ") }));
+  }
+  const root = xml.documentElement;
+  if (!root || bareName(root) !== "gpx") throw new Error(tr("no es un archivo GPX (falta el elemento <gpx>)"));
+
+  const clamped0 = coordClamped;
+  const ctx = { points: 0, badPoints: 0, capped: false, shortSegments: 0 };
+  const features = [];
+  const add = (properties, geometry) => features.push({ type: "Feature", properties, geometry });
+
+  for (const el of childrenByTag(root, "wpt")) {
+    if (ctx.points >= GPX_MAX_POINTS) { ctx.capped = true; break; }
+    ctx.points++;
+    const pos = gpxPosition(el);
+    if (!pos) { report.warn(tr("waypoint sin coordenadas válidas")); continue; }
+    add(gpxProps(el, "waypoint"), { type: "Point", coordinates: pos });
+  }
+
+  for (const rte of childrenByTag(root, "rte")) {
+    const { coords } = gpxLine(childrenByTag(rte, "rtept"), ctx);
+    if (coords.length < 2) { report.warn(tr("ruta con menos de dos puntos válidos")); continue; }
+    add(gpxProps(rte, "route"), { type: "LineString", coordinates: coords });
+  }
+
+  for (const trk of childrenByTag(root, "trk")) {
+    const segs = childrenByTag(trk, "trkseg").map(s => gpxLine(childrenByTag(s, "trkpt"), ctx));
+    const good = segs.filter(s => s.coords.length >= 2);
+    ctx.shortSegments += segs.length - good.length;
+    if (!good.length) { report.warn(tr("track sin ningún segmento con dos puntos válidos")); continue; }
+    const props = gpxProps(trk, "track");
+    /* Los tiempos de los puntos, alineados con las coordenadas (la misma
+       convención que usan las herramientas de GPX → GeoJSON): una lista
+       por segmento, o una sola si el track tiene un segmento.           */
+    if (good.some(s => s.times.some(Boolean))) props.coordTimes = good.length === 1 ? good[0].times : good.map(s => s.times);
+    add(props, good.length === 1
+      ? { type: "LineString", coordinates: good[0].coords }
+      : { type: "MultiLineString", coordinates: good.map(s => s.coords) });
+  }
+
+  if (ctx.badPoints) report.note(tr("{n} punto(s) sin coordenadas válidas omitidos", { n: ctx.badPoints }));
+  if (ctx.shortSegments) report.note(tr("{n} segmento(s) de menos de dos puntos omitidos", { n: ctx.shortSegments }));
+  if (coordClamped > clamped0) {
+    report.note(tr("{n} coordenada(s) fuera de rango por redondeo, ajustadas al límite (menos de {eps}°)",
+      { n: coordClamped - clamped0, eps: COORD_EPS }));
+  }
+  if (ctx.capped) report.warn(tr("se corta en {max} puntos: es el tope por archivo GPX", { max: GPX_MAX_POINTS }));
+  if (!features.length) throw new Error(tr("el archivo GPX no contiene ningún waypoint, ruta ni track"));
+  return { type: "FeatureCollection", features };
+}
+
+/* Un .gpx al árbol, con el contrato de cualquier archivo soltado: lo que
+   falle lo avisa quien llama (handleDroppedFiles).                     */
+async function importGpxFile(file, big, insertBefore, dropTargetUl) {
+  const report = makeImportReport(file.name);
+  const text = await file.text();
+  if (big) {
+    /* DOMParser es síncrono y monolítico: solo cabe decir la fase y ceder un frame */
+    progress.indet(tr("Procesando XML de {name}…", { name: file.name }));
+    await yieldFrame();
+  }
+  const gj = gpxToGeoJson(text, report);
+  await addFileNode(file.name, "geojson", gj, insertBefore, dropTargetUl, null, report, GPX_NAME_KEYS);
 }
 /* ================= Acciones del panel de navegación ================= */
 

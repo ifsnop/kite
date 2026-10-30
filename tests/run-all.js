@@ -68,6 +68,7 @@ const SUITES = [
   ["geocalc.js",          "Calculadora geodésica: elevación, cono, corrección por presión (ISA) y vector GPS, con su validación"],
   ["toolstest.js",        "showLayerInfo/setTool: el panel de información no se cuela ni queda pegado al salir de una herramienta de dibujo"],
   ["rotation.js",         "Rotación del mapa: ángulo de la brújula, giro con el botón central, recorte de la retícula y arrastre limitado al mundo con el mapa girado; giro, transform y caja envolvente del código incorporado, y versión de Leaflet fijada"],
+  ["gpxtest.js", "Importar GPX: waypoints, rutas y tracks de varios segmentos, altitud y tiempos, GPX 1.0 y 1.1, con prefijo, entradas hostiles, ajuste de redondeo avisado y cota de puntos"],
   ["exportformats.js",   "Exportar a KML y GeoJSON: registros a texto, estilos, altitud, mediciones, ida y vuelta por el importador y lo que se deja fuera"],
   ["view-keys.js",        "Teclado y rueda del visor: velocidad de las flechas mantenidas, dirección combinada y nivel final del zoom continuo (teclas y rueda)"],
   ["i18n.js",             "Idiomas de la interfaz: cada texto con su traducción al inglés y marcadores iguales, ningún literal en español fuera de tr(), diccionarios en el manifiesto, y el motor (respaldo inglés → español, plurales, contexto, «Automático»)"]
@@ -117,6 +118,7 @@ const BROWSER = [
   ["browser/elev-profile.mjs", "Navegador: perfil de una ruta — MDT y MDS por trozos, dos curvas, lectura con MDS−MDT, × arriba a la derecha, registro de la descarga, «Mostrar perfil» sin red, flecha en el mapa, zoom de cada eje, bloqueo del eje Y, solo segmentos rectos, malla común con la consulta puntual, clic derecho con el perfil debajo, huecos y cancelar"],
   ["browser/cadastre.mjs", "Navegador: parcela catastral desde el menú contextual — capa y ficha, dos peticiones simples, repetir no pide el polígono, sin parcela, excepción OGC sin reintentos, 503 reintentado con cursor de espera, deshacer, recargar y atribución"],
   ["browser/geocalc.mjs", "Navegador: calculadora geodésica — dos pestañas que se recalculan solas, presión, unidades que convierten, sin crecer y no modal"],
+  ["browser/gpx-import.mjs", "Navegador: importar un GPX — waypoints, ruta y track con su <name> sin selector, altitud y tiempos, la pregunta de las etiquetas HTML y el fallo limpio de lo que no es un GPX"],
   ["browser/export-menu.mjs", "Navegador: el menú de 💾 — se abre y se cierra (Escape, clic fuera, segunda pulsación), exporta KML, GeoJSON y .kite.json con descarga real, sin desplegar la carpeta, y el KML vuelve a importarse"],
   ["browser/i18n.mjs", "Navegador: idioma de la interfaz — «Automático» según el navegador, español e inglés sin español colado, el ajuste de Propiedades (guarda al Aceptar, vale al recargar) y un idioma nuevo sin tocar código"]
 ];

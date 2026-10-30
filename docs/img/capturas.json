@@ -3,10 +3,10 @@
   "fondo": "OpenStreetMap",
   "images": {
     "anadir-url.png": {
-      "sha256": "919851732bdcf5049b3a14ecbe41c505e755034431b3f51cc85c0a0f1681cf1f",
+      "sha256": "face7befb919f424e2549bc844048b541ba7a234c22e89b5471a000d91a4472a",
       "section": "7.1",
       "version": "1.11.0",
-      "build": "202610300013"
+      "build": "202610300109"
     },
     "arbol-estructura.png": {
       "sha256": "259b40249b07857a0990d99777182ab704b28fe2020a1a992ce01225002732f6",
@@ -21,10 +21,10 @@
       "build": "202610300013"
     },
     "aviso-movil.png": {
-      "sha256": "4e9cf481b0345453297b07a4f390fb04ad2512df29f8a1342fe3c6da53ae047f",
+      "sha256": "e3e0a5f38ff914054da21583299a6b9ce46108514e6ebe25d82567ceb1e5400b",
       "section": "4",
       "version": "1.11.0",
-      "build": "202610300013"
+      "build": "202610300109"
     },
     "barra-herramientas.png": {
       "sha256": "25ec07e903805cb3a3219961495a026450db925ac79ea73d71b6d6cc284fe2cc",
@@ -141,10 +141,10 @@
       "build": "202610300013"
     },
     "fila-seleccionada.png": {
-      "sha256": "04367d7b41bfbe15f3c5d65a43ab8230defdaf9aee873222415139781f21d96b",
+      "sha256": "23b1a524809a8f6ba5ac3b9b540ddfca4907263bba965f3fed5858568fdd6399",
       "section": "3.3",
       "version": "1.11.0",
-      "build": "202610300013"
+      "build": "202610300109"
     },
     "mapa-girado.png": {
       "sha256": "f2e376bdf496e8d4dbd4235ffe5970198c5ccd2c23f920b2e676537643062c66",
@@ -226,10 +226,10 @@
       "build": "202610300013"
     },
     "pie-panel.png": {
-      "sha256": "df93318b9102685b6fe1f3a0d96ea55589c42ac1b2b63d1d5805e2683d9332a5",
+      "sha256": "4e42b5e5fb964395f3c9197952626b483922d657265f8a6e392614c72da067da",
       "section": "2.2",
       "version": "1.11.0",
-      "build": "202610300013"
+      "build": "202610300109"
     },
     "propiedades-fuentes.png": {
       "sha256": "d7546a88bc90f045590c12945999fe56a7ac41697bddc6eb58505dc22a6e22e3",
@@ -268,16 +268,16 @@
       "build": "202610300013"
     },
     "tema-oscuro.png": {
-      "sha256": "bedf822a4e67491974ecc67d3ae25f416704318526b384bd84e168e0dddf389d",
+      "sha256": "6103245576724af332250e776633717410aec5ac0b1c0edd6d841019940642cb",
       "section": "2.1",
       "version": "1.11.0",
-      "build": "202610300013"
+      "build": "202610300109"
     },
     "vista-general.png": {
-      "sha256": "f8c8bf27119ad03250afd77170055a1b684e528b7fb50c2e5d8a4970788306d7",
+      "sha256": "db580f0253ebca59b23dcd1db746a39936a540d53f3ddccad87e99cefbed00f5",
       "section": "1",
       "version": "1.11.0",
-      "build": "202610300013"
+      "build": "202610300109"
     }
   }
 }

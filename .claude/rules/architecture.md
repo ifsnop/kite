@@ -41,6 +41,11 @@ paths:
     librería `shapefile`, reproyecta con proj4 desde el `.prj` y entrega
     un FeatureCollection a `addFileNode` (que acepta el objeto, no solo
     texto). Ver `import-parsing.md`.
+2b2. **GPX** (`36-gpx-import.js`): `gpxToGeoJson` pura (waypoints, rutas y
+    tracks → FeatureCollection, con el XML tolerante de `33`) e
+    `importGpxFile`, que lo entrega a `addFileNode` como un shapefile. Va
+    tras `35`; `handleDroppedFiles` (33) lo llama solo en tiempo de
+    ejecución. Ver `import-parsing.md`.
 2c. **Exportar a KML y GeoJSON** (`35-export-formats.js`, tras la
     importación): registros serializados → texto, PURO y probado en Node
     (`tests/exportformats.js`), más el minimenú de 💾. Usa `arcPoints` y

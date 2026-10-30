@@ -292,7 +292,9 @@ function importCancelled() {
 const BIG_FEATURE_COUNT = 5000;
 /* `report`: un informe ya empezado por quien llama (lo que se ve al leer
    un shapefile —sin .prj, ED50…— va en el mismo resumen).             */
-async function addFileNode(name, kind, content, insertBefore = null, dropTargetUl = null, zip = null, report = null) {
+/* `presetNameKeys`: un formato que define él mismo qué es el nombre (el
+   <name> de un GPX) lo da hecho y no se pregunta ni se recuerda nada.  */
+async function addFileNode(name, kind, content, insertBefore = null, dropTargetUl = null, zip = null, report = null, presetNameKeys = null) {
   const big = typeof content === "string"
     ? content.length > SIZE_THRESHOLD
     : geojsonFeatures(content).length > BIG_FEATURE_COUNT;
@@ -368,8 +370,8 @@ async function addFileNode(name, kind, content, insertBefore = null, dropTargetU
         }
       }
       const firstProps = (features[0] && typeof features[0].properties === "object" && features[0].properties) || {};
-      let nameKeys = null;
-      if (needsNamePicker(firstProps)) {
+      let nameKeys = presetNameKeys;
+      if (!nameKeys && needsNamePicker(firstProps)) {
         if (!gnpStore) gnpStore = await dbLoadGnp();
         const fp = propsFingerprint(firstProps);
         const stored = gnpStore[fp] || null;
@@ -595,6 +597,11 @@ async function handleDroppedFiles(files, insertBefore, dropTargetUl = null) {
         }
         kind = "geojson";
       }
+      else if (ext === "gpx") {
+        await importGpxFile(file, big, insertBefore, dropTargetUl);
+        scheduleSave();
+        continue;
+      }
       else if (ext === "ecw") {
         navMessage(ecwHint(file.name), { sticky: true });
         continue;
@@ -616,7 +623,7 @@ async function handleDroppedFiles(files, insertBefore, dropTargetUl = null) {
 
 /* Lo que se acepta, dicho igual en todos los avisos que lo enumeran
    (handleDroppedFiles y el diálogo de 🔗).                          */
-const IMPORT_FORMATS = tr("KML, KMZ (incl. ortofotos), JSON (GeoJSON), TopoJSON, "
+const IMPORT_FORMATS = tr("KML, KMZ (incl. ortofotos), GPX, JSON (GeoJSON), TopoJSON, "
   + "shapefiles (.shp con su .dbf y .prj, o en un .zip), ortofotos COG y modelos de elevaci\u00F3n (.tif) "
   + "y carpetas exportadas ({ext})", { ext: EXPORT_EXT });
 
@@ -691,12 +698,12 @@ navPanel.addEventListener("drop", async e => {
    así que inventarles `.geojson` o `.topojson` no aportaría nada y sí
    daría un nombre que el servidor no puso.                            */
 const URL_KIND_EXT = {
-  kml: ".kml", kmz: ".kmz", geojson: ".json", topojson: ".json", kite: EXPORT_EXT,
+  kml: ".kml", kmz: ".kmz", gpx: ".gpx", geojson: ".json", topojson: ".json", kite: EXPORT_EXT,
   shpzip: ".zip"
 };
 /* Lo que se le dice al usuario que ha llegado */
 const URL_KIND_LABEL = {
-  kml: "KML", kmz: tr("KMZ (KML comprimido)"), geojson: "GeoJSON", topojson: "TopoJSON",
+  kml: "KML", kmz: tr("KMZ (KML comprimido)"), gpx: "GPX", geojson: "GeoJSON", topojson: "TopoJSON",
   kite: tr("carpeta exportada de KITE (.kite.json)"), shpzip: tr("shapefile comprimido (.zip)")
 };
 
@@ -749,7 +756,8 @@ function sniffTextKind(text) {
     /* Namespace-agnóstico, como todo el parseo de KML de este archivo:
        <kml>, <kml:kml> y cualquier otro prefijo valen igual.          */
     if (/<\s*(?:[A-Za-z_][\w.-]*:)?kml[\s>]/i.test(head)) return "kml";
-    return null; /* otro XML (un GPX, una excepción OGC): no es nuestro */
+    if (/<\s*(?:[A-Za-z_][\w.-]*:)?gpx[\s>]/i.test(head)) return "gpx";
+    return null; /* otro XML (una excepción OGC…): no es nuestro */
   }
   if (head[0] === "{" || head[0] === "[") {
     let doc;
@@ -820,6 +828,7 @@ function downloadFileName(url, kind) {
      los dos por la rama json, así que ninguno necesita renombrarse.  */
   const same = kind === "kml" ? [".kml"]
     : kind === "kmz" ? [".kmz"]
+    : kind === "gpx" ? [".gpx"]
     : kind === "shpzip" ? [".zip"]
     : [".json", ".geojson", ".topojson"];
   return same.some(e => lower.endsWith(e)) ? base : base + ext;

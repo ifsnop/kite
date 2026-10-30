@@ -86,7 +86,7 @@ Justo debajo aparecen los avisos de la sesión (en el color normal del texto si 
 
 ### 2.2 Zona para soltar archivos
 
-Debajo del árbol hay una franja que indica qué se puede soltar ahí: archivos KML y KMZ (incluidas las ortofotos que traiga incrustadas), JSON, GeoJSON y TopoJSON, shapefiles (el .shp con sus piezas, o el .zip que las contiene), ortofotos en COG (.tif), o una carpeta previamente exportada por la propia aplicación (extensión «.kite.json»). Arrastrar cualquiera de esos archivos desde el escritorio y soltarlo sobre el panel —o sobre una carpeta concreta del árbol, para importar dentro de ella— es la vía más directa de cargar información.
+Debajo del árbol hay una franja que indica qué se puede soltar ahí: archivos KML y KMZ (incluidas las ortofotos que traiga incrustadas), GPX, JSON, GeoJSON y TopoJSON, shapefiles (el .shp con sus piezas, o el .zip que las contiene), ortofotos en COG (.tif), o una carpeta previamente exportada por la propia aplicación (extensión «.kite.json»). Arrastrar cualquiera de esos archivos desde el escritorio y soltarlo sobre el panel —o sobre una carpeta concreta del árbol, para importar dentro de ella— es la vía más directa de cargar información.
 
 ### 2.3 Buscador del árbol
 
@@ -135,7 +135,7 @@ Al pasar el ratón por una fila aparecen, según lo que sea:
 - **En cualquier fila**: subir (↑) y bajar (↓) un puesto entre sus hermanas, y borrar (×).
 
 ![Una fila seleccionada, con sus botones de acción visibles al pasar el ratón](img/fila-seleccionada.png)
-*Figura 13. La fila «Zona A», seleccionada (borde discontinuo) y con el ratón encima: aparecen sus botones de enfoque, estilo, subir/bajar y borrar. No tiene botón ℹ porque este polígono no trae ninguna ficha.*
+*Figura 13. La fila «Zona A», seleccionada (borde discontinuo) y con el ratón encima: aparecen sus botones de guardar o exportar (💾), enfoque, estilo, subir/bajar y borrar. No tiene botón ℹ porque este polígono no trae ninguna ficha.*
 
 ### 3.4 Selección múltiple
 
@@ -320,7 +320,7 @@ Cuando una capa procede de un KML con una descripción, o de un GeoJSON con prop
 
 ### 7.1 Importar un archivo con un polígono (o cualquier otro formato admitido)
 
-La vía más directa es arrastrar el archivo desde el escritorio y soltarlo sobre el panel de navegación (o sobre una carpeta concreta, para que entre dentro de ella). KITE Local reconoce KML, KMZ, GeoJSON, TopoJSON, shapefiles, ortofotos COG (apartado 7.10) y su propio formato de carpetas exportadas, mirando el contenido del archivo, no su extensión. Si el archivo contiene algún elemento con datos incorrectos, ese elemento se descarta de forma aislada y el resto se carga con normalidad; al terminar aparece siempre un resumen de lo cargado y lo omitido, con la causa.
+La vía más directa es arrastrar el archivo desde el escritorio y soltarlo sobre el panel de navegación (o sobre una carpeta concreta, para que entre dentro de ella). KITE Local reconoce KML, KMZ, GPX, GeoJSON, TopoJSON, shapefiles, ortofotos COG (apartado 7.10) y su propio formato de carpetas exportadas, mirando el contenido del archivo, no su extensión. Si el archivo contiene algún elemento con datos incorrectos, ese elemento se descarta de forma aislada y el resto se carga con normalidad; al terminar aparece siempre un resumen de lo cargado y lo omitido, con la causa.
 
 **Nombre de los elementos de un GeoJSON.** Un GeoJSON no dice cómo se llama cada elemento: solo trae propiedades. Por eso, al abrir uno cuyas propiedades no se hayan visto antes, aparece el diálogo «Elegir nombre», sin asumir que ninguna propiedad (ni siquiera «name») sea el nombre. Se marcan una o varias propiedades; **el orden en que se marcan es el orden en que se unen, separadas por « / »** (cada casilla muestra su número, y debajo se ve el nombre que saldría para el primer elemento). Si a un elemento le falta una de las propiedades elegidas, o la tiene vacía, simplemente se omite; si le faltan todas, se llama «Elemento N». Aceptar exige marcar al menos una. **Cancelar el diálogo cancela la carga de ese archivo**: no entra nada en el árbol y el aviso lo dice.
 
@@ -351,6 +351,8 @@ Cuando no se tiene el archivo en el disco pero sí su dirección web, el botón 
 *Figura 33. Tras descargar «remoto.kml», el diálogo confirma el tipo y el tamaño y habilita «Añadir al árbol».*
 
 Todo lo incorporado por esta vía queda dentro de una carpeta «Descargas», con una subcarpeta numerada por descarga («Descarga 1», «Descarga 2»…), para que varias descargas sucesivas no se mezclen entre sí.
+
+**GPX.** Un archivo `.gpx` (los de los GPS de montaña y las aplicaciones de rutas, en sus versiones 1.0 y 1.1) entra en una carpeta con el nombre del archivo, con un nodo por cada **waypoint** (un marcador), **ruta** y **track** (una línea; si el track tiene varios segmentos, una línea de varias partes). Cada uno se llama como su `<name>` en el archivo, sin pasar por «Elegir nombre»; los waypoints sin nombre salen como «Elemento N». La altitud (`<ele>`) se conserva, y el resto de datos del archivo (descripción, comentario, símbolo, tipo, enlace y la hora de cada punto) queda en la pestaña «Atributos» del elemento. Un punto sin coordenadas válidas se omite y el resumen de la carga lo cuenta; si el archivo no trae ningún waypoint, ruta ni track, se rechaza con su motivo. Las extensiones propias de cada fabricante (colores, pulsaciones…) no se leen.
 
 ### 7.2 Medir una distancia y un rumbo
 

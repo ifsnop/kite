@@ -5,6 +5,7 @@ paths:
   - "src/js/32-geojson.js"
   - "src/js/33-kml-import.js"
   - "src/js/34-shp-import.js"
+  - "src/js/36-gpx-import.js"
 ---
 
 ## Estructura del árbol al importar
@@ -44,6 +45,16 @@ paths:
 
 - **CSP** (`<head>`): `default-src 'none'` + orígenes reales enumerados (unpkg, cdnjs, teselas del mapa/MDT). Añadir un origen nuevo exige añadirlo ahí también. `'unsafe-inline'` es inevitable con CSS/JS en el propio archivo.
 - **`connect-src` e `img-src` son la excepción deliberada**: abiertas a cualquier `https:` (nunca `http:`) porque el usuario elige el origen — el botón 🔗 para `connect-src`, y los mapas base «Custom Tile Map Service» y «Custom Web Map Service» (`base-maps.md`) para `img-src` —y el segundo también para `connect-src`, su `GetCapabilities`—, su propio servidor — enumerar es imposible por definición en los dos casos. `default-src 'none'` sigue vigente, `script-src`/`style-src` conservan sus listas cerradas (un origen ajeno puede dar datos, nunca código ni estilos). `tests/minified.js` lo comprueba **sobre el `<meta>`**, no con `includes` sobre el archivo entero (esos nombres también aparecen en el JS).
+
+## GPX (`36-gpx-import.js`)
+
+- **Entra por `addFileNode` como GeoJSON YA CONSTRUIDO**, igual que un shapefile (`importGpxFile` → `gpxToGeoJson` → `addFileNode(…, report, GPX_NAME_KEYS)`): hereda la pregunta de etiquetas HTML (la `<desc>` de un GPX las trae a menudo), duplicados, envoltorio, resumen, deshacer y la retirada a medias. `handleDroppedFiles` despacha por la extensión `.gpx`; `sniffTextKind` reconoce un `<gpx>` raíz para el botón 🔗 (`URL_KIND_EXT`/`URL_KIND_LABEL`/`downloadFileName` llevan `gpx`).
+- **El nombre sale del `<name>` y NO se pregunta** (`presetNameKeys` de `addFileNode`, `GPX_NAME_KEYS = ["name"]`): a diferencia de un GeoJSON cualquiera, el formato define qué es el nombre. Un elemento sin `<name>` es «Elemento N». No se consulta ni se guarda nada en `geojsonNameProps`.
+- **XML tolerante y sin namespace**: `parseKmlDocument` (con su reparación de prefijos) y `bareName`/`childrenByTag`/`directChildText`; vale GPX 1.0, 1.1 y con prefijo. Un raíz que no sea `gpx` se rechaza con su motivo.
+- **Qué sale de cada cosa**: `<wpt>` → Point; `<rte>` → LineString; `<trk>` → LineString, o MultiLineString si tiene varios `<trkseg>` con dos o más puntos. `<ele>` → tercera coordenada solo si es finita (nunca se inventa 0). Propiedades: `name`, `desc`, `cmt`, `src`, `sym`, `type`, `link` (el `href`, como texto, nunca un enlace vivo), `time` (waypoint) y `gpx` (`waypoint`/`route`/`track`); un track con alguna hora de punto lleva `coordTimes`, alineado con las coordenadas (`null` donde falta; una lista por segmento, o plana si hay uno). Las `<extensions>` de fabricante no se leen.
+- **Qué se omite y cómo se cuenta** (`makeImportReport`): un waypoint sin coordenadas válidas, una ruta o un track sin dos puntos válidos son `warn` (entidad perdida); un punto inválido o un segmento corto DENTRO de un elemento que sí entra, una `note`. El ajuste de redondeo (`clampLatLng`) se anota con la diferencia de `coordClamped` (se lee antes y después, porque `addFileNode` lo pone a cero). Un archivo sin ningún elemento se rechaza.
+- **Cota**: `GPX_MAX_POINTS` (2 000 000 de puntos entre waypoints, rutas y tracks); al llegar se corta y se avisa.
+- Pruebas: `tests/gpxtest.js` (la conversión, con xmldom, sobre `tests/fixtures/ruta-sierra.gpx`) y `tests/browser/gpx-import.mjs` (con el analizador real).
 
 ## Shapefile (`34-shp-import.js`)
 

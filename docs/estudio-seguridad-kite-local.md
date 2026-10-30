@@ -19,7 +19,7 @@ KITE Local es una aplicación de visualización y consulta de información geoes
 
 1. **El origen de cada capa de información es conocido, declarado y verificable.** Tanto la cartografía de fondo como los servicios auxiliares (elevación del terreno, búsqueda de topónimos) proceden de organismos oficiales o de proveedores identificados, y la propia aplicación restringe por configuración los orígenes de red a los que puede conectarse — con dos excepciones deliberadas y acotadas en las que el propio usuario elige el origen (descargar un archivo desde una dirección, y un mapa base de teselas de un servidor propio), descritas en el apartado 6.2.
 2. **La aplicación no modifica los datos geoespaciales que muestra.** La geometría, las coordenadas y la altitud de cada elemento cargado se conservan tal como están definidas en el archivo de origen a lo largo de todo el ciclo de vida (carga, visualización, guardado y exportación). Las únicas excepciones son un número reducido de correcciones controladas, de alcance mínimo, siempre notificadas al usuario y nunca aplicadas en silencio, que se describen en detalle en el apartado 4.
-3. **El comportamiento descrito está verificado mediante una batería de pruebas automatizadas** que se ejecuta contra el propio archivo que se distribuye —no contra una copia aparte del código— y que en la fecha de este documento supera sus 99 conjuntos de comprobaciones sin ninguna incidencia.
+3. **El comportamiento descrito está verificado mediante una batería de pruebas automatizadas** que se ejecuta contra el propio archivo que se distribuye —no contra una copia aparte del código— y que en la fecha de este documento supera sus 101 conjuntos de comprobaciones sin ninguna incidencia.
 
 El documento está dirigido a personal auditor y experto en seguridad, no a personal programador: describe el comportamiento de la aplicación, su alcance y sus garantías, sin entrar en detalles de implementación.
 
@@ -90,7 +90,7 @@ Cada capa de cartografía activada muestra en el pie del visor la atribución de
 
 ### 4.2 Datos aportados por el usuario
 
-El resto de la información que puede verse en KITE Local procede exclusivamente de archivos que el propio usuario carga de forma voluntaria: archivos KML y KMZ, GeoJSON y TopoJSON, shapefiles (sueltos o en un archivo .zip), ortofotos en formato COG (un GeoTIFF preparado para leerse a trozos), o su propio formato de intercambio interno (usado para exportar e importar una carpeta de capas entre sesiones o entre instalaciones de la misma aplicación). También puede cargarse un archivo desde una dirección web indicada por el usuario, con el mismo tratamiento que un archivo local. Estos archivos son responsabilidad de quien los proporciona; KITE Local no genera, completa ni infiere ninguna información geoespacial por cuenta propia: se limita a interpretar y representar lo que el archivo contiene.
+El resto de la información que puede verse en KITE Local procede exclusivamente de archivos que el propio usuario carga de forma voluntaria: archivos KML y KMZ, GPX, GeoJSON y TopoJSON, shapefiles (sueltos o en un archivo .zip), ortofotos en formato COG (un GeoTIFF preparado para leerse a trozos), o su propio formato de intercambio interno (usado para exportar e importar una carpeta de capas entre sesiones o entre instalaciones de la misma aplicación). También puede cargarse un archivo desde una dirección web indicada por el usuario, con el mismo tratamiento que un archivo local. Estos archivos son responsabilidad de quien los proporciona; KITE Local no genera, completa ni infiere ninguna información geoespacial por cuenta propia: se limita a interpretar y representar lo que el archivo contiene.
 
 ---
 
@@ -105,6 +105,8 @@ La posición (latitud y longitud) y la altitud de cada punto se leen literalment
 Cuando el usuario modifica de forma intencionada un elemento —por ejemplo, arrastrando un marcador en el mapa o editando manualmente una lista de coordenadas desde el diálogo pensado para ello— ese cambio es una acción explícita y deliberada de la persona usuaria, claramente distinta de cualquier alteración automática por parte de la aplicación. Del mismo modo, personalizar el color, el icono o el grosor con que se representa un elemento es un ajuste puramente visual: no toca en ningún caso su posición ni su geometría.
 
 **Exportar a KML o a GeoJSON** (botón 💾) escribe la geometría, las coordenadas y la altitud tal como están en el árbol, sin redondear ni reproyectar; la altitud solo se escribe si la capa la tenía. Lo que cambia es la representación, no el dato: el estilo pasa a las convenciones del formato (colores `aabbggrr` en KML, claves *simplestyle* en GeoJSON), las propiedades originales de cada elemento se conservan y el nombre y la ficha de la capa se añaden como `name` y `description` (si el original ya traía un `name` distinto, se guarda aparte como `name_orig`, nunca se pierde). Dos casos merecen constar: una **medición** no tiene equivalente en esos formatos, así que una ruta se escribe como línea con los puntos que el usuario puso y un círculo como un polígono de 120 lados, cada vértice a la distancia exacta del centro (esfera de 6 371 km, la misma de la aplicación); y lo que **no cabe** —cuadrículas de elevación y ortofotos— se deja fuera NOMBRÁNDOLO en un aviso, nunca en silencio. Las pruebas leen de vuelta el KML exportado con el mismo lector que usa la aplicación al importar.
+
+**Importar un GPX** convierte waypoints, rutas y tracks a la misma representación interna que un GeoJSON, y la conversión solo cambia la forma: la latitud, la longitud y la altitud (`<ele>`) se leen literalmente del archivo, la altitud solo se transporta si el archivo la trae y las horas de los puntos se guardan tal cual como atributos. Lo que no se puede dibujar no entra, y se cuenta en el resumen de la carga: un punto sin coordenadas válidas, un segmento de menos de dos puntos, una ruta o un track sin dos puntos válidos y, ante un archivo desmesurado, lo que pase de dos millones de puntos. El redondeo en el borde del rango se trata como en los demás formatos (caso 1 del apartado 5.2, con aviso). Las extensiones de cada fabricante no se interpretan.
 
 ### 5.2 Las únicas transformaciones automáticas, y por qué no comprometen la integridad del dato
 
@@ -188,7 +190,7 @@ Esta forma de proceder asegura que lo que las pruebas certifican es, literalment
 
 ### 7.2 Alcance actual de la batería de pruebas
 
-En la fecha de este documento, la batería está compuesta por 99 conjuntos de pruebas independientes, agrupados por área, y todos ellos superados sin ninguna incidencia en la última ejecución realizada para este estudio. Las áreas cubiertas incluyen, entre otras:
+En la fecha de este documento, la batería está compuesta por 101 conjuntos de pruebas independientes, agrupados por área, y todos ellos superados sin ninguna incidencia en la última ejecución realizada para este estudio. Las áreas cubiertas incluyen, entre otras:
 
 **Interpretación de archivos y formatos de origen**
 - Lectura de archivos KML, con independencia del prefijo de espacio de nombres que use cada archivo.
@@ -291,7 +293,7 @@ Esta batería de pruebas se ejecuta de forma obligatoria en cada cambio propuest
 
 ### 7.4 Resultado verificado para este documento
 
-Como parte de la elaboración de este estudio se ha vuelto a ejecutar la batería completa de pruebas contra la versión de la aplicación identificada en la cabecera de este documento. Resultado: **99 de 99 conjuntos de pruebas superados, sin ninguna incidencia.**
+Como parte de la elaboración de este estudio se ha vuelto a ejecutar la batería completa de pruebas contra la versión de la aplicación identificada en la cabecera de este documento. Resultado: **101 de 101 conjuntos de pruebas superados, sin ninguna incidencia.**
 
 ---
 
@@ -313,7 +315,7 @@ Sobre la base de la revisión del código fuente, de la configuración de red y 
 
 1. El origen de cada fuente de cartografía y de cada servicio auxiliar que KITE Local puede consultar está identificado, documentado y restringido por configuración a una lista cerrada de proveedores oficiales o reconocidos, salvo dos excepciones deliberadas y acotadas en las que el propio usuario elige el origen (descargar un archivo desde una dirección, y los mapas base "Custom Tile Map Service" y "Custom Web Map Service" contra un servidor propio), ambas descritas en el apartado 6.2.
 2. KITE Local no modifica la geometría, las coordenadas ni la altitud de los datos que carga y representa; las únicas intervenciones automáticas están acotadas a corregir errores menores y evitables del propio archivo de origen, tienen un alcance mínimo y verificable, y se comunican siempre a la persona usuaria.
-3. Este comportamiento está verificado por una batería de 99 conjuntos de pruebas automatizadas, ejecutadas contra el artefacto realmente distribuido, con resultado íntegramente satisfactorio en la fecha de este documento.
+3. Este comportamiento está verificado por una batería de 101 conjuntos de pruebas automatizadas, ejecutadas contra el artefacto realmente distribuido, con resultado íntegramente satisfactorio en la fecha de este documento.
 
 Estas tres garantías, tomadas en conjunto, sustentan el uso de KITE Local como herramienta de consulta y visualización fiel de información geoespacial dentro del alcance descrito en el apartado 8.
 

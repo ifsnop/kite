@@ -630,6 +630,16 @@ ROTATION TESTS OK
 
 **Qué cubre:** Las piezas puras de la rotación del mapa (`08-map-rotation.js`, derivado de leaflet-rotate). `pointerAngleDeg` (ángulo del puntero desde el centro de la brújula con el convenio de rumbo: 0 arriba, sentido horario, nunca negativo) y `dragBearing` (el rumbo durante un arrastre es el de partida más lo que gira el puntero, no su ángulo absoluto —el mapa no salta al primer movimiento—, cruza el norte sin restar 340°, se normaliza a [0, 360) y es libre, sin pasos). `pivotDragBearing` (giro con el botón central: medio grado por píxel en horizontal, derecha = horario, cruza el norte sin negativos, libre). `clipSegmentToRect` (Liang–Barsky: recorte de una línea de la retícula al visor; el primer extremo devuelto es el del lado de `p0`, que es por donde se pone la etiqueta; fuera de la vista → null, incluida una vertical exterior). `clampRotatedDragOffset` (arrastre limitado al mundo con el mapa girado): a 0° coincide con el recorte por ejes de Leaflet, a 90° el tope es el del eje del MAPA y no el de la pantalla, y con la vista más grande que el mundo el centro se queda en medio. Del giro incorporado: `rotateXY` (horario en pantalla, alrededor del pivote, ida y vuelta exacta), `rotatedTransformCss` (posición ya girada + `rotate(…rad)`) y `enclosingBox` (un cuadrado girado 45° mide 100·√2 y queda centrado). Guardián: la versión de Leaflet fijada en el HTML es `LEAFLET_PATCHED` (el código parchea sus internos) y ningún `<script>` carga ya leaflet-rotate.
 
+### `gpxtest.js`
+
+**Salida de `npm test`:**
+```
+── Importar GPX: waypoints, rutas y tracks de varios segmentos, altitud y tiempos, GPX 1.0 y 1.1, con prefijo, entradas hostiles, ajuste de redondeo avisado y cota de puntos
+GPX TESTS OK
+```
+
+**Qué cubre:** `gpxToGeoJson` (`36-gpx-import.js`) sobre `tests/fixtures/ruta-sierra.gpx` y sobre casos mínimos, con el analizador de `xmldom` (el de verdad, que usa `querySelector`, lo cubre `tests/browser/gpx-import.mjs`). Del ejemplo: dos waypoints, una ruta y un track de dos segmentos; la altitud como tercera coordenada y nunca un 0 inventado, el nombre con sus entidades XML decodificadas, `desc`, `sym`, `type`, `time` y `link` como texto, `coordTimes` alineado con las coordenadas (`null` donde falta la hora, plano con un segmento y por segmento con varios) y las extensiones del fabricante sin volcar. GPX 1.0, 1.1 y con prefijo de namespace. Entradas hostiles: waypoints sin `lat`/`lon`, con latitud fuera de rango o ilegible, una ruta o un track de un solo punto, un punto inválido dentro de un track que sí entra, una hora que no es fecha (no se copia), segmentos cortos, un XML que no es GPX, un GPX vacío y texto suelto. El redondeo en el borde (`90.000001`) se ajusta Y se anota, y la cota de puntos corta un track y lo dice.
+
 ### `exportformats.js`
 
 **Salida de `npm test`:**
@@ -1076,6 +1086,16 @@ BROWSER GEOCALC TESTS OK
 **Vector GPS:** parte en m / m / NM con las opciones de Propiedades; Madrid en A y Barcelona en B en GMS (`40° 25' 00.48" N`…) con altitudes 650 y 12, y el resultado YA está al abrir la pestaña, sin tocar nada, igual al cálculo hecho aquí en cartesianas (distancia, distancia horizontal y orientación); latitud y longitud en la misma línea (misma altura, longitud a la derecha); la unidad del resultado (mi, km) y las de las altitudes actúan al instante, y cambiar una altitud recalcula; el selector GMS/decimal convierte las cuatro coordenadas (`40.416800`…), no toca las altitudes, vuelve exactamente a lo de partida, deja un campo ilegible como está y normaliza uno legible escrito en el otro formato; GMS escrito a mano sin espacios; campo vacío = sin resultado ni aviso ni marcas; mismos lat/lon dan «no definida» y no 0°; latitud 95° avisa y marca el campo.
 
 **Ventana:** el resultado tiene el tamaño de letra de los campos (numéricos y de texto); la caja mide lo mismo vacía, con 2 líneas, con 3 (presión) y con aviso, en las dos pestañas. No es modal (el centro del mapa no queda tapado y no hay `.dlg-overlay`); se arrastra por el título y, ya arrastrada, la pestaña alta deja «Cerrar» a la vista (antes se salía de la pantalla); Escape y «Cerrar» la cierran; al reabrir conserva lo escrito y los resultados ya están calculados.
+
+### `browser/gpx-import.mjs`
+
+**Salida de `npm test`:**
+```
+── Navegador: importar un GPX — waypoints, ruta y track con su <name> sin selector, altitud y tiempos, la pregunta de las etiquetas HTML y el fallo limpio de lo que no es un GPX
+BROWSER GPX IMPORT TESTS OK
+```
+
+**Qué cubre:** soltar `tests/fixtures/ruta-sierra.gpx` con el analizador de XML REAL del navegador (`parseKmlDocument`, con `querySelector`). Aparece la pregunta de las etiquetas HTML nombrando el archivo (la `<desc>` del ejemplo las trae); con «Eliminarlas» la descripción queda limpia, y el selector de propiedad-nombre NO aparece. Entra como archivo con envoltorio y cuatro nodos con su `<name>` («Cumbre & mirador», «Refugio», «Variante por el collado», «Subida y bajada»), con geometrías Point, Point, LineString y MultiLineString, la altitud como z, la hora del waypoint, los tiempos del track por segmento y un resumen que dice «4 elemento(s) cargado(s)». Un XML que no es GPX y un archivo que ni es XML avisan con su motivo y no dejan un nodo a medias. Sin errores de página ni violaciones de la CSP.
 
 ### `browser/export-menu.mjs`
 

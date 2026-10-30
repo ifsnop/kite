@@ -133,5 +133,6 @@ ok(single === "Zona A.geojson", "una capa suelta se exporta con su nombre: " + s
 ok(errors.length === 0, "sin errores de página: " + errors.join(" | "));
 ok((await page.evaluate(() => window.__csp)).length === 0, "sin violaciones de la CSP");
 
-await ctx.close(); await browser.close(); await srv.close?.();
+await ctx.close(); await browser.close();
+srv.close();
 done();
