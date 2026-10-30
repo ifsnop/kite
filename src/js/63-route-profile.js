@@ -1286,6 +1286,117 @@ document.getElementById("pf-reset").addEventListener("click", () => {
   scheduleProfileChart();
 });
 
+/* ---------- Exportar el perfil: CSV e imagen ----------
+   El CSV es la ruta ENTERA (no lo que se ve) en las unidades de la
+   gráfica; el PNG, la gráfica TAL COMO se ve, con su zoom.             */
+
+/* Las filas del CSV: una por cada distancia donde ALGUNA serie tiene un
+   punto (las dos mallas son distintas, 5 m y 25 m por ejemplo: la unión,
+   con la celda vacía donde una serie no tiene punto), en orden, con la
+   latitud y la longitud de ese punto de la ruta (`locate(d)`, d en
+   metros; null = vacías). Lo vacío es vacío, nunca un 0 inventado: un
+   hueco del servicio sigue siendo un hueco. PURA.                       */
+function profileCsv(data, u, locate) {
+  const distances = new Set();
+  const lookups = data.series.map(s => {
+    const m = new Map();
+    for (const p of s.points) { distances.add(p.d); if (typeof p.v === "number" && Number.isFinite(p.v)) m.set(p.d, p.v); }
+    return m;
+  });
+  const rows = [...distances].sort((a, b) => a - b).map(d => {
+    const at = locate(d);
+    return [+(d / u.distFactor).toFixed(5), at ? +at.lat.toFixed(6) : "", at ? +at.lng.toFixed(6) : "",
+      ...lookups.map(m => m.has(d) ? +(m.get(d) / u.altFactor).toFixed(u.altDecimals) : "")];
+  });
+  const header = [tr("Distancia ({unit})", { unit: u.distLabel }), tr("Latitud"), tr("Longitud"),
+    ...data.series.map(s => `${s.kind.toUpperCase()} (${u.altLabel})`)];
+  return "\uFEFF" + toCsv(header, rows); /* BOM: Excel lee UTF-8 */
+}
+
+/* El nombre de los archivos: el de la ruta, sin lo que un sistema de archivos no admite */
+const profileExportName = () => `${safeFileName((profileData.li && profileData.li._name) || tr("Ruta"))}-${tr("perfil")}`;
+
+function exportProfileCsv() {
+  if (!profileData) return;
+  const data = profileData;
+  const locate = d => {
+    const p = profilePointAt(data.legs, data.vertices, d);
+    if (!p) return null;
+    const ll = map.options.crs.unproject(L.point(p.x, p.y));
+    return { lat: ll.lat, lng: ll.lng };
+  };
+  const text = profileCsv(data, { distFactor: POLY_UNIT_FACTOR[measureUnit], altFactor: POLY_UNIT_FACTOR[altitudeUnit],
+    altDecimals: HEIGHT_DECIMALS[altitudeUnit], distLabel: POLY_UNIT_LABEL[measureUnit], altLabel: POLY_UNIT_LABEL[altitudeUnit] }, locate);
+  downloadBlob(new Blob([text], { type: "text/csv;charset=utf-8" }), `${profileExportName()}.csv`);
+}
+
+/* Lo que pinta la hoja de estilos de la página (clases `.pf-*` con
+   variables `var(--…)` y `light-dark()`) no existe en un SVG suelto: se
+   copia a cada elemento su valor CALCULADO, que ya es un color de verdad,
+   y la imagen sale igual que en pantalla, en el tema que haya.         */
+const PF_EXPORT_PROPS = ["fill", "fill-opacity", "stroke", "stroke-width", "stroke-opacity", "stroke-dasharray",
+  "stroke-linecap", "stroke-linejoin", "opacity", "font-family", "font-size", "font-weight", "text-anchor",
+  "dominant-baseline", "paint-order", "visibility"];
+const PF_EXPORT_TITLE_PX = 30;
+const PF_EXPORT_SCALE = 2;
+
+function inlineSvgStyles(src, dst) {
+  const from = [src, ...src.querySelectorAll("*")], to = [dst, ...dst.querySelectorAll("*")];
+  from.forEach((el, i) => {
+    const cs = getComputedStyle(el);
+    for (const p of PF_EXPORT_PROPS) to[i].style.setProperty(p, cs.getPropertyValue(p));
+  });
+}
+
+/* El SVG de la gráfica listo para exportar: con los estilos dentro, sin el
+   cursor ni los puntos de lectura (son del ratón), con fondo y un título.  */
+function profileExportSvg() {
+  const svg = profileChart.querySelector("svg");
+  if (!svg) return null;
+  const W = profileChart.clientWidth, H = profileChart.clientHeight;
+  const clone = svg.cloneNode(true);
+  inlineSvgStyles(svg, clone);
+  for (const id of ["pf-cursor", "pf-dots"]) { const n = clone.querySelector("#" + id); if (n) n.remove(); }
+  clone.setAttribute("width", W);
+  clone.setAttribute("height", H);
+  const box = getComputedStyle(profileBox);
+  const title = `${(profileData.li && profileData.li._name) || tr("Ruta")} \u2014 ${profileData.series.map(s => s.label).join(" + ")}`;
+  const outer = `<svg xmlns="${SVG_NS}" width="${W}" height="${H + PF_EXPORT_TITLE_PX}" viewBox="0 0 ${W} ${H + PF_EXPORT_TITLE_PX}">`
+    + `<rect width="100%" height="100%" fill="${box.backgroundColor}"/>`
+    + `<text x="${PF_MARGIN.l}" y="20" fill="${box.color}" font-family="system-ui, sans-serif" font-size="14" font-weight="600">${escapeHtml(title)}</text>`
+    + `<g transform="translate(0 ${PF_EXPORT_TITLE_PX})">${new XMLSerializer().serializeToString(clone)}</g></svg>`;
+  return { svg: outer, w: W, h: H + PF_EXPORT_TITLE_PX };
+}
+
+/* SVG → <img> (un `data:`, que la CSP admite) → lienzo al doble de tamaño → PNG.
+   Sin html2canvas: un SVG propio no la necesita y no pide ninguna librería.   */
+async function exportProfilePng() {
+  if (!profileData) return;
+  const out = profileExportSvg();
+  if (!out) return;
+  try {
+    const img = new Image();
+    await new Promise((resolve, reject) => {
+      img.onload = resolve;
+      img.onerror = () => reject(new Error(tr("el navegador no pudo dibujar la gráfica")));
+      img.src = "data:image/svg+xml;charset=utf-8," + encodeURIComponent(out.svg);
+    });
+    const canvas = document.createElement("canvas");
+    canvas.width = out.w * PF_EXPORT_SCALE;
+    canvas.height = out.h * PF_EXPORT_SCALE;
+    const g = canvas.getContext("2d");
+    g.scale(PF_EXPORT_SCALE, PF_EXPORT_SCALE);
+    g.drawImage(img, 0, 0, out.w, out.h);
+    const blob = await new Promise(resolve => canvas.toBlob(resolve, "image/png"));
+    if (!blob) throw new Error(tr("no se pudo generar la imagen"));
+    downloadBlob(blob, `${profileExportName()}.png`);
+  } catch (err) {
+    navMessage(tr("No se pudo exportar el perfil: {message}", { message: err.message }));
+  }
+}
+document.getElementById("pf-csv").addEventListener("click", exportProfileCsv);
+document.getElementById("pf-png").addEventListener("click", exportProfilePng);
+
 /* Cambiar una unidad en Propiedades (setMeasureUnit/setAltitudeUnit) o
    el tamaño de la ventana redibuja la gráfica, sin volver a pedir nada
    y sin perder el zoom.                                            */

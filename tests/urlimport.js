@@ -84,7 +84,10 @@ ok(sniffTextKind("﻿   <kml></kml>") === "kml", "con BOM y blancos delante");
 /* El diagnóstico más útil de todos: pegar la página en vez del «Raw» */
 ok(sniffTextKind("<!DOCTYPE html><html><body>…") === "html", "una página HTML se reconoce como tal");
 ok(sniffTextKind("<html lang='es'>") === "html", "aunque no traiga DOCTYPE");
-ok(sniffTextKind("<gpx version='1.1'></gpx>") === null, "un GPX no es un formato admitido");
+ok(sniffTextKind("<gpx version='1.1'></gpx>") === "gpx", "un GPX se reconoce");
+ok(sniffTextKind('<?xml version="1.0"?><gpx xmlns="http://www.topografix.com/GPX/1/1" version="1.1"><wpt lat="1" lon="2"/></gpx>') === "gpx", "con prólogo y namespace");
+ok(sniffTextKind("<g:gpx xmlns:g='x'></g:gpx>") === "gpx", "y con prefijo");
+ok(sniffTextKind('<?xml version="1.0"?><ServiceExceptionReport/>') === null, "otro XML (una excepción OGC) sigue sin ser nuestro");
 ok(sniffTextKind('{"type":"FeatureCollection","features":[]}') === "geojson", "FeatureCollection");
 ok(sniffTextKind('{"type":"Feature","geometry":null}') === "geojson", "un Feature suelto");
 ok(sniffTextKind('{"type":"Polygon","coordinates":[]}') === "geojson", "una geometría suelta");
@@ -117,6 +120,9 @@ ok(sniffContentKind(makeZip(["doc.kml", "x.shp"]), "") === "kmz",
 ok(sniffContentKind(makeZip(["leeme.txt"]), "") === "kmz",
   "un zip sin ninguno de los dos se sigue tratando como KMZ (y su aviso lo explica)");
 ok(downloadFileName("https://x.com/vias.zip", "shpzip") === "vias.zip", "un .zip se respeta");
+ok(downloadFileName("https://x.com/ruta.gpx", "gpx") === "ruta.gpx", "un .gpx se respeta");
+ok(downloadFileName("https://x.com/descarga?id=7", "gpx") === "descarga.gpx", "sin extensión se le añade .gpx, que es la que despacha handleDroppedFiles");
+ok(URL_KIND_EXT.gpx === ".gpx" && URL_KIND_LABEL.gpx === "GPX", "extensión y etiqueta del tipo");
 ok(downloadFileName("https://x.com/descarga?id=7", "shpzip") === "descarga.zip",
   "y sin extensión se le pone .zip");
 
@@ -150,7 +156,7 @@ ok(downloadFileName("https://x.com/a.kml", "cualquiera") === "",
 /* El INVARIANTE: pase lo que pase, la extensión cae en una rama viva de
    handleDroppedFiles. Si alguien añade un tipo y olvida su extensión,
    esto lo caza antes de que se rechace en ejecución.                 */
-const RAMAS = [".kml", ".kmz", ".json", ".geojson", ".topojson", ".zip"];
+const RAMAS = [".kml", ".kmz", ".gpx", ".json", ".geojson", ".topojson", ".zip"];
 for (const kind of Object.keys(URL_KIND_EXT)) {
   for (const url of ["https://x.com/a", "https://x.com/a.txt", "https://x.com/",
                      "https://x.com/a.kml", "https://x.com/a.json"]) {
@@ -168,7 +174,7 @@ ok(JSON.stringify(Object.keys(URL_KIND_EXT).sort())
   + Object.keys(URL_KIND_EXT).sort() + " vs " + Object.keys(URL_KIND_LABEL).sort());
 /* Y son exactamente los que devuelven los reconocedores (html aparte,
    que es un diagnóstico, no un formato admitido).                   */
-for (const kind of ["kml", "kmz", "geojson", "topojson", "kite", "shpzip"]) {
+for (const kind of ["kml", "kmz", "gpx", "geojson", "topojson", "kite", "shpzip"]) {
   ok(!!URL_KIND_EXT[kind] && !!URL_KIND_LABEL[kind], `${kind} tiene extensión y etiqueta`);
 }
 

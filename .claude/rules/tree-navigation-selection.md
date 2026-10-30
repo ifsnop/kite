@@ -3,6 +3,7 @@ description: Árbol de navegación — visibilidad, checkbox de tres estados, te
 paths:
   - "src/js/30-tree-walk.js"
   - "src/js/31-tree-node.js"
+  - "src/js/35-export-formats.js"
   - "src/js/40-panel-actions.js"
   - "src/js/41-selection.js"
   - "src/js/70-view-controls.js"
@@ -189,9 +190,34 @@ paths:
 
 ## Exportar e importar carpetas
 
-- El botón 💾 de una carpeta o archivo descarga su subárbol como
-  `<nombre>.kite.json`: mismo formato de registros que el guardado
-  (`serializeNode`), envuelto en `{ app, db, schema, exported, nodes }`.
+- El botón 💾 de una carpeta, un archivo **o una capa suelta** (`sortable || layer`
+  en `makeActions`) abre un minimenú (`openExportMenu`, `35-export-formats.js`,
+  con el aspecto de `.ctx-menu` pero independiente del menú del visor: aquel
+  devuelve el foco al mapa) con tres formatos. Se cierra con un clic fuera,
+  Escape (que no llega al árbol), desplazamiento, pérdida del foco o volviendo
+  a pulsar 💾 (`exportMenuOwner`). Toda descarga pasa por `downloadBlob`
+  (`32-geojson.js`): blob, `<a download>`, revocación a los 60 s y el aviso
+  «Descargado».
+  - **«Archivo de KITE»** descarga el subárbol como `<nombre>.kite.json`: mismo
+    formato de registros que el guardado (`serializeNode`), envuelto en
+    `{ app, db, schema, exported, nodes }`.
+  - **KML y GeoJSON** (`recordsToKml`, `recordsToGeoJson`, PURAS) trabajan sobre
+    los registros serializados, no sobre las filas: una carpeta nunca desplegada
+    se exporta sin construir una fila. KML: `Folder` anidadas (`<visibility>0`
+    si está desmarcada, `<open>1` si no está colapsada), un `Placemark` por NODO
+    (varias geometrías = `MultiGeometry`), `Style` compartidos por contenido,
+    colores `aabbggrr`, altitud solo si es finita, `properties` en
+    `ExtendedData`. GeoJSON: FeatureCollection plana, carpeta en
+    `properties.folder`, estilo en claves simplestyle (las que lee
+    `geojsonStyle`); un `name`/`description`/`folder` que ya traía el archivo y
+    difiere del del nodo no se pierde: pasa a `<clave>_orig` (`putProp`).
+    Una ruta → LineString; un círculo → polígono geodésico de 120 lados
+    (`arcPoints`, no el `L.circle` de pantalla); si cruza ±180° las longitudes
+    quedan continuas (>180), sin partir el anillo. Lo que no cabe (`elevGrid`,
+    `imageOverlay`, `cog`) se NOMBRA en un aviso (`skippedMessage`), nunca en
+    silencio. Una entidad con coordenadas no finitas se deja fuera.
+    Un color que no sea hexadecimal (nombre CSS de un simplestyle ajeno) cae al
+    azul por defecto en KML.
 - El envoltorio declara tres versiones: `format` (`EXPORT_FORMAT`),
   `schema` (`TREE_SCHEMA`) y `db` (`DB_VERSION`). Al importar se
   comprueban las dos primeras; cualquier discrepancia se rechaza con

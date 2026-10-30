@@ -954,6 +954,51 @@
   .pf-map-arrow { background: none; border: none; pointer-events: none; }
   .pf-map-arrow svg { display: block; overflow: visible; }
   .pf-map-arrow path { fill: #b04a3a; stroke: #fff; stroke-width: 1.5; stroke-linejoin: round; }
+  /* Anillos de alcance: etiquetas a la izquierda y campos de ancho fijo
+     a la derecha (el de radios, de texto, algo más ancho).              */
+  #range-dialog .dlg-box { width: min(92vw, 26rem); }
+  #range-dialog .dlg-row input[type="number"] { width: 110px; }
+  #range-dialog .dlg-row input[type="text"] { flex: none; width: 190px; }
+  #range-dialog .dlg-row > select { max-width: 200px; }
+  #range-dialog .dlg-row > label { flex: 1 1 auto; min-width: 0; }
+  /* La unidad (NM, km…) y el grado van tras el campo, con ancho fijo para
+     que los campos queden alineados en todas las filas.                 */
+  #range-dialog .rg-unit, #range-dialog .rg-deg { flex: none; width: 2.4em; color: var(--muted); }
+  /* Tabla de atributos: arriba a la derecha, como la de estilos (la de
+     estilos y ella a la vez son raras), con altura de partida explícita
+     para que la tabla llene la caja y el tirador le dé espacio.        */
+  #attr-dialog .dlg-box {
+    display: flex; flex-direction: column; resize: both;
+    width: min(94vw, 52rem); height: min(78vh, 560px); min-width: 320px; min-height: 220px;
+  }
+  .attr-bar { display: flex; align-items: center; gap: 10px; margin: 6px 0; }
+  .attr-bar input { flex: 1 1 auto; min-width: 0; }
+  #attr-scroll { flex: 1 1 auto; min-height: 0; overflow: auto; border: 1px solid var(--border); border-radius: 5px; }
+  /* `table-layout: fixed` y anchos por <col>: con filas que entran y salen
+     al desplazar, el ancho automático bailaría. El ancho total lo pone el
+     código (suma de columnas); si no cabe, scroll horizontal.           */
+  #attr-table { table-layout: fixed; border-collapse: collapse; font-size: 12px; }
+  #attr-table th, #attr-table td {
+    padding: 0 6px; height: 24px; box-sizing: border-box; text-align: left;
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  }
+  #attr-table thead th {
+    position: sticky; top: 0; z-index: 1; background: var(--panel); cursor: pointer; user-select: none;
+    border-bottom: 1px solid var(--border); font-weight: 600;
+  }
+  #attr-table thead th:hover { background: var(--accent-soft); }
+  #attr-table tbody tr[data-i] { cursor: pointer; }
+  #attr-table tbody tr[data-i]:hover { background: var(--accent-soft); }
+  #attr-table tbody tr[data-i] td { border-bottom: 1px solid var(--border); }
+  #attr-table .attr-spacer td { padding: 0; border: 0; }
+  /* Estilo por atributo: una fila por clase (color, valor o tramo, recuento) */
+  #attrstyle-dialog .dlg-box { width: min(92vw, 26rem); }
+  #attrstyle-dialog .dlg-row > label { flex: 1 1 auto; min-width: 0; }
+  #attrstyle-dialog .dlg-row > select { max-width: 230px; }
+  #attrstyle-dialog .dlg-row input[type="number"] { width: 80px; }
+  #as-classes { margin: 8px 0 4px; max-height: 40vh; overflow-y: auto; }
+  .as-class { justify-content: flex-start; margin: 4px 0; }
+  .as-class .as-label { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   #geocalc-dialog .dlg-box { width: min(92vw, 30rem); }
   .geocalc-field { display: flex; gap: 6px; }
   #geocalc-dialog .dlg-row input[type="number"] { width: 110px; }
@@ -1722,7 +1767,7 @@
     </div>
   </header>
   <div id="tree" role="tree" aria-label="Árbol de capas" tabindex="0"></div>
-  <div id="dropzone">Arrastre aquí sus archivos KML/KMZ (incl. ortofotos), JSON/TopoJSON, shapefiles (.shp con su .dbf y .prj, o en .zip), ortofotos COG (.tif) o carpetas exportadas (.kite.json)</div>
+  <div id="dropzone">Arrastre aquí sus archivos KML/KMZ (incl. ortofotos), GPX, JSON/TopoJSON, shapefiles (.shp con su .dbf y .prj, o en .zip), ortofotos COG (.tif) o carpetas exportadas (.kite.json)</div>
   <footer id="nav-search">
     <div class="nav-actions">
       <input type="text" id="search-box" placeholder="Buscar capas y carpetas&#8230;">
@@ -2247,6 +2292,8 @@
           <option value="origin">Desde el inicio</option>
         </select></label>
       <button class="btn" id="pf-reset" title="Ruta entera y altura automática">Ver todo</button>
+      <button class="btn" id="pf-png" title="Guardar la gráfica, tal como se ve, como imagen PNG">PNG</button>
+      <button class="btn" id="pf-csv" title="Guardar los datos de la ruta entera como CSV: distancia, latitud, longitud y la altura de cada serie">CSV</button>
       <span class="pf-hint">Rueda: distancia · Mayús+rueda: altura · arrastrar: desplazar</span>
     </div>
   </div>
@@ -2298,7 +2345,7 @@
 <div id="url-dialog" class="dlg-overlay" hidden>
   <div class="dlg-box">
     <h2>A&#241;adir desde una direcci&#243;n</h2>
-    <p class="dlg-hint">Direcci&#243;n de un archivo KML, KMZ, JSON/GeoJSON, TopoJSON, de un
+    <p class="dlg-hint">Direcci&#243;n de un archivo KML, KMZ, GPX, JSON/GeoJSON, TopoJSON, de un
       shapefile comprimido (.zip) o de una carpeta exportada (.kite.json). Se descarga primero y se a&#241;ade despu&#233;s, cuando
       vea qu&#233; ha llegado.</p>
     <!-- Un <textarea> y no un <input>: una dirección de descarga pasa de
@@ -2315,6 +2362,93 @@
       <button class="btn" id="url-close">Cerrar</button>
       <button class="btn" id="url-fetch">Descargar</button>
       <button class="btn" id="url-add" hidden>A&#241;adir al &#225;rbol</button>
+    </div>
+  </div>
+</div>
+
+<!-- Anillos de alcance y sectores (menú contextual › Crear). Modal, con
+     vista previa en vivo sobre el mapa: Cancelar no deja nada. Los campos
+     de distancia van en la unidad global (Propiedades); la posición, en
+     el formato global de coordenadas. -->
+<div id="range-dialog" class="dlg-overlay" hidden>
+  <div class="dlg-box">
+    <h2><span class="dlg-title" id="rg-title">Anillos de alcance</span></h2>
+    <div class="dlg-row"><label for="rg-mode">Forma</label>
+      <select id="rg-mode">
+        <option value="rings">Anillos concéntricos</option>
+        <option value="sector">Sector</option>
+      </select>
+    </div>
+    <div class="dlg-row"><label for="rg-lat">Latitud del centro</label><input type="text" id="rg-lat" autocomplete="off" spellcheck="false"></div>
+    <div class="dlg-row"><label for="rg-lng">Longitud del centro</label><input type="text" id="rg-lng" autocomplete="off" spellcheck="false"></div>
+    <div id="rg-rings-fields">
+      <div class="dlg-row"><label for="rg-radii">Radios</label><input type="text" id="rg-radii" autocomplete="off" spellcheck="false"><span class="rg-unit"></span></div>
+      <div class="dlg-row"><label for="rg-radials">Radiales cada</label><input type="number" id="rg-radials" min="0" max="180" step="1"><span class="rg-deg">&#176;</span></div>
+    </div>
+    <div id="rg-sector-fields" hidden>
+      <div class="dlg-row"><label for="rg-az1">Azimut inicial</label><input type="number" id="rg-az1" min="0" max="360" step="1"><span class="rg-deg">&#176;</span></div>
+      <div class="dlg-row"><label for="rg-az2">Azimut final</label><input type="number" id="rg-az2" min="0" max="360" step="1"><span class="rg-deg">&#176;</span></div>
+      <div class="dlg-row"><label for="rg-rout">Radio exterior</label><input type="number" id="rg-rout" min="0" step="any"><span class="rg-unit"></span></div>
+      <div class="dlg-row"><label for="rg-rin">Radio interior</label><input type="number" id="rg-rin" min="0" step="any"><span class="rg-unit"></span></div>
+    </div>
+    <p class="dlg-hint sh-bad" id="rg-status" hidden></p>
+    <div class="dlg-actions">
+      <button class="btn" id="rg-cancel">Cancelar</button>
+      <button class="btn" id="rg-accept">Aceptar</button>
+    </div>
+  </div>
+</div>
+
+<!-- Tabla de atributos de una carpeta (botón ▦ de su fila). Flotante y no
+     modal, como la de estilos: se puede mirar y seguir usando el mapa.
+     Una instantánea de solo lectura; las filas que se ven son las únicas
+     que están en el DOM (hay carpetas de decenas de miles de capas). -->
+<div id="attr-dialog" class="dlg-float" hidden>
+  <div class="dlg-box">
+    <h2 id="attr-title">Tabla de atributos</h2>
+    <div class="attr-bar">
+      <input type="search" id="attr-filter" placeholder="Filtrar filas&#8230;" aria-label="Filtrar filas" autocomplete="off" spellcheck="false">
+      <span class="dlg-note" id="attr-count"></span>
+    </div>
+    <p class="dlg-hint" id="attr-note" hidden></p>
+    <div id="attr-scroll">
+      <table id="attr-table"><colgroup id="attr-cols"></colgroup><thead id="attr-head"></thead><tbody id="attr-body"></tbody></table>
+    </div>
+    <div class="dlg-actions">
+      <button class="btn" id="attr-close">Cerrar</button>
+      <button class="btn" id="attr-csv">Exportar CSV</button>
+      <button class="btn" id="attr-style">Estilo por atributo&#8230;</button>
+    </div>
+  </div>
+</div>
+
+<!-- Estilo por atributo (desde la tabla de atributos). Modal, con vista
+     previa en vivo sobre el mapa: Cancelar devuelve cada capa a su estilo.
+     Una clasificación hecha una vez: al aceptar quedan estilos normales. -->
+<div id="attrstyle-dialog" class="dlg-overlay" hidden>
+  <div class="dlg-box">
+    <h2>Estilo por atributo</h2>
+    <div class="dlg-row"><label for="as-attr">Atributo</label><select id="as-attr"></select></div>
+    <div class="dlg-row"><label for="as-mode">Tipo</label>
+      <select id="as-mode">
+        <option value="categories">Categor&#237;as</option>
+        <option value="graduated">Graduado</option>
+      </select>
+    </div>
+    <div id="as-grad-fields" hidden>
+      <div class="dlg-row"><label for="as-n">Clases</label><input type="number" id="as-n" min="2" max="9" step="1"></div>
+      <div class="dlg-row"><label for="as-method">M&#233;todo</label>
+        <select id="as-method">
+          <option value="equal">Intervalos iguales</option>
+          <option value="quantile">Cuantiles</option>
+        </select>
+      </div>
+    </div>
+    <div id="as-classes"></div>
+    <p class="dlg-hint" id="as-summary"></p>
+    <div class="dlg-actions">
+      <button class="btn" id="as-cancel">Cancelar</button>
+      <button class="btn" id="as-accept">Aceptar</button>
     </div>
   </div>
 </div>
@@ -2725,7 +2859,8 @@ registerLang("en", "English", {
   "Ordenar alfabéticamente (alterna ascendente/descendente)": "Sort alphabetically (toggles ascending/descending)",
   "ordenar «{name}»": "sort “{name}”",
   "Colapsar esta carpeta y las interiores": "Collapse this folder and the ones inside it",
-  "Guardar esta carpeta en un archivo para volver a cargarla después": "Save this folder to a file to load it again later",
+  "Guardar o exportar a un archivo (KITE, KML o GeoJSON)": "Save or export to a file (KITE, KML or GeoJSON)",
+  "Tabla de atributos de esta carpeta": "Attribute table of this folder",
   "Centrar la vista aquí y acercar (zoom {zoom})": "Center the view here and zoom in (zoom {zoom})",
   "Editar propiedades": "Edit properties",
   "Ver información de la capa": "Show layer information",
@@ -2794,7 +2929,7 @@ registerLang("en", "English", {
   "«{name}» no está soportado. Formatos admitidos: {importFormats}.": "“{name}” is not supported. Supported formats: {importFormats}.",
   "Carga de «{name}» cancelada.": "Loading of “{name}” canceled.",
   "No se pudo cargar «{name}» ({ext}, {size}): {message}": "Could not load “{name}” ({ext}, {size}): {message}",
-  "KML, KMZ (incl. ortofotos), JSON (GeoJSON), TopoJSON, shapefiles (.shp con su .dbf y .prj, o en un .zip), ortofotos COG y modelos de elevación (.tif) y carpetas exportadas ({ext})": "KML, KMZ (incl. orthophotos), JSON (GeoJSON), TopoJSON, shapefiles (.shp with its .dbf and .prj, or in a .zip), COG orthophotos and elevation models (.tif) and exported folders ({ext})",
+  "KML, KMZ (incl. ortofotos), GPX, JSON (GeoJSON), TopoJSON, shapefiles (.shp con su .dbf y .prj, o en un .zip), ortofotos COG y modelos de elevación (.tif) y carpetas exportadas ({ext})": "KML, KMZ (incl. orthophotos), GPX, JSON (GeoJSON), TopoJSON, shapefiles (.shp with its .dbf and .prj, or in a .zip), COG orthophotos and elevation models (.tif) and exported folders ({ext})",
   "«{name}» es una ortofoto ECW, un formato propietario que el navegador no puede leer. Conviértala a COG y suelte el .tif: gdal_translate -of COG -co COMPRESS=JPEG \"{name}\" \"{base}.tif\" (necesita GDAL con soporte ECW; QGIS para Windows lo trae: Ráster › Conversión › Traducir, formato COG).": "“{name}” is an ECW orthophoto, a proprietary format that the browser cannot read. Convert it to COG and drop the .tif: gdal_translate -of COG -co COMPRESS=JPEG \"{name}\" \"{base}.tif\" (needs GDAL with ECW support; QGIS for Windows includes it: Raster › Conversion › Translate, COG format).",
   "KMZ (KML comprimido)": "KMZ (compressed KML)",
   "carpeta exportada de KITE (.kite.json)": "exported KITE folder (.kite.json)",
@@ -2817,6 +2952,22 @@ registerLang("en", "English", {
   "No se pudo cargar «{name}» (shapefile, {size}): {message}": "Could not load “{name}” (shapefile, {size}): {message}",
   "el zip no contiene ningún .kml ni .shp": "the zip contains no .kml or .shp",
   "«{zipName}»: «{name}» no tiene su .shp dentro del zip.": "“{zipName}”: “{name}” has no .shp inside the zip.",
+  /* 35-export-formats.js */
+  "{names} se quedan fuera de {format}: solo se exportan capas y mediciones.": { one: "{names} is left out of {format}: only layers and measurements are exported.", other: "{names} are left out of {format}: only layers and measurements are exported." },
+  "No hay nada que exportar a {format} en este nodo.": "There is nothing to export to {format} in this node.",
+  "Guardar o exportar": "Save or export",
+  "Archivo de KITE (.kite.json)": "KITE file (.kite.json)",
+  "KML (.kml)": "KML (.kml)",
+  "GeoJSON (.geojson)": "GeoJSON (.geojson)",
+  /* 36-gpx-import.js */
+  "no es un archivo GPX (falta el elemento <gpx>)": "not a GPX file (the <gpx> element is missing)",
+  "waypoint sin coordenadas válidas": "waypoint without valid coordinates",
+  "ruta con menos de dos puntos válidos": "route with fewer than two valid points",
+  "track sin ningún segmento con dos puntos válidos": "track without any segment of two valid points",
+  "{n} punto(s) sin coordenadas válidas omitidos": "{n} point(s) without valid coordinates left out",
+  "{n} segmento(s) de menos de dos puntos omitidos": "{n} segment(s) of fewer than two points left out",
+  "se corta en {max} puntos: es el tope por archivo GPX": "cut off at {max} points: that is the limit per GPX file",
+  "el archivo GPX no contiene ningún waypoint, ruta ni track": "the GPX file contains no waypoint, route or track",
   /* 40-panel-actions.js */
   "Lugares": "Places",
   "la dirección no existe (HTTP 404)": "the address does not exist (HTTP 404)",
@@ -3010,6 +3161,39 @@ registerLang("en", "English", {
   "Faltan waypoints para terminar la ruta (mínimo 2).": "More waypoints are needed to finish the route (minimum 2).",
   "Faltan waypoints para seguir siendo una ruta (mínimo 2).": "More waypoints are needed to remain a route (minimum 2).",
   "Elevación: {detail}.": "Elevation: {detail}.",
+  /* 53-range-rings.js */
+  "Anillos de alcance": "Range rings",
+  "Sector": "Sector",
+  "La posición del centro no es válida.": "The position of the centre is not valid.",
+  "Escriba al menos un radio.": "Enter at least one radius.",
+  "Los radios son números positivos separados por comas o espacios, con punto decimal.": "Radii are positive numbers separated by commas or spaces, with a decimal point.",
+  "El radio máximo es {max}.": "The maximum radius is {max}.",
+  "Como mucho {n} anillos.": "At most {n} rings.",
+  "Las radiales van de 1° a 180° (0 = sin radiales).": "Radials go from 1° to 180° (0 = no radials).",
+  "Los azimuts van de 0° a 360°.": "Azimuths go from 0° to 360°.",
+  "El azimut final tiene que ser distinto del inicial.": "The end azimuth must differ from the start azimuth.",
+  "El radio exterior va de 0 a {max}.": "The outer radius goes from 0 to {max}.",
+  "El radio interior tiene que ser menor que el exterior.": "The inner radius must be smaller than the outer one.",
+  "crear sector": "create sector",
+  "crear anillos de alcance": "create range rings",
+  "Radiales cada {step}°": "Radials every {step}°",
+  /* 54-attr-table.js */
+  "Nombre": "Name",
+  "{n} capas": { one: "{n} layer", other: "{n} layers" },
+  "{shown} de {n} capas": "{shown} of {n} layers",
+  "Esa capa ya no está en el árbol.": "That layer is no longer in the tree.",
+  "Atributos de «{name}»": "Attributes of “{name}”",
+  "Esta carpeta no tiene ninguna capa.": "This folder has no layers.",
+  "Ninguna de estas capas trae atributos: solo se ven sus nombres.": "None of these layers has attributes: only their names are shown.",
+  "Se muestran los primeros {n} atributos.": "The first {n} attributes are shown.",
+  /* 55-attr-style.js */
+  "(sin valor)": "(no value)",
+  "Otros": "Other",
+  "Color de {label}": "Colour of {label}",
+  "Se aplica a las {n} capas de esta carpeta.": { one: "It applies to the one layer in this folder.", other: "It applies to the {n} layers in this folder." },
+  "Ninguna de estas capas trae atributos con los que colorear.": "None of these layers has attributes to colour by.",
+  "Esta carpeta no tiene capas que se puedan colorear.": "This folder has no layers that can be coloured.",
+  "estilo por atributo": "style by attribute",
   /* 60-elevation.js */
   "error del servicio": "service error",
   "la respuesta no es una rejilla de alturas legible": "the response is not a readable height grid",
@@ -3126,6 +3310,13 @@ registerLang("en", "English", {
   "{n} · Final · {dist} {unit}": "{n} · End · {dist} {unit}",
   "{n} · {dist} {unit}": "{n} · {dist} {unit}",
   "La altura de torre": "The tower height",
+  "Distancia ({unit})": "Distance ({unit})",
+  "Latitud": "Latitude",
+  "Longitud": "Longitude",
+  "perfil": "profile",
+  "el navegador no pudo dibujar la gráfica": "the browser could not draw the chart",
+  "no se pudo generar la imagen": "the image could not be generated",
+  "No se pudo exportar el perfil: {message}": "The profile could not be exported: {message}",
   /* 64-cog.js */
   "WGS84 (4326), ETRS89 (4258), Web Mercator (3857), ETRS89 UTM 28–38 (25828–25838 y 3040–3050), WGS84 UTM norte y sur (32601–32660, 32701–32760), ED50 UTM 28–31 y REGCAN95 UTM 27–28": "WGS84 (4326), ETRS89 (4258), Web Mercator (3857), ETRS89 UTM 28–38 (25828–25838 and 3040–3050), WGS84 UTM north and south (32601–32660, 32701–32760), ED50 UTM 28–31 and REGCAN95 UTM 27–28",
   "no es un GeoTIFF legible ({reason})": "not a readable GeoTIFF ({reason})",
@@ -3181,19 +3372,27 @@ registerLang("en", "English", {
   "sobre el suelo {diff}": "above ground {diff}",
   "Altitud: {height}": "Altitude: {height}",
   "zoom {zoom} de {max}": "zoom {zoom} of {max}",
-  "Copiar coordenadas": "Copy coordinates",
+  "Copiar": "Copy",
+  "Coordenadas": "Coordinates",
   "Coordenadas copiadas al portapapeles.": "Coordinates copied to the clipboard.",
   "No se pudieron copiar las coordenadas.": "Could not copy the coordinates.",
+  "Enlace a esta vista": "Link to this view",
   "Consultas": "Queries",
   "Parcela catastral": "Cadastral parcel",
   "Medir": "Measure",
   "Crear": "Create",
   "Polígono o línea": "Polygon or line",
   "Pin": "Pin",
+  "Anillos de alcance…": "Range rings…",
+  "Sector…": "Sector…",
   "Menú contextual del visor": "Viewer context menu",
   "Ir al nodo en el panel": "Go to the node in the panel",
   "Mostrar atributos": "Show attributes",
   "Perfil de ruta": "Route profile",
+  "Enlace a la vista copiado. Solo sirve en este equipo: la aplicación está abierta como archivo.": "Link to the view copied. It only works on this computer: the application is open as a file.",
+  "Enlace a la vista copiado. Los mapas con dirección propia no viajan en el enlace.": "Link to the view copied. Maps with their own address are not included in the link.",
+  "Enlace a la vista copiado al portapapeles.": "Link to the view copied to the clipboard.",
+  "No se pudo copiar el enlace.": "The link could not be copied.",
   "Hay una versión nueva de KITE Local en el servidor. Recarga la página cuando puedas (F5) para actualizar.": "There is a new version of KITE Local on the server. Reload the page when you can (F5) to update.",
   /* index.html */
   "KITE Local — KML Interactive Tree Explorer": "KITE Local — KML Interactive Tree Explorer",
@@ -3204,9 +3403,8 @@ registerLang("en", "English", {
   "Desactivar todo": "Disable all",
   "Colapsar todo": "Collapse all",
   "Sin conexión": "Offline",
-  "Arrastre aquí sus archivos KML/KMZ (incl. ortofotos), JSON/TopoJSON, shapefiles (.shp con su .dbf y .prj, o en .zip), ortofotos COG (.tif) o carpetas exportadas (.kite.json)": "Drop your KML/KMZ files (incl. orthophotos), JSON/TopoJSON, shapefiles (.shp with its .dbf and .prj, or in a .zip), COG orthophotos (.tif) or exported folders (.kite.json) here",
+  "Arrastre aquí sus archivos KML/KMZ (incl. ortofotos), GPX, JSON/TopoJSON, shapefiles (.shp con su .dbf y .prj, o en .zip), ortofotos COG (.tif) o carpetas exportadas (.kite.json)": "Drop your KML/KMZ files (incl. orthophotos), GPX, JSON/TopoJSON, shapefiles (.shp with its .dbf and .prj, or in a .zip), COG orthophotos (.tif) or exported folders (.kite.json) here",
   "Propiedades": "Properties",
-  "Nombre": "Name",
   "Estilos": "Styles",
   "Atributos": "Attributes",
   "Color del marcador": "Marker color",
@@ -3214,8 +3412,6 @@ registerLang("en", "English", {
   "Tamaño del texto": "Text size",
   "Color del texto": "Text color",
   "Mostrar el texto siempre (si no, solo al hacer click)": "Always show the text (otherwise only on click)",
-  "Latitud": "Latitude",
-  "Longitud": "Longitude",
   "También puede arrastrar el marcador por el mapa mientras esta ventana esté abierta.": "You can also drag the marker on the map while this window is open.",
   "Estilo": "Style",
   "Contorno y relleno": "Outline and fill",
@@ -3413,12 +3609,35 @@ registerLang("en", "English", {
   "Tierra plana, rayo curvo": "Flat Earth, curved ray",
   "Desde el inicio": "From the start",
   "Ver todo": "Show all",
+  "PNG": "PNG",
+  "CSV": "CSV",
   "Rueda: distancia · Mayús+rueda: altura · arrastrar: desplazar": "Wheel: distance · Shift+wheel: height · drag: pan",
   "Puntos de la capa": "Points of the layer",
-  "Copiar": "Copy",
   "Añadir desde una dirección": "Add from an address",
-  "Dirección de un archivo KML, KMZ, JSON/GeoJSON, TopoJSON, de un shapefile comprimido (.zip) o de una carpeta exportada (.kite.json). Se descarga primero y se añade después, cuando vea qué ha llegado.": "Address of a KML, KMZ, JSON/GeoJSON, TopoJSON file, of a compressed shapefile (.zip) or of an exported folder (.kite.json). It is downloaded first and added afterwards, once you have seen what arrived.",
+  "Dirección de un archivo KML, KMZ, GPX, JSON/GeoJSON, TopoJSON, de un shapefile comprimido (.zip) o de una carpeta exportada (.kite.json). Se descarga primero y se añade después, cuando vea qué ha llegado.": "Address of a KML, KMZ, GPX, JSON/GeoJSON, TopoJSON file, of a compressed shapefile (.zip) or of an exported folder (.kite.json). It is downloaded first and added afterwards, once you have seen what arrived.",
   "Añadir al árbol": "Add to tree",
+  "Forma": "Shape",
+  "Anillos concéntricos": "Concentric rings",
+  "Latitud del centro": "Latitude of the centre",
+  "Longitud del centro": "Longitude of the centre",
+  "Radios": "Radii",
+  "Radiales cada": "Radials every",
+  "Azimut inicial": "Start azimuth",
+  "Azimut final": "End azimuth",
+  "Radio exterior": "Outer radius",
+  "Radio interior": "Inner radius",
+  "Tabla de atributos": "Attribute table",
+  "Exportar CSV": "Export CSV",
+  "Estilo por atributo…": "Style by attribute…",
+  "Estilo por atributo": "Style by attribute",
+  "Atributo": "Attribute",
+  "Tipo": "Type",
+  "Categorías": "Categories",
+  "Graduado": "Graduated",
+  "Clases": "Classes",
+  "Método": "Method",
+  "Intervalos iguales": "Equal intervals",
+  "Cuantiles": "Quantiles",
   "Credencial de Copernicus": "Copernicus credentials",
   "Instance ID": "Instance ID",
   "Custom Tile Map Service (TMS)": "Custom Tile Map Service (TMS)",
@@ -3444,6 +3663,8 @@ registerLang("en", "English", {
   "La escala de alturas se queda quieta al desplazar o acercar la distancia; desmarcado, se ajusta sola a lo que se ve": "The height scale stays still when you pan or zoom the distance; unchecked, it adjusts itself to what is visible",
   "Cómo se dibuja la curvatura de la Tierra con la refracción estándar de la atmósfera (radio efectivo 4/3). Clásica: la Tierra se arquea entre las torres y el terreno se eleva sobre la cuerda. Tierra plana: el terreno queda sobre una base recta y la línea de vista y el elipsoide se curvan hacia arriba. Desde el inicio: la Tierra cae desde la torre de inicio y la línea es recta. El despeje es el mismo en los tres": "How the curvature of the Earth is drawn, with standard atmospheric refraction (effective radius 4/3). Classic: the Earth arches between the towers and the terrain is raised above the chord. Flat Earth: the terrain stays on a straight base and the line of sight and the ellipsoid curve upwards. From the start: the Earth drops away from the start tower and the line is straight. The clearance is the same in all three",
   "Ruta entera y altura automática": "Whole route and automatic height",
+  "Guardar la gráfica, tal como se ve, como imagen PNG": "Save the chart, as it looks, as a PNG image",
+  "Guardar los datos de la ruta entera como CSV: distancia, latitud, longitud y la altura de cada serie": "Save the data of the whole route as CSV: distance, latitude, longitude and the height of each series",
   "Árbol de capas": "Layer tree",
   "Elegir color": "Choose color",
   "Unidad de la altura de origen": "Unit of the origin height",
@@ -3463,9 +3684,11 @@ registerLang("en", "English", {
   "Detalle de la descarga": "Download details",
   "Lectura bajo el cursor": "Reading under the cursor",
   "Lista de puntos de la capa": "List of the layer's points",
+  "Filtrar filas": "Filter rows",
   "Buscar un lugar y añadir marcador…": "Search for a place and add a marker…",
   "Nombre de carpeta": "Folder name",
   "Buscar capas y carpetas…": "Search layers and folders…",
+  "Filtrar filas…": "Filter rows…",
   /* Bloques de HTML de index.html (data-i18n-html): el valor es el HTML entero */
   "html.gnp-intro": "Associations saved between the structure of the <code>properties</code> of a GeoJSON and the property used as the name.",
   "html.points-help": "One point per line, with <strong>latitude, longitude and altitude</strong> separated by a tab. It can be copied and pasted directly into a spreadsheet. When pasting, commas or spaces are also accepted as separators.",
@@ -4758,7 +4981,7 @@ map.on("resize rotate", fitWorldMinZoom);
 
 /* Fecha de generación del código (versión): AÑOMESDIAHORAMINUTO.
    Actualizar en cada generación; se muestra junto al crédito de Leaflet. */
-const BUILD = "202610300021";
+const BUILD = "202610300251";
 /* Versión de release (la de package.json, horneada aquí por build.js
    al construir — ver «Versión y releases de GitHub» en CLAUDE.md): a
    diferencia de BUILD, que cambia en CADA generación, esta solo cambia
@@ -6213,6 +6436,31 @@ function parsePolygon(polyEl) {
   return rings;
 }
 
+/* Los datos propios de un Placemark: <ExtendedData> con <Data name><value>
+   y <SchemaData><SimpleData name>. Salen como `properties` (siempre
+   texto: KML no tiene tipos aquí), y así una capa de KML tiene la misma
+   tabla de atributos que una de GeoJSON. Entrada AJENA: tope de campos,
+   primer valor de un nombre repetido y nombres que no pueden ser
+   propiedades (`__proto__`) fuera. null si no hay ninguno.            */
+const EXT_MAX_FIELDS = 200;
+function parseExtendedData(pm) {
+  const ext = childrenByTag(pm, "ExtendedData")[0];
+  if (!ext) return null;
+  const props = {};
+  let n = 0;
+  const put = (key, value) => {
+    if (!key || key === "__proto__" || n >= EXT_MAX_FIELDS) return;
+    if (Object.prototype.hasOwnProperty.call(props, key)) return;
+    props[key] = value;
+    n++;
+  };
+  for (const d of childrenByTag(ext, "Data")) put(d.getAttribute("name"), directChildText(d, "value") || "");
+  for (const sd of childrenByTag(ext, "SchemaData")) {
+    for (const s of childrenByTag(sd, "SimpleData")) put(s.getAttribute("name"), s.textContent.trim());
+  }
+  return n ? props : null;
+}
+
 /* Crea las capas Leaflet de un placemark (polígonos, líneas y puntos).
    Cada geometría se construye por separado: una mala no tumba al resto
    del placemark ni, por tanto, a la importación entera.              */
@@ -6260,6 +6508,13 @@ function buildPlacemarkLayer(pm, style, report) {
     } catch (err) { fail(tr("punto ilegible ({message})", { message: err.message })); }
   }
   if (!layers.length) return { group: null, reported };
+
+  /* `feature.properties` en cada subcapa es lo que lee layerProperties y lo
+     que `toGeoJSON` vuelca al guardar, así que sobrevive a recargar. Sin
+     `geometry` a propósito: 43-points-editor.js la lee de `poly.feature`
+     para los polígonos de GeoJSON, y un KML no tiene geometría en crudo. */
+  const data = parseExtendedData(pm);
+  if (data) for (const l of layers) l.feature = { type: "Feature", properties: data };
 
   const group = L.featureGroup(layers);
   const name = text(pm, "name");
@@ -7418,7 +7673,7 @@ function makeActions(li, sortable, styleable, layer, focusable = styleable) {
     b.title = title;
     b.setAttribute("aria-label", title); /* botones solo con icono */
     if (cls) b.className = cls;
-    b.addEventListener("click", e => { e.preventDefault(); fn(); });
+    b.addEventListener("click", e => { e.preventDefault(); fn(b); });
     box.appendChild(b);
   };
   if (sortable) {
@@ -7427,8 +7682,13 @@ function makeActions(li, sortable, styleable, layer, focusable = styleable) {
     btn("AZ", tr("Ordenar alfab\u00E9ticamente (alterna ascendente/descendente)"), "az",
         () => withUndo(tr("ordenar \u00AB{name}\u00BB", { name: li._name }), () => sortChildren(li)));
     btn("\u229F", tr("Colapsar esta carpeta y las interiores"), "", () => collapseDescendants(li));
-    btn("\uD83D\uDCBE", tr("Guardar esta carpeta en un archivo para volver a cargarla despu\u00E9s"), "", () => exportNode(li));
   }
+  /* Carpetas y también capas sueltas: un KML o un GeoJSON de UNA capa es
+     un uso corriente (pasarla a QGIS). El menú pregunta el formato.     */
+  if (sortable || layer) {
+    btn("\uD83D\uDCBE", tr("Guardar o exportar a un archivo (KITE, KML o GeoJSON)"), "", b => openExportMenu(b, li));
+  }
+  if (sortable) btn("\u25A6", tr("Tabla de atributos de esta carpeta"), "", () => openAttrTable(li));
   if (focusable) {
     btn("\uD83D\uDD0D", tr("Centrar la vista aqu\u00ED y acercar (zoom {zoom})", { zoom: FOCUS_ZOOM }), "",
         () => focusOnNode(li));
@@ -9400,15 +9660,21 @@ function exportNode(li) {
   }
   if (!nodes.length) { navMessage(tr("No hay nada que descargar en este nodo.")); return; }
   const doc = treeExportDoc(nodes);
-  const url = URL.createObjectURL(new Blob([JSON.stringify(doc)], { type: "application/json" }));
+  downloadBlob(new Blob([JSON.stringify(doc)], { type: "application/json" }), safeFileName(li._name) + EXPORT_EXT);
+}
+
+/* Todas las descargas de la aplicación (.kite.json, KML, GeoJSON, PNG…)
+   pasan por aquí: la limpieza del blob y el aviso son los mismos.     */
+function downloadBlob(blob, fileName) {
+  const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
   a.href = url;
-  a.download = safeFileName(li._name) + EXPORT_EXT;
+  a.download = fileName;
   a.click();
   /* Algunos navegadores leen el blob después de volver de click():
      revocarlo en el acto cancela la descarga. Se libera más tarde.  */
   setTimeout(() => URL.revokeObjectURL(url), 60000);
-  navMessage(tr("Descargado \u00AB{download}\u00BB.", { download: a.download }), { tone: "info" }); /* confirma lo pedido: notificación, no alerta */
+  navMessage(tr("Descargado \u00AB{download}\u00BB.", { download: fileName }), { tone: "info" }); /* confirma lo pedido: notificación, no alerta */
 }
 
 /* Quita los nodos "cog" de unos registros serializados, a cualquier
@@ -10086,7 +10352,9 @@ function importCancelled() {
 const BIG_FEATURE_COUNT = 5000;
 /* `report`: un informe ya empezado por quien llama (lo que se ve al leer
    un shapefile —sin .prj, ED50…— va en el mismo resumen).             */
-async function addFileNode(name, kind, content, insertBefore = null, dropTargetUl = null, zip = null, report = null) {
+/* `presetNameKeys`: un formato que define él mismo qué es el nombre (el
+   <name> de un GPX) lo da hecho y no se pregunta ni se recuerda nada.  */
+async function addFileNode(name, kind, content, insertBefore = null, dropTargetUl = null, zip = null, report = null, presetNameKeys = null) {
   const big = typeof content === "string"
     ? content.length > SIZE_THRESHOLD
     : geojsonFeatures(content).length > BIG_FEATURE_COUNT;
@@ -10162,8 +10430,8 @@ async function addFileNode(name, kind, content, insertBefore = null, dropTargetU
         }
       }
       const firstProps = (features[0] && typeof features[0].properties === "object" && features[0].properties) || {};
-      let nameKeys = null;
-      if (needsNamePicker(firstProps)) {
+      let nameKeys = presetNameKeys;
+      if (!nameKeys && needsNamePicker(firstProps)) {
         if (!gnpStore) gnpStore = await dbLoadGnp();
         const fp = propsFingerprint(firstProps);
         const stored = gnpStore[fp] || null;
@@ -10389,6 +10657,11 @@ async function handleDroppedFiles(files, insertBefore, dropTargetUl = null) {
         }
         kind = "geojson";
       }
+      else if (ext === "gpx") {
+        await importGpxFile(file, big, insertBefore, dropTargetUl);
+        scheduleSave();
+        continue;
+      }
       else if (ext === "ecw") {
         navMessage(ecwHint(file.name), { sticky: true });
         continue;
@@ -10410,7 +10683,7 @@ async function handleDroppedFiles(files, insertBefore, dropTargetUl = null) {
 
 /* Lo que se acepta, dicho igual en todos los avisos que lo enumeran
    (handleDroppedFiles y el diálogo de 🔗).                          */
-const IMPORT_FORMATS = tr("KML, KMZ (incl. ortofotos), JSON (GeoJSON), TopoJSON, "
+const IMPORT_FORMATS = tr("KML, KMZ (incl. ortofotos), GPX, JSON (GeoJSON), TopoJSON, "
   + "shapefiles (.shp con su .dbf y .prj, o en un .zip), ortofotos COG y modelos de elevaci\u00F3n (.tif) "
   + "y carpetas exportadas ({ext})", { ext: EXPORT_EXT });
 
@@ -10485,12 +10758,12 @@ navPanel.addEventListener("drop", async e => {
    así que inventarles `.geojson` o `.topojson` no aportaría nada y sí
    daría un nombre que el servidor no puso.                            */
 const URL_KIND_EXT = {
-  kml: ".kml", kmz: ".kmz", geojson: ".json", topojson: ".json", kite: EXPORT_EXT,
+  kml: ".kml", kmz: ".kmz", gpx: ".gpx", geojson: ".json", topojson: ".json", kite: EXPORT_EXT,
   shpzip: ".zip"
 };
 /* Lo que se le dice al usuario que ha llegado */
 const URL_KIND_LABEL = {
-  kml: "KML", kmz: tr("KMZ (KML comprimido)"), geojson: "GeoJSON", topojson: "TopoJSON",
+  kml: "KML", kmz: tr("KMZ (KML comprimido)"), gpx: "GPX", geojson: "GeoJSON", topojson: "TopoJSON",
   kite: tr("carpeta exportada de KITE (.kite.json)"), shpzip: tr("shapefile comprimido (.zip)")
 };
 
@@ -10543,7 +10816,8 @@ function sniffTextKind(text) {
     /* Namespace-agnóstico, como todo el parseo de KML de este archivo:
        <kml>, <kml:kml> y cualquier otro prefijo valen igual.          */
     if (/<\s*(?:[A-Za-z_][\w.-]*:)?kml[\s>]/i.test(head)) return "kml";
-    return null; /* otro XML (un GPX, una excepción OGC): no es nuestro */
+    if (/<\s*(?:[A-Za-z_][\w.-]*:)?gpx[\s>]/i.test(head)) return "gpx";
+    return null; /* otro XML (una excepción OGC…): no es nuestro */
   }
   if (head[0] === "{" || head[0] === "[") {
     let doc;
@@ -10614,6 +10888,7 @@ function downloadFileName(url, kind) {
      los dos por la rama json, así que ninguno necesita renombrarse.  */
   const same = kind === "kml" ? [".kml"]
     : kind === "kmz" ? [".kmz"]
+    : kind === "gpx" ? [".gpx"]
     : kind === "shpzip" ? [".zip"]
     : [".json", ".geojson", ".topojson"];
   return same.some(e => lower.endsWith(e)) ? base : base + ext;
@@ -10904,6 +11179,505 @@ async function importShapefilesFromZip(zip, zipName, insertBefore, dropTargetUl)
     if (i.orphan) navMessage(tr("«{zipName}»: «{name}» no tiene su .shp dentro del zip.", { zipName, name: i.orphan.name }));
   }
   for (const i of groups) await importShapefileSafely(i.shp, insertBefore, dropTargetUl);
+}
+/* ================= Exportar a KML y GeoJSON =================
+   Trabaja sobre los REGISTROS serializados (serializeNode), no sobre las
+   filas: una carpeta nunca desplegada se exporta sin construir ni una
+   fila, igual que se guarda. Todo lo de abajo hasta exportNodeAs es PURO
+   (se prueba en Node, tests/exportformats.js); el minimenú de 💾 y la
+   descarga van al final.
+
+   Lo que no se puede representar en estos formatos (cuadrículas de
+   elevación, ortofotos de GroundOverlay y COG) se deja fuera y se
+   NOMBRA en `skipped`: nunca se pierde en silencio.                    */
+
+const EXPORT_CIRCLE_SEGMENTS = 120; /* un vértice cada 3°: a escala de mapa es un círculo */
+const EXPORT_PATH_SEP = " / ";
+
+/* ---------- Registros → entidades GeoJSON ---------- */
+
+/* Distancia sobre la misma esfera que el resto de la geodesia (EARTH_R) */
+function haversineM(a, b) {
+  const dp = toRad(b.lat - a.lat), dl = toRad(b.lng - a.lng);
+  const h = Math.sin(dp / 2) ** 2 + Math.cos(toRad(a.lat)) * Math.cos(toRad(b.lat)) * Math.sin(dl / 2) ** 2;
+  return 2 * EARTH_R * Math.asin(Math.min(1, Math.sqrt(h)));
+}
+
+/* Una posición con NaN saldría como `null` en JSON y sería ilegible en
+   KML: la entidad entera se deja fuera en vez de exportar una rota.    */
+const finiteCoords = c => Array.isArray(c) ? c.length > 0 && c.every(finiteCoords) : Number.isFinite(c);
+const finiteGeometry = g => g.type === "GeometryCollection"
+  ? Array.isArray(g.geometries) && g.geometries.length > 0 && g.geometries.every(finiteGeometry)
+  : finiteCoords(g.coordinates);
+
+/* `geo` de una capa guardada (toGeoJSON de Leaflet: FeatureCollection, y
+   Feature o geometría sueltas por si alguien lo trae de fuera) → lista de
+   Feature con geometría.                                               */
+function geoToFeatures(geo) {
+  if (!geo || typeof geo !== "object") return [];
+  const list = geo.type === "FeatureCollection" ? geo.features
+    : geo.type === "Feature" ? [geo] : [{ type: "Feature", properties: {}, geometry: geo }];
+  return (Array.isArray(list) ? list : [])
+    .filter(f => f && f.geometry && typeof f.geometry === "object" && finiteGeometry(f.geometry))
+    .map(f => ({ type: "Feature", properties: f.properties || {}, geometry: f.geometry }));
+}
+
+/* Una medición como geometría. La ruta es una LineString; el círculo, un
+   polígono geodésico (cada vértice a `r` metros del centro: arcPoints) y
+   no el L.circle de Leaflet, que es una aproximación de pantalla. Cruzar
+   ±180° deja longitudes continuas (>180) en vez de partir el anillo.    */
+function measureFeatures(rec) {
+  const w = Array.isArray(rec.waypoints) ? rec.waypoints : [];
+  if (w.length < 2 || !w.every(p => p && Number.isFinite(p.lat) && Number.isFinite(p.lng))) return [];
+  if (rec.mtype === "circle") {
+    const r = haversineM(w[0], w[1]);
+    const ring = arcPoints(w[0], r, 0, 360, EXPORT_CIRCLE_SEGMENTS).map(p => [p.lng, p.lat]);
+    ring[ring.length - 1] = ring[0].slice(); /* cierre exacto, sin ruido de coma flotante */
+    return [{ type: "Feature", properties: { measure: "circle", radius_m: Math.round(r * 100) / 100 },
+              geometry: { type: "Polygon", coordinates: [ring] } }];
+  }
+  let len = 0;
+  for (let i = 1; i < w.length; i++) len += haversineM(w[i - 1], w[i]);
+  return [{ type: "Feature", properties: { measure: "route", length_m: Math.round(len * 100) / 100 },
+            geometry: { type: "LineString", coordinates: w.map(p => [p.lng, p.lat]) } }];
+}
+
+/* Las geometrías de un registro hoja, o null si este tipo de nodo no cabe
+   en KML/GeoJSON.                                                      */
+function recordFeatures(rec) {
+  if (rec.t === "layer") return geoToFeatures(rec.geo);
+  if (rec.t === "measure") return measureFeatures(rec);
+  return null;
+}
+
+/* Lo que se exporta es el subárbol del nodo: si es un contenedor, sus
+   hijos (el nodo mismo da el nombre del documento); si es una hoja, ella. */
+function exportRoot(records) {
+  if (records.length === 1 && Array.isArray(records[0].children)) {
+    return { name: records[0].name, list: records[0].children };
+  }
+  return { name: records.length === 1 ? records[0].name : null, list: records };
+}
+
+/* Un nodo con su estilo → claves simplestyle (las mismas que lee
+   geojsonStyle al importar, así que la ida y vuelta conserva el aspecto). */
+const isPointGeometry = type => type === "Point" || type === "MultiPoint";
+function simpleStyle(geomType, style, mstyle) {
+  if (isPointGeometry(geomType)) return mstyle && mstyle.color ? { "marker-color": mstyle.color } : {};
+  const s = normalizePathStyle(style);
+  const out = { stroke: s.color, "stroke-width": s.stroke ? s.weight : 0, "stroke-opacity": s.stroke ? s.opacity : 0 };
+  if (geomType !== "LineString" && geomType !== "MultiLineString") {
+    out.fill = s.fillColor;
+    out["fill-opacity"] = s.fill ? s.fillOpacity : 0;
+  }
+  return out;
+}
+
+/* Asigna una propiedad del nodo sin pisar un dato distinto que ya traía
+   el archivo original: el desplazado pasa a `<clave>_orig`.            */
+function putProp(props, key, value) {
+  const old = props[key];
+  if (old != null && old !== "" && old !== value) props[`${key}_orig`] = old;
+  props[key] = value;
+}
+
+function featureProps(feat, rec, path) {
+  const p = { ...feat.properties };
+  putProp(p, "name", rec.name);
+  if (rec.desc) putProp(p, "description", rec.desc);
+  if (path.length) putProp(p, "folder", path.join(EXPORT_PATH_SEP));
+  return Object.assign(p, simpleStyle(feat.geometry.type, rec.style, rec.mstyle));
+}
+
+/* Árbol de registros → FeatureCollection PLANA. La carpeta de cada
+   entidad (relativa al nodo exportado) va en `properties.folder`.       */
+function recordsToGeoJson(records) {
+  const { name, list } = exportRoot(records);
+  const features = [], skipped = [];
+  const walk = (recs, path) => {
+    for (const rec of recs) {
+      if (Array.isArray(rec.children)) { walk(rec.children, [...path, rec.name]); continue; }
+      const feats = recordFeatures(rec);
+      if (!feats) { skipped.push({ name: rec.name, t: rec.t }); continue; }
+      for (const f of feats) {
+        features.push({ type: "Feature", properties: featureProps(f, rec, path), geometry: f.geometry });
+      }
+    }
+  };
+  walk(list, []);
+  const fc = { type: "FeatureCollection", features };
+  if (name != null) fc.name = name;
+  return { text: JSON.stringify(fc), count: features.length, skipped };
+}
+
+/* ---------- KML ---------- */
+
+/* Texto XML 1.0: escapa y quita los caracteres de control que el formato
+   NO admite ni escapados (un solo \u0001 hace ilegible el documento).  */
+const xmlEsc = s => String(s)
+  .replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F￾￿]/g, "")
+  .replace(/[<>&"']/g, c => ({ "<": "&lt;", ">": "&gt;", "&": "&amp;", '"': "&quot;", "'": "&apos;" })[c]);
+
+/* "#rrggbb" (o "#rgb") + opacidad → aabbggrr, el orden de KML. Un color
+   que no sea hexadecimal (un nombre CSS de un simplestyle ajeno) cae al
+   azul por defecto: aquí no hay lienzo con el que resolverlo.          */
+function cssToKmlColor(css, alpha = 1) {
+  let h = String(css || "").trim().replace(/^#/, "");
+  if (/^[0-9a-f]{3}$/i.test(h)) h = h.replace(/./g, c => c + c);
+  if (!/^[0-9a-f]{6}$/i.test(h)) h = "3388ff";
+  const a = Math.round(Math.min(1, Math.max(0, Number.isFinite(alpha) ? alpha : 1)) * 255);
+  return (a.toString(16).padStart(2, "0") + h.slice(4, 6) + h.slice(2, 4) + h.slice(0, 2)).toLowerCase();
+}
+
+/* lng,lat[,alt]; la altitud solo si es finita (no se inventa un 0) */
+function kmlPos(pos) {
+  if (!Array.isArray(pos) || !Number.isFinite(pos[0]) || !Number.isFinite(pos[1])) return null;
+  return Number.isFinite(pos[2]) ? `${pos[0]},${pos[1]},${pos[2]}` : `${pos[0]},${pos[1]}`;
+}
+const kmlCoords = line => (Array.isArray(line) ? line : []).map(kmlPos).filter(Boolean).join(" ");
+
+function kmlRing(ring, tag) {
+  const c = kmlCoords(ring);
+  return c ? `<${tag}><LinearRing><coordinates>${c}</coordinates></LinearRing></${tag}>` : "";
+}
+function kmlPolygon(rings) {
+  if (!Array.isArray(rings) || !rings.length) return "";
+  const outer = kmlRing(rings[0], "outerBoundaryIs");
+  if (!outer) return "";
+  return `<Polygon>${outer}${rings.slice(1).map(r => kmlRing(r, "innerBoundaryIs")).join("")}</Polygon>`;
+}
+
+function kmlGeometry(g) {
+  if (!g || typeof g !== "object") return "";
+  const many = parts => {
+    const xs = parts.filter(Boolean);
+    return xs.length ? `<MultiGeometry>${xs.join("")}</MultiGeometry>` : "";
+  };
+  const point = pos => { const c = kmlPos(pos); return c ? `<Point><coordinates>${c}</coordinates></Point>` : ""; };
+  const line = pts => { const c = kmlCoords(pts); return c ? `<LineString><coordinates>${c}</coordinates></LineString>` : ""; };
+  const list = x => (Array.isArray(x) ? x : []);
+  switch (g.type) {
+    case "Point": return point(g.coordinates);
+    case "LineString": return line(g.coordinates);
+    case "Polygon": return kmlPolygon(g.coordinates);
+    case "MultiPoint": return many(list(g.coordinates).map(point));
+    case "MultiLineString": return many(list(g.coordinates).map(line));
+    case "MultiPolygon": return many(list(g.coordinates).map(kmlPolygon));
+    case "GeometryCollection": return many(list(g.geometries).map(kmlGeometry));
+  }
+  return "";
+}
+
+/* Los tipos de geometría de un nodo deciden qué sub-estilos lleva */
+function geometryKinds(geoms) {
+  const kinds = { point: false, line: false, poly: false };
+  const visit = g => {
+    if (!g) return;
+    if (g.type === "GeometryCollection") { (g.geometries || []).forEach(visit); return; }
+    if (isPointGeometry(g.type)) kinds.point = true;
+    else if (g.type === "LineString" || g.type === "MultiLineString") kinds.line = true;
+    else kinds.poly = true;
+  };
+  geoms.forEach(visit);
+  return kinds;
+}
+
+function kmlStyleXml(kinds, style, mstyle) {
+  let x = "";
+  if (kinds.point && mstyle && mstyle.color) {
+    const scale = Number.isFinite(mstyle.size) ? `<scale>${+(mstyle.size / 41).toFixed(2)}</scale>` : "";
+    x += `<IconStyle><color>${cssToKmlColor(mstyle.color)}</color>${scale}</IconStyle>`;
+  }
+  if (kinds.line || kinds.poly) {
+    const s = normalizePathStyle(style);
+    x += `<LineStyle><color>${cssToKmlColor(s.color, s.opacity)}</color><width>${s.stroke ? s.weight : 0}</width></LineStyle>`;
+    if (kinds.poly) {
+      x += `<PolyStyle><color>${cssToKmlColor(s.fillColor, s.fillOpacity)}</color>`
+        + `<fill>${s.fill ? 1 : 0}</fill><outline>${s.stroke ? 1 : 0}</outline></PolyStyle>`;
+    }
+  }
+  return x;
+}
+
+function kmlExtendedData(props) {
+  const keys = Object.keys(props || {});
+  if (!keys.length) return "";
+  return "<ExtendedData>" + keys.map(k =>
+    `<Data name="${xmlEsc(k)}"><value>${xmlEsc(stringifyPropValue(props[k]))}</value></Data>`).join("") + "</ExtendedData>";
+}
+
+/* El nodo exportado es UN Placemark aunque tenga varias geometrías
+   (MultiGeometry), como llegó de un KML; las properties son las de la
+   primera entidad (un nodo de GeoJSON es siempre una).                  */
+function kmlPlacemark(rec, feats, ctx) {
+  const geoms = feats.map(f => f.geometry);
+  const parts = geoms.map(kmlGeometry).filter(Boolean);
+  if (!parts.length) return "";
+  const styleXml = kmlStyleXml(geometryKinds(geoms), rec.style, rec.mstyle);
+  let styleRef = "";
+  if (styleXml) {
+    if (!ctx.styles.has(styleXml)) ctx.styles.set(styleXml, `s${ctx.styles.size + 1}`);
+    styleRef = `<styleUrl>#${ctx.styles.get(styleXml)}</styleUrl>`;
+  }
+  ctx.count++;
+  return `<Placemark><name>${xmlEsc(rec.name)}</name>${rec.checked ? "" : "<visibility>0</visibility>"}`
+    + (rec.desc ? `<description>${xmlEsc(rec.desc)}</description>` : "")
+    + styleRef + kmlExtendedData(feats[0].properties)
+    + (parts.length === 1 ? parts[0] : `<MultiGeometry>${parts.join("")}</MultiGeometry>`)
+    + "</Placemark>";
+}
+
+function kmlNodes(recs, ctx) {
+  const out = [];
+  for (const rec of recs) {
+    if (Array.isArray(rec.children)) {
+      out.push(`<Folder><name>${xmlEsc(rec.name)}</name>${rec.checked ? "" : "<visibility>0</visibility>"}`
+        + `${rec.collapsed ? "" : "<open>1</open>"}\n${kmlNodes(rec.children, ctx)}\n</Folder>`);
+      continue;
+    }
+    const feats = recordFeatures(rec);
+    if (!feats) { ctx.skipped.push({ name: rec.name, t: rec.t }); continue; }
+    const pm = kmlPlacemark(rec, feats, ctx);
+    if (pm) out.push(pm);
+  }
+  return out.join("\n");
+}
+
+function recordsToKml(records) {
+  const { name, list } = exportRoot(records);
+  const ctx = { styles: new Map(), skipped: [], count: 0 };
+  const body = kmlNodes(list, ctx);
+  const defs = [...ctx.styles].map(([xml, id]) => `<Style id="${id}">${xml}</Style>`).join("\n");
+  const text = `<?xml version="1.0" encoding="UTF-8"?>\n<kml xmlns="http://www.opengis.net/kml/2.2">\n<Document>\n`
+    + `<name>${xmlEsc(name == null ? "KITE Local" : name)}</name>\n${defs}${defs ? "\n" : ""}${body}\n</Document>\n</kml>\n`;
+  return { text, count: ctx.count, skipped: ctx.skipped };
+}
+
+/* ---------- Descarga ---------- */
+
+const EXPORT_FORMATS = {
+  kml: { ext: ".kml", mime: "application/vnd.google-earth.kml+xml", label: "KML", build: recordsToKml },
+  geojson: { ext: ".geojson", mime: "application/geo+json", label: "GeoJSON", build: recordsToGeoJson }
+};
+
+/* Lo dejado fuera, dicho una vez y con nombres (hasta cinco) */
+function skippedMessage(skipped, label) {
+  const names = skipped.slice(0, 5).map(s => `«${s.name}»`).join(", ")
+    + (skipped.length > 5 ? ` +${skipped.length - 5}` : "");
+  return trn(skipped.length,
+    "{names} se queda fuera de {format}: solo se exportan capas y mediciones.",
+    "{names} se quedan fuera de {format}: solo se exportan capas y mediciones.",
+    { names, format: label });
+}
+
+function exportNodeAs(li, format) {
+  if (format === "kite") { exportNode(li); return; }
+  const f = EXPORT_FORMATS[format];
+  const out = f.build(serializeNode(li));
+  if (out.skipped.length) navMessage(skippedMessage(out.skipped, f.label), { sticky: true, tone: "info" });
+  if (!out.count) { navMessage(tr("No hay nada que exportar a {format} en este nodo.", { format: f.label })); return; }
+  downloadBlob(new Blob([out.text], { type: `${f.mime};charset=utf-8` }), safeFileName(li._name) + f.ext);
+}
+
+/* ---------- Minimenú de 💾 ----------
+   Con el aspecto del menú contextual del visor (.ctx-menu), pero
+   independiente de él: aquel devuelve el foco al mapa y este se abre
+   desde el panel. Se cierra con un clic fuera, Escape, el desplazamiento
+   o al volver a pulsar 💾.                                              */
+let exportMenuEl = null, exportMenuOwner = null, exportMenuOff = [];
+
+function closeExportMenu() {
+  exportMenuOff.forEach(off => off());
+  exportMenuOff = [];
+  if (exportMenuEl) exportMenuEl.remove();
+  exportMenuEl = exportMenuOwner = null;
+}
+
+function openExportMenu(btn, li) {
+  const toggleOff = exportMenuOwner === btn;
+  closeExportMenu();
+  if (toggleOff) return;
+  const menu = document.createElement("div");
+  menu.className = "ctx-menu";
+  menu.setAttribute("role", "menu");
+  menu.setAttribute("aria-label", tr("Guardar o exportar"));
+  const entries = [
+    ["kite", tr("Archivo de KITE (.kite.json)")],
+    ["kml", tr("KML (.kml)")],
+    ["geojson", tr("GeoJSON (.geojson)")]
+  ];
+  for (const [format, label] of entries) {
+    const item = document.createElement("button");
+    item.type = "button";
+    item.className = "ctx-menu-item";
+    item.setAttribute("role", "menuitem");
+    item.textContent = label;
+    item.addEventListener("click", () => { closeExportMenu(); exportNodeAs(li, format); });
+    menu.appendChild(item);
+  }
+  document.body.appendChild(menu);
+  const r = btn.getBoundingClientRect(), mr = menu.getBoundingClientRect();
+  menu.style.left = `${Math.max(0, Math.min(r.left, window.innerWidth - mr.width - 4))}px`;
+  menu.style.top = `${Math.max(0, Math.min(r.bottom + 2, window.innerHeight - mr.height - 4))}px`;
+  exportMenuEl = menu;
+  exportMenuOwner = btn;
+  const listen = (target, type, fn, capture = true) => {
+    target.addEventListener(type, fn, capture);
+    exportMenuOff.push(() => target.removeEventListener(type, fn, capture));
+  };
+  /* El propio 💾 se queda fuera: su clic ya alterna (toggleOff) */
+  listen(document, "mousedown", e => { if (!menu.contains(e.target) && !btn.contains(e.target)) closeExportMenu(); });
+  listen(document, "keydown", e => {
+    if (e.key !== "Escape") return;
+    e.stopPropagation(); /* que el Escape del árbol no limpie además la selección */
+    closeExportMenu();
+  });
+  listen(window, "scroll", closeExportMenu);
+  listen(window, "blur", closeExportMenu);
+}
+/* ================= Importar GPX =================
+   GPX 1.0 y 1.1 (waypoints, rutas y tracks). Se convierte a un
+   FeatureCollection y entra por addFileNode como un shapefile (ver
+   34-shp-import.js): hereda la pregunta de etiquetas HTML, los
+   duplicados, el envoltorio, el resumen, deshacer y la retirada a medias.
+   La conversión es PURA (se prueba en Node, tests/gpxtest.js) y
+   namespace-agnóstica como el resto del XML de la aplicación.
+
+   El nombre de cada elemento sale de su <name> (`GPX_NAME_KEYS`): en un
+   GeoJSON cualquiera nunca se asume qué propiedad es el nombre, pero un
+   GPX lo define el propio formato y preguntarlo en cada archivo no
+   aportaría nada.                                                      */
+
+const GPX_NAME_KEYS = ["name"];
+/* Cota de una entrada hostil: un track real de varios días ronda los 10⁵
+   puntos; con diez veces más se avisa y se corta, en vez de colgar el
+   navegador construyendo arrays.                                       */
+const GPX_MAX_POINTS = 2000000;
+const GPX_TEXT_FIELDS = ["name", "desc", "cmt", "src", "sym", "type"];
+
+/* Una posición <wpt>/<rtept>/<trkpt> → [lng, lat(, alt)], o null si le
+   falta o se sale de rango algo que no es redondeo. La altitud (<ele>) va
+   como tercer elemento solo si es un número finito; nunca se inventa 0. */
+function gpxPosition(el) {
+  const lat = el.getAttribute("lat"), lon = el.getAttribute("lon");
+  if (lat == null || lon == null || String(lat).trim() === "" || String(lon).trim() === "") return null;
+  const eleText = directChildText(el, "ele");
+  const ele = eleText == null || eleText === "" ? undefined : Number(eleText);
+  const pair = clampLatLng(Number(lat), Number(lon), ele);
+  if (!pair) return null;
+  return pair.length > 2 ? [pair[1], pair[0], pair[2]] : [pair[1], pair[0]];
+}
+
+/* <time> de un punto: ISO 8601 tal cual lo escribió el archivo, siempre
+   que sea una fecha que el navegador entienda; si no, null.            */
+function gpxTime(el) {
+  const t = directChildText(el, "time");
+  return t && Number.isFinite(Date.parse(t)) ? t : null;
+}
+
+/* Propiedades de un elemento: solo lo que el archivo trae, con `gpx`
+   diciendo qué era (waypoint, route o track).                          */
+function gpxProps(el, kind) {
+  const p = {};
+  for (const f of GPX_TEXT_FIELDS) {
+    const v = directChildText(el, f);
+    if (v) p[f] = v;
+  }
+  const link = childrenByTag(el, "link")[0];
+  const href = link && link.getAttribute("href");
+  if (href) p.link = href; /* texto, nunca un enlace vivo: se muestra escapado */
+  if (kind === "waypoint") {
+    const time = gpxTime(el);
+    if (time) p.time = time;
+  }
+  p.gpx = kind;
+  return p;
+}
+
+/* Los puntos válidos de una lista de <rtept>/<trkpt>, con sus tiempos
+   alineados. Lleva la cuenta global para la cota y devuelve cuántos
+   puntos se descartaron por inválidos.                                 */
+function gpxLine(pointEls, ctx) {
+  const coords = [], times = [];
+  for (const el of pointEls) {
+    if (ctx.points >= GPX_MAX_POINTS) { ctx.capped = true; break; }
+    ctx.points++;
+    const pos = gpxPosition(el);
+    if (!pos) { ctx.badPoints++; continue; }
+    coords.push(pos);
+    times.push(gpxTime(el));
+  }
+  return { coords, times };
+}
+
+/* GPX → FeatureCollection. `report` es el de la importación: un elemento
+   perdido es un `warn`, y lo que solo se ajusta o se descarta de dentro
+   de un elemento, una `note`.                                          */
+function gpxToGeoJson(text, report) {
+  const { xml, repaired } = parseKmlDocument(text); /* mismo XML tolerante que el KML */
+  if (repaired.length) {
+    report.note(tr("prefijos XML sin declarar, corregidos al vuelo: {prefixes}", { prefixes: repaired.join(", ") }));
+  }
+  const root = xml.documentElement;
+  if (!root || bareName(root) !== "gpx") throw new Error(tr("no es un archivo GPX (falta el elemento <gpx>)"));
+
+  const clamped0 = coordClamped;
+  const ctx = { points: 0, badPoints: 0, capped: false, shortSegments: 0 };
+  const features = [];
+  const add = (properties, geometry) => features.push({ type: "Feature", properties, geometry });
+
+  for (const el of childrenByTag(root, "wpt")) {
+    if (ctx.points >= GPX_MAX_POINTS) { ctx.capped = true; break; }
+    ctx.points++;
+    const pos = gpxPosition(el);
+    if (!pos) { report.warn(tr("waypoint sin coordenadas válidas")); continue; }
+    add(gpxProps(el, "waypoint"), { type: "Point", coordinates: pos });
+  }
+
+  for (const rte of childrenByTag(root, "rte")) {
+    const { coords } = gpxLine(childrenByTag(rte, "rtept"), ctx);
+    if (coords.length < 2) { report.warn(tr("ruta con menos de dos puntos válidos")); continue; }
+    add(gpxProps(rte, "route"), { type: "LineString", coordinates: coords });
+  }
+
+  for (const trk of childrenByTag(root, "trk")) {
+    const segs = childrenByTag(trk, "trkseg").map(s => gpxLine(childrenByTag(s, "trkpt"), ctx));
+    const good = segs.filter(s => s.coords.length >= 2);
+    ctx.shortSegments += segs.length - good.length;
+    if (!good.length) { report.warn(tr("track sin ningún segmento con dos puntos válidos")); continue; }
+    const props = gpxProps(trk, "track");
+    /* Los tiempos de los puntos, alineados con las coordenadas (la misma
+       convención que usan las herramientas de GPX → GeoJSON): una lista
+       por segmento, o una sola si el track tiene un segmento.           */
+    if (good.some(s => s.times.some(Boolean))) props.coordTimes = good.length === 1 ? good[0].times : good.map(s => s.times);
+    add(props, good.length === 1
+      ? { type: "LineString", coordinates: good[0].coords }
+      : { type: "MultiLineString", coordinates: good.map(s => s.coords) });
+  }
+
+  if (ctx.badPoints) report.note(tr("{n} punto(s) sin coordenadas válidas omitidos", { n: ctx.badPoints }));
+  if (ctx.shortSegments) report.note(tr("{n} segmento(s) de menos de dos puntos omitidos", { n: ctx.shortSegments }));
+  if (coordClamped > clamped0) {
+    report.note(tr("{n} coordenada(s) fuera de rango por redondeo, ajustadas al límite (menos de {eps}°)",
+      { n: coordClamped - clamped0, eps: COORD_EPS }));
+  }
+  if (ctx.capped) report.warn(tr("se corta en {max} puntos: es el tope por archivo GPX", { max: GPX_MAX_POINTS }));
+  if (!features.length) throw new Error(tr("el archivo GPX no contiene ningún waypoint, ruta ni track"));
+  return { type: "FeatureCollection", features };
+}
+
+/* Un .gpx al árbol, con el contrato de cualquier archivo soltado: lo que
+   falle lo avisa quien llama (handleDroppedFiles).                     */
+async function importGpxFile(file, big, insertBefore, dropTargetUl) {
+  const report = makeImportReport(file.name);
+  const text = await file.text();
+  if (big) {
+    /* DOMParser es síncrono y monolítico: solo cabe decir la fase y ceder un frame */
+    progress.indet(tr("Procesando XML de {name}…", { name: file.name }));
+    await yieldFrame();
+  }
+  const gj = gpxToGeoJson(text, report);
+  await addFileNode(file.name, "geojson", gj, insertBefore, dropTargetUl, null, report, GPX_NAME_KEYS);
 }
 /* ================= Acciones del panel de navegación ================= */
 
@@ -11802,8 +12576,11 @@ function nodeLayer(li) {
 /* properties de un GeoJSON importado, si las tiene: L.geoJSON(feature,...)
    deja `.feature.properties` en la subcapa, y ese properties sobrevive
    íntegro el ciclo guardar/restaurar (toGeoJSON / L.geoJSON de nuevo).
-   Capas KML (marker/polyline directos, sin .feature) devuelven null:
-   su información va por li._desc, no por aquí.                       */
+   Capas KML sin <ExtendedData> (marker/polyline directos, sin .feature)
+   devuelven null: su información va por li._desc, no por aquí. Con
+   <ExtendedData> sí tienen `.feature.properties`, y entonces una capa de
+   KML tiene tabla de atributos igual que una de GeoJSON (la <description>
+   sigue mandando en la ficha: baseInfoHtml).                          */
 function layerProperties(layer) {
   if (!layer || typeof layer.getLayers !== "function") return null;
   const sub = layer.getLayers()[0];
@@ -16407,6 +17184,46 @@ function unwrapSweep(sweep, prevBrg, brg) {
   return Math.max(-ARC_SWEEP_MAX, Math.min(ARC_SWEEP_MAX, sweep + d));
 }
 
+/* ---------- Anillos de alcance y sectores ----------
+   Todo se construye con arcPoints/destPoint: cada vértice está a
+   EXACTAMENTE `r` metros del centro sobre la esfera (la misma de las
+   mediciones), no en el L.circle de Leaflet, que es una aproximación en
+   pantalla. Las longitudes salen continuas (pueden pasar de ±180 al
+   cruzar el antimeridiano) en vez de partirse: un anillo entero es mejor
+   que dos mitades en lados opuestos del mapa.                          */
+const RANGE_STEP_DEG = 2;          /* un vértice cada 2°: 180 por anillo, por debajo del tope de edición (500) */
+const RANGE_MAX_RINGS = 40;
+const RANGE_MAX_M = 10000000;      /* 10 000 km: más allá, un «círculo» sobre la esfera deja de parecerlo */
+const RANGE_MIN_SWEEP_DEG = 0.1;
+
+/* Anillo completo, SIN repetir el primer punto al final (L.polygon lo cierra) */
+function ringLatLngs(center, r, step = RANGE_STEP_DEG) {
+  const n = Math.max(12, Math.ceil(360 / step));
+  return arcPoints(center, r, 0, 360, n).slice(0, n);
+}
+
+/* Apertura de un sector en grados, en sentido horario del azimut inicial
+   al final (0 = norte): de 330° a 30° son 60°, no 300°. 0 = no hay sector. */
+const sectorSweep = (az1, az2) => (((az2 - az1) % 360) + 360) % 360;
+
+/* Un sector: el arco exterior de az1 a az2 cerrado en el centro, o, con
+   radio interior, una corona (exterior de ida e interior de vuelta).    */
+function sectorLatLngs(center, az1, az2, rOut, rIn = 0, step = RANGE_STEP_DEG) {
+  const sweep = sectorSweep(az1, az2);
+  if (sweep === 0) return [];
+  const segs = Math.max(2, Math.ceil(sweep / step));
+  const outer = arcPoints(center, rOut, az1, sweep, segs);
+  if (rIn > 0) return outer.concat(arcPoints(center, rIn, az1 + sweep, -sweep, segs));
+  return [L.latLng(center.lat, center.lng), ...outer];
+}
+
+/* Radiales cada `every` grados desde el norte, del centro al radio mayor */
+function radialLatLngs(center, rMax, every) {
+  const out = [], c = L.latLng(center.lat, center.lng);
+  for (let i = 0; i * every < 360 - 1e-9; i++) out.push([c, destPoint(center, i * every, rMax)]);
+  return out;
+}
+
 /* getLatLngs() de un L.Polygon viene en dos profundidades posibles: los
    anillos de UN polígono ([exterior, agujero1, …], el caso normal de KML
    y de un GeoJSON Polygon) o una lista de polígonos cada uno con sus
@@ -16505,15 +17322,7 @@ async function exportMapPng() {
   }
   canvas.toBlob(blob => {
     if (!blob) { navMessage(tr("No se pudo generar la imagen.")); return; }
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = `kite-local-${pngTimestamp()}.png`;
-    a.click();
-    setTimeout(() => URL.revokeObjectURL(url), 60000);
-    /* Una descarga que ha ido bien es una NOTIFICACIÓN, no una alerta:
-       solo confirma lo que el usuario acaba de pedir.                 */
-    navMessage(tr("Descargado «{download}».", { download: a.download }), { tone: "info" });
+    downloadBlob(blob, `kite-local-${pngTimestamp()}.png`);
   }, "image/png");
 }
 
@@ -16639,6 +17448,9 @@ document.addEventListener("keydown", e => {
   if (!shortcutsDialog.hidden) { toggleShortcuts(); return; }
   if (!logDialog.hidden) { toggleLog(); return; }
   if (!urlDialog.hidden) { closeUrlDialog(); return; }
+  if (isRangeDialogOpen()) { cancelRangeDialog(); return; }
+  if (isAttrStyleOpen()) { cancelAttrStyleDialog(); return; }
+  if (isAttrDialogOpen()) { closeAttrDialog(); return; }
   if (!descDialog.hidden) { hideLayerInfo({ dismiss: true }); return; }
   if (!geocalcDialog.hidden) { toggleGeocalcDialog(); return; }
   if (!profileDialog.hidden) { closeProfileDialog(); return; }
@@ -17730,6 +18542,810 @@ const degHalf = lat => ({
   lon: ELEV_WINDOW / (111320 * Math.max(0.05, Math.cos(toRad(lat))))
 });
 
+/* ================= Anillos de alcance y sectores =================
+   Desde «Crear» del menú contextual: círculos concéntricos (con radiales
+   opcionales) o un sector, alrededor de un punto. Lo que se crea son
+   capas NORMALES del árbol —polígonos y líneas—, calculadas una vez con
+   la geodesia de 51-geodesy.js: se editan, exportan y estilan como
+   cualquier otra y no hay tipo de nodo nuevo ni subida de TREE_SCHEMA.
+   El diálogo previsualiza en vivo sobre el mapa y Cancelar no deja nada
+   (patrón de style-dialogs-ui.md). Las partes puras (lista de radios,
+   formas) se prueban en Node, tests/rings.js.                          */
+
+/* Radios por defecto de cada unidad: en la rejilla de lo que tenga
+   sentido en esa escala (10 m de radio no es un alcance).             */
+const RANGE_DEFAULT_RADII = {
+  m: "1000, 2000, 3000", km: "10, 20, 30", ft: "5000, 10000, 15000", mi: "10, 20, 30", nm: "10, 20, 30"
+};
+const RANGE_DEFAULT_SECTOR_RADIUS = { m: 3000, km: 30, ft: 15000, mi: 30, nm: 30 };
+const RANGE_SECTION_RINGS = tr("Anillos de alcance");
+const RANGE_SECTION_SECTOR = tr("Sector");
+
+/* «10, 20 30;40» → radios en metros, ordenados, sin repetidos. Los
+   decimales llevan punto (la coma separa). Devuelve `{ values }` o
+   `{ error }` con un código que la interfaz traduce a su texto.       */
+function parseRadiusList(text, factor) {
+  const parts = String(text).split(/[\s,;]+/).filter(Boolean);
+  if (!parts.length) return { error: "empty" };
+  const values = new Set();
+  for (const p of parts) {
+    if (!/^\d+(\.\d+)?$/.test(p)) return { error: "bad" };
+    const m = Number(p) * factor;
+    if (!(m > 0)) return { error: "bad" };
+    if (m > RANGE_MAX_M) return { error: "max" };
+    values.add(Math.round(m * 1000) / 1000);
+  }
+  if (values.size > RANGE_MAX_RINGS) return { error: "count" };
+  return { values: [...values].sort((a, b) => a - b) };
+}
+
+/* El texto de un radio, en la unidad vigente y sin ceros de relleno: «10 NM» */
+const rangeRadiusLabel = (m, unit) => `${+(m / POLY_UNIT_FACTOR[unit]).toFixed(3)} ${POLY_UNIT_LABEL[unit]}`;
+
+/* Las formas de una especificación (todo en metros y grados), sin nodos
+   ni capas: lo comparten la vista previa y Aceptar.                    */
+function rangeShapes(spec) {
+  const c = spec.center;
+  if (spec.mode === "sector") {
+    return [{ kind: "sector", latlngs: sectorLatLngs(c, spec.az1, spec.az2, spec.rOut, spec.rIn) }];
+  }
+  const shapes = spec.radii.map(r => ({ kind: "ring", r, latlngs: ringLatLngs(c, r) }));
+  if (spec.radialStep > 0) {
+    shapes.push({ kind: "radials", latlngs: radialLatLngs(c, spec.radii[spec.radii.length - 1], spec.radialStep) });
+  }
+  return shapes;
+}
+
+/* ---------- Diálogo ----------
+   Sin DOM al cargar el archivo: los elementos se buscan y los oyentes se
+   enlazan la PRIMERA vez que se abre (`rangeUi`). Un archivo con
+   `document.getElementById` a nivel superior rompe cualquier prueba de
+   Node que extraiga un tramo del script que lo atraviese (le pasó a
+   elevtest.js y a polyarea.js), y aquí no cuesta nada: el diálogo solo
+   hace falta cuando el usuario lo pide.                                */
+let rangeUi = null;           /* los elementos del diálogo, tras el primer uso */
+let rangePreview = null;      /* featureGroup temporal sobre el mapa */
+let rangePreviewFrame = 0;    /* un repintado por fotograma           */
+
+const rangeEl = id => document.getElementById(id);
+const isRangeDialogOpen = () => !!rangeUi && !rangeUi.dialog.hidden;
+
+function rangeDialogUi() {
+  if (rangeUi) return rangeUi;
+  const dialog = rangeEl("range-dialog");
+  const box = dialog.querySelector(".dlg-box");
+  rangeUi = {
+    dialog, box, mode: rangeEl("rg-mode"), status: rangeEl("rg-status"), accept: rangeEl("rg-accept"),
+    ringsFields: rangeEl("rg-rings-fields"), sectorFields: rangeEl("rg-sector-fields"), title: rangeEl("rg-title")
+  };
+  makeDialogMovable(box);
+  setupDialog(box, { modal: true });
+  rangeUi.mode.addEventListener("change", () => { rangeSetMode(rangeUi.mode.value); scheduleRangePreview(); });
+  for (const el of dialog.querySelectorAll("input")) el.addEventListener("input", scheduleRangePreview);
+  rangeEl("rg-cancel").addEventListener("click", cancelRangeDialog);
+  rangeUi.accept.addEventListener("click", acceptRangeDialog);
+  /* Intro acepta desde un campo, como el resto de diálogos de un campo */
+  dialog.addEventListener("keydown", e => {
+    if (e.key === "Enter" && e.target.tagName === "INPUT" && !rangeUi.accept.disabled) { e.preventDefault(); acceptRangeDialog(); }
+  });
+  return rangeUi;
+}
+
+const rangeSetMode = mode => {
+  const ui = rangeDialogUi();
+  ui.mode.value = mode;
+  ui.ringsFields.hidden = mode !== "rings";
+  ui.sectorFields.hidden = mode !== "sector";
+  ui.title.textContent = mode === "rings" ? tr("Anillos de alcance") : tr("Sector");
+};
+
+/* Lee y valida el formulario. `{ spec }` o `{ why }` con el motivo ya redactado */
+function readRangeSpec() {
+  const lat = parseCoord(rangeEl("rg-lat").value, true), lng = parseCoord(rangeEl("rg-lng").value, false);
+  if (!Number.isFinite(lat) || !Number.isFinite(lng)) return { why: tr("La posición del centro no es válida.") };
+  const center = { lat, lng };
+  const factor = POLY_UNIT_FACTOR[measureUnit];
+  const mode = rangeDialogUi().mode.value;
+  if (mode === "rings") {
+    const r = parseRadiusList(rangeEl("rg-radii").value, factor);
+    if (r.error === "empty") return { why: tr("Escriba al menos un radio.") };
+    if (r.error === "bad") return { why: tr("Los radios son números positivos separados por comas o espacios, con punto decimal.") };
+    if (r.error === "max") return { why: tr("El radio máximo es {max}.", { max: rangeRadiusLabel(RANGE_MAX_M, measureUnit) }) };
+    if (r.error === "count") return { why: tr("Como mucho {n} anillos.", { n: RANGE_MAX_RINGS }) };
+    const raw = rangeEl("rg-radials").value.trim();
+    const step = raw === "" ? 0 : Number(raw);
+    if (!Number.isFinite(step) || step < 0 || step > 180) return { why: tr("Las radiales van de 1° a 180° (0 = sin radiales).") };
+    return { spec: { mode, center, radii: r.values, radialStep: step } };
+  }
+  const az1 = Number(rangeEl("rg-az1").value), az2 = Number(rangeEl("rg-az2").value);
+  const rOut = Number(rangeEl("rg-rout").value) * factor;
+  const rInText = rangeEl("rg-rin").value.trim();
+  const rIn = (rInText === "" ? 0 : Number(rInText)) * factor;
+  if (![az1, az2].every(a => Number.isFinite(a) && a >= 0 && a <= 360)) return { why: tr("Los azimuts van de 0° a 360°.") };
+  if (sectorSweep(az1, az2) < RANGE_MIN_SWEEP_DEG) return { why: tr("El azimut final tiene que ser distinto del inicial.") };
+  if (!(rOut > 0) || rOut > RANGE_MAX_M) return { why: tr("El radio exterior va de 0 a {max}.", { max: rangeRadiusLabel(RANGE_MAX_M, measureUnit) }) };
+  if (!Number.isFinite(rIn) || rIn < 0 || rIn >= rOut) return { why: tr("El radio interior tiene que ser menor que el exterior.") };
+  return { spec: { mode, center, az1, az2, rOut, rIn } };
+}
+
+const RANGE_PREVIEW_STYLE = { color: "#ff8800", weight: 2, dashArray: "6 4", fill: false, interactive: false };
+
+function clearRangePreview() {
+  cancelAnimationFrame(rangePreviewFrame);
+  rangePreviewFrame = 0;
+  if (rangePreview) { map.removeLayer(rangePreview); rangePreview = null; }
+}
+
+function updateRangePreview() {
+  rangePreviewFrame = 0;
+  const ui = rangeDialogUi();
+  const { spec, why } = readRangeSpec();
+  ui.status.textContent = why || "";
+  ui.status.hidden = !why;
+  ui.accept.disabled = !spec;
+  if (rangePreview) { map.removeLayer(rangePreview); rangePreview = null; }
+  if (!spec) return;
+  rangePreview = L.featureGroup().addTo(map);
+  for (const sh of rangeShapes(spec)) {
+    if (sh.kind === "ring") L.polygon(sh.latlngs, RANGE_PREVIEW_STYLE).addTo(rangePreview);
+    else if (sh.kind === "radials") L.polyline(sh.latlngs, { ...RANGE_PREVIEW_STYLE, weight: 1 }).addTo(rangePreview);
+    else L.polygon(sh.latlngs, { ...RANGE_PREVIEW_STYLE, fill: true, fillOpacity: 0.12 }).addTo(rangePreview);
+  }
+}
+const scheduleRangePreview = () => { if (!rangePreviewFrame) rangePreviewFrame = requestAnimationFrame(updateRangePreview); };
+
+function fillRangeDefaults(latlng) {
+  const lat = Math.max(-90, Math.min(90, latlng.lat)), lng = Math.max(-180, Math.min(180, latlng.lng));
+  rangeEl("rg-lat").value = formatCoord(lat, true, coordFormat);
+  rangeEl("rg-lng").value = formatCoord(lng, false, coordFormat);
+  rangeEl("rg-radii").value = RANGE_DEFAULT_RADII[measureUnit];
+  rangeEl("rg-radials").value = "0";
+  rangeEl("rg-az1").value = "0";
+  rangeEl("rg-az2").value = "90";
+  rangeEl("rg-rout").value = String(RANGE_DEFAULT_SECTOR_RADIUS[measureUnit]);
+  rangeEl("rg-rin").value = "0";
+  for (const el of rangeDialogUi().dialog.querySelectorAll(".rg-unit")) el.textContent = POLY_UNIT_LABEL[measureUnit];
+}
+
+function openRangeDialog(mode, latlng) {
+  const ui = rangeDialogUi();
+  fillRangeDefaults(latlng);
+  rangeSetMode(mode);
+  ui.dialog.hidden = false;
+  clampToViewport(ui.box);
+  focusDialog(ui.box);
+  updateRangePreview();
+}
+
+function closeRangeDialog() {
+  clearRangePreview();
+  rangeDialogUi().dialog.hidden = true;
+  releaseFocus();
+}
+/* Cancelar y Escape: la vista previa se va y no queda nada */
+const cancelRangeDialog = closeRangeDialog;
+
+/* Crea las capas y los nodos. Todo el conjunto es UNA operación para
+   deshacer. Los anillos van en una carpeta «Anillos de alcance N»; un
+   sector, suelto, como cualquier polígono dibujado.                    */
+function acceptRangeDialog() {
+  const { spec } = readRangeSpec();
+  if (!spec) return;
+  closeRangeDialog();
+  const sector = spec.mode === "sector";
+  pushUndo(sector ? tr("crear sector") : tr("crear anillos de alcance"));
+  const section = ensureNamedSection(POLYGONS_SECTION);
+  const shapes = rangeShapes(spec);
+  const mk = (name, layer, style) => makeNode({ name, layer, style });
+  let top;
+  if (sector) {
+    const style = normalizePathStyle({ fillOpacity: 0.2 });
+    const layer = L.polygon(shapes[0].latlngs, style).addTo(rootGroup);
+    top = mk(nextNumberedName(RANGE_SECTION_SECTOR), layer, style);
+    section.appendChild(top);
+  } else {
+    top = makeNode({ name: nextNumberedName(RANGE_SECTION_RINGS), isFolder: true });
+    section.appendChild(top);
+    const inner = nodeUl(top);
+    for (const sh of shapes) {
+      if (sh.kind === "ring") {
+        const style = normalizePathStyle({ fill: false });
+        inner.appendChild(mk(rangeRadiusLabel(sh.r, measureUnit), L.polygon(sh.latlngs, style).addTo(rootGroup), style));
+      } else {
+        const style = normalizePathStyle({ color: "#888888", weight: 1, fill: false });
+        inner.appendChild(mk(tr("Radiales cada {step}°", { step: spec.radialStep }), L.polyline(sh.latlngs, style).addTo(rootGroup), style));
+      }
+    }
+  }
+  refreshAncestorChecks(top);
+  scheduleSave();
+  highlightNode(top);
+}
+/* ================= Tabla de atributos =================
+   Botón ▦ de una carpeta o archivo: una fila por capa de dentro y una
+   columna por atributo (las `properties` de GeoJSON, de un shapefile o de
+   un <ExtendedData> de KML), para ordenar, filtrar, ir a una capa y
+   exportar a CSV. Es una INSTANTÁNEA de solo lectura de lo que había al
+   abrirla.
+
+   Se lee del árbol SIN construir filas: las capas de una carpeta nunca
+   desplegada son registros pendientes (`li._pending`) con su capa ya
+   construida, y de ahí salen sus propiedades. Solo al pulsar una fila se
+   materializa lo necesario para llegar a ella (`resolveRecordLi`).
+   Una carpeta puede tener decenas de miles de capas: la tabla pinta solo
+   las filas que se ven (`renderAttrRows`).
+
+   Lo puro va arriba y se prueba en Node (tests/attrtable.js). Sin DOM al
+   cargar el archivo, como 53-range-rings.js: el diálogo se enlaza al
+   abrirlo.                                                             */
+
+const ATTR_ROW_PX = 24;       /* alto fijo de fila: sin él no hay ventana de filas */
+const ATTR_COL_PX = 150;
+const ATTR_NAME_COL_PX = 210;
+const ATTR_MAX_COLS = 80;     /* un archivo con cientos de campos no cabe ni se lee */
+const ATTR_OVERSCAN = 6;
+
+/* ---------- Lo puro ---------- */
+
+/* Las filas de un subárbol: [{ name, props, li | rec }], en el orden del
+   árbol. `li` es una capa ya con fila; `rec`, un registro pendiente.
+   Solo capas con geometría de verdad (no mediciones, cuadrículas ni
+   ortofotos). `props` puede ser null.                                  */
+function collectAttrRows(root) {
+  const rows = [];
+  const fromRecords = recs => {
+    for (const rec of recs) {
+      if (Array.isArray(rec.children)) fromRecords(rec.children);
+      else if (rec.t === "layer") rows.push({ name: rec.name, props: layerProperties(rec._layer), rec });
+    }
+  };
+  const fromLi = li => {
+    if (li._name === undefined) return; /* mensajes tipo «Sin geometrías» */
+    if (li._isContainer) {
+      if (li._pending) fromRecords(li._pending);
+      const ul = nodeUl(li);
+      if (ul) for (const child of ul.children) fromLi(child);
+      return;
+    }
+    if (li._measure || li._elevGrid || li._imageOverlay || li._cog) return;
+    rows.push({ name: li._name, props: layerProperties(nodeLayer(li)), li });
+  };
+  fromLi(root);
+  return rows;
+}
+
+/* Las columnas: la unión de las claves en el orden en que se ven por
+   primera vez, con tope. `key: null` es la del nombre del nodo.        */
+function attrColumns(rows, max = ATTR_MAX_COLS) {
+  const keys = new Set();
+  for (const r of rows) {
+    if (!r.props) continue;
+    for (const k of Object.keys(r.props)) { keys.add(k); if (keys.size >= max) break; }
+    if (keys.size >= max) break;
+  }
+  return { cols: [{ key: null }, ...[...keys].map(key => ({ key }))], capped: keys.size >= max };
+}
+
+/* El texto de una celda: el nombre del nodo (key null) o la propiedad */
+const attrCell = (row, key) => key === null ? String(row.name) : (row.props && key in row.props ? stringifyPropValue(row.props[key]) : "");
+
+/* ¿Una columna entera es numérica? Entonces se ordena por valor y no por
+   texto («10» después de «9»). Las celdas vacías no cuentan.            */
+function attrIsNumeric(rows, key) {
+  let seen = false;
+  for (const r of rows) {
+    const v = attrCell(r, key).trim();
+    if (v === "") continue;
+    if (!/^-?\d+(?:[.,]\d+)?(?:[eE][+-]?\d+)?$/.test(v)) return false;
+    seen = true;
+  }
+  return seen;
+}
+
+/* Orden estable; las celdas vacías siempre al final, en cualquier sentido */
+function attrSort(rows, key, dir) {
+  const numeric = attrIsNumeric(rows, key);
+  const val = r => attrCell(r, key).trim();
+  const cmp = (a, b) => {
+    const x = val(a), y = val(b);
+    if (x === "" || y === "") return x === y ? 0 : x === "" ? 1 : -1;
+    const c = numeric ? Number(x.replace(",", ".")) - Number(y.replace(",", "."))
+      : x.localeCompare(y, uiLang, { numeric: true, sensitivity: "base" });
+    return dir * c;
+  };
+  return rows.map((r, i) => [r, i]).sort((p, q) => cmp(p[0], q[0]) || p[1] - q[1]).map(p => p[0]);
+}
+
+/* Filtro de texto, sin distinguir mayúsculas, sobre el nombre y todos los valores */
+function attrFilter(rows, term) {
+  const t = String(term || "").trim().toLowerCase();
+  if (!t) return rows;
+  return rows.filter(r => {
+    if (String(r.name).toLowerCase().includes(t)) return true;
+    return !!r.props && Object.values(r.props).some(v => stringifyPropValue(v).toLowerCase().includes(t));
+  });
+}
+
+/* CSV (RFC 4180): coma, comillas dobles duplicadas, CRLF. Un valor que
+   una hoja de cálculo leería como FÓRMULA (empieza por =, @ o por + / -
+   sin que siga una cifra) lleva delante un apóstrofo: es la defensa
+   estándar contra un archivo ajeno que lo aprovecha, y no toca los
+   números negativos. Los números llevan punto decimal, como todo lo que
+   escribe la aplicación.                                               */
+const csvCell = v => {
+  let s = String(v);
+  if (/^[=@\t\r]/.test(s) || /^[+-](?![\d.])/.test(s)) s = "'" + s;
+  return /[",\r\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+};
+const toCsv = (header, rows) => [header, ...rows].map(r => r.map(csvCell).join(",")).join("\r\n") + "\r\n";
+
+/* ---------- El diálogo (se enlaza al abrirlo) ---------- */
+
+let attrUi = null;
+/* Lo que muestra: las filas de la instantánea, las columnas, el orden y el filtro */
+const attrState = { li: null, rows: [], cols: [], view: [], sortKey: undefined, sortDir: 1, frame: 0 };
+const isAttrDialogOpen = () => !!attrUi && !attrUi.dialog.hidden;
+
+function attrDialogUi() {
+  if (attrUi) return attrUi;
+  const el = id => document.getElementById(id);
+  const dialog = el("attr-dialog");
+  attrUi = {
+    dialog, box: dialog.querySelector(".dlg-box"), title: el("attr-title"), filter: el("attr-filter"),
+    count: el("attr-count"), note: el("attr-note"), scroll: el("attr-scroll"), table: el("attr-table"),
+    head: el("attr-head"), body: el("attr-body"), colgroup: el("attr-cols"), csv: el("attr-csv"), style: el("attr-style")
+  };
+  makeDialogMovable(attrUi.box);
+  setupDialog(attrUi.box, { modal: false });
+  attrUi.filter.addEventListener("input", () => { updateAttrView(); });
+  attrUi.scroll.addEventListener("scroll", scheduleAttrRender);
+  new ResizeObserver(scheduleAttrRender).observe(attrUi.scroll);
+  /* Pulsar el encabezado ordena (otra vez, invierte); la fila, va a la capa */
+  attrUi.head.addEventListener("click", e => {
+    const th = e.target.closest("th[data-c]");
+    if (!th) return;
+    const key = attrState.cols[Number(th.dataset.c)].key;
+    attrState.sortDir = attrState.sortKey === key ? -attrState.sortDir : 1;
+    attrState.sortKey = key;
+    updateAttrView();
+  });
+  attrUi.body.addEventListener("click", e => { const tr_ = e.target.closest("tr[data-i]"); if (tr_) gotoAttrRow(Number(tr_.dataset.i), false); });
+  attrUi.body.addEventListener("dblclick", e => { const tr_ = e.target.closest("tr[data-i]"); if (tr_) gotoAttrRow(Number(tr_.dataset.i), true); });
+  el("attr-close").addEventListener("click", closeAttrDialog);
+  attrUi.csv.addEventListener("click", exportAttrCsv);
+  attrUi.style.addEventListener("click", openAttrStyleDialog);
+  return attrUi;
+}
+
+const attrColLabel = col => col.key === null ? tr("Nombre") : col.key;
+
+/* Cabecera y anchos: solo cuando cambian las columnas (al abrir) o el orden */
+function renderAttrHead() {
+  const ui = attrUi, st = attrState;
+  ui.colgroup.innerHTML = st.cols.map(c => `<col style="width:${c.key === null ? ATTR_NAME_COL_PX : ATTR_COL_PX}px">`).join("");
+  ui.table.style.width = `${st.cols.reduce((n, c) => n + (c.key === null ? ATTR_NAME_COL_PX : ATTR_COL_PX), 0)}px`;
+  ui.head.innerHTML = "<tr>" + st.cols.map((c, i) => {
+    const on = st.sortKey === c.key;
+    const arrow = on ? (st.sortDir === 1 ? " ▲" : " ▼") : "";
+    return `<th data-c="${i}" scope="col" aria-sort="${on ? (st.sortDir === 1 ? "ascending" : "descending") : "none"}" title="${escapeHtml(attrColLabel(c))}">`
+      + `${escapeHtml(attrColLabel(c))}${arrow}</th>`;
+  }).join("") + "</tr>";
+}
+
+/* Las filas visibles (más un margen) entre dos separadores del alto de las
+   que no se pintan: la barra de desplazamiento mide lo de la lista entera. */
+function renderAttrRows() {
+  attrState.frame = 0;
+  if (!isAttrDialogOpen()) return;
+  const ui = attrUi, st = attrState, n = st.view.length, cols = st.cols.length;
+  const first = Math.max(0, Math.floor(ui.scroll.scrollTop / ATTR_ROW_PX) - ATTR_OVERSCAN);
+  const last = Math.min(n, first + Math.ceil(ui.scroll.clientHeight / ATTR_ROW_PX) + 2 * ATTR_OVERSCAN);
+  const spacer = rows => rows > 0 ? `<tr class="attr-spacer" aria-hidden="true"><td colspan="${cols}" style="height:${rows * ATTR_ROW_PX}px"></td></tr>` : "";
+  let html = spacer(first);
+  for (let i = first; i < last; i++) {
+    const row = st.view[i];
+    html += `<tr data-i="${i}">` + st.cols.map(c => {
+      const v = attrCell(row, c.key);
+      return `<td${v.length > 22 ? ` title="${escapeHtml(v.slice(0, 500))}"` : ""}>${escapeHtml(v)}</td>`;
+    }).join("") + "</tr>";
+  }
+  ui.body.innerHTML = html + spacer(n - last);
+}
+const scheduleAttrRender = () => { if (!attrState.frame) attrState.frame = requestAnimationFrame(renderAttrRows); };
+
+/* Filtra y ordena la instantánea y repinta */
+function updateAttrView() {
+  const ui = attrUi, st = attrState;
+  let view = attrFilter(st.rows, ui.filter.value);
+  if (st.sortKey !== undefined) view = attrSort(view, st.sortKey, st.sortDir);
+  st.view = view;
+  ui.count.textContent = view.length === st.rows.length
+    ? trn(view.length, "{n} capa", "{n} capas", { n: view.length })
+    : tr("{shown} de {n} capas", { shown: view.length, n: st.rows.length });
+  ui.scroll.scrollTop = 0;
+  renderAttrHead();
+  renderAttrRows();
+}
+
+async function gotoAttrRow(i, zoom) {
+  const row = attrState.view[i];
+  if (!row) return;
+  const li = row.li && row.li.isConnected ? row.li : (row.rec ? await resolveRecordLi(row.rec) : null);
+  if (!li) { navMessage(tr("Esa capa ya no está en el árbol.")); return; }
+  goToNodeAndBlink(li);
+  if (zoom) focusOnNode(li);
+}
+
+function openAttrTable(li) {
+  const ui = attrDialogUi();
+  const rows = collectAttrRows(li);
+  const { cols, capped } = attrColumns(rows);
+  Object.assign(attrState, { li, rows, cols, view: rows, sortKey: undefined, sortDir: 1 });
+  ui.title.textContent = tr("Atributos de «{name}»", { name: li._name });
+  ui.filter.value = "";
+  const notes = [];
+  if (!rows.length) notes.push(tr("Esta carpeta no tiene ninguna capa."));
+  else if (cols.length === 1) notes.push(tr("Ninguna de estas capas trae atributos: solo se ven sus nombres."));
+  if (capped) notes.push(tr("Se muestran los primeros {n} atributos.", { n: ATTR_MAX_COLS }));
+  ui.note.textContent = notes.join(" ");
+  ui.note.hidden = !notes.length;
+  ui.csv.disabled = !rows.length;
+  ui.style.disabled = cols.length < 2; /* sin atributos no hay con qué colorear */
+  ui.dialog.hidden = false;
+  clampToViewport(ui.box);
+  focusDialog(ui.box);
+  updateAttrView();
+}
+
+function closeAttrDialog() {
+  attrUi.dialog.hidden = true;
+  Object.assign(attrState, { li: null, rows: [], view: [] }); /* no retener la instantánea */
+  attrUi.body.innerHTML = "";
+  releaseFocus();
+}
+
+/* Lo que se ve, tal como se ve: con el filtro y el orden puestos */
+function exportAttrCsv() {
+  const st = attrState;
+  if (!st.view.length) return;
+  const csv = toCsv(st.cols.map(attrColLabel), st.view.map(r => st.cols.map(c => attrCell(r, c.key))));
+  downloadBlob(new Blob(["﻿" + csv], { type: "text/csv;charset=utf-8" }), safeFileName(st.li._name) + ".csv");
+}
+/* ================= Estilo por atributo =================
+   Desde la tabla de atributos («Estilo por atributo…»): colorea las capas
+   de una carpeta según el valor de uno de sus atributos —un color por cada
+   valor distinto (categorías) o por tramo de una escala numérica
+   (graduado: intervalos iguales o cuantiles)—. Es una clasificación
+   HECHA UNA VEZ: lo que se guarda son estilos normales de cada capa
+   (`style.color`/`fillColor`, o `mstyle.color` de un marcador), así que
+   no hay regla que mantener ni cambio de esquema, y cada capa se puede
+   retocar después como cualquier otra.
+
+   Se aplica EN VIVO al mapa y Cancelar lo devuelve todo (patrón de
+   style-dialogs-ui.md): la vista previa toca solo la capa de Leaflet, y
+   Aceptar es lo que escribe el estilo en el nodo o en el registro
+   pendiente (sin desplegar la carpeta).
+
+   Lo puro va arriba (tests/attrstyle.js); sin DOM al cargar el archivo,
+   como 53 y 54: el diálogo se enlaza al abrirlo.                       */
+
+/* Colores. Categorías: Okabe-Ito (pensada para daltonismo) más cinco
+   tonos que se distinguen de ellos; graduado: YlGnBu de ColorBrewer
+   (secuencial, de claro a oscuro, legible sin color). Sin valor y «Otros»
+   son grises, para que no parezcan una categoría más.                   */
+const ATTRSTYLE_CATEGORICAL = ["#0072B2", "#E69F00", "#009E73", "#D55E00", "#CC79A7", "#56B4E9",
+  "#F0E442", "#7A4FA3", "#8C564B", "#2F4B7C", "#B8860B", "#1B9E77"];
+const ATTRSTYLE_RAMP = ["#ffffcc", "#a1dab4", "#41b6c4", "#2c7fb8", "#253494"];
+const ATTRSTYLE_NONE = "#9E9E9E";
+const ATTRSTYLE_OTHER = "#6B6B6B";
+const ATTRSTYLE_MAX_CATEGORIES = 12; /* con «Otros» y «sin valor» incluidos si hacen falta */
+const ATTRSTYLE_MIN_CLASSES = 2;
+const ATTRSTYLE_MAX_CLASSES = 9;
+const ATTRSTYLE_DEFAULT_CLASSES = 5;
+/* Un marcador con la gota de Leaflet (un PNG) no se puede colorear: pasa a
+   este icono de MDI, del tamaño de un punto. Uno que ya tenía icono de
+   MDI conserva el suyo y el tamaño, y solo cambia de color.             */
+const ATTRSTYLE_POINT_ICON = "circle";
+const ATTRSTYLE_POINT_SIZE = 26;
+
+/* ---------- Lo puro ---------- */
+
+const attrHexRgb = hex => [1, 3, 5].map(i => parseInt(hex.slice(i, i + 2), 16));
+const attrRgbHex = rgb => "#" + rgb.map(v => Math.round(v).toString(16).padStart(2, "0")).join("");
+
+/* t en [0, 1] → color de la rampa, interpolando entre sus paradas */
+function rampColor(t, stops = ATTRSTYLE_RAMP) {
+  const x = Math.min(1, Math.max(0, Number.isFinite(t) ? t : 0)) * (stops.length - 1);
+  const i = Math.min(stops.length - 2, Math.floor(x)), f = x - i;
+  const a = attrHexRgb(stops[i]), b = attrHexRgb(stops[i + 1]);
+  return attrRgbHex(a.map((v, k) => v + (b[k] - v) * f));
+}
+
+/* El valor numérico de una celda, o null: el mismo criterio que decide si
+   una columna se ordena como números (attrIsNumeric).                   */
+function attrNumber(v) {
+  const s = String(v == null ? "" : v).trim();
+  return /^-?\d+(?:[.,]\d+)?(?:[eE][+-]?\d+)?$/.test(s) ? Number(s.replace(",", ".")) : null;
+}
+
+const quantileAt = (sorted, p) => {
+  const x = p * (sorted.length - 1), i = Math.floor(x), f = x - i;
+  return i + 1 < sorted.length ? sorted[i] + (sorted[i + 1] - sorted[i]) * f : sorted[i];
+};
+
+/* Los bordes de los tramos, de menor a mayor y sin repetir: `n` tramos
+   como mucho. Intervalos iguales o cuantiles (mismo número de capas en
+   cada uno; con muchos valores repetidos salen menos tramos).           */
+function breakEdges(nums, n, method) {
+  const s = [...nums].sort((a, b) => a - b);
+  const lo = s[0], hi = s[s.length - 1];
+  if (!(hi > lo)) return [lo, hi];
+  const edges = [];
+  for (let i = 0; i <= n; i++) edges.push(method === "quantile" ? quantileAt(s, i / n) : lo + (hi - lo) * i / n);
+  edges[0] = lo;
+  edges[n] = hi;
+  return edges.filter((e, i) => i === 0 || e > edges[i - 1]);
+}
+
+/* El tramo de un valor: [borde i, borde i+1), y el último incluye su borde de arriba */
+function edgeClass(v, edges) {
+  const k = edges.length - 1;
+  for (let i = 0; i < k; i++) if (v < edges[i + 1]) return i;
+  return Math.max(0, k - 1);
+}
+
+const attrEdgeText = x => String(Number(x.toPrecision(4)));
+
+/* Clasifica los valores de una columna (texto) y devuelve
+   `{ classes: [{ kind, label, count, color }], rowClass: [índice por fila] }`.
+   `kind`: "value" | "range" | "other" | "none"; `label` es null en
+   «Otros» y «sin valor» (el texto lo pone la interfaz, que lo traduce).  */
+function buildClassing(values, mode, n = ATTRSTYLE_DEFAULT_CLASSES, method = "equal") {
+  const rowClass = Array.from(values, () => -1);
+  const classes = [];
+  const addNone = missing => {
+    if (!missing.length) return;
+    classes.push({ kind: "none", label: null, count: missing.length, color: ATTRSTYLE_NONE });
+    for (const i of missing) rowClass[i] = classes.length - 1;
+  };
+  const missing = [];
+  if (mode === "graduated") {
+    const nums = values.map(attrNumber);
+    const valid = nums.filter(x => x !== null);
+    if (valid.length) {
+      const edges = breakEdges(valid, Math.min(ATTRSTYLE_MAX_CLASSES, Math.max(ATTRSTYLE_MIN_CLASSES, n)), method);
+      const k = Math.max(1, edges.length - 1);
+      for (let i = 0; i < k; i++) {
+        classes.push({ kind: "range", count: 0, color: rampColor(k === 1 ? 0.5 : i / (k - 1)),
+          label: k === 1 ? attrEdgeText(edges[0]) : `${attrEdgeText(edges[i])} \u2013 ${attrEdgeText(edges[i + 1])}` });
+      }
+      nums.forEach((x, i) => { if (x === null) { missing.push(i); return; } const c = edgeClass(x, edges); classes[c].count++; rowClass[i] = c; });
+    } else values.forEach((_, i) => missing.push(i));
+    addNone(missing);
+    return { classes, rowClass };
+  }
+  /* Categorías: las más frecuentes (empates por orden alfabético); si hay
+     más de las que caben, el resto va junto en «Otros».                  */
+  const counts = new Map();
+  values.forEach((v, i) => {
+    const s = String(v == null ? "" : v).trim();
+    if (s === "") { missing.push(i); return; }
+    counts.set(s, (counts.get(s) || 0) + 1);
+  });
+  const ranked = [...counts.entries()].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0], uiLang, { numeric: true }));
+  const room = ATTRSTYLE_MAX_CATEGORIES - (missing.length ? 1 : 0);
+  const keep = ranked.length > room ? ranked.slice(0, room - 1) : ranked;
+  const index = new Map(keep.map(([v], i) => [v, i]));
+  keep.forEach(([value, count], i) => classes.push({ kind: "value", label: value, count, color: ATTRSTYLE_CATEGORICAL[i % ATTRSTYLE_CATEGORICAL.length] }));
+  const restCount = ranked.length > keep.length ? ranked.slice(keep.length).reduce((n, [, c]) => n + c, 0) : 0;
+  if (restCount) classes.push({ kind: "other", label: null, count: restCount, color: ATTRSTYLE_OTHER });
+  const otherIdx = restCount ? classes.length - 1 : -1;
+  values.forEach((v, i) => {
+    const s = String(v == null ? "" : v).trim();
+    if (s !== "") rowClass[i] = index.has(s) ? index.get(s) : otherIdx;
+  });
+  addNone(missing);
+  return { classes, rowClass };
+}
+
+/* El estilo de un marcador con ese color. Con la gota de Leaflet pasa al
+   icono coloreable; con uno de MDI solo cambia el color.                */
+function attrMarkerStyle(base, color) {
+  const b = base || DEFAULT_MARKER_STYLE;
+  return b.icon === LEAFLET_PIN
+    ? { ...b, icon: ATTRSTYLE_POINT_ICON, size: ATTRSTYLE_POINT_SIZE, color }
+    : { ...b, color };
+}
+
+/* ---------- El diálogo (se enlaza al abrirlo) ---------- */
+
+let attrStyleUi = null;
+const attrStyleState = { targets: [], keys: [], key: null, mode: "categories", n: ATTRSTYLE_DEFAULT_CLASSES, method: "equal",
+  classing: null, frame: 0, iconCache: new Map() };
+const isAttrStyleOpen = () => !!attrStyleUi && !attrStyleUi.dialog.hidden;
+
+function attrStyleDialogUi() {
+  if (attrStyleUi) return attrStyleUi;
+  const el = id => document.getElementById(id);
+  const dialog = el("attrstyle-dialog");
+  attrStyleUi = {
+    dialog, box: dialog.querySelector(".dlg-box"), attr: el("as-attr"), mode: el("as-mode"), n: el("as-n"), method: el("as-method"),
+    gradFields: el("as-grad-fields"), classes: el("as-classes"), summary: el("as-summary"), accept: el("as-accept")
+  };
+  makeDialogMovable(attrStyleUi.box);
+  setupDialog(attrStyleUi.box, { modal: true });
+  const reclassify = () => { readAttrStyleControls(); rebuildAttrClassing(); };
+  for (const c of [attrStyleUi.attr, attrStyleUi.mode, attrStyleUi.method]) c.addEventListener("change", reclassify);
+  attrStyleUi.n.addEventListener("input", reclassify);
+  el("as-cancel").addEventListener("click", cancelAttrStyleDialog);
+  attrStyleUi.accept.addEventListener("click", acceptAttrStyleDialog);
+  return attrStyleUi;
+}
+
+/* Lo que se puede colorear de cada fila de la instantánea de la tabla: su
+   capa de Leaflet (de la fila o del registro pendiente), de qué tipo es y
+   con qué estilo empezó (para devolverlo al cancelar).                    */
+function attrStyleTargets(rows) {
+  const out = [];
+  for (const row of rows) {
+    const layer = row.li ? nodeLayer(row.li) : (row.rec ? row.rec._layer : null);
+    const kind = layerKind(layer);
+    if (kind !== "polygon" && kind !== "marker") continue;
+    out.push({ row, layer, kind, style: row.li ? row.li._style : row.rec.style, mstyle: row.li ? row.li._mstyle : row.rec.mstyle });
+  }
+  return out;
+}
+
+/* El icono de un marcador, uno por combinación icono/tamaño/color (los
+   hay de miles y los colores son pocos: reutilizarlo es lo que permite
+   repintarlos en vivo).                                                 */
+function attrMarkerIcon(s) {
+  const key = `${s.icon}|${s.size}|${s.color}`;
+  let icon = attrStyleState.iconCache.get(key);
+  if (!icon) {
+    icon = buildMarkerIcon(s, s.icon === LEAFLET_PIN ? null : mdiSvg(s.icon)).icon;
+    attrStyleState.iconCache.set(key, icon);
+  }
+  return icon;
+}
+function setAttrLayerIcon(layer, s) {
+  const icon = attrMarkerIcon(s);
+  const each = l => { if (l instanceof L.Marker) l.setIcon(icon); if (l.eachLayer) l.eachLayer(each); };
+  each(layer);
+}
+const attrPathStyle = (t, color) => ({ ...normalizePathStyle(t.style), color, fillColor: color });
+
+/* Pinta (o repone) las capas de Leaflet. `colors`: un color por objetivo, o null = el original */
+function paintAttrStyle(colors) {
+  attrStyleState.targets.forEach((t, i) => {
+    const color = colors ? colors[i] : null;
+    if (t.kind === "polygon") {
+      t.layer.setStyle(color ? attrPathStyle(t, color) : normalizePathStyle(t.style));
+      clearFillOnOpenPaths(t.layer);
+    } else {
+      setAttrLayerIcon(t.layer, color ? attrMarkerStyle(t.mstyle, color) : (t.mstyle || DEFAULT_MARKER_STYLE));
+    }
+  });
+}
+
+/* Un color por objetivo según la clasificación (con los colores que el usuario haya tocado) */
+function attrStyleColors() {
+  const { classing, targets } = attrStyleState;
+  return targets.map((_, i) => (classing.classes[classing.rowClass[i]] || { color: ATTRSTYLE_NONE }).color);
+}
+
+const schedulePaintAttrStyle = () => {
+  if (attrStyleState.frame) return;
+  attrStyleState.frame = requestAnimationFrame(() => { attrStyleState.frame = 0; if (isAttrStyleOpen() && attrStyleState.classing) paintAttrStyle(attrStyleColors()); });
+};
+
+const attrClassLabel = c => c.kind === "none" ? tr("(sin valor)") : c.kind === "other" ? tr("Otros") : c.label;
+
+function renderAttrClasses() {
+  const ui = attrStyleDialogUi(), { classing } = attrStyleState;
+  ui.classes.textContent = "";
+  classing.classes.forEach((c, i) => {
+    const row = document.createElement("div");
+    row.className = "dlg-row as-class";
+    const btn = document.createElement("button");
+    btn.type = "button";
+    btn.className = "color-btn";
+    setColorButton(btn, c.color);
+    btn.setAttribute("aria-label", tr("Color de {label}", { label: attrClassLabel(c) }));
+    const set = (b, hex) => { setColorButton(b, hex); c.color = hex; schedulePaintAttrStyle(); };
+    btn.addEventListener("click", () => toggleColorPicker(btn, { onPreview: set, onCommit: set }));
+    const label = document.createElement("span");
+    label.className = "as-label";
+    label.textContent = attrClassLabel(c); /* un valor del archivo: SIEMPRE como texto */
+    label.title = attrClassLabel(c);
+    const count = document.createElement("span");
+    count.className = "dlg-note";
+    count.textContent = trn(c.count, "{n} capa", "{n} capas", { n: c.count });
+    row.append(btn, label, count);
+    ui.classes.appendChild(row);
+  });
+  const n = attrStyleState.targets.length;
+  ui.summary.textContent = trn(n, "Se aplica a la capa de esta carpeta.", "Se aplica a las {n} capas de esta carpeta.", { n });
+}
+
+function readAttrStyleControls() {
+  const ui = attrStyleDialogUi(), st = attrStyleState;
+  st.key = ui.attr.value;
+  st.mode = ui.mode.value;
+  st.n = Math.min(ATTRSTYLE_MAX_CLASSES, Math.max(ATTRSTYLE_MIN_CLASSES, Math.round(Number(ui.n.value) || ATTRSTYLE_DEFAULT_CLASSES)));
+  st.method = ui.method.value;
+}
+
+/* Reclasifica con los controles de ahora y repinta */
+function rebuildAttrClassing() {
+  const ui = attrStyleDialogUi(), st = attrStyleState;
+  /* Graduado solo con una columna numérica: si no, se vuelve a categorías */
+  const numeric = attrIsNumeric(attrState.rows, st.key);
+  ui.mode.querySelector('option[value="graduated"]').disabled = !numeric;
+  if (!numeric && st.mode === "graduated") { ui.mode.value = st.mode = "categories"; }
+  ui.gradFields.hidden = st.mode !== "graduated";
+  const values = st.targets.map(t => attrCell(t.row, st.key));
+  const c = buildClassing(values, st.mode, st.n, st.method);
+  st.classing = c;
+  ui.accept.disabled = !c.classes.length;
+  renderAttrClasses();
+  paintAttrStyle(attrStyleColors());
+}
+
+function openAttrStyleDialog() {
+  const st = attrStyleState;
+  const keys = attrState.cols.slice(1).map(c => c.key);
+  if (!keys.length) { navMessage(tr("Ninguna de estas capas trae atributos con los que colorear.")); return; }
+  const targets = attrStyleTargets(attrState.rows);
+  if (!targets.length) { navMessage(tr("Esta carpeta no tiene capas que se puedan colorear.")); return; }
+  const ui = attrStyleDialogUi();
+  Object.assign(st, { targets, keys, key: keys[0], mode: "categories", n: ATTRSTYLE_DEFAULT_CLASSES, method: "equal", classing: null });
+  st.iconCache.clear();
+  ui.attr.textContent = "";
+  for (const k of keys) { const o = document.createElement("option"); o.value = k; o.textContent = k; ui.attr.appendChild(o); }
+  ui.attr.value = st.key;
+  ui.mode.value = "categories";
+  ui.n.value = String(st.n);
+  ui.method.value = "equal";
+  ui.dialog.hidden = false;
+  clampToViewport(ui.box);
+  focusDialog(ui.box);
+  rebuildAttrClassing();
+}
+
+/* Cancelar y Escape: cada capa vuelve al estilo con el que se abrió */
+function closeAttrStyleDialog(commit) {
+  const st = attrStyleState;
+  cancelAnimationFrame(st.frame);
+  st.frame = 0;
+  if (!commit) paintAttrStyle(null);
+  attrStyleUi.dialog.hidden = true;
+  Object.assign(st, { targets: [], classing: null });
+  st.iconCache.clear();
+  releaseFocus();
+}
+const cancelAttrStyleDialog = () => closeAttrStyleDialog(false);
+
+/* Aceptar: el estilo pasa al nodo (con fila) o al registro (pendiente); la
+   vista previa ya lo tiene en el mapa. Una operación para deshacer.      */
+function acceptAttrStyleDialog() {
+  const st = attrStyleState;
+  if (!st.classing) return;
+  const colors = attrStyleColors();
+  pushUndo(tr("estilo por atributo"));
+  st.targets.forEach((t, i) => {
+    const li = t.row.li, rec = t.row.rec;
+    if (t.kind === "polygon") {
+      const style = attrPathStyle(t, colors[i]);
+      if (li && li.isConnected) { li._style = style; applyPolygonStyle(li); } else if (rec) rec.style = style;
+    } else {
+      const ms = attrMarkerStyle(t.mstyle, colors[i]);
+      if (li && li.isConnected) { li._mstyle = ms; applyMarkerStyle(li); } else if (rec) rec.mstyle = ms;
+    }
+  });
+  scheduleSave();
+  closeAttrStyleDialog(true);
+}
 /* ---------- Retícula fija de peticiones ----------
    Cada consulta pide la tesela de la retícula que contiene el punto
    pulsado, no una ventana centrada en él: así dos consultas sobre la
@@ -21211,6 +22827,117 @@ document.getElementById("pf-reset").addEventListener("click", () => {
   scheduleProfileChart();
 });
 
+/* ---------- Exportar el perfil: CSV e imagen ----------
+   El CSV es la ruta ENTERA (no lo que se ve) en las unidades de la
+   gráfica; el PNG, la gráfica TAL COMO se ve, con su zoom.             */
+
+/* Las filas del CSV: una por cada distancia donde ALGUNA serie tiene un
+   punto (las dos mallas son distintas, 5 m y 25 m por ejemplo: la unión,
+   con la celda vacía donde una serie no tiene punto), en orden, con la
+   latitud y la longitud de ese punto de la ruta (`locate(d)`, d en
+   metros; null = vacías). Lo vacío es vacío, nunca un 0 inventado: un
+   hueco del servicio sigue siendo un hueco. PURA.                       */
+function profileCsv(data, u, locate) {
+  const distances = new Set();
+  const lookups = data.series.map(s => {
+    const m = new Map();
+    for (const p of s.points) { distances.add(p.d); if (typeof p.v === "number" && Number.isFinite(p.v)) m.set(p.d, p.v); }
+    return m;
+  });
+  const rows = [...distances].sort((a, b) => a - b).map(d => {
+    const at = locate(d);
+    return [+(d / u.distFactor).toFixed(5), at ? +at.lat.toFixed(6) : "", at ? +at.lng.toFixed(6) : "",
+      ...lookups.map(m => m.has(d) ? +(m.get(d) / u.altFactor).toFixed(u.altDecimals) : "")];
+  });
+  const header = [tr("Distancia ({unit})", { unit: u.distLabel }), tr("Latitud"), tr("Longitud"),
+    ...data.series.map(s => `${s.kind.toUpperCase()} (${u.altLabel})`)];
+  return "\uFEFF" + toCsv(header, rows); /* BOM: Excel lee UTF-8 */
+}
+
+/* El nombre de los archivos: el de la ruta, sin lo que un sistema de archivos no admite */
+const profileExportName = () => `${safeFileName((profileData.li && profileData.li._name) || tr("Ruta"))}-${tr("perfil")}`;
+
+function exportProfileCsv() {
+  if (!profileData) return;
+  const data = profileData;
+  const locate = d => {
+    const p = profilePointAt(data.legs, data.vertices, d);
+    if (!p) return null;
+    const ll = map.options.crs.unproject(L.point(p.x, p.y));
+    return { lat: ll.lat, lng: ll.lng };
+  };
+  const text = profileCsv(data, { distFactor: POLY_UNIT_FACTOR[measureUnit], altFactor: POLY_UNIT_FACTOR[altitudeUnit],
+    altDecimals: HEIGHT_DECIMALS[altitudeUnit], distLabel: POLY_UNIT_LABEL[measureUnit], altLabel: POLY_UNIT_LABEL[altitudeUnit] }, locate);
+  downloadBlob(new Blob([text], { type: "text/csv;charset=utf-8" }), `${profileExportName()}.csv`);
+}
+
+/* Lo que pinta la hoja de estilos de la página (clases `.pf-*` con
+   variables `var(--…)` y `light-dark()`) no existe en un SVG suelto: se
+   copia a cada elemento su valor CALCULADO, que ya es un color de verdad,
+   y la imagen sale igual que en pantalla, en el tema que haya.         */
+const PF_EXPORT_PROPS = ["fill", "fill-opacity", "stroke", "stroke-width", "stroke-opacity", "stroke-dasharray",
+  "stroke-linecap", "stroke-linejoin", "opacity", "font-family", "font-size", "font-weight", "text-anchor",
+  "dominant-baseline", "paint-order", "visibility"];
+const PF_EXPORT_TITLE_PX = 30;
+const PF_EXPORT_SCALE = 2;
+
+function inlineSvgStyles(src, dst) {
+  const from = [src, ...src.querySelectorAll("*")], to = [dst, ...dst.querySelectorAll("*")];
+  from.forEach((el, i) => {
+    const cs = getComputedStyle(el);
+    for (const p of PF_EXPORT_PROPS) to[i].style.setProperty(p, cs.getPropertyValue(p));
+  });
+}
+
+/* El SVG de la gráfica listo para exportar: con los estilos dentro, sin el
+   cursor ni los puntos de lectura (son del ratón), con fondo y un título.  */
+function profileExportSvg() {
+  const svg = profileChart.querySelector("svg");
+  if (!svg) return null;
+  const W = profileChart.clientWidth, H = profileChart.clientHeight;
+  const clone = svg.cloneNode(true);
+  inlineSvgStyles(svg, clone);
+  for (const id of ["pf-cursor", "pf-dots"]) { const n = clone.querySelector("#" + id); if (n) n.remove(); }
+  clone.setAttribute("width", W);
+  clone.setAttribute("height", H);
+  const box = getComputedStyle(profileBox);
+  const title = `${(profileData.li && profileData.li._name) || tr("Ruta")} \u2014 ${profileData.series.map(s => s.label).join(" + ")}`;
+  const outer = `<svg xmlns="${SVG_NS}" width="${W}" height="${H + PF_EXPORT_TITLE_PX}" viewBox="0 0 ${W} ${H + PF_EXPORT_TITLE_PX}">`
+    + `<rect width="100%" height="100%" fill="${box.backgroundColor}"/>`
+    + `<text x="${PF_MARGIN.l}" y="20" fill="${box.color}" font-family="system-ui, sans-serif" font-size="14" font-weight="600">${escapeHtml(title)}</text>`
+    + `<g transform="translate(0 ${PF_EXPORT_TITLE_PX})">${new XMLSerializer().serializeToString(clone)}</g></svg>`;
+  return { svg: outer, w: W, h: H + PF_EXPORT_TITLE_PX };
+}
+
+/* SVG → <img> (un `data:`, que la CSP admite) → lienzo al doble de tamaño → PNG.
+   Sin html2canvas: un SVG propio no la necesita y no pide ninguna librería.   */
+async function exportProfilePng() {
+  if (!profileData) return;
+  const out = profileExportSvg();
+  if (!out) return;
+  try {
+    const img = new Image();
+    await new Promise((resolve, reject) => {
+      img.onload = resolve;
+      img.onerror = () => reject(new Error(tr("el navegador no pudo dibujar la gráfica")));
+      img.src = "data:image/svg+xml;charset=utf-8," + encodeURIComponent(out.svg);
+    });
+    const canvas = document.createElement("canvas");
+    canvas.width = out.w * PF_EXPORT_SCALE;
+    canvas.height = out.h * PF_EXPORT_SCALE;
+    const g = canvas.getContext("2d");
+    g.scale(PF_EXPORT_SCALE, PF_EXPORT_SCALE);
+    g.drawImage(img, 0, 0, out.w, out.h);
+    const blob = await new Promise(resolve => canvas.toBlob(resolve, "image/png"));
+    if (!blob) throw new Error(tr("no se pudo generar la imagen"));
+    downloadBlob(blob, `${profileExportName()}.png`);
+  } catch (err) {
+    navMessage(tr("No se pudo exportar el perfil: {message}", { message: err.message }));
+  }
+}
+document.getElementById("pf-csv").addEventListener("click", exportProfileCsv);
+document.getElementById("pf-png").addEventListener("click", exportProfilePng);
+
 /* Cambiar una unidad en Propiedades (setMeasureUnit/setAltitudeUnit) o
    el tamaño de la ventana redibuja la gráfica, sin volver a pedir nada
    y sin perder el zoom.                                            */
@@ -22961,13 +24688,20 @@ const easeOutCubic = k => 1 - Math.pow(1 - k, 3);
    dentro de un submenú.                                               */
 const CTX_MENU_ITEMS = [
   {
-    label: tr("Copiar coordenadas"),
-    action(latlng) {
-      const txt = `${formatCoord(latlng.lat, true, "dec")}, ${formatCoord(latlng.lng, false, "dec")}`;
-      navigator.clipboard.writeText(txt)
-        .then(() => navMessage(tr("Coordenadas copiadas al portapapeles."), { tone: "info" }))
-        .catch(() => navMessage(tr("No se pudieron copiar las coordenadas.")));
-    }
+    label: tr("Copiar"),
+    items: [
+      {
+        label: tr("Coordenadas"),
+        action(latlng) {
+          const txt = `${formatCoord(latlng.lat, true, "dec")}, ${formatCoord(latlng.lng, false, "dec")}`;
+          navigator.clipboard.writeText(txt)
+            .then(() => navMessage(tr("Coordenadas copiadas al portapapeles."), { tone: "info" }))
+            .catch(() => navMessage(tr("No se pudieron copiar las coordenadas.")));
+        }
+      },
+      /* La vista ENTERA (centro, zoom, giro y mapas base), no el punto pulsado */
+      { label: tr("Enlace a esta vista"), action: () => copyViewLink() }
+    ]
   },
   /* Las dos consultas a un servicio sobre el punto pulsado, cada una por
      su cuenta: «Elevación» descarga MDT/MDS de la tesela bajo el puntero
@@ -22995,7 +24729,10 @@ const CTX_MENU_ITEMS = [
     label: tr("Crear"),
     items: [
       { label: tr("Polígono o línea"), action: () => setTool(activeTool === "polygon" ? null : "polygon") },
-      { label: tr("Pin"), action: () => createPin() }
+      { label: tr("Pin"), action: () => createPin() },
+      /* Estas dos SÍ usan el punto pulsado: es el centro por defecto */
+      { label: tr("Anillos de alcance…"), action: latlng => openRangeDialog("rings", latlng) },
+      { label: tr("Sector…"), action: latlng => openRangeDialog("sector", latlng) }
     ]
   }
 ];
@@ -23305,6 +25042,100 @@ function applySavedBases(saved) {
   }
 }
 
+/* ---------- Enlace a la vista ----------
+   `#map=zoom/lat/lng[/giro]&base=id,id`: el centro, el zoom, el giro (solo
+   si lo hay) y los mapas base ENCENDIDOS que cualquiera puede tener. No
+   lleva el árbol (vive en el navegador de cada uno) ni los mapas con
+   dirección o credencial propias (Custom Tile/Web Map Service, Copernicus,
+   PNOA histórico, que necesita elegir capa de un catálogo): llegarían
+   bloqueados al otro lado. Lo que llega en la dirección es entrada AJENA:
+   `parseViewHash` solo acepta números llanos y ids conocidos, con tope de
+   longitud, y nunca nada de ello se inserta como HTML.                  */
+const linkBaseIds = defs => defs.filter(d => !d.dynamic && !d.source).map(d => d.id);
+const LINK_BASE_IDS = new Set(linkBaseIds(BASE_LAYERS));
+const LINK_MAX_HASH = 400;
+const LINK_NUM = /^-?\d+(?:\.\d+)?$/;
+
+function buildViewHash(view, bearing, baseIds) {
+  const b = ((bearing % 360) + 360) % 360;
+  let h = `#map=${+view.zoom.toFixed(2)}/${+view.lat.toFixed(6)}/${+view.lng.toFixed(6)}`;
+  if (Number.isFinite(b) && b >= 0.05) h += `/${+b.toFixed(1)}`;
+  return `${h}&base=${baseIds.join(",")}`;
+}
+
+/* Devuelve `{ lat, lng, zoom, bearing, bases }` (bearing 0 si no viene, bases
+   null si el enlace no habla de ellas) o null si no es un enlace válido.   */
+function parseViewHash(hash) {
+  const text = String(hash || "");
+  if (!text.startsWith("#map=") || text.length > LINK_MAX_HASH) return null;
+  const params = new Map();
+  for (const part of text.slice(1).split("&")) {
+    const i = part.indexOf("=");
+    if (i > 0) params.set(part.slice(0, i), part.slice(i + 1));
+  }
+  const nums = String(params.get("map")).split("/");
+  if ((nums.length !== 3 && nums.length !== 4) || !nums.every(n => LINK_NUM.test(n))) return null;
+  const [zoom, lat, lng, bearing = 0] = nums.map(Number);
+  if (!(zoom >= 0 && zoom <= 25) || !(Math.abs(lat) <= 85) || !(Math.abs(lng) <= 180)) return null;
+  let bases = null;
+  if (params.has("base")) {
+    bases = [...new Set(params.get("base").split(",").filter(id => LINK_BASE_IDS.has(id)))];
+  }
+  return { lat, lng, zoom, bearing: ((bearing % 360) + 360) % 360, bases };
+}
+
+/* Enciende exactamente los mapas públicos de la lista y apaga los demás
+   públicos; los propios del usuario (dirección o credencial) no se tocan.
+   `live`: con el panel ya dibujado (un enlace pegado con la aplicación
+   abierta); al arrancar basta fijar el estado, que lo pinta el arranque. */
+function setLinkBases(ids, live) {
+  for (const [id, st] of baseState) {
+    if (!LINK_BASE_IDS.has(id)) continue;
+    st.on = ids.includes(id);
+    if (live) applyBaseLayer(id);
+  }
+  if (live) { renderBasePanel(); scheduleBaseSave(); }
+}
+
+/* La dirección sin ninguna ancla vieja (en `file://` es la del archivo) */
+const viewLinkUrl = hash => location.href.split("#")[0] + hash;
+
+function currentViewHash() {
+  const c = map.getCenter();
+  const on = [...baseState].filter(([id, st]) => st.on && LINK_BASE_IDS.has(id)).map(([id]) => id);
+  return buildViewHash({ lat: c.lat, lng: c.lng, zoom: map.getZoom() }, map.getBearing(), on);
+}
+
+function copyViewLink() {
+  const privateOn = [...baseState].some(([id, st]) => st.on && !LINK_BASE_IDS.has(id));
+  const note = location.protocol === "file:"
+    ? tr("Enlace a la vista copiado. Solo sirve en este equipo: la aplicación está abierta como archivo.")
+    : privateOn ? tr("Enlace a la vista copiado. Los mapas con dirección propia no viajan en el enlace.")
+    : tr("Enlace a la vista copiado al portapapeles.");
+  const fail = () => navMessage(tr("No se pudo copiar el enlace."));
+  if (!navigator.clipboard) { fail(); return; }
+  navigator.clipboard.writeText(viewLinkUrl(currentViewHash()))
+    .then(() => navMessage(note, { tone: "info" })).catch(fail);
+}
+
+/* Aplica un enlace con la aplicación ya arrancada y quita el ancla, para
+   que recargar no lo vuelva a aplicar y el siguiente pegado sea otro
+   `hashchange`. Al arrancar lo hace 99-boot.js por su cuenta, antes de
+   restaurar nada.                                                      */
+function clearViewHash() {
+  try { history.replaceState(null, "", location.pathname + location.search); } catch { /* sin historial: se queda */ }
+}
+function applyViewLink(link) {
+  map.setView([link.lat, link.lng], link.zoom, { animate: false });
+  map.setBearing(link.bearing);
+  if (link.bases) setLinkBases(link.bases, true);
+}
+window.addEventListener("hashchange", () => {
+  const link = parseViewHash(location.hash);
+  if (link) applyViewLink(link);
+  if (location.hash.startsWith("#map=")) clearViewHash();
+});
+
 /* La vista se guarda al terminar de moverla, no durante: `moveend` ya
    llega una vez por gesto, y el retardo agrupa los encadenados.      */
 const VIEW_SAVE_MS = 800;
@@ -23374,12 +25205,23 @@ setInterval(checkServerVersion, VERSION_CHECK_MS);
   } catch { initPhoneLayout(null); }
 
   /* La vista primero: así el mapa aparece donde se dejó mientras el
-     árbol, que puede tardar, se reconstruye por detrás.              */
+     árbol, que puede tardar, se reconstruye por detrás. Un enlace a una
+     vista (`#map=…`) manda sobre la guardada, y su ancla se quita en el
+     acto para que recargar no la vuelva a aplicar.                    */
+  const viewLink = parseViewHash(location.hash);
+  if (location.hash.startsWith("#map=")) clearViewHash();
   try {
     const view = await dbLoadView();
     if (view) map.setView([view.lat, view.lng], view.zoom, { animate: false });
   } catch { /* sin vista guardada se queda la de por defecto */ }
+  if (viewLink) {
+    map.setView([viewLink.lat, viewLink.lng], viewLink.zoom, { animate: false });
+    map.setBearing(viewLink.bearing);
+  }
   viewRestoring = false;
+  /* Los `moveend` del propio enlace llegaron con `viewRestoring` aún
+     puesto y no se guardaron: lo que se abrió es lo que se recuerda.   */
+  if (viewLink) scheduleViewSave();
 
   /* El reparto de columnas de la ficha: si no se restaura, habría que
      reajustarlo en cada arranque. Antes del árbol porque no depende de
@@ -23460,6 +25302,9 @@ setInterval(checkServerVersion, VERSION_CHECK_MS);
 
   /* Mapas base: primero lo guardado, luego se pintan y se encienden */
   try { applySavedBases(await dbLoadBases()); } catch { /* valores por defecto */ }
+  /* Los mapas del enlace mandan sobre los guardados, y se guardan como
+     lo que el usuario está viendo (scheduleBaseSave tras pintar).      */
+  if (viewLink && viewLink.bases) setLinkBases(viewLink.bases, false);
   /* Una capa que exige credencial no puede quedarse encendida sin
      ella: se apaga en vez de fallar tesela a tesela.                 */
   for (const [id, st] of baseState) {
@@ -23468,6 +25313,7 @@ setInterval(checkServerVersion, VERSION_CHECK_MS);
   }
   renderBasePanel();
   for (const id of baseState.keys()) applyBaseLayer(id);
+  if (viewLink && viewLink.bases) scheduleBaseSave();
   /* Capas dinámicas guardadas como encendidas: se valida la capa
      restaurada contra el catálogo real en cuanto llegue (puede haber
      dejado de publicarse), sin esperar a que se abra el panel.       */

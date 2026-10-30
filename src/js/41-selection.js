@@ -145,8 +145,11 @@ function nodeLayer(li) {
 /* properties de un GeoJSON importado, si las tiene: L.geoJSON(feature,...)
    deja `.feature.properties` en la subcapa, y ese properties sobrevive
    íntegro el ciclo guardar/restaurar (toGeoJSON / L.geoJSON de nuevo).
-   Capas KML (marker/polyline directos, sin .feature) devuelven null:
-   su información va por li._desc, no por aquí.                       */
+   Capas KML sin <ExtendedData> (marker/polyline directos, sin .feature)
+   devuelven null: su información va por li._desc, no por aquí. Con
+   <ExtendedData> sí tienen `.feature.properties`, y entonces una capa de
+   KML tiene tabla de atributos igual que una de GeoJSON (la <description>
+   sigue mandando en la ficha: baseInfoHtml).                          */
 function layerProperties(layer) {
   if (!layer || typeof layer.getLayers !== "function") return null;
   const sub = layer.getLayers()[0];

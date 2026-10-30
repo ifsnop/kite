@@ -81,15 +81,7 @@ async function exportMapPng() {
   }
   canvas.toBlob(blob => {
     if (!blob) { navMessage(tr("No se pudo generar la imagen.")); return; }
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = `kite-local-${pngTimestamp()}.png`;
-    a.click();
-    setTimeout(() => URL.revokeObjectURL(url), 60000);
-    /* Una descarga que ha ido bien es una NOTIFICACIÓN, no una alerta:
-       solo confirma lo que el usuario acaba de pedir.                 */
-    navMessage(tr("Descargado «{download}».", { download: a.download }), { tone: "info" });
+    downloadBlob(blob, `kite-local-${pngTimestamp()}.png`);
   }, "image/png");
 }
 
@@ -215,6 +207,9 @@ document.addEventListener("keydown", e => {
   if (!shortcutsDialog.hidden) { toggleShortcuts(); return; }
   if (!logDialog.hidden) { toggleLog(); return; }
   if (!urlDialog.hidden) { closeUrlDialog(); return; }
+  if (isRangeDialogOpen()) { cancelRangeDialog(); return; }
+  if (isAttrStyleOpen()) { cancelAttrStyleDialog(); return; }
+  if (isAttrDialogOpen()) { closeAttrDialog(); return; }
   if (!descDialog.hidden) { hideLayerInfo({ dismiss: true }); return; }
   if (!geocalcDialog.hidden) { toggleGeocalcDialog(); return; }
   if (!profileDialog.hidden) { closeProfileDialog(); return; }

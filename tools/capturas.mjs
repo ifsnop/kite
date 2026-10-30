@@ -440,6 +440,19 @@ scenario("menu-consultas.png", "5", async out => {
   await ctx.close();
 });
 
+scenario("menu-copiar.png", "5", async out => {
+  const { ctx, page } = await openApp();
+  await sierra(page);
+  await page.mouse.move(1000, 100);
+  await page.mouse.click(1000, 100, { button: "right" });
+  await page.waitForSelector("#map-ctxmenu:not([hidden])");
+  await page.locator("#map-ctxmenu .ctx-menu-item", { hasText: "Copiar" }).hover();
+  await page.waitForSelector(".ctx-menu:not(#map-ctxmenu)");
+  await page.waitForTimeout(200);
+  await fullShot(page, out);
+  await ctx.close();
+});
+
 scenario("menu-contextual-submenu.png", "5", async out => {
   const { ctx, page } = await openApp();
   await sierra(page);
@@ -633,6 +646,22 @@ scenario("copiar-origen.png", "7.5", async out => {
   await A.ctx.close(); await B.ctx.close();
 }, ["pegar-destino.png"]);
 
+/* ===== 7.6 Guardar o exportar ===== */
+scenario("menu-exportar.png", "7.6", async out => {
+  const { ctx, page } = await openApp();
+  await sierra(page, { expandSensores: true });
+  const r = await rowRect(page, "Zona A");
+  await page.mouse.move(r.x + r.width - 120, r.y + r.height / 2);
+  await page.waitForTimeout(200);
+  await onRow(page, "Zona A", li => li.querySelector(':scope > .node-row button[aria-label^="Guardar o exportar"]').click());
+  await page.waitForSelector(".ctx-menu:not(#map-ctxmenu)");
+  await stamps(page);
+  const m = await page.locator(".ctx-menu:not(#map-ctxmenu)").boundingBox();
+  const top = Math.max(0, r.y - 24);
+  await page.screenshot({ path: out, clip: clip(0, top, m.x + m.width + 12, m.y + m.height + 16 - top) });
+  await ctx.close();
+});
+
 /* ===== 7.8 Elevaciones ===== */
 const ignRoute = fake => page => page.route(IGN_ROUTE, fake.handler);
 const TERESA = [40.4153, -3.7038]; /* CL Paz 11, Madrid */
@@ -778,6 +807,64 @@ scenario("parcela-catastral.png", "7.12", async out => {
 }, ["parcela-ficha.png"]);
 
 /* ===== Tema oscuro y aviso de móvil ===== */
+/* ===== 7.13 Anillos de alcance y sectores ===== */
+scenario("anillos-dialogo.png", "7.13", async out => {
+  const { ctx, page } = await openApp();
+  await sierra(page);
+  await view(page, CENTER, 12);
+  await settle(page);
+  const q = await pt(page, 40.405, -3.69);
+  await page.mouse.click(q.x, q.y, { button: "right" });
+  await page.locator("#map-ctxmenu .ctx-menu-item", { hasText: "Crear" }).click();
+  await page.locator(".ctx-menu:not(#map-ctxmenu) .ctx-menu-item", { hasText: "Anillos de alcance" }).click();
+  await page.waitForSelector("#range-dialog:not([hidden])");
+  await page.fill("#rg-radii", "1, 2, 3, 4");
+  await page.fill("#rg-radials", "45");
+  await page.waitForFunction(() => rangePreview && rangePreview.getLayers().length === 5);
+  await page.waitForTimeout(250);
+  await dialog(page, out, "range-dialog");
+  /* Aceptar, y un sector (de 300° a 60°, por el norte) al lado */
+  await page.click("#rg-accept");
+  await page.evaluate(() => {
+    openRangeDialog("sector", { lat: 40.405, lng: -3.69 });
+    const set = (id, v) => { const e = document.getElementById(id); e.value = v; e.dispatchEvent(new Event("input")); };
+    set("rg-az1", "300"); set("rg-az2", "60"); set("rg-rout", "6"); set("rg-rin", "5");
+  });
+  await page.waitForFunction(() => rangePreview && rangePreview.getLayers().length === 1);
+  await page.click("#rg-accept");
+  await settle(page);
+  await page.mouse.move(VIEW.width - 300, 120);
+  await fullShot(page, path.join(path.dirname(out), "anillos-resultado.png"));
+  await ctx.close();
+}, ["anillos-resultado.png"]);
+
+/* ===== 7.15 Tabla de atributos ===== */
+scenario("tabla-atributos.png", "7.15", async out => {
+  const { ctx, page } = await openApp();
+  await sierra(page);
+  await onRow(page, "sensores.geojson", li => li.querySelector(':scope > .node-row button[aria-label^="Tabla de atributos"]').click());
+  await page.waitForSelector("#attr-dialog:not([hidden])");
+  /* Ordenada por la segunda columna, para que se vea la flecha del orden */
+  await page.click("#attr-head th:nth-child(2)");
+  await page.waitForTimeout(250);
+  await dialog(page, out, "attr-dialog");
+  await ctx.close();
+});
+
+scenario("estilo-atributo.png", "7.15", async out => {
+  const { ctx, page } = await openApp();
+  await sierra(page);
+  await onRow(page, "sensores.geojson", li => li.querySelector(':scope > .node-row button[aria-label^="Tabla de atributos"]').click());
+  await page.waitForSelector("#attr-dialog:not([hidden])");
+  await page.click("#attr-style");
+  await page.waitForSelector("#attrstyle-dialog:not([hidden])");
+  await page.selectOption("#as-attr", "categoria");
+  await page.waitForTimeout(300);
+  await dialog(page, out, "attrstyle-dialog");
+  await page.click("#as-cancel");
+  await ctx.close();
+});
+
 scenario("tema-oscuro.png", "2.1", async out => {
   /* «Según el sistema» con un sistema en oscuro: cambia el cromo, no el mapa */
   const { ctx, page } = await openApp({ colorScheme: "dark" });

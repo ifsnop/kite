@@ -16,12 +16,23 @@
   } catch { initPhoneLayout(null); }
 
   /* La vista primero: así el mapa aparece donde se dejó mientras el
-     árbol, que puede tardar, se reconstruye por detrás.              */
+     árbol, que puede tardar, se reconstruye por detrás. Un enlace a una
+     vista (`#map=…`) manda sobre la guardada, y su ancla se quita en el
+     acto para que recargar no la vuelva a aplicar.                    */
+  const viewLink = parseViewHash(location.hash);
+  if (location.hash.startsWith("#map=")) clearViewHash();
   try {
     const view = await dbLoadView();
     if (view) map.setView([view.lat, view.lng], view.zoom, { animate: false });
   } catch { /* sin vista guardada se queda la de por defecto */ }
+  if (viewLink) {
+    map.setView([viewLink.lat, viewLink.lng], viewLink.zoom, { animate: false });
+    map.setBearing(viewLink.bearing);
+  }
   viewRestoring = false;
+  /* Los `moveend` del propio enlace llegaron con `viewRestoring` aún
+     puesto y no se guardaron: lo que se abrió es lo que se recuerda.   */
+  if (viewLink) scheduleViewSave();
 
   /* El reparto de columnas de la ficha: si no se restaura, habría que
      reajustarlo en cada arranque. Antes del árbol porque no depende de
@@ -102,6 +113,9 @@
 
   /* Mapas base: primero lo guardado, luego se pintan y se encienden */
   try { applySavedBases(await dbLoadBases()); } catch { /* valores por defecto */ }
+  /* Los mapas del enlace mandan sobre los guardados, y se guardan como
+     lo que el usuario está viendo (scheduleBaseSave tras pintar).      */
+  if (viewLink && viewLink.bases) setLinkBases(viewLink.bases, false);
   /* Una capa que exige credencial no puede quedarse encendida sin
      ella: se apaga en vez de fallar tesela a tesela.                 */
   for (const [id, st] of baseState) {
@@ -110,6 +124,7 @@
   }
   renderBasePanel();
   for (const id of baseState.keys()) applyBaseLayer(id);
+  if (viewLink && viewLink.bases) scheduleBaseSave();
   /* Capas dinámicas guardadas como encendidas: se valida la capa
      restaurada contra el catálogo real en cuanto llegue (puede haber
      dejado de publicarse), sin esperar a que se abra el panel.       */

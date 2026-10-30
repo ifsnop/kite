@@ -406,6 +406,46 @@ function unwrapSweep(sweep, prevBrg, brg) {
   return Math.max(-ARC_SWEEP_MAX, Math.min(ARC_SWEEP_MAX, sweep + d));
 }
 
+/* ---------- Anillos de alcance y sectores ----------
+   Todo se construye con arcPoints/destPoint: cada vértice está a
+   EXACTAMENTE `r` metros del centro sobre la esfera (la misma de las
+   mediciones), no en el L.circle de Leaflet, que es una aproximación en
+   pantalla. Las longitudes salen continuas (pueden pasar de ±180 al
+   cruzar el antimeridiano) en vez de partirse: un anillo entero es mejor
+   que dos mitades en lados opuestos del mapa.                          */
+const RANGE_STEP_DEG = 2;          /* un vértice cada 2°: 180 por anillo, por debajo del tope de edición (500) */
+const RANGE_MAX_RINGS = 40;
+const RANGE_MAX_M = 10000000;      /* 10 000 km: más allá, un «círculo» sobre la esfera deja de parecerlo */
+const RANGE_MIN_SWEEP_DEG = 0.1;
+
+/* Anillo completo, SIN repetir el primer punto al final (L.polygon lo cierra) */
+function ringLatLngs(center, r, step = RANGE_STEP_DEG) {
+  const n = Math.max(12, Math.ceil(360 / step));
+  return arcPoints(center, r, 0, 360, n).slice(0, n);
+}
+
+/* Apertura de un sector en grados, en sentido horario del azimut inicial
+   al final (0 = norte): de 330° a 30° son 60°, no 300°. 0 = no hay sector. */
+const sectorSweep = (az1, az2) => (((az2 - az1) % 360) + 360) % 360;
+
+/* Un sector: el arco exterior de az1 a az2 cerrado en el centro, o, con
+   radio interior, una corona (exterior de ida e interior de vuelta).    */
+function sectorLatLngs(center, az1, az2, rOut, rIn = 0, step = RANGE_STEP_DEG) {
+  const sweep = sectorSweep(az1, az2);
+  if (sweep === 0) return [];
+  const segs = Math.max(2, Math.ceil(sweep / step));
+  const outer = arcPoints(center, rOut, az1, sweep, segs);
+  if (rIn > 0) return outer.concat(arcPoints(center, rIn, az1 + sweep, -sweep, segs));
+  return [L.latLng(center.lat, center.lng), ...outer];
+}
+
+/* Radiales cada `every` grados desde el norte, del centro al radio mayor */
+function radialLatLngs(center, rMax, every) {
+  const out = [], c = L.latLng(center.lat, center.lng);
+  for (let i = 0; i * every < 360 - 1e-9; i++) out.push([c, destPoint(center, i * every, rMax)]);
+  return out;
+}
+
 /* getLatLngs() de un L.Polygon viene en dos profundidades posibles: los
    anillos de UN polígono ([exterior, agujero1, …], el caso normal de KML
    y de un GeoJSON Polygon) o una lista de polígonos cada uno con sus

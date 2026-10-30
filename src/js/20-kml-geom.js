@@ -70,6 +70,31 @@ function parsePolygon(polyEl) {
   return rings;
 }
 
+/* Los datos propios de un Placemark: <ExtendedData> con <Data name><value>
+   y <SchemaData><SimpleData name>. Salen como `properties` (siempre
+   texto: KML no tiene tipos aquí), y así una capa de KML tiene la misma
+   tabla de atributos que una de GeoJSON. Entrada AJENA: tope de campos,
+   primer valor de un nombre repetido y nombres que no pueden ser
+   propiedades (`__proto__`) fuera. null si no hay ninguno.            */
+const EXT_MAX_FIELDS = 200;
+function parseExtendedData(pm) {
+  const ext = childrenByTag(pm, "ExtendedData")[0];
+  if (!ext) return null;
+  const props = {};
+  let n = 0;
+  const put = (key, value) => {
+    if (!key || key === "__proto__" || n >= EXT_MAX_FIELDS) return;
+    if (Object.prototype.hasOwnProperty.call(props, key)) return;
+    props[key] = value;
+    n++;
+  };
+  for (const d of childrenByTag(ext, "Data")) put(d.getAttribute("name"), directChildText(d, "value") || "");
+  for (const sd of childrenByTag(ext, "SchemaData")) {
+    for (const s of childrenByTag(sd, "SimpleData")) put(s.getAttribute("name"), s.textContent.trim());
+  }
+  return n ? props : null;
+}
+
 /* Crea las capas Leaflet de un placemark (polígonos, líneas y puntos).
    Cada geometría se construye por separado: una mala no tumba al resto
    del placemark ni, por tanto, a la importación entera.              */
@@ -117,6 +142,13 @@ function buildPlacemarkLayer(pm, style, report) {
     } catch (err) { fail(tr("punto ilegible ({message})", { message: err.message })); }
   }
   if (!layers.length) return { group: null, reported };
+
+  /* `feature.properties` en cada subcapa es lo que lee layerProperties y lo
+     que `toGeoJSON` vuelca al guardar, así que sobrevive a recargar. Sin
+     `geometry` a propósito: 43-points-editor.js la lee de `poly.feature`
+     para los polígonos de GeoJSON, y un KML no tiene geometría en crudo. */
+  const data = parseExtendedData(pm);
+  if (data) for (const l of layers) l.feature = { type: "Feature", properties: data };
 
   const group = L.featureGroup(layers);
   const name = text(pm, "name");

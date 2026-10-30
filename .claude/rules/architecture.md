@@ -41,6 +41,17 @@ paths:
     librería `shapefile`, reproyecta con proj4 desde el `.prj` y entrega
     un FeatureCollection a `addFileNode` (que acepta el objeto, no solo
     texto). Ver `import-parsing.md`.
+2b2. **GPX** (`36-gpx-import.js`): `gpxToGeoJson` pura (waypoints, rutas y
+    tracks → FeatureCollection, con el XML tolerante de `33`) e
+    `importGpxFile`, que lo entrega a `addFileNode` como un shapefile. Va
+    tras `35`; `handleDroppedFiles` (33) lo llama solo en tiempo de
+    ejecución. Ver `import-parsing.md`.
+2c. **Exportar a KML y GeoJSON** (`35-export-formats.js`, tras la
+    importación): registros serializados → texto, PURO y probado en Node
+    (`tests/exportformats.js`), más el minimenú de 💾. Usa `arcPoints` y
+    `normalizePathStyle`, de archivos posteriores, solo en tiempo de
+    ejecución. Ver `tree-navigation-selection.md`, «Exportar e importar
+    carpetas».
 3. **Árbol de navegación**: `makeNode(...)` es la fábrica ÚNICA de
    filas (caret, checkbox, color, etiqueta, acciones). Toda fila nueva
    se crea con ella. Utilidades: `nodeUl`, `deleteNode`,
@@ -73,6 +84,29 @@ paths:
     decorativo, sin persistencia. Además aporta a la ficha de un marcador
     las horas del sol y crepúsculos (`sunTimes`/`sunTimesHtml`, puras y
     testeadas; ver `style-dialogs-ui.md`, «Ficha del elemento»).
+9b. **Anillos de alcance y sectores** (`53-range-rings.js`, tras `52`):
+    diálogo con vista previa y creación de capas normales; usa
+    `makeNode`, `ensureNamedSection`, `nextNumberedName` (40) y
+    `POLYGONS_SECTION` (52); la geometría pura vive en `51-geodesy.js`.
+    **Sin DOM al cargar el archivo**: los elementos se enlazan la primera
+    vez que se abre (`rangeDialogUi`). Varias pruebas de Node extraen un
+    tramo del script que atraviesa archivos vecinos (`elevtest.js` desde
+    mitad de `52` hasta `60`, `polyarea.js` de `51` a `52`) y lo ejecutan:
+    un `document.getElementById` a nivel superior lo rompe. `openRangeDialog`
+    se llama desde el menú contextual (`70`) solo en tiempo de ejecución.
+    Ver `measurements-drawing-vertex-editing.md`.
+9c. **Tabla de atributos** (`54-attr-table.js`, tras `53`): ventana de filas
+    de las capas de una carpeta con orden, filtro y CSV; lo puro
+    (`collectAttrRows`, `attrSort`, `attrFilter`, `toCsv`) se prueba en
+    Node y el DOM se enlaza al abrir. Usa `resolveRecordLi` (`40`) y
+    `goToNodeAndBlink` (`70`) solo en tiempo de ejecución. `toCsv` lo
+    reutilizará el perfil de una ruta. Ver `style-dialogs-ui.md`.
+9d. **Estilo por atributo** (`55-attr-style.js`, tras `54`): clasificación
+    pura (categorías y graduado) y diálogo modal con vista previa sobre la
+    tabla de atributos; usa `layerKind`, `normalizePathStyle`,
+    `buildMarkerIcon`, `applyPolygonStyle`/`applyMarkerStyle` (42) y
+    `attrState`/`attrIsNumeric`/`attrCell` (54). Sin DOM al cargar. Ver
+    `style-dialogs-ui.md`.
 11. **Calculadora geodésica** (`62-geocalc.js`): ventana flotante con
     una pestaña por cálculo (ángulo de elevación con cono y corrección
     por presión, vector GPS), recalculadas solas, sin botón; la lógica

@@ -263,7 +263,7 @@ function makeActions(li, sortable, styleable, layer, focusable = styleable) {
     b.title = title;
     b.setAttribute("aria-label", title); /* botones solo con icono */
     if (cls) b.className = cls;
-    b.addEventListener("click", e => { e.preventDefault(); fn(); });
+    b.addEventListener("click", e => { e.preventDefault(); fn(b); });
     box.appendChild(b);
   };
   if (sortable) {
@@ -272,8 +272,13 @@ function makeActions(li, sortable, styleable, layer, focusable = styleable) {
     btn("AZ", tr("Ordenar alfab\u00E9ticamente (alterna ascendente/descendente)"), "az",
         () => withUndo(tr("ordenar \u00AB{name}\u00BB", { name: li._name }), () => sortChildren(li)));
     btn("\u229F", tr("Colapsar esta carpeta y las interiores"), "", () => collapseDescendants(li));
-    btn("\uD83D\uDCBE", tr("Guardar esta carpeta en un archivo para volver a cargarla despu\u00E9s"), "", () => exportNode(li));
   }
+  /* Carpetas y también capas sueltas: un KML o un GeoJSON de UNA capa es
+     un uso corriente (pasarla a QGIS). El menú pregunta el formato.     */
+  if (sortable || layer) {
+    btn("\uD83D\uDCBE", tr("Guardar o exportar a un archivo (KITE, KML o GeoJSON)"), "", b => openExportMenu(b, li));
+  }
+  if (sortable) btn("\u25A6", tr("Tabla de atributos de esta carpeta"), "", () => openAttrTable(li));
   if (focusable) {
     btn("\uD83D\uDD0D", tr("Centrar la vista aqu\u00ED y acercar (zoom {zoom})", { zoom: FOCUS_ZOOM }), "",
         () => focusOnNode(li));

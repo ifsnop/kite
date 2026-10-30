@@ -76,6 +76,8 @@ const JS = [
   "32-geojson.js",        /* validación de GeoJSON y TopoJSON */
   "33-kml-import.js",     /* apertura tolerante del XML, importación */
   "34-shp-import.js",     /* shapefiles: agrupar piezas, .prj, a GeoJSON */
+  "35-export-formats.js", /* exportar a KML y GeoJSON (registros → texto) y minimenú de 💾 */
+  "36-gpx-import.js",     /* importar GPX: waypoints, rutas y tracks a un FeatureCollection */
   "40-panel-actions.js",  /* acciones del panel, buscador de lugares */
   "41-selection.js",      /* selección, Ctrl+A, portapapeles */
   "42-hittest.js",        /* acierto bajo el cursor del menú contextual */
@@ -84,6 +86,9 @@ const JS = [
   "50-splitter.js",       /* separador redimensionable */
   "51-geodesy.js",        /* geodesia y UTM */
   "52-measure.js",        /* herramientas de medición */
+  "53-range-rings.js",    /* anillos de alcance y sectores (menú contextual › Crear); sin DOM al cargar */
+  "54-attr-table.js",     /* tabla de atributos de una carpeta (botón ▦); sin DOM al cargar */
+  "55-attr-style.js",     /* estilo por atributo: categorías y graduado sobre la tabla de atributos; sin DOM al cargar */
   "60-elevation.js",      /* elevaciones: WCS, cuadrícula */
   "61-daynight.js",       /* iluminación real día/noche (efecto WebGL) */
   "62-geocalc.js",        /* calculadora geodésica (ángulo de elevación) */

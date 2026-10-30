@@ -125,7 +125,7 @@
     </div>
   </header>
   <div id="tree" role="tree" aria-label="Árbol de capas" tabindex="0"></div>
-  <div id="dropzone">Arrastre aquí sus archivos KML/KMZ (incl. ortofotos), JSON/TopoJSON, shapefiles (.shp con su .dbf y .prj, o en .zip), ortofotos COG (.tif) o carpetas exportadas (.kite.json)</div>
+  <div id="dropzone">Arrastre aquí sus archivos KML/KMZ (incl. ortofotos), GPX, JSON/TopoJSON, shapefiles (.shp con su .dbf y .prj, o en .zip), ortofotos COG (.tif) o carpetas exportadas (.kite.json)</div>
   <footer id="nav-search">
     <div class="nav-actions">
       <input type="text" id="search-box" placeholder="Buscar capas y carpetas&#8230;">
@@ -650,6 +650,8 @@
           <option value="origin">Desde el inicio</option>
         </select></label>
       <button class="btn" id="pf-reset" title="Ruta entera y altura automática">Ver todo</button>
+      <button class="btn" id="pf-png" title="Guardar la gráfica, tal como se ve, como imagen PNG">PNG</button>
+      <button class="btn" id="pf-csv" title="Guardar los datos de la ruta entera como CSV: distancia, latitud, longitud y la altura de cada serie">CSV</button>
       <span class="pf-hint">Rueda: distancia · Mayús+rueda: altura · arrastrar: desplazar</span>
     </div>
   </div>
@@ -701,7 +703,7 @@
 <div id="url-dialog" class="dlg-overlay" hidden>
   <div class="dlg-box">
     <h2>A&#241;adir desde una direcci&#243;n</h2>
-    <p class="dlg-hint">Direcci&#243;n de un archivo KML, KMZ, JSON/GeoJSON, TopoJSON, de un
+    <p class="dlg-hint">Direcci&#243;n de un archivo KML, KMZ, GPX, JSON/GeoJSON, TopoJSON, de un
       shapefile comprimido (.zip) o de una carpeta exportada (.kite.json). Se descarga primero y se a&#241;ade despu&#233;s, cuando
       vea qu&#233; ha llegado.</p>
     <!-- Un <textarea> y no un <input>: una dirección de descarga pasa de
@@ -718,6 +720,93 @@
       <button class="btn" id="url-close">Cerrar</button>
       <button class="btn" id="url-fetch">Descargar</button>
       <button class="btn" id="url-add" hidden>A&#241;adir al &#225;rbol</button>
+    </div>
+  </div>
+</div>
+
+<!-- Anillos de alcance y sectores (menú contextual › Crear). Modal, con
+     vista previa en vivo sobre el mapa: Cancelar no deja nada. Los campos
+     de distancia van en la unidad global (Propiedades); la posición, en
+     el formato global de coordenadas. -->
+<div id="range-dialog" class="dlg-overlay" hidden>
+  <div class="dlg-box">
+    <h2><span class="dlg-title" id="rg-title">Anillos de alcance</span></h2>
+    <div class="dlg-row"><label for="rg-mode">Forma</label>
+      <select id="rg-mode">
+        <option value="rings">Anillos concéntricos</option>
+        <option value="sector">Sector</option>
+      </select>
+    </div>
+    <div class="dlg-row"><label for="rg-lat">Latitud del centro</label><input type="text" id="rg-lat" autocomplete="off" spellcheck="false"></div>
+    <div class="dlg-row"><label for="rg-lng">Longitud del centro</label><input type="text" id="rg-lng" autocomplete="off" spellcheck="false"></div>
+    <div id="rg-rings-fields">
+      <div class="dlg-row"><label for="rg-radii">Radios</label><input type="text" id="rg-radii" autocomplete="off" spellcheck="false"><span class="rg-unit"></span></div>
+      <div class="dlg-row"><label for="rg-radials">Radiales cada</label><input type="number" id="rg-radials" min="0" max="180" step="1"><span class="rg-deg">&#176;</span></div>
+    </div>
+    <div id="rg-sector-fields" hidden>
+      <div class="dlg-row"><label for="rg-az1">Azimut inicial</label><input type="number" id="rg-az1" min="0" max="360" step="1"><span class="rg-deg">&#176;</span></div>
+      <div class="dlg-row"><label for="rg-az2">Azimut final</label><input type="number" id="rg-az2" min="0" max="360" step="1"><span class="rg-deg">&#176;</span></div>
+      <div class="dlg-row"><label for="rg-rout">Radio exterior</label><input type="number" id="rg-rout" min="0" step="any"><span class="rg-unit"></span></div>
+      <div class="dlg-row"><label for="rg-rin">Radio interior</label><input type="number" id="rg-rin" min="0" step="any"><span class="rg-unit"></span></div>
+    </div>
+    <p class="dlg-hint sh-bad" id="rg-status" hidden></p>
+    <div class="dlg-actions">
+      <button class="btn" id="rg-cancel">Cancelar</button>
+      <button class="btn" id="rg-accept">Aceptar</button>
+    </div>
+  </div>
+</div>
+
+<!-- Tabla de atributos de una carpeta (botón ▦ de su fila). Flotante y no
+     modal, como la de estilos: se puede mirar y seguir usando el mapa.
+     Una instantánea de solo lectura; las filas que se ven son las únicas
+     que están en el DOM (hay carpetas de decenas de miles de capas). -->
+<div id="attr-dialog" class="dlg-float" hidden>
+  <div class="dlg-box">
+    <h2 id="attr-title">Tabla de atributos</h2>
+    <div class="attr-bar">
+      <input type="search" id="attr-filter" placeholder="Filtrar filas&#8230;" aria-label="Filtrar filas" autocomplete="off" spellcheck="false">
+      <span class="dlg-note" id="attr-count"></span>
+    </div>
+    <p class="dlg-hint" id="attr-note" hidden></p>
+    <div id="attr-scroll">
+      <table id="attr-table"><colgroup id="attr-cols"></colgroup><thead id="attr-head"></thead><tbody id="attr-body"></tbody></table>
+    </div>
+    <div class="dlg-actions">
+      <button class="btn" id="attr-close">Cerrar</button>
+      <button class="btn" id="attr-csv">Exportar CSV</button>
+      <button class="btn" id="attr-style">Estilo por atributo&#8230;</button>
+    </div>
+  </div>
+</div>
+
+<!-- Estilo por atributo (desde la tabla de atributos). Modal, con vista
+     previa en vivo sobre el mapa: Cancelar devuelve cada capa a su estilo.
+     Una clasificación hecha una vez: al aceptar quedan estilos normales. -->
+<div id="attrstyle-dialog" class="dlg-overlay" hidden>
+  <div class="dlg-box">
+    <h2>Estilo por atributo</h2>
+    <div class="dlg-row"><label for="as-attr">Atributo</label><select id="as-attr"></select></div>
+    <div class="dlg-row"><label for="as-mode">Tipo</label>
+      <select id="as-mode">
+        <option value="categories">Categor&#237;as</option>
+        <option value="graduated">Graduado</option>
+      </select>
+    </div>
+    <div id="as-grad-fields" hidden>
+      <div class="dlg-row"><label for="as-n">Clases</label><input type="number" id="as-n" min="2" max="9" step="1"></div>
+      <div class="dlg-row"><label for="as-method">M&#233;todo</label>
+        <select id="as-method">
+          <option value="equal">Intervalos iguales</option>
+          <option value="quantile">Cuantiles</option>
+        </select>
+      </div>
+    </div>
+    <div id="as-classes"></div>
+    <p class="dlg-hint" id="as-summary"></p>
+    <div class="dlg-actions">
+      <button class="btn" id="as-cancel">Cancelar</button>
+      <button class="btn" id="as-accept">Aceptar</button>
     </div>
   </div>
 </div>
