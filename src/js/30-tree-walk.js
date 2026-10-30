@@ -452,7 +452,9 @@ if (!hwAccelerated) {
 /* Centrar la vista en un nodo y acercar a un zoom de trabajo. A
    diferencia del doble click, no depende de dónde estuviera la vista ni
    de la escalera: siempre deja el nodo centrado y a la misma escala. */
-const FOCUS_ZOOM = 9;
+/* 14: a escala de calle, donde un marcador se ve en su entorno y se pueden
+   distinguir los vecinos (antes 9, a escala de provincia, pedido 30-10-2026). */
+const FOCUS_ZOOM = 14;
 /* Margen relativo al tama\u00F1o del panel del visor (20% a cada lado), no
    una cifra fija de p\u00EDxeles: as\u00ED un pol\u00EDgono peque\u00F1o y uno grande, o el
    panel en una ventana estrecha y en una ancha, quedan igual de

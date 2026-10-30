@@ -105,7 +105,7 @@ paths:
   (`elevGrid`) también lleva 🔍** (pedido) aunque no tenga 🎨: `makeNode`
   acepta `focusable` (por defecto, `styleable`), que pasan
   `makeElevGridNode` y la rama `elevGrid` de `materializeRecords`; se
-  encuadra igual que un polígono (al zoom fijo 9 no se vería).
+  encuadra igual que un polígono (al zoom fijo, 14, no se vería).
 - **El nombre de la fila NO activa la casilla** (sin `htmlFor` en el
   `<label>`): pinchar el nombre selecciona la fila; doble click sobre
   él alternaba visibilidad a medias. La casilla se pulsa aparte;
