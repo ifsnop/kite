@@ -83,15 +83,19 @@ const BLANK_TILE = Buffer.from(
    pide no repetirlas. Con un User-Agent que dice quién las pide.         */
 const tileCache = new Map();
 async function tileRoute(route) {
-  if (NO_BG) return route.fulfill({ status: 200, contentType: "image/png", body: BLANK_TILE });
-  const url = route.request().url();
-  if (!tileCache.has(url)) {
-    const r = await route.fetch({ headers: { ...route.request().headers(),
-      "user-agent": `KITE-Local-capturas/${PKG.version} (+https://github.com/ifsnop/kite)` } });
-    tileCache.set(url, { status: r.status(), headers: r.headers(), body: await r.body() });
-  }
-  const t = tileCache.get(url);
-  return route.fulfill({ status: t.status, headers: t.headers, body: t.body });
+  /* Una tesela pedida cuando el escenario ya cerró su contexto (la vista
+     inicial a zoom 6) lanza al servirla: no es un fallo de la captura.  */
+  try {
+    if (NO_BG) return await route.fulfill({ status: 200, contentType: "image/png", body: BLANK_TILE });
+    const url = route.request().url();
+    if (!tileCache.has(url)) {
+      const r = await route.fetch({ headers: { ...route.request().headers(),
+        "user-agent": `KITE-Local-capturas/${PKG.version} (+https://github.com/ifsnop/kite)` } });
+      tileCache.set(url, { status: r.status(), headers: r.headers(), body: await r.body() });
+    }
+    const t = tileCache.get(url);
+    return await route.fulfill({ status: t.status, headers: t.headers, body: t.body });
+  } catch { /* contexto cerrado */ }
 }
 
 const browser = await launch();
@@ -424,6 +428,18 @@ scenario("menu-contextual.png", "5", async out => {
   await ctx.close();
 });
 
+scenario("menu-consultas.png", "5", async out => {
+  const { ctx, page } = await openApp();
+  await sierra(page);
+  await page.mouse.move(1000, 100);
+  await page.mouse.click(1000, 100, { button: "right" });
+  await page.waitForSelector("#map-ctxmenu:not([hidden])");
+  await page.locator("#map-ctxmenu .ctx-menu-item", { hasText: "Consultas" }).hover();
+  await page.waitForTimeout(300);
+  await fullShot(page, out);
+  await ctx.close();
+});
+
 scenario("menu-contextual-submenu.png", "5", async out => {
   const { ctx, page } = await openApp();
   await sierra(page);
@@ -628,7 +644,8 @@ scenario("consulta-elevacion.png", "7.8", async out => {
   await settle(page);
   const q = await pt(page, ...TERESA);
   await page.mouse.click(q.x, q.y, { button: "right" });
-  await page.locator("#map-ctxmenu .ctx-menu-item", { hasText: "Consultar elevación aquí" }).click();
+  await page.locator("#map-ctxmenu .ctx-menu-item", { hasText: "Consultas" }).click();
+  await page.locator(".ctx-menu:not(#map-ctxmenu) .ctx-menu-item", { hasText: "Elevación" }).click();
   await page.waitForFunction(() => elevGridGroups.length > 0, null, { timeout: 30000 });
   await settle(page, { ms: 500 });
   /* El ratón sobre una celda: el cuadro de coordenadas lee MDT, MDS y su diferencia */
@@ -748,7 +765,8 @@ scenario("parcela-catastral.png", "7.12", async out => {
   const q = await pt(page, 40.4153, -3.7038);
   await page.mouse.move(q.x, q.y);
   await page.mouse.click(q.x, q.y, { button: "right" });
-  await page.locator("#map-ctxmenu .ctx-menu-item", { hasText: "Parcela catastral" }).click();
+  await page.locator("#map-ctxmenu .ctx-menu-item", { hasText: "Consultas" }).click();
+  await page.locator(".ctx-menu:not(#map-ctxmenu) .ctx-menu-item", { hasText: "Parcela catastral" }).click();
   await page.waitForFunction(() => [...document.querySelectorAll("#tree li")].some(li => /^Parcela /.test(li._name)));
   await settle(page, { ms: 900 });
   await page.mouse.move(VIEW.width - 300, 120);

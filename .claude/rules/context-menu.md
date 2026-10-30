@@ -7,8 +7,18 @@ paths:
 
 ## Menú contextual del visor
 
-- `CTX_MENU_ITEMS`: lista genérica (centrar, medir, exportar PNG…) en
-  click derecho sin capa. Sobre una capa se anteponen «Ir al nodo en el
+- `CTX_MENU_ITEMS`: lista genérica, en click derecho sin capa. **Cuatro
+  filas, sin separadores, agrupadas por tema** (pedido, 30-10-2026):
+  «Copiar coordenadas»; **«Consultas ▸»** con «Elevación» y «Parcela
+  catastral» (dos entradas distintas que se activan por separado, no una
+  combinada); **«Medir ▸»** con Ruta, Círculo y Arco; **«Crear ▸»** con
+  «Polígono o línea» y «Pin». **Fuera, a propósito**: los tres «Centrar…»,
+  «Paralelos y meridianos» y «Exportar PNG», que ya tienen su botón en la
+  barra del visor (⤢, IB, GC, #, 📷) — un menú que repite los botones solo
+  estorba. Un grupo nuevo de entradas del mismo tema es otro submenú, no
+  filas sueltas. Ya no hay entradas con `checked()` (interruptor): se quitó
+  su soporte de `renderCtxItems`; si hace falta otra vez, se reañade con su
+  prueba. Sobre una capa se anteponen «Ir al nodo en el
   panel» (`highlightNode`), «Mostrar atributos» si hay algo que
   enseñar (`showLayerInfo`, solo lectura) y «Editar propiedades» si el
   tipo admite diálogo de estilos (`STYLE_EDITABLE_KINDS`, mismo criterio
@@ -17,11 +27,11 @@ paths:
   rásteres, se edita desde su fila). Nombrado distinto de «Mostrar atributos» a
   propósito (dos ítems iguales confundirían), aunque el resto de la app
   llame «propiedades» a ambos indistintamente.
-- **`disabled()` opcional en un ítem**: devuelve el MOTIVO (texto, va al `title`) o algo falso. El ítem se pinta deshabilitado, no se esconde. Hoy lo usan «Consultar elevación aquí» (`elevQueryDisabled`: mapa rotado, o las dos fuentes de elevación en «Ninguna») y «Obtener perfil» (`routeProfileDisabled`).
-- **«Consultar elevación aquí»** (`queryElevationAt(latlng)`) sustituye al antiguo interruptor «Modo elevación» y al botón ⛰: una consulta puntual de la tesela bajo el puntero, una capa por consulta. Ver `elevation-dem.md`.
-- **«Parcela catastral»** (`queryCadastralParcelAt(latlng)`, `65-cadastre.js`), justo después de «Consultar elevación aquí» en `CTX_MENU_ITEMS`: trae el polígono de la parcela bajo el puntero como capa del árbol. Sin `disabled()`: no depende del giro del mapa. Ver `cadastre.md`.
+- **`disabled()` opcional en un ítem**: devuelve el MOTIVO (texto, va al `title`) o algo falso. El ítem se pinta deshabilitado, no se esconde. Hoy lo usan «Consultas › Elevación» (`elevQueryDisabled`: mapa rotado, o las dos fuentes de elevación en «Ninguna») y «Obtener perfil» (`routeProfileDisabled`).
+- **«Consultas › Elevación»** (`queryElevationAt(latlng)`) sustituye al antiguo interruptor «Modo elevación» y al botón ⛰: una consulta puntual de la tesela bajo el puntero, una capa por consulta. Ver `elevation-dem.md`.
+- **«Consultas › Parcela catastral»** (`queryCadastralParcelAt(latlng)`, `65-cadastre.js`), junto a «Elevación» en el submenú «Consultas» de `CTX_MENU_ITEMS`: trae el polígono de la parcela bajo el puntero como capa del árbol. Sin `disabled()`: no depende del giro del mapa. Ver `cadastre.md`.
 - **«Obtener perfil» / «Mostrar perfil»** sobre una ruta (`isRouteLi`, arcos incluidos): un solo ítem, `routeProfileCtxItem(li)` (`63-route-profile.js`), «Mostrar» si ya tiene perfil; «Obtener» con `disabled: () => routeProfileDisabled(li)` (sin fuentes, o ruta más larga que el límite). El `disabled()` genérico de `renderCtxItems` vale también para los ítems de capa y los de un submenú. **Va también en el menú de VARIAS capas** (`ctxItemsFor`): una ruta, el ítem tal cual; varias, submenú «Perfil de ruta» por nombre. **Trampa (fallo real)**: una ruta casi nunca está sola bajo el cursor — las celdas de su propio perfil (o de cualquier cuadrícula de elevación) quedan debajo y el hit-testing las acierta aunque sus rectángulos sean `interactive: false` (prueba la geometría, no los eventos de Leaflet); con el ítem solo en `layerCtxItems`, la opción desaparecía tras el primer perfil. Ver `elevation-dem.md`, «Perfil de una ruta».
-- **«Medir ▸» es un submenú fijo de `CTX_MENU_ITEMS`** con Ruta, Círculo y Arco (cada uno alterna su herramienta con `setTool`); «Dibujar polígono o línea» queda fuera del grupo.
+- **«Medir ▸» es un submenú fijo de `CTX_MENU_ITEMS`** con Ruta, Círculo y Arco (cada uno alterna su herramienta con `setTool`); «Crear ▸» agrupa «Polígono o línea» (también alterna `setTool`) y «Pin» (`createPin`, en el centro de la vista).
 - **Elegir una acción devuelve el foco al VISOR antes de ejecutarla**
   (clic del ítem en `renderCtxItems`): ocultar el menú lo dejaba en el
   `<body>`, donde las teclas son del ÁRBOL, y `focusDialog` lo habría

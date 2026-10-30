@@ -57,16 +57,16 @@
       "build": "202610241902"
     },
     "consulta-elevacion.png": {
-      "sha256": "3c529f651ab1e57a327a7b004af0f0bad113d1234670773a2303f2f350f1214a",
+      "sha256": "3bcde7aafc06f3d6ca1e2330a18e5dd602bc009c35c2a7be5d981d0485258c7a",
       "section": "7.8",
       "version": "1.10.0",
-      "build": "202610241902"
+      "build": "202610292332"
     },
     "coordenadas-elevacion.png": {
       "sha256": "a1c700efc629c16285ddde7ce3aa59fa6b4ef30d3cdc9a96edd5cf7dd11e7378",
       "section": "7.8",
       "version": "1.10.0",
-      "build": "202610241902"
+      "build": "202610292332"
     },
     "copiar-origen.png": {
       "sha256": "f301e41eb8db16188e13e508f84fa05d206fc0eb81b1e1b257266589aad5935c",
@@ -164,23 +164,29 @@
       "version": "1.10.0",
       "build": "202610241902"
     },
-    "menu-contextual-submenu.png": {
-      "sha256": "7a206f9f4cd71cca69dd8be54cbe1728015fd1d468d59e45d0eec8116ae78246",
+    "menu-consultas.png": {
+      "sha256": "1d25969663aecc611492dfe7847982dbbaeec32f457e772787be2062e2fb939f",
       "section": "5",
       "version": "1.10.0",
-      "build": "202610241902"
+      "build": "202610292332"
+    },
+    "menu-contextual-submenu.png": {
+      "sha256": "8352d2121588748842a12d6ccfe009b09e0b8d68c408c43dd2b8d23d37a12f1c",
+      "section": "5",
+      "version": "1.10.0",
+      "build": "202610292332"
     },
     "menu-contextual.png": {
-      "sha256": "020ee59acd9a18fca60eda0c3799d061562b0d8081868e5d73eea03efd720ba2",
+      "sha256": "397890aff6347f0cfbec2e31149737652ea9d488c859dc5ee5c844cf22242e5f",
       "section": "5",
       "version": "1.10.0",
-      "build": "202610241902"
+      "build": "202610292332"
     },
     "menu-ruta-perfil.png": {
-      "sha256": "3134fc05a587ec85f4bc4bec5b477829a947f507a336c021e0b7c01256d72916",
+      "sha256": "da61cac208b14297b039239ad16b256a0bc665633841d9f1035c2c1d8a68a114",
       "section": "7.9",
       "version": "1.10.0",
-      "build": "202610241902"
+      "build": "202610292332"
     },
     "ortofoto-cog.png": {
       "sha256": "a62fef4dfe38f057fef923a4382468e2fd8e5c88b251e90829e7391e4a914d7e",
@@ -190,16 +196,16 @@
       "externa": "Sentinel-2 de 362 MB: no se puede versionar ni regenerar"
     },
     "parcela-catastral.png": {
-      "sha256": "e52e705973a08e050def710448cc7d71d3cf5a497855dda83040413a1487d7f1",
+      "sha256": "80463b97175f961caf9802ed7c5d828d16c0dbdaae56b53518cd482f92f5dfe5",
       "section": "7.12",
       "version": "1.10.0",
-      "build": "202610241902"
+      "build": "202610292332"
     },
     "parcela-ficha.png": {
       "sha256": "3b7e2fcf3e8a75ac1a10eec17df4e2b2329edc05fe0dfafaaec03b1d1682bef7",
       "section": "7.12",
       "version": "1.10.0",
-      "build": "202610241902"
+      "build": "202610292332"
     },
     "pegar-destino.png": {
       "sha256": "5d412ade88abafbcc462ce8059e9a9def6854d17e579a19c1d893e7f03cb8de7",
@@ -220,7 +226,7 @@
       "build": "202610241902"
     },
     "propiedades-fuentes.png": {
-      "sha256": "76a78ef487decb929c69a3ec9bbcd0603cd1b90caa9fcaa21c8526c8dbf9463a",
+      "sha256": "f22481ea1b189b88de0442874eef1674828339bc60d0063563f53653c7b81a00",
       "section": "2.1",
       "version": "1.10.0",
       "build": "202610241902"

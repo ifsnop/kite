@@ -8,7 +8,7 @@
    marcados en negrita en el eje de distancias. Una flecha sobre la ruta
    en el mapa sigue a la línea vertical de la gráfica.
 
-   La ventana de 40 m de «Consultar elevación aquí» daría cientos de
+   La ventana de 40 m de «Consultas › Elevación» daría cientos de
    peticiones para una ruta de kilómetros, así que aquí se pide por
    TROZOS: cada tramo se corta en piezas cuya caja mide como mucho
    PROFILE_CHUNK_CELLS celdas de lado, y cada pieza es una petición.

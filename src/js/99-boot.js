@@ -67,7 +67,7 @@
     if (fmt !== null) coordFormat = fmt;
   } catch { /* formato por defecto (decimal) */ }
   /* Solo la ELECCIÓN de fuentes: ningún servicio se consulta hasta la
-     primera «Consultar elevación aquí» (ver makeElevationSource).    */
+     primera «Consultas › Elevación» (ver makeElevationSource).      */
   try {
     const sel = await dbLoadElevSources();
     if (sel !== null) elevSources = sel;

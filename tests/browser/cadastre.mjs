@@ -63,7 +63,7 @@ await page.route(/ovc\.catastro\.meh\.es/, route => {
 });
 const count = kind => seen.filter(s => s.kind === kind).length;
 
-/* Elige «Parcela catastral» en el menú contextual de un punto y espera a
+/* Elige «Consultas › Parcela catastral» en el menú contextual de un punto y espera a
    que la consulta termine: capa nueva o aviso nuevo. Devuelve lo ocurrido. */
 async function queryViaMenu(ll, { watchBusy = false } = {}) {
   return page.evaluate(async ({ lat, lng, watchBusy }) => {
@@ -75,7 +75,9 @@ async function queryViaMenu(ll, { watchBusy = false } = {}) {
     const before = layersBefore();
     const latlng = L.latLng(lat, lng);
     openCtxMenu(latlng, 600, 400, []);
-    const item = [...document.querySelectorAll("#map-ctxmenu .ctx-menu-item")]
+    const trigger = [...document.querySelectorAll("#map-ctxmenu .ctx-menu-item")].find(x => x.textContent === "Consultas ▸");
+    trigger.click();
+    const item = [...document.querySelectorAll(".ctx-menu:not(#map-ctxmenu) .ctx-menu-item")]
       .find(x => x.textContent === "Parcela catastral");
     if (!item || item.disabled) return { item: !!item, disabled: item && item.disabled };
     const view = { c: map.getCenter(), z: map.getZoom() };
@@ -180,7 +182,8 @@ ok(q6.sawBusy && !q6.busyAfter, "cursor de espera mientras dura, y se quita al t
 const rotated = await page.evaluate(() => {
   map.setBearing(30);
   openCtxMenu(map.getCenter(), 600, 400, []);
-  const b = [...document.querySelectorAll("#map-ctxmenu .ctx-menu-item")].find(x => x.textContent === "Parcela catastral");
+  [...document.querySelectorAll("#map-ctxmenu .ctx-menu-item")].find(x => x.textContent === "Consultas ▸").click();
+  const b = [...document.querySelectorAll(".ctx-menu:not(#map-ctxmenu) .ctx-menu-item")].find(x => x.textContent === "Parcela catastral");
   const r = { found: !!b, disabled: b && b.disabled };
   closeCtxMenu();
   map.setBearing(0);

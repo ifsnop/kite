@@ -218,27 +218,57 @@ const menu2 = await page.evaluate(() =>
   [...document.querySelectorAll("#map-ctxmenu .ctx-menu-item")].map(b => b.textContent));
 ok(!menu2.includes("Editar propiedades"),
   "clic derecho sin ninguna capa debajo: no ofrece «Editar propiedades»: " + JSON.stringify(menu2));
-ok(menu2.includes("Copiar coordenadas"), "y sí el menú genérico del mapa: " + JSON.stringify(menu2));
+/* El menú genérico son cuatro filas, sin separadores: lo que ya tiene su
+   botón en la barra del visor (encuadres, retícula, PNG) no está aquí, y lo
+   del mismo tema va en un submenú.                                        */
+ok(JSON.stringify(menu2) === JSON.stringify(["Copiar coordenadas", "Consultas ▸", "Medir ▸", "Crear ▸"]),
+  "el menú genérico: Copiar coordenadas, Consultas ▸, Medir ▸ y Crear ▸, y nada más: " + JSON.stringify(menu2));
+ok(await page.evaluate(() => document.querySelectorAll("#map-ctxmenu .ctx-menu-sep").length === 0), "sin separadores");
+for (const viejo of ["Exportar PNG", "Centrar en el contenido", "Centrar en la península y Baleares",
+  "Centrar en las islas Canarias", "Paralelos y meridianos", "Dibujar polígono o línea", "Crear un pin",
+  "Consultar elevación aquí", "Medir ruta", "Medir círculo"]) {
+  ok(!menu2.includes(viejo), `«${viejo}» ya no es una entrada suelta del menú`);
+}
 
-/* Las tres mediciones van agrupadas en un submenú «Medir», no sueltas */
-ok(menu2.includes("Medir ▸"), "el menú agrupa las mediciones en «Medir ▸»: " + JSON.stringify(menu2));
-ok(!menu2.includes("Medir ruta") && !menu2.includes("Medir círculo"),
-  "y ya no hay entradas sueltas «Medir ruta»/«Medir círculo»");
-const sub = await page.evaluate(() => {
-  const trigger = [...document.querySelectorAll("#map-ctxmenu .ctx-menu-item")]
-    .find(b => b.textContent === "Medir ▸");
+/* Abre un submenú por su disparador y dice qué hojas tiene; si se pide,
+   pulsa una (como un clic de verdad).                                   */
+const submenu = (disparador, pulsar = null) => page.evaluate(([d, p]) => {
+  const trigger = [...document.querySelectorAll("#map-ctxmenu .ctx-menu-item")].find(b => b.textContent === d);
   trigger.click();
-  const subItems = [...document.querySelectorAll(".ctx-menu:not(#map-ctxmenu) .ctx-menu-item")]
-    .map(b => b.textContent);
-  const arco = [...document.querySelectorAll(".ctx-menu:not(#map-ctxmenu) .ctx-menu-item")]
-    .find(b => b.textContent === "Arco");
-  arco.click();
-  return { subItems, tool: activeTool };
-});
-ok(JSON.stringify(sub.subItems) === JSON.stringify(["Ruta", "Círculo", "Arco"]),
-  "el submenú ofrece Ruta, Círculo y Arco: " + JSON.stringify(sub.subItems));
-ok(sub.tool === "arc", "«Arco» activa la herramienta de arco: " + sub.tool);
+  const hojas = [...document.querySelectorAll(".ctx-menu:not(#map-ctxmenu) .ctx-menu-item")];
+  const labels = hojas.map(b => b.textContent);
+  if (p) hojas.find(b => b.textContent === p).click();
+  return { labels, tool: activeTool, menuHidden: document.getElementById("map-ctxmenu").hidden };
+}, [disparador, pulsar]);
+
+ok(JSON.stringify((await submenu("Consultas ▸")).labels) === JSON.stringify(["Elevación", "Parcela catastral"]),
+  "«Consultas» ofrece Elevación y Parcela catastral, cada una por su cuenta");
+/* Pasar a otro disparador cambia de submenú: solo hay uno abierto a la vez */
+const medirSub = await submenu("Medir ▸");
+ok(JSON.stringify(medirSub.labels) === JSON.stringify(["Ruta", "Círculo", "Arco"]),
+  "el submenú «Medir» ofrece Ruta, Círculo y Arco, y sustituye al de «Consultas»: " + JSON.stringify(medirSub.labels));
+const crearSub = await submenu("Crear ▸");
+ok(JSON.stringify(crearSub.labels) === JSON.stringify(["Polígono o línea", "Pin"]),
+  "el submenú «Crear» ofrece Polígono o línea y Pin: " + JSON.stringify(crearSub.labels));
+
+const arco = await submenu("Medir ▸", "Arco");
+ok(arco.tool === "arc" && arco.menuHidden, "«Arco» activa la herramienta de arco y cierra el menú: " + JSON.stringify(arco));
 await page.evaluate(() => setTool(null));
+
+await page.mouse.click(setup.x + 200, setup.y + 200, { button: "right" });
+await page.waitForTimeout(100);
+const poligono = await submenu("Crear ▸", "Polígono o línea");
+ok(poligono.tool === "polygon", "«Crear › Polígono o línea» activa la herramienta de dibujo: " + poligono.tool);
+await page.evaluate(() => setTool(null));
+
+await page.mouse.click(setup.x + 200, setup.y + 200, { button: "right" });
+await page.waitForTimeout(100);
+const pinsAntes = await page.evaluate(() => [...document.querySelectorAll("#tree li")].filter(li => /^Marcador \d+$/.test(li._name)).length);
+await submenu("Crear ▸", "Pin");
+await page.waitForTimeout(200);
+const pinsDespues = await page.evaluate(() => [...document.querySelectorAll("#tree li")].filter(li => /^Marcador \d+$/.test(li._name)).length);
+ok(pinsDespues === pinsAntes + 1, `«Crear › Pin» crea un marcador: ${pinsAntes} → ${pinsDespues}`);
+await page.evaluate(() => { document.getElementById("style-cancel").click(); });
 
 ok(errors.length === 0, "sin errores de página: " + JSON.stringify(errors));
 
