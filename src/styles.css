@@ -256,6 +256,8 @@
     white-space: nowrap;
   }
   .node-row.folder > label { font-weight: 600; }
+  /* Un servicio ArcGIS cuyas teselas fallan seguidas (ver ArcgisLayer): el nombre en rojo, como una capa base caída */
+  .node-row.service-failed > label { color: var(--danger); }
   li.file > .node-row { background: var(--bg); border: 1px solid var(--border); }
   li.file > .node-row > label { font-weight: 600; }
   li.file { margin-bottom: 6px; }

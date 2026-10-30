@@ -112,7 +112,8 @@ const urlAddBtn = document.getElementById("url-add");
 
 let urlAbort = null;   /* descarga en vuelo, para poder cancelarla     */
 let urlSeq = 0;        /* descarta respuestas superadas, como placeSeq */
-let urlReady = null;   /* el borrador: { file, kind, size } o null     */
+let urlReady = null;   /* el borrador: { file, kind, size } —o, de un servicio
+                          ArcGIS, { arcgis: { cat, base }, kind, size }— o null */
 
 /* Un único punto que mueve TODOS los controles: nadie toca `disabled`
    ni `hidden` por su cuenta, que es como se acaba con un botón activo
@@ -173,16 +174,16 @@ function openUrlDialog() {
    contesta, y convertiría en fallo lo que ahora funciona; y las cookies
    del usuario no tienen nada que hacer en una descarga hacia un tercero.
    Es justo el cambio «inocente» que alguien haría más adelante.      */
-async function fetchRemoteFile(url, signal, onBytes) {
+async function fetchRemoteFile(url, signal, onBytes, max = URL_MAX_BYTES) {
   const resp = await fetch(url, { signal, credentials: "omit", redirect: "follow" });
   if (!resp.ok) throw new Error(tr("No se pudo descargar: {why}.", { why: describeHttp(resp.status) }));
 
   /* Lo que el servidor DICE que ocupa, antes de traerse nada: es la
      comprobación barata y evita empezar una descarga condenada.      */
   const declarado = Number(resp.headers.get("content-length"));
-  if (Number.isFinite(declarado) && declarado > URL_MAX_BYTES) {
+  if (Number.isFinite(declarado) && declarado > max) {
     throw new Error(tr("El archivo ocupa {size} y supera el tope de {max}.",
-      { size: fmtBytes(declarado), max: fmtBytes(URL_MAX_BYTES) }));
+      { size: fmtBytes(declarado), max: fmtBytes(max) }));
   }
 
   /* Y lo que ocupa DE VERDAD, mientras llega: content-length puede
@@ -191,9 +192,9 @@ async function fetchRemoteFile(url, signal, onBytes) {
      diciendo cuánto lleva descargado.                                */
   if (!resp.body || !resp.body.getReader) {
     const buf = await resp.arrayBuffer();
-    if (buf.byteLength > URL_MAX_BYTES) {
+    if (buf.byteLength > max) {
       throw new Error(tr("La descarga ocupa {size} y supera el tope de {max}.",
-        { size: fmtBytes(buf.byteLength), max: fmtBytes(URL_MAX_BYTES) }));
+        { size: fmtBytes(buf.byteLength), max: fmtBytes(max) }));
     }
     return new Uint8Array(buf);
   }
@@ -204,10 +205,10 @@ async function fetchRemoteFile(url, signal, onBytes) {
     const { done, value } = await reader.read();
     if (done) break;
     total += value.length;
-    if (total > URL_MAX_BYTES) {
+    if (total > max) {
       reader.cancel();
       throw new Error(tr("La descarga ya supera el tope de {max} y se ha interrumpido.",
-        { max: fmtBytes(URL_MAX_BYTES) }));
+        { max: fmtBytes(max) }));
     }
     trozos.push(value);
     if (onBytes) onBytes(total);
@@ -242,6 +243,15 @@ async function runUrlFetch() {
     return;
   }
 
+  /* Un servicio ArcGIS (…/MapServer) no es un archivo: se lee su catálogo
+     (`?f=json`) y pasa a ser un nodo con una fila por capa. */
+  const svc = arcgisServiceBase(url);
+  if (svc && svc.error) {
+    setUrlState("error", svc.error === "https"
+      ? tr("La dirección de un servicio de mapas debe empezar por https://.")
+      : tr("La dirección lleva usuario y contraseña, que no se admiten."), true);
+    return;
+  }
   abortUrlFetch("reemplazada");
   urlReady = null;
   const seq = ++urlSeq;
@@ -249,10 +259,22 @@ async function runUrlFetch() {
   const timer = setTimeout(() => ctrl.abort("timeout"), URL_TIMEOUT);
   setUrlState("descargando", tr("Descargando…"));
   try {
-    const bytes = await fetchRemoteFile(url, ctrl.signal,
-      n => { if (seq === urlSeq) setUrlState("descargando", tr("Descargando… {size}", { size: fmtBytes(n) })); });
+    const bytes = await fetchRemoteFile(svc ? svc.base + "?f=json" : url, ctrl.signal,
+      n => { if (seq === urlSeq) setUrlState("descargando", tr("Descargando… {size}", { size: fmtBytes(n) })); },
+      svc ? ARCGIS_JSON_MAX : URL_MAX_BYTES);
     if (seq !== urlSeq) return; /* superada o cancelada: no pinta nada */
     if (!bytes.length) { setUrlState("error", tr("La descarga ha llegado vacía (0 bytes)."), true); return; }
+    if (svc) {
+      let cat;
+      try { cat = parseArcgisCatalog(JSON.parse(new TextDecoder("utf-8").decode(bytes))); }
+      catch { cat = { error: tr("la respuesta no es la de un servicio de mapas ArcGIS") }; }
+      if (cat.error) { setUrlState("error", tr("El servicio no se puede usar: {why}.", { why: cat.error }), true); return; }
+      urlReady = { arcgis: { cat, base: svc.base }, kind: "arcgis", size: bytes.length };
+      setUrlState("listo", tr("Servicio de mapas ArcGIS «{name}»: {n} capa(s), {data} con datos que se pueden traer. "
+        + "Pulse «Añadir al árbol» para insertarlo.", { name: arcgisServiceName(svc.base), n: cat.count, data: cat.dataCount }));
+      urlAddBtn.focus();
+      return;
+    }
 
     /* Los bytes primero (un zip no se decodifica), el texto después */
     let texto = "";
@@ -291,7 +313,12 @@ async function runUrlFetch() {
        causa más frecuente es que el servidor no mande cabeceras CORS,
        así que el mensaje lo dice y ofrece la salida que siempre
        funciona en vez de dejar al usuario mirando «Failed to fetch». */
-    const msg = err instanceof TypeError && isOffline()
+    const msg = svc && err instanceof TypeError
+      ? (isOffline() ? tr("No hay conexión a la red: no se puede consultar el servicio ahora.")
+        : tr("No se ha podido conectar con el servicio. Lo más probable es que no autorice consultas "
+          + "desde otra página (CORS); el navegador no da más detalle. También puede ser que la "
+          + "dirección no exista o que no haya conexión."))
+      : err instanceof TypeError && isOffline()
       ? tr("No hay conexión a la red: no se puede descargar ahora. Si tiene el archivo en el "
         + "equipo, arrástrelo al recuadro.")
       : err instanceof TypeError
@@ -323,6 +350,13 @@ urlFetchBtn.addEventListener("click", () => {
 });
 urlAddBtn.addEventListener("click", async () => {
   if (!urlReady) return;
+  if (urlReady.arcgis) {
+    const { cat, base } = urlReady.arcgis;
+    closeUrlDialog();
+    try { await addArcgisServiceNode(cat, base); }
+    catch (err) { navMessage(tr("No se pudo añadir el servicio: {message}", { message: err.message })); }
+    return;
+  }
   const { file } = urlReady;
   /* Se cierra ANTES de importar: la importación abre sus propios
      modales (etiquetas HTML, propiedad-nombre, duplicados) y no deben
@@ -807,9 +841,9 @@ function renderStyleAttrs() {
 /* `focus: false` cuando lo abre un clic en el VISOR (la ruta que se
    está creando): el foco se queda en el mapa, o sus teclas (desplazar,
    zoom, R) dejarían de llegar a mitad del dibujo.                   */
-/* El estado editable de una ortofoto, de KMZ o COG: las dos solo
-   tienen opacidad, y el diálogo las trata igual.                     */
-const rasterState = t => t._imageOverlay || t._cog || null;
+/* El estado editable de una ortofoto, de KMZ o COG, o de un servicio
+   ArcGIS: solo tienen opacidad, y el diálogo las trata igual.        */
+const rasterState = t => t._imageOverlay || t._cog || t._arcgis || null;
 
 function openStyleDialog(li, { isNew = false, focus = true } = {}) {
   /* The dialog is not modal, so another row's button may be pressed while
@@ -820,7 +854,7 @@ function openStyleDialog(li, { isNew = false, focus = true } = {}) {
      que hay algo debajo: se cierra antes de mostrar el de edición.    */
   hideLayerInfo();
   const kind = styleKind(li);
-  if (kind !== "marker" && kind !== "polygon" && kind !== "measure" && kind !== "imageOverlay" && kind !== "cog") {
+  if (kind !== "marker" && kind !== "polygon" && kind !== "measure" && kind !== "imageOverlay" && kind !== "cog" && kind !== "arcgis") {
     navMessage(tr("Esta capa no tiene estilos editables."));
     return;
   }
@@ -845,8 +879,8 @@ function openStyleDialog(li, { isNew = false, focus = true } = {}) {
   $id("style-marker").hidden = kind !== "marker";
   $id("style-polygon").hidden = kind !== "polygon";
   $id("style-measure").hidden = kind !== "measure";
-  /* Una ortofoto de KMZ y una COG solo tienen opacidad: misma sección */
-  $id("style-imageoverlay").hidden = kind !== "imageOverlay" && kind !== "cog";
+  /* Una ortofoto de KMZ, una COG y un servicio ArcGIS solo tienen opacidad: misma sección */
+  $id("style-imageoverlay").hidden = kind !== "imageOverlay" && kind !== "cog" && kind !== "arcgis";
   const single = styleTargets.length === 1;
   styleMixed = new Set();
   styleTouched = new Set();

@@ -646,7 +646,8 @@ function ecwHint(name) {
    archivos-sección y demás nodos con hijos, nunca para capas sueltas. */
 function folderDropTarget(e) {
   const li = e.target.closest ? e.target.closest("li[role=treeitem]") : null;
-  return li && nodeUl(li) ? li : null;
+  /* Un servicio ArcGIS y sus capas no reciben archivos: van a la raíz */
+  return li && nodeUl(li) && !li._arcgis && !li._fixed ? li : null;
 }
 
 /* Zona de arrastre: toda la ventana de navegación acepta archivos.

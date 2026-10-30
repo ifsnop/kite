@@ -43,7 +43,8 @@ document.addEventListener("keydown", e => {
      52-measure.js: crear una ruta se comporta como editarla).          */
   if (activeTool === "polygon" && polyDraft) return;
   if (activeTool === "route" && (routeDraft || routeMeasurement)) return;
-  const items = topLevelSelection();
+  const items = movableSelection();
+  if (!items.length) return;
   const next = cursorAfterDelete(isRow(selCursor) ? selCursor : items[0], items);
   pushUndo(tr("borrar {n} nodo(s)", { n: items.length }));
   for (const s of items) deleteNode(s, { pruneSelection: false });

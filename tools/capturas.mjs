@@ -806,6 +806,61 @@ scenario("parcela-catastral.png", "7.12", async out => {
   await ctx.close();
 }, ["parcela-ficha.png"]);
 
+/* ===== 7.16 Servicio de mapas ArcGIS (MapServer) ===== */
+/* El catálogo es el REAL de un servicio de ENAIRE (tests/fixtures), servido bajo
+   una dirección de ejemplo; las imágenes de /export se piden una vez por
+   ejecución al servicio de verdad (como las teselas de OpenStreetMap) y, con
+   --sin-fondo, se sustituyen por una imagen vacía.                          */
+const ARCGIS_HOST = "https://mi-servidor.ejemplo.org";
+const ARCGIS_BASE = `${ARCGIS_HOST}/insignias/rest/services/INSIGNIA_VIGOR/Aero_APP_VIGOR_Airspace_V_5/MapServer`;
+const ARCGIS_REAL = "https://servais.enaire.es/insignias/rest/services/INSIGNIA_VIGOR/Aero_APP_VIGOR_Airspace_V_5/MapServer";
+const arcgisCache = new Map();
+const arcgisRoute = page => page.route(`${ARCGIS_HOST}/**`, async route => {
+  const u = new URL(route.request().url());
+  const headers = { "access-control-allow-origin": "*" };
+  try {
+    if (!u.pathname.endsWith("/export")) {
+      return await route.fulfill({ status: 200, contentType: "application/json", headers, body: fixture("arcgis-mapserver.json") });
+    }
+    if (NO_BG) return await route.fulfill({ status: 200, contentType: "image/png", headers, body: BLANK_TILE });
+    if (!arcgisCache.has(u.search)) {
+      const r = await route.fetch({ url: ARCGIS_REAL + "/export" + u.search,
+        headers: { "user-agent": `KITE-Local-capturas/${PKG.version} (+https://github.com/ifsnop/kite)` } });
+      arcgisCache.set(u.search, await r.body());
+    }
+    return await route.fulfill({ status: 200, contentType: "image/png", headers, body: arcgisCache.get(u.search) });
+  } catch { /* contexto cerrado */ }
+});
+
+scenario("servicio-arcgis.png", "7.16", async out => {
+  const { ctx, page } = await openApp({ route: arcgisRoute });
+  await view(page, [40.4, -3.7], 8);
+  await settle(page);
+  await page.click("#url-btn");
+  await page.fill("#url-input", ARCGIS_BASE);
+  await page.click("#url-fetch");
+  await page.waitForFunction(() => /Servicio de mapas ArcGIS/.test(document.getElementById("url-status").textContent));
+  await dialog(page, path.join(path.dirname(out), "url-arcgis.png"), "url-dialog");
+  await page.click("#url-add");
+  await page.waitForFunction(() => !!document.querySelector("#tree li.arcgis-service"));
+  /* Las capas del servidor que se enseñan: las visibles de partida más el CTR y su rótulo */
+  await page.evaluate(() => {
+    for (const n of ["CTR", "CTR_texto"]) {
+      const li = [...document.querySelectorAll("#tree li.arcgis-service li")].find(l => l._name === n);
+      li.querySelector(":scope > .node-row > input[type=checkbox]").click();
+    }
+  });
+  await page.waitForFunction(() => {
+    const l = [...arcgisLayersOnMap][0];
+    const t = l ? Object.values(l._tiles) : [];
+    return t.length > 0 && t.every(x => x.el.complete) && l._ids.length > 4;
+  }, null, { timeout: 40000 });
+  await settle(page, { ms: 600 });
+  await page.mouse.move(VIEW.width - 300, 120);
+  await fullShot(page, out);
+  await ctx.close();
+}, ["url-arcgis.png"]);
+
 /* ===== Tema oscuro y aviso de móvil ===== */
 /* ===== 7.13 Anillos de alcance y sectores ===== */
 scenario("anillos-dialogo.png", "7.13", async out => {

@@ -337,6 +337,8 @@
     white-space: nowrap;
   }
   .node-row.folder > label { font-weight: 600; }
+  /* Un servicio ArcGIS cuyas teselas fallan seguidas (ver ArcgisLayer): el nombre en rojo, como una capa base caída */
+  .node-row.service-failed > label { color: var(--danger); }
   li.file > .node-row { background: var(--bg); border: 1px solid var(--border); }
   li.file > .node-row > label { font-weight: 600; }
   li.file { margin-bottom: 6px; }
@@ -2346,7 +2348,8 @@
   <div class="dlg-box">
     <h2>A&#241;adir desde una direcci&#243;n</h2>
     <p class="dlg-hint">Direcci&#243;n de un archivo KML, KMZ, GPX, JSON/GeoJSON, TopoJSON, de un
-      shapefile comprimido (.zip) o de una carpeta exportada (.kite.json). Se descarga primero y se a&#241;ade despu&#233;s, cuando
+      shapefile comprimido (.zip), de una carpeta exportada (.kite.json) o de un servicio de mapas
+      ArcGIS (&#8230;/MapServer). Se descarga primero y se a&#241;ade despu&#233;s, cuando
       vea qu&#233; ha llegado.</p>
     <!-- Un <textarea> y no un <input>: una dirección de descarga pasa de
          mil caracteres con facilidad (tokens de firma, parámetros de
@@ -2843,7 +2846,10 @@ registerLang("en", "English", {
   "cuadrículas de elevación": "elevation grids",
   "ortofotos": "orthophotos",
   "ortofotos COG": "COG orthophotos",
+  "servicios ArcGIS": "ArcGIS services",
+  "capas de servicios ArcGIS": "ArcGIS service layers",
   "Esta carpeta no contiene capas.": "This folder contains no layers.",
+  "Las capas de un servicio de mapas van con su servicio: no se mueven, copian ni borran por separado.": "The layers of a map service go with their service: they cannot be moved, copied or deleted on their own.",
   "No hay capas cargadas.": "No layers loaded.",
   "Inicializando…": "Starting up…",
   "[x{count}, última {last}]": "[x{count}, last {last}]",
@@ -3078,17 +3084,25 @@ registerLang("en", "English", {
   "Escriba la dirección del archivo que quiere descargar.": "Enter the address of the file you want to download.",
   "«{url}» no parece una dirección válida. Debe empezar por http:// o https://.": "“{url}” does not look like a valid address. It must start with http:// or https://.",
   "La dirección usa http://. Desde una página servida por https solo se pueden descargar direcciones https://.": "The address uses http://. From a page served over https only https:// addresses can be downloaded.",
+  "La dirección de un servicio de mapas debe empezar por https://.": "The address of a map service must start with https://.",
+  "La dirección lleva usuario y contraseña, que no se admiten.": "The address carries a user name and password, which are not supported.",
   "Descargando…": "Downloading…",
   "Descargando… {size}": "Downloading… {size}",
   "La descarga ha llegado vacía (0 bytes).": "The download arrived empty (0 bytes).",
+  "la respuesta no es la de un servicio de mapas ArcGIS": "the response is not from an ArcGIS map service",
+  "El servicio no se puede usar: {why}.": "The service cannot be used: {why}.",
+  "Servicio de mapas ArcGIS «{name}»: {n} capa(s), {data} con datos que se pueden traer. Pulse «Añadir al árbol» para insertarlo.": "ArcGIS map service “{name}”: {n} layer(s), {data} with data that can be fetched. Press “Add to tree” to insert it.",
   "Lo descargado es una página web (HTML), no un archivo de datos. Compruebe que la dirección apunta al archivo en crudo (en GitHub, el enlace «Raw»).": "What was downloaded is a web page (HTML), not a data file. Check that the address points to the raw file (on GitHub, the “Raw” link).",
   "No se reconoce el contenido descargado ({size}). Formatos admitidos: {formats}.": "The downloaded content is not recognized ({size}). Supported formats: {formats}.",
   "«{name}» — {kind}, {size}. Pulse «Añadir al árbol» para insertarlo en una carpeta nueva.": "“{name}” — {kind}, {size}. Press “Add to tree” to insert it into a new folder.",
   "El servidor ha tardado más de {seconds} s en responder.": "The server took more than {seconds} s to respond.",
   "Descarga cancelada.": "Download canceled.",
+  "No hay conexión a la red: no se puede consultar el servicio ahora.": "No network connection: the service cannot be queried now.",
+  "No se ha podido conectar con el servicio. Lo más probable es que no autorice consultas desde otra página (CORS); el navegador no da más detalle. También puede ser que la dirección no exista o que no haya conexión.": "Could not connect to the service. Most likely it does not allow queries from another page (CORS); the browser gives no more detail. It may also be that the address does not exist or that there is no connection.",
   "No hay conexión a la red: no se puede descargar ahora. Si tiene el archivo en el equipo, arrástrelo al recuadro.": "There is no network connection: the download cannot be done now. If you have the file on your computer, drag it onto the box.",
   "No se ha podido conectar. Lo más probable es que el servidor no autorice la descarga desde otra página (CORS); el navegador no da más detalle. También puede ser que la dirección no exista o que no haya conexión. Si puede abrir el archivo en el navegador, descárguelo y arrástrelo al recuadro.": "Could not connect. Most likely the server does not allow downloads from another page (CORS); the browser gives no further detail. It may also be that the address does not exist or that there is no connection. If you can open the file in the browser, download it and drag it onto the box.",
   "No se pudo descargar «{url}»: {msg}": "Could not download “{url}”: {msg}",
+  "No se pudo añadir el servicio: {message}": "The service could not be added: {message}",
   "añadir desde una dirección": "add from an address",
   "Descargas": "Downloads",
   "Descarga": "Download",
@@ -3360,6 +3374,18 @@ registerLang("en", "English", {
   "consultar parcela catastral": "query cadastral parcel",
   "Parcela {rc}": "Parcel {rc}",
   "Error al consultar el Catastro: {reason}.": "Error querying the Cadastre: {reason}.",
+  /* 66-arcgis.js */
+  "el servicio devolvió un error sin explicación": "the service returned an error with no explanation",
+  "el servicio exige una credencial (token), que KITE no admite": "the service requires a credential (token), which KITE does not support",
+  "el servicio no dibuja mapas (solo admite: {caps})": "the service does not draw maps (it only supports: {caps})",
+  "el servicio no publica ninguna capa": "the service publishes no layers",
+  "el servicio publica demasiadas capas ({n}; el máximo es {max})": "the service publishes too many layers ({n}; the maximum is {max})",
+  "El servicio «{name}» no responde; puede que haya cambiado.": "The service “{name}” is not responding; it may have changed.",
+  "Los servicios de mapas llegan apagados: enciéndalos para consultar {hosts}.": "Map services arrive switched off: turn them on to query {hosts}.",
+  "el servicio no tiene ninguna capa que se pueda mostrar": "the service has no layer that can be shown",
+  "añadir servicio ArcGIS": "add ArcGIS service",
+  "Servicios de mapas": "Map services",
+  "Servicio «{name}» añadido: {n} capa(s), {shown} visible(s). Marque las que quiera ver.": "Service “{name}” added: {n} layer(s), {shown} visible. Tick the ones you want to see.",
   /* 70-view-controls.js */
   "Autoescalar: ajustar el zoom a lo cargado": "Auto-fit: adjust the zoom to what is loaded",
   "Centrar la vista en la península y Baleares": "Center the view on the Iberian Peninsula and the Balearic Islands",
@@ -3614,7 +3640,7 @@ registerLang("en", "English", {
   "Rueda: distancia · Mayús+rueda: altura · arrastrar: desplazar": "Wheel: distance · Shift+wheel: height · drag: pan",
   "Puntos de la capa": "Points of the layer",
   "Añadir desde una dirección": "Add from an address",
-  "Dirección de un archivo KML, KMZ, GPX, JSON/GeoJSON, TopoJSON, de un shapefile comprimido (.zip) o de una carpeta exportada (.kite.json). Se descarga primero y se añade después, cuando vea qué ha llegado.": "Address of a KML, KMZ, GPX, JSON/GeoJSON, TopoJSON file, of a compressed shapefile (.zip) or of an exported folder (.kite.json). It is downloaded first and added afterwards, once you have seen what arrived.",
+  "Dirección de un archivo KML, KMZ, GPX, JSON/GeoJSON, TopoJSON, de un shapefile comprimido (.zip), de una carpeta exportada (.kite.json) o de un servicio de mapas ArcGIS (…/MapServer). Se descarga primero y se añade después, cuando vea qué ha llegado.": "Address of a KML, KMZ, GPX, JSON/GeoJSON or TopoJSON file, of a zipped shapefile (.zip), of an exported folder (.kite.json) or of an ArcGIS map service (…/MapServer). It is downloaded first and added afterwards, once you see what has arrived.",
   "Añadir al árbol": "Add to tree",
   "Forma": "Shape",
   "Anillos concéntricos": "Concentric rings",
@@ -4981,7 +5007,7 @@ map.on("resize rotate", fitWorldMinZoom);
 
 /* Fecha de generación del código (versión): AÑOMESDIAHORAMINUTO.
    Actualizar en cada generación; se muestra junto al crédito de Leaflet. */
-const BUILD = "202610301746";
+const BUILD = "202610302228";
 /* Versión de release (la de package.json, horneada aquí por build.js
    al construir — ver «Versión y releases de GitHub» en CLAUDE.md): a
    diferencia de BUILD, que cambia en CADA generación, esta solo cambia
@@ -5817,16 +5843,19 @@ function tileFailureReason(status, contentType, body) {
   return reason.length > TILE_REASON_MAX ? reason.slice(0, TILE_REASON_MAX) + "\u2026" : reason;
 }
 
-async function diagnoseTile(st, url) {
+/* `reasonOf` es quien interpreta lo que contestó el servidor (WMS por
+   defecto; un servicio ArcGIS trae el suyo): la misma comprobación, otro
+   formato de error.                                                    */
+async function diagnoseTile(name, url, reasonOf = tileFailureReason) {
   let reason;       /* undefined = no se pudo averiguar */
   try {
     const r = await fetch(url, { signal: AbortSignal.timeout(TILE_DIAG_TIMEOUT) });
     const type = r.headers.get("content-type") || "";
     /* Las imágenes no se leen como texto: solo interesa saber que llegaron */
     const body = /^image\//i.test(type) ? "" : (await r.text()).slice(0, 20000);
-    reason = tileFailureReason(r.status, type, body);
+    reason = reasonOf(r.status, type, body);
   } catch { /* red, CORS o tiempo: se avisa sin motivo */ }
-  const name = `\u00AB${st.def.name}\u00BB`;
+  name = `\u00AB${name}\u00BB`;
   if (reason === undefined) {
     navMessage(tr("{name}: una tesela no se pudo cargar (contorno rojo) y no se pudo averiguar el motivo: {why}.",
       { name, why: netFailText(tr("el servidor no responde o no admite consultas desde el navegador (CORS)")) }));
@@ -5842,7 +5871,7 @@ function flagTileError(st, e) {
   const key = st.wmsLayer || "";
   if (st.tileNoticed.has(key)) return;
   st.tileNoticed.add(key);
-  diagnoseTile(st, e.tile.src);
+  diagnoseTile(st.def.name, e.tile.src);
 }
 
 /* ---------- PNOA histórico (WMS del IGN) ----------
@@ -6689,7 +6718,8 @@ function toggleOne(li) {
 /* Nombre legible del tipo, para poder explicar por qué algo se queda
    fuera de una selección                                              */
 const KIND_LABEL = { marker: tr("marcadores"), polygon: tr("pol\u00EDgonos"), measure: tr("mediciones"),
-  elevGrid: tr("cuadr\u00EDculas de elevaci\u00F3n"), imageOverlay: tr("ortofotos"), cog: tr("ortofotos COG") };
+  elevGrid: tr("cuadr\u00EDculas de elevaci\u00F3n"), imageOverlay: tr("ortofotos"), cog: tr("ortofotos COG"),
+  arcgis: tr("servicios ArcGIS"), arcgisLayer: tr("capas de servicios ArcGIS") };
 
 /* Selecciona de una vez todas las capas de la rama que cuelga de un
    contenedor. Como solo pueden convivir capas del mismo tipo en la
@@ -6810,6 +6840,26 @@ function topLevelSelection() {
   return out;
 }
 
+/* Lo que se puede mover, copiar o borrar: la selección sin las filas
+   `_fixed` (las capas de un servicio ArcGIS, que son el catálogo del
+   servidor y solo viajan con su servicio). Se AVISA si había alguna: que
+   Supr no haga nada sin decir por qué parecería un fallo.             */
+function movableSelection() {
+  const all = topLevelSelection();
+  const out = all.filter(li => !li._fixed);
+  if (out.length < all.length) {
+    navMessage(tr("Las capas de un servicio de mapas van con su servicio: no se mueven, copian ni borran por separado."), { tone: "info" });
+  }
+  return out;
+}
+/* La fila del servicio ArcGIS a la que pertenece una fila (ella misma, o
+   de la que cuelgan sus capas); null si no es de ninguno. Nada se suelta
+   ni se pega DENTRO de un servicio: va a continuación de él.          */
+function arcgisServiceOf(li) {
+  for (let p = li; p && p !== treeEl; p = p.parentElement) if (p._arcgis) return p;
+  return null;
+}
+
 /* Where the cursor should land after deleting `items` (the top-level
    nodes about to be removed — a single row, or topLevelSelection()):
    the next surviving row after `anchor`, skipping anything that IS one
@@ -6843,7 +6893,7 @@ function extendBounds(bounds, l) {
 function extendBoundsFromRecords(bounds, records) {
   for (const rec of records) {
     if (rec.children) extendBoundsFromRecords(bounds, rec.children);
-    else extendBounds(bounds, rec._layer);
+    if (!rec.children || rec._layer) extendBounds(bounds, rec._layer); /* un servicio ArcGIS: contenedor con capa propia */
   }
 }
 function subtreeBounds(li) {
@@ -7067,7 +7117,7 @@ function focusOnNode(li) {
   const b = subtreeBounds(li);
   if (!b.isValid()) { navMessage(tr("Esta capa no tiene geometr\u00EDa que enfocar.")); return; }
   const kind = styleKind(li);
-  if (kind === "polygon" || kind === "measure" || kind === "elevGrid" || kind === "cog") fitBoundsFramed(b);
+  if (kind === "polygon" || kind === "measure" || kind === "elevGrid" || kind === "cog" || kind === "arcgis") fitBoundsFramed(b);
   else map.setView(b.getCenter(), FOCUS_ZOOM);
 }
 
@@ -7195,6 +7245,10 @@ function applyContainerState(li) {
   chk.indeterminate = indeterminate;
   /* Un lector de pantalla espera "mixed", no una casilla a medias */
   li.setAttribute("aria-checked", indeterminate ? "mixed" : String(checked));
+  /* Un contenedor con capa propia (un servicio ArcGIS) está en el mapa
+     mientras alguna de las suyas esté activa: si no, apagar la última
+     dejaría la imagen del servidor puesta sin ninguna capa pedida.   */
+  if (chk._layer) applyVisibility(chk);
   return true;
 }
 
@@ -7302,7 +7356,9 @@ async function cascadeVisibility(li, checked) {
         rec.checked = checked;
         rec._state = checked ? "on" : "off"; /* la rama queda uniforme */
         if (rec.children) { if (!(await walkRecords(rec.children))) return false; }
-        else setLayerVisible(rec._layer, checked);
+        /* Un contenedor con capa propia (un servicio ArcGIS) la enciende
+           también: no basta con sus hijos, que no tienen capa.         */
+        if (!rec.children || rec._layer) setLayerVisible(rec._layer, checked);
         if (!(await yieldMaybe())) return false;
       }
       return true;
@@ -7414,13 +7470,20 @@ function scheduleReorder() {
    Crea la fila completa (caret, checkbox, color, etiqueta y acciones
    de renombrar / subir / bajar / borrar) para cualquier tipo de nodo:
    archivo, carpeta, capa (placemark / feature) o medición.            */
+/* `sortable` decide los botones de carpeta (☑ ☐ AZ ⊟ ▦): un servicio
+   ArcGIS es un contenedor con capa propia que no los quiere. `fixed` es
+   una fila que refleja un catálogo ajeno (una capa de un servicio): ni se
+   mueve, ni se borra, ni se renombra por separado. `extra` son botones
+   propios de ese tipo de fila ({ glyph, title, cls, fn }).             */
 function makeNode({ name, layer = null, isFolder = false, isFile = false,
                     style = null, checked = true, desc = null,
                     onDelete = null, onRename = null,
-                    styleable = layer !== null, focusable = styleable }) {
+                    styleable = layer !== null, focusable = styleable,
+                    sortable = isFolder || isFile, fixed = false, extra = [] }) {
   const li = document.createElement("li");
   if (isFile) li.className = "file";
   li._name = name;
+  li._fixed = fixed;
   li._isContainer = isFolder || isFile; /* evita un querySelector redundante en serializeNode */
   li._cascadeGen = 0; /* ver cascadeVisibility */
   li._cascadeActive = 0; /* ver beginCascadeFeedback/endCascadeFeedback */
@@ -7508,7 +7571,7 @@ function makeNode({ name, layer = null, isFolder = false, isFile = false,
   label.title = name;
   row.appendChild(label);
 
-  row.appendChild(makeActions(li, isFolder || isFile, styleable, layer, focusable));
+  row.appendChild(makeActions(li, sortable, styleable, layer, focusable, { fixed, extra }));
 
   /* Shift+click toggles multi-selection without touching the checkbox.
      Only same-kind nodes can be selected together (marker layers with
@@ -7562,7 +7625,7 @@ function makeNode({ name, layer = null, isFolder = false, isFile = false,
     li.appendChild(ul);
   }
 
-  wireDrag(li, row);
+  if (!fixed) wireDrag(li, row);
 
   /* Click en la capa dentro del visor → resaltarla en la navegación.
      Al pasar el ratón, el panel de información (Ficha KML o properties
@@ -7666,7 +7729,7 @@ function makeCaret(li) {
    rename, move up/down and delete */
 /* `focusable`: lleva la lupa 🔍 aunque no tenga diálogo de propiedades
    (una cuadrícula de elevación se encuadra, pero no tiene estilos).  */
-function makeActions(li, sortable, styleable, layer, focusable = styleable) {
+function makeActions(li, sortable, styleable, layer, focusable = styleable, { fixed = false, extra = [] } = {}) {
   const box = document.createElement("span");
   box.className = "actions";
   const btn = (glyph, title, cls, fn) => {
@@ -7703,6 +7766,8 @@ function makeActions(li, sortable, styleable, layer, focusable = styleable) {
     btn("\u2139", tr("Ver informaci\u00F3n de la capa"), "info-btn", () => showLayerInfo(li));
     box.lastChild.hidden = !hasInfo(li, layer);
   }
+  for (const x of extra) btn(x.glyph, x.title, x.cls || "", x.fn);
+  if (fixed) return box;
   btn("\u2191", tr("Subir"), "", () => {
     const prev = li.previousElementSibling;
     if (prev) { li.parentElement.insertBefore(li, prev); scheduleSave(); }
@@ -7715,7 +7780,7 @@ function makeActions(li, sortable, styleable, layer, focusable = styleable) {
     pushUndo(tr("borrar \u00AB{name}\u00BB", { name: li._name }));
     /* si el nodo forma parte de la selección, se borra toda la selección */
     if (selection.has(li) && selection.size > 1) {
-      const items = topLevelSelection();
+      const items = movableSelection();
       const next = cursorAfterDelete(isRow(selCursor) ? selCursor : items[0], items);
       for (const s of items) deleteNode(s, { pruneSelection: false });
       clearSelection();
@@ -7769,6 +7834,7 @@ function setNodeName(li, name) {
 
 /* Renombrado en línea: la etiqueta se sustituye por un input */
 function startRename(li) {
+  if (li._fixed) return; /* el nombre de la capa de un servicio es el del servidor */
   const label = li.querySelector(":scope > .node-row > label");
   const input = document.createElement("input");
   input.type = "text";
@@ -7805,6 +7871,8 @@ function startRename(li) {
    ningún checkbox.                                                    */
 function removeRecordsFromMap(records) {
   for (const rec of records) {
+    /* Un contenedor con capa propia (un servicio ArcGIS) la quita también */
+    if (rec.children && rec._layer) rootGroup.removeLayer(rec._layer);
     if (rec.children) { removeRecordsFromMap(rec.children); continue; }
     if (rec._layer) rootGroup.removeLayer(rec._layer);
     if (rec.t === "elevGrid") forgetElevGridGroup(rec._layer); /* el onDelete que habría tenido */
@@ -7918,7 +7986,7 @@ document.addEventListener("pointermove", e => {
     if (Math.hypot(e.clientX - dragPress.x, e.clientY - dragPress.y) < DRAG_THRESHOLD_PX) return;
     /* Arrastrar un nodo seleccionado arrastra toda la selección;
        arrastrar uno no seleccionado la descarta y lo lleva solo.    */
-    if (selection.has(dragPress.li)) dragItems = topLevelSelection();
+    if (selection.has(dragPress.li)) dragItems = movableSelection();
     else { clearSelection(); dragItems = [dragPress.li]; }
     dragLi = dragPress.li;
     treeEl.classList.add("dragging");
@@ -7994,6 +8062,8 @@ document.addEventListener("pointerup", async e => {
 
 /* No se puede soltar un nodo dentro de sí mismo ni de su propia rama */
 function validDrop(li) {
+  /* Ni dentro de un servicio ArcGIS ni entre sus capas: su contenido es el del servidor */
+  if (li._fixed) return false;
   return dragItems && dragItems.every(item => item !== li && !item.contains(li));
 }
 
@@ -8012,7 +8082,7 @@ function dropZone(row, li, clientY) {
   const edge = Math.min(6, r.height / 3);
   if (y < edge) return "drop-before";
   if (y > r.height - edge) return "drop-after";
-  return nodeUl(li) ? "drop-into" : (y < r.height / 2 ? "drop-before" : "drop-after");
+  return nodeUl(li) && !li._arcgis ? "drop-into" : (y < r.height / 2 ? "drop-before" : "drop-after");
 }
 /* La marca de destino la lleva UNA fila cada vez. Barrer el árbol entero
    en cada `dragover` —que se dispara decenas de veces por segundo—
@@ -8359,7 +8429,7 @@ const DB_VERSION = 5;  /* esquema de la base: almacenes "tree", "rasters" y
                           el usuario: un "root" v8 con todo en línea se
                           sigue leyendo tal cual, sin transformar nada, y
                           el primer guardado lo reparte.                 */
-const TREE_SCHEMA = 8; /* formato del árbol serializado. Subir solo cuando
+const TREE_SCHEMA = 9; /* formato del árbol serializado. Subir solo cuando
                           cambie el formato; un árbol guardado con otra
                           versión se descarta al leer.
                           v2: los nodos de capa admiten `mstyle` (estilo de
@@ -8401,7 +8471,17 @@ const TREE_SCHEMA = 8; /* formato del árbol serializado. Subir solo cuando
                           válido (solo se añade un tipo), así que se lee
                           tal cual (dbLoadTree, importTreeExport). Se sube
                           igualmente para que una instancia ANTERIOR
-                          rechace un árbol que traiga el tipo nuevo. */
+                          rechace un árbol que traiga el tipo nuevo.
+                          v9: nuevos tipos de nodo "arcgis" (un servicio
+                          ArcGIS MapServer: su dirección, extent, opacidad
+                          y las capas del catálogo) y "arcgisLayer" (cada
+                          capa, hija de su servicio; ver 66-arcgis.js).
+                          CUARTA excepción deliberada, misma forma que la
+                          v8: un árbol v8 (y el v7 que ya se leía) se lee
+                          tal cual porque solo se AÑADEN tipos, y se sube
+                          para que una instancia anterior rechace un árbol
+                          con servicios en vez de leer un "arcgis" con
+                          hijos como una carpeta y estropearlo. */
 const DB_TREE = "tree";
 const DB_RASTERS = "rasters";
 const DB_SEGMENTS = "segments";
@@ -9470,8 +9550,9 @@ async function dbLoadTree() {
        las otras dos.                                                  */
     rqVals.onsuccess = () => {
       const segs = new Map(keys.map((k, i) => [k, rqVals.result[i]]));
-      /* v7 se lee tal cual: ya es un v8 válido (ver TREE_SCHEMA v8) */
-      if (rec && (rec.v === TREE_SCHEMA || rec.v === 7)) nodes = rec.nodes;
+      /* v8 y v7 se leen tal cual: ya son un v9 válido, solo se han ido
+         añadiendo tipos de nodo (ver TREE_SCHEMA v8 y v9)             */
+      if (rec && (rec.v === TREE_SCHEMA || rec.v === 8 || rec.v === 7)) nodes = rec.nodes;
       /* Excepción deliberada (ver TREE_SCHEMA v7): un árbol v6 no se
          descarta, se sube en silencio. scheduleSave() lo dejará ya en
          v7 en cuanto el árbol restaurado sufra cualquier mutación.  */
@@ -9543,6 +9624,23 @@ function serializeNode(li) {
     const c = li._cog;
     return [{ ...base, t: "cog", rasterId: c.rasterId, box: c.box, opacity: c.opacity }];
   }
+  /* Un servicio ArcGIS y sus capas son contenedores con forma propia: van
+     ANTES de la rama de carpeta, que los guardaría como una carpeta más. */
+  if (li._arcgisLayer) {
+    const rec = { ...base, t: "arcgisLayer", id: li._arcgisLayer.id };
+    if (li._arcgisLayer.data) rec.data = true;
+    if (li._isContainer) {
+      rec.collapsed = li.classList.contains("collapsed");
+      rec.children = li._pending ? serializePendingRecords(li._pending) : serializeNodes(nodeUl(li));
+    }
+    return [rec];
+  }
+  if (li._arcgis) {
+    const a = li._arcgis;
+    return [{ ...base, t: "arcgis", collapsed: li.classList.contains("collapsed"), url: a.url,
+              opacity: a.opacity, tile: a.tile, extent: a.extent, attribution: a.attribution,
+              children: li._pending ? serializePendingRecords(li._pending) : serializeNodes(nodeUl(li)) }];
+  }
   /* li._isContainer evita este querySelector en toda capa hoja (la
      inmensa mayoría de los nodos de un árbol grande): solo carpetas y
      archivos pueden tener un <ul class="node-list"> de verdad.       */
@@ -9607,6 +9705,19 @@ function serializePendingRecords(records) {
     if (rec.t === "cog") {
       return { name: rec.name, checked: rec.checked, t: "cog",
                 rasterId: rec.rasterId, box: rec.box, opacity: rec.opacity };
+    }
+    /* Explícitos: lo que no se reconozca cae en el último caso, el de
+       una ortofoto de KMZ, y un servicio saldría estropeado.          */
+    if (rec.t === "arcgis") {
+      return { name: rec.name, checked: rec.checked, t: "arcgis", collapsed: rec.collapsed, url: rec.url,
+                opacity: rec.opacity, tile: rec.tile, extent: rec.extent, attribution: rec.attribution,
+                children: serializePendingRecords(rec.children) };
+    }
+    if (rec.t === "arcgisLayer") {
+      const out = { name: rec.name, checked: rec.checked, t: "arcgisLayer", id: rec.id };
+      if (rec.data) out.data = true;
+      if (rec.children) { out.collapsed = rec.collapsed; out.children = serializePendingRecords(rec.children); }
+      return out;
     }
     /* rec.t === "imageOverlay" */
     return { name: rec.name, checked: rec.checked, t: "imageOverlay",
@@ -9716,7 +9827,7 @@ async function importTreeExport(doc, fileName, insertBefore, dropTargetUl = null
      un .kite.json exportado por una v6 se sube en silencio en vez de
      rechazarse.                                                      */
   if (doc.schema === 6) upgradeMeasuresV6(doc.nodes);
-  else if (doc.schema !== TREE_SCHEMA && doc.schema !== 7) { /* v7 = v8 sin COG */
+  else if (doc.schema !== TREE_SCHEMA && doc.schema !== 8 && doc.schema !== 7) { /* v8 = v9 sin servicios ArcGIS; v7 = v8 sin COG */
     throw new Error(tr("formato de \u00E1rbol v{schema}, incompatible con el actual v{treeSchema}", { schema: doc.schema, treeSchema: TREE_SCHEMA }));
   }
   if (!doc.nodes.length) throw new Error(tr("el archivo no contiene ning\u00FAn nodo"));
@@ -9727,12 +9838,16 @@ async function importTreeExport(doc, fileName, insertBefore, dropTargetUl = null
     done: 0,
     update: d => progress.set(100 * d / total, tr("Construyendo {fileName}\u2026 ({d}/{total})", { fileName, d, total }))
   } : null;
+  /* Lo que llega de un archivo ajeno no consulta ningún servidor sin que
+     el usuario lo encienda (ver buildArcgisRecord) */
+  const foreign = { hosts: new Set() };
   try {
-    const records = await buildRecordsFromStorage(doc.nodes, prog);
+    const records = await buildRecordsFromStorage(doc.nodes, prog, { foreign });
     await materializeRecords(records, ul);
   } finally {
     if (prog) progress.hide();
   }
+  arcgisForeignNotice(foreign);
   /* Honour the drop position: move whatever was just appended */
   if (insertBefore && insertBefore.parentElement === ul) {
     for (const li of [...ul.children]) {
@@ -9754,6 +9869,7 @@ const SAVE_MIN_MS = 400, SAVE_MAX_MS = 3000;
    mientras el usuario sigue navegando o escribiendo.                   */
 function scheduleSave() {
   scheduleReorder(); /* toda mutación del árbol también puede haber cambiado el orden de pintado */
+  scheduleArcgisSync(); /* y, de un servicio ArcGIS, qué capas pide al servidor (66-arcgis.js) */
   clearTimeout(saveTimer);
   const wait = Math.min(SAVE_MAX_MS, Math.max(SAVE_MIN_MS, saveCost * 4));
   saveTimer = setTimeout(saveTree, wait);
@@ -9883,10 +9999,17 @@ async function restoreTree(nodes) {
    su fila llega a materializarse, así que esto SIEMPRE recorre el
    árbol entero sin mirar `collapsed` — es materializeRecords quien
    decide cuánto DOM construir a partir de estos registros.        */
-async function buildRecordsFromStorage(nodes, prog) {
+async function buildRecordsFromStorage(nodes, prog, opts = {}) {
   const out = [];
   for (const n of nodes) {
-    if (n.t === "measure") {
+    if (n.t === "arcgis") {
+      /* Un servicio que no pasa la validación se descarta entero, como un COG */
+      const rec = buildArcgisRecord(n, opts);
+      if (rec) out.push(rec);
+    } else if (n.t === "arcgisLayer") {
+      /* Una capa de servicio solo existe dentro de su servicio (que las
+         construye él): una suelta, de un archivo manipulado, no es nada. */
+    } else if (n.t === "measure") {
       out.push(buildMeasureRecord(n));
     } else if (n.t === "elevGrid") {
       out.push(buildElevGridRecord(n));
@@ -9922,7 +10045,7 @@ async function buildRecordsFromStorage(nodes, prog) {
       wirePendingLayerEvents(rec);
       out.push(rec);
     } else {
-      const children = await buildRecordsFromStorage(n.children || [], prog);
+      const children = await buildRecordsFromStorage(n.children || [], prog, opts);
       out.push({ t: n.t, name: n.name, checked: !!n.checked, collapsed: !!n.collapsed, children });
     }
     if (prog && LEAF_RECORD_TYPES.has(n.t) && ++prog.done % PROGRESS_BATCH === 0) {
@@ -10024,6 +10147,8 @@ async function materializeRecords(records, parentUl) {
       rec._li = li;
       li._cog = { rasterId: rec.rasterId, box: rec.box, opacity: rec.opacity };
       parentUl.appendChild(li);
+    } else if (rec.t === "arcgis" || rec.t === "arcgisLayer") {
+      await materializeArcgisRecord(rec, parentUl);
     }
     if (++n % PROGRESS_BATCH === 0) await yieldFrame();
   }
@@ -10708,7 +10833,8 @@ function ecwHint(name) {
    archivos-sección y demás nodos con hijos, nunca para capas sueltas. */
 function folderDropTarget(e) {
   const li = e.target.closest ? e.target.closest("li[role=treeitem]") : null;
-  return li && nodeUl(li) ? li : null;
+  /* Un servicio ArcGIS y sus capas no reciben archivos: van a la raíz */
+  return li && nodeUl(li) && !li._arcgis && !li._fixed ? li : null;
 }
 
 /* Zona de arrastre: toda la ventana de navegación acepta archivos.
@@ -11255,7 +11381,9 @@ function recordFeatures(rec) {
 /* Lo que se exporta es el subárbol del nodo: si es un contenedor, sus
    hijos (el nodo mismo da el nombre del documento); si es una hoja, ella. */
 function exportRoot(records) {
-  if (records.length === 1 && Array.isArray(records[0].children)) {
+  /* Un servicio ArcGIS tiene hijos pero no es una carpeta: no se abre,
+     se deja fuera ENTERO (sus capas son un catálogo remoto, no datos). */
+  if (records.length === 1 && Array.isArray(records[0].children) && records[0].t !== "arcgis") {
     return { name: records[0].name, list: records[0].children };
   }
   return { name: records.length === 1 ? records[0].name : null, list: records };
@@ -11298,6 +11426,7 @@ function recordsToGeoJson(records) {
   const features = [], skipped = [];
   const walk = (recs, path) => {
     for (const rec of recs) {
+      if (rec.t === "arcgis") { skipped.push({ name: rec.name, t: rec.t }); continue; }
       if (Array.isArray(rec.children)) { walk(rec.children, [...path, rec.name]); continue; }
       const feats = recordFeatures(rec);
       if (!feats) { skipped.push({ name: rec.name, t: rec.t }); continue; }
@@ -11432,6 +11561,7 @@ function kmlPlacemark(rec, feats, ctx) {
 function kmlNodes(recs, ctx) {
   const out = [];
   for (const rec of recs) {
+    if (rec.t === "arcgis") { ctx.skipped.push({ name: rec.name, t: rec.t }); continue; }
     if (Array.isArray(rec.children)) {
       out.push(`<Folder><name>${xmlEsc(rec.name)}</name>${rec.checked ? "" : "<visibility>0</visibility>"}`
         + `${rec.collapsed ? "" : "<open>1</open>"}\n${kmlNodes(rec.children, ctx)}\n</Folder>`);
@@ -12021,7 +12151,10 @@ document.getElementById("place-close").addEventListener("click", () => {
    cursor. Returns the new <li>.                                        */
 async function createFolderNode(cur, name) {
   let ul, intoFolder = false;
-  if (cur && nodeUl(cur)) {
+  /* Nada va DENTRO de un servicio ArcGIS: la carpeta cuelga tras él */
+  const host = cur && arcgisServiceOf(cur);
+  if (host) cur = host;
+  if (cur && !host && nodeUl(cur)) {
     intoFolder = true;
     if (cur.classList.contains("collapsed")) {
       cur.classList.remove("collapsed");
@@ -12221,7 +12354,7 @@ function copyToSystemClipboard(all) {
 }
 
 function copySelection(cut) {
-  const picked = topLevelSelection();
+  const picked = movableSelection();
   if (!picked.length) { navMessage(tr("No hay nada seleccionado que copiar.")); return; }
   const nodes = picked.flatMap(serializeNode);
   clipboard = { nodes, cut: cut ? picked : [], move: cut };
@@ -12244,14 +12377,19 @@ let pasteFallback = null;
 async function pasteClipboard(foreign = null) {
   const source = foreign ? { nodes: foreign, cut: [], move: false } : clipboard;
   if (!source) { navMessage(tr("El portapapeles est\u00E1 vac\u00EDo.")); return; }
-  const cur = selCursor;
-  const intoFolder = cur && nodeUl(cur) && !cur.classList.contains("collapsed");
+  /* Lo pegado tampoco entra en un servicio ArcGIS: va a continuación de él */
+  const host = selCursor && arcgisServiceOf(selCursor);
+  const cur = host || selCursor;
+  const intoFolder = cur && !host && nodeUl(cur) && !cur.classList.contains("collapsed");
   const ul = intoFolder ? nodeUl(cur) : (cur ? cur.parentElement : ensureRootUl());
   pushUndo(tr("pegar"));
   const before = new Set(ul.children);
   try {
-    const records = await buildRecordsFromStorage(source.nodes, null);
+    /* Un servicio ArcGIS que llega de otra pestaña entra apagado */
+    const foreignInfo = foreign ? { hosts: new Set() } : null;
+    const records = await buildRecordsFromStorage(source.nodes, null, foreignInfo ? { foreign: foreignInfo } : {});
     await materializeRecords(records, ul);
+    if (foreignInfo) arcgisForeignNotice(foreignInfo);
   } catch (err) {
     navMessage(tr("No se pudo pegar: {message}", { message: err.message }));
     return;
@@ -12270,7 +12408,7 @@ async function pasteClipboard(foreign = null) {
 
 /* Alt+Intro: propiedades de lo seleccionado */
 function openPropertiesOfSelection() {
-  const picked = topLevelSelection().filter(n => !nodeUl(n));
+  const picked = topLevelSelection().filter(n => !nodeUl(n) && !n._fixed);
   if (!picked.length) { navMessage(tr("Seleccione una o varias capas para editar sus propiedades.")); return; }
   openStyleDialog(picked[0]);
 }
@@ -12476,7 +12614,8 @@ document.addEventListener("keydown", e => {
      52-measure.js: crear una ruta se comporta como editarla).          */
   if (activeTool === "polygon" && polyDraft) return;
   if (activeTool === "route" && (routeDraft || routeMeasurement)) return;
-  const items = topLevelSelection();
+  const items = movableSelection();
+  if (!items.length) return;
   const next = cursorAfterDelete(isRow(selCursor) ? selCursor : items[0], items);
   pushUndo(tr("borrar {n} nodo(s)", { n: items.length }));
   for (const s of items) deleteNode(s, { pruneSelection: false });
@@ -12852,6 +12991,8 @@ function styleKind(li) {
   else if (li._elevGrid) kind = "elevGrid";
   else if (li._imageOverlay) kind = "imageOverlay";
   else if (li._cog) kind = "cog";
+  else if (li._arcgis) kind = "arcgis";
+  else if (li._arcgisLayer) kind = "arcgisLayer";
   else kind = layerKind(nodeLayer(li));
   li._kind = kind;
   return kind;
@@ -15225,7 +15366,8 @@ const urlAddBtn = document.getElementById("url-add");
 
 let urlAbort = null;   /* descarga en vuelo, para poder cancelarla     */
 let urlSeq = 0;        /* descarta respuestas superadas, como placeSeq */
-let urlReady = null;   /* el borrador: { file, kind, size } o null     */
+let urlReady = null;   /* el borrador: { file, kind, size } —o, de un servicio
+                          ArcGIS, { arcgis: { cat, base }, kind, size }— o null */
 
 /* Un único punto que mueve TODOS los controles: nadie toca `disabled`
    ni `hidden` por su cuenta, que es como se acaba con un botón activo
@@ -15286,16 +15428,16 @@ function openUrlDialog() {
    contesta, y convertiría en fallo lo que ahora funciona; y las cookies
    del usuario no tienen nada que hacer en una descarga hacia un tercero.
    Es justo el cambio «inocente» que alguien haría más adelante.      */
-async function fetchRemoteFile(url, signal, onBytes) {
+async function fetchRemoteFile(url, signal, onBytes, max = URL_MAX_BYTES) {
   const resp = await fetch(url, { signal, credentials: "omit", redirect: "follow" });
   if (!resp.ok) throw new Error(tr("No se pudo descargar: {why}.", { why: describeHttp(resp.status) }));
 
   /* Lo que el servidor DICE que ocupa, antes de traerse nada: es la
      comprobación barata y evita empezar una descarga condenada.      */
   const declarado = Number(resp.headers.get("content-length"));
-  if (Number.isFinite(declarado) && declarado > URL_MAX_BYTES) {
+  if (Number.isFinite(declarado) && declarado > max) {
     throw new Error(tr("El archivo ocupa {size} y supera el tope de {max}.",
-      { size: fmtBytes(declarado), max: fmtBytes(URL_MAX_BYTES) }));
+      { size: fmtBytes(declarado), max: fmtBytes(max) }));
   }
 
   /* Y lo que ocupa DE VERDAD, mientras llega: content-length puede
@@ -15304,9 +15446,9 @@ async function fetchRemoteFile(url, signal, onBytes) {
      diciendo cuánto lleva descargado.                                */
   if (!resp.body || !resp.body.getReader) {
     const buf = await resp.arrayBuffer();
-    if (buf.byteLength > URL_MAX_BYTES) {
+    if (buf.byteLength > max) {
       throw new Error(tr("La descarga ocupa {size} y supera el tope de {max}.",
-        { size: fmtBytes(buf.byteLength), max: fmtBytes(URL_MAX_BYTES) }));
+        { size: fmtBytes(buf.byteLength), max: fmtBytes(max) }));
     }
     return new Uint8Array(buf);
   }
@@ -15317,10 +15459,10 @@ async function fetchRemoteFile(url, signal, onBytes) {
     const { done, value } = await reader.read();
     if (done) break;
     total += value.length;
-    if (total > URL_MAX_BYTES) {
+    if (total > max) {
       reader.cancel();
       throw new Error(tr("La descarga ya supera el tope de {max} y se ha interrumpido.",
-        { max: fmtBytes(URL_MAX_BYTES) }));
+        { max: fmtBytes(max) }));
     }
     trozos.push(value);
     if (onBytes) onBytes(total);
@@ -15355,6 +15497,15 @@ async function runUrlFetch() {
     return;
   }
 
+  /* Un servicio ArcGIS (…/MapServer) no es un archivo: se lee su catálogo
+     (`?f=json`) y pasa a ser un nodo con una fila por capa. */
+  const svc = arcgisServiceBase(url);
+  if (svc && svc.error) {
+    setUrlState("error", svc.error === "https"
+      ? tr("La dirección de un servicio de mapas debe empezar por https://.")
+      : tr("La dirección lleva usuario y contraseña, que no se admiten."), true);
+    return;
+  }
   abortUrlFetch("reemplazada");
   urlReady = null;
   const seq = ++urlSeq;
@@ -15362,10 +15513,22 @@ async function runUrlFetch() {
   const timer = setTimeout(() => ctrl.abort("timeout"), URL_TIMEOUT);
   setUrlState("descargando", tr("Descargando…"));
   try {
-    const bytes = await fetchRemoteFile(url, ctrl.signal,
-      n => { if (seq === urlSeq) setUrlState("descargando", tr("Descargando… {size}", { size: fmtBytes(n) })); });
+    const bytes = await fetchRemoteFile(svc ? svc.base + "?f=json" : url, ctrl.signal,
+      n => { if (seq === urlSeq) setUrlState("descargando", tr("Descargando… {size}", { size: fmtBytes(n) })); },
+      svc ? ARCGIS_JSON_MAX : URL_MAX_BYTES);
     if (seq !== urlSeq) return; /* superada o cancelada: no pinta nada */
     if (!bytes.length) { setUrlState("error", tr("La descarga ha llegado vacía (0 bytes)."), true); return; }
+    if (svc) {
+      let cat;
+      try { cat = parseArcgisCatalog(JSON.parse(new TextDecoder("utf-8").decode(bytes))); }
+      catch { cat = { error: tr("la respuesta no es la de un servicio de mapas ArcGIS") }; }
+      if (cat.error) { setUrlState("error", tr("El servicio no se puede usar: {why}.", { why: cat.error }), true); return; }
+      urlReady = { arcgis: { cat, base: svc.base }, kind: "arcgis", size: bytes.length };
+      setUrlState("listo", tr("Servicio de mapas ArcGIS «{name}»: {n} capa(s), {data} con datos que se pueden traer. "
+        + "Pulse «Añadir al árbol» para insertarlo.", { name: arcgisServiceName(svc.base), n: cat.count, data: cat.dataCount }));
+      urlAddBtn.focus();
+      return;
+    }
 
     /* Los bytes primero (un zip no se decodifica), el texto después */
     let texto = "";
@@ -15404,7 +15567,12 @@ async function runUrlFetch() {
        causa más frecuente es que el servidor no mande cabeceras CORS,
        así que el mensaje lo dice y ofrece la salida que siempre
        funciona en vez de dejar al usuario mirando «Failed to fetch». */
-    const msg = err instanceof TypeError && isOffline()
+    const msg = svc && err instanceof TypeError
+      ? (isOffline() ? tr("No hay conexión a la red: no se puede consultar el servicio ahora.")
+        : tr("No se ha podido conectar con el servicio. Lo más probable es que no autorice consultas "
+          + "desde otra página (CORS); el navegador no da más detalle. También puede ser que la "
+          + "dirección no exista o que no haya conexión."))
+      : err instanceof TypeError && isOffline()
       ? tr("No hay conexión a la red: no se puede descargar ahora. Si tiene el archivo en el "
         + "equipo, arrástrelo al recuadro.")
       : err instanceof TypeError
@@ -15436,6 +15604,13 @@ urlFetchBtn.addEventListener("click", () => {
 });
 urlAddBtn.addEventListener("click", async () => {
   if (!urlReady) return;
+  if (urlReady.arcgis) {
+    const { cat, base } = urlReady.arcgis;
+    closeUrlDialog();
+    try { await addArcgisServiceNode(cat, base); }
+    catch (err) { navMessage(tr("No se pudo añadir el servicio: {message}", { message: err.message })); }
+    return;
+  }
   const { file } = urlReady;
   /* Se cierra ANTES de importar: la importación abre sus propios
      modales (etiquetas HTML, propiedad-nombre, duplicados) y no deben
@@ -15920,9 +16095,9 @@ function renderStyleAttrs() {
 /* `focus: false` cuando lo abre un clic en el VISOR (la ruta que se
    está creando): el foco se queda en el mapa, o sus teclas (desplazar,
    zoom, R) dejarían de llegar a mitad del dibujo.                   */
-/* El estado editable de una ortofoto, de KMZ o COG: las dos solo
-   tienen opacidad, y el diálogo las trata igual.                     */
-const rasterState = t => t._imageOverlay || t._cog || null;
+/* El estado editable de una ortofoto, de KMZ o COG, o de un servicio
+   ArcGIS: solo tienen opacidad, y el diálogo las trata igual.        */
+const rasterState = t => t._imageOverlay || t._cog || t._arcgis || null;
 
 function openStyleDialog(li, { isNew = false, focus = true } = {}) {
   /* The dialog is not modal, so another row's button may be pressed while
@@ -15933,7 +16108,7 @@ function openStyleDialog(li, { isNew = false, focus = true } = {}) {
      que hay algo debajo: se cierra antes de mostrar el de edición.    */
   hideLayerInfo();
   const kind = styleKind(li);
-  if (kind !== "marker" && kind !== "polygon" && kind !== "measure" && kind !== "imageOverlay" && kind !== "cog") {
+  if (kind !== "marker" && kind !== "polygon" && kind !== "measure" && kind !== "imageOverlay" && kind !== "cog" && kind !== "arcgis") {
     navMessage(tr("Esta capa no tiene estilos editables."));
     return;
   }
@@ -15958,8 +16133,8 @@ function openStyleDialog(li, { isNew = false, focus = true } = {}) {
   $id("style-marker").hidden = kind !== "marker";
   $id("style-polygon").hidden = kind !== "polygon";
   $id("style-measure").hidden = kind !== "measure";
-  /* Una ortofoto de KMZ y una COG solo tienen opacidad: misma sección */
-  $id("style-imageoverlay").hidden = kind !== "imageOverlay" && kind !== "cog";
+  /* Una ortofoto de KMZ, una COG y un servicio ArcGIS solo tienen opacidad: misma sección */
+  $id("style-imageoverlay").hidden = kind !== "imageOverlay" && kind !== "cog" && kind !== "arcgis";
   const single = styleTargets.length === 1;
   styleMixed = new Set();
   styleTouched = new Set();
@@ -18809,7 +18984,7 @@ function collectAttrRows(root) {
       if (ul) for (const child of ul.children) fromLi(child);
       return;
     }
-    if (li._measure || li._elevGrid || li._imageOverlay || li._cog) return;
+    if (li._measure || li._elevGrid || li._imageOverlay || li._cog || li._arcgis || li._arcgisLayer) return;
     rows.push({ name: li._name, props: layerProperties(nodeLayer(li)), li });
   };
   fromLi(root);
@@ -23922,6 +24097,472 @@ async function queryCadastralParcelAt(latlng) {
     syncCadastreBusy();
   }
 }
+/* ---------- Servicios ArcGIS (MapServer) ----------
+   A service the user pastes in the 🔗 dialog becomes ONE tree node with a
+   child row per layer of the service. The node owns a single tile layer
+   whose tiles are `/export` images of just the layers whose checkbox is
+   on (`layers=show:…`), so the server draws symbols and labels itself.
+
+   Why our own TileLayer and not esri-leaflet's DynamicMapLayer: that one
+   asks for a single image of the whole view (map.getBounds/getSize),
+   which does not know about the rotated map (08-map-rotation.js), the
+   tile error handling of the base maps, or `bounds`; an `L.TileLayer`
+   whose URL is a bbox in EPSG:3857 gets all of that for free, exactly as
+   `L.tileLayer.wms` does.
+
+   Everything above `ArcgisLayer` is pure and tested in Node
+   (tests/arcgistest.js). Nothing here touches the DOM at load time.   */
+
+const ARCGIS_MAX_LAYERS = 2000;   /* a hostile catalogue must not build a million rows */
+const ARCGIS_MAX_DEPTH = 10;
+const ARCGIS_MAX_ID = 2147483647;  /* layer ids are 32-bit signed integers on the server */
+const ARCGIS_ATTRIBUTION_MAX = 200;
+const ARCGIS_NAME_MAX = 300;
+const ARCGIS_JSON_MAX = 5 * 1024 * 1024; /* the catalogue of a real service is ~10 KB */
+const ARCGIS_REASON_MAX = 200;
+const ARCGIS_MERCATOR_R = 6378137;
+const ARCGIS_MAX_LAT = 85.05112878;       /* the same edge as WORLD_BOUNDS */
+/* Spatial reference ids that mean Web Mercator (the old ESRI ones included) */
+const ARCGIS_MERCATOR_WKIDS = new Set([3857, 102100, 900913, 102113]);
+const ARCGIS_GEOGRAPHIC_WKIDS = new Set([4326, 4258]);
+/* What may follow `/MapServer` in a pasted address and still be "the
+   service": a layer number or one of its own operations. `query` is NOT
+   here: someone pasting a /query?f=geojson address wants that file, which
+   the normal download path handles.                                    */
+const ARCGIS_SERVICE_TAILS = new Set(["export", "exportimage", "identify", "find", "legend", "layers"]);
+
+/* Base address of a MapServer from whatever was pasted: the page of the
+   service, its `?f=json`, a layer, an /export request… Query string and
+   anchor are dropped on purpose: a `?token=` must never be stored or
+   exported. Returns { base }, { error } (the address is a MapServer but
+   cannot be used) or null (not a MapServer: the caller carries on with
+   the normal download).                                                */
+function arcgisServiceBase(text) {
+  let u;
+  try { u = new URL(String(text).trim()); } catch { return null; }
+  const m = /^(\/.*?\/rest\/services\/.+?\/MapServer)(\/.*)?$/i.exec(u.pathname);
+  if (!m) return null;
+  const tail = (m[2] || "").split("/").filter(Boolean);
+  if (tail.some(s => s.toLowerCase() === "query")) return null;
+  if (tail.length > 1) return null;
+  if (tail.length === 1 && !/^\d+$/.test(tail[0]) && !ARCGIS_SERVICE_TAILS.has(tail[0].toLowerCase())) return null;
+  if (u.protocol !== "https:") return { error: "https" };
+  if (u.username || u.password) return { error: "credentials" };
+  return { base: u.origin + m[1] };
+}
+
+/* Name of the node: the last segment before /MapServer. `mapName` in the
+   JSON is usually the generic "Layers".                                */
+function arcgisServiceName(base) {
+  const m = /\/([^/]+)\/MapServer$/i.exec(base);
+  let name = m ? m[1] : "";
+  try { name = decodeURIComponent(name); } catch { /* keep it as it came */ }
+  return name || "MapServer";
+}
+
+/* `{ error: { code, message, details } }` is how ArcGIS reports a failure,
+   usually with HTTP 200 — the same trap as an OGC exception in a 200.   */
+function arcgisErrorText(err) {
+  if (!err || typeof err !== "object") return tr("el servicio devolvió un error sin explicación");
+  const code = Number(err.code);
+  if (code === 498 || code === 499) return tr("el servicio exige una credencial (token), que KITE no admite");
+  const parts = [];
+  if (typeof err.message === "string" && err.message) parts.push(err.message);
+  if (Array.isArray(err.details)) for (const d of err.details) if (typeof d === "string" && d) parts.push(d);
+  let text = parts.join(": ") || tr("el servicio devolvió un error sin explicación");
+  if (Number.isFinite(code)) text += " (" + code + ")";
+  return text.length > ARCGIS_REASON_MAX ? text.slice(0, ARCGIS_REASON_MAX) + "…" : text;
+}
+
+/* Why a tile came back wrong, in one line; null when it is an image. Pure,
+   fed with what `fetch` read. Like tileFailureReason but for ArcGIS.    */
+function arcgisTileReason(status, contentType, body) {
+  if (status >= 200 && status < 300 && /^image\//i.test(contentType)) return null;
+  try {
+    const j = JSON.parse(body);
+    if (j && j.error) return arcgisErrorText(j.error);
+  } catch { /* not JSON: HTTP status below */ }
+  if (status < 200 || status >= 300) return describeHttp(status);
+  return tr("respuesta {type} en vez de una imagen", { type: contentType.split(";")[0].trim() || tr("sin tipo") });
+}
+
+/* fullExtent → [south, west, north, east] in degrees, or null when the
+   reference system is not one we can convert without a library.         */
+function arcgisExtent4326(ext) {
+  if (!ext || typeof ext !== "object") return null;
+  const sr = ext.spatialReference || {};
+  const wkid = Number(sr.latestWkid || sr.wkid);
+  const x0 = Number(ext.xmin), y0 = Number(ext.ymin), x1 = Number(ext.xmax), y1 = Number(ext.ymax);
+  if (![x0, y0, x1, y1].every(Number.isFinite)) return null;
+  let w, s, e, n;
+  if (ARCGIS_MERCATOR_WKIDS.has(wkid)) {
+    const lon = x => x / ARCGIS_MERCATOR_R * 180 / Math.PI;
+    const lat = y => (2 * Math.atan(Math.exp(y / ARCGIS_MERCATOR_R)) - Math.PI / 2) * 180 / Math.PI;
+    w = lon(x0); e = lon(x1); s = lat(y0); n = lat(y1);
+  } else if (ARCGIS_GEOGRAPHIC_WKIDS.has(wkid)) {
+    w = x0; e = x1; s = y0; n = y1;
+  } else return null;
+  const clamp = (v, lim) => Math.max(-lim, Math.min(lim, v));
+  w = clamp(w, 180); e = clamp(e, 180); s = clamp(s, ARCGIS_MAX_LAT); n = clamp(n, ARCGIS_MAX_LAT);
+  return s < n && w < e ? [s, w, n, e] : null;
+}
+
+/* The catalogue (`<service>?f=json`) → what the node needs. The layers
+   keep the order the server publishes (it is the table of contents, and
+   ids are NOT contiguous); `tables` are ignored. A layer is on at the
+   start when it and every ancestor are `defaultVisibility`. Returns
+   { error } or { layers, hasQuery, extent, tile, attribution, count, dataCount }. */
+function parseArcgisCatalog(json) {
+  if (!json || typeof json !== "object") return { error: tr("la respuesta no es la de un servicio de mapas ArcGIS") };
+  if (json.error) return { error: arcgisErrorText(json.error) };
+  if (!Array.isArray(json.layers)) return { error: tr("la respuesta no es la de un servicio de mapas ArcGIS") };
+  if (typeof json.capabilities === "string" && !/\bMap\b/i.test(json.capabilities)) {
+    return { error: tr("el servicio no dibuja mapas (solo admite: {caps})", { caps: json.capabilities.slice(0, 60) }) };
+  }
+  const hasQuery = typeof json.capabilities === "string" && /\bQuery\b/i.test(json.capabilities);
+  const entries = new Map();
+  for (const l of json.layers) {
+    if (!l || typeof l !== "object" || !Number.isInteger(l.id) || l.id < 0 || l.id > ARCGIS_MAX_ID) continue;
+    if (entries.has(l.id)) continue;
+    entries.set(l.id, l);
+  }
+  if (!entries.size) return { error: tr("el servicio no publica ninguna capa") };
+  if (entries.size > ARCGIS_MAX_LAYERS) {
+    return { error: tr("el servicio publica demasiadas capas ({n}; el máximo es {max})", { n: entries.size, max: ARCGIS_MAX_LAYERS }) };
+  }
+  /* Parent of each layer, only when it exists and the chain up does not
+     loop back (a cycle would otherwise hang the recursion below).      */
+  const parentOf = new Map();
+  for (const [id, l] of entries) {
+    const p = l.parentLayerId;
+    if (!Number.isInteger(p) || p === id || !entries.has(p)) continue;
+    let up = p, hops = 0, loops = false;
+    while (up !== undefined && hops++ <= entries.size) {
+      if (up === id) { loops = true; break; }
+      const next = entries.get(up).parentLayerId;
+      up = Number.isInteger(next) && entries.has(next) ? next : undefined;
+    }
+    if (!loops && hops <= entries.size) parentOf.set(id, p);
+  }
+  const kids = new Map();
+  for (const id of entries.keys()) {
+    const p = parentOf.has(id) ? parentOf.get(id) : -1;
+    if (!kids.has(p)) kids.set(p, []);
+    kids.get(p).push(id);
+  }
+  let dataCount = 0;
+  const build = (id, depth, parentOn) => {
+    const l = entries.get(id);
+    const on = parentOn && l.defaultVisibility === true;
+    const node = { id, name: String(l.name == null ? id : l.name).slice(0, ARCGIS_NAME_MAX), checked: on };
+    const sub = depth < ARCGIS_MAX_DEPTH ? (kids.get(id) || []) : [];
+    if (sub.length) {
+      node.children = sub.map(k => build(k, depth + 1, on));
+      node.checked = node.children.every(c => c.checked);
+    } else if (hasQuery && l.type === "Feature Layer") {
+      node.data = true;
+      dataCount++;
+    }
+    return node;
+  };
+  const layers = (kids.get(-1) || []).map(id => build(id, 1, true));
+  const w = Number(json.maxImageWidth), h = Number(json.maxImageHeight);
+  const small = (Number.isFinite(w) && w > 0 && w < 512) || (Number.isFinite(h) && h > 0 && h < 512);
+  const attribution = typeof json.copyrightText === "string" ? json.copyrightText.trim().slice(0, ARCGIS_ATTRIBUTION_MAX) : "";
+  return { layers, hasQuery, extent: arcgisExtent4326(json.fullExtent), tile: small ? 256 : 512,
+           attribution, count: entries.size, dataCount };
+}
+
+/* The tree record of a service just added (`base` from arcgisServiceBase) */
+function arcgisCatalogRecord(cat, base) {
+  const toRec = n => {
+    const r = { t: "arcgisLayer", name: n.name, checked: n.checked, id: n.id };
+    if (n.data) r.data = true;
+    if (n.children) { r.children = n.children.map(toRec); r.collapsed = false; }
+    return r;
+  };
+  return { t: "arcgis", name: arcgisServiceName(base), checked: true, collapsed: false, url: base,
+           opacity: 1, tile: cat.tile, extent: cat.extent, attribution: cat.attribution,
+           children: cat.layers.map(toRec) };
+}
+
+/* A saved or imported record is hostile input (principle 5): returns a
+   clean copy or null. The address must be exactly what arcgisServiceBase
+   would give for it (https, no credentials, no query: a stored token
+   would travel in every .kite.json). A bad layer is dropped, a bad
+   service is dropped whole, as buildCogRecord does.                   */
+function sanitizeArcgisRecord(n) {
+  if (!n || typeof n !== "object" || n.t !== "arcgis" || typeof n.url !== "string") return null;
+  const parsed = arcgisServiceBase(n.url);
+  if (!parsed || !parsed.base || parsed.base !== n.url) return null;
+  const seen = new Set();
+  let total = 0;
+  const clean = (list, depth) => {
+    const out = [];
+    if (!Array.isArray(list) || depth > ARCGIS_MAX_DEPTH) return out;
+    for (const c of list) {
+      if (total >= ARCGIS_MAX_LAYERS) break;
+      if (!c || typeof c !== "object" || c.t !== "arcgisLayer") continue;
+      if (!Number.isInteger(c.id) || c.id < 0 || c.id > ARCGIS_MAX_ID || seen.has(c.id)) continue;
+      seen.add(c.id);
+      total++;
+      const r = { t: "arcgisLayer", name: String(c.name == null ? c.id : c.name).slice(0, ARCGIS_NAME_MAX),
+                  checked: !!c.checked, id: c.id };
+      if (c.data === true) r.data = true;
+      const sub = clean(c.children, depth + 1);
+      if (sub.length) { r.children = sub; r.collapsed = !!c.collapsed; delete r.data; }
+      out.push(r);
+    }
+    return out;
+  };
+  const children = clean(n.children, 1);
+  if (!children.length) return null;
+  const opacity = Number.isFinite(n.opacity) && n.opacity >= 0 && n.opacity <= 1 ? n.opacity : 1;
+  const e = n.extent;
+  const extent = Array.isArray(e) && e.length === 4 && e.every(Number.isFinite)
+    && e[0] < e[2] && e[1] < e[3] && e[0] >= -90 && e[2] <= 90 && e[1] >= -180 && e[3] <= 180
+    ? e.slice() : null;
+  return { t: "arcgis", name: String(n.name == null ? arcgisServiceName(n.url) : n.name).slice(0, ARCGIS_NAME_MAX),
+           checked: !!n.checked, collapsed: !!n.collapsed, url: n.url, opacity,
+           tile: n.tile === 256 ? 256 : 512, extent,
+           attribution: typeof n.attribution === "string" ? n.attribution.slice(0, ARCGIS_ATTRIBUTION_MAX) : "",
+           children };
+}
+
+/* Ids for `layers=show:` — only the LEAVES that are on, in catalogue
+   order. A group id is never sent: how `show:` treats groups differs
+   between server versions, while the leaves are exact. Works on records
+   (serialized rows or pending ones), so both ends feed it.            */
+function arcgisShowIds(children) {
+  const ids = [];
+  const walk = list => {
+    for (const c of list || []) {
+      if (c.children && c.children.length) walk(c.children);
+      else if (c.checked) ids.push(c.id);
+    }
+  };
+  walk(children);
+  return ids;
+}
+
+/* Box of tile (x, y) at zoom z in EPSG:3857 metres, for tiles of T CSS
+   pixels. Leaflet's world is 256·2^z pixels wide at zoom z whatever the
+   tile size, so a 512 px tile needs no zoomOffset: it just covers twice
+   the ground of a 256 px one.                                           */
+function tileBbox3857(x, y, z, T) {
+  const half = Math.PI * ARCGIS_MERCATOR_R;
+  const res = 2 * half / (256 * Math.pow(2, z));
+  const xmin = -half + x * T * res, ymax = half - y * T * res;
+  return [xmin, ymax - T * res, xmin + T * res, ymax];
+}
+
+/* `/export` of the visible layers. Fixed precision keeps the URL stable
+   (the browser cache can answer a repeated tile).                      */
+function arcgisExportUrl(base, bbox, px, dpi, ids) {
+  const num = v => String(Number(v.toFixed(3)));
+  return base + "/export?bbox=" + bbox.map(num).join(",") + "&bboxSR=3857&imageSR=3857&size=" + px + "," + px
+    + "&dpi=" + dpi + "&format=png32&transparent=true&layers=show:" + ids.join(",") + "&f=image";
+}
+
+/* ---------- La capa de teselas ---------- */
+const ARCGIS_REDRAW_MS = 300;
+/* Una tesela vacía (GIF de 1×1 transparente) para cuando no hay ninguna
+   capa activa: más barato que una petición al servidor.               */
+const ARCGIS_BLANK = "data:image/gif;base64,R0lGODlhAQABAAAAACH5BAEKAAEALAAAAAABAAEAAAICTAEAOw==";
+
+/* Los servicios que están en el mapa (para sincronizar sus `show:`) */
+const arcgisLayersOnMap = new Set();
+
+/* Ids de lo marcado AHORA. Con la fila construida se lee de ella (la
+   casilla acaba de cambiar); sin fila (un servicio dentro de una carpeta
+   nunca desplegada) de sus registros, que la cascada mantiene al día.  */
+function arcgisLayerIds(layer) {
+  const li = layer._li;
+  const children = li && li.isConnected ? serializeNode(li)[0].children : layer._rec.children;
+  return arcgisShowIds(children);
+}
+
+const ArcgisLayer = L.TileLayer.extend({
+  initialize(rec) {
+    /* HiDPI: más píxeles y más dpi en la misma tesela, para que los
+       rótulos del servidor no salgan borrosos. Con tope de 2 (cuatro
+       veces los píxeles) y sin pasar de lo que el servidor admite.    */
+    this._scale = Math.max(1, Math.min(2, Math.round(window.devicePixelRatio || 1)));
+    if (rec.tile * this._scale > 4096) this._scale = 1;
+    this._base = rec.url;
+    this._rec = rec;
+    this._ids = [];
+    this._errors = 0;
+    this._extent = rec.extent ? L.latLngBounds([rec.extent[0], rec.extent[1]], [rec.extent[2], rec.extent[3]]) : null;
+    /* Fuera de la caja del servicio no hay nada que pedir: ahorra
+       peticiones y, sobre todo, las teselas que el mapa girado pide
+       fuera del mundo (ver confineTilesToWorld). Un 10% de margen para
+       que un rótulo que asoma por el borde no se corte.               */
+    let bounds = WORLD_BOUNDS;
+    if (rec.extent) {
+      const dLat = (rec.extent[2] - rec.extent[0]) * 0.1, dLng = (rec.extent[3] - rec.extent[1]) * 0.1;
+      bounds = L.latLngBounds(
+        [Math.max(WORLD_BOUNDS.getSouth(), rec.extent[0] - dLat), Math.max(-180, rec.extent[1] - dLng)],
+        [Math.min(WORLD_BOUNDS.getNorth(), rec.extent[2] + dLat), Math.min(180, rec.extent[3] + dLng)]);
+    }
+    /* El texto del servidor es entrada ajena y Leaflet pinta la atribución como HTML */
+    L.TileLayer.prototype.initialize.call(this, "", {
+      pane: COG_PANE, tileSize: rec.tile, opacity: rec.opacity, noWrap: true, keepBuffer: 1,
+      updateWhenZooming: false, maxZoom: MAX_ZOOM, bounds, attribution: escapeHtml(rec.attribution || "")
+    });
+    this.on("tileerror", e => this._onTileError(e));
+    this.on("tileload", () => this._onTileOk());
+  },
+  getTileUrl(coords) {
+    if (!this._ids.length) return ARCGIS_BLANK;
+    const T = this.options.tileSize;
+    return arcgisExportUrl(this._base, tileBbox3857(coords.x, coords.y, coords.z, T),
+      T * this._scale, 96 * this._scale, this._ids);
+  },
+  onAdd(m) {
+    /* Los ids se fijan ANTES de que se pida ninguna tesela */
+    this._ids = arcgisLayerIds(this);
+    L.TileLayer.prototype.onAdd.call(this, m);
+    arcgisLayersOnMap.add(this);
+  },
+  onRemove(m) {
+    arcgisLayersOnMap.delete(this);
+    clearTimeout(this._redrawTimer);
+    L.TileLayer.prototype.onRemove.call(this, m);
+  },
+  /* Lo piden el encuadre de 🔍 y la caja de un rootGroup */
+  getBounds() { return this._extent || L.latLngBounds([]); },
+  /* Si lo marcado cambió, se redibuja — una sola vez aunque se pulsen
+     varias casillas seguidas: cada redibujado son decenas de peticiones. */
+  syncIds() {
+    const ids = arcgisLayerIds(this);
+    if (ids.join() === this._ids.join()) return;
+    this._ids = ids;
+    clearTimeout(this._redrawTimer);
+    this._redrawTimer = setTimeout(() => { if (this._map) this.redraw(); }, ARCGIS_REDRAW_MS);
+  },
+  _name() { return this._li ? this._li._name : this._rec.name; },
+  _markFailed(on) {
+    this._failed = on;
+    if (this._li && this._li._row) this._li._row.classList.toggle("service-failed", on);
+  },
+  /* Un servicio que no entrega teselas debe verse, no fallar en
+     silencio: contorno rojo en la tesela, el motivo del servidor la
+     primera vez, y la fila en rojo tras BASE_FAIL_TILES seguidas.     */
+  _onTileError(e) {
+    e.tile.classList.add("tile-error");
+    if (!this._noticed) {
+      this._noticed = true;
+      diagnoseTile(this._name(), e.tile.src, arcgisTileReason);
+    }
+    if (++this._errors >= BASE_FAIL_TILES && !this._failed) {
+      this._markFailed(true);
+      navMessage(tr("El servicio «{name}» no responde; puede que haya cambiado.", { name: this._name() }));
+    }
+  },
+  _onTileOk() {
+    this._errors = 0;
+    if (this._failed) this._markFailed(false);
+  }
+});
+
+/* Leaflet no reintenta solo al volver la red: se redibujan los caídos */
+window.addEventListener("online", () => {
+  for (const layer of arcgisLayersOnMap) if (layer._failed && layer._map) layer.redraw();
+});
+
+/* scheduleSave() lo llama en cada mutación del árbol (como scheduleReorder):
+   marcar o desmarcar una capa cambia el `show:` del servicio. Con ningún
+   servicio en el mapa no cuesta nada.                                  */
+let arcgisSyncFrame = 0;
+function scheduleArcgisSync() {
+  if (!arcgisLayersOnMap.size || arcgisSyncFrame) return;
+  arcgisSyncFrame = requestAnimationFrame(() => {
+    arcgisSyncFrame = 0;
+    for (const layer of arcgisLayersOnMap) layer.syncIds();
+  });
+}
+
+/* ---------- Registros y filas ---------- */
+
+/* Registro de un nodo "arcgis" desde lo guardado, o null si no vale.
+   `opts.foreign` (un archivo o una pestaña ajenos): el servicio y todas
+   sus capas llegan APAGADOS. Abrir el archivo de otro no debe contactar
+   un servidor que eligió él —cada tesela lleva la IP del usuario— hasta
+   que el usuario lo encienda.                                         */
+function buildArcgisRecord(n, opts = {}) {
+  const rec = sanitizeArcgisRecord(n);
+  if (!rec) return null;
+  if (opts.foreign) {
+    const off = list => { for (const c of list) { c.checked = false; if (c.children) off(c.children); } };
+    rec.checked = false;
+    off(rec.children);
+    opts.foreign.hosts.add(new URL(rec.url).host);
+  }
+  const layer = new ArcgisLayer(rec);
+  rec._layer = layer;
+  if (rec.checked) layer.addTo(rootGroup);
+  return rec;
+}
+
+function arcgisForeignNotice(foreign) {
+  if (!foreign || !foreign.hosts.size) return;
+  navMessage(tr("Los servicios de mapas llegan apagados: enciéndalos para consultar {hosts}.",
+    { hosts: [...foreign.hosts].join(", ") }), { tone: "info" });
+}
+
+/* Fila de un servicio o de una de sus capas (lo llama materializeRecords) */
+async function materializeArcgisRecord(rec, parentUl) {
+  const isService = rec.t === "arcgis";
+  const isGroup = !!rec.children;
+  const li = isService
+    ? makeNode({ name: rec.name, layer: rec._layer, isFolder: true, sortable: false,
+                 styleable: true, focusable: true, checked: !!rec.checked })
+    : makeNode({ name: rec.name, isFolder: isGroup, sortable: false, styleable: false,
+                 focusable: false, fixed: true, checked: !!rec.checked });
+  rec._li = li;
+  /* Antes de nada más: styleKind guarda su resultado en la primera consulta */
+  if (isService) {
+    li._arcgis = { url: rec.url, extent: rec.extent, attribution: rec.attribution,
+                   opacity: rec.opacity, tile: rec.tile };
+    li.classList.add("arcgis-service");
+  } else {
+    li._arcgisLayer = { id: rec.id, data: !!rec.data };
+  }
+  if (isGroup) {
+    if (rec.collapsed) li.classList.add("collapsed");
+    syncExpanded(li);
+  }
+  parentUl.appendChild(li);
+  if (!isGroup) return;
+  if (rec.collapsed) {
+    li._pending = rec.children;
+    applyContainerState(li);
+  } else {
+    await materializeRecords(rec.children, nodeUl(li));
+  }
+}
+
+/* El servicio recién leído del diálogo 🔗 pasa a ser un nodo del árbol,
+   en la sección «Servicios de mapas». No toca la vista: para llegar
+   está 🔍.                                                            */
+async function addArcgisServiceNode(cat, base) {
+  const rec = buildArcgisRecord(arcgisCatalogRecord(cat, base));
+  if (!rec) throw new Error(tr("el servicio no tiene ninguna capa que se pueda mostrar"));
+  pushUndo(tr("añadir servicio ArcGIS"));
+  const ul = ensureNamedSection(tr("Servicios de mapas"));
+  const section = ul.parentElement;
+  await ensureMaterialized(section);
+  section.classList.remove("collapsed");
+  syncExpanded(section);
+  await materializeRecords([rec], ul);
+  refreshAncestorChecks(rec._li);
+  scheduleSave();
+  const shown = arcgisShowIds(rec.children).length;
+  navMessage(tr("Servicio «{name}» añadido: {n} capa(s), {shown} visible(s). Marque las que quiera ver.",
+    { name: rec.name, n: cat.count, shown }), { tone: "info" });
+  return rec._li;
+}
 /* ================= Controles de vista del visor ================= */
 
 let gratButton = null;
@@ -24816,7 +25457,7 @@ function showLayerInfoAndBlink(li) { showLayerInfo(li); blinkLayer(li); }
 function editPropertiesAndBlink(li) { openStyleDialog(li); blinkLayer(li); }
 /* Mismo criterio que usa openStyleDialog para rechazar una capa sin
    estilos editables (carpetas, cuadrículas de elevación…).            */
-const STYLE_EDITABLE_KINDS = new Set(["marker", "polygon", "measure", "imageOverlay", "cog"]);
+const STYLE_EDITABLE_KINDS = new Set(["marker", "polygon", "measure", "imageOverlay", "cog", "arcgis"]);
 
 /* Ítems de UNA capa: ir al nodo, mostrar propiedades si tiene algo que
    enseñar (igual criterio que el botón ℹ de la fila), y editar

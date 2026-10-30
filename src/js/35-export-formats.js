@@ -71,7 +71,9 @@ function recordFeatures(rec) {
 /* Lo que se exporta es el subárbol del nodo: si es un contenedor, sus
    hijos (el nodo mismo da el nombre del documento); si es una hoja, ella. */
 function exportRoot(records) {
-  if (records.length === 1 && Array.isArray(records[0].children)) {
+  /* Un servicio ArcGIS tiene hijos pero no es una carpeta: no se abre,
+     se deja fuera ENTERO (sus capas son un catálogo remoto, no datos). */
+  if (records.length === 1 && Array.isArray(records[0].children) && records[0].t !== "arcgis") {
     return { name: records[0].name, list: records[0].children };
   }
   return { name: records.length === 1 ? records[0].name : null, list: records };
@@ -114,6 +116,7 @@ function recordsToGeoJson(records) {
   const features = [], skipped = [];
   const walk = (recs, path) => {
     for (const rec of recs) {
+      if (rec.t === "arcgis") { skipped.push({ name: rec.name, t: rec.t }); continue; }
       if (Array.isArray(rec.children)) { walk(rec.children, [...path, rec.name]); continue; }
       const feats = recordFeatures(rec);
       if (!feats) { skipped.push({ name: rec.name, t: rec.t }); continue; }
@@ -248,6 +251,7 @@ function kmlPlacemark(rec, feats, ctx) {
 function kmlNodes(recs, ctx) {
   const out = [];
   for (const rec of recs) {
+    if (rec.t === "arcgis") { ctx.skipped.push({ name: rec.name, t: rec.t }); continue; }
     if (Array.isArray(rec.children)) {
       out.push(`<Folder><name>${xmlEsc(rec.name)}</name>${rec.checked ? "" : "<visibility>0</visibility>"}`
         + `${rec.collapsed ? "" : "<open>1</open>"}\n${kmlNodes(rec.children, ctx)}\n</Folder>`);
