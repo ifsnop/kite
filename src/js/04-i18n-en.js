@@ -104,7 +104,7 @@ registerLang("en", "English", {
   "Ordenar alfabéticamente (alterna ascendente/descendente)": "Sort alphabetically (toggles ascending/descending)",
   "ordenar «{name}»": "sort “{name}”",
   "Colapsar esta carpeta y las interiores": "Collapse this folder and the ones inside it",
-  "Guardar esta carpeta en un archivo para volver a cargarla después": "Save this folder to a file to load it again later",
+  "Guardar o exportar a un archivo (KITE, KML o GeoJSON)": "Save or export to a file (KITE, KML or GeoJSON)",
   "Centrar la vista aquí y acercar (zoom {zoom})": "Center the view here and zoom in (zoom {zoom})",
   "Editar propiedades": "Edit properties",
   "Ver información de la capa": "Show layer information",
@@ -196,6 +196,13 @@ registerLang("en", "English", {
   "No se pudo cargar «{name}» (shapefile, {size}): {message}": "Could not load “{name}” (shapefile, {size}): {message}",
   "el zip no contiene ningún .kml ni .shp": "the zip contains no .kml or .shp",
   "«{zipName}»: «{name}» no tiene su .shp dentro del zip.": "“{zipName}”: “{name}” has no .shp inside the zip.",
+  /* 35-export-formats.js */
+  "{names} se quedan fuera de {format}: solo se exportan capas y mediciones.": { one: "{names} is left out of {format}: only layers and measurements are exported.", other: "{names} are left out of {format}: only layers and measurements are exported." },
+  "No hay nada que exportar a {format} en este nodo.": "There is nothing to export to {format} in this node.",
+  "Guardar o exportar": "Save or export",
+  "Archivo de KITE (.kite.json)": "KITE file (.kite.json)",
+  "KML (.kml)": "KML (.kml)",
+  "GeoJSON (.geojson)": "GeoJSON (.geojson)",
   /* 40-panel-actions.js */
   "Lugares": "Places",
   "la dirección no existe (HTTP 404)": "the address does not exist (HTTP 404)",

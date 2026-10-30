@@ -41,6 +41,12 @@ paths:
     librería `shapefile`, reproyecta con proj4 desde el `.prj` y entrega
     un FeatureCollection a `addFileNode` (que acepta el objeto, no solo
     texto). Ver `import-parsing.md`.
+2c. **Exportar a KML y GeoJSON** (`35-export-formats.js`, tras la
+    importación): registros serializados → texto, PURO y probado en Node
+    (`tests/exportformats.js`), más el minimenú de 💾. Usa `arcPoints` y
+    `normalizePathStyle`, de archivos posteriores, solo en tiempo de
+    ejecución. Ver `tree-navigation-selection.md`, «Exportar e importar
+    carpetas».
 3. **Árbol de navegación**: `makeNode(...)` es la fábrica ÚNICA de
    filas (caret, checkbox, color, etiqueta, acciones). Toda fila nueva
    se crea con ella. Utilidades: `nodeUl`, `deleteNode`,

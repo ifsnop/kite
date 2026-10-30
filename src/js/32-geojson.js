@@ -1475,15 +1475,21 @@ function exportNode(li) {
   }
   if (!nodes.length) { navMessage(tr("No hay nada que descargar en este nodo.")); return; }
   const doc = treeExportDoc(nodes);
-  const url = URL.createObjectURL(new Blob([JSON.stringify(doc)], { type: "application/json" }));
+  downloadBlob(new Blob([JSON.stringify(doc)], { type: "application/json" }), safeFileName(li._name) + EXPORT_EXT);
+}
+
+/* Todas las descargas de la aplicación (.kite.json, KML, GeoJSON, PNG…)
+   pasan por aquí: la limpieza del blob y el aviso son los mismos.     */
+function downloadBlob(blob, fileName) {
+  const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
   a.href = url;
-  a.download = safeFileName(li._name) + EXPORT_EXT;
+  a.download = fileName;
   a.click();
   /* Algunos navegadores leen el blob después de volver de click():
      revocarlo en el acto cancela la descarga. Se libera más tarde.  */
   setTimeout(() => URL.revokeObjectURL(url), 60000);
-  navMessage(tr("Descargado \u00AB{download}\u00BB.", { download: a.download }), { tone: "info" }); /* confirma lo pedido: notificación, no alerta */
+  navMessage(tr("Descargado \u00AB{download}\u00BB.", { download: fileName }), { tone: "info" }); /* confirma lo pedido: notificación, no alerta */
 }
 
 /* Quita los nodos "cog" de unos registros serializados, a cualquier

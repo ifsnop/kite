@@ -182,6 +182,12 @@
       "version": "1.11.0",
       "build": "202610300013"
     },
+    "menu-exportar.png": {
+      "sha256": "37273a8cf1bf57d9697cedcf24457473aff192a2eea81aa82f2315c15e985c6a",
+      "section": "7.6",
+      "version": "1.11.0",
+      "build": "202610300021"
+    },
     "menu-ruta-perfil.png": {
       "sha256": "8494e0848137589ce2c68ec5d1c8d2cc2c4749218989184f3f69066472e61951",
       "section": "7.9",

@@ -104,7 +104,6 @@ que no, y por qué:
 | 3.5 Mover capas | gesto de arrastre; la marca de destino no se aprecia en una imagen fija |
 | 4.5 Teclado y rueda | gestos sin efecto visual propio |
 | 7.4 Personalizar un marcador | remite a los diálogos del apartado 6.1 |
-| 7.6 Guardar una carpeta | el botón 💾 se ve en la figura de las filas |
 | 7.7 Deshacer y rehacer | sin elemento visual propio |
 | 9 Qué se guarda y dónde | solo texto |
 

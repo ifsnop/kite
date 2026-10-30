@@ -630,6 +630,16 @@ ROTATION TESTS OK
 
 **Qué cubre:** Las piezas puras de la rotación del mapa (`08-map-rotation.js`, derivado de leaflet-rotate). `pointerAngleDeg` (ángulo del puntero desde el centro de la brújula con el convenio de rumbo: 0 arriba, sentido horario, nunca negativo) y `dragBearing` (el rumbo durante un arrastre es el de partida más lo que gira el puntero, no su ángulo absoluto —el mapa no salta al primer movimiento—, cruza el norte sin restar 340°, se normaliza a [0, 360) y es libre, sin pasos). `pivotDragBearing` (giro con el botón central: medio grado por píxel en horizontal, derecha = horario, cruza el norte sin negativos, libre). `clipSegmentToRect` (Liang–Barsky: recorte de una línea de la retícula al visor; el primer extremo devuelto es el del lado de `p0`, que es por donde se pone la etiqueta; fuera de la vista → null, incluida una vertical exterior). `clampRotatedDragOffset` (arrastre limitado al mundo con el mapa girado): a 0° coincide con el recorte por ejes de Leaflet, a 90° el tope es el del eje del MAPA y no el de la pantalla, y con la vista más grande que el mundo el centro se queda en medio. Del giro incorporado: `rotateXY` (horario en pantalla, alrededor del pivote, ida y vuelta exacta), `rotatedTransformCss` (posición ya girada + `rotate(…rad)`) y `enclosingBox` (un cuadrado girado 45° mide 100·√2 y queda centrado). Guardián: la versión de Leaflet fijada en el HTML es `LEAFLET_PATCHED` (el código parchea sus internos) y ningún `<script>` carga ya leaflet-rotate.
 
+### `exportformats.js`
+
+**Salida de `npm test`:**
+```
+── Exportar a KML y GeoJSON: registros a texto, estilos, altitud, mediciones, ida y vuelta por el importador y lo que se deja fuera
+EXPORT FORMATS TESTS OK
+```
+
+**Qué cubre:** `35-export-formats.js`, que trabaja sobre los registros serializados (`serializeNode`) y no sobre las filas. GeoJSON: una FeatureCollection plana con el nombre del nodo exportado, la carpeta de cada entidad en `properties.folder`, las `properties` originales intactas (un `name` distinto del original se desplaza a `name_orig` en vez de perderse), la ficha en `description`, el estilo en claves simplestyle que `geojsonStyle` lee de vuelta, la altitud conservada y toda geometría pasando `validGeometry`. Mediciones: una ruta es una LineString con su longitud, y un círculo un polígono geodésico de 120 lados cerrado cuyos vértices están a `r` del centro (±0,1 %). KML: XML bien formado, el nombre del documento y la ficha HTML escapados, `Folder` anidadas con `<visibility>0` y sin `<open>` si estaban colapsadas, los estilos iguales compartidos en un solo `Style`, colores `aabbggrr` (`cssToKmlColor`, deshechos por `kmlColor`), el estilo de línea y de polígono recuperado por el importador real (`placemarkStyle`), el agujero de un polígono recuperado por `parsePolygon`, coordenadas y altitud por `parseCoords`, varias geometrías de un nodo como una sola `MultiGeometry` y las `properties` en `ExtendedData`. Lo que no cabe en estos formatos (cuadrícula de elevación, ortofoto) se NOMBRA en `skipped` y su mensaje respeta singular, plural y el tope de cinco nombres. Entradas hostiles (geometría nula, NaN, ruta de un solo punto, `features` que no es una lista, carpeta vacía): no lanza y no inventa nada; y los caracteres de control no válidos en XML 1.0 se quitan.
+
 ### `view-keys.js`
 
 **Salida de `npm test`:**
@@ -1066,6 +1076,16 @@ BROWSER GEOCALC TESTS OK
 **Vector GPS:** parte en m / m / NM con las opciones de Propiedades; Madrid en A y Barcelona en B en GMS (`40° 25' 00.48" N`…) con altitudes 650 y 12, y el resultado YA está al abrir la pestaña, sin tocar nada, igual al cálculo hecho aquí en cartesianas (distancia, distancia horizontal y orientación); latitud y longitud en la misma línea (misma altura, longitud a la derecha); la unidad del resultado (mi, km) y las de las altitudes actúan al instante, y cambiar una altitud recalcula; el selector GMS/decimal convierte las cuatro coordenadas (`40.416800`…), no toca las altitudes, vuelve exactamente a lo de partida, deja un campo ilegible como está y normaliza uno legible escrito en el otro formato; GMS escrito a mano sin espacios; campo vacío = sin resultado ni aviso ni marcas; mismos lat/lon dan «no definida» y no 0°; latitud 95° avisa y marca el campo.
 
 **Ventana:** el resultado tiene el tamaño de letra de los campos (numéricos y de texto); la caja mide lo mismo vacía, con 2 líneas, con 3 (presión) y con aviso, en las dos pestañas. No es modal (el centro del mapa no queda tapado y no hay `.dlg-overlay`); se arrastra por el título y, ya arrastrada, la pestaña alta deja «Cerrar» a la vista (antes se salía de la pantalla); Escape y «Cerrar» la cierran; al reabrir conserva lo escrito y los resultados ya están calculados.
+
+### `browser/export-menu.mjs`
+
+**Salida de `npm test`:**
+```
+── Navegador: el menú de 💾 — se abre y se cierra (Escape, clic fuera, segunda pulsación), exporta KML, GeoJSON y .kite.json con descarga real, sin desplegar la carpeta, y el KML vuelve a importarse
+BROWSER EXPORT MENU TESTS OK
+```
+
+**Qué cubre:** el minimenú del botón 💾 con clics y descargas reales sobre «Operación Sierra». Ofrece exactamente «Archivo de KITE (.kite.json)», «KML (.kml)» y «GeoJSON (.geojson)»; se cierra con Escape (y ese Escape no llega al árbol), con un clic fuera y volviendo a pulsar 💾, y abrir el de otra fila sustituye al anterior en vez de apilarse. Las tres descargas llevan el nombre y la extensión debidos; el KML es XML bien formado con un `Placemark` por capa, el GeoJSON una FeatureCollection con el nombre del nodo y un polígono por entidad, y el `.kite.json` sigue siendo el envoltorio de siempre. Una rama que nadie ha desplegado (un `Document` sin `<open>`) se exporta con la altitud y su carpeta en `properties.folder` SIN construir ni una fila: se lee de los registros pendientes, como el guardado. El KML exportado vuelve a importarse con el importador real y trae sus tres capas, y una capa suelta también lleva 💾. Sin errores de página ni violaciones de la CSP.
 
 ### `browser/i18n.mjs`
 

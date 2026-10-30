@@ -633,6 +633,22 @@ scenario("copiar-origen.png", "7.5", async out => {
   await A.ctx.close(); await B.ctx.close();
 }, ["pegar-destino.png"]);
 
+/* ===== 7.6 Guardar o exportar ===== */
+scenario("menu-exportar.png", "7.6", async out => {
+  const { ctx, page } = await openApp();
+  await sierra(page, { expandSensores: true });
+  const r = await rowRect(page, "Zona A");
+  await page.mouse.move(r.x + r.width - 120, r.y + r.height / 2);
+  await page.waitForTimeout(200);
+  await onRow(page, "Zona A", li => li.querySelector(':scope > .node-row button[aria-label^="Guardar o exportar"]').click());
+  await page.waitForSelector(".ctx-menu:not(#map-ctxmenu)");
+  await stamps(page);
+  const m = await page.locator(".ctx-menu:not(#map-ctxmenu)").boundingBox();
+  const top = Math.max(0, r.y - 24);
+  await page.screenshot({ path: out, clip: clip(0, top, m.x + m.width + 12, m.y + m.height + 16 - top) });
+  await ctx.close();
+});
+
 /* ===== 7.8 Elevaciones ===== */
 const ignRoute = fake => page => page.route(IGN_ROUTE, fake.handler);
 const TERESA = [40.4153, -3.7038]; /* CL Paz 11, Madrid */
