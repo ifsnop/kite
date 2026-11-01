@@ -140,6 +140,16 @@ paths:
     `64-cog.js` y usa `withElevRetries` (`52`), `describeHttp` (`40`) y
     `makeNode`; el menú contextual (`70`) la llama solo en tiempo de
     ejecución. Ver `cadastre.md`.
+11e. **Servicios ArcGIS** (`66-arcgis.js`): un MapServer como nodo del
+    árbol (`arcgis`, con una fila `arcgisLayer` por capa). Lo puro
+    (`arcgisServiceBase`, `parseArcgisCatalog`, `sanitizeArcgisRecord`,
+    `arcgisShowIds`, `tileBbox3857`, `arcgisExportUrl`, errores) se prueba
+    en Node; `ArcgisLayer` (`L.TileLayer` en el pane de `64-cog.js`) y la
+    sincronización de `show:` (la llama `scheduleSave`, 32) dependen de
+    `COG_PANE`, `WORLD_BOUNDS`, `MAX_ZOOM` y `escapeHtml` (41), declarados
+    antes o usados solo en tiempo de ejecución. Va tras `65-cadastre.js`;
+    lo llaman archivos anteriores (30, 31, 32, 40, 44) solo en tiempo de
+    ejecución. Ver `arcgis.md`.
 12. **Controles de vista**: autoescala, ES/IC, retícula, coordenadas.
 13. **Arranque**: restauración del árbol guardado. Al final, para que
     todo esté definido.

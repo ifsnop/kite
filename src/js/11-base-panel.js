@@ -514,16 +514,19 @@ function tileFailureReason(status, contentType, body) {
   return reason.length > TILE_REASON_MAX ? reason.slice(0, TILE_REASON_MAX) + "\u2026" : reason;
 }
 
-async function diagnoseTile(st, url) {
+/* `reasonOf` es quien interpreta lo que contestó el servidor (WMS por
+   defecto; un servicio ArcGIS trae el suyo): la misma comprobación, otro
+   formato de error.                                                    */
+async function diagnoseTile(name, url, reasonOf = tileFailureReason) {
   let reason;       /* undefined = no se pudo averiguar */
   try {
     const r = await fetch(url, { signal: AbortSignal.timeout(TILE_DIAG_TIMEOUT) });
     const type = r.headers.get("content-type") || "";
     /* Las imágenes no se leen como texto: solo interesa saber que llegaron */
     const body = /^image\//i.test(type) ? "" : (await r.text()).slice(0, 20000);
-    reason = tileFailureReason(r.status, type, body);
+    reason = reasonOf(r.status, type, body);
   } catch { /* red, CORS o tiempo: se avisa sin motivo */ }
-  const name = `\u00AB${st.def.name}\u00BB`;
+  name = `\u00AB${name}\u00BB`;
   if (reason === undefined) {
     navMessage(tr("{name}: una tesela no se pudo cargar (contorno rojo) y no se pudo averiguar el motivo: {why}.",
       { name, why: netFailText(tr("el servidor no responde o no admite consultas desde el navegador (CORS)")) }));
@@ -539,7 +542,7 @@ function flagTileError(st, e) {
   const key = st.wmsLayer || "";
   if (st.tileNoticed.has(key)) return;
   st.tileNoticed.add(key);
-  diagnoseTile(st, e.tile.src);
+  diagnoseTile(st.def.name, e.tile.src);
 }
 
 /* ---------- PNOA histórico (WMS del IGN) ----------

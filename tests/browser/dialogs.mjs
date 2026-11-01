@@ -622,6 +622,74 @@ ok(Math.abs(trasRecargar - guardado) < 0.001,
   `y se restaura al recargar: ${guardado} → ${trasRecargar}`);
 await recargada.close();
 
+/* ---------- La × de TODO diálogo: misma posición, mismo tamaño y mismo efecto ----------
+   Regla (dialog-close-button.md): arriba a la derecha, igual que la de «Cálculos
+   geodésicos», y pulsarla equivale a Cancelar o, si no lo hay, a Cerrar. Se mide
+   en cada diálogo con la caja a la vista y se pulsa con un escuchador de CAPTURA
+   en el botón que debe recibir el clic (así no se ejecuta ni cierra nada).   */
+const cruces = await page.evaluate(() => {
+  const out = [];
+  const ids = [...document.querySelectorAll(".dlg-overlay, .dlg-float")].map(d => d.id);
+  const medir = id => {
+    const dlg = document.getElementById(id);
+    const estabaOculto = dlg.hidden;
+    dlg.hidden = false;
+    const box = dlg.querySelector(".dlg-box"), x = box.querySelector(".dlg-close");
+    let r = null;
+    if (x) {
+      box.scrollTop = 0;
+      const rb = box.getBoundingClientRect(), rx = x.getBoundingClientRect();
+      r = { derecha: Math.round(rb.right - rx.right), arriba: Math.round(rx.top - rb.top),
+        ancho: Math.round(rx.width), alto: Math.round(rx.height),
+        enCabecera: x.parentElement === box.querySelector("h2"), cuantas: box.querySelectorAll(".dlg-close").length,
+        fuente: getComputedStyle(x).fontSize + " " + getComputedStyle(x).fontFamily.split(",")[0],
+        cancel: x.dataset.cancel || null, titulo: x.title, aria: x.getAttribute("aria-label") };
+    }
+    dlg.hidden = estabaOculto;
+    return r;
+  };
+  for (const id of ids) out.push({ id, ...medir(id) });
+  return out;
+});
+const ref = cruces.find(c => c.id === "geocalc-dialog");
+ok(cruces.length >= 20 && ref && ref.derecha != null, "se han medido las × de los diálogos: " + cruces.length);
+for (const c of cruces) {
+  ok(c.derecha != null, `${c.id}: tiene su ×`);
+  if (c.derecha == null) continue;
+  ok(c.enCabecera && c.cuantas === 1, `${c.id}: UNA × y dentro de la cabecera`);
+  ok(Math.abs(c.derecha - ref.derecha) <= 1 && Math.abs(c.arriba - ref.arriba) <= 1,
+    `${c.id}: misma posición que la de geodésicos (${c.derecha},${c.arriba} frente a ${ref.derecha},${ref.arriba})`);
+  ok(c.ancho === ref.ancho && c.alto === ref.alto && c.fuente === ref.fuente,
+    `${c.id}: mismo tamaño y tipo (${c.ancho}×${c.alto} ${c.fuente} frente a ${ref.ancho}×${ref.alto} ${ref.fuente})`);
+  ok(c.titulo && c.aria, `${c.id}: con title y aria-label (${c.titulo})`);
+}
+/* Cancelar o Cerrar, según lo que tenga el diálogo */
+const CIERRE = { "mobile-notice": "Cerrar", "log-dialog": "Cerrar", "url-dialog": "Cerrar", "attr-dialog": "Cerrar", "desc-dialog": "Cerrar" };
+for (const c of cruces.filter(c => c.cancel)) {
+  ok(c.titulo === (CIERRE[c.id] || "Cancelar"), `${c.id}: la × se llama «${CIERRE[c.id] || "Cancelar"}»: ${c.titulo}`);
+}
+/* Pulsarla pulsa el botón que dice: el clic llega a ESE botón y a ninguno más */
+const efecto = await page.evaluate(() => {
+  const out = {};
+  for (const x of document.querySelectorAll(".dlg-close[data-cancel]")) {
+    const dlg = x.closest(".dlg-overlay, .dlg-float");
+    const destino = document.getElementById(x.dataset.cancel);
+    const otros = [...dlg.querySelectorAll(".dlg-actions button")].filter(b => b !== destino);
+    let pulsados = [];
+    const alto = e => { e.stopImmediatePropagation(); e.preventDefault(); pulsados.push(e.currentTarget.id); };
+    for (const b of [destino, ...otros]) b.addEventListener("click", alto, { capture: true, once: true });
+    dlg.hidden = false;
+    x.click();
+    out[dlg.id] = pulsados.join();
+    for (const b of [destino, ...otros]) b.removeEventListener("click", alto, { capture: true });
+    dlg.hidden = true;
+  }
+  return out;
+});
+for (const c of cruces.filter(c => c.cancel)) {
+  ok(efecto[c.id] === c.cancel, `${c.id}: la × pulsa «${c.cancel}» y solo ese botón (pulsó: ${efecto[c.id] || "ninguno"})`);
+}
+
 ok(errors.length === 0, "sin errores de página: " + JSON.stringify(errors));
 
 await ctx.close();

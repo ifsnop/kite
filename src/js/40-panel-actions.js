@@ -338,7 +338,10 @@ document.getElementById("place-close").addEventListener("click", () => {
    cursor. Returns the new <li>.                                        */
 async function createFolderNode(cur, name) {
   let ul, intoFolder = false;
-  if (cur && nodeUl(cur)) {
+  /* Nada va DENTRO de un servicio ArcGIS: la carpeta cuelga tras él */
+  const host = cur && arcgisServiceOf(cur);
+  if (host) cur = host;
+  if (cur && !host && nodeUl(cur)) {
     intoFolder = true;
     if (cur.classList.contains("collapsed")) {
       cur.classList.remove("collapsed");
@@ -538,7 +541,7 @@ function copyToSystemClipboard(all) {
 }
 
 function copySelection(cut) {
-  const picked = topLevelSelection();
+  const picked = movableSelection();
   if (!picked.length) { navMessage(tr("No hay nada seleccionado que copiar.")); return; }
   const nodes = picked.flatMap(serializeNode);
   clipboard = { nodes, cut: cut ? picked : [], move: cut };
@@ -561,14 +564,19 @@ let pasteFallback = null;
 async function pasteClipboard(foreign = null) {
   const source = foreign ? { nodes: foreign, cut: [], move: false } : clipboard;
   if (!source) { navMessage(tr("El portapapeles est\u00E1 vac\u00EDo.")); return; }
-  const cur = selCursor;
-  const intoFolder = cur && nodeUl(cur) && !cur.classList.contains("collapsed");
+  /* Lo pegado tampoco entra en un servicio ArcGIS: va a continuación de él */
+  const host = selCursor && arcgisServiceOf(selCursor);
+  const cur = host || selCursor;
+  const intoFolder = cur && !host && nodeUl(cur) && !cur.classList.contains("collapsed");
   const ul = intoFolder ? nodeUl(cur) : (cur ? cur.parentElement : ensureRootUl());
   pushUndo(tr("pegar"));
   const before = new Set(ul.children);
   try {
-    const records = await buildRecordsFromStorage(source.nodes, null);
+    /* Un servicio ArcGIS que llega de otra pestaña entra apagado */
+    const foreignInfo = foreign ? { hosts: new Set() } : null;
+    const records = await buildRecordsFromStorage(source.nodes, null, foreignInfo ? { foreign: foreignInfo } : {});
     await materializeRecords(records, ul);
+    if (foreignInfo) arcgisForeignNotice(foreignInfo);
   } catch (err) {
     navMessage(tr("No se pudo pegar: {message}", { message: err.message }));
     return;
@@ -587,7 +595,7 @@ async function pasteClipboard(foreign = null) {
 
 /* Alt+Intro: propiedades de lo seleccionado */
 function openPropertiesOfSelection() {
-  const picked = topLevelSelection().filter(n => !nodeUl(n));
+  const picked = topLevelSelection().filter(n => !nodeUl(n) && !n._fixed);
   if (!picked.length) { navMessage(tr("Seleccione una o varias capas para editar sus propiedades.")); return; }
   openStyleDialog(picked[0]);
 }

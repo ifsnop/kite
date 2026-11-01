@@ -294,7 +294,7 @@ const BIG_FEATURE_COUNT = 5000;
    un shapefile —sin .prj, ED50…— va en el mismo resumen).             */
 /* `presetNameKeys`: un formato que define él mismo qué es el nombre (el
    <name> de un GPX) lo da hecho y no se pregunta ni se recuerda nada.  */
-async function addFileNode(name, kind, content, insertBefore = null, dropTargetUl = null, zip = null, report = null, presetNameKeys = null) {
+async function addFileNode(name, kind, content, insertBefore = null, dropTargetUl = null, zip = null, report = null, presetNameKeys = null, nameScope = null) {
   const big = typeof content === "string"
     ? content.length > SIZE_THRESHOLD
     : geojsonFeatures(content).length > BIG_FEATURE_COUNT;
@@ -373,7 +373,7 @@ async function addFileNode(name, kind, content, insertBefore = null, dropTargetU
       let nameKeys = presetNameKeys;
       if (!nameKeys && needsNamePicker(firstProps)) {
         if (!gnpStore) gnpStore = await dbLoadGnp();
-        const fp = propsFingerprint(firstProps);
+        const fp = propsFingerprint(firstProps, nameScope);
         const stored = gnpStore[fp] || null;
         if (stored) {
           nameKeys = stored;
@@ -610,7 +610,10 @@ async function handleDroppedFiles(files, insertBefore, dropTargetUl = null) {
         navMessage(tr("\u00AB{name}\u00BB no est\u00E1 soportado. Formatos admitidos: {importFormats}.", { name: file.name, importFormats: IMPORT_FORMATS }));
         continue;
       }
-      await addFileNode(file.name, kind, content, insertBefore, dropTargetUl, zip);
+      /* `kiteNameKeys`: quien fabrica el archivo (una capa de un servicio
+         ArcGIS, 66-arcgis.js) puede dar ya hecho qué campo es el nombre */
+      await addFileNode(file.name, kind, content, insertBefore, dropTargetUl, zip, null,
+        file.kiteNameKeys || null, file.kiteNameScope || null);
       scheduleSave();
     } catch (err) {
       if (err.cancelled) { navMessage(tr("Carga de \u00AB{name}\u00BB cancelada.", { name: file.name }), { tone: "info" }); continue; }
@@ -646,7 +649,8 @@ function ecwHint(name) {
    archivos-sección y demás nodos con hijos, nunca para capas sueltas. */
 function folderDropTarget(e) {
   const li = e.target.closest ? e.target.closest("li[role=treeitem]") : null;
-  return li && nodeUl(li) ? li : null;
+  /* Un servicio ArcGIS y sus capas no reciben archivos: van a la raíz */
+  return li && nodeUl(li) && !li._arcgis && !li._fixed ? li : null;
 }
 
 /* Zona de arrastre: toda la ventana de navegación acepta archivos.

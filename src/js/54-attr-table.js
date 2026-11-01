@@ -44,7 +44,7 @@ function collectAttrRows(root) {
       if (ul) for (const child of ul.children) fromLi(child);
       return;
     }
-    if (li._measure || li._elevGrid || li._imageOverlay || li._cog) return;
+    if (li._measure || li._elevGrid || li._imageOverlay || li._cog || li._arcgis || li._arcgisLayer) return;
     rows.push({ name: li._name, props: layerProperties(nodeLayer(li)), li });
   };
   fromLi(root);

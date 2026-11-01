@@ -23,7 +23,7 @@ const snap = page => page.evaluate(() => ({
   newFolder: document.getElementById("new-folder-btn") ? document.getElementById("new-folder-btn").title : null,
   fit: [...document.querySelectorAll(".measure-bar a")].map(a => a.title).join(" | "),
   accept: document.getElementById("props-accept").textContent,
-  h2: document.querySelector("#props-dialog h2").textContent,
+  h2: document.querySelector("#props-dialog h2 .dlg-title").textContent,
   tab: document.getElementById("props-tab-btn-prefs").textContent,
   mixed: getComputedStyle(document.documentElement).getPropertyValue("--txt-mixed")
 }));

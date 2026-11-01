@@ -59,6 +59,9 @@ description: Principios no negociables, vocabulario y checklist de KITE Local. S
    vaciar `tree`. **Tercera, también decidida con el usuario**:
    `DB_VERSION` 4→5 (guardado en dos niveles, almacén `segments`) lee un
    `root` v8 con todo en línea TAL CUAL y el primer guardado lo reparte.
+   **Cuarta, misma forma que la segunda**: `TREE_SCHEMA` 8→9 (nodos
+   `arcgis`/`arcgisLayer`, ver `arcgis.md`) lee un árbol v8 TAL CUAL,
+   solo se añaden tipos.
    Ver `persistence-indexeddb.md`.
 5. **Robustez ante entradas ajenas.** KML/GeoJSON/KMZ/`.kite.json`/red
    se tratan como hostiles: validar antes de construir capas, aislar
@@ -86,8 +89,9 @@ description: Principios no negociables, vocabulario y checklist de KITE Local. S
   cuadrícula de elevación).
 - **Tipo de nodo (`styleKind`)**: `marker` (marcadores), `polygon`
   (polígonos/líneas; mixtos cuentan como `marker`), `measure`
-  (medición), `elevGrid` (cuadrícula de elevación), `group`
-  (carpeta/archivo).
+  (medición), `elevGrid` (cuadrícula de elevación), `imageOverlay` y
+  `cog` (ortofotos), `arcgis` (un servicio ArcGIS) y `arcgisLayer` (cada
+  capa suya, fila fija), `group` (carpeta/archivo).
 
 ## Pendiente (conocido y no hecho)
 
@@ -132,6 +136,9 @@ Parcialmente hecho (no confundir con pendiente):
    `L.Control.extend` (`MeasureControl`/`ViewControl` como plantilla).
    Diálogos modales → patrón `.dlg-overlay`/`.dlg-box` con
    Cancelar/Aceptar y edición sobre borrador (ver diálogo de estilos).
+   **Todo diálogo nuevo lleva su × arriba a la derecha** (la de cálculos
+   geodésicos; pulsarla = Cancelar o, sin cancelar, Cerrar): ver
+   `dialog-close-button.md`; `tests/statics.js` falla si falta.
 3. Si muta el árbol → `scheduleSave()`. Si cambia lo serializado →
    actualizar `serializeTree`/`buildFromNodes` y subir `TREE_SCHEMA`.
 4. Si crea muchas capas → procesar por lotes con progreso.

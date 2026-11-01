@@ -43,7 +43,8 @@ document.addEventListener("keydown", e => {
      52-measure.js: crear una ruta se comporta como editarla).          */
   if (activeTool === "polygon" && polyDraft) return;
   if (activeTool === "route" && (routeDraft || routeMeasurement)) return;
-  const items = topLevelSelection();
+  const items = movableSelection();
+  if (!items.length) return;
   const next = cursorAfterDelete(isRow(selCursor) ? selCursor : items[0], items);
   pushUndo(tr("borrar {n} nodo(s)", { n: items.length }));
   for (const s of items) deleteNode(s, { pruneSelection: false });
@@ -194,6 +195,9 @@ function propertiesTableHtml(props) {
    properties de GeoJSON si las tiene, si no null.                   */
 function baseInfoHtml(li) {
   if (li._desc) return sanitizeHtml(li._desc);
+  /* Un servicio ArcGIS: su dirección y lo que trae, SOLO para consultar
+     (para cambiarla se borra el servicio y se añade otro) */
+  if (li._arcgis) return propertiesTableHtml(arcgisInfoProps(li));
   const props = layerProperties(nodeLayer(li));
   return props ? propertiesTableHtml(props) : null;
 }
@@ -211,7 +215,7 @@ function infoHtmlFor(li) {
 /* ¿Tiene ficha? Versión barata de `infoHtmlFor(li) != null`, sin
    construir el HTML: decide si se ve el botón ℹ de la fila.          */
 function hasInfo(li, layer = nodeLayer(li)) {
-  return !!(li._desc || layerProperties(layer) || (dayNightOn && soleMarkerOfLayer(layer)));
+  return !!(li._desc || li._hasInfo || layerProperties(layer) || (dayNightOn && soleMarkerOfLayer(layer)));
 }
 
 /* Al activar/desactivar la iluminación cambia qué marcadores tienen

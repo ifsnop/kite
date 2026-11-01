@@ -188,6 +188,8 @@ paths:
   capas del mismo tipo: manda el tipo de la primera encontrada y se
   avisa por `navMessage` de cuántas quedan fuera.
 
+- **Contenedor con capa propia y filas fijas (servicio ArcGIS, ver `arcgis.md`)**: el nodo `arcgis` es un contenedor cuya casilla lleva además una capa de Leaflet (`chk._layer`): `applyContainerState`, `cascadeVisibility` (también sobre registros pendientes), `removeRecordsFromMap` y `extendBoundsFromRecords` la tratan. Sus filas hijas son `_fixed`: no se mueven, copian, cortan, borran ni renombran (`movableSelection()` las deja fuera y AVISA), y nada se suelta ni se pega dentro (`arcgisServiceOf`).
+
 ## Exportar e importar carpetas
 
 - El botón 💾 de una carpeta, un archivo **o una capa suelta** (`sortable || layer`

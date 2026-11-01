@@ -17,7 +17,7 @@ paths:
   atrapado de Tab dentro de la caja. `focusDialog` / `releaseFocus`
   llevan el foco al abrir y lo devuelven al elemento que lo abrió.
   Cualquier diálogo nuevo debe pasar por ahí. Con el × de cerrar en la
-  cabecera (diálogos de un solo botón, ver `dialog-close-button.md`), el
+  cabecera (TODOS los diálogos, ver `dialog-close-button.md`), el
   nombre sale del `.dlg-title` y no del `<h2>` entero (si no, acabaría
   en «Cerrar»), y el foco de apertura salta el × salvo que no haya otro
   control visible; el ×, sin texto, lleva `title` y `aria-label`. **Excepción**: un

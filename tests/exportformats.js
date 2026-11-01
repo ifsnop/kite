@@ -171,6 +171,20 @@ const junk = [
 const jk = x.recordsToKml(junk), jg = x.recordsToGeoJson(junk);
 ok(jk.count === 0 && JSON.parse(jg.text).features.length === 0, "basura: nada que exportar, sin lanzar");
 
+/* Un servicio ArcGIS tiene hijos pero NO es una carpeta: se deja fuera
+   entero y se nombra UNA vez (no una por cada capa del catálogo), tanto
+   suelto como dentro de una carpeta, y no arrastra a sus vecinos.       */
+const svc = { t: "arcgis", name: "Servicio_5", checked: true, collapsed: false, url: "https://x.example.org/rest/services/S/MapServer",
+  children: [{ t: "arcgisLayer", name: "TMA", checked: true, id: 1 }, { t: "arcgisLayer", name: "CTR", checked: true, id: 2 }] };
+const pin = { name: "Faro", checked: true, t: "layer", style: null, geo: fc([feat({ type: "Point", coordinates: [1, 2] })]) };
+for (const [fmt, out] of [["KML", x.recordsToKml([svc])], ["GeoJSON", x.recordsToGeoJson([svc])]]) {
+  ok(out.count === 0 && out.skipped.map(s => s.name).join() === "Servicio_5", fmt + ": un servicio suelto se nombra una vez y no exporta nada: " + JSON.stringify(out.skipped));
+}
+for (const [fmt, out] of [["KML", x.recordsToKml([{ t: "folder", name: "Carpeta", checked: true, collapsed: false, children: [svc, pin] }])],
+  ["GeoJSON", x.recordsToGeoJson([{ t: "folder", name: "Carpeta", checked: true, collapsed: false, children: [svc, pin] }])]]) {
+  ok(out.count === 1 && out.skipped.map(s => s.name).join() === "Servicio_5", fmt + ": dentro de una carpeta se deja fuera sin tocar a su vecino: " + JSON.stringify(out.skipped) + " " + out.count);
+}
+
 /* Mensaje de lo omitido: plural y tope de nombres */
 ok(x.skippedMessage([{ name: "A" }], "KML") === "«A» se queda fuera de KML: solo se exportan capas y mediciones.", "singular");
 ok(/se quedan fuera de GeoJSON/.test(x.skippedMessage([{ name: "A" }, { name: "B" }], "GeoJSON")), "plural");
