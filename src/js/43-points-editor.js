@@ -871,6 +871,41 @@ document.addEventListener("click", e => {
   if (target && !target.disabled) target.click();
 });
 
+/* Los cinco botones de la cabecera (🔗 🏷️ 📐 📋 ?) ABREN y CIERRAN su diálogo:
+   con el diálogo a la vista, pulsar el botón es pulsar su Cerrar o su
+   Cancelar (el que tenga), no un segundo «abrir». Así vale lo mismo que la ×,
+   que Escape y que el botón del pie, y Cancelar deshace lo previsualizado
+   (Propiedades) y cancela lo que esté en vuelo (la descarga del 🔗) como
+   siempre. Va en CAPTURA sobre `document` para interceptar el clic antes de
+   que llegue al manejador de «abrir» de cada botón.
+
+   Los cuatro modales no se apilan: abrir uno cierra antes el que hubiera
+   abierto, también por su Cerrar/Cancelar. El de cálculos geodésicos es
+   flotante y no se cierra al abrir otro. Para que el botón sea ALCANZABLE con
+   un modal a la vista (su fondo cubre toda la pantalla), styles.css lo sube
+   por encima de ese fondo mientras haya SOLO ese modal abierto.            */
+const HEADER_DIALOGS = {
+  "url-btn": ["url-dialog", "url-close"],
+  "gnp-editor-btn": ["props-dialog", "props-cancel"],
+  "geocalc-btn": ["geocalc-dialog", "geocalc-close"],
+  "log-btn": ["log-dialog", "log-close"],
+  "help-btn": ["shortcuts", "shortcuts-close"]
+};
+document.addEventListener("click", e => {
+  const b = e.target.closest && e.target.closest("#nav-panel h1 button[id]");
+  const mine = b && HEADER_DIALOGS[b.id];
+  if (!mine) return;
+  if (!document.getElementById(mine[0]).hidden) {
+    e.stopImmediatePropagation();
+    document.getElementById(mine[1]).click();
+    return;
+  }
+  for (const [otherBtn, [dlgId, dismissId]] of Object.entries(HEADER_DIALOGS)) {
+    const dlg = document.getElementById(dlgId);
+    if (otherBtn !== b.id && !dlg.hidden && dlg.classList.contains("dlg-overlay")) document.getElementById(dismissId).click();
+  }
+}, true);
+
 function makeDialogMovable(box) {
   const handle = box.querySelector("h2");
   let from = null;

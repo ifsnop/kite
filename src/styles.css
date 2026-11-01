@@ -731,6 +731,19 @@
     justify-content: center;
   }
   .dlg-overlay[hidden] { display: none; }
+  /* Los cinco botones de la cabecera abren Y cierran su diálogo (regla en
+     dialog-close-button.md), pero el fondo de un modal cubre toda la pantalla
+     y el botón quedaba inalcanzable. Mientras haya a la vista UNO de los cuatro
+     modales de la cabecera y ningún otro, los botones pasan por encima del fondo.
+     Con otro modal además (el selector de nombre abierto desde Propiedades, p. ej.)
+     no: ese pide una respuesta y no se puede dejar a medias.              */
+  body:has(#url-dialog:not([hidden])):not(:has(.dlg-overlay:not([hidden]):not(#url-dialog))) #nav-panel h1 .btn,
+  body:has(#props-dialog:not([hidden])):not(:has(.dlg-overlay:not([hidden]):not(#props-dialog))) #nav-panel h1 .btn,
+  body:has(#log-dialog:not([hidden])):not(:has(.dlg-overlay:not([hidden]):not(#log-dialog))) #nav-panel h1 .btn,
+  body:has(#shortcuts:not([hidden])):not(:has(.dlg-overlay:not([hidden]):not(#shortcuts))) #nav-panel h1 .btn {
+    position: relative;
+    z-index: 2100;
+  }
   /* Propiedades es modal y se abre a menudo con el perfil de una ruta (flotante,
      mismo z-index y más tarde en el documento) a la vista, para ver el cambio
      en vivo: tiene que quedar POR ENCIMA, o la ventana del perfil le tapaba

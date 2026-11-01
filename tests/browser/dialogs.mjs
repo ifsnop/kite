@@ -690,6 +690,63 @@ for (const c of cruces.filter(c => c.cancel)) {
   ok(efecto[c.id] === c.cancel, `${c.id}: la × pulsa «${c.cancel}» y solo ese botón (pulsó: ${efecto[c.id] || "ninguno"})`);
 }
 
+/* ---------- Los cinco botones de la cabecera abren Y cierran su diálogo ----------
+   Con el RATÓN de verdad: el fondo de un modal cubre la pantalla, así que el botón
+   tiene que quedar por encima para poder pulsarlo otra vez. Y pulsarlo es pulsar
+   el Cerrar o el Cancelar del diálogo (el que tenga), no un segundo «abrir».     */
+const CABECERA = [
+  ["url-btn", "url-dialog", "url-close"], ["gnp-editor-btn", "props-dialog", "props-cancel"],
+  ["geocalc-btn", "geocalc-dialog", "geocalc-close"], ["log-btn", "log-dialog", "log-close"],
+  ["help-btn", "shortcuts", "shortcuts-close"]
+];
+const centro = id => page.evaluate(id => { const r = document.getElementById(id).getBoundingClientRect(); return { x: r.x + r.width / 2, y: r.y + r.height / 2 }; }, id);
+const abierto = id => page.evaluate(id => !document.getElementById(id).hidden, id);
+const bajoBoton = id => page.evaluate(id => { const r = document.getElementById(id).getBoundingClientRect(); const e = document.elementFromPoint(r.x + r.width / 2, r.y + r.height / 2); return e && e.id; }, id);
+const contarClic = id => page.evaluate(id => { window.__clic = window.__clic || {}; window.__clic[id] = 0; document.getElementById(id).addEventListener("click", () => { window.__clic[id]++; }); }, id);
+const clics = id => page.evaluate(id => window.__clic[id], id);
+for (const [btn, dlg, dismiss] of CABECERA) {
+  await contarClic(dismiss);
+  const c = await centro(btn);
+  await page.mouse.click(c.x, c.y);
+  await page.waitForTimeout(100);
+  ok(await abierto(dlg), `${btn}: abre ${dlg}`);
+  ok(await bajoBoton(btn) === btn, `${btn}: con el diálogo abierto el botón sigue al alcance del ratón (bajo el cursor hay: ${await bajoBoton(btn)})`);
+  const antes = await clics(dismiss);
+  await page.mouse.click(c.x, c.y);
+  await page.waitForTimeout(100);
+  ok(!(await abierto(dlg)), `${btn}: pulsarlo otra vez cierra ${dlg}`);
+  ok(await clics(dismiss) === antes + 1, `${btn}: y cierra pulsando «${dismiss}» (el manejador de cerrar o cancelar), no por otro camino`);
+  await page.mouse.click(c.x, c.y);
+  await page.waitForTimeout(100);
+  ok(await abierto(dlg), `${btn}: y se puede volver a abrir`);
+  await page.mouse.click(c.x, c.y);
+  await page.waitForTimeout(100);
+}
+/* Los cuatro modales no se apilan: abrir uno cierra el que hubiera */
+let u = await centro("log-btn"), p2 = await centro("gnp-editor-btn");
+await page.mouse.click(u.x, u.y);
+await page.waitForTimeout(100);
+await page.mouse.click(p2.x, p2.y);
+await page.waitForTimeout(100);
+ok(!(await abierto("log-dialog")) && await abierto("props-dialog"), "con el registro abierto, 🏷️ lo cierra y abre Propiedades: no se apilan");
+await page.mouse.click(p2.x, p2.y);
+await page.waitForTimeout(100);
+/* El flotante de geodésicos NO se cierra al abrir un modal, y viceversa */
+const g = await centro("geocalc-btn"), l = await centro("log-btn");
+await page.mouse.click(g.x, g.y);
+await page.waitForTimeout(100);
+await page.mouse.click(l.x, l.y);
+await page.waitForTimeout(100);
+ok(await abierto("geocalc-dialog") && await abierto("log-dialog"), "el de cálculos geodésicos (flotante) no se cierra al abrir el registro");
+await page.mouse.click(l.x, l.y);
+await page.mouse.click(g.x, g.y);
+await page.waitForTimeout(100);
+ok(!(await abierto("geocalc-dialog")) && !(await abierto("log-dialog")), "y cada uno se cierra con el suyo");
+/* Con OTRO modal además (aquí un selector que pide respuesta) el botón NO se sube: queda tapado */
+await page.evaluate(() => { document.getElementById("log-dialog").hidden = false; document.getElementById("kml-tags-picker").hidden = false; });
+ok(await bajoBoton("log-btn") !== "log-btn", "con otro modal a la vista el botón de la cabecera sigue tapado por el fondo (un selector que pide respuesta no se deja a medias)");
+await page.evaluate(() => { document.getElementById("log-dialog").hidden = true; document.getElementById("kml-tags-picker").hidden = true; });
+
 ok(errors.length === 0, "sin errores de página: " + JSON.stringify(errors));
 
 await ctx.close();
