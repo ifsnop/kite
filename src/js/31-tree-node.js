@@ -11,11 +11,15 @@ function makeNode({ name, layer = null, isFolder = false, isFile = false,
                     style = null, checked = true, desc = null,
                     onDelete = null, onRename = null,
                     styleable = layer !== null, focusable = styleable,
-                    sortable = isFolder || isFile, fixed = false, extra = [] }) {
+                    sortable = isFolder || isFile, fixed = false, extra = [], info = false }) {
   const li = document.createElement("li");
   if (isFile) li.className = "file";
   li._name = name;
   li._fixed = fixed;
+  /* `info`: la fila tiene ficha propia que no sale de `_desc` ni de las
+     properties de una capa (un servicio ArcGIS, su dirección): decide el
+     botón ℹ AQUÍ, antes de que quien llama le ponga su marca de tipo.   */
+  li._hasInfo = info;
   li._isContainer = isFolder || isFile; /* evita un querySelector redundante en serializeNode */
   li._cascadeGen = 0; /* ver cascadeVisibility */
   li._cascadeActive = 0; /* ver beginCascadeFeedback/endCascadeFeedback */
@@ -294,7 +298,7 @@ function makeActions(li, sortable, styleable, layer, focusable = styleable, { fi
   /* Un marcador siempre lleva el botón, oculto mientras no tenga ficha:
      con la iluminación real activa la gana (horas del sol), y
      refreshInfoButtons lo muestra/oculta sin reconstruir la fila.      */
-  if (li._desc || layerProperties(layer) || layerKind(layer) === "marker") {
+  if (li._desc || li._hasInfo || layerProperties(layer) || layerKind(layer) === "marker") {
     btn("\u2139", tr("Ver informaci\u00F3n de la capa"), "info-btn", () => showLayerInfo(li));
     box.lastChild.hidden = !hasInfo(li, layer);
   }

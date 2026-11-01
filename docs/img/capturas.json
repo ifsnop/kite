@@ -285,6 +285,12 @@
       "version": "1.11.0",
       "build": "202610300013"
     },
+    "servicio-arcgis-atributos.png": {
+      "sha256": "76fcdbe8d53c76baf648873d10e03c9402db5a6f503ad41756b8e032f08d2248",
+      "section": "7.16",
+      "version": "1.11.0",
+      "build": "202611011137"
+    },
     "servicio-arcgis-datos.png": {
       "sha256": "d2436b40672bda798d3e5ff907e35a1d61da86f8da761c59950bb49e077f5a0d",
       "section": "7.16",

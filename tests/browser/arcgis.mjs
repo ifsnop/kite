@@ -209,6 +209,26 @@ await page.evaluate(() => openStyleDialog(document.querySelector("#tree li.arcgi
 await page.evaluate(() => { const r = document.getElementById("io-opacity"); r.value = "0.4"; r.dispatchEvent(new Event("input", { bubbles: true })); });
 await page.click("#style-accept");
 
+/* ---------- 6b. La dirección se puede consultar en «Atributos» (solo lectura) ---------- */
+const atributos = await page.evaluate(async () => {
+  const svc = document.querySelector("#tree li.arcgis-service");
+  const r = { infoServicio: !!svc.querySelector(":scope > .node-row > .actions .info-btn") && !svc.querySelector(":scope > .node-row > .actions .info-btn").hidden };
+  const hija = [...svc.querySelectorAll("li")].find(l => l._name === "CTR");
+  r.infoHija = !!hija.querySelector(":scope > .node-row > .actions .info-btn");
+  openStyleDialog(svc);
+  document.getElementById("style-tab-btn-attrs").click();
+  await new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));
+  const body = document.getElementById("style-attrs-body");
+  r.texto = body.textContent;
+  r.campos = body.querySelectorAll("input, textarea, select").length;
+  closeStyleDialog(false);
+  return r;
+});
+ok(atributos.infoServicio && !atributos.infoHija, "el servicio tiene su botón ℹ y las filas de sus capas no: " + JSON.stringify(atributos));
+ok(atributos.texto.includes(BASE) && /Capas/.test(atributos.texto) && /AIS de pruebas/.test(atributos.texto),
+  "la pestaña Atributos enseña la dirección tal como se pegó (sin consulta ni token), cuántas capas y la atribución: " + atributos.texto.slice(0, 200));
+ok(atributos.campos === 0, "y es solo lectura: ningún campo que editar");
+
 /* ---------- 7. Las filas de las capas no se tocan ---------- */
 await page.evaluate(() => {
   const li = [...document.querySelectorAll("#tree li.arcgis-service li")].find(l => l._name === "CTR");

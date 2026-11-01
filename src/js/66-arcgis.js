@@ -525,7 +525,7 @@ async function materializeArcgisRecord(rec, parentUl) {
   const isGroup = !!rec.children;
   const li = isService
     ? makeNode({ name: rec.name, layer: rec._layer, isFolder: true, sortable: false,
-                 styleable: true, focusable: true, checked: !!rec.checked })
+                 styleable: true, focusable: true, checked: !!rec.checked, info: true })
     : makeNode({ name: rec.name, isFolder: isGroup, sortable: false, styleable: false,
                  focusable: false, fixed: true, checked: !!rec.checked,
                  /* `li` se resuelve al PULSAR, ya asignado */
@@ -552,6 +552,22 @@ async function materializeArcgisRecord(rec, parentUl) {
   } else {
     await materializeRecords(rec.children, nodeUl(li));
   }
+}
+
+/* Lo que enseña la pestaña «Atributos» (y el ℹ) de un servicio: la dirección
+   que se pegó, para poder consultarla, y lo que trae. Solo lectura a
+   propósito: cambiar la dirección obligaría a decidir qué hacer con las
+   capas ya descargadas de ella; el usuario borra el servicio y añade otro. */
+function arcgisInfoProps(li) {
+  const a = li._arcgis;
+  let n = 0, data = 0;
+  const walk = list => { for (const c of list || []) { n++; if (c.data) data++; walk(c.children); } };
+  walk(serializeNode(li)[0].children);
+  const out = {};
+  out[tr("Dirección")] = a.url;
+  out[tr("Capas")] = data ? tr("{n} ({data} con datos que se pueden traer)", { n, data }) : String(n);
+  if (a.attribution) out[tr("Atribución")] = a.attribution;
+  return out;
 }
 
 /* El servicio recién leído del diálogo 🔗 pasa a ser un nodo del árbol,

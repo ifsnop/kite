@@ -595,7 +595,10 @@ Un servicio **ArcGIS REST (MapServer)** publica un mapa con varias capas —por 
 ![El resultado de traer como datos la capa de rótulos TMA_CTA_texto: una carpeta «Descarga 1» con sus 48 elementos, con su nombre siempre a la vista sobre el mapa](img/servicio-arcgis-datos.png)
 *Figura 53. «Traer como datos» sobre la capa de rótulos TMA_CTA_texto, con el servicio apagado y plegado: bajo «Descargas › Descarga 1» han entrado sus 48 zonas como capas normales, con su nombre (el campo del rótulo del servidor) siempre a la vista sobre el mapa; el aviso de la importación dice que se eliminaron las etiquetas HTML de 288 atributos, tras preguntarlo.*
 
-- **Propiedades (🎨)** del servicio: solo la **opacidad**, con vista previa y «Cancelar» como en cualquier otro diálogo. **🔍** centra la vista en la zona que cubre.
+- **Propiedades (🎨)** del servicio: la **opacidad**, con vista previa y «Cancelar» como en cualquier otro diálogo, y, en la pestaña **«Atributos»** (también con el botón **ℹ** de la fila), la **dirección** que se pegó —para poder consultarla—, cuántas capas trae y la atribución del servicio. La dirección es **solo de lectura**: si hay que cambiarla, se borra el servicio y se añade otro con la dirección nueva, así no hay que decidir qué pasa con las capas que ya se hubieran descargado de la anterior. **🔍** centra la vista en la zona que cubre.
+
+![Las propiedades de un servicio ArcGIS, pestaña Atributos: la dirección pegada, el número de capas y la atribución](img/servicio-arcgis-atributos.png)
+*Figura 54. Propiedades de un servicio ArcGIS, pestaña «Atributos»: la dirección tal como se pegó (sin consulta ni `token`), cuántas capas trae y su atribución. No hay nada que editar.*
 - **Las filas de las capas no se tocan**: reflejan el catálogo del servidor, así que no se renombran, no se mueven, no se copian y no se borran por separado (`Supr` y `F2` sobre una de ellas no hacen nada y lo explican). El servicio entero sí se renombra, se mueve, se copia y se borra como cualquier nodo, y **«Deshacer»** lo devuelve.
 - **El mapa girado** (apartado 4.4) gira también las imágenes del servidor, rótulos incluidos, porque forman parte de la imagen.
 - **Rótulos cortados.** El servidor dibuja el mapa en trozos de 512 píxeles, y cada rótulo es parte de la imagen: uno que cae justo en el borde de un trozo puede salir cortado. Los textos no vienen como polígonos —las capas cuyo nombre acaba en `_texto` son polígonos transparentes y el servidor escribe encima su rótulo—, así que la imagen no los puede arreglar. La salida es **traer esa capa como datos** (⤓, más abajo): sus nombres se ven siempre sobre el mapa, enteros y siempre horizontales.
@@ -610,7 +613,7 @@ La misma información está disponible en cualquier momento con la tecla `?` o e
 Esa × es la norma de toda ventana cuyo único botón sería «Cerrar» (la chuleta, los cálculos geodésicos y el perfil de una ruta): en vez de un pie con un solo botón, la × en la barra del título, que se ve siempre, y ese espacio para el contenido.
 
 ![Chuleta de atajos de teclado completa](img/atajos.png)
-*Figura 54. Chuleta de atajos de teclado (tecla `?`), pestaña «Navegación». Las otras tres son «Actuar», «Visor» y «Dibujar y editar».*
+*Figura 55. Chuleta de atajos de teclado (tecla `?`), pestaña «Navegación». Las otras tres son «Actuar», «Visor» y «Dibujar y editar».*
 
 **Moverse por el árbol**
 

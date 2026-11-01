@@ -877,6 +877,17 @@ scenario("servicio-arcgis.png", "7.16", async out => {
   await ctx.close();
 }, ["url-arcgis.png"]);
 
+scenario("servicio-arcgis-atributos.png", "7.16", async out => {
+  const { ctx, page } = await openApp({ route: arcgisRoute });
+  await arcgisAdd(page);
+  /* Propiedades del servicio → pestaña «Atributos»: la dirección que se pegó, solo para consultarla */
+  await page.evaluate(() => openStyleDialog(document.querySelector("#tree li.arcgis-service")));
+  await page.click("#style-tab-btn-attrs");
+  await page.waitForFunction(() => document.querySelector("#style-attrs-body table.props"));
+  await dialog(page, out, "style-dialog");
+  await ctx.close();
+});
+
 scenario("servicio-arcgis-datos.png", "7.16", async out => {
   const { ctx, page } = await openApp({ route: arcgisRoute });
   await arcgisAdd(page);

@@ -47,6 +47,10 @@ ArcGIS 11.3, 3857, `capabilities: "Map,Query,Data"`, `singleFusedMapCache: false
 - **Contenedor con capa propia** (nuevo en el código genérico del árbol; cada parche es un no-op para una carpeta): `applyContainerState` llama a `applyVisibility` si `chk._layer` (apagar la última hija quita la imagen); `cascadeVisibility`/`removeRecordsFromMap`/`extendBoundsFromRecords` tratan la `_layer` de un registro CON hijos; `makeNode` acepta `sortable` (sin los botones de carpeta ☑ ☐ AZ ⊟ ▦), `fixed` y `extra`.
 - **Marcar el servicio marca TODAS sus capas** (como cualquier carpeta): no recuerda cuáles estaban marcadas antes de apagarlo.
 
+### La dirección se consulta en «Atributos», solo lectura
+
+`baseInfoHtml` (`41-selection.js`) devuelve, para `li._arcgis`, `propertiesTableHtml(arcgisInfoProps(li))`: «Dirección» (la base guardada, sin consulta), «Capas» (y cuántas con datos) y «Atribución». Es lo que enseñan la pestaña «Atributos» de Propiedades y la ficha (ℹ). **No se edita, a propósito** (decidido con el usuario): cambiar la dirección obligaría a decidir qué hacer con las capas ya descargadas de la anterior; se borra el servicio y se añade otro. El ℹ de la fila se decide en `makeActions` ANTES de que `materializeArcgisRecord` ponga `li._arcgis`, de ahí la opción `info` de `makeNode` (`li._hasInfo`, que `hasInfo` también mira).
+
 ### Las filas de las capas son fijas (`li._fixed`)
 
 Reflejan el catálogo del servidor: sin ↑ ↓ × ni 💾, sin `wireDrag`, sin renombrar (`startRename` y F2), y `movableSelection()` (Supr, ×, copiar, cortar y arrastrar) las deja fuera **avisando**. Nada se suelta ni se pega DENTRO de un servicio ni entre sus capas: `validDrop`, `dropZone`, `folderDropTarget`, `createFolderNode` y `pasteClipboard` (`arcgisServiceOf`) lo colocan DESPUÉS del servicio. El servicio, en cambio, se mueve, renombra, copia y borra como cualquier nodo; sus Propiedades solo tienen opacidad (`rasterState`, kind `arcgis`).

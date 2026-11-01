@@ -3390,6 +3390,9 @@ registerLang("en", "English", {
   "El servicio «{name}» no responde; puede que haya cambiado.": "The service “{name}” is not responding; it may have changed.",
   "Los servicios de mapas llegan apagados: enciéndalos para consultar {hosts}.": "Map services arrive switched off: turn them on to query {hosts}.",
   "Traer las entidades de esta capa como datos (GeoJSON)": "Fetch the features of this layer as data (GeoJSON)",
+  "Capas": "Layers",
+  "{n} ({data} con datos que se pueden traer)": "{n} ({data} with data that can be fetched)",
+  "Atribución": "Attribution",
   "el servicio no tiene ninguna capa que se pueda mostrar": "the service has no layer that can be shown",
   "añadir servicio ArcGIS": "add ArcGIS service",
   "Servicios de mapas": "Map services",
@@ -5029,7 +5032,7 @@ map.on("resize rotate", fitWorldMinZoom);
 
 /* Fecha de generación del código (versión): AÑOMESDIAHORAMINUTO.
    Actualizar en cada generación; se muestra junto al crédito de Leaflet. */
-const BUILD = "202611011137";
+const BUILD = "202611011555";
 /* Versión de release (la de package.json, horneada aquí por build.js
    al construir — ver «Versión y releases de GitHub» en CLAUDE.md): a
    diferencia de BUILD, que cambia en CADA generación, esta solo cambia
@@ -7501,11 +7504,15 @@ function makeNode({ name, layer = null, isFolder = false, isFile = false,
                     style = null, checked = true, desc = null,
                     onDelete = null, onRename = null,
                     styleable = layer !== null, focusable = styleable,
-                    sortable = isFolder || isFile, fixed = false, extra = [] }) {
+                    sortable = isFolder || isFile, fixed = false, extra = [], info = false }) {
   const li = document.createElement("li");
   if (isFile) li.className = "file";
   li._name = name;
   li._fixed = fixed;
+  /* `info`: la fila tiene ficha propia que no sale de `_desc` ni de las
+     properties de una capa (un servicio ArcGIS, su dirección): decide el
+     botón ℹ AQUÍ, antes de que quien llama le ponga su marca de tipo.   */
+  li._hasInfo = info;
   li._isContainer = isFolder || isFile; /* evita un querySelector redundante en serializeNode */
   li._cascadeGen = 0; /* ver cascadeVisibility */
   li._cascadeActive = 0; /* ver beginCascadeFeedback/endCascadeFeedback */
@@ -7784,7 +7791,7 @@ function makeActions(li, sortable, styleable, layer, focusable = styleable, { fi
   /* Un marcador siempre lleva el botón, oculto mientras no tenga ficha:
      con la iluminación real activa la gana (horas del sol), y
      refreshInfoButtons lo muestra/oculta sin reconstruir la fila.      */
-  if (li._desc || layerProperties(layer) || layerKind(layer) === "marker") {
+  if (li._desc || li._hasInfo || layerProperties(layer) || layerKind(layer) === "marker") {
     btn("\u2139", tr("Ver informaci\u00F3n de la capa"), "info-btn", () => showLayerInfo(li));
     box.lastChild.hidden = !hasInfo(li, layer);
   }
@@ -12793,6 +12800,9 @@ function propertiesTableHtml(props) {
    properties de GeoJSON si las tiene, si no null.                   */
 function baseInfoHtml(li) {
   if (li._desc) return sanitizeHtml(li._desc);
+  /* Un servicio ArcGIS: su dirección y lo que trae, SOLO para consultar
+     (para cambiarla se borra el servicio y se añade otro) */
+  if (li._arcgis) return propertiesTableHtml(arcgisInfoProps(li));
   const props = layerProperties(nodeLayer(li));
   return props ? propertiesTableHtml(props) : null;
 }
@@ -12810,7 +12820,7 @@ function infoHtmlFor(li) {
 /* ¿Tiene ficha? Versión barata de `infoHtmlFor(li) != null`, sin
    construir el HTML: decide si se ve el botón ℹ de la fila.          */
 function hasInfo(li, layer = nodeLayer(li)) {
-  return !!(li._desc || layerProperties(layer) || (dayNightOn && soleMarkerOfLayer(layer)));
+  return !!(li._desc || li._hasInfo || layerProperties(layer) || (dayNightOn && soleMarkerOfLayer(layer)));
 }
 
 /* Al activar/desactivar la iluminación cambia qué marcadores tienen
@@ -24676,7 +24686,7 @@ async function materializeArcgisRecord(rec, parentUl) {
   const isGroup = !!rec.children;
   const li = isService
     ? makeNode({ name: rec.name, layer: rec._layer, isFolder: true, sortable: false,
-                 styleable: true, focusable: true, checked: !!rec.checked })
+                 styleable: true, focusable: true, checked: !!rec.checked, info: true })
     : makeNode({ name: rec.name, isFolder: isGroup, sortable: false, styleable: false,
                  focusable: false, fixed: true, checked: !!rec.checked,
                  /* `li` se resuelve al PULSAR, ya asignado */
@@ -24703,6 +24713,22 @@ async function materializeArcgisRecord(rec, parentUl) {
   } else {
     await materializeRecords(rec.children, nodeUl(li));
   }
+}
+
+/* Lo que enseña la pestaña «Atributos» (y el ℹ) de un servicio: la dirección
+   que se pegó, para poder consultarla, y lo que trae. Solo lectura a
+   propósito: cambiar la dirección obligaría a decidir qué hacer con las
+   capas ya descargadas de ella; el usuario borra el servicio y añade otro. */
+function arcgisInfoProps(li) {
+  const a = li._arcgis;
+  let n = 0, data = 0;
+  const walk = list => { for (const c of list || []) { n++; if (c.data) data++; walk(c.children); } };
+  walk(serializeNode(li)[0].children);
+  const out = {};
+  out[tr("Dirección")] = a.url;
+  out[tr("Capas")] = data ? tr("{n} ({data} con datos que se pueden traer)", { n, data }) : String(n);
+  if (a.attribution) out[tr("Atribución")] = a.attribution;
+  return out;
 }
 
 /* El servicio recién leído del diálogo 🔗 pasa a ser un nodo del árbol,
