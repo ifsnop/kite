@@ -5033,7 +5033,7 @@ map.on("resize rotate", fitWorldMinZoom);
 
 /* Fecha de generación del código (versión): AÑOMESDIAHORAMINUTO.
    Actualizar en cada generación; se muestra junto al crédito de Leaflet. */
-const BUILD = "202611011606";
+const BUILD = "202611011714";
 /* Versión de release (la de package.json, horneada aquí por build.js
    al construir — ver «Versión y releases de GitHub» en CLAUDE.md): a
    diferencia de BUILD, que cambia en CADA generación, esta solo cambia
@@ -11720,8 +11720,16 @@ function openExportMenu(btn, li) {
     e.stopPropagation(); /* que el Escape del árbol no limpie además la selección */
     closeExportMenu();
   });
-  listen(window, "scroll", closeExportMenu);
-  listen(window, "blur", closeExportMenu);
+  /* El desplazamiento de CUALQUIER panel (la captura recoge el de los
+     elementos, que no burbujea) descoloca el menú respecto a su botón; el
+     del propio menú no.                                                  */
+  listen(window, "scroll", e => { if (!menu.contains(e.target)) closeExportMenu(); });
+  /* `blur` SIN captura: es el de la ventana (se cambia de aplicación). En
+     captura llegaban también los `blur` de los ELEMENTOS, y el 💾 (que tiene
+     el foco tras pulsarlo) pierde el suyo en cuanto el ratón sale de la
+     fila y los botones de la fila se ocultan: el menú se cerraba justo al
+     ir a elegir una entrada.                                            */
+  listen(window, "blur", closeExportMenu, false);
 }
 /* ================= Importar GPX =================
    GPX 1.0 y 1.1 (waypoints, rutas y tracks). Se convierte a un

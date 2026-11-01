@@ -196,10 +196,19 @@ paths:
   en `makeActions`) abre un minimenú (`openExportMenu`, `35-export-formats.js`,
   con el aspecto de `.ctx-menu` pero independiente del menú del visor: aquel
   devuelve el foco al mapa) con tres formatos. Se cierra con un clic fuera,
-  Escape (que no llega al árbol), desplazamiento, pérdida del foco o volviendo
-  a pulsar 💾 (`exportMenuOwner`). Toda descarga pasa por `downloadBlob`
-  (`32-geojson.js`): blob, `<a download>`, revocación a los 60 s y el aviso
-  «Descargado».
+  Escape (que no llega al árbol), desplazamiento de un panel, cambiar de
+  ventana (el `blur` de la VENTANA) o volviendo
+  a pulsar 💾 (`exportMenuOwner`). **Mover el ratón NO lo cierra.** Trampa
+  ya pisada: un oyente de `blur` en `window` CON captura recibe también el
+  `blur` de cualquier ELEMENTO, y los botones de una fila solo se ven con el
+  ratón encima: al ir del 💾 a una entrada, la fila deja de estar bajo el
+  cursor, el 💾 (que tiene el foco) se oculta, pierde el foco y su `blur`
+  cerraba el menú justo antes de poder elegir. El de `window` va SIN captura
+  (`listen(window, "blur", …, false)`); el `scroll` sí con captura (el de un
+  panel, no el del propio menú). Con `.click()` de JavaScript no se ve nunca:
+  se prueba con el ratón real (`tests/browser/export-menu.mjs`). Toda descarga
+  pasa por `downloadBlob` (`32-geojson.js`): blob, `<a download>`, revocación
+  a los 60 s y el aviso «Descargado».
   - **«Archivo de KITE»** descarga el subárbol como `<nombre>.kite.json`: mismo
     formato de registros que el guardado (`serializeNode`), envuelto en
     `{ app, db, schema, exported, nodes }`.
