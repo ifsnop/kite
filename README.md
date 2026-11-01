@@ -282,7 +282,7 @@ No package manager, web server or build process is required to *use* the viewer.
 Two copies of that file are published, and they are the same application:
 
 - **`kitelocal.html`** — the readable build, with the source and its comments intact. This is the one to download, read or debug.
-- **`kitelocal.min.html`** — a minified derivative, and what the demo link serves: 67 KB over the wire instead of 152 KB.
+- **`kitelocal.min.html`** — a minified derivative, and what the demo link serves: roughly 55 % smaller over the wire (gzip) than the readable build.
 
 When it is served over https (the demo link, or your own server), a third file, **`sw.js`**, lets the page reload **without a network connection**: a small service worker that keeps the app and its pinned, integrity-checked libraries, so a tab the browser discarded comes back with your saved tree. Map tiles, place search and elevation services still need a network; the app says so instead of failing obscurely. Opened by double click (`file://`) no worker is registered and nothing changes. `sw.js` is generated from `src/sw.js` like the other two.
 

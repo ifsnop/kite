@@ -65,7 +65,7 @@ index.html         redirección de la raíz del sitio al minificado
 
 `build.js` escribe `kitelocal.html` (legible, el producto) y `kitelocal.min.html` (derivada minificada, lo que sirve Pages).
 
-- **Motivo medido**: Pages ya comprime (gzip). Minificar solo HTML/CSS apenas mueve la aguja (~5%, ruido contra gzip). Minificar también el JS sí: 460.123→213.605 bytes en disco, 150.765→66.285 comprimidos (**-56%**). Brotli no entra: Pages sirve `gzip` aunque se pida `br`.
+- **Motivo medido**: Pages ya comprime (gzip). Minificar solo HTML/CSS apenas mueve la aguja (~5 %, ruido contra gzip). Minificar también el JS sí: **−53 % en disco y −55 % comprimido con gzip** (medido el 2026-11-01 sobre `kitelocal.html`; `npm run build` imprime el de disco). **Se citan porcentajes y no bytes, a propósito**: el archivo crece con cada función y las cifras absolutas se quedaban viejas (las de antes, 460→214 KB y 151→66 KB, eran de cuando el producto pesaba una tercera parte); el porcentaje apenas se mueve. Brotli no entra: Pages sirve `gzip` aunque se pida `br`.
 - **No se minifica en su sitio (produciendo un solo archivo) porque 22 suites usan comentarios como marcadores** (`between("/* ===== Geodesia", …)`) sobre el archivo ENTREGADO; `removeComments` los borra. Reescribirlas para leer `src/` les quitaría la propiedad de probar lo que se entrega.
 - **Dos opciones de `MINIFY_OPTS` son decisiones, no ajuste fino**:
   - `conservativeCollapse: true` — colapsa espacios a UNO, nunca a cero (hay `<strong>` en línea en `src/index.html` que se pegaría). Gratis contra gzip.

@@ -45,7 +45,7 @@ Una idea recorre toda la aplicación: **la vista del mapa es del usuario y nadie
 
 ### 2.1 Cabecera
 
-En la parte superior están el título de la aplicación y cinco botones de alcance general, además del buscador de lugares y los controles de carpetas.
+En la parte superior están el título de la aplicación y cinco botones de alcance general, además del buscador de lugares y los controles de carpetas. **Cada uno de los cinco abre y cierra su ventana**: con la ventana a la vista, volver a pulsar el botón equivale a su «Cerrar» o a su «Cancelar» (el que tenga), igual que la × o `Escape`; con una ventana modal abierta, el botón sigue accesible por encima del fondo, y abrir otra de las modales cierra antes la que hubiera, para que no se apilen.
 
 ![Cabecera del panel de navegación, con sus botones y el buscador de lugares](img/cabecera-panel.png)
 *Figura 3. Cabecera del panel: los cinco botones generales (🔗, 🏷️, 📐, 📋 y ?), el buscador de lugares, la creación de carpetas y los tres botones de activación masiva. Debajo, los avisos de las últimas cargas.*

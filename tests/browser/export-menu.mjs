@@ -59,6 +59,47 @@ await openMenu("Zona A");
 ok((await menuItems()).length === 3, "abrir el de otra fila sustituye al anterior, no se apilan");
 await page.keyboard.press("Escape");
 
+/* ---- Con el RATÓN de verdad: ir del 💾 a una entrada no cierra el menú ----
+   Se reportó: «el diálogo desaparece al mover el ratón fuera de la opción de
+   guardar». Los botones de una fila solo se ven con el ratón encima; al salir
+   de la fila el 💾 —que tiene el foco tras pulsarlo— se oculta y pierde el foco,
+   y el `blur` de ese ELEMENTO llegaba al oyente de captura de `window` y cerraba
+   el menú. Con `.click()` de JavaScript (todo lo de arriba) no se ve nunca.   */
+await page.mouse.move(10, 10);
+const filaZonas = await page.evaluate(() => {
+  const li = [...document.querySelectorAll("#tree li")].find(x => x._name === "Zonas");
+  const r = li.querySelector(":scope > .node-row").getBoundingClientRect();
+  return { x: r.x + 60, y: r.y + r.height / 2 };
+});
+await page.mouse.move(filaZonas.x, filaZonas.y);
+const botonGuardar = await page.evaluate(() => {
+  const li = [...document.querySelectorAll("#tree li")].find(x => x._name === "Zonas");
+  const b = li.querySelector(':scope > .node-row button[aria-label^="Guardar o exportar"]').getBoundingClientRect();
+  return { x: b.x + b.width / 2, y: b.y + b.height / 2 };
+});
+await page.mouse.click(botonGuardar.x, botonGuardar.y);
+ok((await menuItems()).length === 3, "el menú se abre al pulsar 💾 con el ratón");
+const caja = await page.evaluate(() => { const r = document.querySelector(".ctx-menu:not(#map-ctxmenu)").getBoundingClientRect(); return { x: r.x, y: r.y }; });
+const destino = { x: caja.x + 40, y: caja.y + 14 };         /* la primera entrada */
+let abiertoEnTodoElCamino = true;
+for (let i = 1; i <= 12; i++) {
+  await page.mouse.move(botonGuardar.x + (destino.x - botonGuardar.x) * i / 12, botonGuardar.y + (destino.y - botonGuardar.y) * i / 12);
+  await page.waitForTimeout(30);   /* deja que el navegador reparta hover y foco */
+  if ((await menuItems()).length !== 3) { abiertoEnTodoElCamino = false; break; }
+}
+ok(abiertoEnTodoElCamino, "al llevar el ratón del 💾 a una entrada el menú sigue abierto (los botones de la fila se ocultan por el camino)");
+const [dlRaton] = await Promise.all([page.waitForEvent("download"), page.mouse.click(destino.x, destino.y)]);
+ok(/^Zonas\.kite\.json$/.test(dlRaton.suggestedFilename()), "y pulsar la entrada con el ratón la elige y baja el archivo: " + dlRaton.suggestedFilename());
+ok((await menuItems()).length === 0, "tras elegir, el menú se cierra");
+/* Lo que sí debe cerrarlo con el ratón: pulsar fuera */
+await page.mouse.move(filaZonas.x, filaZonas.y);
+await page.mouse.click(botonGuardar.x, botonGuardar.y);
+await page.mouse.move(900, 500);
+ok((await menuItems()).length === 3, "mover el ratón al mapa NO cierra el menú: solo un clic fuera, Escape o desplazarse");
+await page.mouse.click(900, 500);
+ok((await menuItems()).length === 0, "el clic fuera sí");
+
+
 /* ---- exportar ---- */
 const pick = label => page.evaluate(l => {
   [...document.querySelectorAll(".ctx-menu:not(#map-ctxmenu) .ctx-menu-item")].find(b => b.textContent === l).click();

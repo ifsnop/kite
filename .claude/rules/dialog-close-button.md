@@ -23,6 +23,13 @@ Marcado (el mismo en los 20):
 - **El pie con sus botones SE QUEDA** en los diálogos que lo tienen (Cancelar/Aceptar, Cerrar/Copiar/Borrar…): la × es un camino más, no sustituye a nada. Orden de botones del pie: `style-dialogs-ui.md`.
 - **Si el único botón del pie sería «Cerrar», no hay pie**: la × es ese botón, la caja lleva `no-actions` y el espacio del pie se lo queda el contenido (pedido expreso: en el perfil de una ruta, lo que ocupaba el pie es gráfica). Un diálogo que gane un segundo botón vuelve al pie `.dlg-actions`. Hoy sin pie: atajos, cálculos geodésicos y perfil.
 
+## Los cinco botones de la cabecera abren Y cierran
+
+🔗 (`url-btn`), 🏷️ (`gnp-editor-btn`), 📐 (`geocalc-btn`), 📋 (`log-btn`) y ? (`help-btn`) alternan su diálogo (`HEADER_DIALOGS`, `43-points-editor.js`): con el diálogo a la vista, pulsar el botón **pulsa su Cerrar o su Cancelar** (`url-close`, `props-cancel`, `geocalc-close`, `log-close`, `shortcuts-close`), no un segundo «abrir», así que cierra exactamente igual que la × y que Escape (Propiedades deshace lo previsualizado; el 🔗 cancela la descarga en vuelo). Es un escuchador en CAPTURA sobre `document` que intercepta el clic (`stopImmediatePropagation`) antes del manejador de «abrir» de cada botón; antes solo el de geodésicos cerraba, porque era el único NO modal (los otros cuatro quedaban tapados por el fondo).
+- **Alcanzables bajo un modal** (`styles.css`, junto a `.dlg-overlay`): el fondo de un `.dlg-overlay` cubre toda la pantalla, así que mientras haya a la vista UNO de los cuatro modales de la cabecera y NINGÚN otro, los botones pasan por encima (`z-index: 2100`, con `:has()`). Con otro modal además (el selector del nombre abierto desde Propiedades, p. ej.) no: ese pide una respuesta y no se deja a medias.
+- **No se apilan**: abrir un modal de la cabecera cierra antes, por su Cerrar/Cancelar, el que hubiera abierto. El de geodésicos es flotante y no se cierra ni cierra a los demás.
+- Se prueba con el ratón de verdad (`tests/browser/dialogs.mjs`): un `.click()` de JavaScript se salta justo lo que falla (el fondo que tapa el botón).
+
 Detalles que no son adorno:
 
 - **Dentro del `<h2>`**, que ya es fijo (`sticky`): se ve con cualquier scroll, sin otra barra.

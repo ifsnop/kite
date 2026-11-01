@@ -812,6 +812,19 @@
     justify-content: center;
   }
   .dlg-overlay[hidden] { display: none; }
+  /* Los cinco botones de la cabecera abren Y cierran su diálogo (regla en
+     dialog-close-button.md), pero el fondo de un modal cubre toda la pantalla
+     y el botón quedaba inalcanzable. Mientras haya a la vista UNO de los cuatro
+     modales de la cabecera y ningún otro, los botones pasan por encima del fondo.
+     Con otro modal además (el selector de nombre abierto desde Propiedades, p. ej.)
+     no: ese pide una respuesta y no se puede dejar a medias.              */
+  body:has(#url-dialog:not([hidden])):not(:has(.dlg-overlay:not([hidden]):not(#url-dialog))) #nav-panel h1 .btn,
+  body:has(#props-dialog:not([hidden])):not(:has(.dlg-overlay:not([hidden]):not(#props-dialog))) #nav-panel h1 .btn,
+  body:has(#log-dialog:not([hidden])):not(:has(.dlg-overlay:not([hidden]):not(#log-dialog))) #nav-panel h1 .btn,
+  body:has(#shortcuts:not([hidden])):not(:has(.dlg-overlay:not([hidden]):not(#shortcuts))) #nav-panel h1 .btn {
+    position: relative;
+    z-index: 2100;
+  }
   /* Propiedades es modal y se abre a menudo con el perfil de una ruta (flotante,
      mismo z-index y más tarde en el documento) a la vista, para ver el cambio
      en vivo: tiene que quedar POR ENCIMA, o la ventana del perfil le tapaba
@@ -5033,7 +5046,7 @@ map.on("resize rotate", fitWorldMinZoom);
 
 /* Fecha de generación del código (versión): AÑOMESDIAHORAMINUTO.
    Actualizar en cada generación; se muestra junto al crédito de Leaflet. */
-const BUILD = "202611011606";
+const BUILD = "202611011756";
 /* Versión de release (la de package.json, horneada aquí por build.js
    al construir — ver «Versión y releases de GitHub» en CLAUDE.md): a
    diferencia de BUILD, que cambia en CADA generación, esta solo cambia
@@ -11720,8 +11733,16 @@ function openExportMenu(btn, li) {
     e.stopPropagation(); /* que el Escape del árbol no limpie además la selección */
     closeExportMenu();
   });
-  listen(window, "scroll", closeExportMenu);
-  listen(window, "blur", closeExportMenu);
+  /* El desplazamiento de CUALQUIER panel (la captura recoge el de los
+     elementos, que no burbujea) descoloca el menú respecto a su botón; el
+     del propio menú no.                                                  */
+  listen(window, "scroll", e => { if (!menu.contains(e.target)) closeExportMenu(); });
+  /* `blur` SIN captura: es el de la ventana (se cambia de aplicación). En
+     captura llegaban también los `blur` de los ELEMENTOS, y el 💾 (que tiene
+     el foco tras pulsarlo) pierde el suyo en cuanto el ratón sale de la
+     fila y los botones de la fila se ocultan: el menú se cerraba justo al
+     ir a elegir una entrada.                                            */
+  listen(window, "blur", closeExportMenu, false);
 }
 /* ================= Importar GPX =================
    GPX 1.0 y 1.1 (waypoints, rutas y tracks). Se convierte a un
@@ -14155,6 +14176,41 @@ document.addEventListener("click", e => {
   const target = document.getElementById(x.dataset.cancel);
   if (target && !target.disabled) target.click();
 });
+
+/* Los cinco botones de la cabecera (🔗 🏷️ 📐 📋 ?) ABREN y CIERRAN su diálogo:
+   con el diálogo a la vista, pulsar el botón es pulsar su Cerrar o su
+   Cancelar (el que tenga), no un segundo «abrir». Así vale lo mismo que la ×,
+   que Escape y que el botón del pie, y Cancelar deshace lo previsualizado
+   (Propiedades) y cancela lo que esté en vuelo (la descarga del 🔗) como
+   siempre. Va en CAPTURA sobre `document` para interceptar el clic antes de
+   que llegue al manejador de «abrir» de cada botón.
+
+   Los cuatro modales no se apilan: abrir uno cierra antes el que hubiera
+   abierto, también por su Cerrar/Cancelar. El de cálculos geodésicos es
+   flotante y no se cierra al abrir otro. Para que el botón sea ALCANZABLE con
+   un modal a la vista (su fondo cubre toda la pantalla), styles.css lo sube
+   por encima de ese fondo mientras haya SOLO ese modal abierto.            */
+const HEADER_DIALOGS = {
+  "url-btn": ["url-dialog", "url-close"],
+  "gnp-editor-btn": ["props-dialog", "props-cancel"],
+  "geocalc-btn": ["geocalc-dialog", "geocalc-close"],
+  "log-btn": ["log-dialog", "log-close"],
+  "help-btn": ["shortcuts", "shortcuts-close"]
+};
+document.addEventListener("click", e => {
+  const b = e.target.closest && e.target.closest("#nav-panel h1 button[id]");
+  const mine = b && HEADER_DIALOGS[b.id];
+  if (!mine) return;
+  if (!document.getElementById(mine[0]).hidden) {
+    e.stopImmediatePropagation();
+    document.getElementById(mine[1]).click();
+    return;
+  }
+  for (const [otherBtn, [dlgId, dismissId]] of Object.entries(HEADER_DIALOGS)) {
+    const dlg = document.getElementById(dlgId);
+    if (otherBtn !== b.id && !dlg.hidden && dlg.classList.contains("dlg-overlay")) document.getElementById(dismissId).click();
+  }
+}, true);
 
 function makeDialogMovable(box) {
   const handle = box.querySelector("h2");
