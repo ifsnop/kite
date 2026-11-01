@@ -436,6 +436,9 @@
      foco se va a su casilla, y con `:focus-within` se quedarían fijos
      sin que el ratón esté encima.                                     */
   .node-row:hover > .actions { visibility: visible; }
+  /* Con el minimenú de 💾 abierto (35-export-formats.js) las opciones de la fila
+     se quedan: ir del 💾 a un formato saca el cursor de la fila.            */
+  .node-row.menu-open > .actions { visibility: visible; }
   /* El fondo tiene que seguir al de la fila cuando esta está marcada */
   .node-row.selected > .actions {
     background: linear-gradient(to right, transparent, var(--accent-soft) 12px);
@@ -2879,7 +2882,7 @@ registerLang("en", "English", {
   "Ordenar alfabéticamente (alterna ascendente/descendente)": "Sort alphabetically (toggles ascending/descending)",
   "ordenar «{name}»": "sort “{name}”",
   "Colapsar esta carpeta y las interiores": "Collapse this folder and the ones inside it",
-  "Guardar o exportar a un archivo (KITE, KML o GeoJSON)": "Save or export to a file (KITE, KML or GeoJSON)",
+  "Guardar a un archivo (KITE, KML o GeoJSON)": "Save to a file (KITE, KML or GeoJSON)",
   "Tabla de atributos de esta carpeta": "Attribute table of this folder",
   "Centrar la vista aquí y acercar (zoom {zoom})": "Center the view here and zoom in (zoom {zoom})",
   "Editar propiedades": "Edit properties",
@@ -2975,7 +2978,7 @@ registerLang("en", "English", {
   /* 35-export-formats.js */
   "{names} se quedan fuera de {format}: solo se exportan capas y mediciones.": { one: "{names} is left out of {format}: only layers and measurements are exported.", other: "{names} are left out of {format}: only layers and measurements are exported." },
   "No hay nada que exportar a {format} en este nodo.": "There is nothing to export to {format} in this node.",
-  "Guardar o exportar": "Save or export",
+  "Guardar a un archivo": "Save to a file",
   "Archivo de KITE (.kite.json)": "KITE file (.kite.json)",
   "KML (.kml)": "KML (.kml)",
   "GeoJSON (.geojson)": "GeoJSON (.geojson)",
@@ -5046,7 +5049,7 @@ map.on("resize rotate", fitWorldMinZoom);
 
 /* Fecha de generación del código (versión): AÑOMESDIAHORAMINUTO.
    Actualizar en cada generación; se muestra junto al crédito de Leaflet. */
-const BUILD = "202611011756";
+const BUILD = "202611011942";
 /* Versión de release (la de package.json, horneada aquí por build.js
    al construir — ver «Versión y releases de GitHub» en CLAUDE.md): a
    diferencia de BUILD, que cambia en CADA generación, esta solo cambia
@@ -7794,7 +7797,7 @@ function makeActions(li, sortable, styleable, layer, focusable = styleable, { fi
   /* Carpetas y también capas sueltas: un KML o un GeoJSON de UNA capa es
      un uso corriente (pasarla a QGIS). El menú pregunta el formato.     */
   if (sortable || layer) {
-    btn("\uD83D\uDCBE", tr("Guardar o exportar a un archivo (KITE, KML o GeoJSON)"), "", b => openExportMenu(b, li));
+    btn("\uD83D\uDCBE", tr("Guardar a un archivo (KITE, KML o GeoJSON)"), "", b => openExportMenu(b, li));
   }
   if (sortable) btn("\u25A6", tr("Tabla de atributos de esta carpeta"), "", () => openAttrTable(li));
   if (focusable) {
@@ -11683,15 +11686,25 @@ function exportNodeAs(li, format) {
 /* ---------- Minimenú de 💾 ----------
    Con el aspecto del menú contextual del visor (.ctx-menu), pero
    independiente de él: aquel devuelve el foco al mapa y este se abre
-   desde el panel. Se cierra con un clic fuera, Escape, el desplazamiento
-   o al volver a pulsar 💾.                                              */
-let exportMenuEl = null, exportMenuOwner = null, exportMenuOff = [];
+   desde el panel. Se cierra con un clic fuera, Escape, el desplazamiento,
+   al volver a pulsar 💾 o al SALIR el ratón de la fila y del menú.
+
+   Mientras está abierto, las opciones de la fila (`.actions`, que solo se
+   ven con el ratón encima) se quedan a la vista (`.menu-open`): ir del 💾 a
+   un formato saca el cursor de la fila, y sin esto las opciones del nodo
+   desaparecían por el camino y no se podía volver a ellas. Fila y menú son
+   UNA zona: se pasa de una a otra sin que se cierre nada, y solo cuando el
+   ratón no está sobre ninguna de las dos (pasado un momento, para cruzar el
+   hueco entre ambas) se cierran las dos a la vez.                         */
+let exportMenuEl = null, exportMenuOwner = null, exportMenuRow = null, exportMenuOff = [];
+const EXPORT_MENU_LEAVE_MS = 300;
 
 function closeExportMenu() {
   exportMenuOff.forEach(off => off());
   exportMenuOff = [];
   if (exportMenuEl) exportMenuEl.remove();
-  exportMenuEl = exportMenuOwner = null;
+  if (exportMenuRow) exportMenuRow.classList.remove("menu-open");
+  exportMenuEl = exportMenuOwner = exportMenuRow = null;
 }
 
 function openExportMenu(btn, li) {
@@ -11701,7 +11714,7 @@ function openExportMenu(btn, li) {
   const menu = document.createElement("div");
   menu.className = "ctx-menu";
   menu.setAttribute("role", "menu");
-  menu.setAttribute("aria-label", tr("Guardar o exportar"));
+  menu.setAttribute("aria-label", tr("Guardar a un archivo"));
   const entries = [
     ["kite", tr("Archivo de KITE (.kite.json)")],
     ["kml", tr("KML (.kml)")],
@@ -11722,6 +11735,8 @@ function openExportMenu(btn, li) {
   menu.style.top = `${Math.max(0, Math.min(r.bottom + 2, window.innerHeight - mr.height - 4))}px`;
   exportMenuEl = menu;
   exportMenuOwner = btn;
+  exportMenuRow = btn.closest(".node-row");
+  if (exportMenuRow) exportMenuRow.classList.add("menu-open");
   const listen = (target, type, fn, capture = true) => {
     target.addEventListener(type, fn, capture);
     exportMenuOff.push(() => target.removeEventListener(type, fn, capture));
@@ -11743,6 +11758,19 @@ function openExportMenu(btn, li) {
      fila y los botones de la fila se ocultan: el menú se cerraba justo al
      ir a elegir una entrada.                                            */
   listen(window, "blur", closeExportMenu, false);
+  /* Salir de la zona (fila + menú). `mouseleave` solo salta con un movimiento
+     real del ratón: abrirlo con un clic simulado no arma ningún temporizador. */
+  let leaveTimer = 0;
+  const overZone = () => menu.matches(":hover") || (exportMenuRow && exportMenuRow.matches(":hover"));
+  const leave = () => {
+    clearTimeout(leaveTimer);
+    leaveTimer = setTimeout(() => { if (exportMenuEl === menu && !overZone()) closeExportMenu(); }, EXPORT_MENU_LEAVE_MS);
+  };
+  for (const zone of [menu, exportMenuRow].filter(Boolean)) {
+    listen(zone, "mouseleave", leave, false);
+    listen(zone, "mouseenter", () => clearTimeout(leaveTimer), false);
+  }
+  exportMenuOff.push(() => clearTimeout(leaveTimer));
 }
 /* ================= Importar GPX =================
    GPX 1.0 y 1.1 (waypoints, rutas y tracks). Se convierte a un

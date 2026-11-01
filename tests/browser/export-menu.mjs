@@ -33,7 +33,7 @@ ok(z0.leaves === 3, "«Zonas» tiene 3 capas: " + z0.leaves);
 const menuItems = () => page.evaluate(() => [...document.querySelectorAll(".ctx-menu:not(#map-ctxmenu) .ctx-menu-item")].map(b => b.textContent));
 const openMenu = name => page.evaluate(n => {
   const li = [...document.querySelectorAll("#tree li")].find(x => x._name === n);
-  li.querySelector(':scope > .node-row button[aria-label^="Guardar o exportar"]').click();
+  li.querySelector(':scope > .node-row button[aria-label^="Guardar a un archivo"]').click();
 }, name);
 
 /* ---- abrir y cerrar ---- */
@@ -74,7 +74,7 @@ const filaZonas = await page.evaluate(() => {
 await page.mouse.move(filaZonas.x, filaZonas.y);
 const botonGuardar = await page.evaluate(() => {
   const li = [...document.querySelectorAll("#tree li")].find(x => x._name === "Zonas");
-  const b = li.querySelector(':scope > .node-row button[aria-label^="Guardar o exportar"]').getBoundingClientRect();
+  const b = li.querySelector(':scope > .node-row button[aria-label^="Guardar a un archivo"]').getBoundingClientRect();
   return { x: b.x + b.width / 2, y: b.y + b.height / 2 };
 });
 await page.mouse.click(botonGuardar.x, botonGuardar.y);
@@ -91,11 +91,46 @@ ok(abiertoEnTodoElCamino, "al llevar el ratón del 💾 a una entrada el menú s
 const [dlRaton] = await Promise.all([page.waitForEvent("download"), page.mouse.click(destino.x, destino.y)]);
 ok(/^Zonas\.kite\.json$/.test(dlRaton.suggestedFilename()), "y pulsar la entrada con el ratón la elige y baja el archivo: " + dlRaton.suggestedFilename());
 ok((await menuItems()).length === 0, "tras elegir, el menú se cierra");
-/* Lo que sí debe cerrarlo con el ratón: pulsar fuera */
-await page.mouse.move(filaZonas.x, filaZonas.y);
-await page.mouse.click(botonGuardar.x, botonGuardar.y);
-await page.mouse.move(900, 500);
-ok((await menuItems()).length === 3, "mover el ratón al mapa NO cierra el menú: solo un clic fuera, Escape o desplazarse");
+/* Fila y menú son UNA zona: las opciones de la fila siguen a la vista mientras el ratón esté
+   sobre el menú, se puede volver de él a la fila sin que se cierre nada, y al salir de las dos se
+   cierran a la vez (pasado un momento, para cruzar el hueco entre ambas).                       */
+const accionesVisibles = () => page.evaluate(() => {
+  const li = [...document.querySelectorAll("#tree li")].find(x => x._name === "Zonas");
+  return getComputedStyle(li.querySelector(":scope > .node-row > .actions")).visibility === "visible";
+});
+/* Las coordenadas se miden de nuevo: los avisos («Descargado») empujan el árbol hacia abajo */
+const medirZonas = async () => {
+  const fila = await page.evaluate(() => {
+    const li = [...document.querySelectorAll("#tree li")].find(x => x._name === "Zonas");
+    const r = li.querySelector(":scope > .node-row").getBoundingClientRect();
+    return { x: r.x + 60, y: r.y + r.height / 2 };
+  });
+  await page.mouse.move(fila.x, fila.y);
+  const boton = await page.evaluate(() => {
+    const li = [...document.querySelectorAll("#tree li")].find(x => x._name === "Zonas");
+    const b = li.querySelector(':scope > .node-row button[aria-label^="Guardar a un archivo"]').getBoundingClientRect();
+    return { x: b.x + b.width / 2, y: b.y + b.height / 2 };
+  });
+  return { fila, boton };
+};
+const z1 = await medirZonas();
+await page.mouse.click(z1.boton.x, z1.boton.y);
+ok((await menuItems()).length === 3 && await accionesVisibles(), "abierto: menú y opciones de la fila a la vista");
+const caja2 = await page.evaluate(() => { const r = document.querySelector(".ctx-menu:not(#map-ctxmenu)").getBoundingClientRect(); return { x: r.x + 40, y: r.y + 30 }; });
+await page.mouse.move(caja2.x, caja2.y, { steps: 8 });
+await page.waitForTimeout(600);   /* más que el margen de salida */
+ok((await menuItems()).length === 3, "con el ratón sobre los formatos el menú sigue abierto pasado el margen");
+ok(await accionesVisibles(), "y las opciones de la fila siguen a la vista aunque el cursor ya no esté en la fila (se puede volver a ellas)");
+await page.mouse.move(z1.fila.x, z1.fila.y, { steps: 8 });
+await page.waitForTimeout(600);
+ok((await menuItems()).length === 3 && await accionesVisibles(), "al volver a la fila no se cierra nada");
+await page.mouse.move(900, 500, { steps: 8 });
+await page.waitForTimeout(600);
+ok((await menuItems()).length === 0, "al salir el ratón de la fila y del menú, el menú se cierra");
+ok(!(await accionesVisibles()), "y las opciones de la fila se cierran con él");
+/* Un clic fuera también lo cierra (sin esperar a la salida) */
+const z2 = await medirZonas();
+await page.mouse.click(z2.boton.x, z2.boton.y);
 await page.mouse.click(900, 500);
 ok((await menuItems()).length === 0, "el clic fuera sí");
 

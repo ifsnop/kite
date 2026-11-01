@@ -287,7 +287,7 @@ function makeActions(li, sortable, styleable, layer, focusable = styleable, { fi
   /* Carpetas y también capas sueltas: un KML o un GeoJSON de UNA capa es
      un uso corriente (pasarla a QGIS). El menú pregunta el formato.     */
   if (sortable || layer) {
-    btn("\uD83D\uDCBE", tr("Guardar o exportar a un archivo (KITE, KML o GeoJSON)"), "", b => openExportMenu(b, li));
+    btn("\uD83D\uDCBE", tr("Guardar a un archivo (KITE, KML o GeoJSON)"), "", b => openExportMenu(b, li));
   }
   if (sortable) btn("\u25A6", tr("Tabla de atributos de esta carpeta"), "", () => openAttrTable(li));
   if (focusable) {
