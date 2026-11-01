@@ -11,10 +11,11 @@
    Además se escribe kitelocal.min.html, que es lo que sirve GitHub
    Pages. Es una DERIVADA del anterior, nunca una fuente: no se edita, no
    se lee y las suites de extracción no la tocan (borrar los comentarios
-   las dejaría sin marcadores). Medido contra el sitio real, Pages ya
-   envía gzip —152,9 KB hoy—, y minificar solo HTML y CSS apenas baja a
-   144,8; lo que de verdad reduce la transmisión es minificar también el
-   JavaScript, que la deja en 66,7 KB.
+   las dejaría sin marcadores). Pages ya envía gzip, y minificar solo HTML y
+   CSS apenas lo reduce (~5 %); lo que de verdad reduce la transmisión es
+   minificar también el JavaScript: −55 % comprimido (−53 % en disco),
+   medido el 2026-11-01. Porcentajes y no bytes: el archivo crece con cada
+   función y una cifra absoluta se queda vieja.
 
    Uso:  node build.js            construye los dos
          node build.js --check    no escribe; falla si lo construido no
