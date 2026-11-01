@@ -610,7 +610,7 @@ Un servicio **ArcGIS REST (MapServer)** publica un mapa con varias capas —por 
 
 La misma información está disponible en cualquier momento con la tecla `?` o el botón de ayuda de la cabecera, organizada en pestañas («Navegación», «Actuar», «Visor», «Dibujar y editar») para no tener que scrollear una única tabla larga. Se cierra con la **×** de arriba a la derecha, con Escape o con la misma tecla `?`.
 
-Esa × es la norma de toda ventana cuyo único botón sería «Cerrar» (la chuleta, los cálculos geodésicos y el perfil de una ruta): en vez de un pie con un solo botón, la × en la barra del título, que se ve siempre, y ese espacio para el contenido.
+Esa × es la norma de **todas** las ventanas de la aplicación: arriba a la derecha de la barra del título, siempre en el mismo sitio y con el mismo aspecto, y **equivale al botón «Cancelar»** de la ventana o, si no tiene, a «Cerrar» (con «Escape» pasa lo mismo). En las ventanas cuyo único botón sería «Cerrar» (la chuleta, los cálculos geodésicos y el perfil de una ruta) es además lo único: en vez de un pie con un solo botón, la × en la barra del título, que se ve siempre, y ese espacio para el contenido. Las demás conservan su pie con «Cancelar», «Aceptar», etc.
 
 ![Chuleta de atajos de teclado completa](img/atajos.png)
 *Figura 55. Chuleta de atajos de teclado (tecla `?`), pestaña «Navegación». Las otras tres son «Actuar», «Visor» y «Dibujar y editar».*

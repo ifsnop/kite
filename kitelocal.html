@@ -1795,7 +1795,7 @@
 <!-- ================= Diálogo de estilos de capa ================= -->
 <div id="style-dialog" class="dlg-float" hidden>
   <div class="dlg-box">
-    <h2 id="style-title">Propiedades</h2>
+    <h2 class="dlg-head"><span class="dlg-title" id="style-title">Propiedades</span><button type="button" class="dlg-close" data-cancel="style-cancel" title="Cancelar" aria-label="Cancelar">&#215;</button></h2>
     <!-- El nombre es de cada nodo, pero con varios seleccionados el campo
          no se deja en blanco: enseña los nombres que hay (en gris y
          cursiva, como marca de "esto no es un valor") y escribir uno
@@ -1977,7 +1977,7 @@
 <!-- Ficha original del elemento (description del KML) -->
 <div id="desc-dialog" class="dlg-float" hidden>
   <div class="dlg-box">
-    <h2 id="desc-title">Ficha</h2>
+    <h2 class="dlg-head"><span class="dlg-title" id="desc-title">Ficha</span><button type="button" class="dlg-close" data-cancel="desc-close" title="Cerrar" aria-label="Cerrar">&#215;</button></h2>
     <div id="desc-body" class="desc-body"></div>
     <div class="dlg-actions">
       <button class="btn" id="desc-close">Cerrar</button>
@@ -2032,7 +2032,7 @@
 <!-- Selector de marcador (paleta de iconos, estilo Google Earth) -->
 <div id="icon-picker" class="dlg-overlay" hidden>
   <div class="dlg-box">
-    <h2>Elegir marcador</h2>
+    <h2 class="dlg-head"><span class="dlg-title">Elegir marcador</span><button type="button" class="dlg-close" data-cancel="icon-cancel" title="Cancelar" aria-label="Cancelar">&#215;</button></h2>
     <div class="icon-grid" id="icon-grid"></div>
     <div class="dlg-actions">
       <button class="btn" id="icon-cancel">Cancelar</button>
@@ -2046,7 +2046,7 @@
      no hay sitio para el panel de navegación y el mapa a la vez. -->
 <div id="mobile-notice" class="dlg-overlay" hidden>
   <div class="dlg-box">
-    <h2>Mejor desde un ordenador</h2>
+    <h2 class="dlg-head"><span class="dlg-title">Mejor desde un ordenador</span><button type="button" class="dlg-close" data-cancel="mobile-close" title="Cerrar" aria-label="Cerrar">&#215;</button></h2>
     <p class="dlg-hint">KITE Local está pensado para pantallas de escritorio: en la pantalla de un móvil no hay espacio para el panel de navegación y el mapa a la vez. Le recomendamos abrirlo desde un ordenador.</p>
     <p class="dlg-hint">Si continúa de todos modos, se ocultará el panel de navegación y quedará solo el mapa. Si cierra este aviso, el panel de navegación ocupará toda la pantalla. En los dos casos, la flecha del borde alterna entre el panel y el mapa, y se recordará su elección.</p>
     <div class="dlg-actions">
@@ -2058,7 +2058,7 @@
 
 <div id="kml-tags-picker" class="dlg-overlay" hidden>
   <div class="dlg-box">
-    <h2 id="ktp-title">Etiquetas en los nombres</h2>
+    <h2 class="dlg-head"><span class="dlg-title" id="ktp-title">Etiquetas en los nombres</span><button type="button" class="dlg-close" data-cancel="ktp-cancel" title="Cancelar" aria-label="Cancelar">&#215;</button></h2>
     <p id="ktp-intro" class="dlg-hint"></p>
     <div class="dlg-actions">
       <button class="btn" id="ktp-cancel">Dejarlas</button>
@@ -2070,7 +2070,7 @@
 <!-- Confirmar si se fusionan placemarks duplicados (mismo nombre y posición) -->
 <div id="kml-dup-picker" class="dlg-overlay" hidden>
   <div class="dlg-box">
-    <h2>Marcadores duplicados</h2>
+    <h2 class="dlg-head"><span class="dlg-title">Marcadores duplicados</span><button type="button" class="dlg-close" data-cancel="kdp-cancel" title="Cancelar" aria-label="Cancelar">&#215;</button></h2>
     <p id="kdp-intro" class="dlg-hint"></p>
     <div class="dlg-actions">
       <button class="btn" id="kdp-cancel">Mantener todos</button>
@@ -2082,7 +2082,7 @@
 <!-- Elegir qué propiedad de un GeoJSON ambiguo se usa como nombre -->
 <div id="geojson-name-picker" class="dlg-overlay" hidden>
   <div class="dlg-box">
-    <h2>Elegir nombre</h2>
+    <h2 class="dlg-head"><span class="dlg-title">Elegir nombre</span><button type="button" class="dlg-close" data-cancel="gnp-cancel" title="Cancelar" aria-label="Cancelar">&#215;</button></h2>
     <p id="gnp-intro" class="dlg-hint"></p>
     <div class="gnp-list" id="gnp-list"></div>
     <p class="dlg-hint" id="gnp-result" aria-live="polite"></p>
@@ -2099,7 +2099,7 @@
      editables interactivamente, ver 43-points-editor.js). -->
 <div id="props-dialog" class="dlg-overlay" hidden>
   <div class="dlg-box">
-    <h2>Propiedades</h2>
+    <h2 class="dlg-head"><span class="dlg-title">Propiedades</span><button type="button" class="dlg-close" data-cancel="props-cancel" title="Cancelar" aria-label="Cancelar">&#215;</button></h2>
     <div class="dlg-tabs" role="tablist">
       <button type="button" class="dlg-tab active" id="props-tab-btn-prefs" role="tab" aria-selected="true" aria-controls="props-tab-prefs">Preferencias</button>
       <button type="button" class="dlg-tab" id="props-tab-btn-gnp" role="tab" aria-selected="false" aria-controls="props-tab-gnp">Índices de GeoJSON</button>
@@ -2306,7 +2306,7 @@
      para poder copiarlo y pegarlo en una hoja de cálculo. -->
 <div id="points-dialog" class="dlg-overlay" hidden>
   <div class="dlg-box">
-    <h2 id="points-title">Puntos de la capa</h2>
+    <h2 class="dlg-head"><span class="dlg-title" id="points-title">Puntos de la capa</span><button type="button" class="dlg-close" data-cancel="points-cancel" title="Cancelar" aria-label="Cancelar">&#215;</button></h2>
     <p class="dlg-hint" data-i18n-html="html.points-help">Un punto por l&#237;nea, con <strong>latitud, longitud y altitud</strong>
       separadas por tabulador. Se puede copiar y pegar directamente en una hoja de c&#225;lculo.
       Al pegar tambi&#233;n se admiten comas o espacios como separador.</p>
@@ -2327,7 +2327,7 @@
      el panel. Solo en memoria; se pierde al cerrar la página. -->
 <div id="log-dialog" class="dlg-overlay" hidden>
   <div class="dlg-box">
-    <h2>Registro de avisos</h2>
+    <h2 class="dlg-head"><span class="dlg-title">Registro de avisos</span><button type="button" class="dlg-close" data-cancel="log-close" title="Cerrar" aria-label="Cerrar">&#215;</button></h2>
     <p class="dlg-hint" data-i18n-html="html.log-help">Avisos de esta sesi&#243;n, del m&#225;s antiguo al m&#225;s reciente. Los
       marcados con <strong>!</strong> exig&#237;an confirmaci&#243;n. Al cerrar la p&#225;gina se pierde.</p>
     <div class="log-list" id="log-list"></div>
@@ -2347,7 +2347,7 @@
      esperar a que venza el tope de 20 s no es una salida.            -->
 <div id="url-dialog" class="dlg-overlay" hidden>
   <div class="dlg-box">
-    <h2>A&#241;adir desde una direcci&#243;n</h2>
+    <h2 class="dlg-head"><span class="dlg-title">A&#241;adir desde una direcci&#243;n</span><button type="button" class="dlg-close" data-cancel="url-close" title="Cerrar" aria-label="Cerrar">&#215;</button></h2>
     <p class="dlg-hint">Direcci&#243;n de un archivo KML, KMZ, GPX, JSON/GeoJSON, TopoJSON, de un
       shapefile comprimido (.zip), de una carpeta exportada (.kite.json) o de un servicio de mapas
       ArcGIS (&#8230;/MapServer). Se descarga primero y se a&#241;ade despu&#233;s, cuando
@@ -2376,7 +2376,7 @@
      el formato global de coordenadas. -->
 <div id="range-dialog" class="dlg-overlay" hidden>
   <div class="dlg-box">
-    <h2><span class="dlg-title" id="rg-title">Anillos de alcance</span></h2>
+    <h2 class="dlg-head"><span class="dlg-title" id="rg-title">Anillos de alcance</span><button type="button" class="dlg-close" data-cancel="rg-cancel" title="Cancelar" aria-label="Cancelar">&#215;</button></h2>
     <div class="dlg-row"><label for="rg-mode">Forma</label>
       <select id="rg-mode">
         <option value="rings">Anillos concéntricos</option>
@@ -2409,7 +2409,7 @@
      que están en el DOM (hay carpetas de decenas de miles de capas). -->
 <div id="attr-dialog" class="dlg-float" hidden>
   <div class="dlg-box">
-    <h2 id="attr-title">Tabla de atributos</h2>
+    <h2 class="dlg-head"><span class="dlg-title" id="attr-title">Tabla de atributos</span><button type="button" class="dlg-close" data-cancel="attr-close" title="Cerrar" aria-label="Cerrar">&#215;</button></h2>
     <div class="attr-bar">
       <input type="search" id="attr-filter" placeholder="Filtrar filas&#8230;" aria-label="Filtrar filas" autocomplete="off" spellcheck="false">
       <span class="dlg-note" id="attr-count"></span>
@@ -2431,7 +2431,7 @@
      Una clasificación hecha una vez: al aceptar quedan estilos normales. -->
 <div id="attrstyle-dialog" class="dlg-overlay" hidden>
   <div class="dlg-box">
-    <h2>Estilo por atributo</h2>
+    <h2 class="dlg-head"><span class="dlg-title">Estilo por atributo</span><button type="button" class="dlg-close" data-cancel="as-cancel" title="Cancelar" aria-label="Cancelar">&#215;</button></h2>
     <div class="dlg-row"><label for="as-attr">Atributo</label><select id="as-attr"></select></div>
     <div class="dlg-row"><label for="as-mode">Tipo</label>
       <select id="as-mode">
@@ -2461,7 +2461,7 @@
      autentica sus servicios OGC. Es del usuario, no de la aplicación. -->
 <div id="sh-creds" class="dlg-overlay" hidden>
   <div class="dlg-box">
-    <h2>Credencial de Copernicus</h2>
+    <h2 class="dlg-head"><span class="dlg-title">Credencial de Copernicus</span><button type="button" class="dlg-close" data-cancel="sh-cancel" title="Cancelar" aria-label="Cancelar">&#215;</button></h2>
     <p class="dlg-hint" data-i18n-html="html.copernicus-help">Copernicus no publica ning&#250;n WMS an&#243;nimo: sus capas se sirven por
       Sentinel Hub, que identifica cada petici&#243;n con un <em>instance ID</em> de tu propia
       cuenta. Se crea gratis en el panel de Copernicus Data Space, en
@@ -2488,7 +2488,7 @@
      ajeno), nunca de la aplicaci&#243;n. -->
 <div id="custom-tiles-creds" class="dlg-overlay" hidden>
   <div class="dlg-box">
-    <h2>Custom Tile Map Service (TMS)</h2>
+    <h2 class="dlg-head"><span class="dlg-title">Custom Tile Map Service (TMS)</span><button type="button" class="dlg-close" data-cancel="custom-tiles-cancel" title="Cancelar" aria-label="Cancelar">&#215;</button></h2>
     <p class="dlg-hint" data-i18n-html="html.ctiles-help">La capa <em>Custom Tile Map Service</em> solo admite servidores de
       teselas (<em>Tile Map Service</em>): pide sus teselas a la direcci&#243;n que pongas
       aqu&#237;, a&#241;adiendo <code>{z}/{x}/{y}.png</code> al final por su cuenta &#8212;
@@ -2519,7 +2519,7 @@
      usuario. Sus capas se descubren con su GetCapabilities. -->
 <div id="custom-wms-creds" class="dlg-overlay" hidden>
   <div class="dlg-box">
-    <h2>Custom Web Map Service (WMS)</h2>
+    <h2 class="dlg-head"><span class="dlg-title">Custom Web Map Service (WMS)</span><button type="button" class="dlg-close" data-cancel="custom-wms-cancel" title="Cancelar" aria-label="Cancelar">&#215;</button></h2>
     <p class="dlg-hint" data-i18n-html="html.cwms-help">La capa <em>Custom Web Map Service</em> lee de tu servidor WMS
       (<em>Web Map Service</em>) la lista de capas que publica y te deja elegir una, que
       puedes activar y desactivar como el resto de mapas base.</p>
@@ -5033,7 +5033,7 @@ map.on("resize rotate", fitWorldMinZoom);
 
 /* Fecha de generación del código (versión): AÑOMESDIAHORAMINUTO.
    Actualizar en cada generación; se muestra junto al crédito de Leaflet. */
-const BUILD = "202611011558";
+const BUILD = "202611011606";
 /* Versión de release (la de package.json, horneada aquí por build.js
    al construir — ver «Versión y releases de GitHub» en CLAUDE.md): a
    diferencia de BUILD, que cambia en CADA generación, esta solo cambia
@@ -14141,6 +14141,20 @@ function releaseFocus() {
   const back = focusReturn.pop();
   if (back && back.isConnected && back.focus) back.focus();
 }
+
+/* La × de la cabecera de TODO diálogo (regla: dialog-close-button.md): hace lo
+   que el Cancelar del diálogo o, si no lo tiene, su Cerrar. En vez de repetir
+   esa lógica pulsa EL BOTÓN que el marcado nombra (`data-cancel`): así es
+   exactamente lo mismo que pulsarlo con el ratón, y lo que hace Escape
+   (52-measure.js llama a las mismas funciones). Los tres diálogos que ya la
+   tenían (atajos, cálculos geodésicos y perfil) llevan su propio manejador
+   por `id`, sin `data-cancel`.                                          */
+document.addEventListener("click", e => {
+  const x = e.target.closest && e.target.closest(".dlg-close[data-cancel]");
+  if (!x) return;
+  const target = document.getElementById(x.dataset.cancel);
+  if (target && !target.disabled) target.click();
+});
 
 function makeDialogMovable(box) {
   const handle = box.querySelector("h2");

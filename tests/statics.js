@@ -21,11 +21,13 @@
       cadena— pero hacía que `grep` sin `-a` tratara el archivo como
       binario y dejara de encontrar nada en él, incluido lo que buscan
       el punto 10 del checklist y el resto de suites de esta lista.
-   4. Regla de los diálogos de UN solo botón, el de cerrar (ver
-      .claude/rules/dialog-close-button.md): ese botón va como × arriba a la derecha,
-      dentro de la cabecera, y no lleva pie. Ningún `.dlg-actions` con
-      un único botón, y todo `.dlg-close` dentro de un `<h2 class="dlg-head">`
-      de una caja `no-actions`.
+   4. Regla de la × de los diálogos (ver .claude/rules/dialog-close-button.md):
+      TODO diálogo (`dlg-overlay`/`dlg-float`) lleva UNA × arriba a la
+      derecha, dentro de su `<h2 class="dlg-head">`; pulsarla hace lo que
+      su Cancelar o, si no lo tiene, su Cerrar: su `data-cancel` (o, en
+      los tres que ya la tenían, su propio `id`) apunta a un botón de la
+      MISMA caja. Y un diálogo con un único botón en el pie no lo lleva
+      en el pie: es la × y no tiene pie (`no-actions`).
 
    La segunda exige mirar el código de verdad, no con una expresión
    regular sobre el texto en bruto: los comentarios de este proyecto
@@ -223,16 +225,28 @@ const declaredFns = [...code.matchAll(/\bfunction\s+([A-Za-z_$][\w$]*)/g)].map(m
 const unused = declaredFns.filter(n => !called.has(n));
 if (unused.length) console.log("  (aviso, no fallo) funciones declaradas y nunca llamadas: " + unused.join(", "));
 
-/* ---------- 4. Un solo botón de cerrar → arriba a la derecha ---------- */
+/* ---------- 4. La × de TODO diálogo, arriba a la derecha ---------- */
 const lone = [...html.matchAll(/<div class="dlg-actions">([\s\S]*?)<\/div>/g)]
   .filter(m => (m[1].match(/<button\b/g) || []).length === 1)
   .map(m => (m[1].match(/id="([^"]+)"/) || [, "?"])[1]);
 ok(lone.length === 0, "diálogo con un pie de un solo botón (la regla lo pone como × en la cabecera): " + lone.join(", "));
-const closes = [...html.matchAll(/class="dlg-close"[^>]*id="([^"]+)"/g)].map(m => m[1]);
-ok(closes.length >= 3, `se han encontrado botones × de cabecera: ${closes.length}`);
-const misplaced = closes.filter(id => !new RegExp(
-  `<div class="dlg-box no-actions">\\s*<h2 class="dlg-head">[^\\n]*?id="${id}"[^\\n]*?</h2>`).test(html));
-ok(misplaced.length === 0, "× de cerrar fuera de la cabecera de una caja sin pie: " + misplaced.join(", "));
+const dialogStarts = [...html.matchAll(/<div id="([a-z0-9-]+)" class="(?:dlg-overlay|dlg-float)"/g)];
+ok(dialogStarts.length >= 20, `se han encontrado diálogos: ${dialogStarts.length}`);
+const crossProblems = [];
+dialogStarts.forEach((m, i) => {
+  const id = m[1];
+  const box = html.slice(m.index, i + 1 < dialogStarts.length ? dialogStarts[i + 1].index : html.length);
+  const head = box.match(/<h2\b[^>]*>([\s\S]*?)<\/h2>/);
+  if (!head || !/<h2 class="dlg-head">/.test(head[0])) { crossProblems.push(`${id}: su cabecera no es <h2 class="dlg-head">`); return; }
+  const crosses = head[1].match(/<button\b[^>]*class="dlg-close"[^>]*>/g) || [];
+  if (crosses.length !== 1) { crossProblems.push(`${id}: lleva ${crosses.length} × en la cabecera (debe ser exactamente una)`); return; }
+  const dc = crosses[0].match(/data-cancel="([^"]+)"/), own = crosses[0].match(/id="([^"]+)"/);
+  if (!dc && !own) crossProblems.push(`${id}: su × no dice qué botón pulsa (data-cancel) ni tiene manejador propio (id)`);
+  if (dc && !new RegExp(`<button\\b[^>]*id="${dc[1]}"`).test(box)) crossProblems.push(`${id}: data-cancel="${dc[1]}" no es un botón de esa misma caja`);
+  if (/class="dlg-box no-actions"/.test(box) && /class="dlg-actions"/.test(box)) crossProblems.push(`${id}: caja sin pie (no-actions) que lleva pie`);
+  if (!/title="[^"]+"/.test(crosses[0]) || !/aria-label="[^"]+"/.test(crosses[0])) crossProblems.push(`${id}: su × no lleva title y aria-label`);
+});
+ok(crossProblems.length === 0, "la × de los diálogos: " + crossProblems.join(" | "));
 
 /* ---------- 5. Ningún nombre de nivel superior declarado dos veces ----------
    Todo `src/js` comparte UN ámbito global. Una `const` repetida

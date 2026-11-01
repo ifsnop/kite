@@ -33,9 +33,11 @@ Sobre `kitelocal.html`, automatizadas:
   arranque y se ve). Pasó de verdad: el `gridPoint` nuevo del COG dejó
   sin el suyo a la consulta de elevación, sin ningún error. Se miran
   las declaraciones en la columna 0, que es como va el nivel superior.
-- **Regla de los diálogos de un solo botón** (íd.): ningún
-  `.dlg-actions` con un único botón, y todo `.dlg-close` dentro de un
-  `<h2 class="dlg-head">` de una caja `no-actions` (ver
+- **Regla de la × de los diálogos** (íd.): TODO diálogo
+  (`dlg-overlay`/`dlg-float`) lleva exactamente una `.dlg-close` en su
+  `<h2 class="dlg-head">`, con `title`/`aria-label` y su `data-cancel`
+  apuntando a un botón de la misma caja; ningún `.dlg-actions` con un
+  único botón y ninguna caja `no-actions` con pie (ver
   `dialog-close-button.md`).
 
 Las dos últimas requieren analizar el código, no el texto en bruto: un

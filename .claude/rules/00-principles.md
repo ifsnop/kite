@@ -136,6 +136,9 @@ Parcialmente hecho (no confundir con pendiente):
    `L.Control.extend` (`MeasureControl`/`ViewControl` como plantilla).
    Diálogos modales → patrón `.dlg-overlay`/`.dlg-box` con
    Cancelar/Aceptar y edición sobre borrador (ver diálogo de estilos).
+   **Todo diálogo nuevo lleva su × arriba a la derecha** (la de cálculos
+   geodésicos; pulsarla = Cancelar o, sin cancelar, Cerrar): ver
+   `dialog-close-button.md`; `tests/statics.js` falla si falta.
 3. Si muta el árbol → `scheduleSave()`. Si cambia lo serializado →
    actualizar `serializeTree`/`buildFromNodes` y subir `TREE_SCHEMA`.
 4. Si crea muchas capas → procesar por lotes con progreso.

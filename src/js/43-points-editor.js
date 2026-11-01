@@ -857,6 +857,20 @@ function releaseFocus() {
   if (back && back.isConnected && back.focus) back.focus();
 }
 
+/* La × de la cabecera de TODO diálogo (regla: dialog-close-button.md): hace lo
+   que el Cancelar del diálogo o, si no lo tiene, su Cerrar. En vez de repetir
+   esa lógica pulsa EL BOTÓN que el marcado nombra (`data-cancel`): así es
+   exactamente lo mismo que pulsarlo con el ratón, y lo que hace Escape
+   (52-measure.js llama a las mismas funciones). Los tres diálogos que ya la
+   tenían (atajos, cálculos geodésicos y perfil) llevan su propio manejador
+   por `id`, sin `data-cancel`.                                          */
+document.addEventListener("click", e => {
+  const x = e.target.closest && e.target.closest(".dlg-close[data-cancel]");
+  if (!x) return;
+  const target = document.getElementById(x.dataset.cancel);
+  if (target && !target.disabled) target.click();
+});
+
 function makeDialogMovable(box) {
   const handle = box.querySelector("h2");
   let from = null;
