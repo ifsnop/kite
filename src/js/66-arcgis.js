@@ -279,6 +279,7 @@ const ARCGIS_MAX_FEATURES = 100000;      /* el mismo tope que un shapefile (SHP_
 const ARCGIS_PAGE_MAX = 2000;            /* nunca más por página, aunque el servidor admita más */
 const ARCGIS_MAX_PAGES = 500;            /* cinturón contra un servidor que no avanza */
 const ARCGIS_RETRIES = 2;
+const ARCGIS_LABEL_MAX = 1000;           /* rótulos permanentes a la vez: cada uno es un nodo del DOM */
 const ARCGIS_OID_RE = /^[A-Za-z_][A-Za-z0-9_.]{0,63}$/;
 
 const arcgisLayerInfoUrl = (base, id) => `${base}/${id}?f=json`;
@@ -290,9 +291,35 @@ function arcgisQueryUrl(base, id, { offset = 0, count = null, orderBy = null } =
   return u + "&f=geojson";
 }
 
+/* El campo con el que el SERVIDOR rotula una capa (`drawingInfo.labelingInfo`),
+   o null. La regla es una expresión de ArcGIS: `$feature.NAME_TXT` (un campo,
+   la forma corriente en las capas `*_texto`), `[NAME_TXT]` (la antigua) o un
+   script de Arcade que junta varios con saltos de línea y condiciones. KITE
+   NO ejecuta esas expresiones: toma el primer campo que cita y que existe en
+   la capa. Con una regla de un campo es exactamente el rótulo del servidor;
+   con un script, su primera línea (sin contar los campos que solo mira una
+   condición `isEmpty(…)`). Sin regla, null: no se inventa ninguno.        */
+function arcgisLabelField(json) {
+  const fields = new Set((Array.isArray(json.fields) ? json.fields : []).map(f => f && f.name).filter(n => typeof n === "string"));
+  const di = json.drawingInfo;
+  const classes = di && Array.isArray(di.labelingInfo) ? di.labelingInfo : [];
+  for (const c of classes) {
+    const e = c && ((c.labelExpressionInfo && c.labelExpressionInfo.expression) || c.labelExpression);
+    if (typeof e !== "string" || e.length > 5000) continue;
+    /* Un script empieza a menudo con `if (!isEmpty($feature.NOTAS))`: ese
+       campo es una condición, no el rótulo */
+    for (const m of e.replace(/isEmpty\s*\([^)]*\)/g, "").matchAll(/\$feature\.([A-Za-z_]\w*)|\$feature\["([^"]+)"\]|\[([A-Za-z_]\w*)\]/g)) {
+      const f = m[1] || m[2] || m[3];
+      if (fields.has(f)) return f;
+    }
+  }
+  return null;
+}
+
 /* La ficha de una capa (`<servicio>/<id>?f=json`) → lo que decide cómo se
    pide: si sabe devolver GeoJSON, si pagina y de cuánto en cuánto, y por
-   qué campo ordenar. Devuelve { error } o { name, pagination, maxRecord, oidField }. */
+   qué campo ordenar y con qué campo rotula el servidor. Devuelve { error } o
+   { name, pagination, maxRecord, oidField, labelField }. */
 function parseArcgisLayerInfo(json) {
   if (!json || typeof json !== "object") return { error: tr("la respuesta no es la ficha de una capa") };
   if (json.error) return { error: arcgisErrorText(json.error) };
@@ -312,7 +339,8 @@ function parseArcgisLayerInfo(json) {
     oid = f ? f.name : null;
   }
   return { name: typeof json.name === "string" ? json.name : "", pagination: !!(adv && adv.supportsPagination === true),
-           maxRecord: Math.min(max, ARCGIS_PAGE_MAX), oidField: oid && ARCGIS_OID_RE.test(oid) ? oid : null };
+           maxRecord: Math.min(max, ARCGIS_PAGE_MAX), oidField: oid && ARCGIS_OID_RE.test(oid) ? oid : null,
+           labelField: arcgisLabelField(json) };
 }
 
 function arcgisCountOf(json) {
@@ -580,7 +608,7 @@ function arcgisFailText(err) {
 }
 
 /* Lo que se descarga de UNA capa: ficha, recuento y páginas. Devuelve
-   { fc, partial: { got, total } | null }. `onProgress(got, total, bytes)`
+   { fc, partial: { got, total } | null, labelField }. `onProgress(got, total, bytes)`
    alimenta la barra.                                                     */
 async function arcgisDownloadLayer(base, id, signal, onProgress) {
   const info = parseArcgisLayerInfo((await arcgisGetJson(arcgisLayerInfoUrl(base, id), signal, ARCGIS_JSON_MAX)).json);
@@ -610,7 +638,7 @@ async function arcgisDownloadLayer(base, id, signal, onProgress) {
   if (!merged.fc.features.length) throw new Error(tr("el servidor no devolvió ninguna entidad"));
   /* Sin paginación el servidor corta en su límite: se trae lo que hay y se dice */
   const partial = !info.pagination && merged.exceeded ? { got: merged.fc.features.length, total } : null;
-  return { fc: merged.fc, partial };
+  return { fc: merged.fc, partial, labelField: info.labelField };
 }
 
 /* Las descargas en vuelo, por fila: { ctrl, cancelled }. Pulsar otra vez el
@@ -644,7 +672,7 @@ async function arcgisFetchLayerData(li, button) {
   arcgisSetDataButton(button, true);
   progress.indet(tr("Consultando «{name}»…", { name }));
   try {
-    const { fc, partial } = await arcgisDownloadLayer(service._arcgis.url, li._arcgisLayer.id, run.ctrl.signal,
+    const { fc, partial, labelField } = await arcgisDownloadLayer(service._arcgis.url, li._arcgisLayer.id, run.ctrl.signal,
       (got, total, bytes) => progress.set(100 * got / total,
         tr("Trayendo «{name}»… {got} de {total} entidades ({size})", { name, got, total, size: fmtBytes(bytes) })));
     progress.hide();
@@ -652,8 +680,18 @@ async function arcgisFetchLayerData(li, button) {
       navMessage(tr("«{name}»: el servidor entregó {got} de {total} entidades (no admite paginación).", { name, ...partial }),
         { sticky: true });
     }
-    await importIntoNewDownload(new File([JSON.stringify(fc)], safeFileName(name) + ".geojson"),
-      tr("traer datos de «{name}»", { name }));
+    const file = new File([JSON.stringify(fc)], safeFileName(name) + ".geojson");
+    /* Si el servidor rotula la capa con un campo, ese es el nombre de los
+       elementos (sin preguntarlo) y se ve siempre sobre el mapa: la imagen
+       del servidor los corta en el borde de cada tesela, los polígonos no. */
+    let after = null;
+    if (labelField) {
+      file.kiteNameKeys = [labelField];
+      if (fc.features.length <= ARCGIS_LABEL_MAX) after = carpeta => arcgisShowLabels(carpeta, name, labelField);
+      else navMessage(tr("«{name}»: {n} entidades son demasiadas para rotularlas todas sobre el mapa (el máximo es {max}); el nombre queda en cada una.",
+        { name, n: fc.features.length, max: ARCGIS_LABEL_MAX }), { tone: "info" });
+    }
+    await importIntoNewDownload(file, tr("traer datos de «{name}»", { name }), after);
   } catch (err) {
     progress.hide();
     if (run.cancelled) {
@@ -665,4 +703,20 @@ async function arcgisFetchLayerData(li, button) {
     arcgisDataRuns.delete(li);
     arcgisSetDataButton(button, false);
   }
+}
+
+/* Lo recién importado en `carpeta` (un GeoJSON, que llega colapsado y con sus
+   capas como registros pendientes) pasa a llevar su nombre siempre a la vista.
+   Hace falta desplegarlo: el rótulo permanente se coloca al construir la fila
+   (materializeRecords), no al crear la capa.                            */
+async function arcgisShowLabels(carpeta, layerName, field) {
+  const wrapper = [...nodeUl(carpeta).children].find(c => c._pending);
+  if (!wrapper) return;
+  for (const rec of wrapper._pending) if (rec.t === "layer") rec.style = { ...(rec.style || {}), textAlways: true };
+  wrapper.classList.remove("collapsed");
+  syncExpanded(wrapper);
+  await ensureMaterialized(wrapper);
+  scheduleSave();
+  navMessage(tr("«{name}»: el nombre de cada elemento se ve siempre sobre el mapa (campo {field}, el del rótulo del servidor).",
+    { name: layerName, field }), { tone: "info" });
 }

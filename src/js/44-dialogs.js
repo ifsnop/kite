@@ -367,12 +367,14 @@ urlFetchBtn.addEventListener("click", () => {
 
    Lo comparten el botón «Añadir al árbol» de este diálogo y «Traer como
    datos» de una capa de un servicio ArcGIS (66-arcgis.js).            */
-async function importIntoNewDownload(file, undoLabel) {
+async function importIntoNewDownload(file, undoLabel, after = null) {
   pushUndo(undoLabel);
   const seccion = ensureNamedSection(tr("Descargas"));
   const carpeta = await createFolderNode(seccion.parentElement,
     nextNumberedName(tr("Descarga")));
   await handleDroppedFiles([file], null, nodeUl(carpeta));
+  /* `after(carpeta)`: lo que quiera hacer quien llama con lo recién importado */
+  if (after) await after(carpeta);
   /* El conjunto de hijos de la carpeta nueva ha cambiado: su casilla
      tiene que recalcularse, como en cualquier importación dentro de
      una carpeta.                                                     */

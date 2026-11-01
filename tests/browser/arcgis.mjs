@@ -47,7 +47,9 @@ async function datos(route, q, id, esQuery) {
   if (!esQuery) {
     return json(route, { name: CATALOG.layers.find(l => l.id === id).name, type: "Feature Layer", capabilities: "Map,Query,Data",
       supportedQueryFormats: "JSON, geoJSON, PBF", maxRecordCount: 2, advancedQueryCapabilities: { supportsPagination: id !== 23 },
-      fields: [{ name: "OBJECTID", type: "esriFieldTypeOID" }] });
+      fields: [{ name: "OBJECTID", type: "esriFieldTypeOID" }, { name: "NAME_TXT", type: "esriFieldTypeString" }],
+      /* La capa 23 es de rótulos: el servidor los dibuja con la regla `$feature.NAME_TXT` */
+      ...(id === 23 ? { drawingInfo: { labelingInfo: [{ labelExpressionInfo: { expression: "$feature.NAME_TXT" } }] } } : {}) });
   }
   if (q.returnCountOnly) return json(route, { count: qmodo === "big" ? 100001 : 5 });
   if (qmodo === "error") return json(route, { error: { code: 400, message: "Consulta rota", details: [] } });
@@ -467,6 +469,19 @@ ok(consultas(23).length === 1 && consultas(23)[0].resultOffset === undefined && 
   "sin paginación, UNA consulta sin desplazamiento ni orden");
 ok(await page.evaluate(() => /entregó 2 de 5 entidades/.test(document.getElementById("nav-msg").textContent)), "y el aviso dice cuántas de cuántas");
 ok(!(await nombresArbol()).includes("Zona 23-3"), "sin inventar las demás");
+/* Y como el servidor rotula esa capa con NAME_TXT, los nombres se ven siempre en el mapa */
+const rotulos = () => page.evaluate(() => [...document.querySelectorAll(".leaflet-tooltip.compacto")].map(t => t.textContent).sort());
+await esperar(async () => (await rotulos()).length >= 2, "rótulos permanentes sobre el mapa");
+ok((await rotulos()).join() === "Zona 23-1,Zona 23-2", "cada elemento lleva su nombre (el campo del rótulo del servidor) siempre a la vista, sin cortes: " + (await rotulos()));
+ok(await page.evaluate(() => document.getElementById("geojson-name-picker").hidden), "sin preguntar el nombre: lo da la regla del servidor");
+ok(await page.evaluate(() => { let n = 0; const walk = ns => ns.forEach(r => { if (/^Zona 23-/.test(r.name) && r.style && r.style.textAlways) n++; if (r.children) walk(r.children); }); walk(serializeTree()); return n === 2; }),
+  "y queda guardado en el estilo de cada elemento (`textAlways`), como si lo hubiera marcado el usuario");
+ok(await page.evaluate(() => /campo NAME_TXT/.test(document.getElementById("nav-msg").textContent)), "con un aviso que dice de dónde sale");
+/* Una capa SIN regla de rotulado (TMA_CTA) no rotula nada: sus nombres siguen yendo en el popup */
+const antesRotulos = (await rotulos()).length;
+await traer("TMA_CTA");
+await esperar(async () => (await nombresArbol()).includes("Zona 10-5"), "otra capa, sin regla de rotulado");
+ok((await rotulos()).length === antesRotulos, "sin regla del servidor no se inventan rótulos");
 
 ok((await page.evaluate(() => window.__csp)).length === 0, "sin violaciones de CSP: " + JSON.stringify(await page.evaluate(() => window.__csp)));
 ok(errors.filter(e => !/Failed to load resource/.test(e)).length === 0, "sin errores de página: " + JSON.stringify(errors));

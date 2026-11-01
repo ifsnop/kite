@@ -286,10 +286,10 @@
       "build": "202610300013"
     },
     "servicio-arcgis-datos.png": {
-      "sha256": "b575a36b11bfdfb64d59c4ff0ffcc391c7d3a7d64eccdc81ce326afdafa4ed29",
+      "sha256": "d2436b40672bda798d3e5ff907e35a1d61da86f8da761c59950bb49e077f5a0d",
       "section": "7.16",
       "version": "1.11.0",
-      "build": "202610302228"
+      "build": "202610302240"
     },
     "servicio-arcgis.png": {
       "sha256": "f34ee5982e27de2834f6aad8c7b2e65845d894635372dc66ad7a4496d1378915",

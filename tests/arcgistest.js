@@ -13,11 +13,11 @@ const src = consts + [
   fn("describeHttp"), fn("arcgisServiceBase"), fn("arcgisServiceName"), fn("arcgisErrorText"),
   fn("arcgisTileReason"), fn("arcgisExtent4326"), fn("parseArcgisCatalog"), fn("arcgisCatalogRecord"),
   fn("sanitizeArcgisRecord"), fn("arcgisShowIds"), fn("tileBbox3857"), fn("arcgisExportUrl"),
-  fn("arcgisQueryUrl"), fn("parseArcgisLayerInfo"), fn("arcgisCountOf"), fn("mergeArcgisPages")].join("\n");
+  fn("arcgisQueryUrl"), fn("arcgisLabelField"), fn("parseArcgisLayerInfo"), fn("arcgisCountOf"), fn("mergeArcgisPages")].join("\n");
 const api = new Function(src + "\nreturn {arcgisServiceBase, arcgisServiceName, arcgisErrorText," +
   " arcgisTileReason, arcgisExtent4326, parseArcgisCatalog, arcgisCatalogRecord, sanitizeArcgisRecord," +
   " arcgisShowIds, tileBbox3857, arcgisExportUrl, ARCGIS_MAX_LAYERS, ARCGIS_MAX_DEPTH," +
-  " arcgisLayerInfoUrl, arcgisCountUrl, arcgisQueryUrl, parseArcgisLayerInfo, arcgisCountOf, mergeArcgisPages, ARCGIS_PAGE_MAX};")();
+  " arcgisLayerInfoUrl, arcgisCountUrl, arcgisQueryUrl, parseArcgisLayerInfo, arcgisLabelField, arcgisCountOf, mergeArcgisPages, ARCGIS_PAGE_MAX, ARCGIS_LABEL_MAX};")();
 const ok = (c, m) => { if (!c) { console.error("FAIL: " + m); process.exitCode = 1; } };
 const same = (a, b, m) => ok(JSON.stringify(a) === JSON.stringify(b), m + " — " + JSON.stringify(a) + " ≠ " + JSON.stringify(b));
 
@@ -227,6 +227,25 @@ ok(api.parseArcgisLayerInfo(LI({ type: "Group Layer" })).error, "un grupo no tie
 ok(api.parseArcgisLayerInfo(LI({ type: "Raster Layer" })).error, "una capa ráster tampoco");
 ok(api.parseArcgisLayerInfo({ error: { code: 400, message: "Invalid layer" } }).error.includes("Invalid layer"), "el {error} del servicio");
 for (const bad of [null, 5, "x"]) ok(api.parseArcgisLayerInfo(bad).error, "no es una ficha: " + JSON.stringify(bad));
+
+/* ---------- El campo con el que rotula el servidor ---------- */
+const layerFx = n => JSON.parse(fs.readFileSync(path.join(__dirname, "fixtures", `arcgis-layer${n}.json`), "utf8"));
+same(api.arcgisLabelField(layerFx(23)), "NAME_TXT", "TMA_CTA_texto (REAL): la regla es `$feature.NAME_TXT`");
+same(api.arcgisLabelField(layerFx(28)), "NAME_TXT", "CTR_texto (REAL): una clase sencilla y otra con script; vale la primera");
+same(api.arcgisLabelField(layerFx(26)), "NAME_TXT", "TMA_CTA_texto_niveles (REAL): un script de Arcade; se toma su primer campo");
+same(api.arcgisLabelField(layerFx(10)), null, "TMA_CTA (REAL) no trae regla de rotulado: ningún campo");
+same(api.parseArcgisLayerInfo(layerFx(23)).labelField, "NAME_TXT", "y la ficha lo lleva");
+const withLabel = (expr, extra) => ({ fields: [{ name: "NOMBRE" }, { name: "OTRO" }], drawingInfo: { labelingInfo: [Object.assign({}, extra, { labelExpressionInfo: { expression: expr } })] } });
+same(api.arcgisLabelField(withLabel('$feature.NOMBRE')), "NOMBRE", "forma de un campo");
+same(api.arcgisLabelField(withLabel('$feature["NOMBRE"]')), "NOMBRE", "forma con corchetes y comillas");
+same(api.arcgisLabelField({ fields: [{ name: "NOMBRE" }], drawingInfo: { labelingInfo: [{ labelExpression: "[NOMBRE]" }] } }), "NOMBRE", "la forma antigua `[CAMPO]`");
+same(api.arcgisLabelField(withLabel('$feature.NO_EXISTE + " " + $feature.OTRO')), "OTRO", "un campo que no existe en la capa se salta");
+same(api.arcgisLabelField(withLabel('"texto fijo"')), null, "una expresión sin campos no rotula");
+same(api.arcgisLabelField(withLabel('$feature.NOMBRE'.repeat(1000))), null, "una expresión desmesurada se ignora");
+same(api.arcgisLabelField({ fields: [{ name: "NOMBRE" }], drawingInfo: { labelingInfo: [null, 5, { labelExpressionInfo: { expression: 7 } }] } }), null, "basura entre las clases");
+same(api.arcgisLabelField({ drawingInfo: { labelingInfo: "no" } }), null, "labelingInfo que no es lista");
+same(api.arcgisLabelField({}), null, "sin drawingInfo");
+ok(api.ARCGIS_LABEL_MAX > 0 && api.ARCGIS_LABEL_MAX <= 5000, "tope de rótulos permanentes acotado");
 
 same(api.arcgisCountOf({ count: 48 }), { count: 48 }, "recuento");
 same(api.arcgisCountOf({ count: 0 }), { count: 0 }, "recuento cero");

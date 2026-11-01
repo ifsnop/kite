@@ -644,9 +644,11 @@ registerLang("en", "English", {
   "Consultando «{name}»…": "Querying “{name}”…",
   "Trayendo «{name}»… {got} de {total} entidades ({size})": "Fetching “{name}”… {got} of {total} features ({size})",
   "«{name}»: el servidor entregó {got} de {total} entidades (no admite paginación).": "“{name}”: the server delivered {got} of {total} features (it does not support paging).",
+  "«{name}»: {n} entidades son demasiadas para rotularlas todas sobre el mapa (el máximo es {max}); el nombre queda en cada una.": "“{name}”: {n} features are too many to label them all on the map (the maximum is {max}); the name stays on each one.",
   "traer datos de «{name}»": "fetch data of “{name}”",
   "Descarga de «{name}» cancelada.": "Download of “{name}” cancelled.",
   "No se pudieron traer los datos de «{name}»: {why}": "The data of “{name}” could not be fetched: {why}",
+  "«{name}»: el nombre de cada elemento se ve siempre sobre el mapa (campo {field}, el del rótulo del servidor).": "“{name}”: the name of each feature is always shown on the map (field {field}, the one in the server’s label rule).",
   /* 70-view-controls.js */
   "Autoescalar: ajustar el zoom a lo cargado": "Auto-fit: adjust the zoom to what is loaded",
   "Centrar la vista en la península y Baleares": "Center the view on the Iberian Peninsula and the Balearic Islands",

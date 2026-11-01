@@ -610,7 +610,9 @@ async function handleDroppedFiles(files, insertBefore, dropTargetUl = null) {
         navMessage(tr("\u00AB{name}\u00BB no est\u00E1 soportado. Formatos admitidos: {importFormats}.", { name: file.name, importFormats: IMPORT_FORMATS }));
         continue;
       }
-      await addFileNode(file.name, kind, content, insertBefore, dropTargetUl, zip);
+      /* `kiteNameKeys`: quien fabrica el archivo (una capa de un servicio
+         ArcGIS, 66-arcgis.js) puede dar ya hecho qué campo es el nombre */
+      await addFileNode(file.name, kind, content, insertBefore, dropTargetUl, zip, null, file.kiteNameKeys || null);
       scheduleSave();
     } catch (err) {
       if (err.cancelled) { navMessage(tr("Carga de \u00AB{name}\u00BB cancelada.", { name: file.name }), { tone: "info" }); continue; }

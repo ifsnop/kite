@@ -881,26 +881,19 @@ scenario("servicio-arcgis-datos.png", "7.16", async out => {
   const { ctx, page } = await openApp({ route: arcgisRoute });
   await arcgisAdd(page);
   await arcgisSettled(page);
-  /* ⤓ sobre TMA_CTA: lo que trae entra por el camino normal (etiquetas HTML, nombre de los elementos) */
+  /* ⤓ sobre TMA_CTA_texto, una capa de rótulos: lo que trae entra por el camino normal (pregunta de
+     las etiquetas HTML) y, como el servidor la rotula con un campo, sus nombres se ven siempre */
   await page.evaluate(() => [...document.querySelectorAll("#tree li.arcgis-service li")]
-    .find(l => l._name === "TMA_CTA").querySelector(".arcgis-data").click());
+    .find(l => l._name === "TMA_CTA_texto").querySelector(".arcgis-data").click());
   await page.waitForFunction(() => !document.getElementById("kml-tags-picker").hidden, null, { timeout: 40000 });
   await page.click("#ktp-accept");
-  await page.waitForFunction(() => !document.getElementById("geojson-name-picker").hidden);
-  await page.click('#gnp-list .gnp-row[data-key="NAME_TXT"] input');
-  await page.click("#gnp-accept");
-  await page.waitForFunction(() => [...document.querySelectorAll("#tree li")].some(l => l._name === "Descarga 1"), null, { timeout: 40000 });
+  await page.waitForFunction(() => document.querySelectorAll(".leaflet-tooltip.compacto").length > 5, null, { timeout: 40000 });
   /* El servicio plegado y apagado, para ver solo lo traído, ya como capas normales */
   await page.evaluate(() => {
     const svc = document.querySelector("#tree li.arcgis-service");
     svc.querySelector(":scope > .node-row > input[type=checkbox]").click();
     svc.classList.add("collapsed");
     syncExpanded(svc);
-    for (const n of ["Descargas", "Descarga 1"]) {
-      const li = [...document.querySelectorAll("#tree li")].find(l => l._name === n);
-      li.classList.remove("collapsed");
-      syncExpanded(li);
-    }
   });
   await settle(page, { ms: 600 });
   await page.mouse.move(VIEW.width - 300, 120);
