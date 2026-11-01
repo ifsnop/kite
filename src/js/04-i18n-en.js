@@ -705,6 +705,7 @@ registerLang("en", "English", {
   "Contorno y relleno": "Outline and fill",
   "Solo contorno": "Outline only",
   "Solo relleno": "Fill only",
+  "Ninguno": "None",
   "Ancho del contorno": "Outline width",
   "Color del contorno": "Outline color",
   "Opacidad del contorno": "Outline opacity",

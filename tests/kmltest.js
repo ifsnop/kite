@@ -134,5 +134,6 @@ ok(normalizePathStyle({ opacity: 7 }).opacity === 1 && normalizePathStyle({ opac
 ok(polygonModeOf({ stroke: false, fill: true }) === "fill", "solo relleno");
 ok(polygonModeOf({ stroke: true, fill: false }) === "stroke", "solo contorno");
 ok(polygonModeOf({ stroke: true, fill: true }) === "both", "contorno y relleno");
-ok(polygonModeOf({ stroke: false, fill: false }) === "fill", "caso defensivo (ambos false) cae a relleno");
+ok(polygonModeOf({ stroke: false, fill: false }) === "none", "ni contorno ni relleno: «Ninguno» (solo queda el nombre)");
+ok(polygonModeOf({}) === "both" && polygonModeOf({ stroke: true }) === "both", "sin booleanos, o con el contorno solo, el de siempre");
 if (!process.exitCode) console.log("POLYGON STROKE/FILL TESTS OK");

@@ -34,8 +34,11 @@ paths:
 - **Un campo vacío no es un valor** (`numOr`): leerlo como 0 o por
   defecto metería en el borrador algo que nadie escribió.
 - **`pg-mode` vale por DOS propiedades** (`stroke` y `fill`): se
-  aplican juntas o ninguna — "ni contorno ni relleno" no es una
-  combinación que el selector ofrezca.
+  aplican juntas o ninguna. Hay cuatro modos: «Contorno y relleno»,
+  «Solo contorno», «Solo relleno» y «Ninguno» (`stroke:false,
+  fill:false`, para ver solo los nombres); con el modo MEZCLADO y sin
+  tocar el selector, cada nodo conserva el suyo (cambiar solo
+  «Mostrar el nombre siempre» no iguala nada).
 - **Portapapeles interno**: guarda los registros de `serializeNode`;
   pegar reconstruye con `buildFromNodes`. Cortar no borra hasta que se
   pega (Escape cancela); pegar entra en la carpeta del cursor si está

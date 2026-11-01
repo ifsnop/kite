@@ -1205,8 +1205,10 @@ function readPolygonControls() {
     weight: numOr($id("pg-weight"), styleDraft.weight || 1),
     color: colorOf($id("pg-color")),
     opacity: Number($id("pg-opacity").value),
-    stroke: mode !== "fill",
-    fill: mode !== "stroke",
+    /* "none" apaga las dos: ni contorno ni relleno, solo queda el nombre si
+       se pide siempre a la vista. Con `!==` saldría true/true.            */
+    stroke: mode === "both" || mode === "stroke",
+    fill: mode === "both" || mode === "fill",
     fillColor: colorOf($id("pg-fill-color")),
     fillOpacity: Number($id("pg-fill-opacity").value),
     /* El nombre siempre a la vista, como el texto de un marcador: aquí
@@ -1461,8 +1463,8 @@ function applyDraftToTargets() {
   } else if (styleKindOpen === "polygon") {
     const pick = draftProps(["weight", "color", "opacity", "fillColor", "fillOpacity", "textAlways"]);
     /* El modo son dos booleanos que viajan juntos: o se aplican los dos
-       o no se toca ninguno, o un nodo podría quedarse sin contorno NI
-       relleno, que es la combinación que el selector no ofrece.       */
+       o no se toca ninguno. Con el modo mezclado y sin tocar, cada nodo
+       conserva el suyo (un «Ninguno» no se le iguala a quien no lo pidió). */
     if (!styleMixed.has("mode") || styleTouched.has("mode")) {
       pick.stroke = styleDraft.stroke;
       pick.fill = styleDraft.fill;

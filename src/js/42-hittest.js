@@ -311,10 +311,21 @@ function ensureMarkerDefaults(li) {
 }
 
 /* Push li._style into every path of the layer and refresh the swatch */
+/* Lo que Leaflet pinta cuando un estilo NO trae una clave. `setStyle` solo
+   AÑADE las que recibe: un estilo importado (`geojsonStyle`, un KML) no
+   lleva `stroke`, `fill`, `opacity` ni `fillColor` hasta que el usuario los
+   toca, así que devolverlo tal cual tras una vista previa dejaba puesto lo
+   previsualizado. Medido: «Solo relleno» (o la opacidad del contorno) sobre
+   un GeoJSON importado y Cancelar dejaba `stroke:false, opacity:.3`. Con
+   «Ninguno» sería un polígono invisible tras cancelar. Son los valores de
+   `L.Path`, los mismos con los que se creó la capa cuando faltaban.       */
+const PATH_STYLE_DEFAULTS = { stroke: true, color: "#3388ff", weight: 3, opacity: 1,
+  fill: true, fillColor: undefined, fillOpacity: 0.2 };
+
 function applyPolygonStyle(li) {
   const layer = nodeLayer(li);
   if (!layer || !li._style) return;
-  layer.setStyle(li._style); /* group.setStyle only reaches paths; safe */
+  layer.setStyle({ ...PATH_STYLE_DEFAULTS, ...li._style }); /* group.setStyle only reaches paths; safe */
   clearFillOnOpenPaths(layer);
   applyPolygonText(li);
   const sw = li.querySelector(":scope > .node-row > .swatch");
@@ -373,10 +384,14 @@ function normalizePathStyle(s) {
   return s;
 }
 
-/* Maps the two independent booleans to the dialog's single three-way
-   selector: stroke+fill can't both be off (that's not offered as an
-   option), so a corrupted "both false" record falls back to "fill". */
+/* Maps the two independent booleans to the dialog's single four-way
+   selector. "none" (neither outline nor fill) draws nothing at all: it is
+   how a polygon's NAME is shown without the polygon — together with
+   "Mostrar el nombre siempre", whose tooltip does not depend on the
+   path's style. A KML <outline>0</outline><fill>0</fill> or a simplestyle
+   feature with every opacity at 0 arrives in this state as well.       */
 function polygonModeOf(s) {
+  if (s.stroke === false && s.fill === false) return "none";
   if (s.stroke === false) return "fill";
   if (s.fill === false) return "stroke";
   return "both";
