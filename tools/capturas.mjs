@@ -646,14 +646,14 @@ scenario("copiar-origen.png", "7.5", async out => {
   await A.ctx.close(); await B.ctx.close();
 }, ["pegar-destino.png"]);
 
-/* ===== 7.6 Guardar o exportar ===== */
+/* ===== 7.6 Guardar a un archivo ===== */
 scenario("menu-exportar.png", "7.6", async out => {
   const { ctx, page } = await openApp();
   await sierra(page, { expandSensores: true });
   const r = await rowRect(page, "Zona A");
   await page.mouse.move(r.x + r.width - 120, r.y + r.height / 2);
   await page.waitForTimeout(200);
-  await onRow(page, "Zona A", li => li.querySelector(':scope > .node-row button[aria-label^="Guardar o exportar"]').click());
+  await onRow(page, "Zona A", li => li.querySelector(':scope > .node-row button[aria-label^="Guardar a un archivo"]').click());
   await page.waitForSelector(".ctx-menu:not(#map-ctxmenu)");
   await stamps(page);
   const m = await page.locator(".ctx-menu:not(#map-ctxmenu)").boundingBox();

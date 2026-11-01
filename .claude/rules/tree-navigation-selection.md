@@ -198,8 +198,14 @@ paths:
   devuelve el foco al mapa) con tres formatos. Se cierra con un clic fuera,
   Escape (que no llega al árbol), desplazamiento de un panel, cambiar de
   ventana (el `blur` de la VENTANA) o volviendo
-  a pulsar 💾 (`exportMenuOwner`). **Mover el ratón NO lo cierra.** Trampa
-  ya pisada: un oyente de `blur` en `window` CON captura recibe también el
+  a pulsar 💾 (`exportMenuOwner`), o al SALIR el ratón de la zona fila + menú
+  (`mouseleave` de las dos, con `EXPORT_MENU_LEAVE_MS` = 300 ms de margen para
+  cruzar el hueco entre ambas; solo cuenta si el ratón no está sobre ninguna
+  de las dos, `:hover`). Mientras está abierto, la fila lleva `.menu-open`
+  (`styles.css`) y SUS BOTONES se quedan a la vista aunque el cursor haya
+  pasado al menú, para poder volver a ellos; al cerrar se van los dos a la
+  vez. Es una zona, no dos: ir de la fila al menú, y de vuelta, no cierra
+  nada. **Mover el ratón DENTRO de esa zona NO lo cierra.** Trampa ya pisada: un oyente de `blur` en `window` CON captura recibe también el
   `blur` de cualquier ELEMENTO, y los botones de una fila solo se ven con el
   ratón encima: al ir del 💾 a una entrada, la fila deja de estar bajo el
   cursor, el 💾 (que tiene el foco) se oculta, pierde el foco y su `blur`

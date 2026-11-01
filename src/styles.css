@@ -355,6 +355,9 @@
      foco se va a su casilla, y con `:focus-within` se quedarían fijos
      sin que el ratón esté encima.                                     */
   .node-row:hover > .actions { visibility: visible; }
+  /* Con el minimenú de 💾 abierto (35-export-formats.js) las opciones de la fila
+     se quedan: ir del 💾 a un formato saca el cursor de la fila.            */
+  .node-row.menu-open > .actions { visibility: visible; }
   /* El fondo tiene que seguir al de la fila cuando esta está marcada */
   .node-row.selected > .actions {
     background: linear-gradient(to right, transparent, var(--accent-soft) 12px);

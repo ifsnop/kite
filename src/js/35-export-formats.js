@@ -304,15 +304,25 @@ function exportNodeAs(li, format) {
 /* ---------- Minimenú de 💾 ----------
    Con el aspecto del menú contextual del visor (.ctx-menu), pero
    independiente de él: aquel devuelve el foco al mapa y este se abre
-   desde el panel. Se cierra con un clic fuera, Escape, el desplazamiento
-   o al volver a pulsar 💾.                                              */
-let exportMenuEl = null, exportMenuOwner = null, exportMenuOff = [];
+   desde el panel. Se cierra con un clic fuera, Escape, el desplazamiento,
+   al volver a pulsar 💾 o al SALIR el ratón de la fila y del menú.
+
+   Mientras está abierto, las opciones de la fila (`.actions`, que solo se
+   ven con el ratón encima) se quedan a la vista (`.menu-open`): ir del 💾 a
+   un formato saca el cursor de la fila, y sin esto las opciones del nodo
+   desaparecían por el camino y no se podía volver a ellas. Fila y menú son
+   UNA zona: se pasa de una a otra sin que se cierre nada, y solo cuando el
+   ratón no está sobre ninguna de las dos (pasado un momento, para cruzar el
+   hueco entre ambas) se cierran las dos a la vez.                         */
+let exportMenuEl = null, exportMenuOwner = null, exportMenuRow = null, exportMenuOff = [];
+const EXPORT_MENU_LEAVE_MS = 300;
 
 function closeExportMenu() {
   exportMenuOff.forEach(off => off());
   exportMenuOff = [];
   if (exportMenuEl) exportMenuEl.remove();
-  exportMenuEl = exportMenuOwner = null;
+  if (exportMenuRow) exportMenuRow.classList.remove("menu-open");
+  exportMenuEl = exportMenuOwner = exportMenuRow = null;
 }
 
 function openExportMenu(btn, li) {
@@ -322,7 +332,7 @@ function openExportMenu(btn, li) {
   const menu = document.createElement("div");
   menu.className = "ctx-menu";
   menu.setAttribute("role", "menu");
-  menu.setAttribute("aria-label", tr("Guardar o exportar"));
+  menu.setAttribute("aria-label", tr("Guardar a un archivo"));
   const entries = [
     ["kite", tr("Archivo de KITE (.kite.json)")],
     ["kml", tr("KML (.kml)")],
@@ -343,6 +353,8 @@ function openExportMenu(btn, li) {
   menu.style.top = `${Math.max(0, Math.min(r.bottom + 2, window.innerHeight - mr.height - 4))}px`;
   exportMenuEl = menu;
   exportMenuOwner = btn;
+  exportMenuRow = btn.closest(".node-row");
+  if (exportMenuRow) exportMenuRow.classList.add("menu-open");
   const listen = (target, type, fn, capture = true) => {
     target.addEventListener(type, fn, capture);
     exportMenuOff.push(() => target.removeEventListener(type, fn, capture));
@@ -364,4 +376,17 @@ function openExportMenu(btn, li) {
      fila y los botones de la fila se ocultan: el menú se cerraba justo al
      ir a elegir una entrada.                                            */
   listen(window, "blur", closeExportMenu, false);
+  /* Salir de la zona (fila + menú). `mouseleave` solo salta con un movimiento
+     real del ratón: abrirlo con un clic simulado no arma ningún temporizador. */
+  let leaveTimer = 0;
+  const overZone = () => menu.matches(":hover") || (exportMenuRow && exportMenuRow.matches(":hover"));
+  const leave = () => {
+    clearTimeout(leaveTimer);
+    leaveTimer = setTimeout(() => { if (exportMenuEl === menu && !overZone()) closeExportMenu(); }, EXPORT_MENU_LEAVE_MS);
+  };
+  for (const zone of [menu, exportMenuRow].filter(Boolean)) {
+    listen(zone, "mouseleave", leave, false);
+    listen(zone, "mouseenter", () => clearTimeout(leaveTimer), false);
+  }
+  exportMenuOff.push(() => clearTimeout(leaveTimer));
 }

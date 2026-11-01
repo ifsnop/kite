@@ -129,14 +129,14 @@ Al activar o desactivar una carpeta con muchas capas dentro, la casilla se susti
 
 Al pasar el ratón por una fila aparecen, según lo que sea:
 
-- **En una carpeta o un archivo**: seleccionar todas sus capas (☑) o quitar la selección (☐), ordenar alfabéticamente (AZ, que alterna ascendente y descendente), colapsar la carpeta y todas las de dentro, guardarla o exportarla a un archivo (💾; también lo llevan las capas sueltas) y abrir la tabla de atributos de sus capas (▦, apartado 7.15).
+- **En una carpeta o un archivo**: seleccionar todas sus capas (☑) o quitar la selección (☐), ordenar alfabéticamente (AZ, que alterna ascendente y descendente), colapsar la carpeta y todas las de dentro, guardarla en un archivo (💾; también lo llevan las capas sueltas) y abrir la tabla de atributos de sus capas (▦, apartado 7.15).
 - **En una capa**: centrar la vista y acercar el zoom a un nivel fijo, el 14, a escala de calle (🔍), y abrir su diálogo de propiedades (🎨 «Editar propiedades»), con las pestañas «Estilos» y «Atributos». Sobre un polígono, una medición o una capa de elevaciones, en vez de un zoom fijo, la lupa encuadra toda su geometría con un margen alrededor —más útil para una figura o una ruta que puede ser mucho más grande, o más alargada, que lo que cabría en un solo nivel de zoom centrado, y para una cuadrícula de elevaciones, que a ese zoom ni se vería—. Una capa de elevaciones lleva la lupa pero no 🎨: no tiene estilos que editar.
 - **Si la capa tiene una ficha o propiedades que enseñar**: un botón adicional (ℹ) para verlas.
-- **En un servicio de mapas ArcGIS**: guardarlo o exportarlo (💾), centrar la vista en la zona que cubre (🔍) y su opacidad (🎨). Sus filas de capas solo llevan, si la capa ofrece datos, el botón **⤓** que los trae (apartado 7.16).
+- **En un servicio de mapas ArcGIS**: guardarlo en un archivo (💾), centrar la vista en la zona que cubre (🔍) y su opacidad (🎨). Sus filas de capas solo llevan, si la capa ofrece datos, el botón **⤓** que los trae (apartado 7.16).
 - **En cualquier otra fila**: subir (↑) y bajar (↓) un puesto entre sus hermanas, y borrar (×).
 
 ![Una fila seleccionada, con sus botones de acción visibles al pasar el ratón](img/fila-seleccionada.png)
-*Figura 13. La fila «Zona A», seleccionada (borde discontinuo) y con el ratón encima: aparecen sus botones de guardar o exportar (💾), enfoque, estilo, subir/bajar y borrar. No tiene botón ℹ porque este polígono no trae ninguna ficha.*
+*Figura 13. La fila «Zona A», seleccionada (borde discontinuo) y con el ratón encima: aparecen sus botones de guardar en un archivo (💾), enfoque, estilo, subir/bajar y borrar. No tiene botón ℹ porque este polígono no trae ninguna ficha.*
 
 ### 3.4 Selección múltiple
 
@@ -409,7 +409,7 @@ El botón 💾 de una carpeta, un archivo o una capa abre un pequeño menú con 
 - **«GeoJSON (.geojson)»**: una única lista de elementos; la carpeta de cada uno va en su propiedad `folder`, y el color y el grosor en las propiedades `stroke`, `stroke-width`, `fill`… que entienden QGIS y geojson.io.
 
 ![El menú del botón 💾 desplegado sobre la fila de una carpeta](img/menu-exportar.png)
-*Figura 39. El botón 💾 de la carpeta «Zona A» y su menú: «Archivo de KITE (.kite.json)», «KML (.kml)» y «GeoJSON (.geojson)». Se cierra con un clic fuera, con Escape o volviendo a pulsar 💾.*
+*Figura 39. El botón 💾 de la carpeta «Zona A» y su menú: «Archivo de KITE (.kite.json)», «KML (.kml)» y «GeoJSON (.geojson)». Se cierra con un clic fuera, con Escape o volviendo a pulsar 💾; y también al **sacar el ratón** de la fila y del menú. Mientras el ratón esté sobre la fila o sobre los formatos, las dos cosas se quedan abiertas —los botones de la fila siguen a la vista para poder volver a ellos— y al salir se cierran a la vez.*
 
 Una medición se exporta como línea (ruta) o como un polígono de 120 lados (círculo). Lo que no cabe en KML ni en GeoJSON —las cuadrículas de elevación y las ortofotos— se deja fuera, y un aviso dice cuáles.
 

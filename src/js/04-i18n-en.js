@@ -107,7 +107,7 @@ registerLang("en", "English", {
   "Ordenar alfabéticamente (alterna ascendente/descendente)": "Sort alphabetically (toggles ascending/descending)",
   "ordenar «{name}»": "sort “{name}”",
   "Colapsar esta carpeta y las interiores": "Collapse this folder and the ones inside it",
-  "Guardar o exportar a un archivo (KITE, KML o GeoJSON)": "Save or export to a file (KITE, KML or GeoJSON)",
+  "Guardar a un archivo (KITE, KML o GeoJSON)": "Save to a file (KITE, KML or GeoJSON)",
   "Tabla de atributos de esta carpeta": "Attribute table of this folder",
   "Centrar la vista aquí y acercar (zoom {zoom})": "Center the view here and zoom in (zoom {zoom})",
   "Editar propiedades": "Edit properties",
@@ -203,7 +203,7 @@ registerLang("en", "English", {
   /* 35-export-formats.js */
   "{names} se quedan fuera de {format}: solo se exportan capas y mediciones.": { one: "{names} is left out of {format}: only layers and measurements are exported.", other: "{names} are left out of {format}: only layers and measurements are exported." },
   "No hay nada que exportar a {format} en este nodo.": "There is nothing to export to {format} in this node.",
-  "Guardar o exportar": "Save or export",
+  "Guardar a un archivo": "Save to a file",
   "Archivo de KITE (.kite.json)": "KITE file (.kite.json)",
   "KML (.kml)": "KML (.kml)",
   "GeoJSON (.geojson)": "GeoJSON (.geojson)",
