@@ -657,6 +657,14 @@ async function arcgisDownloadLayer(base, id, signal, onProgress) {
   return { fc: merged.fc, partial, labelField: info.labelField };
 }
 
+/* El origen de las asociaciones de nombre de «Índices de GeoJSON» de una capa
+   de un servicio (propsFingerprint, 32-geojson.js), y cómo se llama en el editor */
+const arcgisNameScope = (base, id) => `arcgis:${base}#${id}`;
+function arcgisScopeLabel(scope) {
+  const m = /^arcgis:(.+)#(\d+)$/.exec(scope || "");
+  return m ? tr("«{service}» · capa {id}", { service: arcgisServiceName(m[1]), id: m[2] }) : null;
+}
+
 /* Las descargas en vuelo, por fila: { ctrl, cancelled }. Pulsar otra vez el
    botón la cancela. Se apunta aparte que fue el usuario (`cancelled`) en vez
    de leer el motivo del aborto: según el sitio por el que se corte, el
@@ -701,6 +709,8 @@ async function arcgisFetchLayerData(li, button) {
        elementos (sin preguntarlo) y se ve siempre sobre el mapa: la imagen
        del servidor los corta en el borde de cada tesela, los polígonos no. */
     let after = null;
+    /* La asociación de nombres es de ESTA capa de ESTE servicio, no de cualquiera que comparta campos */
+    file.kiteNameScope = arcgisNameScope(service._arcgis.url, li._arcgisLayer.id);
     if (labelField) {
       file.kiteNameKeys = [labelField];
       if (fc.features.length <= ARCGIS_LABEL_MAX) after = carpeta => arcgisShowLabels(carpeta, name, labelField);

@@ -3402,6 +3402,7 @@ registerLang("en", "English", {
   "la capa no tiene ninguna entidad": "the layer has no features",
   "la capa tiene {n} entidades y el máximo que se trae de una vez es {max}": "the layer has {n} features and the most that is fetched at once is {max}",
   "el servidor no devolvió ninguna entidad": "the server returned no features",
+  "«{service}» · capa {id}": "“{service}” · layer {id}",
   "Cancelar la descarga de esta capa": "Cancel the download of this layer",
   "Consultando «{name}»…": "Querying “{name}”…",
   "Trayendo «{name}»… {got} de {total} entidades ({size})": "Fetching “{name}”… {got} of {total} features ({size})",
@@ -5032,7 +5033,7 @@ map.on("resize rotate", fitWorldMinZoom);
 
 /* Fecha de generación del código (versión): AÑOMESDIAHORAMINUTO.
    Actualizar en cada generación; se muestra junto al crédito de Leaflet. */
-const BUILD = "202611011555";
+const BUILD = "202611011558";
 /* Versión de release (la de package.json, horneada aquí por build.js
    al construir — ver «Versión y releases de GitHub» en CLAUDE.md): a
    diferencia de BUILD, que cambia en CADA generación, esta solo cambia
@@ -8367,8 +8368,28 @@ function needsNamePicker(props) {
    valores ni su orden original): sirve para indexar la asociación
    guardada, y como es el JSON de las propias claves, se puede
    recuperar la lista de claves de una huella con JSON.parse.        */
-function propsFingerprint(props) {
-  return JSON.stringify(Object.keys(props || {}).sort());
+function propsFingerprint(props, scope = "") {
+  const keys = JSON.stringify(Object.keys(props || {}).sort());
+  return scope ? scope + GNP_SCOPE_SEP + keys : keys;
+}
+
+/* Un ORIGEN opcional delante de la huella: dos capas de un mismo servicio
+   ArcGIS comparten casi todos sus campos (OBJECTID, NAME_TXT, TYPE_CODE…),
+   y con solo las claves la asociación elegida para una se aplicaba en
+   silencio a las demás, que no tienen por qué llamarse igual. Con origen
+   (`arcgis:<servicio>#<id de capa>`) cada capa descargada tiene la suya.
+   El JSON de las claves nunca lleva un salto de línea sin escapar y su
+   primer carácter es «[», así que separar por «\n» es inequívoco y una
+   huella SIN origen (todo lo ya guardado) sigue valiendo tal cual.     */
+const GNP_SCOPE_SEP = "\n";
+function splitFingerprint(fp) {
+  fp = String(fp);
+  const i = fp.indexOf(GNP_SCOPE_SEP);
+  const rest = i < 0 ? fp : fp.slice(i + 1);
+  let keys = null;
+  try { keys = JSON.parse(rest); } catch { /* una huella ilegible */ }
+  return { scope: i < 0 ? "" : fp.slice(0, i),
+           keys: Array.isArray(keys) ? keys.map(String) : [rest] };
 }
 
 /* Separador entre los valores de varias claves elegidas como nombre. */
@@ -10513,7 +10534,7 @@ const BIG_FEATURE_COUNT = 5000;
    un shapefile —sin .prj, ED50…— va en el mismo resumen).             */
 /* `presetNameKeys`: un formato que define él mismo qué es el nombre (el
    <name> de un GPX) lo da hecho y no se pregunta ni se recuerda nada.  */
-async function addFileNode(name, kind, content, insertBefore = null, dropTargetUl = null, zip = null, report = null, presetNameKeys = null) {
+async function addFileNode(name, kind, content, insertBefore = null, dropTargetUl = null, zip = null, report = null, presetNameKeys = null, nameScope = null) {
   const big = typeof content === "string"
     ? content.length > SIZE_THRESHOLD
     : geojsonFeatures(content).length > BIG_FEATURE_COUNT;
@@ -10592,7 +10613,7 @@ async function addFileNode(name, kind, content, insertBefore = null, dropTargetU
       let nameKeys = presetNameKeys;
       if (!nameKeys && needsNamePicker(firstProps)) {
         if (!gnpStore) gnpStore = await dbLoadGnp();
-        const fp = propsFingerprint(firstProps);
+        const fp = propsFingerprint(firstProps, nameScope);
         const stored = gnpStore[fp] || null;
         if (stored) {
           nameKeys = stored;
@@ -10831,7 +10852,8 @@ async function handleDroppedFiles(files, insertBefore, dropTargetUl = null) {
       }
       /* `kiteNameKeys`: quien fabrica el archivo (una capa de un servicio
          ArcGIS, 66-arcgis.js) puede dar ya hecho qué campo es el nombre */
-      await addFileNode(file.name, kind, content, insertBefore, dropTargetUl, zip, null, file.kiteNameKeys || null);
+      await addFileNode(file.name, kind, content, insertBefore, dropTargetUl, zip, null,
+        file.kiteNameKeys || null, file.kiteNameScope || null);
       scheduleSave();
     } catch (err) {
       if (err.cancelled) { navMessage(tr("Carga de \u00AB{name}\u00BB cancelada.", { name: file.name }), { tone: "info" }); continue; }
@@ -14914,13 +14936,13 @@ function renderGnpEditor() {
     return;
   }
   for (const [fp, value] of entries) {
-    let keys;
-    try { keys = JSON.parse(fp); } catch { keys = [fp]; }
+    const { scope, keys } = splitFingerprint(fp);
     const row = document.createElement("div");
     row.className = "gnp-editor-row";
     const keysSpan = document.createElement("span");
     keysSpan.className = "gnp-editor-keys";
-    keysSpan.textContent = keys.join(", ");
+    /* Una asociación con origen (la capa de un servicio) lo dice delante */
+    keysSpan.textContent = (scope ? (arcgisScopeLabel(scope) || scope) + ": " : "") + keys.join(", ");
     keysSpan.title = keysSpan.textContent;
     const sel = document.createElement("span");
     sel.className = "gnp-editor-sel";
@@ -24818,6 +24840,14 @@ async function arcgisDownloadLayer(base, id, signal, onProgress) {
   return { fc: merged.fc, partial, labelField: info.labelField };
 }
 
+/* El origen de las asociaciones de nombre de «Índices de GeoJSON» de una capa
+   de un servicio (propsFingerprint, 32-geojson.js), y cómo se llama en el editor */
+const arcgisNameScope = (base, id) => `arcgis:${base}#${id}`;
+function arcgisScopeLabel(scope) {
+  const m = /^arcgis:(.+)#(\d+)$/.exec(scope || "");
+  return m ? tr("«{service}» · capa {id}", { service: arcgisServiceName(m[1]), id: m[2] }) : null;
+}
+
 /* Las descargas en vuelo, por fila: { ctrl, cancelled }. Pulsar otra vez el
    botón la cancela. Se apunta aparte que fue el usuario (`cancelled`) en vez
    de leer el motivo del aborto: según el sitio por el que se corte, el
@@ -24862,6 +24892,8 @@ async function arcgisFetchLayerData(li, button) {
        elementos (sin preguntarlo) y se ve siempre sobre el mapa: la imagen
        del servidor los corta en el borde de cada tesela, los polígonos no. */
     let after = null;
+    /* La asociación de nombres es de ESTA capa de ESTE servicio, no de cualquiera que comparta campos */
+    file.kiteNameScope = arcgisNameScope(service._arcgis.url, li._arcgisLayer.id);
     if (labelField) {
       file.kiteNameKeys = [labelField];
       if (fc.features.length <= ARCGIS_LABEL_MAX) after = carpeta => arcgisShowLabels(carpeta, name, labelField);

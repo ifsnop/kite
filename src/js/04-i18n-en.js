@@ -643,6 +643,7 @@ registerLang("en", "English", {
   "la capa no tiene ninguna entidad": "the layer has no features",
   "la capa tiene {n} entidades y el máximo que se trae de una vez es {max}": "the layer has {n} features and the most that is fetched at once is {max}",
   "el servidor no devolvió ninguna entidad": "the server returned no features",
+  "«{service}» · capa {id}": "“{service}” · layer {id}",
   "Cancelar la descarga de esta capa": "Cancel the download of this layer",
   "Consultando «{name}»…": "Querying “{name}”…",
   "Trayendo «{name}»… {got} de {total} entidades ({size})": "Fetching “{name}”… {got} of {total} features ({size})",

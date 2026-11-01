@@ -503,6 +503,38 @@ await traer("TMA_CTA");
 await esperar(async () => (await nombresArbol()).includes("Zona 10-5"), "otra capa, sin regla de rotulado");
 ok((await rotulos()).length === antesRotulos, "sin regla del servidor no se inventan rótulos");
 
+/* ---------- 15b. Cada capa descargada tiene SU asociación de nombre ---------- */
+/* La capa 10 (TMA_CTA) ya tiene la suya, elegida en A. La capa 0 (FBZ) comparte TODOS sus
+   campos con ella: antes la asociación (solo las claves) se le aplicaba en silencio. */
+qmodo = "ok";
+peticiones.length = 0;
+await traer("FBZ");
+await page.waitForFunction(() => !document.getElementById("geojson-name-picker").hidden, null, { timeout: 15000 });
+ok(true, "con los mismos campos que otra capa ya descargada, el selector de nombre SÍ pregunta");
+await nombrar("OBJECTID");
+await esperar(async () => (await nombresArbol()).includes("1"), "las entidades de FBZ con el nombre que se eligió para ella");
+const asociaciones = await page.evaluate(async () => {
+  const claves = Object.keys(gnpStore).filter(k => k.startsWith("arcgis:"));
+  togglePropsDialog && await togglePropsDialog();
+  document.getElementById("props-tab-btn-gnp").click();
+  const filas = [...document.querySelectorAll("#gnp-editor-list .gnp-editor-row")].map(r => ({
+    clave: r.querySelector(".gnp-editor-keys").textContent, valor: r.querySelector(".gnp-editor-sel").textContent }));
+  document.getElementById("props-cancel").click();
+  return { claves, filas };
+});
+ok(asociaciones.claves.length === 3 && ["#10\n", "#6\n", "#0\n"].every(c => asociaciones.claves.some(k => k.includes("/MapServer" + c))),
+  "quedan TRES asociaciones —las capas 10, 6 y 0—, una por capa, con su origen en la clave: " + JSON.stringify(asociaciones.claves));
+const f10 = asociaciones.filas.find(f => /capa 10:/.test(f.clave)), f0 = asociaciones.filas.find(f => /capa 0:/.test(f.clave));
+ok(f10 && f0 && f10.valor === "NAME_TXT" && f0.valor === "OBJECTID",
+  "«Índices de GeoJSON» las lista por separado, con el servicio y la capa, y cada una con SU nombre: " + JSON.stringify(asociaciones.filas));
+ok(/«Servicio_5» · capa 10/.test(f10.clave), "con el nombre del servicio y el número de capa: " + f10.clave);
+/* Y volver a traer la misma capa reutiliza la suya sin preguntar */
+peticiones.length = 0;
+await traer("FBZ");
+await esperar(() => consultas(0).length >= 3, "las páginas de FBZ otra vez");
+await page.waitForTimeout(400);
+ok(await page.evaluate(() => document.getElementById("geojson-name-picker").hidden), "la segunda vez que se trae la misma capa no se pregunta");
+
 ok((await page.evaluate(() => window.__csp)).length === 0, "sin violaciones de CSP: " + JSON.stringify(await page.evaluate(() => window.__csp)));
 ok(errors.filter(e => !/Failed to load resource/.test(e)).length === 0, "sin errores de página: " + JSON.stringify(errors));
 

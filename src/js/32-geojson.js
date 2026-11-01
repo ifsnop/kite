@@ -78,8 +78,28 @@ function needsNamePicker(props) {
    valores ni su orden original): sirve para indexar la asociación
    guardada, y como es el JSON de las propias claves, se puede
    recuperar la lista de claves de una huella con JSON.parse.        */
-function propsFingerprint(props) {
-  return JSON.stringify(Object.keys(props || {}).sort());
+function propsFingerprint(props, scope = "") {
+  const keys = JSON.stringify(Object.keys(props || {}).sort());
+  return scope ? scope + GNP_SCOPE_SEP + keys : keys;
+}
+
+/* Un ORIGEN opcional delante de la huella: dos capas de un mismo servicio
+   ArcGIS comparten casi todos sus campos (OBJECTID, NAME_TXT, TYPE_CODE…),
+   y con solo las claves la asociación elegida para una se aplicaba en
+   silencio a las demás, que no tienen por qué llamarse igual. Con origen
+   (`arcgis:<servicio>#<id de capa>`) cada capa descargada tiene la suya.
+   El JSON de las claves nunca lleva un salto de línea sin escapar y su
+   primer carácter es «[», así que separar por «\n» es inequívoco y una
+   huella SIN origen (todo lo ya guardado) sigue valiendo tal cual.     */
+const GNP_SCOPE_SEP = "\n";
+function splitFingerprint(fp) {
+  fp = String(fp);
+  const i = fp.indexOf(GNP_SCOPE_SEP);
+  const rest = i < 0 ? fp : fp.slice(i + 1);
+  let keys = null;
+  try { keys = JSON.parse(rest); } catch { /* una huella ilegible */ }
+  return { scope: i < 0 ? "" : fp.slice(0, i),
+           keys: Array.isArray(keys) ? keys.map(String) : [rest] };
 }
 
 /* Separador entre los valores de varias claves elegidas como nombre. */

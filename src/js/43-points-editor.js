@@ -1651,13 +1651,13 @@ function renderGnpEditor() {
     return;
   }
   for (const [fp, value] of entries) {
-    let keys;
-    try { keys = JSON.parse(fp); } catch { keys = [fp]; }
+    const { scope, keys } = splitFingerprint(fp);
     const row = document.createElement("div");
     row.className = "gnp-editor-row";
     const keysSpan = document.createElement("span");
     keysSpan.className = "gnp-editor-keys";
-    keysSpan.textContent = keys.join(", ");
+    /* Una asociación con origen (la capa de un servicio) lo dice delante */
+    keysSpan.textContent = (scope ? (arcgisScopeLabel(scope) || scope) + ": " : "") + keys.join(", ");
     keysSpan.title = keysSpan.textContent;
     const sel = document.createElement("span");
     sel.className = "gnp-editor-sel";

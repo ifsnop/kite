@@ -106,7 +106,7 @@ paths:
   también son mutaciones del árbol.
 - Cambiar el formato serializado → sube `TREE_SCHEMA`; cambiar los
   almacenes → sube `DB_VERSION`. En ambos casos lo viejo se descarta.
-- **Nombres de GeoJSON recordados** (`geojsonNameProps`, `GNP_SCHEMA`):
+- **Nombres de GeoJSON recordados** (`geojsonNameProps`, `GNP_SCHEMA`; la huella puede llevar un ORIGEN delante, `arcgis:<servicio>#<capa>\n[...claves]`, una asociación por capa descargada de un servicio ArcGIS: ver `import-parsing.md` y `arcgis.md`):
   mapa de huella de `properties` (`propsFingerprint`) → ARRAY ORDENADO
   de claves elegidas para componer el nombre (`GNP_SCHEMA` 2; la v1
   guardaba una sola clave y se descarta al leer; `dbLoadGnp` ignora

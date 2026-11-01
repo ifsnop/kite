@@ -3,9 +3,9 @@ const ok = (c, m) => { if (!c) { console.error("FAIL: " + m); process.exitCode =
 
 /* ---------- Elegir la propiedad-nombre (Fase 1) ---------- */
 const nameSrc = between("const GEOJSON_TYPES = new Set(", "async function buildGeoJsonRecords");
-const { geojsonFeatures, needsNamePicker, propsFingerprint, composeFeatureName, resolveFeatureName } =
+const { geojsonFeatures, needsNamePicker, propsFingerprint, splitFingerprint, composeFeatureName, resolveFeatureName } =
   new Function(fn("stringifyPropValue") + "\n" + nameSrc
-    + "\nreturn {geojsonFeatures, needsNamePicker, propsFingerprint, composeFeatureName, resolveFeatureName};")();
+    + "\nreturn {geojsonFeatures, needsNamePicker, propsFingerprint, splitFingerprint, composeFeatureName, resolveFeatureName};")();
 
 // geojsonFeatures
 ok(geojsonFeatures({ type: "FeatureCollection", features: [{ type: "Feature" }] }).length === 1,
@@ -36,6 +36,29 @@ ok(propsFingerprint({ a: 1, b: 2 }) === propsFingerprint({ b: 99, a: "x" }),
 ok(propsFingerprint({ a: 1 }) !== propsFingerprint({ b: 1 }),
   "claves distintas: huella distinta");
 ok(propsFingerprint({}) === "[]", "sin claves: huella estable");
+
+// con ORIGEN: cada capa de un servicio tiene su propia asociación aunque comparta campos
+const campos = { OBJECTID: 1, NAME_TXT: "x", TYPE_CODE: "A" };
+const capa10 = propsFingerprint(campos, "arcgis:https://s.example.org/rest/services/S/MapServer#10");
+const capa6 = propsFingerprint(campos, "arcgis:https://s.example.org/rest/services/S/MapServer#6");
+const otroServicio = propsFingerprint(campos, "arcgis:https://t.example.org/rest/services/S/MapServer#10");
+ok(capa10 !== capa6 && capa10 !== otroServicio && capa6 !== otroServicio, "mismos campos, otra capa u otro servicio: otra clave");
+ok(capa10 !== propsFingerprint(campos), "y distinta de la de un archivo cualquiera con esos campos");
+ok(propsFingerprint(campos, "") === propsFingerprint(campos) && propsFingerprint(campos, null) === propsFingerprint(campos),
+  "sin origen (o vacío) es la huella de siempre: lo ya guardado sigue valiendo");
+ok(propsFingerprint({ b: 1, a: 2 }, "o") === propsFingerprint({ a: 9, b: 9 }, "o"), "con origen, el orden de las claves tampoco cuenta");
+// splitFingerprint
+let sp = splitFingerprint(capa10);
+ok(sp.scope === "arcgis:https://s.example.org/rest/services/S/MapServer#10" && sp.keys.join() === "NAME_TXT,OBJECTID,TYPE_CODE",
+  "splitFingerprint deshace una huella con origen: " + JSON.stringify(sp));
+sp = splitFingerprint(propsFingerprint({ ref: 1, mun: 2 }));
+ok(sp.scope === "" && sp.keys.join() === "mun,ref", "y una sin origen: " + JSON.stringify(sp));
+sp = splitFingerprint('["a\\nb","c"]');
+ok(sp.scope === "" && sp.keys.join("|") === "a\nb|c", "un salto de línea dentro de una clave va escapado en el JSON y no se confunde con el separador");
+sp = splitFingerprint("esto no es una huella");
+ok(sp.scope === "" && sp.keys.join() === "esto no es una huella", "una huella ilegible se enseña tal cual, sin lanzar");
+sp = splitFingerprint("origen\nno json");
+ok(sp.scope === "origen" && sp.keys.join() === "no json", "con origen pero claves ilegibles tampoco lanza");
 
 // composeFeatureName
 ok(composeFeatureName({ ref: "A-04", mun: "Madrid" }, ["ref", "mun"]) === "A-04 / Madrid",
