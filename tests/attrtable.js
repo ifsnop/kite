@@ -7,7 +7,7 @@ const ok = (c, m) => { if (!c) { console.error("FAIL: " + m); process.exitCode =
 
 const api = new Function([constDecl("ATTR_MAX_COLS"), fn("stringifyPropValue"), fn("layerProperties"),
   fn("collectAttrRows"), fn("attrColumns"), constDecl("attrCell"), fn("attrIsNumeric"), fn("attrSort"), fn("attrFilter"),
-  between("const csvCell", "const toCsv"), constDecl("toCsv"),
+  between("const CSV_DEFAULT", "const toCsv"), constDecl("toCsv"),
   "const nodeUl = li => li._ul || null; const nodeLayer = li => li._layer || null;",
   "return { collectAttrRows, attrColumns, attrCell, attrIsNumeric, attrSort, attrFilter, csvCell, toCsv, ATTR_MAX_COLS };"].join("\n"))();
 const { collectAttrRows, attrColumns, attrCell, attrIsNumeric, attrSort, attrFilter, csvCell, toCsv, ATTR_MAX_COLS } = api;

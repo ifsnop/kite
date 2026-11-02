@@ -3,9 +3,9 @@
 const { fn, between, constDecl } = require("./_extract");
 const ok = (c, m) => { if (!c) { console.error("FAIL: " + m); process.exitCode = 1; } };
 
-const api = new Function(fn("profileCsv") + "\n" + between("const csvCell", "const toCsv") + "\n" + constDecl("toCsv")
-  + "\nreturn { profileCsv };")();
-const { profileCsv } = api;
+const api = new Function(fn("profileCsv") + "\n" + between("const CSV_DEFAULT", "const toCsv") + "\n" + constDecl("toCsv")
+  + "\n" + fn("csvDialect") + "\nreturn { profileCsv, csvCell, toCsv, csvDialect };")();
+const { profileCsv, csvCell, toCsv, csvDialect } = api;
 
 const NM = 1852, FT = 0.3048;
 const data = {
@@ -51,5 +51,36 @@ ok(!/e[+-]\d/.test(csv), "nunca notación científica");
 const many = { series: [{ kind: "mdt", label: "x", points: Array.from({ length: 5000 }, (_, i) => ({ d: i * 5, v: i })) },
   { kind: "mds", label: "y", points: Array.from({ length: 5000 }, (_, i) => ({ d: i * 5 + 2.5, v: i })) }] };
 ok(lines(profileCsv(many, units, locate)).length === 10002, "10 000 distancias distintas, 10 002 líneas con la cabecera y el salto final");
+
+/* ---------- Dialecto según el idioma de la interfaz ----------
+   Inglés: coma entre campos y punto decimal. Español: punto y coma entre
+   campos y coma decimal (lo que Excel espera con esa configuración regional).
+   Sin dialecto, como siempre (coma y punto).                              */
+const EN = csvDialect("en"), ES = csvDialect("es");
+ok(JSON.stringify(EN) === '{"sep":",","decimal":"."}', "inglés: coma y punto: " + JSON.stringify(EN));
+ok(JSON.stringify(ES) === '{"sep":";","decimal":","}', "español: punto y coma y coma decimal: " + JSON.stringify(ES));
+ok(csvDialect("en-GB").sep === ",", "una variante del inglés sigue siendo coma y punto");
+ok(csvDialect("fr").sep === ";" && csvDialect("de").sep === ";" && csvDialect("ja").sep === ",", "un idioma con coma decimal usa punto y coma (fr, de); uno con punto, la coma");
+ok(csv === profileCsv(data, units, locate, EN), "inglés = el CSV de siempre");
+
+const es = lines(profileCsv(data, units, locate, ES));
+ok(es[0] === "Distancia (m);Latitud;Longitud;MDT (m);MDS (m)", "español: la cabecera va con punto y coma: " + es[0]);
+ok(es[1] === "0;40;-3;1000;1005", "enteros sin cambio: " + es[1]);
+ok(es[2] === "5;40;-2,99995;;1006", "la longitud con coma decimal y los huecos vacíos: " + es[2]);
+ok(es[5] === "75;40;-2,99925;1030,5;1040", "decimales de la altura con coma: " + es[5]);
+ok(es.slice(0, -1).every(r => r.split(";").length === 5), "cinco campos en cada fila: ninguna coma decimal parte un campo");
+const esKm = lines(profileCsv({ series: [{ kind: "mds", label: "x", points: [{ d: 12.34567, v: 2500 }] }] },
+  { distFactor: 1000, altFactor: 1000, altDecimals: 4, distLabel: "km", altLabel: "km" }, locate, ES));
+ok(esKm[1].split(";")[0] === "0,01235" && esKm[1].endsWith(";2,5"), "km con coma decimal: " + esKm[1]);
+ok(!/\d\.\d/.test(es.slice(1).join("\n")), "en español no queda ningún punto decimal en los datos");
+ok(es.join("").startsWith("Distancia") && profileCsv(data, units, locate, ES).startsWith("﻿"), "con BOM también");
+
+/* Las celdas: solo un NÚMERO se reescribe; un texto es lo que es; se entrecomilla lo que contiene el separador del dialecto */
+ok(csvCell(1.5, ES) === "1,5" && csvCell(1.5, EN) === "1.5" && csvCell(-0.25, ES) === "-0,25", "números con la marca del dialecto");
+ok(csvCell("1.5", ES) === "1.5", "un texto con aspecto de número no se toca");
+ok(csvCell("a;b", ES) === '"a;b"' && csvCell("a,b", ES) === "a,b", "en español se entrecomilla el punto y coma, no la coma");
+ok(csvCell("a,b", EN) === '"a,b"' && csvCell("a;b", EN) === "a;b", "en inglés se entrecomilla la coma, no el punto y coma");
+ok(csvCell("=1+1", ES) === "'=1+1", "la defensa contra fórmulas sigue igual");
+ok(toCsv(["a", "b"], [[1.5, "x"]], ES) === "a;b\r\n1,5;x\r\n", "toCsv con el dialecto español");
 
 if (!process.exitCode) console.log("PROFILE EXPORT TESTS OK");

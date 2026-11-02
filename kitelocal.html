@@ -5099,7 +5099,7 @@ map.on("resize rotate", fitWorldMinZoom);
 
 /* Fecha de generación del código (versión): AÑOMESDIAHORAMINUTO.
    Actualizar en cada generación; se muestra junto al crédito de Leaflet. */
-const BUILD = "202611020946";
+const BUILD = "202611021153";
 /* Versión de release (la de package.json, horneada aquí por build.js
    al construir — ver «Versión y releases de GitHub» en CLAUDE.md): a
    diferencia de BUILD, que cambia en CADA generación, esta solo cambia
@@ -19388,14 +19388,30 @@ function attrFilter(rows, term) {
    una hoja de cálculo leería como FÓRMULA (empieza por =, @ o por + / -
    sin que siga una cifra) lleva delante un apóstrofo: es la defensa
    estándar contra un archivo ajeno que lo aprovecha, y no toca los
-   números negativos. Los números llevan punto decimal, como todo lo que
-   escribe la aplicación.                                               */
-const csvCell = v => {
-  let s = String(v);
+   números negativos.
+
+   El DIALECTO (separador de campos y marca decimal) es un parámetro: por
+   omisión coma y punto, que es lo que usa la tabla de atributos (sus
+   valores son texto del archivo, intocable). Solo un `number` de JS se
+   reescribe con la marca decimal pedida: un texto es lo que es.         */
+const CSV_DEFAULT = { sep: ",", decimal: "." };
+const csvCell = (v, d = CSV_DEFAULT) => {
+  let s = typeof v === "number" ? String(v).replace(".", d.decimal) : String(v);
   if (/^[=@\t\r]/.test(s) || /^[+-](?![\d.])/.test(s)) s = "'" + s;
-  return /[",\r\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+  return /["\r\n]/.test(s) || s.includes(d.sep) ? `"${s.replace(/"/g, '""')}"` : s;
 };
-const toCsv = (header, rows) => [header, ...rows].map(r => r.map(csvCell).join(",")).join("\r\n") + "\r\n";
+const toCsv = (header, rows, d = CSV_DEFAULT) => [header, ...rows].map(r => r.map(v => csvCell(v, d)).join(d.sep)).join("\r\n") + "\r\n";
+
+/* El dialecto del CSV según el IDIOMA DE LA INTERFAZ (no el del sistema:
+   quien trabaja en inglés con un Windows en español no quiere un archivo
+   con comas decimales). Se pregunta a Intl cuál es la marca decimal del
+   idioma: con coma (español, francés, alemán…) el separador de campos es
+   el punto y coma —lo que espera Excel en esa configuración regional, donde
+   la coma ya es parte de los números—; con punto (inglés), la coma.      */
+function csvDialect(lang) {
+  const dec = new Intl.NumberFormat(lang).formatToParts(1.5).find(p => p.type === "decimal");
+  return dec && dec.value === "," ? { sep: ";", decimal: "," } : { sep: ",", decimal: "." };
+}
 
 /* ---------- El diálogo (se enlaza al abrirlo) ---------- */
 
@@ -23354,8 +23370,10 @@ document.getElementById("pf-reset").addEventListener("click", () => {
    con la celda vacía donde una serie no tiene punto), en orden, con la
    latitud y la longitud de ese punto de la ruta (`locate(d)`, d en
    metros; null = vacías). Lo vacío es vacío, nunca un 0 inventado: un
-   hueco del servicio sigue siendo un hueco. PURA.                       */
-function profileCsv(data, u, locate) {
+   hueco del servicio sigue siendo un hueco. PURA. `dialect` (csvDialect,
+   54-attr-table.js): separador de campos y marca decimal según el idioma
+   de la interfaz; por omisión, coma y punto.                            */
+function profileCsv(data, u, locate, dialect = CSV_DEFAULT) {
   const distances = new Set();
   const lookups = data.series.map(s => {
     const m = new Map();
@@ -23369,7 +23387,7 @@ function profileCsv(data, u, locate) {
   });
   const header = [tr("Distancia ({unit})", { unit: u.distLabel }), tr("Latitud"), tr("Longitud"),
     ...data.series.map(s => `${s.kind.toUpperCase()} (${u.altLabel})`)];
-  return "\uFEFF" + toCsv(header, rows); /* BOM: Excel lee UTF-8 */
+  return "\uFEFF" + toCsv(header, rows, dialect); /* BOM: Excel lee UTF-8 */
 }
 
 /* El nombre de los archivos: el de la ruta, sin lo que un sistema de archivos no admite */
@@ -23385,7 +23403,7 @@ function exportProfileCsv() {
     return { lat: ll.lat, lng: ll.lng };
   };
   const text = profileCsv(data, { distFactor: POLY_UNIT_FACTOR[measureUnit], altFactor: POLY_UNIT_FACTOR[altitudeUnit],
-    altDecimals: HEIGHT_DECIMALS[altitudeUnit], distLabel: POLY_UNIT_LABEL[measureUnit], altLabel: POLY_UNIT_LABEL[altitudeUnit] }, locate);
+    altDecimals: HEIGHT_DECIMALS[altitudeUnit], distLabel: POLY_UNIT_LABEL[measureUnit], altLabel: POLY_UNIT_LABEL[altitudeUnit] }, locate, csvDialect(uiLang));
   downloadBlob(new Blob([text], { type: "text/csv;charset=utf-8" }), `${profileExportName()}.csv`);
 }
 

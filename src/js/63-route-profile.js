@@ -1295,8 +1295,10 @@ document.getElementById("pf-reset").addEventListener("click", () => {
    con la celda vacía donde una serie no tiene punto), en orden, con la
    latitud y la longitud de ese punto de la ruta (`locate(d)`, d en
    metros; null = vacías). Lo vacío es vacío, nunca un 0 inventado: un
-   hueco del servicio sigue siendo un hueco. PURA.                       */
-function profileCsv(data, u, locate) {
+   hueco del servicio sigue siendo un hueco. PURA. `dialect` (csvDialect,
+   54-attr-table.js): separador de campos y marca decimal según el idioma
+   de la interfaz; por omisión, coma y punto.                            */
+function profileCsv(data, u, locate, dialect = CSV_DEFAULT) {
   const distances = new Set();
   const lookups = data.series.map(s => {
     const m = new Map();
@@ -1310,7 +1312,7 @@ function profileCsv(data, u, locate) {
   });
   const header = [tr("Distancia ({unit})", { unit: u.distLabel }), tr("Latitud"), tr("Longitud"),
     ...data.series.map(s => `${s.kind.toUpperCase()} (${u.altLabel})`)];
-  return "\uFEFF" + toCsv(header, rows); /* BOM: Excel lee UTF-8 */
+  return "\uFEFF" + toCsv(header, rows, dialect); /* BOM: Excel lee UTF-8 */
 }
 
 /* El nombre de los archivos: el de la ruta, sin lo que un sistema de archivos no admite */
@@ -1326,7 +1328,7 @@ function exportProfileCsv() {
     return { lat: ll.lat, lng: ll.lng };
   };
   const text = profileCsv(data, { distFactor: POLY_UNIT_FACTOR[measureUnit], altFactor: POLY_UNIT_FACTOR[altitudeUnit],
-    altDecimals: HEIGHT_DECIMALS[altitudeUnit], distLabel: POLY_UNIT_LABEL[measureUnit], altLabel: POLY_UNIT_LABEL[altitudeUnit] }, locate);
+    altDecimals: HEIGHT_DECIMALS[altitudeUnit], distLabel: POLY_UNIT_LABEL[measureUnit], altLabel: POLY_UNIT_LABEL[altitudeUnit] }, locate, csvDialect(uiLang));
   downloadBlob(new Blob([text], { type: "text/csv;charset=utf-8" }), `${profileExportName()}.csv`);
 }
 

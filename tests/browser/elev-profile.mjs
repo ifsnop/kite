@@ -276,8 +276,10 @@ const [csvDl] = await Promise.all([page.waitForEvent("download"), page.click("#p
 const csv = fs.readFileSync(await csvDl.path(), "utf8");
 const csvLines = csv.split("\r\n");
 ok(csvDl.suggestedFilename() === "Ruta 1-perfil.csv", "nombre del CSV: " + csvDl.suggestedFilename());
-ok(csvLines[0] === `\uFEFFDistancia (${units.d}),Latitud,Longitud,MDT (${units.a}),MDS (${units.a})`, "BOM y cabecera con las unidades de la gráfica: " + JSON.stringify(csvLines[0]));
-const body = csvLines.slice(1, -1).map(r => r.split(","));
+/* La interfaz está en español: punto y coma entre campos y coma decimal */
+ok(csvLines[0] === `\uFEFFDistancia (${units.d});Latitud;Longitud;MDT (${units.a});MDS (${units.a})`, "BOM y cabecera con las unidades de la gráfica, con punto y coma: " + JSON.stringify(csvLines[0]));
+const body = csvLines.slice(1, -1).map(r => r.split(";").map(c => c.replace(",", ".")));
+ok(!/\d\.\d/.test(csvLines.slice(1).join("\n")), "en español, los decimales llevan coma y no punto");
 ok(body.length > 380 && body.length < 1000 && body.every(r => r.length === 5), "una fila por distancia de las dos series: " + body.length);
 ok(body.every((r, i) => i === 0 || Number(r[0]) > Number(body[i - 1][0])), "en orden y sin repetir");
 ok(Math.abs(Number(body[0][1]) - WAYPOINTS[0].lat) < 1e-4 && Math.abs(Number(body[0][2]) - WAYPOINTS[0].lng) < 1e-4, "la primera fila, en el primer waypoint: " + body[0]);
@@ -287,6 +289,16 @@ ok(Math.abs(Number(end[0]) * units.fd - route.total) < 20, "y su distancia es la
 const both = body.filter(r => r[3] !== "" && r[4] !== "");
 ok(both.length > 300 && both.every(r => Number(r[4]) > Number(r[3])), "con las dos series, el MDS por encima del MDT (como los servicios simulados): " + both.length);
 ok(body.every(r => r[3] === "" || Number(r[3]) > 0) && body.every(r => r[4] === "" || Number(r[4]) > 0), "ninguna celda con un 0 inventado: lo que falta va vac\u00EDo");
+
+/* En inglés: coma entre campos y punto decimal, con el MISMO contenido */
+await page.evaluate(() => setUiLang("en"));
+const [csvEn] = await Promise.all([page.waitForEvent("download"), page.click("#pf-csv")]);
+await page.evaluate(() => setUiLang("es"));
+const csvEnLines = fs.readFileSync(await csvEn.path(), "utf8").split("\r\n");
+ok(csvEnLines[0] === `\uFEFFDistance (${units.d}),Latitude,Longitude,MDT (${units.a}),MDS (${units.a})`, "en inglés, la cabecera con comas: " + JSON.stringify(csvEnLines[0]));
+const bodyEn = csvEnLines.slice(1, -1).map(r => r.split(","));
+ok(bodyEn.length === body.length && bodyEn.every(r => r.length === 5), "las mismas filas y cinco campos cada una: " + bodyEn.length);
+ok(bodyEn.every((r, i) => r.every((c, j) => c === body[i][j])), "y las mismas cifras, con punto decimal");
 
 const [pngDl] = await Promise.all([page.waitForEvent("download"), page.click("#pf-png")]);
 const png = fs.readFileSync(await pngDl.path());
