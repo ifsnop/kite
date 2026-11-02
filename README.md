@@ -319,7 +319,7 @@ the flag clears by itself when the tiles come back.
   again; editing the route's waypoints asks for a new profile
 - routes longer than a configurable limit (10 NM by default) get no
   profile, so a long route cannot fill the browser storage with cells
-- the chart exports as a PNG image and its numbers as a CSV file, in the format of the interface language: commas and a decimal point in English, semicolons and a decimal comma in Spanish (what Excel expects there)
+- the chart exports as a PNG image and its numbers as a CSV file; with the line of sight or the Fresnel ellipsoid on, the file also carries the tower positions (1 for the start tower, 2 for the end tower, 0 elsewhere), the altitude of the line of sight and the lower and upper altitude of the 60 % Fresnel zone, in the format of the interface language: commas and a decimal point in English, semicolons and a decimal comma in Spanish (what Excel expects there)
 
 ### Measurements
 

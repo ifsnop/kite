@@ -786,6 +786,45 @@ await page.click("#props-cancel");
 await frames();
 ok(await page.evaluate(() => fresnelFreqMHz === 1090 && /1090 MHz/.test([...profileChart.querySelectorAll(".pf-legend-label")].map(t => t.textContent).join("|"))),
   "Cancelar la deshace y el perfil vuelve a 1090 MHz");
+
+/* ---- CSV con la recta, Fresnel y las torres activados ---- */
+const [csvLk] = await Promise.all([page.waitForEvent("download"), page.click("#pf-csv")]);
+const lk = fs.readFileSync(await csvLk.path(), "utf8").split("\r\n");
+ok(lk[0] === `\uFEFFDistancia (${units.d});Latitud;Longitud;MDT (${units.a});MDS (${units.a});Torre;Línea de vista (${units.a});Fresnel 60 % inferior (${units.a});Fresnel 60 % superior (${units.a})`,
+  "con la recta y Fresnel activados, el CSV añade Torre, Línea de vista y Fresnel 60 % inferior y superior: " + JSON.stringify(lk[0]));
+/* y en inglés: comas y las cabeceras traducidas */
+await page.evaluate(() => setUiLang("en"));
+const [csvLkEn] = await Promise.all([page.waitForEvent("download"), page.click("#pf-csv")]);
+await page.evaluate(() => setUiLang("es"));
+ok(fs.readFileSync(await csvLkEn.path(), "utf8").split("\r\n")[0] === `\uFEFFDistance (${units.d}),Latitude,Longitude,MDT (${units.a}),MDS (${units.a}),Tower,Line of sight (${units.a}),Fresnel 60 % lower (${units.a}),Fresnel 60 % upper (${units.a})`,
+  "en inglés, con comas y las cabeceras traducidas");
+const lkRows = lk.slice(1, -1).map(r => r.split(";").map(c => c.replace(",", ".")));
+ok(lkRows.every(r => r.length === 9), "nueve campos en cada fila");
+const tw = lkRows.map((r, i) => [r[5], i]).filter(([t]) => t !== "0");
+ok(tw.length === 2 && tw[0][0] === "1" && tw[1][0] === "2", "la columna Torre marca una fila con 1 y otra con 2, y el resto 0: " + JSON.stringify(tw));
+const t1 = lkRows[tw[0][1]], t2 = lkRows[tw[1][1]];
+ok(Math.abs(Number(t1[1]) - WAYPOINTS[0].lat) < 1e-4 && Math.abs(Number(t1[2]) - WAYPOINTS[0].lng) < 1e-4, "la torre 1 está en el primer waypoint: " + t1.slice(0, 3));
+ok(Math.abs(Number(t2[1]) - WAYPOINTS[2].lat) < 5e-4 && Math.abs(Number(t2[2]) - WAYPOINTS[2].lng) < 5e-4, "y la 2 en el último: " + t2.slice(0, 3));
+const exp = await page.evaluate(() => {
+  const m = profileData.series.find(s => s.kind === "mds").points.filter(p => typeof p.v === "number");
+  return { a: m[0].v + profileTowerM.a, b: m[m.length - 1].v + profileTowerM.b, ha: profileTowerM.a, hb: profileTowerM.b };
+});
+ok(Math.abs(Number(t1[6]) - exp.a) < 0.06 && Math.abs(Number(t2[6]) - exp.b) < 0.06,
+  `la línea de vista vale, en las torres, el terreno más la torre (${exp.ha} y ${exp.hb} m): ${t1[6]} y ${t2[6]} frente a ${exp.a.toFixed(1)} y ${exp.b.toFixed(1)}`);
+ok(t1[7] === t1[6] && t1[8] === t1[6] && t2[7] === t2[6] && t2[8] === t2[6], "y en las antenas Fresnel vale lo mismo (radio 0)");
+const mid = lkRows[Math.floor(lkRows.length / 2)];
+const lay = await page.evaluate(d => ({ los: profileLayout.losAt(d), lift: profileLayout.lift(d), r: PF_FRESNEL_ZONE * profileLayout.fresnel(d) }), Number(mid[0]) * units.fd);
+ok(Math.abs(Number(mid[6]) - (lay.los - lay.lift)) < 0.06, `la altitud de la recta a mitad de ruta es la de la gráfica: ${mid[6]} frente a ${(lay.los - lay.lift).toFixed(2)}`);
+ok(Math.abs(Number(mid[8]) - Number(mid[7]) - 2 * lay.r) < 0.12 && Number(mid[7]) < Number(mid[6]) && Number(mid[6]) < Number(mid[8]),
+  `Fresnel al 60 % (±${lay.r.toFixed(2)} m) por debajo y por encima de la recta: ${mid.slice(6)}`);
+/* Sin la recta: la columna desaparece; sin Fresnel, también las suyas */
+await page.click("#pf-fresnel");
+await frames();
+const [csvNoFr] = await Promise.all([page.waitForEvent("download"), page.click("#pf-csv")]);
+const noFr = fs.readFileSync(await csvNoFr.path(), "utf8").split("\r\n")[0];
+ok(noFr.endsWith(`;Torre;Línea de vista (${units.a})`), "sin Fresnel, solo Torre y Línea de vista: " + JSON.stringify(noFr));
+await page.click("#pf-fresnel");
+await frames();
 await page.evaluate(() => { togglePropsDialog(); });
 await page.waitForFunction(() => !document.getElementById("props-dialog").hidden);
 await page.click("#props-tab-btn-freq");
