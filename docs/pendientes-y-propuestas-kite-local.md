@@ -4,7 +4,7 @@
 
 Este documento reúne en un solo sitio lo que **está pendiente** en KITE Local y las **ideas** que se han propuesto para seguir desarrollándolo. Antes estaba repartido entre las reglas del proyecto, el README y notas de varias conversaciones; aquí es la única lista. Quien quiera saber qué hace hoy la aplicación debe leer el [manual de usuario](manual-usuario-kite-local.md); quien quiera saber en qué se apoya la confianza en sus datos, el [estudio de seguridad](estudio-seguridad-kite-local.md).
 
-- **Última revisión:** 2 de noviembre de 2026 (versión 2.0.1 de la aplicación).
+- **Última revisión:** 2 de noviembre de 2026 (versión 2.1.0 de la aplicación).
 - **Cómo se mantiene:** lo que se hace **se borra** de este documento en el mismo cambio que lo hace (y se cuenta en el manual y el README, si lo ve el usuario); una idea que se descarta pasa a «Descartado» con su motivo, para no volver a proponerla sin un caso nuevo. Una idea se convierte en pendiente cuando alguien decide hacerla. Ver `.claude/rules/docs-maintenance.md`.
 - **Qué NO es:** no es un compromiso de calendario. Hay ideas que quizá no se hagan nunca.
 
