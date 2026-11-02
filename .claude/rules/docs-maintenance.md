@@ -174,7 +174,7 @@ Después de reunir los PR y ANTES de tagear (ver `build-and-release.md`):
 3. `npm run capturas` (todas; ~1 minuto más lo que tarden las teselas). Mirar las
    PNG que hayan cambiado respecto a la versión anterior (`git diff --stat
    docs/img`; las que casi no cambian de tamaño suelen ser las que no cambiaron).
-   `ortofoto-cog.png` no se regenera: se mantiene.
+   `ortofoto-cog.png` no se regenera: se mantiene. Y `npm run demo-gif` (el GIF de la portada del README).
 4. `KITE_REQUIRE_BROWSER=1 node tests/run-all.js`. Anotar el total («N de N»).
 5. Estudio de seguridad (`docs/estudio-seguridad-kite-local.md`):
    - Las cuatro frases de recuento (resumen, 7.2, 7.4, conclusión) al total del
@@ -221,6 +221,17 @@ PR y en la tabla «Registro de revisiones» de abajo. Cada paso, con su método:
    capturas legibles en claro y oscuro. Enlaces externos:
    `grep -o 'https\?://[^) ]*' docs/*.md | sort -u` y `curl -sI` a cada uno.
 6. Anotar la revisión en el registro, corregir, y `node tests/run-all.js`.
+
+### El GIF de la portada (`media/kite-demo.gif`)
+
+Arrastrar un KMZ y verlo abierto, en el README (inglés). Lo genera `tools/demo-gif.mjs`
+(`npm run demo-gif`, ver `media/README.md`), como las capturas: nunca a mano. **Se
+regenera con el mismo criterio que las capturas del manual**: cuando cambia lo que
+enseña (la caja de búsqueda, el árbol, la zona de soltar, la barra del visor) y en cada
+release (procedimiento B). Pesa menos de 1 MB (una paleta de 255 colores y solo los
+píxeles que cambian); si el guion crece y pasa de 2-3 MB, se acorta, no se baja la
+calidad. El archivo de ejemplo es `docs/ejemplos/operacion-sierra.kmz` (el mismo KML
+de las capturas, comprimido): si cambia el KML, hay que regenerar también el KMZ.
 
 ### Añadir una captura (receta)
 
