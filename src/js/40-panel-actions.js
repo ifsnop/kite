@@ -339,9 +339,26 @@ function createPin() {
   openStyleDialog(li, { isNew: true });
 }
 
+/* Zoom al que se va cuando lo escrito en el buscador son coordenadas: un
+   nivel de región (9), no el de calle de un lugar elegido (14).        */
+const COORD_SEARCH_ZOOM = 9;
+
+/* Unas coordenadas escritas se resuelven aquí, sin red y ANTES que
+   Nominatim: pedir el lugar es pedir ir allí (por eso, como al elegir un
+   resultado, la aplicación mueve la vista sola), y no crea ningún marcador.
+   Una búsqueda de lugar en vuelo ya no interesa.                         */
+function goToCoordinates(at) {
+  placeSeq++;
+  if (placeAbort) { placeAbort.abort(); placeAbort = null; }
+  hidePlaceResults();
+  map.setView([at.lat, at.lng], COORD_SEARCH_ZOOM);
+}
+
 function runPlaceSearch() {
   const q = placeBox.value.trim();
-  if (!q) { navMessage(tr("Escriba un lugar que buscar.")); return; }
+  if (!q) { navMessage(tr("Escriba un lugar o unas coordenadas.")); return; }
+  const at = parsePlaceCoordinates(q);
+  if (at) { goToCoordinates(at); return; }
   searchPlaces(q);
 }
 document.getElementById("place-btn").addEventListener("click", runPlaceSearch);
@@ -626,8 +643,19 @@ document.addEventListener("keydown", e => {
   const t = e.target;
   /* Los campos de texto se quedan con todas las teclas */
   if (t.matches && t.matches("input:not([type=checkbox]), textarea, select, [contenteditable]")) return;
-  /* Con el mapa enfocado, las flechas son el desplazamiento de Leaflet */
-  if (t.closest && t.closest("#map")) return;
+  /* Con el mapa enfocado, las flechas son el desplazamiento de Leaflet y el
+     resto de teclas del árbol no valen; SÍ valen deshacer y rehacer, que
+     son del espacio de trabajo entero y no de la fila seleccionada. Sin una
+     herramienta de dibujo en marcha: a medias de una forma, un Ctrl+Z que
+     revirtiera de pronto la última operación del árbol sorprendería.     */
+  if (t.closest && t.closest("#map")) {
+    if ((e.ctrlKey || e.metaKey) && !e.altKey && !activeTool) {
+      const k = e.key.toLowerCase();
+      if (k === "z") { e.preventDefault(); undoLast(); }
+      else if (k === "y") { e.preventDefault(); redoLast(); }
+    }
+    return;
+  }
 
   /* Sin listas: el cursor y sus vecinos se buscan en local */
   const cur = isRow(selCursor) && selCursor.isConnected ? selCursor : null;

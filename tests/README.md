@@ -640,6 +640,16 @@ ROTATION TESTS OK
 
 **Qué cubre:** Las piezas puras de la rotación del mapa (`08-map-rotation.js`, derivado de leaflet-rotate). `pointerAngleDeg` (ángulo del puntero desde el centro de la brújula con el convenio de rumbo: 0 arriba, sentido horario, nunca negativo) y `dragBearing` (el rumbo durante un arrastre es el de partida más lo que gira el puntero, no su ángulo absoluto —el mapa no salta al primer movimiento—, cruza el norte sin restar 340°, se normaliza a [0, 360) y es libre, sin pasos). `pivotDragBearing` (giro con el botón central: medio grado por píxel en horizontal, derecha = horario, cruza el norte sin negativos, libre). `clipSegmentToRect` (Liang–Barsky: recorte de una línea de la retícula al visor; el primer extremo devuelto es el del lado de `p0`, que es por donde se pone la etiqueta; fuera de la vista → null, incluida una vertical exterior). `clampRotatedDragOffset` (arrastre limitado al mundo con el mapa girado): a 0° coincide con el recorte por ejes de Leaflet, a 90° el tope es el del eje del MAPA y no el de la pantalla, y con la vista más grande que el mundo el centro se queda en medio. Del giro incorporado: `rotateXY` (horario en pantalla, alrededor del pivote, ida y vuelta exacta), `rotatedTransformCss` (posición ya girada + `rotate(…rad)`) y `enclosingBox` (un cuadrado girado 45° mide 100·√2 y queda centrado). Guardián: la versión de Leaflet fijada en el HTML es `LEAFLET_PATCHED` (el código parchea sus internos) y ningún `<script>` carga ya leaflet-rotate.
 
+### `placecoords.js`
+
+**Salida de `npm test`:**
+```
+── Buscador de lugares: reconocer unas coordenadas escritas (decimales con punto o coma, GMS con letras de hemisferio en cualquier orden) y rechazar lo que no lo es (lugares, direcciones, latitudes imposibles, cifras sueltas)
+PLACE COORDINATES TESTS OK
+```
+
+**Qué cubre:** `parsePlaceCoordinates` (`43-points-editor.js`), pura, que decide si lo escrito en el buscador son coordenadas. Se reconocen: decimales con punto separados por coma, punto y coma, barra o espacio (`40.4168, -3.7038`), con coma decimal (`40,4168 -3,7038`, `40,4168; -3,7038`), enteros, signo más y menos (también el tipográfico), los límites ±90/±180, y grados-minutos-segundos con letras N/S/E/W/O (`40°25'0.5"N 3°42'13"W`, `N 40 25 0.5, W 3 42 13`, con las letras delante o detrás, minúsculas, `º ′ ″`) donde la letra manda sobre el orden. No lo son —y siguen yendo a Nominatim—: nombres y direcciones, una cifra suelta, un código postal, una latitud o longitud fuera de rango (que no se «arregla» dando la vuelta al orden), dos latitudes o dos longitudes, una palabra de más antes o después, tres números separados por comas, notación científica, direcciones web, HTML y cadenas larguísimas.
+
 ### `profileexport.js`
 
 **Salida de `npm test`:**
@@ -1065,7 +1075,7 @@ BROWSER ONE WORLD TESTS OK
 BROWSER UNDO CREATE TESTS OK
 ```
 
-**Qué cubre:** Reportado como bug: crear un marcador (📍), dibujar un polígono (⬠), o crear una medición de ruta (⤳) o de círculo (◯) no llamaba a `pushUndo`, así que Ctrl+Z no las deshacía. La suite crea cada uno de los cuatro con gestos reales (clic/doble clic/arrastre, no llamadas directas a la función interna salvo `createPin`, que no es un gesto de arrastre) y comprueba que `undoLast()` lo quita del árbol y `redoLast()` lo devuelve. `pushUndo` se llama justo ANTES de la mutación en cada camino de creación (mismo patrón que ya usan borrar/mover/pegar), no dentro de «Aceptar»/«Cancelar» del diálogo de estilos: la creación ya es una acción completa y guardada desde el momento en que aparece en el árbol. El marcador y la ruta cierran su diálogo de propiedades con «Aceptar» antes de deshacer, para no mezclar esto con si deshacer debe además cerrar un diálogo abierto sobre el nodo que desaparece — cuestión aparte, no la que prueba esta suite.
+**Qué cubre:** Reportado como bug: crear un marcador (📍), dibujar un polígono (⬠), o crear una medición de ruta (⤳) o de círculo (◯) no llamaba a `pushUndo`, así que Ctrl+Z no las deshacía. La suite crea cada uno de los cuatro con gestos reales (clic/doble clic/arrastre, no llamadas directas a la función interna salvo `createPin`, que no es un gesto de arrastre) y comprueba que `undoLast()` lo quita del árbol y `redoLast()` lo devuelve. `pushUndo` se llama justo ANTES de la mutación en cada camino de creación (mismo patrón que ya usan borrar/mover/pegar), no dentro de «Aceptar»/«Cancelar» del diálogo de estilos: la creación ya es una acción completa y guardada desde el momento en que aparece en el árbol. **Con el foco en el visor** (teclado real): Ctrl+Z deshace la creación de un marcador y Ctrl+Y la rehace sin sacar el foco del mapa; con la herramienta de polígono activa no tocan el árbol, y «z» sola o con Alt tampoco. El marcador y la ruta cierran su diálogo de propiedades con «Aceptar» antes de deshacer, para no mezclar esto con si deshacer debe además cerrar un diálogo abierto sobre el nodo que desaparece — cuestión aparte, no la que prueba esta suite.
 
 ### `browser/arc-draw.mjs`
 
@@ -1246,6 +1256,16 @@ BROWSER CONTEXT PENDING TESTS OK
 ```
 
 **Qué cubre:** el fallo «tras recargar no sale “Mostrar perfil” en el menú contextual». Una capa de una carpeta que no se ha desplegado nunca (tras recargar, cualquiera que se guardara colapsada) está dibujada en el mapa pero su fila es todavía un registro pendiente, y el hit-testing solo veía capas con fila: el clic derecho no ofrecía ni «Ir al nodo» ni «Editar propiedades» y, en una ruta, ni «Mostrar perfil». Con el clic derecho REAL del ratón: (A) un polígono de un KML dentro de carpetas colapsadas ofrece «Ir al nodo en el panel» y «Editar propiedades», y se materializa la cadena hasta él; (B) una ruta con su perfil (MDT y MDS falsos) con «Mediciones» y «Perfiles de ruta» desplegadas, solo la segunda colapsada, solo la primera, o las dos —la ruta es un registro pendiente tras recargar— ofrece siempre «Mostrar perfil» y sus entradas de capa, y elegirlo abre el perfil guardado sin pedir nada. Comprobado que falla sin la corrección. Sin errores de página ni violaciones de la CSP.
+
+### `browser/place-coords.mjs`
+
+**Salida de `npm test`:**
+```
+── Navegador: unas coordenadas escritas en el buscador llevan el mapa allí a zoom 9 sin ninguna petición a Nominatim ni marcador (con Intro y con el botón), un lugar sigue yendo a Nominatim, y una búsqueda en vuelo no repinta tras unas coordenadas
+BROWSER PLACE COORDINATES TESTS OK
+```
+
+**Qué cubre:** `40.4168, -3.7038` con Intro lleva el mapa allí a zoom 9, sin ninguna petición a Nominatim (falso, que las cuenta), sin lista de resultados ni marcador y con el texto aún en la caja; GMS con letras con el botón; coma decimal con punto y coma; la longitud primero con letras; un lugar («Madrid») sigue yendo a Nominatim con su lista y sin mover la vista, igual que `120, 3` (latitud imposible); una búsqueda de «Valencia» a medias y luego unas coordenadas: las coordenadas ganan, cierran la lista y la respuesta tardía no la repinta; la caja vacía avisa con «Escriba un lugar o unas coordenadas». Sin errores de página ni violaciones de la CSP.
 
 ### `browser/focus-zoom.mjs`
 

@@ -69,6 +69,7 @@ const SUITES = [
   ["geocalc.js",          "Calculadora geodésica: elevación, cono, corrección por presión (ISA) y vector GPS, con su validación"],
   ["toolstest.js",        "showLayerInfo/setTool: el panel de información no se cuela ni queda pegado al salir de una herramienta de dibujo"],
   ["rotation.js",         "Rotación del mapa: ángulo de la brújula, giro con el botón central, recorte de la retícula y arrastre limitado al mundo con el mapa girado; giro, transform y caja envolvente del código incorporado, y versión de Leaflet fijada"],
+  ["placecoords.js", "Buscador de lugares: reconocer unas coordenadas escritas (decimales con punto o coma, GMS con letras de hemisferio en cualquier orden) y rechazar lo que no lo es (lugares, direcciones, latitudes imposibles, cifras sueltas)"],
   ["profileexport.js", "Exportar el perfil de ruta a CSV: una fila por distancia de cualquier serie, huecos vacíos, unidades de la gráfica, posición de cada punto, torres, línea de vista y Fresnel al 60 %, y sin notación científica"],
   ["attrstyle.js", "Estilo por atributo: paletas, rampa, rupturas (iguales y cuantiles), categorías con «Otros» y «sin valor», graduado, y el estilo de un marcador"],
   ["attrtable.js", "Tabla de atributos: columnas, orden (numérico, texto, vacíos al final), filtro, CSV con defensa de fórmulas, filas de carpetas sin desplegar y lectura de <ExtendedData> de KML"],
@@ -134,6 +135,7 @@ const BROWSER = [
   ["browser/restore-db.mjs", "Navegador: Propiedades › Restaurar — la pestaña y su botón solo abren una segunda confirmación, Cancelar, la × y Escape no borran nada (y Escape no cierra Propiedades), la guardia impide que un guardado recree la base, y «Borrar todo» recarga con la base vacía conservando el idioma"],
   ["browser/app-sections.mjs", "Navegador: las secciones que crea la aplicación (Marcadores, Mediciones…) van en azul pastel, distinto de un archivo y de una fila con el ratón encima, en claro y oscuro; se guardan como sec, sobreviven a recargar, un árbol anterior las recibe al usarlas y sec ajeno solo vale como true exacto en un archivo"],
   ["browser/context-pending.mjs", "Navegador: el clic derecho sobre una capa de una carpeta nunca desplegada (tras recargar) la materializa y ofrece sus entradas, y una ruta con su perfil ofrece «Mostrar perfil» con «Mediciones» y «Perfiles de ruta» desplegadas o colapsadas"],
+  ["browser/place-coords.mjs", "Navegador: unas coordenadas escritas en el buscador llevan el mapa allí a zoom 9 sin ninguna petición a Nominatim ni marcador (con Intro y con el botón), un lugar sigue yendo a Nominatim, y una búsqueda en vuelo no repinta tras unas coordenadas"],
   ["browser/focus-zoom.mjs", "Navegador: la lupa de un marcador centra el visor y acerca al zoom 14, siempre igual, y un polígono se encuadra entero sin ese zoom"],
   ["browser/i18n.mjs", "Navegador: idioma de la interfaz — «Automático» según el navegador, español e inglés sin español colado, el ajuste de Propiedades (guarda al Aceptar, vale al recargar) y un idioma nuevo sin tocar código"]
 ];

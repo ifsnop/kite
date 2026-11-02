@@ -252,6 +252,50 @@ function parseCoord(txt, isLat) {
   return isFinite(deg) && Math.abs(deg) <= (isLat ? 90 : 180) ? deg : NaN;
 }
 
+/* ¿Lo escrito en el buscador de lugares son unas COORDENADAS? Devuelve
+   { lat, lng } o null (y entonces es un nombre de lugar para Nominatim).
+   PURA. Primero la latitud, luego la longitud (el orden de Google Maps y de
+   toda la aplicación), salvo con letras de hemisferio, que mandan:
+     decimales      40.4168, -3.7038   40.4168 -3.7038   40.4168; -3.7038
+     coma decimal   40,4168 -3,7038    40,4168; -3,7038
+     con letras     40°25'0.5"N 3°42'13"W   40 25 0.5 N, 3 42 13 W
+                    N 40.4168, W 3.7038   3.7038 W 40.4168 N  (cualquier orden)
+   Lo que no encaje del todo (una palabra de más, una latitud de 120°) NO es
+   unas coordenadas: se busca como un lugar. Se pregunta a `parseCoord`, el
+   mismo que los campos de coordenadas de la aplicación (GMS o decimal, con
+   hemisferio N/S/E/W/O), así que acepta lo mismo y rechaza lo mismo.   */
+function parsePlaceCoordinates(text) {
+  const t = String(text).trim().replace(/\u2212/g, "-")
+    .replace(/[\u00B0\u00BA\u02DA\u2032\u2019\u2018'\u2033\u201D\u201C"]/g, " ").replace(/\s+/g, " ").trim();
+  if (!t || t.length > 100) return null;
+  const inRange = (lat, lng) => Number.isFinite(lat) && Number.isFinite(lng) && Math.abs(lat) <= 90 && Math.abs(lng) <= 180;
+  const NUMS = "[\\d\\s.,+-]+?";
+  /* Con letras de hemisferio: delante (N 40 25, W 3 42) o detrás (40 25 N, 3 42 W) */
+  const withLetters = (a, b, c, d, letterFirst) => {
+    const p = letterFirst ? [[a, b], [c, d]] : [[b, a], [d, c]]; /* [letra, cifras] */
+    const lat = p.find(([l]) => "NS".includes(l.toUpperCase())), lng = p.find(([l]) => "EWO".includes(l.toUpperCase()));
+    if (!lat || !lng) return null;
+    const la = parseCoord(lat[1] + " " + lat[0], true), lo = parseCoord(lng[1] + " " + lng[0], false);
+    return inRange(la, lo) ? { lat: la, lng: lo } : null;
+  };
+  let m = new RegExp("^([NSEWO]) ?(" + NUMS + ") ?[,;/]? ?([NSEWO]) ?(" + NUMS + ")$", "i").exec(t);
+  if (m) return withLetters(m[1], m[2], m[3], m[4], true);
+  m = new RegExp("^(" + NUMS + ") ?([NSEWO]) ?[,;/]? ?(" + NUMS + ") ?([NSEWO])$", "i").exec(t);
+  if (m) return withLetters(m[1], m[2], m[3], m[4], false);
+  /* Sin letras: dos decimales, con punto (separados por coma, punto y coma,
+     barra o espacio) o con coma decimal (separados por punto y coma, barra
+     o espacio: una coma sola no se sabría si separa o es el decimal).    */
+  const toPair = (a, b) => {
+    const lat = Number(a.replace(",", ".")), lng = Number(b.replace(",", "."));
+    return inRange(lat, lng) ? { lat, lng } : null;
+  };
+  m = /^([+-]?\d+(?:\.\d+)?)(?: ?[,;/] ?| )([+-]?\d+(?:\.\d+)?)$/.exec(t);
+  if (m) return toPair(m[1], m[2]);
+  m = /^([+-]?\d+(?:[.,]\d+)?)(?: ?[;/] ?| )([+-]?\d+(?:[.,]\d+)?)$/.exec(t);
+  if (m) return toPair(m[1], m[2]);
+  return null;
+}
+
 /* The single marker of a layer, or null when it has none or several:
    editing a position only makes sense for exactly one marker.        */
 function soleMarker(li) {
