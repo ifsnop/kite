@@ -1525,6 +1525,10 @@
      límite del perfil): el panel scrollea por su cuenta, como la
      chuleta, en vez de salirse por debajo de los botones.           */
   #props-dialog .dlg-tabpanel { overflow-y: auto; }
+  /* Aire entre el contenido y la barra de scroll de CADA pestaña (también la
+     lista de índices de GeoJSON, que scrollea por su cuenta): sin él, el texto
+     y los selectores rozaban la barra.                                     */
+  #props-dialog .dlg-tabpanel, #props-dialog .gnp-editor-list { padding-right: 12px; }
   .gnp-list, .gnp-editor-list {
     flex: 1 1 auto; min-height: 4em;
     overflow-y: auto;

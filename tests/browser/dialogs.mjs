@@ -151,6 +151,32 @@ for (const m of medidas) {
     `${m.id}: ${esperado ? "debe" : "NO debe"} ser redimensionable (resize: ${m.resize})`);
 }
 
+/* Propiedades: en CADA pestaña, el contenido deja aire hasta la barra de
+   scroll (antes rozaba). Con la caja bajita para que haya scroll de verdad. */
+const aire = await page.evaluate(async () => {
+  gnpStore = Object.fromEntries(Array.from({ length: 40 }, (_, i) => [`["clave${i}"]`, ["clave" + i]]));
+  await togglePropsDialog();
+  document.querySelector("#props-dialog .dlg-box").style.height = "300px";
+  const out = [];
+  for (const id of ["prefs", "gnp", "sources", "freq", "restore"]) {
+    showPropsTab(id);
+    const panel = document.getElementById("props-tab-" + id);
+    const lista = id === "gnp" ? document.getElementById("gnp-editor-list") : panel;
+    const pr = lista.getBoundingClientRect();
+    const barra = lista.offsetWidth - lista.clientWidth; /* 0 si el navegador la superpone */
+    let derecha = 0;
+    for (const el of lista.querySelectorAll("*")) derecha = Math.max(derecha, el.getBoundingClientRect().right);
+    out.push({ id, hueco: Math.round(pr.right - barra - derecha),
+      relleno: parseFloat(getComputedStyle(lista).paddingRight) });
+  }
+  document.getElementById("props-cancel").click();
+  return out;
+});
+for (const a of aire) {
+  ok(a.relleno >= 8, `Propiedades › ${a.id}: relleno derecho de ${a.relleno} px antes de la barra de scroll`);
+  ok(a.hueco >= 8, `Propiedades › ${a.id}: el contenido queda a ${a.hueco} px de la barra de scroll`);
+}
+
 ok(medidas.some(m => m.id === "shortcuts" && m.cierre), "la chuleta, de un solo botón, lo lleva como × en la cabecera");
 
 /* Las dos que fallaban tienen que SEGUIR desbordando: el arreglo
