@@ -255,7 +255,7 @@ the flag clears by itself when the tiles come back.
 - share a view as a link: right-click → «Copiar» › «Enlace a esta vista» keeps
   centre, zoom, rotation and active base maps in the `#map=…` part of the
   address, and opening such a link restores them
-- place search through Nominatim
+- place search through Nominatim; coordinates typed in the same box (decimal, decimal comma, or degrees-minutes-seconds with hemisphere letters) take the map there at zoom 9 without any request
 - pointer coordinates in decimal degrees, degrees/minutes/seconds and UTM
 - scale bar
 - latitude/longitude graticule
@@ -384,7 +384,7 @@ The current build is not fully offline and makes external requests:
   (`cdnjs.cloudflare.com`) are loaded only the first time they are needed
   (PNG export, GeoTIFF/COG reading, reprojecting a shapefile `.prj`), with
   the same pinned version and integrity hash as before;
-- place searches are sent to the public Nominatim service;
+- place searches are sent to the public Nominatim service (coordinates typed in the search box are resolved locally and never sent);
 - base-map tiles and WMS images are requested from their respective providers;
 - elevation queries and route profiles are requested from the chosen WCS
   services (IGN by default, or Digital Earth Africa), and only when you ask
@@ -496,7 +496,7 @@ Do not use public tile, geocoding or CDN services for sensitive work without an 
   `src/styles.css`, `src/sw.js` and 40 JavaScript files, concatenated into the
   shipped file by `build.js`. The single-file product is the output, not the
   source.
-- **There are automated tests.** 116 suites run against the shipped
+- **There are automated tests.** 118 suites run against the shipped
   file — most under Node, plus a set that drives a real headless browser —
   covering coordinate parsing and formatting, UTM, KML namespaces and
   styles, geometry conversion, serialization, tree navigation and

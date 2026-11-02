@@ -64,7 +64,7 @@ En la parte superior están el título de la aplicación y cinco botones de alca
   - **«Vector GPS»**: dadas dos posiciones, A y B, cada una con **latitud, longitud y altitud**, da la **distancia** entre ellas (en línea recta, teniendo en cuenta las altitudes), la **distancia horizontal** (sobre la superficie, a nivel del mar) y la **orientación** de A hacia B en grados con decimales (0° norte, sentido horario). La latitud y la longitud de cada punto van en la misma línea y pueden escribirse en grados, minutos y segundos (`40°25'0.5"N`) o en grados decimales (`40.4168`), indistintamente; el desplegable «Latitud/longitud» elige cómo se muestran —parte en grados, minutos y segundos, con independencia del formato elegido en Propiedades— y al cambiarlo **se convierten los valores ya escritos** al nuevo formato (lo que no se pueda leer se deja como está). La pestaña se abre con **Madrid en A y Barcelona en B** como valores de partida y con su resultado ya calculado. Las altitudes parten en metros y la distancia del resultado en millas náuticas (kilómetros, millas, etc. se eligen en el desplegable «Distancia (resultado en)», y el resultado se repinta al momento en la nueva unidad). Cambiar la unidad de una altitud convierte su valor. Si A y B tienen la misma latitud y longitud la orientación no existe y se indica así, en lugar de dar un 0° falso. Todos los cálculos usan la misma esfera terrestre que las mediciones del mapa.
 - **📋 Registro de avisos**: abre el historial completo de avisos de la sesión en curso —cargas, advertencias, confirmaciones—, incluidos los que ya han desaparecido solos del panel. Un punto sobre el botón indica que hay avisos nuevos sin leer.
 - **? Ayuda**: abre la chuleta de atajos de teclado (apartado 8), la misma que se abre con la tecla `?`.
-- **Buscar un lugar y añadir marcador…**: un buscador de topónimos apoyado en el servicio Nominatim de OpenStreetMap. Se consulta solo al pulsar «Buscar» o la tecla Intro, nunca mientras se escribe. Los resultados aparecen debajo, dentro de la propia cabecera —empujando el árbol hacia abajo, no flotando encima— y se cierran con su «×»; elegir uno crea un marcador en una carpeta «Lugares» y centra la vista sobre él.
+- **Buscar un lugar o unas coordenadas…**: un buscador de topónimos apoyado en el servicio Nominatim de OpenStreetMap, que también entiende **coordenadas**. Si lo escrito son coordenadas, **el mapa va allí con zoom 9, sin consultar ningún servicio** (no crea ningún marcador, y la caja conserva el texto para poder retocarlo); se reconocen latitud y longitud —en ese orden— en decimales con punto (`40.4168, -3.7038`, `40.4168 -3.7038`) o con coma decimal (`40,4168; -3,7038`), y en grados, minutos y segundos con letras de hemisferio, que mandan sobre el orden (`40°25'0.5"N 3°42'13"W`, `N 40 25 0.5, W 3 42 13`, `3.7038 W 40.4168 N`; el oeste puede escribirse `W` u `O`). Lo que no encaje del todo (una palabra de más, una latitud de 120°) se busca como un lugar. Un lugar se consulta solo al pulsar «Buscar» o la tecla Intro, nunca mientras se escribe. Los resultados aparecen debajo, dentro de la propia cabecera —empujando el árbol hacia abajo, no flotando encima— y se cierran con su «×»; elegir uno crea un marcador en una carpeta «Lugares» y centra la vista sobre él (las coordenadas no crean marcador: para eso, «Crear › Pin»).
 - **Nombre de carpeta / Nueva carpeta**: crea una carpeta vacía en el árbol, lista para arrastrar capas dentro o para servir de destino de una importación.
 - **Activar todo / Desactivar todo / Colapsar todo**: actúan sobre el árbol completo. Activar y desactivar cambian de golpe la visibilidad de todas las capas; colapsar cierra todas las carpetas.
 
@@ -427,7 +427,7 @@ Una medición se exporta como línea (ruta) o como un polígono de 120 lados (c�
 
 ### 7.7 Deshacer y rehacer
 
-`Ctrl + Z` deshace la última operación que cambió el árbol (borrar, pegar, arrastrar, ordenar, crear un marcador, una medición o una figura dibujada…), y `Ctrl + Y` la rehace. Hacer algo nuevo después de deshacer descarta lo que se pudiera haber rehecho, igual que en cualquier editor de texto.
+`Ctrl + Z` deshace la última operación que cambió el árbol (borrar, pegar, arrastrar, ordenar, crear un marcador, una medición o una figura dibujada…), y `Ctrl + Y` la rehace; valen con el foco en el árbol y también con el mapa enfocado (salvo mientras hay una herramienta de dibujo en marcha, para no revertir el árbol a medias de una forma). Hacer algo nuevo después de deshacer descarta lo que se pudiera haber rehecho, igual que en cualquier editor de texto.
 
 ### 7.8 Consultar la altitud del terreno
 
@@ -656,7 +656,7 @@ Esa × es la norma de **todas** las ventanas de la aplicación: arriba a la dere
 | Esc (renombrando) | Cancela y restaura el nombre anterior |
 | Supr | Borrar lo seleccionado |
 | Ctrl + C / X / V | Copiar, cortar y pegar (también entre pestañas de KITE) |
-| Ctrl + Z / Ctrl + Y | Deshacer y rehacer |
+| Ctrl + Z / Ctrl + Y | Deshacer y rehacer (también con el mapa enfocado) |
 | Alt + Intro | Propiedades de lo seleccionado |
 | Ctrl + F | Ir al buscador |
 | ? o Mayús + / | Abrir esta ayuda |

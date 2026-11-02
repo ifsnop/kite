@@ -85,9 +85,9 @@ Es lo que se suele recibir de una hoja de cálculo: columnas latitud/longitud, o
 
 Se pulsa un punto, se da la altura de antena y el alcance, y se pinta qué celdas del MDT/MDS se ven y cuáles quedan tapadas. Es la extensión natural del perfil de una ruta, que ya calcula línea de vista, curvatura 4/3 y elipsoide de Fresnel, pero solo entre dos puntos. Una entrada nueva en «Consultas» del menú contextual, con la misma descarga por trozos del perfil y la misma disciplina de red (`.claude/rules/external-network.md`). Es el trabajo más grande de la lista y el que más encaja con el uso aeronáutico de la aplicación.
 
-### 3.4 MGRS y buscar o pegar coordenadas
+### 3.4 MGRS y UTM en el buscador
 
-Hay grados decimales, GMS y UTM, pero no **MGRS**. Tampoco se puede pegar «40.4168, -3.7038» o una referencia MGRS en el buscador para ir allí: el buscador solo habla con Nominatim. Ayudaría a quien trabaja con coordenadas dictadas o impresas. Se resuelve en el buscador y en `parseCoord`, y la calculadora geodésica ganaría un conversor.
+El buscador ya entiende latitud y longitud (decimales o en grados, minutos y segundos, con letras de hemisferio) y va allí a zoom 9 sin consultar nada. Faltan las referencias **MGRS** y las coordenadas **UTM** («30T 440610 4473779»), que hoy solo se leen en el cuadro de coordenadas del visor. Ayudaría a quien trabaja con coordenadas dictadas o impresas. Se resolvería en `parsePlaceCoordinates` (`43-points-editor.js`), y la calculadora geodésica ganaría un conversor.
 
 ### 3.5 Agrupar marcadores cuando son miles
 

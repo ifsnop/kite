@@ -1779,7 +1779,7 @@
       <button id="help-btn" class="btn" title="Ayuda y atajos de teclado (tecla ?)">?</button>
     </h1>
     <div class="nav-actions">
-      <input type="text" id="place-box" placeholder="Buscar un lugar y a&#241;adir marcador&#8230;">
+      <input type="text" id="place-box" placeholder="Buscar un lugar o unas coordenadas&#8230;">
       <button class="btn" id="place-btn">Buscar</button>
     </div>
     <div id="place-results" hidden>
@@ -1963,7 +1963,7 @@
         <tr><td>Esc (renombrando)</td><td>Cancela y restaura el nombre anterior</td></tr>
         <tr><td>Supr</td><td>Borrar lo seleccionado</td></tr>
         <tr><td>Ctrl + C / X / V</td><td>Copiar, cortar y pegar (tambi&#233;n entre pesta&#241;as de KITE)</td></tr>
-        <tr><td>Ctrl + Z / Ctrl + Y</td><td>Deshacer y rehacer</td></tr>
+        <tr><td>Ctrl + Z / Ctrl + Y</td><td>Deshacer y rehacer (tambi&#233;n con el mapa enfocado)</td></tr>
         <tr><td>Alt + Intro</td><td>Propiedades de lo seleccionado</td></tr>
         <tr><td>Ctrl + F</td><td>Ir al buscador</td></tr>
         <tr><td>? o May&#250;s + /</td><td>Abrir esta ayuda</td></tr>
@@ -3054,7 +3054,7 @@ registerLang("en", "English", {
   "Marcadores": "Markers",
   "crear marcador": "create marker",
   "Marcador": "Marker",
-  "Escriba un lugar que buscar.": "Enter a place to search for.",
+  "Escriba un lugar o unas coordenadas.": "Type a place or some coordinates.",
   "Escriba un nombre para la carpeta.": "Enter a name for the folder.",
   "crear carpeta": "create folder",
   "Las ortofotos COG solo se pueden pegar en esta pestaña: {names} no van al portapapeles del sistema.": { one: "COG orthophotos can only be pasted in this tab: {names} does not go to the system clipboard.", other: "COG orthophotos can only be pasted in this tab: {names} do not go to the system clipboard." },
@@ -3586,7 +3586,7 @@ registerLang("en", "English", {
   "Ctrl + C / X / V": "Ctrl + C / X / V",
   "Copiar, cortar y pegar (también entre pestañas de KITE)": "Copy, cut and paste (also between KITE tabs)",
   "Ctrl + Z / Ctrl + Y": "Ctrl + Z / Ctrl + Y",
-  "Deshacer y rehacer": "Undo and redo",
+  "Deshacer y rehacer (también con el mapa enfocado)": "Undo and redo (also with the map focused)",
   "Alt + Intro": "Alt + Enter",
   "Propiedades de lo seleccionado": "Properties of what is selected",
   "Ctrl + F": "Ctrl + F",
@@ -3807,7 +3807,7 @@ registerLang("en", "English", {
   "Lectura bajo el cursor": "Reading under the cursor",
   "Lista de puntos de la capa": "List of the layer's points",
   "Filtrar filas": "Filter rows",
-  "Buscar un lugar y añadir marcador…": "Search for a place and add a marker…",
+  "Buscar un lugar o unas coordenadas…": "Search for a place or coordinates…",
   "Nombre de carpeta": "Folder name",
   "Buscar capas y carpetas…": "Search layers and folders…",
   "Filtrar filas…": "Filter rows…",
@@ -5103,7 +5103,7 @@ map.on("resize rotate", fitWorldMinZoom);
 
 /* Fecha de generación del código (versión): AÑOMESDIAHORAMINUTO.
    Actualizar en cada generación; se muestra junto al crédito de Leaflet. */
-const BUILD = "202611022215";
+const BUILD = "202611022312";
 /* Versión de release (la de package.json, horneada aquí por build.js
    al construir — ver «Versión y releases de GitHub» en CLAUDE.md): a
    diferencia de BUILD, que cambia en CADA generación, esta solo cambia
@@ -12372,9 +12372,26 @@ function createPin() {
   openStyleDialog(li, { isNew: true });
 }
 
+/* Zoom al que se va cuando lo escrito en el buscador son coordenadas: un
+   nivel de región (9), no el de calle de un lugar elegido (14).        */
+const COORD_SEARCH_ZOOM = 9;
+
+/* Unas coordenadas escritas se resuelven aquí, sin red y ANTES que
+   Nominatim: pedir el lugar es pedir ir allí (por eso, como al elegir un
+   resultado, la aplicación mueve la vista sola), y no crea ningún marcador.
+   Una búsqueda de lugar en vuelo ya no interesa.                         */
+function goToCoordinates(at) {
+  placeSeq++;
+  if (placeAbort) { placeAbort.abort(); placeAbort = null; }
+  hidePlaceResults();
+  map.setView([at.lat, at.lng], COORD_SEARCH_ZOOM);
+}
+
 function runPlaceSearch() {
   const q = placeBox.value.trim();
-  if (!q) { navMessage(tr("Escriba un lugar que buscar.")); return; }
+  if (!q) { navMessage(tr("Escriba un lugar o unas coordenadas.")); return; }
+  const at = parsePlaceCoordinates(q);
+  if (at) { goToCoordinates(at); return; }
   searchPlaces(q);
 }
 document.getElementById("place-btn").addEventListener("click", runPlaceSearch);
@@ -12659,8 +12676,19 @@ document.addEventListener("keydown", e => {
   const t = e.target;
   /* Los campos de texto se quedan con todas las teclas */
   if (t.matches && t.matches("input:not([type=checkbox]), textarea, select, [contenteditable]")) return;
-  /* Con el mapa enfocado, las flechas son el desplazamiento de Leaflet */
-  if (t.closest && t.closest("#map")) return;
+  /* Con el mapa enfocado, las flechas son el desplazamiento de Leaflet y el
+     resto de teclas del árbol no valen; SÍ valen deshacer y rehacer, que
+     son del espacio de trabajo entero y no de la fila seleccionada. Sin una
+     herramienta de dibujo en marcha: a medias de una forma, un Ctrl+Z que
+     revirtiera de pronto la última operación del árbol sorprendería.     */
+  if (t.closest && t.closest("#map")) {
+    if ((e.ctrlKey || e.metaKey) && !e.altKey && !activeTool) {
+      const k = e.key.toLowerCase();
+      if (k === "z") { e.preventDefault(); undoLast(); }
+      else if (k === "y") { e.preventDefault(); redoLast(); }
+    }
+    return;
+  }
 
   /* Sin listas: el cursor y sus vecinos se buscan en local */
   const cur = isRow(selCursor) && selCursor.isConnected ? selCursor : null;
@@ -13736,6 +13764,50 @@ function parseCoordRaw(txt, isLat) {
 function parseCoord(txt, isLat) {
   const deg = parseCoordRaw(txt, isLat);
   return isFinite(deg) && Math.abs(deg) <= (isLat ? 90 : 180) ? deg : NaN;
+}
+
+/* ¿Lo escrito en el buscador de lugares son unas COORDENADAS? Devuelve
+   { lat, lng } o null (y entonces es un nombre de lugar para Nominatim).
+   PURA. Primero la latitud, luego la longitud (el orden de Google Maps y de
+   toda la aplicación), salvo con letras de hemisferio, que mandan:
+     decimales      40.4168, -3.7038   40.4168 -3.7038   40.4168; -3.7038
+     coma decimal   40,4168 -3,7038    40,4168; -3,7038
+     con letras     40°25'0.5"N 3°42'13"W   40 25 0.5 N, 3 42 13 W
+                    N 40.4168, W 3.7038   3.7038 W 40.4168 N  (cualquier orden)
+   Lo que no encaje del todo (una palabra de más, una latitud de 120°) NO es
+   unas coordenadas: se busca como un lugar. Se pregunta a `parseCoord`, el
+   mismo que los campos de coordenadas de la aplicación (GMS o decimal, con
+   hemisferio N/S/E/W/O), así que acepta lo mismo y rechaza lo mismo.   */
+function parsePlaceCoordinates(text) {
+  const t = String(text).trim().replace(/\u2212/g, "-")
+    .replace(/[\u00B0\u00BA\u02DA\u2032\u2019\u2018'\u2033\u201D\u201C"]/g, " ").replace(/\s+/g, " ").trim();
+  if (!t || t.length > 100) return null;
+  const inRange = (lat, lng) => Number.isFinite(lat) && Number.isFinite(lng) && Math.abs(lat) <= 90 && Math.abs(lng) <= 180;
+  const NUMS = "[\\d\\s.,+-]+?";
+  /* Con letras de hemisferio: delante (N 40 25, W 3 42) o detrás (40 25 N, 3 42 W) */
+  const withLetters = (a, b, c, d, letterFirst) => {
+    const p = letterFirst ? [[a, b], [c, d]] : [[b, a], [d, c]]; /* [letra, cifras] */
+    const lat = p.find(([l]) => "NS".includes(l.toUpperCase())), lng = p.find(([l]) => "EWO".includes(l.toUpperCase()));
+    if (!lat || !lng) return null;
+    const la = parseCoord(lat[1] + " " + lat[0], true), lo = parseCoord(lng[1] + " " + lng[0], false);
+    return inRange(la, lo) ? { lat: la, lng: lo } : null;
+  };
+  let m = new RegExp("^([NSEWO]) ?(" + NUMS + ") ?[,;/]? ?([NSEWO]) ?(" + NUMS + ")$", "i").exec(t);
+  if (m) return withLetters(m[1], m[2], m[3], m[4], true);
+  m = new RegExp("^(" + NUMS + ") ?([NSEWO]) ?[,;/]? ?(" + NUMS + ") ?([NSEWO])$", "i").exec(t);
+  if (m) return withLetters(m[1], m[2], m[3], m[4], false);
+  /* Sin letras: dos decimales, con punto (separados por coma, punto y coma,
+     barra o espacio) o con coma decimal (separados por punto y coma, barra
+     o espacio: una coma sola no se sabría si separa o es el decimal).    */
+  const toPair = (a, b) => {
+    const lat = Number(a.replace(",", ".")), lng = Number(b.replace(",", "."));
+    return inRange(lat, lng) ? { lat, lng } : null;
+  };
+  m = /^([+-]?\d+(?:\.\d+)?)(?: ?[,;/] ?| )([+-]?\d+(?:\.\d+)?)$/.exec(t);
+  if (m) return toPair(m[1], m[2]);
+  m = /^([+-]?\d+(?:[.,]\d+)?)(?: ?[;/] ?| )([+-]?\d+(?:[.,]\d+)?)$/.exec(t);
+  if (m) return toPair(m[1], m[2]);
+  return null;
 }
 
 /* The single marker of a layer, or null when it has none or several:

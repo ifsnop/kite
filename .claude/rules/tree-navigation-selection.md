@@ -117,6 +117,7 @@ paths:
   en cada llamada (el máximo depende del mapa base activo) y descarta
   peldaños duplicados. Excepción: un resultado del buscador de lugares
   encuadra su `boundingbox` (o centra sus coordenadas) directamente.
+- **Buscador de lugares, con coordenadas** (`runPlaceSearch`, `40-panel-actions.js`): ANTES de preguntar a Nominatim se pregunta a `parsePlaceCoordinates` (`43-points-editor.js`, pura: decimales con punto o con coma decimal, y GMS con letras N/S/E/W/O en cualquier orden —la letra manda—, vía `parseCoord`, el mismo de los campos de coordenadas). Si lo escrito son coordenadas, `goToCoordinates` va allí a `COORD_SEARCH_ZOOM` = 9 con `map.setView`, SIN petición, sin marcador y dejando el texto en la caja; cancela una búsqueda de lugar en vuelo (`placeSeq++` + `abort`) para que su respuesta tardía no repinte. Es una de las pocas veces que la aplicación mueve la vista sola (pedirlo es ir allí, como elegir un resultado). Lo que no encaja del todo (una palabra de más, latitud > 90°) NO son coordenadas y se busca como un lugar; no se «arregla» dando la vuelta al orden. UTM y MGRS no se reconocen (ver `docs/pendientes-y-propuestas-kite-local.md`). Probado en `tests/placecoords.js` y `tests/browser/place-coords.mjs`.
 - **Buscador de lugares**: consulta Nominatim, hasta 5 resultados; la
   lista vive en la cabecera y empuja el árbol hacia abajo (se cierra
   con «×»). Elegir un resultado crea un marcador por defecto en
