@@ -5,10 +5,10 @@
 | | |
 |---|---|
 | **Documento** | Estudio de seguridad — KITE Local (KML Interactive Tree Explorer) |
-| **Versión del documento** | 1.5 |
-| **Fecha** | 30 de octubre de 2026 |
+| **Versión del documento** | 1.6 |
+| **Fecha** | 2 de noviembre de 2026 |
 | **Preparado por** | Diego Torres |
-| **Versión de la aplicación auditada** | v1.11.0 (202610300021) |
+| **Versión de la aplicación auditada** | v2.0.0 (202611020102) |
 | **Repositorio público del código fuente** | https://github.com/ifsnop/kite |
 
 ---
