@@ -209,7 +209,7 @@ the flag clears by itself when the tiles come back.
 - the ▦ button of a folder or file opens an attribute table: one row per layer
   and one column per attribute (GeoJSON and shapefile properties, KML
   `ExtendedData`). Sort by column (numbers as numbers, empty cells last),
-  filter, jump to a layer and export what is shown as CSV, with the standard
+  filter, jump to a layer and export what is shown as CSV (commas and a decimal point in English, semicolons and a decimal comma in Spanish), with the standard
   defence against spreadsheet formulas hidden in a foreign file. A folder of
   5 000 layers keeps about twenty rows in the DOM
 - «Estilo por atributo» colours all the layers of that table once, by category

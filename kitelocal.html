@@ -5099,7 +5099,7 @@ map.on("resize rotate", fitWorldMinZoom);
 
 /* Fecha de generación del código (versión): AÑOMESDIAHORAMINUTO.
    Actualizar en cada generación; se muestra junto al crédito de Leaflet. */
-const BUILD = "202611021153";
+const BUILD = "202611021201";
 /* Versión de release (la de package.json, horneada aquí por build.js
    al construir — ver «Versión y releases de GitHub» en CLAUDE.md): a
    diferencia de BUILD, que cambia en CADA generación, esta solo cambia
@@ -19390,10 +19390,10 @@ function attrFilter(rows, term) {
    estándar contra un archivo ajeno que lo aprovecha, y no toca los
    números negativos.
 
-   El DIALECTO (separador de campos y marca decimal) es un parámetro: por
-   omisión coma y punto, que es lo que usa la tabla de atributos (sus
-   valores son texto del archivo, intocable). Solo un `number` de JS se
-   reescribe con la marca decimal pedida: un texto es lo que es.         */
+   El DIALECTO (separador de campos y marca decimal) es un parámetro; por
+   omisión, coma y punto. Solo un `number` de JS se reescribe con la marca
+   decimal pedida: un texto es lo que es (los atributos de la tabla, que son
+   texto del archivo, pasan antes por attrCsvValue).                      */
 const CSV_DEFAULT = { sep: ",", decimal: "." };
 const csvCell = (v, d = CSV_DEFAULT) => {
   let s = typeof v === "number" ? String(v).replace(".", d.decimal) : String(v);
@@ -19538,11 +19538,26 @@ function closeAttrDialog() {
   releaseFocus();
 }
 
-/* Lo que se ve, tal como se ve: con el filtro y el orden puestos */
+/* El valor de una celda en el CSV. Los atributos son TEXTO del archivo y no
+   se tocan, con una sola excepción: en una columna NUMÉRICA (attrIsNumeric:
+   todos sus valores lo son) un decimal llano («3.5» o «3,5») se escribe con la
+   marca decimal del idioma de la interfaz, para que la hoja de cálculo lo lea
+   como número (un «3.5» en un Excel español es una fecha). Lo demás —enteros,
+   exponentes, ceros a la izquierda, cualquier texto— sale tal cual. PURA.   */
+function attrCsvValue(text, numeric, dialect) {
+  return numeric && /^-?\d+[.,]\d+$/.test(text) ? text.replace(/[.,]/, dialect.decimal) : text;
+}
+
+/* Lo que se ve, tal como se ve: con el filtro y el orden puestos, y con el
+   separador de campos y la marca decimal del idioma de la interfaz
+   (csvDialect): coma y punto en inglés, punto y coma y coma en español.   */
 function exportAttrCsv() {
   const st = attrState;
   if (!st.view.length) return;
-  const csv = toCsv(st.cols.map(attrColLabel), st.view.map(r => st.cols.map(c => attrCell(r, c.key))));
+  const d = csvDialect(uiLang);
+  const numeric = st.cols.map(c => c.key !== null && attrIsNumeric(st.rows, c.key));
+  const csv = toCsv(st.cols.map(attrColLabel),
+    st.view.map(r => st.cols.map((c, i) => attrCsvValue(attrCell(r, c.key), numeric[i], d))), d);
   downloadBlob(new Blob(["﻿" + csv], { type: "text/csv;charset=utf-8" }), safeFileName(st.li._name) + ".csv");
 }
 /* ================= Estilo por atributo =================
