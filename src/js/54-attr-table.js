@@ -107,14 +107,30 @@ function attrFilter(rows, term) {
    una hoja de cálculo leería como FÓRMULA (empieza por =, @ o por + / -
    sin que siga una cifra) lleva delante un apóstrofo: es la defensa
    estándar contra un archivo ajeno que lo aprovecha, y no toca los
-   números negativos. Los números llevan punto decimal, como todo lo que
-   escribe la aplicación.                                               */
-const csvCell = v => {
-  let s = String(v);
+   números negativos.
+
+   El DIALECTO (separador de campos y marca decimal) es un parámetro; por
+   omisión, coma y punto. Solo un `number` de JS se reescribe con la marca
+   decimal pedida: un texto es lo que es (los atributos de la tabla, que son
+   texto del archivo, pasan antes por attrCsvValue).                      */
+const CSV_DEFAULT = { sep: ",", decimal: "." };
+const csvCell = (v, d = CSV_DEFAULT) => {
+  let s = typeof v === "number" ? String(v).replace(".", d.decimal) : String(v);
   if (/^[=@\t\r]/.test(s) || /^[+-](?![\d.])/.test(s)) s = "'" + s;
-  return /[",\r\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+  return /["\r\n]/.test(s) || s.includes(d.sep) ? `"${s.replace(/"/g, '""')}"` : s;
 };
-const toCsv = (header, rows) => [header, ...rows].map(r => r.map(csvCell).join(",")).join("\r\n") + "\r\n";
+const toCsv = (header, rows, d = CSV_DEFAULT) => [header, ...rows].map(r => r.map(v => csvCell(v, d)).join(d.sep)).join("\r\n") + "\r\n";
+
+/* El dialecto del CSV según el IDIOMA DE LA INTERFAZ (no el del sistema:
+   quien trabaja en inglés con un Windows en español no quiere un archivo
+   con comas decimales). Se pregunta a Intl cuál es la marca decimal del
+   idioma: con coma (español, francés, alemán…) el separador de campos es
+   el punto y coma —lo que espera Excel en esa configuración regional, donde
+   la coma ya es parte de los números—; con punto (inglés), la coma.      */
+function csvDialect(lang) {
+  const dec = new Intl.NumberFormat(lang).formatToParts(1.5).find(p => p.type === "decimal");
+  return dec && dec.value === "," ? { sep: ";", decimal: "," } : { sep: ",", decimal: "." };
+}
 
 /* ---------- El diálogo (se enlaza al abrirlo) ---------- */
 
@@ -241,10 +257,25 @@ function closeAttrDialog() {
   releaseFocus();
 }
 
-/* Lo que se ve, tal como se ve: con el filtro y el orden puestos */
+/* El valor de una celda en el CSV. Los atributos son TEXTO del archivo y no
+   se tocan, con una sola excepción: en una columna NUMÉRICA (attrIsNumeric:
+   todos sus valores lo son) un decimal llano («3.5» o «3,5») se escribe con la
+   marca decimal del idioma de la interfaz, para que la hoja de cálculo lo lea
+   como número (un «3.5» en un Excel español es una fecha). Lo demás —enteros,
+   exponentes, ceros a la izquierda, cualquier texto— sale tal cual. PURA.   */
+function attrCsvValue(text, numeric, dialect) {
+  return numeric && /^-?\d+[.,]\d+$/.test(text) ? text.replace(/[.,]/, dialect.decimal) : text;
+}
+
+/* Lo que se ve, tal como se ve: con el filtro y el orden puestos, y con el
+   separador de campos y la marca decimal del idioma de la interfaz
+   (csvDialect): coma y punto en inglés, punto y coma y coma en español.   */
 function exportAttrCsv() {
   const st = attrState;
   if (!st.view.length) return;
-  const csv = toCsv(st.cols.map(attrColLabel), st.view.map(r => st.cols.map(c => attrCell(r, c.key))));
+  const d = csvDialect(uiLang);
+  const numeric = st.cols.map(c => c.key !== null && attrIsNumeric(st.rows, c.key));
+  const csv = toCsv(st.cols.map(attrColLabel),
+    st.view.map(r => st.cols.map((c, i) => attrCsvValue(attrCell(r, c.key), numeric[i], d))), d);
   downloadBlob(new Blob(["﻿" + csv], { type: "text/csv;charset=utf-8" }), safeFileName(st.li._name) + ".csv");
 }

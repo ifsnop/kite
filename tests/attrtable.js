@@ -7,10 +7,10 @@ const ok = (c, m) => { if (!c) { console.error("FAIL: " + m); process.exitCode =
 
 const api = new Function([constDecl("ATTR_MAX_COLS"), fn("stringifyPropValue"), fn("layerProperties"),
   fn("collectAttrRows"), fn("attrColumns"), constDecl("attrCell"), fn("attrIsNumeric"), fn("attrSort"), fn("attrFilter"),
-  between("const csvCell", "const toCsv"), constDecl("toCsv"),
+  between("const CSV_DEFAULT", "const toCsv"), constDecl("toCsv"), fn("csvDialect"), fn("attrCsvValue"),
   "const nodeUl = li => li._ul || null; const nodeLayer = li => li._layer || null;",
-  "return { collectAttrRows, attrColumns, attrCell, attrIsNumeric, attrSort, attrFilter, csvCell, toCsv, ATTR_MAX_COLS };"].join("\n"))();
-const { collectAttrRows, attrColumns, attrCell, attrIsNumeric, attrSort, attrFilter, csvCell, toCsv, ATTR_MAX_COLS } = api;
+  "return { collectAttrRows, attrColumns, attrCell, attrIsNumeric, attrSort, attrFilter, csvCell, toCsv, csvDialect, attrCsvValue, ATTR_MAX_COLS };"].join("\n"))();
+const { collectAttrRows, attrColumns, attrCell, attrIsNumeric, attrSort, attrFilter, csvCell, toCsv, csvDialect, attrCsvValue, ATTR_MAX_COLS } = api;
 const row = (name, props) => ({ name, props });
 
 /* ---------- Columnas ---------- */
@@ -59,6 +59,21 @@ ok(csvCell("-5") === "-5" && csvCell("+3.5") === "+3.5" && csvCell("-.5") === "-
 ok(csvCell("=A,B") === '"\'=A,B"', "la defensa y las comillas se combinan");
 ok(toCsv(["Nombre", "pob"], [["Madrid", "3200000"], ["A, B", ""]]) === 'Nombre,pob\r\nMadrid,3200000\r\n"A, B",\r\n', "cabecera, CRLF y salto final: " + JSON.stringify(toCsv(["Nombre", "pob"], [["Madrid", "3200000"], ["A, B", ""]])));
 ok(toCsv(["a"], []) === "a\r\n", "sin filas, solo la cabecera");
+
+/* ---------- Dialecto según el idioma (separador de campos y marca decimal) ---------- */
+const EN = csvDialect("en"), ES = csvDialect("es");
+ok(toCsv(["Nombre", "pob"], [["Madrid", "3200000"], ["A, B", ""]], EN) === toCsv(["Nombre", "pob"], [["Madrid", "3200000"], ["A, B", ""]]), "inglés = lo de siempre");
+ok(toCsv(["Nombre", "pob"], [["Madrid", "3200000"], ["A, B", ""], ["C; D", "1"]], ES) === 'Nombre;pob\r\nMadrid;3200000\r\nA, B;\r\n"C; D";1\r\n',
+  "español: punto y coma entre campos; se entrecomilla el punto y coma y no la coma: " + JSON.stringify(toCsv(["Nombre", "pob"], [["Madrid", "3200000"], ["A, B", ""], ["C; D", "1"]], ES)));
+ok(toCsv(["a"], [["=SUMA(A1)"], ['di "x"']], ES) === "a\r\n'=SUMA(A1)\r\n\"di \"\"x\"\"\"\r\n", "la defensa de fórmulas y las comillas, igual con el dialecto español");
+/* attrCsvValue: solo un decimal llano de una columna numérica se reescribe */
+ok(attrCsvValue("3.5", true, ES) === "3,5" && attrCsvValue("3,5", true, ES) === "3,5" && attrCsvValue("-0.25", true, ES) === "-0,25", "en español, decimales con coma (de un punto o de una coma)");
+ok(attrCsvValue("3,5", true, EN) === "3.5" && attrCsvValue("3.5", true, EN) === "3.5", "en inglés, con punto (un «3,5» del archivo también)");
+ok(attrCsvValue("3.5", false, ES) === "3.5", "una columna que no es numérica no se toca: es texto");
+ok(attrCsvValue("3200000", true, ES) === "3200000" && attrCsvValue("007", true, ES) === "007" && attrCsvValue("1e5", true, ES) === "1e5" && attrCsvValue("", true, ES) === "", "enteros, ceros a la izquierda, exponentes y vacíos, intactos");
+ok(attrCsvValue("1.234.567", true, ES) === "1.234.567" && attrCsvValue("a.b", true, ES) === "a.b", "lo que no es un decimal llano, tal cual");
+const nrows = [row("P1", { v: "1.5", t: "x.y" }), row("P2", { v: "20", t: "1.5" })];
+ok(attrIsNumeric(nrows, "v") && !attrIsNumeric(nrows, "t"), "v es numérica y t no, y de eso depende la conversión");
 
 /* ---------- Filas del árbol (sin construir nada) ---------- */
 const layer = props => ({ getLayers: () => [{ feature: { properties: props } }] });

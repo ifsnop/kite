@@ -40,7 +40,7 @@ KITE Local focuses deliberately on that workflow:
   does not mean starting over.
 - **Take work out again.** Any folder, file or layer can be exported as KML,
   GeoJSON or a portable `.kite.json` package; the current view, as a PNG image
-  or a link; a route profile, as a PNG image or a CSV file.
+  or a link; a route profile, as a PNG image or a CSV file (comma and decimal point in English, semicolon and decimal comma in Spanish).
 
 It is an independent AGPL-3.0 project and is **not affiliated with or endorsed by Google, Google Earth, QGIS, OpenStreetMap, Esri, Leaflet, Iconify or Instituto Geográfico Nacional de España**.
 
@@ -209,7 +209,7 @@ the flag clears by itself when the tiles come back.
 - the ▦ button of a folder or file opens an attribute table: one row per layer
   and one column per attribute (GeoJSON and shapefile properties, KML
   `ExtendedData`). Sort by column (numbers as numbers, empty cells last),
-  filter, jump to a layer and export what is shown as CSV, with the standard
+  filter, jump to a layer and export what is shown as CSV (commas and a decimal point in English, semicolons and a decimal comma in Spanish), with the standard
   defence against spreadsheet formulas hidden in a foreign file. A folder of
   5 000 layers keeps about twenty rows in the DOM
 - «Estilo por atributo» colours all the layers of that table once, by category
@@ -319,7 +319,7 @@ the flag clears by itself when the tiles come back.
   again; editing the route's waypoints asks for a new profile
 - routes longer than a configurable limit (10 NM by default) get no
   profile, so a long route cannot fill the browser storage with cells
-- the chart exports as a PNG image and its numbers as a CSV file
+- the chart exports as a PNG image and its numbers as a CSV file, in the format of the interface language: commas and a decimal point in English, semicolons and a decimal comma in Spanish (what Excel expects there)
 
 ### Measurements
 

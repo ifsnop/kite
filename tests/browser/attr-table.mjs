@@ -79,10 +79,20 @@ ok(t.rows.map(r => r[0]).join() === "Madrid,Lyon,Faro,Con ficha", "pulsar otra v
 const [dl] = await Promise.all([page.waitForEvent("download"), page.click("#attr-csv")]);
 const csv = fs.readFileSync(await dl.path(), "utf8");
 ok(dl.suggestedFilename() === "Datos.csv", "nombre del CSV: " + dl.suggestedFilename());
-ok(csv.startsWith("﻿Nombre,ref,pob,uso\r\n"), "con BOM (Excel) y la cabecera: " + JSON.stringify(csv.slice(0, 40)));
-ok(csv.split("\r\n")[1] === "Madrid,M-1,3200000,'=SUMA(A1)", "el orden de la pantalla y la fórmula con apóstrofo: " + JSON.stringify(csv.split("\r\n")[1]));
-ok(csv.includes('Faro,F-3,64000,"a, ""b"""'), "comillas y comas escapadas: " + JSON.stringify(csv));
-ok(csv.endsWith("Con ficha,,,\r\n"), "una fila sin atributos con sus celdas vacías");
+/* La interfaz está en español: punto y coma entre campos (la coma de un valor no se entrecomilla por eso, las comillas sí) */
+ok(csv.startsWith("﻿Nombre;ref;pob;uso\r\n"), "con BOM (Excel) y la cabecera, con punto y coma: " + JSON.stringify(csv.slice(0, 40)));
+ok(csv.split("\r\n")[1] === "Madrid;M-1;3200000;'=SUMA(A1)", "el orden de la pantalla y la fórmula con apóstrofo: " + JSON.stringify(csv.split("\r\n")[1]));
+ok(csv.includes('Faro;F-3;64000;"a, ""b"""'), "comillas escapadas: " + JSON.stringify(csv));
+ok(csv.endsWith("Con ficha;;;\r\n"), "una fila sin atributos con sus celdas vacías");
+
+/* En inglés: comas entre campos (el valor con coma, entrecomillado), con las mismas filas */
+await page.evaluate(() => setUiLang("en"));
+const [dlEn] = await Promise.all([page.waitForEvent("download"), page.click("#attr-csv")]);
+await page.evaluate(() => setUiLang("es"));
+const csvEn = fs.readFileSync(await dlEn.path(), "utf8");
+ok(csvEn.startsWith("﻿Name,ref,pob,uso\r\n"), "en inglés, la cabecera con comas: " + JSON.stringify(csvEn.slice(0, 30)));
+ok(csvEn.split("\r\n")[1] === "Madrid,M-1,3200000,'=SUMA(A1)", "y las filas igual que siempre: " + JSON.stringify(csvEn.split("\r\n")[1]));
+ok(csvEn.includes('Faro,F-3,64000,"a, ""b"""') && csvEn.endsWith("Con ficha,,,\r\n"), "comillas, comas escapadas y la fila vacía");
 
 /* ---- ir a una capa: materializa lo necesario, la selecciona ---- */
 await page.click('#attr-body tr[data-i="1"]');
