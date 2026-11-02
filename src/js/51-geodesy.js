@@ -88,7 +88,7 @@ function latLngToUtm(lat, lon, forceZone = null) {
 function fmtUtm(lat, lon) {
   const u = latLngToUtm(lat, lon);
   /* Sobre 84°N y bajo 80°S UTM no está definido: allí se usa UPS */
-  if (!u) return "UTM no definido en esta latitud (zona polar)";
+  if (!u) return tr("UTM no definido en esta latitud (zona polar)");
   return `${u.zone}${u.band} ${Math.round(u.easting)} m E ${Math.round(u.northing)} m N`;
 }
 
@@ -157,12 +157,12 @@ function surfaceFromSlant(h1, h2, s, model) {
   const R = elevationRadius(model), dh = Math.abs(h2 - h1);
   let x = s - dh;
   if (x < 0) {
-    if (-x > 1e-9 * Math.max(dh, 1)) return { error: "La distancia oblicua no puede ser menor que la diferencia de alturas." };
+    if (-x > 1e-9 * Math.max(dh, 1)) return { error: tr("La distancia oblicua no puede ser menor que la diferencia de alturas.") };
     x = 0;
   }
   if (R === null) return { d: Math.sqrt(x * (s + dh)) };
   const q = x * (s + dh) / (4 * (R + h1) * (R + h2));
-  if (q > 1) return { error: "La distancia oblicua supera la máxima posible entre los dos puntos." };
+  if (q > 1) return { error: tr("La distancia oblicua supera la máxima posible entre los dos puntos.") };
   return { d: 2 * R * Math.asin(Math.sqrt(q)) };
 }
 
@@ -264,16 +264,16 @@ function trueAltitudeM(altM, qnhHpa) {
   return isaAltitudeFromRatio(ISA_P0_HPA / qnhHpa * isaPressureRatio(altM));
 }
 
-/* Texto de error en español, o null si la corrección es aplicable. Con la
+/* Texto de error (ya traducido), o null si la corrección es aplicable. Con la
    presión estándar no hay corrección y no se exige nada a la altitud
    (el cálculo no cambia respecto de no tener presión).                */
 function pressureInputError(altM, qnhHpa) {
-  if (!Number.isFinite(qnhHpa)) return "Introduce la presión atmosférica.";
+  if (!Number.isFinite(qnhHpa)) return tr("Introduce la presión atmosférica.");
   if (qnhHpa < QNH_MIN_HPA || qnhHpa > QNH_MAX_HPA) {
-    return `La presión al nivel del mar debe estar entre ${QNH_MIN_HPA} y ${QNH_MAX_HPA} hPa.`;
+    return tr("La presión al nivel del mar debe estar entre {qnhMinHpa} y {qnhMaxHpa} hPa.", { qnhMinHpa: QNH_MIN_HPA, qnhMaxHpa: QNH_MAX_HPA });
   }
   if (qnhHpa === ISA_P0_HPA) return null;
-  const msg = `La corrección por presión solo es válida con la altura de destino entre ${ISA_ALT_MIN / 1000} y ${ISA_ALT_MAX / 1000} km (atmósfera estándar).`;
+  const msg = tr("La corrección por presión solo es válida con la altura de destino entre {min} y {max} km (atmósfera estándar).", { min: ISA_ALT_MIN / 1000, max: ISA_ALT_MAX / 1000 });
   if (!Number.isFinite(altM) || altM < ISA_ALT_MIN || altM > ISA_ALT_MAX) return msg;
   const h = trueAltitudeM(altM, qnhHpa);
   return h < ISA_ALT_MIN || h > ISA_ALT_MAX ? msg : null;
@@ -303,26 +303,26 @@ function gpsVector(a, b) {
   return { horizontal, slant, bearing: horizontal < 0.01 ? null : bearingDeg(a, b) };
 }
 
-/* Texto de error en español, o null si los datos sirven. */
+/* Texto de error (ya traducido), o null si los datos sirven. */
 function gpsVectorError(a, b) {
   const nums = [a.lat, a.lng, a.alt, b.lat, b.lng, b.alt];
-  if (!nums.every(Number.isFinite)) return "Introduce latitud, longitud y altitud de los dos puntos.";
-  if (Math.abs(a.lat) > 90 || Math.abs(b.lat) > 90) return "La latitud debe estar entre −90° y 90°.";
-  if (Math.abs(a.lng) > 180 || Math.abs(b.lng) > 180) return "La longitud debe estar entre −180° y 180°.";
-  if (Math.min(a.alt, b.alt) <= -EARTH_R) return "Una altitud está por debajo del centro de la Tierra.";
+  if (!nums.every(Number.isFinite)) return tr("Introduce latitud, longitud y altitud de los dos puntos.");
+  if (Math.abs(a.lat) > 90 || Math.abs(b.lat) > 90) return tr("La latitud debe estar entre −90° y 90°.");
+  if (Math.abs(a.lng) > 180 || Math.abs(b.lng) > 180) return tr("La longitud debe estar entre −180° y 180°.");
+  if (Math.min(a.alt, b.alt) <= -EARTH_R) return tr("Una altitud está por debajo del centro de la Tierra.");
   return null;
 }
 
-/* Texto de error en español, o null si los datos sirven. */
+/* Texto de error (ya traducido), o null si los datos sirven. */
 function elevationInputError(h1, h2, d, model, kind) {
-  if (![h1, h2, d].every(Number.isFinite)) return "Introduce las dos alturas y la distancia.";
-  if (d < 0) return "La distancia no puede ser negativa.";
-  if (d === 0 && h1 === h2) return "Con distancia cero y alturas iguales no hay dirección.";
+  if (![h1, h2, d].every(Number.isFinite)) return tr("Introduce las dos alturas y la distancia.");
+  if (d < 0) return tr("La distancia no puede ser negativa.");
+  if (d === 0 && h1 === h2) return tr("Con distancia cero y alturas iguales no hay dirección.");
   const R = elevationRadius(model) || EARTH_R;
-  if (Math.min(h1, h2) <= -R) return "Una altura está por debajo del centro de la Tierra.";
+  if (Math.min(h1, h2) <= -R) return tr("Una altura está por debajo del centro de la Tierra.");
   /* La oblicua se valida al convertirla; la de superficie, contra media vuelta. */
   if (kind === "slant") return surfaceFromSlant(h1, h2, d, model).error || null;
-  if (model !== "flat" && d > Math.PI * R) return "La distancia supera media vuelta a la Tierra.";
+  if (model !== "flat" && d > Math.PI * R) return tr("La distancia supera media vuelta a la Tierra.");
   return null;
 }
 
@@ -404,6 +404,46 @@ function unwrapSweep(sweep, prevBrg, brg) {
   if (d > 180) d -= 360;
   else if (d <= -180) d += 360;
   return Math.max(-ARC_SWEEP_MAX, Math.min(ARC_SWEEP_MAX, sweep + d));
+}
+
+/* ---------- Anillos de alcance y sectores ----------
+   Todo se construye con arcPoints/destPoint: cada vértice está a
+   EXACTAMENTE `r` metros del centro sobre la esfera (la misma de las
+   mediciones), no en el L.circle de Leaflet, que es una aproximación en
+   pantalla. Las longitudes salen continuas (pueden pasar de ±180 al
+   cruzar el antimeridiano) en vez de partirse: un anillo entero es mejor
+   que dos mitades en lados opuestos del mapa.                          */
+const RANGE_STEP_DEG = 2;          /* un vértice cada 2°: 180 por anillo, por debajo del tope de edición (500) */
+const RANGE_MAX_RINGS = 40;
+const RANGE_MAX_M = 10000000;      /* 10 000 km: más allá, un «círculo» sobre la esfera deja de parecerlo */
+const RANGE_MIN_SWEEP_DEG = 0.1;
+
+/* Anillo completo, SIN repetir el primer punto al final (L.polygon lo cierra) */
+function ringLatLngs(center, r, step = RANGE_STEP_DEG) {
+  const n = Math.max(12, Math.ceil(360 / step));
+  return arcPoints(center, r, 0, 360, n).slice(0, n);
+}
+
+/* Apertura de un sector en grados, en sentido horario del azimut inicial
+   al final (0 = norte): de 330° a 30° son 60°, no 300°. 0 = no hay sector. */
+const sectorSweep = (az1, az2) => (((az2 - az1) % 360) + 360) % 360;
+
+/* Un sector: el arco exterior de az1 a az2 cerrado en el centro, o, con
+   radio interior, una corona (exterior de ida e interior de vuelta).    */
+function sectorLatLngs(center, az1, az2, rOut, rIn = 0, step = RANGE_STEP_DEG) {
+  const sweep = sectorSweep(az1, az2);
+  if (sweep === 0) return [];
+  const segs = Math.max(2, Math.ceil(sweep / step));
+  const outer = arcPoints(center, rOut, az1, sweep, segs);
+  if (rIn > 0) return outer.concat(arcPoints(center, rIn, az1 + sweep, -sweep, segs));
+  return [L.latLng(center.lat, center.lng), ...outer];
+}
+
+/* Radiales cada `every` grados desde el norte, del centro al radio mayor */
+function radialLatLngs(center, rMax, every) {
+  const out = [], c = L.latLng(center.lat, center.lng);
+  for (let i = 0; i * every < 360 - 1e-9; i++) out.push([c, destPoint(center, i * every, rMax)]);
+  return out;
 }
 
 /* getLatLngs() de un L.Polygon viene en dos profundidades posibles: los

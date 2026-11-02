@@ -4,7 +4,7 @@ const { fn, constDecl } = require("./_extract");
 const src = [
   constDecl("COORD_EPS"), constDecl("DUP_POS_DECIMALS"), constDecl("NAME_JOIN"),
   fn("stringifyPropValue"), fn("composeFeatureName"),
-  fn("bareName"), fn("elsByTag"), constDecl("firstByTag"), fn("text"), fn("clampLatLng"), fn("clampDeg"), fn("parseCoords"),
+  fn("bareName"), fn("elsByTag"), fn("firstByTag"), fn("mayNeedPrefixFallback"), constDecl("prefixFallbackByDoc"), fn("text"), fn("clampLatLng"), fn("clampDeg"), fn("parseCoords"),
   fn("findDuplicatePlacemarks"), fn("removeDuplicatePlacemarks"),
   fn("featureDupName"), fn("findDuplicateFeatures"), fn("removeDuplicateFeatures"),
 ].join("\n");

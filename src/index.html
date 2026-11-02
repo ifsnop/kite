@@ -17,33 +17,39 @@
      `connect-src` e `img-src` son la excepción, y es deliberada: desde
      que se puede añadir contenido desde una dirección que escribe el
      usuario (botón 🔗 de la cabecera) o pedirle sus teselas a un
-     servidor propio (mapa base «Custom Maps», ⚙ de su fila), enumerar
+     servidor propio (mapas base «Custom Tile Map Service» y «Custom Web
+     Map Service», ⚙ de su fila), enumerar
      orígenes es imposible por definición — el origen ES lo que el
      usuario elige. Las dos se abren a cualquier `https:` y NADA MÁS:
      `default-src 'none'` sigue en pie, `script-src`/`style-src`
      conservan sus listas cerradas (un origen ajeno puede dar datos,
      nunca código ni estilos) y `http:` queda fuera a propósito en las
-     dos, así que una página servida por https no puede degradarse.  -->
+     dos, así que una página servida por https no puede degradarse.
+
+     `worker-src 'self'` es el service worker del uso sin conexión
+     (sw.js, un archivo del mismo origen). Sin `blob:`: ningún worker se
+     construye desde datos, ni siquiera los de geotiff.js (ver cog.md).  -->
 <meta http-equiv="Content-Security-Policy" content="
   default-src 'none';
   script-src 'self' 'unsafe-inline' https://unpkg.com https://cdnjs.cloudflare.com;
   style-src 'self' 'unsafe-inline' https://unpkg.com;
   img-src 'self' data: blob: https:;
   connect-src 'self' https:;
+  worker-src 'self';
   font-src 'self';
   base-uri 'none';
   form-action 'none';
   object-src 'none'">
 <!-- Social sharing metadata (Open Graph + Twitter cards): shown as
      name + short description when the page link is shared -->
-<meta name="description" content="KITE Local (KML Interactive Tree Explorer): visor web de archivos KML, KMZ y GeoJSON sobre Leaflet: &#225;rbol de capas, mediciones geod&#233;sicas de distancia y rumbo, y estilos personalizables de marcadores y pol&#237;gonos. Un &#250;nico archivo HTML, sin instalaci&#243;n.">
+<meta name="description" content="KITE Local (KML Interactive Tree Explorer): visor web de archivos KML, KMZ, GeoJSON y shapefile sobre Leaflet: &#225;rbol de capas, mediciones geod&#233;sicas de distancia y rumbo, y estilos personalizables de marcadores y pol&#237;gonos. Un &#250;nico archivo HTML, sin instalaci&#243;n.">
 <meta property="og:type" content="website">
 <meta property="og:site_name" content="KITE Local">
 <meta property="og:title" content="KITE Local &#8212; KML Interactive Tree Explorer">
-<meta property="og:description" content="Carga archivos KML, KMZ y GeoJSON, organiza las capas en un &#225;rbol, mide distancias y rumbos geod&#233;sicos y personaliza marcadores y pol&#237;gonos. Funciona directamente en el navegador.">
+<meta property="og:description" content="Carga archivos KML, KMZ, GeoJSON y shapefile, organiza las capas en un &#225;rbol, mide distancias y rumbos geod&#233;sicos y personaliza marcadores y pol&#237;gonos. Funciona directamente en el navegador.">
 <meta name="twitter:card" content="summary_large_image">
 <meta name="twitter:title" content="KITE Local &#8212; KML Interactive Tree Explorer">
-<meta name="twitter:description" content="KITE Local: visor de KML/KMZ/GeoJSON con &#225;rbol de capas, mediciones geod&#233;sicas y estilos personalizables. Un &#250;nico archivo HTML.">
+<meta name="twitter:description" content="KITE Local: visor de KML/KMZ/GeoJSON/SHP con &#225;rbol de capas, mediciones geod&#233;sicas y estilos personalizables. Un &#250;nico archivo HTML.">
 <!-- The preview image MUST be an absolute URL and a raster format: no
      social scraper renders SVG, and none resolves a relative path (they
      fetch the image from their own servers, not from this page). It is
@@ -110,6 +116,8 @@
       <button class="btn" id="deactivate-all">Desactivar todo</button>
       <button class="btn" id="collapse-all">Colapsar todo</button>
     </div>
+    <div id="offline-badge" hidden role="status"
+         title="Sin conexión a la red. KITE sigue funcionando con lo guardado en este navegador; los mapas base, la b&#250;squeda de lugares y las elevaciones necesitan red.">Sin conexi&#243;n</div>
     <div id="nav-msg"></div>
     <div id="progress" hidden>
       <div id="progress-label"></div>
@@ -117,7 +125,7 @@
     </div>
   </header>
   <div id="tree" role="tree" aria-label="Árbol de capas" tabindex="0"></div>
-  <div id="dropzone">Arrastre aquí sus archivos KML/KMZ (incl. ortofotos), JSON/TopoJSON o carpetas exportadas (.kite.json)</div>
+  <div id="dropzone">Arrastre aquí sus archivos KML/KMZ (incl. ortofotos), GPX, JSON/TopoJSON, shapefiles (.shp con su .dbf y .prj, o en .zip), ortofotos COG (.tif) o carpetas exportadas (.kite.json)</div>
   <footer id="nav-search">
     <div class="nav-actions">
       <input type="text" id="search-box" placeholder="Buscar capas y carpetas&#8230;">
@@ -143,7 +151,7 @@
 <!-- ================= Diálogo de estilos de capa ================= -->
 <div id="style-dialog" class="dlg-float" hidden>
   <div class="dlg-box">
-    <h2 id="style-title">Propiedades</h2>
+    <h2 class="dlg-head"><span class="dlg-title" id="style-title">Propiedades</span><button type="button" class="dlg-close" data-cancel="style-cancel" title="Cancelar" aria-label="Cancelar">&#215;</button></h2>
     <!-- El nombre es de cada nodo, pero con varios seleccionados el campo
          no se deja en blanco: enseña los nombres que hay (en gris y
          cursiva, como marca de "esto no es un valor") y escribir uno
@@ -180,9 +188,11 @@
         <option value="both">Contorno y relleno</option>
         <option value="stroke">Solo contorno</option>
         <option value="fill">Solo relleno</option>
+        <option value="none">Ninguno</option>
       </select></div>
       <div class="dlg-row"><span>Ancho del contorno</span><input type="number" id="pg-weight" min="0.5" max="12" step="0.5"></div>
       <div class="dlg-row"><span>Color del contorno</span><button type="button" class="color-btn" id="pg-color"></button></div>
+      <div class="dlg-row"><span>Opacidad del contorno</span><input type="range" id="pg-opacity" min="0" max="1" step="0.05"></div>
       <div class="dlg-row" id="pg-fill-color-row"><span>Color del relleno</span><button type="button" class="color-btn" id="pg-fill-color"></button></div>
       <div class="dlg-row" id="pg-fill-opacity-row"><span>Opacidad del relleno</span><input type="range" id="pg-fill-opacity" min="0" max="1" step="0.05"></div>
       <div class="dlg-row"><label for="pg-text-always">Mostrar el nombre siempre (si no, solo al hacer click)</label><input type="checkbox" id="pg-text-always"></div>
@@ -295,7 +305,7 @@
         <tr><th colspan="2">Gr&#225;fica del perfil de una ruta</th></tr>
         <tr><td>Rueda del rat&#243;n sobre la gr&#225;fica</td><td>Acercar / alejar la distancia hacia el puntero (de la ruta entera a 0,1 m por p&#237;xel)</td></tr>
         <tr><td>May&#250;s + rueda, o rueda sobre el eje de alturas</td><td>Acercar / alejar la altura (bloquea el eje Y)</td></tr>
-        <tr><td>Arrastrar la gr&#225;fica</td><td>Desplazarla; con el eje Y bloqueado, tambi&#233;n en vertical</td></tr>
+        <tr><td>Arrastrar la gr&#225;fica</td><td>Desplazarla en distancia y en altura (arrastrar en vertical bloquea el eje Y en lo que se ve)</td></tr>
       </table>
     </div>
     <div id="sh-tab-draw" class="dlg-tabpanel" hidden role="tabpanel">
@@ -313,7 +323,7 @@
         <tr><td>Clic derecho sobre un v&#233;rtice</td><td>Quitarlo (sin las propiedades abiertas, abre el men&#250; contextual del mapa en su lugar)</td></tr>
         <tr><td>May&#250;s + clic en el mapa, o tecla Insertar</td><td>Insertar un v&#233;rtice tras el seleccionado (o al final, si no hay ninguno)</td></tr>
         <tr><td>May&#250;s + clic sobre el primer v&#233;rtice, con el &#250;ltimo seleccionado</td><td>Cerrar una l&#237;nea abierta (sin a&#241;adir ning&#250;n v&#233;rtice)</td></tr>
-        <tr><td>Supr</td><td>Quitar el v&#233;rtice seleccionado (antes que borrar el nodo); en un contorno cerrado de exactamente 3 v&#233;rtices, lo abre en l&#237;nea en vez de bloquear el borrado</td></tr>
+        <tr><td>Supr</td><td>Quitar el v&#233;rtice seleccionado (antes que borrar el nodo) y dejar seleccionado el siguiente, para seguir quitando con Supr sin volver a hacer clic; en un contorno cerrado de exactamente 3 v&#233;rtices, lo abre en l&#237;nea en vez de bloquear el borrado</td></tr>
         <tr><td>Doble clic en el mapa</td><td>No hace zoom mientras se edita as&#237; un pol&#237;gono, una ruta o un c&#237;rculo</td></tr>
       </table>
     </div>
@@ -323,7 +333,7 @@
 <!-- Ficha original del elemento (description del KML) -->
 <div id="desc-dialog" class="dlg-float" hidden>
   <div class="dlg-box">
-    <h2 id="desc-title">Ficha</h2>
+    <h2 class="dlg-head"><span class="dlg-title" id="desc-title">Ficha</span><button type="button" class="dlg-close" data-cancel="desc-close" title="Cerrar" aria-label="Cerrar">&#215;</button></h2>
     <div id="desc-body" class="desc-body"></div>
     <div class="dlg-actions">
       <button class="btn" id="desc-close">Cerrar</button>
@@ -378,7 +388,7 @@
 <!-- Selector de marcador (paleta de iconos, estilo Google Earth) -->
 <div id="icon-picker" class="dlg-overlay" hidden>
   <div class="dlg-box">
-    <h2>Elegir marcador</h2>
+    <h2 class="dlg-head"><span class="dlg-title">Elegir marcador</span><button type="button" class="dlg-close" data-cancel="icon-cancel" title="Cancelar" aria-label="Cancelar">&#215;</button></h2>
     <div class="icon-grid" id="icon-grid"></div>
     <div class="dlg-actions">
       <button class="btn" id="icon-cancel">Cancelar</button>
@@ -388,9 +398,23 @@
 </div>
 
 <!-- Confirmar si se eliminan etiquetas tipo HTML de los nombres de un KML -->
+<!-- Aviso al abrir la aplicación desde un móvil (src/js/50-splitter.js):
+     no hay sitio para el panel de navegación y el mapa a la vez. -->
+<div id="mobile-notice" class="dlg-overlay" hidden>
+  <div class="dlg-box">
+    <h2 class="dlg-head"><span class="dlg-title">Mejor desde un ordenador</span><button type="button" class="dlg-close" data-cancel="mobile-close" title="Cerrar" aria-label="Cerrar">&#215;</button></h2>
+    <p class="dlg-hint">KITE Local está pensado para pantallas de escritorio: en la pantalla de un móvil no hay espacio para el panel de navegación y el mapa a la vez. Le recomendamos abrirlo desde un ordenador.</p>
+    <p class="dlg-hint">Si continúa de todos modos, se ocultará el panel de navegación y quedará solo el mapa. Si cierra este aviso, el panel de navegación ocupará toda la pantalla. En los dos casos, la flecha del borde alterna entre el panel y el mapa, y se recordará su elección.</p>
+    <div class="dlg-actions">
+      <button class="btn" id="mobile-close">Cerrar</button>
+      <button class="btn" id="mobile-continue">Continuar de todos modos</button>
+    </div>
+  </div>
+</div>
+
 <div id="kml-tags-picker" class="dlg-overlay" hidden>
   <div class="dlg-box">
-    <h2 id="ktp-title">Etiquetas en los nombres</h2>
+    <h2 class="dlg-head"><span class="dlg-title" id="ktp-title">Etiquetas en los nombres</span><button type="button" class="dlg-close" data-cancel="ktp-cancel" title="Cancelar" aria-label="Cancelar">&#215;</button></h2>
     <p id="ktp-intro" class="dlg-hint"></p>
     <div class="dlg-actions">
       <button class="btn" id="ktp-cancel">Dejarlas</button>
@@ -402,7 +426,7 @@
 <!-- Confirmar si se fusionan placemarks duplicados (mismo nombre y posición) -->
 <div id="kml-dup-picker" class="dlg-overlay" hidden>
   <div class="dlg-box">
-    <h2>Marcadores duplicados</h2>
+    <h2 class="dlg-head"><span class="dlg-title">Marcadores duplicados</span><button type="button" class="dlg-close" data-cancel="kdp-cancel" title="Cancelar" aria-label="Cancelar">&#215;</button></h2>
     <p id="kdp-intro" class="dlg-hint"></p>
     <div class="dlg-actions">
       <button class="btn" id="kdp-cancel">Mantener todos</button>
@@ -414,7 +438,7 @@
 <!-- Elegir qué propiedad de un GeoJSON ambiguo se usa como nombre -->
 <div id="geojson-name-picker" class="dlg-overlay" hidden>
   <div class="dlg-box">
-    <h2>Elegir nombre</h2>
+    <h2 class="dlg-head"><span class="dlg-title">Elegir nombre</span><button type="button" class="dlg-close" data-cancel="gnp-cancel" title="Cancelar" aria-label="Cancelar">&#215;</button></h2>
     <p id="gnp-intro" class="dlg-hint"></p>
     <div class="gnp-list" id="gnp-list"></div>
     <p class="dlg-hint" id="gnp-result" aria-live="polite"></p>
@@ -431,13 +455,22 @@
      editables interactivamente, ver 43-points-editor.js). -->
 <div id="props-dialog" class="dlg-overlay" hidden>
   <div class="dlg-box">
-    <h2>Propiedades</h2>
+    <h2 class="dlg-head"><span class="dlg-title">Propiedades</span><button type="button" class="dlg-close" data-cancel="props-cancel" title="Cancelar" aria-label="Cancelar">&#215;</button></h2>
     <div class="dlg-tabs" role="tablist">
       <button type="button" class="dlg-tab active" id="props-tab-btn-prefs" role="tab" aria-selected="true" aria-controls="props-tab-prefs">Preferencias</button>
       <button type="button" class="dlg-tab" id="props-tab-btn-gnp" role="tab" aria-selected="false" aria-controls="props-tab-gnp">Índices de GeoJSON</button>
       <button type="button" class="dlg-tab" id="props-tab-btn-sources" role="tab" aria-selected="false" aria-controls="props-tab-sources">Fuentes de datos</button>
+      <button type="button" class="dlg-tab" id="props-tab-btn-freq" role="tab" aria-selected="false" aria-controls="props-tab-freq">Frecuencias</button>
+      <button type="button" class="dlg-tab" id="props-tab-btn-restore" role="tab" aria-selected="false" aria-controls="props-tab-restore">Restaurar</button>
     </div>
     <div id="props-tab-prefs" class="dlg-tabpanel" role="tabpanel">
+      <div class="dlg-row"><span>Tema</span><select id="props-theme">
+        <option value="auto">Según el sistema</option>
+        <option value="light">Claro</option>
+        <option value="dark">Oscuro</option>
+      </select></div>
+      <!-- Las opciones salen de UI_LANGS (03-i18n.js): un idioma nuevo aparece solo -->
+      <div class="dlg-row"><span>Idioma</span><select id="props-lang"></select></div>
       <div class="dlg-row"><span>Unidad de distancia</span><select id="props-unit">
         <option value="m">Metros</option>
         <option value="km">Kilómetros</option>
@@ -457,27 +490,51 @@
       <p class="dlg-hint">Segmentos en que se divide un arco al terminar de dibujarlo con «Medir arco». El resultado es una ruta normal con ese número de tramos; cambiarlo solo afecta a los arcos que se dibujen después.</p>
       <div class="dlg-row"><span>Segmentos de un arco</span>
         <input type="number" id="props-arc-segments" min="2" max="720" step="1"></div>
-      <p class="dlg-hint">Longitud máxima de una ruta para «Obtener perfil». Acota lo que se descarga y, sobre todo, lo que el perfil deja guardado en el árbol: una celda de elevación por cada una que recorre la ruta.</p>
+      <p class="dlg-hint">Longitud máxima de una ruta para «Obtener perfil». Acota lo que se descarga y, sobre todo, lo que el perfil deja guardado en el árbol: una celda de elevación por cada una que recorre la ruta. Solo cuenta si alguna fuente elegida es de malla fina (5 a 30 m); con el MDT200 como única fuente no hay límite.</p>
       <div class="dlg-row"><span>Longitud máxima de un perfil</span>
         <span class="props-with-unit"><input type="number" id="props-profile-max" min="0" step="any"><span id="props-profile-max-unit"></span></span></div>
     </div>
     <div id="props-tab-gnp" class="dlg-tabpanel" hidden role="tabpanel">
-      <p class="dlg-hint">Asociaciones guardadas entre la estructura de <code>properties</code> de un GeoJSON y la propiedad usada como nombre.</p>
+      <p class="dlg-hint" data-i18n-html="html.gnp-intro">Asociaciones guardadas entre la estructura de <code>properties</code> de un GeoJSON y la propiedad usada como nombre.</p>
       <div class="gnp-editor-list" id="gnp-editor-list"></div>
       <div class="dlg-row"><span></span><button class="btn" id="gnp-editor-clear">Borrar todo</button></div>
     </div>
     <!-- Las opciones se rellenan desde el catálogo ELEV_SOURCES
          (60-elevation.js): añadir una fuente en el código la añade aquí. -->
     <div id="props-tab-sources" class="dlg-tabpanel" hidden role="tabpanel">
-      <p class="dlg-hint">Servicios WCS de los que «Consultar elevación aquí» (menú contextual del visor) descarga el terreno y la superficie. Con «Ninguna», ese modelo no se consulta: la cuadrícula muestra solo el otro, sin diferencia.</p>
+      <p class="dlg-hint">Servicios WCS de los que «Consultas › Elevación» (menú contextual del visor) descarga el terreno y la superficie. Con «Ninguna», ese modelo no se consulta: la cuadrícula muestra solo el otro, sin diferencia.</p>
       <div class="dlg-row"><span>MDT (terreno)</span><select id="props-src-mdt"></select></div>
+      <p class="dlg-hint props-src-info" id="props-src-mdt-info"></p>
       <p class="dlg-hint props-src-url" id="props-src-mdt-url"></p>
       <div class="dlg-row"><span>MDS (superficie)</span><select id="props-src-mds"></select></div>
+      <p class="dlg-hint props-src-info" id="props-src-mds-info"></p>
       <p class="dlg-hint props-src-url" id="props-src-mds-url"></p>
+    </div>
+    <div id="props-tab-freq" class="dlg-tabpanel" hidden role="tabpanel">
+      <p class="dlg-hint">Frecuencia con la que se calcula el elipsoide de Fresnel del perfil de una ruta (casilla «Elipsoide de Fresnel» de su ventana). De 1 a 300&#8239;000 MHz; 1090 MHz de partida. Un valor fuera de rango se ajusta al l&#237;mite m&#225;s cercano.</p>
+      <div class="dlg-row"><span>Frecuencia c&#225;lculos de Fresnel</span>
+        <span class="props-with-unit"><input type="number" id="props-fresnel-freq" min="1" max="300000" step="any"><span>MHz</span></span></div>
+    </div>
+    <div id="props-tab-restore" class="dlg-tabpanel" hidden role="tabpanel">
+      <p class="dlg-hint">Borra todo lo que KITE guarda en este navegador: el &#225;rbol de capas, las ortofotos copiadas y todos los ajustes (unidades, fuentes de datos, vista del mapa, mapas base y credenciales). No se puede deshacer. El idioma de la interfaz se conserva. Antes de borrar se pide una segunda confirmaci&#243;n y, al terminar, la p&#225;gina se recarga.</p>
+      <div class="dlg-row"><span></span><button class="btn btn-danger" id="props-restore-btn">Borrar todos los datos guardados&#8230;</button></div>
     </div>
     <div class="dlg-actions">
       <button class="btn" id="props-cancel">Cancelar</button>
       <button class="btn" id="props-accept">Aceptar</button>
+    </div>
+  </div>
+</div>
+
+<!-- Segunda confirmación de «Restaurar» (Propiedades): borra TODA la base de
+     IndexedDB. Va aparte de la pestaña para no pulsarlo por error. -->
+<div id="restore-confirm" class="dlg-overlay" hidden>
+  <div class="dlg-box">
+    <h2 class="dlg-head"><span class="dlg-title">Borrar todos los datos</span><button type="button" class="dlg-close" data-cancel="restore-cancel" title="Cancelar" aria-label="Cancelar">&#215;</button></h2>
+    <p class="dlg-hint">Se borrar&#225;n el &#225;rbol de capas, las ortofotos y todos los ajustes guardados en este navegador, y la p&#225;gina se recargar&#225;. No se puede deshacer. &#191;Continuar?</p>
+    <div class="dlg-actions">
+      <button class="btn" id="restore-cancel">Cancelar</button>
+      <button class="btn btn-danger" id="restore-accept">Borrar todo</button>
     </div>
   </div>
 </div>
@@ -557,25 +614,67 @@
       <div id="profile-log" role="log" tabindex="0" aria-label="Detalle de la descarga"></div>
     </div>
     <p class="dlg-hint" id="profile-note" hidden></p>
-    <!-- Controles de la gráfica (63-route-profile.js): zoom de cada eje
-         por separado, bloqueo del eje Y y vuelta a la vista entera. Lo
-         mismo, con el ratón: rueda = distancia; Mayús+rueda o rueda
-         sobre el eje de alturas = altura; arrastrar = desplazar. -->
+    <!-- Cabecera de la gráfica (63-route-profile.js). A la izquierda, lo que
+         cambia la recta inicio–fin: la propia línea, el elipsoide de Fresnel
+         y las alturas de torre. A la derecha, el rectángulo de lectura del
+         cursor: tamaño FIJO (cuadrícula de 2 × 4, con guiones en reposo), para
+         que ni la gráfica ni nada salte al mover el ratón. Zoom con el ratón:
+         rueda = distancia; Mayús+rueda o rueda sobre el eje de alturas =
+         altura; arrastrar = desplazar. La frecuencia de Fresnel está en
+         Propiedades → Frecuencias. -->
     <div id="profile-tools" hidden>
-      <span class="pf-tool-group" role="group" aria-label="Zoom de distancia">Distancia
-        <button class="btn pf-tool" id="pf-x-out" title="Alejar en distancia" aria-label="Alejar en distancia">−</button>
-        <button class="btn pf-tool" id="pf-x-in" title="Acercar en distancia (hasta 0,1 m por píxel)" aria-label="Acercar en distancia">+</button>
-      </span>
-      <span class="pf-tool-group" role="group" aria-label="Zoom de altura">Altura
-        <button class="btn pf-tool" id="pf-y-out" title="Alejar en altura (bloquea el eje Y)" aria-label="Alejar en altura">−</button>
-        <button class="btn pf-tool" id="pf-y-in" title="Acercar en altura (bloquea el eje Y)" aria-label="Acercar en altura">+</button>
-      </span>
-      <label class="pf-tool-group" title="La escala de alturas se queda quieta al desplazar o acercar la distancia; desmarcado, se ajusta sola a lo que se ve">
-        <input type="checkbox" id="pf-y-lock"> Bloquear eje Y</label>
-      <button class="btn" id="pf-reset" title="Ruta entera y altura automática">Ver todo</button>
-      <span class="pf-tools-hint">Rueda: distancia · Mayús+rueda o rueda sobre el eje: altura · arrastrar: desplazar</span>
+      <div id="profile-opts">
+        <div class="pf-row">
+          <label class="pf-check" title="Recta negra entre las dos torres (MDS; si no está elegido, MDT), con sus alturas de torre. Antes de la torre de inicio y después de la final sigue, discontinua, hasta los extremos de la ruta">
+            <input type="checkbox" id="pf-los"> Línea inicio–fin</label>
+          <label class="pf-check" title="Primera zona de Fresnel alrededor de la línea inicio–fin, entre las dos torres (contorno discontinuo) y, rellena, su zona del 60 %, que debe quedar libre de obstáculos. La frecuencia se elige en Propiedades → Frecuencias">
+            <input type="checkbox" id="pf-fresnel"> Elipsoide de Fresnel (60 %)</label>
+        </div>
+        <div class="pf-row towers">
+          <label class="pf-field" title="Altura de la torre de inicio, SOBRE EL TERRENO: sube ese extremo de la línea inicio–fin">
+            <span class="pf-lbl">Torre inicio</span> <input type="number" id="pf-tower-a" min="0" step="any"> <span class="pf-tower-unit"></span></label>
+          <label class="pf-field" title="Vértice de la ruta donde está la torre de inicio: lo anterior queda fuera del enlace, para ver los obstáculos de detrás">
+            en <select id="pf-tower-a-at"></select></label>
+        </div>
+        <div class="pf-row towers">
+          <label class="pf-field" title="Altura de la torre final, SOBRE EL TERRENO: sube ese extremo de la línea inicio–fin">
+            <span class="pf-lbl">Torre final</span> <input type="number" id="pf-tower-b" min="0" step="any"> <span class="pf-tower-unit"></span></label>
+          <label class="pf-field" title="Vértice de la ruta donde está la torre final: lo posterior queda fuera del enlace, para ver los obstáculos de más allá">
+            en <select id="pf-tower-b-at"></select></label>
+        </div>
+      </div>
+      <!-- Lectura bajo el cursor (showProfileCursor / setProfileInfo). Cada
+           valor se escribe con textContent. Las filas de lo que no está
+           activado quedan atenuadas, nunca ocultas. -->
+      <div id="profile-info" role="group" aria-label="Lectura bajo el cursor">
+        <div class="pf-info-row" data-k="dist"><i class="pf-key"></i><span class="pf-info-label">Distancia</span><b class="pf-info-val">—</b></div>
+        <div class="pf-info-row" data-k="mdt"><i class="pf-key mdt"></i><span class="pf-info-label">MDT</span><b class="pf-info-val">—</b></div>
+        <div class="pf-info-row" data-k="mds"><i class="pf-key mds"></i><span class="pf-info-label">MDS</span><b class="pf-info-val">—</b></div>
+        <div class="pf-info-row" data-k="diff"><i class="pf-key"></i><span class="pf-info-label">MDS−MDT</span><b class="pf-info-val">—</b></div>
+        <div class="pf-info-row" data-k="bulge"><i class="pf-key earth"></i><span class="pf-info-label">Curvatura</span><b class="pf-info-val">—</b></div>
+        <div class="pf-info-row" data-k="clear"><i class="pf-key los"></i><span class="pf-info-label">Despeje</span><b class="pf-info-val">—</b></div>
+        <div class="pf-info-row" data-k="fres"><i class="pf-key fresnel"></i><span class="pf-info-label">Fresnel 60 %</span><b class="pf-info-val">—</b></div>
+        <div class="pf-info-row" data-k="margin"><i class="pf-key fresnel"></i><span class="pf-info-label">Margen</span><b class="pf-info-val">—</b></div>
+      </div>
     </div>
     <div id="profile-chart" aria-live="polite"></div>
+    <!-- Pie: lo que cambia la vista de la gráfica entera (eje Y, curvatura) y
+         la vuelta a la ruta entera, con la pista de los gestos. -->
+    <div id="profile-foot" hidden>
+      <label class="pf-check" title="La escala de alturas se queda quieta al desplazar o acercar la distancia; desmarcado, se ajusta sola a lo que se ve">
+        <input type="checkbox" id="pf-y-lock"> Bloquear eje Y</label>
+      <label class="pf-field" title="Cómo se dibuja la curvatura de la Tierra con la refracción estándar de la atmósfera (radio efectivo 4/3). Clásica: la Tierra se arquea entre las torres y el terreno se eleva sobre la cuerda. Tierra plana: el terreno queda sobre una base recta y la línea de vista y el elipsoide se curvan hacia arriba. Desde el inicio: la Tierra cae desde la torre de inicio y la línea es recta. El despeje es el mismo en los tres">
+        Curvatura terrestre <select id="pf-curve">
+          <option value="none">Ninguna</option>
+          <option value="classic">Clásica (k = 4/3)</option>
+          <option value="flat">Tierra plana, rayo curvo</option>
+          <option value="origin">Desde el inicio</option>
+        </select></label>
+      <button class="btn" id="pf-reset" title="Ruta entera y altura automática">Ver todo</button>
+      <button class="btn" id="pf-png" title="Guardar la gráfica, tal como se ve, como imagen PNG">PNG</button>
+      <button class="btn" id="pf-csv" title="Guardar los datos de la ruta entera como CSV: distancia, latitud, longitud y la altura de cada serie">CSV</button>
+      <span class="pf-hint">Rueda: distancia · Mayús+rueda: altura · arrastrar: desplazar</span>
+    </div>
   </div>
 </div>
 
@@ -583,8 +682,8 @@
      para poder copiarlo y pegarlo en una hoja de cálculo. -->
 <div id="points-dialog" class="dlg-overlay" hidden>
   <div class="dlg-box">
-    <h2 id="points-title">Puntos de la capa</h2>
-    <p class="dlg-hint">Un punto por l&#237;nea, con <strong>latitud, longitud y altitud</strong>
+    <h2 class="dlg-head"><span class="dlg-title" id="points-title">Puntos de la capa</span><button type="button" class="dlg-close" data-cancel="points-cancel" title="Cancelar" aria-label="Cancelar">&#215;</button></h2>
+    <p class="dlg-hint" data-i18n-html="html.points-help">Un punto por l&#237;nea, con <strong>latitud, longitud y altitud</strong>
       separadas por tabulador. Se puede copiar y pegar directamente en una hoja de c&#225;lculo.
       Al pegar tambi&#233;n se admiten comas o espacios como separador.</p>
     <p class="dlg-hint" id="points-rings" hidden></p>
@@ -604,8 +703,8 @@
      el panel. Solo en memoria; se pierde al cerrar la página. -->
 <div id="log-dialog" class="dlg-overlay" hidden>
   <div class="dlg-box">
-    <h2>Registro de avisos</h2>
-    <p class="dlg-hint">Avisos de esta sesi&#243;n, del m&#225;s antiguo al m&#225;s reciente. Los
+    <h2 class="dlg-head"><span class="dlg-title">Registro de avisos</span><button type="button" class="dlg-close" data-cancel="log-close" title="Cerrar" aria-label="Cerrar">&#215;</button></h2>
+    <p class="dlg-hint" data-i18n-html="html.log-help">Avisos de esta sesi&#243;n, del m&#225;s antiguo al m&#225;s reciente. Los
       marcados con <strong>!</strong> exig&#237;an confirmaci&#243;n. Al cerrar la p&#225;gina se pierde.</p>
     <div class="log-list" id="log-list"></div>
     <div class="dlg-actions">
@@ -624,9 +723,10 @@
      esperar a que venza el tope de 20 s no es una salida.            -->
 <div id="url-dialog" class="dlg-overlay" hidden>
   <div class="dlg-box">
-    <h2>A&#241;adir desde una direcci&#243;n</h2>
-    <p class="dlg-hint">Direcci&#243;n de un archivo KML, KMZ, JSON/GeoJSON, TopoJSON o de una
-      carpeta exportada (.kite.json). Se descarga primero y se a&#241;ade despu&#233;s, cuando
+    <h2 class="dlg-head"><span class="dlg-title">A&#241;adir desde una direcci&#243;n</span><button type="button" class="dlg-close" data-cancel="url-close" title="Cerrar" aria-label="Cerrar">&#215;</button></h2>
+    <p class="dlg-hint">Direcci&#243;n de un archivo KML, KMZ, GPX, JSON/GeoJSON, TopoJSON, de un
+      shapefile comprimido (.zip), de una carpeta exportada (.kite.json) o de un servicio de mapas
+      ArcGIS (&#8230;/MapServer). Se descarga primero y se a&#241;ade despu&#233;s, cuando
       vea qu&#233; ha llegado.</p>
     <!-- Un <textarea> y no un <input>: una dirección de descarga pasa de
          mil caracteres con facilidad (tokens de firma, parámetros de
@@ -646,12 +746,99 @@
   </div>
 </div>
 
+<!-- Anillos de alcance y sectores (menú contextual › Crear). Modal, con
+     vista previa en vivo sobre el mapa: Cancelar no deja nada. Los campos
+     de distancia van en la unidad global (Propiedades); la posición, en
+     el formato global de coordenadas. -->
+<div id="range-dialog" class="dlg-overlay" hidden>
+  <div class="dlg-box">
+    <h2 class="dlg-head"><span class="dlg-title" id="rg-title">Anillos de alcance</span><button type="button" class="dlg-close" data-cancel="rg-cancel" title="Cancelar" aria-label="Cancelar">&#215;</button></h2>
+    <div class="dlg-row"><label for="rg-mode">Forma</label>
+      <select id="rg-mode">
+        <option value="rings">Anillos concéntricos</option>
+        <option value="sector">Sector</option>
+      </select>
+    </div>
+    <div class="dlg-row"><label for="rg-lat">Latitud del centro</label><input type="text" id="rg-lat" autocomplete="off" spellcheck="false"></div>
+    <div class="dlg-row"><label for="rg-lng">Longitud del centro</label><input type="text" id="rg-lng" autocomplete="off" spellcheck="false"></div>
+    <div id="rg-rings-fields">
+      <div class="dlg-row"><label for="rg-radii">Radios</label><input type="text" id="rg-radii" autocomplete="off" spellcheck="false"><span class="rg-unit"></span></div>
+      <div class="dlg-row"><label for="rg-radials">Radiales cada</label><input type="number" id="rg-radials" min="0" max="180" step="1"><span class="rg-deg">&#176;</span></div>
+    </div>
+    <div id="rg-sector-fields" hidden>
+      <div class="dlg-row"><label for="rg-az1">Azimut inicial</label><input type="number" id="rg-az1" min="0" max="360" step="1"><span class="rg-deg">&#176;</span></div>
+      <div class="dlg-row"><label for="rg-az2">Azimut final</label><input type="number" id="rg-az2" min="0" max="360" step="1"><span class="rg-deg">&#176;</span></div>
+      <div class="dlg-row"><label for="rg-rout">Radio exterior</label><input type="number" id="rg-rout" min="0" step="any"><span class="rg-unit"></span></div>
+      <div class="dlg-row"><label for="rg-rin">Radio interior</label><input type="number" id="rg-rin" min="0" step="any"><span class="rg-unit"></span></div>
+    </div>
+    <p class="dlg-hint sh-bad" id="rg-status" hidden></p>
+    <div class="dlg-actions">
+      <button class="btn" id="rg-cancel">Cancelar</button>
+      <button class="btn" id="rg-accept">Aceptar</button>
+    </div>
+  </div>
+</div>
+
+<!-- Tabla de atributos de una carpeta (botón ▦ de su fila). Flotante y no
+     modal, como la de estilos: se puede mirar y seguir usando el mapa.
+     Una instantánea de solo lectura; las filas que se ven son las únicas
+     que están en el DOM (hay carpetas de decenas de miles de capas). -->
+<div id="attr-dialog" class="dlg-float" hidden>
+  <div class="dlg-box">
+    <h2 class="dlg-head"><span class="dlg-title" id="attr-title">Tabla de atributos</span><button type="button" class="dlg-close" data-cancel="attr-close" title="Cerrar" aria-label="Cerrar">&#215;</button></h2>
+    <div class="attr-bar">
+      <input type="search" id="attr-filter" placeholder="Filtrar filas&#8230;" aria-label="Filtrar filas" autocomplete="off" spellcheck="false">
+      <span class="dlg-note" id="attr-count"></span>
+    </div>
+    <p class="dlg-hint" id="attr-note" hidden></p>
+    <div id="attr-scroll">
+      <table id="attr-table"><colgroup id="attr-cols"></colgroup><thead id="attr-head"></thead><tbody id="attr-body"></tbody></table>
+    </div>
+    <div class="dlg-actions">
+      <button class="btn" id="attr-close">Cerrar</button>
+      <button class="btn" id="attr-csv">Exportar CSV</button>
+      <button class="btn" id="attr-style">Estilo por atributo&#8230;</button>
+    </div>
+  </div>
+</div>
+
+<!-- Estilo por atributo (desde la tabla de atributos). Modal, con vista
+     previa en vivo sobre el mapa: Cancelar devuelve cada capa a su estilo.
+     Una clasificación hecha una vez: al aceptar quedan estilos normales. -->
+<div id="attrstyle-dialog" class="dlg-overlay" hidden>
+  <div class="dlg-box">
+    <h2 class="dlg-head"><span class="dlg-title">Estilo por atributo</span><button type="button" class="dlg-close" data-cancel="as-cancel" title="Cancelar" aria-label="Cancelar">&#215;</button></h2>
+    <div class="dlg-row"><label for="as-attr">Atributo</label><select id="as-attr"></select></div>
+    <div class="dlg-row"><label for="as-mode">Tipo</label>
+      <select id="as-mode">
+        <option value="categories">Categor&#237;as</option>
+        <option value="graduated">Graduado</option>
+      </select>
+    </div>
+    <div id="as-grad-fields" hidden>
+      <div class="dlg-row"><label for="as-n">Clases</label><input type="number" id="as-n" min="2" max="9" step="1"></div>
+      <div class="dlg-row"><label for="as-method">M&#233;todo</label>
+        <select id="as-method">
+          <option value="equal">Intervalos iguales</option>
+          <option value="quantile">Cuantiles</option>
+        </select>
+      </div>
+    </div>
+    <div id="as-classes"></div>
+    <p class="dlg-hint" id="as-summary"></p>
+    <div class="dlg-actions">
+      <button class="btn" id="as-cancel">Cancelar</button>
+      <button class="btn" id="as-accept">Aceptar</button>
+    </div>
+  </div>
+</div>
+
 <!-- Credencial de Sentinel Hub: el instance ID con el que Copernicus
      autentica sus servicios OGC. Es del usuario, no de la aplicación. -->
 <div id="sh-creds" class="dlg-overlay" hidden>
   <div class="dlg-box">
-    <h2>Credencial de Copernicus</h2>
-    <p class="dlg-hint">Copernicus no publica ning&#250;n WMS an&#243;nimo: sus capas se sirven por
+    <h2 class="dlg-head"><span class="dlg-title">Credencial de Copernicus</span><button type="button" class="dlg-close" data-cancel="sh-cancel" title="Cancelar" aria-label="Cancelar">&#215;</button></h2>
+    <p class="dlg-hint" data-i18n-html="html.copernicus-help">Copernicus no publica ning&#250;n WMS an&#243;nimo: sus capas se sirven por
       Sentinel Hub, que identifica cada petici&#243;n con un <em>instance ID</em> de tu propia
       cuenta. Se crea gratis en el panel de Copernicus Data Space, en
       <em>Dashboard &#8594; Configuration Utility</em>, donde adem&#225;s eliges qu&#233; capas publica
@@ -660,7 +847,7 @@
       <input type="text" id="sh-instance" spellcheck="false" autocomplete="off"
              placeholder="00000000-0000-0000-0000-000000000000">
     </label>
-    <p class="dlg-hint">Se guarda solo en este navegador y &#250;nicamente se env&#237;a a
+    <p class="dlg-hint" data-i18n-html="html.copernicus-storage">Se guarda solo en este navegador y &#250;nicamente se env&#237;a a
       <code>sh.dataspace.copernicus.eu</code>. Puedes borrarlo cuando quieras.</p>
     <p class="dlg-hint sh-bad" id="sh-error" hidden></p>
     <div class="dlg-actions">
@@ -671,33 +858,67 @@
   </div>
 </div>
 
-<!-- Servidor de teselas de "Custom Maps": una dirección propia del
+<!-- Servidor de teselas de "Custom Tile Map Service": una dirección propia del
      usuario (t&#237;picamente una cach&#233;/proxy delante de OpenStreetMap u
      otro servicio, para no descargar de golpe el servicio p&#250;blico
      ajeno), nunca de la aplicaci&#243;n. -->
 <div id="custom-tiles-creds" class="dlg-overlay" hidden>
   <div class="dlg-box">
-    <h2>Servidor de teselas personalizado</h2>
-    <p class="dlg-hint">La capa <em>Custom Maps</em> pide sus teselas a la direcci&#243;n que
-      pongas aqu&#237;, a&#241;adiendo <code>{z}/{x}/{y}.png</code> al final por su cuenta &#8212;
-      no hace falta escribirlo.</p>
+    <h2 class="dlg-head"><span class="dlg-title">Custom Tile Map Service (TMS)</span><button type="button" class="dlg-close" data-cancel="custom-tiles-cancel" title="Cancelar" aria-label="Cancelar">&#215;</button></h2>
+    <p class="dlg-hint" data-i18n-html="html.ctiles-help">La capa <em>Custom Tile Map Service</em> solo admite servidores de
+      teselas (<em>Tile Map Service</em>): pide sus teselas a la direcci&#243;n que pongas
+      aqu&#237;, a&#241;adiendo <code>{z}/{x}/{y}.png</code> al final por su cuenta &#8212;
+      no hace falta escribirlo. Para un servidor WMS usa la capa
+      <em>Custom Web Map Service</em>.</p>
     <label class="sh-field">Direcci&#243;n base del servidor
       <input type="text" id="custom-tiles-input" spellcheck="false" autocomplete="off"
              placeholder="https://mi-cache.ejemplo.org/tiles/">
     </label>
-    <p class="dlg-hint">Debe responder en <strong>https</strong> a peticiones del tipo
+    <p class="dlg-hint" data-i18n-html="html.ctiles-requirements">Debe responder en <strong>https</strong> a peticiones del tipo
       <code>.../{z}/{x}/{y}.png</code> (esquema XYZ est&#225;ndar: <code>z</code> = nivel de
       zoom, <code>x</code>/<code>y</code> = columna/fila de la tesela, igual que
       OpenStreetMap) con im&#225;genes PNG de 256&#215;256 &#8212;con canal alfa si se quiere
       transparencia&#8212; y CORS abierto (<code>Access-Control-Allow-Origin</code>), o el
       navegador bloquear&#225; las teselas aunque el servidor responda bien.</p>
-    <p class="dlg-hint">Se guarda solo en este navegador y &#250;nicamente se env&#237;a a la
+    <p class="dlg-hint" data-i18n-html="html.ctiles-storage">Se guarda solo en este navegador y &#250;nicamente se env&#237;a a la
       direcci&#243;n que pongas. Nunca viaja en un <code>.kite.json</code> exportado.</p>
     <p class="dlg-hint sh-bad" id="custom-tiles-error" hidden></p>
     <div class="dlg-actions">
       <button class="btn" id="custom-tiles-cancel">Cancelar</button>
       <button class="btn" id="custom-tiles-clear">Borrar</button>
       <button class="btn" id="custom-tiles-accept">Aceptar</button>
+    </div>
+  </div>
+</div>
+
+<!-- Servidor de "Custom Web Map Service": la direcci&#243;n de un WMS del
+     usuario. Sus capas se descubren con su GetCapabilities. -->
+<div id="custom-wms-creds" class="dlg-overlay" hidden>
+  <div class="dlg-box">
+    <h2 class="dlg-head"><span class="dlg-title">Custom Web Map Service (WMS)</span><button type="button" class="dlg-close" data-cancel="custom-wms-cancel" title="Cancelar" aria-label="Cancelar">&#215;</button></h2>
+    <p class="dlg-hint" data-i18n-html="html.cwms-help">La capa <em>Custom Web Map Service</em> lee de tu servidor WMS
+      (<em>Web Map Service</em>) la lista de capas que publica y te deja elegir una, que
+      puedes activar y desactivar como el resto de mapas base.</p>
+    <label class="sh-field">Direcci&#243;n del servidor WMS
+      <input type="text" id="custom-wms-input" spellcheck="false" autocomplete="off"
+             placeholder="https://mi-servidor.ejemplo.org/wms">
+    </label>
+    <p class="dlg-hint" data-i18n-html="html.cwms-requirements">El servidor debe responder en <strong>https</strong> a una consulta
+      <code>GetCapabilities</code> (<code>?service=WMS&amp;request=GetCapabilities</code>, que
+      la aplicaci&#243;n a&#241;ade por su cuenta &#8212;si pegas una petici&#243;n completa, se
+      quitan sus par&#225;metros de OGC&#8212;) con CORS abierto
+      (<code>Access-Control-Allow-Origin</code>), o el navegador impedir&#225; leer la lista
+      de capas. Debe poder dibujar en Web Mercator (<code>EPSG:3857</code>). El
+      formato de imagen se elige solo seg&#250;n lo que anuncie el servidor:
+      <code>image/png</code> (con transparencia) si lo sirve y, si no,
+      <code>image/jpeg</code>.</p>
+    <p class="dlg-hint" data-i18n-html="html.cwms-storage">Se guarda solo en este navegador y &#250;nicamente se env&#237;a a la
+      direcci&#243;n que pongas. Nunca viaja en un <code>.kite.json</code> exportado.</p>
+    <p class="dlg-hint sh-bad" id="custom-wms-error" hidden></p>
+    <div class="dlg-actions">
+      <button class="btn" id="custom-wms-cancel">Cancelar</button>
+      <button class="btn" id="custom-wms-clear">Borrar</button>
+      <button class="btn" id="custom-wms-accept">Aceptar</button>
     </div>
   </div>
 </div>
@@ -711,14 +932,13 @@
 <script src="https://unpkg.com/topojson-client@3.1.0/dist/topojson-client.min.js"
         integrity="sha384-Ukv1p/xTma6P4/2bY5KzWBw+ydSpXmhCMtyciIQVDJ1RmOxtCYNMF1uXT9T63H67"
         crossorigin="anonymous" referrerpolicy="no-referrer"></script>
-<script src="https://unpkg.com/html2canvas@1.4.1/dist/html2canvas.min.js"
-        integrity="sha384-ZZ1pncU3bQe8y31yfZdMFdSpttDoPmOZg2wguVK9almUodir1PghgT0eY7Mrty8H"
-        crossorigin="anonymous" referrerpolicy="no-referrer"></script>
-<!-- GeoTIFF: solo para fuentes de elevación que no ofrecen rejilla ASCII
-     (Digital Earth Africa). Es el bundle de navegador, ya minificado y en
-     un solo archivo (sin trozos cargados aparte que el SRI no cubriría). -->
-<script src="https://unpkg.com/geotiff@2.1.3/dist-browser/geotiff.js"
-        integrity="sha384-m5adk5PRgt3JjiYbYoG8oXxc3EgRFKc1aCBgKzyxqxnbYpdiAMlHkR0gVDp03Q/H"
+<!-- html2canvas, geotiff.js y proj4js NO van aquí: se cargan bajo demanda
+     (src/js/07-lazy-libs.js, con su misma URL y su mismo SRI) porque solo
+     hacen falta para exportar PNG, leer GeoTIFF/COG y reproyectar un .prj. -->
+<!-- shapefile (Mike Bostock): lee .shp y .dbf a GeoJSON. El .zip lo abre
+     JSZip y la proyección la pone proj4. -->
+<script src="https://unpkg.com/shapefile@0.6.6/dist/shapefile.min.js"
+        integrity="sha384-wRExQJZJ+OCxQWFRVHN+cFoS9UzH9snH/Gsx1sudJO/VJSah7wT04YcyWZKgQf8X"
         crossorigin="anonymous" referrerpolicy="no-referrer"></script>
 <script>
 {{SCRIPTS}}

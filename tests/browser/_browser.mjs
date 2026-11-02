@@ -62,13 +62,58 @@ export async function serve(file, port) {
   return { url: `http://127.0.0.1:${port}/`, close: () => srv.close() };
 }
 
+/* Un sitio como el de Pages para probar el uso sin conexión: el HTML en
+   `/` y en su nombre, y `sw.js` con su tipo de contenido (el navegador
+   rechaza un worker servido como text/html). El estado del "servidor" se
+   cambia en caliente: `up` responde, `down` corta la conexión al instante
+   (como un equipo sin red) y `hang` acepta la petición y no contesta
+   (una red que no responde). `transform` cambia el HTML servido, para ver
+   si una recarga con red trae la versión nueva.                        */
+export async function serveSite(port, { file = READABLE, transform = h => h } = {}) {
+  const sw = fs.readFileSync(path.join(ROOT, "sw.js"));
+  const site = { mode: "up", transform, hits: [] };
+  const sockets = new Set();
+  const srv = http.createServer((q, s) => {
+    const p = q.url.split("?")[0];
+    site.hits.push(q.method + " " + p);
+    if (site.mode === "down") { q.socket.destroy(); return; }
+    if (site.mode === "hang") return;
+    if (p === "/sw.js") {
+      s.writeHead(200, { "Content-Type": "text/javascript; charset=utf-8", "Cache-Control": "no-cache" });
+      return s.end(sw);
+    }
+    if (p === "/" || p === "/kitelocal.html" || p === "/kitelocal.min.html" || p === "/index.html") {
+      s.writeHead(200, { "Content-Type": "text/html; charset=utf-8", "Cache-Control": "no-cache" });
+      return s.end(site.transform(fs.readFileSync(file, "utf8")));
+    }
+    s.writeHead(404); s.end();
+  });
+  srv.on("connection", sock => { sockets.add(sock); sock.on("close", () => sockets.delete(sock)); });
+  await new Promise(r => srv.listen(port, "127.0.0.1", r));
+  site.url = `http://127.0.0.1:${port}/`;
+  /* Tras un `hang`, las conexiones con una petición sin contestar hay que
+     cortarlas: el navegador las reutiliza y la siguiente petición, ya con
+     el servidor sano, se quedaría detrás de la que nunca se contestó
+     (en una red real eso lo resuelve el tiempo; aquí no pasa).         */
+  site.dropConnections = () => { for (const s of sockets) s.destroy(); };
+  site.close = () => { srv.closeAllConnections?.(); srv.close(); };
+  return site;
+}
+
 /* Abre la aplicación y espera a que esté viva de verdad, no solo a que
    el HTML haya llegado: `map` construido y el árbol resuelto (o con
    filas, o ya con su aviso de vacío). Esperar por una condición y no
    por un tiempo fijo es lo que evita una prueba que falla una vez de
    cada veinte en una máquina cargada.                                */
 export async function openApp(browser, url, opts = {}) {
-  const ctx = await browser.newContext(opts);
+  /* Sin service worker por defecto: con uno controlando la página,
+     `page.route` ya no ve las peticiones que el worker contesta (lo
+     usan las pruebas de librerías bajo demanda y de WCS). Solo
+     offline.mjs lo quiere, y lo pide con `serviceWorkers: "allow"`.  */
+  /* `locale: "es-ES"`: las suites comparan textos en español y «Automático»
+     sigue al navegador (Playwright arranca en en-US); lo de los idiomas lo
+     prueba browser/i18n.mjs, que pasa el suyo.                          */
+  const ctx = await browser.newContext({ serviceWorkers: "block", locale: "es-ES", ...opts });
   const page = await ctx.newPage();
   const errors = [];
   page.on("pageerror", e => errors.push("pageerror: " + e.message));
@@ -80,13 +125,20 @@ export async function openApp(browser, url, opts = {}) {
       e => window.__csp.push(e.violatedDirective + " ← " + e.blockedURI));
   });
   await page.goto(url);
+  await waitAppReady(page);
+  return { ctx, page, errors };
+}
+
+/* Espera a que la aplicación esté viva de verdad (también tras un
+   `page.reload()`): ver el comentario de abajo. */
+export async function waitAppReady(page) {
   /* El árbol pasa por DOS estados con la MISMA clase ("empty": primero
      "Inicializando…", luego, si de verdad no hay nada guardado, "No hay
      capas cargadas.") — `showTreePlaceholder`, 30-tree-walk.js. Esperar
      solo la clase capturaba a veces el intermedio: invisible mientras el
      arranque (99-boot.js) tuviera poco que leer de IndexedDB antes de
      resolver el árbol, hasta que una lectura más (la URL de "Custom
-     Maps") alargó lo suficiente esa ventana como para que el sondeo la
+     Tile Map Service") alargó lo suficiente esa ventana como para que el sondeo la
      viera. Comprobar el TEXTO del placeholder, no solo su clase, espera
      el estado de verdad final en los dos casos (con árbol guardado, hay
      `ul.node-list`, directamente).                                     */
@@ -96,7 +148,6 @@ export async function openApp(browser, url, opts = {}) {
     const empty = document.querySelector("#tree .empty");
     return !!empty && empty.textContent !== "Inicializando…";
   });
-  return { ctx, page, errors };
 }
 
 /* Marcador de resultados, con el mismo estilo que las suites de Node

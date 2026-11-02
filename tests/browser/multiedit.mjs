@@ -270,6 +270,187 @@ ok(marcadores.tras[0].icon === "star" && marcadores.tras[1].icon === "airplane"
   && marcadores.tras[0].size === 24 && marcadores.tras[1].size === 41,
   "y cada uno conserva su icono y su tamaño: " + JSON.stringify(marcadores.tras));
 
+/* ---------- Activar «mostrar texto siempre» retira el globo que ya estuviera abierto ---------- */
+const globos = await page.evaluate(async () => {
+  /* Un globo cerrado se desvanece 200 ms antes de salir del DOM: se espera a que
+     el recuento llegue al esperado (con tope), no un tiempo fijo.              */
+  const abiertos = async esperado => {
+    for (let t = Date.now(); Date.now() - t < 2000; ) {
+      if (document.querySelectorAll(".leaflet-popup").length === esperado) break;
+      await new Promise(r => setTimeout(r, 25));
+    }
+    return document.querySelectorAll(".leaflet-popup").length;
+  };
+  const ul = __limpiar();
+  const r = {};
+  /* Un trazo con el globo de siempre abierto (lo que deja un clic sobre él) */
+  const t = __poly(ul, "Zona", { color: "#ff0000", weight: 2, fillColor: "#ff0000", fillOpacity: 0.35 });
+  nodeLayer(t).bindPopup("Zona", COMPACT_POPUP);
+  nodeLayer(t).openPopup(L.latLng(40.45, -3.65));
+  r.trazoAntes = await abiertos(1);
+  t._style.textAlways = true;
+  applyPolygonStyle(t);
+  r.trazoDespues = await abiertos(0);
+  r.trazoEtiqueta = __tip(t);
+  /* Un marcador con el suyo abierto */
+  const m = makeNode({ name: "Punto", layer: L.marker([40.5, -3.6]).addTo(rootGroup), style: { color: "#1b5e97" } });
+  ul.appendChild(m);
+  m._mstyle = { ...DEFAULT_MARKER_STYLE };
+  applyMarkerStyle(m);
+  nodeLayer(m).openPopup();
+  r.marcadorAntes = await abiertos(1);
+  m._mstyle.textAlways = true;
+  applyMarkerStyle(m);
+  r.marcadorDespues = await abiertos(0);
+  r.marcadorEtiqueta = !!nodeLayer(m).getTooltip();
+  /* Apagarla NO abre nada por su cuenta */
+  m._mstyle.textAlways = false;
+  applyMarkerStyle(m);
+  r.apagado = await abiertos(0);
+  return r;
+});
+ok(globos.trazoAntes === 1 && globos.trazoDespues === 0 && globos.trazoEtiqueta === "Zona",
+  "trazo: al activar el texto siempre se cierra el globo abierto y queda solo la etiqueta permanente: " + JSON.stringify(globos));
+ok(globos.marcadorAntes === 1 && globos.marcadorDespues === 0 && globos.marcadorEtiqueta,
+  "marcador: igual, sin la etiqueta doble: " + JSON.stringify(globos));
+ok(globos.apagado === 0, "y apagarla no deja ningún globo abierto");
+
+/* ---------- «Ninguno»: ni contorno ni relleno, solo los nombres ---------- */
+const ninguno = await page.evaluate(async () => {
+  const frames = () => new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));
+  const modo = li => polygonModeOf(li._style);
+  /* Lo que se pinta de verdad: las opciones de Leaflet de cada trazo */
+  const pintado = li => nodeLayer(li).getLayers().map(p => [p.options.stroke !== false, p.options.fill !== false].join());
+  const ul = __limpiar();
+  /* El estilo de un archivo importado: SIN `stroke`, `fill`, `opacity` ni `fillColor` */
+  const base = { color: "#ff0000", weight: 2, fillOpacity: 0.35 };
+  const A = __poly(ul, "Zona A", { ...base });
+  const B = __poly(ul, "Zona B", { ...base });
+  const C = __poly(ul, "Zona C", { ...base });
+  const r = {};
+  r.opciones = [...document.getElementById("pg-mode").options].map(o => o.value + ":" + o.textContent).join();
+
+  /* 1. Tres capas, «Ninguno» + nombre siempre: cambian las tres, en vivo */
+  __abrir([A, B, C]);
+  __tocar("pg-mode", "none");
+  __tocar("pg-text-always", true);
+  await frames();
+  r.vivo = [A, B, C].map(pintado).join("|");
+  r.rotulos = [A, B, C].map(__tip).join();
+  /* 2. Cancelar lo devuelve todo */
+  closeStyleDialog(false);
+  await frames();
+  r.cancelado = [A, B, C].map(pintado).join("|");
+  r.sinRotulos = [A, B, C].map(__tip).join();
+  /* 3. Aceptar lo deja, y es lo que se guarda */
+  __abrir([A, B, C]);
+  __tocar("pg-mode", "none");
+  __tocar("pg-text-always", true);
+  document.getElementById("style-accept").click();
+  await frames();
+  r.aceptado = [A, B, C].map(modo).join();
+  r.pintadoAceptado = [A, B, C].map(pintado).join("|");
+  r.guardado = [A, B, C].map(li => { const st = serializeNode(li)[0].style; return [st.stroke, st.fill].join(); }).join("|");
+  r.rotulosAceptados = [A, B, C].map(__tip).join();
+  /* El diálogo los vuelve a enseñar como «Ninguno» */
+  __abrir([A, B, C]);
+  r.reabierto = document.getElementById("pg-mode").value + (__mixta("pg-mode") ? "+mixto" : "");
+  closeStyleDialog(false);
+  /* Sigue siendo un trazo con geometría: el clic derecho lo encuentra */
+  map.setView([40.45, -3.65], 11, { animate: false });
+  const ll = L.latLng(40.42, -3.62);
+  r.clicDerecho = layerHitTest(nodeLayer(A), ll, map.latLngToContainerPoint(ll));
+  /* Ida y vuelta por GeoJSON y KML: la combinación sobrevive */
+  const gj = JSON.parse(recordsToGeoJson(serializeNode(A)).text);
+  r.geojson = polygonModeOf(geojsonStyle(gj.features[0].properties));
+  const kml = recordsToKml(serializeNode(A)).text;
+  r.kml = /<fill>0<\/fill><outline>0<\/outline>/.test(kml);
+  return r;
+});
+ok(ninguno.opciones === "both:Contorno y relleno,stroke:Solo contorno,fill:Solo relleno,none:Ninguno",
+  "el selector ofrece cuatro opciones, «Ninguno» la última: " + ninguno.opciones);
+ok(ninguno.vivo === "false,false|false,false|false,false" && ninguno.rotulos === "Zona A,Zona B,Zona C",
+  "«Ninguno» + nombre siempre: las TRES capas quedan sin contorno ni relleno, en vivo, y solo con su nombre: " + JSON.stringify([ninguno.vivo, ninguno.rotulos]));
+ok(ninguno.cancelado === "true,true|true,true|true,true" && ninguno.sinRotulos === ",,", "Cancelar devuelve las tres: " + JSON.stringify([ninguno.cancelado, ninguno.sinRotulos]));
+ok(ninguno.aceptado === "none,none,none" && ninguno.pintadoAceptado === "false,false|false,false|false,false" && ninguno.rotulosAceptados === "Zona A,Zona B,Zona C",
+  "Aceptar las deja así: " + JSON.stringify([ninguno.aceptado, ninguno.pintadoAceptado]));
+ok(ninguno.guardado === "false,false|false,false|false,false", "y lo guardado es stroke:false, fill:false en cada una: " + ninguno.guardado);
+ok(ninguno.reabierto === "none", "el diálogo las vuelve a enseñar como «Ninguno», sin mezcla: " + ninguno.reabierto);
+ok(ninguno.clicDerecho === true, "un polígono sin dibujar se sigue encontrando con el clic derecho (la geometría no mira el estilo)");
+ok(ninguno.geojson === "none" && ninguno.kml, "y exportar a GeoJSON y a KML conserva «Ninguno»: " + JSON.stringify([ninguno.geojson, ninguno.kml]));
+
+/* Cancelar devuelve lo PREVISUALIZADO aunque el estilo importado no traiga la clave:
+   `setStyle` solo añade, así que sin los valores por defecto de Leaflet el contorno
+   y su opacidad se quedaban como la vista previa los dejó (applyPolygonStyle). */
+const cancelar = await page.evaluate(async () => {
+  const frames = () => new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));
+  const ul = __limpiar();
+  const P = __poly(ul, "Zona P", { color: "#ff0000", weight: 2, fillOpacity: 0.35 });
+  const o = () => { const p = nodeLayer(P).getLayers()[0].options; return [p.stroke, p.fill, p.opacity, p.fillColor || "-"].join(); };
+  const r = { antes: o() };
+  __abrir([P]);
+  __tocar("pg-mode", "fill");
+  __tocar("pg-opacity", "0.3");
+  await frames();
+  r.vivo = o();
+  closeStyleDialog(false);
+  await frames();
+  r.despues = o();
+  return r;
+});
+ok(cancelar.antes === "true,true,1,-" && cancelar.vivo === "false,true,0.3,#ff0000" && cancelar.despues === cancelar.antes,
+  "Cancelar devuelve el contorno y su opacidad a un polígono con estilo importado: " + JSON.stringify(cancelar));
+
+/* Modos MEZCLADOS: sin tocar el selector cada una conserva el suyo; tocarlo las iguala */
+const mezcla = await page.evaluate(async () => {
+  const frames = () => new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));
+  const modo = li => polygonModeOf(li._style);
+  const ul = __limpiar();
+  const base = { color: "#ff0000", weight: 2, fillColor: "#ff0000", fillOpacity: 0.35 };
+  const A = __poly(ul, "Zona A", { ...base });
+  const B = __poly(ul, "Zona B", { ...base, stroke: false });
+  const C = __poly(ul, "Zona C", { ...base, fill: false });
+  const D = __poly(ul, "Zona D", { ...base, stroke: false, fill: false });
+  const r = { antes: [A, B, C, D].map(modo).join() };
+  __abrir([A, B, C, D]);
+  r.mixto = __mixta("pg-mode");
+  __tocar("pg-text-always", true);          /* solo el nombre */
+  document.getElementById("style-accept").click();
+  await frames();
+  r.sinTocar = [A, B, C, D].map(modo).join();
+  r.nombres = [A, B, C, D].map(__tip).join();
+  __abrir([A, B, C, D]);
+  __tocar("pg-mode", "none");               /* ahora sí */
+  document.getElementById("style-accept").click();
+  await frames();
+  r.tocado = [A, B, C, D].map(modo).join();
+  return r;
+});
+ok(mezcla.antes === "both,fill,stroke,none" && mezcla.mixto, "cuatro modos distintos: el diálogo marca «(varios)»: " + JSON.stringify(mezcla));
+ok(mezcla.sinTocar === "both,fill,stroke,none" && mezcla.nombres === "Zona A,Zona B,Zona C,Zona D",
+  "cambiar solo el nombre NO iguala el modo de ninguna: " + JSON.stringify([mezcla.sinTocar, mezcla.nombres]));
+ok(mezcla.tocado === "none,none,none,none", "tocar el selector las iguala a todas: " + mezcla.tocado);
+
+/* Una línea abierta no admite «Ninguno» (gris), un polígono sí */
+const abierta = await page.evaluate(() => {
+  const ul = __limpiar();
+  const capa = L.geoJSON({ type: "Feature", properties: {}, geometry: { type: "LineString", coordinates: [[-3.7, 40.4], [-3.6, 40.5]] } }, { style: { color: "#00f", weight: 2 } });
+  capa.addTo(rootGroup);
+  const li = makeNode({ name: "Línea", layer: capa, style: { color: "#00f", weight: 2 } });
+  ul.appendChild(li);
+  __abrir([li]);
+  const sel = document.getElementById("pg-mode");
+  const r = { valor: sel.value, gris: [...sel.options].map(o => o.value + (o.disabled ? ":gris" : ":libre")).join() };
+  closeStyleDialog(false);
+  const P = __poly(ul, "Polígono", { color: "#f00", weight: 2 });
+  __abrir([P]);
+  r.poligono = [...document.getElementById("pg-mode").options].map(o => o.disabled ? "x" : "ok").join();
+  closeStyleDialog(false);
+  return r;
+});
+ok(abierta.valor === "stroke" && abierta.gris === "both:gris,stroke:libre,fill:gris,none:gris", "una línea abierta solo admite «Solo contorno»: «Ninguno» sale en gris: " + JSON.stringify(abierta));
+ok(abierta.poligono === "ok,ok,ok,ok", "un polígono cerrado tiene las cuatro libres");
+
 ok(errors.length === 0, "sin errores de página: " + JSON.stringify(errors));
 
 await browser.close();

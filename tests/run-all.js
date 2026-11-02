@@ -19,9 +19,14 @@ const SUITES = [
   ["daynight.js",   "Iluminación día/noche: punto subsolar y elevación solar en fechas y puntos de referencia"],
   ["coordfmt.js",   "Formato de coordenadas: decimal, GMS con espacios y GMS compacto"],
   ["elevtest.js",   "Elevaciones: catálogo de fuentes WCS por conjunto de datos, reintentos, ASCII o GeoTIFF, rejilla, unidades y cálculo del perfil"],
+  ["docs.js", "Documentación: recuentos de suites, versiones, figuras, anclas y manifiesto de capturas; servidores del código frente al Anexo A del estudio y su política de contenido; atajos de la chuleta, menú contextual y ventanas frente al manual; y tests/README.md frente a run-all.js"],
+  ["arcgistest.js", "Servicios ArcGIS (MapServer): direcciones pegadas, catálogo real de ENAIRE, grupos y ciclos, extent, caja de tesela, URL de /export, ids de show:, registros ajenos y datos de una capa (/query: ficha real, recuento y páginas)"],
+  ["cadastretest.js", "Parcela catastral: direcciones y referencia validada, RCCOOR y GetParcel reales, agujeros y varias partes, Latin-1, excepciones OGC, entradas hostiles y lectura con tope"],
   ["pnoahisttest.js", "PNOA histórico: descubrimiento de capas del WMS del IGN"],
   ["copernicustest.js", "Copernicus DEM: instance ID de Sentinel Hub y sus capas"],
-  ["customtiles.js", "Custom Maps: validación de la URL del servidor, normalización y plantilla XYZ"],
+  ["customtiles.js", "Custom Tile Map Service: validación de la URL del servidor, normalización y plantilla XYZ"],
+  ["tilediag.js", "Teselas de un servidor propio con error: qué dijo el servidor en lugar de la imagen"],
+  ["customwms.js", "Custom Web Map Service: dirección, GetCapabilities y capas del servidor del usuario"],
   ["navtest.js",    "Navegación del árbol y selección por rangos"],
   ["a11ytreetest.js", "Accesibilidad del árbol: role=group del <ul> raíz, aria-label de las casillas"],
   ["selcorrect.js", "Selección: cursor y nodos de nivel superior"],
@@ -29,6 +34,8 @@ const SUITES = [
   ["placemarklayertest.js", "buildPlacemarkLayer: un placemark sin geometría útil cuenta una sola vez; PolyStyle.outline no oculta una línea sin polígono"],
   ["newfeat.js",    "Saneado de fichas, Ctrl+A y zonas de arrastre"],
   ["topojsontest.js",     "Conversión de TopoJSON a GeoJSON"],
+  ["cogtest.js",          "Ortofotos COG: sistemas admitidos, GeoKeys, nivel y ventana, reparto de la tesela (máscara, nodata, alfa), modelos de elevación (rampa, sombreado, rango), blobs huérfanos y registros ajenos"],
+  ["shptest.js",          "Shapefile: agrupar piezas, codificación del .dbf, sin .prj, datum ED50 y reproyección en su sitio"],
   ["groundoverlaytest.js","GroundOverlay: LatLonBox y resolución de assets del KMZ"],
   ["bytesfmt.js",         "Formato de tamaños: bytes/KB/MB/GB"],
   ["reordertest.js",      "Orden de pintado: bringLayerToFront por tipo, reorderPaintOrder por árbol"],
@@ -41,14 +48,18 @@ const SUITES = [
   ["naming.js", "Autonumerado de formas dibujadas y mediciones"],
   ["measure.js", "Mediciones: estilo propio, medidas del diálogo, ruta multi-waypoint y renombrado sin perder la medida"],
   ["schemaupgrade.js", "Subida silenciosa de TREE_SCHEMA v6 a v7: measure.a/b a measure.waypoints"],
+  ["splitsave.js", "Guardado en dos niveles: esqueleto y segmentos, ida y vuelta exacta, solo lo cambiado, copias compartidas, auto-reparación, lo que falta, y qué fundir al arrancar"],
   ["vertexedit.js", "Edición interactiva de vértices de un polígono: arrastrar, borrar, mínimo por anillo, tope"],
   ["icons.js", "Iconos MDI empotrados: catálogo y tabla sincronizados, sin red en ejecución"],
   ["boot.js", "Arranque: el panel no concluye «no hay capas» antes de leer IndexedDB"],
   ["attribution.js", "Línea inferior del visor: versión, enlace al repositorio y escala"],
+  ["xmllookup.js", "Búsquedas por nombre local en el XML: mismos resultados que antes y sin el recorrido de todos los descendientes por búsqueda vacía"],
+  ["offline.js", "Uso sin conexión: qué guarda y qué deja pasar el service worker, qué acepta de la lista de la página, red primero con tope para el HTML y caché primero para las librerías, y la lista que manda la página sobre el HTML entregado"],
+  ["lazylibs.js", "Librerías bajo demanda: mismo origen, versión y SRI, nadie usa el global sin ensureLib, una sola carga y un fallo que no se queda pegado"],
   ["minified.js", "kitelocal.min.html: el minificado que sirve Pages no viene roto del proceso"],
-  ["statics.js", "Comprobaciones estáticas: sin bytes NUL, todo id referido existe, toda función llamada está declarada y los diálogos de un solo botón lo llevan arriba a la derecha"],
+  ["statics.js", "Comprobaciones estáticas: sin bytes NUL, todo id referido existe, toda función llamada está declarada, ningún nombre declarado dos veces y los diálogos de un solo botón lo llevan arriba a la derecha"],
   ["tristate.js", "Tercer estado de la casilla: indeterminada cuando la carpeta está a medias"],
-  ["urlimport.js", "Reconocer lo descargado de una URL: nombre, tipo por contenido y extensión sintetizada"],
+  ["urlimport.js", "Reconocer lo descargado de una URL: nombre, tipo por contenido (KMZ o shapefile en zip) y extensión sintetizada"],
   ["multiedit.js", "Edición en bloque: qué se aplica a todos cuando los nodos no coinciden"],
   ["usage.js", "Pie del panel: la línea de memoria se esconde si no hay cifra que dar"],
   ["clipboard.js", "Portapapeles del sistema: copiar y pegar entre instancias de distinto dominio"],
@@ -58,7 +69,15 @@ const SUITES = [
   ["geocalc.js",          "Calculadora geodésica: elevación, cono, corrección por presión (ISA) y vector GPS, con su validación"],
   ["toolstest.js",        "showLayerInfo/setTool: el panel de información no se cuela ni queda pegado al salir de una herramienta de dibujo"],
   ["rotation.js",         "Rotación del mapa: ángulo de la brújula, giro con el botón central, recorte de la retícula y arrastre limitado al mundo con el mapa girado; giro, transform y caja envolvente del código incorporado, y versión de Leaflet fijada"],
-  ["view-keys.js",        "Teclado y rueda del visor: velocidad de las flechas mantenidas, dirección combinada y nivel final del zoom continuo (teclas y rueda)"]
+  ["profileexport.js", "Exportar el perfil de ruta a CSV: una fila por distancia de cualquier serie, huecos vacíos, unidades de la gráfica, posición de cada punto y sin notación científica"],
+  ["attrstyle.js", "Estilo por atributo: paletas, rampa, rupturas (iguales y cuantiles), categorías con «Otros» y «sin valor», graduado, y el estilo de un marcador"],
+  ["attrtable.js", "Tabla de atributos: columnas, orden (numérico, texto, vacíos al final), filtro, CSV con defensa de fórmulas, filas de carpetas sin desplegar y lectura de <ExtendedData> de KML"],
+  ["viewlink.js", "Enlace a la vista: construir y leer #map=…, qué mapas base viajan, ida y vuelta, giro normalizado y entrada hostil rechazada"],
+  ["rings.js", "Anillos de alcance y sectores: vértices a su radio, sentido horario y apertura por el norte, coronas, radiales, antimeridiano, lista de radios y tope de anillos"],
+  ["gpxtest.js", "Importar GPX: waypoints, rutas y tracks de varios segmentos, altitud y tiempos, GPX 1.0 y 1.1, con prefijo, entradas hostiles, ajuste de redondeo avisado y cota de puntos"],
+  ["exportformats.js",   "Exportar a KML y GeoJSON: registros a texto, estilos, altitud, mediciones, ida y vuelta por el importador y lo que se deja fuera"],
+  ["view-keys.js",        "Teclado y rueda del visor: velocidad de las flechas mantenidas, dirección combinada y nivel final del zoom continuo (teclas y rueda)"],
+  ["i18n.js",             "Idiomas de la interfaz: cada texto con su traducción al inglés y marcadores iguales, ningún literal en español fuera de tr(), diccionarios en el manifiesto, y el motor (respaldo inglés → español, plurales, contexto, «Automático»)"]
 ];
 const BENCH = [["selbench.js", "Coste de seleccionar y de topLevelSelection"]];
 
@@ -74,7 +93,9 @@ const BROWSER = [
   ["browser/sun-times-info.mjs", "Navegador: horas del sol y crepúsculos en la ficha de un marcador con la iluminación real activa"],
   ["browser/geojson-name.mjs", "Navegador: nombre de GeoJSON con varias claves, selección guardada sin preguntar, cancelar y cambiarla desde Propiedades"],
   ["browser/geojson-html.mjs", "Navegador: etiquetas tipo HTML en properties de GeoJSON, de punta a punta"],
+  ["browser/seam-outline.mjs", "Navegador: polígonos de solo relleno sin costura ni contorno entre ellos (tandas compuestas con la opacidad una sola vez), coste acotado y opacidad del contorno en Propiedades, sin tocar lo guardado"],
   ["browser/dialogs.mjs", "Navegador: las ventanas fijan cabecera y pie, y se redimensionan"],
+  ["browser/split-save.mjs", "Navegador: guardado en dos niveles — plegar, marcar y borrar solo reescriben el esqueleto; disco = memoria tras borrar, mover, ordenar, cortar, pegar, editar una copia, deshacer y 200 operaciones aleatorias; fusión al arrancar, archivo soltado al arrancar, dos pestañas y subida desde la base v4"],
   ["browser/tree-move.mjs", "Navegador: mover un nodo de rama recalcula la casilla de los dos extremos"],
   ["browser/multiedit.mjs", "Navegador: editar varios nodos a la vez y el nombre siempre a la vista de un trazo"],
   ["browser/live-preview.mjs", "Navegador: el diálogo de estilos aplica en vivo tamaño, icono y color, y Cancelar los revierte"],
@@ -84,7 +105,16 @@ const BROWSER = [
   ["browser/context-menu.mjs", "Navegador: menú contextual del visor — «Editar propiedades» abre el diálogo de propiedades (Estilos y Atributos)"],
   ["browser/route-live-draw.mjs", "Navegador: crear una ruta se comporta como editarla, con su diálogo abierto y en vivo desde el 2º waypoint"],
   ["browser/props-panel.mjs", "Navegador: panel Propiedades — unidad y formato de coordenadas globales, con Cancelar/Aceptar de verdad"],
+  ["browser/perf-markers.mjs", "Navegador: índice de oyentes de Leaflet — mismo comportamiento con y sin el parche, trabajo y tiempo al añadir miles de marcadores"],
+  ["browser/offline.mjs", "Navegador: uso sin conexión — el worker guarda las librerías y la página, recargar sin red arranca con el árbol guardado y las librerías bajo demanda, una red colgada saca la copia, y con red se ve la versión nueva"],
+  ["browser/lazy-libs.mjs", "Navegador: html2canvas, geotiff.js y proj4 bajo demanda — el arranque ya no las descarga, una sola petición, el SRI sigue bloqueando y el PNG funciona"],
+  ["browser/mobile-notice.mjs", "Navegador: aviso al abrir desde un móvil — «Continuar» deja solo el mapa, el panel cabe y su flecha es alcanzable, se recuerda, y no lo reciben una tableta ni un escritorio estrecho"],
+  ["browser/theme.mjs", "Navegador: tema de la interfaz — automático según el sistema, claro/oscuro forzados, Cancelar/Aceptar y recarga, sin tocar el mapa"],
+  ["browser/arcgis.mjs", "Navegador: servicios ArcGIS (MapServer) como nodo del árbol — alta desde 🔗 leyendo solo el catálogo, filas por capa, layers=show de lo marcado con un solo redibujado, caja de cada tesela frente a Leaflet (también girado), opacidad, «Traer como datos» (páginas, etiquetas HTML, errores, reintento, tope y cancelación), recarga sin catálogo, borrar y deshacer, lo ajeno llega apagado y un servicio que falla se ve"],
+  ["browser/custom-wms.mjs", "Navegador: mapas base propios — Custom Tile Map Service renombrada y Custom Web Map Service con su GetCapabilities, capas, versión del servidor, recarga y errores"],
   ["browser/url-import.mjs", "Navegador: añadir desde una dirección, en dos pasos y con cancelación"],
+  ["browser/cog.mjs", "Navegador: ortofotos COG — UTM 30N y Web Mercator en su sitio, vista general, malla frente a proj4, giro, opacidad, MDT con altitud bajo el cursor, recargar, deshacer, limpieza de blobs y subida de la base v3"],
+  ["browser/shp-import.mjs", "Navegador: shapefiles — piezas sueltas, .zip y 🔗, EPSG:25830 en su sitio, codificación, ED50 y huérfanos"],
   ["browser/oneworld.mjs", "Navegador: una sola Tierra — sin copias en horizontal, con tope de arrastre y suelo de zoom"],
   ["browser/undo-create.mjs", "Navegador: crear un marcador, un polígono o una medición se puede deshacer y rehacer"],
   ["browser/arc-draw.mjs", "Navegador: medir un arco — centro, inicio y recorrido del perímetro, guardado como ruta de N tramos"],
@@ -93,7 +123,18 @@ const BROWSER = [
   ["browser/keyboard-nav.mjs", "Navegador: teclado y rueda del visor — flechas, Re/Av Pág y rueda continuos, y el foco que se queda en el visor"],
   ["browser/elev-sources.mjs", "Navegador: fuentes de elevación en Propiedades y consulta puntual desde el menú contextual — carpeta por sesión, unidad de altitud, GeoTIFF, MDT25, reintentos y descubrimiento una vez por sesión"],
   ["browser/elev-profile.mjs", "Navegador: perfil de una ruta — MDT y MDS por trozos, dos curvas, lectura con MDS−MDT, × arriba a la derecha, registro de la descarga, «Mostrar perfil» sin red, flecha en el mapa, zoom de cada eje, bloqueo del eje Y, solo segmentos rectos, malla común con la consulta puntual, clic derecho con el perfil debajo, huecos y cancelar"],
-  ["browser/geocalc.mjs", "Navegador: calculadora geodésica — dos pestañas que se recalculan solas, presión, unidades que convierten, sin crecer y no modal"]
+  ["browser/cadastre.mjs", "Navegador: parcela catastral desde el menú contextual — capa y ficha, dos peticiones simples, repetir no pide el polígono, sin parcela, excepción OGC sin reintentos, 503 reintentado con cursor de espera, deshacer, recargar y atribución"],
+  ["browser/geocalc.mjs", "Navegador: calculadora geodésica — dos pestañas que se recalculan solas, presión, unidades que convierten, sin crecer y no modal"],
+  ["browser/attr-style.mjs", "Navegador: estilo por atributo — categorías y graduado desde la tabla de una carpeta cerrada, vista previa en vivo, Cancelar y Escape lo devuelven todo, Aceptar sin desplegar con deshacer y recarga, y marcadores"],
+  ["browser/attr-table.mjs", "Navegador: tabla de atributos de una carpeta — <ExtendedData> de KML, sin desplegar la carpeta, filtro, orden numérico, CSV real con defensa de fórmulas, ir a una capa, recargar y 5 000 capas con solo las filas visibles"],
+  ["browser/view-link.mjs", "Navegador: enlaces a la vista — abrir #map=… manda sobre lo guardado y se quita de la dirección, copiarlo con el portapapeles real, abrirlo en otra pestaña, pegarlo con la aplicación abierta y direcciones manipuladas"],
+  ["browser/rings.mjs", "Navegador: anillos de alcance y sectores desde «Crear» — el centro es el punto pulsado, vista previa en vivo, entradas inválidas con su motivo, Cancelar y Escape sin dejar nada, carpeta de anillos a su radio, deshacer, sector entre azimuts, y recargar (también cruzando el antimeridiano)"],
+  ["browser/gpx-import.mjs", "Navegador: importar un GPX — waypoints, ruta y track con su <name> sin selector, altitud y tiempos, la pregunta de las etiquetas HTML y el fallo limpio de lo que no es un GPX"],
+  ["browser/export-menu.mjs", "Navegador: el menú de 💾 — se abre y se cierra (Escape, clic fuera, segunda pulsación), exporta KML, GeoJSON y .kite.json con descarga real, sin desplegar la carpeta, y el KML vuelve a importarse"],
+  ["browser/restore-db.mjs", "Navegador: Propiedades › Restaurar — la pestaña y su botón solo abren una segunda confirmación, Cancelar, la × y Escape no borran nada (y Escape no cierra Propiedades), la guardia impide que un guardado recree la base, y «Borrar todo» recarga con la base vacía conservando el idioma"],
+  ["browser/app-sections.mjs", "Navegador: las secciones que crea la aplicación (Marcadores, Mediciones…) van en azul pastel, distinto de un archivo y de una fila con el ratón encima, en claro y oscuro; se guardan como sec, sobreviven a recargar, un árbol anterior las recibe al usarlas y sec ajeno solo vale como true exacto en un archivo"],
+  ["browser/focus-zoom.mjs", "Navegador: la lupa de un marcador centra el visor y acerca al zoom 14, siempre igual, y un polígono se encuadra entero sin ese zoom"],
+  ["browser/i18n.mjs", "Navegador: idioma de la interfaz — «Automático» según el navegador, español e inglés sin español colado, el ajuste de Propiedades (guarda al Aceptar, vale al recargar) y un idioma nuevo sin tocar código"]
 ];
 
 const html = path.join(__dirname, "..", "kitelocal.html");
@@ -124,10 +165,11 @@ if (missing.length) {
    enmascara justo este error. La comparación es por CONTENIDO, nunca
    por fecha: los mtime no sobreviven a un `git checkout`.
    Cubre también kitelocal.min.html, la derivada que sirve Pages: es el
-   artefacto que nadie mira, así que es justo el que se queda atrás.  */
+   artefacto que nadie mira, así que es justo el que se queda atrás. Y
+   sw.js (el service worker del uso sin conexión), copia de src/sw.js.  */
 try {
   execFileSync(process.execPath, [path.join(__dirname, "..", "build.js"), "--check"], { stdio: "pipe" });
-  console.log("✓ kitelocal.html y kitelocal.min.html están al día respecto de src/");
+  console.log("✓ kitelocal.html, kitelocal.min.html y sw.js están al día respecto de src/");
 } catch (e) {
   console.error((e.stdout || "") + (e.stderr || ""));
   process.exit(1);

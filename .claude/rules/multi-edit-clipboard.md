@@ -34,8 +34,11 @@ paths:
 - **Un campo vacío no es un valor** (`numOr`): leerlo como 0 o por
   defecto metería en el borrador algo que nadie escribió.
 - **`pg-mode` vale por DOS propiedades** (`stroke` y `fill`): se
-  aplican juntas o ninguna — "ni contorno ni relleno" no es una
-  combinación que el selector ofrezca.
+  aplican juntas o ninguna. Hay cuatro modos: «Contorno y relleno»,
+  «Solo contorno», «Solo relleno» y «Ninguno» (`stroke:false,
+  fill:false`, para ver solo los nombres); con el modo MEZCLADO y sin
+  tocar el selector, cada nodo conserva el suyo (cambiar solo
+  «Mostrar el nombre siempre» no iguala nada).
 - **Portapapeles interno**: guarda los registros de `serializeNode`;
   pegar reconstruye con `buildFromNodes`. Cortar no borra hasta que se
   pega (Escape cancela); pegar entra en la carpeta del cursor si está
@@ -83,6 +86,10 @@ paths:
   pulsación, vía menú del navegador).
 - Ctrl+V sigue pegando el interno desde cualquier sitio fuera de campos
   de texto; acotar al árbol es solo para lo que llega de FUERA.
+- **Las ortofotos COG no van al portapapeles del sistema**
+  (`withoutCogNodes` en `copyToSystemClipboard`, con aviso que las
+  nombra): sus bytes viven en el almacén de ESTA instancia. El interno
+  sí las lleva (comparten el mismo blob). Ver `cog.md`.
 - **Tope de tamaño** (`CLIPBOARD_MAX`, 5 MB de texto): por encima se
   avisa y se sigue (el interno aún funciona), remitiendo al botón 💾.
   Un `writeText` rechazado se captura sin tumbar el copiado interno.

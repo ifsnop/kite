@@ -148,7 +148,7 @@ function parseOwsException(txt) {
   const code = firstByTag(doc, "Exception");
   return {
     code: (code && code.getAttribute("exceptionCode")) || "",
-    msg: el ? el.textContent.trim() : "error del servicio"
+    msg: el ? el.textContent.trim() : tr("error del servicio")
   };
 }
 
@@ -236,11 +236,11 @@ function gridFromRaster({ width, height, origin, resolution, data, nodata }) {
   };
 }
 
-/* GeoTIFF → rejilla, con geotiff.js (CDN, ver src/index.html). Sin
+/* GeoTIFF → rejilla, con geotiff.js (CDN, bajo demanda: 07-lazy-libs.js). Sin
    Pool de workers: decodificar unas pocas celdas no lo justifica, y la
    CSP (default-src 'none') bloquearía sus workers de `blob:`.         */
 async function readGeoTiffGrid(buf) {
-  if (typeof GeoTIFF === "undefined") throw new Error("no se pudo cargar el lector GeoTIFF");
+  await ensureLib("geotiff"); /* bajo demanda, ver 07-lazy-libs.js */
   const tiff = await GeoTIFF.fromArrayBuffer(buf);
   const image = await tiff.getImage();
   const data = await image.readRasters({ interleave: true, samples: [0] });
@@ -270,7 +270,7 @@ const fmtTraceBytes = n => n < 1024 ? `${n} B`
   : n < 1024 * 1024 ? `${(n / 1024).toFixed(1)} kB` : `${(n / 1024 / 1024).toFixed(1)} MB`;
 
 function describeTraceGrid(grid) {
-  if (!grid) return "la respuesta no es una rejilla de alturas legible";
+  if (!grid) return tr("la respuesta no es una rejilla de alturas legible");
   let empty = 0, lo = Infinity, hi = -Infinity;
   for (const row of grid.values) {
     for (const v of row) {
@@ -281,22 +281,24 @@ function describeTraceGrid(grid) {
   /* con dx/dy separados, iguales salvo por el último decimal: una sola cifra */
   const cx = `${+grid.cellX.toPrecision(6)}`, cy = `${+grid.cellY.toPrecision(6)}`;
   const cell = cx === cy ? cx : `${cx} × ${cy}`;
-  const range = lo <= hi ? ` · alturas ${lo.toFixed(1)}–${hi.toFixed(1)} m` : "";
-  return `rejilla de ${grid.cols} × ${grid.rows} celdas de ${cell} · ${empty} sin dato${range}`
-    + (grid.located ? "" : " · sin esquina: no se puede situar");
+  const parts = [tr("rejilla de {cols} × {rows} celdas de {cell}", { cols: grid.cols, rows: grid.rows, cell }),
+    tr("{n} sin dato", { n: empty })];
+  if (lo <= hi) parts.push(tr("alturas {lo}–{hi} m", { lo: lo.toFixed(1), hi: hi.toFixed(1) }));
+  if (!grid.located) parts.push(tr("sin esquina: no se puede situar"));
+  return parts.join(" · ");
 }
 
 /* Un intento fallido; `attempt` cuenta desde 0. Dice si se reintenta y
    cuándo, con los mismos criterios que withElevRetries.             */
 function describeTraceError(err, attempt, timeoutMs) {
-  const why = err.name === "TimeoutError" ? `sin respuesta en ${Math.round(timeoutMs / 1000)} s`
-    : err.name === "AbortError" ? "cancelada"
-    : err.name === "TypeError" ? "error de red, o el servicio no admite consultas desde el navegador (CORS)"
-    : err.owsCode ? `excepción del servicio ${err.owsCode}: ${err.message}`
-    : err.status ? `HTTP ${err.status}: ${err.message}` : err.message;
-  const out = isOutOfCoverage(err) ? " (fuera de cobertura: no es un error)" : "";
+  const why = err.name === "TimeoutError" ? tr("sin respuesta en {seconds} s", { seconds: Math.round(timeoutMs / 1000) })
+    : err.name === "AbortError" ? tr("cancelada")
+    : err.name === "TypeError" ? netFailText(tr("error de red, o el servicio no admite consultas desde el navegador (CORS)"))
+    : err.owsCode ? tr("excepción del servicio {code}: {message}", { code: err.owsCode, message: err.message })
+    : err.status ? tr("HTTP {status}: {message}", { status: err.status, message: err.message }) : err.message;
+  const out = isOutOfCoverage(err) ? " " + tr("(fuera de cobertura: no es un error)") : "";
   const again = attempt < ELEV_RETRIES && isRetryableElevError(err)
-    ? ` · se reintenta en ${ELEV_RETRY_DELAYS[Math.min(attempt, ELEV_RETRY_DELAYS.length - 1)] / 1000} s` : "";
+    ? " · " + tr("se reintenta en {seconds} s", { seconds: ELEV_RETRY_DELAYS[Math.min(attempt, ELEV_RETRY_DELAYS.length - 1)] / 1000 }) : "";
   return why + out + again;
 }
 
@@ -399,12 +401,12 @@ function makeElevationSource(source) {
     const u = url(params, extra);
     return withElevRetries(async attempt => {
       const t0 = performance.now();
-      if (trace) trace("req", `${params.request}, intento ${attempt + 1}: ${u}`);
+      if (trace) trace("req", tr("{request}, intento {n}: {url}", { request: params.request, n: attempt + 1, url: u }));
       try {
         const r = await fetch(u, { signal: elevAttemptSignal(timeout, signal) });
         const type = r.headers.get("content-type") || "";
-        const got = bytes => trace && trace("res", `HTTP ${r.status} · ${type || "sin tipo"} · `
-          + `${fmtTraceBytes(bytes)} · ${Math.round(performance.now() - t0)} ms`);
+        const got = bytes => trace && trace("res", tr("HTTP {status} · {type} · {size} · {ms} ms",
+          { status: r.status, type: type || tr("sin tipo"), size: fmtTraceBytes(bytes), ms: Math.round(performance.now() - t0) }));
         const xml = /xml|text\/plain/i.test(type);
         if (binary && r.ok && !xml) {
           const buf = await r.arrayBuffer();
@@ -439,25 +441,25 @@ function makeElevationSource(source) {
      en marcha para otro), se dice lo elegido.                       */
   function discover(trace = null) {
     if (config || discovering) {
-      if (trace) trace("info", config ? `descubrimiento ya hecho en esta sesión: ${describeElevChoice(source, config)}`
-        : "descubrimiento en marcha para otra consulta: se espera");
+      if (trace) trace("info", config ? tr("descubrimiento ya hecho en esta sesión: {choice}", { choice: describeElevChoice(source, config) })
+        : tr("descubrimiento en marcha para otra consulta: se espera"));
       return config ? Promise.resolve(config) : discovering;
     }
     discovering = (async () => {
       const caps = parseWcsCapabilities(await request({ request: "GetCapabilities" }, { trace }));
-      if (!caps) throw new Error(`${label}: el servicio no declara coberturas`);
+      if (!caps) throw new Error(tr("{label}: el servicio no declara coberturas", { label }));
       const candidates = pickCoverage(caps.coverages).slice(0, ELEV_MAX_CANDIDATES);
-      if (!candidates.length) throw new Error(`${label}: sin cobertura utilizable`);
+      if (!candidates.length) throw new Error(tr("{label}: sin cobertura utilizable", { label }));
       const format = pickElevFormat(caps.formats.length ? caps.formats
         : ["ArcGrid", "application/asc"]);
-      if (!format) throw new Error(`${label}: no ofrece rejilla ASCII ni GeoTIFF`);
+      if (!format) throw new Error(tr("{label}: no ofrece rejilla ASCII ni GeoTIFF", { label }));
       /* Todas las candidatas a la vez: es una espera, no varias */
-      if (trace) trace("info", `coberturas candidatas: ${candidates.join(", ")} · formato ${format.name}`);
+      if (trace) trace("info", tr("coberturas candidatas: {list} · formato {name}", { list: candidates.join(", "), name: format.name }));
       const described = await Promise.all(candidates.map(id =>
         request({ request: "DescribeCoverage", coverageId: id }, { trace })
           .then(parseCoverageDescription, () => null)));
       const best = pickFinestCoverage(candidates.map((id, i) => ({ id, desc: described[i] })));
-      if (!best) throw new Error(`${label}: no se pudo leer la descripción`);
+      if (!best) throw new Error(tr("{label}: no se pudo leer la descripción", { label }));
       config = {
         coverageId: best.id, format,
         webCrs: pickWebMercator(caps.crs),
@@ -472,7 +474,7 @@ function makeElevationSource(source) {
          sigue igual —la cobertura sí existe—, pero se avisa: el nombre
          que llevan las capas podría no corresponder ya a lo descargado. */
       if (caps.datasets.length && !caps.datasets.includes(source.dataset)) {
-        navMessage(`${label}: el servicio ya no declara el conjunto de datos ${source.dataset}.`);
+        navMessage(tr("{label}: el servicio ya no declara el conjunto de datos {dataset}.", { label, dataset: source.dataset }));
       }
       return config;
     })().catch(err => { discovering = null; throw err; });
@@ -505,7 +507,7 @@ function makeElevationSource(source) {
     } catch (err) {
       if (!scaled || isOutOfCoverage(err) || isRetryableElevError(err) || err.name === "AbortError") throw err;
       cfg.scaleSize = false;
-      if (io.trace) io.trace("info", "el servicio no acepta scaleSize: se pide la caja tal cual (sin malla fija) el resto de la sesión");
+      if (io.trace) io.trace("info", tr("el servicio no acepta scaleSize: se pide la caja tal cual (sin malla fija) el resto de la sesión"));
       return fetchAligned(cfg, params, [axX, axY], box, null, digits, io);
     }
   }
@@ -524,7 +526,7 @@ function makeElevationSource(source) {
     } catch (err) {
       if (isOutOfCoverage(err) || isRetryableElevError(err) || err.name === "AbortError") throw err;
       cfg.useWeb = false;
-      if (io.trace) io.trace("info", "el servicio no acepta recortes en Web Mercator: se pasa a geográficas el resto de la sesión");
+      if (io.trace) io.trace("info", tr("el servicio no acepta recortes en Web Mercator: se pasa a geográficas el resto de la sesión"));
       return undefined;
     }
   }
@@ -542,7 +544,7 @@ function makeElevationSource(source) {
     } catch (err) {
       if (isOutOfCoverage(err) || isRetryableElevError(err) || err.name === "AbortError") throw err;
       cfg.useGeo = false;
-      if (io.trace) io.trace("info", "el servicio tampoco acepta recortes en geográficas");
+      if (io.trace) io.trace("info", tr("el servicio tampoco acepta recortes en geográficas"));
       return undefined;
     }
   }
@@ -626,11 +628,11 @@ function makeElevationSource(source) {
 
   /* Un fallo que ha agotado sus intentos, en palabras del usuario */
   const failText = err => {
-    const why = err.name === "TimeoutError" ? "el servicio no responde"
+    const why = err.name === "TimeoutError" ? tr("el servicio no responde")
       : err.name === "TypeError"
-        ? "el servicio no admite consultas desde el navegador (CORS) o no está disponible"
+        ? netFailText(tr("el servicio no admite consultas desde el navegador (CORS) o no está disponible"))
         : err.message;
-    return err.attempts > 1 ? `${why} (tras ${err.attempts} intentos)` : why;
+    return err.attempts > 1 ? tr("{why} (tras {attempts} intentos)", { why, attempts: err.attempts }) : why;
   };
 
   return {
@@ -644,7 +646,7 @@ function makeElevationSource(source) {
       const ek = emptyKey(lat, lon);
       if (ek && emptyAt.has(ek)) return null;
       if (!demRateOk()) {
-        demError("rate", "demasiadas consultas seguidas, espera un momento");
+        demError("rate", tr("demasiadas consultas seguidas, espera un momento"));
         return undefined;
       }
       try {
@@ -675,7 +677,7 @@ function makeElevationSource(source) {
       const cfg = await discover();
       const w = cfg.wgs84;
       if (w && (north < w.south || south > w.north || east < w.west || west > w.east)) {
-        if (trace) trace("info", "fuera de la cobertura que declara el servicio: no se pide");
+        if (trace) trace("info", tr("fuera de la cobertura que declara el servicio: no se pide"));
         return { grid: null };
       }
       await demRateWait(signal);
@@ -688,7 +690,7 @@ function makeElevationSource(source) {
         if (web !== undefined) return { grid: web };
         const geo = await fetchGeoBox(cfg, { west, south, east, north }, io);
         if (geo !== undefined) return { grid: geo };
-        return { grid: undefined, error: `${label}: el servicio no admite recortes en Web Mercator ni en geográficas` };
+        return { grid: undefined, error: tr("{label}: el servicio no admite recortes en Web Mercator ni en geográficas", { label }) };
       } catch (err) {
         if (isOutOfCoverage(err)) return { grid: null };
         if (signal && signal.aborted) throw err;
@@ -749,16 +751,16 @@ function pickFinestCoverage(described) {
 
 /* Lo elegido en el descubrimiento, en una línea para el registro de
    avisos. Pura, para probar el texto sin servicio.                  */
-const ELEV_KIND_LABEL = { mdt: "MDT (terreno)", mds: "MDS (superficie)" };
+const ELEV_KIND_LABEL = { mdt: tr("MDT (terreno)"), mds: tr("MDS (superficie)") };
 function describeElevChoice(source, cfg) {
   const fmt = cfg.format.kind === "ascii"
-    ? `${cfg.format.name} (rejilla ASCII)`
-    : `${cfg.format.name} (el servicio no ofrece rejilla ASCII)`;
+    ? tr("{name} (rejilla ASCII)", { name: cfg.format.name })
+    : tr("{name} (el servicio no ofrece rejilla ASCII)", { name: cfg.format.name });
   const cell = cfg.cellMeters > 0
-    ? `celda ≈ ${cfg.cellMeters < 10 ? cfg.cellMeters.toFixed(1) : Math.round(cfg.cellMeters)} m`
-    : "tamaño de celda no declarado";
-  return `${ELEV_KIND_LABEL[source.kind]} · ${source.label}: conjunto ${source.dataset}, cobertura ${cfg.coverageId}, `
-    + `formato ${fmt}, ${cell}.`;
+    ? tr("celda ≈ {m} m", { m: cfg.cellMeters < 10 ? cfg.cellMeters.toFixed(1) : Math.round(cfg.cellMeters) })
+    : tr("tamaño de celda no declarado");
+  return tr("{kind} · {label}: conjunto {dataset}, cobertura {coverage}, formato {format}, {cell}.",
+    { kind: ELEV_KIND_LABEL[source.kind], label: source.label, dataset: source.dataset, coverage: cfg.coverageId, format: fmt, cell });
 }
 
 /* El MDT del IGN se publica en varias mallas y sistemas:
@@ -808,25 +810,30 @@ const IGN_MDT_ATTRIB = dataset => `${dataset} PNOA © <a href="https://www.ign.e
    17-33 s en la primera petición a una zona (medido, octubre de 2026). */
 const ELEV_SOURCES = [
   {
-    id: "ign-mdt05", kind: "mdt", label: "IGN — MDT05 (España, 5 m)", dataset: "MDT05", provider: "IGN",
+    id: "ign-mdt05", kind: "mdt", label: tr("IGN — MDT05 (España, 5 m)"), dataset: "MDT05", provider: "IGN",
     base: IGN_MDT_BASE, pickCoverage: mdtCoverages(5), attrib: IGN_MDT_ATTRIB("MDT05")
   },
   {
-    id: "ign-mdt25", kind: "mdt", label: "IGN — MDT25 (España, 25 m)", dataset: "MDT25", provider: "IGN",
+    id: "ign-mdt25", kind: "mdt", label: tr("IGN — MDT25 (España, 25 m)"), dataset: "MDT25", provider: "IGN",
     base: IGN_MDT_BASE, pickCoverage: mdtCoverages(25), attrib: IGN_MDT_ATTRIB("MDT25")
   },
   {
-    id: "ign-mdt200", kind: "mdt", label: "IGN — MDT200 (España, 200 m)", dataset: "MDT200", provider: "IGN",
+    /* `coarse`: malla tan gruesa (200 m) que ni una ruta de 100 NM deja
+       más de ~900 celdas en el árbol; el límite de longitud de un perfil
+       (profileMaxM) existe para mallas finas y con ella como única fuente
+       no se aplica (profileLimitApplies, 63-route-profile.js).          */
+    id: "ign-mdt200", kind: "mdt", label: tr("IGN — MDT200 (España, 200 m)"), dataset: "MDT200", provider: "IGN",
+    coarse: true,
     base: IGN_MDT_BASE, pickCoverage: mdtCoverages(200), attrib: IGN_MDT_ATTRIB("MDT200")
   },
   {
-    id: "ign-mds", kind: "mds", label: "IGN — MDS (España, 5 m)", dataset: "MDS", provider: "IGN",
+    id: "ign-mds", kind: "mds", label: tr("IGN — MDS (España, 5 m)"), dataset: "MDS", provider: "IGN",
     base: "https://wcs-mds.idee.es/mds", pickCoverage: pickMdsCoverage,
     attrib: 'MDS PNOA © <a href="https://www.ign.es">IGN</a> (CC BY 4.0)'
   },
   {
     id: "dea-cop30", kind: "mds",
-    label: "Digital Earth Africa — Copernicus DEM 30 m (África, Canarias y sur peninsular)",
+    label: tr("Digital Earth Africa — Copernicus DEM 30 m (África, Canarias y sur peninsular)"),
     dataset: "COP-DEM GLO-30", provider: "Digital Earth Africa", timeout: 40000,
     base: "https://ows.digitalearth.africa/wcs", pickCoverage: pickDeaDemCoverage,
     attrib: 'Copernicus DEM © DLR e.V. 2010-2014 y © Airbus Defence and Space GmbH 2014-2018 '
@@ -918,6 +925,25 @@ function elevZoomBand(zoom) {
   return "full";
 }
 
+/* Las bandas de arriba y el tamaño de letra están medidos para celdas de
+   5 m (la malla de referencia). Una celda más gruesa (MDT25: 25 m; MDT200:
+   200 m; Copernicus: 30 m) mide el doble en píxeles cada nivel de zoom
+   antes, así que su texto cabe en un zoom MENOR: con la absoluta, una
+   celda de 200 m no mostraba nada hasta el 19 —donde ya mide unos 870 px
+   y su centro cae fuera de la pantalla— y el usuario la veía vacía aunque
+   el cuadro de coordenadas sí leyera su altura. `elevCellZoomUp` es
+   cuántos niveles se adelanta una celda: log2(metros / 5) por abajo,
+   con un cuarto de nivel de tolerancia (una de 5,004 m es de 5), y 0 para
+   las más finas (su comportamiento no cambia). Son metros de SUELO: la
+   altura de la celda en latitud, que no depende de la proyección.     */
+const ELEV_REF_CELL_M = 5;
+const METERS_PER_DEGREE_LAT = 111195;
+function elevCellZoomUp(cell) {
+  const m = (cell.ne[0] - cell.sw[0]) * METERS_PER_DEGREE_LAT;
+  if (!(m > ELEV_REF_CELL_M)) return 0;
+  return Math.max(0, Math.floor(Math.log2(m / ELEV_REF_CELL_M) + 0.25));
+}
+
 /* El aviso se decide siempre en METROS, con independencia de la unidad
    de visualización: es un umbral físico fijo, no una comodidad de
    pantalla.                                                          */
@@ -985,7 +1011,7 @@ function elevCellHtml(cell, band) {
    más de ELEV_ALERT_DIFF se colorea en rojo pastel; el resto de bandas
    siempre llevan el blanco translúcido de siempre.                   */
 function renderElevRect(rect, cell, zoom) {
-  const mini = elevZoomBand(zoom) === "mini";
+  const mini = elevZoomBand(zoom + elevCellZoomUp(cell)) === "mini";
   rect.setStyle({ fillColor: (mini && isElevAlert(cell)) ? GRID_ALERT_FILL : "#ffffff" });
 }
 
@@ -1006,14 +1032,18 @@ function cellIcon(html, font) {
    guarda cada capa.                                                  */
 function refreshElevCells() {
   const zoom = map.getZoom();
-  const band = elevZoomBand(zoom);
-  const font = gridFontSize(zoom);
   for (const g of elevGridGroups) {
     for (const rect of g._rects) {
       renderElevRect(rect, rect._cell, zoom);
-      if (rect._label) rect._label.setIcon(cellIcon(elevCellHtml(rect._cell, band), font));
+      if (rect._label) rect._label.setIcon(elevLabelIcon(rect._cell, zoom));
     }
   }
+}
+
+/* El icono de la cifra de una celda: banda y letra según su zoom EFECTIVO */
+function elevLabelIcon(cell, zoom) {
+  const z = zoom + elevCellZoomUp(cell);
+  return cellIcon(elevCellHtml(cell, elevZoomBand(z)), gridFontSize(z));
 }
 
 /* Las cifras son marcadores DOM, y Leaflet recoloca CADA UNO en cada
@@ -1026,21 +1056,42 @@ function refreshElevCells() {
    Con esto, el mismo perfil: 43-67 ms por paso de zoom (lo de los
    rectángulos) y 36 ms al pasar al zoom 20, antes 216-233 ms.        */
 const ELEV_LABEL_PAD = 0.25; /* margen alrededor de la vista, en fracción */
+/* Una celda mucho mayor que su cifra (MDT200 de cerca: cientos de
+   píxeles) puede tener el centro fuera de la pantalla y estar tapándola
+   entera: su cifra va entonces en el centro de lo que se VE de la celda
+   (`elevLabelAnchor`, pura) y se recoloca al moverse. Las pequeñas, en
+   su centro, como siempre.                                           */
+const ELEV_BIG_CELL_LABELS = 3; /* una celda es «grande» desde tantas cifras de ancho */
+function elevLabelAnchor(cell, plain, padded, big) {
+  if (!big) return padded.contains(cell.center) ? cell.center : null;
+  if (plain.contains(cell.center)) return cell.center;
+  const s = Math.max(cell.sw[0], plain.getSouth()), n = Math.min(cell.ne[0], plain.getNorth());
+  const w = Math.max(cell.sw[1], plain.getWest()), e = Math.min(cell.ne[1], plain.getEast());
+  return s < n && w < e ? [(s + n) / 2, (w + e) / 2] : null;
+}
+
 function syncElevLabels() {
   const zoom = map.getZoom();
-  const band = elevZoomBand(zoom);
-  const font = gridFontSize(zoom);
-  const view = band === "mini" ? null : map.getBounds().pad(ELEV_LABEL_PAD);
+  const plain = map.getBounds(), padded = plain.pad(ELEV_LABEL_PAD);
+  const pxPerDeg = 256 * 2 ** zoom / 360; /* en longitud, la proyección es lineal */
   for (const g of elevGridGroups) {
-    const shown = view && rootGroup.hasLayer(g) && view.intersects(g.getBounds());
+    const shown = rootGroup.hasLayer(g) && padded.intersects(g.getBounds());
     for (const rect of g._rects) {
-      const want = shown && view.contains(rect._cell.center);
-      if (want && !rect._label) {
-        rect._label = L.marker(rect._cell.center, { interactive: false });
-        rect._label._cell = rect._cell;
-        rect._label.setIcon(cellIcon(elevCellHtml(rect._cell, band), font));
+      const cell = rect._cell;
+      const z = zoom + elevCellZoomUp(cell);
+      let at = null;
+      if (shown && elevZoomBand(z) !== "mini") {
+        const big = (cell.ne[1] - cell.sw[1]) * pxPerDeg > ELEV_BIG_CELL_LABELS * gridIconSize(gridFontSize(z))[0];
+        at = elevLabelAnchor(cell, plain, padded, big);
+      }
+      if (at && !rect._label) {
+        rect._label = L.marker(at, { interactive: false });
+        rect._label._cell = cell;
+        rect._label.setIcon(elevLabelIcon(cell, zoom));
         g.addLayer(rect._label);
-      } else if (!want && rect._label) {
+      } else if (at) {
+        if (at !== cell.center) rect._label.setLatLng(at); /* solo las grandes se mueven */
+      } else if (rect._label) {
         g.removeLayer(rect._label);
         rect._label = null;
       }
@@ -1187,7 +1238,7 @@ function elevCellAt(lat, lng) {
 }
 
 /* ---------- Consulta puntual (menú contextual del visor) ----------
-   «Consultar elevación aquí» pide a las fuentes elegidas la tesela de
+   «Consultas › Elevación» pide a las fuentes elegidas la tesela de
    la retícula que contiene el punto pulsado y la convierte en una capa
    del árbol. Todo lo descargado en una carga de página cuelga de UNA
    carpeta «Sesión AAAA-MM-DD HH:MM» dentro de la sección «Elevaciones»,
@@ -1205,9 +1256,9 @@ const elevSessionKeys = new Map();
 const elevInFlight = new Set();
 const elevAttribDone = new Set();
 
-const ALT_ROTATED_WHY = "La consulta de elevación no está disponible con el mapa rotado: "
-  + "pulsa R o la brújula para poner el norte arriba.";
-const ELEV_NO_SOURCES_WHY = "Sin fuentes de elevación: elígelas en Propiedades → Fuentes de datos.";
+const ALT_ROTATED_WHY = tr("La consulta de elevación no está disponible con el mapa rotado: "
+  + "pulsa R o la brújula para poner el norte arriba.");
+const ELEV_NO_SOURCES_WHY = tr("Sin fuentes de elevación: elígelas en Propiedades → Fuentes de datos.");
 
 /* La atribución de cada fuente que ha respondido, una vez por sesión
    (CC BY 4.0 y la licencia de Copernicus lo exigen)                   */
@@ -1243,8 +1294,8 @@ const elevQueryKey = (latlng, ids) => {
 
 async function ensureElevSessionFolder() {
   if (elevSessionLi && elevSessionLi.isConnected) return elevSessionLi;
-  const section = ensureNamedSection("Elevaciones").parentElement;
-  elevSessionLi = await createFolderNode(section, `Sesión ${sessionStamp(new Date())}`);
+  const section = ensureNamedSection(tr("Elevaciones")).parentElement;
+  elevSessionLi = await createFolderNode(section, tr("Sesión {stamp}", { stamp: sessionStamp(new Date()) }));
   return elevSessionLi;
 }
 
@@ -1276,7 +1327,7 @@ async function queryElevationAt(latlng) {
   if (prev && prev.isConnected) {
     highlightNode(prev);
     blinkLayer(prev);
-    navMessage(`Esa celda ya está descargada en esta sesión: «${prev._name}».`, { tone: "info" });
+    navMessage(tr("Esa celda ya está descargada en esta sesión: «{name}».", { name: prev._name }), { tone: "info" });
     return;
   }
   if (elevInFlight.has(key)) return;
@@ -1297,15 +1348,15 @@ async function queryElevationAt(latlng) {
          de verdad —la que está en «Ninguna» no cuenta como respuesta. */
       const answered = (ids.mdt && terrain !== undefined) || (ids.mds && surface !== undefined);
       if (answered) {
-        navMessage("Elevación: sin datos en ese punto (fuera de la cobertura de las fuentes elegidas).",
+        navMessage(tr("Elevación: sin datos en ese punto (fuera de la cobertura de las fuentes elegidas)."),
           { tone: "info" });
       }
       return;
     }
 
-    pushUndo("consultar elevación");
+    pushUndo(tr("consultar elevación"));
     const folder = await ensureElevSessionFolder();
-    const name = elevNodeName(nextNumberedName("Elevación"),
+    const name = elevNodeName(nextNumberedName(tr("Elevación")),
       [elevSourceById(ids.mdt), elevSourceById(ids.mds)]);
     const li = makeElevGridNode(name, built.cells);
     nodeUl(folder).appendChild(li);

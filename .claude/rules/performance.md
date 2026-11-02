@@ -52,6 +52,93 @@ paths:
   árbol. No es O(n²), pero nadie ha medido el coste con miles de capas.
   **No tocar sin medir antes** con `performance.now()` alrededor de
   `reorderPaintOrder()`.
+- **Añadir N capas al mapa era O(N²) por dentro de Leaflet** (`09-leaflet-events.js`).
+  Cada capa que se añade registra sus oyentes en el MAPA (un marcador,
+  `zoom` y `viewreset`; con animación de zoom, también `zoomanim`; un
+  tooltip permanente, lo mismo) y `Evented._on` comprueba que no estén
+  ya registrados recorriendo la lista entera. Medido (Chromium sin GPU):
+  importar 10 000 marcadores 1,8 s, 579 ms de ellos en esa comprobación;
+  añadir un grupo al mapa, 1 032 ms con 10 000 y 4 252 con 20 000. El
+  parche lleva un índice `Map(función → Set(contexto))` junto a las
+  listas largas (≥ 32) y solo acelera el «no está», que es lo que ocurre
+  al añadir; ver el comentario del archivo, que explica por qué un índice
+  que se equivocara en ese sentido sería peor que no tenerlo (oyentes
+  duplicados). Después: 495 ms con 10 000 (−52 %) y 964 con 20 000
+  (−77 %); importar 10 000 marcadores, de 1 773 a 1 022 ms (−42 %).
+  `tests/browser/perf-markers.mjs` lo fija con el parche apagado y
+  encendido en la MISMA página (`setListenerIndex(false)`): mismo
+  comportamiento en los escenarios que lo romperían, trabajo
+  determinista (oyentes recorridos por la búsqueda lineal: N²/2 frente a
+  casi nada) y tiempo con holgura. **Quitar sigue siendo O(N²)**
+  (`splice` sobre la lista de oyentes, que no se toca): ≈ 280 ms con
+  10 000 marcadores, pendiente de MEDIR en un caso real antes de tocarlo.
+- **TRAMPA al medir tiempos de borrado en lotes grandes: el estado del
+  GC manda.** `splice(0, 1)` sobre una lista grande es O(1) si V8 puede
+  recortarla por la izquierda y un `memmove` si no (mientras hay marcado
+  incremental en marcha, por ejemplo). Quitar 10 000 marcadores medía 96 ms
+  en un build y 306 en otro «sin ningún cambio relevante»; forzando un GC
+  justo antes (`--js-flags=--expose-gc`) los dos daban ~260-300. Antes de
+  dar una regresión por real, comparar en la MISMA página activando y
+  desactivando el cambio, o forzando el GC en ambas.
+- **El guardado no reescribe lo inmutable** (`DB_VERSION` 5, ver
+  `persistence-indexeddb.md`). IndexedDB no modifica un valor en parte y el
+  structured clone del `put` es SÍNCRONO en el hilo principal: con el árbol
+  como un único valor, CADA acción (plegar, marcar, borrar) iba seguida, a
+  los 400 ms, de un bloqueo proporcional a TODO lo guardado. Medido
+  (Chromium sin GPU, 7 copias de un `.kite.json` real, 114 MB, 22.078
+  capas): 330 ms tras cada acción, con la acción en sí por debajo de 40 ms
+  — el árbol nunca fue el problema. Con la composición de un árbol real
+  (fichas 39 MB, polígonos 34 MB): 460 ms, 370 de ellos por la geometría.
+  Ahora solo se reescribe el esqueleto: 32-46 ms por guardado en total, sin
+  ninguna tarea larga; arranque 253 → 304 ms. `saveCost` mide además el
+  clon síncrono del `put` (antes solo `serializeTree`, 3-10 ms, y el
+  retardo nunca pasaba de 400 ms aunque el `put` tardara 330). Descartado
+  tras medir: guardar la ficha ya saneada como arreglo de la pausa (−12 %
+  con la composición real; sí recorta el arranque un 44 %, pendiente como
+  mejora aparte), una clave por capa (ver arriba) y guardar en inactividad
+  (mueve la pausa, no la quita).
+- **Activar una carpeta con ~1.000 marcadores: se deja como está, decidido
+  con el usuario** (2026-10-24). Medido SIN perfilador (el de CDP la
+  inflaba a 89 ms): la cascada tarda ~185 ms la primera vez, con una tarea
+  larga de 55-84 ms en 5 de cada 6 ejecuciones, y 130-190 ms después, casi
+  siempre sin ella. Es Leaflet: cada marcador con el pin crea DOS `<img>`
+  (pin y sombra) más su pintado, por software en la VM. Probado y
+  descartado: ceder el hilo por tiempo (cada 8 ms) en vez de cada
+  `CASCADE_BATCH` — la cascada sube a 281-497 ms, porque cada fotograma
+  extra repinta todos los marcadores. Lo que sí funcionaba era quitar la
+  sombra del pin (~100 ms, −45 %, tarea larga en 1 de 6), pero cambia el
+  aspecto y el usuario prefirió conservarla; una imagen única pin+sombra
+  quedó sin hacer. No reabrir sin un caso nuevo o una traza de un equipo
+  con GPU.
+- **Las librerías que solo usa una función no bloquean el arranque**
+  (`07-lazy-libs.js`): html2canvas, geotiff.js y proj4js eran 646 KB sin
+  comprimir (≈ 194 KB por la red) ejecutados antes de poder arrancar.
+  Medido en frío, mediana de 7: `DOMContentLoaded` de 314 a 196 ms
+  (−38 %; −40 % en el minificado); los scripts de CDN del arranque, de
+  885 a 254 KB. El coste pasa al PRIMER uso: 40 ms (proj4), 74 ms
+  (geotiff.js), 60 ms (html2canvas). JSZip (KMZ), topojson-client y
+  shapefile siguen en el HTML: son el uso corriente o pesan 7 KB. Una
+  librería nueva que solo use una función entra en `LAZY_LIBS`, no en
+  `src/index.html`; `tests/lazylibs.js` exige que nadie use su global
+  sin `ensureLib`.
+- **Polígonos de solo relleno sin costuras** (`09-canvas-seamless.js`): una tanda se dibuja en un lienzo auxiliar y se compone una vez. Cada tanda cuesta ~1,7 ms (componer desde otro lienzo vacía el auxiliar; medido sin GPU) y 3 000 tandas de dos polígonos tardaban 5 s por redibujado, así que hay tope (`SEAMLESS_MAX_RUNS` = 24) y una tanda de un solo polígono no se abre. Medido con el tope: 3 000 polígonos de un color, 14,7 ms frente a 5,8 sin el parche; 3 000 en parejas de colores distintos (el peor caso), 50 ms frente a 5. Ver `style-dialogs-ui.md`.
+- **Búsquedas por nombre local en el XML** (`elsByTag`, `firstByTag`,
+  `childrenByTag`, `12-copernicus.js`): `firstByTag` copiaba la colección
+  entera a un array para quedarse con el primero, y cada búsqueda VACÍA
+  (un Placemark de punto busca `Polygon` y `LineString`) caía al filtrado
+  a mano de todos sus descendientes. `mayNeedPrefixFallback` averigua una
+  vez por documento si ese respaldo puede aportar algo (solo si algún
+  elemento no tiene un `localName` limpio). 3 000 puntos: 6 000
+  recorridos de todos los descendientes antes, 1 ahora (70 → 30 ms en
+  Node). `tests/xmllookup.js` lleva la implementación anterior copiada y
+  comprueba mismos resultados sobre cuatro tipos de documento, incluido
+  un DOM sin soporte de namespaces donde el respaldo SIGUE haciendo falta.
+- **Descartado tras medir** (no volver a proponerlo sin un caso nuevo):
+  las 15 lecturas de IndexedDB del arranque en serie (2,8 ms; en paralelo
+  0,8 ms); el pintado de miles de marcadores (236 ms por fotograma con
+  10 000 a la vista, pero solo 0,3 ms son JavaScript: es rasterizado por
+  software de 20 000 nodos DOM en una VM sin GPU, sin medida en un equipo
+  con aceleración).
 - Regla general: medir antes de optimizar, y dejar la medida en el
   comentario — es lo que impide "simplificar" sin saber qué costaba.
 

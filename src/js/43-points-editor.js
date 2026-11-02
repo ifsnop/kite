@@ -74,7 +74,7 @@ function textToPoints(text) {
     const f = line.includes("\t") ? line.split("\t").map(s => s.trim()).filter(s => s !== "")
       : /[,;]/.test(line) ? line.split(/[,;]+/).map(s => s.trim()).filter(s => s !== "")
       : line.split(/\s+/).filter(s => s !== "");
-    if (f.length < 2) { errors.push({ line: i + 1, text: raw, why: "hacen falta al menos latitud y longitud" }); return; }
+    if (f.length < 2) { errors.push({ line: i + 1, text: raw, why: tr("hacen falta al menos latitud y longitud") }); return; }
     /* Latitud y longitud PRIMERO: en una línea de texto basura los tres
        campos fallan, y decir "altitud no numérica" mandaría a mirar la
        columna equivocada. parseCoord acepta decimal o GMS sin necesitar
@@ -82,13 +82,13 @@ function textToPoints(text) {
        ESCRIBE, ver pointsToText).                                      */
     const lat = parseCoordRaw(f[0], true), lng = parseCoordRaw(f[1], false);
     if (!isFinite(lat) || !isFinite(lng)) {
-      errors.push({ line: i + 1, text: raw, why: "latitud o longitud no numérica" });
+      errors.push({ line: i + 1, text: raw, why: tr("latitud o longitud no numérica") });
       return;
     }
     const alt = f.length > 2 ? Number(f[2]) : undefined;
-    if (f.length > 2 && !isFinite(alt)) { errors.push({ line: i + 1, text: raw, why: "altitud no numérica" }); return; }
+    if (f.length > 2 && !isFinite(alt)) { errors.push({ line: i + 1, text: raw, why: tr("altitud no numérica") }); return; }
     const pos = clampLatLng(lat, lng, alt);
-    if (!pos) { errors.push({ line: i + 1, text: raw, why: "latitud o longitud fuera de rango" }); return; }
+    if (!pos) { errors.push({ line: i + 1, text: raw, why: tr("latitud o longitud fuera de rango") }); return; }
     if (!current) current = [];
     current.push(pos);
   });
@@ -397,9 +397,9 @@ function beginVertexEdit(li) {
   const total = liveRings.reduce((n, r) => n + r.length, 0);
   if (!total) return false;
   if (total > vertexEditMax) {
-    navMessage(`«${li._name}» tiene ${total} vértices, por encima del tope configurado para `
-      + `editarlos sobre el mapa (${vertexEditMax}). Usa «Ver y editar…» en su diálogo de estilos, `
-      + "o sube el tope desde 🏷️ (Ventana de Propiedades).");
+    navMessage(tr("«{name}» tiene {total} vértices, por encima del tope configurado para "
+      + "editarlos sobre el mapa ({max}). Usa «Ver y editar…» en su diálogo de estilos, "
+      + "o sube el tope desde 🏷️ (Ventana de Propiedades).", { name: li._name, total, max: vertexEditMax }));
     return false;
   }
   const rings = cloneLatLngRings(liveRings);
@@ -476,7 +476,7 @@ function tryCloseAtFirstVertex(handle, e) {
   const ring = vertexEdit.handleRings[0];
   if (handle !== ring[0] || vertexSelHandle !== ring[ring.length - 1]) return false;
   if (ring.length < 3) {
-    navMessage("Faltan vértices para cerrar el polígono (mínimo 3).");
+    navMessage(tr("Faltan vértices para cerrar el polígono (mínimo 3)."));
     return true;
   }
   clearVertexSelection();
@@ -532,14 +532,14 @@ function removeVertexEditPoint(handle) {
      bloquea el borrado que sigue.                                      */
   if (vertexEdit.closed && vertexEdit.handleRings.length === 1 && vertexEdit.rings[ri].length === 3) {
     convertVertexEditShape(false);
-    navMessage(`«${vertexEdit.li._name}» se ha abierto: por debajo de 3 vértices deja de ser un `
-      + "polígono cerrado.");
+    navMessage(tr("«{name}» se ha abierto: por debajo de 3 vértices deja de ser un "
+      + "polígono cerrado.", { name: vertexEdit.li._name }));
   }
   const min = vertexEdit.closed ? 3 : 2;
   if (vertexEdit.rings[ri].length <= min) {
     navMessage(vertexEdit.closed
-      ? "Faltan vértices para seguir siendo un polígono (mínimo 3 por anillo)."
-      : "Faltan vértices para seguir siendo una línea (mínimo 2).");
+      ? tr("Faltan vértices para seguir siendo un polígono (mínimo 3 por anillo).")
+      : tr("Faltan vértices para seguir siendo una línea (mínimo 2)."));
     return;
   }
   if (vertexSelHandle === handle) clearVertexSelection();
@@ -856,6 +856,55 @@ function releaseFocus() {
   const back = focusReturn.pop();
   if (back && back.isConnected && back.focus) back.focus();
 }
+
+/* La × de la cabecera de TODO diálogo (regla: dialog-close-button.md): hace lo
+   que el Cancelar del diálogo o, si no lo tiene, su Cerrar. En vez de repetir
+   esa lógica pulsa EL BOTÓN que el marcado nombra (`data-cancel`): así es
+   exactamente lo mismo que pulsarlo con el ratón, y lo que hace Escape
+   (52-measure.js llama a las mismas funciones). Los tres diálogos que ya la
+   tenían (atajos, cálculos geodésicos y perfil) llevan su propio manejador
+   por `id`, sin `data-cancel`.                                          */
+document.addEventListener("click", e => {
+  const x = e.target.closest && e.target.closest(".dlg-close[data-cancel]");
+  if (!x) return;
+  const target = document.getElementById(x.dataset.cancel);
+  if (target && !target.disabled) target.click();
+});
+
+/* Los cinco botones de la cabecera (🔗 🏷️ 📐 📋 ?) ABREN y CIERRAN su diálogo:
+   con el diálogo a la vista, pulsar el botón es pulsar su Cerrar o su
+   Cancelar (el que tenga), no un segundo «abrir». Así vale lo mismo que la ×,
+   que Escape y que el botón del pie, y Cancelar deshace lo previsualizado
+   (Propiedades) y cancela lo que esté en vuelo (la descarga del 🔗) como
+   siempre. Va en CAPTURA sobre `document` para interceptar el clic antes de
+   que llegue al manejador de «abrir» de cada botón.
+
+   Los cuatro modales no se apilan: abrir uno cierra antes el que hubiera
+   abierto, también por su Cerrar/Cancelar. El de cálculos geodésicos es
+   flotante y no se cierra al abrir otro. Para que el botón sea ALCANZABLE con
+   un modal a la vista (su fondo cubre toda la pantalla), styles.css lo sube
+   por encima de ese fondo mientras haya SOLO ese modal abierto.            */
+const HEADER_DIALOGS = {
+  "url-btn": ["url-dialog", "url-close"],
+  "gnp-editor-btn": ["props-dialog", "props-cancel"],
+  "geocalc-btn": ["geocalc-dialog", "geocalc-close"],
+  "log-btn": ["log-dialog", "log-close"],
+  "help-btn": ["shortcuts", "shortcuts-close"]
+};
+document.addEventListener("click", e => {
+  const b = e.target.closest && e.target.closest("#nav-panel h1 button[id]");
+  const mine = b && HEADER_DIALOGS[b.id];
+  if (!mine) return;
+  if (!document.getElementById(mine[0]).hidden) {
+    e.stopImmediatePropagation();
+    document.getElementById(mine[1]).click();
+    return;
+  }
+  for (const [otherBtn, [dlgId, dismissId]] of Object.entries(HEADER_DIALOGS)) {
+    const dlg = document.getElementById(dlgId);
+    if (otherBtn !== b.id && !dlg.hidden && dlg.classList.contains("dlg-overlay")) document.getElementById(dismissId).click();
+  }
+}, true);
 
 function makeDialogMovable(box) {
   const handle = box.querySelector("h2");
@@ -1339,15 +1388,21 @@ function closeKtpPicker(result) {
    `properties` de un GeoJSON. El diálogo es el mismo —mismo problema,
    misma decisión del usuario— y solo cambia de qué habla.            */
 const KTP_WORDING = {
-  names: { titulo: "Etiquetas en los nombres", donde: "nombres", origen: "el KML" },
-  properties: { titulo: "Etiquetas en las propiedades", donde: "propiedades", origen: "el archivo" }
+  names: {
+    titulo: () => tr("Etiquetas en los nombres"),
+    intro: file => tr("«{file}» tiene nombres con etiquetas de tipo HTML (texto entre «<» y «>»), "
+      + "probablemente restos de la herramienta que generó el KML. ¿Eliminarlas al importar?", { file })
+  },
+  properties: {
+    titulo: () => tr("Etiquetas en las propiedades"),
+    intro: file => tr("«{file}» tiene propiedades con etiquetas de tipo HTML (texto entre «<» y «>»), "
+      + "probablemente restos de la herramienta que generó el archivo. ¿Eliminarlas al importar?", { file })
+  }
 };
 function confirmStripHtmlTags(fileName, kind = "names") {
   const w = KTP_WORDING[kind] || KTP_WORDING.names;
-  ktpTitle.textContent = w.titulo;
-  ktpIntro.textContent = `«${fileName}» tiene ${w.donde} con etiquetas de tipo HTML `
-    + `(texto entre «<» y «>»), probablemente restos de la herramienta que generó `
-    + `${w.origen}. ¿Eliminarlas al importar?`;
+  ktpTitle.textContent = w.titulo();
+  ktpIntro.textContent = w.intro(fileName);
   ktpDialog.hidden = false;
   clampToViewport(ktpBox);
   focusDialog(ktpBox);
@@ -1372,11 +1427,10 @@ function closeKdpPicker(result) {
 }
 function confirmMergeDuplicates(fileName, groups) {
   const total = groups.reduce((n, g) => n + g.length - 1, 0);
-  /* "s", no "es": el plural se pega a «nombre» y a «repetido», no a
-     «marcador(es)». Decía «2 nombrees repetidoes».                    */
-  const plural = groups.length === 1 ? "" : "s";
-  kdpIntro.textContent = `«${fileName}» tiene ${groups.length} nombre${plural} repetido${plural} `
-    + `con la misma posición (${total} marcador(es) de más). ¿Fusionarlos y mantener solo uno de cada grupo?`;
+  kdpIntro.textContent = trn(groups.length,
+    "«{file}» tiene {n} nombre repetido con la misma posición ({total} marcador(es) de más). ¿Fusionarlos y mantener solo uno de cada grupo?",
+    "«{file}» tiene {n} nombres repetidos con la misma posición ({total} marcador(es) de más). ¿Fusionarlos y mantener solo uno de cada grupo?",
+    { file: fileName, total });
   kdpDialog.hidden = false;
   clampToViewport(kdpBox);
   focusDialog(kdpBox);
@@ -1426,7 +1480,7 @@ function refreshGnpOrder() {
   gnpAccept.disabled = !gnpOrder.length;
   if (gnpSample) {
     gnpResult.textContent = gnpOrder.length
-      ? `Nombre del primer elemento: \u00AB${composeFeatureName(gnpSample, gnpOrder) || "(vac\u00EDo)"}\u00BB`
+      ? tr("Nombre del primer elemento: \u00AB{name}\u00BB", { name: composeFeatureName(gnpSample, gnpOrder) || tr("(vac\u00EDo)") })
       : "";
   }
 }
@@ -1437,9 +1491,9 @@ function refreshGnpOrder() {
 function pickNameProperty(keys, fileName, { sample = null, selected = [] } = {}) {
   const editing = !sample;
   gnpIntro.textContent = editing
-    ? "Elige qu\u00E9 propiedades forman el nombre de los elementos. El orden en que las marques es el orden en que se unen con \u00AB / \u00BB."
-    : `Elige qu\u00E9 propiedades de \u00AB${fileName}\u00BB forman el nombre de cada elemento. El orden en que las marques es el orden en que se unen con \u00AB / \u00BB.`;
-  gnpNote.textContent = "Esta elecci\u00F3n se recuerda para futuros archivos con esta misma estructura y se puede cambiar en \uD83C\uDFF7\uFE0F Propiedades \u2192 \u00CDndices de GeoJSON.";
+    ? tr("Elige qu\u00E9 propiedades forman el nombre de los elementos. El orden en que las marques es el orden en que se unen con \u00AB / \u00BB.")
+    : tr("Elige qu\u00E9 propiedades de \u00AB{fileName}\u00BB forman el nombre de cada elemento. El orden en que las marques es el orden en que se unen con \u00AB / \u00BB.", { fileName });
+  gnpNote.textContent = tr("Esta elecci\u00F3n se recuerda para futuros archivos con esta misma estructura y se puede cambiar en \uD83C\uDFF7\uFE0F Propiedades \u2192 \u00CDndices de GeoJSON.");
   gnpSample = sample;
   gnpOrder = selected.filter(k => keys.includes(k));
   gnpList.innerHTML = "";
@@ -1536,6 +1590,11 @@ const propsTabGnp = document.getElementById("props-tab-gnp");
 const propsTabPrefs = document.getElementById("props-tab-prefs");
 const propsTabSourcesBtn = document.getElementById("props-tab-btn-sources");
 const propsTabSources = document.getElementById("props-tab-sources");
+const propsTabFreqBtn = document.getElementById("props-tab-btn-freq");
+const propsTabFreq = document.getElementById("props-tab-freq");
+const propsTabRestoreBtn = document.getElementById("props-tab-btn-restore");
+const propsTabRestore = document.getElementById("props-tab-restore");
+const propsFresnelFreqInput = document.getElementById("props-fresnel-freq");
 const propsSrcSelect = {
   mdt: document.getElementById("props-src-mdt"),
   mds: document.getElementById("props-src-mds")
@@ -1547,8 +1606,37 @@ const propsAltUnitSelect = document.getElementById("props-alt-unit");
 propsAltUnitSelect.innerHTML = propsUnitSelect.innerHTML;
 const propsProfileMaxInput = document.getElementById("props-profile-max");
 const propsCoordFormatSelect = document.getElementById("props-coord-format");
+const propsThemeSelect = document.getElementById("props-theme");
+const propsLangSelect = document.getElementById("props-lang");
+/* Idioma de la interfaz (03-i18n.js). A diferencia del tema no se puede
+   previsualizar —los textos ya pintados no se rehacen—: se guarda al
+   Aceptar y vale al recargar. Una opción por idioma registrado, con su
+   nombre en su propio idioma.                                          */
+{
+  const auto = document.createElement("option");
+  auto.value = "auto";
+  auto.textContent = tr("Automático");
+  propsLangSelect.appendChild(auto);
+  for (const [code, name] of Object.entries(UI_LANGS)) {
+    const o = document.createElement("option");
+    o.value = code;
+    o.lang = code; /* el nombre está en SU idioma: así lo lee un lector de pantalla */
+    o.textContent = name;
+    propsLangSelect.appendChild(o);
+  }
+}
 const gnpVertexMaxInput = document.getElementById("gnp-vertex-max");
 const propsArcSegmentsInput = document.getElementById("props-arc-segments");
+
+/* Tema de la interfaz (UI_THEMES, 32-geojson.js). El CSS hace el resto:
+   sin data-theme manda prefers-color-scheme EN VIVO, así que "auto" no
+   necesita matchMedia ni escuchar cambios del sistema.                 */
+let uiTheme = "auto";
+function applyUiTheme(theme) {
+  uiTheme = theme;
+  if (theme === "auto") document.documentElement.removeAttribute("data-theme");
+  else document.documentElement.setAttribute("data-theme", theme);
+}
 
 let propsDraftGnp = null; /* clon de gnpStore mientras el panel está abierto */
 let propsOriginal = null; /* ajustes al abrir (unidades, formato, topes, fuentes…), para Cancelar */
@@ -1556,7 +1644,9 @@ let propsOriginal = null; /* ajustes al abrir (unidades, formato, topes, fuentes
 const PROPS_TABS = {
   prefs: [propsTabPrefsBtn, propsTabPrefs],
   gnp: [propsTabGnpBtn, propsTabGnp],
-  sources: [propsTabSourcesBtn, propsTabSources]
+  sources: [propsTabSourcesBtn, propsTabSources],
+  freq: [propsTabFreqBtn, propsTabFreq],
+  restore: [propsTabRestoreBtn, propsTabRestore]
 };
 function showPropsTab(tab) {
   for (const [id, [btn, panel]] of Object.entries(PROPS_TABS)) {
@@ -1586,14 +1676,22 @@ function renderPropsSourcesTab() {
       sel.appendChild(o);
     };
     for (const s of ELEV_SOURCES.filter(x => x.kind === kind)) opt(s.label, s.id);
-    opt("Ninguna", "");
+    opt(tr("Ninguna"), "");
     sel.value = elevSources[kind] || "";
     renderPropsSourceUrl(kind);
   }
 }
 function renderPropsSourceUrl(kind) {
   const s = elevSourceById(elevSources[kind]);
-  document.getElementById(`props-src-${kind}-url`).textContent = s ? s.base : "No se consulta.";
+  document.getElementById(`props-src-${kind}-url`).textContent = s ? s.base : tr("No se consulta.");
+  /* Lo que el catálogo sabe de la fuente elegida: el nombre COMPLETO (el
+     del selector se corta si es largo), su conjunto de datos y su
+     proveedor, y si la malla es tan gruesa que no limita los perfiles. */
+  const info = document.getElementById(`props-src-${kind}-info`);
+  info.hidden = !s;
+  info.textContent = !s ? "" : s.label + ". "
+    + tr("Conjunto de datos: {dataset}. Proveedor: {provider}.", { dataset: s.dataset, provider: s.provider })
+    + (s.coarse ? " " + tr("Malla gruesa: no limita la longitud de un perfil.") : "");
 }
 for (const kind of ["mdt", "mds"]) {
   propsSrcSelect[kind].addEventListener("change", () => {
@@ -1608,18 +1706,18 @@ function renderGnpEditor() {
   if (!entries.length) {
     const p = document.createElement("p");
     p.className = "dlg-hint";
-    p.textContent = "Sin asociaciones guardadas todavía.";
+    p.textContent = tr("Sin asociaciones guardadas todavía.");
     gnpEditorList.appendChild(p);
     return;
   }
   for (const [fp, value] of entries) {
-    let keys;
-    try { keys = JSON.parse(fp); } catch { keys = [fp]; }
+    const { scope, keys } = splitFingerprint(fp);
     const row = document.createElement("div");
     row.className = "gnp-editor-row";
     const keysSpan = document.createElement("span");
     keysSpan.className = "gnp-editor-keys";
-    keysSpan.textContent = keys.join(", ");
+    /* Una asociación con origen (la capa de un servicio) lo dice delante */
+    keysSpan.textContent = (scope ? (arcgisScopeLabel(scope) || scope) + ": " : "") + keys.join(", ");
     keysSpan.title = keysSpan.textContent;
     const sel = document.createElement("span");
     sel.className = "gnp-editor-sel";
@@ -1627,7 +1725,7 @@ function renderGnpEditor() {
     sel.title = sel.textContent;
     const change = document.createElement("button");
     change.className = "btn";
-    change.textContent = "Cambiar\u2026";
+    change.textContent = tr("Cambiar\u2026");
     change.addEventListener("click", async () => {
       const picked = await pickNameProperty(keys, "", { selected: value });
       if (!picked) return;
@@ -1636,7 +1734,7 @@ function renderGnpEditor() {
     });
     const del = document.createElement("button");
     del.className = "btn";
-    del.textContent = "Borrar";
+    del.textContent = tr("Borrar");
     del.addEventListener("click", () => {
       delete propsDraftGnp[fp];
       renderGnpEditor();
@@ -1653,10 +1751,27 @@ document.getElementById("gnp-editor-clear").addEventListener("click", () => {
 /* El límite del perfil se guarda en metros y se enseña en la unidad de
    distancia elegida: al cambiarla, se repinta convertido.            */
 function renderPropsProfileMax() {
-  propsProfileMaxInput.value = Number((profileMaxM / POLY_UNIT_FACTOR[measureUnit]).toPrecision(6));
+  const f = POLY_UNIT_FACTOR[measureUnit];
+  propsProfileMaxInput.value = Number((profileMaxM / f).toPrecision(6));
+  /* Las cotas en la unidad vigente: el spinner del navegador las respeta */
+  propsProfileMaxInput.min = Number((PROFILE_MAX_MIN / f).toPrecision(6));
+  propsProfileMaxInput.max = Number((PROFILE_MAX_MAX / f).toPrecision(6));
   document.getElementById("props-profile-max-unit").textContent = POLY_UNIT_LABEL[measureUnit];
 }
+/* Pestaña «Frecuencias»: la del elipsoide de Fresnel del perfil. Se
+   previsualiza en vivo (el perfil, si está abierto, se redibuja) y solo
+   Aceptar la guarda; Cancelar vuelve a la de al abrir.                 */
+function renderPropsFreqTab() {
+  propsFresnelFreqInput.value = fresnelFreqMHz;
+}
+propsFresnelFreqInput.addEventListener("change", () => {
+  const v = readClampedNumber(propsFresnelFreqInput, FRESNEL_FREQ_MIN, FRESNEL_FREQ_MAX, tr("La frecuencia"), "MHz");
+  if (v !== null) { fresnelFreqMHz = v; refreshProfileChart(); }
+  renderPropsFreqTab();
+});
 function renderPropsPrefsTab() {
+  propsThemeSelect.value = uiTheme;
+  propsLangSelect.value = loadUiLangPref();
   propsUnitSelect.value = measureUnit;
   propsAltUnitSelect.value = altitudeUnit;
   renderPropsProfileMax();
@@ -1669,11 +1784,37 @@ propsUnitSelect.addEventListener("change", () => {
   renderPropsProfileMax();
 });
 propsAltUnitSelect.addEventListener("change", () => setAltitudeUnit(propsAltUnitSelect.value));
-/* Mismo criterio que el tope de vértices: un valor ilegible o fuera de
-   [PROFILE_MAX_MIN, PROFILE_MAX_MAX] se descarta y vuelve el vigente. */
+propsThemeSelect.addEventListener("change", () => applyUiTheme(propsThemeSelect.value));
+/* Lee un campo numérico de ajustes: vacío o ilegible → null (el llamador
+   deja el valor vigente); fuera de [min, max] se AJUSTA a la cota más
+   cercana y se avisa, en vez de volver en silencio al anterior (reportado
+   con el límite del perfil: 150 NM «se convertía» en otra cifra). Lo
+   comparten Propiedades y las torres del perfil (63-route-profile.js, que
+   la llama en tiempo de ejecución).                                    */
+function readClampedNumber(input, min, max, what, unit) {
+  const raw = input.value.trim();
+  const v = raw === "" ? NaN : Number(raw);
+  if (!Number.isFinite(v)) return null;
+  const c = Math.min(max, Math.max(min, v));
+  if (c !== v) {
+    const n = x => Number(x.toPrecision(6)).toLocaleString(uiLang);
+    navMessage(tr("{what} va de {min} a {max} {unit}: se queda en {value} {unit}.",
+      { what, min: n(min), max: n(max), unit, value: n(c) }));
+  }
+  return c;
+}
+
+/* Un valor ilegible o vacío se descarta y vuelve el vigente; uno legible
+   pero fuera de [PROFILE_MAX_MIN, PROFILE_MAX_MAX] se ajusta al tope más
+   cercano y se avisa. Reportado: 150 NM (el máximo es 100) volvía en
+   silencio al valor anterior, y parecía que el número «se convertía».  */
 propsProfileMaxInput.addEventListener("change", () => {
-  const m = Number(propsProfileMaxInput.value) * POLY_UNIT_FACTOR[measureUnit];
-  if (Number.isFinite(m) && m >= PROFILE_MAX_MIN && m <= PROFILE_MAX_MAX) profileMaxM = m;
+  const f = POLY_UNIT_FACTOR[measureUnit];
+  const v = readClampedNumber(propsProfileMaxInput, PROFILE_MAX_MIN / f, PROFILE_MAX_MAX / f,
+    tr("La longitud máxima de un perfil"), POLY_UNIT_LABEL[measureUnit]);
+  /* Se reclava en metros: v·f puede salirse de la cota por redondeo y
+     validProfileMax lo descartaría al leerlo.                          */
+  if (v !== null) profileMaxM = Math.min(PROFILE_MAX_MAX, Math.max(PROFILE_MAX_MIN, v * f));
   renderPropsProfileMax();
 });
 propsCoordFormatSelect.addEventListener("change", () => {
@@ -1716,14 +1857,44 @@ propsArcSegmentsInput.addEventListener("change", () => {
   propsArcSegmentsInput.value = n;
 });
 
+/* Pestaña «Restaurar»: borrar toda la base de IndexedDB. El botón de la
+   pestaña NO borra nada: abre una segunda confirmación (#restore-confirm)
+   para que no se pulse por error. Solo «Borrar todo» llama a wipeAllData
+   (32-geojson.js), que recarga la página al terminar. «Cancelar», la × y
+   Escape cierran la confirmación y dejan Propiedades como estaba.      */
+const restoreDialog = document.getElementById("restore-confirm");
+const restoreBox = restoreDialog.querySelector(".dlg-box");
+const restoreAcceptBtn = document.getElementById("restore-accept");
+function openRestoreConfirm() {
+  restoreDialog.hidden = false;
+  clampToViewport(restoreBox);
+  focusDialog(restoreBox);
+}
+function closeRestoreConfirm() {
+  restoreDialog.hidden = true;
+  releaseFocus();
+}
+document.getElementById("props-restore-btn").addEventListener("click", openRestoreConfirm);
+document.getElementById("restore-cancel").addEventListener("click", closeRestoreConfirm);
+restoreAcceptBtn.addEventListener("click", async () => {
+  restoreAcceptBtn.disabled = true; /* un segundo clic no lanza otro borrado */
+  /* Propiedades se cierra deshaciendo lo previsualizado (cancelPropsDialog
+     no guarda nada); la confirmación se queda hasta que la página recargue
+     o falle el borrado.                                                   */
+  cancelPropsDialog();
+  const done = await wipeAllData();
+  if (!done) { restoreAcceptBtn.disabled = false; closeRestoreConfirm(); }
+});
+
 async function togglePropsDialog() {
   if (!propsDialog.hidden) { cancelPropsDialog(); return; }
   if (!gnpStore) gnpStore = await dbLoadGnp();
   propsDraftGnp = { ...gnpStore };
-  propsOriginal = { unit: measureUnit, altitudeUnit, profileMaxM, coordFormat, vertexEditMax,
+  propsOriginal = { uiTheme, unit: measureUnit, altitudeUnit, profileMaxM, fresnelFreqMHz, coordFormat, vertexEditMax,
                     arcSegments, elevSources };
   renderGnpEditor();
   renderPropsPrefsTab();
+  renderPropsFreqTab();
   renderPropsSourcesTab();
   showPropsTab("prefs");
   propsDialog.hidden = false;
@@ -1738,9 +1909,14 @@ function cancelPropsDialog() {
   releaseFocus();
   if (!propsOriginal) return;
   /* Deshace la previsualización en vivo con el mismo camino que la aplicó. */
+  if (propsOriginal.uiTheme !== uiTheme) applyUiTheme(propsOriginal.uiTheme);
   if (propsOriginal.unit !== measureUnit) setMeasureUnit(propsOriginal.unit);
   if (propsOriginal.altitudeUnit !== altitudeUnit) setAltitudeUnit(propsOriginal.altitudeUnit);
   profileMaxM = propsOriginal.profileMaxM;
+  if (propsOriginal.fresnelFreqMHz !== fresnelFreqMHz) {
+    fresnelFreqMHz = propsOriginal.fresnelFreqMHz;
+    refreshProfileChart();
+  }
   if (propsOriginal.coordFormat !== coordFormat) {
     coordFormat = propsOriginal.coordFormat;
     renderMeasureValues();
@@ -1760,13 +1936,19 @@ document.getElementById("props-accept").addEventListener("click", () => {
   if (propsDialog.hidden) return;
   gnpStore = propsDraftGnp || {};
   dbSaveGnp(gnpStore);
+  dbSaveUiTheme(uiTheme);
   dbSaveMeasureUnit(measureUnit);
   dbSaveAltitudeUnit(altitudeUnit);
   dbSaveProfileMax(profileMaxM);
+  dbSaveFresnelFreq(fresnelFreqMHz);
   dbSaveCoordFormat(coordFormat);
   dbSaveVertexEditMax(vertexEditMax);
   dbSaveArcSegments(arcSegments);
   dbSaveElevSources(elevSources);
+  if (propsLangSelect.value !== loadUiLangPref()) {
+    saveUiLangPref(propsLangSelect.value);
+    navMessage(tr("El idioma de la interfaz cambiará al recargar la página (F5)."), { tone: "info", sticky: true });
+  }
   propsDialog.hidden = true;
   releaseFocus();
   propsDraftGnp = null;
@@ -1800,16 +1982,16 @@ function openPointsDialogCommon(li, rings, { showRingsHint }) {
   pointsText.classList.remove("bad");
   pointsError.hidden = true;
   const total = rings.reduce((n, r) => n + r.length, 0);
-  $id("points-title").textContent = `Puntos de «${li._name}»`;
-  $id("points-count").textContent = `${total} punto${total === 1 ? "" : "s"}`;
+  $id("points-title").textContent = tr("Puntos de «{name}»", { name: li._name });
+  $id("points-count").textContent = trn(total, "{n} punto", "{n} puntos");
   /* Solo se explica la separación por anillos cuando de verdad hay más
      de uno: en el caso corriente sobra el detalle. Una medición nunca
      tiene más de un "anillo", así que aquí siempre queda oculta.      */
   const ringsHint = $id("points-rings");
   ringsHint.hidden = !showRingsHint || rings.length < 2;
   ringsHint.textContent = !showRingsHint || rings.length < 2 ? ""
-    : `Esta capa tiene ${rings.length} trazos (contorno exterior primero, luego los `
-      + "agujeros). Van separados por una línea en blanco; mantén esa separación.";
+    : tr("Esta capa tiene {n} trazos (contorno exterior primero, luego los "
+      + "agujeros). Van separados por una línea en blanco; mantén esa separación.", { n: rings.length });
   pointsDialog.hidden = false;
   clampToViewport(pointsBox);
   focusDialog(pointsBox);
@@ -1866,11 +2048,12 @@ $id("points-accept").addEventListener("click", () => {
     pointsText.focus();
   };
   if (errors.length) {
-    const list = errors.slice(0, 3).map(e => `línea ${e.line} (${e.why})`).join("; ");
-    return bad(`Hay ${errors.length} línea${errors.length === 1 ? "" : "s"} que no se entienden: `
-      + list + (errors.length > 3 ? "…" : "") + ".");
+    const list = errors.slice(0, 3).map(e => tr("línea {line} ({why})", { line: e.line, why: e.why })).join("; ")
+      + (errors.length > 3 ? "…" : "");
+    return bad(trn(errors.length, "Hay {n} línea que no se entiende: {list}.",
+      "Hay {n} líneas que no se entienden: {list}.", { list }));
   }
-  if (!rings.length) return bad("No queda ningún punto.");
+  if (!rings.length) return bad(tr("No queda ningún punto."));
 
   if (pointsTarget.measure) {
     const { li, measure } = pointsTarget;
@@ -1880,14 +2063,14 @@ $id("points-accept").addEventListener("click", () => {
        lee w.lat/w.lng como propiedades, así que la ruta las convierte
        explícitamente más abajo.                                      */
     if (measure.type === "circle") {
-      if (rings[0].length !== 2) return bad("Un círculo tiene exactamente 2 puntos: centro y borde.");
-      pushUndo("editar puntos");
+      if (rings[0].length !== 2) return bad(tr("Un círculo tiene exactamente 2 puntos: centro y borde."));
+      pushUndo(tr("editar puntos"));
       measure.mOrigin.setLatLng(rings[0][0]);
       measure.mDest.setLatLng(rings[0][1]);
       updateMeasurement(measure);
     } else {
-      if (rings[0].length < 2) return bad("Una ruta necesita al menos 2 waypoints.");
-      pushUndo("editar puntos");
+      if (rings[0].length < 2) return bad(tr("Una ruta necesita al menos 2 waypoints."));
+      pushUndo(tr("editar puntos"));
       if (vertexSelHandle && measure.handles.includes(vertexSelHandle)) clearVertexSelection();
       /* Reconstruye solo la parte GEOMÉTRICA del mismo objeto "measure"
          (el número de waypoints puede haber cambiado): retira lo viejo
@@ -1930,10 +2113,10 @@ $id("points-accept").addEventListener("click", () => {
   const short = rings.find(r => r.length < min);
   if (short) {
     return bad(closed
-      ? `Cada trazo de un polígono necesita al menos 3 puntos; hay uno con ${short.length}.`
-      : `Una línea necesita al menos 2 puntos; hay un trazo con ${short.length}.`);
+      ? tr("Cada trazo de un polígono necesita al menos 3 puntos; hay uno con {n}.", { n: short.length })
+      : tr("Una línea necesita al menos 2 puntos; hay un trazo con {n}.", { n: short.length }));
   }
-  pushUndo("editar puntos");
+  pushUndo(tr("editar puntos"));
   path.setLatLngs(nested || rings.length > 1 ? rings : rings[0]);
   invalidateGeo(li);   /* la geometría cambió: la caché serializada ya no vale */
   scheduleSave();

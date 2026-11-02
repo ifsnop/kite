@@ -14,8 +14,8 @@ function refreshLogButton() {
   if (!btn) return;
   btn.classList.toggle("unseen", msgLogUnseen > 0);
   btn.title = msgLogUnseen
-    ? `Registro de avisos (${msgLogUnseen} sin ver)`
-    : "Registro de avisos";
+    ? tr("Registro de avisos ({n} sin ver)", { n: msgLogUnseen })
+    : tr("Registro de avisos");
 }
 
 function renderLog() {
@@ -24,7 +24,7 @@ function renderLog() {
   if (!msgLog.length) {
     const p = document.createElement("p");
     p.className = "log-empty";
-    p.textContent = "No hay avisos en esta sesión.";
+    p.textContent = tr("No hay avisos en esta sesión.");
     list.appendChild(p);
     return;
   }
@@ -39,14 +39,14 @@ function renderLog() {
     time.textContent = msgStamp(e.first);
     const mark = document.createElement("span");
     mark.className = "log-mark";
-    if (e.sticky) { mark.textContent = "!"; mark.title = "Exigía confirmación"; }
+    if (e.sticky) { mark.textContent = "!"; mark.title = tr("Exigía confirmación"); }
     const text = document.createElement("span");
     text.className = "log-text";
     text.textContent = e.text;
     if (e.count > 1) {
       const rep = document.createElement("span");
       rep.className = "log-rep";
-      rep.textContent = ` ×${e.count}, última ${msgStamp(e.last)}`;
+      rep.textContent = " " + tr("×{count}, última {last}", { count: e.count, last: msgStamp(e.last) });
       text.appendChild(rep);
     }
     row.append(time, mark, text);
@@ -77,10 +77,10 @@ document.getElementById("log-clear").addEventListener("click", () => {
 });
 document.getElementById("log-copy").addEventListener("click", () => {
   const txt = logText();
-  if (!txt) { navMessage("El registro está vacío.", { tone: "info" }); return; }
+  if (!txt) { navMessage(tr("El registro está vacío."), { tone: "info" }); return; }
   navigator.clipboard.writeText(txt)
-    .then(() => navMessage("Registro copiado al portapapeles.", { tone: "info" }))
-    .catch(() => navMessage("No se pudo copiar al portapapeles."));
+    .then(() => navMessage(tr("Registro copiado al portapapeles."), { tone: "info" }))
+    .catch(() => navMessage(tr("No se pudo copiar al portapapeles.")));
 });
 
 /* ---------- Añadir contenido desde una dirección (URL) ----------
@@ -112,7 +112,8 @@ const urlAddBtn = document.getElementById("url-add");
 
 let urlAbort = null;   /* descarga en vuelo, para poder cancelarla     */
 let urlSeq = 0;        /* descarta respuestas superadas, como placeSeq */
-let urlReady = null;   /* el borrador: { file, kind, size } o null     */
+let urlReady = null;   /* el borrador: { file, kind, size } —o, de un servicio
+                          ArcGIS, { arcgis: { cat, base }, kind, size }— o null */
 
 /* Un único punto que mueve TODOS los controles: nadie toca `disabled`
    ni `hidden` por su cuenta, que es como se acaba con un botón activo
@@ -123,7 +124,8 @@ function setUrlState(state, text = "", bad = false) {
   /* Durante la descarga el botón primario CAMBIA DE PAPEL en vez de
      deshabilitarse: esperar a que venza el tope de 20 s no es una
      salida aceptable para quien acaba de pegar una dirección enorme. */
-  urlFetchBtn.textContent = descargando ? "Cancelar descarga" : "Descargar";
+  urlFetchBtn.textContent = descargando ? tr("Cancelar descarga") : tr("Descargar");
+  urlFetchBtn.dataset.mode = descargando ? "cancel" : "fetch";
   /* Con el resultado ya en la mano, volver a descargar la MISMA
      dirección no hace nada que no esté hecho: quedan las dos salidas
      que sí significan algo, añadirlo o cerrar. Y no es un callejón:
@@ -172,16 +174,16 @@ function openUrlDialog() {
    contesta, y convertiría en fallo lo que ahora funciona; y las cookies
    del usuario no tienen nada que hacer en una descarga hacia un tercero.
    Es justo el cambio «inocente» que alguien haría más adelante.      */
-async function fetchRemoteFile(url, signal, onBytes) {
+async function fetchRemoteFile(url, signal, onBytes, max = URL_MAX_BYTES) {
   const resp = await fetch(url, { signal, credentials: "omit", redirect: "follow" });
-  if (!resp.ok) throw new Error(`No se pudo descargar: ${describeHttp(resp.status)}.`);
+  if (!resp.ok) throw new Error(tr("No se pudo descargar: {why}.", { why: describeHttp(resp.status) }));
 
   /* Lo que el servidor DICE que ocupa, antes de traerse nada: es la
      comprobación barata y evita empezar una descarga condenada.      */
   const declarado = Number(resp.headers.get("content-length"));
-  if (Number.isFinite(declarado) && declarado > URL_MAX_BYTES) {
-    throw new Error(`El archivo ocupa ${fmtBytes(declarado)} y supera el tope de `
-      + `${fmtBytes(URL_MAX_BYTES)}.`);
+  if (Number.isFinite(declarado) && declarado > max) {
+    throw new Error(tr("El archivo ocupa {size} y supera el tope de {max}.",
+      { size: fmtBytes(declarado), max: fmtBytes(max) }));
   }
 
   /* Y lo que ocupa DE VERDAD, mientras llega: content-length puede
@@ -190,9 +192,9 @@ async function fetchRemoteFile(url, signal, onBytes) {
      diciendo cuánto lleva descargado.                                */
   if (!resp.body || !resp.body.getReader) {
     const buf = await resp.arrayBuffer();
-    if (buf.byteLength > URL_MAX_BYTES) {
-      throw new Error(`La descarga ocupa ${fmtBytes(buf.byteLength)} y supera el tope de `
-        + `${fmtBytes(URL_MAX_BYTES)}.`);
+    if (buf.byteLength > max) {
+      throw new Error(tr("La descarga ocupa {size} y supera el tope de {max}.",
+        { size: fmtBytes(buf.byteLength), max: fmtBytes(max) }));
     }
     return new Uint8Array(buf);
   }
@@ -203,10 +205,10 @@ async function fetchRemoteFile(url, signal, onBytes) {
     const { done, value } = await reader.read();
     if (done) break;
     total += value.length;
-    if (total > URL_MAX_BYTES) {
+    if (total > max) {
       reader.cancel();
-      throw new Error(`La descarga ya supera el tope de ${fmtBytes(URL_MAX_BYTES)} `
-        + "y se ha interrumpido.");
+      throw new Error(tr("La descarga ya supera el tope de {max} y se ha interrumpido.",
+        { max: fmtBytes(max) }));
     }
     trozos.push(value);
     if (onBytes) onBytes(total);
@@ -225,54 +227,73 @@ async function runUrlFetch() {
      un «no parece una dirección válida» que el usuario no entendía,
      porque lo que él veía pegado estaba bien.                        */
   const url = urlInput.value.replace(/\s+/g, "");
-  if (!url) { setUrlState("error", "Escriba la dirección del archivo que quiere descargar.", true); return; }
+  if (!url) { setUrlState("error", tr("Escriba la dirección del archivo que quiere descargar."), true); return; }
   let parsed;
   try { parsed = new URL(url); } catch { parsed = null; }
   if (!parsed || (parsed.protocol !== "http:" && parsed.protocol !== "https:")) {
-    setUrlState("error", `«${url}» no parece una dirección válida. Debe empezar por `
-      + "http:// o https://.", true);
+    setUrlState("error", tr("«{url}» no parece una dirección válida. Debe empezar por http:// o https://.", { url }), true);
     return;
   }
   /* La CSP admite https: y nada más. Sin este aviso, el rechazo llega
      como el mismo TypeError sin detalle que un fallo de CORS y el
      usuario se pondría a buscar por donde no es.                     */
   if (parsed.protocol === "http:" && location.protocol === "https:") {
-    setUrlState("error", "La dirección usa http://. Desde una página servida por https "
-      + "solo se pueden descargar direcciones https://.", true);
+    setUrlState("error", tr("La dirección usa http://. Desde una página servida por https "
+      + "solo se pueden descargar direcciones https://."), true);
     return;
   }
 
+  /* Un servicio ArcGIS (…/MapServer) no es un archivo: se lee su catálogo
+     (`?f=json`) y pasa a ser un nodo con una fila por capa. */
+  const svc = arcgisServiceBase(url);
+  if (svc && svc.error) {
+    setUrlState("error", svc.error === "https"
+      ? tr("La dirección de un servicio de mapas debe empezar por https://.")
+      : tr("La dirección lleva usuario y contraseña, que no se admiten."), true);
+    return;
+  }
   abortUrlFetch("reemplazada");
   urlReady = null;
   const seq = ++urlSeq;
   const ctrl = urlAbort = new AbortController();
   const timer = setTimeout(() => ctrl.abort("timeout"), URL_TIMEOUT);
-  setUrlState("descargando", "Descargando…");
+  setUrlState("descargando", tr("Descargando…"));
   try {
-    const bytes = await fetchRemoteFile(url, ctrl.signal,
-      n => { if (seq === urlSeq) setUrlState("descargando", `Descargando… ${fmtBytes(n)}`); });
+    const bytes = await fetchRemoteFile(svc ? svc.base + "?f=json" : url, ctrl.signal,
+      n => { if (seq === urlSeq) setUrlState("descargando", tr("Descargando… {size}", { size: fmtBytes(n) })); },
+      svc ? ARCGIS_JSON_MAX : URL_MAX_BYTES);
     if (seq !== urlSeq) return; /* superada o cancelada: no pinta nada */
-    if (!bytes.length) { setUrlState("error", "La descarga ha llegado vacía (0 bytes).", true); return; }
+    if (!bytes.length) { setUrlState("error", tr("La descarga ha llegado vacía (0 bytes)."), true); return; }
+    if (svc) {
+      let cat;
+      try { cat = parseArcgisCatalog(JSON.parse(new TextDecoder("utf-8").decode(bytes))); }
+      catch { cat = { error: tr("la respuesta no es la de un servicio de mapas ArcGIS") }; }
+      if (cat.error) { setUrlState("error", tr("El servicio no se puede usar: {why}.", { why: cat.error }), true); return; }
+      urlReady = { arcgis: { cat, base: svc.base }, kind: "arcgis", size: bytes.length };
+      setUrlState("listo", tr("Servicio de mapas ArcGIS «{name}»: {n} capa(s), {data} con datos que se pueden traer. "
+        + "Pulse «Añadir al árbol» para insertarlo.", { name: arcgisServiceName(svc.base), n: cat.count, data: cat.dataCount }));
+      urlAddBtn.focus();
+      return;
+    }
 
     /* Los bytes primero (un zip no se decodifica), el texto después */
     let texto = "";
     try { texto = new TextDecoder("utf-8").decode(bytes); } catch { texto = ""; }
     const kind = sniffContentKind(bytes, texto);
     if (kind === "html") {
-      setUrlState("error", "Lo descargado es una página web (HTML), no un archivo de datos. "
-        + "Compruebe que la dirección apunta al archivo en crudo (en GitHub, el enlace «Raw»).", true);
+      setUrlState("error", tr("Lo descargado es una página web (HTML), no un archivo de datos. "
+        + "Compruebe que la dirección apunta al archivo en crudo (en GitHub, el enlace «Raw»)."), true);
       return;
     }
     if (!kind) {
-      setUrlState("error", `No se reconoce el contenido descargado (${fmtBytes(bytes.length)}). `
-        + "Formatos admitidos: KML, KMZ, JSON (GeoJSON), TopoJSON y carpetas "
-        + `exportadas (${EXPORT_EXT}).`, true);
+      setUrlState("error", tr("No se reconoce el contenido descargado ({size}). Formatos admitidos: {formats}.",
+        { size: fmtBytes(bytes.length), formats: IMPORT_FORMATS }), true);
       return;
     }
     const name = downloadFileName(url, kind);
     urlReady = { file: new File([bytes], name), kind, size: bytes.length };
-    setUrlState("listo", `«${name}» — ${URL_KIND_LABEL[kind]}, ${fmtBytes(bytes.length)}. `
-      + "Pulse «Añadir al árbol» para insertarlo en una carpeta nueva.");
+    setUrlState("listo", tr("«{name}» — {kind}, {size}. Pulse «Añadir al árbol» para insertarlo en una carpeta nueva.",
+      { name, kind: URL_KIND_LABEL[kind], size: fmtBytes(bytes.length) }));
     urlAddBtn.focus();
   } catch (err) {
     if (seq !== urlSeq) return;
@@ -281,9 +302,9 @@ async function runUrlFetch() {
        distinguen por el motivo del abort.                            */
     if (err.name === "AbortError") {
       if (ctrl.signal.reason === "timeout") {
-        setUrlState("error", `El servidor ha tardado más de ${URL_TIMEOUT / 1000} s en responder.`, true);
+        setUrlState("error", tr("El servidor ha tardado más de {seconds} s en responder.", { seconds: URL_TIMEOUT / 1000 }), true);
       } else {
-        setUrlState("inicial", "Descarga cancelada.");
+        setUrlState("inicial", tr("Descarga cancelada."));
       }
       return;
     }
@@ -292,14 +313,22 @@ async function runUrlFetch() {
        causa más frecuente es que el servidor no mande cabeceras CORS,
        así que el mensaje lo dice y ofrece la salida que siempre
        funciona en vez de dejar al usuario mirando «Failed to fetch». */
-    const msg = err instanceof TypeError
-      ? "No se ha podido conectar. Lo más probable es que el servidor no autorice la "
+    const msg = svc && err instanceof TypeError
+      ? (isOffline() ? tr("No hay conexión a la red: no se puede consultar el servicio ahora.")
+        : tr("No se ha podido conectar con el servicio. Lo más probable es que no autorice consultas "
+          + "desde otra página (CORS); el navegador no da más detalle. También puede ser que la "
+          + "dirección no exista o que no haya conexión."))
+      : err instanceof TypeError && isOffline()
+      ? tr("No hay conexión a la red: no se puede descargar ahora. Si tiene el archivo en el "
+        + "equipo, arrástrelo al recuadro.")
+      : err instanceof TypeError
+      ? tr("No se ha podido conectar. Lo más probable es que el servidor no autorice la "
         + "descarga desde otra página (CORS); el navegador no da más detalle. También "
         + "puede ser que la dirección no exista o que no haya conexión. Si puede abrir "
-        + "el archivo en el navegador, descárguelo y arrástrelo al recuadro."
+        + "el archivo en el navegador, descárguelo y arrástrelo al recuadro.")
       : err.message;
     setUrlState("error", msg, true);
-    navMessage(`No se pudo descargar «${url}»: ${msg}`);
+    navMessage(tr("No se pudo descargar «{url}»: {msg}", { url, msg }));
   } finally {
     clearTimeout(timer);
     if (urlAbort === ctrl) urlAbort = null;
@@ -311,48 +340,63 @@ document.getElementById("url-close").addEventListener("click", closeUrlDialog);
 urlFetchBtn.addEventListener("click", () => {
   /* El mismo botón hace las dos cosas según el estado: descargar, o
      cancelar lo que esté descargando.                                */
-  if (urlFetchBtn.textContent === "Cancelar descarga") {
+  if (urlFetchBtn.dataset.mode === "cancel") {
     abortUrlFetch("cancelada");
-    setUrlState("inicial", "Descarga cancelada.");
+    setUrlState("inicial", tr("Descarga cancelada."));
     urlInput.focus();
     return;
   }
   runUrlFetch();
 });
+/* Todo lo descargado cuelga de UNA sección «Descargas», como «Lugares»,
+   «Marcadores», «Polígonos» o «Elevaciones»: se localiza por nombre con
+   ensureNamedSection, así que se reutiliza entre descargas y sobrevive a
+   la restauración sin enganche especial.
+
+   Y dentro, cada descarga en su propia «Descarga N», numerada con el
+   mismo nextNumberedName que las formas dibujadas, las mediciones y los
+   pines: deduce el número de los nombres que ya hay en el árbol
+   —pendientes incluidos—, así que sobrevive a una recarga y manda el
+   máximo, no la cuenta. Es exactamente la forma de «Elevaciones» con sus
+   «Elevación N» dentro.
+
+   La carpeta hace falta: sin ella el resultado depende del formato —un
+   GeoJSON crea su envoltorio y un KML vuelca su jerarquía tal cual—, de
+   modo que dos descargas se mezclarían dentro de la sección sin saberse
+   cuál trajo qué.
+
+   Lo comparten el botón «Añadir al árbol» de este diálogo y «Traer como
+   datos» de una capa de un servicio ArcGIS (66-arcgis.js).            */
+async function importIntoNewDownload(file, undoLabel, after = null) {
+  pushUndo(undoLabel);
+  const seccion = ensureNamedSection(tr("Descargas"));
+  const carpeta = await createFolderNode(seccion.parentElement,
+    nextNumberedName(tr("Descarga")));
+  await handleDroppedFiles([file], null, nodeUl(carpeta));
+  /* `after(carpeta)`: lo que quiera hacer quien llama con lo recién importado */
+  if (after) await after(carpeta);
+  /* El conjunto de hijos de la carpeta nueva ha cambiado: su casilla
+     tiene que recalcularse, como en cualquier importación dentro de
+     una carpeta.                                                     */
+  refreshAncestorChecks(carpeta);
+  scheduleSave();
+}
 urlAddBtn.addEventListener("click", async () => {
   if (!urlReady) return;
+  if (urlReady.arcgis) {
+    const { cat, base } = urlReady.arcgis;
+    closeUrlDialog();
+    try { await addArcgisServiceNode(cat, base); }
+    catch (err) { navMessage(tr("No se pudo añadir el servicio: {message}", { message: err.message })); }
+    return;
+  }
   const { file } = urlReady;
   /* Se cierra ANTES de importar: la importación abre sus propios
      modales (etiquetas HTML, propiedad-nombre, duplicados) y no deben
      apilarse sobre este. Del resumen, el progreso y el guardado se
      encarga ya handleDroppedFiles, como con cualquier archivo.       */
   closeUrlDialog();
-  /* Todo lo descargado cuelga de UNA sección «Descargas», como
-     «Lugares», «Marcadores», «Polígonos» o «Elevaciones»: se localiza
-     por nombre con ensureNamedSection, así que se reutiliza entre
-     descargas y sobrevive a la restauración sin enganche especial.
-
-     Y dentro, cada descarga en su propia «Descarga N», numerada con el
-     mismo nextNumberedName que las formas dibujadas, las mediciones y
-     los pines: deduce el número de los nombres que ya hay en el árbol
-     —pendientes incluidos—, así que sobrevive a una recarga y manda el
-     máximo, no la cuenta. Es exactamente la forma de «Elevaciones» con
-     sus «Elevación N» dentro.
-
-     La carpeta hace falta: sin ella el resultado depende del formato
-     —un GeoJSON crea su envoltorio y un KML vuelca su jerarquía tal
-     cual—, de modo que dos descargas se mezclarían dentro de la
-     sección sin saberse cuál trajo qué.                             */
-  pushUndo("añadir desde una dirección");
-  const seccion = ensureNamedSection("Descargas");
-  const carpeta = await createFolderNode(seccion.parentElement,
-    nextNumberedName("Descarga"));
-  await handleDroppedFiles([file], null, nodeUl(carpeta));
-  /* El conjunto de hijos de la carpeta nueva ha cambiado: su casilla
-     tiene que recalcularse, como en cualquier importación dentro de
-     una carpeta.                                                     */
-  refreshAncestorChecks(carpeta);
-  scheduleSave();
+  await importIntoNewDownload(file, tr("añadir desde una dirección"));
 });
 /* Editar la dirección invalida una descarga ya lista: si no, se podría
    descargar A, escribir B y pulsar «Añadir» insertando A.           */
@@ -396,15 +440,15 @@ document.getElementById("sh-clear").addEventListener("click", () => {
   shInput.value = "";
   shErrorEl.hidden = true;
   shInput.focus();
-  navMessage("Credencial de Copernicus borrada.", { tone: "info" });
+  navMessage(tr("Credencial de Copernicus borrada."), { tone: "info" });
 });
 document.getElementById("sh-accept").addEventListener("click", () => {
   const txt = shInput.value.trim();
   if (!validInstanceId(txt)) {
     /* No cerrar con un valor inválido: mismo criterio que las
        coordenadas del diálogo de estilos.                            */
-    shErrorEl.textContent = "El instance ID debe ser un UUID como "
-      + "12345678-90ab-cdef-1234-567890abcdef.";
+    shErrorEl.textContent = tr("El instance ID debe ser un UUID como "
+      + "12345678-90ab-cdef-1234-567890abcdef.");
     shErrorEl.hidden = false;
     shInput.focus();
     return;
@@ -413,7 +457,7 @@ document.getElementById("sh-accept").addEventListener("click", () => {
   closeShCredsDialog();
 });
 
-/* ---------- Diálogo del servidor de teselas de "Custom Maps" ----------
+/* ---------- Diálogo del servidor de teselas de "Custom Tile Map Service" ----------
    Mismo patrón que el de la credencial de Copernicus, justo arriba:
    edición diferida, «Aceptar» es lo único que guarda y rearma la capa. */
 const customTilesDialog = document.getElementById("custom-tiles-creds");
@@ -442,18 +486,59 @@ document.getElementById("custom-tiles-clear").addEventListener("click", () => {
   customTilesInput.value = "";
   customTilesErrorEl.hidden = true;
   customTilesInput.focus();
-  navMessage("Servidor de teselas de Custom Maps borrado.", { tone: "info" });
+  navMessage(tr("Servidor de Custom Tile Map Service borrado."), { tone: "info" });
 });
 document.getElementById("custom-tiles-accept").addEventListener("click", () => {
   const txt = customTilesInput.value.trim();
   if (!validCustomTilesUrl(txt)) {
-    customTilesErrorEl.textContent = "Debe ser una dirección https:// válida.";
+    customTilesErrorEl.textContent = tr("Debe ser una dirección https:// válida.");
     customTilesErrorEl.hidden = false;
     customTilesInput.focus();
     return;
   }
   setCustomTilesUrl(txt);
   closeCustomTilesDialog();
+});
+
+/* ---------- Diálogo del servidor de "Custom Web Map Service" ----------
+   Gemelo del anterior: la dirección es de un WMS, y al aceptar el panel
+   le pide su GetCapabilities para ofrecer sus capas.                    */
+const customWmsDialog = document.getElementById("custom-wms-creds");
+const customWmsBox = customWmsDialog.querySelector(".dlg-box");
+const customWmsInput = document.getElementById("custom-wms-input");
+const customWmsErrorEl = document.getElementById("custom-wms-error");
+
+function closeCustomWmsDialog() {
+  customWmsDialog.hidden = true;
+  releaseFocus();
+}
+function openCustomWmsDialog() {
+  customWmsInput.value = customWmsUrl || "";
+  customWmsErrorEl.hidden = true;
+  customWmsDialog.hidden = false;
+  clampToViewport(customWmsBox);
+  focusDialog(customWmsBox);
+  customWmsInput.focus();
+  customWmsInput.select();
+}
+document.getElementById("custom-wms-cancel").addEventListener("click", closeCustomWmsDialog);
+document.getElementById("custom-wms-clear").addEventListener("click", () => {
+  setCustomWmsUrl(null);
+  customWmsInput.value = "";
+  customWmsErrorEl.hidden = true;
+  customWmsInput.focus();
+  navMessage(tr("Servidor de Custom Web Map Service borrado."), { tone: "info" });
+});
+document.getElementById("custom-wms-accept").addEventListener("click", () => {
+  const txt = customWmsInput.value.trim();
+  if (!validCustomWmsUrl(txt)) {
+    customWmsErrorEl.textContent = tr("Debe ser una dirección https:// válida, sin usuario ni contraseña.");
+    customWmsErrorEl.hidden = false;
+    customWmsInput.focus();
+    return;
+  }
+  setCustomWmsUrl(txt);
+  closeCustomWmsDialog();
 });
 
 const descDialog = document.getElementById("desc-dialog");
@@ -558,7 +643,7 @@ wirePropsGrip(styleAttrsBody);
    button opened it (see openColorPicker/positionColorPicker), not a
    draggable window with its own dialog role — that separate-window
    treatment is exactly what the popover replaced.                    */
-for (const box of [styleBox, iconBox, descBox, shortcutsBox, ktpBox, kdpBox, gnpBox, propsBox, shBox, customTilesBox, pointsBox, logBox, urlBox]) makeDialogMovable(box);
+for (const box of [styleBox, iconBox, descBox, shortcutsBox, ktpBox, kdpBox, gnpBox, propsBox, shBox, customTilesBox, customWmsBox, pointsBox, logBox, urlBox, restoreBox]) makeDialogMovable(box);
 setupDialog(styleBox, { modal: false }); /* flotante: el mapa sigue vivo */
 setupDialog(iconBox, { modal: true });
 setupDialog(descBox, { modal: false });
@@ -569,12 +654,14 @@ setupDialog(gnpBox, { modal: true });
 setupDialog(propsBox, { modal: true });
 setupDialog(shBox, { modal: true });
 setupDialog(customTilesBox, { modal: true });
+setupDialog(customWmsBox, { modal: true });
 setupDialog(pointsBox, { modal: true });
 setupDialog(logBox, { modal: true });
 setupDialog(urlBox, { modal: true });
+setupDialog(restoreBox, { modal: true });
 window.addEventListener("resize", () => {
   /* a moved dialog must not fall off-screen */
-  for (const box of [styleBox, iconBox, descBox, shortcutsBox, ktpBox, kdpBox, gnpBox, propsBox, shBox, customTilesBox, pointsBox, logBox, urlBox]) clampToViewport(box);
+  for (const box of [styleBox, iconBox, descBox, shortcutsBox, ktpBox, kdpBox, gnpBox, propsBox, shBox, customTilesBox, customWmsBox, pointsBox, logBox, urlBox]) clampToViewport(box);
   /* the popover's anchor button may have moved too; closing is simpler
      and less confusing than reclamping a stale position              */
   if (!colorPicker.hidden) closeColorPicker();
@@ -630,7 +717,7 @@ function styleDialogShows(li) {
 const CONTROL_PROP = {
   "mk-color": "color", "mk-size": "size", "mk-text-size": "textSize",
   "mk-text-color": "textColor", "mk-text-always": "textAlways",
-  "pg-mode": "mode", "pg-weight": "weight", "pg-color": "color",
+  "pg-mode": "mode", "pg-weight": "weight", "pg-color": "color", "pg-opacity": "opacity",
   "pg-fill-color": "fillColor", "pg-fill-opacity": "fillOpacity",
   "pg-text-always": "textAlways",
   "ms-weight": "weight", "ms-color": "color", "ms-fill-color": "fillColor",
@@ -722,7 +809,7 @@ function joinNames(names, max = NAMES_PREVIEW_MAX) {
     len += add;
   }
   const rest = names.length - out.length;
-  return rest ? `${out.join(", ")} y ${rest} más` : out.join(", ");
+  return rest ? tr("{list} y {rest} más", { list: out.join(", "), rest }) : out.join(", ");
 }
 
 /* Pestañas del diálogo de propiedades. Mismo patrón que la chuleta
@@ -749,10 +836,10 @@ function renderStyleAttrs() {
   const hint = $id("style-attrs-empty");
   let html = null;
   let why = "";
-  if (styleTargets.length !== 1) why = "Los atributos son de cada capa: deje seleccionada una sola para verlos.";
+  if (styleTargets.length !== 1) why = tr("Los atributos son de cada capa: deje seleccionada una sola para verlos.");
   else {
     html = infoHtmlFor(styleTargets[0]);
-    if (html == null) why = "Esta capa no tiene atributos.";
+    if (html == null) why = tr("Esta capa no tiene atributos.");
   }
   styleAttrsBody.innerHTML = html == null ? "" : html;
   hint.textContent = why;
@@ -763,6 +850,10 @@ function renderStyleAttrs() {
 /* `focus: false` cuando lo abre un clic en el VISOR (la ruta que se
    está creando): el foco se queda en el mapa, o sus teclas (desplazar,
    zoom, R) dejarían de llegar a mitad del dibujo.                   */
+/* El estado editable de una ortofoto, de KMZ o COG, o de un servicio
+   ArcGIS: solo tienen opacidad, y el diálogo las trata igual.        */
+const rasterState = t => t._imageOverlay || t._cog || t._arcgis || null;
+
 function openStyleDialog(li, { isNew = false, focus = true } = {}) {
   /* The dialog is not modal, so another row's button may be pressed while
      it is open: that cancels the edit in progress before retargeting    */
@@ -772,8 +863,8 @@ function openStyleDialog(li, { isNew = false, focus = true } = {}) {
      que hay algo debajo: se cierra antes de mostrar el de edición.    */
   hideLayerInfo();
   const kind = styleKind(li);
-  if (kind !== "marker" && kind !== "polygon" && kind !== "measure" && kind !== "imageOverlay") {
-    navMessage("Esta capa no tiene estilos editables.");
+  if (kind !== "marker" && kind !== "polygon" && kind !== "measure" && kind !== "imageOverlay" && kind !== "cog" && kind !== "arcgis") {
+    navMessage(tr("Esta capa no tiene estilos editables."));
     return;
   }
   /* Como borrar o arrastrar: actuar sobre un nodo seleccionado actúa
@@ -783,9 +874,9 @@ function openStyleDialog(li, { isNew = false, focus = true } = {}) {
   styleTargets = inSelection ? topLevelSelection().filter(n => !nodeUl(n)) : [li];
   const kinds = new Set(styleTargets.map(styleKind));
   if (kinds.size > 1) {
-    const names = [...kinds].map(k => KIND_LABEL[k] || k).join(" y ");
-    navMessage(`La selecci\u00F3n mezcla ${names}: los nodos de distinto tipo no se`
-      + " pueden editar de forma conjunta. Deje seleccionados solo los del mismo tipo.",
+    const names = new Intl.ListFormat(uiLang, { type: "conjunction" }).format([...kinds].map(k => KIND_LABEL[k] || k));
+    navMessage(tr("La selecci\u00F3n mezcla {names}: los nodos de distinto tipo no se"
+      + " pueden editar de forma conjunta. Deje seleccionados solo los del mismo tipo.", { names }),
       { sticky: true });
     styleTargets = [];
     return;
@@ -793,11 +884,12 @@ function openStyleDialog(li, { isNew = false, focus = true } = {}) {
   styleKindOpen = kind;
   styleIsNew = isNew;
   $id("style-title").textContent = styleTargets.length > 1
-    ? `Propiedades de ${styleTargets.length} capas` : `Propiedades: ${li._name}`;
+    ? tr("Propiedades de {n} capas", { n: styleTargets.length }) : tr("Propiedades: {name}", { name: li._name });
   $id("style-marker").hidden = kind !== "marker";
   $id("style-polygon").hidden = kind !== "polygon";
   $id("style-measure").hidden = kind !== "measure";
-  $id("style-imageoverlay").hidden = kind !== "imageOverlay";
+  /* Una ortofoto de KMZ, una COG y un servicio ArcGIS solo tienen opacidad: misma sección */
+  $id("style-imageoverlay").hidden = kind !== "imageOverlay" && kind !== "cog" && kind !== "arcgis";
   const single = styleTargets.length === 1;
   styleMixed = new Set();
   styleTouched = new Set();
@@ -850,7 +942,7 @@ function openStyleDialog(li, { isNew = false, focus = true } = {}) {
     const styles = styleTargets.map(t => normalizePathStyle(t._style));
     styleDraft = { ...styles[0] };
     styleMixed = mixedProps(styles,
-      ["weight", "color", "fillColor", "fillOpacity", "textAlways"]);
+      ["weight", "color", "opacity", "fillColor", "fillOpacity", "textAlways"]);
     /* El modo son DOS booleanos en un solo selector: la mezcla se
        calcula sobre lo que el selector muestra, no sobre cada uno.   */
     if (styles.some(s => polygonModeOf(s) !== polygonModeOf(styles[0]))) styleMixed.add("mode");
@@ -872,6 +964,7 @@ function openStyleDialog(li, { isNew = false, focus = true } = {}) {
       !openOnly && styleMixed.has("mode"));
     setNumberControl($id("pg-weight"), styleDraft.weight, styleMixed.has("weight"));
     setColorControl($id("pg-color"), styleDraft.color, styleMixed.has("color"));
+    setValueControl($id("pg-opacity"), styleDraft.opacity, styleMixed.has("opacity"));
     setColorControl($id("pg-fill-color"), styleDraft.fillColor, styleMixed.has("fillColor"));
     setValueControl($id("pg-fill-opacity"), styleDraft.fillOpacity, styleMixed.has("fillOpacity"));
     setCheckControl($id("pg-text-always"), styleDraft.textAlways, styleMixed.has("textAlways"));
@@ -891,10 +984,10 @@ function openStyleDialog(li, { isNew = false, focus = true } = {}) {
        a secas no cuenta: son dos motivos distintos y el usuario no
        tiene por qué adivinar cuál le toca.                            */
     const pointsWhy = !single
-      ? "Los puntos son la geometría de cada capa: deje seleccionada una sola para editarlos."
+      ? tr("Los puntos son la geometría de cada capa: deje seleccionada una sola para editarlos.")
       : (solePath(styleTargets[0])
         ? ""
-        : "Esta capa tiene varios trazos: el editor trabaja sobre uno solo.");
+        : tr("Esta capa tiene varios trazos: el editor trabaja sobre uno solo."));
     $id("pg-points-row").hidden = false;
     $id("pg-points-row").classList.toggle("dim", !!pointsWhy);
     $id("pg-points").disabled = !!pointsWhy;
@@ -930,7 +1023,7 @@ function openStyleDialog(li, { isNew = false, focus = true } = {}) {
        aquí no hay "varios trazos en la capa" que distinguir).          */
     $id("ms-points-row").classList.toggle("dim", !single);
     $id("ms-points").disabled = !single;
-    $id("ms-points").title = single ? "" : "Deje seleccionada una sola medición para editar sus puntos.";
+    $id("ms-points").title = single ? "" : tr("Deje seleccionada una sola medición para editar sus puntos.");
     /* Las medidas son de UNA medición, como la posición de un marcador */
     msMeasures = single ? measurementValues(styleTargets[0]._measure) : null;
     $id("ms-values").hidden = !msMeasures;
@@ -945,19 +1038,19 @@ function openStyleDialog(li, { isNew = false, focus = true } = {}) {
       const why = item.disabled();
       $id("ms-profile").textContent = item.label;
       $id("ms-profile").disabled = !!why;
-      $id("ms-profile").title = why || (item.label === "Mostrar perfil"
-        ? "Mostrar el perfil ya descargado de esta ruta"
-        : "Descargar las alturas MDT y MDS a lo largo de la ruta y dibujar su perfil");
+      $id("ms-profile").title = why || (item.shown
+        ? tr("Mostrar el perfil ya descargado de esta ruta")
+        : tr("Descargar las alturas MDT y MDS a lo largo de la ruta y dibujar su perfil"));
     }
   } else {
-    const ops = styleTargets.map(t => ({ opacity: t._imageOverlay.opacity }));
+    const ops = styleTargets.map(t => ({ opacity: rasterState(t).opacity }));
     styleDraft = { ...ops[0] };
     styleMixed = mixedProps(ops, ["opacity"]);
     setValueControl($id("io-opacity"), styleDraft.opacity, styleMixed.has("opacity"));
   }
   styleSnapshot = new Map(styleTargets.map(t => [t, {
     mstyle: t._mstyle, style: t._style,
-    opacity: t._imageOverlay ? t._imageOverlay.opacity : undefined
+    opacity: rasterState(t) ? rasterState(t).opacity : undefined
   }]));
   styleLivePreview = new Set();
   stylePreviewed = false;
@@ -1112,9 +1205,11 @@ function readPolygonControls() {
   Object.assign(styleDraft, {
     weight: numOr($id("pg-weight"), styleDraft.weight || 1),
     color: colorOf($id("pg-color")),
-    opacity: 1, /* outlines are always fully opaque */
-    stroke: mode !== "fill",
-    fill: mode !== "stroke",
+    opacity: Number($id("pg-opacity").value),
+    /* "none" apaga las dos: ni contorno ni relleno, solo queda el nombre si
+       se pide siempre a la vista. Con `!==` saldría true/true.            */
+    stroke: mode === "both" || mode === "stroke",
+    fill: mode === "both" || mode === "fill",
     fillColor: colorOf($id("pg-fill-color")),
     fillOpacity: Number($id("pg-fill-opacity").value),
     /* El nombre siempre a la vista, como el texto de un marcador: aquí
@@ -1131,7 +1226,7 @@ function readMeasureControls() {
   Object.assign(styleDraft, {
     weight: numOr($id("ms-weight"), styleDraft.weight || 1),
     color: colorOf($id("ms-color")),
-    opacity: 1, /* el contorno siempre opaco, como en los polígonos */
+    opacity: 1, /* la medición no edita la opacidad del contorno: siempre opaco */
     fillColor: colorOf($id("ms-fill-color")),
     fillOpacity: Number($id("ms-fill-opacity").value),
     showLabels: $id("ms-show-labels").checked
@@ -1149,7 +1244,7 @@ function readStyleControls() {
 for (const id of ["mk-size", "mk-text-size", "mk-text-always"]) { /* colours: openColorPicker */
   $id(id).addEventListener("input", () => { if (styleDraft) { readMarkerControls(); schedulePreview(); } });
 }
-for (const id of ["pg-weight", "pg-fill-opacity"]) { /* colours: openColorPicker */
+for (const id of ["pg-weight", "pg-opacity", "pg-fill-opacity"]) { /* colours: openColorPicker */
   $id(id).addEventListener("input", () => { if (styleDraft) { readPolygonControls(); schedulePreview(); } });
 }
 for (const id of ["ms-weight", "ms-fill-opacity"]) { /* colours: openColorPicker */
@@ -1194,11 +1289,19 @@ const PROFILE_MAX_DEFAULT = 10 * 1852;
 const PROFILE_MAX_MIN = 100;
 const PROFILE_MAX_MAX = 100 * 1852;
 let profileMaxM = PROFILE_MAX_DEFAULT;
+/* Frecuencia (MHz) con la que se calcula el elipsoide de Fresnel del
+   perfil de una ruta (63-route-profile.js): ajuste global, en la pestaña
+   «Frecuencias» de Propiedades. 1090 MHz de partida. Va aquí y no en el
+   archivo del perfil porque Propiedades (43) la lee y el perfil carga
+   DESPUÉS (zona muerta temporal).                                      */
+const FRESNEL_FREQ_DEFAULT = 1090;
+const FRESNEL_FREQ_MIN = 1, FRESNEL_FREQ_MAX = 300000;
+let fresnelFreqMHz = FRESNEL_FREQ_DEFAULT;
 let polyMeasures = null;   /* {area, perim} en m/m² del polígono abierto, o null */
 function renderPolyMeasures() {
   if (!polyMeasures) return;
   /* Una línea tiene LONGITUD; solo un contorno cerrado tiene perímetro */
-  $id("pg-perim-label").textContent = polyMeasures.open ? "Longitud" : "Perímetro";
+  $id("pg-perim-label").textContent = polyMeasures.open ? trc("de una línea", "Longitud") : tr("Perímetro");
   $id("pg-perimeter").textContent = fmtUnitDist(polyMeasures.perim, measureUnit);
   /* area === null: anillo sin cerrar (algunos JSON), no hay área que mostrar */
   $id("pg-area-row").hidden = polyMeasures.area === null;
@@ -1266,7 +1369,7 @@ function renderMeasureValues() {
   if (!msMeasures) return;
   /* Un círculo se describe por su RADIO, una ruta por su TOTAL, una
      línea por su distancia sin más.                                  */
-  $id("ms-dist-label").textContent = msMeasures.circle ? "Radio" : msMeasures.route ? "Distancia total" : "Distancia";
+  $id("ms-dist-label").textContent = msMeasures.circle ? tr("Radio") : msMeasures.route ? tr("Distancia total") : tr("Distancia");
   $id("ms-dist").textContent = fmtUnitDist(msMeasures.dist, measureUnit);
   /* Centro del círculo, pedido explícitamente: en el formato global de
      coordenadas (Propiedades), igual que la posición de un marcador.  */
@@ -1297,7 +1400,7 @@ function renderMeasureValues() {
     msMeasures.legs.forEach((leg, i) => {
       const row = document.createElement("div");
       row.className = "dlg-note";
-      row.textContent = `Tramo ${i + 1}: ${fmtUnitDist(leg.dist, measureUnit)} · ${leg.brg.toFixed(1)}°`;
+      row.textContent = tr("Tramo {n}: {dist} · {brg}°", { n: i + 1, dist: fmtUnitDist(leg.dist, measureUnit), brg: leg.brg.toFixed(1) });
       legs.appendChild(row);
     });
   }
@@ -1328,7 +1431,7 @@ function acceptStyleDialog() {
   if (styleKindOpen === "marker" && posMarker) {
     const { lat, lon } = markCoordValidity();
     if (!isFinite(lat) || !isFinite(lon)) {
-      navMessage("Coordenadas no v\u00E1lidas: revise la latitud y la longitud.");
+      navMessage(tr("Coordenadas no v\u00E1lidas: revise la latitud y la longitud."));
       return; /* keep the dialog open so the value can be fixed */
     }
     styleDraft.lat = lat;
@@ -1359,10 +1462,10 @@ function applyDraftToTargets() {
       applyMarkerStyle(t);
     }
   } else if (styleKindOpen === "polygon") {
-    const pick = draftProps(["weight", "color", "fillColor", "fillOpacity", "textAlways"]);
+    const pick = draftProps(["weight", "color", "opacity", "fillColor", "fillOpacity", "textAlways"]);
     /* El modo son dos booleanos que viajan juntos: o se aplican los dos
-       o no se toca ninguno, o un nodo podría quedarse sin contorno NI
-       relleno, que es la combinación que el selector no ofrece.       */
+       o no se toca ninguno. Con el modo mezclado y sin tocar, cada nodo
+       conserva el suyo (un «Ninguno» no se le iguala a quien no lo pidió). */
     if (!styleMixed.has("mode") || styleTouched.has("mode")) {
       pick.stroke = styleDraft.stroke;
       pick.fill = styleDraft.fill;
@@ -1388,7 +1491,7 @@ function applyDraftToTargets() {
     const pick = draftProps(["opacity"]);
     for (const t of styleTargets) {
       const op = "opacity" in pick ? pick.opacity : styleSnapshot.get(t).opacity;
-      t._imageOverlay.opacity = op;
+      rasterState(t).opacity = op;
       const layer = nodeLayer(t);
       if (layer) layer.setOpacity(op);
     }
@@ -1423,7 +1526,7 @@ function restoreStyleSnapshot() {
       t._measure.style = t._style;
       setMeasureLabelsVisible(t._measure, normalizePathStyle(t._style).showLabels !== false);
     } else {
-      t._imageOverlay.opacity = snap.opacity;
+      rasterState(t).opacity = snap.opacity;
       const layer = nodeLayer(t);
       if (layer) layer.setOpacity(snap.opacity);
     }

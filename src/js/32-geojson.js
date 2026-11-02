@@ -45,7 +45,7 @@ function validGeometry(geom, depth = 0) {
    (une los objetos con nombre en una sola lista de features), para que a
    partir de aquí siga el proceso habitual de importar un JSON.        */
 function topologyToGeoJson(topology) {
-  if (typeof topojson === "undefined") throw new Error("no se pudo cargar el soporte de TopoJSON");
+  if (typeof topojson === "undefined") throw new Error(tr("no se pudo cargar el soporte de TopoJSON"));
   const features = [];
   for (const name of Object.keys(topology.objects || {})) {
     const fc = topojson.feature(topology, topology.objects[name]);
@@ -60,11 +60,11 @@ function topologyToGeoJson(topology) {
    buildGeoJsonRecords, y la reutiliza addFileNode para mirar el primer
    Feature antes de construir nada (elegir la propiedad-nombre).      */
 function geojsonFeatures(gj) {
-  if (!gj || typeof gj !== "object") throw new Error("no parece un GeoJSON");
+  if (!gj || typeof gj !== "object") throw new Error(tr("no parece un GeoJSON"));
   if (gj.type === "FeatureCollection") return Array.isArray(gj.features) ? gj.features : [];
   if (gj.type === "Feature") return [gj];
   if (GEOJSON_TYPES.has(gj.type)) return [{ type: "Feature", geometry: gj, properties: {} }];
-  throw new Error("no parece un GeoJSON");
+  throw new Error(tr("no parece un GeoJSON"));
 }
 
 /* Hay que preguntar (o aplicar lo guardado) siempre que el primer Feature
@@ -78,8 +78,28 @@ function needsNamePicker(props) {
    valores ni su orden original): sirve para indexar la asociación
    guardada, y como es el JSON de las propias claves, se puede
    recuperar la lista de claves de una huella con JSON.parse.        */
-function propsFingerprint(props) {
-  return JSON.stringify(Object.keys(props || {}).sort());
+function propsFingerprint(props, scope = "") {
+  const keys = JSON.stringify(Object.keys(props || {}).sort());
+  return scope ? scope + GNP_SCOPE_SEP + keys : keys;
+}
+
+/* Un ORIGEN opcional delante de la huella: dos capas de un mismo servicio
+   ArcGIS comparten casi todos sus campos (OBJECTID, NAME_TXT, TYPE_CODE…),
+   y con solo las claves la asociación elegida para una se aplicaba en
+   silencio a las demás, que no tienen por qué llamarse igual. Con origen
+   (`arcgis:<servicio>#<id de capa>`) cada capa descargada tiene la suya.
+   El JSON de las claves nunca lleva un salto de línea sin escapar y su
+   primer carácter es «[», así que separar por «\n» es inequívoco y una
+   huella SIN origen (todo lo ya guardado) sigue valiendo tal cual.     */
+const GNP_SCOPE_SEP = "\n";
+function splitFingerprint(fp) {
+  fp = String(fp);
+  const i = fp.indexOf(GNP_SCOPE_SEP);
+  const rest = i < 0 ? fp : fp.slice(i + 1);
+  let keys = null;
+  try { keys = JSON.parse(rest); } catch { /* una huella ilegible */ }
+  return { scope: i < 0 ? "" : fp.slice(0, i),
+           keys: Array.isArray(keys) ? keys.map(String) : [rest] };
 }
 
 /* Separador entre los valores de varias claves elegidas como nombre. */
@@ -102,7 +122,7 @@ function composeFeatureName(props, keys) {
    Sin `name`/`title` de respaldo a propósito: si el elemento no tiene
    ninguna de esas claves, sale «Elemento N».                         */
 function resolveFeatureName(props, index, nameKeys) {
-  return composeFeatureName(props, nameKeys) || `Elemento ${index + 1}`;
+  return composeFeatureName(props, nameKeys) || tr("Elemento {n}", { n: index + 1 });
 }
 
 async function buildGeoJsonRecords(gj, prog, report, nameKeys = null) {
@@ -117,8 +137,8 @@ async function buildGeoJsonRecords(gj, prog, report, nameKeys = null) {
       if (!feature || !validGeometry(feature.geometry)) {
         if (report) {
           report.warn(feature && feature.geometry
-            ? `geometr\u00EDa no v\u00E1lida o fuera de rango (${feature.geometry.type || "sin tipo"})`
-            : "elemento sin geometr\u00EDa");
+            ? tr("geometr\u00EDa no v\u00E1lida o fuera de rango ({type})", { type: feature.geometry.type || tr("sin tipo") })
+            : tr("elemento sin geometr\u00EDa"));
         }
         continue;
       }
@@ -150,10 +170,29 @@ async function buildGeoJsonRecords(gj, prog, report, nameKeys = null) {
    panel reprograma un guardado (con un pequeño debounce).                    */
 
 const DB_NAME = "visor-kml";
-const DB_VERSION = 3;  /* esquema de la base: un único almacén "tree".
-                          Subir solo cuando cambie la estructura de almacenes;
-                          la migración es simplemente borrar lo anterior.     */
-const TREE_SCHEMA = 7; /* formato del árbol serializado. Subir solo cuando
+const DB_VERSION = 5;  /* esquema de la base: almacenes "tree", "rasters" y
+                          "segments". Subir solo cuando cambie la
+                          estructura de almacenes.
+                          v4 añade "rasters" (las ortofotos COG, ver
+                          64-cog.js) SIN borrar "tree": subir la versión
+                          vaciaba antes todos los almacenes, y añadir uno
+                          habría tirado el árbol de todo el mundo a cambio
+                          de nada. openDb crea solo los que falten; un
+                          almacén que deje de existir se borra allí.
+                          v5 añade "segments": la parte PESADA de cada hoja
+                          (geometría y ficha de una capa, celdas de una
+                          cuadrícula, imagen de una superposición) sale
+                          del "root" guardado, que pasa a ser un esqueleto
+                          con referencias `p: [segmento, índice]` (ver
+                          «Guardado en dos niveles» más abajo). Una
+                          instancia anterior no puede abrir una base v5
+                          (VersionError), así que nunca leerá un esqueleto
+                          sin geometría. TERCERA excepción deliberada a
+                          «sin compatibilidad hacia atrás», decidida con
+                          el usuario: un "root" v8 con todo en línea se
+                          sigue leyendo tal cual, sin transformar nada, y
+                          el primer guardado lo reparte.                 */
+const TREE_SCHEMA = 9; /* formato del árbol serializado. Subir solo cuando
                           cambie el formato; un árbol guardado con otra
                           versión se descarta al leer.
                           v2: los nodos de capa admiten `mstyle` (estilo de
@@ -187,8 +226,250 @@ const TREE_SCHEMA = 7; /* formato del árbol serializado. Subir solo cuando
                           que es trivial y está acotado a un solo tipo
                           de nodo — no es la política por defecto para
                           la próxima subida de versión, que se evalúa
-                          aparte. */
+                          aparte.
+                          v8: nuevo tipo de nodo "cog" (ortofoto COG cuyos
+                          bytes viven en el almacén "rasters", ver
+                          64-cog.js). SEGUNDA excepción deliberada, y sin
+                          transformar nada: un árbol v7 ya es un v8
+                          válido (solo se añade un tipo), así que se lee
+                          tal cual (dbLoadTree, importTreeExport). Se sube
+                          igualmente para que una instancia ANTERIOR
+                          rechace un árbol que traiga el tipo nuevo.
+                          v9: nuevos tipos de nodo "arcgis" (un servicio
+                          ArcGIS MapServer: su dirección, extent, opacidad
+                          y las capas del catálogo) y "arcgisLayer" (cada
+                          capa, hija de su servicio; ver 66-arcgis.js).
+                          CUARTA excepción deliberada, misma forma que la
+                          v8: un árbol v8 (y el v7 que ya se leía) se lee
+                          tal cual porque solo se AÑADEN tipos, y se sube
+                          para que una instancia anterior rechace un árbol
+                          con servicios en vez de leer un "arcgis" con
+                          hijos como una carpeta y estropearlo. */
 const DB_TREE = "tree";
+const DB_RASTERS = "rasters";
+const DB_SEGMENTS = "segments";
+/* Los almacenes de DB_VERSION: openDb crea los que falten y borra los
+   que sobren, sin tocar los que siguen (ver DB_VERSION v4).          */
+const DB_STORES = [DB_TREE, DB_RASTERS, DB_SEGMENTS];
+
+/* Id aleatorio de 32 hex para las claves que no deben chocar entre
+   pestañas: blobs de "rasters" y segmentos de "segments".           */
+function newStoreId() {
+  const b = new Uint8Array(16);
+  crypto.getRandomValues(b);
+  return [...b].map(x => x.toString(16).padStart(2, "0")).join("");
+}
+
+/* ================= Guardado en dos niveles =================
+   IndexedDB no modifica un valor en parte: `put` lo reescribe entero, y
+   el structured clone de ese `put` corre SÍNCRONO en el hilo principal.
+   Con el árbol entero como un solo valor, cualquier cambio —plegar una
+   carpeta, marcar una capa— reescribía todo. Medido (Chromium sin GPU,
+   7 copias de un .kite.json real, 114 MB, 22.078 capas): 330 ms de
+   bloqueo 400 ms después de CADA acción, con el trabajo propio de la
+   acción por debajo de 40 ms. Y con la composición de un árbol real de
+   usuario (fichas 39 MB, polígonos 34 MB): 460 ms, de ellos 370 solo
+   por la geometría.
+
+   Ahora el "root" es un ESQUELETO (nombres, casillas, colapso, estilos:
+   2,9 MB con 22k capas → 18-20 ms) y lo pesado va a "segments", que se
+   escribe como un registro de bitácora: cada guardado añade como mucho
+   UN segmento con lo nuevo o cambiado desde el anterior. Importar es un
+   segmento grande; mover un marcador, uno diminuto. Al arrancar se
+   borran los segmentos muertos y se funden los pequeños o medio
+   muertos (segmentPlan).
+
+   Por qué segmentos y no una clave por capa (medido, 22k capas): una
+   clave por capa tardaba 9,4 s en el primer guardado y 1,16 s en leerse
+   al arrancar, frente a 0,24 s del "root" único; cada registro de
+   IndexedDB tiene un coste fijo alto. Hay que tener POCOS registros.
+
+   Saber qué ha cambiado no exige marcar nada en los ~100 sitios que
+   llaman a scheduleSave: la parte pesada se reconoce por IDENTIDAD.
+   `li._geo`/`rec.geo` es un objeto que nadie modifica en el sitio: todo
+   cambio de geometría pasa por invalidateGeo (31-tree-node.js), y el
+   siguiente toGeoJSON() crea otro objeto. Igual las celdas de una
+   cuadrícula y la cadena de una superposición. Cualquier código nuevo
+   que altere geometría SIN invalidateGeo perdería ese cambio al
+   recargar (antes también: la caché ya dependía de lo mismo).          */
+
+/* La parte pesada de una hoja serializada, o null si no tiene. `key` es
+   lo que la identifica (objeto o cadena) y `disc` lo que la acompaña y
+   también puede cambiar (la ficha de una capa, el perfil de una
+   cuadrícula): dos nodos con la misma geometría y distinta ficha son
+   dos cargas distintas. PURA.                                         */
+const HEAVY_FIELDS = { layer: ["geo", "desc"], elevGrid: ["cells", "profile"], imageOverlay: ["dataUrl"] };
+function heavyPart(n) {
+  const fields = HEAVY_FIELDS[n.t];
+  if (!fields) return null;
+  const key = n[fields[0]];
+  if (!key || (typeof key !== "object" && typeof key !== "string")) return null;
+  return { key, disc: fields[1] ? n[fields[1]] : undefined, fields };
+}
+/* La parte pesada, solo cuando hace falta escribirla. Un campo vacío no
+   se guarda, igual que serializeNode no lo pone.                     */
+function heavyPayload(n, fields) {
+  const out = {};
+  for (const f of fields) if (n[f]) out[f] = n[f];
+  return out;
+}
+/* El registro sin su parte pesada y con la referencia. A mano y no con
+   `{ ...rest }`: con 22k hojas por guardado, la desestructuración con
+   resto costaba de 5 a 19 ms medidos.                                */
+function skeletonLeaf(n, fields, ref) {
+  const out = {};
+  for (const k in n) if (!fields.includes(k)) out[k] = n[k];
+  out.p = ref;
+  return out;
+}
+
+/* Qué cargas ya están en disco y dónde: objeto pesado → (disc → ref).
+   Un WeakMap para los objetos, que así no retiene nada que el árbol ya
+   no use; las cadenas (dataUrl) no pueden ir en un WeakMap y van en un
+   Map que se rehace en cada guardado con las que siguen en el árbol.  */
+const newPayloadIndex = () => ({ obj: new WeakMap(), str: new Map() });
+function payloadRef(index, key, disc) {
+  const m = typeof key === "string" ? index.str.get(key) : index.obj.get(key);
+  return m ? m.get(disc) : undefined;
+}
+function rememberPayload(index, key, disc, ref) {
+  const table = typeof key === "string" ? index.str : index.obj;
+  let m = table.get(key);
+  if (!m) table.set(key, m = new Map());
+  m.set(disc, ref);
+}
+
+/* Reparte unos registros serializados en esqueleto + entradas del
+   segmento nuevo `segId`. Una carga ya conocida reutiliza su ref SOLO si
+   su segmento sigue en disco (`liveSegs`): si otra pestaña lo borró al
+   arrancar, se vuelve a escribir aquí (auto-reparación). `fresh` guarda
+   lo nuevo de este guardado, que pasa a `known` solo cuando la
+   transacción se complete (commitPayloads): si fallara, el siguiente
+   guardado lo reescribiría. PURA salvo por leer `known`.             */
+function splitPayloads(nodes, known, segId, liveSegs) {
+  const entries = [], fresh = newPayloadIndex(), freshList = [], strings = new Map();
+  const walk = list => list.map(n => {
+    if (n.children) return { ...n, children: walk(n.children) };
+    const h = heavyPart(n);
+    if (!h) return n;
+    let ref = payloadRef(fresh, h.key, h.disc);
+    if (!ref) {
+      const old = payloadRef(known, h.key, h.disc);
+      if (old && liveSegs.has(old[0])) ref = old;
+    }
+    if (!ref) {
+      ref = [segId, entries.length];
+      entries.push(heavyPayload(n, h.fields));
+      rememberPayload(fresh, h.key, h.disc, ref);
+      freshList.push([h.key, h.disc, ref]);
+    }
+    if (typeof h.key === "string") {
+      let m = strings.get(h.key);
+      if (!m) strings.set(h.key, m = new Map());
+      m.set(h.disc, ref);
+    }
+    return skeletonLeaf(n, h.fields, ref);
+  });
+  return { skeleton: walk(nodes), entries, freshList, strings };
+}
+function commitPayloads(known, out) {
+  for (const [key, disc, ref] of out.freshList) rememberPayload(known, key, disc, ref);
+  known.str = out.strings; /* solo las cadenas que siguen en el árbol */
+}
+
+/* Hojas del esqueleto que apuntan a un segmento, en orden. PURA. */
+function skeletonRefs(nodes, out = []) {
+  for (const n of nodes) {
+    if (n.children) skeletonRefs(n.children, out);
+    else if (Array.isArray(n.p)) out.push(n);
+  }
+  return out;
+}
+
+/* Qué hacer con los segmentos al arrancar, a partir del esqueleto
+   leído: borrar los que nada nombra y fundir en uno nuevo los que
+   tienen más entradas muertas que vivas o son pequeños (si hay más de
+   uno pequeño). Un segmento grande y sano (una importación) no se toca:
+   reescribirlo costaría lo mismo que el guardado entero que se evita.
+   PURA: `sizes` es Map(segId → nº de entradas).                      */
+const SEG_SMALL = 64;
+function segmentPlan(nodes, sizes) {
+  const live = new Map(); /* segId → Set(índices vivos) */
+  for (const n of skeletonRefs(nodes)) {
+    const [seg, i] = n.p;
+    if (!sizes.has(seg)) continue;
+    let s = live.get(seg);
+    if (!s) live.set(seg, s = new Set());
+    s.add(i);
+  }
+  const drop = [], small = [], compact = [];
+  for (const [seg, total] of sizes) {
+    const s = live.get(seg);
+    if (!s) drop.push(seg);
+    else if (s.size * 2 < total) compact.push(seg);
+    else if (total < SEG_SMALL) small.push(seg);
+  }
+  if (small.length > 1 || (small.length && compact.length)) compact.push(...small);
+  return { drop, compact };
+}
+
+/* Mueve al segmento nuevo `segId` las entradas vivas de los segmentos a
+   fundir, reescribiendo `p` en el esqueleto (que se MUTA, como
+   upgradeMeasuresV6). Dos hojas con la misma ref siguen compartiéndola.
+   Devuelve las entradas del segmento nuevo. PURA salvo esa mutación. */
+function compactSegments(nodes, segs, compact, segId) {
+  const moving = new Set(compact), moved = new Map(), entries = [];
+  for (const n of skeletonRefs(nodes)) {
+    const [seg, i] = n.p;
+    if (!moving.has(seg)) continue;
+    const k = seg + "|" + i;
+    let ref = moved.get(k);
+    if (!ref) {
+      const e = segs.get(seg)[i];
+      if (e === undefined) continue; /* la cuenta joinPayloads como perdida */
+      moved.set(k, ref = [segId, entries.length]);
+      entries.push(e);
+    }
+    n.p = ref;
+  }
+  return entries;
+}
+
+/* Devuelve a cada hoja su parte pesada (MUTA el esqueleto, recién leído
+   de disco) y quita las que apuntan a algo que ya no está: una base
+   tocada a mano, o una carrera entre pestañas que la auto-reparación no
+   llegó a cubrir. `remember(key, disc, ref)` siembra el índice de lo ya
+   guardado para que el primer guardado no lo reescriba todo. Un
+   registro con su parte pesada EN LÍNEA (un "root" v8 de antes de los
+   segmentos) pasa tal cual. Devuelve cuántas hojas se perdieron. PURA
+   salvo la mutación y `remember`.                                     */
+function joinPayloads(nodes, segs, remember = () => {}) {
+  let missing = 0;
+  const walk = list => {
+    for (let i = list.length - 1; i >= 0; i--) {
+      const n = list[i];
+      if (n.children) { walk(n.children); continue; }
+      if (!Array.isArray(n.p)) continue;
+      const seg = segs.get(n.p[0]);
+      const e = Array.isArray(seg) ? seg[n.p[1]] : undefined;
+      const ok = e && typeof e === "object" && (
+        (n.t === "layer" && e.geo && typeof e.geo === "object") ||
+        (n.t === "elevGrid" && Array.isArray(e.cells)) ||
+        (n.t === "imageOverlay" && typeof e.dataUrl === "string"));
+      if (!ok) { list.splice(i, 1); missing++; continue; }
+      const ref = n.p;
+      delete n.p;
+      Object.assign(n, e);
+      const h = heavyPart(n);
+      if (h) remember(h.key, h.disc, ref);
+    }
+  };
+  walk(nodes);
+  return missing;
+}
+
+/* Lo ya escrito en "segments" en esta sesión (y lo leído al arrancar) */
+let payloadsKnown = newPayloadIndex();
 
 /* Sube en silencio un árbol v6 a la forma v7 (measure: a/b → waypoints),
    la ÚNICA excepción a «lo que no corresponda a la versión actual se
@@ -215,16 +496,23 @@ function upgradeMeasuresV6(nodes) {
    tab: `onversionchange` closes ours so the other tab can proceed, and
    the cached promise is dropped so the next call reopens.            */
 let dbPromise = null;
+/* Mientras se borra toda la base (Propiedades › Restaurar, wipeAllData)
+   nadie puede volver a abrirla: un guardado tardío (la vista del mapa, un
+   autoguardado) recrearía la base vacía y escribiría en ella justo antes
+   de recargar. Todos los que llaman a openDb ya capturan el rechazo.    */
+let dbWiped = false;
 
 function openDb() {
+  if (dbWiped) return Promise.reject(new Error("restoring"));
   if (dbPromise) return dbPromise;
   dbPromise = new Promise((resolve, reject) => {
     const rq = indexedDB.open(DB_NAME, DB_VERSION);
     rq.onupgradeneeded = () => {
-      /* Sin compatibilidad hacia atrás: se vacía cualquier esquema previo */
+      /* Se crea lo que falta y se borra lo que ya no existe; lo que
+         sigue se conserva con su contenido (ver DB_VERSION v4).      */
       const db = rq.result;
-      for (const s of [...db.objectStoreNames]) db.deleteObjectStore(s);
-      db.createObjectStore(DB_TREE);
+      for (const s of [...db.objectStoreNames]) if (!DB_STORES.includes(s)) db.deleteObjectStore(s);
+      for (const s of DB_STORES) if (!db.objectStoreNames.contains(s)) db.createObjectStore(s);
     };
     rq.onsuccess = () => {
       const db = rq.result;
@@ -233,17 +521,34 @@ function openDb() {
       resolve(db);
     };
     rq.onerror = () => { dbPromise = null; reject(rq.error); };
-    rq.onblocked = () => navMessage("Otra pesta\u00F1a est\u00E1 usando el almacenamiento; ci\u00E9rrela para continuar.");
+    rq.onblocked = () => navMessage(tr("Otra pesta\u00F1a est\u00E1 usando el almacenamiento; ci\u00E9rrela para continuar."));
   }).catch(err => { dbPromise = null; throw err; });
   return dbPromise;
 }
-async function dbSaveTree(nodes) {
+/* Una sola transacción sobre "tree" y "segments": el esqueleto nunca
+   puede quedar en disco apuntando a un segmento que no llegó. Primero
+   se listan los segmentos que hay (pocos registros: barato) para que el
+   reparto sepa cuáles de los ya conocidos siguen vivos. `onCost` recibe
+   lo que tardó la parte SÍNCRONA de los `put`, que es donde se clona y
+   lo que bloquea el hilo: el retardo de scheduleSave se ajusta a eso.  */
+async function dbSaveTree(nodes, onCost = () => {}) {
   const db = await openDb();
   return new Promise((resolve, reject) => {
-    const tx = db.transaction(DB_TREE, "readwrite");
-    tx.objectStore(DB_TREE).put({ v: TREE_SCHEMA, nodes }, "root");
-    tx.oncomplete = resolve;
+    const tx = db.transaction([DB_TREE, DB_SEGMENTS], "readwrite");
+    const segs = tx.objectStore(DB_SEGMENTS);
+    let out = null;
+    const rq = segs.getAllKeys();
+    rq.onsuccess = () => {
+      const t0 = performance.now();
+      const segId = newStoreId();
+      out = splitPayloads(nodes, payloadsKnown, segId, new Set(rq.result));
+      if (out.entries.length) segs.put(out.entries, segId);
+      tx.objectStore(DB_TREE).put({ v: TREE_SCHEMA, nodes: out.skeleton }, "root");
+      onCost(performance.now() - t0);
+    };
+    tx.oncomplete = () => { if (out) commitPayloads(payloadsKnown, out); resolve(); };
     tx.onerror = () => reject(tx.error);
+    tx.onabort = () => reject(tx.error);
   });
 }
 /* ================= Ficha del elemento =================
@@ -408,20 +713,20 @@ function withUndo(label, fn) {
 
 async function undoLast() {
   const state = undoStack.pop();
-  if (!state) { navMessage("No hay nada que deshacer."); return; }
+  if (!state) { navMessage(tr("No hay nada que deshacer.")); return; }
   /* Antes de retroceder se guarda el presente, que es lo que habrá que
      recuperar al rehacer                                             */
   redoStack.push({ label: state.label, nodes: serializeTree() });
   await applySnapshot(state.nodes);
-  navMessage(`Deshecho: ${state.label}.`, { tone: "info" });
+  navMessage(tr("Deshecho: {label}.", { label: state.label }), { tone: "info" });
 }
 
 async function redoLast() {
   const state = redoStack.pop();
-  if (!state) { navMessage("No hay nada que rehacer."); return; }
+  if (!state) { navMessage(tr("No hay nada que rehacer.")); return; }
   undoStack.push({ label: state.label, nodes: serializeTree() });
   await applySnapshot(state.nodes);
-  navMessage(`Rehecho: ${state.label}.`, { tone: "info" });
+  navMessage(tr("Rehecho: {label}.", { label: state.label }), { tone: "info" });
 }
 
 /* ---------- Vista guardada (centro y zoom) ----------
@@ -642,6 +947,32 @@ async function dbLoadProfileMax() {
   });
 }
 
+/* Frecuencia del elipsoide de Fresnel, en MHz (pestaña «Frecuencias» de
+   Propiedades). Fuera de [FRESNEL_FREQ_MIN, FRESNEL_FREQ_MAX] se descarta. */
+const FRESNEL_FREQ_KEY = "fresnelFreq";
+const FRESNEL_FREQ_SCHEMA = 1;
+const validFresnelFreq = r =>
+  (r && r.v === FRESNEL_FREQ_SCHEMA && Number.isFinite(r.f)
+    && r.f >= FRESNEL_FREQ_MIN && r.f <= FRESNEL_FREQ_MAX ? r.f : null);
+async function dbSaveFresnelFreq(f) {
+  const db = await openDb();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(DB_TREE, "readwrite");
+    tx.objectStore(DB_TREE).put({ v: FRESNEL_FREQ_SCHEMA, f }, FRESNEL_FREQ_KEY);
+    tx.oncomplete = resolve;
+    tx.onerror = () => reject(tx.error);
+  });
+}
+async function dbLoadFresnelFreq() {
+  const db = await openDb();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(DB_TREE, "readonly");
+    const rq = tx.objectStore(DB_TREE).get(FRESNEL_FREQ_KEY);
+    rq.onsuccess = () => resolve(validFresnelFreq(rq.result));
+    rq.onerror = () => reject(rq.error);
+  });
+}
+
 const COORD_FORMAT_KEY = "coordFormat";
 const COORD_FORMAT_SCHEMA = 1;
 async function dbSaveCoordFormat(fmt) {
@@ -651,6 +982,61 @@ async function dbSaveCoordFormat(fmt) {
     tx.objectStore(DB_TREE).put({ v: COORD_FORMAT_SCHEMA, fmt }, COORD_FORMAT_KEY);
     tx.oncomplete = resolve;
     tx.onerror = () => reject(tx.error);
+  });
+}
+/* Tema de la interfaz: "auto" sigue al sistema (prefers-color-scheme),
+   "light"/"dark" lo fuerzan. Va aquí y no con la variable (43-points-
+   editor.js) porque dbLoadUiTheme lo necesita para validar.            */
+const UI_THEMES = ["auto", "light", "dark"];
+const UI_THEME_KEY = "uiTheme";
+const UI_THEME_SCHEMA = 1;
+async function dbSaveUiTheme(theme) {
+  const db = await openDb();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(DB_TREE, "readwrite");
+    tx.objectStore(DB_TREE).put({ v: UI_THEME_SCHEMA, theme }, UI_THEME_KEY);
+    tx.oncomplete = resolve;
+    tx.onerror = () => reject(tx.error);
+  });
+}
+async function dbLoadUiTheme() {
+  const db = await openDb();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(DB_TREE, "readonly");
+    const rq = tx.objectStore(DB_TREE).get(UI_THEME_KEY);
+    rq.onsuccess = () => {
+      const r = rq.result;
+      resolve(r && r.v === UI_THEME_SCHEMA && UI_THEMES.includes(r.theme) ? r.theme : null);
+    };
+    rq.onerror = () => reject(rq.error);
+  });
+}
+/* Qué eligió quien abrió la aplicación desde un móvil ante el aviso de
+   «mejor desde un ordenador» (50-splitter.js): "map" = continuar solo con
+   el mapa, "nav" = cerrar el aviso y quedarse con la navegación. Se
+   recuerda para no volver a preguntar en cada carga.                    */
+const MOBILE_VIEWS = ["map", "nav"];
+const MOBILE_VIEW_KEY = "mobileView";
+const MOBILE_VIEW_SCHEMA = 1;
+async function dbSaveMobileView(choice) {
+  const db = await openDb();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(DB_TREE, "readwrite");
+    tx.objectStore(DB_TREE).put({ v: MOBILE_VIEW_SCHEMA, choice }, MOBILE_VIEW_KEY);
+    tx.oncomplete = resolve;
+    tx.onerror = () => reject(tx.error);
+  });
+}
+async function dbLoadMobileView() {
+  const db = await openDb();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(DB_TREE, "readonly");
+    const rq = tx.objectStore(DB_TREE).get(MOBILE_VIEW_KEY);
+    rq.onsuccess = () => {
+      const r = rq.result;
+      resolve(r && r.v === MOBILE_VIEW_SCHEMA && MOBILE_VIEWS.includes(r.choice) ? r.choice : null);
+    };
+    rq.onerror = () => reject(rq.error);
   });
 }
 async function dbLoadCoordFormat() {
@@ -761,7 +1147,7 @@ async function dbLoadSh() {
   });
 }
 
-/* ---------- Servidor de teselas de "Custom Maps" ----------
+/* ---------- Servidor de teselas de "Custom Tile Map Service" ----------
    Otra clave del mismo almacén, mismo criterio que la credencial de
    Sentinel Hub: es del usuario (su propio servidor de teselas, típico
    caso: una caché/proxy delante de OpenStreetMap u otro servicio) y
@@ -798,6 +1184,43 @@ async function dbLoadCustomTilesUrl() {
     rq.onsuccess = () => {
       const rec = rq.result;
       resolve(rec && rec.v === CUSTOM_TILES_SCHEMA && typeof rec.url === "string" ? rec : null);
+    };
+    rq.onerror = () => reject(rq.error);
+  });
+}
+
+/* ---------- Servidor de "Custom Web Map Service" ----------
+   Mismo criterio que el de teselas de arriba: la dirección del WMS es
+   del usuario, vive solo en su navegador y no viaja en un .kite.json.  */
+const CUSTOM_WMS_KEY = "customWmsUrl";
+const CUSTOM_WMS_SCHEMA = 1;
+
+async function dbSaveCustomWmsUrl(rec) {
+  const db = await openDb();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(DB_TREE, "readwrite");
+    tx.objectStore(DB_TREE).put({ v: CUSTOM_WMS_SCHEMA, ...rec }, CUSTOM_WMS_KEY);
+    tx.oncomplete = resolve;
+    tx.onerror = () => reject(tx.error);
+  });
+}
+async function dbDeleteCustomWmsUrl() {
+  const db = await openDb();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(DB_TREE, "readwrite");
+    tx.objectStore(DB_TREE).delete(CUSTOM_WMS_KEY);
+    tx.oncomplete = resolve;
+    tx.onerror = () => reject(tx.error);
+  });
+}
+async function dbLoadCustomWmsUrl() {
+  const db = await openDb();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(DB_TREE, "readonly");
+    const rq = tx.objectStore(DB_TREE).get(CUSTOM_WMS_KEY);
+    rq.onsuccess = () => {
+      const rec = rq.result;
+      resolve(rec && rec.v === CUSTOM_WMS_SCHEMA && typeof rec.url === "string" ? rec : null);
     };
     rq.onerror = () => reject(rq.error);
   });
@@ -875,33 +1298,73 @@ function validView(rec) {
   return { lat, lng, zoom };
 }
 
+/* Lee el árbol y sus segmentos y, en la MISMA transacción, borra los
+   segmentos muertos y funde los pequeños (segmentPlan). Tiene que ser la
+   misma: un archivo soltado mientras arranca la aplicación guarda sus
+   segmentos en una transacción posterior, y una limpieza hecha aparte
+   podría verlos sin nadie que los nombre y borrarlos.               */
 async function dbLoadTree() {
   const db = await openDb();
   return new Promise((resolve, reject) => {
-    const tx = db.transaction(DB_TREE, "readwrite");
+    const tx = db.transaction([DB_TREE, DB_SEGMENTS], "readwrite");
     const st = tx.objectStore(DB_TREE);
-    const rq = st.get("root");
-    rq.onsuccess = () => {
-      const rec = rq.result;
-      if (rec && rec.v === TREE_SCHEMA) { resolve(rec.nodes); return; }
+    const segStore = tx.objectStore(DB_SEGMENTS);
+    let rec, keys, nodes = null, missing = 0;
+    const rqRoot = st.get("root");
+    const rqKeys = segStore.getAllKeys();
+    const rqVals = segStore.getAll();
+    rqRoot.onsuccess = () => { rec = rqRoot.result; };
+    rqKeys.onsuccess = () => { keys = rqKeys.result; };
+    /* Las peticiones de una transacción terminan en orden: aquí ya están
+       las otras dos.                                                  */
+    rqVals.onsuccess = () => {
+      const segs = new Map(keys.map((k, i) => [k, rqVals.result[i]]));
+      /* v8 y v7 se leen tal cual: ya son un v9 válido, solo se han ido
+         añadiendo tipos de nodo (ver TREE_SCHEMA v8 y v9)             */
+      if (rec && (rec.v === TREE_SCHEMA || rec.v === 8 || rec.v === 7)) nodes = rec.nodes;
       /* Excepción deliberada (ver TREE_SCHEMA v7): un árbol v6 no se
          descarta, se sube en silencio. scheduleSave() lo dejará ya en
          v7 en cuanto el árbol restaurado sufra cualquier mutación.  */
-      if (rec && rec.v === 6) { resolve(upgradeMeasuresV6(rec.nodes)); return; }
+      else if (rec && rec.v === 6) nodes = upgradeMeasuresV6(rec.nodes);
       /* Versión distinta: se descarta el árbol, pero solo el árbol; la
          vista guardada es independiente y sigue siendo válida. El
          usuario pierde lo que tuviera cargado, así que el aviso es
          sticky (exige "Aceptar"), igual que un resumen de importación
          con elementos omitidos.                                     */
-      if (rec) {
+      else if (rec) {
         st.delete("root");
-        navMessage("El árbol guardado en este navegador es de una versión "
-          + "anterior, incompatible con esta, y se ha eliminado.",
+        navMessage(tr("El árbol guardado en este navegador es de una versión "
+          + "anterior, incompatible con esta, y se ha eliminado."),
           { sticky: true });
       }
-      resolve(null);
+      const plan = segmentPlan(nodes || [], new Map([...segs].map(([k, v]) => [k, Array.isArray(v) ? v.length : 0])));
+      for (const seg of plan.drop) { segStore.delete(seg); segs.delete(seg); }
+      if (plan.compact.length) {
+        const segId = newStoreId();
+        const entries = compactSegments(nodes, segs, plan.compact, segId);
+        for (const seg of plan.compact) { segStore.delete(seg); segs.delete(seg); }
+        segs.set(segId, entries);
+        segStore.put(entries, segId);
+        /* Las refs del esqueleto cambiaron: se reescribe AHORA, antes de
+           que joinPayloads le devuelva la parte pesada (el clon del put
+           se hace en el acto).                                       */
+        st.put({ v: TREE_SCHEMA, nodes }, "root");
+      }
+      if (nodes) {
+        missing = joinPayloads(nodes, segs, (key, disc, ref) => rememberPayload(payloadsKnown, key, disc, ref));
+      }
     };
-    rq.onerror = () => reject(rq.error);
+    tx.oncomplete = () => {
+      if (missing) {
+        navMessage(trn(missing,
+          "Faltan en el almacenamiento los datos de {n} capa guardada; se ha quitado del árbol.",
+          "Faltan en el almacenamiento los datos de {n} capas guardadas; se han quitado del árbol."),
+          { sticky: true });
+      }
+      resolve(nodes);
+    };
+    tx.onerror = () => reject(tx.error);
+    tx.onabort = () => reject(tx.error);
   });
 }
 
@@ -926,6 +1389,27 @@ function serializeNode(li) {
     const o = li._imageOverlay;
     return [{ ...base, t: "imageOverlay", box: o.box, dataUrl: o.dataUrl, opacity: o.opacity }];
   }
+  if (li._cog) {
+    const c = li._cog;
+    return [{ ...base, t: "cog", rasterId: c.rasterId, box: c.box, opacity: c.opacity }];
+  }
+  /* Un servicio ArcGIS y sus capas son contenedores con forma propia: van
+     ANTES de la rama de carpeta, que los guardaría como una carpeta más. */
+  if (li._arcgisLayer) {
+    const rec = { ...base, t: "arcgisLayer", id: li._arcgisLayer.id };
+    if (li._arcgisLayer.data) rec.data = true;
+    if (li._isContainer) {
+      rec.collapsed = li.classList.contains("collapsed");
+      rec.children = li._pending ? serializePendingRecords(li._pending) : serializeNodes(nodeUl(li));
+    }
+    return [rec];
+  }
+  if (li._arcgis) {
+    const a = li._arcgis;
+    return [{ ...base, t: "arcgis", collapsed: li.classList.contains("collapsed"), url: a.url,
+              opacity: a.opacity, tile: a.tile, extent: a.extent, attribution: a.attribution,
+              children: li._pending ? serializePendingRecords(li._pending) : serializeNodes(nodeUl(li)) }];
+  }
   /* li._isContainer evita este querySelector en toda capa hoja (la
      inmensa mayoría de los nodos de un árbol grande): solo carpetas y
      archivos pueden tener un <ul class="node-list"> de verdad.       */
@@ -937,8 +1421,10 @@ function serializeNode(li) {
        una sola fila — coste casi nulo para lo que nadie ha llegado a
        abrir.                                                          */
     const children = li._pending ? serializePendingRecords(li._pending) : serializeNodes(ul);
-    return [{ ...base, t: li.classList.contains("file") ? "file" : "folder",
-              collapsed: li.classList.contains("collapsed"), children }];
+    const rec = { ...base, t: li.classList.contains("file") ? "file" : "folder",
+                  collapsed: li.classList.contains("collapsed"), children };
+    if (li._appSection) rec.sec = true; /* sección creada por la aplicación */
+    return [rec];
   }
   /* `toGeoJSON()` clona TODAS las coordenadas de la capa. Hacerlo en cada
      guardado (y se guarda tras cualquier cambio del panel) suponía
@@ -964,8 +1450,10 @@ const serializeNodes = ul => [...ul.children].flatMap(serializeNode);
 function serializePendingRecords(records) {
   return records.map(rec => {
     if (rec.t === "folder" || rec.t === "file") {
-      return { name: rec.name, checked: rec.checked, t: rec.t,
-                collapsed: rec.collapsed, children: serializePendingRecords(rec.children) };
+      const out = { name: rec.name, checked: rec.checked, t: rec.t,
+                    collapsed: rec.collapsed, children: serializePendingRecords(rec.children) };
+      if (rec.sec) out.sec = true;
+      return out;
     }
     if (rec.t === "layer") {
       if (!rec.geo) rec.geo = rec._layer.toGeoJSON();
@@ -985,6 +1473,23 @@ function serializePendingRecords(records) {
     if (rec.t === "elevGrid") {
       const out = { name: rec.name, checked: rec.checked, t: "elevGrid", cells: rec.cells };
       if (rec.profile) out.profile = rec.profile;
+      return out;
+    }
+    if (rec.t === "cog") {
+      return { name: rec.name, checked: rec.checked, t: "cog",
+                rasterId: rec.rasterId, box: rec.box, opacity: rec.opacity };
+    }
+    /* Explícitos: lo que no se reconozca cae en el último caso, el de
+       una ortofoto de KMZ, y un servicio saldría estropeado.          */
+    if (rec.t === "arcgis") {
+      return { name: rec.name, checked: rec.checked, t: "arcgis", collapsed: rec.collapsed, url: rec.url,
+                opacity: rec.opacity, tile: rec.tile, extent: rec.extent, attribution: rec.attribution,
+                children: serializePendingRecords(rec.children) };
+    }
+    if (rec.t === "arcgisLayer") {
+      const out = { name: rec.name, checked: rec.checked, t: "arcgisLayer", id: rec.id };
+      if (rec.data) out.data = true;
+      if (rec.children) { out.collapsed = rec.collapsed; out.children = serializePendingRecords(rec.children); }
       return out;
     }
     /* rec.t === "imageOverlay" */
@@ -1033,18 +1538,43 @@ function treeExportDoc(nodes) {
 }
 
 function exportNode(li) {
-  const nodes = serializeNode(li);
-  if (!nodes.length) { navMessage("No hay nada que descargar en este nodo."); return; }
+  const { nodes, left } = withoutCogNodes(serializeNode(li));
+  if (left.length) {
+    navMessage(trn(left.length, "Las ortofotos COG no se exportan (pueden ocupar gigas): se queda fuera {names}.",
+      "Las ortofotos COG no se exportan (pueden ocupar gigas): se quedan fuera {names}.",
+      { names: left.map(n => `\u00AB${n}\u00BB`).join(", ") }), { sticky: true, tone: "info" });
+  }
+  if (!nodes.length) { navMessage(tr("No hay nada que descargar en este nodo.")); return; }
   const doc = treeExportDoc(nodes);
-  const url = URL.createObjectURL(new Blob([JSON.stringify(doc)], { type: "application/json" }));
+  downloadBlob(new Blob([JSON.stringify(doc)], { type: "application/json" }), safeFileName(li._name) + EXPORT_EXT);
+}
+
+/* Todas las descargas de la aplicación (.kite.json, KML, GeoJSON, PNG…)
+   pasan por aquí: la limpieza del blob y el aviso son los mismos.     */
+function downloadBlob(blob, fileName) {
+  const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
   a.href = url;
-  a.download = safeFileName(li._name) + EXPORT_EXT;
+  a.download = fileName;
   a.click();
   /* Algunos navegadores leen el blob después de volver de click():
      revocarlo en el acto cancela la descarga. Se libera más tarde.  */
   setTimeout(() => URL.revokeObjectURL(url), 60000);
-  navMessage(`Descargado \u00AB${a.download}\u00BB.`, { tone: "info" }); /* confirma lo pedido: notificación, no alerta */
+  navMessage(tr("Descargado \u00AB{download}\u00BB.", { download: fileName }), { tone: "info" }); /* confirma lo pedido: notificación, no alerta */
+}
+
+/* Quita los nodos "cog" de unos registros serializados, a cualquier
+   profundidad, y dice cuáles eran. Un .kite.json o el portapapeles
+   del sistema llevan el árbol en texto: los bytes de una ortofoto
+   (cientos de MB) no caben ahí, y una referencia a un almacén de ESTE
+   navegador no sirve en otro. PURA.                                  */
+function withoutCogNodes(nodes) {
+  const left = [];
+  const strip = list => list.flatMap(n => {
+    if (n.t === "cog") { left.push(n.name); return []; }
+    return n.children ? [{ ...n, children: strip(n.children) }] : [n];
+  });
+  return { nodes: strip(nodes), left };
 }
 
 /* Recognizes an exported tree among the dropped .json files; anything
@@ -1064,29 +1594,33 @@ async function importTreeExport(doc, fileName, insertBefore, dropTargetUl = null
   /* Dos comprobaciones distintas: el envoltorio y los registros */
   const format = doc.format === undefined ? 0 : doc.format;
   if (format !== EXPORT_FORMAT) {
-    throw new Error(`archivo de formato v${format}, incompatible con el actual v${EXPORT_FORMAT}`);
+    throw new Error(tr("archivo de formato v{format}, incompatible con el actual v{exportFormat}", { format, exportFormat: EXPORT_FORMAT }));
   }
   /* Misma excepci\u00F3n deliberada que dbLoadTree (ver TREE_SCHEMA v7):
      un .kite.json exportado por una v6 se sube en silencio en vez de
      rechazarse.                                                      */
   if (doc.schema === 6) upgradeMeasuresV6(doc.nodes);
-  else if (doc.schema !== TREE_SCHEMA) {
-    throw new Error(`formato de \u00E1rbol v${doc.schema}, incompatible con el actual v${TREE_SCHEMA}`);
+  else if (doc.schema !== TREE_SCHEMA && doc.schema !== 8 && doc.schema !== 7) { /* v8 = v9 sin servicios ArcGIS; v7 = v8 sin COG */
+    throw new Error(tr("formato de \u00E1rbol v{schema}, incompatible con el actual v{treeSchema}", { schema: doc.schema, treeSchema: TREE_SCHEMA }));
   }
-  if (!doc.nodes.length) throw new Error("el archivo no contiene ning\u00FAn nodo");
+  if (!doc.nodes.length) throw new Error(tr("el archivo no contiene ning\u00FAn nodo"));
   const ul = dropTargetUl || ensureRootUl();
   const before = new Set(ul.children);
   const total = countRecords(doc.nodes);
   const prog = total > PROGRESS_BATCH ? {
     done: 0,
-    update: d => progress.set(100 * d / total, `Construyendo ${fileName}\u2026 (${d}/${total})`)
+    update: d => progress.set(100 * d / total, tr("Construyendo {fileName}\u2026 ({d}/{total})", { fileName, d, total }))
   } : null;
+  /* Lo que llega de un archivo ajeno no consulta ningún servidor sin que
+     el usuario lo encienda (ver buildArcgisRecord) */
+  const foreign = { hosts: new Set() };
   try {
-    const records = await buildRecordsFromStorage(doc.nodes, prog);
+    const records = await buildRecordsFromStorage(doc.nodes, prog, { foreign });
     await materializeRecords(records, ul);
   } finally {
     if (prog) progress.hide();
   }
+  arcgisForeignNotice(foreign);
   /* Honour the drop position: move whatever was just appended */
   if (insertBefore && insertBefore.parentElement === ul) {
     for (const li of [...ul.children]) {
@@ -1107,7 +1641,9 @@ const SAVE_MIN_MS = 400, SAVE_MAX_MS = 3000;
    y en uno de miles de nodos espera más para no repetir un trabajo caro
    mientras el usuario sigue navegando o escribiendo.                   */
 function scheduleSave() {
+  if (dbWiped) return; /* se está borrando la base: nada que guardar */
   scheduleReorder(); /* toda mutación del árbol también puede haber cambiado el orden de pintado */
+  scheduleArcgisSync(); /* y, de un servicio ArcGIS, qué capas pide al servidor (66-arcgis.js) */
   clearTimeout(saveTimer);
   const wait = Math.min(SAVE_MAX_MS, Math.max(SAVE_MIN_MS, saveCost * 4));
   saveTimer = setTimeout(saveTree, wait);
@@ -1125,14 +1661,14 @@ async function refreshStorageUsage() {
   const el = document.getElementById("storage-usage");
   if (!el) return;
   if (!navigator.storage || !navigator.storage.estimate) {
-    el.textContent = "Almacenamiento usado: no disponible en este navegador.";
+    el.textContent = tr("Almacenamiento usado: no disponible en este navegador.");
     return;
   }
   try {
     const { usage } = await navigator.storage.estimate();
-    el.textContent = `Almacenamiento usado: ${fmtBytes(usage || 0)}`;
+    el.textContent = tr("Almacenamiento usado: {size}", { size: fmtBytes(usage || 0) });
   } catch {
-    el.textContent = "Almacenamiento usado: no disponible.";
+    el.textContent = tr("Almacenamiento usado: no disponible.");
   }
 }
 
@@ -1175,8 +1711,8 @@ function memoryUsageText() {
   if (location.protocol === "file:") return null;
   const m = performance.memory;
   if (!m || !isFinite(m.usedJSHeapSize)) return null;
-  return `Memoria de la pestaña: ${fmtBytes(m.usedJSHeapSize)}`
-    + ` de ${fmtBytes(m.jsHeapSizeLimit)}`;
+  return tr("Memoria de la pestaña: {used} de {limit}",
+    { used: fmtBytes(m.usedJSHeapSize), limit: fmtBytes(m.jsHeapSizeLimit) });
 }
 function refreshMemoryUsage() {
   const el = document.getElementById("memory-usage");
@@ -1187,30 +1723,71 @@ function refreshMemoryUsage() {
 }
 
 function saveTree() {
+  if (dbWiped) return saveChain;
   saveChain = saveChain
     .then(() => {
       const t0 = performance.now();
       const nodes = serializeTree();
-      saveCost = performance.now() - t0;
-      return dbSaveTree(nodes);
+      const serializing = performance.now() - t0;
+      /* El coste que cuenta es el que BLOQUEA el hilo: serializar más el
+         clon síncrono de los put. Midiendo solo lo primero (3-10 ms), el
+         retardo se quedaba en 400 ms aunque el put tardara 330.      */
+      return dbSaveTree(nodes, putting => { saveCost = serializing + putting; });
     })
     .then(refreshStorageUsage)
     .catch(err => {
       /* Un solo aviso por racha de fallos, para no inundar el panel */
       if (!savePending) {
         savePending = true;
-        navMessage(`No se pudo guardar el estado en el navegador: ${err && err.message ? err.message : "error de almacenamiento"}.`);
+        navMessage(tr("No se pudo guardar el estado en el navegador: {reason}.", { reason: err && err.message ? err.message : tr("error de almacenamiento") }));
         setTimeout(() => { savePending = false; }, 5000);
       }
     });
   return saveChain;
 }
 
+/* Borra la base de IndexedDB ENTERA (árbol, segmentos, ortofotos y todos
+   los ajustes) y recarga la página: Propiedades › Restaurar, tras su
+   segunda confirmación. Recargar es lo que lo hace seguro: el estado en
+   memoria (árbol, deshacer, portapapeles) no puede volver a escribir lo
+   borrado. Solo IndexedDB: el idioma vive en localStorage (ver i18n.md) y
+   se conserva a propósito. El orden importa: primero se frena todo
+   guardado, luego se espera al que va en vuelo, se cierra NUESTRA
+   conexión (si no, deleteDatabase se queda bloqueada por ella) y entonces
+   se borra.                                                             */
+async function wipeAllData() {
+  dbWiped = true;
+  clearTimeout(saveTimer);
+  try {
+    await saveChain;
+    if (dbPromise) {
+      const db = await dbPromise.catch(() => null);
+      dbPromise = null;
+      if (db) db.close();
+    }
+    await new Promise((resolve, reject) => {
+      const rq = indexedDB.deleteDatabase(DB_NAME);
+      rq.onsuccess = () => resolve();
+      rq.onerror = () => reject(rq.error);
+      /* Otra pestaña con la base abierta: se queda esperando a que la cierre */
+      rq.onblocked = () => navMessage(tr("Otra pesta\u00F1a est\u00E1 usando el almacenamiento; ci\u00E9rrela para continuar."));
+    });
+  } catch (err) {
+    dbWiped = false;
+    navMessage(tr("No se pudieron borrar los datos guardados: {reason}.",
+      { reason: err && err.message ? err.message : tr("error de almacenamiento") }));
+    return false;
+  }
+  location.reload();
+  return true;
+}
+
 /* ---------- Reconstrucción del árbol desde el almacenamiento ---------- */
+const LEAF_RECORD_TYPES = new Set(["layer", "measure", "elevGrid", "imageOverlay", "cog"]);
 function countLayers(nodes) {
   let n = 0;
   for (const x of nodes) {
-    if (x.t === "layer" || x.t === "measure" || x.t === "elevGrid" || x.t === "imageOverlay") n++;
+    if (LEAF_RECORD_TYPES.has(x.t)) n++;
     else n += countLayers(x.children || []);
   }
   return n;
@@ -1219,7 +1796,7 @@ async function restoreTree(nodes) {
   const total = countLayers(nodes);
   const prog = total > 500 ? {
     done: 0,
-    update: d => progress.set(100 * d / total, `Restaurando capas\u2026 (${d}/${total})`)
+    update: d => progress.set(100 * d / total, tr("Restaurando capas\u2026 ({d}/{total})", { d, total }))
   } : null;
   const records = await buildRecordsFromStorage(nodes, prog);
   if (prog) progress.hide();
@@ -1233,15 +1810,27 @@ async function restoreTree(nodes) {
    su fila llega a materializarse, así que esto SIEMPRE recorre el
    árbol entero sin mirar `collapsed` — es materializeRecords quien
    decide cuánto DOM construir a partir de estos registros.        */
-async function buildRecordsFromStorage(nodes, prog) {
+async function buildRecordsFromStorage(nodes, prog, opts = {}) {
   const out = [];
   for (const n of nodes) {
-    if (n.t === "measure") {
+    if (n.t === "arcgis") {
+      /* Un servicio que no pasa la validación se descarta entero, como un COG */
+      const rec = buildArcgisRecord(n, opts);
+      if (rec) out.push(rec);
+    } else if (n.t === "arcgisLayer") {
+      /* Una capa de servicio solo existe dentro de su servicio (que las
+         construye él): una suelta, de un archivo manipulado, no es nada. */
+    } else if (n.t === "measure") {
       out.push(buildMeasureRecord(n));
     } else if (n.t === "elevGrid") {
       out.push(buildElevGridRecord(n));
     } else if (n.t === "imageOverlay") {
       out.push(buildImageOverlayRecord(n));
+    } else if (n.t === "cog") {
+      /* Un registro ajeno (un .kite.json manipulado) que no pasa la
+         validación se descarta: no hay nada que dibujar con él.    */
+      const rec = buildCogRecord(n);
+      if (rec) out.push(rec);
     } else if (n.t === "layer") {
       const layer = L.geoJSON(n.geo, n.style ? { style: n.style } : undefined);
       clearFillOnOpenPaths(layer); /* una línea no se rellena, ver esa función */
@@ -1267,10 +1856,13 @@ async function buildRecordsFromStorage(nodes, prog) {
       wirePendingLayerEvents(rec);
       out.push(rec);
     } else {
-      const children = await buildRecordsFromStorage(n.children || [], prog);
-      out.push({ t: n.t, name: n.name, checked: !!n.checked, collapsed: !!n.collapsed, children });
+      const children = await buildRecordsFromStorage(n.children || [], prog, opts);
+      const rec = { t: n.t, name: n.name, checked: !!n.checked, collapsed: !!n.collapsed, children };
+      /* `sec` solo vale en un archivo y solo si es EXACTAMENTE true (entrada ajena) */
+      if (n.t === "file" && n.sec === true) rec.sec = true;
+      out.push(rec);
     }
-    if (prog && (n.t === "layer" || n.t === "measure" || n.t === "elevGrid" || n.t === "imageOverlay") && ++prog.done % PROGRESS_BATCH === 0) {
+    if (prog && LEAF_RECORD_TYPES.has(n.t) && ++prog.done % PROGRESS_BATCH === 0) {
       prog.update(prog.done);
       await yieldFrame();
     }
@@ -1297,7 +1889,8 @@ async function materializeRecords(records, parentUl) {
   for (const rec of records) {
     if (rec.t === "folder" || rec.t === "file") {
       const li = makeNode({
-        name: rec.name, isFolder: rec.t === "folder", isFile: rec.t === "file", checked: !!rec.checked
+        name: rec.name, isFolder: rec.t === "folder", isFile: rec.t === "file", checked: !!rec.checked,
+        appSection: rec.sec === true
       });
       rec._li = li; /* referencia inversa: la usa resolveMatch para llegar aquí desde una búsqueda pendiente */
       if (rec.collapsed) li.classList.add("collapsed");
@@ -1364,6 +1957,13 @@ async function materializeRecords(records, parentUl) {
       rec._li = li;
       li._imageOverlay = { box: rec.box, dataUrl: rec.dataUrl, opacity: rec.opacity };
       parentUl.appendChild(li);
+    } else if (rec.t === "cog") {
+      const li = makeNode({ name: rec.name, layer: rec._layer, styleable: true, checked: !!rec.checked });
+      rec._li = li;
+      li._cog = { rasterId: rec.rasterId, box: rec.box, opacity: rec.opacity };
+      parentUl.appendChild(li);
+    } else if (rec.t === "arcgis" || rec.t === "arcgisLayer") {
+      await materializeArcgisRecord(rec, parentUl);
     }
     if (++n % PROGRESS_BATCH === 0) await yieldFrame();
   }

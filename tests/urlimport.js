@@ -16,13 +16,36 @@ const ok = (c, m) => { if (!c) { console.error("FAIL: " + m); process.exitCode =
 /* EXPORT_KIND y EXPORT_EXT viven en otro archivo del script: sin ellos,
    sniffJsonKind no sabría reconocer una carpeta exportada.           */
 const src = constDecl("EXPORT_KIND") + "\n" + constDecl("EXPORT_EXT") + "\n"
-  + constDecl("safeFileName") + "\n"
+  + constDecl("safeFileName") + "\n" + constDecl("KMZ_MAX_ENTRIES") + "\n"
   + between("/* ---------- Reconocimiento de lo descargado de una dirección",
             "/* ================= Acciones del panel");
 const api = new Function(src + `\nreturn { fileNameFromUrl, isZipSignature, sniffJsonKind,
-  sniffTextKind, sniffContentKind, downloadFileName, URL_KIND_EXT, URL_KIND_LABEL };`)();
+  sniffTextKind, sniffContentKind, downloadFileName, URL_KIND_EXT, URL_KIND_LABEL, zipEntryNames };`)();
 const { fileNameFromUrl, isZipSignature, sniffTextKind, sniffContentKind,
-        downloadFileName, URL_KIND_EXT, URL_KIND_LABEL } = api;
+        downloadFileName, URL_KIND_EXT, URL_KIND_LABEL, zipEntryNames } = api;
+
+/* Un zip mínimo de verdad (entradas vacías, sin comprimir), con su
+   directorio central y su registro final: lo que lee zipEntryNames.  */
+function makeZip(names, comment = "") {
+  const enc = new TextEncoder();
+  const local = [], central = [];
+  let offset = 0;
+  for (const name of names) {
+    const n = enc.encode(name);
+    const lh = Buffer.alloc(30); lh.writeUInt32LE(0x04034B50, 0); lh.writeUInt16LE(n.length, 26);
+    local.push(lh, Buffer.from(n));
+    const ch = Buffer.alloc(46); ch.writeUInt32LE(0x02014B50, 0); ch.writeUInt16LE(n.length, 28);
+    ch.writeUInt32LE(offset, 42);
+    central.push(ch, Buffer.from(n));
+    offset += 30 + n.length;
+  }
+  const cd = Buffer.concat(central);
+  const c = enc.encode(comment);
+  const end = Buffer.alloc(22); end.writeUInt32LE(0x06054B50, 0);
+  end.writeUInt16LE(names.length, 8); end.writeUInt16LE(names.length, 10);
+  end.writeUInt32LE(cd.length, 12); end.writeUInt32LE(offset, 16); end.writeUInt16LE(c.length, 20);
+  return new Uint8Array(Buffer.concat([...local, cd, end, Buffer.from(c)]));
+}
 
 /* ---------- El nombre que sugiere una dirección ---------- */
 ok(fileNameFromUrl("https://ejemplo.com/datos/rutas.kml") === "rutas.kml",
@@ -61,7 +84,10 @@ ok(sniffTextKind("﻿   <kml></kml>") === "kml", "con BOM y blancos delante");
 /* El diagnóstico más útil de todos: pegar la página en vez del «Raw» */
 ok(sniffTextKind("<!DOCTYPE html><html><body>…") === "html", "una página HTML se reconoce como tal");
 ok(sniffTextKind("<html lang='es'>") === "html", "aunque no traiga DOCTYPE");
-ok(sniffTextKind("<gpx version='1.1'></gpx>") === null, "un GPX no es un formato admitido");
+ok(sniffTextKind("<gpx version='1.1'></gpx>") === "gpx", "un GPX se reconoce");
+ok(sniffTextKind('<?xml version="1.0"?><gpx xmlns="http://www.topografix.com/GPX/1/1" version="1.1"><wpt lat="1" lon="2"/></gpx>') === "gpx", "con prólogo y namespace");
+ok(sniffTextKind("<g:gpx xmlns:g='x'></g:gpx>") === "gpx", "y con prefijo");
+ok(sniffTextKind('<?xml version="1.0"?><ServiceExceptionReport/>') === null, "otro XML (una excepción OGC) sigue sin ser nuestro");
 ok(sniffTextKind('{"type":"FeatureCollection","features":[]}') === "geojson", "FeatureCollection");
 ok(sniffTextKind('{"type":"Feature","geometry":null}') === "geojson", "un Feature suelto");
 ok(sniffTextKind('{"type":"Polygon","coordinates":[]}') === "geojson", "una geometría suelta");
@@ -79,6 +105,26 @@ ok(sniffContentKind(zip, "PKbasura") === "kmz",
   "los bytes mandan: un zip es KMZ aunque su texto sea ilegible");
 ok(sniffContentKind(new Uint8Array([0x3C]), "<kml></kml>") === "kml",
   "y si no es zip, decide el texto");
+
+/* ---------- Dentro del zip: KMZ o shapefile ---------- */
+ok(JSON.stringify(zipEntryNames(makeZip(["doc.kml", "files/a.png"]))) === '["doc.kml","files/a.png"]',
+  "zipEntryNames lee los nombres del directorio central: " + JSON.stringify(zipEntryNames(makeZip(["doc.kml", "files/a.png"]))));
+ok(zipEntryNames(makeZip(["x.shp"], "comentario del zip")).join() === "x.shp",
+  "también con comentario al final, que desplaza el registro final");
+ok(zipEntryNames(new Uint8Array([0x50, 0x4B, 0x03, 0x04, 0, 0])).length === 0,
+  "un zip truncado (sin directorio) no lanza: lista vacía");
+const shpZip = makeZip(["capas/vias.shp", "capas/vias.dbf", "capas/vias.prj"]);
+ok(sniffContentKind(shpZip, "") === "shpzip", "un zip con .shp y sin .kml es un shapefile");
+ok(sniffContentKind(makeZip(["doc.kml", "x.shp"]), "") === "kmz",
+  "con .kml manda el KML, aunque traiga un .shp");
+ok(sniffContentKind(makeZip(["leeme.txt"]), "") === "kmz",
+  "un zip sin ninguno de los dos se sigue tratando como KMZ (y su aviso lo explica)");
+ok(downloadFileName("https://x.com/vias.zip", "shpzip") === "vias.zip", "un .zip se respeta");
+ok(downloadFileName("https://x.com/ruta.gpx", "gpx") === "ruta.gpx", "un .gpx se respeta");
+ok(downloadFileName("https://x.com/descarga?id=7", "gpx") === "descarga.gpx", "sin extensión se le añade .gpx, que es la que despacha handleDroppedFiles");
+ok(URL_KIND_EXT.gpx === ".gpx" && URL_KIND_LABEL.gpx === "GPX", "extensión y etiqueta del tipo");
+ok(downloadFileName("https://x.com/descarga?id=7", "shpzip") === "descarga.zip",
+  "y sin extensión se le pone .zip");
 
 /* ---------- El nombre final, que es el puente con la importación ----------
    handleDroppedFiles despacha por EXTENSIÓN, así que el nombre tiene
@@ -110,7 +156,7 @@ ok(downloadFileName("https://x.com/a.kml", "cualquiera") === "",
 /* El INVARIANTE: pase lo que pase, la extensión cae en una rama viva de
    handleDroppedFiles. Si alguien añade un tipo y olvida su extensión,
    esto lo caza antes de que se rechace en ejecución.                 */
-const RAMAS = [".kml", ".kmz", ".json", ".geojson", ".topojson"];
+const RAMAS = [".kml", ".kmz", ".gpx", ".json", ".geojson", ".topojson", ".zip"];
 for (const kind of Object.keys(URL_KIND_EXT)) {
   for (const url of ["https://x.com/a", "https://x.com/a.txt", "https://x.com/",
                      "https://x.com/a.kml", "https://x.com/a.json"]) {
@@ -128,7 +174,7 @@ ok(JSON.stringify(Object.keys(URL_KIND_EXT).sort())
   + Object.keys(URL_KIND_EXT).sort() + " vs " + Object.keys(URL_KIND_LABEL).sort());
 /* Y son exactamente los que devuelven los reconocedores (html aparte,
    que es un diagnóstico, no un formato admitido).                   */
-for (const kind of ["kml", "kmz", "geojson", "topojson", "kite"]) {
+for (const kind of ["kml", "kmz", "gpx", "geojson", "topojson", "kite", "shpzip"]) {
   ok(!!URL_KIND_EXT[kind] && !!URL_KIND_LABEL[kind], `${kind} tiene extensión y etiqueta`);
 }
 

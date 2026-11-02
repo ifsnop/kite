@@ -1,15 +1,17 @@
 ---
-description: Parseo de KML/KMZ/GeoJSON, namespaces, estilos, tolerancias de coordenadas, HTML en etiquetas y duplicados al importar.
+description: Parseo de KML/KMZ/GeoJSON/shapefile, namespaces, estilos, tolerancias de coordenadas, HTML en etiquetas y duplicados al importar.
 paths:
   - "src/js/20-kml-geom.js"
   - "src/js/32-geojson.js"
   - "src/js/33-kml-import.js"
+  - "src/js/34-shp-import.js"
+  - "src/js/36-gpx-import.js"
 ---
 
 ## Estructura del árbol al importar
 
 - **Jerarquía del KML intocable**: se vuelca en la raíz tal cual (`<Document>`/`<Folder>`), sin envolverla en una carpeta extra.
-- **GeoJSON sí crea envoltorio**: es una lista plana sin jerarquía propia; la carpeta contenedora agrupa lo que llegó junto. Única importación que envuelve.
+- **GeoJSON sí crea envoltorio**: es una lista plana sin jerarquía propia; la carpeta contenedora agrupa lo que llegó junto. Única importación que envuelve (un shapefile entra como GeoJSON y envuelve igual: una carpeta por capa).
 - Construcción fallida a medias → se retira todo lo que hubiera entrado.
 
 ## Formatos y límites de entrada
@@ -28,6 +30,7 @@ paths:
   - El array se filtra **en el sitio** (`splice` hacia atrás), no reasignando `gj.features`.
 - `<b>` vs `<b>` en un literal JSON **no cambia nada** — `JSON.parse` las normaliza, llegan indistinguibles (test: `tests/htmltagstest.js`). No es una vía para burlar la validación.
 - **Nombre de elemento GeoJSON**: NUNCA se asume `name`/`title`. Si el primer Feature trae `properties` con alguna clave (`needsNamePicker`), el nombre sale de las claves que eligió el usuario (`nameKeys`, array ORDENADO): `composeFeatureName` une sus valores con `NAME_JOIN` (« / ») en ese orden, omitiendo las ausentes o vacías; sin ninguna, «Elemento N» (`resolveFeatureName`).
+  - **Con ORIGEN (una capa de un servicio ArcGIS, `file.kiteNameScope` → `addFileNode(…, nameScope)`)**: la huella lleva delante `arcgis:<servicio>#<id de capa>` + `\n` (`propsFingerprint(props, scope)`, `splitFingerprint`): cada capa descargada tiene su asociación. Con solo las claves, dos capas de un servicio (que comparten casi todos sus campos) compartían la elegida para la primera y se le aplicaba en silencio a las demás. Sin origen, la huella es la de siempre (no sube `GNP_SCHEMA`).
   - **Sin nada guardado** para esa forma (`propsFingerprint`: claves, no valores): `pickNameProperty` pregunta sobre el primer objeto, con casillas (el orden de MARCADO es el orden de la combinación, cada casilla muestra su número, vista previa del nombre resultante, Aceptar deshabilitado sin ninguna clave). **Cancelar/Escape ABORTA la carga de ese archivo** (`importCancelled`, `err.cancelled`; `handleDroppedFiles` avisa «Carga de «X» cancelada» en tono `info`, no como fallo, y sigue con el resto de archivos) — no hay «nombrado automático» de respaldo.
   - **Con algo guardado** se aplica SIN preguntar, nunca (no hay confirmación por sesión; `gnpSessionUsed` retirado), y `navMessage` (tono `info`, va al registro 📋) deja constancia de que se usó una selección guardada y cuál. Para cambiarla: botón 🏷️ → «Índices de GeoJSON» (ver `units-coordinates-properties-panel.md`).
   - Persistida en IndexedDB (`GNP_SCHEMA` 2: huella → array de claves; ver `persistence-indexeddb.md`).
@@ -39,6 +42,33 @@ paths:
 - **`msgLog`** (tope `MSG_LOG_MAX`): registro de sesión de TODOS los avisos, solo en memoria (no IndexedDB), accesible desde el botón 📋 (punto = hay entradas sin ver). Orden cronológico, más reciente abajo; al abrir baja el scroll del todo. `logText()` serializa para portapapeles.
 - `msgLog`/`navMessage` viven en `30-tree-walk.js`; `refreshLogButton` (archivo posterior) usa `getElementById` en cada llamada, no una `const` de módulo (zona muerta temporal).
 - **Frenos ad hoc que siguen activos**: `ELEV_STATUS_QUIET`, `savePending`, `updateNoticeShown`. `demError` agrupa los errores de cada servicio de elevación por racha y por fuente (un servicio caído fallaría igual en cada consulta seguida) — no quitar.
-- **Cotas de KMZ**: `KMZ_MAX_ENTRIES`, `KMZ_MAX_UNCOMPRESSED`, `KMZ_MAX_RATIO` frenan zips desproporcionados/hostiles antes de descomprimir.
+- **Cotas de KMZ**: `KMZ_MAX_ENTRIES`, `KMZ_MAX_UNCOMPRESSED`, `KMZ_MAX_RATIO` frenan zips desproporcionados/hostiles antes de descomprimir. Viven en `loadZipChecked(file, what)`, que usa TODO zip que se abra (KMZ y `.zip` de shapefile).
+
 - **CSP** (`<head>`): `default-src 'none'` + orígenes reales enumerados (unpkg, cdnjs, teselas del mapa/MDT). Añadir un origen nuevo exige añadirlo ahí también. `'unsafe-inline'` es inevitable con CSS/JS en el propio archivo.
-- **`connect-src` e `img-src` son la excepción deliberada**: abiertas a cualquier `https:` (nunca `http:`) porque el usuario elige el origen — el botón 🔗 para `connect-src`, y el mapa base «Custom Maps» (`base-maps.md`) para `img-src`, su propio servidor de teselas — enumerar es imposible por definición en los dos casos. `default-src 'none'` sigue vigente, `script-src`/`style-src` conservan sus listas cerradas (un origen ajeno puede dar datos, nunca código ni estilos). `tests/minified.js` lo comprueba **sobre el `<meta>`**, no con `includes` sobre el archivo entero (esos nombres también aparecen en el JS).
+- **`connect-src` e `img-src` son la excepción deliberada**: abiertas a cualquier `https:` (nunca `http:`) porque el usuario elige el origen — el botón 🔗 para `connect-src`, y los mapas base «Custom Tile Map Service» y «Custom Web Map Service» (`base-maps.md`) para `img-src` —y el segundo también para `connect-src`, su `GetCapabilities`—, su propio servidor — enumerar es imposible por definición en los dos casos. `default-src 'none'` sigue vigente, `script-src`/`style-src` conservan sus listas cerradas (un origen ajeno puede dar datos, nunca código ni estilos). `tests/minified.js` lo comprueba **sobre el `<meta>`**, no con `includes` sobre el archivo entero (esos nombres también aparecen en el JS).
+
+## Atributos de un KML (`<ExtendedData>`, `20-kml-geom.js`)
+
+- `parseExtendedData(pm)`: `<Data name><value>` y `<SchemaData><SimpleData name>` de un Placemark → `properties` (SIEMPRE texto: en KML no hay tipos aquí). Entrada ajena: tope `EXT_MAX_FIELDS` (200) por elemento, gana el primer valor de un nombre repetido, `__proto__` no es un atributo (`constructor`/`toString` sí, como propios) y un nombre vacío tampoco. `null` si no hay ninguno.
+- **Se guarda en `feature.properties` de cada subcapa** de `buildPlacemarkLayer`, SIN `geometry` (`43-points-editor.js` lee `poly.feature.geometry` de los polígonos de GeoJSON como geometría en crudo, y un KML no la tiene): así lo que lee `layerProperties` y lo que vuelca `toGeoJSON()` al guardar es lo mismo que en GeoJSON, y sobrevive a recargar. Consecuencia: una capa de KML con `ExtendedData` tiene ℹ y tabla de atributos; si además trae `<description>`, la ficha (`baseInfoHtml`) enseña la descripción y los atributos van por la tabla.
+- El KML que exporta KITE (`35-export-formats.js`) escribe las `properties` en `ExtendedData`: la ida y vuelta conserva los atributos (como texto: un número sale como cadena).
+
+## GPX (`36-gpx-import.js`)
+
+- **Entra por `addFileNode` como GeoJSON YA CONSTRUIDO**, igual que un shapefile (`importGpxFile` → `gpxToGeoJson` → `addFileNode(…, report, GPX_NAME_KEYS)`): hereda la pregunta de etiquetas HTML (la `<desc>` de un GPX las trae a menudo), duplicados, envoltorio, resumen, deshacer y la retirada a medias. `handleDroppedFiles` despacha por la extensión `.gpx`; `sniffTextKind` reconoce un `<gpx>` raíz para el botón 🔗 (`URL_KIND_EXT`/`URL_KIND_LABEL`/`downloadFileName` llevan `gpx`).
+- **El nombre sale del `<name>` y NO se pregunta** (`presetNameKeys` de `addFileNode`, `GPX_NAME_KEYS = ["name"]`): a diferencia de un GeoJSON cualquiera, el formato define qué es el nombre. Un elemento sin `<name>` es «Elemento N». No se consulta ni se guarda nada en `geojsonNameProps`.
+- **XML tolerante y sin namespace**: `parseKmlDocument` (con su reparación de prefijos) y `bareName`/`childrenByTag`/`directChildText`; vale GPX 1.0, 1.1 y con prefijo. Un raíz que no sea `gpx` se rechaza con su motivo.
+- **Qué sale de cada cosa**: `<wpt>` → Point; `<rte>` → LineString; `<trk>` → LineString, o MultiLineString si tiene varios `<trkseg>` con dos o más puntos. `<ele>` → tercera coordenada solo si es finita (nunca se inventa 0). Propiedades: `name`, `desc`, `cmt`, `src`, `sym`, `type`, `link` (el `href`, como texto, nunca un enlace vivo), `time` (waypoint) y `gpx` (`waypoint`/`route`/`track`); un track con alguna hora de punto lleva `coordTimes`, alineado con las coordenadas (`null` donde falta; una lista por segmento, o plana si hay uno). Las `<extensions>` de fabricante no se leen.
+- **Qué se omite y cómo se cuenta** (`makeImportReport`): un waypoint sin coordenadas válidas, una ruta o un track sin dos puntos válidos son `warn` (entidad perdida); un punto inválido o un segmento corto DENTRO de un elemento que sí entra, una `note`. El ajuste de redondeo (`clampLatLng`) se anota con la diferencia de `coordClamped` (se lee antes y después, porque `addFileNode` lo pone a cero). Un archivo sin ningún elemento se rechaza.
+- **Cota**: `GPX_MAX_POINTS` (2 000 000 de puntos entre waypoints, rutas y tracks); al llegar se corta y se avisa.
+- Pruebas: `tests/gpxtest.js` (la conversión, con xmldom, sobre `tests/fixtures/ruta-sierra.gpx`) y `tests/browser/gpx-import.mjs` (con el analizador real).
+
+## Shapefile (`34-shp-import.js`)
+
+- **Varias piezas en un gesto**: `handleDroppedFiles` pasa primero lo soltado por `groupShapefileParts` (PURA, solo mira `.name`): cada shapefile entra UNA vez en la posición de su `.shp`, con `.dbf`/`.prj`/`.cpg` juntados por nombre base sin distinguir mayúsculas (dentro de un zip la carpeta forma parte de la clave); una pieza sin su `.shp` es huérfana y se avisa; un `.shx` suelto, no (no aporta nada y quien suelta medio shapefile ya recibe el aviso de las otras piezas). El `.shx` no se usa: se lee de principio a fin.
+- **`.zip`**: rama propia de `handleDroppedFiles`. Con algún `.kml` dentro es un KMZ con otro nombre (`kmlFromZip`); si no, `importShapefilesFromZip`, un nodo por `.shp` (ignora `__MACOSX/`). Sin ninguno de los dos, error claro.
+- **Entra por `addFileNode` como GeoJSON YA CONSTRUIDO** (objeto, no texto: pasarlo a texto para volver a parsearlo duplicaría lo más grande en memoria; sin texto, «grande» lo decide `BIG_FEATURE_COUNT`). Hereda todo: etiquetas HTML, selector de propiedad-nombre (las claves son los campos del `.dbf`), duplicados, envoltorio, resumen, deshacer, retirada a medias. `addFileNode` acepta además un `report` ya empezado: lo visto al leer (sin `.prj`, ED50, tope) sale en el mismo resumen.
+- **Proyección** (`shpProjection`): el `.prj` (WKT de ESRI) va a proj4 tal cual; ETRS89 y WGS84 se tratan como equivalentes (proj4 los deja sin cambio de datum). **Trampa**: ED50 llega sin `TOWGS84` y proj4 sin él NO cambia de datum — todo quedaría ~120 m desplazado sin aviso. `prjDatumFix` le inyecta los estándar peninsulares (EPSG:1133, `-87,-98,-121`) y se anota en el resumen; un `TOWGS84` propio se respeta. Otro datum sin transformación y con otro elipsoide (`datum_type === 5`, `a ≠ 6378137`) se dibuja con aviso de posible desplazamiento. **Sin `.prj`**: solo si la caja de la cabecera cabe en grados (`bboxLooksGeographic`), anotando que se supone WGS84; en metros se rechaza (no hay forma honesta de colocarlo).
+- **Codificación del `.dbf`**: la del `.cpg` (`cpgEncoding`: UTF-8, 1252, «ANSI 1252», 88591, 65001 o una etiqueta de `TextDecoder`); sin `.cpg`, `guessDbfEncoding` (UTF-8 si los bytes lo son, si no Windows-1252). Fechas del `.dbf` (`Date`) → texto `AAAA-MM-DD`.
+- **Lectura registro a registro** (`shapefile.open` + `read()`, no `shapefile.read`, que lo junta todo sin tope): cotas `SHP_MAX_BYTES` (300 MB entre `.shp` y `.dbf`) y `SHP_MAX_FEATURES` (100 000; lo sobrante se cuenta con `warn`), cediendo el hilo cada `PROGRESS_BATCH` en los grandes. Una geometría que no se proyecta queda NaN y la rechaza `validGeometry` como cualquier otra.
+- **La Z se pierde**: la librería `shapefile` 0.6.6 solo lee x e y (también en PointZ/PolyLineZ). Documentado en el manual y en el estudio de seguridad (§5.1) como excepción a «la altitud se transporta»; si algún día hace falta, es cambiar de lector, no parchearlo.

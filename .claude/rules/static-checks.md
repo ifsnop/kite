@@ -11,7 +11,11 @@ paths:
 Sobre `kitelocal.html`, automatizadas:
 
 - Todo recurso de librería lleva `integrity` y `crossorigin`
-  (`tests/minified.js`).
+  (`tests/minified.js`, contando el ATRIBUTO `integrity="`: el cargador
+  bajo demanda también escribe `integrity` en JS). Las tres de
+  `LAZY_LIBS` (origen admitido por la CSP, versión fijada, hash de la
+  longitud de sha384/512) y que ningún archivo use su global sin
+  `ensureLib`: `tests/lazylibs.js`.
 - El guardián de Leaflet precede a cualquier uso de `L` (íd.).
 - `BUILD` tiene la forma esperada y el mismo valor en ambos artefactos
   (`tests/attribution.js`, `tests/minified.js`).
@@ -23,9 +27,17 @@ Sobre `kitelocal.html`, automatizadas:
 - **Toda función llamada está declarada** (íd.): un refactor puede
   eliminar un helper todavía en uso sin que `node --check` lo detecte
   (sigue siendo sintácticamente válido).
-- **Regla de los diálogos de un solo botón** (íd.): ningún
-  `.dlg-actions` con un único botón, y todo `.dlg-close` dentro de un
-  `<h2 class="dlg-head">` de una caja `no-actions` (ver
+- **Ningún nombre de nivel superior declarado dos veces** (íd.): todo
+  `src/js` comparte un ámbito global, y una `function` repetida PISA
+  en silencio a la anterior (una `const` repetida, en cambio, rompe el
+  arranque y se ve). Pasó de verdad: el `gridPoint` nuevo del COG dejó
+  sin el suyo a la consulta de elevación, sin ningún error. Se miran
+  las declaraciones en la columna 0, que es como va el nivel superior.
+- **Regla de la × de los diálogos** (íd.): TODO diálogo
+  (`dlg-overlay`/`dlg-float`) lleva exactamente una `.dlg-close` en su
+  `<h2 class="dlg-head">`, con `title`/`aria-label` y su `data-cancel`
+  apuntando a un botón de la misma caja; ningún `.dlg-actions` con un
+  único botón y ninguna caja `no-actions` con pie (ver
   `dialog-close-button.md`).
 
 Las dos últimas requieren analizar el código, no el texto en bruto: un

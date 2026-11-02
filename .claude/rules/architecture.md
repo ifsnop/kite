@@ -7,9 +7,28 @@ paths:
 
 ## Arquitectura (orden de secciones dentro del script)
 
-0. **Rotación del mapa** (`08-map-rotation.js`, derivado de leaflet-rotate):
-   parches de prototipo de Leaflet, ANTES de crear el mapa. Ver
-   `map-rotation.md`.
+0. **Idiomas de la interfaz** (`03-i18n.js`, `04-i18n-en.js`,
+   `04-i18n-init.js`), lo PRIMERO del manifiesto: `tr()`/`trn()`/
+   `trc()`/`N_()`, el registro de idiomas y el traductor del HTML
+   estático. Los diccionarios (`04-i18n-xx.js`) van antes de
+   `04-i18n-init.js`, que fija el idioma; desde ahí `tr()` vale en el
+   nivel superior de cualquier módulo. Sin dependencias. Ver `i18n.md`.
+0b. **Parches de Leaflet y cargador**, todos ANTES de crear el mapa:
+   - `06-offline.js`: uso sin conexión (lista de lo que guarda el
+     service worker, indicador «Sin conexión», `netFailText`); solo
+     DECLARA funciones, `99-boot.js` las llama al final. Va antes que
+     `07` pero lee `LAZY_LIBS` y `LEAFLET_PIN_URL` al llamarse. El
+     worker en sí es `src/sw.js`, fuera del manifiesto. Ver `offline.md`.
+   - `07-lazy-libs.js`: html2canvas, geotiff.js y proj4js bajo demanda
+     (`LAZY_LIBS`, `ensureLib`); datos y una función, sin dependencias.
+     Quien use una de ellas va por `ensureLib`, no por el global.
+   - **Rotación del mapa** (`08-map-rotation.js`, derivado de
+     leaflet-rotate): parches de prototipo. Ver `map-rotation.md`.
+   - `09-leaflet-events.js`: índice de oyentes de `L.Evented` (añadir N
+     capas al mapa era O(N²)). Ver `performance.md`.
+   - `09-canvas-seamless.js`: `L.Canvas._draw` con «tandas» de polígonos
+     de solo relleno compuestas con la opacidad una sola vez (sin
+     costuras ni contornos entre vecinos). Ver `style-dialogs-ui.md`.
 1. **Mapa base**: capas de teselas (OSM, Esri Terrain, PNOA, sin fondo)
    y `rootGroup` (`featureGroup` del que cuelga TODO). Prefijo de
    atribución (versión+repo) y escala aquí: su posición depende del
@@ -17,11 +36,29 @@ paths:
 2. **Parseo KML**: estilos (`aabbggrr`→color+opacidad, `StyleMap` par
    *normal*), `<visibility>`, `<open>`, geometrías (MultiGeometry,
    polígonos con agujeros). GeoJSON con estilos simplestyle.
+2b. **Shapefile** (`34-shp-import.js`, detrás de la importación KML):
+    agrupa las piezas soltadas (`groupShapefileParts`), lee con la
+    librería `shapefile`, reproyecta con proj4 desde el `.prj` y entrega
+    un FeatureCollection a `addFileNode` (que acepta el objeto, no solo
+    texto). Ver `import-parsing.md`.
+2b2. **GPX** (`36-gpx-import.js`): `gpxToGeoJson` pura (waypoints, rutas y
+    tracks → FeatureCollection, con el XML tolerante de `33`) e
+    `importGpxFile`, que lo entrega a `addFileNode` como un shapefile. Va
+    tras `35`; `handleDroppedFiles` (33) lo llama solo en tiempo de
+    ejecución. Ver `import-parsing.md`.
+2c. **Exportar a KML y GeoJSON** (`35-export-formats.js`, tras la
+    importación): registros serializados → texto, PURO y probado en Node
+    (`tests/exportformats.js`), más el minimenú de 💾. Usa `arcPoints` y
+    `normalizePathStyle`, de archivos posteriores, solo en tiempo de
+    ejecución. Ver `tree-navigation-selection.md`, «Exportar e importar
+    carpetas».
 3. **Árbol de navegación**: `makeNode(...)` es la fábrica ÚNICA de
    filas (caret, checkbox, color, etiqueta, acciones). Toda fila nueva
    se crea con ella. Utilidades: `nodeUl`, `deleteNode`,
    `startRename`, `sortChildren`, `highlightNode`, `wireDrag`.
-4. **Persistencia**: serialización del árbol completo a IndexedDB.
+4. **Persistencia**: serialización del árbol completo a IndexedDB, guardado
+   en dos niveles (esqueleto en `root` + segmentos con lo pesado; ver
+   `persistence-indexeddb.md`).
 5. **Acciones del panel**: búsqueda, buscador de lugares (Nominatim),
    crear carpeta, seleccionar todo, selección masiva con teclado.
 6. **Estilos de capa**: `makeDialogMovable`, selector de color,
@@ -47,6 +84,29 @@ paths:
     decorativo, sin persistencia. Además aporta a la ficha de un marcador
     las horas del sol y crepúsculos (`sunTimes`/`sunTimesHtml`, puras y
     testeadas; ver `style-dialogs-ui.md`, «Ficha del elemento»).
+9b. **Anillos de alcance y sectores** (`53-range-rings.js`, tras `52`):
+    diálogo con vista previa y creación de capas normales; usa
+    `makeNode`, `ensureNamedSection`, `nextNumberedName` (40) y
+    `POLYGONS_SECTION` (52); la geometría pura vive en `51-geodesy.js`.
+    **Sin DOM al cargar el archivo**: los elementos se enlazan la primera
+    vez que se abre (`rangeDialogUi`). Varias pruebas de Node extraen un
+    tramo del script que atraviesa archivos vecinos (`elevtest.js` desde
+    mitad de `52` hasta `60`, `polyarea.js` de `51` a `52`) y lo ejecutan:
+    un `document.getElementById` a nivel superior lo rompe. `openRangeDialog`
+    se llama desde el menú contextual (`70`) solo en tiempo de ejecución.
+    Ver `measurements-drawing-vertex-editing.md`.
+9c. **Tabla de atributos** (`54-attr-table.js`, tras `53`): ventana de filas
+    de las capas de una carpeta con orden, filtro y CSV; lo puro
+    (`collectAttrRows`, `attrSort`, `attrFilter`, `toCsv`) se prueba en
+    Node y el DOM se enlaza al abrir. Usa `resolveRecordLi` (`40`) y
+    `goToNodeAndBlink` (`70`) solo en tiempo de ejecución. `toCsv` lo
+    reutilizará el perfil de una ruta. Ver `style-dialogs-ui.md`.
+9d. **Estilo por atributo** (`55-attr-style.js`, tras `54`): clasificación
+    pura (categorías y graduado) y diálogo modal con vista previa sobre la
+    tabla de atributos; usa `layerKind`, `normalizePathStyle`,
+    `buildMarkerIcon`, `applyPolygonStyle`/`applyMarkerStyle` (42) y
+    `attrState`/`attrIsNumeric`/`attrCell` (54). Sin DOM al cargar. Ver
+    `style-dialogs-ui.md`.
 11. **Calculadora geodésica** (`62-geocalc.js`): ventana flotante con
     una pestaña por cálculo (ángulo de elevación con cono y corrección
     por presión, vector GPS), recalculadas solas, sin botón; la lógica
@@ -63,6 +123,33 @@ paths:
     `routeProfileCtxItem` (menú contextual, diálogo de la ruta) y
     `validRouteProfile` (`buildElevGridRecord`) se llaman desde archivos
     anteriores solo en tiempo de ejecución. Ver `elevation-dem.md`.
+11c. **Ortofotos COG** (`64-cog.js`): almacén `rasters` (bytes como
+    `Blob`), `openCog` (validación, niveles y máscaras, CRS de las
+    GeoKeys), `CogLayer` (`L.GridLayer` en su pane `kiteCogPane`, dentro
+    de `rotatePane`) y `addCogNode`. Al CARGAR crea el pane
+    (`map.createPane`), así que va detrás de `10-map.js`; lo puro
+    (`cogCrsDef`, `pickOverview`, `tileWindow`, `warpTile`,
+    `cogGridPoint`, `orphanRasterIds`, `validCogRecord`) se prueba en
+    Node. `buildCogRecord`/`cleanOrphanRasters`/`addCogNode` se llaman
+    desde archivos anteriores (32, 33, 99) solo en tiempo de ejecución.
+    Ver `cog.md`.
+11d. **Parcela catastral** (`65-cadastre.js`): dos consultas al Catastro
+    (referencia por coordenadas y polígono por WFS INSPIRE), validación
+    de lo recibido y capa normal del árbol; lo puro (URLs, referencia,
+    GML → GeoJSON, bytes con su codificación) se prueba en Node. Va tras
+    `64-cog.js` y usa `withElevRetries` (`52`), `describeHttp` (`40`) y
+    `makeNode`; el menú contextual (`70`) la llama solo en tiempo de
+    ejecución. Ver `cadastre.md`.
+11e. **Servicios ArcGIS** (`66-arcgis.js`): un MapServer como nodo del
+    árbol (`arcgis`, con una fila `arcgisLayer` por capa). Lo puro
+    (`arcgisServiceBase`, `parseArcgisCatalog`, `sanitizeArcgisRecord`,
+    `arcgisShowIds`, `tileBbox3857`, `arcgisExportUrl`, errores) se prueba
+    en Node; `ArcgisLayer` (`L.TileLayer` en el pane de `64-cog.js`) y la
+    sincronización de `show:` (la llama `scheduleSave`, 32) dependen de
+    `COG_PANE`, `WORLD_BOUNDS`, `MAX_ZOOM` y `escapeHtml` (41), declarados
+    antes o usados solo en tiempo de ejecución. Va tras `65-cadastre.js`;
+    lo llaman archivos anteriores (30, 31, 32, 40, 44) solo en tiempo de
+    ejecución. Ver `arcgis.md`.
 12. **Controles de vista**: autoescala, ES/IC, retícula, coordenadas.
 13. **Arranque**: restauración del árbol guardado. Al final, para que
     todo esté definido.

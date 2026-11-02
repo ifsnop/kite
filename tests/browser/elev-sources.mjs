@@ -10,7 +10,7 @@
       por defecto, dirección del servicio elegido; Cancelar deshace y
       Aceptar guarda.
    3) Sin fuentes, la entrada del menú contextual sale deshabilitada.
-   4) «Consultar elevación aquí» desde el menú: crea «Sesión …» ›
+   4) «Consultas › Elevación» desde el menú: crea «Sesión …» ›
       «Elevación 1» en la sección «Elevaciones»; una segunda consulta va
       a la MISMA carpeta; repetir la tesela no pide nada; GetCapabilities
       UNA vez por fuente y la elección (cobertura, formato, celda) UNA
@@ -138,8 +138,9 @@ async function queryViaMenu(ll) {
     const latlng = L.latLng(lat, lng);
     map.setView(latlng, 20, { animate: false });
     openCtxMenu(latlng, 600, 400, []);
-    const item = [...document.querySelectorAll("#map-ctxmenu .ctx-menu-item")]
-      .find(x => /Consultar elevación aquí/.test(x.textContent));
+    [...document.querySelectorAll("#map-ctxmenu .ctx-menu-item")].find(x => x.textContent === "Consultas ▸").click();
+    const item = [...document.querySelectorAll(".ctx-menu:not(#map-ctxmenu) .ctx-menu-item")]
+      .find(x => x.textContent === "Elevación");
     if (!item || item.disabled) return { item: !!item, disabled: item && item.disabled };
     item.click();
     const t0 = performance.now();
@@ -176,12 +177,28 @@ const tab = await page.evaluate(async () => {
     mdt: opts("props-src-mdt"), mds: opts("props-src-mds"),
     mdtVal: document.getElementById("props-src-mdt").value,
     mdsVal: document.getElementById("props-src-mds").value,
-    url: document.getElementById("props-src-mds-url").textContent
+    url: document.getElementById("props-src-mds-url").textContent,
+    info: document.getElementById("props-src-mds-info").textContent
   };
+  /* El selector ocupa toda la fila y no se queda en los 190px de siempre */
+  const fila = document.getElementById("props-src-mds").parentElement.getBoundingClientRect();
+  r.anchoSel = document.getElementById("props-src-mds").getBoundingClientRect().width;
+  r.anchoFila = fila.width;
   const sel = document.getElementById("props-src-mds");
+  sel.value = "dea-cop30";
+  sel.dispatchEvent(new Event("change"));
+  r.infoDea = document.getElementById("props-src-mds-info").textContent;
+  r.infoMdt200 = (() => {
+    const m = document.getElementById("props-src-mdt");
+    m.value = "ign-mdt200"; m.dispatchEvent(new Event("change"));
+    const t = document.getElementById("props-src-mdt-info").textContent;
+    m.value = "ign-mdt05"; m.dispatchEvent(new Event("change"));
+    return t;
+  })();
   sel.value = "";
   sel.dispatchEvent(new Event("change"));
   r.noneUrl = document.getElementById("props-src-mds-url").textContent;
+  r.noneInfoHidden = document.getElementById("props-src-mds-info").hidden;
   r.during = elevSources.mds;
   document.getElementById("props-cancel").click();
   r.afterCancel = elevSources.mds;
@@ -192,6 +209,14 @@ ok(tab.mdt.join() === "ign-mdt05,ign-mdt25,ign-mdt200," && tab.mds.join() === "i
   "opciones del catálogo (MDT05, MDT25 y MDT200 del IGN) más «Ninguna»: " + JSON.stringify([tab.mdt, tab.mds]));
 ok(tab.mdtVal === "ign-mdt05" && tab.mdsVal === "ign-mds", "por defecto, MDT05 y MDS del IGN");
 ok(tab.url === "https://wcs-mds.idee.es/mds", "bajo el selector, la dirección del servicio: " + tab.url);
+ok(tab.anchoSel >= tab.anchoFila - 2 && tab.anchoSel > 300,
+  `el selector ocupa toda la fila (no los 190 px de antes): ${tab.anchoSel} de ${tab.anchoFila}`);
+ok(/IGN — MDS \(España, 5 m\)\. Conjunto de datos: MDS\. Proveedor: IGN\.$/.test(tab.info),
+  "bajo el selector, el nombre completo, el conjunto de datos y el proveedor: " + tab.info);
+ok(/Copernicus DEM 30 m \(África, Canarias y sur peninsular\)\. Conjunto de datos: COP-DEM GLO-30\. Proveedor: Digital Earth Africa\./.test(tab.infoDea),
+  "al elegir otra fuente cambia, con su nombre largo entero: " + tab.infoDea);
+ok(/Malla gruesa: no limita la longitud de un perfil\./.test(tab.infoMdt200), "el MDT200 avisa de que no limita el perfil: " + tab.infoMdt200);
+ok(tab.noneInfoHidden, "«Ninguna» no deja línea de información");
 ok(tab.during === null && /No se consulta/.test(tab.noneUrl), "«Ninguna» se aplica al elegirla y lo dice");
 ok(tab.afterCancel === "ign-mds", "Cancelar la deshace");
 ok(count("servicios.idee.es", "GetCapabilities") + count("wcs-mds.idee.es", "GetCapabilities") === 0,
@@ -202,7 +227,8 @@ const noSrc = await page.evaluate(() => {
   const keep = elevSources;
   elevSources = { mdt: null, mds: null };
   openCtxMenu(map.getCenter(), 600, 400, []);
-  const b = [...document.querySelectorAll("#map-ctxmenu .ctx-menu-item")].find(x => /Consultar elevación/.test(x.textContent));
+  [...document.querySelectorAll("#map-ctxmenu .ctx-menu-item")].find(x => x.textContent === "Consultas ▸").click();
+  const b = [...document.querySelectorAll(".ctx-menu:not(#map-ctxmenu) .ctx-menu-item")].find(x => x.textContent === "Elevación");
   const r = { disabled: b.disabled, title: b.title };
   closeCtxMenu();
   elevSources = keep;
@@ -308,6 +334,56 @@ const lupa = await page.evaluate(() => {
 });
 ok(lupa.btn && lupa.noStyle, "la capa de elevación lleva 🔍 (y sigue sin 🎨): " + JSON.stringify(lupa));
 ok(lupa.inside && lupa.zoom >= 17, "y la lupa la encuadra entera, de cerca: " + JSON.stringify(lupa));
+
+/* ---------- 5b. Celdas gruesas (MDT200): la cifra existe y se ve ----------
+   Fallo reportado: con el MDT200 la altura salía en el cuadro de
+   coordenadas pero la celda pintada en el mapa no llevaba cifra: el texto
+   dependía del zoom absoluto (nada hasta el 19, donde una celda de 200 m
+   mide ~870 px y su centro cae fuera de la pantalla). Celda de 200 m
+   sintética, solo MDT, como la que da MDT200 sin MDS. */
+const coarse = await page.evaluate(() => {
+  const lat = 40.4168, lng = -3.7038;
+  const dLat = 200 / 111195, dLng = dLat / Math.cos(lat * Math.PI / 180);
+  const sw = [lat, lng], ne = [lat + dLat, lng + dLng];
+  const cell = { sw, ne, center: [(sw[0] + ne[0]) / 2, (sw[1] + ne[1]) / 2], mdt: 652.4, diff: null };
+  const g = buildElevGridGroup([cell]);
+  elevGridGroups.push(g);
+  g.addTo(rootGroup);
+  const out = {};
+  const labels = () => g.getLayers().filter(l => l instanceof L.Marker);
+  const probe = (name, center, zoom) => {
+    map.setView(L.latLng(center), zoom, { animate: false });
+    const m = labels();
+    const el = m[0] && m[0].getElement();
+    const at = m[0] && map.latLngToContainerPoint(m[0].getLatLng());
+    const size = map.getSize();
+    out[name] = { n: m.length, html: el ? el.innerHTML : null,
+                  onScreen: !!at && at.x >= 0 && at.y >= 0 && at.x <= size.x && at.y <= size.y,
+                  atCenter: !!m[0] && m[0].getLatLng().lat === cell.center[0] };
+  };
+  probe("z13", cell.center, 13);   /* 200 m ≈ 24 px: aún no cabe nada          */
+  probe("z14", cell.center, 14);   /* una línea (la única: solo hay MDT)       */
+  probe("z16", cell.center, 16);
+  probe("z19", cell.center, 19);   /* la celda mide ~870 px: centro a la vista */
+  /* el centro de la celda fuera de la pantalla, la celda cubriéndola */
+  /* a zoom 20 la celda mide ~1760 px: con la vista 600 px a un lado del centro, el
+     centro queda fuera de la pantalla (si no cabe, la mitad de la vista) y la celda la cubre */
+  const half = map.getSize().x / 2;
+  probe("z19off", [cell.center[0], cell.center[1] + (half + 100) / (256 * 2 ** 20 / 360)], 20);
+  setAltitudeUnit("m");
+  probe("z16m", cell.center, 16);
+  /* se retira entera para no ensuciar lo siguiente */
+  elevGridGroups.splice(elevGridGroups.indexOf(g), 1);
+  rootGroup.removeLayer(g);
+  return out;
+});
+ok(coarse.z13.n === 0, "con la celda de 200 m a ~24 px, aún sin cifra: " + JSON.stringify(coarse.z13));
+ok(coarse.z14.n === 1 && /ec-t/.test(coarse.z14.html), "la celda de 200 m ya lleva su cifra desde el zoom 14: " + JSON.stringify(coarse.z14));
+ok(coarse.z16.n === 1 && coarse.z16.onScreen && /ec-t">\d+\.\d</.test(coarse.z16.html), "y en el 16, a la vista: " + JSON.stringify(coarse.z16));
+ok(coarse.z19.n === 1 && coarse.z19.onScreen && coarse.z19.atCenter, "en el 19, en su centro: " + JSON.stringify(coarse.z19));
+ok(coarse.z19off.n === 1 && coarse.z19off.onScreen && !coarse.z19off.atCenter,
+  "con el centro fuera de la pantalla, la cifra va en lo que se ve de la celda: " + JSON.stringify(coarse.z19off));
+ok(coarse.z16m.html.includes(">652.4<"), "y es la altura recogida (652,4 m): " + coarse.z16m.html);
 
 /* ---------- 6. MDS en «Ninguna» ---------- */
 const mdsBefore = count("wcs-mds.idee.es", "GetCoverage");

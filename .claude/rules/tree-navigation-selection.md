@@ -3,6 +3,7 @@ description: Árbol de navegación — visibilidad, checkbox de tres estados, te
 paths:
   - "src/js/30-tree-walk.js"
   - "src/js/31-tree-node.js"
+  - "src/js/35-export-formats.js"
   - "src/js/40-panel-actions.js"
   - "src/js/41-selection.js"
   - "src/js/70-view-controls.js"
@@ -104,7 +105,7 @@ paths:
   (`elevGrid`) también lleva 🔍** (pedido) aunque no tenga 🎨: `makeNode`
   acepta `focusable` (por defecto, `styleable`), que pasan
   `makeElevGridNode` y la rama `elevGrid` de `materializeRecords`; se
-  encuadra igual que un polígono (al zoom fijo 9 no se vería).
+  encuadra igual que un polígono (al zoom fijo, 14, no se vería).
 - **El nombre de la fila NO activa la casilla** (sin `htmlFor` en el
   `<label>`): pinchar el nombre selecciona la fila; doble click sobre
   él alternaba visibilidad a medias. La casilla se pulsa aparte;
@@ -187,11 +188,59 @@ paths:
   capas del mismo tipo: manda el tipo de la primera encontrada y se
   avisa por `navMessage` de cuántas quedan fuera.
 
+- **Contenedor con capa propia y filas fijas (servicio ArcGIS, ver `arcgis.md`)**: el nodo `arcgis` es un contenedor cuya casilla lleva además una capa de Leaflet (`chk._layer`): `applyContainerState`, `cascadeVisibility` (también sobre registros pendientes), `removeRecordsFromMap` y `extendBoundsFromRecords` la tratan. Sus filas hijas son `_fixed`: no se mueven, copian, cortan, borran ni renombran (`movableSelection()` las deja fuera y AVISA), y nada se suelta ni se pega dentro (`arcgisServiceOf`).
+
+## Secciones que crea la aplicación (azul pastel)
+
+- Las secciones de primer nivel que CREA LA APLICACIÓN —`ensureNamedSection` (Lugares, Marcadores, Descargas, Elevaciones, Servicios de mapas, Polígonos, Catastro, Perfiles) y `ensureMeasureSection` (Mediciones)— llevan `makeNode({ …, appSection: true })`: `li._appSection` y la clase `app-section`, que `styles.css` pinta con `--section-bg`/`--section-border` (azul pastel; `theme.md`). Motivo: el gris de un archivo (`li.file > .node-row`, `var(--bg)`) es el mismo que toma cualquier fila con el ratón encima (`.node-row:hover`) y no se distinguían.
+- **Se guarda** (`sec: true` en el registro de un archivo; `serializeNode`, `serializePendingRecords`, `buildRecordsFromStorage`, `materializeRecords`): al volver de IndexedDB el nombre queda en el idioma del momento (`i18n.md`, regla 8) y no se puede reconocer por él. Campo opcional añadido: NO sube `TREE_SCHEMA`. Entrada ajena: solo vale `true` exacto y solo en un `file`. Un árbol anterior, sin la marca, la recibe la próxima vez que `ensureNamedSection` encuentra la sección por nombre (sin migración, principio 4).
+- Un archivo importado o una carpeta del usuario NO la llevan. Probado en `tests/browser/app-sections.mjs`.
+
 ## Exportar e importar carpetas
 
-- El botón 💾 de una carpeta o archivo descarga su subárbol como
-  `<nombre>.kite.json`: mismo formato de registros que el guardado
-  (`serializeNode`), envuelto en `{ app, db, schema, exported, nodes }`.
+- El botón 💾 de una carpeta, un archivo **o una capa suelta** (`sortable || layer`
+  en `makeActions`) abre un minimenú (`openExportMenu`, `35-export-formats.js`,
+  con el aspecto de `.ctx-menu` pero independiente del menú del visor: aquel
+  devuelve el foco al mapa) con tres formatos. Se cierra con un clic fuera,
+  Escape (que no llega al árbol), desplazamiento de un panel, cambiar de
+  ventana (el `blur` de la VENTANA) o volviendo
+  a pulsar 💾 (`exportMenuOwner`), o al SALIR el ratón de la zona fila + menú
+  (`mouseleave` de las dos, con `EXPORT_MENU_LEAVE_MS` = 300 ms de margen para
+  cruzar el hueco entre ambas; solo cuenta si el ratón no está sobre ninguna
+  de las dos, `:hover`). Mientras está abierto, la fila lleva `.menu-open`
+  (`styles.css`) y SUS BOTONES se quedan a la vista aunque el cursor haya
+  pasado al menú, para poder volver a ellos; al cerrar se van los dos a la
+  vez. Es una zona, no dos: ir de la fila al menú, y de vuelta, no cierra
+  nada. **Mover el ratón DENTRO de esa zona NO lo cierra.** Trampa ya pisada: un oyente de `blur` en `window` CON captura recibe también el
+  `blur` de cualquier ELEMENTO, y los botones de una fila solo se ven con el
+  ratón encima: al ir del 💾 a una entrada, la fila deja de estar bajo el
+  cursor, el 💾 (que tiene el foco) se oculta, pierde el foco y su `blur`
+  cerraba el menú justo antes de poder elegir. El de `window` va SIN captura
+  (`listen(window, "blur", …, false)`); el `scroll` sí con captura (el de un
+  panel, no el del propio menú). Con `.click()` de JavaScript no se ve nunca:
+  se prueba con el ratón real (`tests/browser/export-menu.mjs`). Toda descarga
+  pasa por `downloadBlob` (`32-geojson.js`): blob, `<a download>`, revocación
+  a los 60 s y el aviso «Descargado».
+  - **«Archivo de KITE»** descarga el subárbol como `<nombre>.kite.json`: mismo
+    formato de registros que el guardado (`serializeNode`), envuelto en
+    `{ app, db, schema, exported, nodes }`.
+  - **KML y GeoJSON** (`recordsToKml`, `recordsToGeoJson`, PURAS) trabajan sobre
+    los registros serializados, no sobre las filas: una carpeta nunca desplegada
+    se exporta sin construir una fila. KML: `Folder` anidadas (`<visibility>0`
+    si está desmarcada, `<open>1` si no está colapsada), un `Placemark` por NODO
+    (varias geometrías = `MultiGeometry`), `Style` compartidos por contenido,
+    colores `aabbggrr`, altitud solo si es finita, `properties` en
+    `ExtendedData`. GeoJSON: FeatureCollection plana, carpeta en
+    `properties.folder`, estilo en claves simplestyle (las que lee
+    `geojsonStyle`); un `name`/`description`/`folder` que ya traía el archivo y
+    difiere del del nodo no se pierde: pasa a `<clave>_orig` (`putProp`).
+    Una ruta → LineString; un círculo → polígono geodésico de 120 lados
+    (`arcPoints`, no el `L.circle` de pantalla); si cruza ±180° las longitudes
+    quedan continuas (>180), sin partir el anillo. Lo que no cabe (`elevGrid`,
+    `imageOverlay`, `cog`) se NOMBRA en un aviso (`skippedMessage`), nunca en
+    silencio. Una entidad con coordenadas no finitas se deja fuera.
+    Un color que no sea hexadecimal (nombre CSS de un simplestyle ajeno) cae al
+    azul por defecto en KML.
 - El envoltorio declara tres versiones: `format` (`EXPORT_FORMAT`),
   `schema` (`TREE_SCHEMA`) y `db` (`DB_VERSION`). Al importar se
   comprueban las dos primeras; cualquier discrepancia se rechaza con
@@ -200,6 +249,9 @@ paths:
   `parseTreeExport` reconoce el envoltorio; si no lo es, sigue como
   GeoJSON.
 - Lo importado siempre se AÑADE: nunca sustituye ni fusiona.
+- **Una ortofoto COG no se exporta** (`withoutCogNodes` en `exportNode`,
+  con aviso que la nombra): sus bytes están en el almacén `rasters` de
+  este navegador, no en el árbol (ver `cog.md`).
 
 ## Arrastrar y soltar
 

@@ -2,13 +2,33 @@
    Crea la fila completa (caret, checkbox, color, etiqueta y acciones
    de renombrar / subir / bajar / borrar) para cualquier tipo de nodo:
    archivo, carpeta, capa (placemark / feature) o medición.            */
+/* `sortable` decide los botones de carpeta (☑ ☐ AZ ⊟ ▦): un servicio
+   ArcGIS es un contenedor con capa propia que no los quiere. `fixed` es
+   una fila que refleja un catálogo ajeno (una capa de un servicio): ni se
+   mueve, ni se borra, ni se renombra por separado. `extra` son botones
+   propios de ese tipo de fila ({ glyph, title, cls, fn }).             */
 function makeNode({ name, layer = null, isFolder = false, isFile = false,
                     style = null, checked = true, desc = null,
                     onDelete = null, onRename = null,
-                    styleable = layer !== null, focusable = styleable }) {
+                    styleable = layer !== null, focusable = styleable,
+                    sortable = isFolder || isFile, fixed = false, extra = [], info = false,
+                    appSection = false }) {
   const li = document.createElement("li");
   if (isFile) li.className = "file";
+  /* `appSection`: una sección de primer nivel que CREA LA APLICACIÓN
+     (Marcadores, Elevaciones, Descargas…), no el usuario ni un archivo
+     importado. Se pinta en azul pastel (styles.css) para no confundirla
+     con una fila bajo el ratón, que lleva el mismo gris que un archivo.
+     Se guarda (`sec` en el registro): al volver de IndexedDB el nombre
+     queda en el idioma del momento y no se podría reconocer por él.     */
+  li._appSection = isFile && appSection;
+  if (li._appSection) li.classList.add("app-section");
   li._name = name;
+  li._fixed = fixed;
+  /* `info`: la fila tiene ficha propia que no sale de `_desc` ni de las
+     properties de una capa (un servicio ArcGIS, su dirección): decide el
+     botón ℹ AQUÍ, antes de que quien llama le ponga su marca de tipo.   */
+  li._hasInfo = info;
   li._isContainer = isFolder || isFile; /* evita un querySelector redundante en serializeNode */
   li._cascadeGen = 0; /* ver cascadeVisibility */
   li._cascadeActive = 0; /* ver beginCascadeFeedback/endCascadeFeedback */
@@ -47,7 +67,7 @@ function makeNode({ name, layer = null, isFolder = false, isFile = false,
   /* Sin `for` en el <label> (ver más abajo), la casilla se queda sin
      nombre accesible: aria-label la compensa. startRename la mantiene al
      día si el nodo se renombra.                                        */
-  chk.setAttribute("aria-label", `Activar o desactivar «${name}»`);
+  chk.setAttribute("aria-label", tr("Activar o desactivar «{name}»", { name }));
   chk.addEventListener("change", () => {
     const ul = li.querySelector(":scope > ul.node-list");
     if (ul) {
@@ -96,7 +116,7 @@ function makeNode({ name, layer = null, isFolder = false, isFile = false,
   label.title = name;
   row.appendChild(label);
 
-  row.appendChild(makeActions(li, isFolder || isFile, styleable, layer, focusable));
+  row.appendChild(makeActions(li, sortable, styleable, layer, focusable, { fixed, extra }));
 
   /* Shift+click toggles multi-selection without touching the checkbox.
      Only same-kind nodes can be selected together (marker layers with
@@ -150,7 +170,7 @@ function makeNode({ name, layer = null, isFolder = false, isFile = false,
     li.appendChild(ul);
   }
 
-  wireDrag(li, row);
+  if (!fixed) wireDrag(li, row);
 
   /* Click en la capa dentro del visor → resaltarla en la navegación.
      Al pasar el ratón, el panel de información (Ficha KML o properties
@@ -239,7 +259,7 @@ function makeCaret(li) {
   const caret = document.createElement("span");
   caret.className = "caret";
   caret.textContent = "\u25BE";
-  caret.title = "Colapsar / desplegar";
+  caret.title = tr("Colapsar / desplegar");
   caret.addEventListener("click", () => {
     const collapsing = !li.classList.contains("collapsed");
     li.classList.toggle("collapsed");
@@ -254,7 +274,7 @@ function makeCaret(li) {
    rename, move up/down and delete */
 /* `focusable`: lleva la lupa 🔍 aunque no tenga diálogo de propiedades
    (una cuadrícula de elevación se encuadra, pero no tiene estilos).  */
-function makeActions(li, sortable, styleable, layer, focusable = styleable) {
+function makeActions(li, sortable, styleable, layer, focusable = styleable, { fixed = false, extra = [] } = {}) {
   const box = document.createElement("span");
   box.className = "actions";
   const btn = (glyph, title, cls, fn) => {
@@ -263,42 +283,52 @@ function makeActions(li, sortable, styleable, layer, focusable = styleable) {
     b.title = title;
     b.setAttribute("aria-label", title); /* botones solo con icono */
     if (cls) b.className = cls;
-    b.addEventListener("click", e => { e.preventDefault(); fn(); });
+    b.addEventListener("click", e => { e.preventDefault(); fn(b); });
     box.appendChild(b);
   };
   if (sortable) {
-    btn("\u2611", "Seleccionar todas las capas de esta carpeta", "", () => selectFolderLayers(li));
-    btn("\u2610", "Quitar la selecci\u00F3n (igual que Escape)", "", () => clearSelection());
-    btn("AZ", "Ordenar alfab\u00E9ticamente (alterna ascendente/descendente)", "az",
-        () => withUndo(`ordenar \u00AB${li._name}\u00BB`, () => sortChildren(li)));
-    btn("\u229F", "Colapsar esta carpeta y las interiores", "", () => collapseDescendants(li));
-    btn("\uD83D\uDCBE", "Guardar esta carpeta en un archivo para volver a cargarla despu\u00E9s", "", () => exportNode(li));
+    btn("\u2611", tr("Seleccionar todas las capas de esta carpeta"), "", () => selectFolderLayers(li));
+    btn("\u2610", tr("Quitar la selecci\u00F3n (igual que Escape)"), "", () => clearSelection());
+    btn("AZ", tr("Ordenar alfab\u00E9ticamente (alterna ascendente/descendente)"), "az",
+        () => withUndo(tr("ordenar \u00AB{name}\u00BB", { name: li._name }), () => sortChildren(li)));
+    btn("\u229F", tr("Colapsar esta carpeta y las interiores"), "", () => collapseDescendants(li));
   }
+  /* Carpetas y también capas sueltas: un KML o un GeoJSON de UNA capa es
+     un uso corriente (pasarla a QGIS). El menú pregunta el formato.     */
+  if (sortable || layer) {
+    btn("\uD83D\uDCBE", tr("Guardar a un archivo (KITE, KML o GeoJSON)"), "", b => openExportMenu(b, li));
+  }
+  if (sortable) btn("\u25A6", tr("Tabla de atributos de esta carpeta"), "", () => openAttrTable(li));
   if (focusable) {
-    btn("\uD83D\uDD0D", `Centrar la vista aqu\u00ED y acercar (zoom ${FOCUS_ZOOM})`, "",
+    btn("\uD83D\uDD0D", tr("Centrar la vista aqu\u00ED y acercar (zoom {zoom})", { zoom: FOCUS_ZOOM }), "",
         () => focusOnNode(li));
   }
-  if (styleable) btn("\uD83C\uDFA8", "Editar propiedades", "", () => openStyleDialog(li));
+  if (styleable) btn("\uD83C\uDFA8", tr("Editar propiedades"), "", () => openStyleDialog(li));
   /* Un marcador siempre lleva el botón, oculto mientras no tenga ficha:
      con la iluminación real activa la gana (horas del sol), y
      refreshInfoButtons lo muestra/oculta sin reconstruir la fila.      */
-  if (li._desc || layerProperties(layer) || layerKind(layer) === "marker") {
-    btn("\u2139", "Ver informaci\u00F3n de la capa", "info-btn", () => showLayerInfo(li));
+  if (li._desc || li._hasInfo || layerProperties(layer) || layerKind(layer) === "marker") {
+    btn("\u2139", tr("Ver informaci\u00F3n de la capa"), "info-btn", () => showLayerInfo(li));
     box.lastChild.hidden = !hasInfo(li, layer);
   }
-  btn("\u2191", "Subir", "", () => {
+  for (const x of extra) {
+    btn(x.glyph, x.title, x.cls || "", x.fn);
+    if (x.mode) box.lastChild.dataset.mode = x.mode; /* el estado del botón, nunca su texto (i18n.md) */
+  }
+  if (fixed) return box;
+  btn("\u2191", tr("Subir"), "", () => {
     const prev = li.previousElementSibling;
     if (prev) { li.parentElement.insertBefore(li, prev); scheduleSave(); }
   });
-  btn("\u2193", "Bajar", "", () => {
+  btn("\u2193", tr("Bajar"), "", () => {
     const next = li.nextElementSibling;
     if (next) { li.parentElement.insertBefore(next, li); scheduleSave(); }
   });
-  btn("\u00D7", "Borrar", "delete", () => {
-    pushUndo(`borrar \u00AB${li._name}\u00BB`);
+  btn("\u00D7", tr("Borrar"), "delete", () => {
+    pushUndo(tr("borrar \u00AB{name}\u00BB", { name: li._name }));
     /* si el nodo forma parte de la selección, se borra toda la selección */
     if (selection.has(li) && selection.size > 1) {
-      const items = topLevelSelection();
+      const items = movableSelection();
       const next = cursorAfterDelete(isRow(selCursor) ? selCursor : items[0], items);
       for (const s of items) deleteNode(s, { pruneSelection: false });
       clearSelection();
@@ -325,7 +355,7 @@ async function sortChildren(li) {
   const dir = (li._sortAsc = li._sortAsc !== true) ? 1 : -1;
   [...ul.children]
     .filter(c => c._name !== undefined) /* ignora filas de mensaje */
-    .sort((a, b) => dir * a._name.localeCompare(b._name, "es", { numeric: true, sensitivity: "base" }))
+    .sort((a, b) => dir * a._name.localeCompare(b._name, uiLang, { numeric: true, sensitivity: "base" }))
     .forEach(c => ul.appendChild(c));
   scheduleSave();
 }
@@ -341,7 +371,7 @@ function setNodeName(li, name) {
   const label = li.querySelector(":scope > .node-row > label");
   if (label) { label.textContent = name; label.title = name; }
   const chk = li.querySelector(":scope > .node-row > input[type=checkbox]");
-  if (chk) chk.setAttribute("aria-label", `Activar o desactivar «${name}»`);
+  if (chk) chk.setAttribute("aria-label", tr("Activar o desactivar «{name}»", { name }));
   if (li._onRename) li._onRename(name);
   if (li._mstyle) applyMarkerText(li); /* the marker text shows the name */
   /* Y la etiqueta permanente de un trazo, por lo mismo: enseña el
@@ -352,6 +382,7 @@ function setNodeName(li, name) {
 
 /* Renombrado en línea: la etiqueta se sustituye por un input */
 function startRename(li) {
+  if (li._fixed) return; /* el nombre de la capa de un servicio es el del servidor */
   const label = li.querySelector(":scope > .node-row > label");
   const input = document.createElement("input");
   input.type = "text";
@@ -388,6 +419,8 @@ function startRename(li) {
    ningún checkbox.                                                    */
 function removeRecordsFromMap(records) {
   for (const rec of records) {
+    /* Un contenedor con capa propia (un servicio ArcGIS) la quita también */
+    if (rec.children && rec._layer) rootGroup.removeLayer(rec._layer);
     if (rec.children) { removeRecordsFromMap(rec.children); continue; }
     if (rec._layer) rootGroup.removeLayer(rec._layer);
     if (rec.t === "elevGrid") forgetElevGridGroup(rec._layer); /* el onDelete que habría tenido */
@@ -501,7 +534,7 @@ document.addEventListener("pointermove", e => {
     if (Math.hypot(e.clientX - dragPress.x, e.clientY - dragPress.y) < DRAG_THRESHOLD_PX) return;
     /* Arrastrar un nodo seleccionado arrastra toda la selección;
        arrastrar uno no seleccionado la descarta y lo lleva solo.    */
-    if (selection.has(dragPress.li)) dragItems = topLevelSelection();
+    if (selection.has(dragPress.li)) dragItems = movableSelection();
     else { clearSelection(); dragItems = [dragPress.li]; }
     dragLi = dragPress.li;
     treeEl.classList.add("dragging");
@@ -543,7 +576,7 @@ document.addEventListener("pointerup", async e => {
   dragItems = null;
   if (!destino) return;   /* soltado fuera de cualquier fila válida */
 
-  pushUndo("mover nodos");
+  pushUndo(tr("mover nodos"));
   /* Los contenedores de ORIGEN, antes de tocar nada: en cuanto los
      nodos se mueven ya cuelgan del destino y no queda desde dónde
      recalcular la rama que los pierde. Un Set porque una selección
@@ -577,6 +610,8 @@ document.addEventListener("pointerup", async e => {
 
 /* No se puede soltar un nodo dentro de sí mismo ni de su propia rama */
 function validDrop(li) {
+  /* Ni dentro de un servicio ArcGIS ni entre sus capas: su contenido es el del servidor */
+  if (li._fixed) return false;
   return dragItems && dragItems.every(item => item !== li && !item.contains(li));
 }
 
@@ -595,7 +630,7 @@ function dropZone(row, li, clientY) {
   const edge = Math.min(6, r.height / 3);
   if (y < edge) return "drop-before";
   if (y > r.height - edge) return "drop-after";
-  return nodeUl(li) ? "drop-into" : (y < r.height / 2 ? "drop-before" : "drop-after");
+  return nodeUl(li) && !li._arcgis ? "drop-into" : (y < r.height / 2 ? "drop-before" : "drop-after");
 }
 /* La marca de destino la lleva UNA fila cada vez. Barrer el árbol entero
    en cada `dragover` —que se dispara decenas de veces por segundo—
@@ -657,12 +692,12 @@ function makeImportReport(fileName) {
         .sort((a, b) => b[1] - a[1])
         .slice(0, MAX_REPORT_DETAIL)
         .map(([why, n]) => `${why} (\u00D7${n})`);
-      const parts = [`\u00AB${this.file}\u00BB: ${this.loaded} elemento(s) cargado(s)`];
-      if (this.kinds.size) parts.push(`tipos: ${[...this.kinds].join(", ")}`);
-      if (this.skipped) parts.push(`${this.skipped} omitido(s)`);
-      if (top.length) parts.push(`causas: ${top.join(", ")}`);
+      const parts = [tr("\u00AB{file}\u00BB: {loaded} elemento(s) cargado(s)", { file: this.file, loaded: this.loaded })];
+      if (this.kinds.size) parts.push(tr("tipos: {kinds}", { kinds: [...this.kinds].join(", ") }));
+      if (this.skipped) parts.push(tr("{skipped} omitido(s)", { skipped: this.skipped }));
+      if (top.length) parts.push(tr("causas: {causes}", { causes: top.join(", ") }));
       if (this.causes.size > MAX_REPORT_DETAIL) {
-        parts.push(`y ${this.causes.size - MAX_REPORT_DETAIL} causa(s) m\u00E1s`);
+        parts.push(tr("y {n} causa(s) m\u00E1s", { n: this.causes.size - MAX_REPORT_DETAIL }));
       }
       for (const n of this.notes) parts.push(n);
       return parts.join("; ") + ".";
@@ -691,7 +726,7 @@ async function buildKmlRecords(el, styleIndex, inheritedVisible, prog, report, z
       /* <open>: solo desplegada si es 1 (0 o ausente → colapsada) */
       const collapsed = directChildText(child, "open") !== "1";
       const children = await buildKmlRecords(child, styleIndex, visible, prog, report, zip);
-      out.push({ t: "folder", name: text(child, "name") || "Carpeta",
+      out.push({ t: "folder", name: text(child, "name") || tr("Carpeta"),
                  checked: children.some(c => c.checked), collapsed, children });
     } else if (tag === "Placemark") {
       const name = text(child, "name") || "Placemark";
@@ -702,7 +737,7 @@ async function buildKmlRecords(el, styleIndex, inheritedVisible, prog, report, z
           /* Ya se cont\u00F3 arriba con una causa concreta (p. ej. "punto sin
              coordenadas v\u00E1lidas"); solo hace falta este gen\u00E9rico cuando
              el placemark no ten\u00EDa ninguna geometr\u00EDa que intentar.      */
-          if (!reported && report) report.warn(`\u00AB${name}\u00BB sin geometr\u00EDa utilizable`);
+          if (!reported && report) report.warn(tr("\u00AB{name}\u00BB sin geometr\u00EDa utilizable", { name }));
           continue;
         }
         const visible = inheritedVisible && ownVisibility(child);
@@ -723,7 +758,7 @@ async function buildKmlRecords(el, styleIndex, inheritedVisible, prog, report, z
         await yieldFrame();
       }
     } else if (tag === "GroundOverlay") {
-      const name = text(child, "name") || "Ortofoto";
+      const name = text(child, "name") || tr("Ortofoto");
       try {
         const overlay = await buildGroundOverlay(child, zip, report, name);
         if (overlay) {

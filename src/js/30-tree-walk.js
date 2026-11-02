@@ -86,7 +86,6 @@ function selectRange(to) {
   for (const li of [...selection]) setSelected(li, false);
   for (const li of span) setSelected(li, true);
   setSelCursor(to);
-  announceSelectionCount();
 }
 
 /* Añade (o quita) un nodo sin arrastrar los intermedios: Ctrl+Shift */
@@ -95,32 +94,13 @@ function toggleOne(li) {
   setSelected(li, on);
   setSelCursor(li);
   selAnchor = li;
-  announceSelectionCount();
-}
-
-/* ---------- Aviso del número de nodos seleccionados ----------
-   Puramente informativo: es la forma rápida de saber, por ejemplo,
-   cuántos elementos hay dentro de una carpeta al seleccionarla entera
-   (ver selectFolderLayers). Con Mayús+flecha mantenido pulsado,
-   selectRange se dispara muchas veces por segundo con un recuento
-   distinto cada vez —y navMessage no funde líneas con texto distinto—,
-   así que se debate como el buscador del panel (SEARCH_DEBOUNCE_MS) en
-   vez de avisar en cada pulsación.                                    */
-const SEL_COUNT_DEBOUNCE_MS = 200;
-let selCountTimer = null;
-function announceSelectionCount() {
-  clearTimeout(selCountTimer);
-  selCountTimer = setTimeout(() => {
-    if (selection.size > 1) {
-      navMessage(`${selection.size} nodos seleccionados.`, { tone: "info" });
-    }
-  }, SEL_COUNT_DEBOUNCE_MS);
 }
 
 /* Nombre legible del tipo, para poder explicar por qué algo se queda
    fuera de una selección                                              */
-const KIND_LABEL = { marker: "marcadores", polygon: "pol\u00EDgonos", measure: "mediciones",
-  elevGrid: "cuadr\u00EDculas de elevaci\u00F3n", imageOverlay: "ortofotos" };
+const KIND_LABEL = { marker: tr("marcadores"), polygon: tr("pol\u00EDgonos"), measure: tr("mediciones"),
+  elevGrid: tr("cuadr\u00EDculas de elevaci\u00F3n"), imageOverlay: tr("ortofotos"), cog: tr("ortofotos COG"),
+  arcgis: tr("servicios ArcGIS"), arcgisLayer: tr("capas de servicios ArcGIS") };
 
 /* Selecciona de una vez todas las capas de la rama que cuelga de un
    contenedor. Como solo pueden convivir capas del mismo tipo en la
@@ -144,7 +124,7 @@ async function selectFolderLayers(li) {
   if (!ul) return;
   const layers = [...ul.querySelectorAll("li")]
     .filter(n => n._name !== undefined && !nodeUl(n)); /* capas, no contenedores */
-  if (!layers.length) { navMessage("Esta carpeta no contiene capas."); return; }
+  if (!layers.length) { navMessage(tr("Esta carpeta no contiene capas.")); return; }
 
   clearSelection();
   /* Ruta masiva: se marcan directas y el cursor se fija UNA vez, no una
@@ -152,7 +132,6 @@ async function selectFolderLayers(li) {
   for (const n of layers) setSelected(n, true);
   setSelCursor(layers[layers.length - 1]);
   selAnchor = layers[0];
-  announceSelectionCount();
 }
 
 /* ---------- Recorrido del árbol, nodo a nodo ----------
@@ -242,6 +221,26 @@ function topLevelSelection() {
   return out;
 }
 
+/* Lo que se puede mover, copiar o borrar: la selección sin las filas
+   `_fixed` (las capas de un servicio ArcGIS, que son el catálogo del
+   servidor y solo viajan con su servicio). Se AVISA si había alguna: que
+   Supr no haga nada sin decir por qué parecería un fallo.             */
+function movableSelection() {
+  const all = topLevelSelection();
+  const out = all.filter(li => !li._fixed);
+  if (out.length < all.length) {
+    navMessage(tr("Las capas de un servicio de mapas van con su servicio: no se mueven, copian ni borran por separado."), { tone: "info" });
+  }
+  return out;
+}
+/* La fila del servicio ArcGIS a la que pertenece una fila (ella misma, o
+   de la que cuelgan sus capas); null si no es de ninguno. Nada se suelta
+   ni se pega DENTRO de un servicio: va a continuación de él.          */
+function arcgisServiceOf(li) {
+  for (let p = li; p && p !== treeEl; p = p.parentElement) if (p._arcgis) return p;
+  return null;
+}
+
 /* Where the cursor should land after deleting `items` (the top-level
    nodes about to be removed — a single row, or topLevelSelection()):
    the next surviving row after `anchor`, skipping anything that IS one
@@ -275,7 +274,7 @@ function extendBounds(bounds, l) {
 function extendBoundsFromRecords(bounds, records) {
   for (const rec of records) {
     if (rec.children) extendBoundsFromRecords(bounds, rec.children);
-    else extendBounds(bounds, rec._layer);
+    if (!rec.children || rec._layer) extendBounds(bounds, rec._layer); /* un servicio ArcGIS: contenedor con capa propia */
   }
 }
 function subtreeBounds(li) {
@@ -325,8 +324,8 @@ function showTreePlaceholder(txt) {
   treeEl.appendChild(div);
   rootUl = null;
 }
-function showEmptyMessage() { showTreePlaceholder("No hay capas cargadas."); }
-function showLoadingMessage() { showTreePlaceholder("Inicializando…"); }
+function showEmptyMessage() { showTreePlaceholder(tr("No hay capas cargadas.")); }
+function showLoadingMessage() { showTreePlaceholder(tr("Inicializando…")); }
 /* Se arranca en «Inicializando…»; es el arranque (99-boot.js) quien
    concluye, ya con el árbol guardado leído, si de verdad no hay nada. */
 showLoadingMessage();
@@ -367,8 +366,8 @@ function msgStamp(ms) {
 function logText() {
   if (!msgLog.length) return "";
   return msgLog.map(e => {
-    const rep = e.count > 1 ? ` [x${e.count}, última ${msgStamp(e.last)}]` : "";
-    return `${msgStamp(e.first)}\t${e.tone === "info" ? "INFO " : "AVISO"}\t${e.text}${rep}`;
+    const rep = e.count > 1 ? " " + tr("[x{count}, última {last}]", { count: e.count, last: msgStamp(e.last) }) : "";
+    return `${msgStamp(e.first)}\t${e.tone === "info" ? "INFO " : tr("AVISO").padEnd(5)}\t${e.text}${rep}`;
   }).join("\n");
 }
 
@@ -445,7 +444,7 @@ function navMessage(txt, { sticky = false, tone = "error" } = {}) {
     if (!el.querySelector(".nav-msg-ok")) {
       const ok = document.createElement("button");
       ok.className = "btn nav-msg-ok";
-      ok.textContent = "Aceptar";
+      ok.textContent = tr("Aceptar");
       ok.addEventListener("click", clearNavMessage);
       el.appendChild(ok);
     }
@@ -464,9 +463,9 @@ function clearNavMessage() {
    abajo en el script.                                                 */
 if (!hwAccelerated) {
   navMessage(
-    "No se detecta aceleración por hardware en el navegador. " +
-    "Se aplica una mitigación automática (zoom sin animación), pero se recomienda " +
-    "habilitar la aceleración por hardware en el navegador (chrome://gpu) para un mejor rendimiento.",
+    tr("No se detecta aceleración por hardware en el navegador. "
+      + "Se aplica una mitigación automática (zoom sin animación), pero se recomienda "
+      + "habilitar la aceleración por hardware en el navegador (chrome://gpu) para un mejor rendimiento."),
     { sticky: true }
   );
 }
@@ -474,7 +473,9 @@ if (!hwAccelerated) {
 /* Centrar la vista en un nodo y acercar a un zoom de trabajo. A
    diferencia del doble click, no depende de dónde estuviera la vista ni
    de la escalera: siempre deja el nodo centrado y a la misma escala. */
-const FOCUS_ZOOM = 9;
+/* 14: a escala de calle, donde un marcador se ve en su entorno y se pueden
+   distinguir los vecinos (antes 9, a escala de provincia, pedido 30-10-2026). */
+const FOCUS_ZOOM = 14;
 /* Margen relativo al tama\u00F1o del panel del visor (20% a cada lado), no
    una cifra fija de p\u00EDxeles: as\u00ED un pol\u00EDgono peque\u00F1o y uno grande, o el
    panel en una ventana estrecha y en una ancha, quedan igual de
@@ -495,9 +496,9 @@ function fitBoundsFramed(bounds) {
    kil\u00F3metros, la de un perfil) y al zoom fijo ni se ver\u00EDa.        */
 function focusOnNode(li) {
   const b = subtreeBounds(li);
-  if (!b.isValid()) { navMessage("Esta capa no tiene geometr\u00EDa que enfocar."); return; }
+  if (!b.isValid()) { navMessage(tr("Esta capa no tiene geometr\u00EDa que enfocar.")); return; }
   const kind = styleKind(li);
-  if (kind === "polygon" || kind === "measure" || kind === "elevGrid") fitBoundsFramed(b);
+  if (kind === "polygon" || kind === "measure" || kind === "elevGrid" || kind === "cog" || kind === "arcgis") fitBoundsFramed(b);
   else map.setView(b.getCenter(), FOCUS_ZOOM);
 }
 
@@ -625,6 +626,10 @@ function applyContainerState(li) {
   chk.indeterminate = indeterminate;
   /* Un lector de pantalla espera "mixed", no una casilla a medias */
   li.setAttribute("aria-checked", indeterminate ? "mixed" : String(checked));
+  /* Un contenedor con capa propia (un servicio ArcGIS) está en el mapa
+     mientras alguna de las suyas esté activa: si no, apagar la última
+     dejaría la imagen del servidor puesta sin ninguna capa pedida.   */
+  if (chk._layer) applyVisibility(chk);
   return true;
 }
 
@@ -732,7 +737,9 @@ async function cascadeVisibility(li, checked) {
         rec.checked = checked;
         rec._state = checked ? "on" : "off"; /* la rama queda uniforme */
         if (rec.children) { if (!(await walkRecords(rec.children))) return false; }
-        else setLayerVisible(rec._layer, checked);
+        /* Un contenedor con capa propia (un servicio ArcGIS) la enciende
+           también: no basta con sus hijos, que no tienen capa.         */
+        if (!rec.children || rec._layer) setLayerVisible(rec._layer, checked);
         if (!(await yieldMaybe())) return false;
       }
       return true;

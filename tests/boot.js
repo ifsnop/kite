@@ -66,4 +66,19 @@ const boot = script.slice(script.indexOf("Arranque: restaurar el árbol guardado
 ok(boot.indexOf("await dbLoadTree()") < boot.indexOf("if (!rootUl) showEmptyMessage();"),
   "y lo hace DESPUÉS de leer el árbol guardado, no antes");
 
+/* El enlace a una vista (#map=…): su ancla se quita ANTES de leer lo
+   guardado (recargar no lo repite), manda sobre la vista guardada (se
+   aplica DESPUÉS de leerla y antes de soltar `viewRestoring`) y sus mapas
+   base mandan sobre los guardados (después de leerlos, antes de pintar).  */
+const bootBody = script.slice(script.indexOf("const viewLink = parseViewHash(location.hash);"));
+const at = s => bootBody.indexOf(s);
+ok(at("const viewLink") === 0 && at("clearViewHash()") > 0, "99-boot.js lee el enlace y quita su ancla");
+ok(at("clearViewHash()") < at("await dbLoadView()"), "el ancla se quita antes de leer la vista guardada");
+ok(at("await dbLoadView()") < at("map.setView([viewLink.lat") && at("map.setView([viewLink.lat") < at("viewRestoring = false"),
+  "el enlace se aplica después de la vista guardada y antes de soltar viewRestoring");
+ok(at("viewRestoring = false") < at("if (viewLink) scheduleViewSave();") && at("if (viewLink) scheduleViewSave();") < at("applySavedBases("),
+  "y la vista del enlace se guarda tras soltar viewRestoring (sus moveend llegaron antes y no guardaron nada)");
+ok(at("applySavedBases(") < at("setLinkBases(viewLink.bases, false)") && at("setLinkBases(viewLink.bases, false)") < at("renderBasePanel();"),
+  "sus mapas base se aplican tras los guardados y antes de pintar el panel");
+
 if (!process.exitCode) console.log("BOOT PLACEHOLDER TESTS OK");

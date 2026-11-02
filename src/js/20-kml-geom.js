@@ -70,6 +70,31 @@ function parsePolygon(polyEl) {
   return rings;
 }
 
+/* Los datos propios de un Placemark: <ExtendedData> con <Data name><value>
+   y <SchemaData><SimpleData name>. Salen como `properties` (siempre
+   texto: KML no tiene tipos aquí), y así una capa de KML tiene la misma
+   tabla de atributos que una de GeoJSON. Entrada AJENA: tope de campos,
+   primer valor de un nombre repetido y nombres que no pueden ser
+   propiedades (`__proto__`) fuera. null si no hay ninguno.            */
+const EXT_MAX_FIELDS = 200;
+function parseExtendedData(pm) {
+  const ext = childrenByTag(pm, "ExtendedData")[0];
+  if (!ext) return null;
+  const props = {};
+  let n = 0;
+  const put = (key, value) => {
+    if (!key || key === "__proto__" || n >= EXT_MAX_FIELDS) return;
+    if (Object.prototype.hasOwnProperty.call(props, key)) return;
+    props[key] = value;
+    n++;
+  };
+  for (const d of childrenByTag(ext, "Data")) put(d.getAttribute("name"), directChildText(d, "value") || "");
+  for (const sd of childrenByTag(ext, "SchemaData")) {
+    for (const s of childrenByTag(sd, "SimpleData")) put(s.getAttribute("name"), s.textContent.trim());
+  }
+  return n ? props : null;
+}
+
 /* Crea las capas Leaflet de un placemark (polígonos, líneas y puntos).
    Cada geometría se construye por separado: una mala no tumba al resto
    del placemark ni, por tanto, a la importación entera.              */
@@ -97,26 +122,33 @@ function buildPlacemarkLayer(pm, style, report) {
     try {
       const rings = parsePolygon(polyEl);
       if (rings) layers.push(L.polygon(rings, style));
-      else fail("polígono sin anillo exterior válido");
-    } catch (err) { fail(`polígono ilegible (${err.message})`); }
+      else fail(tr("polígono sin anillo exterior válido"));
+    } catch (err) { fail(tr("polígono ilegible ({message})", { message: err.message })); }
   }
   for (const lineEl of elsByTag(geomRoot, "LineString")) {
     try {
       const el = firstByTag(lineEl, "coordinates");
       const pts = el ? parseCoords(el.textContent) : [];
       if (pts.length >= 2) layers.push(L.polyline(pts, style));
-      else fail("línea con menos de dos puntos válidos");
-    } catch (err) { fail(`línea ilegible (${err.message})`); }
+      else fail(tr("línea con menos de dos puntos válidos"));
+    } catch (err) { fail(tr("línea ilegible ({message})", { message: err.message })); }
   }
   for (const ptEl of elsByTag(geomRoot, "Point")) {
     try {
       const el = firstByTag(ptEl, "coordinates");
       const pts = el ? parseCoords(el.textContent) : [];
       if (pts.length) layers.push(L.marker(pts[0]));
-      else fail("punto sin coordenadas válidas");
-    } catch (err) { fail(`punto ilegible (${err.message})`); }
+      else fail(tr("punto sin coordenadas válidas"));
+    } catch (err) { fail(tr("punto ilegible ({message})", { message: err.message })); }
   }
   if (!layers.length) return { group: null, reported };
+
+  /* `feature.properties` en cada subcapa es lo que lee layerProperties y lo
+     que `toGeoJSON` vuelca al guardar, así que sobrevive a recargar. Sin
+     `geometry` a propósito: 43-points-editor.js la lee de `poly.feature`
+     para los polígonos de GeoJSON, y un KML no tiene geometría en crudo. */
+  const data = parseExtendedData(pm);
+  if (data) for (const l of layers) l.feature = { type: "Feature", properties: data };
 
   const group = L.featureGroup(layers);
   const name = text(pm, "name");
@@ -163,26 +195,26 @@ async function buildGroundOverlay(el, zip, report, name) {
   const fail = why => { if (report) report.warn(`«${name}»: ${why}`); return null; };
 
   const parsedBox = parseLatLonBox(el);
-  if (!parsedBox) return fail("sin <LatLonBox> o con límites no válidos");
+  if (!parsedBox) return fail(tr("sin <LatLonBox> o con límites no válidos"));
   const { north, south, east, west, rotation } = parsedBox;
   if (rotation !== 0 && report) {
-    report.note(`«${name}» tiene rotación de ${rotation}° en el KML; se muestra sin rotar`);
+    report.note(tr("«{name}» tiene rotación de {rotation}° en el KML; se muestra sin rotar", { name, rotation }));
   }
 
   const iconEl = firstByTag(el, "Icon");
   const href = iconEl && text(iconEl, "href");
-  if (!href) return fail("sin <Icon><href>");
+  if (!href) return fail(tr("sin <Icon><href>"));
   const entry = resolveKmzEntry(zip, href);
-  if (!entry) return fail(`la imagen «${href}» no está disponible`);
+  if (!entry) return fail(tr("la imagen «{href}» no está disponible", { href }));
   const ext = (href.split(/[?#]/)[0].split(".").pop() || "").toLowerCase();
   const mime = KMZ_IMAGE_MIME[ext];
-  if (!mime) return fail(`formato de imagen no reconocido (${ext || "sin extensión"})`);
+  if (!mime) return fail(tr("formato de imagen no reconocido ({ext})", { ext: ext || tr("sin extensión") }));
 
   let dataUrl;
   try {
     dataUrl = `data:${mime};base64,${await entry.async("base64")}`;
   } catch (err) {
-    return fail(`no se pudo leer la imagen del KMZ (${err.message})`);
+    return fail(tr("no se pudo leer la imagen del KMZ ({message})", { message: err.message }));
   }
 
   const box = { north, south, east, west };

@@ -98,4 +98,113 @@ ok(ex && /Invalid instance id/.test(ex.msg),
 ok(api.parseWmsServiceException(caps) === null,
   "un GetCapabilities correcto no se confunde con una excepción");
 
-if (!process.exitCode) console.log("COPERNICUS / SENTINEL HUB TESTS OK");
+/* ---------- Cambiar la credencial con una consulta en vuelo ----------
+   `setInstanceId` invalida catálogo, error y consulta en curso, pero la
+   petición YA lanzada sigue su camino: lo que conteste no es de la
+   credencial nueva y no debe pisar nada suyo. Se prueba la función real
+   con un `fetch` que se resuelve a mano, y el estado como lo deja
+   `setInstanceId` (lo que éste hace con la capa y el panel no importa).  */
+const raceSrc = [fn("shWmsUrl"), fn("fetchCopernicusCatalog")].join("\n");
+function newRace() {
+  const pending = [];                                  /* consultas en vuelo */
+  const fetchStub = url => new Promise((resolve, reject) => pending.push({ url, resolve, reject }));
+  const reply = (p, body, status = 200) => p.resolve({ ok: status < 400, status, text: async () => body });
+  const make = new Function("fetch", `
+    const COP_WMS_BASE = "https://sh.test/", COP_TIMEOUT = 5000, COP_WMS_OPTS = {};
+    const parseWmsServiceException = t => /^error:/.test(t) ? { msg: t.slice(6) } : null;
+    const parseWmsCapabilities = t => /^caps:/.test(t) ? t.slice(5).split(",").map(name => ({ name })) : null;
+    const describeHttp = s => "HTTP " + s, netFailText = g => g;
+    let shInstanceId = null, copCatalog = null, copError = null, copDiscovering = null;
+    ${raceSrc}
+    return {
+      fetchCopernicusCatalog,
+      state: () => ({ copCatalog, copError, copDiscovering }),
+      /* lo que hace setInstanceId con el estado de este módulo */
+      setId(id) { shInstanceId = id || null; copCatalog = null; copError = null; copDiscovering = null; }
+    };`);
+  return { ...make(fetchStub), pending, reply };
+}
+const quiet = p => p.catch(() => {});
+const tick = () => new Promise(r => setImmediate(r));
+
+(async () => {
+  /* 1. Camino normal: sin cambio de credencial, el catálogo queda */
+  let t = newRace();
+  t.setId("A");
+  const a1 = t.fetchCopernicusCatalog();
+  ok(t.pending.length === 1 && t.pending[0].url.startsWith("https://sh.test/A?"), "la consulta lleva el ID de A");
+  t.reply(t.pending[0], "caps:uno,dos");
+  await a1;
+  ok(t.state().copCatalog && t.state().copCatalog.length === 2, "sin cambios, el catálogo se guarda");
+
+  /* 2. A cambia a B con la consulta de A en vuelo; B contesta primero y A después */
+  t = newRace();
+  t.setId("A");
+  const pa = quiet(t.fetchCopernicusCatalog());
+  t.setId("B");
+  const pb = quiet(t.fetchCopernicusCatalog());
+  ok(t.pending.length === 2 && t.pending[1].url.startsWith("https://sh.test/B?"), "B lanza su propia consulta");
+  t.reply(t.pending[1], "caps:de-b");
+  await pb;
+  t.reply(t.pending[0], "caps:de-a");
+  await pa;
+  const s2 = t.state();
+  ok(s2.copCatalog && s2.copCatalog.map(e => e.name).join() === "de-b",
+    "la respuesta tardía de A NO pisa el catálogo de B: " + JSON.stringify(s2.copCatalog));
+
+  /* 3. Lo mismo con A contestando primero: no puede dejar su catálogo mientras B vuela */
+  t = newRace();
+  t.setId("A");
+  const pa3 = quiet(t.fetchCopernicusCatalog());
+  t.setId("B");
+  const pb3 = quiet(t.fetchCopernicusCatalog());
+  t.reply(t.pending[0], "caps:de-a");
+  await pa3;
+  ok(t.state().copCatalog === null, "con B aún en vuelo, la respuesta de A no deja catálogo");
+  t.reply(t.pending[1], "caps:de-b");
+  await pb3;
+  ok(t.state().copCatalog.map(e => e.name).join() === "de-b", "y al llegar B, el suyo");
+
+  /* 4. Credencial borrada con la consulta en vuelo: nada queda */
+  t = newRace();
+  t.setId("A");
+  const pa4 = quiet(t.fetchCopernicusCatalog());
+  t.setId(null);
+  t.reply(t.pending[0], "caps:de-a");
+  await pa4;
+  ok(t.state().copCatalog === null, "con la credencial borrada, la respuesta de A no deja catálogo");
+
+  /* 5. El fallo de A no pisa el error de B ni suelta su consulta en curso */
+  t = newRace();
+  t.setId("A");
+  const pa5 = quiet(t.fetchCopernicusCatalog());
+  t.setId("B");
+  const pb5 = quiet(t.fetchCopernicusCatalog());
+  const discB = t.state().copDiscovering;
+  t.reply(t.pending[0], "error:Invalid instance id", 400);
+  await pa5;
+  ok(t.state().copError === null, "el error de A no se muestra con la credencial B: " + t.state().copError);
+  ok(t.state().copDiscovering === discB && discB !== null,
+    "ni suelta la consulta de B (otra llamada no debe lanzar una duplicada)");
+  const antes = t.pending.length;
+  quiet(t.fetchCopernicusCatalog());
+  ok(t.pending.length === antes, "una llamada mientras B vuela reutiliza su consulta");
+  t.reply(t.pending[1], "error:otro fallo", 400);
+  await pb5;
+  ok(t.state().copError === "otro fallo", "el error de B, que es el vigente, sí se guarda: " + t.state().copError);
+  ok(t.state().copDiscovering === null, "y permite reintentar");
+
+  /* 6. A → B → A: la consulta de A vuelve a ser la vigente y vale */
+  t = newRace();
+  t.setId("A");
+  const pa6 = quiet(t.fetchCopernicusCatalog());
+  t.setId("B"); t.setId("A");
+  t.reply(t.pending[0], "caps:de-a");
+  await pa6;
+  ok(t.state().copCatalog && t.state().copCatalog.map(e => e.name).join() === "de-a",
+    "si la credencial vuelve a ser A, la respuesta de A es válida");
+  await tick();
+
+  if (!process.exitCode) console.log("COPERNICUS / SENTINEL HUB TESTS OK");
+})();
+

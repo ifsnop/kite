@@ -11,10 +11,11 @@
    Además se escribe kitelocal.min.html, que es lo que sirve GitHub
    Pages. Es una DERIVADA del anterior, nunca una fuente: no se edita, no
    se lee y las suites de extracción no la tocan (borrar los comentarios
-   las dejaría sin marcadores). Medido contra el sitio real, Pages ya
-   envía gzip —152,9 KB hoy—, y minificar solo HTML y CSS apenas baja a
-   144,8; lo que de verdad reduce la transmisión es minificar también el
-   JavaScript, que la deja en 66,7 KB.
+   las dejaría sin marcadores). Pages ya envía gzip, y minificar solo HTML y
+   CSS apenas lo reduce (~5 %); lo que de verdad reduce la transmisión es
+   minificar también el JavaScript: −55 % comprimido (−53 % en disco),
+   medido el 2026-11-01. Porcentajes y no bytes: el archivo crece con cada
+   función y una cifra absoluta se queda vieja.
 
    Uso:  node build.js            construye los dos
          node build.js --check    no escribe; falla si lo construido no
@@ -30,6 +31,13 @@ const ROOT = __dirname;
 const SRC = path.join(ROOT, "src");
 const OUT = path.join(ROOT, "kitelocal.html");
 const OUT_MIN = path.join(ROOT, "kitelocal.min.html");
+/* El service worker (uso sin conexión) NO es parte del producto de un solo
+   archivo: solo importa servido por http(s), y el navegador exige que sea
+   un script propio del mismo origen (ni blob: ni data:, ni el propio HTML,
+   que se serviría como text/html). Se COPIA tal cual, sin transformar,
+   para que `sw.js` en la raíz sea siempre el de src/ (ver offline.md).   */
+const SW_SRC = path.join(SRC, "sw.js");
+const OUT_SW = path.join(ROOT, "sw.js");
 
 /* ORDEN DE CARGA. No es cosmético: todo comparte un mismo ámbito y hay
    dependencias de orden que ningún `node --check` detecta — una
@@ -38,12 +46,28 @@ const OUT_MIN = path.join(ROOT, "kitelocal.min.html");
    contrato solo existía como "está más arriba en el scroll"; aquí se
    lee y se revisa en el diff. Al mover un archivo de sitio, pensarlo. */
 const JS = [
+  "03-i18n.js",           /* idiomas de la interfaz: tr(), trn(), registro de idiomas y
+                             traductor del HTML. Sin dependencias; va el primero para
+                             que cualquier archivo posterior pueda llamar a tr() en su
+                             nivel superior, una vez fijado el idioma (04-i18n-init)  */
+  "04-i18n-en.js",        /* diccionario inglés (registerLang). Un idioma nuevo es un
+                             archivo igual a este y una línea más aquí, ANTES de init  */
+  "04-i18n-init.js",      /* fija el idioma elegido y traduce el HTML estático; va tras
+                             todos los diccionarios (necesita saber cuáles hay)       */
   "05-mdi-icons.js",      /* GENERADO por fetch-icons.js: cuerpos SVG empotrados.
-                             Va el primero por ser datos puros, sin ninguna
-                             dependencia, y para que nada pueda usarlo antes  */
+                             Datos puros, sin ninguna dependencia, y antes de
+                             todo lo que los use                              */
+  "06-offline.js",        /* uso sin conexión: lista del service worker, indicador
+                             «Sin conexión» y netFailText; solo DECLARA funciones */
+  "07-lazy-libs.js",      /* html2canvas, geotiff.js y proj4js bajo demanda
+                             (ensureLib): datos y una función, sin dependencias */
   "08-map-rotation.js",   /* rotación del mapa (derivada de leaflet-rotate):
                              parchea prototipos de Leaflet, así que va
                              ANTES de crear el mapa en 10-map.js          */
+  "09-leaflet-events.js", /* índice de oyentes de Leaflet (añadir N capas
+                             era O(N²)); parchea Evented, ANTES del mapa */
+  "09-canvas-seamless.js",/* polígonos de solo relleno sin costuras (L.Canvas._draw
+                             con tandas); parchea Canvas, ANTES del mapa      */
   "10-map.js",            /* mapa, capas de teselas, constantes globales */
   "11-base-panel.js",     /* panel de mapas base */
   "12-copernicus.js",     /* Copernicus DEM vía Sentinel Hub */
@@ -52,6 +76,9 @@ const JS = [
   "31-tree-node.js",      /* árbol: fábrica de nodos */
   "32-geojson.js",        /* validación de GeoJSON y TopoJSON */
   "33-kml-import.js",     /* apertura tolerante del XML, importación */
+  "34-shp-import.js",     /* shapefiles: agrupar piezas, .prj, a GeoJSON */
+  "35-export-formats.js", /* exportar a KML y GeoJSON (registros → texto) y minimenú de 💾 */
+  "36-gpx-import.js",     /* importar GPX: waypoints, rutas y tracks a un FeatureCollection */
   "40-panel-actions.js",  /* acciones del panel, buscador de lugares */
   "41-selection.js",      /* selección, Ctrl+A, portapapeles */
   "42-hittest.js",        /* acierto bajo el cursor del menú contextual */
@@ -60,10 +87,16 @@ const JS = [
   "50-splitter.js",       /* separador redimensionable */
   "51-geodesy.js",        /* geodesia y UTM */
   "52-measure.js",        /* herramientas de medición */
+  "53-range-rings.js",    /* anillos de alcance y sectores (menú contextual › Crear); sin DOM al cargar */
+  "54-attr-table.js",     /* tabla de atributos de una carpeta (botón ▦); sin DOM al cargar */
+  "55-attr-style.js",     /* estilo por atributo: categorías y graduado sobre la tabla de atributos; sin DOM al cargar */
   "60-elevation.js",      /* elevaciones: WCS, cuadrícula */
   "61-daynight.js",       /* iluminación real día/noche (efecto WebGL) */
   "62-geocalc.js",        /* calculadora geodésica (ángulo de elevación) */
   "63-route-profile.js",  /* perfil de una ruta (MDS por trozos, gráfica SVG) */
+  "64-cog.js",            /* ortofotos COG: almacén "rasters", GridLayer reproyectada */
+  "65-cadastre.js",       /* parcela catastral (menú contextual): RCCOOR + WFS INSPIRE del Catastro */
+  "66-arcgis.js",         /* servicios ArcGIS (MapServer) como nodo del árbol: /export por teselas y /query */
   "70-view-controls.js",  /* controles de vista y menú contextual */
   "98-watchdog.js",       /* DIAGNÓSTICO de la rama `debug`: vigilante del
                              hilo principal. NO fusionar en main */
@@ -131,7 +164,7 @@ function build() {
      <strong>latitud, longitud y altitud</strong> de src/index.html).
      Contra gzip, conservar ese espacio no cuesta nada.
    - NO se activan `removeAttributeQuotes` ni `removeRedundantAttributes`
-     ni parientes: aquí los atributos son carga útil — los cinco
+     ni parientes: aquí los atributos son carga útil — cada
      `integrity` con su `crossorigin` (sin SRI el navegador bloquea
      Leaflet y la página queda en blanco) y el <meta> de la CSP.
 
@@ -143,7 +176,17 @@ const MINIFY_OPTS = {
   conservativeCollapse: true,
   removeComments: true,
   minifyCSS: true,
-  minifyJS: true
+  minifyJS: true,
+  /* Por defecto el minificador trata `<?…?>` y `<%…%>` como fragmentos de
+     plantilla PHP/ASP: los sustituye por un marcador con letras
+     ALEATORIAS antes de pasar el script a terser y los devuelve después.
+     Aquí `<?xml …?>` es un literal de JS (35-export-formats.js), y esas
+     letras entraban en la tabla de frecuencias con la que terser elige
+     los nombres cortos: ante un empate, cada ejecución daba un nombre
+     distinto y `--check` fallaba una de cada seis sin tocar nada.
+     Medido: 3 resultados distintos en 14 ejecuciones del mismo HTML; con
+     la lista vacía, 1 en 30. Nada de aquí es una plantilla de servidor. */
+  ignoreCustomFragments: []
 };
 const minifyHtml = html => minify(html, MINIFY_OPTS);
 
@@ -194,14 +237,16 @@ if (process.argv.includes("--watch")) {
     process.exit(2);
   }
 
+  const sw = read(SW_SRC);
+
   if (process.argv.includes("--check")) {
-    /* Se comprueban LOS DOS y se dice cuál está desfasado: con un solo
+    /* Se comprueban TODOS y se dice cuál está desfasado: con un solo
        mensaje genérico habría que ir a mirar cuál de ellos falla.    */
-    const stale = [[OUT, out], [OUT_MIN, min]]
+    const stale = [[OUT, out], [OUT_MIN, min], [OUT_SW, sw]]
       .filter(([file, built]) => (fs.existsSync(file) ? read(file) : null) !== built)
       .map(([file]) => path.basename(file));
     if (!stale.length) {
-      console.log("✓ kitelocal.html y kitelocal.min.html están al día respecto de src/");
+      console.log("✓ kitelocal.html, kitelocal.min.html y sw.js están al día respecto de src/");
       process.exit(0);
     }
     console.error(`✗ ${stale.join(" y ")} NO coincide${stale.length > 1 ? "n" : ""} con src/: `
@@ -213,8 +258,10 @@ if (process.argv.includes("--watch")) {
 
   fs.writeFileSync(OUT, out);
   fs.writeFileSync(OUT_MIN, min);
+  fs.writeFileSync(OUT_SW, sw);
   const b = Buffer.byteLength(out, "utf8"), mb = Buffer.byteLength(min, "utf8");
   console.log(`✓ kitelocal.html generado desde src/ (${JS.length} archivos JS, ${b} bytes)`);
   console.log(`✓ kitelocal.min.html (${mb} bytes, ${(100 - 100 * mb / b).toFixed(0)}% menos) `
     + "— es lo que sirve GitHub Pages");
+  console.log(`✓ sw.js copiado de src/sw.js (${Buffer.byteLength(sw, "utf8")} bytes) — uso sin conexión`);
 })();

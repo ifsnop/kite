@@ -137,7 +137,7 @@ map.on("resize rotate", fitWorldMinZoom);
 
 /* Fecha de generación del código (versión): AÑOMESDIAHORAMINUTO.
    Actualizar en cada generación; se muestra junto al crédito de Leaflet. */
-const BUILD = "202610121238";
+const BUILD = "202611020958";
 /* Versión de release (la de package.json, horneada aquí por build.js
    al construir — ver «Versión y releases de GitHub» en CLAUDE.md): a
    diferencia de BUILD, que cambia en CADA generación, esta solo cambia
@@ -154,7 +154,7 @@ const VERSION = "{{VERSION}}";
 const REPO_URL = "https://github.com/ifsnop/kite";
 map.attributionControl.setPrefix(
   `v${VERSION} (${BUILD}) | <a href="${REPO_URL}" target="_blank" rel="noopener"`
-  + ' title="Código fuente del proyecto en GitHub">GitHub</a>'
+  + ` title="${tr("Código fuente del proyecto en GitHub")}">GitHub</a>`
   + ' | <a href="https://leafletjs.com" title="A JavaScript library for interactive maps">Leaflet</a>');
 
 /* Escala del mapa: la de Leaflet (L.control.scale), no una propia —
@@ -186,7 +186,7 @@ const CascadeStatusControl = L.Control.extend({
     this._div.hidden = true;
     this._div.setAttribute("role", "status");
     this._div.setAttribute("aria-live", "polite");
-    this._div.innerHTML = '<span class="spinner" aria-hidden="true"></span> Actualizando capas…';
+    this._div.innerHTML = '<span class="spinner" aria-hidden="true"></span> ' + tr("Actualizando capas…");
     return this._div;
   }
 });
@@ -208,16 +208,22 @@ const IGN_CREDIT = "Cedido por &copy; Instituto Geogr\u00E1fico Nacional de Espa
 /* terrestris exige atribuci\u00F3n en sus AccessConstraints; el dato de
    elevaci\u00F3n bajo esas teselas es el SRTM de la NASA.                 */
 const SRTM_CREDIT = "SRTM 30m &copy; NASA LP DAAC \u2014 teselas de terrestris";
+/* Cita exigida por las condiciones generales de reutilización del
+   Ayuntamiento de Madrid (datos.madrid.es): "Origen de los datos:
+   Ayuntamiento de Madrid". Su GetCapabilities no declara <Attribution>. */
+const MADRID_CREDIT = "Origen de los datos: Ayuntamiento de Madrid";
 const COP_CREDIT = "Copernicus DEM \u2014 Copernicus Data Space / Sentinel Hub";
 /* Primer nivel con imagen real en Copernicus, y primer nivel en el que
    se dibuja la capa (por debajo se reescalar\u00eda a un coste desmedido).
    Ver la definici\u00f3n de la capa.                                       */
 const COP_MIN_NATIVE_ZOOM = 7;
 const COP_MIN_ZOOM = 6;
-/* Servidor propio del usuario (ver "Custom Maps" más abajo): al no ser
-   ningún servicio conocido no hay a quién dar crédito, solo dejar
-   claro que las teselas no vienen de la aplicación.                  */
-const CUSTOM_TILES_CREDIT = "Servidor de teselas personalizado";
+/* Servidores propios del usuario (ver "Custom Tile Map Service" y
+   "Custom Web Map Service" más abajo): al no ser ningún servicio
+   conocido no hay a quién dar crédito, solo dejar claro que las
+   teselas no vienen de la aplicación.                                */
+const CUSTOM_TILES_CREDIT = tr("Servidor de teselas personalizado");
+const CUSTOM_WMS_CREDIT = tr("Servidor WMS personalizado");
 
 const BASE_LAYERS = [
   { id: "osm", name: "OpenStreetMap", on: true, opacity: 1,
@@ -228,7 +234,7 @@ const BASE_LAYERS = [
   /* Esri World Terrain: cobertura global solo hasta z9; más allá el
      servidor devuelve teselas de "Map data not yet available", así que
      con maxNativeZoom Leaflet reescala el último nivel recibido.     */
-  { id: "terrain", name: "F\u00EDsico (Esri World Terrain)", on: false, opacity: 1,
+  { id: "terrain", name: tr("F\u00EDsico (Esri World Terrain)"), on: false, opacity: 1,
     layer: () => L.tileLayer(
       "https://server.arcgisonline.com/ArcGIS/rest/services/World_Terrain_Base/MapServer/tile/{z}/{y}/{x}",
       { maxNativeZoom: 9, maxZoom: MAX_ZOOM,
@@ -238,24 +244,24 @@ const BASE_LAYERS = [
     layer: () => L.tileLayer(IGN_WMTS("ign-base", "IGNBaseTodo"),
       { maxNativeZoom: 19, maxZoom: MAX_ZOOM, attribution: `IGN Base. ${IGN_CREDIT}` }) },
 
-  { id: "mtn", name: "Mapa topogr\u00E1fico MTN (IGN)", on: false, opacity: 1,
+  { id: "mtn", name: tr("Mapa topogr\u00E1fico MTN (IGN)"), on: false, opacity: 1,
     layer: () => L.tileLayer(IGN_WMTS("mapa-raster", "MTN"),
       { maxNativeZoom: 19, maxZoom: MAX_ZOOM, attribution: `MTN r\u00E1ster. ${IGN_CREDIT}` }) },
 
   /* El WMTS del IGN no sirve ninguna capa llamada "Relieve" (devolvía
      404 en todas las teselas). Se usa el sombreado mundial de Esri, del
      mismo servidor que la capa física, que sí está publicado.       */
-  { id: "relieve", name: "Relieve sombreado (Esri)", on: false, opacity: 1,
+  { id: "relieve", name: tr("Relieve sombreado (Esri)"), on: false, opacity: 1,
     layer: () => L.tileLayer(
       "https://server.arcgisonline.com/ArcGIS/rest/services/Elevation/World_Hillshade/MapServer/tile/{z}/{y}/{x}",
       { maxNativeZoom: 19, maxZoom: MAX_ZOOM, attribution: "Hillshade &copy; Esri" }) },
 
-  { id: "pnoa", name: "Ortofoto PNOA (IGN)", on: false, opacity: 1,
+  { id: "pnoa", name: tr("Ortofoto PNOA (IGN)"), on: false, opacity: 1,
     layer: () => L.tileLayer("https://tms-pnoa-ma.idee.es/1.0.0/pnoa-ma/{z}/{x}/{y}.jpeg",
       { tms: true, maxNativeZoom: 19, maxZoom: MAX_ZOOM,
         attribution: `PNOA M\u00E1xima Actualidad. ${IGN_CREDIT}` }) },
 
-  { id: "mdt", name: "MDT de Espa\u00F1a (IGN, WMS)", on: false, opacity: 1,
+  { id: "mdt", name: tr("MDT de Espa\u00F1a (IGN, WMS)"), on: false, opacity: 1,
     layer: () => L.tileLayer.wms("https://servicios.idee.es/wms-inspire/mdt", {
       layers: "EL.ElevationGridCoverage", format: "image/png", version: "1.3.0",
       transparent: true, maxZoom: MAX_ZOOM, attribution: `MDT WMS. ${IGN_CREDIT}` }) },
@@ -272,7 +278,7 @@ const BASE_LAYERS = [
      encima de ese nivel (comprobado hasta z16), pero la malla es de 30 m
      y esos niveles ya son interpolación: serían peticiones que no
      añaden detalle. Mismo trato que la capa física de Esri.           */
-  { id: "srtm", name: "Relieve SRTM30 (terrestris)", on: false, opacity: 1,
+  { id: "srtm", name: tr("Relieve SRTM30 (terrestris)"), on: false, opacity: 1,
     layer: () => L.tileLayer.wms("https://ows.terrestris.de/osm/service", {
       layers: "SRTM30-Colored-Hillshade", format: "image/png", version: "1.1.1",
       transparent: false, maxNativeZoom: 9, maxZoom: MAX_ZOOM,
@@ -304,11 +310,23 @@ const BASE_LAYERS = [
   /* No es una sola capa fija: `layer()` recibe el nombre de capa WMS
      elegido en el selector (ver "PNOA hist\u00F3rico" m\u00E1s abajo), descubierto
      contra el GetCapabilities real del servicio en vez de hardcodearlo. */
-  { id: "pnoa-hist", name: "PNOA hist\u00F3rico (IGN)", on: false, opacity: 1,
+  { id: "pnoa-hist", name: tr("PNOA hist\u00F3rico (IGN)"), on: false, opacity: 1,
     dynamic: true, source: "pnoa-hist",
     layer: (wmsLayer) => L.tileLayer.wms(PNOA_HIST_URL, {
       layers: wmsLayer, format: "image/jpeg", version: "1.3.0", transparent: false,
       maxZoom: MAX_ZOOM, attribution: `PNOA hist\u00F3rico. ${IGN_CREDIT}` }) },
+
+  /* Ortofoto municipal de Madrid, WMS del Ayuntamiento con una sola capa
+     (ORTOFOTO_MADRID), sin credencial. Verificado contra el servicio real:
+     EPSG:3857, image/png y CORS abierto. `bounds` es su caja geográfica
+     declarada: fuera de ella no hay dato, y así no se piden teselas que
+     el servidor no puede rellenar. Sirve hasta z20 (10 cm/píxel).       */
+  { id: "madrid-orto", name: tr("Ortofoto Madrid (Ayuntamiento)"), on: false, opacity: 1,
+    layer: () => L.tileLayer.wms(
+      "https://servpub.madrid.es/georaster/ORTOFOTOS/ORTOFOTO_MADRID/ows", {
+      layers: "ORTOFOTO_MADRID", format: "image/png", version: "1.3.0", transparent: false,
+      bounds: [[40.2788, -3.9367], [40.6671, -3.4793]],
+      maxNativeZoom: 20, maxZoom: MAX_ZOOM, attribution: MADRID_CREDIT }) },
 
   /* Servidor de teselas del propio usuario \u2014 t\u00EDpicamente una cach\u00E9/proxy
      delante de OpenStreetMap u otro servicio, para no descargar de golpe
@@ -319,10 +337,28 @@ const BASE_LAYERS = [
      12-copernicus.js), pero no `dynamic: true`, as\u00ED que el panel no le
      ofrece ning\u00FAn <select> \u2014no hay nada entre lo que elegir. `layer()`
      lee `buildCustomTilesUrl()` (11-base-panel.js) en el momento de
-     crearse, nunca antes: la URL puede no estar configurada todav\u00EDa.  */
-  { id: "custom", name: "Custom Maps", on: false, opacity: 1, source: "custom-tiles",
+     crearse, nunca antes: la URL puede no estar configurada todav\u00EDa.
+     El id sigue siendo "custom" (lo guardado lo nombra); solo cambi\u00F3
+     el t\u00EDtulo, que ahora dice de qu\u00E9 tipo de servidor se trata.      */
+  { id: "custom", name: "Custom Tile Map Service", on: false, opacity: 1, source: "custom-tiles",
+    diagnoseTiles: true,
     layer: () => L.tileLayer(buildCustomTilesUrl(), {
-      maxNativeZoom: 19, maxZoom: MAX_ZOOM, attribution: CUSTOM_TILES_CREDIT }) }
+      maxNativeZoom: 19, maxZoom: MAX_ZOOM, attribution: CUSTOM_TILES_CREDIT }) },
+
+  /* Servidor WMS del propio usuario. A diferencia del anterior S\u00CD tiene
+     cat\u00E1logo: sus capas salen del GetCapabilities de SU servidor, igual
+     que las del PNOA hist\u00F3rico, as\u00ED que es "dynamic" y el panel le da
+     el <select> de capas adem\u00E1s de la tuerca \u2699 de la direcci\u00F3n. La URL
+     y la versi\u00F3n y el formato (PNG o, si es lo \u00FAnico que sirve, JPEG)
+     que anunci\u00F3 el servidor se leen en `layer()` (customWmsBase/
+     customWmsVersion/customWmsFormat, 11-base-panel.js), nunca antes.
+     JPEG no tiene canal alfa: se pide `transparent` solo con PNG.      */
+  { id: "custom-wms", name: "Custom Web Map Service", on: false, opacity: 1,
+    dynamic: true, source: "custom-wms", diagnoseTiles: true,
+    layer: (wmsLayer) => L.tileLayer.wms(customWmsBase(), {
+      layers: wmsLayer, format: customWmsFormat, version: customWmsVersion,
+      transparent: customWmsFormat === "image/png",
+      maxZoom: MAX_ZOOM, attribution: CUSTOM_WMS_CREDIT }) }
 ];
 
 /* Teselas fallidas seguidas (sin ninguna buena de por medio) antes de
@@ -331,7 +367,8 @@ const BASE_FAIL_TILES = 8;
 
 /* Estado en vivo de cada capa base */
 const baseState = new Map(BASE_LAYERS.map((d, i) => [d.id, {
-  def: d, layer: null, on: d.on, opacity: d.opacity, zIndex: i + 1, failed: false, wmsLayer: null
+  def: d, layer: null, on: d.on, opacity: d.opacity, zIndex: i + 1, failed: false, wmsLayer: null,
+  tileNoticed: new Set() /* capas WMS cuya primera tesela fallida ya se explicó, ver flagTileError */
 }]));
 
 /* Al recuperar la red, Leaflet no reintenta por su cuenta las teselas
@@ -361,11 +398,12 @@ function applyBaseLayer(id) {
       if (cat) st.wmsLayer = src.pickDefault(cat);
       else { if (src) src.ensure(); return; }
     }
-    /* Una fuente configurable SIN catálogo (hoy, "Custom Maps": no hay
-       nombre de capa que elegir, solo una URL) no tiene equivalente al
-       `ensure()`/`wmsLayer` de arriba: sin la URL puesta todavía no hay
-       nada que construir, así que se queda inerte hasta que se
-       configure (setCustomTilesUrl vuelve a llamar aquí al aceptar).  */
+    /* Una fuente configurable SIN catálogo (hoy, "Custom Tile Map
+       Service": no hay nombre de capa que elegir, solo una URL) no
+       tiene equivalente al `ensure()`/`wmsLayer` de arriba: sin la URL
+       puesta todavía no hay nada que construir, así que se queda inerte
+       hasta que se configure (setCustomTilesUrl vuelve a llamar aquí al
+       aceptar).                                                       */
     if (!st.def.dynamic) {
       const src = dynSource(st.def);
       if (src && src.blocked && src.blocked()) return;
@@ -387,10 +425,11 @@ function applyBaseLayer(id) {
       st.layer.setZIndex(st.zIndex);
       /* Una URL que no responda debe verse, no fallar en silencio */
       let errors = 0;
-      st.layer.on("tileerror", () => {
+      st.layer.on("tileerror", e => {
+        if (st.def.diagnoseTiles) flagTileError(st, e);
         if (++errors < BASE_FAIL_TILES || st.failed) return;
         st.failed = true;
-        navMessage(`El mapa base \u00AB${st.def.name}\u00BB no responde; puede que el servicio haya cambiado.`);
+        navMessage(tr("El mapa base \u00AB{name}\u00BB no responde; puede que el servicio haya cambiado.", { name: st.def.name }));
         renderBasePanel();
       });
       /* Y dejar de responder no es para siempre: una tesela que S\u00CD llega

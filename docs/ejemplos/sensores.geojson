@@ -1,0 +1,11 @@
+{
+  "type": "FeatureCollection",
+  "features": [
+    { "type": "Feature",
+      "properties": { "name": "Sensor 1", "categoria": "Viento", "altura_m": 12, "estado": "activo" },
+      "geometry": { "type": "Point", "coordinates": [-3.705, 40.412] } },
+    { "type": "Feature",
+      "properties": { "name": "Sensor 2", "categoria": "Temperatura", "altura_m": 4, "estado": "activo" },
+      "geometry": { "type": "Point", "coordinates": [-3.69, 40.407] } }
+  ]
+}

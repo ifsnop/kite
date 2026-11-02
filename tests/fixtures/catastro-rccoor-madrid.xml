@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="utf-8"?>
+<consulta_coordenadas xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns="http://www.catastro.meh.es/">
+  <control>
+    <cucoor>1</cucoor>
+    <cuerr>0</cuerr>
+  </control>
+  <coordenadas>
+    <coord>
+      <pc>
+        <pc1>0443112</pc1>
+        <pc2>VK4704C</pc2>
+      </pc>
+      <geo>
+        <xcen>-3.7038</xcen>
+        <ycen>40.4153</ycen>
+        <srs>EPSG:4326</srs>
+      </geo>
+      <ldt>CL PAZ 11 MADRID (MADRID)</ldt>
+    </coord>
+  </coordenadas>
+</consulta_coordenadas>

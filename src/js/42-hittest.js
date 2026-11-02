@@ -192,6 +192,9 @@ function styleKind(li) {
   if (li._measure) kind = "measure";
   else if (li._elevGrid) kind = "elevGrid";
   else if (li._imageOverlay) kind = "imageOverlay";
+  else if (li._cog) kind = "cog";
+  else if (li._arcgis) kind = "arcgis";
+  else if (li._arcgisLayer) kind = "arcgisLayer";
   else kind = layerKind(nodeLayer(li));
   li._kind = kind;
   return kind;
@@ -273,9 +276,15 @@ function applyMarkerText(li, offset) {
   if (!s || !layer) return;
   const html = `<span style="font-size:${s.textSize}px;color:${s.textColor}">${escapeHtml(li._name)}</span>`;
   if (!offset) offset = buildMarkerIcon(s, null).textOffset;
+  /* Leaflet's unbindPopup() does NOT close a popup that is already open
+     (they stay up, autoClose is off): with the permanent label added
+     next, the name would show twice — the closable popup and the
+     tooltip. Turning "always show text" on replaces what was showing.  */
+  if (s.textAlways) layer.closePopup();
   layer.unbindPopup(); /* drop the group-level popup bound at creation */
   const each = l => {
     if (l instanceof L.Marker) {
+      if (s.textAlways) l.closePopup();
       l.unbindPopup();
       l.unbindTooltip();
       if (s.textAlways) {
@@ -302,10 +311,21 @@ function ensureMarkerDefaults(li) {
 }
 
 /* Push li._style into every path of the layer and refresh the swatch */
+/* Lo que Leaflet pinta cuando un estilo NO trae una clave. `setStyle` solo
+   AÑADE las que recibe: un estilo importado (`geojsonStyle`, un KML) no
+   lleva `stroke`, `fill`, `opacity` ni `fillColor` hasta que el usuario los
+   toca, así que devolverlo tal cual tras una vista previa dejaba puesto lo
+   previsualizado. Medido: «Solo relleno» (o la opacidad del contorno) sobre
+   un GeoJSON importado y Cancelar dejaba `stroke:false, opacity:.3`. Con
+   «Ninguno» sería un polígono invisible tras cancelar. Son los valores de
+   `L.Path`, los mismos con los que se creó la capa cuando faltaban.       */
+const PATH_STYLE_DEFAULTS = { stroke: true, color: "#3388ff", weight: 3, opacity: 1,
+  fill: true, fillColor: undefined, fillOpacity: 0.2 };
+
 function applyPolygonStyle(li) {
   const layer = nodeLayer(li);
   if (!layer || !li._style) return;
-  layer.setStyle(li._style); /* group.setStyle only reaches paths; safe */
+  layer.setStyle({ ...PATH_STYLE_DEFAULTS, ...li._style }); /* group.setStyle only reaches paths; safe */
   clearFillOnOpenPaths(layer);
   applyPolygonText(li);
   const sw = li.querySelector(":scope > .node-row > .swatch");
@@ -326,6 +346,7 @@ function applyPolygonText(li) {
   const always = !!(li._style && li._style.textAlways);
   const tip = layer.getTooltip && layer.getTooltip();
   if (always) {
+    layer.closePopup(); /* an open one would stay up next to the label */
     layer.unbindPopup();
     layer.unbindTooltip();
     layer.bindTooltip(escapeHtml(li._name),
@@ -350,22 +371,27 @@ function clearFillOnOpenPaths(layer) {
   scan(layer);
 }
 
-/* Fill in defaults so every dialog control has a concrete value.
-   Stroke opacity is not editable: outlines are always fully opaque.  */
+/* Fill in defaults so every dialog control has a concrete value. The
+   outline opacity is editable (`opacity`, Leaflet's own key); anything
+   missing or out of range is a fully opaque outline.                  */
 function normalizePathStyle(s) {
   s = { color: "#3388ff", weight: 2, fillOpacity: 0.35, ...(s || {}) };
   if (!s.fillColor) s.fillColor = s.color;
   s.fill = s.fill !== false; /* Leaflet default: filled */
   s.stroke = s.stroke !== false; /* Leaflet default: outlined */
-  s.opacity = 1;
+  s.opacity = Number.isFinite(s.opacity) && s.opacity >= 0 && s.opacity <= 1 ? s.opacity : 1;
   s.showLabels = s.showLabels !== false; /* default: shown, current behaviour */
   return s;
 }
 
-/* Maps the two independent booleans to the dialog's single three-way
-   selector: stroke+fill can't both be off (that's not offered as an
-   option), so a corrupted "both false" record falls back to "fill". */
+/* Maps the two independent booleans to the dialog's single four-way
+   selector. "none" (neither outline nor fill) draws nothing at all: it is
+   how a polygon's NAME is shown without the polygon — together with
+   "Mostrar el nombre siempre", whose tooltip does not depend on the
+   path's style. A KML <outline>0</outline><fill>0</fill> or a simplestyle
+   feature with every opacity at 0 arrives in this state as well.       */
 function polygonModeOf(s) {
+  if (s.stroke === false && s.fill === false) return "none";
   if (s.stroke === false) return "fill";
   if (s.fill === false) return "stroke";
   return "both";

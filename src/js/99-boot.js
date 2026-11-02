@@ -1,12 +1,38 @@
 /* ================= Arranque: restaurar el árbol guardado ================= */
 (async () => {
+  /* El tema antes que nada: con «Automático» el CSS ya acertó sin JS,
+     pero quien lo fuerza contra el sistema vería un destello del otro
+     tema mientras se lee lo demás.                                    */
+  try {
+    const theme = await dbLoadUiTheme();
+    if (theme !== null) applyUiTheme(theme);
+  } catch { /* automático */ }
+
+  /* En un móvil, el aviso de «mejor desde un ordenador» (o lo que se
+     eligió la vez anterior): antes que nada para que no se vea el panel
+     de 400 px desbordado mientras se lee el resto.                     */
+  try {
+    initPhoneLayout(await dbLoadMobileView());
+  } catch { initPhoneLayout(null); }
+
   /* La vista primero: así el mapa aparece donde se dejó mientras el
-     árbol, que puede tardar, se reconstruye por detrás.              */
+     árbol, que puede tardar, se reconstruye por detrás. Un enlace a una
+     vista (`#map=…`) manda sobre la guardada, y su ancla se quita en el
+     acto para que recargar no la vuelva a aplicar.                    */
+  const viewLink = parseViewHash(location.hash);
+  if (location.hash.startsWith("#map=")) clearViewHash();
   try {
     const view = await dbLoadView();
     if (view) map.setView([view.lat, view.lng], view.zoom, { animate: false });
   } catch { /* sin vista guardada se queda la de por defecto */ }
+  if (viewLink) {
+    map.setView([viewLink.lat, viewLink.lng], viewLink.zoom, { animate: false });
+    map.setBearing(viewLink.bearing);
+  }
   viewRestoring = false;
+  /* Los `moveend` del propio enlace llegaron con `viewRestoring` aún
+     puesto y no se guardaron: lo que se abrió es lo que se recuerda.   */
+  if (viewLink) scheduleViewSave();
 
   /* El reparto de columnas de la ficha: si no se restaura, habría que
      reajustarlo en cada arranque. Antes del árbol porque no depende de
@@ -44,11 +70,15 @@
     if (m !== null) profileMaxM = m;
   } catch { /* límite del perfil por defecto (10 NM) */ }
   try {
+    const f = await dbLoadFresnelFreq();
+    if (f !== null) fresnelFreqMHz = f;
+  } catch { /* frecuencia de Fresnel por defecto (1090 MHz) */ }
+  try {
     const fmt = await dbLoadCoordFormat();
     if (fmt !== null) coordFormat = fmt;
   } catch { /* formato por defecto (decimal) */ }
   /* Solo la ELECCIÓN de fuentes: ningún servicio se consulta hasta la
-     primera «Consultar elevación aquí» (ver makeElevationSource).    */
+     primera «Consultas › Elevación» (ver makeElevationSource).      */
   try {
     const sel = await dbLoadElevSources();
     if (sel !== null) elevSources = sel;
@@ -62,10 +92,15 @@
   } catch { /* sin credencial guardada la capa pedirá configurarla */ }
 
   /* Igual que la de Copernicus, antes que los mapas base: sin ella
-     "Custom Maps" no puede construir su plantilla de teselas.         */
+     "Custom Tile Map Service" no puede construir su plantilla de
+     teselas, ni "Custom Web Map Service" pedir su GetCapabilities.   */
   try {
     const ct = await dbLoadCustomTilesUrl();
     if (ct && validCustomTilesUrl(ct.url)) customTilesUrl = normalizeCustomTilesBase(ct.url);
+  } catch { /* sin URL guardada la capa pedirá configurarla */ }
+  try {
+    const cw = await dbLoadCustomWmsUrl();
+    if (cw && validCustomWmsUrl(cw.url)) customWmsUrl = normalizeCustomWmsBase(cw.url);
   } catch { /* sin URL guardada la capa pedirá configurarla */ }
 
   /* Color de fondo del mapa: antes de pintar el panel de mapas base,
@@ -78,6 +113,9 @@
 
   /* Mapas base: primero lo guardado, luego se pintan y se encienden */
   try { applySavedBases(await dbLoadBases()); } catch { /* valores por defecto */ }
+  /* Los mapas del enlace mandan sobre los guardados, y se guardan como
+     lo que el usuario está viendo (scheduleBaseSave tras pintar).      */
+  if (viewLink && viewLink.bases) setLinkBases(viewLink.bases, false);
   /* Una capa que exige credencial no puede quedarse encendida sin
      ella: se apaga en vez de fallar tesela a tesela.                 */
   for (const [id, st] of baseState) {
@@ -86,21 +124,26 @@
   }
   renderBasePanel();
   for (const id of baseState.keys()) applyBaseLayer(id);
+  if (viewLink && viewLink.bases) scheduleBaseSave();
   /* Capas dinámicas guardadas como encendidas: se valida la capa
      restaurada contra el catálogo real en cuanto llegue (puede haber
      dejado de publicarse), sin esperar a que se abra el panel.       */
   for (const st of baseState.values()) {
     const src = dynSource(st.def);
-    /* "Custom Maps" (source sin `dynamic: true`) no tiene catálogo que
-       descubrir, así que su fuente no aporta `ensure` — nada que
-       adelantar aquí, `applyBaseLayer` ya construyó su capa arriba
-       si la URL estaba configurada.                                   */
+    /* "Custom Tile Map Service" (source sin `dynamic: true`) no tiene
+       catálogo que descubrir, así que su fuente no aporta `ensure` —
+       nada que adelantar aquí, `applyBaseLayer` ya construyó su capa
+       arriba si la URL estaba configurada.                            */
     if (st.on && src && src.ensure) src.ensure();
   }
 
-  let nodes = null;
-  try { nodes = await dbLoadTree(); } catch { nodes = null; }
+  let nodes = null, treeRead = false;
+  try { nodes = await dbLoadTree(); treeRead = true; } catch { nodes = null; }
   if (nodes && nodes.length) await restoreTree(nodes);
+  /* Ortofotos COG que ya no nombra nadie (borradas en otra sesión): solo
+     si el árbol se leyó de verdad; con un fallo de lectura, borrar
+     sería tirar las de un árbol que sigue ahí.                       */
+  if (treeRead) cleanOrphanRasters().catch(() => {});
   /* Hasta aquí el panel decía «Inicializando…». Ahora sí se sabe si no
      hay nada que enseñar. Se mira `rootUl`, no `nodes`: si el usuario
      ha soltado un archivo mientras se leía IndexedDB, ensureRootUl ya
@@ -122,6 +165,11 @@
   if (navigator.storage && navigator.storage.persist) {
     navigator.storage.persist().catch(() => {});
   }
+
+  /* Lo último: el uso sin conexión es una mejora que no debe competir
+     con el arranque (ni con la lectura de IndexedDB) por la red.     */
+  initOfflineIndicator();
+  registerOfflineWorker();
 
   /* DIAGNÓSTICO de la rama `debug` (ver 98-watchdog.js). Va al FINAL
      del arranque a propósito: envuelve funciones por su nombre y antes

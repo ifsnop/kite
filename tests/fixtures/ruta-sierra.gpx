@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<gpx version="1.1" creator="KITE tests" xmlns="http://www.topografix.com/GPX/1/1"
+     xmlns:gpxx="http://www.garmin.com/xmlschemas/GpxExtensions/v3">
+  <metadata><name>Ruta de la sierra</name></metadata>
+  <wpt lat="40.8118" lon="-3.9507">
+    <ele>1342.5</ele>
+    <time>2026-09-12T08:15:00Z</time>
+    <name>Cumbre &amp; mirador</name>
+    <desc>Vista &lt;b&gt;completa&lt;/b&gt; del valle</desc>
+    <link href="https://example.org/cumbre"><text>Cumbre</text></link>
+    <sym>Summit</sym>
+    <type>Pico</type>
+  </wpt>
+  <wpt lat="40.7901" lon="-3.9742"><name>Refugio</name></wpt>
+  <rte>
+    <name>Variante por el collado</name>
+    <rtept lat="40.7901" lon="-3.9742"><ele>1210</ele></rtept>
+    <rtept lat="40.8000" lon="-3.9600"><ele>1280</ele></rtept>
+    <rtept lat="40.8118" lon="-3.9507"><ele>1342.5</ele></rtept>
+  </rte>
+  <trk>
+    <name>Subida y bajada</name>
+    <desc>Track de prueba con dos segmentos</desc>
+    <extensions><gpxx:TrackExtension><gpxx:DisplayColor>Red</gpxx:DisplayColor></gpxx:TrackExtension></extensions>
+    <trkseg>
+      <trkpt lat="40.7901" lon="-3.9742"><ele>1210</ele><time>2026-09-12T07:00:00Z</time></trkpt>
+      <trkpt lat="40.7950" lon="-3.9680"><ele>1250</ele><time>2026-09-12T07:20:00Z</time></trkpt>
+      <trkpt lat="40.8118" lon="-3.9507"><ele>1342.5</ele><time>2026-09-12T08:15:00Z</time></trkpt>
+    </trkseg>
+    <trkseg>
+      <trkpt lat="40.8118" lon="-3.9507"><ele>1342.5</ele></trkpt>
+      <trkpt lat="40.8050" lon="-3.9560"><ele>1300</ele><time>2026-09-12T09:00:00Z</time></trkpt>
+    </trkseg>
+  </trk>
+</gpx>

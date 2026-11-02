@@ -28,7 +28,7 @@ const ViewControl = L.Control.extend({
     const fit = L.DomUtil.create("a", "", bar);
     fit.href = "#";
     fit.textContent = "\u2922";
-    fit.title = "Autoescalar: ajustar el zoom a lo cargado";
+    fit.title = tr("Autoescalar: ajustar el zoom a lo cargado");
     fit.addEventListener("click", e => { e.preventDefault(); fitToContent(); });
 
     const ib = L.DomUtil.create("a", "", bar);
@@ -36,7 +36,7 @@ const ViewControl = L.Control.extend({
     ib.textContent = "IB";
     ib.style.fontSize = "11px";
     ib.style.fontWeight = "600";
-    ib.title = "Centrar la vista en la pen\u00EDnsula y Baleares";
+    ib.title = tr("Centrar la vista en la pen\u00EDnsula y Baleares");
     ib.addEventListener("click", e => { e.preventDefault(); centerIberia(); });
 
     const gc = L.DomUtil.create("a", "", bar);
@@ -44,19 +44,19 @@ const ViewControl = L.Control.extend({
     gc.textContent = "GC";
     gc.style.fontSize = "11px";
     gc.style.fontWeight = "600";
-    gc.title = "Centrar la vista en las islas Canarias";
+    gc.title = tr("Centrar la vista en las islas Canarias");
     gc.addEventListener("click", e => { e.preventDefault(); centerCanaries(); });
 
     gratButton = L.DomUtil.create("a", "", bar);
     gratButton.href = "#";
     gratButton.textContent = "#";
-    gratButton.title = "Mostrar / ocultar paralelos y meridianos";
+    gratButton.title = tr("Mostrar / ocultar paralelos y meridianos");
     gratButton.addEventListener("click", e => { e.preventDefault(); toggleGraticule(); });
 
     dnButton = L.DomUtil.create("a", "dn-toggle", bar);
     dnButton.href = "#";
     dnButton.textContent = "☀";
-    dnButton.title = "Iluminación real: sombrea el mapa según la posición del sol ahora mismo (efecto visual)";
+    dnButton.title = tr("Iluminación real: sombrea el mapa según la posición del sol ahora mismo (efecto visual)");
     dnButton.addEventListener("click", e => { e.preventDefault(); toggleDayNight(); });
 
     L.DomEvent.disableClickPropagation(bar);
@@ -213,8 +213,8 @@ const CompassControl = L.Control.extend({
     const box = L.DomUtil.create("div", "compass-box leaflet-bar");
     const a = L.DomUtil.create("a", "compass-btn", box);
     a.href = "#";
-    a.title = "Brújula: arrastra para girar el mapa; clic (o R sobre el visor) vuelve a poner el norte arriba";
-    a.setAttribute("aria-label", "Brújula: clic para poner el norte arriba");
+    a.title = tr("Brújula: arrastra para girar el mapa; clic (o R sobre el visor) vuelve a poner el norte arriba");
+    a.setAttribute("aria-label", tr("Brújula: clic para poner el norte arriba"));
     a.innerHTML = COMPASS_SVG;
     compassEl = box;
     let drag = null, dragged = false;
@@ -386,22 +386,32 @@ const CoordsControl = L.Control.extend({
      modelo que la produce y solo aparece si ese modelo se consultó; la
      diferencia, solo cuando los DOS valores son números de verdad.   */
   showElevationCell(cell) {
-    const fmt = v => (v === null || v === undefined ? "sin datos" : fmtHeight(v, altitudeUnit));
+    const fmt = v => (v === null || v === undefined ? tr("sin datos") : fmtHeight(v, altitudeUnit));
     const t = !!cell && hasMdt(cell), s = !!cell && hasMds(cell);
     this._rows[4].hidden = !t;
+    this._rows[4].title = "";
     this._rows[5].hidden = !s;
     if (t) this._rows[4].textContent = `${ELEV_KIND_LABEL.mdt}: ${fmt(cell.mdt)}`;
     if (s) {
       let line = `${ELEV_KIND_LABEL.mds}: ${fmt(cell.mds)}`;
       if (typeof cell.diff === "number") {
-        line += ` \u00B7 sobre el suelo ${cell.diff >= 0 ? "+" : ""}${fmtHeight(cell.diff, altitudeUnit)}`;
+        line += " \u00B7 " + tr("sobre el suelo {diff}", { diff: (cell.diff >= 0 ? "+" : "") + fmtHeight(cell.diff, altitudeUnit) });
       }
       this._rows[5].textContent = line;
     }
   },
+  /* Altitud bajo el cursor según un modelo de elevación cargado como
+     capa (demAltitudeAt, 64-cog.js): reutiliza la fila del MDT, que
+     showElevationCell dejó oculta porque no hay celda descargada.   */
+  showDemAltitude(r) {
+    if (!r) return;
+    this._rows[4].hidden = false;
+    this._rows[4].textContent = tr("Altitud: {height}", { height: fmtHeight(r.value, altitudeUnit) });
+    this._rows[4].title = r.name;
+  },
   /* El zoom no depende del cursor, así que se refresca aparte */
   updateZoom() {
-    this._rows[0].textContent = `zoom ${map.getZoom()} de ${map.getMaxZoom()}`;
+    this._rows[0].textContent = tr("zoom {zoom} de {max}", { zoom: map.getZoom(), max: map.getMaxZoom() });
   },
   update(latlng) {
     const { lat, lng } = latlng;
@@ -419,14 +429,19 @@ map.on("zoomend", () => coordsControl.updateZoom());
 /* El ratón dispara decenas de eventos por segundo y cada lectura implica
    proyectar a UTM y reescribir varias filas: se hace una vez por
    fotograma, que es cuanto puede verse.                               */
-let coordsPending = null, coordsFrame = null;
+let coordsPending = null, coordsFrame = null, demSeq = 0;
 map.on("mousemove", e => {
   coordsPending = e.latlng;
   if (coordsFrame) return;
   coordsFrame = requestAnimationFrame(() => {
     coordsFrame = null;
     coordsControl.update(coordsPending);
-    coordsControl.showElevationCell(elevCellAt(coordsPending.lat, coordsPending.lng));
+    const cell = elevCellAt(coordsPending.lat, coordsPending.lng);
+    coordsControl.showElevationCell(cell);
+    /* La lectura del modelo es asíncrona: solo vale si el cursor sigue
+       donde se pidió (demSeq) y no hay ya una celda descargada.       */
+    const seq = ++demSeq, at = coordsPending;
+    if (!cell) demAltitudeAt(at.lat, at.lng).then(r => { if (seq === demSeq) coordsControl.showDemAltitude(r); }, () => {});
   });
 });
 /* Fuera del visor no hay celda bajo el cursor: si no, la última lectura
@@ -439,6 +454,7 @@ map.on("mousemove", e => {
    recibía su mouseout.                                               */
 map.getContainer().addEventListener("mouseleave", () => {
   if (coordsFrame) { cancelAnimationFrame(coordsFrame); coordsFrame = null; }
+  demSeq++;
   coordsControl.showElevationCell(null);
 });
 
@@ -743,50 +759,66 @@ const easeOutCubic = k => 1 - Math.pow(1 - k, 3);
 
 /* ---------- Menú contextual del visor (botón derecho) ---------- */
 /* Extensible a propósito: cada entrada es {label, action(latlng)} y
-   nuevas opciones solo necesitan sumarse a este array. Un `checked()`
-   opcional la convierte en un interruptor (se pinta con ✓ y
-   role="menuitemcheckbox"), como ya hacen los botones equivalentes de
-   la barra de herramientas.                                          */
+   nuevas opciones solo necesitan sumarse a este array. Lo que ya tiene
+   su botón en la barra del visor (encuadres, retícula, PNG) no está aquí.
+   Un grupo de entradas del mismo tema es un submenú (`items`), con las
+   hojas independientes entre sí; un `disabled()` opcional vale también
+   dentro de un submenú.                                               */
 const CTX_MENU_ITEMS = [
   {
-    label: "Copiar coordenadas",
-    action(latlng) {
-      const txt = `${formatCoord(latlng.lat, true, "dec")}, ${formatCoord(latlng.lng, false, "dec")}`;
-      navigator.clipboard.writeText(txt)
-        .then(() => navMessage("Coordenadas copiadas al portapapeles.", { tone: "info" }))
-        .catch(() => navMessage("No se pudieron copiar las coordenadas."));
-    }
+    label: tr("Copiar"),
+    items: [
+      {
+        label: tr("Coordenadas"),
+        action(latlng) {
+          const txt = `${formatCoord(latlng.lat, true, "dec")}, ${formatCoord(latlng.lng, false, "dec")}`;
+          navigator.clipboard.writeText(txt)
+            .then(() => navMessage(tr("Coordenadas copiadas al portapapeles."), { tone: "info" }))
+            .catch(() => navMessage(tr("No se pudieron copiar las coordenadas.")));
+        }
+      },
+      /* La vista ENTERA (centro, zoom, giro y mapas base), no el punto pulsado */
+      { label: tr("Enlace a esta vista"), action: () => copyViewLink() }
+    ]
   },
-  /* Descarga MDT/MDS de la tesela bajo el puntero, con las fuentes de
-     Propiedades → Fuentes de datos (ver queryElevationAt).          */
-  { label: "Consultar elevación aquí", action: latlng => queryElevationAt(latlng),
-    disabled: () => elevQueryDisabled() },
+  /* Las dos consultas a un servicio sobre el punto pulsado, cada una por
+     su cuenta: «Elevación» descarga MDT/MDS de la tesela bajo el puntero
+     con las fuentes de Propiedades → Fuentes de datos (ver
+     queryElevationAt), «Parcela catastral» el polígono y la ficha de la
+     parcela (ver queryCadastralParcelAt).                              */
+  {
+    label: tr("Consultas"),
+    items: [
+      { label: tr("Elevación"), action: latlng => queryElevationAt(latlng), disabled: () => elevQueryDisabled() },
+      { label: tr("Parcela catastral"), action: latlng => queryCadastralParcelAt(latlng) }
+    ]
+  },
   /* Las tres mediciones agrupadas en un submenú: son la misma familia y
      tres entradas sueltas desbordaban el menú.                        */
   {
-    label: "Medir",
+    label: tr("Medir"),
     items: [
-      { label: "Ruta", action: () => setTool(activeTool === "route" ? null : "route") },
-      { label: "Círculo", action: () => setTool(activeTool === "circle" ? null : "circle") },
-      { label: "Arco", action: () => setTool(activeTool === "arc" ? null : "arc") }
+      { label: tr("Ruta"), action: () => setTool(activeTool === "route" ? null : "route") },
+      { label: tr("Círculo"), action: () => setTool(activeTool === "circle" ? null : "circle") },
+      { label: tr("Arco"), action: () => setTool(activeTool === "arc" ? null : "arc") }
     ]
   },
-  { label: "Dibujar polígono o línea", action: () => setTool(activeTool === "polygon" ? null : "polygon") },
-  { separator: true },
-  { label: "Crear un pin", action: () => createPin() },
-  { separator: true },
-  { label: "Exportar PNG", action: () => exportMapPng() },
-  { separator: true },
-  { label: "Centrar en el contenido", action: () => fitToContent() },
-  { label: "Centrar en la península y Baleares", action: () => centerIberia() },
-  { label: "Centrar en las islas Canarias", action: () => centerCanaries() },
-  { label: "Paralelos y meridianos", checked: () => graticuleOn, action: () => toggleGraticule() }
+  {
+    label: tr("Crear"),
+    items: [
+      { label: tr("Polígono o línea"), action: () => setTool(activeTool === "polygon" ? null : "polygon") },
+      { label: tr("Pin"), action: () => createPin() },
+      /* Estas dos SÍ usan el punto pulsado: es el centro por defecto */
+      { label: tr("Anillos de alcance…"), action: latlng => openRangeDialog("rings", latlng) },
+      { label: tr("Sector…"), action: latlng => openRangeDialog("sector", latlng) }
+    ]
+  }
 ];
 const ctxMenuEl = document.createElement("div");
 ctxMenuEl.id = "map-ctxmenu";
 ctxMenuEl.className = "ctx-menu";
 ctxMenuEl.setAttribute("role", "menu");
-ctxMenuEl.setAttribute("aria-label", "Menú contextual del visor");
+ctxMenuEl.setAttribute("aria-label", tr("Menú contextual del visor"));
 ctxMenuEl.hidden = true;
 document.body.appendChild(ctxMenuEl);
 let ctxSubmenuEl = null; /* como mucho un submenú abierto a la vez */
@@ -860,15 +892,15 @@ function showLayerInfoAndBlink(li) { showLayerInfo(li); blinkLayer(li); }
 function editPropertiesAndBlink(li) { openStyleDialog(li); blinkLayer(li); }
 /* Mismo criterio que usa openStyleDialog para rechazar una capa sin
    estilos editables (carpetas, cuadrículas de elevación…).            */
-const STYLE_EDITABLE_KINDS = new Set(["marker", "polygon", "measure", "imageOverlay"]);
+const STYLE_EDITABLE_KINDS = new Set(["marker", "polygon", "measure", "imageOverlay", "cog", "arcgis"]);
 
 /* Ítems de UNA capa: ir al nodo, mostrar propiedades si tiene algo que
    enseñar (igual criterio que el botón ℹ de la fila), y editar
    propiedades si el diálogo de estilos aplica a su tipo.              */
 function layerCtxItems(li) {
-  const items = [{ label: "Ir al nodo en el panel", action: () => goToNodeAndBlink(li) }];
-  if (infoHtmlFor(li) != null) items.push({ label: "Mostrar atributos", action: () => showLayerInfoAndBlink(li) });
-  if (STYLE_EDITABLE_KINDS.has(styleKind(li))) items.push({ label: "Editar propiedades", action: () => editPropertiesAndBlink(li) });
+  const items = [{ label: tr("Ir al nodo en el panel"), action: () => goToNodeAndBlink(li) }];
+  if (infoHtmlFor(li) != null) items.push({ label: tr("Mostrar atributos"), action: () => showLayerInfoAndBlink(li) });
+  if (STYLE_EDITABLE_KINDS.has(styleKind(li))) items.push({ label: tr("Editar propiedades"), action: () => editPropertiesAndBlink(li) });
   /* Una ruta (también un arco, que es una ruta) da su perfil: «Obtener»
      o, si ya lo tiene, «Mostrar»; el motivo de no poder obtenerlo va en
      el ítem deshabilitado (sin fuentes, demasiado larga).            */
@@ -886,18 +918,18 @@ function ctxItemsFor(hits) {
   const withInfo = hits.filter(li => infoHtmlFor(li) != null);
   const editable = hits.filter(li => STYLE_EDITABLE_KINDS.has(styleKind(li)));
   const items = [{
-    label: "Ir al nodo en el panel",
+    label: tr("Ir al nodo en el panel"),
     items: hits.map(li => ({ label: li._name, action: () => goToNodeAndBlink(li) }))
   }];
   if (withInfo.length) {
     items.push({
-      label: "Mostrar atributos",
+      label: tr("Mostrar atributos"),
       items: withInfo.map(li => ({ label: li._name, action: () => showLayerInfoAndBlink(li) }))
     });
   }
   if (editable.length) {
     items.push({
-      label: "Editar propiedades",
+      label: tr("Editar propiedades"),
       items: editable.map(li => ({ label: li._name, action: () => editPropertiesAndBlink(li) }))
     });
   }
@@ -911,7 +943,7 @@ function ctxItemsFor(hits) {
   if (routes.length === 1) items.push(routeProfileCtxItem(routes[0]));
   else if (routes.length > 1) {
     items.push({
-      label: "Perfil de ruta",
+      label: tr("Perfil de ruta"),
       items: routes.map(li => ({ ...routeProfileCtxItem(li), label: li._name }))
     });
   }
@@ -919,7 +951,7 @@ function ctxItemsFor(hits) {
 }
 
 /* Construye las filas de un menú (principal o submenú) dentro de
-   `container`: separadores, ítems normales/checkbox, y disparadores de
+   `container`: separadores, ítems normales, y disparadores de
    submenú (`.items`, con "▸" al final y aria-haspopup). Un disparador
    despliega su submenú con solo pasar el ratón por encima, como un menú
    contextual de escritorio; el clic se conserva porque es el único
@@ -963,11 +995,8 @@ function renderCtxItems(container, items, latlng) {
       btn.addEventListener("mouseenter", open);
       btn.addEventListener("click", e => { e.stopPropagation(); open(); });
     } else {
-      const isToggle = typeof item.checked === "function";
-      const on = isToggle && item.checked();
-      btn.setAttribute("role", isToggle ? "menuitemcheckbox" : "menuitem");
-      if (isToggle) btn.setAttribute("aria-checked", String(on));
-      btn.textContent = (on ? "✓ " : "") + item.label;
+      btn.setAttribute("role", "menuitem");
+      btn.textContent = item.label;
       /* `disabled()` opcional: devuelve el MOTIVO (texto) o algo falso.
          Deshabilitado, no escondido: se ve que existe y por qué no va. */
       const why = typeof item.disabled === "function" && item.disabled();
@@ -1091,6 +1120,100 @@ function applySavedBases(saved) {
   }
 }
 
+/* ---------- Enlace a la vista ----------
+   `#map=zoom/lat/lng[/giro]&base=id,id`: el centro, el zoom, el giro (solo
+   si lo hay) y los mapas base ENCENDIDOS que cualquiera puede tener. No
+   lleva el árbol (vive en el navegador de cada uno) ni los mapas con
+   dirección o credencial propias (Custom Tile/Web Map Service, Copernicus,
+   PNOA histórico, que necesita elegir capa de un catálogo): llegarían
+   bloqueados al otro lado. Lo que llega en la dirección es entrada AJENA:
+   `parseViewHash` solo acepta números llanos y ids conocidos, con tope de
+   longitud, y nunca nada de ello se inserta como HTML.                  */
+const linkBaseIds = defs => defs.filter(d => !d.dynamic && !d.source).map(d => d.id);
+const LINK_BASE_IDS = new Set(linkBaseIds(BASE_LAYERS));
+const LINK_MAX_HASH = 400;
+const LINK_NUM = /^-?\d+(?:\.\d+)?$/;
+
+function buildViewHash(view, bearing, baseIds) {
+  const b = ((bearing % 360) + 360) % 360;
+  let h = `#map=${+view.zoom.toFixed(2)}/${+view.lat.toFixed(6)}/${+view.lng.toFixed(6)}`;
+  if (Number.isFinite(b) && b >= 0.05) h += `/${+b.toFixed(1)}`;
+  return `${h}&base=${baseIds.join(",")}`;
+}
+
+/* Devuelve `{ lat, lng, zoom, bearing, bases }` (bearing 0 si no viene, bases
+   null si el enlace no habla de ellas) o null si no es un enlace válido.   */
+function parseViewHash(hash) {
+  const text = String(hash || "");
+  if (!text.startsWith("#map=") || text.length > LINK_MAX_HASH) return null;
+  const params = new Map();
+  for (const part of text.slice(1).split("&")) {
+    const i = part.indexOf("=");
+    if (i > 0) params.set(part.slice(0, i), part.slice(i + 1));
+  }
+  const nums = String(params.get("map")).split("/");
+  if ((nums.length !== 3 && nums.length !== 4) || !nums.every(n => LINK_NUM.test(n))) return null;
+  const [zoom, lat, lng, bearing = 0] = nums.map(Number);
+  if (!(zoom >= 0 && zoom <= 25) || !(Math.abs(lat) <= 85) || !(Math.abs(lng) <= 180)) return null;
+  let bases = null;
+  if (params.has("base")) {
+    bases = [...new Set(params.get("base").split(",").filter(id => LINK_BASE_IDS.has(id)))];
+  }
+  return { lat, lng, zoom, bearing: ((bearing % 360) + 360) % 360, bases };
+}
+
+/* Enciende exactamente los mapas públicos de la lista y apaga los demás
+   públicos; los propios del usuario (dirección o credencial) no se tocan.
+   `live`: con el panel ya dibujado (un enlace pegado con la aplicación
+   abierta); al arrancar basta fijar el estado, que lo pinta el arranque. */
+function setLinkBases(ids, live) {
+  for (const [id, st] of baseState) {
+    if (!LINK_BASE_IDS.has(id)) continue;
+    st.on = ids.includes(id);
+    if (live) applyBaseLayer(id);
+  }
+  if (live) { renderBasePanel(); scheduleBaseSave(); }
+}
+
+/* La dirección sin ninguna ancla vieja (en `file://` es la del archivo) */
+const viewLinkUrl = hash => location.href.split("#")[0] + hash;
+
+function currentViewHash() {
+  const c = map.getCenter();
+  const on = [...baseState].filter(([id, st]) => st.on && LINK_BASE_IDS.has(id)).map(([id]) => id);
+  return buildViewHash({ lat: c.lat, lng: c.lng, zoom: map.getZoom() }, map.getBearing(), on);
+}
+
+function copyViewLink() {
+  const privateOn = [...baseState].some(([id, st]) => st.on && !LINK_BASE_IDS.has(id));
+  const note = location.protocol === "file:"
+    ? tr("Enlace a la vista copiado. Solo sirve en este equipo: la aplicación está abierta como archivo.")
+    : privateOn ? tr("Enlace a la vista copiado. Los mapas con dirección propia no viajan en el enlace.")
+    : tr("Enlace a la vista copiado al portapapeles.");
+  const fail = () => navMessage(tr("No se pudo copiar el enlace."));
+  if (!navigator.clipboard) { fail(); return; }
+  navigator.clipboard.writeText(viewLinkUrl(currentViewHash()))
+    .then(() => navMessage(note, { tone: "info" })).catch(fail);
+}
+
+/* Aplica un enlace con la aplicación ya arrancada y quita el ancla, para
+   que recargar no lo vuelva a aplicar y el siguiente pegado sea otro
+   `hashchange`. Al arrancar lo hace 99-boot.js por su cuenta, antes de
+   restaurar nada.                                                      */
+function clearViewHash() {
+  try { history.replaceState(null, "", location.pathname + location.search); } catch { /* sin historial: se queda */ }
+}
+function applyViewLink(link) {
+  map.setView([link.lat, link.lng], link.zoom, { animate: false });
+  map.setBearing(link.bearing);
+  if (link.bases) setLinkBases(link.bases, true);
+}
+window.addEventListener("hashchange", () => {
+  const link = parseViewHash(location.hash);
+  if (link) applyViewLink(link);
+  if (location.hash.startsWith("#map=")) clearViewHash();
+});
+
 /* La vista se guarda al terminar de moverla, no durante: `moveend` ya
    llega una vez por gesto, y el retardo agrupa los encadenados.      */
 const VIEW_SAVE_MS = 800;
@@ -1135,7 +1258,7 @@ async function checkServerVersion() {
   if (tag !== serverVersionTag) {
     updateNoticeShown = true;
     navMessage(
-      "Hay una versión nueva de KITE Local en el servidor. Recarga la página cuando puedas (F5) para actualizar.",
+      tr("Hay una versión nueva de KITE Local en el servidor. Recarga la página cuando puedas (F5) para actualizar."),
       { sticky: true } /* tono por defecto ("error", en rojo): igual que los avisos de carga fallida, para que destaque */
     );
   }

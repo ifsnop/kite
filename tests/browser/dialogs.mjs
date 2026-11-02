@@ -73,7 +73,8 @@ const medidas = await page.evaluate(() => {
     },
     "points-dialog": () => openPointsDialog(liP),
     "log-dialog": () => { for (let i = 0; i < 80; i++) navMessage("aviso " + i, { tone: "info" }); toggleLog(); },
-    "sh-creds": () => { document.getElementById("sh-creds").hidden = false; }
+    "sh-creds": () => { document.getElementById("sh-creds").hidden = false; },
+    "restore-confirm": () => { document.getElementById("restore-confirm").hidden = false; }
   };
 
   const out = [];
@@ -125,7 +126,7 @@ const medidas = await page.evaluate(() => {
   return out;
 });
 
-ok(medidas.length === 12, "se han abierto las doce ventanas: " + medidas.length);
+ok(medidas.length === 13, "se han abierto las trece ventanas: " + medidas.length);
 
 for (const m of medidas) {
   if (m.error) { ok(false, `${m.id}: no se pudo abrir — ${m.error}`); continue; }
@@ -148,6 +149,32 @@ for (const m of medidas) {
   const esperado = CON_RESIZE.has(m.id);
   ok((m.resize === "both") === esperado,
     `${m.id}: ${esperado ? "debe" : "NO debe"} ser redimensionable (resize: ${m.resize})`);
+}
+
+/* Propiedades: en CADA pestaña, el contenido deja aire hasta la barra de
+   scroll (antes rozaba). Con la caja bajita para que haya scroll de verdad. */
+const aire = await page.evaluate(async () => {
+  gnpStore = Object.fromEntries(Array.from({ length: 40 }, (_, i) => [`["clave${i}"]`, ["clave" + i]]));
+  await togglePropsDialog();
+  document.querySelector("#props-dialog .dlg-box").style.height = "300px";
+  const out = [];
+  for (const id of ["prefs", "gnp", "sources", "freq", "restore"]) {
+    showPropsTab(id);
+    const panel = document.getElementById("props-tab-" + id);
+    const lista = id === "gnp" ? document.getElementById("gnp-editor-list") : panel;
+    const pr = lista.getBoundingClientRect();
+    const barra = lista.offsetWidth - lista.clientWidth; /* 0 si el navegador la superpone */
+    let derecha = 0;
+    for (const el of lista.querySelectorAll("*")) derecha = Math.max(derecha, el.getBoundingClientRect().right);
+    out.push({ id, hueco: Math.round(pr.right - barra - derecha),
+      relleno: parseFloat(getComputedStyle(lista).paddingRight) });
+  }
+  document.getElementById("props-cancel").click();
+  return out;
+});
+for (const a of aire) {
+  ok(a.relleno >= 8, `Propiedades › ${a.id}: relleno derecho de ${a.relleno} px antes de la barra de scroll`);
+  ok(a.hueco >= 8, `Propiedades › ${a.id}: el contenido queda a ${a.hueco} px de la barra de scroll`);
 }
 
 ok(medidas.some(m => m.id === "shortcuts" && m.cierre), "la chuleta, de un solo botón, lo lleva como × en la cabecera");
@@ -621,6 +648,131 @@ const trasRecargar = await recargada.evaluate(() => propsKeyFrac);
 ok(Math.abs(trasRecargar - guardado) < 0.001,
   `y se restaura al recargar: ${guardado} → ${trasRecargar}`);
 await recargada.close();
+
+/* ---------- La × de TODO diálogo: misma posición, mismo tamaño y mismo efecto ----------
+   Regla (dialog-close-button.md): arriba a la derecha, igual que la de «Cálculos
+   geodésicos», y pulsarla equivale a Cancelar o, si no lo hay, a Cerrar. Se mide
+   en cada diálogo con la caja a la vista y se pulsa con un escuchador de CAPTURA
+   en el botón que debe recibir el clic (así no se ejecuta ni cierra nada).   */
+const cruces = await page.evaluate(() => {
+  const out = [];
+  const ids = [...document.querySelectorAll(".dlg-overlay, .dlg-float")].map(d => d.id);
+  const medir = id => {
+    const dlg = document.getElementById(id);
+    const estabaOculto = dlg.hidden;
+    dlg.hidden = false;
+    const box = dlg.querySelector(".dlg-box"), x = box.querySelector(".dlg-close");
+    let r = null;
+    if (x) {
+      box.scrollTop = 0;
+      const rb = box.getBoundingClientRect(), rx = x.getBoundingClientRect();
+      r = { derecha: Math.round(rb.right - rx.right), arriba: Math.round(rx.top - rb.top),
+        ancho: Math.round(rx.width), alto: Math.round(rx.height),
+        enCabecera: x.parentElement === box.querySelector("h2"), cuantas: box.querySelectorAll(".dlg-close").length,
+        fuente: getComputedStyle(x).fontSize + " " + getComputedStyle(x).fontFamily.split(",")[0],
+        cancel: x.dataset.cancel || null, titulo: x.title, aria: x.getAttribute("aria-label") };
+    }
+    dlg.hidden = estabaOculto;
+    return r;
+  };
+  for (const id of ids) out.push({ id, ...medir(id) });
+  return out;
+});
+const ref = cruces.find(c => c.id === "geocalc-dialog");
+ok(cruces.length >= 20 && ref && ref.derecha != null, "se han medido las × de los diálogos: " + cruces.length);
+for (const c of cruces) {
+  ok(c.derecha != null, `${c.id}: tiene su ×`);
+  if (c.derecha == null) continue;
+  ok(c.enCabecera && c.cuantas === 1, `${c.id}: UNA × y dentro de la cabecera`);
+  ok(Math.abs(c.derecha - ref.derecha) <= 1 && Math.abs(c.arriba - ref.arriba) <= 1,
+    `${c.id}: misma posición que la de geodésicos (${c.derecha},${c.arriba} frente a ${ref.derecha},${ref.arriba})`);
+  ok(c.ancho === ref.ancho && c.alto === ref.alto && c.fuente === ref.fuente,
+    `${c.id}: mismo tamaño y tipo (${c.ancho}×${c.alto} ${c.fuente} frente a ${ref.ancho}×${ref.alto} ${ref.fuente})`);
+  ok(c.titulo && c.aria, `${c.id}: con title y aria-label (${c.titulo})`);
+}
+/* Cancelar o Cerrar, según lo que tenga el diálogo */
+const CIERRE = { "mobile-notice": "Cerrar", "log-dialog": "Cerrar", "url-dialog": "Cerrar", "attr-dialog": "Cerrar", "desc-dialog": "Cerrar" };
+for (const c of cruces.filter(c => c.cancel)) {
+  ok(c.titulo === (CIERRE[c.id] || "Cancelar"), `${c.id}: la × se llama «${CIERRE[c.id] || "Cancelar"}»: ${c.titulo}`);
+}
+/* Pulsarla pulsa el botón que dice: el clic llega a ESE botón y a ninguno más */
+const efecto = await page.evaluate(() => {
+  const out = {};
+  for (const x of document.querySelectorAll(".dlg-close[data-cancel]")) {
+    const dlg = x.closest(".dlg-overlay, .dlg-float");
+    const destino = document.getElementById(x.dataset.cancel);
+    const otros = [...dlg.querySelectorAll(".dlg-actions button")].filter(b => b !== destino);
+    let pulsados = [];
+    const alto = e => { e.stopImmediatePropagation(); e.preventDefault(); pulsados.push(e.currentTarget.id); };
+    for (const b of [destino, ...otros]) b.addEventListener("click", alto, { capture: true, once: true });
+    dlg.hidden = false;
+    x.click();
+    out[dlg.id] = pulsados.join();
+    for (const b of [destino, ...otros]) b.removeEventListener("click", alto, { capture: true });
+    dlg.hidden = true;
+  }
+  return out;
+});
+for (const c of cruces.filter(c => c.cancel)) {
+  ok(efecto[c.id] === c.cancel, `${c.id}: la × pulsa «${c.cancel}» y solo ese botón (pulsó: ${efecto[c.id] || "ninguno"})`);
+}
+
+/* ---------- Los cinco botones de la cabecera abren Y cierran su diálogo ----------
+   Con el RATÓN de verdad: el fondo de un modal cubre la pantalla, así que el botón
+   tiene que quedar por encima para poder pulsarlo otra vez. Y pulsarlo es pulsar
+   el Cerrar o el Cancelar del diálogo (el que tenga), no un segundo «abrir».     */
+const CABECERA = [
+  ["url-btn", "url-dialog", "url-close"], ["gnp-editor-btn", "props-dialog", "props-cancel"],
+  ["geocalc-btn", "geocalc-dialog", "geocalc-close"], ["log-btn", "log-dialog", "log-close"],
+  ["help-btn", "shortcuts", "shortcuts-close"]
+];
+const centro = id => page.evaluate(id => { const r = document.getElementById(id).getBoundingClientRect(); return { x: r.x + r.width / 2, y: r.y + r.height / 2 }; }, id);
+const abierto = id => page.evaluate(id => !document.getElementById(id).hidden, id);
+const bajoBoton = id => page.evaluate(id => { const r = document.getElementById(id).getBoundingClientRect(); const e = document.elementFromPoint(r.x + r.width / 2, r.y + r.height / 2); return e && e.id; }, id);
+const contarClic = id => page.evaluate(id => { window.__clic = window.__clic || {}; window.__clic[id] = 0; document.getElementById(id).addEventListener("click", () => { window.__clic[id]++; }); }, id);
+const clics = id => page.evaluate(id => window.__clic[id], id);
+for (const [btn, dlg, dismiss] of CABECERA) {
+  await contarClic(dismiss);
+  const c = await centro(btn);
+  await page.mouse.click(c.x, c.y);
+  await page.waitForTimeout(100);
+  ok(await abierto(dlg), `${btn}: abre ${dlg}`);
+  ok(await bajoBoton(btn) === btn, `${btn}: con el diálogo abierto el botón sigue al alcance del ratón (bajo el cursor hay: ${await bajoBoton(btn)})`);
+  const antes = await clics(dismiss);
+  await page.mouse.click(c.x, c.y);
+  await page.waitForTimeout(100);
+  ok(!(await abierto(dlg)), `${btn}: pulsarlo otra vez cierra ${dlg}`);
+  ok(await clics(dismiss) === antes + 1, `${btn}: y cierra pulsando «${dismiss}» (el manejador de cerrar o cancelar), no por otro camino`);
+  await page.mouse.click(c.x, c.y);
+  await page.waitForTimeout(100);
+  ok(await abierto(dlg), `${btn}: y se puede volver a abrir`);
+  await page.mouse.click(c.x, c.y);
+  await page.waitForTimeout(100);
+}
+/* Los cuatro modales no se apilan: abrir uno cierra el que hubiera */
+let u = await centro("log-btn"), p2 = await centro("gnp-editor-btn");
+await page.mouse.click(u.x, u.y);
+await page.waitForTimeout(100);
+await page.mouse.click(p2.x, p2.y);
+await page.waitForTimeout(100);
+ok(!(await abierto("log-dialog")) && await abierto("props-dialog"), "con el registro abierto, 🏷️ lo cierra y abre Propiedades: no se apilan");
+await page.mouse.click(p2.x, p2.y);
+await page.waitForTimeout(100);
+/* El flotante de geodésicos NO se cierra al abrir un modal, y viceversa */
+const g = await centro("geocalc-btn"), l = await centro("log-btn");
+await page.mouse.click(g.x, g.y);
+await page.waitForTimeout(100);
+await page.mouse.click(l.x, l.y);
+await page.waitForTimeout(100);
+ok(await abierto("geocalc-dialog") && await abierto("log-dialog"), "el de cálculos geodésicos (flotante) no se cierra al abrir el registro");
+await page.mouse.click(l.x, l.y);
+await page.mouse.click(g.x, g.y);
+await page.waitForTimeout(100);
+ok(!(await abierto("geocalc-dialog")) && !(await abierto("log-dialog")), "y cada uno se cierra con el suyo");
+/* Con OTRO modal además (aquí un selector que pide respuesta) el botón NO se sube: queda tapado */
+await page.evaluate(() => { document.getElementById("log-dialog").hidden = false; document.getElementById("kml-tags-picker").hidden = false; });
+ok(await bajoBoton("log-btn") !== "log-btn", "con otro modal a la vista el botón de la cabecera sigue tapado por el fondo (un selector que pide respuesta no se deja a medias)");
+await page.evaluate(() => { document.getElementById("log-dialog").hidden = true; document.getElementById("kml-tags-picker").hidden = true; });
 
 ok(errors.length === 0, "sin errores de página: " + JSON.stringify(errors));
 

@@ -13,8 +13,8 @@ function selectAllStep(cur) {
   setSelCursor(target[target.length - 1]);
   selAnchor = target[0];
   navMessage(already
-    ? `Seleccionado todo el \u00E1rbol (${target.length} nodos).`
-    : `Seleccionada la carpeta actual (${target.length} nodos). Ctrl+A otra vez para todo.`,
+    ? tr("Seleccionado todo el \u00E1rbol ({n} nodos).", { n: target.length })
+    : tr("Seleccionada la carpeta actual ({n} nodos). Ctrl+A otra vez para todo.", { n: target.length }),
     { tone: "info" });
 }
 
@@ -43,9 +43,10 @@ document.addEventListener("keydown", e => {
      52-measure.js: crear una ruta se comporta como editarla).          */
   if (activeTool === "polygon" && polyDraft) return;
   if (activeTool === "route" && (routeDraft || routeMeasurement)) return;
-  const items = topLevelSelection();
+  const items = movableSelection();
+  if (!items.length) return;
   const next = cursorAfterDelete(isRow(selCursor) ? selCursor : items[0], items);
-  pushUndo(`borrar ${items.length} nodo(s)`);
+  pushUndo(tr("borrar {n} nodo(s)", { n: items.length }));
   for (const s of items) deleteNode(s, { pruneSelection: false });
   clearSelection();
   if (next) selectNode(next, true);
@@ -80,27 +81,27 @@ const DEFAULT_MARKER_STYLE = {
    All names but LEAFLET_PIN are Material Design Icons served by Iconify. */
 const MDI_ICONS = [
   ["Leaflet", [LEAFLET_PIN]],
-  ["Banderas", ["flag", "flag-outline", "flag-checkered", "flag-variant",
+  [tr("Banderas"), ["flag", "flag-outline", "flag-checkered", "flag-variant",
     "flag-variant-outline", "flag-triangle"]],
-  ["Estrellas", ["star", "star-outline", "star-four-points",
+  [tr("Estrellas"), ["star", "star-outline", "star-four-points",
     "star-four-points-outline", "star-circle", "star-circle-outline", "star-face"]],
-  ["C\u00EDrculos numerados", ["numeric-0-circle", "numeric-1-circle",
+  [tr("C\u00EDrculos numerados"), ["numeric-0-circle", "numeric-1-circle",
     "numeric-2-circle", "numeric-3-circle", "numeric-4-circle", "numeric-5-circle",
     "numeric-6-circle", "numeric-7-circle", "numeric-8-circle", "numeric-9-circle",
     "numeric-9-plus-circle"]],
-  ["N\u00FAmeros en caja", ["numeric-0-box", "numeric-1-box", "numeric-2-box",
+  [tr("N\u00FAmeros en caja"), ["numeric-0-box", "numeric-1-box", "numeric-2-box",
     "numeric-3-box", "numeric-4-box", "numeric-5-box", "numeric-6-box",
     "numeric-7-box", "numeric-8-box", "numeric-9-box"]],
-  ["Aviaci\u00F3n", ["airplane", "airplane-takeoff", "airplane-landing",
+  [tr("Aviaci\u00F3n"), ["airplane", "airplane-takeoff", "airplane-landing",
     "airport", "helicopter", "radar", "parachute"]],
-  ["Barco", ["ferry", "sail-boat", "anchor", "submarine", "ship-wheel",
+  [tr("Barco"), ["ferry", "sail-boat", "anchor", "submarine", "ship-wheel",
     "lighthouse", "compass"]],
-  ["Transporte", ["car", "car-side", "bus", "bus-stop", "train",
+  [tr("Transporte"), ["car", "car-side", "bus", "bus-stop", "train",
     "subway-variant", "tram", "truck", "motorbike", "bike", "taxi", "rocket"]],
-  ["Figuras geom\u00E9tricas", ["circle", "circle-outline", "square",
+  [tr("Figuras geom\u00E9tricas"), ["circle", "circle-outline", "square",
     "square-outline", "triangle", "triangle-outline", "hexagon", "pentagon",
     "rhombus", "octagon"]],
-  ["Se\u00F1ales", ["sign-caution", "sign-direction", "sign-pole", "sign-text",
+  [tr("Se\u00F1ales"), ["sign-caution", "sign-direction", "sign-pole", "sign-text",
     "traffic-light", "road-variant", "alert", "alert-octagon", "map-marker-alert"]]
 ];
 
@@ -145,8 +146,11 @@ function nodeLayer(li) {
 /* properties de un GeoJSON importado, si las tiene: L.geoJSON(feature,...)
    deja `.feature.properties` en la subcapa, y ese properties sobrevive
    íntegro el ciclo guardar/restaurar (toGeoJSON / L.geoJSON de nuevo).
-   Capas KML (marker/polyline directos, sin .feature) devuelven null:
-   su información va por li._desc, no por aquí.                       */
+   Capas KML sin <ExtendedData> (marker/polyline directos, sin .feature)
+   devuelven null: su información va por li._desc, no por aquí. Con
+   <ExtendedData> sí tienen `.feature.properties`, y entonces una capa de
+   KML tiene tabla de atributos igual que una de GeoJSON (la <description>
+   sigue mandando en la ficha: baseInfoHtml).                          */
 function layerProperties(layer) {
   if (!layer || typeof layer.getLayers !== "function") return null;
   const sub = layer.getLayers()[0];
@@ -184,13 +188,16 @@ function propertiesTableHtml(props) {
     .join("");
   return `<div class="props-wrap"><table class="props">${rows}</table>`
     + '<div class="props-grip" role="separator" aria-orientation="vertical"'
-    + ' title="Arrastre para repartir el ancho entre clave y valor"></div></div>';
+    + ` title="${tr("Arrastre para repartir el ancho entre clave y valor")}"></div></div>`;
 }
 
 /* Ficha propia de la capa: la KML si la tiene, si no la tabla de
    properties de GeoJSON si las tiene, si no null.                   */
 function baseInfoHtml(li) {
   if (li._desc) return sanitizeHtml(li._desc);
+  /* Un servicio ArcGIS: su dirección y lo que trae, SOLO para consultar
+     (para cambiarla se borra el servicio y se añade otro) */
+  if (li._arcgis) return propertiesTableHtml(arcgisInfoProps(li));
   const props = layerProperties(nodeLayer(li));
   return props ? propertiesTableHtml(props) : null;
 }
@@ -208,7 +215,7 @@ function infoHtmlFor(li) {
 /* ¿Tiene ficha? Versión barata de `infoHtmlFor(li) != null`, sin
    construir el HTML: decide si se ve el botón ℹ de la fila.          */
 function hasInfo(li, layer = nodeLayer(li)) {
-  return !!(li._desc || layerProperties(layer) || (dayNightOn && soleMarkerOfLayer(layer)));
+  return !!(li._desc || li._hasInfo || layerProperties(layer) || (dayNightOn && soleMarkerOfLayer(layer)));
 }
 
 /* Al activar/desactivar la iluminación cambia qué marcadores tienen

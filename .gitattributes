@@ -16,3 +16,8 @@ src/js/05-mdi-icons.js linguist-generated=true -diff
 # real. Se versiona por lo mismo que el legible: Pages publica lo que
 # hay en el repositorio, sin construir nada.
 kitelocal.min.html linguist-generated=true -diff
+
+# sw.js es el service worker del uso sin conexión, copia literal de
+# src/sw.js GENERADA por build.js (ver offline.md). Se versiona por lo
+# mismo que los dos anteriores: Pages publica lo que hay en el repo.
+sw.js linguist-generated=true -diff

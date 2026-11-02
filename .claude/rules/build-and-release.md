@@ -15,10 +15,15 @@ paths:
 src/index.html     plantilla: <head>, CSP, diálogos, <script> de CDN.
                    Dos marcadores: {{STYLES}} y {{SCRIPTS}}
 src/styles.css     todo el CSS
-src/js/*.js        24 archivos, en el orden del manifiesto de build.js
-                   (el primero, 05-mdi-icons.js, es GENERADO)
+src/sw.js          service worker del uso sin conexión (ver offline.md)
+src/js/*.js        los módulos, en el orden del manifiesto de build.js
+                   (03-i18n.js primero; 05-mdi-icons.js es GENERADO;
+                   04-i18n-xx.js, un diccionario por idioma)
 build.js           concatena src/ → kitelocal.html, y minifica ese
                    resultado → kitelocal.min.html
+i18n-tool.js       Claves de la interfaz y diccionarios (npm run i18n,
+                   sync/new/missing; ver i18n.md). Lo usa también
+                   tests/i18n.js. Necesita acorn (dependencia declarada)
 fetch-icons.js     GENERA src/js/05-mdi-icons.js (npm run icons). A mano,
                    NO forma parte del build: es lo único que habla con
                    Iconify y construir debe ser reproducible y sin red
@@ -38,12 +43,17 @@ kitelocal.min.html GENERADO a partir del anterior. Es lo que sirve
                    GitHub Pages (index.html redirige ahí). Se versiona
                    por lo mismo: Pages publica lo que hay en el
                    repositorio, sin construir nada
+sw.js              GENERADO: copia literal de src/sw.js, en la raíz del
+                   sitio (el ámbito de un worker es su carpeta). Se
+                   versiona y se sirve igual que los dos anteriores; sin
+                   él Pages no tendría de dónde registrarlo
 index.html         redirección de la raíz del sitio al minificado
 ```
 
 - `npm run build` construye; `npm run watch` reconstruye al guardar; `npm run check` comprueba sin escribir; `npm test` lanza la batería.
 - **`kitelocal.html` SÍ se versiona** aunque sea generado: es el producto, quien clone o descargue el archivo directo de GitHub debe obtener algo funcional sin Node. La comprobación de frescura (local + CI) evita la desincronización.
 - **Conflicto de merge en `kitelocal.html` → no se resuelve a mano**: resolver `src/`, `npm run build`, añadir el resultado. Marcado `-diff` en `.gitattributes`.
+- **`sw.js` es el tercer artefacto de `build.js --check`**: copiado sin transformar, no se minifica (6 KB, y los marcadores de las suites no lo leen). Está en `.gitattributes` como generado.
 - **El CI comprueba, no construye** (`npm run check` + `npm test`). Si reconstruyera, un push con `src/` cambiado y el archivo sin regenerar pasaría en verde publicando la versión vieja.
 - **El orden del manifiesto `JS` en `build.js` es carga útil**: ámbito global compartido, dependencias de orden que `node --check` no detecta (ver punto 10 del checklist). Mover un archivo de sitio es un cambio de comportamiento potencial.
 - `build.js` **valida el manifiesto en los dos sentidos**: archivo suelto sin declarar → se perdería en silencio; nombre declarado inexistente → aborta.
@@ -55,20 +65,22 @@ index.html         redirección de la raíz del sitio al minificado
 
 `build.js` escribe `kitelocal.html` (legible, el producto) y `kitelocal.min.html` (derivada minificada, lo que sirve Pages).
 
-- **Motivo medido**: Pages ya comprime (gzip). Minificar solo HTML/CSS apenas mueve la aguja (~5%, ruido contra gzip). Minificar también el JS sí: 460.123→213.605 bytes en disco, 150.765→66.285 comprimidos (**-56%**). Brotli no entra: Pages sirve `gzip` aunque se pida `br`.
-- **No se minifica en su sitio (produciendo un solo archivo) porque 22 suites usan comentarios como marcadores** (`between("/* ===== Geodesia", …)`) sobre el archivo ENTREGADO; `removeComments` los borra. Reescribirlas para leer `src/` les quitaría la propiedad de probar lo que se entrega.
+- **Motivo medido**: Pages ya comprime (gzip). Minificar solo HTML/CSS apenas mueve la aguja (~5 %, ruido contra gzip). Minificar también el JS sí: **−53 % en disco y −55 % comprimido con gzip** (medido el 2026-11-01 sobre `kitelocal.html`; `npm run build` imprime el de disco). **Se citan porcentajes y no bytes, a propósito**: el archivo crece con cada función y las cifras absolutas se quedaban viejas (las de antes, 460→214 KB y 151→66 KB, eran de cuando el producto pesaba una tercera parte); el porcentaje apenas se mueve. Brotli no entra: Pages sirve `gzip` aunque se pida `br`.
+- **No se minifica en su sitio (produciendo un solo archivo) porque muchas suites (decenas) usan comentarios como marcadores** (`between("/* ===== Geodesia", …)`) sobre el archivo ENTREGADO; `removeComments` los borra. Reescribirlas para leer `src/` les quitaría la propiedad de probar lo que se entrega.
 - **Dos opciones de `MINIFY_OPTS` son decisiones, no ajuste fino**:
   - `conservativeCollapse: true` — colapsa espacios a UNO, nunca a cero (hay `<strong>` en línea en `src/index.html` que se pegaría). Gratis contra gzip.
   - **No** `removeAttributeQuotes` ni similares: los atributos son carga útil (`integrity`+`crossorigin`, `<meta>` de CSP).
   - `minifyJS` (terser) con `mangle.toplevel: false` — nombres de nivel superior sobreviven, de eso depende el ámbito global compartido. Fijado por `tests/minified.js`.
+- **`ignoreCustomFragments: []` en `MINIFY_OPTS` es una decisión, no ajuste fino**: por defecto el minificador cambia cada `<?…?>` (aquí, el literal `<?xml …?>` de `35-export-formats.js`) por un marcador con letras ALEATORIAS antes de pasarlo a terser, y esas letras desempatan su tabla de frecuencias de nombres cortos: la salida cambiaba entre ejecuciones del mismo HTML (3 resultados en 14) y `build.js --check` fallaba al azar. Con la lista vacía, 30 de 30 iguales. Un literal con `<?` o `<%` nuevo no debe volver a abrir ese hueco.
 - **Versión del minificador EXACTA en `package.json`, sin `^`**: `build.js --check` compara byte a byte; un cambio menor en la salida rompería el CI sin tocar `src/`.
 - **`npm run watch` NO minifica** (lo dice al arrancar). `npm run build` antes de empujar; si se olvida, lo caza `npm run check`.
-- **`tests/minified.js` no demuestra que la app funcione** (hace falta navegador, el CI es solo Node). Comprobación MANUAL obligatoria al tocar el minificado: cargar ambos artefactos en Chromium headless y comparar arranque, selector de iconos, aplicar icono, una medición con diálogo, escala y atribución.
+- **`tests/minified.js` solo comprueba el texto; que el minificado FUNCIONE lo prueba `tests/browser/app.mjs`**, que pasa las mismas comprobaciones sobre `kitelocal.html` y sobre `kitelocal.min.html` (arranque, iconos empotrados pintados, aplicar un icono, una medición con su diálogo, casilla indeterminada, escala y atribución): si terser rompiera algo, el legible pasaría y el minificado no. Corre en el CI (`tests.yml` instala Chromium y lanza `npm test` con `KITE_REQUIRE_BROWSER=1`, así que sin navegador FALLA en vez de saltarse) y en el release. Ya no hay comprobación manual obligatoria; al tocar `MINIFY_OPTS` o subir `html-minifier-terser`, basta con `npm test` con navegador.
 
 ## Dependencias externas
 
-- Leaflet 1.9.4 (CSS+JS, unpkg), JSZip 3.10.1 (cdnjs), topojson-client 3.1.0, html2canvas 1.4.1 y geotiff.js 2.1.3 (unpkg, `dist-browser/geotiff.js`: un solo archivo, sin trozos cargados aparte que el SRI no cubriría) llevan `integrity` (SRI) + `crossorigin`: el navegador verifica el hash antes de ejecutar, un CDN comprometido no puede colar otro contenido.
-- **Al subir versión de librería, sustituir su hash** o el navegador bloquea el arranque. Se obtiene de la doc de Leaflet, el botón de copiar de cdnjs, o `curl -sL <url> | openssl dgst -sha384 -binary | openssl base64 -A`.
+- Leaflet 1.9.4 (CSS+JS, unpkg), JSZip 3.10.1 (cdnjs), topojson-client 3.1.0 y shapefile 0.6.6 van como `<script>` de `src/index.html`; **html2canvas 1.4.1, geotiff.js 2.1.3 y proj4js 2.22.0 se cargan BAJO DEMANDA** (`src/js/07-lazy-libs.js`, tabla `LAZY_LIBS`, `ensureLib`; ver `performance.md`) con la misma URL y el mismo SRI. Detalle de cada una: geotiff.js 2.1.3 (unpkg, `dist-browser/geotiff.js`: un solo archivo, sin trozos cargados aparte que el SRI no cubriría — comprobado también para los decodificadores: JPEG, LZW, Deflate, PackBits, LERC y WebP van dentro como `Promise.resolve().then(…)`, ningún `import()` de red), shapefile 0.6.6 (unpkg, `dist/shapefile.min.js`, UMD autocontenido) y proj4js 2.22.0 (cdnjs, `proj4.js`, un solo archivo con el lector de WKT dentro). Todas llevan `integrity` (SRI) + `crossorigin`, en la etiqueta o en el `<script>` que inserta `ensureLib`: el navegador verifica el hash antes de ejecutar, un CDN comprometido no puede colar otro contenido. `tests/lazylibs.js` comprueba la tabla (origen admitido por la CSP, versión fijada, hash de la longitud que toca) y `tests/browser/lazy-libs.mjs` que un contenido que no casa con el hash NO se ejecuta.
+- **El service worker del uso sin conexión sigue solo a las librerías**: la lista de qué guardar sale de las etiquetas con `integrity` del documento y de `LAZY_LIBS` (`precacheItems`, `06-offline.js`), así que subir una versión NO exige tocar `sw.js`; la copia vieja se poda en la siguiente apertura. Ver `offline.md`.
+- **Al subir versión de librería, sustituir su hash** (en `src/index.html`, o en `LAZY_LIBS` para html2canvas, geotiff.js y proj4js) o el navegador la bloquea: en el HTML, el arranque; en una bajo demanda, la función que la usa. Se obtiene de la doc de Leaflet, el botón de copiar de cdnjs, o `curl -sL <url> | openssl dgst -sha384 -binary | openssl base64 -A`.
 - El script empieza comprobando que `L` (Leaflet) existe, con aviso explicativo si no — este guardián va **lo primero del script**, antes de cualquier uso de `L`.
 - Sin SRI: teselas/iconos PNG (`<img>` no lo admite) y respuestas de APIs REST y WCS (Iconify, Nominatim, IGN, Digital Earth Africa) — son datos, no código.
 
@@ -82,8 +94,8 @@ Dos números, cadencia y origen distintos:
 Proceso de release (creación del Release en sí sigue siendo decisión humana, no automatizada):
 
 1. Ramas con PR a `main`.
-2. Al reunir todos los PR de un release: **a mano**, subir `package.json.version`, actualizar versión en cabecera de los dos documentos de `docs/`, commitear (commit final del release). El hook de pre-commit ve `package.json` y se encarga de `BUILD` + `npm run build`.
+2. Al reunir todos los PR de un release: **a mano**, subir `package.json.version`, regenerar las capturas (`npm run capturas`), revisar el estudio de seguridad (recuentos, fecha, resultado verificado), actualizar versión en cabecera de los dos documentos de `docs/`, releer `README.md` entero contra el manual (funcionalidades, servidores, limitaciones, «Still open»), commitear (commit final del release). `tests/docs.js` falla si algo de esto queda a medias. El hook de pre-commit ve `package.json` y se encarga de `BUILD` + `npm run build`.
 3. `git tag vX.Y.Z && git push origin vX.Y.Z` sobre ese commit — el tag debe coincidir EXACTAMENTE con `package.json.version`.
-4. `.github/workflows/release.yml` (disparado por el push del tag) comprueba tag↔`package.json`, `npm run check`, y **que las 58 suites de `npm test` pasan** (con navegador, `KITE_REQUIRE_BROWSER=1`) — corren DENTRO de este job, no dependiendo de `tests.yml` (que se dispara aparte con el mismo push pero sin relación `needs`; antes un tag con tests en rojo podía publicarse porque `release.yml` nunca ejecutaba `npm test`). Si todo cuadra, publica el Release (notas automáticas, dos artefactos adjuntos). Si no, falla en rojo y no publica — hay que arreglar, borrar el tag y recrearlo sobre el commit correcto.
+4. `.github/workflows/release.yml` (disparado por el push del tag) comprueba tag↔`package.json`, `npm run check`, y **que todas las suites de `npm test` pasan** (con navegador, `KITE_REQUIRE_BROWSER=1`) — corren DENTRO de este job, no dependiendo de `tests.yml` (que se dispara aparte con el mismo push pero sin relación `needs`; antes un tag con tests en rojo podía publicarse porque `release.yml` nunca ejecutaba `npm test`). Si todo cuadra, publica el Release (notas automáticas, dos artefactos adjuntos). Si no, falla en rojo y no publica — hay que arreglar, borrar el tag y recrearlo sobre el commit correcto.
 
 **El bump de versión es a mano, antes de tagear, no una Action tras crear el tag**: el tag se crea sobre la punta de `main`; si el bump fuera posterior, el tag apuntaría a un commit sin esa versión todavía, obligando a mover el tag (`-f`). Bumpear antes evita el problema.

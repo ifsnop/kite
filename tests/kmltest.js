@@ -124,10 +124,16 @@ ok(plainGeo.stroke === undefined && plainGeo.fill === undefined, "sin señal: st
 ok(normalizePathStyle({}).stroke === true, "sin stroke -> por defecto true (contorno)");
 ok(normalizePathStyle({ stroke: false }).stroke === false, "stroke false se conserva");
 ok(normalizePathStyle({}).fill === true, "sin fill -> por defecto true (relleno)");
+/* Opacidad del contorno: editable, 1 si falta o no es válida */
+ok(normalizePathStyle({}).opacity === 1, "sin opacity -> contorno opaco");
+ok(normalizePathStyle({ opacity: 0.4 }).opacity === 0.4, "opacity del contorno se conserva");
+ok(normalizePathStyle({ opacity: 7 }).opacity === 1 && normalizePathStyle({ opacity: "x" }).opacity === 1,
+  "opacity fuera de [0,1] o no numérica -> 1");
 
 /* ---- polygonModeOf: traducción de los dos booleanos al selector único ---- */
 ok(polygonModeOf({ stroke: false, fill: true }) === "fill", "solo relleno");
 ok(polygonModeOf({ stroke: true, fill: false }) === "stroke", "solo contorno");
 ok(polygonModeOf({ stroke: true, fill: true }) === "both", "contorno y relleno");
-ok(polygonModeOf({ stroke: false, fill: false }) === "fill", "caso defensivo (ambos false) cae a relleno");
+ok(polygonModeOf({ stroke: false, fill: false }) === "none", "ni contorno ni relleno: «Ninguno» (solo queda el nombre)");
+ok(polygonModeOf({}) === "both" && polygonModeOf({ stroke: true }) === "both", "sin booleanos, o con el contorno solo, el de siempre");
 if (!process.exitCode) console.log("POLYGON STROKE/FILL TESTS OK");

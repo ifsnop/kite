@@ -1,14 +1,46 @@
+  /* Tema de la INTERFAZ (no del mapa): cada token lleva su par
+     light-dark(claro, oscuro). Sin `data-theme` manda el sistema
+     (`color-scheme: light dark` → prefers-color-scheme) y sin JS, así
+     que no hay parpadeo; Propiedades → Preferencias → Tema lo fuerza con
+     data-theme="light|dark" en <html> (applyUiTheme, 43-points-editor.js).
+     `color-scheme` también oscurece lo nativo (select, input, scroll).
+     Regla: un color de interfaz nuevo es un token de aquí, nunca un hex
+     suelto. Lo que se pinta SOBRE el mapa (teselas, etiquetas, celdas de
+     elevación, fondo del mapa) NO se tematiza: ver theme.md.          */
   :root {
-    --bg: #f7f7f5;
-    --panel: #ffffff;
-    --border: #e2e2df;
-    --text: #2b2b28;
-    --muted: #8a8a84;
-    --accent: #2f6f4f;
-    --accent-soft: #e7f0ea;
-    --danger: #b04a3a;
+    color-scheme: light dark;
+    --bg: light-dark(#f7f7f5, #1b1c1a);
+    --panel: light-dark(#ffffff, #252624);
+    --border: light-dark(#e2e2df, #3b3c39);
+    --text: light-dark(#2b2b28, #e6e6e1);
+    --muted: light-dark(#8a8a84, #9d9d96);
+    --muted-2: light-dark(#555555, #b4b4ad);
+    --accent: light-dark(#2f6f4f, #3f8a62);
+    --accent-soft: light-dark(#e7f0ea, #243a2e);
+    --section-bg: light-dark(#e3edf9, #223244);      /* secciones que crea la aplicación (azul pastel) */
+    --section-border: light-dark(#b6cde8, #3a536e);
+    --danger: light-dark(#b04a3a, #d9705e);
+    --danger-soft: light-dark(#fdf1ef, #3d2420);
+    --alert: light-dark(#d32f2f, #ff6b61);
+    --surface: light-dark(#ffffff, #2f302d);
+    --surface-glass: light-dark(rgba(255,255,255,.85), rgba(37,38,36,.85));
+    --ink-strong: light-dark(#000000, #f2f2ee);
+    --shadow: light-dark(rgba(0,0,0,.25), rgba(0,0,0,.6));
+    --shadow-soft: light-dark(rgba(0,0,0,.15), rgba(0,0,0,.5));
+    --backdrop: light-dark(rgba(0,0,0,.25), rgba(0,0,0,.55));
+    /* Gráfica del perfil: MDT, MDS y Fresnel validados juntos con el
+       validador del skill dataviz (paso claro sobre blanco, paso oscuro
+       sobre --panel: contraste ≥ 3:1, ΔE normal ≥ 24, CVD ≥ 21). La
+       Tierra no es una serie sino contexto: un marrón apagado.         */
+    --pf-mdt: light-dark(#1565c0, #3f94e6);
+    --pf-mds: light-dark(#2e7d32, #45a84b);
+    --pf-fresnel: light-dark(#7b1fa2, #a86fe0);
+    --pf-earth: light-dark(#8d6e63, #b09a90);
+    --pf-outside: light-dark(rgba(0,0,0,.05), rgba(0,0,0,.26)); /* velo de lo que queda fuera del enlace: apaga en los dos temas */
     --nav-width: 400px;
   }
+  :root[data-theme="light"] { color-scheme: light; }
+  :root[data-theme="dark"] { color-scheme: dark; }
   * { box-sizing: border-box; }
   html, body { height: 100%; margin: 0; }
   body {
@@ -85,6 +117,18 @@
      para no hacer nada. Mismos valores que .color-btn:disabled.      */
   .btn:disabled { opacity: .35; cursor: default; }
   .btn:disabled:hover { border-color: var(--border); color: inherit; }
+  /* Acción que borra algo sin vuelta atrás (Propiedades › Restaurar) */
+  .btn.btn-danger { color: var(--danger); border-color: var(--danger); background: var(--danger-soft); }
+  .btn.btn-danger:hover { color: var(--danger); border-color: var(--danger); filter: brightness(.95); }
+  /* Aviso permanente mientras no haya red: discreto, con los tokens del
+     peligro pero sin llegar a ser una alerta (la aplicación funciona). */
+  #offline-badge {
+    margin: 4px 0 0; padding: 2px 8px; font-size: 11.5px; cursor: default;
+    color: var(--danger); background: var(--danger-soft);
+    border: 1px solid var(--danger); border-radius: 10px;
+    width: fit-content;
+  }
+  #offline-badge[hidden] { display: none; }
   #nav-msg { font-size: 12px; min-height: 0; }
   /* Solo hay DOS niveles de aviso: notificación (`info`) y alerta
      (`error`, el de por defecto). La notificación va en el color normal
@@ -217,7 +261,13 @@
     white-space: nowrap;
   }
   .node-row.folder > label { font-weight: 600; }
+  /* Un servicio ArcGIS cuyas teselas fallan seguidas (ver ArcgisLayer): el nombre en rojo, como una capa base caída */
+  .node-row.service-failed > label { color: var(--danger); }
   li.file > .node-row { background: var(--bg); border: 1px solid var(--border); }
+  /* Las secciones que crea la aplicación (Marcadores, Elevaciones…) en azul
+     pastel: el gris de un archivo es el mismo que toma cualquier fila con el
+     ratón encima (.node-row:hover) y no se distinguían.                     */
+  li.file.app-section > .node-row { background: var(--section-bg); border-color: var(--section-border); }
   li.file > .node-row > label { font-weight: 600; }
   li.file { margin-bottom: 6px; }
   .rename-input {
@@ -286,7 +336,7 @@
     height: 12px;
     min-width: 12px;
     border-radius: 3px;
-    border: 1px solid rgba(0,0,0,.25);
+    border: 1px solid var(--shadow);
   }
 
   /* Botones de acción de cada fila (visibles al pasar el ratón) */
@@ -314,6 +364,9 @@
      foco se va a su casilla, y con `:focus-within` se quedarían fijos
      sin que el ratón esté encima.                                     */
   .node-row:hover > .actions { visibility: visible; }
+  /* Con el minimenú de 💾 abierto (35-export-formats.js) las opciones de la fila
+     se quedan: ir del 💾 a un formato saca el cursor de la fila.            */
+  .node-row.menu-open > .actions { visibility: visible; }
   /* El fondo tiene que seguir al de la fila cuando esta está marcada */
   .node-row.selected > .actions {
     background: linear-gradient(to right, transparent, var(--accent-soft) 12px);
@@ -328,7 +381,7 @@
     padding: 2px 3px;
     border-radius: 4px;
   }
-  .actions button:hover { color: var(--accent); background: #fff; }
+  .actions button:hover { color: var(--accent); background: var(--surface); }
   .actions button.delete:hover { color: var(--danger); }
   .actions button.az { font-size: 10px; font-weight: 600; }
   .actions button[hidden] { display: none; }
@@ -371,6 +424,13 @@
   #nav-toggle:hover { color: var(--accent); }
   body.nav-hidden #nav-panel, body.nav-hidden #splitter { display: none; }
   body.nav-hidden #nav-toggle { left: 0; }
+  /* Pantalla de móvil (isPhoneScreen, 50-splitter.js): los 400 px del panel
+     no caben, y con el panel más ancho que la pantalla el botón de abajo
+     quedaría FUERA de ella —abierto el panel no habría forma de volver al
+     mapa—. El panel ocupa la pantalla menos el hueco del botón, que se
+     agranda a un tamaño que un dedo acierta.                            */
+  :root.phone-layout { --nav-width: calc(100vw - 34px); }
+  :root.phone-layout #nav-toggle { width: 28px; }
 
   /* ================= Ventana del visor (derecha) ================= */
   /* --map-bg: por defecto NO está definida, así que var() cae en el
@@ -391,7 +451,7 @@
     border-radius: 999px;
     font-size: 12.5px;
     color: var(--text);
-    box-shadow: 0 1px 4px rgba(0,0,0,.15);
+    box-shadow: 0 1px 4px var(--shadow-soft);
   }
   /* Misma trampa que .measure-bar a[hidden]: el `display: flex` de
      arriba es una regla de autor y le gana a la UA "[hidden] { display:
@@ -482,7 +542,7 @@
        de coordenadas vive siempre por encima de ella. Con eso no hace
        falta limitar su ancho, y así cabe la línea de la diferencia
        entre superficie y terreno.                                  */
-    background: rgba(255,255,255,.85);
+    background: var(--surface-glass);
     border: 1px solid var(--border);
     border-radius: 4px;
     padding: 3px 8px;
@@ -506,7 +566,7 @@
      normal (pegado al borde izquierdo) se alejaba del punto donde el
      usuario lo había pulsado para desplegar.                         */
   .base-box {
-    background: #fff; border-radius: 4px;
+    background: var(--surface); border-radius: 4px;
     position: relative;
     /* el icono, al salir del flujo, ya no lo garantiza: sus 48 px más
        el borde de 2 px de .leaflet-bar (border-box), o el icono se
@@ -525,7 +585,7 @@
   /* Brújula (rotación del mapa, 70-view-controls.js): mismo tamaño que
      el botón de capas base, justo encima. Atenuada con el norte arriba;
      resaltada en cuanto el mapa está girado, que es cuando importa.  */
-  .compass-box { background: #fff; border-radius: 4px; }
+  .compass-box { background: var(--surface); border-radius: 4px; }
   .compass-btn {
     display: flex !important; align-items: center; justify-content: center;
     width: 48px !important; height: 48px !important;
@@ -534,7 +594,7 @@
   .compass-box.rotated .compass-btn { opacity: 1; }
   .compass-box.dragging .compass-btn { cursor: grabbing; }
   .compass-n { fill: #d62828; }
-  .compass-s { fill: #fff; stroke: #555; stroke-width: 1; }
+  .compass-s { fill: var(--surface); stroke: var(--muted-2); stroke-width: 1; }
   /* Girando con el botón central: rosa de los vientos (roseCursor), en
      todo el visor —capas interactivas incluidas— mientras dura.      */
   .leaflet-container.map-rotating, .leaflet-container.map-rotating * {
@@ -554,7 +614,7 @@
   .base-row-bg { padding-bottom: 6px; margin-bottom: 6px; border-bottom: 1px solid var(--border); }
   .base-moves { display: flex; gap: 2px; }
   .base-moves button {
-    border: 1px solid var(--border); background: #fff; border-radius: 4px;
+    border: 1px solid var(--border); background: var(--surface); border-radius: 4px;
     font-size: 9px; line-height: 1; padding: 2px 3px; cursor: pointer; color: var(--muted);
   }
   .base-moves button:disabled { opacity: .35; cursor: default; }
@@ -593,13 +653,34 @@
   .elev-cell .ec-s { color: #2e7d32; }                    /* superficie */
   .elev-cell .ec-d { color: #b04a3a; }                    /* diferencia */
   .elev-cell .ec-d.alert { color: #d32f2f; font-weight: 700; } /* MDS > MDT + 1 m */
-  /* Consulta de elevación en marcha: sin aviso en el registro, el cursor
-     es la señal (ver syncElevBusy). `!important` y `*`: las capas
+  /* Consulta de elevación o de parcela catastral en marcha: sin aviso en el
+     registro, el cursor es la señal (ver syncElevBusy, syncCadastreBusy). `!important` y `*`: las capas
      interactivas y el arrastre ponen su propio cursor.               */
-  .leaflet-container.elev-busy, .leaflet-container.elev-busy * { cursor: progress !important; }
+  .leaflet-container.elev-busy, .leaflet-container.elev-busy *,
+  .leaflet-container.cadastre-busy, .leaflet-container.cadastre-busy * { cursor: progress !important; }
 
   .coords-zoom { font-weight: 600; }
   /* La atribución se queda en una sola línea, la de abajo del todo */
+  /* Controles de Leaflet = interfaz, no mapa: traen su blanco propio y
+     hay que llevarlos a los tokens (el mapa de debajo no se toca).   */
+  .leaflet-bar a {
+    background-color: var(--surface);
+    color: var(--text);
+    border-bottom-color: var(--border);
+  }
+  /* Sin `color` aquí ni en `.active`: pisaría el naranja del sol y el
+     blanco de un botón activo, que ganan por especificidad y orden.  */
+  .leaflet-bar a:not(.active):hover, .leaflet-bar a:not(.active):focus { background-color: var(--bg); }
+  .leaflet-bar a.leaflet-disabled { background-color: var(--bg); color: var(--muted); }
+  /* `.leaflet-container` delante: Leaflet pinta la atribución con
+     `.leaflet-container .leaflet-control-attribution`, más específico. */
+  .leaflet-container .leaflet-control-attribution,
+  .leaflet-container .leaflet-control-scale-line {
+    background: var(--surface-glass);
+    color: var(--muted-2);
+  }
+  .leaflet-container .leaflet-control-attribution a { color: var(--accent); }
+  .leaflet-container .leaflet-control-scale-line { border-color: var(--muted-2); text-shadow: none; }
   .leaflet-control-attribution {
     max-width: 100%;
     white-space: nowrap;
@@ -656,12 +737,30 @@
     position: fixed;
     inset: 0;
     z-index: 2000;
-    background: rgba(0,0,0,.25);
+    background: var(--backdrop);
     display: flex;
     align-items: center;
     justify-content: center;
   }
   .dlg-overlay[hidden] { display: none; }
+  /* Los cinco botones de la cabecera abren Y cierran su diálogo (regla en
+     dialog-close-button.md), pero el fondo de un modal cubre toda la pantalla
+     y el botón quedaba inalcanzable. Mientras haya a la vista UNO de los cuatro
+     modales de la cabecera y ningún otro, los botones pasan por encima del fondo.
+     Con otro modal además (el selector de nombre abierto desde Propiedades, p. ej.)
+     no: ese pide una respuesta y no se puede dejar a medias.              */
+  body:has(#url-dialog:not([hidden])):not(:has(.dlg-overlay:not([hidden]):not(#url-dialog))) #nav-panel h1 .btn,
+  body:has(#props-dialog:not([hidden])):not(:has(.dlg-overlay:not([hidden]):not(#props-dialog))) #nav-panel h1 .btn,
+  body:has(#log-dialog:not([hidden])):not(:has(.dlg-overlay:not([hidden]):not(#log-dialog))) #nav-panel h1 .btn,
+  body:has(#shortcuts:not([hidden])):not(:has(.dlg-overlay:not([hidden]):not(#shortcuts))) #nav-panel h1 .btn {
+    position: relative;
+    z-index: 2100;
+  }
+  /* Propiedades es modal y se abre a menudo con el perfil de una ruta (flotante,
+     mismo z-index y más tarde en el documento) a la vista, para ver el cambio
+     en vivo: tiene que quedar POR ENCIMA, o la ventana del perfil le tapaba
+     parte de las pestañas. */
+  #props-dialog { z-index: 2050; }
   /* The style dialog is NOT modal: it floats over the viewer so the map
      stays live underneath and the marker being edited can be dragged   */
   .dlg-float {
@@ -680,7 +779,7 @@
   #profile-dialog { top: auto; bottom: 40px; }
   #profile-dialog .dlg-box {
     display: flex; flex-direction: column; resize: both;
-    width: min(92vw, 46rem); height: min(75vh, 440px); min-width: 320px; min-height: 260px; /* + la barra de controles */
+    width: min(94vw, 60rem); height: min(82vh, 580px); min-width: 320px; min-height: 260px; /* + cabecera (4 filas de lectura) y pie */
   }
   /* Sin pie (el × está en la cabecera): todo lo de debajo de la barra
      de controles es gráfica; el margen de abajo deja sitio al tirador. */
@@ -698,43 +797,154 @@
   }
   #profile-log .pl-head { font-weight: 700; margin-top: 4px; }
   #profile-log .pl-req { color: var(--muted); }
-  #profile-log .pl-err { color: #d32f2f; }
+  #profile-log .pl-err { color: var(--alert); }
   #profile-progress-label { font-size: 13px; margin-bottom: 4px; }
   #profile-progress .bar { height: 8px; background: var(--border); border-radius: 4px; overflow: hidden; }
   #profile-progress-fill { height: 100%; width: 0; background: var(--accent); transition: width 0.15s; }
-  /* Rueda = zoom, arrastrar = desplazar (63-route-profile.js): la mano
-     solo con zoom, que es cuando hay algo que desplazar.             */
+  /* Rueda = zoom, arrastrar = desplazar (63-route-profile.js), en
+     distancia y en altura: la mano siempre.                          */
   #profile-chart { flex: 1 1 auto; min-height: 120px; position: relative;
                    touch-action: none; user-select: none; }
-  #profile-chart.zoomed { cursor: grab; }
-  #profile-tools { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 14px;
-                   margin: 6px 0 2px; font-size: 13px; }
-  #profile-tools[hidden] { display: none; }
-  #profile-tools .pf-tool-group { display: inline-flex; align-items: center; gap: 4px; }
-  #profile-tools .pf-tool { min-width: 28px; padding: 1px 6px; }
-  #profile-tools .pf-tools-hint { color: var(--muted); font-size: 11px; }
+  #profile-chart { cursor: grab; }
+  /* Cabecera: a la izquierda lo que cambia la recta (línea, elipsoide,
+     torres); a la derecha el rectángulo de lectura, de tamaño fijo. Si no
+     caben, la lectura baja bajo las opciones. Pie: la vista (eje Y,
+     curvatura, ver todo) y la pista de gestos.                          */
+  #profile-tools { display: flex; flex-wrap: wrap; align-items: flex-start; gap: 6px 16px;
+                   margin: 6px 0 4px; font-size: 13px; }
+  #profile-tools[hidden], #profile-foot[hidden] { display: none; }
+  #profile-opts { flex: 1 1 17rem; display: flex; flex-direction: column; gap: 2px; }
+  .pf-row { display: flex; flex-wrap: wrap; align-items: center; gap: 0 16px; }
+  /* etiqueta entera clicable, y a una altura cómoda para el puntero */
+  .pf-check, .pf-field { display: inline-flex; align-items: center; gap: 6px; min-height: 26px; }
+  .pf-check { cursor: pointer; }
+  /* Las dos filas de torre alinean sus columnas: el texto de la etiqueta y
+     el primer campo tienen ancho fijo, así los campos y los desplegables
+     «en» quedan uno bajo otro; la unidad también (m, ft, NM…).          */
+  #profile-opts .pf-lbl { display: inline-block; min-width: 6.4em; }
+  #profile-opts .pf-row.towers .pf-field:first-child { min-width: 14.5rem; }
+  #profile-opts .pf-tower-unit { display: inline-block; min-width: 1.8em; }
+  #profile-tools input[type="number"] { width: 64px; }
+  #profile-foot { display: flex; flex-wrap: wrap; align-items: center; gap: 2px 16px;
+                  margin: 4px 0 0; font-size: 13px; }
+  #profile-foot .pf-hint { flex: 1 1 8rem; min-width: 0; text-align: right; white-space: nowrap;
+                           overflow: hidden; text-overflow: ellipsis; color: var(--muted); font-size: 11px; }
+  /* Rectángulo de lectura: 2 columnas × 4 filas SIEMPRE (guiones en reposo,
+     filas apagadas atenuadas pero presentes), así su caja no cambia al
+     mover el ratón y la gráfica no salta. El valor manda (negrita, cifras
+     tabulares); la etiqueta es secundaria; cada línea lleva su clave de
+     trazo del color de su curva, y el texto sigue en tinta de texto.   */
+  #profile-info { flex: 0 0 26rem; max-width: 100%; box-sizing: border-box;
+                  display: grid; grid-template-columns: 1fr 1fr; grid-template-rows: repeat(4, auto);
+                  grid-auto-flow: column; gap: 0 18px; padding: 5px 10px;
+                  border: 1px solid var(--border); border-radius: 4px; background: var(--panel); }
+  .pf-info-row { display: flex; align-items: center; gap: 6px; min-width: 0; height: 20px; font-size: 12px; }
+  .pf-info-row.off { opacity: .45; }
+  .pf-info-label { color: var(--muted); white-space: nowrap; }
+  .pf-info-val { margin-left: auto; white-space: nowrap; font-variant-numeric: tabular-nums; color: var(--text); font-weight: 600; }
+  .pf-info-val.alert { color: var(--alert); }
+  .pf-key { flex: 0 0 14px; height: 0; border-top: 3px solid transparent; }
+  .pf-key.mdt { border-top-color: var(--pf-mdt); }
+  .pf-key.mds { border-top-color: var(--pf-mds); }
+  .pf-key.earth { border-top-color: var(--pf-earth); }
+  .pf-key.los { border-top-color: var(--ink-strong); }
+  .pf-key.fresnel { border-top: 2px dashed var(--pf-fresnel); }
   #profile-chart.dragging { cursor: grabbing; }
   #profile-chart svg { display: block; width: 100%; height: 100%; font: 11px system-ui, sans-serif; }
   #profile-chart .pf-axis { stroke: var(--muted); stroke-width: 1; }
   #profile-chart .pf-grid { stroke: var(--border); stroke-width: 1; }
-  #profile-chart .pf-vertex { stroke: var(--muted); stroke-width: 1; stroke-dasharray: 3 3; }
-  /* MDT azul, MDS verde (pedido); la leyenda usa las mismas clases */
-  #profile-chart .pf-line { fill: none; stroke-width: 1.5; }
-  #profile-chart .pf-line.mdt, #profile-chart .pf-legend.mdt { stroke: #1565c0; }
-  #profile-chart .pf-line.mds, #profile-chart .pf-legend.mds { stroke: #2e7d32; }
+  /* Los vértices son referencia, no dato: punteados y apagados, y solo los
+     de las torres (cuando hay recta) llevan tinta y línea continua. */
+  #profile-chart .pf-vertex { stroke: var(--muted); stroke-width: 1; stroke-dasharray: 2 4; opacity: .55; }
+  #profile-chart .pf-vertex.tower { stroke: var(--ink-strong); stroke-dasharray: none; opacity: .5; }
+  /* Lo que queda fuera del enlace (antes de la torre de inicio, después de
+     la final): un velo apenas perceptible, bajo las curvas */
+  #profile-chart .pf-outside { fill: var(--pf-outside); stroke: none; }
+  /* MDT azul, MDS verde (pedido); la leyenda usa las mismas clases. Trazo
+     de 2 px redondeado, el de todas las líneas de datos. */
+  #profile-chart .pf-line { fill: none; stroke-width: 2; stroke-linejoin: round; stroke-linecap: round; }
+  #profile-chart .pf-line.mdt, #profile-chart .pf-legend.mdt { stroke: var(--pf-mdt); }
+  #profile-chart .pf-line.mds, #profile-chart .pf-legend.mds { stroke: var(--pf-mds); }
+  /* Línea inicio–fin: negra (pedido); la Tierra, un marrón con relleno
+     suave por debajo */
+  #profile-chart .pf-los, #profile-chart .pf-legend.los { stroke: var(--ink-strong); }
+  #profile-chart .pf-los, #profile-chart .pf-los-ext { fill: none; stroke: var(--ink-strong); stroke-width: 2; stroke-linecap: round; }
+  /* su prolongación fuera de las torres */
+  #profile-chart .pf-los-ext { stroke-dasharray: 5 4; }
+  #profile-chart .pf-earth, #profile-chart .pf-legend.earth { stroke: var(--pf-earth); }
+  #profile-chart .pf-earth { fill: none; stroke-width: 1.5; }
+  #profile-chart .pf-earth-fill { fill: var(--pf-earth); fill-opacity: 0.12; stroke: none; }
+  /* Torres (negras, como la recta) y elipsoide de Fresnel: contorno de la
+     primera zona discontinuo y, dentro, la del 60 % rellena */
+  #profile-chart .pf-tower { stroke: var(--ink-strong); stroke-width: 3; stroke-linecap: round; }
+  /* Antena (punto con anillo del color de la superficie, para que no se
+     confunda con la línea que cruza) y su altura sobre el terreno, con un
+     halo del fondo para leerse sobre las curvas */
+  #profile-chart .pf-antenna { fill: var(--ink-strong); stroke: var(--panel); stroke-width: 2; }
+  #profile-chart .pf-tower-label { fill: var(--text); font-weight: 600; paint-order: stroke;
+                                   stroke: var(--panel); stroke-width: 3px; stroke-linejoin: round; }
+  #profile-chart .pf-fresnel { fill: none; stroke: var(--pf-fresnel); stroke-width: 1; stroke-dasharray: 4 3; }
+  #profile-chart .pf-fresnel60 { fill: var(--pf-fresnel); fill-opacity: 0.12; stroke: var(--pf-fresnel); stroke-width: 1; }
+  #profile-chart .pf-legend.fresnel { stroke: var(--pf-fresnel); }
+  /* Puntos de lectura sobre cada curva bajo el cursor (≥ 8 px, anillo de
+     superficie de 2 px); la lectura sigue en el rectángulo de arriba */
+  #profile-chart .pf-dot { stroke: var(--panel); stroke-width: 2; }
+  #profile-chart .pf-dot.mdt { fill: var(--pf-mdt); }
+  #profile-chart .pf-dot.mds { fill: var(--pf-mds); }
+  #profile-chart .pf-dot.los { fill: var(--ink-strong); }
   #profile-chart .pf-legend { stroke-width: 3; }
   #profile-chart .pf-tick { fill: var(--text); }
   #profile-chart .pf-tick.vertex { font-weight: 700; }
-  #profile-chart .pf-cursor { stroke: #b04a3a; stroke-width: 1; }
+  #profile-chart .pf-cursor { stroke: var(--danger); stroke-width: 1; }
   /* Flecha del mapa que sigue al cursor de la gráfica (mismo rojo) */
   .pf-map-arrow { background: none; border: none; pointer-events: none; }
   .pf-map-arrow svg { display: block; overflow: visible; }
   .pf-map-arrow path { fill: #b04a3a; stroke: #fff; stroke-width: 1.5; stroke-linejoin: round; }
-  /* Halo del color del panel: la lectura cae encima de las curvas */
-  #profile-chart .pf-readout { fill: var(--text); font-weight: 600;
-                               stroke: var(--panel); stroke-width: 3px; stroke-linejoin: round; paint-order: stroke; }
-  /* MDS−MDT por encima del umbral: el mismo rojo que el aviso de las celdas */
-  #profile-chart .pf-diff.alert { fill: #d32f2f; }
+  /* Anillos de alcance: etiquetas a la izquierda y campos de ancho fijo
+     a la derecha (el de radios, de texto, algo más ancho).              */
+  #range-dialog .dlg-box { width: min(92vw, 26rem); }
+  #range-dialog .dlg-row input[type="number"] { width: 110px; }
+  #range-dialog .dlg-row input[type="text"] { flex: none; width: 190px; }
+  #range-dialog .dlg-row > select { max-width: 200px; }
+  #range-dialog .dlg-row > label { flex: 1 1 auto; min-width: 0; }
+  /* La unidad (NM, km…) y el grado van tras el campo, con ancho fijo para
+     que los campos queden alineados en todas las filas.                 */
+  #range-dialog .rg-unit, #range-dialog .rg-deg { flex: none; width: 2.4em; color: var(--muted); }
+  /* Tabla de atributos: arriba a la derecha, como la de estilos (la de
+     estilos y ella a la vez son raras), con altura de partida explícita
+     para que la tabla llene la caja y el tirador le dé espacio.        */
+  #attr-dialog .dlg-box {
+    display: flex; flex-direction: column; resize: both;
+    width: min(94vw, 52rem); height: min(78vh, 560px); min-width: 320px; min-height: 220px;
+  }
+  .attr-bar { display: flex; align-items: center; gap: 10px; margin: 6px 0; }
+  .attr-bar input { flex: 1 1 auto; min-width: 0; }
+  #attr-scroll { flex: 1 1 auto; min-height: 0; overflow: auto; border: 1px solid var(--border); border-radius: 5px; }
+  /* `table-layout: fixed` y anchos por <col>: con filas que entran y salen
+     al desplazar, el ancho automático bailaría. El ancho total lo pone el
+     código (suma de columnas); si no cabe, scroll horizontal.           */
+  #attr-table { table-layout: fixed; border-collapse: collapse; font-size: 12px; }
+  #attr-table th, #attr-table td {
+    padding: 0 6px; height: 24px; box-sizing: border-box; text-align: left;
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  }
+  #attr-table thead th {
+    position: sticky; top: 0; z-index: 1; background: var(--panel); cursor: pointer; user-select: none;
+    border-bottom: 1px solid var(--border); font-weight: 600;
+  }
+  #attr-table thead th:hover { background: var(--accent-soft); }
+  #attr-table tbody tr[data-i] { cursor: pointer; }
+  #attr-table tbody tr[data-i]:hover { background: var(--accent-soft); }
+  #attr-table tbody tr[data-i] td { border-bottom: 1px solid var(--border); }
+  #attr-table .attr-spacer td { padding: 0; border: 0; }
+  /* Estilo por atributo: una fila por clase (color, valor o tramo, recuento) */
+  #attrstyle-dialog .dlg-box { width: min(92vw, 26rem); }
+  #attrstyle-dialog .dlg-row > label { flex: 1 1 auto; min-width: 0; }
+  #attrstyle-dialog .dlg-row > select { max-width: 230px; }
+  #attrstyle-dialog .dlg-row input[type="number"] { width: 80px; }
+  #as-classes { margin: 8px 0 4px; max-height: 40vh; overflow-y: auto; }
+  .as-class { justify-content: flex-start; margin: 4px 0; }
+  .as-class .as-label { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   #geocalc-dialog .dlg-box { width: min(92vw, 30rem); }
   .geocalc-field { display: flex; gap: 6px; }
   #geocalc-dialog .dlg-row input[type="number"] { width: 110px; }
@@ -781,7 +991,7 @@
     background: var(--panel);
     border: 1px solid var(--border);
     border-radius: 10px;
-    box-shadow: 0 8px 30px rgba(0,0,0,.25);
+    box-shadow: 0 8px 30px var(--shadow);
   }
   .color-popover[hidden] { display: none; }
   /* Espectro propio: dos <canvas> (saturación/valor y matiz), en vez de
@@ -860,7 +1070,7 @@
     background: var(--panel);
     border: 1px solid var(--border);
     border-radius: 8px;
-    box-shadow: 0 8px 30px rgba(0,0,0,.25);
+    box-shadow: 0 8px 30px var(--shadow);
     padding: 4px;
     min-width: 220px;
     font: 13px system-ui, sans-serif;
@@ -905,7 +1115,7 @@
      el usuario lo toca.                                              */
   .dlg-row.mixed > span::after,
   .dlg-row.mixed > label::after {
-    content: " (varios)";
+    content: var(--txt-mixed, " (varios)"); /* el texto lo fija 04-i18n-init.js según el idioma */
     font-style: italic;
     color: var(--muted);
   }
@@ -933,7 +1143,7 @@
     background: var(--panel);
     border: 1px solid var(--border);
     border-radius: 10px;
-    box-shadow: 0 8px 30px rgba(0,0,0,.25);
+    box-shadow: 0 8px 30px var(--shadow);
     /* El relleno VERTICAL lo ponen las barras fija de arriba y abajo, no
        la caja: si lo pusiera la caja, quedaría una franja de 14 px por
        encima del título y otra por debajo de los botones por la que se
@@ -953,7 +1163,7 @@
      instead of stretching almost edge to edge.                       */
   /* Sin esto heredan el max-width: 90vw de .dlg-box y una caja de texto
      corto se estira a casi toda la pantalla.                          */
-  #kml-tags-picker .dlg-box, #kml-dup-picker .dlg-box, #sh-creds .dlg-box { max-width: 42ch; }
+  #kml-tags-picker .dlg-box, #kml-dup-picker .dlg-box, #sh-creds .dlg-box, #mobile-notice .dlg-box, #restore-confirm .dlg-box { max-width: 42ch; }
   /* ---------- Ventanas redimensionables ----------
      `resize: both` es el redimensionado nativo del navegador; su tirador
      va en la esquina inferior derecha y no estorba al arrastre por el
@@ -982,7 +1192,13 @@
   /* Contenido fijo (tres párrafos cortos + un campo), no redimensionable
      como #sh-creds, pero más ancho: explica el formato de servidor
      exigido y 42ch se quedaría corto para leerlo con comodidad.       */
-  #custom-tiles-creds .dlg-box { width: min(92vw, 30rem); }
+  #custom-tiles-creds .dlg-box, #custom-wms-creds .dlg-box { width: min(92vw, 30rem); }
+  /* Tesela de un servidor propio que no llegó (ver flagTileError). Leaflet
+     deja oculta (`visibility: hidden`) toda tesela que no cargó, y esa es
+     justo la que hay que ver. El contorno va por DENTRO (offset negativo)
+     para que dos vecinas no lo dupliquen ni se salga del mundo. Es
+     contenido del mapa, no cromo: rojo fijo, sin par claro/oscuro.      */
+  .leaflet-tile.tile-error { visibility: visible; outline: 2px solid #d32f2f; outline-offset: -2px; }
   /* Y la caja de edición del nombre ocupa lo que dé esa ventana, no los
      190 px de un control corto: el nombre es el campo más largo del
      diálogo, así que es el que debe crecer con ella.                  */
@@ -1289,6 +1505,8 @@
   /* Por encima del panel Propiedades: se abre desde él al cambiar una
      asociación guardada (mismo caso que #icon-picker).                */
   #geojson-name-picker { z-index: 2100; }
+  /* La segunda confirmación de Restaurar se abre desde Propiedades (2050) */
+  #restore-confirm { z-index: 2100; }
   /* El panel Propiedades lleva ALTURA DE PARTIDA explícita, mismo motivo
      que #points-dialog/#log-dialog/#url-dialog: un hijo en `flex: 1`
      sobre un contenedor de altura automática se queda en nada, así que
@@ -1299,7 +1517,7 @@
      constriñe de verdad y saca su propio scroll.                      */
   #props-dialog .dlg-box {
     display: flex; flex-direction: column;
-    width: min(92vw, 32rem); height: min(70vh, 480px);
+    width: min(92vw, 36rem); height: min(70vh, 480px);
   }
   /* Misma razón que #props-dialog: altura de partida explícita para que
      el tirador (resize: both, ya puesto más abajo) dé espacio de verdad
@@ -1313,6 +1531,10 @@
      límite del perfil): el panel scrollea por su cuenta, como la
      chuleta, en vez de salirse por debajo de los botones.           */
   #props-dialog .dlg-tabpanel { overflow-y: auto; }
+  /* Aire entre el contenido y la barra de scroll de CADA pestaña (también la
+     lista de índices de GeoJSON, que scrollea por su cuenta): sin él, el texto
+     y los selectores rozaban la barra.                                     */
+  #props-dialog .dlg-tabpanel, #props-dialog .gnp-editor-list { padding-right: 12px; }
   .gnp-list, .gnp-editor-list {
     flex: 1 1 auto; min-height: 4em;
     overflow-y: auto;
@@ -1338,7 +1560,14 @@
   .dlg-tabpanel { flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; }
   /* La dirección del servicio bajo cada selector de fuente: una URL
      larga no tiene espacios por los que partir y desbordaría la caja. */
-  .props-src-url { margin-top: 0; overflow-wrap: anywhere; }
+  .props-src-url, .props-src-info { margin-top: 0; overflow-wrap: anywhere; }
+  .props-src-info[hidden] { display: none; }
+  /* Los nombres de las fuentes son largos («Digital Earth Africa — Copernicus
+     DEM 30 m (África, Canarias y sur peninsular)»): con el tope de 190px de
+     .dlg-row select se cortaban. Aquí la etiqueta va encima y el selector
+     ocupa TODA la fila.                                                  */
+  #props-tab-sources .dlg-row { flex-direction: column; align-items: stretch; gap: 4px; }
+  #props-tab-sources .dlg-row > select { max-width: none; width: 100%; }
   /* Same trap as .dlg-row[hidden]/.color-field[hidden]: an author
      "display: flex" beats the UA "[hidden] { display: none }" rule
      regardless of specificity, so the inactive tab stayed visible
@@ -1374,7 +1603,7 @@
   }
   .gnp-editor-row .gnp-editor-keys { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .gnp-editor-row .gnp-editor-sel { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 600; }
-  .dlg-row input.bad { border-color: #c0392b; background: #fdf1ef; }
+  .dlg-row input.bad { border-color: var(--danger); background: var(--danger-soft); }
   /* The preview sits outside the button and only its height is fixed, so
      non-square icons (the 25×41 Leaflet pin) keep their aspect ratio */
   .icon-preview-wrap {
