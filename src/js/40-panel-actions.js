@@ -73,6 +73,22 @@ async function resolveRecordLi(rec) {
   return matches.length ? resolveMatch(matches[0]) : null; /* defensivo: no debería ocurrir */
 }
 
+/* La capa de Leaflet que un registro pendiente tiene en el mapa: la de
+   una capa, ortofoto o cuadrícula (`_layer`) o el grupo de una medición
+   (`_m.group`). Null si el tipo no tiene (nada que acertar con el clic). */
+const recMapLayer = rec => rec._layer || (rec._m && rec._m.group) || null;
+
+/* El <li> de una CAPA de Leaflet, materializando la cadena de carpetas
+   ancestras si todavía es un registro pendiente (lo que cuesta construir
+   las filas de la carpeta, como al pasar el ratón por una capa pendiente
+   o buscarla). Null si ningún registro ni fila la reclama: una capa que
+   no es del árbol.                                                    */
+async function resolveLayerLi(layer) {
+  if (layer._li) return layer._li;
+  const found = findMatches(() => false, rec => recMapLayer(rec) === layer);
+  return found.length ? resolveMatch(found[0]) : null;
+}
+
 /* Engancha clic/hover en el momento de construir una capa "layer"
    (buildKmlRecords/buildGeoJsonRecords/buildRecordsFromStorage), antes
    de que tenga fila real: resolveRecordLi materializa lo necesario la

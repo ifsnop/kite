@@ -1060,8 +1060,14 @@ function openCtxMenu(latlng, x, y, hits = []) {
    sirve para las dos llamadas sin cambios.                            */
 function openCtxMenuFromMouseEvent(e) {
   L.DomEvent.preventDefault(e.originalEvent);
-  const hits = layersAtPoint(e.latlng, e.containerPoint);
-  openCtxMenu(e.latlng, e.originalEvent.clientX, e.originalEvent.clientY, hits);
+  const { latlng } = e, { clientX, clientY } = e.originalEvent;
+  const layers = layerHitsAtPoint(latlng, e.containerPoint);
+  /* Lo normal: todas tienen fila y el menú sale en el acto. Con una capa de
+     una carpeta nunca desplegada (tras recargar) hay que darle fila antes:
+     el menú sale en cuanto se materializa, y con ello conserva lo que ofrece
+     una capa (ir al nodo, propiedades, «Mostrar perfil» de una ruta).     */
+  if (layers.every(l => l._li)) { openCtxMenu(latlng, clientX, clientY, layers.map(l => l._li)); return; }
+  Promise.all(layers.map(resolveLayerLi)).then(lis => openCtxMenu(latlng, clientX, clientY, lis.filter(Boolean)));
 }
 map.on("contextmenu", openCtxMenuFromMouseEvent);
 map.on("movestart zoomstart", closeCtxMenu);

@@ -165,6 +165,21 @@ function layersAtPoint(latlng, containerPoint) {
   return hits;
 }
 
+/* Las CAPAS DE LEAFLET bajo el cursor, con fila o sin ella. Una capa cuya
+   carpeta no se ha desplegado nunca (tras recargar, cualquiera que se
+   guardara colapsada) sigue dibujada en rootGroup pero todavía no tiene
+   `_li`: `layersAtPoint` no la ve, y el menú contextual salía sin ella
+   —sin «Ir al nodo», sin «Editar propiedades» y, en una ruta, sin «Mostrar
+   perfil». Aquí entran todas; `resolveLayerLi` (40-panel-actions.js)
+   materializa lo que haga falta para darles fila.                      */
+function layerHitsAtPoint(latlng, containerPoint) {
+  const hits = [];
+  rootGroup.eachLayer(layer => {
+    if (layerHitTest(layer, latlng, containerPoint)) hits.push(layer);
+  });
+  return hits;
+}
+
 /* "marker" wins over "polygon" on mixed geometries: points sit on top and
    the marker panel is the useful one there. Split out of styleKind so a
    freshly-built KML/GeoJSON layer can be classified for the import report
