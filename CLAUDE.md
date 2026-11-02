@@ -61,7 +61,7 @@ nuevo, no que la regla no exista.
 | `performance.md` | Reglas de rendimiento nacidas de medir | `src/js/**` |
 | `browser-tests.md` | Suites de Playwright (`tests/browser`) | `tests/browser/**` |
 | `static-checks.md` | Comprobaciones estáticas sobre `kitelocal.html` | `tests/statics.js`, `tests/minified.js`, `tests/attribution.js` |
-| `docs-maintenance.md` | Mantenimiento obligatorio de `docs/` y del `README.md`: cuándo hay captura (cambio de aspecto Y funcionalidad nueva), `npm run capturas`, qué vigila `tests/docs.js`, exenciones y cadencia de revisión | `docs/**`, `tools/capturas.mjs`, `tests/docs.js` |
+| `docs-maintenance.md` | Mantenimiento obligatorio de `docs/` (incluida la lista única de pendientes e ideas) y del `README.md`: cuándo hay captura (cambio de aspecto Y funcionalidad nueva), `npm run capturas`, qué vigila `tests/docs.js`, exenciones y cadencia de revisión | `docs/**`, `tools/capturas.mjs`, `tests/docs.js` |
 
 **Al reorganizar `.claude/rules/` en el futuro**: la fuente de verdad de
 cada regla es su propio archivo, no este índice. Si se añade, renombra o

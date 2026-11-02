@@ -23,6 +23,17 @@ desactualizado induce a error activamente. **Antes de dar por
 terminado cualquier cambio que toque algo que describen, revisarlos y
 actualizarlos.** Ver punto 13 del checklist en `00-principles.md`.
 
+## `docs/pendientes-y-propuestas-kite-local.md`
+
+El tercer documento de `docs/` y la **única lista** de lo pendiente y de las
+ideas para desarrollar (antes repartida entre `00-principles.md`, el README y
+notas de conversaciones). No lleva versión ni capturas. **Se toca en el mismo
+cambio que hace o descubre algo**: lo que se hace se borra de él, un pendiente
+que aparece se apunta, una idea descartada pasa a «Descartado a propósito» con
+su motivo. El README («Documentation» y «Still open») y el apartado 1 del
+manual lo enlazan; `tests/docs.js` falla si esos enlaces desaparecen. En cada
+release (B) se relee entero: lo que ya no es cierto se borra.
+
 ## `README.md`
 
 El README (inglés, en la raíz) es el tercer documento que hay que mantener, y el

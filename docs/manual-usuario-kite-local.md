@@ -18,6 +18,8 @@ Este manual da por hecho que KITE Local ya está desplegado y abierto en el nave
 8. [Atajos de teclado](#8-atajos-de-teclado)
 9. [Qué se guarda y dónde](#9-qué-se-guarda-y-dónde)
 
+Lo que todavía falta y las ideas para seguir desarrollando la aplicación están en un documento aparte: [Pendientes y propuestas](pendientes-y-propuestas-kite-local.md).
+
 ---
 
 ## 1. Idea general y estructura de la ventana
@@ -28,6 +30,8 @@ KITE Local reparte la pantalla en dos zonas, separadas por una barra que se pued
 - **El panel del visor**, a la derecha: el mapa, con la cartografía de fondo y todas las capas que estén activas.
 
 Un botón con una flecha (◀ / ▶), en el borde entre ambos, oculta o vuelve a mostrar el panel de navegación por completo, para quien quiera ver el mapa a pantalla completa un momento sin perder lo cargado.
+
+Este manual describe lo que la aplicación hace **hoy**. Lo que se sabe que falta (limitaciones conocidas) y las ideas que se han propuesto para desarrollarla —exportar a KMZ y GPX, importar CSV, un mapa de visibilidad, coordenadas MGRS…— se reúnen en [Pendientes y propuestas](pendientes-y-propuestas-kite-local.md), para que quien se pregunte «¿esto se puede hacer?» sepa si está previsto.
 
 ![Vista general de KITE Local, con el panel de navegación a la izquierda y el visor a la derecha](img/vista-general.png)
 *Figura 1. Vista general: panel de navegación (árbol con dos zonas, dos puntos de interés, una línea y una capa de sensores) y visor con la cartografía de fondo. En el visor, a la izquierda las barras de herramientas, y a la derecha la brújula y el botón de mapas base.*

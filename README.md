@@ -14,6 +14,14 @@ The demo is the application itself, not a hosted service: the page is served fro
 
 > **In short:** if a KML is used as a conventional collection of folders, placemarks, lines and polygons in Google Earth, KITE Local is designed to open it directly while retaining its folder hierarchy. Advanced Google Earth features such as 3D models, tours, screen overlays and network links are outside the current scope; georeferenced ground overlays are supported.
 
+## Documentation
+
+The documents live in [`docs/`](docs/) and are written in Spanish:
+
+- [**User manual**](docs/manual-usuario-kite-local.md) — every panel, dialog, menu and shortcut, with screenshots, and step-by-step recipes for the usual tasks.
+- [**Security study**](docs/estudio-seguridad-kite-local.md) — where each layer and service comes from, why the application does not alter the data it shows, and which automated tests back that up.
+- [**Pending work and proposals**](docs/pendientes-y-propuestas-kite-local.md) — what is known to be missing and the ideas for developing it further, in a single list.
+
 ## Why this project exists
 
 Google has announced that new downloads of **Google Earth Pro for desktop will end on 25 June 2027**. Existing installations are expected to continue working, but the desktop client will no longer be the long-term distribution path. Google is directing users towards its web and mobile products.
@@ -515,6 +523,8 @@ Do not use public tile, geocoding or CDN services for sensitive work without an 
 
 ### Still open
 
+The full list, with the ideas that have been proposed (exporting to KMZ and GPX, importing CSV points, a visibility map, MGRS coordinates, marker clustering, time-aware KML, GeoPackage and QGIS projects…), is kept in one place: [pending work and proposals](docs/pendientes-y-propuestas-kite-local.md). The known gaps, in short:
+
 - Touch interaction in the tree, which remains weak: the interface is built for
   mouse and keyboard.
 - A fully vendored build. Leaflet and JSZip are still loaded from a CDN (the
@@ -598,7 +608,7 @@ If what you hit is a freeze or a slowdown rather than a wrong result, the [`debu
 
 Feature work and fixes land on branches, each through its own pull request into `main`. Cutting a release once every intended PR is merged:
 
-1. Bump `package.json`'s `"version"` and update the version shown in the two documents under `docs/` (the user manual and the security study), then commit — this is the release's final commit. The pre-commit hook (see "Contributing") notices `package.json` changing, bumps `BUILD` and runs `npm run build` on its own, so there's no separate manual build step here anymore.
+1. Bump `package.json`'s `"version"` and update the version shown in the user manual and the security study under `docs/`, then commit — this is the release's final commit. The pre-commit hook (see "Contributing") notices `package.json` changing, bumps `BUILD` and runs `npm run build` on its own, so there's no separate manual build step here anymore.
 2. Tag that exact commit and push the tag: `git tag vX.Y.Z && git push origin vX.Y.Z`. The tag **must** match `package.json`'s version precisely (with a leading `v`).
 3. [`.github/workflows/release.yml`](.github/workflows/release.yml) takes it from there: it verifies the tag matches `package.json`, that `kitelocal.html`/`kitelocal.min.html`/`sw.js` are up to date with `src/`, and runs the full test suite (`npm test`, with the browser suites required) — only then does it publish the GitHub Release itself, with auto-generated release notes from the merged PRs and both artifacts attached as downloadable assets for that exact version.
 

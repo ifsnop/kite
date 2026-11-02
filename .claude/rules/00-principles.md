@@ -95,39 +95,21 @@ description: Principios no negociables, vocabulario y checklist de KITE Local. S
 
 ## Pendiente (conocido y no hecho)
 
-Lo hecho se BORRA de esta lista en cuanto se hace.
+**La lista vive en un solo sitio: `docs/pendientes-y-propuestas-kite-local.md`**
+(pendientes conocidos, lo hecho a medias, ideas para desarrollar y lo
+descartado a propósito, con su motivo). El README y el manual la enlazan para
+que quien lea la documentación la encuentre. Aquí no se duplica:
 
-- **Antimeridiano incompleto**: punto medio y mediciones cruzan ±180°
-  bien; encuadre automático y retícula todavía no.
-- **Memoria de pestaña sobre `file://`**: funciona por http(s); sobre
-  `file://` Chromium congela `performance.memory`
-  (`refreshMemoryUsage` dice que no se mide). Sin arreglo conocido: la
-  API normalizada exige COOP/COEP, que ni archivo local ni GitHub
-  Pages pueden dar.
-- **`findDuplicatePlacemarks` ignora la altitud**: compara solo
-  lat/lon, así que dos placemarks a distinta altura se fusionan como
-  duplicados (único punto donde la altitud, conservada en el resto del
-  recorrido, no se tiene en cuenta).
-- **`reorderPaintOrder` pendiente de MEDIR, no de arreglar** (ver
-  `performance.md`): no tocar sin medir antes.
-- **Preguntar por ARCHIVO al filtrar etiquetas HTML**: hoy el diálogo
-  sale una vez por archivo (KML `<name>` y GeoJSON `properties`);
-  cincuenta archivos son cincuenta preguntas. Alternativas si molesta:
-  recordar durante la sesión, por huella de
-  archivo, o quitar la pregunta y dejar constancia en el resumen. Sin
-  decidir aún.
-- **Comprobación en navegador del minificado es manual**: automatizarla
-  exige navegador en el CI (hoy solo Node).
-
-Parcialmente hecho (no confundir con pendiente):
-
-- **Navegación del árbol con teclado**: hecha (flechas, Inicio/Fin,
-  Re/Av Pág, espacio, Supr, F2, Ctrl+A/C/X/V/Z/Y/F, Alt+Intro). Falta
-  soporte TÁCTIL.
-- **Comprobaciones estáticas**: las seis automatizadas — SRI, guardián
-  de Leaflet, `BUILD` (`tests/minified.js`, `tests/attribution.js`);
-  sin bytes NUL, `$id`/`getElementById` válido, toda función llamada
-  declarada (`tests/statics.js`).
+- **Lo hecho se BORRA de ese documento en el mismo cambio que lo hace**, y se
+  cuenta en el manual y el README si lo ve el usuario.
+- Un pendiente nuevo que aparece al trabajar (una deuda que se deja a
+  propósito, una limitación que se descubre) se APUNTA allí, no en esta regla.
+- Una idea descartada pasa a su apartado «Descartado a propósito», con el
+  motivo, para no volver a proponerla sin un caso nuevo.
+- Las notas de contexto dentro de otras reglas (`import-parsing.md`,
+  `performance.md`, `measurements-drawing-vertex-editing.md`…) siguen siendo
+  útiles junto al código al que se refieren, pero la lista de lo pendiente es la
+  del documento.
 
 ## Cómo añadir una funcionalidad (checklist)
 
@@ -203,3 +185,7 @@ Parcialmente hecho (no confundir con pendiente):
     se había quedado muy por detrás del manual. Las cifras que da (suites, archivos
     de `src/js`) las vigila `tests/docs.js`. Si el cambio no toca nada de
     eso, anotarlo en el resumen («README: sin cambios»), como con `docs/`.
+15. **Pendientes**: si el cambio hace algo que estaba en
+    `docs/pendientes-y-propuestas-kite-local.md`, BORRARLO de ahí; si deja una
+    deuda a propósito o descubre una limitación, APUNTARLA. Ver el apartado
+    «Pendiente» de arriba.

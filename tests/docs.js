@@ -163,6 +163,18 @@ function checkReadmeNumbers(text, suites, jsFiles) {
   return problems;
 }
 
+/* ---------- El documento de pendientes y propuestas ----------
+   Es la única lista de lo pendiente: quien lea el README o el manual tiene que
+   poder encontrarla, y un enlace roto o quitado lo deja huérfano.         */
+const PENDING_DOC = "pendientes-y-propuestas-kite-local.md";
+function checkPendingLinks(readme, manual, exists) {
+  const problems = [];
+  if (!exists) problems.push(`falta docs/${PENDING_DOC}`);
+  if (!readme.includes(`docs/${PENDING_DOC}`)) problems.push(`el README no enlaza docs/${PENDING_DOC}`);
+  if (!manual.includes(`](${PENDING_DOC})`)) problems.push(`el manual no enlaza ${PENDING_DOC}`);
+  return problems;
+}
+
 /* ---------- tests/README.md ---------- */
 function checkTestsReadme(entries, readme) {
   const problems = [];
@@ -400,6 +412,7 @@ clean(checkFigures(figs, onDisk), "figuras del manual");
 clean(checkLinks(MANUAL, "manual").concat(checkLinks(STUDY, "estudio")), "anclas y apartados");
 clean(checkManifest(manifest, PKG.version, figs, IMG_DIR), "manifiesto de capturas");
 clean(checkTestsReadme(entries, TESTS_README), "tests/README.md frente a run-all.js");
+clean(checkPendingLinks(README, MANUAL, fs.existsSync(path.join(ROOT, "docs", "pendientes-y-propuestas-kite-local.md"))), "documento de pendientes enlazado desde el README y el manual");
 const jsCount = fs.readdirSync(path.join(ROOT, "src", "js")).filter(f => f.endsWith(".js")).length;
 clean(checkReadmeNumbers(README, entries.length, jsCount), "cifras del README frente al código");
 ok(figs.length > 20, `el manual tiene ${figs.length} figuras`);
@@ -534,6 +547,12 @@ clean(checkDialogs(dialogs, DIALOG_DOC, MANUAL), "ventanas de la aplicación fre
   flags(checkDialogs(["a-dialog"], { "a-dialog": "x", viejo: "y" }, "x"), /viejo: está en DIALOG_DOC/, "una entrada de una ventana que ya no existe");
   flags(checkDialogs(["a-dialog"], { "a-dialog": { exento: " " } }, ""), /necesita su motivo/, "una exención sin motivo");
   flags(checkDialogs([], DIALOG_DOC, MANUAL), /ninguna ventana/, "sin ventanas");
+
+  /* ---- Documento de pendientes ---- */
+  clean(checkPendingLinks("ver docs/pendientes-y-propuestas-kite-local.md", "[x](pendientes-y-propuestas-kite-local.md)", true), "enlaces de juguete al documento de pendientes");
+  flags(checkPendingLinks("nada", "[x](pendientes-y-propuestas-kite-local.md)", true), /el README no enlaza/, "un README sin el enlace a los pendientes");
+  flags(checkPendingLinks("docs/pendientes-y-propuestas-kite-local.md", "nada", true), /el manual no enlaza/, "un manual sin el enlace a los pendientes");
+  flags(checkPendingLinks("docs/pendientes-y-propuestas-kite-local.md", "[x](pendientes-y-propuestas-kite-local.md)", false), /falta docs/, "sin el documento de pendientes");
 
   /* ---- README ---- */
   clean(checkReadmeNumbers("7 suites run. 3 JavaScript files.", 7, 3), "README de juguete con sus cifras");
