@@ -1,4 +1,4 @@
-/* Coherencia de la documentación (docs/ y tests/README.md).
+/* Coherencia de la documentación (docs/, README.md y tests/README.md).
 
    Lo que un número o una imagen mal puestos hacen a un manual o a un
    estudio de auditoría no lo caza ninguna otra suite: el estudio decía
@@ -23,6 +23,7 @@ const MANUAL = read("docs", "manual-usuario-kite-local.md");
 const STUDY = read("docs", "estudio-seguridad-kite-local.md");
 const RUN_ALL = read("tests", "run-all.js");
 const TESTS_README = read("tests", "README.md");
+const README = read("README.md");
 const PKG = JSON.parse(read("package.json"));
 const INDEX_HTML = read("src", "index.html");
 const IMG_DIR = path.join(ROOT, "docs", "img");
@@ -141,6 +142,24 @@ function checkManifest(manifest, version, figs, dir) {
       problems.push(`${name}: es de la v${info.version} y package.json dice v${version}: npm run capturas`);
     }
   }
+  return problems;
+}
+
+/* ---------- README.md (solo lo numérico) ----------
+   El README decía «twenty JavaScript files» y «Fifty-eight suites» cuando
+   eran 40 y más de cien. Aquí solo se vigilan esas dos cifras, que son las
+   que se pueden contar; el resto del README es revisión (docs-maintenance.md).
+   Si falta una de las frases es un problema, para que reescribirla no deje la
+   comprobación sin nada que mirar.                                         */
+function checkReadmeNumbers(text, suites, jsFiles) {
+  const problems = [];
+  const one = (re, n, what) => {
+    const ms = [...text.matchAll(re)];
+    if (!ms.length) { problems.push(`el README ya no dice «N ${what}»: ¿se reescribió? no hay nada que comprobar`); return; }
+    for (const m of ms) if (Number(m[1]) !== n) problems.push(`«${m[0]}» y hay ${n} ${what}`);
+  };
+  one(/\b(\d+) suites\b/g, suites, "suites en run-all.js");
+  one(/\b(\d+) JavaScript files\b/g, jsFiles, "archivos en src/js");
   return problems;
 }
 
@@ -381,6 +400,8 @@ clean(checkFigures(figs, onDisk), "figuras del manual");
 clean(checkLinks(MANUAL, "manual").concat(checkLinks(STUDY, "estudio")), "anclas y apartados");
 clean(checkManifest(manifest, PKG.version, figs, IMG_DIR), "manifiesto de capturas");
 clean(checkTestsReadme(entries, TESTS_README), "tests/README.md frente a run-all.js");
+const jsCount = fs.readdirSync(path.join(ROOT, "src", "js")).filter(f => f.endsWith(".js")).length;
+clean(checkReadmeNumbers(README, entries.length, jsCount), "cifras del README frente al código");
 ok(figs.length > 20, `el manual tiene ${figs.length} figuras`);
 
 /* Fase 2: servidores */
@@ -513,6 +534,12 @@ clean(checkDialogs(dialogs, DIALOG_DOC, MANUAL), "ventanas de la aplicación fre
   flags(checkDialogs(["a-dialog"], { "a-dialog": "x", viejo: "y" }, "x"), /viejo: está en DIALOG_DOC/, "una entrada de una ventana que ya no existe");
   flags(checkDialogs(["a-dialog"], { "a-dialog": { exento: " " } }, ""), /necesita su motivo/, "una exención sin motivo");
   flags(checkDialogs([], DIALOG_DOC, MANUAL), /ninguna ventana/, "sin ventanas");
+
+  /* ---- README ---- */
+  clean(checkReadmeNumbers("7 suites run. 3 JavaScript files.", 7, 3), "README de juguete con sus cifras");
+  flags(checkReadmeNumbers("7 suites run. 3 JavaScript files.", 8, 3), /«7 suites» y hay 8/, "un README con un número de suites viejo");
+  flags(checkReadmeNumbers("7 suites run. 3 JavaScript files.", 7, 4), /«3 JavaScript files» y hay 4/, "un README con un número de archivos viejo");
+  flags(checkReadmeNumbers("Many suites run.", 7, 3), /ya no dice «N suites/, "un README sin la frase de las suites");
 
   const one = [{ file: "x.js", desc: "Una suite" }];
   clean(checkTestsReadme(one, "### `x.js`\n── Una suite\n"), "README de juguete");

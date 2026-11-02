@@ -194,3 +194,12 @@ Parcialmente hecho (no confundir con pendiente):
     esté en la chuleta Y en el apartado 8 del manual con las mismas palabras,
     que una **entrada de menú contextual** esté en el apartado 5 y que una
     **ventana nueva** tenga su sitio en el manual (`DIALOG_DOC`).
+14. **Poner al día `README.md`** si la funcionalidad es visible para quien
+    lo lee: *Features* (qué hace, en inglés, una o dos líneas por cosa),
+    *Internet access and privacy* (un servidor nuevo), *Known limitations*
+    (una limitación que aparece o desaparece) y *Development roadmap*
+    («Done» / «Still open»: lo hecho sale de «Still open» y entra en
+    «Done»). El README es lo primero que lee quien llega al repositorio y
+    se había quedado muy por detrás del manual. Las cifras que da (suites, archivos
+    de `src/js`) las vigila `tests/docs.js`. Si el cambio no toca nada de
+    eso, anotarlo en el resumen («README: sin cambios»), como con `docs/`.
