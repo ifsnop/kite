@@ -292,6 +292,8 @@ registerLang("en", "English", {
   "Automático": "Automatic",
   "Ninguna": "None",
   "No se consulta.": "Not queried.",
+  "Conjunto de datos: {dataset}. Proveedor: {provider}.": "Dataset: {dataset}. Provider: {provider}.",
+  "Malla gruesa: no limita la longitud de un perfil.": "Coarse grid: it does not limit the length of a profile.",
   "Sin asociaciones guardadas todavía.": "No saved associations yet.",
   "Cambiar…": "Change…",
   "La frecuencia": "The frequency",

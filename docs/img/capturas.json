@@ -256,22 +256,22 @@
       "build": "202611011558"
     },
     "propiedades-fuentes.png": {
-      "sha256": "002d85c7eae7df7a0b7dab592da66845e3ed2baa7b6e98e2b4e35c81f48c4504",
+      "sha256": "917cd1fd2e119db65c6ff38168637dae774e49f591672903d339ea12129f6d79",
       "section": "2.1",
       "version": "1.11.0",
-      "build": "202611011558"
+      "build": "202611020055"
     },
     "propiedades-preferencias.png": {
-      "sha256": "f9eedc0db384a0ee64af555c6c7f368e87b5075a108b4ae3e8e1aecb2bcb8e30",
+      "sha256": "08a167e3dfcfa1ef253b68c2d30959cd18815bf29d01987be2e6b4bb970392d6",
       "section": "2.1",
       "version": "1.11.0",
-      "build": "202611011558"
+      "build": "202611020055"
     },
     "propiedades-restaurar.png": {
-      "sha256": "7e3076537f26a1e929a9fcb4ca879dd38459490f12b12481fc2ecd751c064089",
+      "sha256": "cb26bd5c7c796c3e310e85bf9d7867f93379be5b8daf6797251f90d5562a70b6",
       "section": "2.1",
       "version": "1.11.0",
-      "build": "202611011942"
+      "build": "202611020055"
     },
     "registro-avisos.png": {
       "sha256": "6071218858a7937c4fb9f8d8605eab4df9292576068d595838b16615441e5e1b",

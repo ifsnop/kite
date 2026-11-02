@@ -1684,6 +1684,14 @@ function renderPropsSourcesTab() {
 function renderPropsSourceUrl(kind) {
   const s = elevSourceById(elevSources[kind]);
   document.getElementById(`props-src-${kind}-url`).textContent = s ? s.base : tr("No se consulta.");
+  /* Lo que el catálogo sabe de la fuente elegida: el nombre COMPLETO (el
+     del selector se corta si es largo), su conjunto de datos y su
+     proveedor, y si la malla es tan gruesa que no limita los perfiles. */
+  const info = document.getElementById(`props-src-${kind}-info`);
+  info.hidden = !s;
+  info.textContent = !s ? "" : s.label + ". "
+    + tr("Conjunto de datos: {dataset}. Proveedor: {provider}.", { dataset: s.dataset, provider: s.provider })
+    + (s.coarse ? " " + tr("Malla gruesa: no limita la longitud de un perfil.") : "");
 }
 for (const kind of ["mdt", "mds"]) {
   propsSrcSelect[kind].addEventListener("change", () => {
