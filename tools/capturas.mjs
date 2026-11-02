@@ -310,6 +310,24 @@ scenario("propiedades-fuentes.png", "2.1", async out => {
   await ctx.close();
 });
 
+scenario("propiedades-restaurar.png", "2.1", async out => {
+  const { ctx, page } = await openApp();
+  await page.click("#gnp-editor-btn");
+  await page.click("#props-tab-btn-restore");
+  await dialog(page, out, "props-dialog");
+  await ctx.close();
+});
+
+scenario("restaurar-confirmar.png", "2.1", async out => {
+  const { ctx, page } = await openApp();
+  await page.click("#gnp-editor-btn");
+  await page.click("#props-tab-btn-restore");
+  await page.click("#props-restore-btn");
+  await page.waitForSelector("#restore-confirm:not([hidden])");
+  await dialog(page, out, "restore-confirm");
+  await ctx.close();
+});
+
 scenario("calculos-geodesicos.png", "2.1", async out => {
   const { ctx, page } = await openApp();
   await page.click("#geocalc-btn");

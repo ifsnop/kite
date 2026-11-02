@@ -267,11 +267,23 @@
       "version": "1.11.0",
       "build": "202611011558"
     },
+    "propiedades-restaurar.png": {
+      "sha256": "7e3076537f26a1e929a9fcb4ca879dd38459490f12b12481fc2ecd751c064089",
+      "section": "2.1",
+      "version": "1.11.0",
+      "build": "202611011942"
+    },
     "registro-avisos.png": {
       "sha256": "6071218858a7937c4fb9f8d8605eab4df9292576068d595838b16615441e5e1b",
       "section": "2.1",
       "version": "1.11.0",
       "build": "202611011558"
+    },
+    "restaurar-confirmar.png": {
+      "sha256": "f3b2e690a66485ce96a1fc65610ce8035b99a675a473dc4bb46f0fce53cfb740",
+      "section": "2.1",
+      "version": "1.11.0",
+      "build": "202611011942"
     },
     "seleccion-multiple.png": {
       "sha256": "c6b5a2ca25d2577c52215a978b676e417dfce3a360c365462c6f34d275410f77",

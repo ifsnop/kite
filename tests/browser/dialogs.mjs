@@ -73,7 +73,8 @@ const medidas = await page.evaluate(() => {
     },
     "points-dialog": () => openPointsDialog(liP),
     "log-dialog": () => { for (let i = 0; i < 80; i++) navMessage("aviso " + i, { tone: "info" }); toggleLog(); },
-    "sh-creds": () => { document.getElementById("sh-creds").hidden = false; }
+    "sh-creds": () => { document.getElementById("sh-creds").hidden = false; },
+    "restore-confirm": () => { document.getElementById("restore-confirm").hidden = false; }
   };
 
   const out = [];
@@ -125,7 +126,7 @@ const medidas = await page.evaluate(() => {
   return out;
 });
 
-ok(medidas.length === 12, "se han abierto las doce ventanas: " + medidas.length);
+ok(medidas.length === 13, "se han abierto las trece ventanas: " + medidas.length);
 
 for (const m of medidas) {
   if (m.error) { ok(false, `${m.id}: no se pudo abrir — ${m.error}`); continue; }

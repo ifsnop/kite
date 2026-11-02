@@ -196,6 +196,9 @@
      para no hacer nada. Mismos valores que .color-btn:disabled.      */
   .btn:disabled { opacity: .35; cursor: default; }
   .btn:disabled:hover { border-color: var(--border); color: inherit; }
+  /* Acción que borra algo sin vuelta atrás (Propiedades › Restaurar) */
+  .btn.btn-danger { color: var(--danger); border-color: var(--danger); background: var(--danger-soft); }
+  .btn.btn-danger:hover { color: var(--danger); border-color: var(--danger); filter: brightness(.95); }
   /* Aviso permanente mientras no haya red: discreto, con los tokens del
      peligro pero sin llegar a ser una alerta (la aplicación funciona). */
   #offline-badge {
@@ -1235,7 +1238,7 @@
      instead of stretching almost edge to edge.                       */
   /* Sin esto heredan el max-width: 90vw de .dlg-box y una caja de texto
      corto se estira a casi toda la pantalla.                          */
-  #kml-tags-picker .dlg-box, #kml-dup-picker .dlg-box, #sh-creds .dlg-box, #mobile-notice .dlg-box { max-width: 42ch; }
+  #kml-tags-picker .dlg-box, #kml-dup-picker .dlg-box, #sh-creds .dlg-box, #mobile-notice .dlg-box, #restore-confirm .dlg-box { max-width: 42ch; }
   /* ---------- Ventanas redimensionables ----------
      `resize: both` es el redimensionado nativo del navegador; su tirador
      va en la esquina inferior derecha y no estorba al arrastre por el
@@ -1577,6 +1580,8 @@
   /* Por encima del panel Propiedades: se abre desde él al cambiar una
      asociación guardada (mismo caso que #icon-picker).                */
   #geojson-name-picker { z-index: 2100; }
+  /* La segunda confirmación de Restaurar se abre desde Propiedades (2050) */
+  #restore-confirm { z-index: 2100; }
   /* El panel Propiedades lleva ALTURA DE PARTIDA explícita, mismo motivo
      que #points-dialog/#log-dialog/#url-dialog: un hijo en `flex: 1`
      sobre un contenedor de altura automática se queda en nada, así que
@@ -2121,6 +2126,7 @@
       <button type="button" class="dlg-tab" id="props-tab-btn-gnp" role="tab" aria-selected="false" aria-controls="props-tab-gnp">Índices de GeoJSON</button>
       <button type="button" class="dlg-tab" id="props-tab-btn-sources" role="tab" aria-selected="false" aria-controls="props-tab-sources">Fuentes de datos</button>
       <button type="button" class="dlg-tab" id="props-tab-btn-freq" role="tab" aria-selected="false" aria-controls="props-tab-freq">Frecuencias</button>
+      <button type="button" class="dlg-tab" id="props-tab-btn-restore" role="tab" aria-selected="false" aria-controls="props-tab-restore">Restaurar</button>
     </div>
     <div id="props-tab-prefs" class="dlg-tabpanel" role="tabpanel">
       <div class="dlg-row"><span>Tema</span><select id="props-theme">
@@ -2172,9 +2178,26 @@
       <div class="dlg-row"><span>Frecuencia c&#225;lculos de Fresnel</span>
         <span class="props-with-unit"><input type="number" id="props-fresnel-freq" min="1" max="300000" step="any"><span>MHz</span></span></div>
     </div>
+    <div id="props-tab-restore" class="dlg-tabpanel" hidden role="tabpanel">
+      <p class="dlg-hint">Borra todo lo que KITE guarda en este navegador: el &#225;rbol de capas, las ortofotos copiadas y todos los ajustes (unidades, fuentes de datos, vista del mapa, mapas base y credenciales). No se puede deshacer. El idioma de la interfaz se conserva. Antes de borrar se pide una segunda confirmaci&#243;n y, al terminar, la p&#225;gina se recarga.</p>
+      <div class="dlg-row"><span></span><button class="btn btn-danger" id="props-restore-btn">Borrar todos los datos guardados&#8230;</button></div>
+    </div>
     <div class="dlg-actions">
       <button class="btn" id="props-cancel">Cancelar</button>
       <button class="btn" id="props-accept">Aceptar</button>
+    </div>
+  </div>
+</div>
+
+<!-- Segunda confirmación de «Restaurar» (Propiedades): borra TODA la base de
+     IndexedDB. Va aparte de la pestaña para no pulsarlo por error. -->
+<div id="restore-confirm" class="dlg-overlay" hidden>
+  <div class="dlg-box">
+    <h2 class="dlg-head"><span class="dlg-title">Borrar todos los datos</span><button type="button" class="dlg-close" data-cancel="restore-cancel" title="Cancelar" aria-label="Cancelar">&#215;</button></h2>
+    <p class="dlg-hint">Se borrar&#225;n el &#225;rbol de capas, las ortofotos y todos los ajustes guardados en este navegador, y la p&#225;gina se recargar&#225;. No se puede deshacer. &#191;Continuar?</p>
+    <div class="dlg-actions">
+      <button class="btn" id="restore-cancel">Cancelar</button>
+      <button class="btn btn-danger" id="restore-accept">Borrar todo</button>
     </div>
   </div>
 </div>
@@ -2926,6 +2949,7 @@ registerLang("en", "English", {
   "Memoria de la pestaña: {used} de {limit}": "Tab memory: {used} of {limit}",
   "No se pudo guardar el estado en el navegador: {reason}.": "Could not save the state in the browser: {reason}.",
   "error de almacenamiento": "storage error",
+  "No se pudieron borrar los datos guardados: {reason}.": "Could not delete the saved data: {reason}.",
   "Restaurando capas… ({d}/{total})": "Restoring layers… ({d}/{total})",
   /* 33-kml-import.js */
   "XML no válido: {why}": "Invalid XML: {why}",
@@ -3613,6 +3637,7 @@ registerLang("en", "English", {
   "Índices de GeoJSON": "GeoJSON indexes",
   "Fuentes de datos": "Data sources",
   "Frecuencias": "Frequencies",
+  "Restaurar": "Reset",
   "Tema": "Theme",
   "Según el sistema": "Follow the system",
   "Claro": "Light",
@@ -3639,6 +3664,10 @@ registerLang("en", "English", {
   "Frecuencia con la que se calcula el elipsoide de Fresnel del perfil de una ruta (casilla «Elipsoide de Fresnel» de su ventana). De 1 a 300 000 MHz; 1090 MHz de partida. Un valor fuera de rango se ajusta al límite más cercano.": "Frequency used to compute the Fresnel ellipsoid of a route profile (“Fresnel ellipsoid” checkbox in its window). From 1 to 300 000 MHz; 1090 MHz to start with. A value out of range is adjusted to the nearest limit.",
   "Frecuencia cálculos de Fresnel": "Fresnel calculation frequency",
   "MHz": "MHz",
+  "Borra todo lo que KITE guarda en este navegador: el árbol de capas, las ortofotos copiadas y todos los ajustes (unidades, fuentes de datos, vista del mapa, mapas base y credenciales). No se puede deshacer. El idioma de la interfaz se conserva. Antes de borrar se pide una segunda confirmación y, al terminar, la página se recarga.": "Deletes everything KITE stores in this browser: the layer tree, the copied orthophotos and all settings (units, data sources, map view, base maps and credentials). This cannot be undone. The interface language is kept. A second confirmation is asked before deleting and the page reloads when it is done.",
+  "Borrar todos los datos guardados…": "Delete all saved data…",
+  "Borrar todos los datos": "Delete all data",
+  "Se borrarán el árbol de capas, las ortofotos y todos los ajustes guardados en este navegador, y la página se recargará. No se puede deshacer. ¿Continuar?": "The layer tree, the orthophotos and all settings saved in this browser will be deleted, and the page will reload. This cannot be undone. Continue?",
   "Cálculos geodésicos": "Geodesic calculations",
   "Ángulo de elevación": "Elevation angle",
   "Vector GPS": "GPS vector",
@@ -5049,7 +5078,7 @@ map.on("resize rotate", fitWorldMinZoom);
 
 /* Fecha de generación del código (versión): AÑOMESDIAHORAMINUTO.
    Actualizar en cada generación; se muestra junto al crédito de Leaflet. */
-const BUILD = "202611011942";
+const BUILD = "202611020055";
 /* Versión de release (la de package.json, horneada aquí por build.js
    al construir — ver «Versión y releases de GitHub» en CLAUDE.md): a
    diferencia de BUILD, que cambia en CADA generación, esta solo cambia
@@ -8802,8 +8831,14 @@ function upgradeMeasuresV6(nodes) {
    tab: `onversionchange` closes ours so the other tab can proceed, and
    the cached promise is dropped so the next call reopens.            */
 let dbPromise = null;
+/* Mientras se borra toda la base (Propiedades › Restaurar, wipeAllData)
+   nadie puede volver a abrirla: un guardado tardío (la vista del mapa, un
+   autoguardado) recrearía la base vacía y escribiría en ella justo antes
+   de recargar. Todos los que llaman a openDb ya capturan el rechazo.    */
+let dbWiped = false;
 
 function openDb() {
+  if (dbWiped) return Promise.reject(new Error("restoring"));
   if (dbPromise) return dbPromise;
   dbPromise = new Promise((resolve, reject) => {
     const rq = indexedDB.open(DB_NAME, DB_VERSION);
@@ -9937,6 +9972,7 @@ const SAVE_MIN_MS = 400, SAVE_MAX_MS = 3000;
    y en uno de miles de nodos espera más para no repetir un trabajo caro
    mientras el usuario sigue navegando o escribiendo.                   */
 function scheduleSave() {
+  if (dbWiped) return; /* se está borrando la base: nada que guardar */
   scheduleReorder(); /* toda mutación del árbol también puede haber cambiado el orden de pintado */
   scheduleArcgisSync(); /* y, de un servicio ArcGIS, qué capas pide al servidor (66-arcgis.js) */
   clearTimeout(saveTimer);
@@ -10018,6 +10054,7 @@ function refreshMemoryUsage() {
 }
 
 function saveTree() {
+  if (dbWiped) return saveChain;
   saveChain = saveChain
     .then(() => {
       const t0 = performance.now();
@@ -10038,6 +10075,42 @@ function saveTree() {
       }
     });
   return saveChain;
+}
+
+/* Borra la base de IndexedDB ENTERA (árbol, segmentos, ortofotos y todos
+   los ajustes) y recarga la página: Propiedades › Restaurar, tras su
+   segunda confirmación. Recargar es lo que lo hace seguro: el estado en
+   memoria (árbol, deshacer, portapapeles) no puede volver a escribir lo
+   borrado. Solo IndexedDB: el idioma vive en localStorage (ver i18n.md) y
+   se conserva a propósito. El orden importa: primero se frena todo
+   guardado, luego se espera al que va en vuelo, se cierra NUESTRA
+   conexión (si no, deleteDatabase se queda bloqueada por ella) y entonces
+   se borra.                                                             */
+async function wipeAllData() {
+  dbWiped = true;
+  clearTimeout(saveTimer);
+  try {
+    await saveChain;
+    if (dbPromise) {
+      const db = await dbPromise.catch(() => null);
+      dbPromise = null;
+      if (db) db.close();
+    }
+    await new Promise((resolve, reject) => {
+      const rq = indexedDB.deleteDatabase(DB_NAME);
+      rq.onsuccess = () => resolve();
+      rq.onerror = () => reject(rq.error);
+      /* Otra pestaña con la base abierta: se queda esperando a que la cierre */
+      rq.onblocked = () => navMessage(tr("Otra pesta\u00F1a est\u00E1 usando el almacenamiento; ci\u00E9rrela para continuar."));
+    });
+  } catch (err) {
+    dbWiped = false;
+    navMessage(tr("No se pudieron borrar los datos guardados: {reason}.",
+      { reason: err && err.message ? err.message : tr("error de almacenamiento") }));
+    return false;
+  }
+  location.reload();
+  return true;
 }
 
 /* ---------- Reconstrucción del árbol desde el almacenamiento ---------- */
@@ -14926,6 +14999,8 @@ const propsTabSourcesBtn = document.getElementById("props-tab-btn-sources");
 const propsTabSources = document.getElementById("props-tab-sources");
 const propsTabFreqBtn = document.getElementById("props-tab-btn-freq");
 const propsTabFreq = document.getElementById("props-tab-freq");
+const propsTabRestoreBtn = document.getElementById("props-tab-btn-restore");
+const propsTabRestore = document.getElementById("props-tab-restore");
 const propsFresnelFreqInput = document.getElementById("props-fresnel-freq");
 const propsSrcSelect = {
   mdt: document.getElementById("props-src-mdt"),
@@ -14977,7 +15052,8 @@ const PROPS_TABS = {
   prefs: [propsTabPrefsBtn, propsTabPrefs],
   gnp: [propsTabGnpBtn, propsTabGnp],
   sources: [propsTabSourcesBtn, propsTabSources],
-  freq: [propsTabFreqBtn, propsTabFreq]
+  freq: [propsTabFreqBtn, propsTabFreq],
+  restore: [propsTabRestoreBtn, propsTabRestore]
 };
 function showPropsTab(tab) {
   for (const [id, [btn, panel]] of Object.entries(PROPS_TABS)) {
@@ -15178,6 +15254,35 @@ propsArcSegmentsInput.addEventListener("change", () => {
   }
   arcSegments = n;
   propsArcSegmentsInput.value = n;
+});
+
+/* Pestaña «Restaurar»: borrar toda la base de IndexedDB. El botón de la
+   pestaña NO borra nada: abre una segunda confirmación (#restore-confirm)
+   para que no se pulse por error. Solo «Borrar todo» llama a wipeAllData
+   (32-geojson.js), que recarga la página al terminar. «Cancelar», la × y
+   Escape cierran la confirmación y dejan Propiedades como estaba.      */
+const restoreDialog = document.getElementById("restore-confirm");
+const restoreBox = restoreDialog.querySelector(".dlg-box");
+const restoreAcceptBtn = document.getElementById("restore-accept");
+function openRestoreConfirm() {
+  restoreDialog.hidden = false;
+  clampToViewport(restoreBox);
+  focusDialog(restoreBox);
+}
+function closeRestoreConfirm() {
+  restoreDialog.hidden = true;
+  releaseFocus();
+}
+document.getElementById("props-restore-btn").addEventListener("click", openRestoreConfirm);
+document.getElementById("restore-cancel").addEventListener("click", closeRestoreConfirm);
+restoreAcceptBtn.addEventListener("click", async () => {
+  restoreAcceptBtn.disabled = true; /* un segundo clic no lanza otro borrado */
+  /* Propiedades se cierra deshaciendo lo previsualizado (cancelPropsDialog
+     no guarda nada); la confirmación se queda hasta que la página recargue
+     o falle el borrado.                                                   */
+  cancelPropsDialog();
+  const done = await wipeAllData();
+  if (!done) { restoreAcceptBtn.disabled = false; closeRestoreConfirm(); }
 });
 
 async function togglePropsDialog() {
@@ -16069,7 +16174,7 @@ wirePropsGrip(styleAttrsBody);
    button opened it (see openColorPicker/positionColorPicker), not a
    draggable window with its own dialog role — that separate-window
    treatment is exactly what the popover replaced.                    */
-for (const box of [styleBox, iconBox, descBox, shortcutsBox, ktpBox, kdpBox, gnpBox, propsBox, shBox, customTilesBox, customWmsBox, pointsBox, logBox, urlBox]) makeDialogMovable(box);
+for (const box of [styleBox, iconBox, descBox, shortcutsBox, ktpBox, kdpBox, gnpBox, propsBox, shBox, customTilesBox, customWmsBox, pointsBox, logBox, urlBox, restoreBox]) makeDialogMovable(box);
 setupDialog(styleBox, { modal: false }); /* flotante: el mapa sigue vivo */
 setupDialog(iconBox, { modal: true });
 setupDialog(descBox, { modal: false });
@@ -16084,6 +16189,7 @@ setupDialog(customWmsBox, { modal: true });
 setupDialog(pointsBox, { modal: true });
 setupDialog(logBox, { modal: true });
 setupDialog(urlBox, { modal: true });
+setupDialog(restoreBox, { modal: true });
 window.addEventListener("resize", () => {
   /* a moved dialog must not fall off-screen */
   for (const box of [styleBox, iconBox, descBox, shortcutsBox, ktpBox, kdpBox, gnpBox, propsBox, shBox, customTilesBox, customWmsBox, pointsBox, logBox, urlBox]) clampToViewport(box);
@@ -17819,6 +17925,7 @@ document.addEventListener("keydown", e => {
   if (!ktpDialog.hidden) { closeKtpPicker(false); return; }
   if (!kdpDialog.hidden) { closeKdpPicker(false); return; }
   if (!gnpDialog.hidden) { closeGnpPicker(null); return; }
+  if (!restoreDialog.hidden) { closeRestoreConfirm(); return; } /* encima de Propiedades */
   if (!propsDialog.hidden) { cancelPropsDialog(); return; }
   if (!shDialog.hidden) { closeShCredsDialog(); return; }
   if (!customTilesDialog.hidden) { closeCustomTilesDialog(); return; }

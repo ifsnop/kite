@@ -66,6 +66,7 @@ paths:
   - Pruebas: `tests/splitsave.js` (lo puro) y `tests/browser/split-save.mjs`
     (disco = memoria tras cada operación, 200 al azar, fusión, dos
     pestañas, subida desde v4).
+- **Borrar toda la base** (`wipeAllData`, `32-geojson.js`; Propiedades › «Restaurar», ver `units-coordinates-properties-panel.md`): `dbWiped = true` → `clearTimeout(saveTimer)` → espera `saveChain` → cierra NUESTRA conexión (`dbPromise`; si no, `deleteDatabase` se queda bloqueada por ella) → `indexedDB.deleteDatabase(DB_NAME)` → `location.reload()`. Recargar es lo que lo hace seguro: el estado en memoria (árbol, deshacer, portapapeles) no puede reescribir lo borrado. **Guardia `dbWiped`**: `openDb()` rechaza con `restoring` y `scheduleSave`/`saveTree` no hacen nada, así que un guardado tardío (la vista del mapa, un autoguardado) no puede recrear la base entre el borrado y la recarga; todos los que llaman a `openDb` ya capturan el rechazo. `onblocked` (otra pestaña con la base abierta) avisa y espera; un error vuelve a `dbWiped = false` con aviso. Solo IndexedDB: `localStorage` (idioma) y el service worker no se tocan.
 - **Almacén `rasters`** (`64-cog.js`): clave = id aleatorio de 32 hex
   (`newStoreId`, el mismo generador que el de los segmentos), valor = `{ blob, name, size }` con el `Blob`/`File`
   NATIVO (nada de base64: Chromium lo guarda aparte, y uno ya en el

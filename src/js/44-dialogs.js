@@ -643,7 +643,7 @@ wirePropsGrip(styleAttrsBody);
    button opened it (see openColorPicker/positionColorPicker), not a
    draggable window with its own dialog role — that separate-window
    treatment is exactly what the popover replaced.                    */
-for (const box of [styleBox, iconBox, descBox, shortcutsBox, ktpBox, kdpBox, gnpBox, propsBox, shBox, customTilesBox, customWmsBox, pointsBox, logBox, urlBox]) makeDialogMovable(box);
+for (const box of [styleBox, iconBox, descBox, shortcutsBox, ktpBox, kdpBox, gnpBox, propsBox, shBox, customTilesBox, customWmsBox, pointsBox, logBox, urlBox, restoreBox]) makeDialogMovable(box);
 setupDialog(styleBox, { modal: false }); /* flotante: el mapa sigue vivo */
 setupDialog(iconBox, { modal: true });
 setupDialog(descBox, { modal: false });
@@ -658,6 +658,7 @@ setupDialog(customWmsBox, { modal: true });
 setupDialog(pointsBox, { modal: true });
 setupDialog(logBox, { modal: true });
 setupDialog(urlBox, { modal: true });
+setupDialog(restoreBox, { modal: true });
 window.addEventListener("resize", () => {
   /* a moved dialog must not fall off-screen */
   for (const box of [styleBox, iconBox, descBox, shortcutsBox, ktpBox, kdpBox, gnpBox, propsBox, shBox, customTilesBox, customWmsBox, pointsBox, logBox, urlBox]) clampToViewport(box);

@@ -1217,6 +1217,16 @@ BROWSER EXPORT MENU TESTS OK
 
 **Qué cubre:** el minimenú del botón 💾 con clics y descargas reales sobre «Operación Sierra». Ofrece exactamente «Archivo de KITE (.kite.json)», «KML (.kml)» y «GeoJSON (.geojson)»; se cierra con Escape (y ese Escape no llega al árbol), con un clic fuera y volviendo a pulsar 💾, y abrir el de otra fila sustituye al anterior en vez de apilarse. **Con el ratón de verdad** (no `.click()` de JavaScript): se abre pulsando 💾, ir del 💾 a una entrada en pasos NO lo cierra aunque por el camino los botones de la fila se oculten (el `blur` del 💾 cerraba el menú justo antes de elegir), pulsar la entrada la elige y baja el archivo, las opciones de la fila se quedan a la vista mientras el ratón esté sobre el menú y se puede volver de él a la fila sin que se cierre nada; al sacar el ratón de los dos, el menú y las opciones de la fila se cierran a la vez; y un clic fuera también. Las tres descargas llevan el nombre y la extensión debidos; el KML es XML bien formado con un `Placemark` por capa, el GeoJSON una FeatureCollection con el nombre del nodo y un polígono por entidad, y el `.kite.json` sigue siendo el envoltorio de siempre. Una rama que nadie ha desplegado (un `Document` sin `<open>`) se exporta con la altitud y su carpeta en `properties.folder` SIN construir ni una fila: se lee de los registros pendientes, como el guardado. El KML exportado vuelve a importarse con el importador real y trae sus tres capas, y una capa suelta también lleva 💾. Sin errores de página ni violaciones de la CSP.
 
+### `browser/restore-db.mjs`
+
+**Salida de `npm test`:**
+```
+── Navegador: Propiedades › Restaurar — la pestaña y su botón solo abren una segunda confirmación, Cancelar, la × y Escape no borran nada (y Escape no cierra Propiedades), la guardia impide que un guardado recree la base, y «Borrar todo» recarga con la base vacía conservando el idioma
+BROWSER RESTORE DB TESTS OK
+```
+
+**Qué cubre:** Propiedades › «Restaurar» con ratón y teclado reales. Con un árbol (una capa) y un ajuste (`dbSaveMeasureUnit("km")`) guardados de verdad: la pestaña existe y NO es la de apertura; su botón «Borrar todos los datos guardados…» solo abre la segunda confirmación (`#restore-confirm`, Propiedades queda debajo) y no borra nada; «Cancelar», la × y Escape la cierran sin tocar la base (y ese Escape no cierra además Propiedades); Cancelar queda a la izquierda y «Borrar todo» a la derecha. La guardia `dbWiped`: con el borrado en curso `openDb` se niega (`restoring`) y `scheduleSave` no programa nada. Y «Borrar todo»: la página recarga (`load`), la base vuelve sin árbol ni ajuste, el idioma de `localStorage` se conserva, el panel arranca vacío y no queda ningún diálogo abierto. Sin errores de página ni violaciones de la CSP.
+
 ### `browser/focus-zoom.mjs`
 
 **Salida de `npm test`:**
