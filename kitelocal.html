@@ -3389,6 +3389,10 @@ registerLang("en", "English", {
   "Distancia ({unit})": "Distance ({unit})",
   "Latitud": "Latitude",
   "Longitud": "Longitude",
+  "Torre": "Tower",
+  "Línea de vista ({unit})": "Line of sight ({unit})",
+  "Fresnel {zone} % inferior ({unit})": "Fresnel {zone} % lower ({unit})",
+  "Fresnel {zone} % superior ({unit})": "Fresnel {zone} % upper ({unit})",
   "perfil": "profile",
   "el navegador no pudo dibujar la gráfica": "the browser could not draw the chart",
   "no se pudo generar la imagen": "the image could not be generated",
@@ -5099,7 +5103,7 @@ map.on("resize rotate", fitWorldMinZoom);
 
 /* Fecha de generación del código (versión): AÑOMESDIAHORAMINUTO.
    Actualizar en cada generación; se muestra junto al crédito de Leaflet. */
-const BUILD = "202611021645";
+const BUILD = "202611021716";
 /* Versión de release (la de package.json, horneada aquí por build.js
    al construir — ver «Versión y releases de GitHub» en CLAUDE.md): a
    diferencia de BUILD, que cambia en CADA generación, esta solo cambia
@@ -22379,6 +22383,29 @@ function profileLosEnds(series, dA, dB) {
   return null;
 }
 
+/* El enlace entre las torres, PURO: lo que la gráfica dibuja y el CSV
+   exporta salen de aquí, para que sean lo mismo. `opts`: `at` (vértices de
+   las torres), `towerM` ({ a, b }, alturas sobre el terreno, metros),
+   `curveMode`, `showLos` y `showFresnel` (qué está activado) y `freqMHz`.
+   Devuelve los vértices de las torres (`ia`, `ib`) y sus distancias (`dA`,
+   `dB`), las correcciones de curvatura (`lift`, `bend`), `ground` y `los`
+   (los extremos de la recta, `null` si no hay recta ni Fresnel), `losAt(d)`
+   (la altura DIBUJADA de la recta a la distancia d, ver `profileCurve`) y
+   `fresnel(d)` (el radio de la primera zona).                           */
+function profileLinkModel(series, vertices, opts) {
+  const { ia, ib } = profileTowerSpan(vertices, opts.at);
+  const dA = vertices[ia], dB = vertices[ib];
+  const { lift, bend } = profileCurve(opts.curveMode, dA, dB);
+  const ground = (opts.showLos || opts.showFresnel) ? profileLosEnds(series, dA, dB) : null;
+  const los = ground && { kind: ground.kind, a: ground.a + opts.towerM.a, b: ground.b + opts.towerM.b };
+  const losAt = d => {
+    const ya = los.a + lift(dA), yb = los.b + lift(dB);
+    return (dB > dA ? ya + (yb - ya) * (d - dA) / (dB - dA) : ya) + bend(d);
+  };
+  const fresnel = d => fresnelRadius(d - dA, dB - dA, opts.freqMHz);
+  return { ia, ib, dA, dB, lift, bend, ground, los, losAt, fresnel };
+}
+
 /* Zoom del eje de ALTURAS: el intervalo {a, b} (metros) con ancla `frac`
    contada desde abajo, y anchura entre minSpan y maxSpan. Sin topes de
    dominio: con el eje bloqueado se puede mirar por encima o por debajo
@@ -22872,6 +22899,9 @@ const showProfileTools = on => { profileTools.hidden = !on; profileFoot.hidden =
 const profileYLock = document.getElementById("pf-y-lock");
 const profileLosBox = document.getElementById("pf-los");
 const profileCurveSel = document.getElementById("pf-curve");
+/* Lo que decide el enlace, tal como está ahora en la ventana (ver profileLinkModel) */
+const profileLinkOpts = () => ({ at: profileTowerAt, towerM: profileTowerM, curveMode: profileCurveMode,
+  showLos: profileShowLos, showFresnel: profileFresnel, freqMHz: fresnelFreqMHz });
 const profileFresnelBox = document.getElementById("pf-fresnel");
 const profileTowerInput = { a: document.getElementById("pf-tower-a"), b: document.getElementById("pf-tower-b") };
 const profileTowerAtSel = { a: document.getElementById("pf-tower-a-at"), b: document.getElementById("pf-tower-b-at") };
@@ -22898,20 +22928,12 @@ function renderProfileChart() {
      extremos). La curvatura se dibuja según el modo (ver `profileCurve`):
      `lift` (metros) se suma al terreno y al nivel del mar —todo lo que
      se pinta a una distancia d pasa por ahí— y `bend` a la línea.    */
-  const { ia, ib } = profileTowerSpan(vertices, profileTowerAt);
-  const dA = vertices[ia], dB = vertices[ib];
-  const { lift, bend } = profileCurve(profileCurveMode, dA, dB);
   /* Los extremos de la recta inicio–fin salen de la serie ENTERA, no de
      la parte a la vista; `losAt` es su altura DIBUJADA a la distancia d
      (entre las antenas, ya elevadas por `lift`, más `bend`); fuera de
-     las torres es su prolongación.                                   */
-  const ground = (profileShowLos || profileFresnel) ? profileLosEnds(series, dA, dB) : null;
-  const los = ground && { kind: ground.kind, a: ground.a + profileTowerM.a, b: ground.b + profileTowerM.b };
-  const losAt = d => {
-    const ya = los.a + lift(dA), yb = los.b + lift(dB);
-    return (dB > dA ? ya + (yb - ya) * (d - dA) / (dB - dA) : ya) + bend(d);
-  };
-  const fresnel = d => fresnelRadius(d - dA, dB - dA, fresnelFreqMHz);
+     las torres es su prolongación. Es `profileLinkModel`, el mismo que
+     usa el CSV.                                                       */
+  const { ia, ib, dA, dB, lift, bend, ground, los, losAt, fresnel } = profileLinkModel(series, vertices, profileLinkOpts());
   /* Lo visible de cada serie: la altura se ajusta a ESO, no a la ruta */
   const shown = series.map(s => ({ ...s, points: visibleProfilePoints(s.points, x0, x1) }));
   const vals = shown.flatMap(s => s.points.filter(p => typeof p.v === "number" && p.d >= x0 && p.d <= x1)
@@ -23387,26 +23409,70 @@ document.getElementById("pf-reset").addEventListener("click", () => {
    metros; null = vacías). Lo vacío es vacío, nunca un 0 inventado: un
    hueco del servicio sigue siendo un hueco. PURA. `dialect` (csvDialect,
    54-attr-table.js): separador de campos y marca decimal según el idioma
-   de la interfaz; por omisión, coma y punto.                            */
-function profileCsv(data, u, locate, dialect = CSV_DEFAULT) {
+   de la interfaz; por omisión, coma y punto.
+
+   `link` (null sin recta ni Fresnel activados) añade lo que la gráfica
+   dibuja entre las torres: `{ dA, dB, showLos, showFresnel, altitude(d),
+   radius(d) }`, distancias y alturas en METROS. Entonces:
+   - se añaden filas en la distancia EXACTA de cada torre (sus vértices no
+     suelen coincidir con ninguna celda), con latitud y longitud, y la
+     columna «Torre» vale 1 en la torre de inicio, 2 en la final y 0 en el
+     resto; las series de esas filas quedan vacías salvo que haya un punto
+     justo ahí (no se inventa un valor);
+   - «Línea de vista»: la altitud de la recta, en el MISMO marco que las
+     series (con la curvatura elegida: es la que mide el «Despeje»; en los
+     extremos, la antena), también fuera de las torres si la recta está
+     activada (su prolongación);
+   - «Fresnel 60 % inferior» y «superior»: la altitud de la recta menos y
+     más el radio de la zona del 60 %, solo entre las torres (fuera, vacías:
+     el elipsoide no existe). El inferior es el que el terreno no debe pasar.*/
+function profileCsv(data, u, locate, dialect = CSV_DEFAULT, link = null) {
   const distances = new Set();
   const lookups = data.series.map(s => {
     const m = new Map();
     for (const p of s.points) { distances.add(p.d); if (typeof p.v === "number" && Number.isFinite(p.v)) m.set(p.d, p.v); }
     return m;
   });
+  if (link) { distances.add(link.dA); distances.add(link.dB); }
+  const alt = v => Number.isFinite(v) ? +(v / u.altFactor).toFixed(u.altDecimals) : "";
   const rows = [...distances].sort((a, b) => a - b).map(d => {
     const at = locate(d);
-    return [+(d / u.distFactor).toFixed(5), at ? +at.lat.toFixed(6) : "", at ? +at.lng.toFixed(6) : "",
+    const row = [+(d / u.distFactor).toFixed(5), at ? +at.lat.toFixed(6) : "", at ? +at.lng.toFixed(6) : "",
       ...lookups.map(m => m.has(d) ? +(m.get(d) / u.altFactor).toFixed(u.altDecimals) : "")];
+    if (link) {
+      row.push(d === link.dA ? 1 : d === link.dB ? 2 : 0);
+      const line = link.altitude(d);
+      if (link.showLos) row.push(alt(line));
+      if (link.showFresnel) {
+        const inside = d >= link.dA && d <= link.dB, r = link.radius(d);
+        row.push(inside ? alt(line - r) : "", inside ? alt(line + r) : "");
+      }
+    }
+    return row;
   });
+  const zone = Math.round(PF_FRESNEL_ZONE * 100); /* 60 */
   const header = [tr("Distancia ({unit})", { unit: u.distLabel }), tr("Latitud"), tr("Longitud"),
-    ...data.series.map(s => `${s.kind.toUpperCase()} (${u.altLabel})`)];
+    ...data.series.map(s => `${s.kind.toUpperCase()} (${u.altLabel})`),
+    ...(link ? [tr("Torre")] : []),
+    ...(link && link.showLos ? [tr("Línea de vista ({unit})", { unit: u.altLabel })] : []),
+    ...(link && link.showFresnel ? [tr("Fresnel {zone} % inferior ({unit})", { zone, unit: u.altLabel }),
+      tr("Fresnel {zone} % superior ({unit})", { zone, unit: u.altLabel })] : [])];
   return "\uFEFF" + toCsv(header, rows, dialect); /* BOM: Excel lee UTF-8 */
 }
 
 /* El nombre de los archivos: el de la ruta, sin lo que un sistema de archivos no admite */
 const profileExportName = () => `${safeFileName((profileData.li && profileData.li._name) || tr("Ruta"))}-${tr("perfil")}`;
+
+/* Lo del enlace que va al CSV (ver profileCsv): null si ni la recta ni
+   Fresnel están activados. La altitud de la recta en el marco de las series
+   es la dibujada menos la elevación de la Tierra (`lift`): así vale lo mismo
+   en los tres modos de curvatura, igual que el «Despeje».                 */
+function profileCsvLink(data) {
+  const m = profileLinkModel(data.series, data.vertices, profileLinkOpts());
+  if (!m.los) return null;
+  return { dA: m.dA, dB: m.dB, showLos: profileShowLos, showFresnel: profileFresnel,
+    altitude: d => m.losAt(d) - m.lift(d), radius: d => PF_FRESNEL_ZONE * m.fresnel(d) };
+}
 
 function exportProfileCsv() {
   if (!profileData) return;
@@ -23418,7 +23484,7 @@ function exportProfileCsv() {
     return { lat: ll.lat, lng: ll.lng };
   };
   const text = profileCsv(data, { distFactor: POLY_UNIT_FACTOR[measureUnit], altFactor: POLY_UNIT_FACTOR[altitudeUnit],
-    altDecimals: HEIGHT_DECIMALS[altitudeUnit], distLabel: POLY_UNIT_LABEL[measureUnit], altLabel: POLY_UNIT_LABEL[altitudeUnit] }, locate, csvDialect(uiLang));
+    altDecimals: HEIGHT_DECIMALS[altitudeUnit], distLabel: POLY_UNIT_LABEL[measureUnit], altLabel: POLY_UNIT_LABEL[altitudeUnit] }, locate, csvDialect(uiLang), profileCsvLink(data));
   downloadBlob(new Blob([text], { type: "text/csv;charset=utf-8" }), `${profileExportName()}.csv`);
 }
 
