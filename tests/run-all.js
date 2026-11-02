@@ -132,6 +132,7 @@ const BROWSER = [
   ["browser/gpx-import.mjs", "Navegador: importar un GPX — waypoints, ruta y track con su <name> sin selector, altitud y tiempos, la pregunta de las etiquetas HTML y el fallo limpio de lo que no es un GPX"],
   ["browser/export-menu.mjs", "Navegador: el menú de 💾 — se abre y se cierra (Escape, clic fuera, segunda pulsación), exporta KML, GeoJSON y .kite.json con descarga real, sin desplegar la carpeta, y el KML vuelve a importarse"],
   ["browser/restore-db.mjs", "Navegador: Propiedades › Restaurar — la pestaña y su botón solo abren una segunda confirmación, Cancelar, la × y Escape no borran nada (y Escape no cierra Propiedades), la guardia impide que un guardado recree la base, y «Borrar todo» recarga con la base vacía conservando el idioma"],
+  ["browser/app-sections.mjs", "Navegador: las secciones que crea la aplicación (Marcadores, Mediciones…) van en azul pastel, distinto de un archivo y de una fila con el ratón encima, en claro y oscuro; se guardan como sec, sobreviven a recargar, un árbol anterior las recibe al usarlas y sec ajeno solo vale como true exacto en un archivo"],
   ["browser/focus-zoom.mjs", "Navegador: la lupa de un marcador centra el visor y acerca al zoom 14, siempre igual, y un polígono se encuadra entero sin ese zoom"],
   ["browser/i18n.mjs", "Navegador: idioma de la interfaz — «Automático» según el navegador, español e inglés sin español colado, el ajuste de Propiedades (guarda al Aceptar, vale al recargar) y un idioma nuevo sin tocar código"]
 ];

@@ -658,7 +658,7 @@ function refreshMeasureLabels() {
 /* Sección "Mediciones" y nodo de cada medición en la navegación */
 function ensureMeasureSection() {
   if (measureLi && measureLi.isConnected) return nodeUl(measureLi);
-  measureLi = makeNode({ name: tr("Mediciones"), isFile: true });
+  measureLi = makeNode({ name: tr("Mediciones"), isFile: true, appSection: true });
   ensureRootUl().appendChild(measureLi);
   return nodeUl(measureLi);
 }

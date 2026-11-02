@@ -11,9 +11,18 @@ function makeNode({ name, layer = null, isFolder = false, isFile = false,
                     style = null, checked = true, desc = null,
                     onDelete = null, onRename = null,
                     styleable = layer !== null, focusable = styleable,
-                    sortable = isFolder || isFile, fixed = false, extra = [], info = false }) {
+                    sortable = isFolder || isFile, fixed = false, extra = [], info = false,
+                    appSection = false }) {
   const li = document.createElement("li");
   if (isFile) li.className = "file";
+  /* `appSection`: una sección de primer nivel que CREA LA APLICACIÓN
+     (Marcadores, Elevaciones, Descargas…), no el usuario ni un archivo
+     importado. Se pinta en azul pastel (styles.css) para no confundirla
+     con una fila bajo el ratón, que lleva el mismo gris que un archivo.
+     Se guarda (`sec` en el registro): al volver de IndexedDB el nombre
+     queda en el idioma del momento y no se podría reconocer por él.     */
+  li._appSection = isFile && appSection;
+  if (li._appSection) li.classList.add("app-section");
   li._name = name;
   li._fixed = fixed;
   /* `info`: la fila tiene ficha propia que no sale de `_desc` ni de las

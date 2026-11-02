@@ -1421,8 +1421,10 @@ function serializeNode(li) {
        una sola fila — coste casi nulo para lo que nadie ha llegado a
        abrir.                                                          */
     const children = li._pending ? serializePendingRecords(li._pending) : serializeNodes(ul);
-    return [{ ...base, t: li.classList.contains("file") ? "file" : "folder",
-              collapsed: li.classList.contains("collapsed"), children }];
+    const rec = { ...base, t: li.classList.contains("file") ? "file" : "folder",
+                  collapsed: li.classList.contains("collapsed"), children };
+    if (li._appSection) rec.sec = true; /* sección creada por la aplicación */
+    return [rec];
   }
   /* `toGeoJSON()` clona TODAS las coordenadas de la capa. Hacerlo en cada
      guardado (y se guarda tras cualquier cambio del panel) suponía
@@ -1448,8 +1450,10 @@ const serializeNodes = ul => [...ul.children].flatMap(serializeNode);
 function serializePendingRecords(records) {
   return records.map(rec => {
     if (rec.t === "folder" || rec.t === "file") {
-      return { name: rec.name, checked: rec.checked, t: rec.t,
-                collapsed: rec.collapsed, children: serializePendingRecords(rec.children) };
+      const out = { name: rec.name, checked: rec.checked, t: rec.t,
+                    collapsed: rec.collapsed, children: serializePendingRecords(rec.children) };
+      if (rec.sec) out.sec = true;
+      return out;
     }
     if (rec.t === "layer") {
       if (!rec.geo) rec.geo = rec._layer.toGeoJSON();
@@ -1853,7 +1857,10 @@ async function buildRecordsFromStorage(nodes, prog, opts = {}) {
       out.push(rec);
     } else {
       const children = await buildRecordsFromStorage(n.children || [], prog, opts);
-      out.push({ t: n.t, name: n.name, checked: !!n.checked, collapsed: !!n.collapsed, children });
+      const rec = { t: n.t, name: n.name, checked: !!n.checked, collapsed: !!n.collapsed, children };
+      /* `sec` solo vale en un archivo y solo si es EXACTAMENTE true (entrada ajena) */
+      if (n.t === "file" && n.sec === true) rec.sec = true;
+      out.push(rec);
     }
     if (prog && LEAF_RECORD_TYPES.has(n.t) && ++prog.done % PROGRESS_BATCH === 0) {
       prog.update(prog.done);
@@ -1882,7 +1889,8 @@ async function materializeRecords(records, parentUl) {
   for (const rec of records) {
     if (rec.t === "folder" || rec.t === "file") {
       const li = makeNode({
-        name: rec.name, isFolder: rec.t === "folder", isFile: rec.t === "file", checked: !!rec.checked
+        name: rec.name, isFolder: rec.t === "folder", isFile: rec.t === "file", checked: !!rec.checked,
+        appSection: rec.sec === true
       });
       rec._li = li; /* referencia inversa: la usa resolveMatch para llegar aquí desde una búsqueda pendiente */
       if (rec.collapsed) li.classList.add("collapsed");

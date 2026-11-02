@@ -1227,6 +1227,16 @@ BROWSER RESTORE DB TESTS OK
 
 **Qué cubre:** Propiedades › «Restaurar» con ratón y teclado reales. Con un árbol (una capa) y un ajuste (`dbSaveMeasureUnit("km")`) guardados de verdad: la pestaña existe y NO es la de apertura; su botón «Borrar todos los datos guardados…» solo abre la segunda confirmación (`#restore-confirm`, Propiedades queda debajo) y no borra nada; «Cancelar», la × y Escape la cierran sin tocar la base (y ese Escape no cierra además Propiedades); Cancelar queda a la izquierda y «Borrar todo» a la derecha. La guardia `dbWiped`: con el borrado en curso `openDb` se niega (`restoring`) y `scheduleSave` no programa nada. Y «Borrar todo»: la página recarga (`load`), la base vuelve sin árbol ni ajuste, el idioma de `localStorage` se conserva, el panel arranca vacío y no queda ningún diálogo abierto. Sin errores de página ni violaciones de la CSP.
 
+### `browser/app-sections.mjs`
+
+**Salida de `npm test`:**
+```
+── Navegador: las secciones que crea la aplicación (Marcadores, Mediciones…) van en azul pastel, distinto de un archivo y de una fila con el ratón encima, en claro y oscuro; se guardan como sec, sobreviven a recargar, un árbol anterior las recibe al usarlas y sec ajeno solo vale como true exacto en un archivo
+BROWSER APP SECTIONS TESTS OK
+```
+
+**Qué cubre:** el color de las secciones de primer nivel que crea la aplicación (`ensureNamedSection`, `ensureMeasureSection`: «Marcadores», «Mediciones»…) medido con `getComputedStyle` y el ratón real sobre una fila de dentro. Son azuladas, distintas de un archivo importado (el mismo gris que toma una fila con el ratón encima) y de esa fila, en el tema claro y en el oscuro (que tiene su propio azul). Se guardan como `sec: true` solo en la sección (no en el archivo importado), siguen en azul tras recargar, una sección sin la marca (árbol anterior) la recibe al volver a usarla con `ensureNamedSection`, y como `sec` es entrada ajena solo vale un `true` exacto y solo en un archivo (`"yes"`, `1` y una carpeta con `sec` no). Sin errores de página ni violaciones de la CSP.
+
 ### `browser/focus-zoom.mjs`
 
 **Salida de `npm test`:**

@@ -17,6 +17,8 @@
     --muted-2: light-dark(#555555, #b4b4ad);
     --accent: light-dark(#2f6f4f, #3f8a62);
     --accent-soft: light-dark(#e7f0ea, #243a2e);
+    --section-bg: light-dark(#e3edf9, #223244);      /* secciones que crea la aplicación (azul pastel) */
+    --section-border: light-dark(#b6cde8, #3a536e);
     --danger: light-dark(#b04a3a, #d9705e);
     --danger-soft: light-dark(#fdf1ef, #3d2420);
     --alert: light-dark(#d32f2f, #ff6b61);
@@ -262,6 +264,10 @@
   /* Un servicio ArcGIS cuyas teselas fallan seguidas (ver ArcgisLayer): el nombre en rojo, como una capa base caída */
   .node-row.service-failed > label { color: var(--danger); }
   li.file > .node-row { background: var(--bg); border: 1px solid var(--border); }
+  /* Las secciones que crea la aplicación (Marcadores, Elevaciones…) en azul
+     pastel: el gris de un archivo es el mismo que toma cualquier fila con el
+     ratón encima (.node-row:hover) y no se distinguían.                     */
+  li.file.app-section > .node-row { background: var(--section-bg); border-color: var(--section-border); }
   li.file > .node-row > label { font-weight: 600; }
   li.file { margin-bottom: 6px; }
   .rename-input {

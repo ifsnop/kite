@@ -83,6 +83,7 @@ paths:
   lo suben en silencio con `upgradeMeasuresV6`, en vez de descartarlo.
   NO se aplica al pegado entre pestañas del portapapeles del sistema,
   que exige misma versión ahora mismo.
+- **`sec: true` en un registro `file`** (sección creada por la aplicación, ver `tree-navigation-selection.md`): campo opcional añadido, no sube `TREE_SCHEMA`; solo se acepta `=== true` y solo en `file`.
 - **`style` es un saco ABIERTO** (`opacity`, la opacidad del contorno de un polígono, entró así: un árbol anterior no la trae y se lee como 1): añadirle una clave NO sube
   `TREE_SCHEMA`. `normalizePathStyle` completa valores por defecto para
   lo que falte (`fill`, `stroke`, `fillColor`, `textAlways`…), así que

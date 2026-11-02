@@ -196,9 +196,15 @@ function nextNumberedName(base) {
 function ensureNamedSection(name) {
   const ul = ensureRootUl();
   for (const li of ul.children) {
-    if (li.classList.contains("file") && li._name === name) return nodeUl(li);
+    if (li.classList.contains("file") && li._name === name) {
+      /* Una sección guardada antes de que se marcaran (o de un árbol
+         ajeno) la recibe aquí, la próxima vez que se usa; el cambio que
+         la usa ya programa el guardado.                               */
+      if (!li._appSection) { li._appSection = true; li.classList.add("app-section"); }
+      return nodeUl(li);
+    }
   }
-  const li = makeNode({ name, isFile: true });
+  const li = makeNode({ name, isFile: true, appSection: true });
   ul.appendChild(li);
   return nodeUl(li);
 }

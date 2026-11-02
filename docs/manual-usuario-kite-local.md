@@ -114,6 +114,8 @@ El árbol es el inventario de todo lo cargado: cada archivo, carpeta, capa, medi
 ![El árbol de capas desplegado, con dos carpetas de un KML y una carpeta de un GeoJSON](img/arbol-estructura.png)
 *Figura 13. Estructura del árbol: dos carpetas del KML importado («Zonas» y «Puntos de interés»), una capa de línea suelta y, más abajo, la carpeta que agrupa un GeoJSON importado.*
 
+Las carpetas que **crea la propia aplicación** —«Marcadores», «Lugares», «Descargas», «Elevaciones», «Mediciones», «Servicios de mapas»…— se pintan en **azul pastel**, y las que llegan de un archivo (o crea el usuario) en gris. Así se distinguen de una fila cualquiera con el ratón encima, que toma ese mismo gris. El color se guarda con el árbol: sigue ahí al volver a abrir la aplicación.
+
 ### 3.1 Qué lleva cada fila
 
 - Una flecha (▾ / ▸) para desplegar o colapsar, solo en carpetas y archivos.
