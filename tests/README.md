@@ -1237,6 +1237,16 @@ BROWSER APP SECTIONS TESTS OK
 
 **Qué cubre:** el color de las secciones de primer nivel que crea la aplicación (`ensureNamedSection`, `ensureMeasureSection`: «Marcadores», «Mediciones»…) medido con `getComputedStyle` y el ratón real sobre una fila de dentro. Son azuladas, distintas de un archivo importado (el mismo gris que toma una fila con el ratón encima) y de esa fila, en el tema claro y en el oscuro (que tiene su propio azul). Se guardan como `sec: true` solo en la sección (no en el archivo importado), siguen en azul tras recargar, una sección sin la marca (árbol anterior) la recibe al volver a usarla con `ensureNamedSection`, y como `sec` es entrada ajena solo vale un `true` exacto y solo en un archivo (`"yes"`, `1` y una carpeta con `sec` no). Sin errores de página ni violaciones de la CSP.
 
+### `browser/context-pending.mjs`
+
+**Salida de `npm test`:**
+```
+── Navegador: el clic derecho sobre una capa de una carpeta nunca desplegada (tras recargar) la materializa y ofrece sus entradas, y una ruta con su perfil ofrece «Mostrar perfil» con «Mediciones» y «Perfiles de ruta» desplegadas o colapsadas
+BROWSER CONTEXT PENDING TESTS OK
+```
+
+**Qué cubre:** el fallo «tras recargar no sale “Mostrar perfil” en el menú contextual». Una capa de una carpeta que no se ha desplegado nunca (tras recargar, cualquiera que se guardara colapsada) está dibujada en el mapa pero su fila es todavía un registro pendiente, y el hit-testing solo veía capas con fila: el clic derecho no ofrecía ni «Ir al nodo» ni «Editar propiedades» y, en una ruta, ni «Mostrar perfil». Con el clic derecho REAL del ratón: (A) un polígono de un KML dentro de carpetas colapsadas ofrece «Ir al nodo en el panel» y «Editar propiedades», y se materializa la cadena hasta él; (B) una ruta con su perfil (MDT y MDS falsos) con «Mediciones» y «Perfiles de ruta» desplegadas, solo la segunda colapsada, solo la primera, o las dos —la ruta es un registro pendiente tras recargar— ofrece siempre «Mostrar perfil» y sus entradas de capa, y elegirlo abre el perfil guardado sin pedir nada. Comprobado que falla sin la corrección. Sin errores de página ni violaciones de la CSP.
+
 ### `browser/focus-zoom.mjs`
 
 **Salida de `npm test`:**
