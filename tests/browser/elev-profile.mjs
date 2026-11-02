@@ -761,7 +761,7 @@ await page.click("#props-tab-btn-freq");
 const fq0 = await page.evaluate(() => ({ visible: !document.getElementById("props-tab-freq").hidden,
   tabs: [...document.querySelectorAll("#props-dialog .dlg-tab")].map(t => t.textContent).join("|"),
   label: document.querySelector("#props-tab-freq .dlg-row span").textContent, value: document.getElementById("props-fresnel-freq").value }));
-ok(fq0.visible && /Frecuencias/.test(fq0.tabs) && fq0.tabs.split("|").length === 4 && /^Frecuencia cálculos de Fresnel$/.test(fq0.label) && fq0.value === "1090",
+ok(fq0.visible && /Frecuencias/.test(fq0.tabs) && fq0.tabs.split("|").length === 5 && /^Frecuencia cálculos de Fresnel$/.test(fq0.label) && fq0.value === "1090",
   "Propiedades tiene la pestaña «Frecuencias» con «Frecuencia cálculos de Fresnel» = 1090: " + JSON.stringify(fq0));
 await setField("props-fresnel-freq", "4360");
 const r4360 = await page.evaluate(() => ({ r: profileLayout.fresnel(profileLayout.total / 2), legend: [...profileChart.querySelectorAll(".pf-legend-label")].map(t => t.textContent).join("|") }));

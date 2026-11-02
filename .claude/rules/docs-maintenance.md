@@ -23,6 +23,30 @@ desactualizado induce a error activamente. **Antes de dar por
 terminado cualquier cambio que toque algo que describen, revisarlos y
 actualizarlos.** Ver punto 13 del checklist en `00-principles.md`.
 
+## `docs/pendientes-y-propuestas-kite-local.md`
+
+El tercer documento de `docs/` y la **única lista** de lo pendiente y de las
+ideas para desarrollar (antes repartida entre `00-principles.md`, el README y
+notas de conversaciones). No lleva versión ni capturas. **Se toca en el mismo
+cambio que hace o descubre algo**: lo que se hace se borra de él, un pendiente
+que aparece se apunta, una idea descartada pasa a «Descartado a propósito» con
+su motivo. El README («Documentation» y «Still open») y el apartado 1 del
+manual lo enlazan; `tests/docs.js` falla si esos enlaces desaparecen. En cada
+release (B) se relee entero: lo que ya no es cierto se borra.
+
+## `README.md`
+
+El README (inglés, en la raíz) es el tercer documento que hay que mantener, y el
+que más se desfasa porque nadie lo abre al cambiar código: en octubre de 2026
+decía «twenty JavaScript files» (eran 40), «Fifty-eight suites» (115), que el
+inglés y la exportación a KML estaban *Still open* y que la interfaz «is in
+Spanish». **Cada funcionalidad visible lo actualiza en el mismo cambio** (punto
+14 del checklist de `00-principles.md`): *Features*, *Internet access and
+privacy* si hay un servidor nuevo, *Known limitations* y el *roadmap*.
+`tests/docs.js` comprueba solo lo numérico (el número de suites y el de
+archivos de `src/js` que dice); el resto es revisión. En cada release (B, paso
+nuevo) se relee entero contra el manual.
+
 ## Capturas del manual
 
 - **Cuándo hay captura** (dos casos, no uno): (a) cambia el aspecto de
@@ -135,7 +159,10 @@ volver a pensarlos. Orden obligatorio dentro de cada uno.
    - **Abrir la PNG y mirarla.**
 5. Figura nueva en el manual: bloque `![descripción](img/x.png)` + pie
    `*Figura ?. …*` y renumerar (receta abajo).
-6. `node tests/docs.js`, y al final `node tests/run-all.js` completo (principio 6).
+6. ¿Se ve desde fuera (README «Features», «Known limitations», «Still open»)?
+   Actualizar `README.md` (punto 14 del checklist). Si no, anotar «README: sin
+   cambios» en el resumen.
+7. `node tests/docs.js`, y al final `node tests/run-all.js` completo (principio 6).
    El mensaje del commit dice qué parte de `docs/` se tocó.
 
 ### B. Cada release (una hora)
@@ -159,7 +186,7 @@ Después de reunir los PR y ANTES de tagear (ver `build-and-release.md`):
      suites: `grep -o '^  \["[^"]*"' tests/run-all.js`). Si no, bullet nuevo.
    - 4.1: si se añadió un servidor o servicio, está descrito (ver el comando de
      servidores en C.3).
-6. Manual: la cabecera lleva la misma versión (`tests/docs.js` lo exige).
+6. Manual: la cabecera lleva la misma versión (`tests/docs.js` lo exige). **README**: releerlo entero contra el manual (qué hace la aplicación, servidores, limitaciones, «Still open») y comprobar que sus cifras siguen siendo ciertas.
 7. `node tests/docs.js` y `npm run check`. Commit del release (el hook sube
    `BUILD`).
 8. Tag y empuje: `build-and-release.md`.

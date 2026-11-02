@@ -6,13 +6,21 @@
 
 **KML Interactive Tree Explorer**
 
-A privacy-first, browser-based viewer and organizer for **KML, KMZ, GeoJSON and shapefile** files, and Cloud Optimized GeoTIFF orthophotos. It preserves nested KML folder structures as an interactive layer tree, runs from one self-contained HTML file, and keeps imported data inside the user's browser.
+A privacy-first, browser-based viewer and organizer for **KML, KMZ, GeoJSON, shapefile and GPX** files, Cloud Optimized GeoTIFF orthophotos and ArcGIS map services. It preserves nested KML folder structures as an interactive layer tree, runs from one self-contained HTML file, and keeps imported data inside the user's browser.
 
 ### ▶ [Try the live demo](https://ifsnop.github.io/kite/)
 
 The demo is the application itself, not a hosted service: the page is served from GitHub Pages and everything then runs in the browser. Files dropped onto it are **not uploaded anywhere** — the same guarantee as opening the downloaded file locally. Drop a KML, KMZ or GeoJSON file onto the left panel and it opens straight away.
 
 > **In short:** if a KML is used as a conventional collection of folders, placemarks, lines and polygons in Google Earth, KITE Local is designed to open it directly while retaining its folder hierarchy. Advanced Google Earth features such as 3D models, tours, screen overlays and network links are outside the current scope; georeferenced ground overlays are supported.
+
+## Documentation
+
+The documents live in [`docs/`](docs/) and are written in Spanish:
+
+- [**User manual**](docs/manual-usuario-kite-local.md) — every panel, dialog, menu and shortcut, with screenshots, and step-by-step recipes for the usual tasks.
+- [**Security study**](docs/estudio-seguridad-kite-local.md) — where each layer and service comes from, why the application does not alter the data it shows, and which automated tests back that up.
+- [**Pending work and proposals**](docs/pendientes-y-propuestas-kite-local.md) — what is known to be missing and the ideas for developing it further, in a single list.
 
 ## Why this project exists
 
@@ -30,8 +38,9 @@ KITE Local focuses deliberately on that workflow:
 - **Keep the workspace between sessions.** The tree, its styles, the saved view
   and the measurements are stored locally through IndexedDB, so closing the tab
   does not mean starting over.
-- **Take work out again.** Any folder can be exported as a portable
-  `.kite.json` package, and the current view as a PNG image.
+- **Take work out again.** Any folder, file or layer can be exported as KML,
+  GeoJSON or a portable `.kite.json` package; the current view, as a PNG image
+  or a link; a route profile, as a PNG image or a CSV file.
 
 It is an independent AGPL-3.0 project and is **not affiliated with or endorsed by Google, Google Earth, QGIS, OpenStreetMap, Esri, Leaflet, Iconify or Instituto Geográfico Nacional de España**.
 
@@ -64,6 +73,8 @@ KITE Local does not impose fixed limits on KML file size, imported features or v
 - KML files, preserving nested `Document` and `Folder` structures
 - KMZ archives, including the images referenced by their ground overlays
 - GeoJSON, TopoJSON and plain JSON
+- GPX: waypoints, routes and tracks (with elevation and times), named from the
+  file's own `<name>`
 - Shapefiles: drop the `.shp` together with its `.dbf`, `.prj` and `.cpg`,
   or the `.zip` that holds them (one folder per layer). Coordinates are
   reprojected from the `.prj` with proj4 (ETRS89 UTM, the usual case in
@@ -82,6 +93,7 @@ KITE Local does not impose fixed limits on KML file size, imported features or v
   28–31, REGCAN95, WGS84, ETRS89, Web Mercator). Not included in `.kite.json` exports or the system
   clipboard; a deleted one is purged from storage on the next start
 - KITE Local folder exports (`.kite.json`)
+- ArcGIS map services (`MapServer`): see [ArcGIS map services](#arcgis-map-services)
 - drag-and-drop import; dropping onto a folder imports inside it
 - tolerant XML parsing: a namespace prefix that a file uses but never
   declares — accepted by Google Earth, rejected by any XML parser — is
@@ -89,6 +101,7 @@ KITE Local does not impose fixed limits on KML file size, imported features or v
 - per-entity error isolation: one broken geometry cannot abort an import,
   and every load ends with a summary of what came in, what was skipped
   and why
+- KML `ExtendedData` (`<Data>` and `<SchemaData>`) are kept as layer attributes
 - optional removal of HTML-like tags left in names by some exporters
 - optional merging of duplicate placemarks (same name and position)
 - for a GeoJSON whose features carry no `name` or `title`, a prompt to
@@ -116,12 +129,23 @@ KITE Local does not impose fixed limits on KML file size, imported features or v
   `properties`
 - right-click menu on the map, which resolves overlapping layers into a
   submenu instead of guessing one
-- export any folder or file as a portable `.kite.json` package
+- export any folder, file or layer as KML, GeoJSON or a portable `.kite.json`
+  package (the 💾 button on its row)
+- sections that the application creates itself (Markers, Elevations,
+  Downloads, Measurements…) are tinted pastel blue, so they are not mistaken
+  for an imported file or a row under the mouse
 - local storage usage indicator, and a session log of every notice shown
-- a Properties panel with a Preferences tab for global settings — measurement
-  unit, coordinate format and the interactive-vertex-edit cap — previewed
-  live in any open dialog but only saved on Accept, plus a second tab that
-  remembers which GeoJSON property was used as each file's name
+- a Properties panel with five tabs. *Preferences*: theme, language, the
+  distance and altitude units, coordinate format, the interactive-vertex-edit
+  cap, arc segments and the longest profile — previewed live but only saved on
+  Accept. *GeoJSON indexes*: remembers which property names each GeoJSON
+  structure. *Data sources*: which service supplies the terrain and surface
+  models. *Frequencies*: the Fresnel frequency. *Restore*: deletes everything
+  the application has saved in the browser, after a second confirmation
+- a light/dark interface theme that follows the system or is forced, and
+  English and Spanish interfaces that follow the browser or are forced
+- a phone notice («better from a computer») and a full-screen panel layout on
+  small touch screens
 
 ### Loading
 
@@ -180,8 +204,57 @@ stacking order can be changed:
 A base layer whose service stops answering is flagged in the panel, and
 the flag clears by itself when the tiles come back.
 
+### Attributes
+
+- the ▦ button of a folder or file opens an attribute table: one row per layer
+  and one column per attribute (GeoJSON and shapefile properties, KML
+  `ExtendedData`). Sort by column (numbers as numbers, empty cells last),
+  filter, jump to a layer and export what is shown as CSV, with the standard
+  defence against spreadsheet formulas hidden in a foreign file. A folder of
+  5 000 layers keeps about twenty rows in the DOM
+- «Estilo por atributo» colours all the layers of that table once, by category
+  (the most frequent values, plus «Otros» and «sin valor») or graduated over a
+  numeric column (equal intervals or quantiles), with colour-blind-safe
+  palettes, a live preview and Cancel. The result is ordinary layer styles,
+  not a stored rule
+
+### Range rings and sectors
+
+- right-click → «Crear» › «Anillos de alcance…» / «Sector…»: concentric
+  geodesic rings (every radius you list, optional radials) or a sector between
+  two azimuths, optionally an annulus, centred on the point you clicked, with
+  a live preview. They become ordinary layers of the tree, so they can be
+  styled, edited and exported like any other
+
+### ArcGIS map services
+
+- paste the address of an ArcGIS REST `MapServer` into the 🔗 dialog: the
+  service becomes one node of the tree with a row per server layer, drawn by
+  the server itself as image tiles (so its symbols and labels are intact),
+  and the checkboxes choose which layers it is asked for
+- a layer that offers data can be brought in as real features («Traer como
+  datos»), paged, capped, cancellable and imported like any downloaded GeoJSON
+- no credentials are ever stored or exported (a `token` in the address is
+  dropped), and a service that arrives inside someone else's `.kite.json`
+  arrives switched off, with a notice naming the server
+
+### Cadastral parcel and orthophotos
+
+- right-click → «Consultas» › «Parcela catastral» asks the Spanish Cadastre
+  which parcel lies under the click and adds it as a polygon, with its
+  cadastral reference
+- Cloud Optimized GeoTIFF orthophotos and elevation models (see
+  [File support](#file-support)) stay in the browser's own store and are never
+  part of an export
+
 ### Map tools
 
+- map rotation: drag the compass (or hold the middle button) to turn the map
+  freely, with a click or the R key to put north back up; layers and the
+  graticule rotate with it and the labels stay horizontal
+- share a view as a link: right-click → «Copiar» › «Enlace a esta vista» keeps
+  centre, zoom, rotation and active base maps in the `#map=…` part of the
+  address, and opening such a link restores them
 - place search through Nominatim
 - pointer coordinates in decimal degrees, degrees/minutes/seconds and UTM
 - scale bar
@@ -189,6 +262,9 @@ the flag clears by itself when the tiles come back.
 - shortcuts for the Iberian Peninsula/Balearic Islands and Canary Islands
 - drop a marker at the centre of the view
 - draw polygons and open lines vertex by vertex
+- a day/night overlay and the sun and twilight times of a marker
+- a geodesic calculator (📐): elevation angle with cone of silence and
+  atmospheric-pressure correction, and the vector between two GPS positions
 - export the current view as a PNG image
 
 ### Elevation
@@ -243,6 +319,7 @@ the flag clears by itself when the tiles come back.
   again; editing the route's waypoints asks for a new profile
 - routes longer than a configurable limit (10 NM by default) get no
   profile, so a long route cannot fill the browser storage with cells
+- the chart exports as a PNG image and its numbers as a CSV file
 
 ### Measurements
 
@@ -292,6 +369,8 @@ The complete tree is serialized to GeoJSON and saved in the browser using Indexe
 
 Browser storage is convenient, but it is **not a backup**. It may be cleared by the user, browser policy or storage pressure. Export important folders to `.kite.json` and keep copies outside the browser profile.
 
+To start over, Properties → **Restore** deletes everything the application has saved in the browser (the tree, the copied orthophotos and every setting). A button alone does nothing: it opens a second confirmation, and the page reloads when it is done. The interface language is kept.
+
 ## Internet access and privacy
 
 Imported KML/KMZ/GeoJSON content is parsed locally and is **not uploaded to an application server**. The imported geometries and workspace remain in the user's browser.
@@ -314,7 +393,12 @@ The current build is not fully offline and makes external requests:
   Chromium-based browsers (Chrome, Edge…) with 403 Forbidden; it works
   from Firefox and Safari;
 - the Copernicus DEM base layer, if enabled, is requested from Sentinel Hub
-  with the user's own instance ID.
+  with the user's own instance ID;
+- a cadastral parcel is requested from the Spanish Cadastre (INSPIRE WFS), only
+  when you ask for one from the context menu;
+- an ArcGIS map service you add is asked for its layer list once, and then for
+  the images of the layers you tick, from the address you pasted — the only
+  server in this list that the user names.
 
 Material Design marker icons are **embedded in the file** and cost no request at all. They used to be fetched one by one from `api.iconify.design`, which meant 79 simultaneous requests every time the icon picker was opened; past the service's rate limit the icons silently went blank. They are now baked in at build time.
 
@@ -357,7 +441,8 @@ KML is a broad specification. The following are not fully supported or are inten
 - extrusions and 3D geometry
 - screen overlays
 - network links and refresh behavior
-- tracks, tours, models and time primitives
+- tracks, tours, models and time primitives (GPX tracks, on the other hand, are
+  imported)
 - balloon templates and rich KML descriptions
 - highlight styles in `StyleMap`
 - all KML namespaces and extensions
@@ -380,7 +465,7 @@ Other properties remain part of the GeoJSON data but may not affect rendering.
 
 A recent desktop browser is recommended. The application relies on IndexedDB, Fetch, File and Blob APIs, async/await, pointer events, CSS custom properties and `:scope` selectors.
 
-The interface is primarily designed for mouse and keyboard use. Touch support and accessibility remain areas for improvement.
+The interface is primarily designed for mouse and keyboard use. On a phone it shows a notice recommending a computer and offers a map-only layout; touch support and accessibility otherwise remain areas for improvement.
 
 ## Known limitations
 
@@ -393,7 +478,7 @@ The interface is primarily designed for mouse and keyboard use. Touch support an
 - External services can change, rate-limit requests or become unavailable.
 - Opening a URL only works if that server allows other pages to read it (CORS headers). Most static hosts do; many portals do not, and the browser gives the page no detail about why. For those, download the file and drop it in — the dialog says so when it happens.
 - `.kite.json` is application-specific and currently requires a matching tree schema version.
-- The current interface is in Spanish.
+- The interface is available in Spanish and English; right-to-left languages are not supported.
 
 ## Security notes
 
@@ -408,15 +493,17 @@ Do not use public tile, geocoding or CDN services for sensitive work without an 
 ### Done
 
 - **The sources are split.** The application is edited as `src/index.html`,
-  `src/styles.css` and twenty JavaScript files, concatenated into the shipped
-  file by `build.js`. The single-file product is the output, not the source.
-- **There are automated tests.** Fifty-eight suites run against the shipped
+  `src/styles.css`, `src/sw.js` and 40 JavaScript files, concatenated into the
+  shipped file by `build.js`. The single-file product is the output, not the
+  source.
+- **There are automated tests.** 115 suites run against the shipped
   file — most under Node, plus a set that drives a real headless browser —
   covering coordinate parsing and formatting, UTM, KML namespaces and
   styles, geometry conversion, serialization, tree navigation and
-  selection, hit-testing, geodesic area and perimeter, multi-waypoint route
-  measurement, interactive vertex editing, and more. Run them with
-  `npm test`.
+  selection, hit-testing, geodesic area and perimeter, route measurement,
+  interactive vertex editing, import and export formats, the attribute
+  table, elevation and route profiles, the interface languages, the
+  documentation itself, and more. Run them with `npm test`.
 - **CDN dependencies carry Subresource Integrity**, so a compromised CDN
   cannot substitute other content, and marker icons are now embedded in the
   file rather than fetched.
@@ -428,16 +515,25 @@ Do not use public tile, geocoding or CDN services for sensitive work without an 
 - **Keyboard navigation, focus management and ARIA labels.** The tree is a
   proper `role="tree"` with roving focus, dialogs trap and restore focus, and
   the panel is driven entirely from the keyboard.
+- **Export to KML and GeoJSON**, next to `.kite.json`, and import of GPX.
+- **An English interface**, with Spanish as the source language, and a
+  light/dark theme.
+- **Offline reload**: a small service worker keeps the application and its
+  pinned libraries, so a discarded tab comes back without a network.
 
 ### Still open
 
-- Touch interaction, which remains weak: the interface is built for mouse and
-  keyboard.
-- Optional export to standard KML and GeoJSON. Today the only export format is
-  the application's own `.kite.json`.
-- A fully vendored offline build. Leaflet and JSZip are still loaded from a CDN.
+The full list, with the ideas that have been proposed (exporting to KMZ and GPX, importing CSV points, a visibility map, MGRS coordinates, marker clustering, time-aware KML, GeoPackage and QGIS projects…), is kept in one place: [pending work and proposals](docs/pendientes-y-propuestas-kite-local.md). The known gaps, in short:
+
+- Touch interaction in the tree, which remains weak: the interface is built for
+  mouse and keyboard.
+- A fully vendored build. Leaflet and JSZip are still loaded from a CDN (the
+  service worker only keeps them after a first online visit).
 - Configurable resource limits; the current caps are constants in the source.
-- An English interface. The UI is in Spanish.
+- Crossing the antimeridian: the midpoint and measurements already do, the
+  automatic framing and the graticule do not yet.
+- Two placemarks at the same position but different altitudes are still merged
+  as duplicates.
 
 ### Deliberately not planned
 
@@ -512,7 +608,7 @@ If what you hit is a freeze or a slowdown rather than a wrong result, the [`debu
 
 Feature work and fixes land on branches, each through its own pull request into `main`. Cutting a release once every intended PR is merged:
 
-1. Bump `package.json`'s `"version"` and update the version shown in the two documents under `docs/` (the user manual and the security study), then commit — this is the release's final commit. The pre-commit hook (see "Contributing") notices `package.json` changing, bumps `BUILD` and runs `npm run build` on its own, so there's no separate manual build step here anymore.
+1. Bump `package.json`'s `"version"` and update the version shown in the user manual and the security study under `docs/`, then commit — this is the release's final commit. The pre-commit hook (see "Contributing") notices `package.json` changing, bumps `BUILD` and runs `npm run build` on its own, so there's no separate manual build step here anymore.
 2. Tag that exact commit and push the tag: `git tag vX.Y.Z && git push origin vX.Y.Z`. The tag **must** match `package.json`'s version precisely (with a leading `v`).
 3. [`.github/workflows/release.yml`](.github/workflows/release.yml) takes it from there: it verifies the tag matches `package.json`, that `kitelocal.html`/`kitelocal.min.html`/`sw.js` are up to date with `src/`, and runs the full test suite (`npm test`, with the browser suites required) — only then does it publish the GitHub Release itself, with auto-generated release notes from the merged PRs and both artifacts attached as downloadable assets for that exact version.
 

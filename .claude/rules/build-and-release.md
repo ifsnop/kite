@@ -16,7 +16,7 @@ src/index.html     plantilla: <head>, CSP, diálogos, <script> de CDN.
                    Dos marcadores: {{STYLES}} y {{SCRIPTS}}
 src/styles.css     todo el CSS
 src/sw.js          service worker del uso sin conexión (ver offline.md)
-src/js/*.js        34 archivos, en el orden del manifiesto de build.js
+src/js/*.js        los módulos, en el orden del manifiesto de build.js
                    (03-i18n.js primero; 05-mdi-icons.js es GENERADO;
                    04-i18n-xx.js, un diccionario por idioma)
 build.js           concatena src/ → kitelocal.html, y minifica ese
@@ -66,7 +66,7 @@ index.html         redirección de la raíz del sitio al minificado
 `build.js` escribe `kitelocal.html` (legible, el producto) y `kitelocal.min.html` (derivada minificada, lo que sirve Pages).
 
 - **Motivo medido**: Pages ya comprime (gzip). Minificar solo HTML/CSS apenas mueve la aguja (~5 %, ruido contra gzip). Minificar también el JS sí: **−53 % en disco y −55 % comprimido con gzip** (medido el 2026-11-01 sobre `kitelocal.html`; `npm run build` imprime el de disco). **Se citan porcentajes y no bytes, a propósito**: el archivo crece con cada función y las cifras absolutas se quedaban viejas (las de antes, 460→214 KB y 151→66 KB, eran de cuando el producto pesaba una tercera parte); el porcentaje apenas se mueve. Brotli no entra: Pages sirve `gzip` aunque se pida `br`.
-- **No se minifica en su sitio (produciendo un solo archivo) porque 22 suites usan comentarios como marcadores** (`between("/* ===== Geodesia", …)`) sobre el archivo ENTREGADO; `removeComments` los borra. Reescribirlas para leer `src/` les quitaría la propiedad de probar lo que se entrega.
+- **No se minifica en su sitio (produciendo un solo archivo) porque muchas suites (decenas) usan comentarios como marcadores** (`between("/* ===== Geodesia", …)`) sobre el archivo ENTREGADO; `removeComments` los borra. Reescribirlas para leer `src/` les quitaría la propiedad de probar lo que se entrega.
 - **Dos opciones de `MINIFY_OPTS` son decisiones, no ajuste fino**:
   - `conservativeCollapse: true` — colapsa espacios a UNO, nunca a cero (hay `<strong>` en línea en `src/index.html` que se pegaría). Gratis contra gzip.
   - **No** `removeAttributeQuotes` ni similares: los atributos son carga útil (`integrity`+`crossorigin`, `<meta>` de CSP).
@@ -74,7 +74,7 @@ index.html         redirección de la raíz del sitio al minificado
 - **`ignoreCustomFragments: []` en `MINIFY_OPTS` es una decisión, no ajuste fino**: por defecto el minificador cambia cada `<?…?>` (aquí, el literal `<?xml …?>` de `35-export-formats.js`) por un marcador con letras ALEATORIAS antes de pasarlo a terser, y esas letras desempatan su tabla de frecuencias de nombres cortos: la salida cambiaba entre ejecuciones del mismo HTML (3 resultados en 14) y `build.js --check` fallaba al azar. Con la lista vacía, 30 de 30 iguales. Un literal con `<?` o `<%` nuevo no debe volver a abrir ese hueco.
 - **Versión del minificador EXACTA en `package.json`, sin `^`**: `build.js --check` compara byte a byte; un cambio menor en la salida rompería el CI sin tocar `src/`.
 - **`npm run watch` NO minifica** (lo dice al arrancar). `npm run build` antes de empujar; si se olvida, lo caza `npm run check`.
-- **`tests/minified.js` no demuestra que la app funcione** (hace falta navegador, el CI es solo Node). Comprobación MANUAL obligatoria al tocar el minificado: cargar ambos artefactos en Chromium headless y comparar arranque, selector de iconos, aplicar icono, una medición con diálogo, escala y atribución.
+- **`tests/minified.js` solo comprueba el texto; que el minificado FUNCIONE lo prueba `tests/browser/app.mjs`**, que pasa las mismas comprobaciones sobre `kitelocal.html` y sobre `kitelocal.min.html` (arranque, iconos empotrados pintados, aplicar un icono, una medición con su diálogo, casilla indeterminada, escala y atribución): si terser rompiera algo, el legible pasaría y el minificado no. Corre en el CI (`tests.yml` instala Chromium y lanza `npm test` con `KITE_REQUIRE_BROWSER=1`, así que sin navegador FALLA en vez de saltarse) y en el release. Ya no hay comprobación manual obligatoria; al tocar `MINIFY_OPTS` o subir `html-minifier-terser`, basta con `npm test` con navegador.
 
 ## Dependencias externas
 
@@ -94,7 +94,7 @@ Dos números, cadencia y origen distintos:
 Proceso de release (creación del Release en sí sigue siendo decisión humana, no automatizada):
 
 1. Ramas con PR a `main`.
-2. Al reunir todos los PR de un release: **a mano**, subir `package.json.version`, regenerar las capturas (`npm run capturas`), revisar el estudio de seguridad (recuentos, fecha, resultado verificado), actualizar versión en cabecera de los dos documentos de `docs/`, commitear (commit final del release). `tests/docs.js` falla si algo de esto queda a medias. El hook de pre-commit ve `package.json` y se encarga de `BUILD` + `npm run build`.
+2. Al reunir todos los PR de un release: **a mano**, subir `package.json.version`, regenerar las capturas (`npm run capturas`), revisar el estudio de seguridad (recuentos, fecha, resultado verificado), actualizar versión en cabecera de los dos documentos de `docs/`, releer `README.md` entero contra el manual (funcionalidades, servidores, limitaciones, «Still open»), commitear (commit final del release). `tests/docs.js` falla si algo de esto queda a medias. El hook de pre-commit ve `package.json` y se encarga de `BUILD` + `npm run build`.
 3. `git tag vX.Y.Z && git push origin vX.Y.Z` sobre ese commit — el tag debe coincidir EXACTAMENTE con `package.json.version`.
 4. `.github/workflows/release.yml` (disparado por el push del tag) comprueba tag↔`package.json`, `npm run check`, y **que todas las suites de `npm test` pasan** (con navegador, `KITE_REQUIRE_BROWSER=1`) — corren DENTRO de este job, no dependiendo de `tests.yml` (que se dispara aparte con el mismo push pero sin relación `needs`; antes un tag con tests en rojo podía publicarse porque `release.yml` nunca ejecutaba `npm test`). Si todo cuadra, publica el Release (notas automáticas, dos artefactos adjuntos). Si no, falla en rojo y no publica — hay que arreglar, borrar el tag y recrearlo sobre el commit correcto.
 

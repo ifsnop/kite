@@ -177,12 +177,28 @@ const tab = await page.evaluate(async () => {
     mdt: opts("props-src-mdt"), mds: opts("props-src-mds"),
     mdtVal: document.getElementById("props-src-mdt").value,
     mdsVal: document.getElementById("props-src-mds").value,
-    url: document.getElementById("props-src-mds-url").textContent
+    url: document.getElementById("props-src-mds-url").textContent,
+    info: document.getElementById("props-src-mds-info").textContent
   };
+  /* El selector ocupa toda la fila y no se queda en los 190px de siempre */
+  const fila = document.getElementById("props-src-mds").parentElement.getBoundingClientRect();
+  r.anchoSel = document.getElementById("props-src-mds").getBoundingClientRect().width;
+  r.anchoFila = fila.width;
   const sel = document.getElementById("props-src-mds");
+  sel.value = "dea-cop30";
+  sel.dispatchEvent(new Event("change"));
+  r.infoDea = document.getElementById("props-src-mds-info").textContent;
+  r.infoMdt200 = (() => {
+    const m = document.getElementById("props-src-mdt");
+    m.value = "ign-mdt200"; m.dispatchEvent(new Event("change"));
+    const t = document.getElementById("props-src-mdt-info").textContent;
+    m.value = "ign-mdt05"; m.dispatchEvent(new Event("change"));
+    return t;
+  })();
   sel.value = "";
   sel.dispatchEvent(new Event("change"));
   r.noneUrl = document.getElementById("props-src-mds-url").textContent;
+  r.noneInfoHidden = document.getElementById("props-src-mds-info").hidden;
   r.during = elevSources.mds;
   document.getElementById("props-cancel").click();
   r.afterCancel = elevSources.mds;
@@ -193,6 +209,14 @@ ok(tab.mdt.join() === "ign-mdt05,ign-mdt25,ign-mdt200," && tab.mds.join() === "i
   "opciones del catálogo (MDT05, MDT25 y MDT200 del IGN) más «Ninguna»: " + JSON.stringify([tab.mdt, tab.mds]));
 ok(tab.mdtVal === "ign-mdt05" && tab.mdsVal === "ign-mds", "por defecto, MDT05 y MDS del IGN");
 ok(tab.url === "https://wcs-mds.idee.es/mds", "bajo el selector, la dirección del servicio: " + tab.url);
+ok(tab.anchoSel >= tab.anchoFila - 2 && tab.anchoSel > 300,
+  `el selector ocupa toda la fila (no los 190 px de antes): ${tab.anchoSel} de ${tab.anchoFila}`);
+ok(/IGN — MDS \(España, 5 m\)\. Conjunto de datos: MDS\. Proveedor: IGN\.$/.test(tab.info),
+  "bajo el selector, el nombre completo, el conjunto de datos y el proveedor: " + tab.info);
+ok(/Copernicus DEM 30 m \(África, Canarias y sur peninsular\)\. Conjunto de datos: COP-DEM GLO-30\. Proveedor: Digital Earth Africa\./.test(tab.infoDea),
+  "al elegir otra fuente cambia, con su nombre largo entero: " + tab.infoDea);
+ok(/Malla gruesa: no limita la longitud de un perfil\./.test(tab.infoMdt200), "el MDT200 avisa de que no limita el perfil: " + tab.infoMdt200);
+ok(tab.noneInfoHidden, "«Ninguna» no deja línea de información");
 ok(tab.during === null && /No se consulta/.test(tab.noneUrl), "«Ninguna» se aplica al elegirla y lo dice");
 ok(tab.afterCancel === "ign-mds", "Cancelar la deshace");
 ok(count("servicios.idee.es", "GetCapabilities") + count("wcs-mds.idee.es", "GetCapabilities") === 0,

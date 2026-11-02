@@ -496,8 +496,14 @@ function upgradeMeasuresV6(nodes) {
    tab: `onversionchange` closes ours so the other tab can proceed, and
    the cached promise is dropped so the next call reopens.            */
 let dbPromise = null;
+/* Mientras se borra toda la base (Propiedades › Restaurar, wipeAllData)
+   nadie puede volver a abrirla: un guardado tardío (la vista del mapa, un
+   autoguardado) recrearía la base vacía y escribiría en ella justo antes
+   de recargar. Todos los que llaman a openDb ya capturan el rechazo.    */
+let dbWiped = false;
 
 function openDb() {
+  if (dbWiped) return Promise.reject(new Error("restoring"));
   if (dbPromise) return dbPromise;
   dbPromise = new Promise((resolve, reject) => {
     const rq = indexedDB.open(DB_NAME, DB_VERSION);
@@ -1415,8 +1421,10 @@ function serializeNode(li) {
        una sola fila — coste casi nulo para lo que nadie ha llegado a
        abrir.                                                          */
     const children = li._pending ? serializePendingRecords(li._pending) : serializeNodes(ul);
-    return [{ ...base, t: li.classList.contains("file") ? "file" : "folder",
-              collapsed: li.classList.contains("collapsed"), children }];
+    const rec = { ...base, t: li.classList.contains("file") ? "file" : "folder",
+                  collapsed: li.classList.contains("collapsed"), children };
+    if (li._appSection) rec.sec = true; /* sección creada por la aplicación */
+    return [rec];
   }
   /* `toGeoJSON()` clona TODAS las coordenadas de la capa. Hacerlo en cada
      guardado (y se guarda tras cualquier cambio del panel) suponía
@@ -1442,8 +1450,10 @@ const serializeNodes = ul => [...ul.children].flatMap(serializeNode);
 function serializePendingRecords(records) {
   return records.map(rec => {
     if (rec.t === "folder" || rec.t === "file") {
-      return { name: rec.name, checked: rec.checked, t: rec.t,
-                collapsed: rec.collapsed, children: serializePendingRecords(rec.children) };
+      const out = { name: rec.name, checked: rec.checked, t: rec.t,
+                    collapsed: rec.collapsed, children: serializePendingRecords(rec.children) };
+      if (rec.sec) out.sec = true;
+      return out;
     }
     if (rec.t === "layer") {
       if (!rec.geo) rec.geo = rec._layer.toGeoJSON();
@@ -1631,6 +1641,7 @@ const SAVE_MIN_MS = 400, SAVE_MAX_MS = 3000;
    y en uno de miles de nodos espera más para no repetir un trabajo caro
    mientras el usuario sigue navegando o escribiendo.                   */
 function scheduleSave() {
+  if (dbWiped) return; /* se está borrando la base: nada que guardar */
   scheduleReorder(); /* toda mutación del árbol también puede haber cambiado el orden de pintado */
   scheduleArcgisSync(); /* y, de un servicio ArcGIS, qué capas pide al servidor (66-arcgis.js) */
   clearTimeout(saveTimer);
@@ -1712,6 +1723,7 @@ function refreshMemoryUsage() {
 }
 
 function saveTree() {
+  if (dbWiped) return saveChain;
   saveChain = saveChain
     .then(() => {
       const t0 = performance.now();
@@ -1732,6 +1744,42 @@ function saveTree() {
       }
     });
   return saveChain;
+}
+
+/* Borra la base de IndexedDB ENTERA (árbol, segmentos, ortofotos y todos
+   los ajustes) y recarga la página: Propiedades › Restaurar, tras su
+   segunda confirmación. Recargar es lo que lo hace seguro: el estado en
+   memoria (árbol, deshacer, portapapeles) no puede volver a escribir lo
+   borrado. Solo IndexedDB: el idioma vive en localStorage (ver i18n.md) y
+   se conserva a propósito. El orden importa: primero se frena todo
+   guardado, luego se espera al que va en vuelo, se cierra NUESTRA
+   conexión (si no, deleteDatabase se queda bloqueada por ella) y entonces
+   se borra.                                                             */
+async function wipeAllData() {
+  dbWiped = true;
+  clearTimeout(saveTimer);
+  try {
+    await saveChain;
+    if (dbPromise) {
+      const db = await dbPromise.catch(() => null);
+      dbPromise = null;
+      if (db) db.close();
+    }
+    await new Promise((resolve, reject) => {
+      const rq = indexedDB.deleteDatabase(DB_NAME);
+      rq.onsuccess = () => resolve();
+      rq.onerror = () => reject(rq.error);
+      /* Otra pestaña con la base abierta: se queda esperando a que la cierre */
+      rq.onblocked = () => navMessage(tr("Otra pesta\u00F1a est\u00E1 usando el almacenamiento; ci\u00E9rrela para continuar."));
+    });
+  } catch (err) {
+    dbWiped = false;
+    navMessage(tr("No se pudieron borrar los datos guardados: {reason}.",
+      { reason: err && err.message ? err.message : tr("error de almacenamiento") }));
+    return false;
+  }
+  location.reload();
+  return true;
 }
 
 /* ---------- Reconstrucción del árbol desde el almacenamiento ---------- */
@@ -1809,7 +1857,10 @@ async function buildRecordsFromStorage(nodes, prog, opts = {}) {
       out.push(rec);
     } else {
       const children = await buildRecordsFromStorage(n.children || [], prog, opts);
-      out.push({ t: n.t, name: n.name, checked: !!n.checked, collapsed: !!n.collapsed, children });
+      const rec = { t: n.t, name: n.name, checked: !!n.checked, collapsed: !!n.collapsed, children };
+      /* `sec` solo vale en un archivo y solo si es EXACTAMENTE true (entrada ajena) */
+      if (n.t === "file" && n.sec === true) rec.sec = true;
+      out.push(rec);
     }
     if (prog && LEAF_RECORD_TYPES.has(n.t) && ++prog.done % PROGRESS_BATCH === 0) {
       prog.update(prog.done);
@@ -1838,7 +1889,8 @@ async function materializeRecords(records, parentUl) {
   for (const rec of records) {
     if (rec.t === "folder" || rec.t === "file") {
       const li = makeNode({
-        name: rec.name, isFolder: rec.t === "folder", isFile: rec.t === "file", checked: !!rec.checked
+        name: rec.name, isFolder: rec.t === "folder", isFile: rec.t === "file", checked: !!rec.checked,
+        appSection: rec.sec === true
       });
       rec._li = li; /* referencia inversa: la usa resolveMatch para llegar aquí desde una búsqueda pendiente */
       if (rec.collapsed) li.classList.add("collapsed");

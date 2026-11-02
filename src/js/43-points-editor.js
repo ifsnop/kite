@@ -1592,6 +1592,8 @@ const propsTabSourcesBtn = document.getElementById("props-tab-btn-sources");
 const propsTabSources = document.getElementById("props-tab-sources");
 const propsTabFreqBtn = document.getElementById("props-tab-btn-freq");
 const propsTabFreq = document.getElementById("props-tab-freq");
+const propsTabRestoreBtn = document.getElementById("props-tab-btn-restore");
+const propsTabRestore = document.getElementById("props-tab-restore");
 const propsFresnelFreqInput = document.getElementById("props-fresnel-freq");
 const propsSrcSelect = {
   mdt: document.getElementById("props-src-mdt"),
@@ -1643,7 +1645,8 @@ const PROPS_TABS = {
   prefs: [propsTabPrefsBtn, propsTabPrefs],
   gnp: [propsTabGnpBtn, propsTabGnp],
   sources: [propsTabSourcesBtn, propsTabSources],
-  freq: [propsTabFreqBtn, propsTabFreq]
+  freq: [propsTabFreqBtn, propsTabFreq],
+  restore: [propsTabRestoreBtn, propsTabRestore]
 };
 function showPropsTab(tab) {
   for (const [id, [btn, panel]] of Object.entries(PROPS_TABS)) {
@@ -1681,6 +1684,14 @@ function renderPropsSourcesTab() {
 function renderPropsSourceUrl(kind) {
   const s = elevSourceById(elevSources[kind]);
   document.getElementById(`props-src-${kind}-url`).textContent = s ? s.base : tr("No se consulta.");
+  /* Lo que el catálogo sabe de la fuente elegida: el nombre COMPLETO (el
+     del selector se corta si es largo), su conjunto de datos y su
+     proveedor, y si la malla es tan gruesa que no limita los perfiles. */
+  const info = document.getElementById(`props-src-${kind}-info`);
+  info.hidden = !s;
+  info.textContent = !s ? "" : s.label + ". "
+    + tr("Conjunto de datos: {dataset}. Proveedor: {provider}.", { dataset: s.dataset, provider: s.provider })
+    + (s.coarse ? " " + tr("Malla gruesa: no limita la longitud de un perfil.") : "");
 }
 for (const kind of ["mdt", "mds"]) {
   propsSrcSelect[kind].addEventListener("change", () => {
@@ -1844,6 +1855,35 @@ propsArcSegmentsInput.addEventListener("change", () => {
   }
   arcSegments = n;
   propsArcSegmentsInput.value = n;
+});
+
+/* Pestaña «Restaurar»: borrar toda la base de IndexedDB. El botón de la
+   pestaña NO borra nada: abre una segunda confirmación (#restore-confirm)
+   para que no se pulse por error. Solo «Borrar todo» llama a wipeAllData
+   (32-geojson.js), que recarga la página al terminar. «Cancelar», la × y
+   Escape cierran la confirmación y dejan Propiedades como estaba.      */
+const restoreDialog = document.getElementById("restore-confirm");
+const restoreBox = restoreDialog.querySelector(".dlg-box");
+const restoreAcceptBtn = document.getElementById("restore-accept");
+function openRestoreConfirm() {
+  restoreDialog.hidden = false;
+  clampToViewport(restoreBox);
+  focusDialog(restoreBox);
+}
+function closeRestoreConfirm() {
+  restoreDialog.hidden = true;
+  releaseFocus();
+}
+document.getElementById("props-restore-btn").addEventListener("click", openRestoreConfirm);
+document.getElementById("restore-cancel").addEventListener("click", closeRestoreConfirm);
+restoreAcceptBtn.addEventListener("click", async () => {
+  restoreAcceptBtn.disabled = true; /* un segundo clic no lanza otro borrado */
+  /* Propiedades se cierra deshaciendo lo previsualizado (cancelPropsDialog
+     no guarda nada); la confirmación se queda hasta que la página recargue
+     o falle el borrado.                                                   */
+  cancelPropsDialog();
+  const done = await wipeAllData();
+  if (!done) { restoreAcceptBtn.disabled = false; closeRestoreConfirm(); }
 });
 
 async function togglePropsDialog() {

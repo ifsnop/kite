@@ -190,6 +190,12 @@ paths:
 
 - **Contenedor con capa propia y filas fijas (servicio ArcGIS, ver `arcgis.md`)**: el nodo `arcgis` es un contenedor cuya casilla lleva además una capa de Leaflet (`chk._layer`): `applyContainerState`, `cascadeVisibility` (también sobre registros pendientes), `removeRecordsFromMap` y `extendBoundsFromRecords` la tratan. Sus filas hijas son `_fixed`: no se mueven, copian, cortan, borran ni renombran (`movableSelection()` las deja fuera y AVISA), y nada se suelta ni se pega dentro (`arcgisServiceOf`).
 
+## Secciones que crea la aplicación (azul pastel)
+
+- Las secciones de primer nivel que CREA LA APLICACIÓN —`ensureNamedSection` (Lugares, Marcadores, Descargas, Elevaciones, Servicios de mapas, Polígonos, Catastro, Perfiles) y `ensureMeasureSection` (Mediciones)— llevan `makeNode({ …, appSection: true })`: `li._appSection` y la clase `app-section`, que `styles.css` pinta con `--section-bg`/`--section-border` (azul pastel; `theme.md`). Motivo: el gris de un archivo (`li.file > .node-row`, `var(--bg)`) es el mismo que toma cualquier fila con el ratón encima (`.node-row:hover`) y no se distinguían.
+- **Se guarda** (`sec: true` en el registro de un archivo; `serializeNode`, `serializePendingRecords`, `buildRecordsFromStorage`, `materializeRecords`): al volver de IndexedDB el nombre queda en el idioma del momento (`i18n.md`, regla 8) y no se puede reconocer por él. Campo opcional añadido: NO sube `TREE_SCHEMA`. Entrada ajena: solo vale `true` exacto y solo en un `file`. Un árbol anterior, sin la marca, la recibe la próxima vez que `ensureNamedSection` encuentra la sección por nombre (sin migración, principio 4).
+- Un archivo importado o una carpeta del usuario NO la llevan. Probado en `tests/browser/app-sections.mjs`.
+
 ## Exportar e importar carpetas
 
 - El botón 💾 de una carpeta, un archivo **o una capa suelta** (`sortable || layer`

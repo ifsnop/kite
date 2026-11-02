@@ -219,6 +219,7 @@ document.addEventListener("keydown", e => {
   if (!ktpDialog.hidden) { closeKtpPicker(false); return; }
   if (!kdpDialog.hidden) { closeKdpPicker(false); return; }
   if (!gnpDialog.hidden) { closeGnpPicker(null); return; }
+  if (!restoreDialog.hidden) { closeRestoreConfirm(); return; } /* encima de Propiedades */
   if (!propsDialog.hidden) { cancelPropsDialog(); return; }
   if (!shDialog.hidden) { closeShCredsDialog(); return; }
   if (!customTilesDialog.hidden) { closeCustomTilesDialog(); return; }
@@ -657,7 +658,7 @@ function refreshMeasureLabels() {
 /* Sección "Mediciones" y nodo de cada medición en la navegación */
 function ensureMeasureSection() {
   if (measureLi && measureLi.isConnected) return nodeUl(measureLi);
-  measureLi = makeNode({ name: tr("Mediciones"), isFile: true });
+  measureLi = makeNode({ name: tr("Mediciones"), isFile: true, appSection: true });
   ensureRootUl().appendChild(measureLi);
   return nodeUl(measureLi);
 }

@@ -461,6 +461,7 @@
       <button type="button" class="dlg-tab" id="props-tab-btn-gnp" role="tab" aria-selected="false" aria-controls="props-tab-gnp">Índices de GeoJSON</button>
       <button type="button" class="dlg-tab" id="props-tab-btn-sources" role="tab" aria-selected="false" aria-controls="props-tab-sources">Fuentes de datos</button>
       <button type="button" class="dlg-tab" id="props-tab-btn-freq" role="tab" aria-selected="false" aria-controls="props-tab-freq">Frecuencias</button>
+      <button type="button" class="dlg-tab" id="props-tab-btn-restore" role="tab" aria-selected="false" aria-controls="props-tab-restore">Restaurar</button>
     </div>
     <div id="props-tab-prefs" class="dlg-tabpanel" role="tabpanel">
       <div class="dlg-row"><span>Tema</span><select id="props-theme">
@@ -503,8 +504,10 @@
     <div id="props-tab-sources" class="dlg-tabpanel" hidden role="tabpanel">
       <p class="dlg-hint">Servicios WCS de los que «Consultas › Elevación» (menú contextual del visor) descarga el terreno y la superficie. Con «Ninguna», ese modelo no se consulta: la cuadrícula muestra solo el otro, sin diferencia.</p>
       <div class="dlg-row"><span>MDT (terreno)</span><select id="props-src-mdt"></select></div>
+      <p class="dlg-hint props-src-info" id="props-src-mdt-info"></p>
       <p class="dlg-hint props-src-url" id="props-src-mdt-url"></p>
       <div class="dlg-row"><span>MDS (superficie)</span><select id="props-src-mds"></select></div>
+      <p class="dlg-hint props-src-info" id="props-src-mds-info"></p>
       <p class="dlg-hint props-src-url" id="props-src-mds-url"></p>
     </div>
     <div id="props-tab-freq" class="dlg-tabpanel" hidden role="tabpanel">
@@ -512,9 +515,26 @@
       <div class="dlg-row"><span>Frecuencia c&#225;lculos de Fresnel</span>
         <span class="props-with-unit"><input type="number" id="props-fresnel-freq" min="1" max="300000" step="any"><span>MHz</span></span></div>
     </div>
+    <div id="props-tab-restore" class="dlg-tabpanel" hidden role="tabpanel">
+      <p class="dlg-hint">Borra todo lo que KITE guarda en este navegador: el &#225;rbol de capas, las ortofotos copiadas y todos los ajustes (unidades, fuentes de datos, vista del mapa, mapas base y credenciales). No se puede deshacer. El idioma de la interfaz se conserva. Antes de borrar se pide una segunda confirmaci&#243;n y, al terminar, la p&#225;gina se recarga.</p>
+      <div class="dlg-row"><span></span><button class="btn btn-danger" id="props-restore-btn">Borrar todos los datos guardados&#8230;</button></div>
+    </div>
     <div class="dlg-actions">
       <button class="btn" id="props-cancel">Cancelar</button>
       <button class="btn" id="props-accept">Aceptar</button>
+    </div>
+  </div>
+</div>
+
+<!-- Segunda confirmación de «Restaurar» (Propiedades): borra TODA la base de
+     IndexedDB. Va aparte de la pestaña para no pulsarlo por error. -->
+<div id="restore-confirm" class="dlg-overlay" hidden>
+  <div class="dlg-box">
+    <h2 class="dlg-head"><span class="dlg-title">Borrar todos los datos</span><button type="button" class="dlg-close" data-cancel="restore-cancel" title="Cancelar" aria-label="Cancelar">&#215;</button></h2>
+    <p class="dlg-hint">Se borrar&#225;n el &#225;rbol de capas, las ortofotos y todos los ajustes guardados en este navegador, y la p&#225;gina se recargar&#225;. No se puede deshacer. &#191;Continuar?</p>
+    <div class="dlg-actions">
+      <button class="btn" id="restore-cancel">Cancelar</button>
+      <button class="btn btn-danger" id="restore-accept">Borrar todo</button>
     </div>
   </div>
 </div>
