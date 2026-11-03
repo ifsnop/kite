@@ -8,7 +8,7 @@
    vuelva a pedir el catálogo, y que lo ajeno (un `.kite.json`) llegue
    apagado. El servidor es simulado con `ctx.route` sobre un dominio https
    de mentira: la CSP deja `connect-src`/`img-src` abiertas a https.   */
-import { launch, serve, openApp, waitAppReady, reporter, READABLE } from "./_browser.mjs";
+import { launch, serve, openApp, waitAppReady, reporter, READABLE, stubTiles } from "./_browser.mjs";
 
 const { ok, done } = reporter("BROWSER ARCGIS TESTS OK");
 
@@ -352,6 +352,7 @@ ok(await page.evaluate(() => arcgisLayersOnMap.size === 1), "borrar la carpeta q
 
 /* ---------- 14. Un árbol v8 (anterior a los servicios) se lee tal cual ---------- */
 const ctx2 = await browser.newContext({ serviceWorkers: "block", locale: "es-ES" });
+await stubTiles(ctx2);
 const p2 = await ctx2.newPage();
 await p2.goto(srv.url);
 await waitAppReady(p2);

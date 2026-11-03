@@ -10,7 +10,7 @@
    Medido al introducirlo (Chromium sin GPU, 7 copias de un .kite.json
    real, 114 MB): el guardado que seguía a cada acción bloqueaba el hilo
    330 ms; ahora, 32-46 ms en total.                                    */
-import { launch, serve, openApp, waitAppReady, reporter, READABLE } from "./_browser.mjs";
+import { launch, serve, openApp, waitAppReady, reporter, READABLE, stubTiles } from "./_browser.mjs";
 
 const { ok, done } = reporter("BROWSER SPLIT SAVE TESTS OK");
 const browser = await launch();
@@ -323,6 +323,7 @@ ok(!errors.length, "sin errores de página: " + errors.join(" | "));
 
 /* ---------- 11. Una base v4 con un «root» v8 con todo en línea ---------- */
 const ctx2 = await browser.newContext({ serviceWorkers: "block", locale: "es-ES" });
+await stubTiles(ctx2);
 await ctx2.route("**/blank", r => r.fulfill({ contentType: "text/html", body: "<!doctype html><title>b</title>" }));
 const p2 = await ctx2.newPage();
 const errors2 = [];

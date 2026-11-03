@@ -11,7 +11,7 @@
    Lo puro está en tests/cogtest.js.                                  */
 import fs from "node:fs";
 import http from "node:http";
-import { launch, openApp, reporter, READABLE } from "./_browser.mjs";
+import { launch, openApp, reporter, READABLE, stubTiles } from "./_browser.mjs";
 
 const { ok, done } = reporter("BROWSER COG TESTS OK");
 
@@ -285,6 +285,7 @@ ok(!errors.length, "sin errores de página: " + errors.join(" | "));
 
 /* ---------- 9. Una base v3 con un árbol v7 sobrevive a la subida ---------- */
 const ctx2 = await browser.newContext({ serviceWorkers: "block", locale: "es-ES" });
+await stubTiles(ctx2);
 const p2 = await ctx2.newPage();
 await p2.goto(base2 + "/fix/blank");
 await p2.evaluate(() => new Promise((res, rej) => {
