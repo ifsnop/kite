@@ -14,7 +14,7 @@
       intento, con el servicio bueno, funciona.
    4. La exportación a PNG, que es lo que usa html2canvas, funciona real
       y, si no se puede cargar, avisa SIN dejar los controles ocultos.    */
-import { launch, serve, openApp, reporter, READABLE } from "./_browser.mjs";
+import { launch, serve, openApp, reporter, READABLE, stubTiles } from "./_browser.mjs";
 
 const { ok, done } = reporter("BROWSER LAZY LIBS TESTS OK");
 const browser = await launch();
@@ -37,6 +37,7 @@ const sum = list => list.reduce((n, e) => n + e.bytes, 0);
 /* ---------- 1. El arranque ya no las descarga ---------- */
 {
   const ctx = await browser.newContext({ serviceWorkers: "block", locale: "es-ES" });
+await stubTiles(ctx);
   const page = await ctx.newPage();
   const errors = [];
   page.on("pageerror", e => errors.push(e.message));
