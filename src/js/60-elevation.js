@@ -1173,7 +1173,13 @@ const ElevFontControl = L.Control.extend({
       const a = L.DomUtil.create("a", cls, bar);
       a.href = "#"; a.textContent = text; a.title = title;
       a.setAttribute("role", "button"); a.setAttribute("aria-label", title);
-      a.addEventListener("click", e => { e.preventDefault(); stepElevFont(dir); });
+      a.addEventListener("click", e => {
+        e.preventDefault(); stepElevFont(dir);
+        /* `.leaflet-bar a:focus` pinta el fondo oscuro del hover: sin devolver el
+           foco al visor el botón se quedaba «pulsado» tras el clic (y las teclas
+           del visor, flechas y Re/Av Pág, tienen que seguir llegando).        */
+        map.getContainer().focus({ preventScroll: true });
+      });
     };
     button("ef-minus", "A\u2212", tr("Reducir el tamaño de las cifras de las celdas de elevación"), -1);
     button("ef-plus", "A+", tr("Aumentar el tamaño de las cifras de las celdas de elevación"), 1);

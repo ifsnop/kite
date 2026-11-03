@@ -103,6 +103,17 @@ const MeasureControl = L.Control.extend({
     toolButtons.arc = makeToolButton(bar, "\u25E0",
       tr("Medir arco: arrastra (o haz clic) del centro al inicio del arco, recorre el per\u00EDmetro "
       + "y haz clic donde acaba"), "arc");
+    L.DomEvent.disableClickPropagation(bar);
+    return bar;
+  }
+});
+
+/* «Crear», en su propia caja como el submenú «Crear» del menú contextual
+   frente a «Medir»: un hueco separa lo que mide de lo que crea.            */
+const CreateControl = L.Control.extend({
+  options: { position: "topleft" },
+  onAdd() {
+    const bar = L.DomUtil.create("div", "leaflet-bar measure-bar");
     toolButtons.polygon = makeToolButton(bar, "\u2B20",
       tr("Dibujar: click para cada v\u00E9rtice; doble click sobre el \u00FAltimo v\u00E9rtice cierra el "
       + "pol\u00EDgono, doble click fuera termina la l\u00EDnea sin cerrarla"), "polygon");
@@ -138,7 +149,7 @@ const MeasureControl = L.Control.extend({
 });
 
 /* La imagen PNG, en su propia caja: un hueco la separa de las herramientas
-   de dibujo (Leaflet deja 10 px entre controles de la misma esquina). Lleva
+   de crear (Leaflet deja 10 px entre controles de la misma esquina). Lleva
    también `.measure-bar`: se oculta en la propia imagen (HIDE_FOR_PNG).    */
 const ExportPngControl = L.Control.extend({
   options: { position: "topleft" },
@@ -162,6 +173,7 @@ function makeToolButton(bar, glyph, title, tool) {
   return a;
 }
 map.addControl(new MeasureControl());
+map.addControl(new CreateControl());
 map.addControl(new ExportPngControl());
 
 function setTool(tool) {
