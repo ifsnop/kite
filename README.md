@@ -229,6 +229,9 @@ the flag clears by itself when the tiles come back.
   two azimuths, optionally an annulus, centred on the point you clicked, with
   a live preview. They become ordinary layers of the tree, so they can be
   styled, edited and exported like any other
+- the same dialogs open from the ◎ and ◔ buttons of the drawing toolbar
+  (centred on the middle of the view), which now lists polygon or line, rings,
+  sector and pin in that order — the same order as the «Crear» menu
 
 ### ArcGIS map services
 
@@ -277,6 +280,9 @@ the flag clears by itself when the tiles come back.
   surface (MDS) elevation of a ~40 m square around the point, drawn as a
   readable grid of cells with the difference between them — the visible
   sign of buildings or vegetation
+- A− / A+ buttons above the scale make the numbers in the cells smaller or
+  bigger (remembered); when the numbers no longer fit inside a cell it falls
+  back to the plain red/white fill used at low zoom
 - each query becomes an ordinary layer of the tree, inside one folder per
   session under «Elevaciones»: persistent, toggleable and deletable like
   any other; hovering a cell shows its values in the coordinates box
@@ -500,7 +506,7 @@ Do not use public tile, geocoding or CDN services for sensitive work without an 
   `src/styles.css`, `src/sw.js` and 40 JavaScript files, concatenated into the
   shipped file by `build.js`. The single-file product is the output, not the
   source.
-- **There are automated tests.** 118 suites run against the shipped
+- **There are automated tests.** 119 suites run against the shipped
   file — most under Node, plus a set that drives a real headless browser —
   covering coordinate parsing and formatting, UTM, KML namespaces and
   styles, geometry conversion, serialization, tree navigation and

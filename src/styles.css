@@ -471,6 +471,8 @@
      — así, al activarse, `.active` gana por orden de cascada y el
      icono se ve blanco sobre el fondo de acento, igual que cualquier
      otro botón de esta barra.                                        */
+  /* ◔ (el sector) sale mucho más pequeño que ◎ o ◯ en la misma letra: se compensa */
+  .measure-bar a.glyph-lg { font-size: 23px; }
   .measure-bar a.dn-toggle { color: #f5a623; }
   .measure-bar a.active { background: var(--accent); color: #fff; }
   .measure-bar a.disabled { opacity: .35; cursor: not-allowed; }
@@ -479,6 +481,14 @@
      regardless of specificity, so the `hidden` property silently does
      nothing without this explicit override.                           */
   .measure-bar a[hidden] { display: none; }
+  /* A− / A+ del tamaño de las cifras de elevación, encima de la escala: dos
+     botones en fila, a la derecha. `hidden` pierde contra `display` de autor
+     (misma trampa que .measure-bar a[hidden]), de ahí su regla.          */
+  .elev-font-bar { display: flex; float: right; }
+  .elev-font-bar[hidden] { display: none; }
+  .elev-font-bar a { width: 32px; height: 26px; line-height: 26px; text-align: center; font: 700 13px/26px system-ui, sans-serif; cursor: pointer; border-bottom: none; }
+  .elev-font-bar a + a { border-left: 1px solid var(--border); }
+  .elev-font-bar a.disabled { opacity: .35; cursor: not-allowed; }
   /* Círculo blanco PEQUEÑO por defecto, sin cursor propio: un waypoint
      de ruta o el centro/borde de un círculo son manejadores PERMANENTES
      (existen aunque su diálogo de propiedades esté cerrado, ver
