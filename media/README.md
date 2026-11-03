@@ -11,7 +11,7 @@ Marca de KITE Local: el icono y las imágenes derivadas de él.
 | `apple-touch-icon.png` | 180×180 con fondo `#f7f7f5`: iOS no respeta la transparencia y pondría negro detrás. |
 | `kite-icon-512.png` | El icono grande, por si hace falta un PWA o una tienda. |
 | `kite-demo.gif` | El GIF de la portada del README: arrastrar un KMZ a la aplicación y verlo abierto (1100×700, unos 13 s, menos de 1 MB). Lo genera `tools/demo-gif.mjs`, no se toca a mano (ver abajo). |
-| `kite-social.png` | 1200×630, la imagen de vista previa al compartir el enlace (`og:image` / `twitter:image`). |
+| `kite-social.png` | 1200×630 (unos 400 KB), la imagen de vista previa al compartir el enlace (`og:image` / `twitter:image`) y, subida a mano, la del repositorio en GitHub (ver abajo). Una tarjeta en inglés con una fotografía de la aplicación de verdad; la genera `tools/social-image.mjs`. |
 
 ## Cómo se enlazan
 
@@ -28,7 +28,9 @@ Marca de KITE Local: el icono y las imágenes derivadas de él.
 
 **`kite-demo.gif`**: `npm run demo-gif` (hace falta red, por las teselas de OpenStreetMap; `-- --sin-fondo` para iterar el guion sin ella y `-- --fotogramas carpeta` para volcar cada fotograma como PNG y revisarlo). Arranca la aplicación limpia en inglés, «arrastra» `docs/ejemplos/operacion-sierra.kmz` con los mismos eventos `dragover` y `drop` que un archivo del escritorio (el cursor y el archivo que se ve moverse son dos elementos dibujados encima de la página: el navegador no deja a un script abrir una sesión de arrastre del sistema), y recorre lo que sale. Los fotogramas son capturas de la página, codificadas con una sola paleta de 255 colores y escribiendo solo los píxeles que cambian de un fotograma al siguiente. **Se regenera cuando cambia la interfaz que enseña** (caja de búsqueda, árbol, zona de soltar) y en cada release, junto con las capturas del manual.
 
-**Los PNG** salen de rasterizar el SVG con Chromium (`--headless`), dibujándolo
+**`kite-social.png`**: `npm run social-image` (hace falta red; `-- --sin-fondo` para iterar el diseño). Abre la aplicación en inglés con el KMZ de ejemplo, la fotografía y la coloca en una tarjeta de 1200×630 (el tamaño que declara `og:image:width/height` en `src/index.html`: cambiarlo exige cambiar también esas dos líneas). Se regenera cuando cambia la interfaz que enseña. **GitHub no tiene API para su «Social preview»**: tras regenerarla, se sube a mano en Settings › General › Social preview (pide menos de 1 MB; el script avisa si se pasa).
+
+**Los demás PNG** salen de rasterizar el SVG con Chromium (`--headless`), dibujándolo
 sobre un `<canvas>` al tamaño exacto y leyendo `toDataURL`. Ojo: capturar con
 `--screenshot` a ventanas pequeñas en esta VM sin GPU deja la imagen a medio
 pintar; el camino del `<canvas>` sí es fiable.

@@ -26,16 +26,14 @@
    pesa una fracción de lo que pesaría fotograma a fotograma.              */
 import fs from "node:fs";
 import path from "node:path";
-import http from "node:http";
 import { fileURLToPath } from "node:url";
 import { PNG } from "pngjs";
 import gifenc from "gifenc"; /* CommonJS: sin exportaciones con nombre */
 const { GIFEncoder, quantize, applyPalette } = gifenc;
-import { launch, READABLE } from "../tests/browser/_browser.mjs";
+import { openDemoApp } from "./_demo.mjs";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.join(HERE, "..");
-const PKG = JSON.parse(fs.readFileSync(path.join(ROOT, "package.json"), "utf8"));
 const OUT = path.join(ROOT, "media", "kite-demo.gif");
 const KMZ_NAME = "operacion-sierra.kmz";
 const KMZ = fs.readFileSync(path.join(ROOT, "docs", "ejemplos", KMZ_NAME));
@@ -49,60 +47,11 @@ const ZOOM = 13;
 /* Lo que fija la hora que se ve (los avisos llevan fecha y hora) */
 const STAMP = ["2026-11-02", "10:30:00"];
 
-/* ---------------- La aplicación, servida ---------------- */
-const html = fs.readFileSync(READABLE);
-const server = http.createServer((q, s) => { s.writeHead(200, { "Content-Type": "text/html; charset=utf-8" }); s.end(html); });
-await new Promise(r => server.listen(0, "127.0.0.1", r));
-const APP = `http://127.0.0.1:${server.address().port}/`;
-
-/* Teselas de OpenStreetMap: una vez cada una y con un User-Agent que dice
-   quién las pide (su política de uso). Con --sin-fondo, una lisa.         */
-const BLANK_TILE = Buffer.from(
-  "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8/+L1fwAIfgN/f1c1QQAAAABJRU5ErkJggg==", "base64");
-const tileCache = new Map();
-async function tileRoute(route) {
-  try {
-    if (NO_BG) return await route.fulfill({ status: 200, contentType: "image/png", body: BLANK_TILE });
-    const url = route.request().url();
-    if (!tileCache.has(url)) {
-      const r = await route.fetch({ headers: { ...route.request().headers(),
-        "user-agent": `KITE-Local-demo-gif/${PKG.version} (+https://github.com/ifsnop/kite)` } });
-      tileCache.set(url, { status: r.status(), headers: r.headers(), body: await r.body() });
-    }
-    const t = tileCache.get(url);
-    return await route.fulfill({ status: t.status, headers: t.headers, body: t.body });
-  } catch { /* contexto cerrado */ }
-}
-
-const browser = await launch();
-const ctx = await browser.newContext({ viewport: VIEW, locale: "en-US", timezoneId: "Europe/Madrid", colorScheme: "light",
-  serviceWorkers: "block", deviceScaleFactor: 1 });
-const page = await ctx.newPage();
-page.on("pageerror", e => console.error("  pageerror:", e.message));
-/* Sin el aviso de falta de aceleración por hardware (esta máquina no tiene GPU) */
-await page.addInitScript(() => {
-  const orig = WebGLRenderingContext.prototype.getParameter;
-  WebGLRenderingContext.prototype.getParameter = function (p) {
-    return p === 0x9246 || p === 0x1F01 ? "ANGLE (NVIDIA, NVIDIA GeForce GTX 1650 Direct3D11 vs_5_0 ps_5_0, D3D11)" : orig.call(this, p);
-  };
-});
-await page.route(/tile\.openstreetmap\.org/, tileRoute);
-await page.goto(APP);
-await page.waitForFunction(() => typeof map === "object" && map && typeof map.getZoom === "function"
-  && document.querySelector("#tree .empty") && document.querySelector("#tree .empty").textContent !== "Initializing…"
-  && document.querySelector("#tree .empty").textContent !== "Inicializando…");
+/* ---------------- La aplicación (tools/_demo.mjs) ---------------- */
+const { page, settle, close } = await openDemoApp({ viewport: VIEW, tool: "demo-gif", noBg: NO_BG });
 
 /* La vista de partida: Madrid, donde caen las zonas del ejemplo */
 await page.evaluate(([c, z]) => map.setView(c, z, { animate: false }), [CENTER, ZOOM]);
-const settle = async () => {
-  await page.waitForFunction(() => {
-    const t = [...document.querySelectorAll("#map img.leaflet-tile")].filter(i => i.src.includes(`/${Math.min(map.getZoom(), 19)}/`));
-    return t.length > 0 && t.every(i => i.complete && i.naturalWidth > 0) && !document.querySelector("#map .leaflet-tile-loading");
-  }, null, { timeout: 40000 });
-  await page.evaluate(() => new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r))));
-  /* Leaflet funde las teselas al llegar (200 ms): sin esperar, el primer fotograma sale desvaído */
-  await page.waitForTimeout(700);
-};
 await settle();
 
 /* ---------------- El cursor y el archivo que se arrastra ---------------- */
@@ -230,7 +179,7 @@ await click();
 for (let i = 0; i < 4; i++) { await page.waitForTimeout(110); await snap(110); } /* la capa parpadea en el mapa */
 await snap(2200);
 
-await ctx.close(); await browser.close(); server.close();
+await close();
 console.log(`${frames.length} fotogramas`);
 if (DUMP) {
   fs.mkdirSync(DUMP, { recursive: true });
