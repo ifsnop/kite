@@ -53,7 +53,7 @@ function pngTimestamp(d = new Date()) {
    y `.dn-celestial-overlay`) también se ocultan: son un efecto del
    momento actual, no parte del contenido del mapa, y html2canvas no
    garantiza capturar bien un canvas WebGL.                           */
-const HIDE_FOR_PNG = ".leaflet-control-zoom, .measure-bar, .base-box, .daynight-canvas, .dn-celestial-overlay";
+const HIDE_FOR_PNG = ".leaflet-control-zoom, .measure-bar, .base-box, .elev-font-bar, .daynight-canvas, .dn-celestial-overlay";
 
 async function exportMapPng() {
   /* Bajo demanda (07-lazy-libs.js): se pide ANTES de ocultar los
@@ -107,6 +107,23 @@ const MeasureControl = L.Control.extend({
       tr("Dibujar: click para cada v\u00E9rtice; doble click sobre el \u00FAltimo v\u00E9rtice cierra el "
       + "pol\u00EDgono, doble click fuera termina la l\u00EDnea sin cerrarla"), "polygon");
 
+    /* Anillos de alcance y sector: no son herramientas de arrastre sino
+       que abren su diálogo al pulsar (como el pin, no pasan por setTool y
+       no desactivan el desplazamiento). Como el pin, parten del CENTRO de
+       la vista; en el diálogo se puede corregir la posición. Mismo orden
+       que «Crear» del menú contextual: polígono, anillos, sector, pin.   */
+    const rings = L.DomUtil.create("a", "", bar);
+    rings.href = "#";
+    rings.textContent = "\u25CE";
+    rings.title = tr("Anillos de alcance: círculos concéntricos alrededor del centro de la vista");
+    rings.addEventListener("click", e => { e.preventDefault(); openRangeDialog("rings", map.getCenter()); });
+
+    const sector = L.DomUtil.create("a", "glyph-lg", bar);
+    sector.href = "#";
+    sector.textContent = "\u25D4";
+    sector.title = tr("Sector: un sector circular alrededor del centro de la vista, entre dos azimuts");
+    sector.addEventListener("click", e => { e.preventDefault(); openRangeDialog("sector", map.getCenter()); });
+
     /* Not a drag tool like the other two: it acts on click, so it does not
        go through setTool and never disables panning                      */
     const pin = L.DomUtil.create("a", "", bar);
@@ -115,12 +132,23 @@ const MeasureControl = L.Control.extend({
     pin.title = tr("Crear un marcador en el centro de la vista");
     pin.addEventListener("click", e => { e.preventDefault(); createPin(); });
 
+    L.DomEvent.disableClickPropagation(bar);
+    return bar;
+  }
+});
+
+/* La imagen PNG, en su propia caja: un hueco la separa de las herramientas
+   de dibujo (Leaflet deja 10 px entre controles de la misma esquina). Lleva
+   también `.measure-bar`: se oculta en la propia imagen (HIDE_FOR_PNG).    */
+const ExportPngControl = L.Control.extend({
+  options: { position: "topleft" },
+  onAdd() {
+    const bar = L.DomUtil.create("div", "leaflet-bar measure-bar");
     const png = L.DomUtil.create("a", "", bar);
     png.href = "#";
     png.textContent = "\uD83D\uDCF7";
     png.title = tr("Exportar el visor como imagen PNG");
     png.addEventListener("click", e => { e.preventDefault(); exportMapPng(); });
-
     L.DomEvent.disableClickPropagation(bar);
     return bar;
   }
@@ -134,6 +162,7 @@ function makeToolButton(bar, glyph, title, tool) {
   return a;
 }
 map.addControl(new MeasureControl());
+map.addControl(new ExportPngControl());
 
 function setTool(tool) {
   if (drawing) { rootGroup.removeLayer(drawing.group); drawing = null; }

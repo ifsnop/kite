@@ -362,7 +362,8 @@ const coarse = await page.evaluate(() => {
                   atCenter: !!m[0] && m[0].getLatLng().lat === cell.center[0] };
   };
   probe("z13", cell.center, 13);   /* 200 m ≈ 24 px: aún no cabe nada          */
-  probe("z14", cell.center, 14);   /* una línea (la única: solo hay MDT)       */
+  probe("z14", cell.center, 14);   /* ~27 px: la cifra (~30 px) aún no cabe → relleno */
+  probe("z15", cell.center, 15);   /* ~55 px: una línea (la única: solo hay MDT) */
   probe("z16", cell.center, 16);
   probe("z19", cell.center, 19);   /* la celda mide ~870 px: centro a la vista */
   /* el centro de la celda fuera de la pantalla, la celda cubriéndola */
@@ -377,8 +378,9 @@ const coarse = await page.evaluate(() => {
   rootGroup.removeLayer(g);
   return out;
 });
-ok(coarse.z13.n === 0, "con la celda de 200 m a ~24 px, aún sin cifra: " + JSON.stringify(coarse.z13));
-ok(coarse.z14.n === 1 && /ec-t/.test(coarse.z14.html), "la celda de 200 m ya lleva su cifra desde el zoom 14: " + JSON.stringify(coarse.z14));
+ok(coarse.z13.n === 0, "con la celda de 200 m a ~14 px, aún sin cifra: " + JSON.stringify(coarse.z13));
+ok(coarse.z14.n === 0, "a ~27 px la cifra no cabe en la celda de 200 m y se queda el relleno (regla del desborde): " + JSON.stringify(coarse.z14));
+ok(coarse.z15.n === 1 && /ec-t/.test(coarse.z15.html), "la celda de 200 m lleva su cifra desde el zoom 15: " + JSON.stringify(coarse.z15));
 ok(coarse.z16.n === 1 && coarse.z16.onScreen && /ec-t">\d+\.\d</.test(coarse.z16.html), "y en el 16, a la vista: " + JSON.stringify(coarse.z16));
 ok(coarse.z19.n === 1 && coarse.z19.onScreen && coarse.z19.atCenter, "en el 19, en su centro: " + JSON.stringify(coarse.z19));
 ok(coarse.z19off.n === 1 && coarse.z19off.onScreen && !coarse.z19off.atCenter,

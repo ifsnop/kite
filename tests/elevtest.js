@@ -1,5 +1,5 @@
 const { DOMParser } = require("@xmldom/xmldom");
-const { fn, between } = require("./_extract");
+const { fn, between, constDecl } = require("./_extract");
 const helpers = between("/* Nombre sin prefijo", "/* KML usa color");
 const fonts = between("const GRID_FONT_BASE", "const elevGridGroups");
 /* ELEV_WINDOW se define antes del resto de constantes de elevación, pero
@@ -51,7 +51,7 @@ const src = "const parserErrorText = () => null;\nconst toRad = d => d * Math.PI
    fn("describeElevChoice"), fn("validElevSources"), fn("elevSourcesLabel"),
    fn("parseOwsException"), fn("isRetryableElevError"), fn("withElevRetries"),
    fn("parseAsciiGrid"), fn("gridFromRaster"), fn("gridCellBounds"), fn("gridToLatLng"),
-   fn("buildElevCells"), fn("elevCellHtml"), fn("pointInCell"), fn("sessionStamp"),
+   fn("buildElevCells"), fn("elevCellHtml"), fn("elevCellTexts"), fn("elevCellPx"), constDecl("ELEV_CHAR_EM"), fn("elevCellBand"), fn("pointInCell"), fn("sessionStamp"),
    fn("nextNumberedName"), fn("elevLabelAnchor"), fn("profileLimitApplies"), fn("profilePieces"), fn("routeProfileSamples"), fn("profileFromSamples"),
    fn("niceTicks"), fn("profilePolylines"), fn("nearestProfilePoint"),
    fn("routeProfileKey"), fn("profilePointAt"), fn("clampProfileView"), fn("zoomProfileView"),
@@ -63,7 +63,7 @@ const apiExports = "\nreturn {parseWcsCapabilities, mdtCoverages, pickMdsCoverag
   " isOutOfCoverage, parseOwsException, isRetryableElevError, withElevRetries, ELEV_RETRIES," +
   " parseAsciiGrid, gridFromRaster, pickWebMercator, webMercatorHalf, gridCellBounds, gridFontSize," +
   " gridIconSize, snapTile, latticeKey, ELEV_TILE_WEB, ELEV_TILE_GEO, ELEV_WINDOW, gridToLatLng," +
-  " buildElevCells, elevCellHtml, elevZoomBand, isElevAlert, pointInCell, sessionStamp," +
+  " buildElevCells, elevCellHtml, elevCellTexts, elevCellPx, elevCellBand, ELEV_FONT_STEPS, elevZoomBand, isElevAlert, pointInCell, sessionStamp," +
   " fmtHeight, fmtHeightValue, setUnit, nextNumberedName, setNames: n => { fakeNames = n; }," +
   " validAltitudeUnit, validProfileMax, PROFILE_MAX_DEFAULT, ALTITUDE_UNIT_SCHEMA, PROFILE_MAX_SCHEMA," +
   " profilePieces, routeProfileSamples, profileFromSamples, niceTicks, tickDecimals, profilePolylines," +
@@ -404,6 +404,10 @@ ok(noGeo.values[0][0] === 700, "pero su valor se sigue leyendo");
 
 /* ---- Tamaño del texto de la cuadrícula según el zoom ---- */
 for (const z of [6, 15, 19, 20]) ok(api.gridFontSize(z) === 10, `zoom ${z} mantiene el tamaño base`);
+/* El tamaño que elige el usuario (A− / A+) multiplica el de partida y su tope */
+ok(api.ELEV_FONT_STEPS[2] === 1 && api.ELEV_FONT_STEPS.every((s, i, a) => i === 0 || s > a[i - 1]), "los escalones crecen y el de partida es ×1");
+ok(api.gridFontSize(20, 1.45) === 15 && api.gridFontSize(20, 0.7) === 7 && api.gridFontSize(20, 2.5) === 25, "×1,45 → 15 px, ×0,7 → 7 px, ×2,5 → 25 px a zoom 20");
+ok(api.gridFontSize(40, 2) === 44, "el tope también se multiplica: " + api.gridFontSize(40, 2));
 ok(api.gridFontSize(21) === 11, "desde el 21 crece: " + api.gridFontSize(21));
 for (let z = 21; z < 25; z++) ok(api.gridFontSize(z + 1) - api.gridFontSize(z) === 1, `un punto por nivel en ${z}`);
 ok(api.gridFontSize(40) === 22, "hay tope, para que quepa en la celda: " + api.gridFontSize(40));
@@ -592,6 +596,40 @@ ok(api.elevZoomBand(20) === "full", "20: las tres líneas");
 ok(api.elevZoomBand(25) === "full", "zoom máximo: las tres líneas");
 ok(api.elevZoomBand(18.4) === "mini", "18.4 redondea a 18: sin texto");
 ok(api.elevZoomBand(18.6) === "diff", "18.6 redondea a 19: solo diferencia");
+
+/* ---- elevCellBand: unas cifras que no caben en su celda se sustituyen por el relleno de «mini» ---- */
+{
+  /* Una celda de 5 m en la latitud 40,4168: su lado es de 44,0 px a zoom 20 (22,0 a zoom 19) */
+  const lat = 40.4168, dLat = 5 / 111195, dLng = dLat / Math.cos(lat * Math.PI / 180);
+  const cell = (extra = {}) => ({ sw: [lat, -3.7], ne: [lat + dLat, -3.7 + dLng], center: [lat + dLat / 2, -3.7 + dLng / 2],
+    mdt: 610.2, mds: 615.4, diff: 5.2, ...extra });
+  api.setUnit("m");
+  const px20 = api.elevCellPx(cell(), 20), px19 = api.elevCellPx(cell(), 19);
+  ok(Math.abs(px20.w - 44) < 0.6 && Math.abs(px20.h - 44) < 0.6, "5 m a zoom 20 miden ~44 px: " + JSON.stringify(px20));
+  ok(Math.abs(px19.w * 2 - px20.w) < 1e-9, "y la mitad un nivel más lejos");
+  const t = api.elevCellTexts(cell(), "full");
+  ok(t.map(x => x.text).join("|") === "610.2|615.4|+5.2" && t[2].cls === "ec-d alert", "los textos de la banda completa: " + JSON.stringify(t));
+  ok(api.elevCellTexts(cell(), "diff").length === 1 && api.elevCellTexts(cell(), "mini").length === 0, "una línea en «diff», ninguna en «mini»");
+  ok(api.elevCellTexts({ mdt: 1, diff: null, sw: [0, 0], ne: [1, 1] }, "full").length === 1, "con un solo modelo, una línea");
+  /* Cabe: la banda del zoom. No cabe: «mini» */
+  ok(api.elevCellBand(cell(), 20, 1) === "full", "zoom 20, tamaño 1: tres líneas de 5 caracteres en 44 px: caben");
+  ok(api.elevCellBand(cell(), 20, 1.2) === "full", "×1,2 (12 px; 41,4 px de alto): todavía caben");
+  ok(api.elevCellBand(cell(), 20, 1.45) === "mini", "×1,45 (15 px; 51,8 px de alto): ya no caben, relleno de aviso");
+  ok(api.elevCellBand(cell(), 19, 1) === "mini", "zoom 19: la diferencia «+5.2» (24 px) no cabe en 22 px: «mini»");
+  ok(api.elevCellBand(cell({ diff: 0.3, mds: 610.5 }), 19, 1) === "mini", "«+0.3» (4 caracteres, 24 px) tampoco cabe en 22 px: tampoco a zoom 19 hay cifras en una celda de 5 m");
+  ok(api.elevCellBand(cell(), 21, 1) === "full" && api.elevCellBand(cell(), 25, 2.5) === "full", "más cerca, caben (también con letra grande)");
+  ok(api.elevCellBand(cell(), 17, 1) === "mini" && api.elevCellBand(cell(), 18, 0.7) === "mini", "con poco zoom sigue siendo «mini»");
+  /* Cifras más largas, antes en «mini» */
+  ok(api.elevCellBand(cell({ mdt: 12345.6, mds: 12350.8 }), 20, 1) === "full" && api.elevCellBand(cell({ mdt: 12345.6, mds: 12350.8 }), 20, 1.2) === "mini",
+    "una cifra de 7 caracteres (12345.6): cabe a ×1 (42,1 px) y no a ×1,2 (50,6 px)");
+  /* Una celda gruesa se juzga con sus píxeles reales y el zoom efectivo de su fuente */
+  const big = { sw: [lat, -3.7], ne: [lat + 25 / 111195, -3.7 + 25 / 111195 / Math.cos(lat * Math.PI / 180)] };
+  Object.assign(big, { center: [lat, -3.7], mdt: 600, mds: 604, diff: 4 });
+  ok(api.elevCellBand(big, 18, 1) === "full", "una celda de 25 m a zoom 18 (la mitad de 5 m a zoom 20, +2 niveles): ~44 px, caben");
+  /* Sin nada que escribir, la banda del zoom */
+  const empty = { sw: cell().sw, ne: cell().ne, center: cell().center };
+  ok(api.elevCellBand(empty, 20, 1) === "full", "una celda sin ningún modelo no tiene nada que escribir: la banda del zoom");
+}
 
 /* ---- isElevAlert: umbral estricto, siempre en metros ---- */
 ok(api.isElevAlert({ diff: 1.01 }) === true, "1.01 m > 1 m: aviso");

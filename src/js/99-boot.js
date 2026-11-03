@@ -74,6 +74,10 @@
     if (f !== null) fresnelFreqMHz = f;
   } catch { /* frecuencia de Fresnel por defecto (1090 MHz) */ }
   try {
+    const step = await dbLoadElevFont();
+    if (step !== null) elevFontStep = step;
+  } catch { /* tamaño de las cifras por defecto */ }
+  try {
     const fmt = await dbLoadCoordFormat();
     if (fmt !== null) coordFormat = fmt;
   } catch { /* formato por defecto (decimal) */ }

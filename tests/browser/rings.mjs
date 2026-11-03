@@ -175,6 +175,39 @@ const after = await page.evaluate(async () => {
 ok(after.names.includes("Anillos de alcance 1") && after.names.includes("20 NM") && after.sector, "tras recargar siguen las capas: " + after.names.join("|"));
 ok(after.ringPts === 180 && after.maxLng > 180, "y el anillo del antimeridiano sigue entero, sin que la restauración lo rechace: " + JSON.stringify(after));
 
+/* ---- Los botones de la barra del visor ----
+   Los dos diálogos también se abren desde la barra, justo debajo del polígono y antes del
+   pin, con el MISMO orden que «Crear» del menú contextual; el PNG, en su propia caja, con
+   un hueco. Parten del CENTRO de la vista (como el pin), no de un punto pulsado.        */
+await page.evaluate(() => map.setView([41.5, -2.2], 9, { animate: false }));
+const bars = await page.evaluate(() => [...document.querySelectorAll(".leaflet-top.leaflet-left .measure-bar")].map(b => ({
+  glyphs: [...b.querySelectorAll("a")].map(a => a.textContent), titles: [...b.querySelectorAll("a")].map(a => a.title),
+  top: b.getBoundingClientRect().top, bottom: b.getBoundingClientRect().bottom })));
+ok(bars.length >= 2, "la barra de dibujo y la del PNG son cajas distintas: " + bars.length);
+ok(JSON.stringify(bars[0].glyphs) === JSON.stringify(["\u2933", "\u25EF", "\u25E0", "\u2B20", "\u25CE", "\u25D4", "\uD83D\uDCCD"]),
+  "polígono, anillos (◎), sector (◔) y pin, en ese orden: " + JSON.stringify(bars[0].glyphs));
+ok(JSON.stringify(bars[1].glyphs) === JSON.stringify(["\uD83D\uDCF7"]), "y la cámara, sola en su caja: " + JSON.stringify(bars[1].glyphs));
+ok(bars[1].top - bars[0].bottom >= 8, `con un hueco entre el pin y la cámara: ${(bars[1].top - bars[0].bottom).toFixed(1)} px`);
+ok(/Anillos de alcance/.test(bars[0].titles[4]) && /Sector/.test(bars[0].titles[5]), "con su título: " + bars[0].titles.slice(4, 6).join(" | "));
+
+const barBtn = n => page.locator(".leaflet-top.leaflet-left .measure-bar").first().locator("a").nth(n);
+const dlg = () => page.evaluate(() => ({ open: !document.getElementById("range-dialog").hidden,
+  mode: document.getElementById("rg-mode").value, title: document.getElementById("rg-title").textContent,
+  lat: Number(document.getElementById("rg-lat").value), lng: Number(document.getElementById("rg-lng").value),
+  c: { lat: map.getCenter().lat, lng: map.getCenter().lng } }));
+await barBtn(4).click();
+await page.waitForFunction(() => !document.getElementById("range-dialog").hidden);
+let d = await dlg();
+ok(d.mode === "rings" && d.title === "Anillos de alcance", "◎ abre «Anillos de alcance»: " + JSON.stringify(d));
+ok(Math.abs(d.lat - d.c.lat) < 1e-5 && Math.abs(d.lng - d.c.lng) < 1e-5, "con el centro de la vista como centro");
+await page.click("#rg-cancel");
+await barBtn(5).click();
+await page.waitForFunction(() => !document.getElementById("range-dialog").hidden);
+d = await dlg();
+ok(d.mode === "sector" && d.title === "Sector" && Math.abs(d.lat - d.c.lat) < 1e-5, "◔ abre «Sector», también desde el centro: " + JSON.stringify(d));
+await page.click("#rg-cancel");
+ok(!(await dlg()).open, "Cancelar los cierra sin dejar nada");
+
 ok(errors.length === 0, "sin errores de página: " + errors.join(" | "));
 ok((await page.evaluate(() => window.__csp)).length === 0, "sin violaciones de la CSP");
 await ctx.close(); await browser.close();

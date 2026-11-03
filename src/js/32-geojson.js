@@ -702,6 +702,7 @@ async function applySnapshot(nodes) {
      deshacer dejaba las de antes, y una ruta seguía «teniendo» un
      perfil que ya no estaba (findRouteProfile).                      */
   elevGridGroups.length = 0;
+  syncElevFontControl(); /* (60-elevation.js) */
   showEmptyMessage();
   if (nodes.length) await restoreTree(nodes);
   scheduleSave();
@@ -969,6 +970,34 @@ async function dbLoadFresnelFreq() {
     const tx = db.transaction(DB_TREE, "readonly");
     const rq = tx.objectStore(DB_TREE).get(FRESNEL_FREQ_KEY);
     rq.onsuccess = () => resolve(validFresnelFreq(rq.result));
+    rq.onerror = () => reject(rq.error);
+  });
+}
+
+/* Tamaño de las cifras de las celdas de elevación (botones A− / A+, ver
+   ElevFontControl en 60-elevation.js): un ÍNDICE de ELEV_FONT_STEPS. Clave
+   propia del almacén `tree`, como la frecuencia de Fresnel; no sube
+   DB_VERSION ni TREE_SCHEMA. Validado al leer: un índice que ya no existe
+   (escalones cambiados) vuelve al de partida.                            */
+const ELEV_FONT_KEY = "elevFont";
+const ELEV_FONT_SCHEMA = 1;
+const validElevFont = r =>
+  (r && r.v === ELEV_FONT_SCHEMA && Number.isInteger(r.step) && r.step >= 0 && r.step < ELEV_FONT_STEPS.length ? r.step : null);
+async function dbSaveElevFont(step) {
+  const db = await openDb();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(DB_TREE, "readwrite");
+    tx.objectStore(DB_TREE).put({ v: ELEV_FONT_SCHEMA, step }, ELEV_FONT_KEY);
+    tx.oncomplete = resolve;
+    tx.onerror = () => reject(tx.error);
+  });
+}
+async function dbLoadElevFont() {
+  const db = await openDb();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(DB_TREE, "readonly");
+    const rq = tx.objectStore(DB_TREE).get(ELEV_FONT_KEY);
+    rq.onsuccess = () => resolve(validElevFont(rq.result));
     rq.onerror = () => reject(rq.error);
   });
 }

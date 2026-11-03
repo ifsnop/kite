@@ -192,7 +192,7 @@ En las dos capas «Custom», una tesela que el servidor no entrega —por ejempl
 En la esquina superior izquierda del mapa hay dos barras verticales.
 
 ![Las dos barras de herramientas del visor, junto a los botones de zoom](img/barra-herramientas.png)
-*Figura 19. Los botones de zoom y las dos barras del visor: la de dibujo y medición (ruta, círculo, arco, polígono o línea, pin y PNG) y la de vista (autoescalar, IB, GC, retícula e iluminación real).*
+*Figura 19. Los botones de zoom y las dos barras del visor: la de dibujo y medición (ruta, círculo, arco, polígono o línea, anillos, sector y pin, y aparte, en su propia caja, el PNG) y la de vista (autoescalar, IB, GC, retícula e iluminación real).*
 
 La primera reúne las herramientas que dibujan sobre el mapa:
 
@@ -200,8 +200,10 @@ La primera reúne las herramientas que dibujan sobre el mapa:
 - **Medir círculo** (◯): arrastrar del centro al borde calcula el radio, el perímetro, la superficie y la orientación (el rumbo del centro al borde).
 - **Medir arco** (◠): tres gestos. Primero el **centro**; después el **inicio del arco**, que fija a la vez el radio y la orientación (los dos primeros valen como un arrastre del centro al inicio, o como dos clics); por último se **recorre el perímetro** desde el inicio con el ratón y un clic marca dónde acaba. El sentido (horario o antihorario) lo decide hacia dónde se mueve el ratón, y se pueden hacer arcos de más de media vuelta. Escape cancela. Al terminar, el arco **se convierte en una ruta normal** («Arco 1», «Arco 2»…) de tantos tramos como indique la preferencia «Segmentos de un arco» (16 de partida, ver 🏷️ Propiedades): la ruta ya no recuerda centro, radio ni apertura y se edita como cualquier otra. Sus etiquetas de tramo salen apagadas para no tapar el arco; se encienden con la casilla «Mostrar las etiquetas…» de su diálogo.
 - **Dibujar polígono o línea** (⬠): un clic por cada vértice; un doble clic sobre el último vértice cierra la figura, y un doble clic fuera de un vértice la deja como una línea abierta. Mientras se dibuja, un vértice ya puesto se puede arrastrar a otra posición antes de cerrar la figura, y quitar con el botón derecho. Está también en el menú contextual, «Crear» › «Polígono o línea».
+- **Anillos de alcance** (◎): abre el diálogo de anillos concéntricos (apartado 7.13) con el **centro de la vista** como centro, igual que el pin; también desde el menú contextual, «Crear» › «Anillos de alcance…», donde el centro es el punto pulsado.
+- **Sector** (◔): igual, pero para un sector circular (también «Crear» › «Sector…»).
 - **Crear un pin** (📍): añade un marcador en el centro de la vista actual y abre directamente su diálogo de estilo (también desde el menú contextual, «Crear» › «Pin»).
-- **Exportar PNG** (📷): guarda una imagen del mapa tal como se ve, sin los controles superpuestos, pero con el cuadro de coordenadas, la escala y la atribución (que la licencia de la cartografía exige conservar).
+- **Exportar PNG** (📷), en una caja aparte, separada por un hueco del resto para que no se pulse sin querer al buscar el pin: guarda una imagen del mapa tal como se ve, sin los controles superpuestos, pero con el cuadro de coordenadas, la escala y la atribución (que la licencia de la cartografía exige conservar).
 
 La segunda barra reúne los controles de la propia vista:
 
@@ -253,8 +255,10 @@ Un clic derecho sobre el mapa abre un menú con las acciones más habituales, ag
 - **«Medir»**: un submenú con las tres herramientas de medición, **«Ruta»**, **«Círculo»** y **«Arco»** (apartado 4.2). Elegir una activa la herramienta; elegirla otra vez, la desactiva.
 - **«Crear»**: un submenú para dibujar o colocar algo nuevo.
   - **«Polígono o línea»**: activa o desactiva la herramienta de dibujo (apartados 4.2 y 7.3).
-  - **«Pin»**: añade un marcador en el centro de la vista y abre su diálogo de estilo.
   - **«Anillos de alcance…»** y **«Sector…»**: abren el diálogo del apartado 7.13 con el punto pulsado como centro.
+  - **«Pin»**: añade un marcador en el centro de la vista y abre su diálogo de estilo.
+
+  El orden es el mismo que el de los botones de la barra de dibujo (polígono o línea, anillos, sector y pin).
 
 Los encuadres (autoescalar, península y Baleares, islas Canarias), la retícula de paralelos y meridianos y la exportación a PNG no están en este menú: tienen su botón en las barras de herramientas del visor (apartado 4.2).
 
@@ -431,7 +435,7 @@ Una medición se exporta como línea (ruta) o como un polígono de 120 lados (c�
 
 ### 7.8 Consultar la altitud del terreno
 
-Con el botón derecho sobre el mapa, **«Consultas» › «Elevación»** descarga la altitud del terreno (MDT) y de la superficie (MDS) de una pequeña zona cuadrada alrededor del punto pulsado (unos 40 m de lado) y la dibuja como una cuadrícula: cada celda lleva el terreno, la superficie y la diferencia entre ambos —lo que hay construido o la vegetación—, en la **unidad de altitud** de Propiedades (metros, pies, kilómetros, millas o millas náuticas; cambiarla repinta las cifras; la unidad de distancia no las toca). Por debajo del zoom 19 las celdas de 5 m no llevan texto y se colorean en rojo cuando la superficie supera al terreno en más de un metro; las de malla más gruesa escriben antes, porque ya son más grandes en pantalla (las del MDT25 y de Copernicus, dos niveles de zoom antes; las del MDT200, cinco: desde el zoom 14 una línea y desde el 15 todas). Si una celda es tan grande que su centro queda fuera de la pantalla, su cifra se coloca en la parte que se ve. Cada consulta necesita conexión y es una petición expresa: mover el ratón no consulta nada. Mientras la consulta está en marcha, el cursor sobre el mapa es el de espera; no hay aviso de «consultando», ni otro al terminar: la capa nueva aparece en el árbol.
+Con el botón derecho sobre el mapa, **«Consultas» › «Elevación»** descarga la altitud del terreno (MDT) y de la superficie (MDS) de una pequeña zona cuadrada alrededor del punto pulsado (unos 40 m de lado) y la dibuja como una cuadrícula: cada celda lleva el terreno, la superficie y la diferencia entre ambos —lo que hay construido o la vegetación—, en la **unidad de altitud** de Propiedades (metros, pies, kilómetros, millas o millas náuticas; cambiarla repinta las cifras; la unidad de distancia no las toca). Por debajo del zoom 19 las celdas de 5 m no llevan texto y se colorean en rojo cuando la superficie supera al terreno en más de un metro; las de malla más gruesa escriben antes, porque ya son más grandes en pantalla (las del MDT25 y de Copernicus, dos niveles de zoom antes; las del MDT200, cinco: desde el zoom 15 una línea, y más según les quepan). Encima de la escala, mientras haya una capa de elevación visible, aparecen dos botones, **A−** y **A+**, que reducen o aumentan el tamaño de las cifras de las celdas (ocho tamaños; se recuerda el elegido entre sesiones). Si, con el tamaño elegido, las cifras de una celda no caben dentro de ella, la celda se dibuja como se dibuja por debajo del zoom 19: sin texto y en rojo si la superficie supera al terreno en más de un metro, o en blanco si no; basta reducir el tamaño de letra o acercar el zoom para que vuelvan las cifras. Si una celda es tan grande que su centro queda fuera de la pantalla, su cifra se coloca en la parte que se ve. Cada consulta necesita conexión y es una petición expresa: mover el ratón no consulta nada. Mientras la consulta está en marcha, el cursor sobre el mapa es el de espera; no hay aviso de «consultando», ni otro al terminar: la capa nueva aparece en el árbol.
 
 ![Una consulta de elevación: la capa Elevación 1 en el árbol y sus celdas de 5 metros en el mapa](img/consulta-elevacion.png)
 *Figura 42. Una consulta de elevación (datos de ejemplo, no de un servicio real): en el árbol, «Elevaciones › Sesión … › Elevación 1 — MDT05 + MDS (IGN)»; en el mapa, sus celdas de 5 m con el terreno, la superficie y la diferencia (en rojo, la que pasa de 1 m). Arriba, en el registro, la elección de cada servicio.*
@@ -541,7 +545,7 @@ La ficha de la capa (el botón ℹ, o «Mostrar atributos» en su menú) trae la
 
 ### 7.13 Dibujar anillos de alcance y sectores
 
-Con el botón derecho sobre el mapa, **«Crear» › «Anillos de alcance…»** o **«Crear» › «Sector…»** abre un diálogo con el punto pulsado como **centro** (su latitud y longitud, en el formato elegido en Propiedades, se pueden corregir). Los cambios se ven **al momento** sobre el mapa, en naranja y a trazos; **«Cancelar»** o `Escape` los quitan sin dejar nada.
+Con el botón derecho sobre el mapa, **«Crear» › «Anillos de alcance…»** o **«Crear» › «Sector…»** (o los botones ◎ y ◔ de la barra de dibujo, que usan el centro de la vista) abre un diálogo con el punto pulsado como **centro** (su latitud y longitud, en el formato elegido en Propiedades, se pueden corregir). Los cambios se ven **al momento** sobre el mapa, en naranja y a trazos; **«Cancelar»** o `Escape` los quitan sin dejar nada.
 
 ![El diálogo de anillos de alcance, con cuatro radios y radiales cada 45°](img/anillos-dialogo.png)
 *Figura 49. «Anillos de alcance»: cuatro radios (1, 2, 3 y 4 NM, en la unidad elegida en Propiedades) y una radial cada 45°.*
