@@ -174,7 +174,7 @@ Después de reunir los PR y ANTES de tagear (ver `build-and-release.md`):
 3. `npm run capturas` (todas; ~1 minuto más lo que tarden las teselas). Mirar las
    PNG que hayan cambiado respecto a la versión anterior (`git diff --stat
    docs/img`; las que casi no cambian de tamaño suelen ser las que no cambiaron).
-   `ortofoto-cog.png` no se regenera: se mantiene. Y `npm run demo-gif` (el GIF de la portada del README).
+   `ortofoto-cog.png` no se regenera: se mantiene. Y `npm run demo-gif` (el GIF de la portada del README) y `npm run social-image` (la imagen social).
 4. `KITE_REQUIRE_BROWSER=1 node tests/run-all.js`. Anotar el total («N de N»).
 5. Estudio de seguridad (`docs/estudio-seguridad-kite-local.md`):
    - Las cuatro frases de recuento (resumen, 7.2, 7.4, conclusión) al total del
@@ -232,6 +232,14 @@ release (procedimiento B). Pesa menos de 1 MB (una paleta de 255 colores y solo 
 píxeles que cambian); si el guion crece y pasa de 2-3 MB, se acorta, no se baja la
 calidad. El archivo de ejemplo es `docs/ejemplos/operacion-sierra.kmz` (el mismo KML
 de las capturas, comprimido): si cambia el KML, hay que regenerar también el KMZ.
+
+### La imagen social (`media/kite-social.png`)
+
+La tarjeta que sale al compartir el enlace de la demo y el repositorio (inglés, con una
+fotografía de la aplicación). Se genera con `tools/social-image.mjs` (`npm run
+social-image`, ver `media/README.md`), nunca a mano, con el mismo criterio que el GIF: se
+regenera cuando cambia lo que enseña y en cada release. Su subida a GitHub (Settings ›
+Social preview) es manual.
 
 ### Añadir una captura (receta)
 
