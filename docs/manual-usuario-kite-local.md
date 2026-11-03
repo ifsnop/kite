@@ -189,16 +189,21 @@ En las dos capas «Custom», una tesela que el servidor no entrega —por ejempl
 
 ### 4.2 Barra de herramientas de dibujo y medición
 
-En la esquina superior izquierda del mapa hay dos barras verticales.
+En la esquina superior izquierda del mapa hay dos barras verticales, la primera de ellas partida en tres cajas separadas por un hueco: medir, crear y la cámara.
 
 ![Las dos barras de herramientas del visor, junto a los botones de zoom](img/barra-herramientas.png)
-*Figura 19. Los botones de zoom y las dos barras del visor: la de dibujo y medición (ruta, círculo, arco, polígono o línea, anillos, sector y pin, y aparte, en su propia caja, el PNG) y la de vista (autoescalar, IB, GC, retícula e iluminación real).*
+*Figura 19. Los botones de zoom y las dos barras del visor: la de dibujo y medición, con sus tres cajas (medir: ruta, círculo y arco; crear: polígono o línea, anillos, sector y pin; y el PNG) y la de vista (autoescalar, IB, GC, retícula e iluminación real).*
 
-La primera reúne las herramientas que dibujan sobre el mapa:
+La primera reúne las herramientas que miden y dibujan sobre el mapa. Igual que el menú contextual separa «Medir» y «Crear», aquí van en dos cajas con un hueco entre ellas: arriba las tres de medir, y debajo las de crear.
+
+Medir, la primera caja:
 
 - **Medir ruta** (⤳): un clic por cada waypoint, doble clic para terminar — como varias líneas encadenadas, con la distancia y el rumbo de cada tramo por separado y el total. Una ruta de solo 2 waypoints es una línea recta de toda la vida; con más, sirve para planificar un trayecto con varias escalas.
 - **Medir círculo** (◯): arrastrar del centro al borde calcula el radio, el perímetro, la superficie y la orientación (el rumbo del centro al borde).
 - **Medir arco** (◠): tres gestos. Primero el **centro**; después el **inicio del arco**, que fija a la vez el radio y la orientación (los dos primeros valen como un arrastre del centro al inicio, o como dos clics); por último se **recorre el perímetro** desde el inicio con el ratón y un clic marca dónde acaba. El sentido (horario o antihorario) lo decide hacia dónde se mueve el ratón, y se pueden hacer arcos de más de media vuelta. Escape cancela. Al terminar, el arco **se convierte en una ruta normal** («Arco 1», «Arco 2»…) de tantos tramos como indique la preferencia «Segmentos de un arco» (16 de partida, ver 🏷️ Propiedades): la ruta ya no recuerda centro, radio ni apertura y se edita como cualquier otra. Sus etiquetas de tramo salen apagadas para no tapar el arco; se encienden con la casilla «Mostrar las etiquetas…» de su diálogo.
+
+**Crear**, la segunda caja:
+
 - **Dibujar polígono o línea** (⬠): un clic por cada vértice; un doble clic sobre el último vértice cierra la figura, y un doble clic fuera de un vértice la deja como una línea abierta. Mientras se dibuja, un vértice ya puesto se puede arrastrar a otra posición antes de cerrar la figura, y quitar con el botón derecho. Está también en el menú contextual, «Crear» › «Polígono o línea».
 - **Anillos de alcance** (◎): abre el diálogo de anillos concéntricos (apartado 7.13) con el **centro de la vista** como centro, igual que el pin; también desde el menú contextual, «Crear» › «Anillos de alcance…», donde el centro es el punto pulsado.
 - **Sector** (◔): igual, pero para un sector circular (también «Crear» › «Sector…»).

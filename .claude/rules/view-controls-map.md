@@ -228,7 +228,7 @@ sola línea con elipsis si no cabe.
   `10-map.js` ES la posición en pantalla** — invertirlo pone la escala
   debajo.
 - **Exportar PNG** (`exportMapPng`) oculta `.leaflet-control-zoom`,
-  `.measure-bar` (cubre medición/pin/📷 y vista) y `.base-box` antes de
+  `.measure-bar` (cubre medir, crear y 📷, y vista) y `.base-box` antes de
   `html2canvas`, restaurados en `finally` aunque falle la captura. El
   cuadro de coordenadas, la atribución (licencia CC BY del PNOA/IGN) y
   **la escala** NO se ocultan a propósito.

@@ -109,8 +109,23 @@ for (let i = 0; i < 10; i++) await page.click(".elev-font-bar .ef-minus");
 b = await bar();
 ok(b.minus && !b.plus && b.step === 0, "y en el mínimo, A−: " + JSON.stringify(b));
 
+/* ---------- Tras el clic, el botón no se queda «pulsado» ----------
+   `.leaflet-bar a:focus` pinta el fondo oscuro del hover: si el botón conserva el foco
+   tras el clic (y el ratón ya se ha ido), se queda oscuro. El foco vuelve al visor.   */
+await page.click(".elev-font-bar .ef-plus");
+await page.mouse.move(700, 300);
+const after = await page.evaluate(() => {
+  const a = document.querySelector(".elev-font-bar .ef-plus");
+  return { focusOnButton: document.activeElement === a, focusOnMap: document.activeElement === map.getContainer(),
+    bg: getComputedStyle(a).backgroundColor, surface: (() => { const t = document.createElement("div");
+      t.style.backgroundColor = "var(--surface)"; document.body.appendChild(t);
+      const c = getComputedStyle(t).backgroundColor; t.remove(); return c; })() };
+});
+ok(!after.focusOnButton && after.focusOnMap, "el foco vuelve al visor: " + JSON.stringify(after));
+ok(after.bg === after.surface, "y el botón recupera su color claro, no el del hover: " + JSON.stringify(after));
+
 /* ---------- 5. Se guarda ---------- */
-await page.click(".elev-font-bar .ef-plus"); /* escalón 1 */
+/* (el bloque anterior ya dejó el escalón 1) */
 await page.click(".elev-font-bar .ef-plus"); /* escalón 2 */
 await page.click(".elev-font-bar .ef-plus"); /* escalón 3 */
 await page.waitForTimeout(400);
