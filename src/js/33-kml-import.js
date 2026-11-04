@@ -453,7 +453,13 @@ async function addFileNode(name, kind, content, insertBefore = null, dropTargetU
    kmlFromZip, `onPct` recibe el porcentaje descomprimido, la única fase
    con progreso medible de verdad.                                      */
 const KMZ_MAX_ENTRIES = 2000;              /* entradas dentro del zip      */
-const KMZ_MAX_UNCOMPRESSED = 300 * 1024 * 1024; /* 300 MB descomprimidos    */
+/* El tope de tamaño descomprimido es una PREFERENCIA (Propiedades →
+   Preferencias, en MB): depende de la memoria del equipo de quien lo usa.
+   `kmzMaxUncompressedMB` es el valor vigente; se lee en cada apertura, no
+   se copia a una constante.                                            */
+const KMZ_MAX_UNCOMPRESSED_DEFAULT_MB = 500;
+const KMZ_MAX_UNCOMPRESSED_MIN_MB = 1, KMZ_MAX_UNCOMPRESSED_MAX_MB = 4096;
+let kmzMaxUncompressedMB = KMZ_MAX_UNCOMPRESSED_DEFAULT_MB;
 const KMZ_MAX_RATIO = 200;                 /* descomprimido / comprimido    */
 
 /* Abre un zip (un KMZ o el .zip de un shapefile) y aplica las cotas
@@ -474,8 +480,10 @@ async function loadZipChecked(file, what) {
     const size = (f._data && f._data.uncompressedSize) || 0;
     uncompressed += size;
   }
-  if (uncompressed > KMZ_MAX_UNCOMPRESSED) {
-    throw new Error(tr("el {what} ocupa demasiado descomprimido ({size})", { what, size: fmtBytes(uncompressed) }));
+  const maxBytes = kmzMaxUncompressedMB * 1024 * 1024;
+  if (uncompressed > maxBytes) {
+    throw new Error(tr("el {what} ocupa demasiado descomprimido ({size}; el l\u00EDmite es {limit}, ajustable en \uD83C\uDFF7\uFE0F Propiedades)",
+      { what, size: fmtBytes(uncompressed), limit: fmtBytes(maxBytes) }));
   }
   if (file.size && uncompressed / file.size > KMZ_MAX_RATIO) {
     throw new Error(tr("relaci\u00F3n de compresi\u00F3n sospechosa (\u00D7{ratio})", { ratio: Math.round(uncompressed / file.size) }));

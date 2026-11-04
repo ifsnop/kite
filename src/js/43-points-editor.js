@@ -1639,6 +1639,7 @@ const propsTabFreq = document.getElementById("props-tab-freq");
 const propsTabRestoreBtn = document.getElementById("props-tab-btn-restore");
 const propsTabRestore = document.getElementById("props-tab-restore");
 const propsFresnelFreqInput = document.getElementById("props-fresnel-freq");
+const propsKmzMaxInput = document.getElementById("props-kmz-max");
 const propsSrcSelect = {
   mdt: document.getElementById("props-src-mdt"),
   mds: document.getElementById("props-src-mds")
@@ -1822,7 +1823,17 @@ function renderPropsPrefsTab() {
   propsCoordFormatSelect.value = coordFormat;
   gnpVertexMaxInput.value = vertexEditMax;
   propsArcSegmentsInput.value = arcSegments;
+  propsKmzMaxInput.value = kmzMaxUncompressedMB;
 }
+/* Sin previsualización posible (solo cuenta al abrir un archivo): `change`,
+   un valor ilegible vuelve al vigente y uno fuera de rango se ajusta al
+   límite más cercano avisando (readClampedNumber). Enteros: son MB.    */
+propsKmzMaxInput.addEventListener("change", () => {
+  const v = readClampedNumber(propsKmzMaxInput, KMZ_MAX_UNCOMPRESSED_MIN_MB, KMZ_MAX_UNCOMPRESSED_MAX_MB,
+    tr("El tamaño máximo"), "MB");
+  if (v !== null) kmzMaxUncompressedMB = Math.round(v);
+  propsKmzMaxInput.value = kmzMaxUncompressedMB;
+});
 propsUnitSelect.addEventListener("change", () => {
   setMeasureUnit(propsUnitSelect.value);
   renderPropsProfileMax();
@@ -1935,7 +1946,7 @@ async function togglePropsDialog() {
   if (!gnpStore) gnpStore = await dbLoadGnp();
   propsDraftGnp = { ...gnpStore };
   propsOriginal = { uiTheme, unit: measureUnit, altitudeUnit, profileMaxM, fresnelFreqMHz, coordFormat, vertexEditMax,
-                    arcSegments, elevSources };
+                    arcSegments, kmzMaxUncompressedMB, elevSources };
   renderGnpEditor();
   renderPropsPrefsTab();
   renderPropsFreqTab();
@@ -1971,6 +1982,7 @@ function cancelPropsDialog() {
     syncVertexOwnerForDialog();
   }
   arcSegments = propsOriginal.arcSegments;
+  kmzMaxUncompressedMB = propsOriginal.kmzMaxUncompressedMB;
   elevSources = propsOriginal.elevSources;
   propsDraftGnp = null;
   propsOriginal = null;
@@ -1988,6 +2000,7 @@ document.getElementById("props-accept").addEventListener("click", () => {
   dbSaveCoordFormat(coordFormat);
   dbSaveVertexEditMax(vertexEditMax);
   dbSaveArcSegments(arcSegments);
+  dbSaveKmzMax(kmzMaxUncompressedMB);
   dbSaveElevSources(elevSources);
   if (propsLangSelect.value !== loadUiLangPref()) {
     saveUiLangPref(propsLangSelect.value);

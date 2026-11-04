@@ -2185,6 +2185,9 @@
       <p class="dlg-hint">Longitud máxima de una ruta para «Obtener perfil». Acota lo que se descarga y, sobre todo, lo que el perfil deja guardado en el árbol: una celda de elevación por cada una que recorre la ruta. Solo cuenta si alguna fuente elegida es de malla fina (5 a 30 m); con el MDT200 como única fuente no hay límite.</p>
       <div class="dlg-row"><span>Longitud máxima de un perfil</span>
         <span class="props-with-unit"><input type="number" id="props-profile-max" min="0" step="any"><span id="props-profile-max-unit"></span></span></div>
+      <p class="dlg-hint">Tamaño máximo que puede ocupar un KMZ (o un .zip de shapefile) una vez descomprimido. Frena los archivos desproporcionados o hostiles antes de descomprimir nada; súbelo si tienes un KMZ legítimo más grande y memoria de sobra, bájalo en un equipo justo. Solo afecta a los archivos que abras después.</p>
+      <div class="dlg-row"><span>Tamaño máximo de un KMZ descomprimido</span>
+        <span class="props-with-unit"><input type="number" id="props-kmz-max" min="1" max="4096" step="1"><span>MB</span></span></div>
     </div>
     <div id="props-tab-gnp" class="dlg-tabpanel" hidden role="tabpanel">
       <p class="dlg-hint" data-i18n-html="html.gnp-intro">Asociaciones guardadas entre la estructura de <code>properties</code> de un GeoJSON y la propiedad usada como nombre.</p>
@@ -2997,7 +3000,7 @@ registerLang("en", "English", {
   "el archivo no contiene ninguna capa": "the file contains no layers",
   "{n} coordenada(s) fuera de rango por redondeo, ajustadas al límite (menos de {eps}°)": "{n} coordinate(s) out of range due to rounding, clamped to the limit (less than {eps}°)",
   "el {what} tiene demasiadas entradas ({length} > {kmzMaxEntries})": "the {what} has too many entries ({length} > {kmzMaxEntries})",
-  "el {what} ocupa demasiado descomprimido ({size})": "the {what} is too large once uncompressed ({size})",
+  "el {what} ocupa demasiado descomprimido ({size}; el límite es {limit}, ajustable en 🏷️ Propiedades)": "the {what} is too large once uncompressed ({size}; the limit is {limit}, adjustable in 🏷️ Properties)",
   "relación de compresión sospechosa (×{ratio})": "suspicious compression ratio (×{ratio})",
   "el KMZ no contiene ningún .kml": "the KMZ contains no .kml",
   "«{name}» es parte de un shapefile y no ha llegado su .shp: suelte todas las piezas juntas (.shp, .dbf, .prj, .cpg) o el .zip que las contiene.": "“{name}” is part of a shapefile and its .shp has not arrived: drop all the parts together (.shp, .dbf, .prj, .cpg) or the .zip that contains them.",
@@ -3124,6 +3127,7 @@ registerLang("en", "English", {
   "Sin asociaciones guardadas todavía.": "No saved associations yet.",
   "Cambiar…": "Change…",
   "La frecuencia": "The frequency",
+  "El tamaño máximo": "The maximum size",
   "{what} va de {min} a {max} {unit}: se queda en {value} {unit}.": "{what} ranges from {min} to {max} {unit}: it is set to {value} {unit}.",
   "La longitud máxima de un perfil": "The maximum length of a profile",
   "El idioma de la interfaz cambiará al recargar la página (F5).": "The interface language will change when the page is reloaded (F5).",
@@ -3698,6 +3702,9 @@ registerLang("en", "English", {
   "Segmentos de un arco": "Segments of an arc",
   "Longitud máxima de una ruta para «Obtener perfil». Acota lo que se descarga y, sobre todo, lo que el perfil deja guardado en el árbol: una celda de elevación por cada una que recorre la ruta. Solo cuenta si alguna fuente elegida es de malla fina (5 a 30 m); con el MDT200 como única fuente no hay límite.": "Maximum length of a route for “Get profile”. It bounds what is downloaded and, above all, what the profile leaves saved in the tree: one elevation cell for each one the route crosses. It only applies if any chosen source has a fine grid (5 to 30 m); with MDT200 as the only source there is no limit.",
   "Longitud máxima de un perfil": "Maximum length of a profile",
+  "Tamaño máximo que puede ocupar un KMZ (o un .zip de shapefile) una vez descomprimido. Frena los archivos desproporcionados o hostiles antes de descomprimir nada; súbelo si tienes un KMZ legítimo más grande y memoria de sobra, bájalo en un equipo justo. Solo afecta a los archivos que abras después.": "Largest size a KMZ (or a shapefile .zip) may take once uncompressed. It stops oversized or hostile files before anything is unpacked; raise it if you have a legitimate larger KMZ and plenty of memory, lower it on a tight machine. It only affects files you open afterwards.",
+  "Tamaño máximo de un KMZ descomprimido": "Maximum size of an uncompressed KMZ",
+  "MB": "MB",
   "Borrar todo": "Delete all",
   "Servicios WCS de los que «Consultas › Elevación» (menú contextual del visor) descarga el terreno y la superficie. Con «Ninguna», ese modelo no se consulta: la cuadrícula muestra solo el otro, sin diferencia.": "WCS services from which “Queries › Elevation” (viewer context menu) downloads the terrain and the surface. With “None”, that model is not queried: the grid shows only the other one, without a difference.",
   "Frecuencia con la que se calcula el elipsoide de Fresnel del perfil de una ruta (casilla «Elipsoide de Fresnel» de su ventana). De 1 a 300 000 MHz; 1090 MHz de partida. Un valor fuera de rango se ajusta al límite más cercano.": "Frequency used to compute the Fresnel ellipsoid of a route profile (“Fresnel ellipsoid” checkbox in its window). From 1 to 300 000 MHz; 1090 MHz to start with. A value out of range is adjusted to the nearest limit.",
@@ -5117,7 +5124,7 @@ map.on("resize rotate", fitWorldMinZoom);
 
 /* Fecha de generación del código (versión): AÑOMESDIAHORAMINUTO.
    Actualizar en cada generación; se muestra junto al crédito de Leaflet. */
-const BUILD = "202611032046";
+const BUILD = "202611041046";
 /* Versión de release (la de package.json, horneada aquí por build.js
    al construir — ver «Versión y releases de GitHub» en CLAUDE.md): a
    diferencia de BUILD, que cambia en CADA generación, esta solo cambia
@@ -9357,6 +9364,35 @@ async function dbLoadFresnelFreq() {
   });
 }
 
+/* Tamaño máximo descomprimido de un KMZ o .zip, en MB enteros (Propiedades →
+   Preferencias; ver loadZipChecked en 33-kml-import.js). Clave propia del
+   almacén `tree`, como la frecuencia de Fresnel; no sube DB_VERSION ni
+   TREE_SCHEMA. Validado al leer: fuera de rango o no entero se descarta y
+   queda el de partida.                                                   */
+const KMZ_MAX_KEY = "kmzMaxUncompressed";
+const KMZ_MAX_SCHEMA = 1;
+const validKmzMax = r =>
+  (r && r.v === KMZ_MAX_SCHEMA && Number.isInteger(r.mb)
+    && r.mb >= KMZ_MAX_UNCOMPRESSED_MIN_MB && r.mb <= KMZ_MAX_UNCOMPRESSED_MAX_MB ? r.mb : null);
+async function dbSaveKmzMax(mb) {
+  const db = await openDb();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(DB_TREE, "readwrite");
+    tx.objectStore(DB_TREE).put({ v: KMZ_MAX_SCHEMA, mb }, KMZ_MAX_KEY);
+    tx.oncomplete = resolve;
+    tx.onerror = () => reject(tx.error);
+  });
+}
+async function dbLoadKmzMax() {
+  const db = await openDb();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(DB_TREE, "readonly");
+    const rq = tx.objectStore(DB_TREE).get(KMZ_MAX_KEY);
+    rq.onsuccess = () => resolve(validKmzMax(rq.result));
+    rq.onerror = () => reject(rq.error);
+  });
+}
+
 /* Tamaño de las cifras de las celdas de elevación (botones A− / A+, ver
    ElevFontControl en 60-elevation.js): un ÍNDICE de ELEV_FONT_STEPS. Clave
    propia del almacén `tree`, como la frecuencia de Fresnel; no sube
@@ -10867,7 +10903,13 @@ async function addFileNode(name, kind, content, insertBefore = null, dropTargetU
    kmlFromZip, `onPct` recibe el porcentaje descomprimido, la única fase
    con progreso medible de verdad.                                      */
 const KMZ_MAX_ENTRIES = 2000;              /* entradas dentro del zip      */
-const KMZ_MAX_UNCOMPRESSED = 300 * 1024 * 1024; /* 300 MB descomprimidos    */
+/* El tope de tamaño descomprimido es una PREFERENCIA (Propiedades →
+   Preferencias, en MB): depende de la memoria del equipo de quien lo usa.
+   `kmzMaxUncompressedMB` es el valor vigente; se lee en cada apertura, no
+   se copia a una constante.                                            */
+const KMZ_MAX_UNCOMPRESSED_DEFAULT_MB = 500;
+const KMZ_MAX_UNCOMPRESSED_MIN_MB = 1, KMZ_MAX_UNCOMPRESSED_MAX_MB = 4096;
+let kmzMaxUncompressedMB = KMZ_MAX_UNCOMPRESSED_DEFAULT_MB;
 const KMZ_MAX_RATIO = 200;                 /* descomprimido / comprimido    */
 
 /* Abre un zip (un KMZ o el .zip de un shapefile) y aplica las cotas
@@ -10888,8 +10930,10 @@ async function loadZipChecked(file, what) {
     const size = (f._data && f._data.uncompressedSize) || 0;
     uncompressed += size;
   }
-  if (uncompressed > KMZ_MAX_UNCOMPRESSED) {
-    throw new Error(tr("el {what} ocupa demasiado descomprimido ({size})", { what, size: fmtBytes(uncompressed) }));
+  const maxBytes = kmzMaxUncompressedMB * 1024 * 1024;
+  if (uncompressed > maxBytes) {
+    throw new Error(tr("el {what} ocupa demasiado descomprimido ({size}; el l\u00EDmite es {limit}, ajustable en \uD83C\uDFF7\uFE0F Propiedades)",
+      { what, size: fmtBytes(uncompressed), limit: fmtBytes(maxBytes) }));
   }
   if (file.size && uncompressed / file.size > KMZ_MAX_RATIO) {
     throw new Error(tr("relaci\u00F3n de compresi\u00F3n sospechosa (\u00D7{ratio})", { ratio: Math.round(uncompressed / file.size) }));
@@ -15196,6 +15240,7 @@ const propsTabFreq = document.getElementById("props-tab-freq");
 const propsTabRestoreBtn = document.getElementById("props-tab-btn-restore");
 const propsTabRestore = document.getElementById("props-tab-restore");
 const propsFresnelFreqInput = document.getElementById("props-fresnel-freq");
+const propsKmzMaxInput = document.getElementById("props-kmz-max");
 const propsSrcSelect = {
   mdt: document.getElementById("props-src-mdt"),
   mds: document.getElementById("props-src-mds")
@@ -15379,7 +15424,17 @@ function renderPropsPrefsTab() {
   propsCoordFormatSelect.value = coordFormat;
   gnpVertexMaxInput.value = vertexEditMax;
   propsArcSegmentsInput.value = arcSegments;
+  propsKmzMaxInput.value = kmzMaxUncompressedMB;
 }
+/* Sin previsualización posible (solo cuenta al abrir un archivo): `change`,
+   un valor ilegible vuelve al vigente y uno fuera de rango se ajusta al
+   límite más cercano avisando (readClampedNumber). Enteros: son MB.    */
+propsKmzMaxInput.addEventListener("change", () => {
+  const v = readClampedNumber(propsKmzMaxInput, KMZ_MAX_UNCOMPRESSED_MIN_MB, KMZ_MAX_UNCOMPRESSED_MAX_MB,
+    tr("El tamaño máximo"), "MB");
+  if (v !== null) kmzMaxUncompressedMB = Math.round(v);
+  propsKmzMaxInput.value = kmzMaxUncompressedMB;
+});
 propsUnitSelect.addEventListener("change", () => {
   setMeasureUnit(propsUnitSelect.value);
   renderPropsProfileMax();
@@ -15492,7 +15547,7 @@ async function togglePropsDialog() {
   if (!gnpStore) gnpStore = await dbLoadGnp();
   propsDraftGnp = { ...gnpStore };
   propsOriginal = { uiTheme, unit: measureUnit, altitudeUnit, profileMaxM, fresnelFreqMHz, coordFormat, vertexEditMax,
-                    arcSegments, elevSources };
+                    arcSegments, kmzMaxUncompressedMB, elevSources };
   renderGnpEditor();
   renderPropsPrefsTab();
   renderPropsFreqTab();
@@ -15528,6 +15583,7 @@ function cancelPropsDialog() {
     syncVertexOwnerForDialog();
   }
   arcSegments = propsOriginal.arcSegments;
+  kmzMaxUncompressedMB = propsOriginal.kmzMaxUncompressedMB;
   elevSources = propsOriginal.elevSources;
   propsDraftGnp = null;
   propsOriginal = null;
@@ -15545,6 +15601,7 @@ document.getElementById("props-accept").addEventListener("click", () => {
   dbSaveCoordFormat(coordFormat);
   dbSaveVertexEditMax(vertexEditMax);
   dbSaveArcSegments(arcSegments);
+  dbSaveKmzMax(kmzMaxUncompressedMB);
   dbSaveElevSources(elevSources);
   if (propsLangSelect.value !== loadUiLangPref()) {
     saveUiLangPref(propsLangSelect.value);
@@ -26915,6 +26972,10 @@ setInterval(checkServerVersion, VERSION_CHECK_MS);
     const f = await dbLoadFresnelFreq();
     if (f !== null) fresnelFreqMHz = f;
   } catch { /* frecuencia de Fresnel por defecto (1090 MHz) */ }
+  try {
+    const mb = await dbLoadKmzMax();
+    if (mb !== null) kmzMaxUncompressedMB = mb;
+  } catch { /* tope de KMZ descomprimido por defecto (500 MB) */ }
   try {
     const step = await dbLoadElevFont();
     if (step !== null) elevFontStep = step;

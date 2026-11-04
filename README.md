@@ -141,8 +141,9 @@ KITE Local does not impose fixed limits on KML file size, imported features or v
 - local storage usage indicator, and a session log of every notice shown
 - a Properties panel with five tabs. *Preferences*: theme, language, the
   distance and altitude units, coordinate format, the interactive-vertex-edit
-  cap, arc segments and the longest profile — previewed live but only saved on
-  Accept. *GeoJSON indexes*: remembers which property names each GeoJSON
+  cap, arc segments, the longest profile and the largest size a KMZ may take
+  once uncompressed (500 MB by default) — previewed live where it can be, and
+  only saved on Accept. *GeoJSON indexes*: remembers which property names each GeoJSON
   structure. *Data sources*: which service supplies the terrain and surface
   models. *Frequencies*: the Fresnel frequency. *Restore*: deletes everything
   the application has saved in the browser, after a second confirmation
@@ -482,7 +483,7 @@ The interface is primarily designed for mouse and keyboard use. On a phone it sh
 - The application is a 2D Leaflet viewer, not a 3D virtual globe.
 - The simple compatibility statement applies to conventional folder/placemark/line/polygon KML, not every feature in the full KML specification.
 - `DOMParser` and `JSON.parse` are synchronous and can briefly block the interface on large inputs.
-- The application sets no explicit KML-size or feature-count limit, but the browser, RAM, IndexedDB quota and rendering performance impose practical limits.
+- The application sets no explicit KML-size or feature-count limit, but the browser, RAM, IndexedDB quota and rendering performance impose practical limits. A KMZ (or shapefile `.zip`) is checked before anything is unpacked: at most 2000 entries, a 200× compression ratio and an uncompressed size of 500 MB by default, which you can change in Properties → Preferences.
 - Altitude is carried through import, storage and export, but it is not rendered: this is a 2D viewer. Two placemarks at the same latitude and longitude but different altitudes are still treated as duplicates.
 - KML style handling is partial: shared and inline styles for basic line and polygon appearance, and `StyleMap` normal-style references. (Namespaces are not a limitation — elements are matched by local name, so prefixed, default-namespaced and namespace-less KML all work.)
 - External services can change, rate-limit requests or become unavailable.
@@ -506,7 +507,7 @@ Do not use public tile, geocoding or CDN services for sensitive work without an 
   `src/styles.css`, `src/sw.js` and 40 JavaScript files, concatenated into the
   shipped file by `build.js`. The single-file product is the output, not the
   source.
-- **There are automated tests.** 119 suites run against the shipped
+- **There are automated tests.** 120 suites run against the shipped
   file — most under Node, plus a set that drives a real headless browser —
   covering coordinate parsing and formatting, UTM, KML namespaces and
   styles, geometry conversion, serialization, tree navigation and
@@ -539,7 +540,7 @@ The full list, with the ideas that have been proposed (exporting to KMZ and GPX,
   mouse and keyboard.
 - A fully vendored build. Leaflet and JSZip are still loaded from a CDN (the
   service worker only keeps them after a first online visit).
-- Configurable resource limits; the current caps are constants in the source.
+- More configurable resource limits: only the uncompressed KMZ size and the longest profile are adjustable; the other caps are constants in the source.
 - Crossing the antimeridian: the midpoint and measurements already do, the
   automatic framing and the graticule do not yet.
 - Two placemarks at the same position but different altitudes are still merged

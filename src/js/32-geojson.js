@@ -974,6 +974,35 @@ async function dbLoadFresnelFreq() {
   });
 }
 
+/* Tamaño máximo descomprimido de un KMZ o .zip, en MB enteros (Propiedades →
+   Preferencias; ver loadZipChecked en 33-kml-import.js). Clave propia del
+   almacén `tree`, como la frecuencia de Fresnel; no sube DB_VERSION ni
+   TREE_SCHEMA. Validado al leer: fuera de rango o no entero se descarta y
+   queda el de partida.                                                   */
+const KMZ_MAX_KEY = "kmzMaxUncompressed";
+const KMZ_MAX_SCHEMA = 1;
+const validKmzMax = r =>
+  (r && r.v === KMZ_MAX_SCHEMA && Number.isInteger(r.mb)
+    && r.mb >= KMZ_MAX_UNCOMPRESSED_MIN_MB && r.mb <= KMZ_MAX_UNCOMPRESSED_MAX_MB ? r.mb : null);
+async function dbSaveKmzMax(mb) {
+  const db = await openDb();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(DB_TREE, "readwrite");
+    tx.objectStore(DB_TREE).put({ v: KMZ_MAX_SCHEMA, mb }, KMZ_MAX_KEY);
+    tx.oncomplete = resolve;
+    tx.onerror = () => reject(tx.error);
+  });
+}
+async function dbLoadKmzMax() {
+  const db = await openDb();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(DB_TREE, "readonly");
+    const rq = tx.objectStore(DB_TREE).get(KMZ_MAX_KEY);
+    rq.onsuccess = () => resolve(validKmzMax(rq.result));
+    rq.onerror = () => reject(rq.error);
+  });
+}
+
 /* Tamaño de las cifras de las celdas de elevación (botones A− / A+, ver
    ElevFontControl en 60-elevation.js): un ÍNDICE de ELEV_FONT_STEPS. Clave
    propia del almacén `tree`, como la frecuencia de Fresnel; no sube
