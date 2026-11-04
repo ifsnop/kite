@@ -74,6 +74,10 @@
     if (f !== null) fresnelFreqMHz = f;
   } catch { /* frecuencia de Fresnel por defecto (1090 MHz) */ }
   try {
+    const mb = await dbLoadKmzMax();
+    if (mb !== null) kmzMaxUncompressedMB = mb;
+  } catch { /* tope de KMZ descomprimido por defecto (500 MB) */ }
+  try {
     const step = await dbLoadElevFont();
     if (step !== null) elevFontStep = step;
   } catch { /* tamaño de las cifras por defecto */ }

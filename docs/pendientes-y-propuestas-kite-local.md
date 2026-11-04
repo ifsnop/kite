@@ -51,7 +51,7 @@ Leaflet y JSZip siguen cargándose desde una red de distribución al abrir la p�
 
 ### 1.8 Límites de recursos no configurables
 
-Los topes de importación (tamaño de KMZ, 100 000 elementos de un shapefile, 100 000 entidades de un servicio ArcGIS, 10 NM de un perfil…) son constantes del código. Solo la longitud máxima de un perfil se ajusta en Propiedades.
+Los topes de importación (2000 entradas y razón de compresión de un KMZ, 100 000 elementos de un shapefile, 100 000 entidades de un servicio ArcGIS…) son constantes del código. Solo la longitud máxima de un perfil y el tamaño máximo de un KMZ descomprimido se ajustan en Propiedades.
 
 ### 1.9 Cuadro de límites del manual contrastado con el código
 
