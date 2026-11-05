@@ -13,11 +13,12 @@ const src = consts + [
   fn("describeHttp"), fn("arcgisServiceBase"), fn("arcgisServiceName"), fn("arcgisErrorText"),
   fn("arcgisTileReason"), fn("arcgisExtent4326"), fn("parseArcgisCatalog"), fn("arcgisCatalogRecord"),
   fn("sanitizeArcgisRecord"), fn("arcgisShowIds"), fn("tileBbox3857"), fn("arcgisExportUrl"),
-  fn("arcgisQueryUrl"), fn("arcgisLabelField"), fn("parseArcgisLayerInfo"), fn("arcgisCountOf"), fn("mergeArcgisPages")].join("\n");
+  fn("arcgisQueryUrl"), fn("arcgisLabelField"), constDecl("arcgisAlpha"), constDecl("arcgisLineGone"),
+  fn("arcgisSymbolInvisible"), fn("arcgisRendererInvisible"), fn("arcgisIsLabelLayer"), fn("parseArcgisLayerInfo"), fn("arcgisCountOf"), fn("mergeArcgisPages")].join("\n");
 const api = new Function(src + "\nreturn {arcgisServiceBase, arcgisServiceName, arcgisErrorText," +
   " arcgisTileReason, arcgisExtent4326, parseArcgisCatalog, arcgisCatalogRecord, sanitizeArcgisRecord," +
   " arcgisShowIds, tileBbox3857, arcgisExportUrl, ARCGIS_MAX_LAYERS, ARCGIS_MAX_DEPTH," +
-  " arcgisLayerInfoUrl, arcgisCountUrl, arcgisQueryUrl, parseArcgisLayerInfo, arcgisLabelField, arcgisCountOf, mergeArcgisPages, ARCGIS_PAGE_MAX, ARCGIS_LABEL_MAX};")();
+  " arcgisLayerInfoUrl, arcgisCountUrl, arcgisQueryUrl, parseArcgisLayerInfo, arcgisLabelField, arcgisIsLabelLayer, arcgisRendererInvisible, arcgisSymbolInvisible, arcgisCountOf, mergeArcgisPages, ARCGIS_PAGE_MAX, ARCGIS_LABEL_MAX};")();
 const ok = (c, m) => { if (!c) { console.error("FAIL: " + m); process.exitCode = 1; } };
 const same = (a, b, m) => ok(JSON.stringify(a) === JSON.stringify(b), m + " — " + JSON.stringify(a) + " ≠ " + JSON.stringify(b));
 
@@ -246,6 +247,46 @@ same(api.arcgisLabelField({ fields: [{ name: "NOMBRE" }], drawingInfo: { labelin
 same(api.arcgisLabelField({ drawingInfo: { labelingInfo: "no" } }), null, "labelingInfo que no es lista");
 same(api.arcgisLabelField({}), null, "sin drawingInfo");
 ok(api.ARCGIS_LABEL_MAX > 0 && api.ARCGIS_LABEL_MAX <= 5000, "tope de rótulos permanentes acotado");
+
+/* ---------- ¿Es una capa SOLO de rótulos? Solo entonces el nombre se da hecho ----------
+   Una capa de datos con regla de rotulado (la «Elementos» de ENAIRE) se
+   nombraba sola sin preguntar; ahora solo lo hace una capa que existe para
+   rotular, y en las demás el selector enseña esa regla ya marcada.        */
+for (const n of [23, 26, 28]) {
+  const j = layerFx(n);
+  ok(api.arcgisIsLabelLayer(j) === true && api.parseArcgisLayerInfo(j).labelOnly === true, `${j.name} (REAL) es una capa de rótulos`);
+}
+ok(api.arcgisRendererInvisible(layerFx(23).drawingInfo.renderer) && api.arcgisRendererInvisible(layerFx(26).drawingInfo.renderer),
+  "los símbolos de las dos *_texto reales con alfa 0 no dejan ningún píxel");
+ok(!api.arcgisRendererInvisible(layerFx(28).drawingInfo.renderer),
+  "el de CTR_texto real SÍ tiene relleno opaco (lo oculta una variable visual por campo): por símbolo no se distingue, vale el nombre");
+const labelRule = { fields: [{ name: "NOMBRE" }], drawingInfo: { labelingInfo: [{ labelExpressionInfo: { expression: "$feature.NOMBRE" } }] } };
+const dataLayer = (name, symbol) => ({ name, fields: [{ name: "NOMBRE" }], drawingInfo: { renderer: { type: "simple", symbol }, labelingInfo: labelRule.drawingInfo.labelingInfo } });
+const redDot = { type: "esriSMS", style: "esriSMSCircle", color: [255, 0, 0, 255], outline: { type: "esriSLS", style: "esriSLSSolid", color: [0, 0, 0, 255], width: 1 } };
+const elementos = dataLayer("Elementos", redDot);
+same(api.parseArcgisLayerInfo(Object.assign({ type: "Feature Layer", capabilities: "Map,Query,Data", supportedQueryFormats: "JSON, geoJSON, PBF" }, elementos)).labelOnly, false,
+  "una capa de DATOS con regla de rotulado (puntos rojos) NO es de rótulos: se pregunta el nombre");
+same(api.parseArcgisLayerInfo(Object.assign({ type: "Feature Layer", capabilities: "Map,Query,Data", supportedQueryFormats: "geoJSON" }, elementos)).labelField, "NOMBRE",
+  "pero su campo de rotulado sigue ahí, para enseñarlo ya marcado");
+ok(api.arcgisIsLabelLayer(dataLayer("Elementos", { type: "esriSFS", style: "esriSFSSolid", color: [0, 0, 0, 0], outline: { type: "esriSLS", style: "esriSLSSolid", color: [0, 59, 133, 255], width: 1.5 } })) === false,
+  "relleno transparente pero contorno VISIBLE: no es de rótulos (como Delegaciones)");
+ok(api.arcgisIsLabelLayer(dataLayer("Otra", { type: "esriSFS", style: "esriSFSSolid", color: [1, 2, 3, 0], outline: { type: "esriSLS", style: "esriSLSNull", color: [0, 0, 0, 0], width: 0 } })) === true,
+  "nada que se vea (relleno alfa 0 y contorno nulo): de rótulos aunque no se llame *_texto");
+ok(api.arcgisIsLabelLayer(Object.assign(dataLayer("Otra", redDot), { name: "ZONAS_texto" })) === true, "el nombre `*_texto` basta");
+ok(api.arcgisIsLabelLayer(Object.assign(dataLayer("Otra", redDot), { name: "Texto niveles" })) === true, "«texto» como palabra suelta, con mayúscula inicial");
+for (const nom of ["Contexto", "Textos", "Textura", "hipertexto"]) ok(api.arcgisIsLabelLayer(dataLayer(nom, redDot)) === false, `«${nom}» contiene «texto» pero no es una capa de rótulos`);
+ok(api.arcgisIsLabelLayer({ name: "X_texto", fields: [{ name: "A" }], drawingInfo: {} }) === false, "sin regla de rotulado no hay campo que dar hecho, sea cual sea el nombre");
+const invis = { type: "esriSFS", style: "esriSFSSolid", color: [0, 0, 0, 0], outline: { type: "esriSLS", style: "esriSLSNull", color: [0, 0, 0, 0], width: 0 } };
+const vis = { type: "esriSFS", style: "esriSFSSolid", color: [9, 9, 9, 255], outline: { type: "esriSLS", style: "esriSLSNull" } };
+ok(api.arcgisRendererInvisible({ type: "uniqueValue", defaultSymbol: invis, uniqueValueInfos: [{ symbol: invis }, { symbol: invis }] }) === true, "valores únicos: todos invisibles");
+ok(api.arcgisRendererInvisible({ type: "uniqueValue", defaultSymbol: invis, uniqueValueInfos: [{ symbol: invis }, { symbol: vis }] }) === false, "basta un símbolo visible");
+ok(api.arcgisRendererInvisible({ type: "classBreaks", classBreakInfos: [{ symbol: invis }] }) === true, "rangos: invisibles");
+ok(api.arcgisRendererInvisible({ type: "uniqueValue", uniqueValueGroups: [{ classes: [{ symbol: vis }] }] }) === false, "grupos de valores únicos");
+ok(api.arcgisRendererInvisible({}) === false && api.arcgisRendererInvisible(null) === false && api.arcgisRendererInvisible({ type: "simple" }) === false, "sin símbolos: se ve (ante la duda, no es de rótulos)");
+ok(api.arcgisSymbolInvisible({ type: "esriPMS", url: "x.png" }) === false && api.arcgisSymbolInvisible({ type: "esriTS" }) === false && api.arcgisSymbolInvisible(null) === false,
+  "un símbolo de imagen, de texto o desconocido se ve");
+ok(api.arcgisSymbolInvisible({ type: "esriSLS", style: "esriSLSSolid", color: [0, 0, 0, 255], width: 2 }) === false && api.arcgisSymbolInvisible({ type: "esriSLS", style: "esriSLSSolid", color: [0, 0, 0, 255], width: 0 }) === true,
+  "una línea de grosor 0 no se ve");
 
 same(api.arcgisCountOf({ count: 48 }), { count: 48 }, "recuento");
 same(api.arcgisCountOf({ count: 0 }), { count: 0 }, "recuento cero");

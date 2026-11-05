@@ -298,8 +298,9 @@ const HUGE_IMPORT_CHARS = 100 * 1024 * 1024;
 /* `report`: un informe ya empezado por quien llama (lo que se ve al leer
    un shapefile —sin .prj, ED50…— va en el mismo resumen).             */
 /* `presetNameKeys`: un formato que define él mismo qué es el nombre (el
-   <name> de un GPX) lo da hecho y no se pregunta ni se recuerda nada.  */
-async function addFileNode(name, kind, content, insertBefore = null, dropTargetUl = null, zip = null, report = null, presetNameKeys = null, nameScope = null) {
+   <name> de un GPX) lo da hecho y no se pregunta ni se recuerda nada.
+   `nameHint`: lo que el selector enseña ya marcado (se pregunta igual).  */
+async function addFileNode(name, kind, content, insertBefore = null, dropTargetUl = null, zip = null, report = null, presetNameKeys = null, nameScope = null, nameHint = null) {
   const big = typeof content === "string"
     ? content.length > SIZE_THRESHOLD
     : geojsonFeatures(content).length > BIG_FEATURE_COUNT;
@@ -391,7 +392,7 @@ async function addFileNode(name, kind, content, insertBefore = null, dropTargetU
           nameKeys = stored;
           navMessage(tr("\u00AB{name}\u00BB: nombre de los elementos seg\u00FAn la selecci\u00F3n guardada ({keys})", { name, keys: stored.join(NAME_JOIN) }), { tone: "info" });
         } else {
-          nameKeys = await pickNameProperty(Object.keys(firstProps), name, { sample: firstProps });
+          nameKeys = await pickNameProperty(Object.keys(firstProps), name, { sample: firstProps, selected: nameHint || [] });
           if (!nameKeys) throw importCancelled();
           gnpStore[fp] = nameKeys;
           await dbSaveGnp(gnpStore);
@@ -631,9 +632,10 @@ async function handleDroppedFiles(files, insertBefore, dropTargetUl = null) {
         continue;
       }
       /* `kiteNameKeys`: quien fabrica el archivo (una capa de un servicio
-         ArcGIS, 66-arcgis.js) puede dar ya hecho qué campo es el nombre */
+         ArcGIS, 66-arcgis.js) puede dar ya hecho qué campo es el nombre;
+         `kiteNameHint`, solo sugerirlo (el selector lo enseña marcado) */
       await addFileNode(file.name, kind, content, insertBefore, dropTargetUl, zip, null,
-        file.kiteNameKeys || null, file.kiteNameScope || null);
+        file.kiteNameKeys || null, file.kiteNameScope || null, file.kiteNameHint || null);
       scheduleSave();
     } catch (err) {
       if (err.cancelled) { navMessage(tr("Carga de \u00AB{name}\u00BB cancelada.", { name: file.name }), { tone: "info" }); continue; }

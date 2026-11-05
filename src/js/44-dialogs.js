@@ -572,11 +572,15 @@ document.getElementById("desc-close").addEventListener("click", () => {
 
    Se guarda como FRACCIÓN, no en píxeles: la ficha se redimensiona, y
    un ancho en píxeles quedaría desproporcionado en cuanto la ventana
-   cambiara de tamaño. Y SÍ persiste entre sesiones (`dbSaveProps`/
-   `dbLoadProps`, más abajo) — depende de cómo son los archivos con los
-   que trabaja cada usuario, no de mirar un dato puntual, así que no
-   tendría sentido reajustarlo en cada arranque.                      */
-let propsKeyFrac = 0.38;
+   cambiara de tamaño. NO persiste: es un ajuste de la sesión (decidido con
+   el usuario), y la vista de partida ya reparte bien.                  */
+/* `null` = AUTOMÁTICO: cada tabla pone a la clave lo que mide su clave más
+   larga (`--props-key-auto`, ver propertiesTableHtml) y el resto es del
+   valor. Con un 38 % fijo, una URL se partía en cuatro líneas en una
+   ventana en la que sobraba la mitad de la columna de las claves. Solo
+   cuando el usuario arrastra el separador pasa a ser una fracción FIJA,
+   que vale hasta recargar la página.                                   */
+let propsKeyFrac = null;
 const PROPS_MIN_FRAC = 0.12; /* que ninguna de las dos columnas desaparezca */
 
 /* Dos cuerpos comparten el reparto: la ficha y la pestaña «Atributos»
@@ -585,22 +589,18 @@ const PROPS_MIN_FRAC = 0.12; /* que ninguna de las dos columnas desaparezca */
 const styleAttrsBody = document.getElementById("style-attrs-body");
 function applyPropsSplit() {
   for (const body of [descBody, styleAttrsBody]) {
-    body.style.setProperty("--props-key", (propsKeyFrac * 100).toFixed(2) + "%");
+    if (propsKeyFrac === null) body.style.removeProperty("--props-key");
+    else body.style.setProperty("--props-key", (propsKeyFrac * 100).toFixed(2) + "%");
   }
 }
 
-/* El reparto SÍ persiste entre sesiones, a diferencia de la unidad de
-   medida o del formato de coordenadas: aquellos se cambian sobre la
-   marcha para mirar un dato y se vuelven a cambiar, mientras que este
-   depende de cómo son los archivos con los que uno trabaja —nombres
-   cortos y valores largos, o al revés— y sería el mismo ajuste en cada
-   arranque. Va en otra clave del MISMO almacén.                      */
-function setPropsSplit(frac, { save = false } = {}) {
+/* El reparto elegido vale mientras la página siga abierta (también al
+   cambiar de capa o de ventana), pero NO se guarda en IndexedDB: se
+   decidió que no merece una clave del almacén, y el reparto automático
+   ya acierta casi siempre.                                             */
+function setPropsSplit(frac) {
   propsKeyFrac = Math.min(1 - PROPS_MIN_FRAC, Math.max(PROPS_MIN_FRAC, frac));
   applyPropsSplit();
-  /* Solo al soltar: guardar en cada pixel del arrastre castigaría a
-     IndexedDB para nada.                                             */
-  if (save) dbSaveProps(propsKeyFrac).catch(() => {});
 }
 
 /* Delegado en el cuerpo de la ficha, no atado a cada tabla: el HTML se
@@ -624,7 +624,6 @@ function wirePropsGrip(container) {
       setPropsSplit((ev.clientX - r.left) / r.width);
     };
     const onUp = () => {
-      setPropsSplit(propsKeyFrac, { save: true });
       grip.removeEventListener("pointermove", onMove);
       grip.removeEventListener("pointerup", onUp);
       grip.removeEventListener("pointercancel", onUp);

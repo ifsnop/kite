@@ -1459,7 +1459,7 @@
     /* Con ancho fijo, un valor sin espacios desbordaría la celda */
     overflow-wrap: anywhere;
   }
-  .desc-body .props td:first-child { width: var(--props-key, 38%); }
+  .desc-body .props td:first-child { width: var(--props-key, var(--props-key-auto, 38%)); }
   /* El tirador cubre la tabla de arriba abajo (el envoltorio mide lo
      que ella) y se centra sobre la línea divisoria. Ancho generoso para
      poder agarrarlo, pero transparente: lo que se ve es el borde de la
@@ -1468,7 +1468,7 @@
     position: absolute;
     top: 0;
     bottom: 0;
-    left: var(--props-key, 38%);
+    left: var(--props-key, var(--props-key-auto, 38%));
     width: 9px;
     margin-left: -4px;
     cursor: col-resize;
@@ -5125,7 +5125,7 @@ map.on("resize rotate", fitWorldMinZoom);
 
 /* Fecha de generación del código (versión): AÑOMESDIAHORAMINUTO.
    Actualizar en cada generación; se muestra junto al crédito de Leaflet. */
-const BUILD = "202611050647";
+const BUILD = "202611051250";
 /* Versión de release (la de package.json, horneada aquí por build.js
    al construir — ver «Versión y releases de GitHub» en CLAUDE.md): a
    diferencia de BUILD, que cambia en CADA generación, esta solo cambia
@@ -9263,38 +9263,6 @@ const VIEW_KEY = "view";
 const VIEW_SCHEMA = 1;
 const BASE_KEY = "bases";
 const BASE_SCHEMA = 1;
-/* Reparto de las dos columnas de la ficha de properties. Otra clave del
-   MISMO almacén, con su propia versión: no toca subir DB_VERSION.   */
-const PROPS_KEY = "propsSplit";
-const PROPS_SCHEMA = 1;
-
-async function dbSaveProps(frac) {
-  const db = await openDb();
-  return new Promise((resolve, reject) => {
-    const tx = db.transaction(DB_TREE, "readwrite");
-    tx.objectStore(DB_TREE).put({ v: PROPS_SCHEMA, frac }, PROPS_KEY);
-    tx.oncomplete = resolve;
-    tx.onerror = () => reject(tx.error);
-  });
-}
-
-/* Lo leído se valida antes de usarse, como la vista guardada: un
-   registro corrupto dejaría una columna invisible y sin forma obvia de
-   recuperarla. `Number.isFinite` no convierte, así que un "0.4" guardado
-   por error no se cuela como número.                                 */
-async function dbLoadProps() {
-  const db = await openDb();
-  return new Promise((resolve, reject) => {
-    const tx = db.transaction(DB_TREE, "readonly");
-    const rq = tx.objectStore(DB_TREE).get(PROPS_KEY);
-    rq.onsuccess = () => {
-      const r = rq.result;
-      resolve(r && r.v === PROPS_SCHEMA && Number.isFinite(r.frac) ? r.frac : null);
-    };
-    rq.onerror = () => reject(rq.error);
-  });
-}
-
 /* ---------- Tope de vértices editables interactivamente sobre el mapa ----------
    Otra clave del mismo almacén: no hace falta subir DB_VERSION. Depende
    del hardware de quien lo usa (ver VERTEX_EDIT_MAX_DEFAULT en
@@ -10962,8 +10930,9 @@ const HUGE_IMPORT_CHARS = 100 * 1024 * 1024;
 /* `report`: un informe ya empezado por quien llama (lo que se ve al leer
    un shapefile —sin .prj, ED50…— va en el mismo resumen).             */
 /* `presetNameKeys`: un formato que define él mismo qué es el nombre (el
-   <name> de un GPX) lo da hecho y no se pregunta ni se recuerda nada.  */
-async function addFileNode(name, kind, content, insertBefore = null, dropTargetUl = null, zip = null, report = null, presetNameKeys = null, nameScope = null) {
+   <name> de un GPX) lo da hecho y no se pregunta ni se recuerda nada.
+   `nameHint`: lo que el selector enseña ya marcado (se pregunta igual).  */
+async function addFileNode(name, kind, content, insertBefore = null, dropTargetUl = null, zip = null, report = null, presetNameKeys = null, nameScope = null, nameHint = null) {
   const big = typeof content === "string"
     ? content.length > SIZE_THRESHOLD
     : geojsonFeatures(content).length > BIG_FEATURE_COUNT;
@@ -11055,7 +11024,7 @@ async function addFileNode(name, kind, content, insertBefore = null, dropTargetU
           nameKeys = stored;
           navMessage(tr("\u00AB{name}\u00BB: nombre de los elementos seg\u00FAn la selecci\u00F3n guardada ({keys})", { name, keys: stored.join(NAME_JOIN) }), { tone: "info" });
         } else {
-          nameKeys = await pickNameProperty(Object.keys(firstProps), name, { sample: firstProps });
+          nameKeys = await pickNameProperty(Object.keys(firstProps), name, { sample: firstProps, selected: nameHint || [] });
           if (!nameKeys) throw importCancelled();
           gnpStore[fp] = nameKeys;
           await dbSaveGnp(gnpStore);
@@ -11295,9 +11264,10 @@ async function handleDroppedFiles(files, insertBefore, dropTargetUl = null) {
         continue;
       }
       /* `kiteNameKeys`: quien fabrica el archivo (una capa de un servicio
-         ArcGIS, 66-arcgis.js) puede dar ya hecho qué campo es el nombre */
+         ArcGIS, 66-arcgis.js) puede dar ya hecho qué campo es el nombre;
+         `kiteNameHint`, solo sugerirlo (el selector lo enseña marcado) */
       await addFileNode(file.name, kind, content, insertBefore, dropTargetUl, zip, null,
-        file.kiteNameKeys || null, file.kiteNameScope || null);
+        file.kiteNameKeys || null, file.kiteNameScope || null, file.kiteNameHint || null);
       scheduleSave();
     } catch (err) {
       if (err.cancelled) { navMessage(tr("Carga de \u00AB{name}\u00BB cancelada.", { name: file.name }), { tone: "info" }); continue; }
@@ -13359,11 +13329,27 @@ function stringifyPropValue(v) {
    haber tablas que vengan de la <description> de un KML, que son HTML
    del archivo y pueden tener las columnas que quieran. Imponerles un
    reparto de dos columnas sería estropearles el suyo.               */
+/* Un valor que es una dirección web se puede partir tras cada «/» (con
+   `overflow-wrap: anywhere` solo, se parte donde toca, a media palabra). */
+const valueCellHtml = v => {
+  const text = escapeHtml(stringifyPropValue(v));
+  return /^https?:\/\//i.test(text) ? text.replace(/\//g, "/<wbr>") : text;
+};
+/* La columna de las claves mide lo que su clave más larga (con tope), no un
+   porcentaje fijo: el resto de la tabla es para el valor. ~1,25 ch por
+   carácter, que son mayúsculas y guiones bajos; el reparto que elige el
+   usuario con el separador (`--props-key`) manda sobre esto.            */
+const PROPS_KEY_CHARS_MAX = 22;
+function propsKeyAutoWidth(keys) {
+  const n = Math.min(PROPS_KEY_CHARS_MAX, Math.max(5, ...keys.map(k => String(k).length)));
+  return `calc(${(n * 1.25).toFixed(1)}ch + 14px)`;
+}
 function propertiesTableHtml(props) {
   const rows = Object.entries(props)
-    .map(([k, v]) => `<tr><td>${escapeHtml(k)}</td><td>${escapeHtml(stringifyPropValue(v))}</td></tr>`)
+    .map(([k, v]) => `<tr><td>${escapeHtml(k)}</td><td>${valueCellHtml(v)}</td></tr>`)
     .join("");
-  return `<div class="props-wrap"><table class="props">${rows}</table>`
+  return `<div class="props-wrap" style="--props-key-auto: ${propsKeyAutoWidth(Object.keys(props))}">`
+    + `<table class="props">${rows}</table>`
     + '<div class="props-grip" role="separator" aria-orientation="vertical"'
     + ` title="${tr("Arrastre para repartir el ancho entre clave y valor")}"></div></div>`;
 }
@@ -16611,11 +16597,15 @@ document.getElementById("desc-close").addEventListener("click", () => {
 
    Se guarda como FRACCIÓN, no en píxeles: la ficha se redimensiona, y
    un ancho en píxeles quedaría desproporcionado en cuanto la ventana
-   cambiara de tamaño. Y SÍ persiste entre sesiones (`dbSaveProps`/
-   `dbLoadProps`, más abajo) — depende de cómo son los archivos con los
-   que trabaja cada usuario, no de mirar un dato puntual, así que no
-   tendría sentido reajustarlo en cada arranque.                      */
-let propsKeyFrac = 0.38;
+   cambiara de tamaño. NO persiste: es un ajuste de la sesión (decidido con
+   el usuario), y la vista de partida ya reparte bien.                  */
+/* `null` = AUTOMÁTICO: cada tabla pone a la clave lo que mide su clave más
+   larga (`--props-key-auto`, ver propertiesTableHtml) y el resto es del
+   valor. Con un 38 % fijo, una URL se partía en cuatro líneas en una
+   ventana en la que sobraba la mitad de la columna de las claves. Solo
+   cuando el usuario arrastra el separador pasa a ser una fracción FIJA,
+   que vale hasta recargar la página.                                   */
+let propsKeyFrac = null;
 const PROPS_MIN_FRAC = 0.12; /* que ninguna de las dos columnas desaparezca */
 
 /* Dos cuerpos comparten el reparto: la ficha y la pestaña «Atributos»
@@ -16624,22 +16614,18 @@ const PROPS_MIN_FRAC = 0.12; /* que ninguna de las dos columnas desaparezca */
 const styleAttrsBody = document.getElementById("style-attrs-body");
 function applyPropsSplit() {
   for (const body of [descBody, styleAttrsBody]) {
-    body.style.setProperty("--props-key", (propsKeyFrac * 100).toFixed(2) + "%");
+    if (propsKeyFrac === null) body.style.removeProperty("--props-key");
+    else body.style.setProperty("--props-key", (propsKeyFrac * 100).toFixed(2) + "%");
   }
 }
 
-/* El reparto SÍ persiste entre sesiones, a diferencia de la unidad de
-   medida o del formato de coordenadas: aquellos se cambian sobre la
-   marcha para mirar un dato y se vuelven a cambiar, mientras que este
-   depende de cómo son los archivos con los que uno trabaja —nombres
-   cortos y valores largos, o al revés— y sería el mismo ajuste en cada
-   arranque. Va en otra clave del MISMO almacén.                      */
-function setPropsSplit(frac, { save = false } = {}) {
+/* El reparto elegido vale mientras la página siga abierta (también al
+   cambiar de capa o de ventana), pero NO se guarda en IndexedDB: se
+   decidió que no merece una clave del almacén, y el reparto automático
+   ya acierta casi siempre.                                             */
+function setPropsSplit(frac) {
   propsKeyFrac = Math.min(1 - PROPS_MIN_FRAC, Math.max(PROPS_MIN_FRAC, frac));
   applyPropsSplit();
-  /* Solo al soltar: guardar en cada pixel del arrastre castigaría a
-     IndexedDB para nada.                                             */
-  if (save) dbSaveProps(propsKeyFrac).catch(() => {});
 }
 
 /* Delegado en el cuerpo de la ficha, no atado a cada tabla: el HTML se
@@ -16663,7 +16649,6 @@ function wirePropsGrip(container) {
       setPropsSplit((ev.clientX - r.left) / r.width);
     };
     const onUp = () => {
-      setPropsSplit(propsKeyFrac, { save: true });
       grip.removeEventListener("pointermove", onMove);
       grip.removeEventListener("pointerup", onUp);
       grip.removeEventListener("pointercancel", onUp);
@@ -25441,10 +25426,49 @@ function arcgisLabelField(json) {
   return null;
 }
 
+/* ¿Se ve algo al dibujar este símbolo del servidor? Un símbolo de relleno
+   sin relleno (o con alfa 0) y sin contorno (nulo, con alfa 0 o grosor 0) no
+   deja ningún píxel: es el de una capa que solo existe para rotular. Un
+   símbolo de imagen o de texto, o uno que no se conoce, SE VE (ante la duda,
+   no es una capa de rótulos).                                          */
+const arcgisAlpha = c => (Array.isArray(c) && c.length >= 4 ? c[3] : 255);
+const arcgisLineGone = l => !l || l.style === "esriSLSNull" || arcgisAlpha(l.color) === 0 || !(l.width > 0);
+function arcgisSymbolInvisible(s) {
+  if (!s || typeof s !== "object") return false;
+  if (s.type === "esriSLS") return arcgisLineGone(s);
+  if (s.type === "esriSFS") return (s.style === "esriSFSNull" || arcgisAlpha(s.color) === 0) && arcgisLineGone(s.outline);
+  if (s.type === "esriSMS") return arcgisAlpha(s.color) === 0 && arcgisLineGone(s.outline);
+  return false;
+}
+/* Todos los símbolos del renderizador (simple, valores únicos o rangos) */
+function arcgisRendererInvisible(r) {
+  if (!r || typeof r !== "object") return false;
+  const syms = [r.symbol, r.defaultSymbol];
+  for (const i of Array.isArray(r.uniqueValueInfos) ? r.uniqueValueInfos : []) syms.push(i && i.symbol);
+  for (const i of Array.isArray(r.classBreakInfos) ? r.classBreakInfos : []) syms.push(i && i.symbol);
+  for (const g of Array.isArray(r.uniqueValueGroups) ? r.uniqueValueGroups : []) {
+    for (const c of g && Array.isArray(g.classes) ? g.classes : []) syms.push(c && c.symbol);
+  }
+  const present = syms.filter(Boolean);
+  return present.length > 0 && present.every(arcgisSymbolInvisible);
+}
+/* Una capa que existe SOLO para rotular (las `*_texto` de ENAIRE: polígonos
+   que no se ven y una regla de rotulado). Se reconoce por la convención del
+   nombre o porque nada de lo que dibuja se ve; el segundo criterio solo no
+   basta (la `CTR_texto` real tiene relleno opaco y el servidor lo oculta con
+   una variable visual por campo). Sus entidades NO son datos: el nombre de
+   cada una es su rótulo y no hace falta preguntarlo.                    */
+function arcgisIsLabelLayer(json) {
+  if (!arcgisLabelField(json)) return false;
+  if (typeof json.name === "string" && /(^|[_\s])texto([_\s]|$)/i.test(json.name)) return true;
+  return arcgisRendererInvisible(json.drawingInfo && json.drawingInfo.renderer);
+}
+
 /* La ficha de una capa (`<servicio>/<id>?f=json`) → lo que decide cómo se
    pide: si sabe devolver GeoJSON, si pagina y de cuánto en cuánto, y por
-   qué campo ordenar y con qué campo rotula el servidor. Devuelve { error } o
-   { name, pagination, maxRecord, oidField, labelField }. */
+   qué campo ordenar y con qué campo rotula el servidor (y si la capa es solo
+   de rótulos). Devuelve { error } o
+   { name, pagination, maxRecord, oidField, labelField, labelOnly }. */
 function parseArcgisLayerInfo(json) {
   if (!json || typeof json !== "object") return { error: tr("la respuesta no es la ficha de una capa") };
   if (json.error) return { error: arcgisErrorText(json.error) };
@@ -25465,7 +25489,7 @@ function parseArcgisLayerInfo(json) {
   }
   return { name: typeof json.name === "string" ? json.name : "", pagination: !!(adv && adv.supportsPagination === true),
            maxRecord: Math.min(max, ARCGIS_PAGE_MAX), oidField: oid && ARCGIS_OID_RE.test(oid) ? oid : null,
-           labelField: arcgisLabelField(json) };
+           labelField: arcgisLabelField(json), labelOnly: arcgisIsLabelLayer(json) };
 }
 
 function arcgisCountOf(json) {
@@ -25749,7 +25773,7 @@ function arcgisFailText(err) {
 }
 
 /* Lo que se descarga de UNA capa: ficha, recuento y páginas. Devuelve
-   { fc, partial: { got, total } | null, labelField }. `onProgress(got, total, bytes)`
+   { fc, partial: { got, total } | null, labelField, labelOnly }. `onProgress(got, total, bytes)`
    alimenta la barra.                                                     */
 async function arcgisDownloadLayer(base, id, signal, onProgress) {
   const info = parseArcgisLayerInfo((await arcgisGetJson(arcgisLayerInfoUrl(base, id), signal, ARCGIS_JSON_MAX)).json);
@@ -25779,7 +25803,7 @@ async function arcgisDownloadLayer(base, id, signal, onProgress) {
   if (!merged.fc.features.length) throw new Error(tr("el servidor no devolvió ninguna entidad"));
   /* Sin paginación el servidor corta en su límite: se trae lo que hay y se dice */
   const partial = !info.pagination && merged.exceeded ? { got: merged.fc.features.length, total } : null;
-  return { fc: merged.fc, partial, labelField: info.labelField };
+  return { fc: merged.fc, partial, labelField: info.labelField, labelOnly: info.labelOnly };
 }
 
 /* El origen de las asociaciones de nombre de «Índices de GeoJSON» de una capa
@@ -25821,7 +25845,7 @@ async function arcgisFetchLayerData(li, button) {
   arcgisSetDataButton(button, true);
   progress.indet(tr("Consultando «{name}»…", { name }));
   try {
-    const { fc, partial, labelField } = await arcgisDownloadLayer(service._arcgis.url, li._arcgisLayer.id, run.ctrl.signal,
+    const { fc, partial, labelField, labelOnly } = await arcgisDownloadLayer(service._arcgis.url, li._arcgisLayer.id, run.ctrl.signal,
       (got, total, bytes) => progress.set(100 * got / total,
         tr("Trayendo «{name}»… {got} de {total} entidades ({size})", { name, got, total, size: fmtBytes(bytes) })));
     progress.hide();
@@ -25830,13 +25854,19 @@ async function arcgisFetchLayerData(li, button) {
         { sticky: true });
     }
     const file = new File([JSON.stringify(fc)], safeFileName(name) + ".geojson");
-    /* Si el servidor rotula la capa con un campo, ese es el nombre de los
-       elementos (sin preguntarlo) y se ve siempre sobre el mapa: la imagen
-       del servidor los corta en el borde de cada tesela, los polígonos no. */
+    /* Si la capa es SOLO de rótulos (`*_texto`) y el servidor los dibuja con
+       un campo, ese es el nombre de los elementos (sin preguntarlo) y se ve
+       siempre sobre el mapa: la imagen del servidor los corta en el borde de
+       cada tesela, los polígonos no. En cualquier OTRA capa los elementos son
+       datos y el nombre lo elige el usuario como en cualquier GeoJSON; la
+       regla del servidor solo sirve de sugerencia (viene ya marcada). Antes
+       se aplicaba a toda capa con regla de rotulado y una capa de datos
+       como «Elementos» se nombraba sin preguntar nada.                  */
     let after = null;
     /* La asociación de nombres es de ESTA capa de ESTE servicio, no de cualquiera que comparta campos */
     file.kiteNameScope = arcgisNameScope(service._arcgis.url, li._arcgisLayer.id);
-    if (labelField) {
+    if (labelField && !labelOnly) file.kiteNameHint = [labelField];
+    if (labelField && labelOnly) {
       file.kiteNameKeys = [labelField];
       if (fc.features.length <= ARCGIS_LABEL_MAX) after = carpeta => arcgisShowLabels(carpeta, name, labelField);
       else navMessage(tr("«{name}»: {n} entidades son demasiadas para rotularlas todas sobre el mapa (el máximo es {max}); el nombre queda en cada una.",
@@ -27181,14 +27211,6 @@ setInterval(checkServerVersion, VERSION_CHECK_MS);
   /* Los `moveend` del propio enlace llegaron con `viewRestoring` aún
      puesto y no se guardaron: lo que se abrió es lo que se recuerda.   */
   if (viewLink) scheduleViewSave();
-
-  /* El reparto de columnas de la ficha: si no se restaura, habría que
-     reajustarlo en cada arranque. Antes del árbol porque no depende de
-     él y es una lectura mínima.                                      */
-  try {
-    const frac = await dbLoadProps();
-    if (frac !== null) setPropsSplit(frac);
-  } catch { /* sin reparto guardado se usa el de por defecto */ }
 
   /* Tope de vértices editables interactivamente: depende del hardware
      de quien lo usa (ver VERTEX_EDIT_MAX_DEFAULT, 43-points-editor.js),

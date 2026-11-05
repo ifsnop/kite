@@ -192,11 +192,27 @@ function stringifyPropValue(v) {
    haber tablas que vengan de la <description> de un KML, que son HTML
    del archivo y pueden tener las columnas que quieran. Imponerles un
    reparto de dos columnas sería estropearles el suyo.               */
+/* Un valor que es una dirección web se puede partir tras cada «/» (con
+   `overflow-wrap: anywhere` solo, se parte donde toca, a media palabra). */
+const valueCellHtml = v => {
+  const text = escapeHtml(stringifyPropValue(v));
+  return /^https?:\/\//i.test(text) ? text.replace(/\//g, "/<wbr>") : text;
+};
+/* La columna de las claves mide lo que su clave más larga (con tope), no un
+   porcentaje fijo: el resto de la tabla es para el valor. ~1,25 ch por
+   carácter, que son mayúsculas y guiones bajos; el reparto que elige el
+   usuario con el separador (`--props-key`) manda sobre esto.            */
+const PROPS_KEY_CHARS_MAX = 22;
+function propsKeyAutoWidth(keys) {
+  const n = Math.min(PROPS_KEY_CHARS_MAX, Math.max(5, ...keys.map(k => String(k).length)));
+  return `calc(${(n * 1.25).toFixed(1)}ch + 14px)`;
+}
 function propertiesTableHtml(props) {
   const rows = Object.entries(props)
-    .map(([k, v]) => `<tr><td>${escapeHtml(k)}</td><td>${escapeHtml(stringifyPropValue(v))}</td></tr>`)
+    .map(([k, v]) => `<tr><td>${escapeHtml(k)}</td><td>${valueCellHtml(v)}</td></tr>`)
     .join("");
-  return `<div class="props-wrap"><table class="props">${rows}</table>`
+  return `<div class="props-wrap" style="--props-key-auto: ${propsKeyAutoWidth(Object.keys(props))}">`
+    + `<table class="props">${rows}</table>`
     + '<div class="props-grip" role="separator" aria-orientation="vertical"'
     + ` title="${tr("Arrastre para repartir el ancho entre clave y valor")}"></div></div>`;
 }
