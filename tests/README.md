@@ -127,6 +127,16 @@ CLAMP TESTS OK
 
 **Qué cubre:** Validación de coordenadas y tolerancia de redondeo: se ajusta `180.00000044181039`, se rechaza una latitud de 32400.
 
+### `parsecoords.js`
+
+**Salida de `npm test`:**
+```
+── parseCoords en una sola pasada: idéntico al de siempre (aleatorias, hostiles, \\s carácter a carácter) y no cuadrático
+PARSE COORDS TESTS OK
+```
+
+**Qué cubre:** `parseCoords` (`20-kml-geom.js`) se reescribió sin `split` para quitar 2,9 s a un KML de 309 MB. La suite lleva copiada la implementación ANTERIOR y exige el mismo resultado (posiciones, `.skipped` y el recuento de coordenadas ajustadas) con 38 entradas fijas (comas de más y de menos, `NaN`, `Infinity`, `0x10`, fuera de rango, espacios Unicode), 40 000 cadenas aleatorias y un anillo realista de 5 000 vértices con 15 decimales. `isSpaceCode` coincide con `/\s/` en los 65 536 códigos del plano básico. Y 800 000 caracteres de tuplas sin coma se leen en menos de 1,5 s (un `indexOf` sobre todo el texto sería cuadrático).
+
 ### `utmtest.js`
 
 **Salida de `npm test`:**
@@ -1276,6 +1286,16 @@ BROWSER CONTEXT PENDING TESTS OK
 ```
 
 **Qué cubre:** el fallo «tras recargar no sale “Mostrar perfil” en el menú contextual». Una capa de una carpeta que no se ha desplegado nunca (tras recargar, cualquiera que se guardara colapsada) está dibujada en el mapa pero su fila es todavía un registro pendiente, y el hit-testing solo veía capas con fila: el clic derecho no ofrecía ni «Ir al nodo» ni «Editar propiedades» y, en una ruta, ni «Mostrar perfil». Con el clic derecho REAL del ratón: (A) un polígono de un KML dentro de carpetas colapsadas ofrece «Ir al nodo en el panel» y «Editar propiedades», y se materializa la cadena hasta él; (B) una ruta con su perfil (MDT y MDS falsos) con «Mediciones» y «Perfiles de ruta» desplegadas, solo la segunda colapsada, solo la primera, o las dos —la ruta es un registro pendiente tras recargar— ofrece siempre «Mostrar perfil» y sus entradas de capa, y elegirlo abre el perfil guardado sin pedir nada. Comprobado que falla sin la corrección. Sin errores de página ni violaciones de la CSP.
+
+### `browser/lazy-layers.mjs`
+
+**Salida de `npm test`:**
+```
+── Navegador: un placemark apagado de polígonos o líneas guarda solo su GeoJSON (igual que toGeoJSON() de Leaflet, con un corpus) y su capa se construye al leerla: guardar, encuadrar, atributos y borrar no la construyen; recargar los deja perezosos; encender los construye
+BROWSER LAZY LAYERS TESTS OK
+```
+
+**Qué cubre:** el riesgo del cambio es que el GeoJSON que se construye sin pasar por Leaflet (`buildPlacemarkGeo`) difiera del `toGeoJSON()` de la capa de siempre: con Leaflet real, 15 placemarks (anillo cerrado y sin cerrar, agujero, altitud 0 y real, quince decimales y redondeo, cierre a menos y a más de 1e-9, línea, multigeometría, espacios Unicode, geometría mala junto a una buena, fuera de rango, `-0`), cada uno con y sin `ExtendedData`, dan texto idéntico (orden de claves incluido), el mismo `reported` y los mismos avisos. Después, un KML con una carpeta apagada (polígono con atributos, línea y marcador) y otra visible: los apagados sin marcadores quedan sin construir y fuera del mapa, el marcador se construye ya, el resumen cuenta las 4 capas, y guardar, encuadrar, leer atributos y borrar la carpeta no construyen nada; recargando siguen perezosos y conservan atributos y geometría; encender la carpeta construye y pone en el mapa las 3 capas, apagarla las quita, y apagar una capa que nunca se construyó no la construye.
 
 ### `browser/place-coords.mjs`
 

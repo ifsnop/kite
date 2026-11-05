@@ -290,6 +290,11 @@ function importCancelled() {
    duplicar en memoria lo más grande de la importación. Sin texto que
    medir, «grande» lo decide el número de elementos.                  */
 const BIG_FEATURE_COUNT = 5000;
+/* Por encima de esto se avisa ANTES de empezar: un KML de 309 MB tarda
+   unos 20 s en cargar (la lectura del XML es una sola tarea de ~4 s que
+   el navegador no puede partir) y llega a 1,5-2 GB de memoria. Solo un
+   aviso informativo, nunca un diálogo que bloquee.                    */
+const HUGE_IMPORT_CHARS = 100 * 1024 * 1024;
 /* `report`: un informe ya empezado por quien llama (lo que se ve al leer
    un shapefile —sin .prj, ED50…— va en el mismo resumen).             */
 /* `presetNameKeys`: un formato que define él mismo qué es el nombre (el
@@ -316,6 +321,10 @@ async function addFileNode(name, kind, content, insertBefore = null, dropTargetU
   }
 
   try {
+    if (typeof content === "string" && content.length >= HUGE_IMPORT_CHARS) {
+      navMessage(tr("\u00AB{name}\u00BB es muy grande ({size}): cargarlo puede tardar y necesita mucha memoria.",
+        { name, size: fmtBytes(content.length) }), { tone: "info" });
+    }
     if (kind === "kml") {
       if (big) {
         /* DOMParser es síncrono y monolítico: solo cabe indicar la fase
@@ -323,7 +332,7 @@ async function addFileNode(name, kind, content, insertBefore = null, dropTargetU
         progress.indet(tr("Procesando XML de {name}\u2026", { name }));
         await yieldFrame();
       }
-      const { xml, repaired } = parseKmlDocument(content);
+      let { xml, repaired } = parseKmlDocument(content);
       if (repaired.length) {
         report.note(tr("prefijos XML sin declarar, corregidos al vuelo: {prefixes}", { prefixes: repaired.join(", ") }));
       }
@@ -352,6 +361,9 @@ async function addFileNode(name, kind, content, insertBefore = null, dropTargetU
       if (styleIndex.externalRefs) {
         report.note(tr("{externalRefs} estilo(s) en archivos externos, no aplicados", { externalRefs: styleIndex.externalRefs }));
       }
+      /* El DOM (más de 1 GB en un KML de 300 MB) ya no hace falta: se suelta
+         antes de materializar y de guardar, que es cuando la memoria aprieta */
+      xml = null;
       await materializeRecords(records, target);
     } else {
       if (big) {

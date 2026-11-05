@@ -122,6 +122,56 @@ paths:
   `src/index.html`; `tests/lazylibs.js` exige que nadie use su global
   sin `ensureLib`.
 - **Polígonos de solo relleno sin costuras** (`09-canvas-seamless.js`): una tanda se dibuja en un lienzo auxiliar y se compone una vez. Cada tanda cuesta ~1,7 ms (componer desde otro lienzo vacía el auxiliar; medido sin GPU) y 3 000 tandas de dos polígonos tardaban 5 s por redibujado, así que hay tope (`SEAMLESS_MAX_RUNS` = 24) y una tanda de un solo polígono no se abre. Medido con el tope: 3 000 polígonos de un color, 14,7 ms frente a 5,8 sin el parche; 3 000 en parejas de colores distintos (el peor caso), 50 ms frente a 5. Ver `style-dialogs-ui.md`.
+- **Capas Leaflet PEREZOSAS: un registro `layer` apagado y sin marcadores no
+  construye su capa hasta que alguien la lee** (`defineLazyLayer`,
+  `buildRecordLayer`, `recLayerPending`, `32-geojson.js`). Causa, medida con
+  un KML real de 309 MB (`20261103_P2.kmz`: 62 673 placemarks, 389 597
+  polígonos, **9,66 M de vértices, todos `<visibility>0`**): construir las
+  capas eran 9,4 s y +1,1 GB de heap al importar, copiarlas de vuelta a
+  GeoJSON para guardar otros 1,3 s y +0,6 GB, y **volver a construirlas en
+  cada arranque** 7,6 s y 3,1 GB de heap. Con un límite de heap de 3 GB el
+  guardado pasó de 1,3 s a **66,8 s** (el recolector contra el techo; con 4 GB
+  de memoria la pestaña murió) y, como el árbol ya estaba guardado, la
+  aplicación no volvía a arrancar. Ahora: importar 4,7 s de construcción
+  (heap 1,08 GB), `serializeTree` 14 ms, recargar 5,3 s y 1,46 GB, y con
+  3 GB de límite todo igual (`serializeTree` 16 ms).
+  - `rec._layer` pasa a ser un getter que construye y se sustituye por el
+    valor; **todo código nuevo que recorra registros pendientes y NO necesite
+    la capa** (apagar, quitar, medir, listar atributos) tiene que preguntar
+    antes `recLayerPending(rec)` en vez de leer `_layer`, o la construirá. Hoy
+    lo hacen `cascadeVisibility`, `setPendingChecked`, `removeRecordsFromMap`,
+    `extendBoundsFromRecords` (encuadre desde `recGeoBounds`, la caja del
+    GeoJSON), `recMapLayer` y la tabla de atributos (`recProperties`).
+    Encender, desplegar la carpeta (`materializeRecords` crea su fila) o editar
+    SÍ la construyen, que es lo correcto.
+  - Solo es perezoso lo que no necesita Leaflet para existir: sin marcadores
+    (necesitan su icono) y apagado. Al importar un KML, `buildKmlRecords` lee
+    la geometría con `buildPlacemarkGeo` (sin pasar por Leaflet); al restaurar,
+    `buildRecordsFromStorage` lo decide con `geoIsLazyable(geo)` y no si el
+    árbol es AJENO (`opts.foreign`: Leaflet es quien rechaza una geometría
+    rota y es mejor que falle al cargar que al encender).
+  - **`buildPlacemarkGeo` tiene que dar EXACTAMENTE el `toGeoJSON()` de la capa
+    de siempre**: redondeo a 6 decimales, un polígono descarta su vértice de
+    cierre si coincide con el primero a 1e-9 y `toGeoJSON` lo vuelve a añadir,
+    altitud solo si el vértice la traía, `properties` del `ExtendedData`.
+    `tests/browser/lazy-layers.mjs` lo compara con Leaflet real sobre un corpus;
+    al subir Leaflet, volver a pasarlo.
+  - **El límite de heap es el problema real, no la CPU**: con 12 GB el mismo
+    `serializeTree` tardó 1,3 s. Un equipo de 8 GB tiene ~2 GB de heap y uno de
+    4 GB, ~1 GB. Cualquier camino que duplique la geometría (capa Leaflet +
+    GeoJSON, DOM + registros) hay que medirlo con `--js-flags=--max-old-space-size=3000`.
+  - **Se cede el hilo por TIEMPO** (`yieldIfDue`, `YIELD_BUDGET_MS` = 50) en
+    `buildKmlRecords` y `buildRecordsFromStorage`, no cada `PROGRESS_BATCH`
+    capas: 150 placemarks van de 10 ms a 1,5 s, y cada cesión cuesta un
+    fotograma entero (418 cesiones fijas eran 6,5 s de espera). Los demás
+    bucles (`materializeRecords`, cascadas) siguen por recuento.
+  - `parseCoords` va en una sola pasada (`isSpaceCode` es `\s` a mano):
+    2,9 s de un KML de 309 MB. `tests/parsecoords.js` lleva el de antes copiado.
+  - Lo que NO se arregló, con su medida, está en
+    `docs/pendientes-y-propuestas-kite-local.md`: el `DOMParser` (3,3 s, una
+    sola tarea), el primer guardado (3,3 s de clon síncrono de un segmento de
+    0,6 GB), la lectura al arrancar (2,5 s) y encender de golpe las 62 673
+    capas (las construye todas).
 - **Búsquedas por nombre local en el XML** (`elsByTag`, `firstByTag`,
   `childrenByTag`, `12-copernicus.js`): `firstByTag` copiaba la colección
   entera a un array para quedarse con el primero, y cada búsqueda VACÍA

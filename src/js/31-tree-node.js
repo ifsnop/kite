@@ -419,6 +419,8 @@ function startRename(li) {
    ningún checkbox.                                                    */
 function removeRecordsFromMap(records) {
   for (const rec of records) {
+    /* Una capa perezosa que nunca se construyó no está en el mapa */
+    if (recLayerPending(rec)) continue;
     /* Un contenedor con capa propia (un servicio ArcGIS) la quita también */
     if (rec.children && rec._layer) rootGroup.removeLayer(rec._layer);
     if (rec.children) { removeRecordsFromMap(rec.children); continue; }
@@ -655,8 +657,26 @@ function markDrop(row, zone) {
 
 /* Cede el hilo y deja que el navegador pinte un frame */
 const yieldFrame = () => new Promise(r => requestAnimationFrame(() => setTimeout(r, 0)));
+/* Cuenta un elemento más de `prog` y cede el hilo (y repinta la barra) si
+   lleva más de YIELD_BUDGET_MS desde la última vez.                    */
+async function yieldIfDue(prog) {
+  prog.done++;
+  const now = performance.now();
+  if (prog.last === undefined) prog.last = now;
+  if (now - prog.last < YIELD_BUDGET_MS) return;
+  prog.update(prog.done);
+  await yieldFrame();
+  prog.last = performance.now();
+}
 
 const PROGRESS_BATCH = 150; /* capas construidas entre cesiones del hilo */
+/* Las funciones que CONSTRUYEN registros (buildKmlRecords,
+   buildRecordsFromStorage) ceden por TIEMPO y no por recuento: 150
+   placemarks pueden ser desde 10 ms hasta 1,5 s (un KML real tenía
+   placemarks de 21 000 vértices), y cada cesión cuesta un fotograma
+   entero (`yieldFrame`, ~17 ms): 418 cesiones fijas eran 6,5 s de pura
+   espera en 62 000 placemarks. Medido con KML de 309 MB.            */
+const YIELD_BUDGET_MS = 50;
 const CASCADE_BATCH = 300; /* casillas conmutadas entre cesiones del hilo en
                                una cascada de visibilidad: cada iteración es
                                más barata que construir una fila (solo un
@@ -732,31 +752,44 @@ async function buildKmlRecords(el, styleIndex, inheritedVisible, prog, report, z
       const name = text(child, "name") || "Placemark";
       try {
         const style = placemarkStyle(child, styleIndex);
-        const { group: layer, reported } = buildPlacemarkLayer(child, style, report);
-        if (!layer) {
-          /* Ya se cont\u00F3 arriba con una causa concreta (p. ej. "punto sin
-             coordenadas v\u00E1lidas"); solo hace falta este gen\u00E9rico cuando
-             el placemark no ten\u00EDa ninguna geometr\u00EDa que intentar.      */
-          if (!reported && report) report.warn(tr("\u00AB{name}\u00BB sin geometr\u00EDa utilizable", { name }));
-          continue;
-        }
         const visible = inheritedVisible && ownVisibility(child);
-        if (visible) layer.addTo(rootGroup);
+        const els = placemarkGeomEls(child);
         /* La ficha del placemark suele traer una tabla con los datos
            reales del elemento; se guarda para poder consultarla       */
-        const rec = { t: "layer", name, checked: visible, style,
-                       desc: text(child, "description") || null, _layer: layer };
-        wirePendingLayerEvents(rec);
+        const desc = text(child, "description") || null;
+        let rec;
+        if (!visible && !els.pointEls.length && (els.polygonEls.length || els.lineEls.length)) {
+          /* Apagado y sin marcadores: solo su GeoJSON, que es lo que se
+             guarda. La capa Leaflet (millones de LatLng en un KML grande)
+             se construye si alguien la enciende: ver defineLazyLayer.   */
+          const { geo, reported } = buildPlacemarkGeo(child, style, report, els);
+          if (!geo) {
+            if (!reported && report) report.warn(tr("\u00AB{name}\u00BB sin geometr\u00EDa utilizable", { name }));
+            continue;
+          }
+          rec = { t: "layer", name, checked: false, style, desc, geo };
+          defineLazyLayer(rec, () => buildRecordLayer(rec));
+          if (report) { report.loaded++; report.kinds.add("polygon"); }
+        } else {
+          const { group: layer, reported } = buildPlacemarkLayer(child, style, report, els);
+          if (!layer) {
+            /* Ya se cont\u00F3 arriba con una causa concreta (p. ej. "punto sin
+               coordenadas v\u00E1lidas"); solo hace falta este gen\u00E9rico cuando
+               el placemark no ten\u00EDa ninguna geometr\u00EDa que intentar.      */
+            if (!reported && report) report.warn(tr("\u00AB{name}\u00BB sin geometr\u00EDa utilizable", { name }));
+            continue;
+          }
+          if (visible) layer.addTo(rootGroup);
+          rec = { t: "layer", name, checked: visible, style, desc, _layer: layer };
+          wirePendingLayerEvents(rec);
+          if (report) { report.loaded++; report.kinds.add(layerKind(layer) || "?"); }
+        }
         out.push(rec);
-        if (report) { report.loaded++; report.kinds.add(layerKind(layer) || "?"); }
       } catch (err) {
         /* One bad entity must never abort the whole import */
         if (report) report.warn(`\u00AB${name}\u00BB: ${err.message}`);
       }
-      if (prog && ++prog.done % PROGRESS_BATCH === 0) {
-        prog.update(prog.done);
-        await yieldFrame();
-      }
+      if (prog) await yieldIfDue(prog);
     } else if (tag === "GroundOverlay") {
       const name = text(child, "name") || tr("Ortofoto");
       try {
@@ -772,10 +805,7 @@ async function buildKmlRecords(el, styleIndex, inheritedVisible, prog, report, z
         /* One bad entity must never abort the whole import */
         if (report) report.warn(`«${name}»: ${err.message}`);
       }
-      if (prog && ++prog.done % PROGRESS_BATCH === 0) {
-        prog.update(prog.done);
-        await yieldFrame();
-      }
+      if (prog) await yieldIfDue(prog);
     }
   }
   return out;

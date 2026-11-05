@@ -33,7 +33,7 @@ function collectAttrRows(root) {
   const fromRecords = recs => {
     for (const rec of recs) {
       if (Array.isArray(rec.children)) fromRecords(rec.children);
-      else if (rec.t === "layer") rows.push({ name: rec.name, props: layerProperties(rec._layer), rec });
+      else if (rec.t === "layer") rows.push({ name: rec.name, props: recProperties(rec), rec });
     }
   };
   const fromLi = li => {

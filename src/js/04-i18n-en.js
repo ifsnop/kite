@@ -156,6 +156,7 @@ registerLang("en", "English", {
   /* 33-kml-import.js */
   "XML no válido: {why}": "Invalid XML: {why}",
   "carga cancelada": "load canceled",
+  "«{name}» es muy grande ({size}): cargarlo puede tardar y necesita mucha memoria.": "“{name}” is very large ({size}): loading it may take a while and needs a lot of memory.",
   "Procesando XML de {name}…": "Processing XML for {name}…",
   "prefijos XML sin declarar, corregidos al vuelo: {prefixes}": "undeclared XML prefixes, fixed on the fly: {prefixes}",
   "etiquetas tipo HTML eliminadas de los nombres": "HTML-like tags removed from the names",
@@ -232,8 +233,8 @@ registerLang("en", "English", {
   "Error al buscar el lugar: {reason}.": "Error searching for the place: {reason}.",
   "Sin resultados para «{query}».": "No results for “{query}”.",
   "{length} resultado(s) — elija uno": "{length} result(s) — pick one",
-  "El resultado no trae coordenadas válidas.": "The result has no valid coordinates.",
   "añadir un lugar": "add a place",
+  "El resultado no trae coordenadas válidas.": "The result has no valid coordinates.",
   "Marcadores": "Markers",
   "crear marcador": "create marker",
   "Marcador": "Marker",

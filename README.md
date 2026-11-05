@@ -112,6 +112,7 @@ KITE Local does not impose fixed limits on KML file size, imported features or v
   choose which property to use as the name, remembered for future files
   with the same property structure
 - progress indication and batched layer construction for larger files
+- layers a file brings switched off are not drawn until you switch them on: a 309 MB KML with 62 000 hidden polygons loads in about 13 seconds and reopens in about 5, instead of rebuilding every layer on each start
 
 ### Layer workspace
 
@@ -482,7 +483,7 @@ The interface is primarily designed for mouse and keyboard use. On a phone it sh
 
 - The application is a 2D Leaflet viewer, not a 3D virtual globe.
 - The simple compatibility statement applies to conventional folder/placemark/line/polygon KML, not every feature in the full KML specification.
-- `DOMParser` and `JSON.parse` are synchronous and can briefly block the interface on large inputs.
+- `DOMParser` and `JSON.parse` are synchronous and can briefly block the interface on large inputs (reading the XML of a 309 MB KML is one task of about 4 seconds).
 - The application sets no explicit KML-size or feature-count limit, but the browser, RAM, IndexedDB quota and rendering performance impose practical limits. A KMZ (or shapefile `.zip`) is checked before anything is unpacked: at most 2000 entries, a 200× compression ratio and an uncompressed size of 500 MB by default, which you can change in Properties → Preferences.
 - Altitude is carried through import, storage and export, but it is not rendered: this is a 2D viewer. Two placemarks at the same latitude and longitude but different altitudes are still treated as duplicates.
 - KML style handling is partial: shared and inline styles for basic line and polygon appearance, and `StyleMap` normal-style references. (Namespaces are not a limitation — elements are matched by local name, so prefixed, default-namespaced and namespace-less KML all work.)
@@ -507,7 +508,7 @@ Do not use public tile, geocoding or CDN services for sensitive work without an 
   `src/styles.css`, `src/sw.js` and 40 JavaScript files, concatenated into the
   shipped file by `build.js`. The single-file product is the output, not the
   source.
-- **There are automated tests.** 120 suites run against the shipped
+- **There are automated tests.** 122 suites run against the shipped
   file — most under Node, plus a set that drives a real headless browser —
   covering coordinate parsing and formatting, UTM, KML namespaces and
   styles, geometry conversion, serialization, tree navigation and

@@ -15,6 +15,7 @@ const SUITES = [
   ["htmltagstest.js", "Detección y limpieza de etiquetas tipo HTML en nombres de un KML"],
   ["dupetest.js", "Fusión de marcadores duplicados: mismo nombre y posición, en KML y en GeoJSON"],
   ["clamptest.js",  "Coordenadas: validación y tolerancia de redondeo"],
+  ["parsecoords.js", "parseCoords en una sola pasada: idéntico al de siempre (aleatorias, hostiles, \\s carácter a carácter) y no cuadrático"],
   ["utmtest.js",    "Conversión a UTM y husos"],
   ["daynight.js",   "Iluminación día/noche: punto subsolar y elevación solar en fechas y puntos de referencia"],
   ["coordfmt.js",   "Formato de coordenadas: decimal, GMS con espacios y GMS compacto"],
@@ -138,6 +139,7 @@ const BROWSER = [
   ["browser/app-sections.mjs", "Navegador: las secciones que crea la aplicación (Marcadores, Mediciones…) van en azul pastel, distinto de un archivo y de una fila con el ratón encima, en claro y oscuro; se guardan como sec, sobreviven a recargar, un árbol anterior las recibe al usarlas y sec ajeno solo vale como true exacto en un archivo"],
   ["browser/context-pending.mjs", "Navegador: el clic derecho sobre una capa de una carpeta nunca desplegada (tras recargar) la materializa y ofrece sus entradas, y una ruta con su perfil ofrece «Mostrar perfil» con «Mediciones» y «Perfiles de ruta» desplegadas o colapsadas"],
   ["browser/place-coords.mjs", "Navegador: unas coordenadas escritas en el buscador crean un marcador en «Lugares» y llevan el mapa allí a zoom 17 sin ninguna petición a Nominatim (con Intro y con el botón), un lugar sigue yendo a Nominatim, y una búsqueda en vuelo no repinta tras unas coordenadas"],
+  ["browser/lazy-layers.mjs", "Navegador: un placemark apagado de polígonos o líneas guarda solo su GeoJSON (igual que toGeoJSON() de Leaflet, con un corpus) y su capa se construye al leerla: guardar, encuadrar, atributos y borrar no la construyen; recargar los deja perezosos; encender los construye"],
   ["browser/focus-zoom.mjs", "Navegador: la lupa de un marcador centra el visor y acerca al zoom 14, siempre igual, y un polígono se encuadra entero sin ese zoom"],
   ["browser/i18n.mjs", "Navegador: idioma de la interfaz — «Automático» según el navegador, español e inglés sin español colado, el ajuste de Propiedades (guarda al Aceptar, vale al recargar) y un idioma nuevo sin tocar código"]
 ];

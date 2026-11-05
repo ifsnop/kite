@@ -38,17 +38,40 @@ const COMPACT_POPUP = { className: "compacto", autoClose: false, closeOnClick: f
    inválido. La altitud del KML se conserva cuando viene: antes se
    partía del texto y no se leía nunca, así que se perdía en la
    importación mientras que la del GeoJSON sí sobrevivía.              */
+/* `\s` de JavaScript, a mano: aquí se llama por cada carácter de hasta
+   300 MB de coordenadas y la expresión regular + `split` por tupla
+   eran 2,9 s de un solo archivo (medido). Debe ser EXACTAMENTE `\s`.   */
+function isSpaceCode(c) {
+  if (c <= 32) return c === 32 || (c >= 9 && c <= 13);
+  if (c < 160) return false;
+  return c === 160 || c === 5760 || (c >= 8192 && c <= 8202) || c === 8232 || c === 8233
+    || c === 8239 || c === 8287 || c === 12288 || c === 65279;
+}
+
+/* Una sola pasada, sin `split`: cada tupla se corta por sus comas sin
+   mirar más allá de su propio final (buscar la coma con `indexOf` sobre
+   todo el texto sería cuadrático con una tupla sin comas en un texto
+   hostil de cientos de MB).                                            */
 function parseCoords(str) {
-  const out = [];
-  let skipped = 0;
-  for (const tuple of String(str).trim().split(/\s+/)) {
-    if (!tuple) continue;
-    const parts = tuple.split(",");
-    if (parts.length < 2) { skipped++; continue; }
-    const pair = clampLatLng(Number(parts[1]), Number(parts[0]),
-      parts.length > 2 ? Number(parts[2]) : undefined);
-    if (!pair) { skipped++; continue; }
-    out.push(pair);
+  const s = String(str), n = s.length, out = [];
+  let skipped = 0, i = 0;
+  while (i < n) {
+    while (i < n && isSpaceCode(s.charCodeAt(i))) i++;
+    if (i >= n) break;
+    let end = i, c1 = -1, c2 = -1, c3 = -1;
+    while (end < n) {
+      const c = s.charCodeAt(end);
+      if (isSpaceCode(c)) break;
+      if (c === 44) { if (c1 < 0) c1 = end; else if (c2 < 0) c2 = end; else if (c3 < 0) c3 = end; }
+      end++;
+    }
+    if (c1 < 0) { skipped++; i = end; continue; } /* sin coma: menos de dos campos */
+    const lon = Number(s.slice(i, c1));
+    const lat = Number(s.slice(c1 + 1, c2 < 0 ? end : c2));
+    const alt = c2 < 0 ? undefined : Number(s.slice(c2 + 1, c3 < 0 ? end : c3));
+    const pair = clampLatLng(lat, lon, alt);
+    if (!pair) skipped++; else out.push(pair);
+    i = end;
   }
   out.skipped = skipped;
   return out;
@@ -95,52 +118,76 @@ function parseExtendedData(pm) {
   return n ? props : null;
 }
 
-/* Crea las capas Leaflet de un placemark (polígonos, líneas y puntos).
-   Cada geometría se construye por separado: una mala no tumba al resto
-   del placemark ni, por tanto, a la importación entera.              */
-/* Devuelve { group, reported }: `reported` distingue, para el llamador,
-   un placemark SIN geometría alguna (nunca se llamó a fail, el llamador
+/* Las geometrías de un Placemark, buscadas UNA vez: quien decide si
+   construye la capa Leaflet o solo su GeoJSON (ver abajo) mira antes si
+   hay algún <Point>, y la lectura no debe repetir la búsqueda (era de lo
+   más caliente de la importación de un KML grande).                    */
+function placemarkGeomEls(pm) {
+  const geomRoot = childrenByTag(pm, "MultiGeometry")[0] || pm;
+  return {
+    polygonEls: elsByTag(geomRoot, "Polygon"),
+    lineEls: elsByTag(geomRoot, "LineString"),
+    pointEls: elsByTag(geomRoot, "Point")
+  };
+}
+
+/* Lee las geometrías de un placemark y las convierte con `mk`
+   ({ poly(rings), line(pts), point(pt) }): la capa Leaflet de cada una
+   (buildPlacemarkLayer) o su Feature GeoJSON (buildPlacemarkGeo). Cada
+   geometría se lee por separado: una mala no tumba al resto del
+   placemark ni, por tanto, a la importación entera. Devuelve
+   { parts, reported }: `reported` distingue, para el llamador, un
+   placemark SIN geometría alguna (nunca se llamó a fail, el llamador
    debe avisar con su mensaje genérico) de uno cuya única geometría
    falló Y YA quedó contada aquí con una causa específica (avisar otra
    vez arriba duplicaba el elemento perdido en el resumen: un placemark
    con un único <Point> roto contaba como 2 omitidos, no 1).           */
-function buildPlacemarkLayer(pm, style, report) {
-  const layers = [];
-  const geomRoot = childrenByTag(pm, "MultiGeometry")[0] || pm;
-  const polygonEls = elsByTag(geomRoot, "Polygon");
+function collectPlacemarkParts(els, style, report, mk) {
+  const parts = [];
   /* Fold the polygon-only outline flag into the real `stroke` used to
      render, but only when this placemark actually has a Polygon —
      otherwise it's dropped instead of silently hiding a LineString.   */
   if (style.polyOutline === false) {
-    if (polygonEls.length) style.stroke = false;
+    if (els.polygonEls.length) style.stroke = false;
     delete style.polyOutline;
   }
   let reported = false;
   const fail = why => { reported = true; if (report) report.warn(why); };
 
-  for (const polyEl of polygonEls) {
+  for (const polyEl of els.polygonEls) {
     try {
       const rings = parsePolygon(polyEl);
-      if (rings) layers.push(L.polygon(rings, style));
+      if (rings) parts.push(mk.poly(rings));
       else fail(tr("polígono sin anillo exterior válido"));
     } catch (err) { fail(tr("polígono ilegible ({message})", { message: err.message })); }
   }
-  for (const lineEl of elsByTag(geomRoot, "LineString")) {
+  for (const lineEl of els.lineEls) {
     try {
       const el = firstByTag(lineEl, "coordinates");
       const pts = el ? parseCoords(el.textContent) : [];
-      if (pts.length >= 2) layers.push(L.polyline(pts, style));
+      if (pts.length >= 2) parts.push(mk.line(pts));
       else fail(tr("línea con menos de dos puntos válidos"));
     } catch (err) { fail(tr("línea ilegible ({message})", { message: err.message })); }
   }
-  for (const ptEl of elsByTag(geomRoot, "Point")) {
+  for (const ptEl of els.pointEls) {
     try {
       const el = firstByTag(ptEl, "coordinates");
       const pts = el ? parseCoords(el.textContent) : [];
-      if (pts.length) layers.push(L.marker(pts[0]));
+      if (pts.length) parts.push(mk.point(pts[0]));
       else fail(tr("punto sin coordenadas válidas"));
     } catch (err) { fail(tr("punto ilegible ({message})", { message: err.message })); }
   }
+  return { parts, reported };
+}
+
+/* Crea las capas Leaflet de un placemark (polígonos, líneas y puntos).
+   Devuelve { group, reported } (ver collectPlacemarkParts).           */
+function buildPlacemarkLayer(pm, style, report, els = placemarkGeomEls(pm)) {
+  const { parts: layers, reported } = collectPlacemarkParts(els, style, report, {
+    poly: rings => L.polygon(rings, style),
+    line: pts => L.polyline(pts, style),
+    point: pt => L.marker(pt)
+  });
   if (!layers.length) return { group: null, reported };
 
   /* `feature.properties` en cada subcapa es lo que lee layerProperties y lo
@@ -156,6 +203,54 @@ function buildPlacemarkLayer(pm, style, report) {
      por defecto tapa media pantalla para escribir un nombre         */
   if (name) group.bindPopup(escapeHtml(name), COMPACT_POPUP);
   return { group, reported };
+}
+
+/* ---------- El GeoJSON de un placemark, sin pasar por Leaflet ----------
+   Un placemark APAGADO de solo polígonos y líneas no necesita su capa
+   Leaflet hasta que alguien la enciende, pero sí su GeoJSON, que es lo
+   que se guarda. Construir la capa para sacar de ella `toGeoJSON()` eran
+   9,66 M de LatLng (+1,1 GB) y 9,4 s en un KML real de 309 MB, y volver
+   a leerlos otros 1,3 s al guardar. Esto da el MISMO resultado que
+   `L.featureGroup(capas).toGeoJSON()` — probado contra Leaflet real en
+   tests/browser/lazy-layers.mjs — copiando sus tres reglas:
+   · redondeo a 6 decimales (`L.Util.formatNum`; 1e6 es `Math.pow(10, 6)`);
+   · un polígono no repite su vértice de cierre al construirse (si el
+     último coincide con el primero a 1e-9 se descarta) y `toGeoJSON` lo
+     vuelve a añadir copiando el primero, así que sale cerrado siempre;
+   · la altitud solo si el vértice la traía.                            */
+const GEO_ROUND = 1e6;
+const geoNum = n => Math.round(n * GEO_ROUND) / GEO_ROUND;
+/* [lat, lon(, alt)] → posición GeoJSON [lon, lat(, alt)] */
+const geoPos = p => p.length > 2 ? [geoNum(p[1]), geoNum(p[0]), geoNum(p[2])] : [geoNum(p[1]), geoNum(p[0])];
+function geoRing(ring) {
+  let n = ring.length;
+  if (n >= 2 && Math.max(Math.abs(ring[0][0] - ring[n - 1][0]), Math.abs(ring[0][1] - ring[n - 1][1])) <= 1e-9) n--;
+  const out = [];
+  for (let i = 0; i < n; i++) out.push(geoPos(ring[i]));
+  out.push(out[0].slice());
+  return out;
+}
+
+/* Como buildPlacemarkLayer, pero devuelve { geo, reported }: `geo` es la
+   FeatureCollection que daría `toGeoJSON()` de la capa, o null si no hay
+   ninguna geometría utilizable. SOLO para placemarks sin <Point>
+   (quien llama lo comprueba con `els.pointEls`): un marcador necesita
+   su icono, que es de Leaflet.                                         */
+function buildPlacemarkGeo(pm, style, report, els) {
+  const { parts, reported } = collectPlacemarkParts(els, style, report, {
+    poly: rings => ({ type: "Polygon", coordinates: rings.map(geoRing) }),
+    line: pts => ({ type: "LineString", coordinates: pts.map(geoPos) }),
+    point: () => null
+  });
+  if (!parts.length) return { geo: null, reported };
+  /* Las mismas properties (ExtendedData) en cada subcapa, y {} propio
+     si no hay: es lo que deja `getFeature` de Leaflet.               */
+  const data = parseExtendedData(pm);
+  return {
+    geo: { type: "FeatureCollection",
+           features: parts.map(geometry => ({ type: "Feature", properties: data || {}, geometry })) },
+    reported
+  };
 }
 
 /* Maps a file extension to the MIME type L.imageOverlay needs for a data:

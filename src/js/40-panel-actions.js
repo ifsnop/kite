@@ -76,7 +76,7 @@ async function resolveRecordLi(rec) {
 /* La capa de Leaflet que un registro pendiente tiene en el mapa: la de
    una capa, ortofoto o cuadrícula (`_layer`) o el grupo de una medición
    (`_m.group`). Null si el tipo no tiene (nada que acertar con el clic). */
-const recMapLayer = rec => rec._layer || (rec._m && rec._m.group) || null;
+const recMapLayer = rec => recLayerPending(rec) ? null : (rec._layer || (rec._m && rec._m.group) || null);
 
 /* El <li> de una CAPA de Leaflet, materializando la cadena de carpetas
    ancestras si todavía es un registro pendiente (lo que cuesta construir
@@ -431,7 +431,7 @@ async function setPendingChecked(records, state, counter) {
   for (const rec of records) {
     rec.checked = state;
     if (rec.children) await setPendingChecked(rec.children, state, counter);
-    else setLayerVisible(rec._layer, state);
+    else if (state || !recLayerPending(rec)) setLayerVisible(rec._layer, state); /* apagar una capa aún sin construir no hace nada */
     if (++counter.n % CASCADE_BATCH === 0) await yieldFrame();
   }
 }

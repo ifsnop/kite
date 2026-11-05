@@ -1861,6 +1861,96 @@ async function restoreTree(nodes) {
   await materializeRecords(records, ensureRootUl());
 }
 
+/* ---------- Capas Leaflet perezosas ----------
+   Un registro `layer` APAGADO guarda solo su `geo` (el GeoJSON, que es lo
+   que se persiste) y su capa Leaflet se construye la PRIMERA vez que
+   alguien la lee. Motivo, medido con un KML de 309 MB (62 673
+   placemarks apagados, 9,66 M de vértices): construirlas todas eran 9,4 s
+   y +1,1 GB de heap al importar y OTROS 7,6 s y 3,1 GB en cada arranque, y
+   copiarlas de vuelta a GeoJSON para guardar, 1,3 s y +0,6 GB más; con un
+   límite de heap de 3 GB el guardado pasó de 1,3 s a 67 s (el recolector
+   de basura contra el techo) y con menos la pestaña moría.
+
+   `rec._layer` pasa a ser un getter que construye, se sustituye a sí
+   mismo por el valor y registra los manejadores del registro pendiente
+   (`wirePendingLayerEvents`): los sitios que leen `rec._layer` no se
+   enteran. Quien solo quiere APAGAR o QUITAR una capa, o medirla, NO debe
+   construirla: pregunta antes `recLayerPending(rec)` (apagar una capa que
+   nunca existió no hace nada; su encuadre sale de `rec.geo`).
+   La capa que se construye es EXACTAMENTE la de un registro restaurado
+   (`buildRecordLayer`, la misma que usa `buildRecordsFromStorage`): nada
+   nuevo que probar más allá de que se construye tarde.                 */
+function defineLazyLayer(rec, build) {
+  rec._built = false;
+  const settle = layer => Object.defineProperty(rec, "_layer",
+    { value: layer, writable: true, configurable: true, enumerable: true });
+  Object.defineProperty(rec, "_layer", {
+    configurable: true, enumerable: true,
+    get() {
+      const layer = build();
+      settle(layer);
+      rec._built = true;
+      wirePendingLayerEvents(rec);
+      return layer;
+    },
+    set(layer) { settle(layer); rec._built = true; }
+  });
+}
+/* ¿Es un registro perezoso cuya capa aún no existe? (`_built` solo lo
+   tienen los perezosos) */
+const recLayerPending = rec => rec._built === false;
+
+/* La capa Leaflet de un registro `layer` a partir de su GeoJSON, con el
+   estilo, el popup y el icono propio: lo que hacía en línea el arranque. */
+function buildRecordLayer(rec) {
+  const layer = L.geoJSON(rec.geo, rec.style ? { style: rec.style } : undefined);
+  clearFillOnOpenPaths(layer); /* una línea no se rellena, ver esa función */
+  layer.bindPopup(escapeHtml(rec.name), COMPACT_POPUP);
+  /* El icono personalizado se aplica AQUÍ, sobre la capa cruda, no
+     solo cuando materializeRecords construya su fila más adelante:
+     un marcador dentro de una carpeta colapsada puede pasar de
+     "pendiente" a "visible" con la cascada de la casilla de la
+     carpeta (cascadeVisibility → walkRecords) sin que su fila
+     llegue a crearse nunca — ese camino solo hace
+     setLayerVisible(rec._layer, checked), sin tocar el icono.
+     Reportado: un marcador con icono MDI (no la gota por defecto),
+     desactivado y dentro de una carpeta nunca desplegada, volvía a
+     la gota de Leaflet al activarlo tras recargar. Aplicarlo dos
+     veces (otra vez en materializeRecords, si la fila sí llega a
+     crearse) es inocuo: setIcon con el mismo icono no hace nada.  */
+  if (rec.mstyle) styleMarkerIcon(layer, rec.mstyle);
+  return layer;
+}
+
+/* ¿Puede un GeoJSON quedarse sin capa hasta que haga falta? Solo si no
+   tiene ningún punto (un marcador necesita su icono, que es de Leaflet) ni
+   nada que no se reconozca: ante la duda, se construye ya.            */
+const LAZY_GEOMETRIES = new Set(["Polygon", "MultiPolygon", "LineString", "MultiLineString"]);
+function geoIsLazyable(g) {
+  if (!g || typeof g !== "object") return false;
+  if (g.type === "FeatureCollection") return Array.isArray(g.features) && g.features.every(geoIsLazyable);
+  if (g.type === "Feature") return !!g.geometry && LAZY_GEOMETRIES.has(g.geometry.type);
+  return LAZY_GEOMETRIES.has(g.type);
+}
+
+/* Encuadre de un GeoJSON sin construir su capa (la caja de todas sus
+   posiciones, que es la que da `getBounds()`), o null si no hay ninguna.
+   Se guarda en el registro: se pide en cada "ir a la carpeta".          */
+function recGeoBounds(rec) {
+  if (rec._bounds !== undefined) return rec._bounds;
+  let s = Infinity, w = Infinity, n = -Infinity, e = -Infinity;
+  const walk = c => {
+    if (typeof c[0] === "number") {
+      if (c[1] < s) s = c[1]; if (c[1] > n) n = c[1];
+      if (c[0] < w) w = c[0]; if (c[0] > e) e = c[0];
+    } else for (const x of c) walk(x);
+  };
+  const geoms = g => g.type === "FeatureCollection" ? g.features.forEach(f => geoms(f))
+    : g.type === "Feature" ? (g.geometry && geoms(g.geometry)) : walk(g.coordinates);
+  try { geoms(rec.geo); } catch { /* geometría rota: sin encuadre */ }
+  return (rec._bounds = s <= n ? L.latLngBounds([s, w], [n, e]) : null);
+}
+
 /* Reconstruye la geometría/capas Leaflet de un árbol guardado
    (restaurar, deshacer/rehacer, pegar, importar un .kite.json), como
    REGISTROS — nunca filas del panel. Igual que buildKmlRecords: la
@@ -1890,28 +1980,20 @@ async function buildRecordsFromStorage(nodes, prog, opts = {}) {
       const rec = buildCogRecord(n);
       if (rec) out.push(rec);
     } else if (n.t === "layer") {
-      const layer = L.geoJSON(n.geo, n.style ? { style: n.style } : undefined);
-      clearFillOnOpenPaths(layer); /* una línea no se rellena, ver esa función */
-      layer.bindPopup(escapeHtml(n.name), COMPACT_POPUP);
-      /* El icono personalizado se aplica AQUÍ, sobre la capa cruda, no
-         solo cuando materializeRecords construya su fila más adelante:
-         un marcador dentro de una carpeta colapsada puede pasar de
-         "pendiente" a "visible" con la cascada de la casilla de la
-         carpeta (cascadeVisibility → walkRecords) sin que su fila
-         llegue a crearse nunca — ese camino solo hace
-         setLayerVisible(rec._layer, checked), sin tocar el icono.
-         Reportado: un marcador con icono MDI (no la gota por defecto),
-         desactivado y dentro de una carpeta nunca desplegada, volvía a
-         la gota de Leaflet al activarlo tras recargar. Aplicarlo dos
-         veces (otra vez en materializeRecords, si la fila sí llega a
-         crearse) es inocuo: setIcon con el mismo icono no hace nada.  */
-      if (n.mstyle) styleMarkerIcon(layer, n.mstyle);
-      if (n.checked) layer.addTo(rootGroup);
       const rec = { t: "layer", name: n.name, checked: !!n.checked, style: n.style || null,
-                    geo: n.geo, mstyle: n.mstyle, desc: n.desc || null, _layer: layer };
-      /* geo ya es el toGeoJSON() que serializeNode recalcularía: se
-         reutiliza en vez de perder la caché (ver materializeRecords) */
-      wirePendingLayerEvents(rec);
+                    geo: n.geo, mstyle: n.mstyle, desc: n.desc || null };
+      /* Apagada, sin marcadores y de este navegador (lo AJENO se construye
+         ya: Leaflet es quien rechaza una geometría rota, y es mejor que
+         falle al cargar que al encender): sin capa hasta que se pida. */
+      if (!rec.checked && !opts.foreign && geoIsLazyable(rec.geo)) {
+        defineLazyLayer(rec, () => buildRecordLayer(rec));
+      } else {
+        rec._layer = buildRecordLayer(rec);
+        if (rec.checked) rec._layer.addTo(rootGroup);
+        /* geo ya es el toGeoJSON() que serializeNode recalcularía: se
+           reutiliza en vez de perder la caché (ver materializeRecords) */
+        wirePendingLayerEvents(rec);
+      }
       out.push(rec);
     } else {
       const children = await buildRecordsFromStorage(n.children || [], prog, opts);
@@ -1920,10 +2002,7 @@ async function buildRecordsFromStorage(nodes, prog, opts = {}) {
       if (n.t === "file" && n.sec === true) rec.sec = true;
       out.push(rec);
     }
-    if (prog && LEAF_RECORD_TYPES.has(n.t) && ++prog.done % PROGRESS_BATCH === 0) {
-      prog.update(prog.done);
-      await yieldFrame();
-    }
+    if (prog && LEAF_RECORD_TYPES.has(n.t)) await yieldIfDue(prog);
   }
   return out;
 }

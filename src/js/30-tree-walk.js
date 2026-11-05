@@ -267,14 +267,20 @@ function extendBounds(bounds, l) {
   else if (l.getLatLng) bounds.extend(l.getLatLng());
 }
 /* Recorre registros pendientes (li._pending) SIN materializar nada: sus
-   capas Leaflet ya existen (construidas al importar/restaurar,
-   independientemente del panel), así que sus límites se leen
-   directamente de rec._layer. Forzar la materialización de una carpeta
-   entera solo para enfocarla sería mucho más caro que esto.           */
+   capas Leaflet existen ya (construidas al importar/restaurar,
+   independientemente del panel) y sus límites se leen directamente de
+   rec._layer; las que son PEREZOSAS (apagadas, sin marcadores: ver
+   defineLazyLayer) no existen aún y se encuadran por su GeoJSON. Forzar
+   la materialización de una carpeta entera solo para enfocarla sería
+   mucho más caro que esto.                                            */
 function extendBoundsFromRecords(bounds, records) {
   for (const rec of records) {
     if (rec.children) extendBoundsFromRecords(bounds, rec.children);
-    if (!rec.children || rec._layer) extendBounds(bounds, rec._layer); /* un servicio ArcGIS: contenedor con capa propia */
+    /* Una capa perezosa (aún sin construir) se encuadra por su GeoJSON:
+       pedirle `_layer` la construiría, y en una carpeta de decenas de
+       miles de capas eso es justo lo que se evita.                    */
+    if (recLayerPending(rec)) { const b = recGeoBounds(rec); if (b) bounds.extend(b); }
+    else if (!rec.children || rec._layer) extendBounds(bounds, rec._layer); /* un servicio ArcGIS: contenedor con capa propia */
   }
 }
 function subtreeBounds(li) {
@@ -739,7 +745,10 @@ async function cascadeVisibility(li, checked) {
         if (rec.children) { if (!(await walkRecords(rec.children))) return false; }
         /* Un contenedor con capa propia (un servicio ArcGIS) la enciende
            también: no basta con sus hijos, que no tienen capa.         */
-        if (!rec.children || rec._layer) setLayerVisible(rec._layer, checked);
+        /* Apagar una capa que aún no se ha construido no hay que hacerlo:
+           leer `_layer` la construiría solo para quitarla de un mapa al
+           que nunca llegó (ver defineLazyLayer). Encenderla sí la crea. */
+        if (!(recLayerPending(rec) && !checked) && (!rec.children || rec._layer)) setLayerVisible(rec._layer, checked);
         if (!(await yieldMaybe())) return false;
       }
       return true;
