@@ -92,6 +92,73 @@ await frame();
 await page.click("#style-accept");
 ok(await page.evaluate(() => __m[0]._mstyle.icon) !== "star", "Aceptar deja el icono elegido");
 
+/* ---------- Marcador: «Ninguno», solo el texto ----------
+   Un marcador sin icono para ver únicamente su nombre (los aeródromos de un
+   servicio ya traen el suyo). Sigue siendo un marcador —con una caja
+   transparente que se puede pulsar—, el nombre va CENTRADO sobre el punto, y
+   elegirlo marca «Mostrar el texto siempre» (sin icono y sin texto fijo no se
+   vería nada) y lo desmarca si se vuelve a otro icono o se cancela.        */
+const ninguno = () => page.evaluate(() => {
+  const b = [...document.querySelectorAll("#icon-grid .icon-opt")].find(x => /^Ninguno/.test(x.title));
+  if (!b) return false;
+  b.click(); return true;
+});
+const estadoNinguno = () => page.evaluate(() => {
+  const m = nodeLayer(__m[1]), t = m.getTooltip && m.getTooltip();
+  return { icon: __m[1]._mstyle.icon, siempre: __m[1]._mstyle.textAlways, clase: m.getIcon().options.className,
+           caja: m.getIcon().options.iconSize.join("x"), permanente: !!(t && t.options.permanent), direccion: t && t.options.direction,
+           casilla: document.getElementById("mk-text-always").checked };
+});
+await page.evaluate(() => openStyleDialog(__m[1]));
+await page.click("#icon-preview-btn");
+ok(await page.evaluate(() => /^Sin icono$/.test([...document.querySelectorAll("#icon-grid h3")].map(h => h.textContent)[1])),
+  "el selector tiene su grupo «Sin icono», justo tras el de Leaflet");
+ok(await ninguno(), "y dentro la opción «Ninguno»");
+await frame();
+let n = await estadoNinguno();
+ok(n.icon === "none" && /no-icon/.test(n.clase) && n.caja === "20x20", "al pulsarla ya se ve en el mapa: icono vacío con caja de 20x20 que se puede pulsar: " + JSON.stringify(n));
+ok(n.casilla && n.siempre && n.permanente && n.direccion === "center",
+  "marca «Mostrar el texto siempre» y el nombre queda CENTRADO sobre el punto: " + JSON.stringify(n));
+await page.click("#icon-cancel");
+await frame();
+n = await estadoNinguno();
+ok(n.icon === "airplane" && !/no-icon/.test(n.clase) && !n.casilla && !n.siempre && !n.permanente,
+  "cancelar el selector devuelve el icono Y el texto como estaban: " + JSON.stringify(n));
+await page.click("#icon-preview-btn");
+await ninguno();
+await page.evaluate(() => { const b = [...document.querySelectorAll("#icon-grid .icon-opt")].find(x => x.title === "star"); b.click(); });
+await frame();
+n = await estadoNinguno();
+ok(n.icon === "star" && !n.casilla && !n.permanente, "elegir otro icono después desmarca el texto que puso «Ninguno»: " + JSON.stringify(n));
+await ninguno();
+await page.click("#icon-accept");
+await page.click("#style-accept");
+await frame();
+n = await estadoNinguno();
+ok(n.icon === "none" && n.siempre && n.permanente, "Aceptar lo deja (icono vacío y texto fijo): " + JSON.stringify(n));
+const guardado = await page.evaluate(() => {
+  const rec = serializeNode(__m[1])[0];
+  return { mstyle: rec.mstyle, kml: recordsToKml([rec]).text.match(/<IconStyle>.*?<\/IconStyle>/)?.[0] };
+});
+ok(guardado.mstyle.icon === "none" && /<scale>0<\/scale>/.test(guardado.kml || ""), "se guarda como «none» y el KML exporta escala 0 (sin icono, con nombre): " + JSON.stringify(guardado));
+/* Al restaurar un árbol guardado vuelve a ser un marcador sin icono */
+const restaurado = await page.evaluate(async () => {
+  const recs = await buildRecordsFromStorage(serializeNode(__m[1]), null, {});
+  const l = recs[0]._layer; const ic = l.getLayers ? l.getLayers()[0].getIcon() : l.getIcon();
+  return { clase: ic.options.className, caja: ic.options.iconSize.join("x") };
+});
+ok(/no-icon/.test(restaurado.clase) && restaurado.caja === "20x20", "y al restaurar sigue sin icono: " + JSON.stringify(restaurado));
+/* Con la casilla desmarcada a mano, el marcador sin icono se pulsa y enseña su globo */
+await page.evaluate(() => openStyleDialog(__m[1]));
+await page.evaluate(() => { const c = document.getElementById("mk-text-always"); c.checked = false; c.dispatchEvent(new Event("input", { bubbles: true })); });
+await frame();
+ok(await page.evaluate(() => { const m = nodeLayer(__m[1]); return !!m.getPopup() && !m.getTooltip(); }),
+  "sin «texto siempre» el nombre sale en un globo al pulsar el hueco (la caja transparente)");
+await page.click("#style-accept");
+await frame();
+/* La muestra de la opción: un círculo tachado, no una imagen rota */
+ok(await page.evaluate(() => decodeURIComponent(iconUrl("none", "#ff0000", 24)).includes("<circle") ), "la muestra de «Ninguno» es un círculo tachado, no vacía");
+
 /* ---------- Polígono ---------- */
 await page.evaluate(() => openStyleDialog(__p));
 await page.evaluate(() => __tocar("pg-weight", "9"));

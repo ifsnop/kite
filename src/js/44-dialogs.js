@@ -1568,12 +1568,13 @@ function buildIconGrid(color) {
     for (const name of names) {
       const b = document.createElement("button");
       b.className = "icon-opt" + (name === pendingIcon ? " chosen" : "");
-      b.title = name;
+      /* «Ninguno» se llama por su nombre en la interfaz, no por su clave */
+      b.title = name === NO_ICON ? tr("Ninguno (solo se ve el texto)") : name;
       const img = document.createElement("img");
       img.src = iconUrl(name, color, 24);
       img.height = 24;
       if (name !== LEAFLET_PIN) img.width = 24; /* the pin keeps its 25:41 */
-      img.alt = name;
+      img.alt = b.title;
       b.appendChild(img);
       b.addEventListener("click", () => {
         pendingIcon = name;
@@ -1590,8 +1591,23 @@ function buildIconGrid(color) {
 /* El icono también se ve en el mapa al pulsarlo en la rejilla; cancelar el
    selector devuelve el que había al abrirlo (`iconOriginal`).          */
 let iconOriginal = null;
+/* Sin icono y sin el texto fijo no se vería NADA del marcador: al elegir
+   «Ninguno» se marca «Mostrar el texto siempre» si no lo estaba, y se
+   desmarca de nuevo si luego se elige otro icono o se cancela el selector
+   (`textAutoOn` recuerda que fue cosa nuestra, no del usuario).         */
+let textAutoOn = false;
+function syncTextForIcon(name) {
+  const ta = $id("mk-text-always");
+  if (name === NO_ICON && !ta.checked) {
+    ta.checked = true; ta.indeterminate = false; textAutoOn = true;
+  } else if (name !== NO_ICON && textAutoOn) {
+    ta.checked = false; textAutoOn = false;
+  }
+  readMarkerControls();
+}
 function previewIcon(name) {
   if (!styleDraft) return;
+  syncTextForIcon(name);
   styleDraft.icon = name;
   styleLivePreview.add("icon");
   $id("icon-preview").src = iconUrl(name, colorOf($id("mk-color")), 20);
@@ -1608,6 +1624,7 @@ $id("icon-preview-btn").addEventListener("click", () => {
 });
 function cancelIconPicker() {
   if (styleDraft && iconOriginal) {
+    syncTextForIcon(iconOriginal);
     styleDraft.icon = iconOriginal;
     styleLivePreview.delete("icon");
     $id("icon-preview").src = iconUrl(iconOriginal, colorOf($id("mk-color")), 20);
@@ -1624,6 +1641,8 @@ $id("icon-accept").addEventListener("click", () => {
     /* El icono tampoco pasa por un control con `input`: se anota aquí,
        que es donde el usuario lo elige de verdad.                    */
     styleTouched.add("icon");
+    if (textAutoOn) touchControl($id("mk-text-always")); /* el texto fijo que «Ninguno» necesita */
+    textAutoOn = false;
     markMixedRow($id("icon-preview-btn"), false);
     $id("icon-preview").src = iconUrl(pendingIcon, colorOf($id("mk-color")), 20);
   }

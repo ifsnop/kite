@@ -296,10 +296,10 @@ Icono, color y tamaño del marcador; tamaño y color del texto; si el nombre se 
 ![Diálogo de estilo de un marcador, con icono, colores, tamaños y posición](img/estilo-marcador.png)
 *Figura 26. Estilo de la capa «Base»: icono, color y tamaño del marcador, tamaño y color del texto, y sus coordenadas.*
 
-El botón «Cambiar…» junto al icono abre el catálogo completo de iconos disponibles (banderas, estrellas, círculos numerados, aviación, barco, transporte, figuras geométricas y más), con la gota clásica de Leaflet siempre la primera.
+El botón «Cambiar…» junto al icono abre el catálogo completo de iconos disponibles (banderas, estrellas, círculos numerados, aviación, barco, transporte, figuras geométricas y más), con la gota clásica de Leaflet siempre la primera. Justo debajo hay un grupo **«Sin icono»** con la opción **«Ninguno»** (un círculo tachado): el marcador deja de dibujar su icono y **solo se ve su texto**, centrado sobre el punto. Es lo que conviene para una capa cuyos elementos ya traen su nombre (por ejemplo, los aeródromos de un servicio) y a los que sobra el alfiler. Sin icono y sin texto fijo no se vería nada, así que al elegir «Ninguno» se marca solo **«Mostrar el texto siempre»** (y se desmarca si luego se elige otro icono o se cancela el catálogo); se puede desmarcar a mano, y entonces el nombre sale al pulsar el punto. El marcador sigue siendo un marcador: se puede pulsar, seleccionar, medir y mover como cualquier otro. Al exportar a KML se escribe con escala 0, que Google Earth interpreta igual (sin icono, con el nombre).
 
 ![Selector de iconos, con la gota de Leaflet y varias categorías de iconos](img/selector-iconos.png)
-*Figura 27. Catálogo de iconos: la gota clásica al frente y, debajo, las categorías temáticas.*
+*Figura 27. Catálogo de iconos: la gota clásica al frente, la opción «Ninguno» (círculo tachado) para ver solo el texto y, debajo, las categorías temáticas.*
 
 ### 6.2 Estilo de un polígono o una línea
 

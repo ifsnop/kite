@@ -71,6 +71,13 @@ const LEAFLET_PIN = "leaflet-pin";
 const LEAFLET_PIN_URL = "https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon.png";
 const LEAFLET_PIN_SHADOW = "https://unpkg.com/leaflet@1.9.4/dist/images/marker-shadow.png";
 const LEAFLET_PIN_RATIO = 25 / 41; /* native size of the image: 25 × 41 px */
+/* «Ninguno»: un marcador SIN icono, para ver solo su texto (p. ej. los
+   aeródromos de un servicio, que ya traen su nombre). No es una imagen: el
+   marcador sigue ahí, con una caja transparente de NO_ICON_HIT px para poder
+   pulsarlo, medirlo y que el clic derecho lo encuentre. Sin "Mostrar el
+   nombre siempre" no se ve NADA (el nombre sale al pulsar el hueco).  */
+const NO_ICON = "none";
+const NO_ICON_HIT = 20;
 
 const DEFAULT_MARKER_STYLE = {
   icon: LEAFLET_PIN, color: "#1b5e97", size: 41, /* 41 px = native pin height */
@@ -81,6 +88,7 @@ const DEFAULT_MARKER_STYLE = {
    All names but LEAFLET_PIN are Material Design Icons served by Iconify. */
 const MDI_ICONS = [
   ["Leaflet", [LEAFLET_PIN]],
+  [tr("Sin icono"), [NO_ICON]],
   [tr("Banderas"), ["flag", "flag-outline", "flag-checkered", "flag-variant",
     "flag-variant-outline", "flag-triangle"]],
   [tr("Estrellas"), ["star", "star-outline", "star-four-points",
@@ -108,7 +116,7 @@ const MDI_ICONS = [
 /* Un nombre que la tabla no conozca (un árbol guardado con un catálogo
    distinto) cae en la gota de Leaflet, que no depende de la tabla: es
    preferible un marcador con otro icono a un marcador invisible.      */
-const knownIcon = name => name === LEAFLET_PIN || !!MDI_ICON_BODIES[name];
+const knownIcon = name => name === LEAFLET_PIN || name === NO_ICON || !!MDI_ICON_BODIES[name];
 
 /* SVG completo de un icono MDI, a partir del cuerpo empotrado. El
    cuerpo se dibuja con `currentColor`; sin `color` se deja tal cual
@@ -132,7 +140,18 @@ function mdiSvg(name, color = null, size = null) {
    gota de Leaflet sigue siendo su PNG.                               */
 const iconUrl = (name, color, size) => name === LEAFLET_PIN
   ? LEAFLET_PIN_URL
-  : "data:image/svg+xml," + encodeURIComponent(mdiSvg(name, color, size) || "");
+  : name === NO_ICON
+    ? "data:image/svg+xml," + encodeURIComponent(noIconSvg(color, size))
+    : "data:image/svg+xml," + encodeURIComponent(mdiSvg(name, color, size) || "");
+
+/* La muestra de «Ninguno» en el selector y en la vista previa del diálogo:
+   un círculo tachado (⊘), en el color elegido, para que se vea que es una
+   opción y no un hueco que no ha cargado.                              */
+function noIconSvg(color, size) {
+  const c = color || "currentColor", d = size || 24;
+  return `<svg xmlns="http://www.w3.org/2000/svg" width="${d}" height="${d}" viewBox="0 0 24 24" fill="none" stroke="${c}" stroke-width="2" stroke-linecap="round">`
+    + '<circle cx="12" cy="12" r="8"/><path d="M6.3 6.3l11.4 11.4"/></svg>';
+}
 
 const escapeHtml = s => String(s).replace(/[&<>"']/g,
   c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
