@@ -263,7 +263,7 @@ the flag clears by itself when the tiles come back.
 - share a view as a link: right-click → «Copiar» › «Enlace a esta vista» keeps
   centre, zoom, rotation and active base maps in the `#map=…` part of the
   address, and opening such a link restores them
-- place search through Nominatim; coordinates typed in the same box (decimal, decimal comma, or degrees-minutes-seconds with hemisphere letters) take the map there at zoom 9 without any request
+- place search through Nominatim; coordinates typed in the same box (decimal, decimal comma, or degrees-minutes-seconds with hemisphere letters) create a marker in "Places" and take the map there at zoom 17 without any request
 - pointer coordinates in decimal degrees, degrees/minutes/seconds and UTM
 - scale bar
 - latitude/longitude graticule

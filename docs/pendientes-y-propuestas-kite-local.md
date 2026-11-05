@@ -87,7 +87,7 @@ Se pulsa un punto, se da la altura de antena y el alcance, y se pinta qué celda
 
 ### 3.4 MGRS y UTM en el buscador
 
-El buscador ya entiende latitud y longitud (decimales o en grados, minutos y segundos, con letras de hemisferio) y va allí a zoom 9 sin consultar nada. Faltan las referencias **MGRS** y las coordenadas **UTM** («30T 440610 4473779»), que hoy solo se leen en el cuadro de coordenadas del visor. Ayudaría a quien trabaja con coordenadas dictadas o impresas. Se resolvería en `parsePlaceCoordinates` (`43-points-editor.js`), y la calculadora geodésica ganaría un conversor.
+El buscador ya entiende latitud y longitud (decimales o en grados, minutos y segundos, con letras de hemisferio) y crea un marcador en «Lugares» y va allí a zoom 17 sin consultar nada. Faltan las referencias **MGRS** y las coordenadas **UTM** («30T 440610 4473779»), que hoy solo se leen en el cuadro de coordenadas del visor. Ayudaría a quien trabaja con coordenadas dictadas o impresas. Se resolvería en `parsePlaceCoordinates` (`43-points-editor.js`), y la calculadora geodésica ganaría un conversor.
 
 ### 3.5 Agrupar marcadores cuando son miles
 
