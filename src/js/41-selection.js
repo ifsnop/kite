@@ -157,6 +157,16 @@ function layerProperties(layer) {
   const props = sub && sub.feature && sub.feature.properties;
   return (props && typeof props === "object" && Object.keys(props).length) ? props : null;
 }
+/* Lo mismo para un registro pendiente. Si su capa aún no existe (ver
+   defineLazyLayer), las properties salen de su GeoJSON, que es de donde
+   las tomaría la capa: la tabla de atributos de una carpeta de 60 000
+   capas no las construye una a una.                                    */
+function recProperties(rec) {
+  if (!recLayerPending(rec)) return layerProperties(rec._layer);
+  const first = rec.geo && rec.geo.features && rec.geo.features[0];
+  const props = first && first.properties;
+  return (props && typeof props === "object" && Object.keys(props).length) ? props : null;
+}
 
 /* null/undefined se muestran vacíos; objetos/arrays anidados, como JSON;
    el resto, tal cual. A diferencia del picker de la Fase 1 (que trunca

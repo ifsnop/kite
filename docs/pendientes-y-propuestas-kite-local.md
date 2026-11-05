@@ -57,6 +57,16 @@ Los topes de importación (2000 entradas y razón de compresión de un KMZ, 100 
 
 Fase 4 de `tests/docs.js`: un cuadro de límites y valores por defecto del manual (300 MB, 100 000 elementos, 10 NM, 15 s…) con el nombre de su constante y una prueba que extraiga esas constantes y las compare. Mientras no exista, la revisión semestral (`.claude/rules/docs-maintenance.md`, C.1) las comprueba a mano.
 
+### 1.10 Un KML de cientos de MB sigue costando ~13 s al importar y ~5 s al arrancar
+
+Medido con un KML real de 309 MB (62 673 placemarks, 9,66 M de vértices, todos apagados; 4,2 GB de heap, Chromium sin GPU): importar 13 s, recargar 5,3 s, heap máximo 1,1–1,5 GB. Antes de las capas perezosas (`.claude/rules/performance.md`) eran 21 s, 15 s y 3,1 GB, y con un heap de 3 GB un guardado de 67 s. Lo que queda, de mayor a menor:
+
+- **Leer el XML es UNA tarea de ~4,3 s** (`DOMParser` 3,3 s + búsqueda de duplicados 0,8 s): el navegador no lo puede partir y un worker no tiene `DOMParser`. Solo un lector XML en streaming lo evitaría.
+- **El primer guardado escribe un segmento de ~0,6 GB** (clon síncrono del `put`, 3,3 s): partirlo en varios segmentos con transacciones separadas toca `segmentPlan`/`commitPayloads` y la regla «como mucho un segmento por guardado» (`persistence-indexeddb.md`).
+- **Leer el árbol al arrancar son 2,5 s** de deserialización de esos 0,6 GB.
+- **Encender de golpe una carpeta de decenas de miles de capas las construye todas** (9,66 M de `LatLng`, ~1,1 GB): es lo que se pide, pero con un heap pequeño es el camino que sigue pudiendo ahogar la pestaña.
+- **Desplegar una carpeta construye las capas de sus filas** (`materializeRecords` → `makeNode`), no solo la fila.
+
 ---
 
 ## 2. Hecho a medias

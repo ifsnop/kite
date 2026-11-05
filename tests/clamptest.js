@@ -1,6 +1,6 @@
 const { between } = require("./_extract");
 const src = between("/* ---------- Coordenadas: rango con tolerancia", '/* "lon,lat[,alt] lon,lat…"')
-  + between("function parseCoords(str)", "/* Un <Polygon> KML")
+  + between("function isSpaceCode(c)", "/* Un <Polygon> KML")
   + between("const GEOJSON_TYPES", "async function buildGeoJsonRecords");
 const api = new Function(src + "\nreturn {clampDeg, clampLatLng, parseCoords, validGeometry, counter: () => coordClamped, reset: () => { coordClamped = 0; }};")();
 const ok=(c,m)=>{ if(!c){ console.error("FAIL: "+m); process.exitCode=1; } };

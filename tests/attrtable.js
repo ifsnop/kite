@@ -5,7 +5,7 @@ const { DOMParser } = require("@xmldom/xmldom");
 const { fn, between, constDecl } = require("./_extract");
 const ok = (c, m) => { if (!c) { console.error("FAIL: " + m); process.exitCode = 1; } };
 
-const api = new Function([constDecl("ATTR_MAX_COLS"), fn("stringifyPropValue"), fn("layerProperties"),
+const api = new Function([constDecl("ATTR_MAX_COLS"), fn("stringifyPropValue"), fn("layerProperties"), constDecl("recLayerPending"), fn("recProperties"),
   fn("collectAttrRows"), fn("attrColumns"), constDecl("attrCell"), fn("attrIsNumeric"), fn("attrSort"), fn("attrFilter"),
   between("const CSV_DEFAULT", "const toCsv"), constDecl("toCsv"), fn("csvDialect"), fn("attrCsvValue"),
   "const nodeUl = li => li._ul || null; const nodeLayer = li => li._layer || null;",

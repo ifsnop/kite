@@ -2986,6 +2986,7 @@ registerLang("en", "English", {
   /* 33-kml-import.js */
   "XML no válido: {why}": "Invalid XML: {why}",
   "carga cancelada": "load canceled",
+  "«{name}» es muy grande ({size}): cargarlo puede tardar y necesita mucha memoria.": "“{name}” is very large ({size}): loading it may take a while and needs a lot of memory.",
   "Procesando XML de {name}…": "Processing XML for {name}…",
   "prefijos XML sin declarar, corregidos al vuelo: {prefixes}": "undeclared XML prefixes, fixed on the fly: {prefixes}",
   "etiquetas tipo HTML eliminadas de los nombres": "HTML-like tags removed from the names",
@@ -3062,8 +3063,8 @@ registerLang("en", "English", {
   "Error al buscar el lugar: {reason}.": "Error searching for the place: {reason}.",
   "Sin resultados para «{query}».": "No results for “{query}”.",
   "{length} resultado(s) — elija uno": "{length} result(s) — pick one",
-  "El resultado no trae coordenadas válidas.": "The result has no valid coordinates.",
   "añadir un lugar": "add a place",
+  "El resultado no trae coordenadas válidas.": "The result has no valid coordinates.",
   "Marcadores": "Markers",
   "crear marcador": "create marker",
   "Marcador": "Marker",
@@ -5124,7 +5125,7 @@ map.on("resize rotate", fitWorldMinZoom);
 
 /* Fecha de generación del código (versión): AÑOMESDIAHORAMINUTO.
    Actualizar en cada generación; se muestra junto al crédito de Leaflet. */
-const BUILD = "202611050029";
+const BUILD = "202611050647";
 /* Versión de release (la de package.json, horneada aquí por build.js
    al construir — ver «Versión y releases de GitHub» en CLAUDE.md): a
    diferencia de BUILD, que cambia en CADA generación, esta solo cambia
@@ -6550,17 +6551,40 @@ const COMPACT_POPUP = { className: "compacto", autoClose: false, closeOnClick: f
    inválido. La altitud del KML se conserva cuando viene: antes se
    partía del texto y no se leía nunca, así que se perdía en la
    importación mientras que la del GeoJSON sí sobrevivía.              */
+/* `\s` de JavaScript, a mano: aquí se llama por cada carácter de hasta
+   300 MB de coordenadas y la expresión regular + `split` por tupla
+   eran 2,9 s de un solo archivo (medido). Debe ser EXACTAMENTE `\s`.   */
+function isSpaceCode(c) {
+  if (c <= 32) return c === 32 || (c >= 9 && c <= 13);
+  if (c < 160) return false;
+  return c === 160 || c === 5760 || (c >= 8192 && c <= 8202) || c === 8232 || c === 8233
+    || c === 8239 || c === 8287 || c === 12288 || c === 65279;
+}
+
+/* Una sola pasada, sin `split`: cada tupla se corta por sus comas sin
+   mirar más allá de su propio final (buscar la coma con `indexOf` sobre
+   todo el texto sería cuadrático con una tupla sin comas en un texto
+   hostil de cientos de MB).                                            */
 function parseCoords(str) {
-  const out = [];
-  let skipped = 0;
-  for (const tuple of String(str).trim().split(/\s+/)) {
-    if (!tuple) continue;
-    const parts = tuple.split(",");
-    if (parts.length < 2) { skipped++; continue; }
-    const pair = clampLatLng(Number(parts[1]), Number(parts[0]),
-      parts.length > 2 ? Number(parts[2]) : undefined);
-    if (!pair) { skipped++; continue; }
-    out.push(pair);
+  const s = String(str), n = s.length, out = [];
+  let skipped = 0, i = 0;
+  while (i < n) {
+    while (i < n && isSpaceCode(s.charCodeAt(i))) i++;
+    if (i >= n) break;
+    let end = i, c1 = -1, c2 = -1, c3 = -1;
+    while (end < n) {
+      const c = s.charCodeAt(end);
+      if (isSpaceCode(c)) break;
+      if (c === 44) { if (c1 < 0) c1 = end; else if (c2 < 0) c2 = end; else if (c3 < 0) c3 = end; }
+      end++;
+    }
+    if (c1 < 0) { skipped++; i = end; continue; } /* sin coma: menos de dos campos */
+    const lon = Number(s.slice(i, c1));
+    const lat = Number(s.slice(c1 + 1, c2 < 0 ? end : c2));
+    const alt = c2 < 0 ? undefined : Number(s.slice(c2 + 1, c3 < 0 ? end : c3));
+    const pair = clampLatLng(lat, lon, alt);
+    if (!pair) skipped++; else out.push(pair);
+    i = end;
   }
   out.skipped = skipped;
   return out;
@@ -6607,52 +6631,76 @@ function parseExtendedData(pm) {
   return n ? props : null;
 }
 
-/* Crea las capas Leaflet de un placemark (polígonos, líneas y puntos).
-   Cada geometría se construye por separado: una mala no tumba al resto
-   del placemark ni, por tanto, a la importación entera.              */
-/* Devuelve { group, reported }: `reported` distingue, para el llamador,
-   un placemark SIN geometría alguna (nunca se llamó a fail, el llamador
+/* Las geometrías de un Placemark, buscadas UNA vez: quien decide si
+   construye la capa Leaflet o solo su GeoJSON (ver abajo) mira antes si
+   hay algún <Point>, y la lectura no debe repetir la búsqueda (era de lo
+   más caliente de la importación de un KML grande).                    */
+function placemarkGeomEls(pm) {
+  const geomRoot = childrenByTag(pm, "MultiGeometry")[0] || pm;
+  return {
+    polygonEls: elsByTag(geomRoot, "Polygon"),
+    lineEls: elsByTag(geomRoot, "LineString"),
+    pointEls: elsByTag(geomRoot, "Point")
+  };
+}
+
+/* Lee las geometrías de un placemark y las convierte con `mk`
+   ({ poly(rings), line(pts), point(pt) }): la capa Leaflet de cada una
+   (buildPlacemarkLayer) o su Feature GeoJSON (buildPlacemarkGeo). Cada
+   geometría se lee por separado: una mala no tumba al resto del
+   placemark ni, por tanto, a la importación entera. Devuelve
+   { parts, reported }: `reported` distingue, para el llamador, un
+   placemark SIN geometría alguna (nunca se llamó a fail, el llamador
    debe avisar con su mensaje genérico) de uno cuya única geometría
    falló Y YA quedó contada aquí con una causa específica (avisar otra
    vez arriba duplicaba el elemento perdido en el resumen: un placemark
    con un único <Point> roto contaba como 2 omitidos, no 1).           */
-function buildPlacemarkLayer(pm, style, report) {
-  const layers = [];
-  const geomRoot = childrenByTag(pm, "MultiGeometry")[0] || pm;
-  const polygonEls = elsByTag(geomRoot, "Polygon");
+function collectPlacemarkParts(els, style, report, mk) {
+  const parts = [];
   /* Fold the polygon-only outline flag into the real `stroke` used to
      render, but only when this placemark actually has a Polygon —
      otherwise it's dropped instead of silently hiding a LineString.   */
   if (style.polyOutline === false) {
-    if (polygonEls.length) style.stroke = false;
+    if (els.polygonEls.length) style.stroke = false;
     delete style.polyOutline;
   }
   let reported = false;
   const fail = why => { reported = true; if (report) report.warn(why); };
 
-  for (const polyEl of polygonEls) {
+  for (const polyEl of els.polygonEls) {
     try {
       const rings = parsePolygon(polyEl);
-      if (rings) layers.push(L.polygon(rings, style));
+      if (rings) parts.push(mk.poly(rings));
       else fail(tr("polígono sin anillo exterior válido"));
     } catch (err) { fail(tr("polígono ilegible ({message})", { message: err.message })); }
   }
-  for (const lineEl of elsByTag(geomRoot, "LineString")) {
+  for (const lineEl of els.lineEls) {
     try {
       const el = firstByTag(lineEl, "coordinates");
       const pts = el ? parseCoords(el.textContent) : [];
-      if (pts.length >= 2) layers.push(L.polyline(pts, style));
+      if (pts.length >= 2) parts.push(mk.line(pts));
       else fail(tr("línea con menos de dos puntos válidos"));
     } catch (err) { fail(tr("línea ilegible ({message})", { message: err.message })); }
   }
-  for (const ptEl of elsByTag(geomRoot, "Point")) {
+  for (const ptEl of els.pointEls) {
     try {
       const el = firstByTag(ptEl, "coordinates");
       const pts = el ? parseCoords(el.textContent) : [];
-      if (pts.length) layers.push(L.marker(pts[0]));
+      if (pts.length) parts.push(mk.point(pts[0]));
       else fail(tr("punto sin coordenadas válidas"));
     } catch (err) { fail(tr("punto ilegible ({message})", { message: err.message })); }
   }
+  return { parts, reported };
+}
+
+/* Crea las capas Leaflet de un placemark (polígonos, líneas y puntos).
+   Devuelve { group, reported } (ver collectPlacemarkParts).           */
+function buildPlacemarkLayer(pm, style, report, els = placemarkGeomEls(pm)) {
+  const { parts: layers, reported } = collectPlacemarkParts(els, style, report, {
+    poly: rings => L.polygon(rings, style),
+    line: pts => L.polyline(pts, style),
+    point: pt => L.marker(pt)
+  });
   if (!layers.length) return { group: null, reported };
 
   /* `feature.properties` en cada subcapa es lo que lee layerProperties y lo
@@ -6668,6 +6716,54 @@ function buildPlacemarkLayer(pm, style, report) {
      por defecto tapa media pantalla para escribir un nombre         */
   if (name) group.bindPopup(escapeHtml(name), COMPACT_POPUP);
   return { group, reported };
+}
+
+/* ---------- El GeoJSON de un placemark, sin pasar por Leaflet ----------
+   Un placemark APAGADO de solo polígonos y líneas no necesita su capa
+   Leaflet hasta que alguien la enciende, pero sí su GeoJSON, que es lo
+   que se guarda. Construir la capa para sacar de ella `toGeoJSON()` eran
+   9,66 M de LatLng (+1,1 GB) y 9,4 s en un KML real de 309 MB, y volver
+   a leerlos otros 1,3 s al guardar. Esto da el MISMO resultado que
+   `L.featureGroup(capas).toGeoJSON()` — probado contra Leaflet real en
+   tests/browser/lazy-layers.mjs — copiando sus tres reglas:
+   · redondeo a 6 decimales (`L.Util.formatNum`; 1e6 es `Math.pow(10, 6)`);
+   · un polígono no repite su vértice de cierre al construirse (si el
+     último coincide con el primero a 1e-9 se descarta) y `toGeoJSON` lo
+     vuelve a añadir copiando el primero, así que sale cerrado siempre;
+   · la altitud solo si el vértice la traía.                            */
+const GEO_ROUND = 1e6;
+const geoNum = n => Math.round(n * GEO_ROUND) / GEO_ROUND;
+/* [lat, lon(, alt)] → posición GeoJSON [lon, lat(, alt)] */
+const geoPos = p => p.length > 2 ? [geoNum(p[1]), geoNum(p[0]), geoNum(p[2])] : [geoNum(p[1]), geoNum(p[0])];
+function geoRing(ring) {
+  let n = ring.length;
+  if (n >= 2 && Math.max(Math.abs(ring[0][0] - ring[n - 1][0]), Math.abs(ring[0][1] - ring[n - 1][1])) <= 1e-9) n--;
+  const out = [];
+  for (let i = 0; i < n; i++) out.push(geoPos(ring[i]));
+  out.push(out[0].slice());
+  return out;
+}
+
+/* Como buildPlacemarkLayer, pero devuelve { geo, reported }: `geo` es la
+   FeatureCollection que daría `toGeoJSON()` de la capa, o null si no hay
+   ninguna geometría utilizable. SOLO para placemarks sin <Point>
+   (quien llama lo comprueba con `els.pointEls`): un marcador necesita
+   su icono, que es de Leaflet.                                         */
+function buildPlacemarkGeo(pm, style, report, els) {
+  const { parts, reported } = collectPlacemarkParts(els, style, report, {
+    poly: rings => ({ type: "Polygon", coordinates: rings.map(geoRing) }),
+    line: pts => ({ type: "LineString", coordinates: pts.map(geoPos) }),
+    point: () => null
+  });
+  if (!parts.length) return { geo: null, reported };
+  /* Las mismas properties (ExtendedData) en cada subcapa, y {} propio
+     si no hay: es lo que deja `getFeature` de Leaflet.               */
+  const data = parseExtendedData(pm);
+  return {
+    geo: { type: "FeatureCollection",
+           features: parts.map(geometry => ({ type: "Feature", properties: data || {}, geometry })) },
+    reported
+  };
 }
 
 /* Maps a file extension to the MIME type L.imageOverlay needs for a data:
@@ -7003,14 +7099,20 @@ function extendBounds(bounds, l) {
   else if (l.getLatLng) bounds.extend(l.getLatLng());
 }
 /* Recorre registros pendientes (li._pending) SIN materializar nada: sus
-   capas Leaflet ya existen (construidas al importar/restaurar,
-   independientemente del panel), así que sus límites se leen
-   directamente de rec._layer. Forzar la materialización de una carpeta
-   entera solo para enfocarla sería mucho más caro que esto.           */
+   capas Leaflet existen ya (construidas al importar/restaurar,
+   independientemente del panel) y sus límites se leen directamente de
+   rec._layer; las que son PEREZOSAS (apagadas, sin marcadores: ver
+   defineLazyLayer) no existen aún y se encuadran por su GeoJSON. Forzar
+   la materialización de una carpeta entera solo para enfocarla sería
+   mucho más caro que esto.                                            */
 function extendBoundsFromRecords(bounds, records) {
   for (const rec of records) {
     if (rec.children) extendBoundsFromRecords(bounds, rec.children);
-    if (!rec.children || rec._layer) extendBounds(bounds, rec._layer); /* un servicio ArcGIS: contenedor con capa propia */
+    /* Una capa perezosa (aún sin construir) se encuadra por su GeoJSON:
+       pedirle `_layer` la construiría, y en una carpeta de decenas de
+       miles de capas eso es justo lo que se evita.                    */
+    if (recLayerPending(rec)) { const b = recGeoBounds(rec); if (b) bounds.extend(b); }
+    else if (!rec.children || rec._layer) extendBounds(bounds, rec._layer); /* un servicio ArcGIS: contenedor con capa propia */
   }
 }
 function subtreeBounds(li) {
@@ -7475,7 +7577,10 @@ async function cascadeVisibility(li, checked) {
         if (rec.children) { if (!(await walkRecords(rec.children))) return false; }
         /* Un contenedor con capa propia (un servicio ArcGIS) la enciende
            también: no basta con sus hijos, que no tienen capa.         */
-        if (!rec.children || rec._layer) setLayerVisible(rec._layer, checked);
+        /* Apagar una capa que aún no se ha construido no hay que hacerlo:
+           leer `_layer` la construiría solo para quitarla de un mapa al
+           que nunca llegó (ver defineLazyLayer). Encenderla sí la crea. */
+        if (!(recLayerPending(rec) && !checked) && (!rec.children || rec._layer)) setLayerVisible(rec._layer, checked);
         if (!(await yieldMaybe())) return false;
       }
       return true;
@@ -8004,6 +8109,8 @@ function startRename(li) {
    ningún checkbox.                                                    */
 function removeRecordsFromMap(records) {
   for (const rec of records) {
+    /* Una capa perezosa que nunca se construyó no está en el mapa */
+    if (recLayerPending(rec)) continue;
     /* Un contenedor con capa propia (un servicio ArcGIS) la quita también */
     if (rec.children && rec._layer) rootGroup.removeLayer(rec._layer);
     if (rec.children) { removeRecordsFromMap(rec.children); continue; }
@@ -8240,8 +8347,26 @@ function markDrop(row, zone) {
 
 /* Cede el hilo y deja que el navegador pinte un frame */
 const yieldFrame = () => new Promise(r => requestAnimationFrame(() => setTimeout(r, 0)));
+/* Cuenta un elemento más de `prog` y cede el hilo (y repinta la barra) si
+   lleva más de YIELD_BUDGET_MS desde la última vez.                    */
+async function yieldIfDue(prog) {
+  prog.done++;
+  const now = performance.now();
+  if (prog.last === undefined) prog.last = now;
+  if (now - prog.last < YIELD_BUDGET_MS) return;
+  prog.update(prog.done);
+  await yieldFrame();
+  prog.last = performance.now();
+}
 
 const PROGRESS_BATCH = 150; /* capas construidas entre cesiones del hilo */
+/* Las funciones que CONSTRUYEN registros (buildKmlRecords,
+   buildRecordsFromStorage) ceden por TIEMPO y no por recuento: 150
+   placemarks pueden ser desde 10 ms hasta 1,5 s (un KML real tenía
+   placemarks de 21 000 vértices), y cada cesión cuesta un fotograma
+   entero (`yieldFrame`, ~17 ms): 418 cesiones fijas eran 6,5 s de pura
+   espera en 62 000 placemarks. Medido con KML de 309 MB.            */
+const YIELD_BUDGET_MS = 50;
 const CASCADE_BATCH = 300; /* casillas conmutadas entre cesiones del hilo en
                                una cascada de visibilidad: cada iteración es
                                más barata que construir una fila (solo un
@@ -8317,31 +8442,44 @@ async function buildKmlRecords(el, styleIndex, inheritedVisible, prog, report, z
       const name = text(child, "name") || "Placemark";
       try {
         const style = placemarkStyle(child, styleIndex);
-        const { group: layer, reported } = buildPlacemarkLayer(child, style, report);
-        if (!layer) {
-          /* Ya se cont\u00F3 arriba con una causa concreta (p. ej. "punto sin
-             coordenadas v\u00E1lidas"); solo hace falta este gen\u00E9rico cuando
-             el placemark no ten\u00EDa ninguna geometr\u00EDa que intentar.      */
-          if (!reported && report) report.warn(tr("\u00AB{name}\u00BB sin geometr\u00EDa utilizable", { name }));
-          continue;
-        }
         const visible = inheritedVisible && ownVisibility(child);
-        if (visible) layer.addTo(rootGroup);
+        const els = placemarkGeomEls(child);
         /* La ficha del placemark suele traer una tabla con los datos
            reales del elemento; se guarda para poder consultarla       */
-        const rec = { t: "layer", name, checked: visible, style,
-                       desc: text(child, "description") || null, _layer: layer };
-        wirePendingLayerEvents(rec);
+        const desc = text(child, "description") || null;
+        let rec;
+        if (!visible && !els.pointEls.length && (els.polygonEls.length || els.lineEls.length)) {
+          /* Apagado y sin marcadores: solo su GeoJSON, que es lo que se
+             guarda. La capa Leaflet (millones de LatLng en un KML grande)
+             se construye si alguien la enciende: ver defineLazyLayer.   */
+          const { geo, reported } = buildPlacemarkGeo(child, style, report, els);
+          if (!geo) {
+            if (!reported && report) report.warn(tr("\u00AB{name}\u00BB sin geometr\u00EDa utilizable", { name }));
+            continue;
+          }
+          rec = { t: "layer", name, checked: false, style, desc, geo };
+          defineLazyLayer(rec, () => buildRecordLayer(rec));
+          if (report) { report.loaded++; report.kinds.add("polygon"); }
+        } else {
+          const { group: layer, reported } = buildPlacemarkLayer(child, style, report, els);
+          if (!layer) {
+            /* Ya se cont\u00F3 arriba con una causa concreta (p. ej. "punto sin
+               coordenadas v\u00E1lidas"); solo hace falta este gen\u00E9rico cuando
+               el placemark no ten\u00EDa ninguna geometr\u00EDa que intentar.      */
+            if (!reported && report) report.warn(tr("\u00AB{name}\u00BB sin geometr\u00EDa utilizable", { name }));
+            continue;
+          }
+          if (visible) layer.addTo(rootGroup);
+          rec = { t: "layer", name, checked: visible, style, desc, _layer: layer };
+          wirePendingLayerEvents(rec);
+          if (report) { report.loaded++; report.kinds.add(layerKind(layer) || "?"); }
+        }
         out.push(rec);
-        if (report) { report.loaded++; report.kinds.add(layerKind(layer) || "?"); }
       } catch (err) {
         /* One bad entity must never abort the whole import */
         if (report) report.warn(`\u00AB${name}\u00BB: ${err.message}`);
       }
-      if (prog && ++prog.done % PROGRESS_BATCH === 0) {
-        prog.update(prog.done);
-        await yieldFrame();
-      }
+      if (prog) await yieldIfDue(prog);
     } else if (tag === "GroundOverlay") {
       const name = text(child, "name") || tr("Ortofoto");
       try {
@@ -8357,10 +8495,7 @@ async function buildKmlRecords(el, styleIndex, inheritedVisible, prog, report, z
         /* One bad entity must never abort the whole import */
         if (report) report.warn(`«${name}»: ${err.message}`);
       }
-      if (prog && ++prog.done % PROGRESS_BATCH === 0) {
-        prog.update(prog.done);
-        await yieldFrame();
-      }
+      if (prog) await yieldIfDue(prog);
     }
   }
   return out;
@@ -10251,6 +10386,96 @@ async function restoreTree(nodes) {
   await materializeRecords(records, ensureRootUl());
 }
 
+/* ---------- Capas Leaflet perezosas ----------
+   Un registro `layer` APAGADO guarda solo su `geo` (el GeoJSON, que es lo
+   que se persiste) y su capa Leaflet se construye la PRIMERA vez que
+   alguien la lee. Motivo, medido con un KML de 309 MB (62 673
+   placemarks apagados, 9,66 M de vértices): construirlas todas eran 9,4 s
+   y +1,1 GB de heap al importar y OTROS 7,6 s y 3,1 GB en cada arranque, y
+   copiarlas de vuelta a GeoJSON para guardar, 1,3 s y +0,6 GB más; con un
+   límite de heap de 3 GB el guardado pasó de 1,3 s a 67 s (el recolector
+   de basura contra el techo) y con menos la pestaña moría.
+
+   `rec._layer` pasa a ser un getter que construye, se sustituye a sí
+   mismo por el valor y registra los manejadores del registro pendiente
+   (`wirePendingLayerEvents`): los sitios que leen `rec._layer` no se
+   enteran. Quien solo quiere APAGAR o QUITAR una capa, o medirla, NO debe
+   construirla: pregunta antes `recLayerPending(rec)` (apagar una capa que
+   nunca existió no hace nada; su encuadre sale de `rec.geo`).
+   La capa que se construye es EXACTAMENTE la de un registro restaurado
+   (`buildRecordLayer`, la misma que usa `buildRecordsFromStorage`): nada
+   nuevo que probar más allá de que se construye tarde.                 */
+function defineLazyLayer(rec, build) {
+  rec._built = false;
+  const settle = layer => Object.defineProperty(rec, "_layer",
+    { value: layer, writable: true, configurable: true, enumerable: true });
+  Object.defineProperty(rec, "_layer", {
+    configurable: true, enumerable: true,
+    get() {
+      const layer = build();
+      settle(layer);
+      rec._built = true;
+      wirePendingLayerEvents(rec);
+      return layer;
+    },
+    set(layer) { settle(layer); rec._built = true; }
+  });
+}
+/* ¿Es un registro perezoso cuya capa aún no existe? (`_built` solo lo
+   tienen los perezosos) */
+const recLayerPending = rec => rec._built === false;
+
+/* La capa Leaflet de un registro `layer` a partir de su GeoJSON, con el
+   estilo, el popup y el icono propio: lo que hacía en línea el arranque. */
+function buildRecordLayer(rec) {
+  const layer = L.geoJSON(rec.geo, rec.style ? { style: rec.style } : undefined);
+  clearFillOnOpenPaths(layer); /* una línea no se rellena, ver esa función */
+  layer.bindPopup(escapeHtml(rec.name), COMPACT_POPUP);
+  /* El icono personalizado se aplica AQUÍ, sobre la capa cruda, no
+     solo cuando materializeRecords construya su fila más adelante:
+     un marcador dentro de una carpeta colapsada puede pasar de
+     "pendiente" a "visible" con la cascada de la casilla de la
+     carpeta (cascadeVisibility → walkRecords) sin que su fila
+     llegue a crearse nunca — ese camino solo hace
+     setLayerVisible(rec._layer, checked), sin tocar el icono.
+     Reportado: un marcador con icono MDI (no la gota por defecto),
+     desactivado y dentro de una carpeta nunca desplegada, volvía a
+     la gota de Leaflet al activarlo tras recargar. Aplicarlo dos
+     veces (otra vez en materializeRecords, si la fila sí llega a
+     crearse) es inocuo: setIcon con el mismo icono no hace nada.  */
+  if (rec.mstyle) styleMarkerIcon(layer, rec.mstyle);
+  return layer;
+}
+
+/* ¿Puede un GeoJSON quedarse sin capa hasta que haga falta? Solo si no
+   tiene ningún punto (un marcador necesita su icono, que es de Leaflet) ni
+   nada que no se reconozca: ante la duda, se construye ya.            */
+const LAZY_GEOMETRIES = new Set(["Polygon", "MultiPolygon", "LineString", "MultiLineString"]);
+function geoIsLazyable(g) {
+  if (!g || typeof g !== "object") return false;
+  if (g.type === "FeatureCollection") return Array.isArray(g.features) && g.features.every(geoIsLazyable);
+  if (g.type === "Feature") return !!g.geometry && LAZY_GEOMETRIES.has(g.geometry.type);
+  return LAZY_GEOMETRIES.has(g.type);
+}
+
+/* Encuadre de un GeoJSON sin construir su capa (la caja de todas sus
+   posiciones, que es la que da `getBounds()`), o null si no hay ninguna.
+   Se guarda en el registro: se pide en cada "ir a la carpeta".          */
+function recGeoBounds(rec) {
+  if (rec._bounds !== undefined) return rec._bounds;
+  let s = Infinity, w = Infinity, n = -Infinity, e = -Infinity;
+  const walk = c => {
+    if (typeof c[0] === "number") {
+      if (c[1] < s) s = c[1]; if (c[1] > n) n = c[1];
+      if (c[0] < w) w = c[0]; if (c[0] > e) e = c[0];
+    } else for (const x of c) walk(x);
+  };
+  const geoms = g => g.type === "FeatureCollection" ? g.features.forEach(f => geoms(f))
+    : g.type === "Feature" ? (g.geometry && geoms(g.geometry)) : walk(g.coordinates);
+  try { geoms(rec.geo); } catch { /* geometría rota: sin encuadre */ }
+  return (rec._bounds = s <= n ? L.latLngBounds([s, w], [n, e]) : null);
+}
+
 /* Reconstruye la geometría/capas Leaflet de un árbol guardado
    (restaurar, deshacer/rehacer, pegar, importar un .kite.json), como
    REGISTROS — nunca filas del panel. Igual que buildKmlRecords: la
@@ -10280,28 +10505,20 @@ async function buildRecordsFromStorage(nodes, prog, opts = {}) {
       const rec = buildCogRecord(n);
       if (rec) out.push(rec);
     } else if (n.t === "layer") {
-      const layer = L.geoJSON(n.geo, n.style ? { style: n.style } : undefined);
-      clearFillOnOpenPaths(layer); /* una línea no se rellena, ver esa función */
-      layer.bindPopup(escapeHtml(n.name), COMPACT_POPUP);
-      /* El icono personalizado se aplica AQUÍ, sobre la capa cruda, no
-         solo cuando materializeRecords construya su fila más adelante:
-         un marcador dentro de una carpeta colapsada puede pasar de
-         "pendiente" a "visible" con la cascada de la casilla de la
-         carpeta (cascadeVisibility → walkRecords) sin que su fila
-         llegue a crearse nunca — ese camino solo hace
-         setLayerVisible(rec._layer, checked), sin tocar el icono.
-         Reportado: un marcador con icono MDI (no la gota por defecto),
-         desactivado y dentro de una carpeta nunca desplegada, volvía a
-         la gota de Leaflet al activarlo tras recargar. Aplicarlo dos
-         veces (otra vez en materializeRecords, si la fila sí llega a
-         crearse) es inocuo: setIcon con el mismo icono no hace nada.  */
-      if (n.mstyle) styleMarkerIcon(layer, n.mstyle);
-      if (n.checked) layer.addTo(rootGroup);
       const rec = { t: "layer", name: n.name, checked: !!n.checked, style: n.style || null,
-                    geo: n.geo, mstyle: n.mstyle, desc: n.desc || null, _layer: layer };
-      /* geo ya es el toGeoJSON() que serializeNode recalcularía: se
-         reutiliza en vez de perder la caché (ver materializeRecords) */
-      wirePendingLayerEvents(rec);
+                    geo: n.geo, mstyle: n.mstyle, desc: n.desc || null };
+      /* Apagada, sin marcadores y de este navegador (lo AJENO se construye
+         ya: Leaflet es quien rechaza una geometría rota, y es mejor que
+         falle al cargar que al encender): sin capa hasta que se pida. */
+      if (!rec.checked && !opts.foreign && geoIsLazyable(rec.geo)) {
+        defineLazyLayer(rec, () => buildRecordLayer(rec));
+      } else {
+        rec._layer = buildRecordLayer(rec);
+        if (rec.checked) rec._layer.addTo(rootGroup);
+        /* geo ya es el toGeoJSON() que serializeNode recalcularía: se
+           reutiliza en vez de perder la caché (ver materializeRecords) */
+        wirePendingLayerEvents(rec);
+      }
       out.push(rec);
     } else {
       const children = await buildRecordsFromStorage(n.children || [], prog, opts);
@@ -10310,10 +10527,7 @@ async function buildRecordsFromStorage(nodes, prog, opts = {}) {
       if (n.t === "file" && n.sec === true) rec.sec = true;
       out.push(rec);
     }
-    if (prog && LEAF_RECORD_TYPES.has(n.t) && ++prog.done % PROGRESS_BATCH === 0) {
-      prog.update(prog.done);
-      await yieldFrame();
-    }
+    if (prog && LEAF_RECORD_TYPES.has(n.t)) await yieldIfDue(prog);
   }
   return out;
 }
@@ -10740,6 +10954,11 @@ function importCancelled() {
    duplicar en memoria lo más grande de la importación. Sin texto que
    medir, «grande» lo decide el número de elementos.                  */
 const BIG_FEATURE_COUNT = 5000;
+/* Por encima de esto se avisa ANTES de empezar: un KML de 309 MB tarda
+   unos 20 s en cargar (la lectura del XML es una sola tarea de ~4 s que
+   el navegador no puede partir) y llega a 1,5-2 GB de memoria. Solo un
+   aviso informativo, nunca un diálogo que bloquee.                    */
+const HUGE_IMPORT_CHARS = 100 * 1024 * 1024;
 /* `report`: un informe ya empezado por quien llama (lo que se ve al leer
    un shapefile —sin .prj, ED50…— va en el mismo resumen).             */
 /* `presetNameKeys`: un formato que define él mismo qué es el nombre (el
@@ -10766,6 +10985,10 @@ async function addFileNode(name, kind, content, insertBefore = null, dropTargetU
   }
 
   try {
+    if (typeof content === "string" && content.length >= HUGE_IMPORT_CHARS) {
+      navMessage(tr("\u00AB{name}\u00BB es muy grande ({size}): cargarlo puede tardar y necesita mucha memoria.",
+        { name, size: fmtBytes(content.length) }), { tone: "info" });
+    }
     if (kind === "kml") {
       if (big) {
         /* DOMParser es síncrono y monolítico: solo cabe indicar la fase
@@ -10773,7 +10996,7 @@ async function addFileNode(name, kind, content, insertBefore = null, dropTargetU
         progress.indet(tr("Procesando XML de {name}\u2026", { name }));
         await yieldFrame();
       }
-      const { xml, repaired } = parseKmlDocument(content);
+      let { xml, repaired } = parseKmlDocument(content);
       if (repaired.length) {
         report.note(tr("prefijos XML sin declarar, corregidos al vuelo: {prefixes}", { prefixes: repaired.join(", ") }));
       }
@@ -10802,6 +11025,9 @@ async function addFileNode(name, kind, content, insertBefore = null, dropTargetU
       if (styleIndex.externalRefs) {
         report.note(tr("{externalRefs} estilo(s) en archivos externos, no aplicados", { externalRefs: styleIndex.externalRefs }));
       }
+      /* El DOM (más de 1 GB en un KML de 300 MB) ya no hace falta: se suelta
+         antes de materializar y de guardar, que es cuando la memoria aprieta */
+      xml = null;
       await materializeRecords(records, target);
     } else {
       if (big) {
@@ -12204,7 +12430,7 @@ async function resolveRecordLi(rec) {
 /* La capa de Leaflet que un registro pendiente tiene en el mapa: la de
    una capa, ortofoto o cuadrícula (`_layer`) o el grupo de una medición
    (`_m.group`). Null si el tipo no tiene (nada que acertar con el clic). */
-const recMapLayer = rec => rec._layer || (rec._m && rec._m.group) || null;
+const recMapLayer = rec => recLayerPending(rec) ? null : (rec._layer || (rec._m && rec._m.group) || null);
 
 /* El <li> de una CAPA de Leaflet, materializando la cadena de carpetas
    ancestras si todavía es un registro pendiente (lo que cuesta construir
@@ -12559,7 +12785,7 @@ async function setPendingChecked(records, state, counter) {
   for (const rec of records) {
     rec.checked = state;
     if (rec.children) await setPendingChecked(rec.children, state, counter);
-    else setLayerVisible(rec._layer, state);
+    else if (state || !recLayerPending(rec)) setLayerVisible(rec._layer, state); /* apagar una capa aún sin construir no hace nada */
     if (++counter.n % CASCADE_BATCH === 0) await yieldFrame();
   }
 }
@@ -13096,6 +13322,16 @@ function layerProperties(layer) {
   if (!layer || typeof layer.getLayers !== "function") return null;
   const sub = layer.getLayers()[0];
   const props = sub && sub.feature && sub.feature.properties;
+  return (props && typeof props === "object" && Object.keys(props).length) ? props : null;
+}
+/* Lo mismo para un registro pendiente. Si su capa aún no existe (ver
+   defineLazyLayer), las properties salen de su GeoJSON, que es de donde
+   las tomaría la capa: la tabla de atributos de una carpeta de 60 000
+   capas no las construye una a una.                                    */
+function recProperties(rec) {
+  if (!recLayerPending(rec)) return layerProperties(rec._layer);
+  const first = rec.geo && rec.geo.features && rec.geo.features[0];
+  const props = first && first.properties;
   return (props && typeof props === "object" && Object.keys(props).length) ? props : null;
 }
 
@@ -19575,7 +19811,7 @@ function collectAttrRows(root) {
   const fromRecords = recs => {
     for (const rec of recs) {
       if (Array.isArray(rec.children)) fromRecords(rec.children);
-      else if (rec.t === "layer") rows.push({ name: rec.name, props: layerProperties(rec._layer), rec });
+      else if (rec.t === "layer") rows.push({ name: rec.name, props: recProperties(rec), rec });
     }
   };
   const fromLi = li => {

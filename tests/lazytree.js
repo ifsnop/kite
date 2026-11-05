@@ -60,9 +60,9 @@ function mockLayer(tag) {
    feeds it).                                                          */
 global.L = {
   Marker: class {}, Path: class {},
-  latLngBounds: () => {
+  latLngBounds: (sw, ne) => {
     const pts = [];
-    return { extend(v) { if (v) pts.push(v); }, points: pts };
+    return { sw, ne, extend(v) { if (v) pts.push(v); }, points: pts };
   }
 };
 
@@ -109,6 +109,8 @@ const src = [
   fn("resolveRecordLi"), fn("wirePendingLayerEvents"),
   fn("blinkLayer"),
   fn("removeRecordsFromMap"), fn("removeSubtreeFromMap"), fn("deleteNode"),
+  /* capas perezosas (32-geojson.js): se prueban abajo */
+  fn("defineLazyLayer"), constDecl("recLayerPending"), fn("recGeoBounds"),
   /* materializeRecords y deleteNode recalculan el estado de los
      contenedores de arriba (tercer estado de la casilla); este test no
      construye casillas, así que solo hace falta que exista.          */
@@ -134,7 +136,7 @@ const api = new Function(
     materializeRecords, ensureMaterialized, serializeNode, serializeNodes, serializePendingRecords,
     subtreeBounds, findMatches, searchMatches, resolveMatch, resolveRecordLi,
     wirePendingLayerEvents, blinkLayer, deleteNode, selectFolderLayers,
-    clearSelection,
+    clearSelection, defineLazyLayer, recLayerPending, recGeoBounds, removeRecordsFromMap,
     cuentas: () => ({ enVuelo: materializingNow, terminadas: materializeSeq })
   };`
 )(rootGroup, yieldFrame, PROGRESS_BATCH, scheduleSave, navMessage, showEmptyMessage,
@@ -145,7 +147,7 @@ const {
   materializeRecords, ensureMaterialized, serializeNode, serializeNodes,
   subtreeBounds, findMatches, searchMatches, resolveMatch, resolveRecordLi,
   wirePendingLayerEvents, blinkLayer, deleteNode, selectFolderLayers,
-  clearSelection
+  clearSelection, defineLazyLayer, recLayerPending, recGeoBounds, removeRecordsFromMap, serializePendingRecords
 } = api;
 
 const ok = (c, m) => { if (!c) { console.error("FAIL: " + m); process.exitCode = 1; } };
@@ -365,6 +367,56 @@ const folderRec = (name, collapsed, children) => ({ t: "folder", name, checked: 
   await sleep(BLINK_WAIT);
   ok(!rootGroup.hasLayer(blinkTag),
      "si se desactiva el checkbox mientras parpadea, termina oculta (el estado real), no visible a la fuerza");
+
+  /* ---------- capas perezosas: la capa de Leaflet se construye al leerla ----------
+     Un registro apagado y sin marcadores guarda solo su GeoJSON; tocarlo
+     para apagar, quitar, guardar o encuadrar NO debe construir su capa
+     (en un KML de 62 000 placemarks eso eran 9 s y 1,1 GB), y leerla la
+     construye UNA vez, con sus manejadores.                              */
+  let built = 0;
+  const lazyGeo = { type: "FeatureCollection", features: [
+    { type: "Feature", properties: { ref: "A" }, geometry: { type: "Polygon", coordinates: [[[10, 20], [12, 20], [12, 23], [10, 20]]] } },
+    { type: "Feature", properties: {}, geometry: { type: "LineString", coordinates: [[-5, 40], [-4, 41]] } }] };
+  const lazyRec = name => {
+    const rec = { t: "layer", name, checked: false, style: null, geo: lazyGeo };
+    defineLazyLayer(rec, () => { built++; return mockLayer("lazy-" + name); });
+    return rec;
+  };
+
+  const lz = lazyRec("perezosa");
+  ok(recLayerPending(lz) && lz._built === false && built === 0, "recién creada: pendiente y sin construir");
+  ok(!recLayerPending({ t: "layer", _layer: {} }) && !recLayerPending({ t: "folder", children: [] }), "un registro normal no es perezoso");
+
+  const ser = serializePendingRecords([lz]);
+  ok(built === 0 && ser[0].geo === lazyGeo && ser[0].checked === false, "guardar usa su geo y no la construye");
+
+  const bnd = recGeoBounds(lz);
+  ok(built === 0 && JSON.stringify(bnd.sw) === "[20,-5]" && JSON.stringify(bnd.ne) === "[41,12]", "encuadre desde el GeoJSON (sur-oeste/norte-este): " + JSON.stringify([bnd.sw, bnd.ne]));
+  ok(recGeoBounds(lz) === bnd, "y se guarda en el registro");
+  const lzFolder = makeNode({ name: "lz-bounds", isFolder: true, checked: false });
+  lzFolder._pending = [lazyRec("b1")];
+  rootUl.appendChild(lzFolder);
+  const lzb = subtreeBounds(lzFolder);
+  ok(built === 0 && lzb.points.length === 1 && lzb.points[0].ne, "subtreeBounds de una carpeta pendiente con capas perezosas no las construye");
+  ok(recGeoBounds({ geo: { type: "FeatureCollection", features: [] } }) === null, "sin posiciones, sin encuadre");
+
+  removeRecordsFromMap([lz, lazyRec("quitar")]);
+  ok(built === 0 && calls.every(c => !String(c[1]).startsWith("lazy-")), "quitar del mapa lo que nunca se construyó no lo construye ni lo toca");
+
+  const layer1 = lz._layer;
+  ok(built === 1 && layer1.tag === "lazy-perezosa" && lz._built === true && !recLayerPending(lz), "leer _layer la construye una vez");
+  ok(lz._layer === layer1 && built === 1, "y la siguiente lectura devuelve la misma sin reconstruir");
+  ok(layer1.count("click") === 1 && layer1.count("mouseover") === 1 && lz._pendingHandlers, "con sus manejadores de registro pendiente ya enganchados");
+  lz._layer = mockLayer("otra"); /* la asignación sustituye, como en un registro normal */
+  ok(lz._layer.tag === "otra" && built === 1, "se puede reasignar");
+
+  /* una carpeta que se despliega construye las capas de SUS filas (y solo de ellas) */
+  const open1 = lazyRec("fila1"), open2 = lazyRec("fila2"), quiet = lazyRec("sin-desplegar");
+  built = 0;
+  const ulLazy = document.createElement("ul");
+  await materializeRecords([folderRec("abierta", false, [open1, open2]), folderRec("cerrada", true, [quiet])], ulLazy);
+  ok(built === 2 && recLayerPending(quiet) && !recLayerPending(open1),
+     "desplegar construye solo las capas de las filas que se crean (2), no las de la carpeta colapsada: " + built);
 
   if (!process.exitCode) console.log("LAZY TREE TESTS OK");
 })();
