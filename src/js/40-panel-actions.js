@@ -292,12 +292,10 @@ async function searchPlaces(query) {
   }
 }
 
-/* Marker for a chosen result. `ensureMarkerDefaults` gives it the default
-   style (Leaflet pin, #1b5e97), the same one imported markers get.      */
-function addPlaceMarker(r) {
-  const lat = Number(r.lat), lon = Number(r.lon);
-  if (!isFinite(lat) || !isFinite(lon)) { navMessage(tr("El resultado no trae coordenadas v\u00E1lidas.")); return; }
-  const name = r.name || String(r.display_name).split(",")[0];
+/* A marker in «Lugares» at the given point. `ensureMarkerDefaults` gives it
+   the default style (Leaflet pin, #1b5e97), the same one imported markers
+   get. Shared by a chosen search result and by typed coordinates.        */
+function createPlaceMarker(name, lat, lon) {
   pushUndo(tr("añadir un lugar"));
   const layer = L.marker([lat, lon]).addTo(rootGroup);
   const li = makeNode({ name, layer, style: { color: DEFAULT_MARKER_STYLE.color } });
@@ -307,6 +305,12 @@ function addPlaceMarker(r) {
   hidePlaceResults();
   placeBox.value = "";
   scheduleSave();
+}
+
+function addPlaceMarker(r) {
+  const lat = Number(r.lat), lon = Number(r.lon);
+  if (!isFinite(lat) || !isFinite(lon)) { navMessage(tr("El resultado no trae coordenadas v\u00E1lidas.")); return; }
+  createPlaceMarker(r.name || String(r.display_name).split(",")[0], lat, lon);
 
   /* Choosing a search result IS asking to go there, so this is the one
      case where the app moves the view on its own                       */
@@ -340,17 +344,18 @@ function createPin() {
 }
 
 /* Zoom al que se va cuando lo escrito en el buscador son coordenadas: un
-   nivel de región (9), no el de calle de un lugar elegido (14).        */
-const COORD_SEARCH_ZOOM = 9;
+   punto exacto, así que el de calle (17), no el de región.             */
+const COORD_SEARCH_ZOOM = 17;
 
 /* Unas coordenadas escritas se resuelven aquí, sin red y ANTES que
-   Nominatim: pedir el lugar es pedir ir allí (por eso, como al elegir un
-   resultado, la aplicación mueve la vista sola), y no crea ningún marcador.
-   Una búsqueda de lugar en vuelo ya no interesa.                         */
-function goToCoordinates(at) {
+   Nominatim. Como elegir un resultado, pedirlas es pedir ir allí: crea un
+   marcador en «Lugares» (llamado como lo escrito) y la aplicación mueve la
+   vista sola, centrada en él. Una búsqueda de lugar en vuelo ya no
+   interesa.                                                              */
+function goToCoordinates(at, text) {
   placeSeq++;
   if (placeAbort) { placeAbort.abort(); placeAbort = null; }
-  hidePlaceResults();
+  createPlaceMarker(text, at.lat, at.lng);
   map.setView([at.lat, at.lng], COORD_SEARCH_ZOOM);
 }
 
@@ -358,7 +363,7 @@ function runPlaceSearch() {
   const q = placeBox.value.trim();
   if (!q) { navMessage(tr("Escriba un lugar o unas coordenadas.")); return; }
   const at = parsePlaceCoordinates(q);
-  if (at) { goToCoordinates(at); return; }
+  if (at) { goToCoordinates(at, q); return; }
   searchPlaces(q);
 }
 document.getElementById("place-btn").addEventListener("click", runPlaceSearch);

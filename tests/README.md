@@ -1281,11 +1281,11 @@ BROWSER CONTEXT PENDING TESTS OK
 
 **Salida de `npm test`:**
 ```
-── Navegador: unas coordenadas escritas en el buscador llevan el mapa allí a zoom 9 sin ninguna petición a Nominatim ni marcador (con Intro y con el botón), un lugar sigue yendo a Nominatim, y una búsqueda en vuelo no repinta tras unas coordenadas
+── Navegador: unas coordenadas escritas en el buscador crean un marcador en «Lugares» y llevan el mapa allí a zoom 17 sin ninguna petición a Nominatim (con Intro y con el botón), un lugar sigue yendo a Nominatim, y una búsqueda en vuelo no repinta tras unas coordenadas
 BROWSER PLACE COORDINATES TESTS OK
 ```
 
-**Qué cubre:** `40.4168, -3.7038` con Intro lleva el mapa allí a zoom 9, sin ninguna petición a Nominatim (falso, que las cuenta), sin lista de resultados ni marcador y con el texto aún en la caja; GMS con letras con el botón; coma decimal con punto y coma; la longitud primero con letras; un lugar («Madrid») sigue yendo a Nominatim con su lista y sin mover la vista, igual que `120, 3` (latitud imposible); una búsqueda de «Valencia» a medias y luego unas coordenadas: las coordenadas ganan, cierran la lista y la respuesta tardía no la repinta; la caja vacía avisa con «Escriba un lugar o unas coordenadas». Sin errores de página ni violaciones de la CSP.
+**Qué cubre:** `40.4168, -3.7038` con Intro crea UN marcador en «Lugares» (llamado como lo escrito, en el punto exacto) y lleva el mapa allí, centrado en él, a zoom 17, sin ninguna petición a Nominatim (falso, que las cuenta), sin lista de resultados y con la caja vaciada; GMS con letras con el botón (suma un segundo marcador); coma decimal con punto y coma; la longitud primero con letras; un lugar («Madrid») sigue yendo a Nominatim con su lista y sin mover la vista, igual que `120, 3` (latitud imposible), y ninguno de los dos crea marcador; una búsqueda de «Valencia» a medias y luego unas coordenadas: las coordenadas ganan, cierran la lista y la respuesta tardía no la repinta; la caja vacía avisa con «Escriba un lugar o unas coordenadas». Sin errores de página ni violaciones de la CSP.
 
 ### `browser/focus-zoom.mjs`
 
