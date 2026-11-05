@@ -572,11 +572,15 @@ document.getElementById("desc-close").addEventListener("click", () => {
 
    Se guarda como FRACCIÓN, no en píxeles: la ficha se redimensiona, y
    un ancho en píxeles quedaría desproporcionado en cuanto la ventana
-   cambiara de tamaño. Y SÍ persiste entre sesiones (`dbSaveProps`/
-   `dbLoadProps`, más abajo) — depende de cómo son los archivos con los
-   que trabaja cada usuario, no de mirar un dato puntual, así que no
-   tendría sentido reajustarlo en cada arranque.                      */
-let propsKeyFrac = 0.38;
+   cambiara de tamaño. NO persiste: es un ajuste de la sesión (decidido con
+   el usuario), y la vista de partida ya reparte bien.                  */
+/* `null` = AUTOMÁTICO: cada tabla pone a la clave lo que mide su clave más
+   larga (`--props-key-auto`, ver propertiesTableHtml) y el resto es del
+   valor. Con un 38 % fijo, una URL se partía en cuatro líneas en una
+   ventana en la que sobraba la mitad de la columna de las claves. Solo
+   cuando el usuario arrastra el separador pasa a ser una fracción FIJA,
+   que vale hasta recargar la página.                                   */
+let propsKeyFrac = null;
 const PROPS_MIN_FRAC = 0.12; /* que ninguna de las dos columnas desaparezca */
 
 /* Dos cuerpos comparten el reparto: la ficha y la pestaña «Atributos»
@@ -585,22 +589,18 @@ const PROPS_MIN_FRAC = 0.12; /* que ninguna de las dos columnas desaparezca */
 const styleAttrsBody = document.getElementById("style-attrs-body");
 function applyPropsSplit() {
   for (const body of [descBody, styleAttrsBody]) {
-    body.style.setProperty("--props-key", (propsKeyFrac * 100).toFixed(2) + "%");
+    if (propsKeyFrac === null) body.style.removeProperty("--props-key");
+    else body.style.setProperty("--props-key", (propsKeyFrac * 100).toFixed(2) + "%");
   }
 }
 
-/* El reparto SÍ persiste entre sesiones, a diferencia de la unidad de
-   medida o del formato de coordenadas: aquellos se cambian sobre la
-   marcha para mirar un dato y se vuelven a cambiar, mientras que este
-   depende de cómo son los archivos con los que uno trabaja —nombres
-   cortos y valores largos, o al revés— y sería el mismo ajuste en cada
-   arranque. Va en otra clave del MISMO almacén.                      */
-function setPropsSplit(frac, { save = false } = {}) {
+/* El reparto elegido vale mientras la página siga abierta (también al
+   cambiar de capa o de ventana), pero NO se guarda en IndexedDB: se
+   decidió que no merece una clave del almacén, y el reparto automático
+   ya acierta casi siempre.                                             */
+function setPropsSplit(frac) {
   propsKeyFrac = Math.min(1 - PROPS_MIN_FRAC, Math.max(PROPS_MIN_FRAC, frac));
   applyPropsSplit();
-  /* Solo al soltar: guardar en cada pixel del arrastre castigaría a
-     IndexedDB para nada.                                             */
-  if (save) dbSaveProps(propsKeyFrac).catch(() => {});
 }
 
 /* Delegado en el cuerpo de la ficha, no atado a cada tabla: el HTML se
@@ -624,7 +624,6 @@ function wirePropsGrip(container) {
       setPropsSplit((ev.clientX - r.left) / r.width);
     };
     const onUp = () => {
-      setPropsSplit(propsKeyFrac, { save: true });
       grip.removeEventListener("pointermove", onMove);
       grip.removeEventListener("pointerup", onUp);
       grip.removeEventListener("pointercancel", onUp);
@@ -1569,12 +1568,13 @@ function buildIconGrid(color) {
     for (const name of names) {
       const b = document.createElement("button");
       b.className = "icon-opt" + (name === pendingIcon ? " chosen" : "");
-      b.title = name;
+      /* «Ninguno» se llama por su nombre en la interfaz, no por su clave */
+      b.title = name === NO_ICON ? tr("Ninguno (solo se ve el texto)") : name;
       const img = document.createElement("img");
       img.src = iconUrl(name, color, 24);
       img.height = 24;
       if (name !== LEAFLET_PIN) img.width = 24; /* the pin keeps its 25:41 */
-      img.alt = name;
+      img.alt = b.title;
       b.appendChild(img);
       b.addEventListener("click", () => {
         pendingIcon = name;
@@ -1591,8 +1591,23 @@ function buildIconGrid(color) {
 /* El icono también se ve en el mapa al pulsarlo en la rejilla; cancelar el
    selector devuelve el que había al abrirlo (`iconOriginal`).          */
 let iconOriginal = null;
+/* Sin icono y sin el texto fijo no se vería NADA del marcador: al elegir
+   «Ninguno» se marca «Mostrar el texto siempre» si no lo estaba, y se
+   desmarca de nuevo si luego se elige otro icono o se cancela el selector
+   (`textAutoOn` recuerda que fue cosa nuestra, no del usuario).         */
+let textAutoOn = false;
+function syncTextForIcon(name) {
+  const ta = $id("mk-text-always");
+  if (name === NO_ICON && !ta.checked) {
+    ta.checked = true; ta.indeterminate = false; textAutoOn = true;
+  } else if (name !== NO_ICON && textAutoOn) {
+    ta.checked = false; textAutoOn = false;
+  }
+  readMarkerControls();
+}
 function previewIcon(name) {
   if (!styleDraft) return;
+  syncTextForIcon(name);
   styleDraft.icon = name;
   styleLivePreview.add("icon");
   $id("icon-preview").src = iconUrl(name, colorOf($id("mk-color")), 20);
@@ -1609,6 +1624,7 @@ $id("icon-preview-btn").addEventListener("click", () => {
 });
 function cancelIconPicker() {
   if (styleDraft && iconOriginal) {
+    syncTextForIcon(iconOriginal);
     styleDraft.icon = iconOriginal;
     styleLivePreview.delete("icon");
     $id("icon-preview").src = iconUrl(iconOriginal, colorOf($id("mk-color")), 20);
@@ -1625,6 +1641,8 @@ $id("icon-accept").addEventListener("click", () => {
     /* El icono tampoco pasa por un control con `input`: se anota aquí,
        que es donde el usuario lo elige de verdad.                    */
     styleTouched.add("icon");
+    if (textAutoOn) touchControl($id("mk-text-always")); /* el texto fijo que «Ninguno» necesita */
+    textAutoOn = false;
     markMixedRow($id("icon-preview-btn"), false);
     $id("icon-preview").src = iconUrl(pendingIcon, colorOf($id("mk-color")), 20);
   }

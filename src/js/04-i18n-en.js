@@ -260,6 +260,7 @@ registerLang("en", "English", {
   "Seleccionado todo el árbol ({n} nodos).": "Selected the whole tree ({n} nodes).",
   "Seleccionada la carpeta actual ({n} nodos). Ctrl+A otra vez para todo.": "Selected the current folder ({n} nodes). Ctrl+A again for everything.",
   "borrar {n} nodo(s)": "delete {n} node(s)",
+  "Sin icono": "No icon",
   "Banderas": "Flags",
   "Estrellas": "Stars",
   "Círculos numerados": "Numbered circles",
@@ -378,6 +379,7 @@ registerLang("en", "English", {
   "Distancia": "Distance",
   "Tramo {n}: {dist} · {brg}°": "Leg {n}: {dist} · {brg}°",
   "Coordenadas no válidas: revise la latitud y la longitud.": "Invalid coordinates: check the latitude and longitude.",
+  "Ninguno (solo se ve el texto)": "None (only the text is shown)",
   /* 51-geodesy.js */
   "UTM no definido en esta latitud (zona polar)": "UTM is not defined at this latitude (polar zone)",
   "La distancia oblicua no puede ser menor que la diferencia de alturas.": "The slant distance cannot be less than the height difference.",

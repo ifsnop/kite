@@ -220,6 +220,19 @@ function styleKind(li) {
    as in stock Leaflet), while MDI glyphs are symmetric and sit centred
    on the coordinate, like Google Earth pushpins.                        */
 function buildMarkerIcon(s, svg) {
+  if (s.icon === NO_ICON) {
+    /* Solo el texto: una caja transparente para poder pulsarlo, y el nombre
+       CENTRADO sobre el punto (con el icono real va encima de él).        */
+    return {
+      icon: L.divIcon({
+        className: "mdi-pin no-icon",
+        html: "",
+        iconSize: [NO_ICON_HIT, NO_ICON_HIT],
+        iconAnchor: [NO_ICON_HIT / 2, NO_ICON_HIT / 2]
+      }),
+      textOffset: L.point(0, 0)
+    };
+  }
   if (s.icon === LEAFLET_PIN || !svg) {
     const h = s.size, w = Math.round(h * LEAFLET_PIN_RATIO);
     return {
@@ -262,7 +275,7 @@ function buildMarkerIcon(s, svg) {
    desconocido (un \u00E1rbol guardado con otro cat\u00E1logo) devuelve null y
    buildMarkerIcon cae en la gota de Leaflet.                         */
 function styleMarkerIcon(layer, s) {
-  const svg = s.icon === LEAFLET_PIN ? null : mdiSvg(s.icon);
+  const svg = s.icon === LEAFLET_PIN || s.icon === NO_ICON ? null : mdiSvg(s.icon);
   const { icon, textOffset } = buildMarkerIcon(s, svg);
   const each = l => {
     if (l instanceof L.Marker) l.setIcon(icon);
@@ -291,6 +304,9 @@ function applyMarkerText(li, offset) {
   if (!s || !layer) return;
   const html = `<span style="font-size:${s.textSize}px;color:${s.textColor}">${escapeHtml(li._name)}</span>`;
   if (!offset) offset = buildMarkerIcon(s, null).textOffset;
+  /* Sin icono el nombre va CENTRADO en el punto; el globo, sobre su caja */
+  const noIcon = s.icon === NO_ICON;
+  const popupOffset = noIcon ? L.point(0, -NO_ICON_HIT / 2) : offset;
   /* Leaflet's unbindPopup() does NOT close a popup that is already open
      (they stay up, autoClose is off): with the permanent label added
      next, the name would show twice — the closable popup and the
@@ -303,11 +319,11 @@ function applyMarkerText(li, offset) {
       l.unbindPopup();
       l.unbindTooltip();
       if (s.textAlways) {
-        l.bindTooltip(html, { permanent: true, direction: "top",
+        l.bindTooltip(html, { permanent: true, direction: noIcon ? "center" : "top",
                               className: "compacto", offset });
       } else {
         l.bindPopup(html, { className: "compacto", autoClose: false,
-                            closeOnClick: false, offset });
+                            closeOnClick: false, offset: popupOffset });
       }
     }
     if (l.eachLayer) l.eachLayer(each);

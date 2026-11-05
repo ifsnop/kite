@@ -214,7 +214,10 @@ function geometryKinds(geoms) {
 function kmlStyleXml(kinds, style, mstyle) {
   let x = "";
   if (kinds.point && mstyle && mstyle.color) {
-    const scale = Number.isFinite(mstyle.size) ? `<scale>${+(mstyle.size / 41).toFixed(2)}</scale>` : "";
+    /* «Ninguno» (NO_ICON = "none", 41-selection.js, que carga después): en KML un
+       icono de escala 0 no se dibuja y el nombre sigue a la vista */
+    const scale = mstyle.icon === "none" ? "<scale>0</scale>"
+      : Number.isFinite(mstyle.size) ? `<scale>${+(mstyle.size / 41).toFixed(2)}</scale>` : "";
     x += `<IconStyle><color>${cssToKmlColor(mstyle.color)}</color>${scale}</IconStyle>`;
   }
   if (kinds.line || kinds.poly) {

@@ -49,7 +49,12 @@ async function datos(route, q, id, esQuery) {
       supportedQueryFormats: "JSON, geoJSON, PBF", maxRecordCount: 2, advancedQueryCapabilities: { supportsPagination: id !== 23 },
       fields: [{ name: "OBJECTID", type: "esriFieldTypeOID" }, { name: "NAME_TXT", type: "esriFieldTypeString" }],
       /* La capa 23 es de rótulos: el servidor los dibuja con la regla `$feature.NAME_TXT` */
-      ...(id === 23 ? { drawingInfo: { labelingInfo: [{ labelExpressionInfo: { expression: "$feature.NAME_TXT" } }] } } : {}) });
+      ...(id === 23 ? { drawingInfo: { labelingInfo: [{ labelExpressionInfo: { expression: "$feature.NAME_TXT" } }] } } : {}),
+      /* La 42 es una capa de DATOS (puntos rojos bien visibles) que además trae regla de rotulado,
+         como la «Elementos» de ENAIRE: se pregunta el nombre y esa regla solo viene ya marcada */
+      ...(id === 42 ? { drawingInfo: {
+        renderer: { type: "simple", symbol: { type: "esriSMS", style: "esriSMSCircle", color: [255, 0, 0, 255], outline: { type: "esriSLS", style: "esriSLSSolid", color: [0, 0, 0, 255], width: 1 } } },
+        labelingInfo: [{ labelExpressionInfo: { expression: "$feature.NAME_TXT" } }] } } : {}) });
   }
   if (q.returnCountOnly) return json(route, { count: qmodo === "big" ? 100001 : 5 });
   if (qmodo === "error") return json(route, { error: { code: 400, message: "Consulta rota", details: [] } });
@@ -535,6 +540,30 @@ await traer("FBZ");
 await esperar(() => consultas(0).length >= 3, "las páginas de FBZ otra vez");
 await page.waitForTimeout(400);
 ok(await page.evaluate(() => document.getElementById("geojson-name-picker").hidden), "la segunda vez que se trae la misma capa no se pregunta");
+
+/* ---------- 15c. Una capa de DATOS con regla de rotulado SÍ pregunta el nombre ----------
+   Antes toda capa con `labelingInfo` se nombraba sola con ese campo y sin preguntar (pensado
+   para las `*_texto`, que solo existen para rotular): una capa de datos como «Elementos» de
+   ENAIRE no dejaba elegir los campos. Ahora la regla solo viene ya marcada en el selector.   */
+qmodo = "ok";
+peticiones.length = 0;
+const rotulosAntes = (await rotulos()).length;
+await traer("Hija B");
+await page.waitForFunction(() => !document.getElementById("geojson-name-picker").hidden, null, { timeout: 15000 });
+ok(true, "una capa de datos con regla de rotulado: SÍ aparece el selector del nombre");
+const marcadas = await page.evaluate(() => [...document.querySelectorAll("#gnp-list .gnp-row")]
+  .filter(r => r.querySelector("input").checked).map(r => r.dataset.key));
+ok(marcadas.join() === "NAME_TXT", "con el campo del rotulado del servidor ya marcado (y solo ese): " + marcadas);
+ok(await page.evaluate(() => !document.getElementById("gnp-accept").disabled), "y se puede aceptar tal cual");
+ok(await page.evaluate(() => /Zona 42-1/.test(document.getElementById("gnp-result").textContent)), "con la vista previa del nombre que resulta");
+await page.click("#gnp-accept");
+await esperar(async () => (await nombresArbol()).includes("Zona 42-1"), "los elementos con el nombre sugerido");
+ok((await rotulos()).length === rotulosAntes, "y no se dibujan rótulos permanentes: los elementos son datos, no rótulos");
+/* La segunda vez se usa lo elegido, sin volver a preguntar */
+peticiones.length = 0;
+await traer("Hija B");
+await esperar(() => consultas(42).length >= 3, "las páginas de «Hija B» otra vez");
+ok(await page.evaluate(() => document.getElementById("geojson-name-picker").hidden), "traerla otra vez usa la asociación ya guardada");
 
 ok((await page.evaluate(() => window.__csp)).length === 0, "sin violaciones de CSP: " + JSON.stringify(await page.evaluate(() => window.__csp)));
 ok(errors.filter(e => !/Failed to load resource/.test(e)).length === 0, "sin errores de página: " + JSON.stringify(errors));

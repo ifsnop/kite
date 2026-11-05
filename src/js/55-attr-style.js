@@ -139,7 +139,9 @@ function buildClassing(values, mode, n = ATTRSTYLE_DEFAULT_CLASSES, method = "eq
    icono coloreable; con uno de MDI solo cambia el color.                */
 function attrMarkerStyle(base, color) {
   const b = base || DEFAULT_MARKER_STYLE;
-  return b.icon === LEAFLET_PIN
+  /* La gota y «Ninguno» no se colorean: pasan al icono coloreable (con «Ninguno»
+     no habría nada que ver con la clasificación) */
+  return b.icon === LEAFLET_PIN || b.icon === NO_ICON
     ? { ...b, icon: ATTRSTYLE_POINT_ICON, size: ATTRSTYLE_POINT_SIZE, color }
     : { ...b, color };
 }
@@ -190,7 +192,7 @@ function attrMarkerIcon(s) {
   const key = `${s.icon}|${s.size}|${s.color}`;
   let icon = attrStyleState.iconCache.get(key);
   if (!icon) {
-    icon = buildMarkerIcon(s, s.icon === LEAFLET_PIN ? null : mdiSvg(s.icon)).icon;
+    icon = buildMarkerIcon(s, s.icon === LEAFLET_PIN || s.icon === NO_ICON ? null : mdiSvg(s.icon)).icon;
     attrStyleState.iconCache.set(key, icon);
   }
   return icon;

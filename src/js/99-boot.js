@@ -34,14 +34,6 @@
      puesto y no se guardaron: lo que se abrió es lo que se recuerda.   */
   if (viewLink) scheduleViewSave();
 
-  /* El reparto de columnas de la ficha: si no se restaura, habría que
-     reajustarlo en cada arranque. Antes del árbol porque no depende de
-     él y es una lectura mínima.                                      */
-  try {
-    const frac = await dbLoadProps();
-    if (frac !== null) setPropsSplit(frac);
-  } catch { /* sin reparto guardado se usa el de por defecto */ }
-
   /* Tope de vértices editables interactivamente: depende del hardware
      de quien lo usa (ver VERTEX_EDIT_MAX_DEFAULT, 43-points-editor.js),
      así que sin valor guardado se queda con ese valor de partida.     */

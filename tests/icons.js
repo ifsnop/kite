@@ -19,14 +19,14 @@ const ok = (c, m) => { if (!c) { console.error("FAIL: " + m); process.exitCode =
 /* La tabla acaba en un marcador explícito, no en una línea en blanco:
    05-mdi-icons.js se concatena pegado al archivo siguiente, así que un
    `between(..., "\n\n")` se tragaba medio 10-map.js.                 */
-const src = constDecl("LEAFLET_PIN") + "\n"
+const src = constDecl("LEAFLET_PIN") + "\n" + constDecl("NO_ICON") + "\n"
   + between("const MDI_VIEWBOX", "/* fin de MDI_ICON_BODIES */") + "\n"
   + between("const MDI_ICONS", "\n\n/* Un nombre que la tabla") + "\n"
   + fn("mdiSvg") + "\n" + constDecl("knownIcon");
 const api = new Function("LEAFLET_PIN_URL",
-  src + "\nreturn {MDI_ICONS, MDI_ICON_BODIES, MDI_VIEWBOX, mdiSvg, knownIcon, LEAFLET_PIN};")("pin.png");
+  src + "\nreturn {MDI_ICONS, MDI_ICON_BODIES, MDI_VIEWBOX, mdiSvg, knownIcon, LEAFLET_PIN, NO_ICON};")("pin.png");
 
-const names = api.MDI_ICONS.flatMap(([, ns]) => ns).filter(n => n !== api.LEAFLET_PIN);
+const names = api.MDI_ICONS.flatMap(([, ns]) => ns).filter(n => n !== api.LEAFLET_PIN && n !== api.NO_ICON);
 
 /* ---------- Catálogo y tabla, sincronizados en los dos sentidos ---------- */
 const sinCuerpo = names.filter(n => !api.MDI_ICON_BODIES[n]);
@@ -41,6 +41,8 @@ ok(names.length > 0 && names.length === Object.keys(api.MDI_ICON_BODIES).length,
 /* La gota de Leaflet NO está en la tabla: es un PNG de la distribución
    de Leaflet, no un SVG de MDI, y no es coloreable.                  */
 ok(!api.MDI_ICON_BODIES[api.LEAFLET_PIN], "la gota de Leaflet no es un cuerpo MDI");
+ok(!api.MDI_ICON_BODIES[api.NO_ICON] && api.MDI_ICONS.some(([, ns]) => ns.includes(api.NO_ICON)),
+  "«Ninguno» está en el catálogo que ve el usuario y tampoco es un cuerpo MDI");
 
 /* ---------- Los cuerpos son dibujables ---------- */
 for (const n of names) {
@@ -80,6 +82,7 @@ ok(sized.includes('width="24" height="24"'), "el tamaño va en el propio SVG: " 
 ok(api.mdiSvg("no-existe-este-icono") === null, "un nombre desconocido devuelve null");
 ok(api.knownIcon("airplane") === true, "knownIcon reconoce uno del catálogo");
 ok(api.knownIcon(api.LEAFLET_PIN) === true, "y la gota de Leaflet, que no está en la tabla");
+ok(api.knownIcon(api.NO_ICON) === true, "y «Ninguno», que tampoco");
 ok(api.knownIcon("no-existe-este-icono") === false, "y descarta lo que no conoce");
 
 /* ---------- Ya no se toca la red por un icono ---------- */

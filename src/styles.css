@@ -1378,7 +1378,7 @@
     /* Con ancho fijo, un valor sin espacios desbordaría la celda */
     overflow-wrap: anywhere;
   }
-  .desc-body .props td:first-child { width: var(--props-key, 38%); }
+  .desc-body .props td:first-child { width: var(--props-key, var(--props-key-auto, 38%)); }
   /* El tirador cubre la tabla de arriba abajo (el envoltorio mide lo
      que ella) y se centra sobre la línea divisoria. Ancho generoso para
      poder agarrarlo, pero transparente: lo que se ve es el borde de la
@@ -1387,7 +1387,7 @@
     position: absolute;
     top: 0;
     bottom: 0;
-    left: var(--props-key, 38%);
+    left: var(--props-key, var(--props-key-auto, 38%));
     width: 9px;
     margin-left: -4px;
     cursor: col-resize;

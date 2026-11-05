@@ -5,13 +5,14 @@ const { fn, between, constDecl } = require("./_extract");
 const ok = (c, m) => { if (!c) { console.error("FAIL: " + m); process.exitCode = 1; } };
 
 const LEAFLET_PIN = "leaflet-pin";
+const NO_ICON = "none";
 const DEFAULT_MARKER_STYLE = { icon: LEAFLET_PIN, color: "#1b5e97", size: 41, textSize: 13, textColor: "#2b2b28", textAlways: false };
-const api = new Function("LEAFLET_PIN", "DEFAULT_MARKER_STYLE", [
+const api = new Function("LEAFLET_PIN", "NO_ICON", "DEFAULT_MARKER_STYLE", [
   "ATTRSTYLE_CATEGORICAL", "ATTRSTYLE_RAMP", "ATTRSTYLE_NONE", "ATTRSTYLE_OTHER", "ATTRSTYLE_MAX_CATEGORIES", "ATTRSTYLE_MIN_CLASSES",
   "ATTRSTYLE_MAX_CLASSES", "ATTRSTYLE_DEFAULT_CLASSES", "ATTRSTYLE_POINT_ICON", "ATTRSTYLE_POINT_SIZE", "attrHexRgb", "attrRgbHex", "attrEdgeText"].map(constDecl).join("\n")
   + "\n" + [fn("rampColor"), fn("attrNumber"), between("const quantileAt", "/* Los bordes de los tramos"), fn("breakEdges"), fn("edgeClass"),
     fn("buildClassing"), fn("attrMarkerStyle")].join("\n")
-  + "\nreturn { ATTRSTYLE_CATEGORICAL, ATTRSTYLE_RAMP, ATTRSTYLE_NONE, ATTRSTYLE_OTHER, rampColor, attrNumber, breakEdges, edgeClass, buildClassing, attrMarkerStyle };")(LEAFLET_PIN, DEFAULT_MARKER_STYLE);
+  + "\nreturn { ATTRSTYLE_CATEGORICAL, ATTRSTYLE_RAMP, ATTRSTYLE_NONE, ATTRSTYLE_OTHER, rampColor, attrNumber, breakEdges, edgeClass, buildClassing, attrMarkerStyle };")(LEAFLET_PIN, NO_ICON, DEFAULT_MARKER_STYLE);
 const { ATTRSTYLE_CATEGORICAL, ATTRSTYLE_RAMP, ATTRSTYLE_NONE, ATTRSTYLE_OTHER, rampColor, attrNumber, breakEdges, edgeClass, buildClassing, attrMarkerStyle } = api;
 
 /* ---------- Paletas ---------- */
@@ -94,5 +95,10 @@ ok(attrMarkerStyle(undefined, "#123456").icon === "circle" && attrMarkerStyle(nu
 const base = { ...DEFAULT_MARKER_STYLE };
 attrMarkerStyle(base, "#ff0000");
 ok(base.icon === LEAFLET_PIN && base.color === "#1b5e97", "no muta el estilo de partida (los estilos se sustituyen, nunca se tocan)");
+{ /* «Ninguno» no se colorea: clasificar por atributo lo pasa al icono coloreable, o no habría nada que ver */
+  const sin = { ...DEFAULT_MARKER_STYLE, icon: NO_ICON };
+  const r = attrMarkerStyle(sin, "#ff0000");
+  ok(r.icon !== NO_ICON && r.icon !== LEAFLET_PIN && r.color === "#ff0000" && sin.icon === NO_ICON, "estilo por atributo: un marcador sin icono pasa al icono coloreable sin mutar el original: " + r.icon);
+}
 
 if (!process.exitCode) console.log("ATTR STYLE TESTS OK");
