@@ -135,9 +135,17 @@ function recordsToGeoJson(records) {
 
 /* Texto XML 1.0: escapa y quita los caracteres de control que el formato
    NO admite ni escapados (un solo \u0001 hace ilegible el documento).  */
-const xmlEsc = s => String(s)
-  .replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F￾￿]/g, "")
+const xmlClean = s => String(s)
+  .replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F￾￿]/g, "");
+const xmlEsc = s => xmlClean(s)
   .replace(/[<>&"']/g, c => ({ "<": "&lt;", ">": "&gt;", "&": "&amp;", '"': "&quot;", "'": "&apos;" })[c]);
+
+/* A placemark's HTML card goes in CDATA, as Google Earth writes it: escaping
+   turns every < > " into 4-6 characters, which made a card-heavy file ~55%
+   bigger for the very same content. The only text CDATA cannot hold is the
+   terminator "]]>", so it is split across two sections; a reader joins them
+   back. Control characters are stripped first, as in xmlEsc.             */
+const xmlCdata = s => "<![CDATA[" + xmlClean(s).replace(/\]\]>/g, "]]]]><![CDATA[>") + "]]>";
 
 /* "#rrggbb" (o "#rgb") + opacidad → aabbggrr, el orden de KML. Un color
    que no sea hexadecimal (un nombre CSS de un simplestyle ajeno) cae al
@@ -242,7 +250,7 @@ function kmlPlacemark(rec, feats, ctx) {
   }
   ctx.count++;
   return `<Placemark><name>${xmlEsc(rec.name)}</name>${rec.checked ? "" : "<visibility>0</visibility>"}`
-    + (rec.desc ? `<description>${xmlEsc(rec.desc)}</description>` : "")
+    + (rec.desc ? `<description>${xmlCdata(rec.desc)}</description>` : "")
     + styleRef + kmlExtendedData(feats[0].properties)
     + (parts.length === 1 ? parts[0] : `<MultiGeometry>${parts.join("")}</MultiGeometry>`)
     + "</Placemark>";
