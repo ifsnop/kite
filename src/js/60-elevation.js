@@ -1473,8 +1473,12 @@ function buildElevGridRecord(n) {
   group._profile = n.profile === undefined ? null : validRouteProfile(n.profile);
   elevGridGroups.push(group);
   if (n.checked) group.addTo(rootGroup);
-  return { t: "elevGrid", name: n.name, checked: !!n.checked, cells: n.cells,
-           profile: group._profile, _layer: group };
+  const rec = { t: "elevGrid", name: n.name, checked: !!n.checked, cells: n.cells,
+                profile: group._profile, _layer: group };
+  /* Mientras la fila no exista, quien cambie el perfil (las torres, los
+     obstáculos: 63-route-profile.js) lo escribe aquí; con fila, en la fila */
+  group._rec = rec;
+  return rec;
 }
 
 /* Reconstruye una ortofoto guardada (usado al restaurar el árbol), como

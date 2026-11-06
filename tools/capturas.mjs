@@ -772,6 +772,69 @@ scenario("perfil-ruta.png", "7.9", async out => {
   await ctx.close();
 });
 
+/* Dos polígonos de un KML sobre la ruta de 40 km: una antena en altitud sobre el nivel del mar que
+   sobrepasa la línea inicio–fin y una torre en altura sobre el terreno que sigue el relieve */
+const kmlObstaculo = (name, { lat, lng }, half, alt, mode) => {
+  const dLat = half / 111320, dLng = half / (111320 * Math.cos(lat * Math.PI / 180));
+  const c = [[lng - dLng, lat - dLat], [lng + dLng, lat - dLat], [lng + dLng, lat + dLat], [lng - dLng, lat + dLat], [lng - dLng, lat - dLat]];
+  return `<Placemark><name>${name}</name><Polygon><altitudeMode>${mode}</altitudeMode><outerBoundaryIs><LinearRing><coordinates>`
+    + c.map(([x, y]) => `${x.toFixed(6)},${y.toFixed(6)},${alt}`).join(" ") + `</coordinates></LinearRing></outerBoundaryIs></Polygon></Placemark>`;
+};
+
+scenario("perfil-obstaculos.png", "7.9", async out => {
+  const fake = ignFakes();
+  const X0 = 6378137 * (-4.0 * Math.PI / 180);
+  fake.terrain = (x, mds) => {
+    const d = (x - X0) * 0.7625, T = 2 * Math.PI;
+    return 620 + 170 * Math.sin(T * d / 5200 + 0.6) + 110 * Math.sin(T * d / 2100 + 1.1) + 60 * Math.sin(T * d / 9500)
+      + (mds ? 6 + 8 * Math.abs(Math.sin(d / 410)) : 0);
+  };
+  const { ctx, page } = await openApp({ route: ignRoute(fake) });
+  const kml = `<?xml version="1.0" encoding="UTF-8"?><kml xmlns="http://www.opengis.net/kml/2.2"><Document><name>Obstáculos de ejemplo</name>`
+    + kmlObstaculo("Antena del Cerro", RUTA40[2], 160, 1100, "absolute")
+    + kmlObstaculo("Torre de la vaguada", (([lat, lng]) => ({ lat, lng }))(dest([RUTA40[3].lat, RUTA40[3].lng], 88, 2000)), 500, 60, "relativeToGround")
+    + `</Document></kml>`;
+  await page.evaluate(async ({ wps, kml }) => {
+    setMeasureUnit("km"); setAltitudeUnit("m");
+    profileMaxM = 100 * 1852;
+    const m = buildRouteMeasurement(wps);
+    finalizeRouteMeasurement(m);
+    map.fitBounds(m.group.getBounds(), { animate: false, padding: [60, 60] });
+    await handleDroppedFiles([new File([kml], "obstaculos.kml")]);
+  }, { wps: RUTA40, kml });
+  await settle(page);
+  await page.evaluate(() => {
+    const li = [...document.querySelectorAll("#tree li")].find(x => x._measure && x._measure.type === "route");
+    demTimes.length = 0;
+    openStyleDialog(li);
+    document.getElementById("ms-profile").click();
+    document.getElementById("style-cancel").click();
+  });
+  await page.waitForFunction(() => document.getElementById("profile-close").title === "Cerrar" && !profileChart.hidden,
+    null, { timeout: 120000 });
+  await page.evaluate(() => {
+    const box = document.querySelector("#profile-dialog .dlg-box");
+    box.style.width = "980px"; box.style.height = "620px";
+    const set = (id, v) => { const e = document.getElementById(id); e.value = v; e.dispatchEvent(new Event("change", { bubbles: true })); e.dispatchEvent(new Event("input", { bubbles: true })); };
+    document.getElementById("pf-los").click();
+    set("pf-tower-a", "25");
+    set("pf-tower-b", "40");
+    const b = document.getElementById("pf-tower-b-at"); set("pf-tower-b-at", b.options[b.options.length - 1].value);
+  });
+  await page.waitForTimeout(600);
+  /* El cursor sobre la antena: la lectura da su techo y el despeje */
+  const at = await page.evaluate(() => {
+    const o = profileData.obstacles.find(x => x.name === "Antena del Cerro");
+    const sp = o.spans[0], d = (sp[0][0] + sp[sp.length - 1][0]) / 2;
+    const r = document.querySelector("#profile-chart svg").getBoundingClientRect();
+    return { x: r.x + profileLayout.xOf(d), y: r.y + 180 };
+  });
+  await page.mouse.move(at.x, at.y, { steps: 4 });
+  await page.waitForTimeout(400);
+  await dialog(page, out, "profile-dialog");
+  await ctx.close();
+});
+
 scenario("menu-ruta-perfil.png", "7.9", async out => {
   const fake = ignFakes();
   const { ctx, page } = await openApp({ route: ignRoute(fake) });

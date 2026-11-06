@@ -362,6 +362,13 @@ async function addFileNode(name, kind, content, insertBefore = null, dropTargetU
       if (styleIndex.externalRefs) {
         report.note(tr("{externalRefs} estilo(s) en archivos externos, no aplicados", { externalRefs: styleIndex.externalRefs }));
       }
+      /* UN aviso por archivo, no uno por polígono: un KML puede traer miles */
+      if (report.seaFloor) {
+        report.note(trn(report.seaFloor,
+          "{n} pol\u00EDgono con altitud sobre el fondo marino: no servir\u00E1 como obst\u00E1culo en un perfil",
+          "{n} pol\u00EDgonos con altitud sobre el fondo marino: no servir\u00E1n como obst\u00E1culo en un perfil",
+          { n: report.seaFloor }));
+      }
       /* El DOM (más de 1 GB en un KML de 300 MB) ya no hace falta: se suelta
          antes de materializar y de guardar, que es cuando la memoria aprieta */
       xml = null;

@@ -34,6 +34,14 @@ const corpus = [
   ["cierre a menos de 1e-9 (se descarta y se vuelve a cerrar)", `<Polygon><outerBoundaryIs><LinearRing><coordinates>10,10 11,10 11,11 10.0000000005,10.0000000005</coordinates></LinearRing></outerBoundaryIs></Polygon>`],
   ["cierre a 1e-8 (no se descarta)", `<Polygon><outerBoundaryIs><LinearRing><coordinates>10,10 11,10 11,11 10.00000001,10.00000001</coordinates></LinearRing></outerBoundaryIs></Polygon>`],
   ["cierre igual en lat/lon pero distinta altitud", `<Polygon><outerBoundaryIs><LinearRing><coordinates>10,10,5 11,10,6 11,11,7 10,10,9</coordinates></LinearRing></outerBoundaryIs></Polygon>`],
+  /* El modo de altitud (kiteAlt) va en el Feature de cada polígono, también con el modo en solo uno de varios */
+  ["modo absolute", `<Polygon><altitudeMode>absolute</altitudeMode><outerBoundaryIs><LinearRing><coordinates>-3.5,40.1,700 -3.4,40.1,710 -3.4,40.2,720 -3.5,40.1,700</coordinates></LinearRing></outerBoundaryIs></Polygon>`],
+  ["modo relativeToGround con agujero", `<Polygon><altitudeMode>relativeToGround</altitudeMode><outerBoundaryIs><LinearRing><coordinates>0,0,30 4,0,30 4,4,30 0,4,30 0,0,30</coordinates></LinearRing></outerBoundaryIs><innerBoundaryIs><LinearRing><coordinates>1,1,30 2,1,30 2,2,30 1,2,30 1,1,30</coordinates></LinearRing></innerBoundaryIs></Polygon>`],
+  ["modo solo en uno de dos polígonos y una línea", `<MultiGeometry>
+    <Polygon><outerBoundaryIs><LinearRing><coordinates>0,0,5 1,0,5 1,1,5 0,0,5</coordinates></LinearRing></outerBoundaryIs></Polygon>
+    <LineString><coordinates>5,5 6,6</coordinates></LineString>
+    <Polygon><altitudeMode>clampToGround</altitudeMode><outerBoundaryIs><LinearRing><coordinates>2,2,5 3,2,5 3,3,5 2,2,5</coordinates></LinearRing></outerBoundaryIs></Polygon></MultiGeometry>`],
+  ["modo desconocido: sin marca", `<Polygon><altitudeMode>volando</altitudeMode><outerBoundaryIs><LinearRing><coordinates>0,0,5 1,0,5 1,1,5 0,0,5</coordinates></LinearRing></outerBoundaryIs></Polygon>`],
   ["línea", `<LineString><coordinates>-3.7,40.4 -3.6,40.5,10 -3.55,40.55</coordinates></LineString>`],
   ["multigeometría polígonos + línea", `<MultiGeometry>
     <Polygon><outerBoundaryIs><LinearRing><coordinates>0,0 1,0 1,1 0,0</coordinates></LinearRing></outerBoundaryIs></Polygon>
@@ -68,6 +76,10 @@ for (const r of eq) {
   ok(r.same, `GeoJSON directo = toGeoJSON() de Leaflet — ${r.label}\n  Leaflet: ${r.ja}\n  directo: ${r.jb}`);
   ok(r.reported && r.warns, `mismo aviso y mismo «reported» — ${r.label}`);
 }
+ok(eq.filter(r => r.ja && r.ja.includes('"kiteAlt":"abs"')).length === 2 && eq.filter(r => r.ja && r.ja.includes('"kiteAlt":"agl"')).length === 2
+  && eq.filter(r => r.ja && r.ja.includes('"kiteAlt":"ground"')).length === 2 && eq.filter(r => r.ja && r.ja.includes("volando")).length === 0
+  && eq.filter(r => r.ja && r.ja.includes("kiteAlt")).length === 6,
+  "el modo de altitud llega a los dos caminos (y un valor desconocido, ni rastro): " + eq.filter(r => r.ja && r.ja.includes("kiteAlt")).length);
 ok(eq.length === corpus.length * 2 && eq.filter(r => r.ja !== null).length >= 20, "el corpus produce geometría de verdad (no todo null): " + eq.filter(r => r.ja !== null).length);
 
 /* ---------- 2. Importar un KML con una carpeta apagada ---------- */

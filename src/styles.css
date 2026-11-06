@@ -36,6 +36,12 @@
     --pf-mds: light-dark(#2e7d32, #45a84b);
     --pf-fresnel: light-dark(#7b1fa2, #a86fe0);
     --pf-earth: light-dark(#8d6e63, #b09a90);
+    /* Obstáculos (polígonos con altitud): naranja. Validado con validate_palette.js del skill dataviz:
+       dentro de la banda de luminosidad y contraste ≥ 3:1 sobre blanco (claro) y sobre --panel (oscuro).
+       Honesto: un naranja y el verde del MDS se confunden con protanopia (ΔE 2,6), como cualquier tono
+       cálido junto a un verde. Lo salva la FORMA, no el color: el obstáculo es un bloque relleno con
+       contorno y el MDS una línea, y cada uno lleva su entrada rotulada en la leyenda. */
+    --pf-obstacle: light-dark(#c25e00, #d9731a);
     --pf-outside: light-dark(rgba(0,0,0,.05), rgba(0,0,0,.26)); /* velo de lo que queda fuera del enlace: apaga en los dos temas */
     --nav-width: 400px;
   }
@@ -839,18 +845,20 @@
                   margin: 4px 0 0; font-size: 13px; }
   #profile-foot .pf-hint { flex: 1 1 8rem; min-width: 0; text-align: right; white-space: nowrap;
                            overflow: hidden; text-overflow: ellipsis; color: var(--muted); font-size: 11px; }
-  /* Rectángulo de lectura: 2 columnas × 4 filas SIEMPRE (guiones en reposo,
+  /* Rectángulo de lectura: 2 columnas × 5 filas SIEMPRE (guiones en reposo,
      filas apagadas atenuadas pero presentes), así su caja no cambia al
      mover el ratón y la gráfica no salta. El valor manda (negrita, cifras
      tabulares); la etiqueta es secundaria; cada línea lleva su clave de
      trazo del color de su curva, y el texto sigue en tinta de texto.   */
-  #profile-info { flex: 0 0 26rem; max-width: 100%; box-sizing: border-box;
-                  display: grid; grid-template-columns: 1fr 1fr; grid-template-rows: repeat(4, auto);
+  #profile-info { flex: 0 0 31rem; max-width: 100%; box-sizing: border-box;
+                  display: grid; grid-template-columns: 1fr 1fr; grid-template-rows: repeat(5, auto);
                   grid-auto-flow: column; gap: 0 18px; padding: 5px 10px;
                   border: 1px solid var(--border); border-radius: 4px; background: var(--panel); }
   .pf-info-row { display: flex; align-items: center; gap: 6px; min-width: 0; height: 20px; font-size: 12px; }
   .pf-info-row.off { opacity: .45; }
-  .pf-info-label { color: var(--muted); white-space: nowrap; }
+  /* Las etiquetas que nombran su referencia («Margen Fresnel (Obstáculo)») pueden ser largas: se cortan, y el texto entero va en el title */
+  .pf-info-label { color: var(--muted); white-space: nowrap; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+  .pf-info-val { flex: none; }
   .pf-info-val { margin-left: auto; white-space: nowrap; font-variant-numeric: tabular-nums; color: var(--text); font-weight: 600; }
   .pf-info-val.alert { color: var(--alert); }
   .pf-key { flex: 0 0 14px; height: 0; border-top: 3px solid transparent; }
@@ -859,6 +867,11 @@
   .pf-key.earth { border-top-color: var(--pf-earth); }
   .pf-key.los { border-top-color: var(--ink-strong); }
   .pf-key.fresnel { border-top: 2px dashed var(--pf-fresnel); }
+  .pf-key.obstacle { border-top-color: var(--pf-obstacle); }
+  /* El nombre de un obstáculo puede ser largo: se corta, y el texto entero va en el title */
+  .pf-info-row[data-k="obs"] .pf-info-val { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+  #profile-obstructions { margin: 4px 0 0; }
+  #profile-obstructions.alert { color: var(--alert); font-weight: 600; }
   #profile-chart.dragging { cursor: grabbing; }
   #profile-chart svg { display: block; width: 100%; height: 100%; font: 11px system-ui, sans-serif; }
   #profile-chart .pf-axis { stroke: var(--muted); stroke-width: 1; }
@@ -894,8 +907,16 @@
   #profile-chart .pf-tower-label { fill: var(--text); font-weight: 600; paint-order: stroke;
                                    stroke: var(--panel); stroke-width: 3px; stroke-linejoin: round; }
   #profile-chart .pf-fresnel { fill: none; stroke: var(--pf-fresnel); stroke-width: 1; stroke-dasharray: 4 3; }
+  /* Obstáculos: bloque del terreno al techo; en rojo, donde la recta pasa por
+     debajo. La tinta del contorno es la del token, no la de las curvas. */
+  #profile-chart .pf-obstacle { fill: var(--pf-obstacle); fill-opacity: 0.32; stroke: var(--pf-obstacle); stroke-width: 1.5; stroke-linejoin: round; }
+  #profile-chart .pf-obstacle-hit { fill: var(--alert); fill-opacity: 0.45; stroke: var(--alert); }
+  #profile-chart .pf-legend.obstacle { stroke: var(--pf-obstacle); }
   #profile-chart .pf-fresnel60 { fill: var(--pf-fresnel); fill-opacity: 0.12; stroke: var(--pf-fresnel); stroke-width: 1; }
-  #profile-chart .pf-legend.fresnel { stroke: var(--pf-fresnel); }
+  /* La leyenda de Fresnel imita lo que nombra: raya discontinua = el contorno
+     de la primera zona (100 %); cuadrito relleno = la zona del 60 %.         */
+  #profile-chart .pf-legend.fresnel { stroke: var(--pf-fresnel); stroke-width: 1.5; stroke-dasharray: 4 3; }
+  #profile-chart .pf-legend-swatch.pf-fresnel60 { fill-opacity: 0.25; }
   /* Puntos de lectura sobre cada curva bajo el cursor (≥ 8 px, anillo de
      superficie de 2 px); la lectura sigue en el rectángulo de arriba */
   #profile-chart .pf-dot { stroke: var(--panel); stroke-width: 2; }
@@ -1500,6 +1521,10 @@
     border: 1px solid var(--border); border-radius: 4px; padding: 6px; box-sizing: border-box;
   }
   #points-text.bad { border-color: var(--danger); }
+  /* «Modo de altitud»: el desplegable lleva textos largos («Sobre el fondo marino
+     (no admitido en perfiles)»); el tope de 190px de .dlg-row los cortaba.     */
+  #points-altmode-row > label { flex: 0 0 auto; }
+  #points-altmode-row > select { flex: 1 1 auto; min-width: 0; max-width: none; }
   .sh-field, .url-field { display: block; margin-top: 10px; font-size: 13px; }
   .sh-field input, .url-field input, .url-field textarea {
     display: block; width: 100%; margin-top: 4px; font: inherit; padding: 4px 6px;

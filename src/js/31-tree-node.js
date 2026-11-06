@@ -697,6 +697,7 @@ function makeImportReport(fileName) {
     causes: new Map(),
     kinds: new Set(),
     notes: [],
+    seaFloor: 0, /* polígonos KML con altitud sobre el fondo marino (aviso único) */
     /* Una entidad que no ha entrado */
     warn(why) {
       this.skipped++;

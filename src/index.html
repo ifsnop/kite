@@ -620,7 +620,7 @@
     <!-- Cabecera de la gráfica (63-route-profile.js). A la izquierda, lo que
          cambia la recta inicio–fin: la propia línea, el elipsoide de Fresnel
          y las alturas de torre. A la derecha, el rectángulo de lectura del
-         cursor: tamaño FIJO (cuadrícula de 2 × 4, con guiones en reposo), para
+         cursor: tamaño FIJO (cuadrícula de 2 × 5, con guiones en reposo), para
          que ni la gráfica ni nada salte al mover el ratón. Zoom con el ratón:
          rueda = distancia; Mayús+rueda o rueda sobre el eje de alturas =
          altura; arrastrar = desplazar. La frecuencia de Fresnel está en
@@ -632,6 +632,16 @@
             <input type="checkbox" id="pf-los"> Línea inicio–fin</label>
           <label class="pf-check" title="Primera zona de Fresnel alrededor de la línea inicio–fin, entre las dos torres (contorno discontinuo) y, rellena, su zona del 60 %, que debe quedar libre de obstáculos. La frecuencia se elige en Propiedades → Frecuencias">
             <input type="checkbox" id="pf-fresnel"> Elipsoide de Fresnel (60 %)</label>
+          <label class="pf-check" title="Polígonos con altitud (KML o GeoJSON) que cruzan la ruta, como bloques desde el terreno hasta su techo. En rojo, donde la línea inicio–fin pasa por debajo del techo. Son los polígonos visibles cuando se obtuvo el perfil; «Actualizar obstáculos» los vuelve a recoger">
+            <input type="checkbox" id="pf-obstacles"> Obstáculos</label>
+        </div>
+        <div class="pf-row">
+          <label class="pf-field" title="Contra qué se miden las filas «Despeje» y «Margen Fresnel» de la lectura: el terreno (MDT), la superficie (MDS) o el techo del obstáculo que haya bajo el cursor. El radio de Fresnel y la línea inicio–fin no cambian: la línea nace del suelo de cada torre (el MDS, o el MDT si no hay MDS)">
+            Despeje y Fresnel respecto a <select id="pf-ref">
+              <option value="mdt">MDT (terreno)</option>
+              <option value="mds">MDS (superficie)</option>
+              <option value="obs">Obstáculos (techo)</option>
+            </select></label>
         </div>
         <div class="pf-row towers">
           <label class="pf-field" title="Altura de la torre de inicio, SOBRE EL TERRENO: sube ese extremo de la línea inicio–fin">
@@ -654,12 +664,17 @@
         <div class="pf-info-row" data-k="mdt"><i class="pf-key mdt"></i><span class="pf-info-label">MDT</span><b class="pf-info-val">—</b></div>
         <div class="pf-info-row" data-k="mds"><i class="pf-key mds"></i><span class="pf-info-label">MDS</span><b class="pf-info-val">—</b></div>
         <div class="pf-info-row" data-k="diff"><i class="pf-key"></i><span class="pf-info-label">MDS−MDT</span><b class="pf-info-val">—</b></div>
+        <div class="pf-info-row" data-k="obs"><i class="pf-key obstacle"></i><span class="pf-info-label">Obstáculo</span><b class="pf-info-val">—</b></div>
         <div class="pf-info-row" data-k="bulge"><i class="pf-key earth"></i><span class="pf-info-label">Curvatura</span><b class="pf-info-val">—</b></div>
         <div class="pf-info-row" data-k="clear"><i class="pf-key los"></i><span class="pf-info-label">Despeje</span><b class="pf-info-val">—</b></div>
         <div class="pf-info-row" data-k="fres"><i class="pf-key fresnel"></i><span class="pf-info-label">Fresnel 60 %</span><b class="pf-info-val">—</b></div>
         <div class="pf-info-row" data-k="margin"><i class="pf-key fresnel"></i><span class="pf-info-label">Margen</span><b class="pf-info-val">—</b></div>
+        <div class="pf-info-row" data-k="oclear"><i class="pf-key obstacle"></i><span class="pf-info-label">Despeje obstáculo</span><b class="pf-info-val">—</b></div>
       </div>
     </div>
+    <!-- Lo que responde a «¿hay algo en medio?»: qué obstáculos tapan la
+         línea inicio–fin y con cuánto (la escribe cada redibujado) -->
+    <p class="dlg-hint" id="profile-obstructions" role="status" hidden></p>
     <div id="profile-chart" aria-live="polite"></div>
     <!-- Pie: lo que cambia la vista de la gráfica entera (eje Y, curvatura) y
          la vuelta a la ruta entera, con la pista de los gestos. -->
@@ -673,6 +688,7 @@
           <option value="flat">Tierra plana, rayo curvo</option>
           <option value="origin">Desde el inicio</option>
         </select></label>
+      <button class="btn" id="pf-obstacles-refresh" title="Vuelve a recoger los polígonos con altitud que están visibles ahora (sin descargar nada) y los guarda con el perfil">Actualizar obstáculos</button>
       <button class="btn" id="pf-reset" title="Ruta entera y altura automática">Ver todo</button>
       <button class="btn" id="pf-png" title="Guardar la gráfica, tal como se ve, como imagen PNG">PNG</button>
       <button class="btn" id="pf-csv" title="Guardar los datos de la ruta entera como CSV: distancia, latitud, longitud y la altura de cada serie">CSV</button>
@@ -690,6 +706,13 @@
       separadas por tabulador. Se puede copiar y pegar directamente en una hoja de c&#225;lculo.
       Al pegar tambi&#233;n se admiten comas o espacios como separador.</p>
     <p class="dlg-hint" id="points-rings" hidden></p>
+    <div class="dlg-row" id="points-altmode-row" hidden><label for="points-altmode">Modo de altitud</label><select id="points-altmode">
+      <option value="abs">Sobre el nivel del mar (AMSL)</option>
+      <option value="agl">Sobre el terreno (AGL)</option>
+      <option value="ground">Pegado al suelo</option>
+      <option value="sea">Sobre el fondo marino (no admitido en perfiles)</option>
+    </select></div>
+    <p class="dlg-hint" id="points-altmode-note" hidden></p>
     <textarea id="points-text" spellcheck="false" wrap="off"
               aria-label="Lista de puntos de la capa"></textarea>
     <p class="dlg-hint" id="points-count"></p>

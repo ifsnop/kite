@@ -762,7 +762,8 @@ const fr1 = await page.evaluate(() => {
   return { has60: !!el, hasFull: !!full, legend: [...profileChart.querySelectorAll(".pf-legend-label")].map(t => t.textContent).join("|"),
            ratio: h(p60) / h(pf), want: 0.6, px: h(pf) / 2, wantPx: r / (lay.ym.b - lay.ym.a) * lay.ph, fill: getComputedStyle(el).fillOpacity };
 });
-ok(fr1.has60 && fr1.hasFull && /Fresnel 1090 MHz \(zona 60 %\)/.test(fr1.legend), "el elipsoide y su leyenda: " + JSON.stringify(fr1));
+ok(fr1.has60 && fr1.hasFull && /Fresnel 100 %\|60 % · 1090 MHz/.test(fr1.legend),
+  "el elipsoide y su leyenda, con una entrada por zona: " + JSON.stringify(fr1));
 ok(Math.abs(fr1.ratio - 0.6) < 0.03, "la zona rellena mide el 60 % del contorno: " + fr1.ratio);
 ok(Math.abs(fr1.px - fr1.wantPx) < 0.6, "el radio central es el de Fresnel (sqrt(λ·d·(L−d)/L)): " + JSON.stringify([fr1.px, fr1.wantPx]));
 /* La frecuencia ya no está en la ventana: es de Propiedades → Frecuencias (persistente, con Cancelar/Aceptar) */
@@ -875,7 +876,7 @@ const curveState = async mode => {
              legend: [...profileChart.querySelectorAll(".pf-legend-label")].map(t => t.textContent).join("|"),
              straight: (() => { const p = profileChart.querySelector("polyline.pf-los").getAttribute("points").trim().split(/\s+/).map(t => t.split(",").map(Number));
                const a = p[0], b = p[p.length - 1], q = p[Math.floor(p.length / 2)];
-               return Math.abs(q[1] - (a[1] + (b[1] - a[1]) * (q[0] - a[0]) / (b[0] - a[0]))) < 0.05; })(),
+               return Math.abs(q[1] - (a[1] + (b[1] - a[1]) * (q[0] - a[0]) / (b[0] - a[0]))) < 0.11; })(), /* las coordenadas del SVG van a 0,1 px: tres redondeos suman hasta 0,1 */
              total: lay.total, y: e.y1 };
   });
 };

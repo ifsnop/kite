@@ -67,6 +67,18 @@ Medido con un KML real de 309 MB (62 673 placemarks, 9,66 M de vértices, todos 
 - **Encender de golpe una carpeta de decenas de miles de capas las construye todas** (9,66 M de `LatLng`, ~1,1 GB): es lo que se pide, pero con un heap pequeño es el camino que sigue pudiendo ahogar la pestaña.
 - **Desplegar una carpeta construye las capas de sus filas** (`materializeRecords` → `makeNode`), no solo la fila.
 
+### 1.11 Obstáculos del perfil: lo que no se hace
+
+Los polígonos con altitud como obstáculos de un perfil (apartado 7.9 del manual) tienen límites que se dejaron a propósito:
+
+- **No se lee `<extrude>`**: todo obstáculo es un bloque del terreno al techo, y un polígono en AMSL «flotante» (a 300 m de altitud sobre un valle) se dibuja igual, aunque en la realidad deje pasar por debajo.
+- **AGL con el terreno del cruce, no el de los vértices**: la altura relativa al terreno se suma al terreno de la propia ruta en cada punto del tramo (el que el perfil ya descargó), no al de los vértices del polígono, que pueden estar lejos de la ruta y habría que pedir aparte. En un polígono muy grande sobre un terreno muy distinto en cada extremo, el techo sigue el relieve de la ruta y no el del polígono.
+- **Los dos modos del fondo marino** (`relativeToSeaFloor`, `clampToSeaFloor`) se guardan como uno solo y salen como `relativeToSeaFloor` en un KML exportado.
+- **Un placemark con varios polígonos** (`MultiGeometry`) conserva el modo de cada uno al importar y el perfil los usa, pero el selector «Modo de altitud» de la lista de puntos solo vale para una capa con UN polígono (como el resto de esa ventana).
+- **Las alturas de un polígono dibujado a mano son 0** (la lista de puntos escribe 0 donde no hay altitud y, al aceptar, deja ese 0 en la capa), así que ese polígono no puede ser un obstáculo hasta que se le escriban altitudes.
+- **Un obstáculo es una fotografía** del momento de obtener el perfil (o de «Actualizar obstáculos»): si después se edita el polígono, el perfil guardado no cambia.
+
+
 ---
 
 ## 2. Hecho a medias

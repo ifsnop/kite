@@ -77,6 +77,37 @@ function parseCoords(str) {
   return out;
 }
 
+/* ---------- Modo de altitud de un polígono ----------
+   La Z de un vértice KML no significa nada sin su <altitudeMode>:
+   `absolute` es altitud sobre el nivel del mar (AMSL), `relativeToGround`
+   altura sobre el terreno (AGL), `clampToGround` lo pega al suelo (la Z
+   no cuenta) y los dos del fondo marino no sirven para un perfil de
+   terreno. Se guarda en el Feature de cada polígono como miembro propio
+   `kiteAlt` (no en `properties`: no es un atributo del usuario), con
+   estos valores internos. Un polígono SIN modo (un GeoJSON, o un KML sin
+   la etiqueta) tiene la Z como AMSL, decisión del usuario: `altMode()` es
+   el único sitio que lo traduce.                                         */
+const ALT_MODES = ["abs", "agl", "ground", "sea"];
+const KML_ALT_MODE = new Map([
+  ["absolute", "abs"], ["relativeToGround", "agl"], ["clampToGround", "ground"],
+  ["relativeToSeaFloor", "sea"], ["clampToSeaFloor", "sea"]
+]);
+
+/* Solo los hijos DIRECTOS del <Polygon> (con o sin prefijo gx:, que manda
+   si están los dos): un <LookAt> del mismo placemark trae su propio
+   altitudeMode y no es de la geometría. null = sin modo.               */
+function kmlAltitudeMode(geomEl) {
+  const els = childrenByTag(geomEl, "altitudeMode");
+  const last = els[els.length - 1];
+  return last ? KML_ALT_MODE.get(last.textContent.trim()) || null : null;
+}
+
+/* El modo efectivo de un Feature (o de lo que cuelgue de él): uno de
+   ALT_MODES, o null si no trae ninguno válido. Lo guardado y lo importado
+   son entrada ajena, así que lo que no sea uno de los cuatro es «sin
+   modo» y no se propaga.                                                */
+const featureAltMode = f => (f && ALT_MODES.includes(f.kiteAlt) ? f.kiteAlt : null);
+
 /* Un <Polygon> KML → anillos Leaflet [exterior, agujero1, …] */
 function parsePolygon(polyEl) {
   const outerEl = firstByTag(childrenByTag(polyEl, "outerBoundaryIs")[0], "coordinates");
@@ -144,6 +175,10 @@ function placemarkGeomEls(pm) {
    con un único <Point> roto contaba como 2 omitidos, no 1).           */
 function collectPlacemarkParts(els, style, report, mk) {
   const parts = [];
+  /* `modes[i]` es el modo de altitud de `parts[i]` (null: línea, punto, o
+     polígono sin modo); va aparte porque cada constructor (capa Leaflet,
+     GeoJSON) guarda `kiteAlt` en su propio sitio.                      */
+  const modes = [];
   /* Fold the polygon-only outline flag into the real `stroke` used to
      render, but only when this placemark actually has a Polygon —
      otherwise it's dropped instead of silently hiding a LineString.   */
@@ -157,15 +192,20 @@ function collectPlacemarkParts(els, style, report, mk) {
   for (const polyEl of els.polygonEls) {
     try {
       const rings = parsePolygon(polyEl);
-      if (rings) parts.push(mk.poly(rings));
-      else fail(tr("polígono sin anillo exterior válido"));
+      if (rings) {
+        parts.push(mk.poly(rings));
+        const mode = kmlAltitudeMode(polyEl);
+        modes.push(mode);
+        /* Para el aviso único por archivo (ver addFileNode) */
+        if (mode === "sea" && report) report.seaFloor = (report.seaFloor || 0) + 1;
+      } else fail(tr("polígono sin anillo exterior válido"));
     } catch (err) { fail(tr("polígono ilegible ({message})", { message: err.message })); }
   }
   for (const lineEl of els.lineEls) {
     try {
       const el = firstByTag(lineEl, "coordinates");
       const pts = el ? parseCoords(el.textContent) : [];
-      if (pts.length >= 2) parts.push(mk.line(pts));
+      if (pts.length >= 2) { parts.push(mk.line(pts)); modes.push(null); }
       else fail(tr("línea con menos de dos puntos válidos"));
     } catch (err) { fail(tr("línea ilegible ({message})", { message: err.message })); }
   }
@@ -173,17 +213,17 @@ function collectPlacemarkParts(els, style, report, mk) {
     try {
       const el = firstByTag(ptEl, "coordinates");
       const pts = el ? parseCoords(el.textContent) : [];
-      if (pts.length) parts.push(mk.point(pts[0]));
+      if (pts.length) { parts.push(mk.point(pts[0])); modes.push(null); }
       else fail(tr("punto sin coordenadas válidas"));
     } catch (err) { fail(tr("punto ilegible ({message})", { message: err.message })); }
   }
-  return { parts, reported };
+  return { parts, modes, reported };
 }
 
 /* Crea las capas Leaflet de un placemark (polígonos, líneas y puntos).
    Devuelve { group, reported } (ver collectPlacemarkParts).           */
 function buildPlacemarkLayer(pm, style, report, els = placemarkGeomEls(pm)) {
-  const { parts: layers, reported } = collectPlacemarkParts(els, style, report, {
+  const { parts: layers, modes, reported } = collectPlacemarkParts(els, style, report, {
     poly: rings => L.polygon(rings, style),
     line: pts => L.polyline(pts, style),
     point: pt => L.marker(pt)
@@ -195,7 +235,11 @@ function buildPlacemarkLayer(pm, style, report, els = placemarkGeomEls(pm)) {
      `geometry` a propósito: 43-points-editor.js la lee de `poly.feature`
      para los polígonos de GeoJSON, y un KML no tiene geometría en crudo. */
   const data = parseExtendedData(pm);
-  if (data) for (const l of layers) l.feature = { type: "Feature", properties: data };
+  layers.forEach((l, i) => {
+    if (!data && !modes[i]) return;
+    l.feature = { type: "Feature", properties: data || {} };
+    if (modes[i]) l.feature.kiteAlt = modes[i];
+  });
 
   const group = L.featureGroup(layers);
   const name = text(pm, "name");
@@ -237,7 +281,7 @@ function geoRing(ring) {
    (quien llama lo comprueba con `els.pointEls`): un marcador necesita
    su icono, que es de Leaflet.                                         */
 function buildPlacemarkGeo(pm, style, report, els) {
-  const { parts, reported } = collectPlacemarkParts(els, style, report, {
+  const { parts, modes, reported } = collectPlacemarkParts(els, style, report, {
     poly: rings => ({ type: "Polygon", coordinates: rings.map(geoRing) }),
     line: pts => ({ type: "LineString", coordinates: pts.map(geoPos) }),
     point: () => null
@@ -248,7 +292,11 @@ function buildPlacemarkGeo(pm, style, report, els) {
   const data = parseExtendedData(pm);
   return {
     geo: { type: "FeatureCollection",
-           features: parts.map(geometry => ({ type: "Feature", properties: data || {}, geometry })) },
+           /* Mismo orden de claves que `toGeoJSON()` de Leaflet con un `feature`
+              propio: type, properties, kiteAlt, geometry */
+           features: parts.map((geometry, i) => modes[i]
+             ? { type: "Feature", properties: data || {}, kiteAlt: modes[i], geometry }
+             : { type: "Feature", properties: data || {}, geometry }) },
     reported
   };
 }
