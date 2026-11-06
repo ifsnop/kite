@@ -654,7 +654,7 @@ function showLayerInfo(li, { focus = true } = {}) {
      drawing a polygon: the floating panel could sit exactly where the
      user needs to click to fix a vertex inside another polygon, and
      the hover would block it.                                        */
-  if (!focus && (layerInfoDismissed || !styleDialog.hidden || activeTool === "polygon")) return;
+  if (!focus && (layerInfoDismissed || !styleDialog.hidden || clickPicksPoint())) return;
   if (focus) layerInfoDismissed = false; /* explicit open: re-arms the hover */
   const html = infoHtmlFor(li);
   if (html == null) return;

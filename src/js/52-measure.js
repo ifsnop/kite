@@ -2,7 +2,16 @@
 
 const MEASURE_COLORS = { circle: "#7c3aed", route: "#0ea5e9" };
 let measureLi = null;
-let activeTool = null; /* null | "circle" | "arc" | "polygon" | "route" */
+let activeTool = null; /* null | "circle" | "arc" | "polygon" | "route" | "pin" | "rings" | "sector" */
+/* Herramientas de UN CLIC: esperan un clic en el mapa que fija el centro (el
+   pin, los anillos de alcance y el sector), abren sus propiedades —donde
+   todavía se puede cambiar casi todo antes de guardar— y se sueltan solas.
+   Como el círculo o el polígono: se arman con su botón, la cruz es el cursor
+   y Escape las cancela.                                                  */
+const PLACE_TOOLS = new Set(["pin", "rings", "sector"]);
+/* ¿Un clic sobre el mapa va a fijar un punto (vértice o centro) y no a
+   seleccionar la capa que haya debajo? */
+const clickPicksPoint = () => activeTool === "polygon" || PLACE_TOOLS.has(activeTool);
 let drawing = null;    /* medición en curso durante el arrastre de creación */
 let polyDraft = null;  /* polígono en curso: { vertices, handles, poly, group } | null */
 /* Crear una ruta se comporta como EDITARLA: no usa polyDraft en absoluto
@@ -118,30 +127,19 @@ const CreateControl = L.Control.extend({
       tr("Dibujar: click para cada v\u00E9rtice; doble click sobre el \u00FAltimo v\u00E9rtice cierra el "
       + "pol\u00EDgono, doble click fuera termina la l\u00EDnea sin cerrarla"), "polygon");
 
-    /* Anillos de alcance y sector: no son herramientas de arrastre sino
-       que abren su diálogo al pulsar (como el pin, no pasan por setTool y
-       no desactivan el desplazamiento). Como el pin, parten del CENTRO de
-       la vista; en el diálogo se puede corregir la posición. Mismo orden
-       que «Crear» del menú contextual: polígono, anillos, sector, pin.   */
-    const rings = L.DomUtil.create("a", "", bar);
-    rings.href = "#";
-    rings.textContent = "\u25CE";
-    rings.title = tr("Anillos de alcance: círculos concéntricos alrededor del centro de la vista");
-    rings.addEventListener("click", e => { e.preventDefault(); openRangeDialog("rings", map.getCenter()); });
-
-    const sector = L.DomUtil.create("a", "glyph-lg", bar);
-    sector.href = "#";
-    sector.textContent = "\u25D4";
-    sector.title = tr("Sector: un sector circular alrededor del centro de la vista, entre dos azimuts");
-    sector.addEventListener("click", e => { e.preventDefault(); openRangeDialog("sector", map.getCenter()); });
-
-    /* Not a drag tool like the other two: it acts on click, so it does not
-       go through setTool and never disables panning                      */
-    const pin = L.DomUtil.create("a", "", bar);
-    pin.href = "#";
-    pin.textContent = "\uD83D\uDCCD";
-    pin.title = tr("Crear un marcador en el centro de la vista");
-    pin.addEventListener("click", e => { e.preventDefault(); createPin(); });
+    /* Anillos de alcance, sector y pin: herramientas de UN CLIC (PLACE_TOOLS).
+       Se arman con el botón, se hace clic en el mapa donde va el CENTRO y
+       entonces se abren sus propiedades (el diálogo de anillos y sector con
+       su vista previa, el del marcador con `isNew`), donde todavía se puede
+       corregir la posición y el resto antes de guardar. Antes nacían en el
+       centro de la vista y eso no servía. Mismo orden que «Crear» del menú
+       contextual: polígono, anillos, sector, pin.                        */
+    toolButtons.rings = makeToolButton(bar, "\u25CE",
+      tr("Anillos de alcance: haz clic en el mapa en el centro de los círculos concéntricos"), "rings");
+    toolButtons.sector = makeToolButton(bar, "\u25D4",
+      tr("Sector: haz clic en el mapa en el centro del sector circular"), "sector");
+    toolButtons.sector.classList.add("glyph-lg");
+    toolButtons.pin = makeToolButton(bar, "\uD83D\uDCCD", tr("Crear un marcador: haz clic en el mapa donde ponerlo"), "pin");
 
     L.DomEvent.disableClickPropagation(bar);
     return bar;
@@ -190,7 +188,7 @@ function setTool(tool) {
   /* An info panel already open (from a hover right before activating the
      tool) could sit exactly where the user needs to click to fix a
      vertex inside another polygon                                     */
-  if ((tool === "polygon" || tool === "route") && !descDialog.hidden) {
+  if ((tool === "polygon" || tool === "route" || PLACE_TOOLS.has(tool)) && !descDialog.hidden) {
     hideLayerInfo({ dismiss: true });
   }
   /* Leaving any drawing tool (route, polygon, or circle): the double
@@ -1150,12 +1148,22 @@ function clickWasDrag(e) {
   drawMouseDown = null;
   return !!d && Math.hypot(e.clientX - d.x, e.clientY - d.y) > (map.options.clickTolerance || 3);
 }
+/* Una herramienta de UN CLIC: el clic fija el centro, abre las propiedades y la
+   herramienta se suelta ANTES (así el diálogo no nace con una herramienta
+   armada detrás). Un clic sobre cualquier cosa vale, también sobre un
+   manejador o una capa: aquí no se «añade nada ahí encima».               */
+function placeWithTool(tool, latlng) {
+  setTool(null);
+  if (tool === "pin") createPin(latlng); else openRangeDialog(tool, latlng);
+}
 map.getContainer().addEventListener("click", e => {
   const dragged = clickWasDrag(e);
-  if ((activeTool !== "polygon" && activeTool !== "route") || clickOnControl(e.target)) return;
+  if (!activeTool || clickOnControl(e.target)) return;
   /* El final de un arrastre no cuenta ni como vértice ni en el historial
      del doble clic (prevClickAdded/lastClickAdded, justo debajo)        */
   if (dragged) return;
+  if (PLACE_TOOLS.has(activeTool)) { placeWithTool(activeTool, map.mouseEventToLatLng(e)); return; }
+  if (activeTool !== "polygon" && activeTool !== "route") return;
   /* Un click sobre un manejador de vértice (propio o de una medición ya
      terminada) no añade un vértice ahí encima                        */
   const onHandle = !!(e.target.closest && e.target.closest(".measure-handle"));

@@ -210,7 +210,7 @@ function wireLayerEvents(li, layer) {
      mismo, aunque ya no invalide el vértice elegido (la selección
      del árbol dejó de tener ninguna relación con vertexOwner).      */
   layer.on("click", e => {
-    if (activeTool === "polygon") return;
+    if (clickPicksPoint()) return;
     const t = e.originalEvent && e.originalEvent.target;
     if (t && t.closest && t.closest(".measure-handle")) return;
     highlightNode(li);

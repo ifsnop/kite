@@ -207,9 +207,9 @@ Medir, la primera caja:
 **Crear**, la segunda caja:
 
 - **Dibujar polígono o línea** (⬠): un clic por cada vértice; un doble clic sobre el último vértice cierra la figura, y un doble clic fuera de un vértice la deja como una línea abierta. Mientras se dibuja, un vértice ya puesto se puede arrastrar a otra posición antes de cerrar la figura, y quitar con el botón derecho; y **el mapa se puede desplazar arrastrándolo** (en una zona vacía) sin dejar de dibujar: el clic con el que se suelta tras desplazar no añade ningún vértice. Está también en el menú contextual, «Crear» › «Polígono o línea».
-- **Anillos de alcance** (◎): abre el diálogo de anillos concéntricos (apartado 7.13) con el **centro de la vista** como centro, igual que el pin; también desde el menú contextual, «Crear» › «Anillos de alcance…», donde el centro es el punto pulsado.
+- **Anillos de alcance** (◎): herramienta de **un clic**: se pulsa el botón (queda resaltado y el cursor pasa a una cruz), se hace **clic en el mapa donde va el centro** y se abre el diálogo de anillos concéntricos (apartado 7.13) con ese punto como centro; `Escape`, o pulsar otra vez el botón, la cancela sin crear nada. Mientras está armada el mapa se puede desplazar arrastrando. También desde el menú contextual, «Crear» › «Anillos de alcance…», donde el centro es el punto pulsado.
 - **Sector** (◔): igual, pero para un sector circular (también «Crear» › «Sector…»).
-- **Crear un pin** (📍): añade un marcador en el centro de la vista actual y abre directamente su diálogo de estilo (también desde el menú contextual, «Crear» › «Pin»).
+- **Crear un pin** (📍): igual, de **un clic**: se pulsa el botón y se hace clic en el mapa donde va el marcador, que nace ahí y abre directamente su diálogo de estilo, donde todavía se puede cambiar su posición, icono y texto antes de aceptar (Cancelar lo borra). También desde el menú contextual, «Crear» › «Pin», que lo pone donde se hizo el clic derecho.
 - **Exportar PNG** (📷), en una caja aparte, separada por un hueco del resto para que no se pulse sin querer al buscar el pin: guarda una imagen del mapa tal como se ve, sin los controles superpuestos, pero con el cuadro de coordenadas, la escala y la atribución (que la licencia de la cartografía exige conservar).
 
 La segunda barra reúne los controles de la propia vista:
@@ -263,7 +263,7 @@ Un clic derecho sobre el mapa abre un menú con las acciones más habituales, ag
 - **«Crear»**: un submenú para dibujar o colocar algo nuevo.
   - **«Polígono o línea»**: activa o desactiva la herramienta de dibujo (apartados 4.2 y 7.3).
   - **«Anillos de alcance…»** y **«Sector…»**: abren el diálogo del apartado 7.13 con el punto pulsado como centro.
-  - **«Pin»**: añade un marcador en el centro de la vista y abre su diálogo de estilo.
+  - **«Pin»**: añade un marcador donde se hizo el clic derecho y abre su diálogo de estilo.
 
   El orden es el mismo que el de los botones de la barra de dibujo (polígono o línea, anillos, sector y pin).
 
@@ -559,7 +559,7 @@ La ficha de la capa (el botón ℹ, o «Mostrar atributos» en su menú) trae la
 
 ### 7.13 Dibujar anillos de alcance y sectores
 
-Con el botón derecho sobre el mapa, **«Crear» › «Anillos de alcance…»** o **«Crear» › «Sector…»** (o los botones ◎ y ◔ de la barra de dibujo, que usan el centro de la vista) abre un diálogo con el punto pulsado como **centro** (su latitud y longitud, en el formato elegido en Propiedades, se pueden corregir). Los cambios se ven **al momento** sobre el mapa, en naranja y a trazos; **«Cancelar»** o `Escape` los quitan sin dejar nada.
+Con el botón derecho sobre el mapa, **«Crear» › «Anillos de alcance…»** o **«Crear» › «Sector…»** (o los botones ◎ y ◔ de la barra de dibujo, que esperan un clic en el mapa para fijar el centro) abre un diálogo con el punto pulsado como **centro** (su latitud y longitud, en el formato elegido en Propiedades, se pueden corregir). Los cambios se ven **al momento** sobre el mapa, en naranja y a trazos; **«Cancelar»** o `Escape` los quitan sin dejar nada.
 
 ![El diálogo de anillos de alcance, con cuatro radios y radiales cada 45°](img/anillos-dialogo.png)
 *Figura 50. «Anillos de alcance»: cuatro radios (1, 2, 3 y 4 NM, en la unidad elegida en Propiedades) y una radial cada 45°.*

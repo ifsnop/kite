@@ -1207,6 +1207,16 @@ BROWSER DRAW PAN TESTS OK
 
 **Qué cubre:** con el ratón real y sin inercia del mapa. **Polígono**: con la herramienta armada el pan sigue activo; con un vértice puesto, arrastrar el mapa lo desplaza y NO añade vértice; el clic siguiente lo añade en la posición NUEVA del mapa; un clic con 2 px de temblor sigue siendo un clic; arrastrar un vértice lo mueve (sin otro vértice) y no desplaza el mapa; el doble clic sobre el último vértice sigue cerrando el polígono. **Ruta**: arrastrar antes del 2.º punto no la crea, el clic siguiente sí, y con la ruta ya creada y su diálogo abierto arrastrar no añade waypoint. **Círculo y arco**: el pan está desactivado, el círculo se dibuja arrastrando sin mover el mapa, y al soltar la herramienta el pan vuelve. Se comprobó que falla sin el cambio (con el código anterior, el pan estaba apagado y el clic tras un arrastre añadía el vértice).
 
+### `browser/click-to-place.mjs`
+
+**Salida de `npm test`:**
+```
+── Navegador: pin, anillos de alcance y sector son herramientas de un clic: el clic fija el centro y abre sus propiedades (Cancelar no deja nada), Escape y otro botón las cancelan, el «Pin» del menú contextual usa el punto pulsado, arrastrar el mapa no las dispara y no resaltan la capa de debajo
+BROWSER CLICK TO PLACE TESTS OK
+```
+
+**Qué cubre:** con el ratón real. **Pin**: 📍 arma la herramienta (cruz y botón resaltado) y no crea ni abre nada; el clic crea el marcador EN el punto pulsado (no en el centro de la vista) y abre su diálogo con la herramienta ya soltada; Cancelar lo borra; la posición se corrige en el diálogo y Aceptar lo deja. **Cancelar la herramienta**: Escape antes del clic (y el clic siguiente ya no crea nada), pulsar otro botón de herramienta cambia a esa, pulsar el armado la suelta. **◎ y ◔**: arman la herramienta sin abrir el diálogo; el clic lo abre con el punto pulsado como centro; Cancelar no deja nada; Aceptar crea los anillos centrados en ese punto. **Menú contextual**: «Crear › Pin» lo pone donde se hizo el clic derecho. **Arrastrar** el mapa con la herramienta armada lo desplaza y no crea nada. **Una capa debajo** del punto no se resalta en el árbol ni abre su ficha. Se comprobó que falla sin el cambio. `rings.mjs` se adaptó: ◎ y ◔ ya no abren el diálogo al pulsarse, sino con el clic.
+
 ### `browser/cadastre.mjs`
 
 **Salida de `npm test`:**
