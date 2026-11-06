@@ -111,10 +111,10 @@
       "build": "202611032046"
     },
     "editor-puntos.png": {
-      "sha256": "f1e1f2a2822cd2b3904b08323c0845db666828efdd8676a174e6443eb94aa1e9",
+      "sha256": "a5efb16892b39f14eab6a7ef3a2fff7f22f67670c9e4ee7765660c0218d32937",
       "section": "6.2",
       "version": "2.2.0",
-      "build": "202611032046"
+      "build": "202611051953"
     },
     "elegir-nombre.png": {
       "sha256": "8fe3f32688fc03980b11e45eebcb57a6784c6360e0dc4e94eee5907bb213c9d6",
@@ -243,11 +243,17 @@
       "version": "2.2.0",
       "build": "202611032046"
     },
-    "perfil-ruta.png": {
-      "sha256": "3cdc77c7ab500d52438169e3176c596d4a2c9f6ddebd07d10c03f3f0f1aecee3",
+    "perfil-obstaculos.png": {
+      "sha256": "ab046aef41700673e2ca069a25674d33e88258bb9b0aff7505cdd9daba245638",
       "section": "7.9",
       "version": "2.2.0",
-      "build": "202611032046"
+      "build": "202611051953"
+    },
+    "perfil-ruta.png": {
+      "sha256": "cb2f89d3c52d6e33327e4f20db4cfbce48820468aab98e557eb8789a7ebe9cee",
+      "section": "7.9",
+      "version": "2.2.0",
+      "build": "202611051953"
     },
     "pie-panel.png": {
       "sha256": "4e42b5e5fb964395f3c9197952626b483922d657265f8a6e392614c72da067da",

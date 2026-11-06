@@ -37,6 +37,8 @@ const arrows = [
   between("const tickDecimals", "/* Tramos continuos"),
   between("const packProfilePoints", "/* Un perfil leído de fuera"),
   between("const panProfileView", "/* Los puntos que se ven"),
+  /* Obstáculos (polígonos con altitud) y torres: lo que valida validRouteProfile */
+  between("const PROFILE_MAX_OBSTACLES", "/* ---------- Diálogo"),
   /* Registro de depuración de la descarga del perfil */
   between("const fmtTraceBytes", "/* Un intento fallido")
 ].join("\n");

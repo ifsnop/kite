@@ -424,8 +424,13 @@ let vertexEditSnapshot = null; /* geometría al abrir el diálogo, para que Canc
 /* Copia independiente de una estructura de anillos (array de L.LatLng, o
    array de arrays): `rings` no debe compartir los objetos que Leaflet
    tiene en su _latlngs interno, o mutarlos aquí mutaría la capa a medias. */
+/* Con la altitud: `L.latLng(lat, lng)` a secas la tira, y la edición
+   interactiva vuelca estos anillos a la capa en el primer arrastre, así que
+   un solo vértice movido dejaba TODOS los del polígono sin la altitud que el
+   usuario les había puesto (y sin ella, un polígono no puede ser un
+   obstáculo del perfil). También la foto de Cancelar pasa por aquí.      */
 function cloneLatLngRings(rings) {
-  return rings.map(r => r.map(p => L.latLng(p.lat, p.lng)));
+  return rings.map(r => r.map(p => L.latLng(p.lat, p.lng, p.alt)));
 }
 
 /* true si pudo construir los manejadores (y por tanto activar la
@@ -548,7 +553,9 @@ function wireVertexEditHandle(handle) {
   attachVertexDrag(handle, false, latlng => {
     const pos = findVertexEditPos(handle);
     if (!pos) return;
-    vertexEdit.rings[pos[0]][pos[1]] = latlng;
+    /* El ratón da una posición, no una altitud: el vértice conserva la suya */
+    const prev = vertexEdit.rings[pos[0]][pos[1]];
+    vertexEdit.rings[pos[0]][pos[1]] = L.latLng(latlng.lat, latlng.lng, prev.alt);
     applyVertexEditRings();
   }, scheduleSave);
   handle.on("contextmenu", ev => {
@@ -605,7 +612,15 @@ function insertVertexEditPoint(handle, latlng) {
     const pos = findVertexEditPos(handle);
     if (pos) { ri = pos[0]; pi = pos[1] + 1; }
   }
-  const pos2 = L.latLng(latlng.lat, latlng.lng);
+  /* Un vértice nuevo entre dos con altitud toma la media de las suyas (con una
+     sola, o ninguna, queda sin altitud: no se inventa un número). Tras la última
+     posición de un anillo CERRADO el vecino es el primero; en una línea abierta,
+     añadir al final no tiene vecino de después.                               */
+  const ring = vertexEdit.rings[ri];
+  const before = ring[pi - 1], after = vertexEdit.closed ? ring[pi % ring.length] : ring[pi];
+  const alt = before && after && Number.isFinite(before.alt) && Number.isFinite(after.alt)
+    ? (before.alt + after.alt) / 2 : undefined;
+  const pos2 = L.latLng(latlng.lat, latlng.lng, alt);
   const h = makeHandle(pos2, true);
   wireVertexEditHandle(h);
   vertexEdit.rings[ri].splice(pi, 0, pos2);
@@ -2020,7 +2035,10 @@ const pointsDialog = document.getElementById("points-dialog");
 const pointsBox = pointsDialog.querySelector(".dlg-box");
 const pointsText = document.getElementById("points-text");
 const pointsError = document.getElementById("points-error");
-let pointsTarget = null;  /* { li, path, nested } (polígono) o { li, measure } mientras está abierto */
+const pointsAltRow = document.getElementById("points-altmode-row");
+const pointsAltSel = document.getElementById("points-altmode");
+const pointsAltNote = document.getElementById("points-altmode-note");
+let pointsTarget = null;  /* { li, path, nested, altMode } (polígono) o { li, measure } mientras está abierto */
 
 function closePointsDialog() {
   pointsDialog.hidden = true;
@@ -2054,11 +2072,39 @@ function openPointsDialogCommon(li, rings, { showRingsHint }) {
   focusDialog(pointsBox);
 }
 
+/* ¿Trae alguna posición del texto una altitud DISTINTA DE 0? Sin ella el
+   modo no significa nada y el polígono no puede ser un obstáculo en un
+   perfil. La columna siempre existe: un punto sin altitud se escribe como
+   0 (ver pointsToText), así que 0 y «sin altitud» son lo mismo aquí. Se
+   mira el texto de la ventana, no la capa: el usuario puede estar
+   escribiendo la altitud ahora.                                         */
+function pointsTextHasAltitude() {
+  const { rings } = textToPoints(pointsText.value);
+  return rings.some(r => r.some(p => p.length > 2 && Number.isFinite(p[2]) && p[2] !== 0));
+}
+function syncPointsAltNote() {
+  const show = !pointsAltRow.hidden && !pointsTextHasAltitude();
+  pointsAltNote.hidden = !show;
+  pointsAltNote.textContent = show ? tr("Ningún punto tiene una altitud distinta de 0: no puede ser un obstáculo en un perfil.") : "";
+}
+/* Con espera: leer el texto entero por tecla costaría ~24 ms por cada mil
+   puntos (medido al aplicar) en un polígono grande.                   */
+let pointsAltTimer = 0;
+pointsText.addEventListener("input", () => {
+  clearTimeout(pointsAltTimer);
+  pointsAltTimer = setTimeout(syncPointsAltNote, 300);
+});
+
 function openPointsDialogForPath(li) {
   const path = solePath(li);
   if (!path) return;
   const { rings, nested } = pathRings(path);
-  pointsTarget = { li, path, nested };
+  /* El modo sale del Feature de la capa (`kiteAlt`); sin él —un GeoJSON, o
+     un KML sin <altitudeMode>— se enseña AMSL, que es lo que el perfil
+     hace con una Z sin modo. `altMode` guarda lo que había, para que
+     aceptar sin tocar nada no convierta «sin modo» en `abs`.          */
+  const altMode = featureAltMode(path.feature);
+  pointsTarget = { li, path, nested, altMode };
   /* Las dos formas de editar la misma geometría no pueden convivir: si
      ya había manejadores interactivos para este nodo, se retiran aquí
      (mismo motivo que el comentario en syncVertexOwnerForDialog).
@@ -2067,6 +2113,11 @@ function openPointsDialogForPath(li) {
      closePointsDialog los restaura al cerrar.                        */
   if (vertexOwner && vertexOwner.kind === "polygon" && vertexOwner.li === li) teardownVertexOwner();
   openPointsDialogCommon(li, rings, { showRingsHint: true });
+  /* Solo un polígono: una línea o una ruta no encierran nada que pueda
+     tapar la visual. Va tras el común, que ya muestra el diálogo.     */
+  pointsAltRow.hidden = !(path instanceof L.Polygon);
+  pointsAltSel.value = altMode || "abs";
+  syncPointsAltNote();
 }
 
 function openPointsDialogForMeasure(li) {
@@ -2080,6 +2131,8 @@ function openPointsDialogForMeasure(li) {
      vertexOwner, así que aquí no hay nada que retirar en ese caso).    */
   if (vertexOwner && vertexOwner.li === li) teardownVertexOwner();
   openPointsDialogCommon(li, rings, { showRingsHint: false });
+  pointsAltRow.hidden = true;
+  syncPointsAltNote();
 }
 
 function openPointsDialog(li) {
@@ -2175,6 +2228,12 @@ $id("points-accept").addEventListener("click", () => {
   }
   pushUndo(tr("editar puntos"));
   path.setLatLngs(nested || rings.length > 1 ? rings : rings[0]);
+  /* Un Feature NUEVO, nunca el mismo con otra clave: la ficha de la capa se
+     conoce por identidad (ver persistence-indexeddb.md). Solo si el usuario
+     lo cambió: abrir y aceptar no escribe un modo que el archivo no tenía. */
+  if (closed && pointsAltSel.value !== (pointsTarget.altMode || "abs") && ALT_MODES.includes(pointsAltSel.value)) {
+    path.feature = { ...(path.feature || { type: "Feature", properties: {} }), kiteAlt: pointsAltSel.value };
+  }
   invalidateGeo(li);   /* la geometría cambió: la caché serializada ya no vale */
   scheduleSave();
   closePointsDialog();

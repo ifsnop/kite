@@ -388,7 +388,13 @@ function validRouteProfile(p) {
   };
   const mdt = series(p.mdt), mds = series(p.mds);
   if (mdt === undefined || mds === undefined || (!mdt && !mds)) return null;
-  return { key: p.key, total: p.total, vertices: v, mdt, mds };
+  const out = { key: p.key, total: p.total, vertices: v, mdt, mds };
+  /* Opcionales: un perfil de antes no los trae, y uno malo se queda sin ellos */
+  const obstacles = validProfileObstacles(p.obstacles, p.total);
+  if (obstacles) out.obstacles = obstacles;
+  const towers = validProfileTowers(p.towers, v.length);
+  if (towers) out.towers = towers;
+  return out;
 }
 
 /* Celdas del árbol de un perfil, con la misma regla que buildElevCells:
@@ -416,6 +422,270 @@ function profileTreeCells(drive, other, kinds) {
     cells.push(cell);
   }
   return cells;
+}
+
+/* ---------- Obstáculos: polígonos con altitud (puro, se prueba en Node) ----------
+   Un polígono de un KML o un GeoJSON con altitud en sus vértices puede
+   tapar la línea inicio–fin. Cada tramo de la ruta (metros Web Mercator,
+   como `routeProfileSamples`) se corta con los lados del polígono: los
+   cruces, ordenados por distancia, se emparejan entrada–salida. La altura
+   del techo en un cruce se INTERPOLA entre los dos vértices del lado
+   cortado (los más cercanos al cruce) y entre la entrada y la salida va
+   recta. El polígono es un bloque desde el terreno hasta ese techo.
+
+   La Z es AMSL (altitud sobre el nivel del mar) salvo en un polígono
+   `agl` (`relativeToGround` del KML): entonces es una ALTURA sobre el
+   terreno y se convierte en AMSL sumándole el terreno que acaba de
+   descargar ESTE perfil (`obstacleRoof`), nunca antes: el MDT se pide
+   para la ruta y el techo lo aprovecha sin petición nueva. Guardado con
+   el perfil, el techo ya es AMSL: una foto, independiente de que el
+   polígono siga en el árbol. Ver `20-kml-geom.js` (`kiteAlt`).        */
+const PROFILE_MAX_OBSTACLES = 500;
+const PROFILE_MAX_OBSTACLE_PTS = 100000;   /* puntos de techo, entre todos los obstáculos */
+const PROFILE_MAX_OBSTACLE_SPANS = 2000;   /* tramos de UN obstáculo */
+const PROFILE_OBSTACLE_NAME_MAX = 200;
+const PROFILE_OBSTACLE_SAMPLES = 16;       /* subdivisiones de un tramo al buscar el peor despeje */
+
+const cross2 = (ax, ay, bx, by) => ax * by - ay * bx;
+
+/* Altura del terreno (o de cualquier serie ordenada de {d, v}) a una
+   distancia: lineal entre vecinos, y fuera de la serie la del extremo.
+   `nums` solo lleva puntos con valor.                                 */
+function profileValueAt(nums, d) {
+  if (!nums.length) return NaN;
+  if (d <= nums[0].d) return nums[0].v;
+  const last = nums[nums.length - 1];
+  if (d >= last.d) return last.v;
+  let lo = 0, hi = nums.length - 1;
+  while (hi - lo > 1) {
+    const mid = (lo + hi) >> 1;
+    if (nums[mid].d <= d) lo = mid; else hi = mid;
+  }
+  const a = nums[lo], b = nums[hi];
+  return b.d > a.d ? a.v + (b.v - a.v) * (d - a.d) / (b.d - a.d) : a.v;
+}
+
+/* La parte de una serie entre dos distancias, con los extremos exactos
+   (interpolados): lo que se dibuja de un bloque y de su terreno.       */
+function sliceByD(nums, a, b) {
+  if (!nums.length || !(b > a)) return [];
+  /* Con búsqueda binaria: se llama por cada tramo de cada obstáculo en
+     cada redibujado, sobre series de miles de puntos.                  */
+  const lowerBound = d => {
+    let lo = 0, hi = nums.length;
+    while (lo < hi) { const mid = (lo + hi) >> 1; if (nums[mid].d < d) lo = mid + 1; else hi = mid; }
+    return lo;
+  };
+  const inner = [];
+  for (let k = lowerBound(a), end = lowerBound(b); k < end; k++) if (nums[k].d > a) inner.push(nums[k]);
+  return [{ d: a, v: profileValueAt(nums, a) }, ...inner, { d: b, v: profileValueAt(nums, b) }];
+}
+
+/* Altitud interpolada del punto del contorno más cercano a `p`: la del
+   extremo de la ruta cuando empieza o acaba DENTRO del polígono (no hay
+   cruce ahí que interpolar).                                           */
+function nearestRingAlt(rings, p) {
+  let best = null;
+  for (const ring of rings) {
+    for (let i = 0, n = ring.length; i < n; i++) {
+      const a = ring[i], b = ring[(i + 1) % n];
+      const ex = b.x - a.x, ey = b.y - a.y, len2 = ex * ex + ey * ey;
+      const u = len2 > 0 ? Math.min(1, Math.max(0, ((p.x - a.x) * ex + (p.y - a.y) * ey) / len2)) : 0;
+      const dx = a.x + u * ex - p.x, dy = a.y + u * ey - p.y, dist = dx * dx + dy * dy;
+      if (!best || dist < best.dist) best = { dist, z: a.z + u * (b.z - a.z) };
+    }
+  }
+  return best ? best.z : NaN;
+}
+
+/* Los tramos de la ruta DENTRO de un polígono: `[{ d0, z0, d1, z1 }]`,
+   distancias desde el inicio (la misma correspondencia que el muestreo:
+   `vertices[i] + t · dist` del tramo) y altitudes en el cruce. `rings`:
+   anillos `[{ x, y, z }]` en metros Web Mercator, el exterior primero (par
+   e impar: un agujero saca la ruta del polígono). `z` es NaN donde el
+   vértice no trae altitud. Los intervalos son semiabiertos (un cruce justo
+   en un vértice no se cuenta dos veces); una ruta que corra sobre un lado
+   no cruza nada. Un tramo de longitud 0 no cruza (no hay recta).                                                       */
+function routePolygonSpans(legs, vertices, rings) {
+  if (!legs.length || !rings.length) return [];
+  const hits = [];
+  legs.forEach((leg, i) => {
+    const rx = leg.b.x - leg.a.x, ry = leg.b.y - leg.a.y;
+    if (rx === 0 && ry === 0) return;
+    for (const ring of rings) {
+      for (let k = 0, n = ring.length; k < n; k++) {
+        const e0 = ring[k], e1 = ring[(k + 1) % n];
+        /* De qué lado de la recta de la ruta cae cada extremo del lado. Un
+           extremo SOBRE la recta cuenta como «no positivo»: así un vértice
+           del polígono en la ruta, o un lado paralelo a ella, da siempre un
+           número par de cruces (la regla del rayo, la misma que pointInRing)
+           y no se cuentan dos veces ni se inventa uno.                     */
+        const s0 = cross2(rx, ry, e0.x - leg.a.x, e0.y - leg.a.y), s1 = cross2(rx, ry, e1.x - leg.a.x, e1.y - leg.a.y);
+        if ((s0 > 0) === (s1 > 0)) continue;
+        const u = s0 / (s0 - s1);
+        const px = e0.x + u * (e1.x - e0.x) - leg.a.x, py = e0.y + u * (e1.y - e0.y) - leg.a.y;
+        const t = (px * rx + py * ry) / (rx * rx + ry * ry);
+        /* [0, 1): un cruce justo en el vértice entre dos tramos es del segundo */
+        if (t >= 0 && t < 1) hits.push({ d: vertices[i] + t * leg.dist, z: e0.z + u * (e1.z - e0.z) });
+      }
+    }
+  });
+  hits.sort((a, b) => a.d - b.d);
+  const start = legs[0].a, end = legs[legs.length - 1].b;
+  const inside = p => rings.reduce((acc, ring) => pointInRing(p, ring) !== acc, false);
+  const startIn = inside(start);
+  const endIn = startIn !== (hits.length % 2 === 1);
+  const seq = [];
+  if (startIn) seq.push({ d: 0, z: nearestRingAlt(rings, start) });
+  seq.push(...hits);
+  if (endIn) seq.push({ d: vertices[vertices.length - 1], z: nearestRingAlt(rings, end) });
+  const spans = [];
+  for (let k = 0; k + 1 < seq.length; k += 2) {
+    const a = seq[k], b = seq[k + 1];
+    if (b.d - a.d > 1e-6) spans.push({ d0: a.d, z0: a.z, d1: b.d, z1: b.z });
+  }
+  return spans;
+}
+
+/* El techo AMSL de un tramo, como polilínea `[[d, z]]`. AMSL: la recta de
+   la entrada a la salida. AGL: la altura interpolada de la entrada a la
+   salida SOBRE el terreno de la serie (`nums`, puntos con valor), con un
+   punto por cada uno del terreno dentro del tramo, para que el techo siga
+   el relieve. null si no hay terreno sobre el que ponerla.             */
+function obstacleRoof(span, mode, nums) {
+  const { d0, z0, d1, z1 } = span;
+  if (mode !== "agl") return [[d0, z0], [d1, z1]];
+  if (!nums.length) return null;
+  const h = d => z0 + (z1 - z0) * (d - d0) / (d1 - d0);
+  return [d0, ...nums.filter(p => p.d > d0 && p.d < d1).map(p => p.d), d1]
+    .map(d => [d, profileValueAt(nums, d) + h(d)]);
+}
+
+/* Un polígono → obstáculo del perfil, o el motivo de que no lo sea
+   (`why`: outside = no cruza la ruta, ground = pegado al suelo, sea =
+   fondo marino, noalt = el lado cortado no trae altitud, noterrain = AGL
+   sin terreno, buried = el techo no pasa del terreno). `polygon`:
+   `{ name, mode, rings }`. `terrain`: la serie del terreno `[{ d, v }]`.
+   Un polígono sin modo cuenta como AMSL.                               */
+function profileObstacleFrom(polygon, legs, vertices, terrain) {
+  const spans = routePolygonSpans(legs, vertices, polygon.rings);
+  if (!spans.length) return { why: "outside" };
+  if (polygon.mode === "ground") return { why: "ground" };
+  if (polygon.mode === "sea") return { why: "sea" };
+  if (spans.some(s => !Number.isFinite(s.z0) || !Number.isFinite(s.z1))) return { why: "noalt" };
+  const mode = polygon.mode === "agl" ? "agl" : "abs";
+  const nums = terrain.filter(p => Number.isFinite(p.v));
+  const roofs = [];
+  for (const s of spans) {
+    const roof = obstacleRoof(s, mode, nums);
+    if (!roof) return { why: "noterrain" };
+    /* Sin terreno que comparar (AMSL y todo huecos) se conserva: no se sabe que esté enterrado */
+    if (!nums.length || roof.some(([d, z]) => z > profileValueAt(nums, d))) roofs.push(roof);
+  }
+  if (!roofs.length) return { why: "buried" };
+  return { obstacle: { name: polygon.name, mode, spans: roofs } };
+}
+
+/* Los tramos de un obstáculo como series `[{ d, v }]` (lo que entienden
+   `profileValueAt` y `sliceByD`), hechas una vez por obstáculo: un
+   redibujado por fotograma no las rehace.                              */
+const obstaclePtsCache = new WeakMap();
+function obstacleSpanPts(o) {
+  let pts = obstaclePtsCache.get(o);
+  if (!pts) obstaclePtsCache.set(o, pts = o.spans.map(sp => sp.map(([d, z]) => ({ d, v: z }))));
+  return pts;
+}
+
+/* Lo que se guarda y se dibuja: d a 0,1 m y z a 0,01 m (como las curvas) */
+const packObstacle = o => ({ name: o.name, mode: o.mode,
+  spans: o.spans.map(sp => sp.map(([d, z]) => [Math.round(d * 10) / 10, Math.round(z * 100) / 100])) });
+
+/* La altura del techo de un obstáculo a la distancia `d`, o null si ahí
+   no hay obstáculo (fuera de todos sus tramos).                        */
+function obstacleRoofAt(o, d) {
+  const all = obstacleSpanPts(o);
+  for (const pts of all) {
+    if (d >= pts[0].d && d <= pts[pts.length - 1].d) return profileValueAt(pts, d);
+  }
+  return null;
+}
+
+/* Qué obstáculos tapan la recta inicio–fin y por dónde. `model` es el de
+   `profileLinkModel` (el mismo que dibuja la gráfica): el despeje en d es
+   `losAt(d) − lift(d) − techo(d)`, en el marco de las series, el MISMO en
+   los tres modos de curvatura. Solo cuenta entre las torres (`dA`…`dB`:
+   fuera no hay enlace). Se mira en cada vértice del techo, en los límites
+   y en PROFILE_OBSTACLE_SAMPLES subdivisiones. Devuelve, de cada obstáculo
+   que cae entre las torres, `{ obstacle, clear, at, blocked }`: el peor
+   despeje (metros, negativo = la recta pasa por DEBAJO del techo), dónde, y
+   los intervalos `[da, db]` donde la tapa. Sin recta, nada.            */
+function profileObstructions(obstacles, model) {
+  if (!model.los) return [];
+  const out = [];
+  for (const o of obstacles) {
+    let worst = null;
+    const blocked = [];
+    for (const pts of obstacleSpanPts(o)) {
+      const a = Math.max(pts[0].d, model.dA), b = Math.min(pts[pts.length - 1].d, model.dB);
+      if (!(a <= b)) continue;
+      const ds = new Set([a, b]);
+      for (const p of pts) if (p.d > a && p.d < b) ds.add(p.d);
+      for (let i = 1; i < PROFILE_OBSTACLE_SAMPLES; i++) ds.add(a + (b - a) * i / PROFILE_OBSTACLE_SAMPLES);
+      let prev = null, open = null;
+      for (const d of [...ds].sort((x, y) => x - y)) {
+        const clear = model.losAt(d) - model.lift(d) - profileValueAt(pts, d);
+        if (!worst || clear < worst.clear) worst = { clear, at: d };
+        if (clear < 0) {
+          if (open === null) open = prev && prev.clear >= 0 ? prev.d + (d - prev.d) * prev.clear / (prev.clear - clear) : d;
+        } else if (open !== null) {
+          blocked.push([open, prev.d + (d - prev.d) * prev.clear / (prev.clear - clear)]);
+          open = null;
+        }
+        prev = { d, clear };
+      }
+      if (open !== null) blocked.push([open, prev.d]);
+    }
+    if (worst) out.push({ obstacle: o, clear: worst.clear, at: worst.at, blocked });
+  }
+  return out;
+}
+
+/* Obstáculos leídos de fuera (árbol guardado, .kite.json, portapapeles):
+   forma exacta, números finitos, distancias dentro de la ruta y
+   crecientes, longitudes acotadas. Lo malo se descarta uno a uno (la lista
+   y el perfil siguen); `undefined`/`null` = el perfil nunca los calculó.   */
+function validProfileObstacles(list, total) {
+  if (list === undefined || list === null) return null;
+  if (!Array.isArray(list)) return null;
+  const fin = x => typeof x === "number" && Number.isFinite(x);
+  const out = [];
+  let pts = 0;
+  for (const o of list) {
+    if (out.length >= PROFILE_MAX_OBSTACLES) break;
+    if (!o || typeof o !== "object" || typeof o.name !== "string") continue;
+    if (o.mode !== "abs" && o.mode !== "agl") continue;
+    if (!Array.isArray(o.spans) || !o.spans.length || o.spans.length > PROFILE_MAX_OBSTACLE_SPANS) continue;
+    const good = o.spans.every(sp => Array.isArray(sp) && sp.length >= 2
+      && sp.every((q, i) => Array.isArray(q) && q.length === 2 && fin(q[0]) && fin(q[1])
+        && q[0] >= 0 && q[0] <= total + 1e-6 && (i === 0 || q[0] >= sp[i - 1][0])));
+    if (!good) continue;
+    const n = o.spans.reduce((s, sp) => s + sp.length, 0);
+    if (pts + n > PROFILE_MAX_OBSTACLE_PTS) break;
+    pts += n;
+    out.push({ name: o.name.slice(0, PROFILE_OBSTACLE_NAME_MAX), mode: o.mode, spans: o.spans.map(sp => sp.map(q => [q[0], q[1]])) });
+  }
+  return out;
+}
+
+/* Las torres que se guardan con el perfil: vértice (índice) y altura
+   sobre el terreno en metros de cada una. null si no son válidas (el
+   perfil vuelve a las de por defecto: los extremos y 0).               */
+function validProfileTowers(t, vertexCount) {
+  const fin = x => typeof x === "number" && Number.isFinite(x);
+  const one = q => q && typeof q === "object" && Number.isInteger(q.at) && q.at >= 0 && q.at < vertexCount
+    && fin(q.m) && q.m >= 0 && q.m <= PF_TOWER_MAX;
+  if (!t || typeof t !== "object" || !one(t.a) || !one(t.b) || !(t.a.at < t.b.at)) return null;
+  return { a: { at: t.a.at, m: t.a.m }, b: { at: t.b.at, m: t.b.m } };
 }
 
 /* ---------- Diálogo ---------- */
@@ -533,8 +803,11 @@ const isRouteLi = li => !!(li && li._measure && li._measure.type === "route");
 /* El perfil guardado de una geometría, o null. elevGridGroups ya es la
    lista viva de cuadrículas (también las de carpetas nunca desplegadas;
    borrar y deshacer la mantienen), así que no hace falta otro registro. */
+function findRouteProfileGroup(key) {
+  return elevGridGroups.find(x => x._profile && x._profile.key === key) || null;
+}
 function findRouteProfile(key) {
-  const g = elevGridGroups.find(x => x._profile && x._profile.key === key);
+  const g = findRouteProfileGroup(key);
   return g ? g._profile : null;
 }
 const routeProfileOf = li => (isRouteLi(li) ? findRouteProfile(routeProfileKey(measureWaypoints(li._measure))) : null);
@@ -566,7 +839,7 @@ function routeProfileCtxItem(li) {
    sin capa nueva), si no, descargarlo.                               */
 function openRouteProfile(li) {
   const saved = routeProfileOf(li);
-  if (saved) showSavedProfile(li, saved);
+  if (saved) showSavedProfile(li, saved, findRouteProfileGroup(routeProfileKey(measureWaypoints(li._measure))));
   else obtainRouteProfile(li);
 }
 
@@ -608,17 +881,127 @@ const profileSeriesLabel = (kind, srcId) => {
   return src ? elevSourcesLabel([src]) : PROFILE_KIND_LABEL[kind];
 };
 
+/* ---------- Recoger los polígonos con altitud que hay en el mapa ----------
+   `rootGroup` tiene exactamente lo marcado (visible), también las capas
+   de una carpeta nunca desplegada. Solo cuentan los `L.Polygon` con
+   altitud en sus vértices: las cuadrículas de elevación son rectángulos,
+   y un polígono dibujado a mano o una parcela no traen Z (y sin ella no
+   son un obstáculo, así que no se mencionan). El nombre es el de la fila
+   o, si la carpeta nunca se desplegó, el del globo de la capa.        */
+const htmlToText = html => new DOMParser().parseFromString(html, "text/html").body.textContent;
+function profileObstacleName(top) {
+  if (top._li && top._li._name) return top._li._name;
+  const pop = typeof top.getPopup === "function" && top.getPopup();
+  const html = pop && pop.getContent();
+  return typeof html === "string" && html ? htmlToText(html) : tr("Polígono");
+}
+
+const hasVertexAlt = rings => rings.some(r => r.some(ll => Number.isFinite(ll.alt)));
+
+/* `terrain`: la serie del terreno de ESTE perfil, `[{ d, v }]` (MDT; sin
+   él, la superficie). Devuelve `{ obstacles, skipped }` con `skipped` =
+   { sea, noalt, noterrain, capped }: polígonos que cruzan la ruta y no se
+   pueden usar, para decirlo (un recuento, no uno por polígono).        */
+function collectProfileObstacles(legs, vertices, terrain) {
+  const found = [], skipped = { sea: 0, noalt: 0, noterrain: 0, capped: 0 };
+  if (!legs.length) return { obstacles: found, skipped };
+  const xs = legs.flatMap(l => [l.a.x, l.b.x]), ys = legs.flatMap(l => [l.a.y, l.b.y]);
+  const box = L.latLngBounds(
+    map.options.crs.unproject(L.point(Math.min(...xs), Math.min(...ys))),
+    map.options.crs.unproject(L.point(Math.max(...xs), Math.max(...ys))));
+  const visit = (layer, top) => {
+    if (layer instanceof L.Polygon && !(layer instanceof L.Rectangle)) {
+      if (!layer.getBounds().intersects(box)) return;
+      const parts = polygonParts(layer.getLatLngs());
+      if (!parts.some(part => hasVertexAlt([part.outer]))) return; /* sin Z: no es un obstáculo */
+      const mode = featureAltMode(layer.feature);
+      const name = profileObstacleName(top);
+      const merged = { name, mode: null, spans: [] };
+      let why = null;
+      for (const part of parts) {
+        const rings = [part.outer, ...part.holes].map(ring => ring.map(ll => {
+          const m = toWebMercator(ll.lat, ll.lng);
+          return { x: m.x, y: m.y, z: Number.isFinite(ll.alt) ? ll.alt : NaN };
+        }));
+        const got = profileObstacleFrom({ name, mode, rings }, legs, vertices, terrain);
+        if (got.obstacle) { merged.mode = got.obstacle.mode; merged.spans.push(...got.obstacle.spans); }
+        else if (got.why !== "outside" && got.why !== "ground" && got.why !== "buried") why = got.why;
+      }
+      if (merged.spans.length) {
+        if (found.length >= PROFILE_MAX_OBSTACLES) skipped.capped++;
+        else found.push(packObstacle(merged));
+      } else if (why) skipped[why]++;
+      return;
+    }
+    if (typeof layer.eachLayer === "function") layer.eachLayer(l => visit(l, top));
+  };
+  rootGroup.eachLayer(layer => visit(layer, layer));
+  return { obstacles: found, skipped };
+}
+
+/* Lo que no entró, en frases para el aviso del perfil */
+function obstacleSkipNotes(skipped) {
+  const notes = [];
+  if (skipped.sea) notes.push(trn(skipped.sea, "{n} polígono con altitud sobre el fondo marino no se ha tenido en cuenta.",
+    "{n} polígonos con altitud sobre el fondo marino no se han tenido en cuenta.", { n: skipped.sea }));
+  if (skipped.noalt) notes.push(trn(skipped.noalt, "{n} polígono sin altitud en todos sus vértices no se ha tenido en cuenta.",
+    "{n} polígonos sin altitud en todos sus vértices no se han tenido en cuenta.", { n: skipped.noalt }));
+  if (skipped.noterrain) notes.push(trn(skipped.noterrain, "{n} polígono sobre el terreno (AGL) no se ha tenido en cuenta: no hay terreno bajo la ruta.",
+    "{n} polígonos sobre el terreno (AGL) no se han tenido en cuenta: no hay terreno bajo la ruta.", { n: skipped.noterrain }));
+  if (skipped.capped) notes.push(trn(skipped.capped, "{n} polígono más no cabe: el perfil guarda como mucho {max} obstáculos.",
+    "{n} polígonos más no caben: el perfil guarda como mucho {max} obstáculos.", { n: skipped.capped, max: PROFILE_MAX_OBSTACLES }));
+  return notes;
+}
+
+/* La serie sobre la que se mide el techo y se pone el bloque: el terreno
+   (MDT) y, sin él, la superficie. `[{ d, v }]` con valor.                */
+function profileTerrainSeries(series) {
+  const s = series.find(x => x.kind === "mdt") || series[0];
+  return s ? s.points.filter(p => typeof p.v === "number") : [];
+}
+
+/* ---------- Lo que se guarda con el perfil (torres, obstáculos) ----------
+   Los dos viven en el campo `profile` de la capa de celdas (ver
+   validRouteProfile). Se SUSTITUYE el objeto, nunca se modifica en sitio:
+   el guardado sabe qué ha cambiado por identidad (persistence-indexeddb.md).
+   La capa puede tener fila (`group._li`) o ser aún un registro pendiente
+   de una carpeta nunca desplegada (`group._rec`).                      */
+const round2 = x => Math.round(x * 100) / 100;
+function profileTowersRecord(vertices) {
+  const { ia, ib } = profileTowerSpan(vertices, profileTowerAt);
+  return { a: { at: ia, m: round2(profileTowerM.a) }, b: { at: ib, m: round2(profileTowerM.b) } };
+}
+function persistProfileEdit(patch) {
+  const g = profileData && profileData.group;
+  if (!g || !g._profile || !elevGridGroups.includes(g)) return;
+  const next = { ...g._profile, ...patch };
+  g._profile = next;
+  if (g._li && g._li._elevGrid) g._li._elevGrid.profile = next;
+  else if (g._rec) g._rec.profile = next;
+  scheduleSave();
+}
+const persistProfileTowers = () => { if (profileData) persistProfileEdit({ towers: profileTowersRecord(profileData.vertices) }); };
+
 /* El perfil guardado en la capa, a la gráfica tal cual */
-function showSavedProfile(li, prof) {
+function showSavedProfile(li, prof, group = null) {
   if (profileRun) profileRun.ctl.abort();
   openProfileDialog(tr("Perfil: {name}", { name: li._name }));
   profileDialogDone();
   setProfileData({
-    key: prof.key, total: prof.total, vertices: prof.vertices, legs: profileLegs(li._measure), li,
+    key: prof.key, total: prof.total, vertices: prof.vertices, legs: profileLegs(li._measure), li, group,
+    obstacles: prof.obstacles || [],
     series: ["mdt", "mds"].filter(k => prof[k]).map(k => ({
       kind: k, label: profileSeriesLabel(k, prof[k].src), points: unpackProfilePoints(prof[k].pts)
     }))
   });
+  /* Las torres son del perfil: las suyas, no las que dejó otro en la ventana.
+     Un perfil de antes no las trae y se queda con lo que hay.            */
+  if (prof.towers) {
+    profileTowerAt.a = prof.towers.a.at;
+    profileTowerAt.b = prof.towers.b.at;
+    profileTowerM.a = prof.towers.a.m;
+    profileTowerM.b = prof.towers.b.m;
+  }
   renderProfileChart();
 }
 
@@ -710,10 +1093,19 @@ async function obtainRouteProfile(li) {
     setProfileNote(notes.join(" "));
     const prof = { key, total: length, vertices, mdt: null, mds: null };
     for (const s of withData) prof[s.kind] = { src: s.src.id, pts: packProfilePoints(s.points) };
-    setProfileData({
-      key, total: length, vertices, legs, li,
-      series: withData.map(s => ({ kind: s.kind, label: elevSourcesLabel([s.src]), points: s.points }))
-    });
+    const series = withData.map(s => ({ kind: s.kind, label: elevSourcesLabel([s.src]), points: s.points }));
+    /* Los polígonos con altitud que hay AHORA a la vista, con el terreno que
+       acaba de bajar este perfil (los AGL se convierten aquí, sin otra
+       petición). Se guardan como foto con el perfil.                     */
+    const { obstacles, skipped } = collectProfileObstacles(legs, vertices, profileTerrainSeries(series));
+    notes.push(...obstacleSkipNotes(skipped));
+    if (obstacles.length) {
+      profileLog("info", trn(obstacles.length, "{n} obstáculo (polígono con altitud) en la ruta",
+        "{n} obstáculos (polígonos con altitud) en la ruta", { n: obstacles.length }));
+    }
+    prof.obstacles = obstacles;
+    setProfileData({ key, total: length, vertices, legs, li, group: null, obstacles, series });
+    prof.towers = profileTowersRecord(vertices); /* tras setProfileData: ya son los de ESTA ruta */
     renderProfileChart();
 
     /* Al árbol, solo las celdas recorridas: las de la malla más fina
@@ -731,6 +1123,8 @@ async function obtainRouteProfile(li) {
     ensureNamedSection(PROFILE_SECTION).appendChild(node);
     refreshAncestorChecks(node);
     scheduleSave();
+    profileData.group = nodeLayer(node); /* para guardar lo que se cambie después */
+    setProfileNote(notes.join(" "));
   } catch (err) {
     if (run.ctl.signal.aborted) return;
     profileDialogDone();
@@ -786,6 +1180,11 @@ let profileView = null;   /* { x0, x1 } en metros; null = la ruta entera */
 let profileShowLos = false; /* recta negra inicio–fin                      */
 let profileCurveMode = "none"; /* PF_CURVE_MODES: cómo se dibuja la curvatura terrestre (k = 4/3) */
 let profileFresnel = false; /* elipsoide de Fresnel (zona del 60 %)        */
+let profileShowObstacles = true; /* bloques de los polígonos con altitud     */
+/* Contra qué se miden «Despeje» y «Margen Fresnel» en la lectura: `mdt`,
+   `mds` u `obs` (el techo del obstáculo bajo el cursor), o null = el de
+   siempre (la superficie, o el terreno si no hay). De sesión, como el resto. */
+let profileRef = null;
 /* Alturas de torre SOBRE EL TERRENO en el inicio y en el final, metros
    (se escriben en la unidad de altitud): suben los extremos de la recta. */
 const profileTowerM = { a: 0, b: 0 };
@@ -801,20 +1200,78 @@ const profileFoot = document.getElementById("profile-foot");
 const profileInfoRows = Object.fromEntries([...document.querySelectorAll("#profile-info .pf-info-row")]
   .map(r => [r.dataset.k, r]));
 /* Cabecera y pie van y vienen juntos: con la gráfica, no antes */
-const showProfileTools = on => { profileTools.hidden = !on; profileFoot.hidden = !on; };
+const showProfileTools = on => {
+  profileTools.hidden = !on; profileFoot.hidden = !on;
+  if (!on) profileObsNote.hidden = true; /* su texto lo pone cada redibujado */
+};
 const profileYLock = document.getElementById("pf-y-lock");
 const profileLosBox = document.getElementById("pf-los");
 const profileCurveSel = document.getElementById("pf-curve");
+/* Los obstáculos que se dibujan: los del perfil si la casilla está marcada */
+const obstaclesShown = () => (profileShowObstacles && profileData && profileData.obstacles) || [];
+
+/* La referencia que vale AHORA: la elegida si este perfil la tiene (hay serie
+   de ese modelo, o algún obstáculo a la vista); si no, la superficie y, sin
+   ella, el terreno —lo que usaba la lectura antes de poder elegir—. Siempre
+   se dice en la etiqueta de la fila: «Despeje (MDS)».                     */
+function profileRefKind() {
+  const has = k => !!profileData && profileData.series.some(s => s.kind === k);
+  if (profileRef === "obs" ? obstaclesShown().length > 0 : profileRef && has(profileRef)) return profileRef;
+  return has("mds") ? "mds" : "mdt";
+}
+const profileRefName = kind => (kind === "obs" ? tr("Obstáculo") : PROFILE_KIND_LABEL[kind]);
 /* Lo que decide el enlace, tal como está ahora en la ventana (ver profileLinkModel) */
 const profileLinkOpts = () => ({ at: profileTowerAt, towerM: profileTowerM, curveMode: profileCurveMode,
   showLos: profileShowLos, showFresnel: profileFresnel, freqMHz: fresnelFreqMHz });
 const profileFresnelBox = document.getElementById("pf-fresnel");
+const profileObsBox = document.getElementById("pf-obstacles");
+const profileObsNote = document.getElementById("profile-obstructions");
+const profileRefSel = document.getElementById("pf-ref");
 const profileTowerInput = { a: document.getElementById("pf-tower-a"), b: document.getElementById("pf-tower-b") };
 const profileTowerAtSel = { a: document.getElementById("pf-tower-a-at"), b: document.getElementById("pf-tower-b-at") };
 
 /* Anchura útil de la gráfica en píxeles, y el tope de zoom que da */
 const profilePlotWidth = () => profileChart.clientWidth - PF_MARGIN.l - PF_MARGIN.r;
 const profileMinSpan = () => PF_MIN_M_PER_PX * Math.max(1, profilePlotWidth());
+
+/* Qué obstáculos tapan la recta, calculado una vez por combinación de
+   torres, curvatura y obstáculos (un redibujado por fotograma al arrastrar
+   no lo repite). `model.los` null = sin recta: nada que comprobar.       */
+let obstructionCache = { obstacles: null, key: "", value: [] };
+function obstructionsFor(obstacles, model) {
+  const key = model.los ? `${model.dA}|${model.dB}|${model.los.a}|${model.los.b}|${profileCurveMode}` : "";
+  if (obstructionCache.obstacles === obstacles && obstructionCache.key === key) return obstructionCache.value;
+  const value = profileObstructions(obstacles, model);
+  obstructionCache = { obstacles, key, value };
+  return value;
+}
+
+/* La frase sobre los obstáculos, entre la cabecera y la gráfica: es lo que
+   responde a «¿hay algo en medio?». Va en rojo si tapan la línea. Solo se
+   toca el DOM si cambia, para no mover la gráfica sin motivo.            */
+function updateObstructionNote(obstacles, results, hasLos) {
+  let txt = "", alert = false;
+  const n = obstacles.length;
+  if (n && !hasLos) {
+    txt = trn(n, "{n} obstáculo (polígono con altitud) en la ruta. Activa «Línea inicio–fin» para ver si tapa la línea.",
+      "{n} obstáculos (polígonos con altitud) en la ruta. Activa «Línea inicio–fin» para ver si alguno la tapa.", { n });
+  } else if (n) {
+    const hits = results.filter(r => r.clear < 0).sort((a, b) => a.clear - b.clear);
+    if (hits.length) {
+      const u = POLY_UNIT_LABEL[altitudeUnit];
+      txt = tr("Obstáculos que tapan la línea: {list}.", {
+        list: hits.slice(0, 5).map(r => tr("«{name}» ({clear} {unit})", { name: r.obstacle.name, clear: fmtDiff(r.clear), unit: u })).join(", ")
+          + (hits.length > 5 ? ` +${hits.length - 5}` : "")
+      });
+      alert = true;
+    } else {
+      txt = tr("Ningún obstáculo tapa la línea.");
+    }
+  }
+  if (profileObsNote.textContent !== txt) profileObsNote.textContent = txt;
+  profileObsNote.hidden = !txt;
+  profileObsNote.classList.toggle("alert", alert);
+}
 
 function renderProfileChart() {
   /* la x del ratón sobrevive al redibujo: la línea sigue bajo él */
@@ -839,7 +1296,11 @@ function renderProfileChart() {
      (entre las antenas, ya elevadas por `lift`, más `bend`); fuera de
      las torres es su prolongación. Es `profileLinkModel`, el mismo que
      usa el CSV.                                                       */
-  const { ia, ib, dA, dB, lift, bend, ground, los, losAt, fresnel } = profileLinkModel(series, vertices, profileLinkOpts());
+  const model = profileLinkModel(series, vertices, profileLinkOpts());
+  const { ia, ib, dA, dB, lift, bend, ground, los, losAt, fresnel } = model;
+  /* Polígonos con altitud (ver «Obstáculos»): cuáles tapan la recta, y por dónde */
+  const obstacles = obstaclesShown();
+  const obstructions = new Map(obstructionsFor(obstacles, model).map(r => [r.obstacle, r]));
   /* Lo visible de cada serie: la altura se ajusta a ESO, no a la ruta */
   const shown = series.map(s => ({ ...s, points: visibleProfilePoints(s.points, x0, x1) }));
   const vals = shown.flatMap(s => s.points.filter(p => typeof p.v === "number" && p.d >= x0 && p.d <= x1)
@@ -861,6 +1322,12 @@ function renderProfileChart() {
   }
   if (profileCurveMode !== "none") {
     for (const d of [x0, x1, within(dA, x0, x1), within(dB, x0, x1), within((dA + dB) / 2, x0, x1)]) vals.push(lift(d) / fy);
+  }
+  /* Los techos que se ven también tienen que caber: es lo que se ha venido a mirar */
+  for (const o of obstacles) {
+    for (const pts of obstacleSpanPts(o)) {
+      for (const p of sliceByD(pts, Math.max(x0, pts[0].d), Math.min(x1, pts[pts.length - 1].d))) vals.push((p.v + lift(p.d)) / fy);
+    }
   }
   /* Alturas en METROS: automático = lo visible con un margen; con el
      eje bloqueado, el intervalo guardado, quieto.                    */
@@ -932,10 +1399,12 @@ function renderProfileChart() {
   /* Una entrada de leyenda, solo si cabe entera: en una ventana estrecha
      se pierde la última antes que verla cortada (los nombres, además,
      están en el rectángulo de lectura).                                */
-  const legend = (cls, label) => {
+  const legend = (cls, label, swatch = false) => {
     const w = 34 + label.length * 6.5;
     if (lx + w > W - PF_MARGIN.r + 12) return;
-    parts.push(`<line class="pf-legend ${cls}" x1="${lx}" x2="${lx + 18}" y1="11" y2="11"/>`,
+    /* `swatch`: un cuadrito RELLENO en vez de una raya, para lo que en la gráfica es una zona */
+    parts.push(swatch ? `<rect class="pf-legend-swatch ${cls}" x="${lx}" y="6" width="18" height="10" rx="1"/>`
+      : `<line class="pf-legend ${cls}" x1="${lx}" x2="${lx + 18}" y1="11" y2="11"/>`,
       `<text class="pf-tick pf-legend-label" x="${lx + 22}" y="11" dominant-baseline="middle">${escapeHtml(label)}</text>`);
     lx += w;
   };
@@ -969,6 +1438,26 @@ function renderProfileChart() {
     };
     parts.push(`<polygon class="pf-fresnel" clip-path="url(#pf-clip)" points="${ring(1)}"/>`,
       `<polygon class="pf-fresnel60" clip-path="url(#pf-clip)" points="${ring(PF_FRESNEL_ZONE)}"/>`);
+  }
+  /* Obstáculos: un bloque del terreno al techo entre la entrada y la salida
+     de la ruta, y encima, en rojo, lo que cae donde la recta pasa por
+     debajo del techo. Bajo las curvas, que se siguen leyendo.         */
+  if (obstacles.length) {
+    const terrainPts = profileTerrainSeries(series);
+    for (const o of obstacles) {
+      for (const roof of obstacleSpanPts(o)) {
+        const a = Math.max(x0, roof[0].d), b = Math.min(x1, roof[roof.length - 1].d);
+        if (!(a < b)) continue;
+        const block = (da, db) => [...sliceByD(roof, da, db), ...sliceByD(terrainPts, da, db).reverse()]
+          .map(p => `${xOf(p.d).toFixed(1)},${yOf(p.v, p.d).toFixed(1)}`).join(" ");
+        parts.push(`<polygon class="pf-obstacle" clip-path="url(#pf-clip)" points="${block(a, b)}"/>`);
+        const hit = obstructions.get(o);
+        for (const [ba, bb] of hit ? hit.blocked : []) {
+          const ha = Math.max(a, ba), hb = Math.min(b, bb);
+          if (ha < hb) parts.push(`<polygon class="pf-obstacle pf-obstacle-hit" clip-path="url(#pf-clip)" points="${block(ha, hb)}"/>`);
+        }
+      }
+    }
   }
   for (const s of shown) {
     for (const line of profilePolylines(s.points, xOf, yOf)) {
@@ -1015,10 +1504,18 @@ function renderProfileChart() {
     }
   }
   if (los && profileFresnel) {
-    extras.push({ cls: "fresnel", label: tr("Fresnel {freq} MHz (zona {zone} %)", { freq: fresnelFreqMHz, zone: Math.round(PF_FRESNEL_ZONE * 100) }) });
+    /* DOS entradas, cada una con el aspecto de lo que nombra: el contorno
+       discontinuo es la primera zona entera y el relleno, el 60 % que debe
+       quedar libre (con una sola entrada no se sabía cuál era cuál). Cortas
+       a propósito: una entrada que no cabe se pierde (la Tierra se perdía con
+       los textos largos), y la frecuencia se lee aquí (las pruebas la miran). */
+    extras.push({ cls: "fresnel", label: tr("Fresnel 100 %") });
+    extras.push({ cls: "pf-fresnel60", swatch: true,
+      label: tr("{zone} % · {freq} MHz", { zone: Math.round(PF_FRESNEL_ZONE * 100), freq: fresnelFreqMHz }) });
   }
+  if (obstacles.length) extras.push({ cls: "obstacle", label: tr("Obstáculos ({n})", { n: obstacles.length }) });
   if (profileCurveMode !== "none") extras.push({ cls: "earth", label: PF_EARTH_LABEL[profileCurveMode]() });
-  for (const e of extras) legend(e.cls, e.label);
+  for (const e of extras) legend(e.cls, e.label, e.swatch);
   parts.push(`<line class="pf-cursor" id="pf-cursor" y1="${PF_MARGIN.t}" y2="${H - PF_MARGIN.b}" visibility="hidden"/>`,
     `<g id="pf-dots" clip-path="url(#pf-clip)"></g>`);
   profileChart.innerHTML = `<svg xmlns="${SVG_NS}" viewBox="0 0 ${W} ${H}" role="img" `
@@ -1029,6 +1526,13 @@ function renderProfileChart() {
   profileLosBox.checked = profileShowLos;
   profileCurveSel.value = profileCurveMode;
   profileFresnelBox.checked = profileFresnel;
+  profileObsBox.checked = profileShowObstacles;
+  /* Las referencias que este perfil tiene (la que no, deshabilitada) y la que vale */
+  const hasSeries = k => series.some(x => x.kind === k);
+  for (const o of profileRefSel.options) o.disabled = o.value === "obs" ? !(profileData.obstacles && profileData.obstacles.length) : !hasSeries(o.value);
+  profileRefSel.value = profileRefKind();
+  profileObsBox.disabled = !(profileData.obstacles && profileData.obstacles.length);
+  updateObstructionNote(obstacles, [...obstructions.values()], !!los);
   syncProfileInputs();
   if (lastX !== undefined) showProfileCursor(lastX);
   else setProfileInfo(null);
@@ -1094,12 +1598,23 @@ function setProfileInfo(values) {
   const on = {
     dist: true, mdt: has("mdt"), mds: has("mds"), diff: has("mdt") && has("mds"),
     bulge: profileCurveMode !== "none", clear: profileShowLos || profileFresnel,
-    fres: profileFresnel, margin: profileFresnel
+    fres: profileFresnel, margin: profileFresnel,
+    obs: obstaclesShown().length > 0,
+    /* con «Obstáculos» como referencia, «Despeje» ya es éste: no se repite */
+    oclear: obstaclesShown().length > 0 && (profileShowLos || profileFresnel) && profileRefKind() !== "obs"
   };
+  /* Las dos filas que dependen de la referencia dicen CONTRA QUÉ se miden */
+  const ref = profileRefName(profileRefKind());
+  const dyn = { clear: tr("Despeje ({ref})", { ref }), margin: tr("Margen Fresnel ({ref})", { ref }) };
+  for (const [k, text] of Object.entries(dyn)) {
+    const label = profileInfoRows[k].querySelector(".pf-info-label");
+    if (label.textContent !== text) { label.textContent = text; label.title = text; }
+  }
   for (const [k, row] of Object.entries(profileInfoRows)) {
     const v = on[k] && values ? values[k] : null;
     const val = row.querySelector(".pf-info-val");
     val.textContent = v ? v.txt : "\u2014";
+    val.title = v ? v.txt : ""; /* un nombre largo se corta con puntos suspensivos */
     val.classList.toggle("alert", !!(v && v.alert));
     row.classList.toggle("off", !on[k]);
   }
@@ -1149,16 +1664,41 @@ function showProfileCursor(x) {
   const lift = lay.lift(d);
   if (profileCurveMode !== "none") info.bulge = { txt: diffTxt(profileCurveMode === "flat" ? lay.bend(d) : lift) };
   const between = d >= lay.dA && d <= lay.dB;
-  if (lay.los && at[lay.los.kind] !== undefined && (between || profileShowLos)) {
-    const clear = lay.losAt(d) - lift - at[lay.los.kind];
+  /* El obstáculo bajo el cursor (el de techo más alto si se solapan), con su
+     techo AMSL.                                                           */
+  let top = null;
+  for (const o of obstaclesShown()) {
+    const z = obstacleRoofAt(o, d);
+    if (z !== null && (!top || z > top.z)) top = { o, z };
+  }
+  if (top) info.obs = { txt: `${top.o.name} \u00B7 ${fmtHeight(top.z, altitudeUnit)}` };
+  /* «Despeje» y «Margen Fresnel»: cuánto pasa la recta por encima de la
+     REFERENCIA elegida (`profileRefKind`: el terreno, la superficie o el
+     techo del obstáculo de arriba; la etiqueta de la fila lo dice) —en rojo
+     si es negativo: la tapa—. Es el mismo número en los tres modos de
+     curvatura (`losAt − lift − referencia`, en el marco de las series; las
+     alturas leídas siguen siendo las reales). Fuera de las torres es la
+     prolongación de la recta, y solo se lee si está dibujada; Fresnel y su
+     margen existen solo entre ellas. El RADIO de Fresnel no depende de la
+     referencia. El margen es el despeje menos el radio al 60 %: con el
+     terreno o la superficie, negativo = entran en la zona; con un
+     obstáculo, lo mismo con su techo.                                      */
+  const ref = profileRefKind();
+  const base = ref === "obs" ? (top ? top.z : undefined) : at[ref];
+  const lineHere = lay.los && (between || profileShowLos);
+  if (lineHere && base !== undefined) {
+    const clear = lay.losAt(d) - lift - base;
     info.clear = { txt: diffTxt(clear), alert: clear < 0 };
-    /* Con Fresnel: su radio al 60 % y lo que sobra (o falta) de despeje
-       una vez descontado; en rojo si el terreno entra en la zona.     */
     if (profileFresnel && between) {
-      const r60 = PF_FRESNEL_ZONE * lay.fresnel(d), margin = clear - r60;
-      info.fres = { txt: fmtHeight(r60, altitudeUnit) };
+      const margin = clear - PF_FRESNEL_ZONE * lay.fresnel(d);
       info.margin = { txt: diffTxt(margin), alert: margin < 0 };
     }
+  }
+  if (lay.los && profileFresnel && between) info.fres = { txt: fmtHeight(PF_FRESNEL_ZONE * lay.fresnel(d), altitudeUnit) };
+  /* Con otra referencia, «Despeje obstáculo» sigue dando el del techo (sin Fresnel) */
+  if (top && lineHere && ref !== "obs") {
+    const clear = lay.losAt(d) - lift - top.z;
+    info.oclear = { txt: diffTxt(clear), alert: clear < 0 };
   }
   setProfileInfo(info);
   placeProfileArrow(d);
@@ -1282,10 +1822,28 @@ profileCurveSel.addEventListener("change", () => {
 for (const k of ["a", "b"]) {
   profileTowerAtSel[k].addEventListener("change", () => {
     profileTowerAt[k] = Number(profileTowerAtSel[k].value);
+    persistProfileTowers();
     scheduleProfileChart();
   });
 }
 profileFresnelBox.addEventListener("change", () => { profileFresnel = profileFresnelBox.checked; scheduleProfileChart(); });
+profileObsBox.addEventListener("change", () => { profileShowObstacles = profileObsBox.checked; scheduleProfileChart(); });
+profileRefSel.addEventListener("change", () => { profileRef = profileRefSel.value; scheduleProfileChart(); });
+/* «Actualizar obstáculos»: los polígonos con altitud que hay AHORA a la vista,
+   sobre las series de este perfil (sin red). Sustituye a los guardados: el
+   perfil es una foto y esto es sacar otra, a petición. */
+function updateProfileObstacles() {
+  const d = profileData;
+  if (!d) return;
+  const { obstacles, skipped } = collectProfileObstacles(d.legs, d.vertices, profileTerrainSeries(d.series));
+  d.obstacles = obstacles;
+  persistProfileEdit({ obstacles });
+  scheduleProfileChart();
+  const notes = obstacleSkipNotes(skipped);
+  navMessage([trn(obstacles.length, "{n} obstáculo en el perfil.", "{n} obstáculos en el perfil.", { n: obstacles.length }),
+    ...notes].join(" "), { tone: notes.length ? "error" : "info" });
+}
+document.getElementById("pf-obstacles-refresh").addEventListener("click", updateProfileObstacles);
 /* Torres: `change` (al confirmar, no a cada tecla). Vacío vuelve al
    vigente; fuera de rango se ajusta a la cota y se avisa, como el resto
    de ajustes numéricos (`readClampedNumber`, 43-points-editor.js).     */
@@ -1294,6 +1852,7 @@ for (const k of ["a", "b"]) {
     const fy = POLY_UNIT_FACTOR[altitudeUnit];
     const v = readClampedNumber(profileTowerInput[k], 0, PF_TOWER_MAX / fy, tr("La altura de torre"), POLY_UNIT_LABEL[altitudeUnit]);
     if (v !== null) profileTowerM[k] = Math.min(PF_TOWER_MAX, v * fy);
+    persistProfileTowers();
     syncProfileInputs(true);
     scheduleProfileChart();
   });
@@ -1331,8 +1890,14 @@ document.getElementById("pf-reset").addEventListener("click", () => {
      activada (su prolongación);
    - «Fresnel 60 % inferior» y «superior»: la altitud de la recta menos y
      más el radio de la zona del 60 %, solo entre las torres (fuera, vacías:
-     el elipsoide no existe). El inferior es el que el terreno no debe pasar.*/
-function profileCsv(data, u, locate, dialect = CSV_DEFAULT, link = null) {
+     el elipsoide no existe). El inferior es el que el terreno no debe pasar.
+
+   `obstacles` (null sin ninguno que enseñar): los polígonos con altitud que
+   se dibujan. Añaden filas en la entrada y la salida EXACTAS de cada tramo
+   y dos columnas: «Obstáculo» (el nombre de los que hay en esa distancia,
+   unidos con « / ») y «Techo obstáculo» (el más alto, AMSL, en la unidad de
+   altitud); vacías fuera de todos.                                     */
+function profileCsv(data, u, locate, dialect = CSV_DEFAULT, link = null, obstacles = null) {
   const distances = new Set();
   const lookups = data.series.map(s => {
     const m = new Map();
@@ -1340,6 +1905,8 @@ function profileCsv(data, u, locate, dialect = CSV_DEFAULT, link = null) {
     return m;
   });
   if (link) { distances.add(link.dA); distances.add(link.dB); }
+  const obs = obstacles && obstacles.length ? obstacles : null;
+  if (obs) for (const o of obs) for (const sp of o.spans) { distances.add(sp[0][0]); distances.add(sp[sp.length - 1][0]); }
   const alt = v => Number.isFinite(v) ? +(v / u.altFactor).toFixed(u.altDecimals) : "";
   const rows = [...distances].sort((a, b) => a - b).map(d => {
     const at = locate(d);
@@ -1354,6 +1921,10 @@ function profileCsv(data, u, locate, dialect = CSV_DEFAULT, link = null) {
         row.push(inside ? alt(line - r) : "", inside ? alt(line + r) : "");
       }
     }
+    if (obs) {
+      const here = obs.map(o => ({ o, z: obstacleRoofAt(o, d) })).filter(x => x.z !== null);
+      row.push(here.map(x => x.o.name).join(" / "), here.length ? alt(Math.max(...here.map(x => x.z))) : "");
+    }
     return row;
   });
   const zone = Math.round(PF_FRESNEL_ZONE * 100); /* 60 */
@@ -1362,7 +1933,8 @@ function profileCsv(data, u, locate, dialect = CSV_DEFAULT, link = null) {
     ...(link ? [tr("Torre")] : []),
     ...(link && link.showLos ? [tr("Línea de vista ({unit})", { unit: u.altLabel })] : []),
     ...(link && link.showFresnel ? [tr("Fresnel {zone} % inferior ({unit})", { zone, unit: u.altLabel }),
-      tr("Fresnel {zone} % superior ({unit})", { zone, unit: u.altLabel })] : [])];
+      tr("Fresnel {zone} % superior ({unit})", { zone, unit: u.altLabel })] : []),
+    ...(obs ? [tr("Obstáculo"), tr("Techo obstáculo ({unit})", { unit: u.altLabel })] : [])];
   return "\uFEFF" + toCsv(header, rows, dialect); /* BOM: Excel lee UTF-8 */
 }
 
@@ -1390,7 +1962,7 @@ function exportProfileCsv() {
     return { lat: ll.lat, lng: ll.lng };
   };
   const text = profileCsv(data, { distFactor: POLY_UNIT_FACTOR[measureUnit], altFactor: POLY_UNIT_FACTOR[altitudeUnit],
-    altDecimals: HEIGHT_DECIMALS[altitudeUnit], distLabel: POLY_UNIT_LABEL[measureUnit], altLabel: POLY_UNIT_LABEL[altitudeUnit] }, locate, csvDialect(uiLang), profileCsvLink(data));
+    altDecimals: HEIGHT_DECIMALS[altitudeUnit], distLabel: POLY_UNIT_LABEL[measureUnit], altLabel: POLY_UNIT_LABEL[altitudeUnit] }, locate, csvDialect(uiLang), profileCsvLink(data), obstaclesShown());
   downloadBlob(new Blob([text], { type: "text/csv;charset=utf-8" }), `${profileExportName()}.csv`);
 }
 

@@ -331,7 +331,8 @@ the flag clears by itself when the tiles come back.
   again; editing the route's waypoints asks for a new profile
 - routes longer than a configurable limit (10 NM by default) get no
   profile, so a long route cannot fill the browser storage with cells
-- the chart exports as a PNG image and its numbers as a CSV file; with the line of sight or the Fresnel ellipsoid on, the file also carries the tower positions (1 for the start tower, 2 for the end tower, 0 elsewhere), the altitude of the line of sight and the lower and upper altitude of the 60 % Fresnel zone, in the format of the interface language: commas and a decimal point in English, semicolons and a decimal comma in Spanish (what Excel expects there)
+- polygons with altitude as obstacles: the visible polygons of a KML or a GeoJSON that cross the route are drawn as blocks from the terrain up to their roof, in red where the start–end line passes below it, with a sentence saying which ones block the line and the clearance of each under the cursor. The KML altitude mode of each polygon (`absolute`, `relativeToGround`, `clampToGround`; sea-floor modes are left out with one warning per file) is kept, shown and editable in the polygon's list of points; altitude without a mode, and GeoJSON altitude, count as above sea level. Above-ground heights are added to the terrain the profile has just downloaded, with no extra request. Obstacles and the tower heights and vertices are saved with the profile; «Actualizar obstáculos» collects the visible polygons again
+- the chart exports as a PNG image and its numbers as a CSV file; with the line of sight or the Fresnel ellipsoid on, the file also carries the tower positions (1 for the start tower, 2 for the end tower, 0 elsewhere), the altitude of the line of sight, the lower and upper altitude of the 60 % Fresnel zone and, with obstacles shown, their names and the highest roof at each distance, in the format of the interface language: commas and a decimal point in English, semicolons and a decimal comma in Spanish (what Excel expects there)
 
 ### Measurements
 
@@ -485,7 +486,7 @@ The interface is primarily designed for mouse and keyboard use. On a phone it sh
 - The simple compatibility statement applies to conventional folder/placemark/line/polygon KML, not every feature in the full KML specification.
 - `DOMParser` and `JSON.parse` are synchronous and can briefly block the interface on large inputs (reading the XML of a 309 MB KML is one task of about 4 seconds).
 - The application sets no explicit KML-size or feature-count limit, but the browser, RAM, IndexedDB quota and rendering performance impose practical limits. A KMZ (or shapefile `.zip`) is checked before anything is unpacked: at most 2000 entries, a 200× compression ratio and an uncompressed size of 500 MB by default, which you can change in Properties → Preferences.
-- Altitude is carried through import, storage and export, but it is not rendered: this is a 2D viewer. Two placemarks at the same latitude and longitude but different altitudes are still treated as duplicates.
+- Altitude is carried through import, storage and export, but it is not drawn on the map: this is a 2D viewer (the one place it is used is a route profile, where a polygon with altitude counts as an obstacle; `<extrude>` is not read, so such a polygon is always a block from the terrain up). Two placemarks at the same latitude and longitude but different altitudes are still treated as duplicates.
 - KML style handling is partial: shared and inline styles for basic line and polygon appearance, and `StyleMap` normal-style references. (Namespaces are not a limitation — elements are matched by local name, so prefixed, default-namespaced and namespace-less KML all work.)
 - External services can change, rate-limit requests or become unavailable.
 - Opening a URL only works if that server allows other pages to read it (CORS headers). Most static hosts do; many portals do not, and the browser gives the page no detail about why. For those, download the file and drop it in — the dialog says so when it happens.
@@ -508,7 +509,7 @@ Do not use public tile, geocoding or CDN services for sensitive work without an 
   `src/styles.css`, `src/sw.js` and 40 JavaScript files, concatenated into the
   shipped file by `build.js`. The single-file product is the output, not the
   source.
-- **There are automated tests.** 122 suites run against the shipped
+- **There are automated tests.** 124 suites run against the shipped
   file — most under Node, plus a set that drives a real headless browser —
   covering coordinate parsing and formatting, UTM, KML namespaces and
   styles, geometry conversion, serialization, tree navigation and
@@ -528,6 +529,7 @@ Do not use public tile, geocoding or CDN services for sensitive work without an 
   proper `role="tree"` with roving focus, dialogs trap and restore focus, and
   the panel is driven entirely from the keyboard.
 - **Export to KML and GeoJSON**, next to `.kite.json`, and import of GPX.
+- **Obstacles in a route profile**: polygons with altitude (the KML altitude mode is now kept, shown and editable) cross the route as blocks and show whether they block the start–end line; they are saved with the profile, together with its towers.
 - **An English interface**, with Spanish as the source language, and a
   light/dark theme.
 - **Offline reload**: a small service worker keeps the application and its
