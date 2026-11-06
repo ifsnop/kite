@@ -173,6 +173,8 @@ Arrastrar una fila con el ratón la mueve de carpeta o cambia su orden entre her
 
 Un icono de capas, en la esquina superior derecha del mapa, despliega el panel de cartografías de fondo: OpenStreetMap, varias capas del Instituto Geográfico Nacional (mapa base, topográfico, ortofoto PNOA actual e histórica, modelo digital del terreno), la ortofoto municipal de Madrid del Ayuntamiento, un par de opciones de relieve sombreado, bajo credencial propia del usuario el modelo de superficie de Copernicus, y dos capas «Custom» que piden su cartografía a un servidor propio del usuario: «Custom Tile Map Service» (teselas) y «Custom Web Map Service» (WMS). Se pueden combinar varias a la vez, cada una con su propio control de opacidad, y reordenarse con las flechas de cada fila (el orden de la lista es el orden de apilado en el mapa).
 
+El panel **se cierra solo cuando se actúa fuera de él**: un clic en el mapa, en el árbol o en cualquier botón de la cabecera, o pulsar una tecla (Escape también), porque ocupa buena parte del visor y tapaba otros diálogos. Lo que se hace dentro de él —casillas, deslizadores, flechas, la tuerca y el selector de color de la primera fila— no lo cierra, y el icono de capas sigue abriéndolo y cerrándolo.
+
 La primera fila del panel no es un mapa, sino el color de fondo del propio visor: el que se ve detrás de las teselas, en un hueco sin cobertura o en el borde del mundo. Por defecto es el mismo azul claro de siempre; su muestra de color abre el mismo selector integrado que los colores de una capa (apartado 6.1) y el cambio se recuerda entre sesiones.
 
 ![Panel de mapas base desplegado, con OpenStreetMap activa y el resto disponibles](img/mapas-base.png)

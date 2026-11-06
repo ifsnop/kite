@@ -8,6 +8,7 @@ paths:
 
 ## Mapas base
 
+- **La lista se cierra al actuar fuera** (`closeBasePanelOutside`, `11-base-panel.js`; pedido del usuario: ocupa mucho del visor y tapaba otros diálogos): un `pointerdown` y un `keydown` en `document`, en CAPTURA (los controles de Leaflet detienen `mousedown`/`click`, así que el mapa nunca los vería), la ocultan si el objetivo no está en `.base-box` NI en `#color-picker` (el selector de color cuelga del `<body>` pero nace del botón de color de la primera fila). Escape y Tab/modificadores no pasan por aquí: Escape lo atiende la cadena de `52-measure.js`, que cierra antes lo que tenga encima (el selector de color, los diálogos) y la lista justo antes de herramienta y selección. Probado en `tests/browser/base-panel-close.mjs` (falla sin los dos oyentes).
 - **Primera fila: color de fondo del mapa, no una capa**
   (`buildMapBackgroundRow`, `11-base-panel.js`). Es el color DETRÁS de
   las teselas (huecos, borde del mundo — no hay desplazamiento infinito,

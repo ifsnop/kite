@@ -266,6 +266,9 @@ document.addEventListener("keydown", e => {
   if (!customTilesDialog.hidden) { closeCustomTilesDialog(); return; }
   if (!customWmsDialog.hidden) { closeCustomWmsDialog(); return; }
   if (!pointsDialog.hidden) { closePointsDialog(); return; }
+  /* La lista de mapas base, flotando sobre el visor: lo último que se cierra
+     antes de tocar herramienta y selección (un diálogo la tapa, no al revés) */
+  if (!baseControl._list.hidden) { closeBasePanel(); return; }
   /* Cancelar a medio dibujar una ruta (closeStyleDialog(false) borra el
      nodo por ser "isNew", mismo camino que un pin recién creado, y
      además sale de la herramienta) vive dentro de closeStyleDialog
