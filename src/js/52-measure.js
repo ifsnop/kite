@@ -1042,6 +1042,9 @@ function removeRouteWaypoint(m, handle) {
   const i = m.handles.indexOf(handle);
   if (i === -1) return;
   if (m.handles.length <= 2) {
+    /* Una ruta que se está CREANDO no se queda atascada en 2 puntos: el
+       otro vuelve a ser la vista previa (ver revertRouteToPreview).      */
+    if (routeMeasurement === m) { revertRouteToPreview(m, handle); return; }
     navMessage(tr("Faltan waypoints para seguir siendo una ruta (mínimo 2)."));
     return;
   }
@@ -1051,6 +1054,30 @@ function removeRouteWaypoint(m, handle) {
   m.group.removeLayer(m.legLabels.pop()); /* el conteo de tramos baja en uno; da igual cuál se retire */
   updateMeasurement(m);
   scheduleSave();
+}
+
+/* Quitar uno de los DOS waypoints de una ruta que se está creando. Desde el
+   2.º punto la ruta es una medición REAL (nodo en el árbol y diálogo abierto)
+   y una medición no puede tener menos de 2 waypoints, así que antes se
+   rechazaba con un aviso y no había forma de rectificar el punto; el polígono
+   en curso, que sigue siendo un borrador, no tiene ese mínimo. Ahora se
+   DESHACE la medición y vuelve la vista previa de UN punto (el que queda),
+   con la herramienta todavía armada: el clic siguiente la crea otra vez. Se
+   cancela como lo haría Escape —el nodo `isNew` se borra con el diálogo,
+   `closeStyleDialog(false)`— y, por si el diálogo ya no mostraba esta ruta,
+   se borra el nodo aparte. Una ruta YA terminada no pasa por aquí.        */
+function revertRouteToPreview(m, removed) {
+  const keep = m.handles.find(h => h !== removed);
+  if (!keep) return;
+  const at = keep.getLatLng();
+  const li = m.treeLabel && m.treeLabel.closest("li");
+  closeStyleDialog(false); /* cancelar: borra el nodo isNew, sale de la herramienta */
+  if (li && li.isConnected) deleteNode(li);
+  routeMeasurement = null;
+  setTool("route");
+  const h = makeHandle(at, true);
+  routeDraft = { first: L.latLng(at.lat, at.lng), previewGroup: L.featureGroup([h]).addTo(rootGroup) };
+  navMessage(tr("Se ha deshecho la ruta: vuelve a quedar solo su primer punto."), { tone: "info" });
 }
 
 /* Inserta un waypoint nuevo justo después de `handle` (o al final si

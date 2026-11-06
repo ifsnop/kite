@@ -19,7 +19,10 @@
       borra el nodo (como cancelar un pin recién creado) y sale de la
       herramienta; 5) terminar con doble click se comporta como pulsar
       "Aceptar": guarda el nodo y CIERRA el diálogo, dando señal visual
-      de que la edición terminó. */
+      de que la edición terminó; 6) quitar el 2.º punto (o el último, con
+      Supr) de una ruta en curso con solo 2 vuelve a la vista previa de un
+      punto, igual que el polígono en curso; una ruta ya terminada
+      conserva su mínimo de 2. */
 import { launch, serve, openApp, reporter, READABLE } from "./_browser.mjs";
 
 const { ok, done } = reporter("BROWSER ROUTE LIVE DRAW TESTS OK");
@@ -163,6 +166,63 @@ ok(afterAcceptBtn.activeTool === null, "y sale de la herramienta");
 ok(afterAcceptBtn.dialogHidden, "el diálogo se cierra");
 ok(afterAcceptBtn.liConnected, "pero el nodo se GUARDA, no se borra");
 ok(afterAcceptBtn.handles === 2, "con sus waypoints intactos: " + afterAcceptBtn.handles);
+
+/* ---------- Borrar el 2.º punto de una ruta que se está CREANDO ---------- */
+/* Una ruta en curso es ya una medición REAL (con su diálogo) y una medición no puede
+   tener menos de 2 waypoints, así que quitar uno de los dos se rechazaba con un aviso
+   y no había forma de rectificar el punto. Ahora vuelve a la vista previa de UN punto
+   (como el polígono en curso, que no tiene mínimo) y se puede seguir. */
+const routeNodes = () => page.evaluate(() => [...document.querySelectorAll("#tree li")].filter(x => x._measure && x._measure.type === "route").length);
+const draftState = () => page.evaluate(() => ({ tool: activeTool, draft: !!routeDraft, measurement: routeMeasurement ? routeMeasurement.handles.length : 0,
+  dialogHidden: styleDialog.hidden, pan: map.dragging.enabled() }));
+const routesBefore = await routeNodes();
+await page.evaluate(() => { setTool(null); setTool("route"); });
+const q1 = await pt(40.5, -3.915), q2 = await pt(40.503, -3.915), q3 = await pt(40.506, -3.915);
+await page.mouse.click(q1.x, q1.y);
+await page.mouse.click(q2.x, q2.y);
+ok((await draftState()).measurement === 2, "con dos puntos, la ruta ya es real");
+
+/* Clic derecho sobre el 2.º: vuelve al punto de partida */
+await page.mouse.click(q2.x, q2.y, { button: "right" });
+let st = await draftState();
+ok(st.draft && st.measurement === 0 && st.tool === "route" && st.dialogHidden, "quitar el 2.º con 2 puntos vuelve a la vista previa de un punto, sigue en la herramienta y sin diálogo: " + JSON.stringify(st));
+ok((await routeNodes()) === routesBefore, "y no deja ninguna ruta en el árbol");
+const kept = await page.evaluate(() => { const l = routeDraft.first; return { lat: l.lat, lng: l.lng }; });
+ok(Math.abs(kept.lat - 40.5) < 1e-4 && Math.abs(kept.lng + 3.915) < 1e-4, "el punto que queda es el 1.º: " + JSON.stringify(kept));
+ok(st.pan, "con el pan activo");
+
+/* Se puede seguir: el clic siguiente crea de nuevo la ruta */
+await page.mouse.click(q3.x, q3.y);
+st = await draftState();
+ok(st.measurement === 2 && !st.draft && !st.dialogHidden, "el clic siguiente vuelve a crear la ruta con su diálogo: " + JSON.stringify(st));
+
+/* Con 3 puntos se quita sin más (3 → 2) */
+const q4 = await pt(40.509, -3.915);
+await page.mouse.click(q4.x, q4.y);
+ok((await draftState()).measurement === 3, "tercer waypoint");
+await page.mouse.click(q3.x, q3.y, { button: "right" });
+st = await draftState();
+ok(st.measurement === 2 && !st.draft, "con tres puntos, quitar uno deja la ruta de dos: " + JSON.stringify(st));
+
+/* Supr hace lo mismo con el último: de 2 vuelve a un punto */
+await page.keyboard.press("Delete");
+st = await draftState();
+ok(st.draft && st.measurement === 0 && st.tool === "route", "Supr con dos puntos también vuelve a la vista previa: " + JSON.stringify(st));
+ok((await routeNodes()) === routesBefore, "(sin ruta en el árbol)");
+/* Supr otra vez borra el único punto de la vista previa, como siempre */
+await page.keyboard.press("Delete");
+ok(!(await draftState()).draft, "y otro Supr quita el punto de la vista previa");
+
+/* Una ruta YA TERMINADA conserva su mínimo de 2 y el aviso */
+await page.evaluate(() => { setTool(null); setTool("route"); });
+await page.mouse.click(q1.x, q1.y);
+await page.mouse.click(q2.x, q2.y);
+await page.click("#style-accept");
+const doneLi = await page.evaluate(() => { const li = [...document.querySelectorAll("#tree li")].filter(x => x._measure && x._measure.type === "route").pop(); window.__done = li; return li._measure.handles.length; });
+ok(doneLi === 2, "ruta terminada con 2 waypoints");
+await page.evaluate(() => { document.getElementById("nav-msg").textContent = ""; removeRouteWaypoint(window.__done._measure, window.__done._measure.handles[1]); });
+const kept2 = await page.evaluate(() => ({ n: window.__done._measure.handles.length, connected: window.__done.isConnected, msg: document.getElementById("nav-msg").textContent }));
+ok(kept2.n === 2 && kept2.connected && /mínimo 2/.test(kept2.msg), "en una ruta ya terminada, con 2 puntos no se puede quitar y se avisa: " + JSON.stringify(kept2));
 
 ok(errors.length === 0, "sin errores de página: " + JSON.stringify(errors));
 

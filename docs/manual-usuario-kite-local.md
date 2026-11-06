@@ -200,7 +200,7 @@ La primera reúne las herramientas que miden y dibujan sobre el mapa. Igual que 
 
 Medir, la primera caja:
 
-- **Medir ruta** (⤳): un clic por cada waypoint, doble clic para terminar — como varias líneas encadenadas, con la distancia y el rumbo de cada tramo por separado y el total. Una ruta de solo 2 waypoints es una línea recta de toda la vida; con más, sirve para planificar un trayecto con varias escalas.
+- **Medir ruta** (⤳): un clic por cada waypoint, doble clic para terminar — como varias líneas encadenadas, con la distancia y el rumbo de cada tramo por separado y el total. Una ruta de solo 2 waypoints es una línea recta de toda la vida; con más, sirve para planificar un trayecto con varias escalas. Mientras se crea se puede rectificar: el botón derecho sobre un waypoint (o `Supr`, que quita el último) lo quita, y si solo quedaban dos, la ruta se deshace y queda el primer punto como vista previa, para poner el segundo donde corresponda. Una ruta ya terminada conserva su mínimo de 2 waypoints.
 - **Medir círculo** (◯): arrastrar del centro al borde calcula el radio, el perímetro, la superficie y la orientación (el rumbo del centro al borde).
 - **Medir arco** (◠): tres gestos. Primero el **centro**; después el **inicio del arco**, que fija a la vez el radio y la orientación (los dos primeros valen como un arrastre del centro al inicio, o como dos clics); por último se **recorre el perímetro** desde el inicio con el ratón y un clic marca dónde acaba. El sentido (horario o antihorario) lo decide hacia dónde se mueve el ratón, y se pueden hacer arcos de más de media vuelta. Escape cancela. Al terminar, el arco **se convierte en una ruta normal** («Arco 1», «Arco 2»…) de tantos tramos como indique la preferencia «Segmentos de un arco» (16 de partida, ver 🏷️ Propiedades): la ruta ya no recuerda centro, radio ni apertura y se edita como cualquier otra. Sus etiquetas de tramo salen apagadas para no tapar el arco; se encienden con la casilla «Mostrar las etiquetas…» de su diálogo.
 
@@ -710,7 +710,7 @@ Esa × es la norma de **todas** las ventanas de la aplicación: arriba a la dere
 | Doble clic sobre el último vértice | Cerrar el polígono y terminar |
 | Doble clic fuera de un vértice | Terminar la línea o la ruta sin cerrarla |
 | Clic derecho sobre un vértice | Quitar ese vértice |
-| Supr | Quitar el último vértice |
+| Supr | Quitar el último vértice (en una ruta con solo dos puntos, la deshace y deja el primero como vista previa) |
 
 **Editar vértices de una ruta o un polígono ya creados**
 

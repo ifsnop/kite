@@ -427,6 +427,7 @@ registerLang("en", "English", {
   "Línea": "Line",
   "Faltan waypoints para terminar la ruta (mínimo 2).": "More waypoints are needed to finish the route (minimum 2).",
   "Faltan waypoints para seguir siendo una ruta (mínimo 2).": "More waypoints are needed to remain a route (minimum 2).",
+  "Se ha deshecho la ruta: vuelve a quedar solo su primer punto.": "The route has been undone: only its first point is left.",
   "Elevación: {detail}.": "Elevation: {detail}.",
   /* 53-range-rings.js */
   "Anillos de alcance": "Range rings",
@@ -839,7 +840,7 @@ registerLang("en", "English", {
   "Terminar la línea o la ruta sin cerrarla": "End the line or route without closing it",
   "Clic derecho sobre un vértice": "Right-click on a vertex",
   "Quitar ese vértice": "Remove that vertex",
-  "Quitar el último vértice": "Remove the last vertex",
+  "Quitar el último vértice (en una ruta con solo dos puntos, la deshace y deja el primero como vista previa)": "Remove the last vertex (on a route with only two points, it undoes the route and leaves its first point as a preview)",
   "Editar vértices de una ruta o un polígono ya creados": "Edit vertices of an already created route or polygon",
   "Abrir sus propiedades (🎨 o Alt+Intro)": "Open its properties (🎨 or Alt+Enter)",
   "Activa mover/borrar/insertar vértices sobre el mapa": "Enables moving/deleting/inserting vertices on the map",

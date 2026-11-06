@@ -2032,7 +2032,7 @@
         <tr><td>Doble clic sobre el &#250;ltimo v&#233;rtice</td><td>Cerrar el pol&#237;gono y terminar</td></tr>
         <tr><td>Doble clic fuera de un v&#233;rtice</td><td>Terminar la l&#237;nea o la ruta sin cerrarla</td></tr>
         <tr><td>Clic derecho sobre un v&#233;rtice</td><td>Quitar ese v&#233;rtice</td></tr>
-        <tr><td>Supr</td><td>Quitar el &#250;ltimo v&#233;rtice</td></tr>
+        <tr><td>Supr</td><td>Quitar el &#250;ltimo v&#233;rtice (en una ruta con solo dos puntos, la deshace y deja el primero como vista previa)</td></tr>
         <tr><th colspan="2">Editar v&#233;rtices de una ruta o un pol&#237;gono ya creados</th></tr>
         <tr><td>Abrir sus propiedades (🎨 o Alt+Intro)</td><td>Activa mover/borrar/insertar v&#233;rtices sobre el mapa</td></tr>
         <tr><td>Clic en un v&#233;rtice</td><td>Seleccionarlo</td></tr>
@@ -3305,6 +3305,7 @@ registerLang("en", "English", {
   "Línea": "Line",
   "Faltan waypoints para terminar la ruta (mínimo 2).": "More waypoints are needed to finish the route (minimum 2).",
   "Faltan waypoints para seguir siendo una ruta (mínimo 2).": "More waypoints are needed to remain a route (minimum 2).",
+  "Se ha deshecho la ruta: vuelve a quedar solo su primer punto.": "The route has been undone: only its first point is left.",
   "Elevación: {detail}.": "Elevation: {detail}.",
   /* 53-range-rings.js */
   "Anillos de alcance": "Range rings",
@@ -3717,7 +3718,7 @@ registerLang("en", "English", {
   "Terminar la línea o la ruta sin cerrarla": "End the line or route without closing it",
   "Clic derecho sobre un vértice": "Right-click on a vertex",
   "Quitar ese vértice": "Remove that vertex",
-  "Quitar el último vértice": "Remove the last vertex",
+  "Quitar el último vértice (en una ruta con solo dos puntos, la deshace y deja el primero como vista previa)": "Remove the last vertex (on a route with only two points, it undoes the route and leaves its first point as a preview)",
   "Editar vértices de una ruta o un polígono ya creados": "Edit vertices of an already created route or polygon",
   "Abrir sus propiedades (🎨 o Alt+Intro)": "Open its properties (🎨 or Alt+Enter)",
   "Activa mover/borrar/insertar vértices sobre el mapa": "Enables moving/deleting/inserting vertices on the map",
@@ -5206,7 +5207,7 @@ map.on("resize rotate", fitWorldMinZoom);
 
 /* Fecha de generación del código (versión): AÑOMESDIAHORAMINUTO.
    Actualizar en cada generación; se muestra junto al crédito de Leaflet. */
-const BUILD = "202611061109";
+const BUILD = "202611061114";
 /* Versión de release (la de package.json, horneada aquí por build.js
    al construir — ver «Versión y releases de GitHub» en CLAUDE.md): a
    diferencia de BUILD, que cambia en CADA generación, esta solo cambia
@@ -19542,6 +19543,9 @@ function removeRouteWaypoint(m, handle) {
   const i = m.handles.indexOf(handle);
   if (i === -1) return;
   if (m.handles.length <= 2) {
+    /* Una ruta que se está CREANDO no se queda atascada en 2 puntos: el
+       otro vuelve a ser la vista previa (ver revertRouteToPreview).      */
+    if (routeMeasurement === m) { revertRouteToPreview(m, handle); return; }
     navMessage(tr("Faltan waypoints para seguir siendo una ruta (mínimo 2)."));
     return;
   }
@@ -19551,6 +19555,30 @@ function removeRouteWaypoint(m, handle) {
   m.group.removeLayer(m.legLabels.pop()); /* el conteo de tramos baja en uno; da igual cuál se retire */
   updateMeasurement(m);
   scheduleSave();
+}
+
+/* Quitar uno de los DOS waypoints de una ruta que se está creando. Desde el
+   2.º punto la ruta es una medición REAL (nodo en el árbol y diálogo abierto)
+   y una medición no puede tener menos de 2 waypoints, así que antes se
+   rechazaba con un aviso y no había forma de rectificar el punto; el polígono
+   en curso, que sigue siendo un borrador, no tiene ese mínimo. Ahora se
+   DESHACE la medición y vuelve la vista previa de UN punto (el que queda),
+   con la herramienta todavía armada: el clic siguiente la crea otra vez. Se
+   cancela como lo haría Escape —el nodo `isNew` se borra con el diálogo,
+   `closeStyleDialog(false)`— y, por si el diálogo ya no mostraba esta ruta,
+   se borra el nodo aparte. Una ruta YA terminada no pasa por aquí.        */
+function revertRouteToPreview(m, removed) {
+  const keep = m.handles.find(h => h !== removed);
+  if (!keep) return;
+  const at = keep.getLatLng();
+  const li = m.treeLabel && m.treeLabel.closest("li");
+  closeStyleDialog(false); /* cancelar: borra el nodo isNew, sale de la herramienta */
+  if (li && li.isConnected) deleteNode(li);
+  routeMeasurement = null;
+  setTool("route");
+  const h = makeHandle(at, true);
+  routeDraft = { first: L.latLng(at.lat, at.lng), previewGroup: L.featureGroup([h]).addTo(rootGroup) };
+  navMessage(tr("Se ha deshecho la ruta: vuelve a quedar solo su primer punto."), { tone: "info" });
 }
 
 /* Inserta un waypoint nuevo justo después de `handle` (o al final si

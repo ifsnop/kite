@@ -92,6 +92,17 @@ const closed = await page.evaluate(() => ({ nodes: [...document.querySelectorAll
 ok(closed.nodes === 1 && closed.tool === null, "el doble clic sobre el último vértice sigue cerrando el polígono: " + JSON.stringify(closed));
 ok((await state()).pan, "y el pan queda activo al soltar la herramienta");
 
+/* Quitar vértices del polígono en curso: no hay mínimo (el 2.º, el último, hasta quedar vacío) */
+await tool("polygon");
+await click(560, 300);
+await click(640, 340);
+ok((await state()).poly === 2, "polígono en curso con dos vértices");
+await page.mouse.click(640, 340, { button: "right" });
+ok((await state()).poly === 1, "clic derecho sobre el 2.º lo quita (no hay mínimo en el borrador)");
+await page.keyboard.press("Delete");
+ok((await state()).poly === 0, "y Supr quita el que queda");
+await page.evaluate(() => { setTool(null); });
+
 /* ---------- 2. Ruta ---------- */
 await tool("route");
 await click(500, 350);
