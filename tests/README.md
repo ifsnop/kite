@@ -1217,6 +1217,16 @@ BROWSER CLICK TO PLACE TESTS OK
 
 **Qué cubre:** con el ratón real. **Pin**: 📍 arma la herramienta (cruz y botón resaltado) y no crea ni abre nada; el clic crea el marcador EN el punto pulsado (no en el centro de la vista) y abre su diálogo con la herramienta ya soltada; Cancelar lo borra; la posición se corrige en el diálogo y Aceptar lo deja. **Cancelar la herramienta**: Escape antes del clic (y el clic siguiente ya no crea nada), pulsar otro botón de herramienta cambia a esa, pulsar el armado la suelta. **◎ y ◔**: arman la herramienta sin abrir el diálogo; el clic lo abre con el punto pulsado como centro; Cancelar no deja nada; Aceptar crea los anillos centrados en ese punto. **Menú contextual**: «Crear › Pin» lo pone donde se hizo el clic derecho. **Arrastrar** el mapa con la herramienta armada lo desplaza y no crea nada. **Una capa debajo** del punto no se resalta en el árbol ni abre su ficha. Se comprobó que falla sin el cambio. `rings.mjs` se adaptó: ◎ y ◔ ya no abren el diálogo al pulsarse, sino con el clic.
 
+### `browser/style-dialog-actions.mjs`
+
+**Salida de `npm test`:**
+```
+── Navegador: lupa y Borrar en el diálogo de propiedades — con una capa, igual que las de su fila del árbol (borrar sin preguntar y deshacer devuelve el estilo original); con varias, la lupa encuadra el conjunto y Borrar pide confirmación (Cancelar, × y Escape no borran); un pin nuevo no lleva Borrar; el × del árbol sigue igual
+BROWSER STYLE DIALOG ACTIONS TESTS OK
+```
+
+**Qué cubre:** con tres marcadores bien separados. **Una capa**: la fila de iconos va bajo el título, antes del nombre, con `title` y `aria-label` (la lupa lleva el zoom); la lupa del diálogo deja la vista igual que `focusOnNode` de la fila (mismo centro y zoom 14) y no cierra el diálogo; con una vista previa en marcha (tamaño 33), Borrar la quita SIN pedir confirmación, cierra el diálogo, y un Ctrl+Z la devuelve con su estilo ORIGINAL (no el previsualizado). **Varias**: el diálogo es de las tres; la lupa deja las tres a la vista con menos zoom que uno solo; Borrar abre la confirmación con el recuento y los nombres, sin borrar nada y con el diálogo de propiedades abierto; Cancelar, la × y Escape la cierran sin borrar (y Borrar la vuelve a pedir); Cancelar a la izquierda y «Borrar» a la derecha; «Borrar» quita las tres, cierra los dos diálogos y UN Ctrl+Z las devuelve. **Un pin recién creado** no enseña Borrar (Cancelar ya lo borra). **El × de la fila del árbol** sigue igual: una capa sin confirmación, y con varias seleccionadas borra todas, también sin confirmación. Se comprobó que la suite falla sin el cambio.
+
 ### `browser/cadastre.mjs`
 
 **Salida de `npm test`:**

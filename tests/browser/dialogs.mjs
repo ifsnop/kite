@@ -688,7 +688,10 @@ await page.waitForSelector("#style-attrs-body .props-grip");
 await page.evaluate(() => document.querySelector("#style-dialog .dlg-box").style.width = "620px");
 const a0 = await anchosAtributos();
 ok(a0.fijo === "", "en Atributos, de partida, reparto automático: " + JSON.stringify(a0));
-await page.locator("#style-attrs-body .props-grip").scrollIntoViewIfNeeded();
+/* Al centro de la caja, no «si hace falta»: con la fila de iconos de arriba el diálogo es más alto que
+   el visor de la prueba y el borde inferior del separador quedaba bajo el pie fijo (Cancelar/Aceptar),
+   que se llevaba el clic. */
+await page.evaluate(() => document.querySelector("#style-attrs-body .props-grip").scrollIntoView({ block: "center" }));
 const ga = await page.locator("#style-attrs-body .props-grip").boundingBox();
 await page.mouse.move(ga.x + ga.width / 2, ga.y + 12);
 await page.mouse.down();

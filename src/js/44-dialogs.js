@@ -884,6 +884,7 @@ function openStyleDialog(li, { isNew = false, focus = true } = {}) {
   styleIsNew = isNew;
   $id("style-title").textContent = styleTargets.length > 1
     ? tr("Propiedades de {n} capas", { n: styleTargets.length }) : tr("Propiedades: {name}", { name: li._name });
+  syncStyleTools();
   $id("style-marker").hidden = kind !== "marker";
   $id("style-polygon").hidden = kind !== "polygon";
   $id("style-measure").hidden = kind !== "measure";
@@ -1070,6 +1071,79 @@ function openStyleDialog(li, { isNew = false, focus = true } = {}) {
      gesto de vértice va a funcionar, así que tampoco deben parecerlo.  */
   if (kind === "measure" && single) setMeasureHandlesEditable(li._measure, true);
 }
+
+/* ---------- Ir a la capa (🔍) y Borrar (×), como en su fila del árbol ----------
+   Ya existen: `focusOnNode` y el borrado de `makeActions` (ahora
+   `deleteItemsFromUi`); aquí solo se cablean desde este diálogo, que además
+   puede tener VARIAS capas: la lupa encuadra el conjunto (`focusOnNodes`) y
+   borrar pide confirmación (`#delete-confirm`). Con una sola, borra sin
+   preguntar, como el × de su fila.                                       */
+const styleFocusBtn = $id("style-focus");
+const styleDeleteBtn = $id("style-delete");
+const deleteConfirmDialog = $id("delete-confirm");
+const deleteConfirmBox = deleteConfirmDialog.querySelector(".dlg-box");
+setupDialog(deleteConfirmBox, { modal: true });
+makeDialogMovable(deleteConfirmBox);
+let deleteConfirmItems = [];
+
+/* Se llama al abrir el diálogo: los títulos (el de la lupa lleva el zoom, así
+   que no puede ir literal en el HTML estático), la lupa deshabilitada si
+   ninguna capa tiene geometría que enfocar y Borrar oculto en una capa
+   RECIÉN CREADA (un pin, una ruta: Cancelar ya la borra).                 */
+function syncStyleTools() {
+  const set = (btn, text) => { btn.title = text; btn.setAttribute("aria-label", text); };
+  const several = styleTargets.length > 1;
+  const hasGeometry = styleTargets.some(t => subtreeBounds(t).isValid());
+  styleFocusBtn.disabled = !hasGeometry;
+  set(styleFocusBtn, hasGeometry ? tr("Centrar la vista aqu\u00ED y acercar (zoom {zoom})", { zoom: FOCUS_ZOOM })
+    : several ? tr("Estas capas no tienen geometr\u00EDa que enfocar.") : tr("Esta capa no tiene geometr\u00EDa que enfocar."));
+  set(styleDeleteBtn, tr("Borrar"));
+  styleDeleteBtn.hidden = styleIsNew;
+}
+/* Las capas del diálogo que siguen en el árbol y se pueden borrar (las filas de
+   un servicio ArcGIS son fijas: el panel tampoco deja borrarlas por separado) */
+const deletableStyleTargets = () => styleTargets.filter(t => t.isConnected && !t._fixed);
+
+styleFocusBtn.addEventListener("click", () => {
+  const items = styleTargets.filter(t => t.isConnected);
+  if (items.length) focusOnNodes(items);
+});
+styleDeleteBtn.addEventListener("click", () => {
+  const items = deletableStyleTargets();
+  if (!items.length) return;
+  if (items.length > 1) openDeleteConfirm(items); else deleteFromStyleDialog(items);
+});
+/* PRIMERO se cierra el diálogo como un Cancelar (`closeStyleDialog(false)`:
+   revierte la vista previa, retira manejadores y deja el estado limpio) y
+   DESPUÉS se borra, así el `pushUndo` del borrado guarda el estilo ORIGINAL
+   de las capas y Ctrl+Z las devuelve como estaban, no como se previsualizaban. */
+function deleteFromStyleDialog(items) {
+  const several = items.length > 1;
+  const label = several ? tr("borrar {n} nodo(s)", { n: items.length }) : tr("borrar \u00AB{name}\u00BB", { name: items[0]._name });
+  closeStyleDialog(false);
+  deleteItemsFromUi(items, label, several);
+}
+function openDeleteConfirm(items) {
+  deleteConfirmItems = items;
+  const names = items.slice(0, 5).map(t => `\u00AB${t._name}\u00BB`).join(", ")
+    + (items.length > 5 ? " " + tr("y {n} m\u00E1s", { n: items.length - 5 }) : "");
+  /* textContent: los nombres vienen del archivo */
+  $id("delete-confirm-text").textContent = tr("Se borrar\u00E1n {n} capas: {names}. Se puede deshacer con Ctrl+Z.", { n: items.length, names });
+  deleteConfirmDialog.hidden = false;
+  clampToViewport(deleteConfirmBox);
+  focusDialog(deleteConfirmBox);
+}
+function closeDeleteConfirm() {
+  deleteConfirmDialog.hidden = true;
+  deleteConfirmItems = [];
+  releaseFocus();
+}
+$id("delete-cancel").addEventListener("click", closeDeleteConfirm);
+$id("delete-accept").addEventListener("click", () => {
+  const items = deleteConfirmItems.filter(t => t.isConnected);
+  closeDeleteConfirm();
+  if (items.length) deleteFromStyleDialog(items);
+});
 
 /* `commit` false = cancel: the dragged position goes back and a pin that
    was created just to open this dialog is removed again.               */

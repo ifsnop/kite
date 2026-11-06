@@ -44,6 +44,12 @@
       "version": "2.2.0",
       "build": "202611032046"
     },
+    "borrar-capas.png": {
+      "sha256": "733021d4257e3fdbacc445e4d9cda2990ab7d78c315ae520e902c076d581ce0d",
+      "section": "6.4",
+      "version": "2.2.0",
+      "build": "202611061121"
+    },
     "buscador-lugares.png": {
       "sha256": "985dc0fd666e5c3a560c08ead5260325c9ac32a1014d8cc2495b3f8040868a46",
       "section": "2.1",
@@ -105,10 +111,10 @@
       "build": "202611032046"
     },
     "editar-varios.png": {
-      "sha256": "3751f910d37067ede3e577c4406653a924d30cf69b66af68aa4a409066203bdf",
+      "sha256": "6271608805d4727bdbaf86ea1556100951face146ceb1f089cf9a2cf88e2c32b",
       "section": "6.4",
       "version": "2.2.0",
-      "build": "202611032046"
+      "build": "202611061121"
     },
     "editor-puntos.png": {
       "sha256": "a5efb16892b39f14eab6a7ef3a2fff7f22f67670c9e4ee7765660c0218d32937",
@@ -129,22 +135,22 @@
       "build": "202611032046"
     },
     "estilo-marcador.png": {
-      "sha256": "bbb165b40200861afe3a1e7f6d6333181d5493d1cd7562dad422a896e8375bf3",
+      "sha256": "855df090bb3d361fbce81b7cc785b8c568cc64c8d2d1c177b47c0041344d7270",
       "section": "6.1",
       "version": "2.2.0",
-      "build": "202611032046"
+      "build": "202611061121"
     },
     "estilo-medicion.png": {
-      "sha256": "b1fea00da37774b02c2a1ef025e5e4bf202a1614603ed30dd595ee6c8b5e1f25",
+      "sha256": "5c037e1203ce2ed31795c73a2b4ff6f58079d4e7713e143906abe9b3b71f1ed1",
       "section": "6.3",
       "version": "2.2.0",
-      "build": "202611032046"
+      "build": "202611061121"
     },
     "estilo-poligono.png": {
-      "sha256": "dfab9d21099f0b1eb50938c8cf47927409acd9ed2aff0416d27b97bfc1648881",
+      "sha256": "cafd0e225c3ca530ea11796b03c8fb08fc0f2e8b9ea38416e5dd61131c4adf6c",
       "section": "6.2",
       "version": "2.2.0",
-      "build": "202611032046"
+      "build": "202611061121"
     },
     "etiquetas-html.png": {
       "sha256": "e506500b00baba10815598dfd1a4c3d1c8c516daae2e0dd8ca1a96459934c6cb",
@@ -301,13 +307,13 @@
       "sha256": "823045b736b27b6db7e587f4364ec31dfd78909c1afa04e86be020095124d91c",
       "section": "6.1",
       "version": "2.2.0",
-      "build": "202611051250"
+      "build": "202611061121"
     },
     "servicio-arcgis-atributos.png": {
-      "sha256": "803506103c65b14609195a838acb85983a9f0be9d412fd7c64ee9e0a39337ee9",
+      "sha256": "159468a1c9b4020cc29ff1605ad9ce201280c7bd14d2feb500b166ec857fe118",
       "section": "7.16",
       "version": "2.2.0",
-      "build": "202611032046"
+      "build": "202611061121"
     },
     "servicio-arcgis-datos.png": {
       "sha256": "d5a0c80d58f3990074da3f76455a69d6f35f9456631f219a580bec53302486e9",

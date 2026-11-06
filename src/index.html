@@ -152,6 +152,13 @@
 <div id="style-dialog" class="dlg-float" hidden>
   <div class="dlg-box">
     <h2 class="dlg-head"><span class="dlg-title" id="style-title">Propiedades</span><button type="button" class="dlg-close" data-cancel="style-cancel" title="Cancelar" aria-label="Cancelar">&#215;</button></h2>
+    <!-- Ir a la capa y borrarla, como los botones de su fila del árbol (los
+         títulos se escriben al abrir: el de la lupa lleva el zoom). Con
+         varias capas, la lupa encuadra el conjunto y Borrar pide confirmar. -->
+    <div class="dlg-tools" id="style-tools">
+      <button type="button" id="style-focus">&#128269;</button>
+      <button type="button" id="style-delete" class="delete">&#215;</button>
+    </div>
     <!-- El nombre es de cada nodo, pero con varios seleccionados el campo
          no se deja en blanco: enseña los nombres que hay (en gris y
          cursiva, como marca de "esto no es un valor") y escribir uno
@@ -538,6 +545,19 @@
     <div class="dlg-actions">
       <button class="btn" id="restore-cancel">Cancelar</button>
       <button class="btn btn-danger" id="restore-accept">Borrar todo</button>
+    </div>
+  </div>
+</div>
+
+<!-- Confirmación de borrar VARIAS capas desde su diálogo de propiedades (con
+     una sola, se borra sin preguntar, como el × de su fila). -->
+<div id="delete-confirm" class="dlg-overlay" hidden>
+  <div class="dlg-box">
+    <h2 class="dlg-head"><span class="dlg-title">Borrar capas</span><button type="button" class="dlg-close" data-cancel="delete-cancel" title="Cancelar" aria-label="Cancelar">&#215;</button></h2>
+    <p class="dlg-hint" id="delete-confirm-text"></p>
+    <div class="dlg-actions">
+      <button class="btn" id="delete-cancel">Cancelar</button>
+      <button class="btn btn-danger" id="delete-accept">Borrar</button>
     </div>
   </div>
 </div>

@@ -189,6 +189,7 @@ paths:
   capas del mismo tipo: manda el tipo de la primera encontrada y se
   avisa por `navMessage` de cuántas quedan fuera.
 
+- **El borrado de la interfaz es UNO** (`deleteItemsFromUi(items, label, multi)`, `31-tree-node.js`): el × de una fila (borra toda la selección si el nodo forma parte de ella, SIN confirmación) y el × del diálogo de propiedades (borra SUS capas; con varias pide confirmación antes, ver `style-dialogs-ui.md`) pasan por él: `pushUndo`, el cursor que no desaparece y la selección. Supr (`41-selection.js`) tiene su propio camino, con su etiqueta de deshacer.
 - **Contenedor con capa propia y filas fijas (servicio ArcGIS, ver `arcgis.md`)**: el nodo `arcgis` es un contenedor cuya casilla lleva además una capa de Leaflet (`chk._layer`): `applyContainerState`, `cascadeVisibility` (también sobre registros pendientes), `removeRecordsFromMap` y `extendBoundsFromRecords` la tratan. Sus filas hijas son `_fixed`: no se mueven, copian, cortan, borran ni renombran (`movableSelection()` las deja fuera y AVISA), y nada se suelta ni se pega dentro (`arcgisServiceOf`).
 
 ## Secciones que crea la aplicación (azul pastel)

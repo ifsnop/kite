@@ -390,6 +390,15 @@
   .actions button:hover { color: var(--accent); background: var(--surface); }
   .actions button.delete:hover { color: var(--danger); }
   .actions button.az { font-size: 10px; font-weight: 600; }
+  /* Fila de iconos del diálogo de propiedades (🔍 ir a la capa, × borrar): el
+     mismo aspecto de icono que los botones de la fila del árbol */
+  .dlg-tools { display: flex; gap: 4px; margin: 2px 0 6px; }
+  .dlg-tools button { border: none; background: none; color: var(--muted); font-size: 15px; line-height: 1;
+                      cursor: pointer; padding: 4px 6px; border-radius: 4px; }
+  .dlg-tools button:hover:not(:disabled) { color: var(--accent); background: var(--surface); }
+  .dlg-tools button.delete:hover:not(:disabled) { color: var(--danger); }
+  .dlg-tools button:disabled { opacity: .35; cursor: default; }
+  .dlg-tools button[hidden] { display: none; }
   .actions button[hidden] { display: none; }
   #nav-search {
     padding: 8px 14px;
@@ -1194,7 +1203,7 @@
      instead of stretching almost edge to edge.                       */
   /* Sin esto heredan el max-width: 90vw de .dlg-box y una caja de texto
      corto se estira a casi toda la pantalla.                          */
-  #kml-tags-picker .dlg-box, #kml-dup-picker .dlg-box, #sh-creds .dlg-box, #mobile-notice .dlg-box, #restore-confirm .dlg-box { max-width: 42ch; }
+  #kml-tags-picker .dlg-box, #kml-dup-picker .dlg-box, #sh-creds .dlg-box, #mobile-notice .dlg-box, #restore-confirm .dlg-box, #delete-confirm .dlg-box { max-width: 42ch; }
   /* ---------- Ventanas redimensionables ----------
      `resize: both` es el redimensionado nativo del navegador; su tirador
      va en la esquina inferior derecha y no estorba al arrastre por el
@@ -1542,6 +1551,7 @@
   #geojson-name-picker { z-index: 2100; }
   /* La segunda confirmación de Restaurar se abre desde Propiedades (2050) */
   #restore-confirm { z-index: 2100; }
+  #delete-confirm { z-index: 2100; } /* encima del diálogo de propiedades (flotante) desde el que se abre */
   /* El panel Propiedades lleva ALTURA DE PARTIDA explícita, mismo motivo
      que #points-dialog/#log-dialog/#url-dialog: un hijo en `flex: 1`
      sobre un contenedor de altura automática se queda en nada, así que

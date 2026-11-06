@@ -250,6 +250,8 @@ document.addEventListener("keydown", e => {
   if (e.key !== "Escape") return;
   /* Escape closes open dialogs first; otherwise cancels tool/selection */
   if (!ctxMenuEl.hidden) { closeCtxMenu(); return; }
+  /* La confirmación de borrar varias capas está encima de todo lo demás */
+  if (!deleteConfirmDialog.hidden) { closeDeleteConfirm(); return; }
   if (!shortcutsDialog.hidden) { toggleShortcuts(); return; }
   if (!logDialog.hidden) { toggleLog(); return; }
   if (!urlDialog.hidden) { closeUrlDialog(); return; }

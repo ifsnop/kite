@@ -471,6 +471,15 @@
   .actions button:hover { color: var(--accent); background: var(--surface); }
   .actions button.delete:hover { color: var(--danger); }
   .actions button.az { font-size: 10px; font-weight: 600; }
+  /* Fila de iconos del diálogo de propiedades (🔍 ir a la capa, × borrar): el
+     mismo aspecto de icono que los botones de la fila del árbol */
+  .dlg-tools { display: flex; gap: 4px; margin: 2px 0 6px; }
+  .dlg-tools button { border: none; background: none; color: var(--muted); font-size: 15px; line-height: 1;
+                      cursor: pointer; padding: 4px 6px; border-radius: 4px; }
+  .dlg-tools button:hover:not(:disabled) { color: var(--accent); background: var(--surface); }
+  .dlg-tools button.delete:hover:not(:disabled) { color: var(--danger); }
+  .dlg-tools button:disabled { opacity: .35; cursor: default; }
+  .dlg-tools button[hidden] { display: none; }
   .actions button[hidden] { display: none; }
   #nav-search {
     padding: 8px 14px;
@@ -1275,7 +1284,7 @@
      instead of stretching almost edge to edge.                       */
   /* Sin esto heredan el max-width: 90vw de .dlg-box y una caja de texto
      corto se estira a casi toda la pantalla.                          */
-  #kml-tags-picker .dlg-box, #kml-dup-picker .dlg-box, #sh-creds .dlg-box, #mobile-notice .dlg-box, #restore-confirm .dlg-box { max-width: 42ch; }
+  #kml-tags-picker .dlg-box, #kml-dup-picker .dlg-box, #sh-creds .dlg-box, #mobile-notice .dlg-box, #restore-confirm .dlg-box, #delete-confirm .dlg-box { max-width: 42ch; }
   /* ---------- Ventanas redimensionables ----------
      `resize: both` es el redimensionado nativo del navegador; su tirador
      va en la esquina inferior derecha y no estorba al arrastre por el
@@ -1623,6 +1632,7 @@
   #geojson-name-picker { z-index: 2100; }
   /* La segunda confirmación de Restaurar se abre desde Propiedades (2050) */
   #restore-confirm { z-index: 2100; }
+  #delete-confirm { z-index: 2100; } /* encima del diálogo de propiedades (flotante) desde el que se abre */
   /* El panel Propiedades lleva ALTURA DE PARTIDA explícita, mismo motivo
      que #points-dialog/#log-dialog/#url-dialog: un hijo en `flex: 1`
      sobre un contenedor de altura automática se queda en nada, así que
@@ -1869,6 +1879,13 @@
 <div id="style-dialog" class="dlg-float" hidden>
   <div class="dlg-box">
     <h2 class="dlg-head"><span class="dlg-title" id="style-title">Propiedades</span><button type="button" class="dlg-close" data-cancel="style-cancel" title="Cancelar" aria-label="Cancelar">&#215;</button></h2>
+    <!-- Ir a la capa y borrarla, como los botones de su fila del árbol (los
+         títulos se escriben al abrir: el de la lupa lleva el zoom). Con
+         varias capas, la lupa encuadra el conjunto y Borrar pide confirmar. -->
+    <div class="dlg-tools" id="style-tools">
+      <button type="button" id="style-focus">&#128269;</button>
+      <button type="button" id="style-delete" class="delete">&#215;</button>
+    </div>
     <!-- El nombre es de cada nodo, pero con varios seleccionados el campo
          no se deja en blanco: enseña los nombres que hay (en gris y
          cursiva, como marca de "esto no es un valor") y escribir uno
@@ -2255,6 +2272,19 @@
     <div class="dlg-actions">
       <button class="btn" id="restore-cancel">Cancelar</button>
       <button class="btn btn-danger" id="restore-accept">Borrar todo</button>
+    </div>
+  </div>
+</div>
+
+<!-- Confirmación de borrar VARIAS capas desde su diálogo de propiedades (con
+     una sola, se borra sin preguntar, como el × de su fila). -->
+<div id="delete-confirm" class="dlg-overlay" hidden>
+  <div class="dlg-box">
+    <h2 class="dlg-head"><span class="dlg-title">Borrar capas</span><button type="button" class="dlg-close" data-cancel="delete-cancel" title="Cancelar" aria-label="Cancelar">&#215;</button></h2>
+    <p class="dlg-hint" id="delete-confirm-text"></p>
+    <div class="dlg-actions">
+      <button class="btn" id="delete-cancel">Cancelar</button>
+      <button class="btn btn-danger" id="delete-accept">Borrar</button>
     </div>
   </div>
 </div>
@@ -2977,6 +3007,7 @@ registerLang("en", "English", {
   "Aceptar": "OK",
   "No se detecta aceleración por hardware en el navegador. Se aplica una mitigación automática (zoom sin animación), pero se recomienda habilitar la aceleración por hardware en el navegador (chrome://gpu) para un mejor rendimiento.": "Hardware acceleration was not detected in the browser. An automatic mitigation is applied (zoom without animation), but enabling hardware acceleration in the browser (chrome://gpu) is recommended for better performance.",
   "Esta capa no tiene geometría que enfocar.": "This layer has no geometry to focus on.",
+  "Estas capas no tienen geometría que enfocar.": "These layers have no geometry to focus on.",
   /* 31-tree-node.js */
   "Activar o desactivar «{name}»": "Toggle “{name}” on or off",
   "Colapsar / desplegar": "Collapse / expand",
@@ -3252,6 +3283,8 @@ registerLang("en", "English", {
   "Deje seleccionada una sola medición para editar sus puntos.": "Leave only one measurement selected to edit its points.",
   "Mostrar el perfil ya descargado de esta ruta": "Show the profile already downloaded for this route",
   "Descargar las alturas MDT y MDS a lo largo de la ruta y dibujar su perfil": "Download the DTM and DSM heights along the route and draw its profile",
+  "y {n} más": "and {n} more",
+  "Se borrarán {n} capas: {names}. Se puede deshacer con Ctrl+Z.": "{n} layers will be deleted: {names}. You can undo with Ctrl+Z.",
   "de una línea\u0004Longitud": "Length",
   "Perímetro": "Perimeter",
   "Radio": "Radius",
@@ -3784,6 +3817,7 @@ registerLang("en", "English", {
   "Borrar todos los datos guardados…": "Delete all saved data…",
   "Borrar todos los datos": "Delete all data",
   "Se borrarán el árbol de capas, las ortofotos y todos los ajustes guardados en este navegador, y la página se recargará. No se puede deshacer. ¿Continuar?": "The layer tree, the orthophotos and all settings saved in this browser will be deleted, and the page will reload. This cannot be undone. Continue?",
+  "Borrar capas": "Delete layers",
   "Cálculos geodésicos": "Geodesic calculations",
   "Ángulo de elevación": "Elevation angle",
   "Vector GPS": "GPS vector",
@@ -5207,7 +5241,7 @@ map.on("resize rotate", fitWorldMinZoom);
 
 /* Fecha de generación del código (versión): AÑOMESDIAHORAMINUTO.
    Actualizar en cada generación; se muestra junto al crédito de Leaflet. */
-const BUILD = "202611061121";
+const BUILD = "202611061129";
 /* Versión de release (la de package.json, horneada aquí por build.js
    al construir — ver «Versión y releases de GitHub» en CLAUDE.md): a
    diferencia de BUILD, que cambia en CADA generación, esta solo cambia
@@ -7492,6 +7526,19 @@ function focusOnNode(li) {
   else map.setView(b.getCenter(), FOCUS_ZOOM);
 }
 
+/* La lupa del diálogo de propiedades, que puede tener VARIAS capas: con una,
+   exactamente la del árbol (`focusOnNode`); con varias, el CONJUNTO entero
+   encuadrado con margen. Si todas caen en el mismo punto (dos marcadores
+   superpuestos) no hay caja que encuadrar: zoom de trabajo, como un marcador. */
+function focusOnNodes(items) {
+  if (items.length === 1) { focusOnNode(items[0]); return; }
+  const all = L.latLngBounds([]);
+  for (const li of items) { const b = subtreeBounds(li); if (b.isValid()) all.extend(b); }
+  if (!all.isValid()) { navMessage(tr("Estas capas no tienen geometr\u00EDa que enfocar.")); return; }
+  if (all.getSouthWest().equals(all.getNorthEast())) map.setView(all.getCenter(), FOCUS_ZOOM);
+  else fitBoundsFramed(all);
+}
+
 /* ---------- Escalera de zoom del doble click ----------
    Repetir el doble click sobre algo ya centrado va acercando por
    peldaños fijos y, al llegar al máximo, vuelve a empezar por abajo, de
@@ -8167,23 +8214,32 @@ function makeActions(li, sortable, styleable, layer, focusable = styleable, { fi
     if (next) { li.parentElement.insertBefore(next, li); scheduleSave(); }
   });
   btn("\u00D7", tr("Borrar"), "delete", () => {
-    pushUndo(tr("borrar \u00AB{name}\u00BB", { name: li._name }));
     /* si el nodo forma parte de la selección, se borra toda la selección */
-    if (selection.has(li) && selection.size > 1) {
-      const items = movableSelection();
-      const next = cursorAfterDelete(isRow(selCursor) ? selCursor : items[0], items);
-      for (const s of items) deleteNode(s, { pruneSelection: false });
-      clearSelection();
-      if (next) selectNode(next, true);
-    } else {
-      /* El cursor no desaparece: se mueve a la fila que ocupe el hueco,
-         como en cualquier gestor de archivos.                        */
-      const next = cursorAfterDelete(li, [li]);
-      deleteNode(li);
-      if (next) selectNode(next, true);
-    }
+    const multi = selection.has(li) && selection.size > 1;
+    deleteItemsFromUi(multi ? movableSelection() : [li], tr("borrar \u00AB{name}\u00BB", { name: li._name }), multi);
   });
   return box;
+}
+
+/* El borrado de la INTERFAZ, uno solo para el × de una fila y para el × del
+   diálogo de propiedades (que borra SUS capas): deshacer, el cursor que no
+   desaparece y la selección. `multi`: son varias (la selección entera) y se
+   borran sin podar la selección uno a uno (`pruneSelection: false`, se
+   vacía una vez al final: O(k), no O(k²)); si no, una sola.              */
+function deleteItemsFromUi(items, label, multi) {
+  pushUndo(label);
+  if (multi) {
+    const next = cursorAfterDelete(isRow(selCursor) ? selCursor : items[0], items);
+    for (const s of items) deleteNode(s, { pruneSelection: false });
+    clearSelection();
+    if (next) selectNode(next, true);
+  } else {
+    /* El cursor no desaparece: se mueve a la fila que ocupe el hueco,
+       como en cualquier gestor de archivos.                        */
+    const next = cursorAfterDelete(items[0], items);
+    deleteNode(items[0]);
+    if (next) selectNode(next, true);
+  }
 }
 
 /* Ordena alfabéticamente los hijos directos de una carpeta o archivo.
@@ -17194,6 +17250,7 @@ function openStyleDialog(li, { isNew = false, focus = true } = {}) {
   styleIsNew = isNew;
   $id("style-title").textContent = styleTargets.length > 1
     ? tr("Propiedades de {n} capas", { n: styleTargets.length }) : tr("Propiedades: {name}", { name: li._name });
+  syncStyleTools();
   $id("style-marker").hidden = kind !== "marker";
   $id("style-polygon").hidden = kind !== "polygon";
   $id("style-measure").hidden = kind !== "measure";
@@ -17380,6 +17437,79 @@ function openStyleDialog(li, { isNew = false, focus = true } = {}) {
      gesto de vértice va a funcionar, así que tampoco deben parecerlo.  */
   if (kind === "measure" && single) setMeasureHandlesEditable(li._measure, true);
 }
+
+/* ---------- Ir a la capa (🔍) y Borrar (×), como en su fila del árbol ----------
+   Ya existen: `focusOnNode` y el borrado de `makeActions` (ahora
+   `deleteItemsFromUi`); aquí solo se cablean desde este diálogo, que además
+   puede tener VARIAS capas: la lupa encuadra el conjunto (`focusOnNodes`) y
+   borrar pide confirmación (`#delete-confirm`). Con una sola, borra sin
+   preguntar, como el × de su fila.                                       */
+const styleFocusBtn = $id("style-focus");
+const styleDeleteBtn = $id("style-delete");
+const deleteConfirmDialog = $id("delete-confirm");
+const deleteConfirmBox = deleteConfirmDialog.querySelector(".dlg-box");
+setupDialog(deleteConfirmBox, { modal: true });
+makeDialogMovable(deleteConfirmBox);
+let deleteConfirmItems = [];
+
+/* Se llama al abrir el diálogo: los títulos (el de la lupa lleva el zoom, así
+   que no puede ir literal en el HTML estático), la lupa deshabilitada si
+   ninguna capa tiene geometría que enfocar y Borrar oculto en una capa
+   RECIÉN CREADA (un pin, una ruta: Cancelar ya la borra).                 */
+function syncStyleTools() {
+  const set = (btn, text) => { btn.title = text; btn.setAttribute("aria-label", text); };
+  const several = styleTargets.length > 1;
+  const hasGeometry = styleTargets.some(t => subtreeBounds(t).isValid());
+  styleFocusBtn.disabled = !hasGeometry;
+  set(styleFocusBtn, hasGeometry ? tr("Centrar la vista aqu\u00ED y acercar (zoom {zoom})", { zoom: FOCUS_ZOOM })
+    : several ? tr("Estas capas no tienen geometr\u00EDa que enfocar.") : tr("Esta capa no tiene geometr\u00EDa que enfocar."));
+  set(styleDeleteBtn, tr("Borrar"));
+  styleDeleteBtn.hidden = styleIsNew;
+}
+/* Las capas del diálogo que siguen en el árbol y se pueden borrar (las filas de
+   un servicio ArcGIS son fijas: el panel tampoco deja borrarlas por separado) */
+const deletableStyleTargets = () => styleTargets.filter(t => t.isConnected && !t._fixed);
+
+styleFocusBtn.addEventListener("click", () => {
+  const items = styleTargets.filter(t => t.isConnected);
+  if (items.length) focusOnNodes(items);
+});
+styleDeleteBtn.addEventListener("click", () => {
+  const items = deletableStyleTargets();
+  if (!items.length) return;
+  if (items.length > 1) openDeleteConfirm(items); else deleteFromStyleDialog(items);
+});
+/* PRIMERO se cierra el diálogo como un Cancelar (`closeStyleDialog(false)`:
+   revierte la vista previa, retira manejadores y deja el estado limpio) y
+   DESPUÉS se borra, así el `pushUndo` del borrado guarda el estilo ORIGINAL
+   de las capas y Ctrl+Z las devuelve como estaban, no como se previsualizaban. */
+function deleteFromStyleDialog(items) {
+  const several = items.length > 1;
+  const label = several ? tr("borrar {n} nodo(s)", { n: items.length }) : tr("borrar \u00AB{name}\u00BB", { name: items[0]._name });
+  closeStyleDialog(false);
+  deleteItemsFromUi(items, label, several);
+}
+function openDeleteConfirm(items) {
+  deleteConfirmItems = items;
+  const names = items.slice(0, 5).map(t => `\u00AB${t._name}\u00BB`).join(", ")
+    + (items.length > 5 ? " " + tr("y {n} m\u00E1s", { n: items.length - 5 }) : "");
+  /* textContent: los nombres vienen del archivo */
+  $id("delete-confirm-text").textContent = tr("Se borrar\u00E1n {n} capas: {names}. Se puede deshacer con Ctrl+Z.", { n: items.length, names });
+  deleteConfirmDialog.hidden = false;
+  clampToViewport(deleteConfirmBox);
+  focusDialog(deleteConfirmBox);
+}
+function closeDeleteConfirm() {
+  deleteConfirmDialog.hidden = true;
+  deleteConfirmItems = [];
+  releaseFocus();
+}
+$id("delete-cancel").addEventListener("click", closeDeleteConfirm);
+$id("delete-accept").addEventListener("click", () => {
+  const items = deleteConfirmItems.filter(t => t.isConnected);
+  closeDeleteConfirm();
+  if (items.length) deleteFromStyleDialog(items);
+});
 
 /* `commit` false = cancel: the dragged position goes back and a pin that
    was created just to open this dialog is removed again.               */
@@ -18753,6 +18883,8 @@ document.addEventListener("keydown", e => {
   if (e.key !== "Escape") return;
   /* Escape closes open dialogs first; otherwise cancels tool/selection */
   if (!ctxMenuEl.hidden) { closeCtxMenu(); return; }
+  /* La confirmación de borrar varias capas está encima de todo lo demás */
+  if (!deleteConfirmDialog.hidden) { closeDeleteConfirm(); return; }
   if (!shortcutsDialog.hidden) { toggleShortcuts(); return; }
   if (!logDialog.hidden) { toggleLog(); return; }
   if (!urlDialog.hidden) { closeUrlDialog(); return; }
