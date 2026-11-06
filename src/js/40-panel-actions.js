@@ -99,7 +99,7 @@ async function resolveLayerLi(layer) {
    el nodo dos veces.                                                  */
 function wirePendingLayerEvents(rec) {
   const onClick = async () => {
-    if (activeTool === "polygon") return; /* that click fixes a vertex, it doesn't highlight the layer */
+    if (clickPicksPoint()) return; /* that click fixes a vertex or a centre, it doesn't highlight the layer */
     const li = await resolveRecordLi(rec); if (li) highlightNode(li);
   };
   const onHover = async () => { const li = await resolveRecordLi(rec); if (li) showLayerInfo(li, { focus: false }); };
@@ -322,14 +322,16 @@ function addPlaceMarker(r) {
   }
 }
 
-/* Pin created from the viewer toolbar: dropped at the centre of the
-   current view and opened straight into the style dialog, where its
-   icon, text, size and position can be set. Cancelling there removes
-   it again (see `styleIsNew`).                                       */
+/* A pin dropped where the user clicked (the toolbar's one-click tool, or the
+   context menu's «Pin») and opened straight into the style dialog, where its
+   icon, text, size and position can still be changed. Cancelling there
+   removes it again (see `styleIsNew`). Without a point it falls back to the
+   centre of the view: nothing calls it that way any more, but a pin without
+   a place makes no sense.                                                */
 const PINS_SECTION = tr("Marcadores");
-function createPin() {
+function createPin(latlng = map.getCenter()) {
   pushUndo(tr("crear marcador"));
-  const marker = L.marker(map.getCenter()).addTo(rootGroup);
+  const marker = L.marker(latlng).addTo(rootGroup);
   /* Autonumerado como las formas dibujadas y las mediciones: con un
      nombre fijo, veinte pines se llamaban todos "Marcador" y no había
      forma de distinguirlos en el árbol.                              */

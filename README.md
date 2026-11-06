@@ -181,6 +181,9 @@ KITE Local does not impose fixed limits on KML file size, imported features or v
   right-click to delete it, Shift+click or the Insert key to add one — with
   a minimum per ring and an adjustable cap (500 by default) on how many
   vertices get on-map handles before it falls back to the text editor
+- the properties dialog has the tree row's 🔍 and × (centre on the layer and
+  delete it): with several layers in the dialog, the magnifier frames them all
+  and delete asks for confirmation; Ctrl+Z brings back the original style
 - a point-list editor: one vertex per line, tab-separated, so a geometry
   can be copied into a spreadsheet and pasted back
 - ground-overlay image opacity
@@ -231,9 +234,11 @@ the flag clears by itself when the tiles come back.
   two azimuths, optionally an annulus, centred on the point you clicked, with
   a live preview. They become ordinary layers of the tree, so they can be
   styled, edited and exported like any other
-- the same dialogs open from the ◎ and ◔ buttons of the drawing toolbar
-  (centred on the middle of the view), which now lists polygon or line, rings,
-  sector and pin in that order — the same order as the «Crear» menu
+- the ◎ and ◔ buttons of the drawing toolbar are one-click tools: press one,
+  click on the map where the centre goes, and the same dialog opens centred
+  there (it can still be moved before saving). The pin (📍) works the same way.
+  The toolbar lists polygon or line, rings, sector and pin in that order — the
+  same order as the «Crear» menu
 
 ### ArcGIS map services
 
@@ -258,6 +263,11 @@ the flag clears by itself when the tiles come back.
 
 ### Map tools
 
+- while drawing a polygon, line or route the map can still be panned by
+  dragging it (the click that ends a drag adds no vertex); removing the second
+  point of a route being created undoes the route and leaves its first point
+  as the preview
+- the layers list of the base maps closes when you act anywhere else
 - map rotation: drag the compass (or hold the middle button) to turn the map
   freely, with a click or the R key to put north back up; layers and the
   graticule rotate with it and the labels stay horizontal
@@ -509,7 +519,7 @@ Do not use public tile, geocoding or CDN services for sensitive work without an 
   `src/styles.css`, `src/sw.js` and 40 JavaScript files, concatenated into the
   shipped file by `build.js`. The single-file product is the output, not the
   source.
-- **There are automated tests.** 124 suites run against the shipped
+- **There are automated tests.** 128 suites run against the shipped
   file — most under Node, plus a set that drives a real headless browser —
   covering coordinate parsing and formatting, UTM, KML namespaces and
   styles, geometry conversion, serialization, tree navigation and

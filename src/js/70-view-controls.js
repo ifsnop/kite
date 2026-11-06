@@ -807,12 +807,12 @@ const CTX_MENU_ITEMS = [
     label: tr("Crear"),
     items: [
       { label: tr("Polígono o línea"), action: () => setTool(activeTool === "polygon" ? null : "polygon") },
-      /* Estas dos SÍ usan el punto pulsado: es el centro por defecto. El
-         orden es el de los botones de la barra del visor (52-measure.js):
+      /* Estas tres usan el punto pulsado: es el centro (o el lugar del pin).
+         El orden es el de los botones de la barra del visor (52-measure.js):
          polígono o línea, anillos, sector y pin.                       */
       { label: tr("Anillos de alcance…"), action: latlng => openRangeDialog("rings", latlng) },
       { label: tr("Sector…"), action: latlng => openRangeDialog("sector", latlng) },
-      { label: tr("Pin"), action: () => createPin() }
+      { label: tr("Pin"), action: latlng => createPin(latlng) }
     ]
   }
 ];

@@ -565,6 +565,24 @@ scenario("editar-varios.png", "6.4", async out => {
   await ctx.close();
 });
 
+/* Borrar varias capas desde su diálogo de propiedades: la confirmación, con el recuento y los nombres */
+scenario("borrar-capas.png", "6.4", async out => {
+  const { ctx, page } = await openApp();
+  await sierra(page);
+  await clickRow(page, "Zona A");
+  await page.keyboard.down("Control");
+  await page.keyboard.down("Shift");
+  await clickRow(page, "Zona B");
+  await page.keyboard.up("Shift");
+  await page.keyboard.up("Control");
+  await page.keyboard.press("Alt+Enter");
+  await page.waitForSelector("#style-dialog:not([hidden])");
+  await page.click("#style-delete");
+  await page.waitForSelector("#delete-confirm:not([hidden])");
+  await dialog(page, out, "delete-confirm");
+  await ctx.close();
+});
+
 scenario("ficha-propiedades.png", "6.5", async out => {
   const { ctx, page } = await openApp();
   await sierra(page, { expandSensores: true });

@@ -178,7 +178,7 @@ ok(after.ringPts === 180 && after.maxLng > 180, "y el anillo del antimeridiano s
 /* ---- Los botones de la barra del visor ----
    Los dos diálogos también se abren desde la barra, en la caja «Crear» (tras el polígono y antes del
    pin), con el MISMO orden que «Crear» del menú contextual; medir, crear y el PNG, cada uno en su caja, con
-   huecos. Parten del CENTRO de la vista (como el pin), no de un punto pulsado.        */
+   huecos. Son herramientas de un clic: el clic fija el centro.        */
 await page.evaluate(() => map.setView([41.5, -2.2], 9, { animate: false }));
 const bars = await page.evaluate(() => [...document.querySelectorAll(".leaflet-top.leaflet-left .measure-bar")].map(b => ({
   glyphs: [...b.querySelectorAll("a")].map(a => a.textContent), titles: [...b.querySelectorAll("a")].map(a => a.title),
@@ -198,16 +198,30 @@ const dlg = () => page.evaluate(() => ({ open: !document.getElementById("range-d
   mode: document.getElementById("rg-mode").value, title: document.getElementById("rg-title").textContent,
   lat: Number(document.getElementById("rg-lat").value), lng: Number(document.getElementById("rg-lng").value),
   c: { lat: map.getCenter().lat, lng: map.getCenter().lng } }));
+/* ◎ y ◔ arman una herramienta de UN CLIC: el clic en el mapa fija el CENTRO (antes nacían en el centro
+   de la vista) y entonces se abre el diálogo; allí todavía se puede corregir. Detalle en click-to-place.mjs */
+const clickAtLatLng = ll => page.evaluate(([la, ln]) => {
+  const p = map.latLngToContainerPoint([la, ln]), r = map.getContainer().getBoundingClientRect();
+  return { x: r.left + p.x, y: r.top + p.y };
+}, ll);
+const target = [41.2, -2.6];
 await barBtn(1).click();
+ok(!(await dlg()).open && (await page.evaluate(() => activeTool)) === "rings", "◎ arma la herramienta y NO abre el diálogo todavía");
+let tp = await clickAtLatLng(target);
+await page.mouse.click(tp.x, tp.y);
 await page.waitForFunction(() => !document.getElementById("range-dialog").hidden);
 let d = await dlg();
-ok(d.mode === "rings" && d.title === "Anillos de alcance", "◎ abre «Anillos de alcance»: " + JSON.stringify(d));
-ok(Math.abs(d.lat - d.c.lat) < 1e-5 && Math.abs(d.lng - d.c.lng) < 1e-5, "con el centro de la vista como centro");
+ok(d.mode === "rings" && d.title === "Anillos de alcance", "el clic abre «Anillos de alcance»: " + JSON.stringify(d));
+ok(Math.abs(d.lat - target[0]) < 5e-3 && Math.abs(d.lng - target[1]) < 5e-3, "con el punto pulsado como centro (no el de la vista): " + JSON.stringify([d.lat, d.lng]));
+ok(Math.abs(d.lat - d.c.lat) > 0.05, "que no es el centro de la vista");
+ok((await page.evaluate(() => activeTool)) === null, "y la herramienta se suelta sola");
 await page.click("#rg-cancel");
 await barBtn(2).click();
+tp = await clickAtLatLng(target);
+await page.mouse.click(tp.x, tp.y);
 await page.waitForFunction(() => !document.getElementById("range-dialog").hidden);
 d = await dlg();
-ok(d.mode === "sector" && d.title === "Sector" && Math.abs(d.lat - d.c.lat) < 1e-5, "◔ abre «Sector», también desde el centro: " + JSON.stringify(d));
+ok(d.mode === "sector" && d.title === "Sector" && Math.abs(d.lat - target[0]) < 5e-3, "◔ abre «Sector» en el punto pulsado: " + JSON.stringify(d));
 await page.click("#rg-cancel");
 ok(!(await dlg()).open, "Cancelar los cierra sin dejar nada");
 

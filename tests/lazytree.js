@@ -131,7 +131,7 @@ const src = [
 const api = new Function(
   "rootGroup", "yieldFrame", "PROGRESS_BATCH", "scheduleSave", "navMessage", "showEmptyMessage",
   "syncExpanded", "measureLi", "selection", "searchBox", "treeEl", "rootUl", "makeNode",
-  "highlightNode", "showLayerInfo", "scheduleLayerInfoHide", "BLINK_STEPS", "BLINK_INTERVAL_MS", "activeTool",
+  "highlightNode", "showLayerInfo", "scheduleLayerInfoHide", "BLINK_STEPS", "BLINK_INTERVAL_MS", "activeTool", "clickPicksPoint",
   src + `\nreturn {
     materializeRecords, ensureMaterialized, serializeNode, serializeNodes, serializePendingRecords,
     subtreeBounds, findMatches, searchMatches, resolveMatch, resolveRecordLi,
@@ -142,7 +142,8 @@ const api = new Function(
 )(rootGroup, yieldFrame, PROGRESS_BATCH, scheduleSave, navMessage, showEmptyMessage,
   syncExpanded, measureLi, selection, searchBox, treeEl, rootUl, makeNode,
   highlightNode, showLayerInfo, scheduleLayerInfoHide, 4 /* BLINK_STEPS, igual que en producción */, 2 /* BLINK_INTERVAL_MS: mínimo, para que el test no espere */,
-  null /* activeTool: la herramienta de dibujo no interviene en este test */);
+  null /* activeTool: la herramienta de dibujo no interviene en este test */,
+  () => false /* clickPicksPoint: ninguna herramienta armada que fije un punto */);
 const {
   materializeRecords, ensureMaterialized, serializeNode, serializeNodes,
   subtreeBounds, findMatches, searchMatches, resolveMatch, resolveRecordLi,

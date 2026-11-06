@@ -98,6 +98,7 @@ ok(wms.select && wms.select.desactivado && wms.select.opciones[0] === "Requiere 
 ok(peticiones.length === 0, "sin dirección no se pide nada al servidor");
 
 /* ---------- 2. El diálogo: validación ---------- */
+await abrirPanel(); /* la lista se cierra al actuar fuera de ella (un diálogo, el mapa…) */
 await page.click("#base-custom-wms >> xpath=ancestor::div[contains(@class,'base-row')] >> .base-gear");
 let d = await dialogo();
 ok(d.abierto && d.valor === "", "la tuerca abre el diálogo, vacío: " + JSON.stringify(d));
@@ -128,6 +129,7 @@ ok(!wms.marcada, "y la capa sigue apagada: elegir dirección no enciende nada");
 
 /* ---------- 4. Encender, cambiar de capa, apagar ---------- */
 const teselas = () => peticiones.filter(p => p.request === "GetMap");
+await abrirPanel(); /* la lista se cierra al actuar fuera de ella (un diálogo, el mapa…) */
 await page.check("#base-custom-wms");
 await esperar(async () => teselas().length > 0, "primera tesela");
 let t = teselas()[teselas().length - 1];
@@ -136,6 +138,7 @@ ok(t.version === "1.1.1" && t.srs === "EPSG:3857" && t.format === "image/png",
   "con la versión que anunció el servidor (1.1.1 → srs) y en Web Mercator: " + JSON.stringify(t));
 ok(await page.evaluate(() => map.hasLayer(baseState.get("custom-wms").layer)), "y la capa está en el mapa");
 const antes = teselas().length;
+await abrirPanel(); /* la lista se cierra al actuar fuera de ella (un diálogo, el mapa…) */
 await page.selectOption("#base-custom-wms >> xpath=ancestor::div[contains(@class,'base-row')] >> select", "rios");
 /* esperar() falla la suite si no llegan: cambiar en el selector pide las
    teselas de la otra capa */
@@ -156,6 +159,7 @@ ok(wms.marcada && wms.select.valor === "rios",
   "tras recargar sigue encendida y con su capa: " + JSON.stringify(wms));
 ok(await page.evaluate(() => baseState.get("custom-wms").layer.options.version === "1.1.1"),
   "y con la versión que anunció el servidor, ya rehecha tras recibir su catálogo");
+await abrirPanel(); /* la lista se cierra al actuar fuera de ella (un diálogo, el mapa…) */
 await page.click("#base-custom-wms >> xpath=ancestor::div[contains(@class,'base-row')] >> .base-gear");
 d = await dialogo();
 ok(d.valor === "https://wms.example.test/wms?map=%2Fdatos.map",
@@ -171,6 +175,7 @@ ok(await page.evaluate(() => baseState.get("custom-wms").layer === null), "sin c
 
 /* ---------- 7. Un servidor que contesta con una excepción OGC ---------- */
 modo = "excepcion";
+await abrirPanel(); /* la lista se cierra al actuar fuera de ella (un diálogo, el mapa…) */
 await page.click("#base-custom-wms >> xpath=ancestor::div[contains(@class,'base-row')] >> .base-gear");
 await page.fill("#custom-wms-input", "https://wms.example.test/otro");
 await page.click("#custom-wms-accept");
@@ -181,23 +186,28 @@ ok(/Servidor en mantenimiento/.test(wms.select.opciones[0]),
 
 /* ---------- 7b. Un servidor que solo sirve JPEG ---------- */
 modo = "jpeg";
+await abrirPanel(); /* la lista se cierra al actuar fuera de ella (un diálogo, el mapa…) */
 await page.click("#base-custom-wms >> xpath=ancestor::div[contains(@class,'base-row')] >> .base-gear");
 await page.fill("#custom-wms-input", "https://wms.example.test/solo-jpeg");
 await page.click("#custom-wms-accept");
 await esperar(async () => (await fila("custom-wms")).select.opciones.includes("Ríos"), "catálogo del servidor JPEG");
+await abrirPanel(); /* la lista se cierra al actuar fuera de ella (un diálogo, el mapa…) */
 await page.check("#base-custom-wms");
 await esperar(async () => teselas().some(p => p.ruta === "/solo-jpeg"), "tesela del servidor JPEG");
 t = teselas().filter(p => p.ruta === "/solo-jpeg").pop();
 ok(t.format === "image/jpeg", "si el servidor solo anuncia JPEG, se piden las teselas en JPEG: " + JSON.stringify(t));
 ok(t.transparent === "false", "y sin transparent (JPEG no tiene canal alfa): " + JSON.stringify(t));
+await abrirPanel(); /* la lista se cierra al actuar fuera de ella (un diálogo, el mapa…) */
 await page.uncheck("#base-custom-wms");
 
 /* ---------- 7c. Un servidor cuyas teselas vienen con un error ---------- */
 modo = "ok";
+await abrirPanel(); /* la lista se cierra al actuar fuera de ella (un diálogo, el mapa…) */
 await page.click("#base-custom-wms >> xpath=ancestor::div[contains(@class,'base-row')] >> .base-gear");
 await page.fill("#custom-wms-input", "https://wms.example.test/falla");
 await page.click("#custom-wms-accept");
 await esperar(async () => (await fila("custom-wms")).select.opciones.includes("Ríos"), "catálogo del servidor que falla");
+await abrirPanel(); /* la lista se cierra al actuar fuera de ella (un diálogo, el mapa…) */
 await page.check("#base-custom-wms");
 const marcadas = () => page.evaluate(() => {
   const l = baseState.get("custom-wms").layer;
@@ -223,9 +233,11 @@ await page.waitForTimeout(500);
 const fallidas = peticiones.filter(p => p.ruta === "/falla" && p.request === "GetMap");
 const repetidas = fallidas.length - new Set(fallidas.map(p => p.bbox)).size;
 ok(repetidas === 1, "solo se vuelve a pedir UNA tesela para diagnosticar (repetidas: " + repetidas + ")");
+await abrirPanel(); /* la lista se cierra al actuar fuera de ella (un diálogo, el mapa…) */
 await page.uncheck("#base-custom-wms");
 
 /* ---------- 8. Escape cierra el diálogo ---------- */
+await abrirPanel(); /* la lista se cierra al actuar fuera de ella (un diálogo, el mapa…) */
 await page.click("#base-custom-wms >> xpath=ancestor::div[contains(@class,'base-row')] >> .base-gear");
 ok((await dialogo()).abierto, "se vuelve a abrir");
 await page.keyboard.press("Escape");

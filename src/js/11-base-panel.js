@@ -29,6 +29,28 @@ const BaseControl = L.Control.extend({
 const baseControl = new BaseControl();
 map.addControl(baseControl);
 
+/* La lista de mapas base ocupa buena parte del visor y tapa otros diálogos:
+   se cierra al actuar en cualquier otro sitio (un clic o una tecla fuera de
+   ella). Se mira en CAPTURA y en `document`, no con los eventos de Leaflet:
+   los controles detienen mousedown/click (disableClickPropagation) y el
+   mapa nunca los vería. Lo que NO cuenta como «fuera»: la propia caja
+   (casillas, deslizadores, flechas, tuerca) y el selector de color, que
+   cuelga del <body> pero nace del botón de color de su primera fila. Escape
+   no pasa por aquí: lo atiende la cadena de Escape (52-measure.js), que
+   cierra antes lo que tenga encima. Pulsar de nuevo el botón de capas la
+   sigue cerrando, como siempre.                                           */
+function closeBasePanel() { baseControl._list.hidden = true; }
+const BASE_KEYS_IGNORED = new Set(["Escape", "Tab", "Shift", "Control", "Alt", "Meta", "CapsLock"]);
+function closeBasePanelOutside(e) {
+  if (baseControl._list.hidden) return;
+  const t = e.target;
+  if (t instanceof Node && (baseControl.getContainer().contains(t)
+      || document.getElementById("color-picker").contains(t))) return;
+  closeBasePanel();
+}
+document.addEventListener("pointerdown", closeBasePanelOutside, true);
+document.addEventListener("keydown", e => { if (!BASE_KEYS_IGNORED.has(e.key)) closeBasePanelOutside(e); }, true);
+
 /* El orden del Map es el de apilado; mover una capa es reconstruirlo */
 function moveBaseLayer(id, delta) {
   const ids = [...baseState.keys()];

@@ -210,7 +210,7 @@ function wireLayerEvents(li, layer) {
      mismo, aunque ya no invalide el vértice elegido (la selección
      del árbol dejó de tener ninguna relación con vertexOwner).      */
   layer.on("click", e => {
-    if (activeTool === "polygon") return;
+    if (clickPicksPoint()) return;
     const t = e.originalEvent && e.originalEvent.target;
     if (t && t.closest && t.closest(".measure-handle")) return;
     highlightNode(li);
@@ -325,23 +325,32 @@ function makeActions(li, sortable, styleable, layer, focusable = styleable, { fi
     if (next) { li.parentElement.insertBefore(next, li); scheduleSave(); }
   });
   btn("\u00D7", tr("Borrar"), "delete", () => {
-    pushUndo(tr("borrar \u00AB{name}\u00BB", { name: li._name }));
     /* si el nodo forma parte de la selección, se borra toda la selección */
-    if (selection.has(li) && selection.size > 1) {
-      const items = movableSelection();
-      const next = cursorAfterDelete(isRow(selCursor) ? selCursor : items[0], items);
-      for (const s of items) deleteNode(s, { pruneSelection: false });
-      clearSelection();
-      if (next) selectNode(next, true);
-    } else {
-      /* El cursor no desaparece: se mueve a la fila que ocupe el hueco,
-         como en cualquier gestor de archivos.                        */
-      const next = cursorAfterDelete(li, [li]);
-      deleteNode(li);
-      if (next) selectNode(next, true);
-    }
+    const multi = selection.has(li) && selection.size > 1;
+    deleteItemsFromUi(multi ? movableSelection() : [li], tr("borrar \u00AB{name}\u00BB", { name: li._name }), multi);
   });
   return box;
+}
+
+/* El borrado de la INTERFAZ, uno solo para el × de una fila y para el × del
+   diálogo de propiedades (que borra SUS capas): deshacer, el cursor que no
+   desaparece y la selección. `multi`: son varias (la selección entera) y se
+   borran sin podar la selección uno a uno (`pruneSelection: false`, se
+   vacía una vez al final: O(k), no O(k²)); si no, una sola.              */
+function deleteItemsFromUi(items, label, multi) {
+  pushUndo(label);
+  if (multi) {
+    const next = cursorAfterDelete(isRow(selCursor) ? selCursor : items[0], items);
+    for (const s of items) deleteNode(s, { pruneSelection: false });
+    clearSelection();
+    if (next) selectNode(next, true);
+  } else {
+    /* El cursor no desaparece: se mueve a la fila que ocupe el hueco,
+       como en cualquier gestor de archivos.                        */
+    const next = cursorAfterDelete(items[0], items);
+    deleteNode(items[0]);
+    if (next) selectNode(next, true);
+  }
 }
 
 /* Ordena alfabéticamente los hijos directos de una carpeta o archivo.
