@@ -129,7 +129,7 @@ const api = new Function("L", "rootGroup", "navMessage", "invalidateGeo", "nodeL
   + " findVertexEditPos, getVertexEdit: () => vertexEdit, VERTEX_EDIT_MAX_DEFAULT,"
   + " setVertexEditMax: v => { vertexEditMax = v; }};"
 )(L, rootGroup, navMessage, invalidateGeo, nodeLayer,
-  { dragging: { disable() {}, enable() {} }, on() {}, off() {} },
+  { dragging: { disable() {}, enable() {}, enabled() { return true; } }, on() {}, off() {} },
   fakeDocument,
   scheduleSave, refreshOpenPolygonDialog, clearVertexSelection, convertVertexEditShape);
 const ok = (c, m) => { if (!c) { console.error("FAIL: " + m); process.exitCode = 1; } };

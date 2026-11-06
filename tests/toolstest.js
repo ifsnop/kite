@@ -11,6 +11,9 @@ function buildApi({ hideDelay = 5, guardMs = 5 } = {}) {
     const document = { activeElement: null };
     let drawing = null, polyDraft = null, activeTool = null, layerInfoDismissed = false;
     let routeDraft = null, routeMeasurement = null, arcDraft = null;
+    /* Las herramientas de un clic (pin, anillos, sector) fijan un punto igual que el polígono */
+    const PLACE_TOOLS = new Set(["pin", "rings", "sector"]);
+    const clickPicksPoint = () => activeTool === "polygon" || PLACE_TOOLS.has(activeTool);
     let layerInfoHideTimer = null;
     let suppressNextHover = false;
     const focusReturn = [];
