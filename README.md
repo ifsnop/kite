@@ -279,7 +279,7 @@ the flag clears by itself when the tiles come back.
 - scale bar
 - latitude/longitude graticule
 - shortcuts for the Iberian Peninsula/Balearic Islands and Canary Islands
-- drop a marker at the centre of the view
+- drop a marker where you click (the 📍 tool; its properties open first and Cancel discards it)
 - draw polygons and open lines vertex by vertex
 - a day/night overlay and the sun and twilight times of a marker
 - a geodesic calculator (📐): elevation angle with cone of silence and

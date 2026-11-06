@@ -5,10 +5,10 @@
 | | |
 |---|---|
 | **Documento** | Estudio de seguridad — KITE Local (KML Interactive Tree Explorer) |
-| **Versión del documento** | 1.9 |
-| **Fecha** | 2 de noviembre de 2026 |
+| **Versión del documento** | 1.10 |
+| **Fecha** | 6 de noviembre de 2026 |
 | **Preparado por** | Diego Torres |
-| **Versión de la aplicación auditada** | v2.2.0 (202611022327) |
+| **Versión de la aplicación auditada** | v2.3.0 (202611061129) |
 | **Repositorio público del código fuente** | https://github.com/ifsnop/kite |
 
 ---
@@ -246,6 +246,7 @@ En la fecha de este documento, la batería está compuesta por 128 conjuntos de 
 
 **Modelos de elevación del terreno**
 - Catálogo de servicios de elevación por conjunto de datos (contrastado con los identificadores que declara el IGN) y validación de la elección guardada contra él; elección de la cobertura de malla más fina dentro de cada conjunto y del formato de texto (ASCII) antes que el binario (GeoTIFF); lectura de rejillas en los dos formatos (con una respuesta real de Digital Earth Africa) y de las descripciones de cobertura del IGN y de Digital Earth Africa; tratamiento de la falta de cobertura como ausencia de dato, nunca como valor; combinación del terreno y la superficie por posición, también con mallas de distinto tamaño; reintentos solo ante fallos pasajeros, con su número y su pausa; y el cálculo del perfil de una ruta (un punto por celda recorrida, vértices exactamente en la suma de los tramos, huecos donde no hay dato, la posición en el mapa de cada punto de la gráfica, las celdas guardadas con la regla de la malla más fina y la validación de un perfil guardado).
+- Polígonos con altitud como obstáculos del perfil de una ruta: el corte de la ruta con un polígono (interpolando la altura entre los dos vértices del lado cortado, con agujeros, polígonos cóncavos y rutas que empiezan o acaban dentro), el techo en altitud sobre el nivel del mar o sobre el terreno del propio perfil, qué obstáculos tapan la línea inicio–fin y por dónde, el modo de altitud que declara un KML (solo el del propio polígono, no el de un elemento vecino) y la validación, uno a uno, de los obstáculos y las torres leídos de un archivo ajeno.
 - Tamaño de las cifras de las celdas de elevación (botones A− y A+): valores admitidos al leerlo del almacenamiento local y regla por la que unas cifras que no caben en su celda se sustituyen por el relleno de aviso, con medidas tomadas en el navegador sobre una cuadrícula sintética (sin ninguna petición de red).
 - Descubrimiento de las capas disponibles del servicio de ortofoto histórica del IGN.
 - Configuración y uso de la credencial propia del usuario para el servicio Copernicus DEM.
@@ -314,6 +315,11 @@ En la fecha de este documento, la batería está compuesta por 128 conjuntos de 
 - El perfil de una ruta con el MDT y el MDS simulados: descarga por zonas de las dos fuentes con barra de progreso, gráfica con una curva por modelo y los vértices de los tramos en sus distancias exactas, solo las celdas recorridas guardadas en el árbol, un perfil ya guardado que se vuelve a mostrar sin ninguna petición (también tras recargar) y deja de valer al cambiar la forma de la ruta, la flecha del mapa sobre el punto de la ruta que marca la gráfica, zonas sin respuesta como huecos declarados, cancelación sin efectos y límite de longitud; el detalle de depuración de la descarga (una línea por cada petición lanzada, con su dirección, y por lo recibido, incluidos los intentos fallidos con su espera) en un registro con scroll propio que no agranda la ventana.
 - La calculadora geodésica: ángulo de elevación con cono de silencio y corrección por presión, y vector GPS; cálculo inmediato al cambiar cualquier dato, sin avisos mientras faltan datos, unidades independientes por campo que convierten su valor, ventana que no cambia de tamaño al calcular y validación de los datos, sin ninguna petición de red.
 - El uso sin conexión: qué guarda y qué deja pasar el service worker (solo GET; teselas, búsquedas, elevaciones y descargas por dirección pasan de largo), qué acepta de la lista de la página (orígenes, versión fijada y huella; rechaza lo ajeno), que pide las librerías con su huella antes de guardarlas, que retira las que la página ya no nombra, red primero con tope para el HTML y copia primero para las librerías, y, en un navegador real, que recargar sin red arranca con el árbol guardado y las librerías bajo demanda sin violaciones de la política de seguridad.
+- Los obstáculos y las torres del perfil de punta a punta: el modo de altitud de un KML se conserva y se avisa una sola vez por archivo de lo no admitido, entran solo los polígonos visibles que cruzan la ruta (sin ninguna petición nueva para los que van sobre el terreno), la gráfica y la lectura dicen qué tapa la línea y contra qué referencia se mide, todo se guarda con el perfil y sobrevive a recargar, y mover un vértice de un polígono no pierde las altitudes de los demás.
+- Que la lista de mapas base se cierra al actuar fuera de ella (un clic en el mapa, el árbol o la cabecera, o una tecla) y no con lo que se hace dentro, con el ratón y el teclado reales.
+- Que el mapa se puede desplazar arrastrándolo mientras se dibuja un polígono o una ruta sin que el final del arrastre añada un vértice, que mover un vértice no desplaza el mapa y que el círculo y el arco siguen dibujando al arrastrar.
+- Que el pin, los anillos de alcance y el sector esperan un clic que fija el centro y abren entonces sus propiedades, sin crear nada hasta aceptar, y que Escape, otro botón o un arrastre del mapa no los disparan.
+- La lupa y el borrado desde el diálogo de propiedades de una capa: con una capa, lo mismo que su fila del árbol; con varias, la lupa encuadra el conjunto y borrar pide una confirmación que ni Cancelar, ni la ×, ni Escape confirman, y deshacer devuelve el estilo original.
 
 ### 7.3 Integración continua
 
