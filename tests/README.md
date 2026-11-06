@@ -1197,6 +1197,16 @@ BROWSER BASE PANEL CLOSE TESTS OK
 
 **Qué cubre:** con el ratón y el teclado reales. El botón de capas alterna la lista. **Fuera cierra**: un clic en el mapa, en el panel de navegación, en un botón de la cabecera (que además abre su diálogo), o una tecla pulsada con el foco fuera. **Dentro no**: una casilla, un deslizador de opacidad, una tecla con el foco dentro de la lista, el botón de color de la primera fila y pulsar dentro de su selector de color (que cuelga del `<body>`, fuera de la caja). **Escape** cierra primero lo que tiene encima (el selector de color: la lista sigue abierta) y luego la lista; Tab y las teclas de modificador no la cierran. Se comprobó que las cuatro comprobaciones de «fuera cierra» FALLAN sin los dos oyentes de `document`.
 
+### `browser/draw-pan.mjs`
+
+**Salida de `npm test`:**
+```
+── Navegador: desplazar el mapa arrastrando mientras se dibuja un polígono o una ruta (el clic tras el arrastre no añade vértice), arrastrar un vértice no hace pan, el doble clic sigue cerrando, y el círculo y el arco siguen dibujando al arrastrar
+BROWSER DRAW PAN TESTS OK
+```
+
+**Qué cubre:** con el ratón real y sin inercia del mapa. **Polígono**: con la herramienta armada el pan sigue activo; con un vértice puesto, arrastrar el mapa lo desplaza y NO añade vértice; el clic siguiente lo añade en la posición NUEVA del mapa; un clic con 2 px de temblor sigue siendo un clic; arrastrar un vértice lo mueve (sin otro vértice) y no desplaza el mapa; el doble clic sobre el último vértice sigue cerrando el polígono. **Ruta**: arrastrar antes del 2.º punto no la crea, el clic siguiente sí, y con la ruta ya creada y su diálogo abierto arrastrar no añade waypoint. **Círculo y arco**: el pan está desactivado, el círculo se dibuja arrastrando sin mover el mapa, y al soltar la herramienta el pan vuelve. Se comprobó que falla sin el cambio (con el código anterior, el pan estaba apagado y el clic tras un arrastre añadía el vértice).
+
 ### `browser/cadastre.mjs`
 
 **Salida de `npm test`:**

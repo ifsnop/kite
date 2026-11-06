@@ -206,7 +206,7 @@ Medir, la primera caja:
 
 **Crear**, la segunda caja:
 
-- **Dibujar polígono o línea** (⬠): un clic por cada vértice; un doble clic sobre el último vértice cierra la figura, y un doble clic fuera de un vértice la deja como una línea abierta. Mientras se dibuja, un vértice ya puesto se puede arrastrar a otra posición antes de cerrar la figura, y quitar con el botón derecho. Está también en el menú contextual, «Crear» › «Polígono o línea».
+- **Dibujar polígono o línea** (⬠): un clic por cada vértice; un doble clic sobre el último vértice cierra la figura, y un doble clic fuera de un vértice la deja como una línea abierta. Mientras se dibuja, un vértice ya puesto se puede arrastrar a otra posición antes de cerrar la figura, y quitar con el botón derecho; y **el mapa se puede desplazar arrastrándolo** (en una zona vacía) sin dejar de dibujar: el clic con el que se suelta tras desplazar no añade ningún vértice. Está también en el menú contextual, «Crear» › «Polígono o línea».
 - **Anillos de alcance** (◎): abre el diálogo de anillos concéntricos (apartado 7.13) con el **centro de la vista** como centro, igual que el pin; también desde el menú contextual, «Crear» › «Anillos de alcance…», donde el centro es el punto pulsado.
 - **Sector** (◔): igual, pero para un sector circular (también «Crear» › «Sector…»).
 - **Crear un pin** (📍): añade un marcador en el centro de la vista actual y abre directamente su diálogo de estilo (también desde el menú contextual, «Crear» › «Pin»).
@@ -401,7 +401,7 @@ Para una ruta con varias escalas, en vez de un solo tramo, se añaden más de do
 
 ### 7.3 Medir una superficie, o dibujar una figura propia
 
-La herramienta «Medir círculo» (◯) se arrastra del centro al borde y da el radio, el perímetro y la superficie. La herramienta «Dibujar polígono o línea» (⬠) es distinta: no se arrastra, se hace un clic por cada vértice; un doble clic sobre el último vértice cierra la figura como un polígono con superficie, y un doble clic en cualquier otro punto la deja como una línea abierta, sin relleno.
+La herramienta «Medir círculo» (◯) se arrastra del centro al borde y da el radio, el perímetro y la superficie. La herramienta «Dibujar polígono o línea» (⬠) es distinta: no dibuja arrastrando (arrastrar desplaza el mapa), se hace un clic por cada vértice; un doble clic sobre el último vértice cierra la figura como un polígono con superficie, y un doble clic en cualquier otro punto la deja como una línea abierta, sin relleno.
 
 ![Un polígono a medio dibujar, con sus vértices y la línea provisional en verde discontinuo](img/dibujar-poligono.png)
 *Figura 38. Un polígono a medio dibujar con «Dibujar polígono o línea» (⬠, resaltada en la barra): cada clic pone un vértice y el trazo provisional se ve en verde discontinuo. Un doble clic sobre el último vértice lo cierra.*

@@ -126,7 +126,7 @@ paths:
 - **Gestos del visor**: Shift+arrastre = box-zoom de Leaflet (reservado);
   ni un vértice de ruta/polígono ni el centro/borde de un círculo de
   medición exigen ya Ctrl: se arrastran sin más (ver «Selección de
-  vértice»); herramienta de medición activa = el arrastre dibuja (pan desactivado;
+  vértice»); herramienta de medición activa: el círculo y el arco dibujan ARRASTRANDO (pan desactivado), el polígono y la ruta no (clic por vértice; el pan sigue activo, ver `measurements-drawing-vertex-editing.md`;
   mover un vértice ya puesto durante el dibujo es arrastre SIN Ctrl,
   mismo motivo que quitó el Ctrl a la edición post-creación). **Mover,
   insertar o borrar un vértice, o el centro/borde de un círculo, exige

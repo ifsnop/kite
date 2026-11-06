@@ -5206,7 +5206,7 @@ map.on("resize rotate", fitWorldMinZoom);
 
 /* Fecha de generación del código (versión): AÑOMESDIAHORAMINUTO.
    Actualizar en cada generación; se muestra junto al crédito de Leaflet. */
-const BUILD = "202611061105";
+const BUILD = "202611061109";
 /* Versión de release (la de package.json, horneada aquí por build.js
    al construir — ver «Versión y releases de GitHub» en CLAUDE.md): a
    diferencia de BUILD, que cambia en CADA generación, esta solo cambia
@@ -18713,9 +18713,16 @@ function setTool(tool) {
      pensada justo para esto: forzar el cursor de una herramienta de
      dibujo también sobre lo que hay debajo.                           */
   map.getContainer().classList.toggle("leaflet-crosshair", !!tool);
-  /* Con la herramienta activa, el arrastre dibuja en vez de hacer pan, y
-     el doble click de "cerrar polígono" no debe además hacer zoom      */
-  if (tool) { map.dragging.disable(); map.doubleClickZoom.disable(); }
+  /* Solo el círculo y el arco dibujan ARRASTRANDO: con ellos el arrastre no
+     puede ser también un pan. El polígono y la ruta añaden vértices con CLIC,
+     así que dejan el pan activo (arrastrar el mapa lo desplaza sin tocar el
+     dibujo: el clic que sigue a un arrastre se ignora, ver `clickWasDrag`).
+     El doble click de «cerrar polígono» no debe además hacer zoom, en
+     ninguno de los casos.                                                */
+  if (tool) {
+    if (tool === "circle" || tool === "arc") map.dragging.disable(); else map.dragging.enable();
+    map.doubleClickZoom.disable();
+  }
   /* Al SOLTAR una herramienta, doubleClickZoom no se reactiva a ciegas:
      puede seguir habiendo un polígono/ruta/círculo en edición al mismo
      tiempo (activeTool y vertexOwner NO son excluyentes — se puede abrir
@@ -19019,16 +19026,16 @@ function attachVertexDrag(handle, requireCtrl, onMove, onDrop, canStart) {
     if (canStart && !canStart()) return;
     L.DomEvent.stop(oe);
     /* Gestionar map.dragging es independiente de si hace falta Ctrl para
-       EMPEZAR el gesto: mientras se dibuja, setTool ya lo desactivó para
-       TODA la sesión, y hacerlo también aquí lo reactivaría a mitad de
-       dibujo en cuanto se soltara este vértice. Fuera de una herramienta
-       activa (edición de una forma ya creada) nadie más lo gestiona, así
-       que hace falta aquí — sobre todo ahora que mover un vértice ya no
-       exige Ctrl (wireVertexEditHandle/wireRouteHandle): sin esto el
-       mapa competiría por el mismo gesto, y ese arrastre-de-mapa a
-       medias es lo que le hacía suprimir el "dblclick" que seguía
-       (reportado como "doble click no hace zoom en modo edición").     */
-    const manageDragging = !activeTool;
+       EMPEZAR el gesto. Se apaga durante el arrastre SOLO si el pan está
+       activo (`enabled()`): con el círculo o el arco armados setTool ya lo
+       desactivó para toda la sesión y reactivarlo aquí lo dejaría encendido
+       a mitad de dibujo al soltar el vértice; con el polígono, la ruta o sin
+       herramienta (edición de una forma ya creada) está activo y nadie más
+       lo gestiona, así que hace falta aquí — sin esto el mapa competiría por
+       el mismo gesto, y ese arrastre-de-mapa a medias es lo que suprimía el
+       "dblclick" que seguía (reportado como "doble click no hace zoom en
+       modo edición").                                                      */
+    const manageDragging = map.dragging.enabled();
     if (manageDragging) map.dragging.disable();
     const move = e => { handle.setLatLng(e.latlng); onMove(e.latlng); };
     const up = () => {
@@ -19095,7 +19102,7 @@ function attachCircleHandleDrag(m, handle, isOrigin) {
     const oe = ev.originalEvent;
     if (!styleDialogShows(m.treeLabel && m.treeLabel.closest("li"))) return;
     L.DomEvent.stop(oe);
-    const manageDragging = !activeTool;
+    const manageDragging = map.dragging.enabled();
     if (manageDragging) map.dragging.disable();
 
     const translateCircle = isOrigin && m.type === "circle";
@@ -19327,9 +19334,9 @@ function addPolyVertex(latlng) {
   }
   const h = makeHandle(latlng, true);
   h.on("contextmenu", ev => { L.DomEvent.stop(ev.originalEvent); removePolyVertex(h); });
-  /* Mover un vértice ANTES de cerrar: sin Ctrl, porque mientras se
-     dibuja el mapa ya tiene dragging.disable() (ver setTool) y un
-     arrastre normal sobre el manejador no compite con hacer pan. El
+  /* Mover un vértice ANTES de cerrar: sin Ctrl. attachVertexDrag apaga el
+     pan del mapa mientras dura el arrastre del vértice (con el polígono
+     el mapa SÍ se puede desplazar, ver setTool), así que no compite. El
      índice se busca en el momento del arrastre, no se captura aquí:
      borrar un vértice de en medio desplaza los que le siguen.        */
   attachVertexDrag(h, false, ll => {
@@ -19602,8 +19609,26 @@ function clickOnControl(el) {
    punto cae sobre una capa con su propio "click" — así que aquí no se
    pierde pase lo que pase con ese despacho. mouseEventToLatLng es la
    misma conversión pública que usa Leaflet internamente.              */
+/* ¿El clic que llega es el final de un ARRASTRE? Con el pan activo mientras se
+   dibuja, soltar tras desplazar el mapa dispara también un `click`, que no
+   debe añadir un vértice. Se compara dónde se pulsó (mousedown, en captura:
+   un manejador de vértice lo detiene después) con dónde se suelta, con la
+   misma tolerancia que Leaflet (`clickTolerance`, 3 px: un clic con algo de
+   temblor sigue siendo un clic). Sin pulsación previa (un clic sintético, el
+   de un teclado) no hay arrastre. Se consume en cada clic.               */
+let drawMouseDown = null;
+map.getContainer().addEventListener("mousedown", e => { drawMouseDown = { x: e.clientX, y: e.clientY }; }, true);
+function clickWasDrag(e) {
+  const d = drawMouseDown;
+  drawMouseDown = null;
+  return !!d && Math.hypot(e.clientX - d.x, e.clientY - d.y) > (map.options.clickTolerance || 3);
+}
 map.getContainer().addEventListener("click", e => {
+  const dragged = clickWasDrag(e);
   if ((activeTool !== "polygon" && activeTool !== "route") || clickOnControl(e.target)) return;
+  /* El final de un arrastre no cuenta ni como vértice ni en el historial
+     del doble clic (prevClickAdded/lastClickAdded, justo debajo)        */
+  if (dragged) return;
   /* Un click sobre un manejador de vértice (propio o de una medición ya
      terminada) no añade un vértice ahí encima                        */
   const onHandle = !!(e.target.closest && e.target.closest(".measure-handle"));
