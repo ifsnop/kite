@@ -430,6 +430,15 @@
   }
   li.collapsed > .node-row > .caret { transform: rotate(-90deg); }
   li.collapsed > ul.node-list { display: none; }
+  /* Filtro del árbol (45-tree-filter.js): lo que no coincide va con `hidden`;
+     una carpeta colapsada con coincidencias dentro se ve abierta SIN tocar
+     `collapsed` (que es lo que se guarda), con esta clase aparte. */
+  #tree li[hidden] { display: none; }
+  li.collapsed.filter-open > ul.node-list { display: block; }
+  li.collapsed.filter-open > .node-row > .caret { transform: none; }
+  .filter-count { color: var(--muted); font-size: 12px; white-space: nowrap; }
+  #tree-filter-empty { margin: 0; padding: 14px 14px 0; color: var(--muted); font-size: 13px; }
+  #tree-filter-empty[hidden] { display: none; }
   .caret-spacer { width: 14px; min-width: 14px; }
 
   .swatch {
@@ -500,6 +509,18 @@
     border-top: 1px solid var(--border);
   }
   #nav-search .nav-actions { margin-bottom: 0; }
+  /* Campo de búsqueda con la × dentro (borra y quita el filtro del árbol) */
+  .search-field { position: relative; flex: 1; min-width: 0; display: flex; }
+  #search-box { padding-right: 24px; }
+  #search-box.filtering { border-color: var(--accent); }
+  #search-clear {
+    position: absolute; right: 3px; top: 50%; transform: translateY(-50%);
+    padding: 0 6px; border: none; border-radius: 4px; background: none;
+    color: var(--muted); font: 400 18px/1.2 system-ui, sans-serif; cursor: pointer;
+  }
+  #search-clear:hover { background: var(--border); color: var(--text); }
+  #search-clear:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+  #search-clear[hidden] { display: none; }
   #search-count {
     font-size: 12px;
     color: var(--muted);
@@ -1940,14 +1961,18 @@
       <div class="bar"><div id="progress-fill"></div></div>
     </div>
   </header>
+  <p id="tree-filter-empty" role="status" hidden></p>
   <div id="tree" role="tree" aria-label="Árbol de capas" tabindex="0"></div>
   <div id="dropzone">Arrastre aquí sus archivos KML/KMZ (incl. ortofotos), GPX, JSON/TopoJSON, shapefiles (.shp con su .dbf y .prj, o en .zip), ortofotos COG (.tif) o carpetas exportadas (.kite.json)</div>
-  <footer id="nav-search">
+  <footer id="nav-search" role="search">
     <div class="nav-actions">
-      <input type="text" id="search-box" placeholder="Buscar capas y carpetas&#8230;">
-      <button class="btn" id="search-prev" title="Ocurrencia anterior">&#8593;</button>
-      <button class="btn" id="search-next" title="Siguiente ocurrencia">&#8595;</button>
-      <span id="search-count"></span>
+      <span class="search-field">
+        <input type="text" id="search-box" placeholder="Buscar capas y carpetas&#8230;" aria-label="Buscar capas y carpetas&#8230;" autocomplete="off">
+        <button type="button" id="search-clear" title="Borrar la b&#250;squeda" aria-label="Borrar la b&#250;squeda" hidden>&#215;</button>
+      </span>
+      <button class="btn" id="search-prev" title="Ocurrencia anterior" aria-label="Ocurrencia anterior">&#8593;</button>
+      <button class="btn" id="search-next" title="Siguiente ocurrencia" aria-label="Siguiente ocurrencia">&#8595;</button>
+      <span id="search-count" role="status" aria-live="polite"></span>
     </div>
   </footer>
   <!-- Las dos cotas con las que se topa un árbol grande: lo que ocupa en
@@ -2107,6 +2132,7 @@
         <tr><td>Ctrl + Z / Ctrl + Y</td><td>Deshacer y rehacer (tambi&#233;n con el mapa enfocado)</td></tr>
         <tr><td>Alt + Intro</td><td>Propiedades de lo seleccionado</td></tr>
         <tr><td>Ctrl + F</td><td>Ir al buscador</td></tr>
+        <tr><td>Esc (en el buscador)</td><td>Borrar la b&#250;squeda y mostrar todo el &#225;rbol</td></tr>
         <tr><td>? o May&#250;s + /</td><td>Abrir esta ayuda</td></tr>
         <tr><td>Arrastrar una fila por su nombre</td><td>Mover el nodo a otra carpeta o posici&#243;n (Esc cancela)</td></tr>
       </table>
@@ -3382,6 +3408,8 @@ registerLang("en", "English", {
   "Tramo {n}: {dist} · {brg}°": "Leg {n}: {dist} · {brg}°",
   "Coordenadas no válidas: revise la latitud y la longitud.": "Invalid coordinates: check the latitude and longitude.",
   "Ninguno (solo se ve el texto)": "None (only the text is shown)",
+  /* 45-tree-filter.js */
+  "Ninguna coincidencia con «{term}»": "No matches for «{term}»",
   /* 51-geodesy.js */
   "UTM no definido en esta latitud (zona polar)": "UTM is not defined at this latitude (polar zone)",
   "La distancia oblicua no puede ser menor que la diferencia de alturas.": "The slant distance cannot be less than the height difference.",
@@ -3801,6 +3829,8 @@ registerLang("en", "English", {
   "Propiedades de lo seleccionado": "Properties of what is selected",
   "Ctrl + F": "Ctrl + F",
   "Ir al buscador": "Go to the search box",
+  "Esc (en el buscador)": "Esc (in the search box)",
+  "Borrar la búsqueda y mostrar todo el árbol": "Clear the search and show the whole tree",
   "? o Mayús + /": "? or Shift + /",
   "Abrir esta ayuda": "Open this help",
   "Arrastrar una fila por su nombre": "Drag a row by its name",
@@ -3995,6 +4025,7 @@ registerLang("en", "English", {
   "Ayuda y atajos de teclado (tecla ?)": "Help and keyboard shortcuts (key ?)",
   "Cerrar los resultados": "Close the results",
   "Sin conexión a la red. KITE sigue funcionando con lo guardado en este navegador; los mapas base, la búsqueda de lugares y las elevaciones necesitan red.": "No network connection. KITE keeps working with what is saved in this browser; base maps, place search and elevations need a network connection.",
+  "Borrar la búsqueda": "Clear the search",
   "Ocurrencia anterior": "Previous occurrence",
   "Siguiente ocurrencia": "Next occurrence",
   "Mostrar / ocultar navegación": "Show / hide navigation",
@@ -4015,6 +4046,7 @@ registerLang("en", "English", {
   "Guardar la gráfica, tal como se ve, como imagen PNG": "Save the chart, as it looks, as a PNG image",
   "Guardar los datos de la ruta entera como CSV: distancia, latitud, longitud y la altura de cada serie": "Save the data of the whole route as CSV: distance, latitude, longitude and the height of each series",
   "Árbol de capas": "Layer tree",
+  "Buscar capas y carpetas…": "Search layers and folders…",
   "Elegir color": "Choose color",
   "Unidad de la altura de origen": "Unit of the origin height",
   "Unidad de la altura de destino": "Unit of the target height",
@@ -4036,7 +4068,6 @@ registerLang("en", "English", {
   "Filtrar filas": "Filter rows",
   "Buscar un lugar o unas coordenadas…": "Search for a place or coordinates…",
   "Nombre de carpeta": "Folder name",
-  "Buscar capas y carpetas…": "Search layers and folders…",
   "Filtrar filas…": "Filter rows…",
   /* Bloques de HTML de index.html (data-i18n-html): el valor es el HTML entero */
   "html.gnp-intro": "Associations saved between the structure of the <code>properties</code> of a GeoJSON and the property used as the name.",
@@ -5330,7 +5361,7 @@ map.on("resize rotate", fitWorldMinZoom);
 
 /* Fecha de generación del código (versión): AÑOMESDIAHORAMINUTO.
    Actualizar en cada generación; se muestra junto al crédito de Leaflet. */
-const BUILD = "202611080918";
+const BUILD = "202611082335";
 /* Versión de release (la de package.json, horneada aquí por build.js
    al construir — ver «Versión y releases de GitHub» en CLAUDE.md): a
    diferencia de BUILD, que cambia en CADA generación, esta solo cambia
@@ -7247,8 +7278,13 @@ async function selectFolderLayers(li) {
    nodos, y con la tecla repetida el panel se atasca. Se navega en local:
    el siguiente y el anterior se encuentran mirando hermanos, hijos y
    madre, o sea O(profundidad), no O(nodos).                           */
-const isRow = li => li && li.tagName === "LI" && li._name !== undefined;
-const isOpen = li => nodeUl(li) && !li.classList.contains("collapsed");
+/* Una fila que el filtro del panel oculta (`li.hidden`, 45-tree-filter.js)
+   NO es una fila: el teclado, los rangos con Mayús, Ctrl+A, Inicio y Fin la
+   saltan sin más cambios, porque todos pasan por aquí. Y una carpeta que se
+   ve abierta solo por el filtro (`filter-open`, sin tocar `collapsed`, que
+   es lo que se guarda) cuenta como abierta.                              */
+const isRow = li => li && li.tagName === "LI" && li._name !== undefined && !li.hidden;
+const isOpen = li => nodeUl(li) && (!li.classList.contains("collapsed") || li.classList.contains("filter-open"));
 const childRows = ul => (ul ? [...ul.children].filter(isRow) : []);
 
 function nextSiblingRow(li) {
@@ -7409,6 +7445,8 @@ function collapseDescendants(root) {
   for (const li of root.querySelectorAll("li")) {
     if (nodeUl(li)) li.classList.add("collapsed");
   }
+  /* lo que el filtro tenía abierto sin tocar `collapsed` también se cierra */
+  for (const li of root.querySelectorAll("li.filter-open")) setFilterOpen(li, false);
   if (root.tagName === "LI" && nodeUl(root)) root.classList.add("collapsed");
   syncAllExpanded();
   scheduleSave();
@@ -8217,17 +8255,69 @@ const syncAllExpanded = () => {
    ANTES de empezar, así que una llamada reentrante ve `_materializing`
    en vez de arrancar otra pasada sobre los mismos registros.           */
 async function ensureMaterialized(li) {
+  /* Una construcción PARCIAL en vuelo (materializeMatching) deja su resto en
+     _pending: se espera a que acabe y entonces se construye ese resto. Una
+     completa ya dejó _pending a null, así que aquí no espera: como siempre. */
+  if (li._pending && li._materializing) await li._materializing;
   if (!li._pending) return;
   if (li._materializing) return li._materializing;
   const records = li._pending;
   li._pending = null;
-  /* Las dos cuentas son lo que deja a una cascada en curso saber que
-     el conjunto de nodos todavía se está moviendo (ver
-     cascadeVisibility). Se suma ANTES de arrancar: materializeRecords
-     construye su primer lote de forma síncrona, así que una cascada
-     que llegue después tiene que ver ya que hay trabajo en vuelo.  */
+  partialFolders.delete(li);
+  return runMaterialize(li, records, null);
+}
+
+/* Estado que comparten el árbol y el filtro del panel (45-tree-filter.js).
+   `treeFilterWanted` es el criterio «este registro, o algo de dentro,
+   coincide» MIENTRAS hay un filtro puesto (null si no). Desplegar una
+   carpeta con el filtro puesto construye solo eso (expandFolder), igual que
+   lo hace el propio filtro; sin él, todo, como siempre.                  */
+let treeFilterWanted = null;
+const filterClosed = new Set(); /* carpetas que el usuario cerró a mano con el filtro puesto */
+function expandFolder(li) {
+  return treeFilterWanted ? materializeMatching(li, treeFilterWanted) : ensureMaterialized(li);
+}
+/* Una carpeta colapsada (`collapsed`, lo que se guarda) que el filtro enseña
+   abierta porque dentro hay coincidencias: clase aparte, que anula el
+   `display:none` del CSS. NUNCA se toca `collapsed` desde el filtro. */
+function setFilterOpen(li, on) {
+  const want = on && li.classList.contains("collapsed");
+  if (li.classList.contains("filter-open") === want) return;
+  li.classList.toggle("filter-open", want);
+  if (want) li.setAttribute("aria-expanded", "true"); else syncExpanded(li);
+}
+/* Cerrar a mano lo que solo el filtro tenía abierto: no cambia nada guardado
+   y el filtro respeta ese cierre hasta que se quita. */
+function closeFilterOpen(li) { setFilterOpen(li, false); filterClosed.add(li); }
+
+/* Carpetas con filas Y registros pendientes (construidas a medias por el
+   filtro). El filtro las completa al quitarse si están abiertas. Un Set de
+   <li> a propósito: una carpeta borrada deja de estar conectada y se
+   descarta al recorrerlo.                                               */
+const partialFolders = new Set();
+
+/* Construye SOLO lo que pide `only` de los registros pendientes de la carpeta
+   (el resto sigue en li._pending, en su sitio) y recursa con el mismo
+   criterio. Cuesta lo que las coincidencias, no lo que la carpeta: con 20 000
+   capas y 38 coincidencias, 5 ms en vez de 6,9 s (performance.md). Sin
+   registros pendientes, o sin nada que elegir, no hace nada.            */
+async function materializeMatching(li, only) {
+  if (li._pending && li._materializing) await li._materializing;
+  if (!li._pending || li._materializing) return;
+  const { chosen, rest } = splitPending(li._pending, only);
+  if (!chosen.length) return;
+  li._pending = rest.length ? rest : null;
+  if (rest.length) partialFolders.add(li); else partialFolders.delete(li);
+  return runMaterialize(li, chosen, only);
+}
+
+/* Lo común de las dos: las cuentas que dejan a una cascada en curso saber
+   que el conjunto de nodos todavía se está moviendo (ver cascadeVisibility)
+   se suman ANTES de arrancar, porque materializeRecords construye su primer
+   lote de forma síncrona.                                               */
+function runMaterialize(li, records, only) {
   materializingNow++;
-  li._materializing = materializeRecords(records, nodeUl(li))
+  li._materializing = materializeRecords(records, nodeUl(li), only)
     .finally(() => { li._materializing = null; materializingNow--; materializeSeq++; });
   return li._materializing;
 }
@@ -8239,11 +8329,13 @@ function makeCaret(li) {
   caret.textContent = "\u25BE";
   caret.title = tr("Colapsar / desplegar");
   caret.addEventListener("click", () => {
+    /* Abierta solo por el filtro: se cierra a la vista sin tocar lo guardado */
+    if (li.classList.contains("filter-open")) { closeFilterOpen(li); return; }
     const collapsing = !li.classList.contains("collapsed");
     li.classList.toggle("collapsed");
     syncExpanded(li);
     scheduleSave();
-    if (!collapsing) ensureMaterialized(li); /* desplegar: construye el DOM diferido, por lotes */
+    if (!collapsing) expandFolder(li); /* desplegar: construye el DOM diferido, por lotes (solo lo que coincide con el filtro puesto) */
   });
   return caret;
 }
@@ -10249,7 +10341,7 @@ function serializeNode(li) {
     if (li._arcgisLayer.data) rec.data = true;
     if (li._isContainer) {
       rec.collapsed = li.classList.contains("collapsed");
-      rec.children = li._pending ? serializePendingRecords(li._pending) : serializeNodes(nodeUl(li));
+      rec.children = serializeChildren(li, nodeUl(li));
     }
     return [rec];
   }
@@ -10257,7 +10349,7 @@ function serializeNode(li) {
     const a = li._arcgis;
     return [{ ...base, t: "arcgis", collapsed: li.classList.contains("collapsed"), url: a.url,
               opacity: a.opacity, tile: a.tile, extent: a.extent, attribution: a.attribution,
-              children: li._pending ? serializePendingRecords(li._pending) : serializeNodes(nodeUl(li)) }];
+              children: serializeChildren(li, nodeUl(li)) }];
   }
   /* li._isContainer evita este querySelector en toda capa hoja (la
      inmensa mayoría de los nodos de un árbol grande): solo carpetas y
@@ -10269,7 +10361,7 @@ function serializeNode(li) {
        se serializa directamente desde los registros, sin construir ni
        una sola fila — coste casi nulo para lo que nadie ha llegado a
        abrir.                                                          */
-    const children = li._pending ? serializePendingRecords(li._pending) : serializeNodes(ul);
+    const children = serializeChildren(li, ul);
     const rec = { ...base, t: li.classList.contains("file") ? "file" : "folder",
                   collapsed: li.classList.contains("collapsed"), children };
     if (li._appSection) rec.sec = true; /* sección creada por la aplicación */
@@ -10287,6 +10379,79 @@ function serializeNode(li) {
   return [rec];
 }
 const serializeNodes = ul => [...ul.children].flatMap(serializeNode);
+
+/* ---------- Carpetas a medio construir ----------
+   Una carpeta puede tener filas Y registros pendientes a la vez: lo que el
+   filtro del panel pidió (materializeMatching, 31-tree-node.js) es una fila
+   y el resto sigue en `li._pending`. Son conjuntos DISJUNTOS —un registro
+   que se construye sale de `_pending`—, así que lo que ya recorría los dos
+   (containerState, cascadeVisibility, removeSubtreeFromMap, findMatches…)
+   no cuenta nada dos veces. Lo que no podía con eso era guardar y colocar:
+
+   - Guardar: se tomaban los hijos de `_pending` O del DOM, nunca de los dos,
+     y se perdía uno de los dos conjuntos (ya pasaba al soltar un archivo en
+     una carpeta colapsada con pendientes).
+   - Colocar: construir solo algunas filas las dejaba fuera de su sitio.
+
+   Ambos se resuelven con la posición ORIGINAL de cada registro (`rec._pos`,
+   su índice en el nivel antes de partirlo, que la fila hereda en `li._pos`).
+   `ensurePos` la asigna una sola vez por nivel.                           */
+function ensurePos(records) {
+  if (records.length && records[0]._pos === undefined) records.forEach((r, i) => { r._pos = i; });
+}
+
+/* Parte `records` en lo elegido y el resto, conservando el orden de cada
+   mitad. Pura: no construye nada.                                       */
+function splitPending(records, only) {
+  ensurePos(records);
+  const chosen = [], rest = [];
+  for (const rec of records) (only(rec) ? chosen : rest).push(rec);
+  return { chosen, rest };
+}
+
+/* Coloca las filas nuevas de un nivel en el sitio que les toca por `_pos`
+   mezclando dos listas ya ordenadas: las que hay en el <ul> y las que
+   llegan (en orden). Con un ancla que avanza solo hacia delante cuesta
+   O(1) por fila, no O(filas ya puestas) —con 20 000 y una fila cada 500, la
+   búsqueda lineal de cada una sería N × x—. Devuelve null si el nivel nunca
+   se partió (sin `_pos`): ahí se añade al final, como siempre. Una fila sin
+   `_pos` (un pin o un archivo soltado después) cuenta como «al final».    */
+function placementAnchor(parentUl, records) {
+  if (!records.length || records[0]._pos === undefined) return null;
+  let anchor = parentUl.firstElementChild;
+  return (li, pos) => {
+    /* Si el usuario borró la fila ancla mientras cedíamos el hilo, se vuelve a empezar */
+    if (anchor && anchor.parentNode !== parentUl) anchor = parentUl.firstElementChild;
+    while (anchor && anchor._pos !== undefined && anchor._pos < pos) anchor = anchor.nextElementSibling;
+    parentUl.insertBefore(li, anchor); /* ancla nula = al final */
+  };
+}
+
+/* Los hijos de un contenedor, listos para guardar. Solo filas: lo de siempre;
+   solo pendientes: lo de siempre (sin construir ni una fila); LAS DOS COSAS:
+   se fusionan por posición original. Si el usuario reordenó a mano las filas
+   construidas (sus `_pos` ya no crecen en el DOM), no hay una posición que
+   respetar: filas en el orden en que están y luego los pendientes.       */
+function serializeChildren(li, ul) {
+  if (!li._pending) return serializeNodes(ul);
+  if (!ul || !ul.firstElementChild) return serializePendingRecords(li._pending);
+  const pend = li._pending;
+  ensurePos(pend);
+  const pendOut = serializePendingRecords(pend); /* en paralelo a `pend` */
+  const rows = [...ul.children].filter(c => c._name !== undefined);
+  const rowOut = rows.map(serializeNode);
+  const pos = r => r._pos === undefined ? Infinity : r._pos;
+  let last = -1, ordered = true;
+  for (const r of rows) { if (pos(r) < last) { ordered = false; break; } last = pos(r); }
+  if (!ordered) return [...rowOut.flat(), ...pendOut];
+  const out = [];
+  let i = 0, j = 0;
+  while (i < rows.length || j < pend.length) {
+    if (j < pend.length && (i >= rows.length || pend[j]._pos < pos(rows[i]))) out.push(pendOut[j++]);
+    else out.push(...rowOut[i++]);
+  }
+  return out;
+}
 
 /* Gemela de serializeNode/serializeNodes, pero sobre registros pendientes
    (li._pending) en vez de filas del DOM: misma forma de salida exacta,
@@ -10812,8 +10977,16 @@ async function buildRecordsFromStorage(nodes, prog, opts = {}) {
    lleva parámetro de progreso: el trabajo caro (parsear geometría,
    construir capas Leaflet) ya pasó en la fase de registros, que sí
    lo muestra; esto solo cede el hilo para no bloquear.                 */
-async function materializeRecords(records, parentUl) {
+async function materializeRecords(records, parentUl, only = null) {
   let n = 0;
+  /* Dónde va cada fila: al final, como siempre, salvo que este nivel se haya
+     partido ya (rec._pos): entonces por su posición original, mezclando con
+     las filas que ya hay (ver placementAnchor). */
+  const anchored = placementAnchor(parentUl, records);
+  const put = (li, rec) => {
+    if (rec._pos !== undefined) li._pos = rec._pos;
+    if (anchored) anchored(li, rec._pos); else parentUl.appendChild(li);
+  };
   for (const rec of records) {
     if (rec.t === "folder" || rec.t === "file") {
       const li = makeNode({
@@ -10823,11 +10996,19 @@ async function materializeRecords(records, parentUl) {
       rec._li = li; /* referencia inversa: la usa resolveMatch para llegar aquí desde una búsqueda pendiente */
       if (rec.collapsed) li.classList.add("collapsed");
       syncExpanded(li);
-      parentUl.appendChild(li);
+      put(li, rec);
       /* la sección que contiene mediciones recupera su papel, mire o no
          esta llamada dentro de sus hijos: rec.children ya existe       */
       if (rec.t === "file" && rec.children.some(c => c.t === "measure")) measureLi = li;
-      if (rec.collapsed) {
+      if (only) {
+        /* Construcción parcial (el filtro del panel): de esta carpeta solo se
+           construye lo que pide `only` y el resto queda en SU _pending,
+           aunque no esté colapsada (al quitar el filtro se completa).    */
+        const sub = splitPending(rec.children, only);
+        li._pending = sub.rest.length ? sub.rest : null;
+        if (li._pending) partialFolders.add(li);
+        await materializeRecords(sub.chosen, nodeUl(li), only);
+      } else if (rec.collapsed) {
         li._pending = rec.children;
         /* Sus hijos no llegan a ser filas, así que la pasada recursiva
            no va a recalcular esta casilla por ellos: se hace aquí, con
@@ -10855,7 +11036,7 @@ async function materializeRecords(records, parentUl) {
         rec._pendingHandlers = null;
       }
       if (rec.geo) li._geo = rec.geo;
-      parentUl.appendChild(li);
+      put(li, rec);
       if (rec.mstyle) {
         li._mstyle = rec.mstyle;
         applyMarkerStyle(li); /* síncrona: los iconos van empotrados */
@@ -10869,7 +11050,7 @@ async function materializeRecords(records, parentUl) {
     } else if (rec.t === "measure") {
       const li = makeMeasureLi(rec._m);
       rec._li = li;
-      parentUl.appendChild(li);
+      put(li, rec);
       if (!rec.checked) li.querySelector(":scope > .node-row > input").checked = false;
       updateMeasurement(rec._m);
     } else if (rec.t === "elevGrid") {
@@ -10879,19 +11060,19 @@ async function materializeRecords(records, parentUl) {
       });
       rec._li = li;
       li._elevGrid = { cells: rec.cells, profile: rec.profile || null };
-      parentUl.appendChild(li);
+      put(li, rec);
     } else if (rec.t === "imageOverlay") {
       const li = makeNode({ name: rec.name, layer: rec._layer, styleable: true, checked: !!rec.checked });
       rec._li = li;
       li._imageOverlay = { box: rec.box, dataUrl: rec.dataUrl, opacity: rec.opacity };
-      parentUl.appendChild(li);
+      put(li, rec);
     } else if (rec.t === "cog") {
       const li = makeNode({ name: rec.name, layer: rec._layer, styleable: true, checked: !!rec.checked });
       rec._li = li;
       li._cog = { rasterId: rec.rasterId, box: rec.box, opacity: rec.opacity };
-      parentUl.appendChild(li);
+      put(li, rec);
     } else if (rec.t === "arcgis" || rec.t === "arcgisLayer") {
-      await materializeArcgisRecord(rec, parentUl);
+      await materializeArcgisRecord(rec, parentUl, put);
     }
     if (++n % PROGRESS_BATCH === 0) await yieldFrame();
   }
@@ -12659,11 +12840,32 @@ async function importGpxFile(file, big, insertBefore, dropTargetUl) {
 /* ================= Acciones del panel de navegación ================= */
 
 /* ---------- Búsqueda entre capas y carpetas ----------
-   Parcial y sin distinguir mayúsculas. Las flechas recorren las
-   ocurrencias; highlightNode despliega las carpetas necesarias.   */
+   Parcial (dentro de las palabras) y sin distinguir mayúsculas ni tildes.
+   Teclear FILTRA el árbol (45-tree-filter.js: solo se ve lo que coincide, y
+   las carpetas sin desplegar se cuentan sin construirse); Intro, Mayús+Intro
+   y las flechas ↑ ↓ saltan de una coincidencia a otra, y highlightNode
+   despliega las carpetas necesarias.                                    */
 const searchBox = document.getElementById("search-box");
 const searchCount = document.getElementById("search-count");
+const searchClear = document.getElementById("search-clear");
 let searchIdx = -1;
+
+/* Texto comparable: sin tildes ni mayúsculas. «Parcela» encuentra «parcéla»
+   y «PARC». La clave de una fila o de un registro se calcula una vez y se
+   guarda junto al nombre con el que se calculó (si se renombra, se rehace):
+   buscar en 60 000 registros no puede normalizar 60 000 cadenas por tecla. */
+const normSearch = s => String(s).normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
+function rowKey(li) {
+  const n = li._name;
+  return li._nk && li._nk.s === n ? li._nk.k : (li._nk = { s: n, k: normSearch(n) }).k;
+}
+const recKeys = new WeakMap(); /* aparte, no un campo del registro: los registros son datos y no se les mezcla nada propio */
+function recKey(rec) {
+  const n = rec.name;
+  let e = recKeys.get(rec);
+  if (!e || e.s !== n) recKeys.set(rec, e = { s: n, k: normSearch(n) });
+  return e.k;
+}
 
 /* Recorre TODO el árbol -- filas ya materializadas MÁS registros dentro
    de carpetas pendientes (li._pending), sin materializar nada todavía --
@@ -12675,14 +12877,17 @@ let searchIdx = -1;
    fila real corresponde una capa concreta (por identidad) o encontrar
    una capa de un tipo dado que ya esté en rootGroup son el MISMO
    recorrido con un predicado distinto — ver resolveRecordLi y
-   visibleElevGridLis.                                                 */
+   resolveLayerLi.                                                     */
 function findMatches(matchLi, matchRec) {
   const out = [];
-  const scanRecords = (records, startLi, chain) => {
+  /* `path` es UNA pila compartida: solo se copia al encontrar algo (antes se
+     copiaba la cadena entera por cada registro, 29 ms con una letra). */
+  const scanRecords = (records, startLi, path) => {
     for (const rec of records) {
-      const nextChain = [...chain, rec];
-      if (matchRec(rec)) out.push({ startLi, chain: nextChain });
-      if (rec.children) scanRecords(rec.children, startLi, nextChain);
+      path.push(rec);
+      if (matchRec(rec)) out.push({ startLi, chain: path.slice() });
+      if (rec.children) scanRecords(rec.children, startLi, path);
+      path.pop();
     }
   };
   const scanLi = li => {
@@ -12695,11 +12900,11 @@ function findMatches(matchLi, matchRec) {
   return out;
 }
 function searchMatches() {
-  const term = searchBox.value.trim().toLowerCase();
+  const term = normSearch(searchBox.value.trim());
   if (!term) return [];
   return findMatches(
-    li => li._name !== undefined && li._name.toLowerCase().includes(term),
-    rec => rec.name.toLowerCase().includes(term)
+    li => li._name !== undefined && rowKey(li).includes(term),
+    rec => recKey(rec).includes(term)
   );
 }
 /* Materializa la cadena de una coincidencia pendiente hasta obtener su
@@ -12709,11 +12914,15 @@ function searchMatches() {
    ya materializado es un no-op, así que recorrer el chain entero
    llamándolo en cada paso es seguro aunque varios eslabones ya
    estuvieran abiertos (se cascadearon solos en la misma pasada).      */
-async function resolveMatch(match) {
+async function resolveMatch(match, partial = false) {
   if (match.li) return match.li;
   let li = match.startLi;
   for (const rec of match.chain) {
-    await ensureMaterialized(li);
+    /* `partial` (saltar entre coincidencias con el filtro puesto): cada
+       eslabón de la cadena coincide o contiene una coincidencia, así que
+       basta construir lo que el filtro quiere de cada nivel y no la
+       carpeta entera (6,9 s con 20 000 capas). Sin filtro, todo, como siempre. */
+    await (partial && treeFilterWanted ? materializeMatching(li, treeFilterWanted) : ensureMaterialized(li));
     li = rec._li;
     if (!li) return null; /* defensivo: no debería ocurrir */
   }
@@ -12766,8 +12975,8 @@ function wirePendingLayerEvents(rec) {
   rec._pendingHandlers = { onClick, onHover, onLeave };
 }
 function updateSearchCount(total) {
-  searchCount.textContent = searchBox.value.trim()
-    ? `${searchIdx + 1}/${total}` : "";
+  searchCount.textContent = !searchBox.value.trim() ? ""
+    : searchIdx >= 0 ? `${searchIdx + 1}/${total}` : String(total);
 }
 async function gotoMatch(dir) {
   const matches = searchMatches(); /* recalculado: el árbol puede cambiar */
@@ -12775,41 +12984,70 @@ async function gotoMatch(dir) {
   /* con el índice sin estrenar, "anterior" debe caer en la última ocurrencia */
   if (searchIdx === -1 && dir === -1) searchIdx = 0;
   searchIdx = ((searchIdx + dir) % matches.length + matches.length) % matches.length;
-  const li = await resolveMatch(matches[searchIdx]);
+  const li = await resolveMatch(matches[searchIdx], true);
   if (li) highlightNode(li);
   updateSearchCount(matches.length);
 }
-/* Busca en vivo mientras se teclea: debounced (evita recorrer el árbol
-   completo en cada tecla, ~8.000-10.000 nodos) y solo a partir de
-   SEARCH_MIN_CHARS (evita saltar de resultado mientras el usuario
-   todavía está afinando el término). gotoMatch (Enter, botones ◀▶) no
-   lleva este mínimo: es una acción explícita, no debe quedarse callada
-   por un término corto.                                              */
+/* Filtra en vivo mientras se teclea: con pausa (SEARCH_DEBOUNCE_MS, no se
+   recorre el árbol en cada tecla) y solo a partir de SEARCH_MIN_CHARS letras
+   (una o dos coinciden con medio árbol y no enseñan nada). Con menos, se
+   quita el filtro que hubiera: el árbol no se queda a medias con un término
+   que ya no está escrito. Intro es una acción explícita y filtra con
+   cualquier longitud; si el filtro ya corresponde a lo escrito, salta a la
+   siguiente coincidencia (Mayús+Intro, a la anterior), como los botones ↑ ↓.
+   Teclear NO salta, selecciona ni despliega nada por su cuenta: el árbol
+   filtrado ya enseña lo que hay.                                         */
 const SEARCH_DEBOUNCE_MS = 150;
 const SEARCH_MIN_CHARS = 3;
 let searchTimer = null;
 
+async function clearSearch() {
+  clearTimeout(searchTimer);
+  searchBox.value = "";
+  searchIdx = -1;
+  searchCount.textContent = "";
+  syncSearchClear();
+  await clearTreeFilter();
+}
+function syncSearchClear() {
+  searchClear.hidden = !searchBox.value;
+  searchBox.classList.toggle("filtering", !!treeFilter);
+}
 async function runLiveSearch() {
-  if (searchBox.value.trim().length < SEARCH_MIN_CHARS) {
-    searchIdx = -1;
+  const raw = searchBox.value.trim();
+  searchIdx = -1;
+  if (raw.length < SEARCH_MIN_CHARS) {
     searchCount.textContent = "";
+    if (treeFilter) await clearTreeFilter();
+    syncSearchClear();
     return;
   }
-  const matches = searchMatches();
-  searchIdx = matches.length ? 0 : -1;
-  if (matches.length) {
-    const li = await resolveMatch(matches[0]);
-    if (li) highlightNode(li);
-  }
-  updateSearchCount(matches.length);
+  await applyTreeFilter(raw);
+  syncSearchClear();
 }
 searchBox.addEventListener("input", () => {
+  syncSearchClear();
   clearTimeout(searchTimer);
   searchTimer = setTimeout(runLiveSearch, SEARCH_DEBOUNCE_MS);
 });
-searchBox.addEventListener("keydown", e => {
-  if (e.key === "Enter") gotoMatch(e.shiftKey ? -1 : 1);
+searchBox.addEventListener("keydown", async e => {
+  if (e.key === "Enter") {
+    e.preventDefault();
+    clearTimeout(searchTimer);
+    const raw = searchBox.value.trim();
+    if (!raw) { await clearSearch(); return; }
+    if (!treeFilter || treeFilter.raw !== raw) { searchIdx = -1; await applyTreeFilter(raw); syncSearchClear(); }
+    else gotoMatch(e.shiftKey ? -1 : 1);
+  } else if (e.key === "Escape" && searchBox.value) {
+    /* Con texto, Escape es «borrar la búsqueda» y no llega al Escape global
+       (52-measure.js), que limpiaría la selección y la herramienta. Con el
+       campo vacío sigue haciendo lo de siempre. */
+    e.preventDefault();
+    e.stopPropagation();
+    await clearSearch();
+  }
 });
+searchClear.addEventListener("click", async () => { await clearSearch(); searchBox.focus(); });
 document.getElementById("search-next").addEventListener("click", () => gotoMatch(1));
 document.getElementById("search-prev").addEventListener("click", () => gotoMatch(-1));
 
@@ -13147,11 +13385,12 @@ function moveCursorTo(to, extend) {
    se resuelve sola en cuanto la materialización acaba.                */
 async function expandOrEnter(li, extend) {
   if (!nodeUl(li)) return;
-  if (li.classList.contains("collapsed")) {
+  /* Abierta solo por el filtro no cuenta como colapsada: se entra en su primer hijo visible */
+  if (li.classList.contains("collapsed") && !li.classList.contains("filter-open")) {
     li.classList.remove("collapsed");
     syncExpanded(li);
     scheduleSave();
-    await ensureMaterialized(li);
+    await expandFolder(li);
     return;
   }
   const first = childRows(nodeUl(li))[0];
@@ -13160,6 +13399,7 @@ async function expandOrEnter(li, extend) {
 
 /* Colapsa, o sube a la carpeta madre si ya estaba colapsada */
 function collapseOrLeave(li, extend) {
+  if (li.classList.contains("filter-open")) { closeFilterOpen(li); return; }
   if (nodeUl(li) && !li.classList.contains("collapsed")) {
     li.classList.add("collapsed");
     syncExpanded(li);
@@ -18189,6 +18429,192 @@ $id("icon-accept").addEventListener("click", () => {
   pendingIcon = null;
 });
 
+/* ================= Filtro del árbol (buscador del panel) =================
+   Teclear en el buscador deja en el árbol SOLO lo que coincide con lo
+   escrito (sin mayúsculas ni tildes, dentro de las palabras) y los
+   ancestros que lo llevan. Ver tree-navigation-selection.md.
+
+   Lo caro era llegar a una coincidencia dentro de una carpeta sin desplegar:
+   sus capas son datos (`li._pending`) y construirlas todas costaba 6,9 s con
+   20 000. Aquí solo se construyen las que coinciden (materializeMatching,
+   31-tree-node.js: 5 ms con 38 coincidencias, 84 ms con 1 000) y, si son más
+   de FILTER_BUILD_MAX, ninguna: la carpeta sale cerrada con «(n)» y se
+   construyen al desplegarla. Encontrarlas es solo recorrer nombres (5 ms
+   con 20 000).
+
+   Lo que el filtro NUNCA toca: `collapsed` (las carpetas se ven abiertas con
+   la clase `filter-open`, que lo anula en el CSS), las casillas ni las capas
+   del mapa. Lo oculto es `li.hidden`, y `isRow` (30-tree-walk.js) lo salta,
+   con lo que el teclado, los rangos y Ctrl+A no aterrizan en una fila que no
+   se ve. Nada de esto se serializa.                                       */
+const FILTER_BUILD_MAX = 300;
+let treeFilter = null;           /* { raw, term } mientras hay un filtro puesto */
+let filterGen = 0;               /* una pasada en vuelo se abandona si llega otra */
+let filterApplying = false;
+let filterWanted = new WeakMap(); /* caché de UNA pasada: ¿este registro, o algo de dentro, coincide? */
+let refilterTimer = null;
+const treeFilterEmpty = document.getElementById("tree-filter-empty");
+
+/* ¿Este registro, o algún descendiente, coincide? Es lo que se construye. */
+function recWanted(rec) {
+  let w = filterWanted.get(rec);
+  if (w === undefined) {
+    w = recKey(rec).includes(treeFilter.term) || (!!rec.children && rec.children.some(recWanted));
+    filterWanted.set(rec, w);
+  }
+  return w;
+}
+
+/* Cuántos registros (a cualquier profundidad) coinciden, sin crear arrays */
+function countMatches(records, term) {
+  let n = 0;
+  for (const r of records) {
+    if (recKey(r).includes(term)) n++;
+    if (r.children) n += countMatches(r.children, term);
+  }
+  return n;
+}
+
+/* Las carpetas con registros pendientes, en el orden del documento */
+function collectPending(ul, out) {
+  for (const li of ul.children) {
+    if (li._name === undefined) continue;
+    if (li._pending) out.push(li);
+    const cul = li._isContainer ? nodeUl(li) : null;
+    if (cul) collectPending(cul, out);
+  }
+  return out;
+}
+
+const setHidden = (li, hide) => { if (li.hidden !== hide) li.hidden = hide; };
+
+/* El «(n)» de una carpeta con coincidencias aún sin construir */
+function setBadge(li, n) {
+  let b = li._fbadge;
+  if (n > 0) {
+    if (!b) {
+      b = li._fbadge = document.createElement("span");
+      b.className = "filter-count";
+      const label = nodeRow(li).querySelector(":scope > label");
+      if (label) label.after(b); else nodeRow(li).appendChild(b);
+    }
+    const txt = `(${n})`;
+    if (b.textContent !== txt) b.textContent = txt;
+  } else if (b) {
+    b.remove();
+    li._fbadge = null;
+  }
+}
+
+/* Una pasada sobre las filas que hay: oculta lo que no coincide, abre (solo a
+   la vista) lo que lleva coincidencias dentro y cuenta. Devuelve si algo se
+   queda a la vista. Solo escribe donde algo cambia: con 20 000 filas
+   construidas, ocultarlas todas medía 134 ms.                           */
+function filterPass(ul, term, st) {
+  let any = false;
+  for (const li of ul.children) {
+    if (li._name === undefined) { setHidden(li, true); continue; } /* filas de mensaje */
+    const self = rowKey(li).includes(term);
+    if (self) st.matches++;
+    const cul = li._isContainer ? nodeUl(li) : null;
+    const kids = cul ? filterPass(cul, term, st) : false;
+    const pend = li._pending ? countMatches(li._pending, term) : 0;
+    st.matches += pend;
+    const visible = self || kids || pend > 0;
+    setHidden(li, !visible);
+    setFilterOpen(li, visible && kids && !filterClosed.has(li));
+    setBadge(li, pend);
+    if (visible) any = true;
+  }
+  return any;
+}
+
+/* Lo oculto no puede quedarse seleccionado: Supr, cortar o arrastrar
+   actuarían sobre filas que el usuario no ve. */
+function dropHiddenSelection() {
+  const hidden = li => li.hidden || !!(li.parentElement && li.parentElement.closest("li[hidden]"));
+  for (const li of [...selection]) if (hidden(li)) setSelected(li, false);
+  if (selAnchor && hidden(selAnchor)) selAnchor = null;
+  if (selCursor && hidden(selCursor)) setSelCursor(null);
+}
+
+/* Lo que nazca con el filtro puesto (importar, pegar, un pin, deshacer,
+   renombrar) se filtra solo: un único observador, sin enganchar cada sitio
+   que crea filas. Ignora lo que el propio filtro escribe (las insignias).  */
+const treeObserver = new MutationObserver(muts => {
+  if (!treeFilter || filterApplying) return;
+  const own = n => n.nodeType === 1 && n.classList.contains("filter-count");
+  const foreign = muts.some(m => !(m.target.classList && m.target.classList.contains("filter-count"))
+    && ![...m.addedNodes, ...m.removedNodes].every(own));
+  if (!foreign) return;
+  clearTimeout(refilterTimer);
+  refilterTimer = setTimeout(() => { if (treeFilter) applyTreeFilter(treeFilter.raw); }, 120);
+});
+
+async function applyTreeFilter(raw) {
+  const term = normSearch(raw.trim());
+  if (!term) return clearTreeFilter();
+  const gen = ++filterGen;
+  treeFilter = { raw: raw.trim(), term };
+  treeFilterWanted = recWanted;
+  filterWanted = new WeakMap();
+  filterApplying = true;
+  try {
+    if (rootUl && rootUl.isConnected) {
+      /* Coincidencias dentro de carpetas sin desplegar: se cuentan sin
+         construir y, si caben en el tope, se construyen SOLO ellas */
+      const pend = collectPending(rootUl, []);
+      const counts = pend.map(li => countMatches(li._pending, term));
+      const total = counts.reduce((a, b) => a + b, 0);
+      if (total > 0 && total <= FILTER_BUILD_MAX) {
+        for (let i = 0; i < pend.length; i++) {
+          if (!counts[i]) continue;
+          await materializeMatching(pend[i], recWanted);
+          if (gen !== filterGen) return;
+        }
+      }
+    }
+    if (gen !== filterGen) return;
+    const st = { matches: 0 };
+    const any = rootUl && rootUl.isConnected ? filterPass(rootUl, term, st) : false;
+    dropHiddenSelection();
+    searchCount.textContent = String(st.matches);
+    treeFilterEmpty.hidden = any;
+    if (!any) treeFilterEmpty.textContent = tr("Ninguna coincidencia con «{term}»", { term: treeFilter.raw });
+    treeObserver.observe(treeEl, { childList: true, subtree: true });
+  } finally {
+    if (gen === filterGen) { treeObserver.takeRecords(); filterApplying = false; }
+  }
+}
+
+/* Quita el filtro y devuelve el árbol tal cual estaba. Las filas construidas
+   se quedan; una carpeta ABIERTA que quedó a medio construir se completa
+   (una abierta con solo parte de sus hijas sería un árbol incorrecto) y una
+   cerrada se completa al desplegarla.                                    */
+async function clearTreeFilter() {
+  const had = !!treeFilter;
+  filterGen++;
+  clearTimeout(refilterTimer);
+  treeFilter = null;
+  treeFilterWanted = null;
+  filterApplying = false;
+  filterClosed.clear();
+  treeObserver.disconnect();
+  for (const li of treeEl.querySelectorAll("li[hidden]")) li.hidden = false;
+  for (const li of treeEl.querySelectorAll("li.filter-open")) setFilterOpen(li, false);
+  for (const b of treeEl.querySelectorAll(".filter-count")) {
+    const li = b.closest("li");
+    if (li) li._fbadge = null;
+    b.remove();
+  }
+  treeFilterEmpty.hidden = true;
+  treeFilterEmpty.textContent = "";
+  if (!had) return;
+  for (const li of [...partialFolders]) {
+    if (!li.isConnected) { partialFolders.delete(li); continue; }
+    if (!li.classList.contains("collapsed")) await ensureMaterialized(li);
+  }
+}
 /* ================= Separador redimensionable y toggle ================= */
 
 const splitter = document.getElementById("splitter");
@@ -26870,7 +27296,7 @@ function arcgisForeignNotice(foreign) {
 }
 
 /* Fila de un servicio o de una de sus capas (lo llama materializeRecords) */
-async function materializeArcgisRecord(rec, parentUl) {
+async function materializeArcgisRecord(rec, parentUl, put) {
   const isService = rec.t === "arcgis";
   const isGroup = !!rec.children;
   const li = isService
@@ -26894,7 +27320,7 @@ async function materializeArcgisRecord(rec, parentUl) {
     if (rec.collapsed) li.classList.add("collapsed");
     syncExpanded(li);
   }
-  parentUl.appendChild(li);
+  if (put) put(li, rec); else parentUl.appendChild(li);
   if (!isGroup) return;
   if (rec.collapsed) {
     li._pending = rec.children;

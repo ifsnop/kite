@@ -91,6 +91,21 @@ paths:
   un árbol anterior sigue funcionando. Sube la versión solo cambiar la
   FORMA del registro: tipo de nodo nuevo, campo que desaparece, campo
   que cambia de significado.
+- **Hijos en dos sitios a la vez** (`serializeChildren`, `32-geojson.js`): una
+  carpeta puede tener filas Y registros pendientes (el filtro construye solo lo
+  que coincide, `materializeMatching`, y el resto sigue en `li._pending`; antes
+  ya ocurría al soltar un archivo en una carpeta colapsada, y se PERDÍA uno de
+  los dos conjuntos al guardar). Se fusionan por la posición original de cada
+  registro (`rec._pos`, su índice antes de partir el nivel, asignado una vez
+  por `ensurePos`; la fila lo hereda en `li._pos`): sin ella, las coincidentes
+  pasarían al principio de la carpeta tras guardar y recargar. Si el usuario
+  reordenó a mano las filas construidas, van como están y los pendientes
+  detrás; una fila creada después (sin `_pos`) va al final. Son conjuntos
+  DISJUNTOS —un registro que se construye sale de `_pending`—, por eso lo que
+  ya miraba filas y registros a la vez (`containerState`, `cascadeVisibility`…)
+  no cuenta nada dos veces. `_pos` no se serializa. Probado en
+  `tests/lazytree.js` y `tests/browser/tree-filter.mjs` (disco = memoria y
+  recargar).
 - `serializeNode(li)` serializa un nodo y sus hijos (`serializeNodes`);
   `serializeTree()` es esa pasada sobre la raíz — consumida por el
   guardado automático y la exportación de carpeta. Cada tipo de nodo

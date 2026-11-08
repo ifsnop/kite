@@ -61,6 +61,16 @@ paths:
    `persistence-indexeddb.md`).
 5. **Acciones del panel**: búsqueda, buscador de lugares (Nominatim),
    crear carpeta, seleccionar todo, selección masiva con teclado.
+5b. **Filtro del árbol** (`45-tree-filter.js`, tras `44-dialogs.js`): el
+   motor del buscador del panel (`applyTreeFilter`/`clearTreeFilter`, el
+   `MutationObserver` que filtra lo que nazca con el filtro puesto). Lo
+   que comparten el árbol y el filtro vive en `31-tree-node.js`
+   (`treeFilterWanted`, `expandFolder`, `setFilterOpen`, `partialFolders`,
+   `materializeMatching`) y la normalización y las claves, en
+   `40-panel-actions.js` (`normSearch`, `rowKey`, `recKey`): todo se
+   REFERENCIA solo en tiempo de ejecución, así que el orden entre archivos
+   no importa. `30-tree-walk.js` solo sabe de `li.hidden` y `filter-open`
+   (`isRow`, `isOpen`). Ver `tree-navigation-selection.md`.
 6. **Estilos de capa**: `makeDialogMovable`, selector de color,
    coordenadas (`formatCoord`/`parseCoord`), diálogo de estilos con
    borrador y Cancelar/Aceptar (botón 🎨), catálogo `MDI_ICONS`,

@@ -239,17 +239,69 @@ const syncAllExpanded = () => {
    ANTES de empezar, así que una llamada reentrante ve `_materializing`
    en vez de arrancar otra pasada sobre los mismos registros.           */
 async function ensureMaterialized(li) {
+  /* Una construcción PARCIAL en vuelo (materializeMatching) deja su resto en
+     _pending: se espera a que acabe y entonces se construye ese resto. Una
+     completa ya dejó _pending a null, así que aquí no espera: como siempre. */
+  if (li._pending && li._materializing) await li._materializing;
   if (!li._pending) return;
   if (li._materializing) return li._materializing;
   const records = li._pending;
   li._pending = null;
-  /* Las dos cuentas son lo que deja a una cascada en curso saber que
-     el conjunto de nodos todavía se está moviendo (ver
-     cascadeVisibility). Se suma ANTES de arrancar: materializeRecords
-     construye su primer lote de forma síncrona, así que una cascada
-     que llegue después tiene que ver ya que hay trabajo en vuelo.  */
+  partialFolders.delete(li);
+  return runMaterialize(li, records, null);
+}
+
+/* Estado que comparten el árbol y el filtro del panel (45-tree-filter.js).
+   `treeFilterWanted` es el criterio «este registro, o algo de dentro,
+   coincide» MIENTRAS hay un filtro puesto (null si no). Desplegar una
+   carpeta con el filtro puesto construye solo eso (expandFolder), igual que
+   lo hace el propio filtro; sin él, todo, como siempre.                  */
+let treeFilterWanted = null;
+const filterClosed = new Set(); /* carpetas que el usuario cerró a mano con el filtro puesto */
+function expandFolder(li) {
+  return treeFilterWanted ? materializeMatching(li, treeFilterWanted) : ensureMaterialized(li);
+}
+/* Una carpeta colapsada (`collapsed`, lo que se guarda) que el filtro enseña
+   abierta porque dentro hay coincidencias: clase aparte, que anula el
+   `display:none` del CSS. NUNCA se toca `collapsed` desde el filtro. */
+function setFilterOpen(li, on) {
+  const want = on && li.classList.contains("collapsed");
+  if (li.classList.contains("filter-open") === want) return;
+  li.classList.toggle("filter-open", want);
+  if (want) li.setAttribute("aria-expanded", "true"); else syncExpanded(li);
+}
+/* Cerrar a mano lo que solo el filtro tenía abierto: no cambia nada guardado
+   y el filtro respeta ese cierre hasta que se quita. */
+function closeFilterOpen(li) { setFilterOpen(li, false); filterClosed.add(li); }
+
+/* Carpetas con filas Y registros pendientes (construidas a medias por el
+   filtro). El filtro las completa al quitarse si están abiertas. Un Set de
+   <li> a propósito: una carpeta borrada deja de estar conectada y se
+   descarta al recorrerlo.                                               */
+const partialFolders = new Set();
+
+/* Construye SOLO lo que pide `only` de los registros pendientes de la carpeta
+   (el resto sigue en li._pending, en su sitio) y recursa con el mismo
+   criterio. Cuesta lo que las coincidencias, no lo que la carpeta: con 20 000
+   capas y 38 coincidencias, 5 ms en vez de 6,9 s (performance.md). Sin
+   registros pendientes, o sin nada que elegir, no hace nada.            */
+async function materializeMatching(li, only) {
+  if (li._pending && li._materializing) await li._materializing;
+  if (!li._pending || li._materializing) return;
+  const { chosen, rest } = splitPending(li._pending, only);
+  if (!chosen.length) return;
+  li._pending = rest.length ? rest : null;
+  if (rest.length) partialFolders.add(li); else partialFolders.delete(li);
+  return runMaterialize(li, chosen, only);
+}
+
+/* Lo común de las dos: las cuentas que dejan a una cascada en curso saber
+   que el conjunto de nodos todavía se está moviendo (ver cascadeVisibility)
+   se suman ANTES de arrancar, porque materializeRecords construye su primer
+   lote de forma síncrona.                                               */
+function runMaterialize(li, records, only) {
   materializingNow++;
-  li._materializing = materializeRecords(records, nodeUl(li))
+  li._materializing = materializeRecords(records, nodeUl(li), only)
     .finally(() => { li._materializing = null; materializingNow--; materializeSeq++; });
   return li._materializing;
 }
@@ -261,11 +313,13 @@ function makeCaret(li) {
   caret.textContent = "\u25BE";
   caret.title = tr("Colapsar / desplegar");
   caret.addEventListener("click", () => {
+    /* Abierta solo por el filtro: se cierra a la vista sin tocar lo guardado */
+    if (li.classList.contains("filter-open")) { closeFilterOpen(li); return; }
     const collapsing = !li.classList.contains("collapsed");
     li.classList.toggle("collapsed");
     syncExpanded(li);
     scheduleSave();
-    if (!collapsing) ensureMaterialized(li); /* desplegar: construye el DOM diferido, por lotes */
+    if (!collapsing) expandFolder(li); /* desplegar: construye el DOM diferido, por lotes (solo lo que coincide con el filtro puesto) */
   });
   return caret;
 }

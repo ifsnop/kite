@@ -84,6 +84,7 @@ const JS = [
   "42-hittest.js",        /* acierto bajo el cursor del menú contextual */
   "43-points-editor.js",  /* lista de puntos editable, diálogos de estilo */
   "44-dialogs.js",        /* diálogos restantes y credenciales */
+  "45-tree-filter.js",    /* filtro del árbol: el buscador del panel deja solo lo que coincide */
   "50-splitter.js",       /* separador redimensionable */
   "51-geodesy.js",        /* geodesia y UTM */
   "52-measure.js",        /* herramientas de medición */

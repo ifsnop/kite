@@ -170,6 +170,12 @@
       "version": "2.3.0",
       "build": "202611080918"
     },
+    "filtro-arbol.png": {
+      "sha256": "60e6d369c792042f9bf8007efc5da330a3d82dc741c87a89d8bbd29a38052b6d",
+      "section": "2.3",
+      "version": "2.3.0",
+      "build": "202611080918"
+    },
     "mapa-girado.png": {
       "sha256": "c66be3386f77e9de4c1b94929b3c728e3af4a7e16f95ab92dd5fddf803bff880",
       "section": "4.4",
@@ -262,7 +268,7 @@
       "build": "202611080918"
     },
     "pie-panel.png": {
-      "sha256": "43385ab1a1511303bdf5c50f5756b82228ac2eee3b0e1d8fd096f8d6c76f13f3",
+      "sha256": "cac13c3a93e91f9f2c18b34e8d98805e552f2f16d6e7f510c0478dfcd0d8c0e9",
       "section": "2.2",
       "version": "2.3.0",
       "build": "202611080918"
