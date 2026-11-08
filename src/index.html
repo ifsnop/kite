@@ -124,14 +124,18 @@
       <div class="bar"><div id="progress-fill"></div></div>
     </div>
   </header>
+  <p id="tree-filter-empty" role="status" hidden></p>
   <div id="tree" role="tree" aria-label="Árbol de capas" tabindex="0"></div>
   <div id="dropzone">Arrastre aquí sus archivos KML/KMZ (incl. ortofotos), GPX, JSON/TopoJSON, shapefiles (.shp con su .dbf y .prj, o en .zip), ortofotos COG (.tif) o carpetas exportadas (.kite.json)</div>
-  <footer id="nav-search">
+  <footer id="nav-search" role="search">
     <div class="nav-actions">
-      <input type="text" id="search-box" placeholder="Buscar capas y carpetas&#8230;">
-      <button class="btn" id="search-prev" title="Ocurrencia anterior">&#8593;</button>
-      <button class="btn" id="search-next" title="Siguiente ocurrencia">&#8595;</button>
-      <span id="search-count"></span>
+      <span class="search-field">
+        <input type="text" id="search-box" placeholder="Buscar capas y carpetas&#8230;" aria-label="Buscar capas y carpetas&#8230;" autocomplete="off">
+        <button type="button" id="search-clear" title="Borrar la b&#250;squeda" aria-label="Borrar la b&#250;squeda" hidden>&#215;</button>
+      </span>
+      <button class="btn" id="search-prev" title="Ocurrencia anterior" aria-label="Ocurrencia anterior">&#8593;</button>
+      <button class="btn" id="search-next" title="Siguiente ocurrencia" aria-label="Siguiente ocurrencia">&#8595;</button>
+      <span id="search-count" role="status" aria-live="polite"></span>
     </div>
   </footer>
   <!-- Las dos cotas con las que se topa un árbol grande: lo que ocupa en
@@ -291,6 +295,7 @@
         <tr><td>Ctrl + Z / Ctrl + Y</td><td>Deshacer y rehacer (tambi&#233;n con el mapa enfocado)</td></tr>
         <tr><td>Alt + Intro</td><td>Propiedades de lo seleccionado</td></tr>
         <tr><td>Ctrl + F</td><td>Ir al buscador</td></tr>
+        <tr><td>Esc (en el buscador)</td><td>Borrar la b&#250;squeda y mostrar todo el &#225;rbol</td></tr>
         <tr><td>? o May&#250;s + /</td><td>Abrir esta ayuda</td></tr>
         <tr><td>Arrastrar una fila por su nombre</td><td>Mover el nodo a otra carpeta o posici&#243;n (Esc cancela)</td></tr>
       </table>

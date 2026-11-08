@@ -125,7 +125,11 @@ KITE Local does not impose fixed limits on KML file size, imported features or v
 - keyboard navigation modelled on a file-explorer tree, with a shortcut
   cheat sheet built in
 - collapse and expand folders; deep collapse of a whole branch
-- search by layer or folder name, with previous/next match
+- live filter of the tree by name as you type (from the third letter, or Enter):
+  case-, accent- and in-word-insensitive, only the matching rows and the folders
+  that hold them stay visible; folders you have never opened are counted without
+  being built (a 20,000-layer folder filters instantly, "(37)" next to its name);
+  the × or Esc clears it, Enter and the ↑ ↓ buttons jump between matches
 - pan to a node, zoom to a node (a fixed level for a marker; a
   margin-framed fit-to-bounds for a polygon, line or measurement), and fit
   the map to loaded content
@@ -516,10 +520,10 @@ Do not use public tile, geocoding or CDN services for sensitive work without an 
 ### Done
 
 - **The sources are split.** The application is edited as `src/index.html`,
-  `src/styles.css`, `src/sw.js` and 40 JavaScript files, concatenated into the
+  `src/styles.css`, `src/sw.js` and 41 JavaScript files, concatenated into the
   shipped file by `build.js`. The single-file product is the output, not the
   source.
-- **There are automated tests.** 129 suites run against the shipped
+- **There are automated tests.** 131 suites run against the shipped
   file — most under Node, plus a set that drives a real headless browser —
   covering coordinate parsing and formatting, UTM, KML namespaces and
   styles, geometry conversion, serialization, tree navigation and

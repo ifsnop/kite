@@ -140,8 +140,13 @@ async function selectFolderLayers(li) {
    nodos, y con la tecla repetida el panel se atasca. Se navega en local:
    el siguiente y el anterior se encuentran mirando hermanos, hijos y
    madre, o sea O(profundidad), no O(nodos).                           */
-const isRow = li => li && li.tagName === "LI" && li._name !== undefined;
-const isOpen = li => nodeUl(li) && !li.classList.contains("collapsed");
+/* Una fila que el filtro del panel oculta (`li.hidden`, 45-tree-filter.js)
+   NO es una fila: el teclado, los rangos con Mayús, Ctrl+A, Inicio y Fin la
+   saltan sin más cambios, porque todos pasan por aquí. Y una carpeta que se
+   ve abierta solo por el filtro (`filter-open`, sin tocar `collapsed`, que
+   es lo que se guarda) cuenta como abierta.                              */
+const isRow = li => li && li.tagName === "LI" && li._name !== undefined && !li.hidden;
+const isOpen = li => nodeUl(li) && (!li.classList.contains("collapsed") || li.classList.contains("filter-open"));
 const childRows = ul => (ul ? [...ul.children].filter(isRow) : []);
 
 function nextSiblingRow(li) {
@@ -302,6 +307,8 @@ function collapseDescendants(root) {
   for (const li of root.querySelectorAll("li")) {
     if (nodeUl(li)) li.classList.add("collapsed");
   }
+  /* lo que el filtro tenía abierto sin tocar `collapsed` también se cierra */
+  for (const li of root.querySelectorAll("li.filter-open")) setFilterOpen(li, false);
   if (root.tagName === "LI" && nodeUl(root)) root.classList.add("collapsed");
   syncAllExpanded();
   scheduleSave();

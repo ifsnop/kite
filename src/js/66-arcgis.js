@@ -559,7 +559,7 @@ function arcgisForeignNotice(foreign) {
 }
 
 /* Fila de un servicio o de una de sus capas (lo llama materializeRecords) */
-async function materializeArcgisRecord(rec, parentUl) {
+async function materializeArcgisRecord(rec, parentUl, put) {
   const isService = rec.t === "arcgis";
   const isGroup = !!rec.children;
   const li = isService
@@ -583,7 +583,7 @@ async function materializeArcgisRecord(rec, parentUl) {
     if (rec.collapsed) li.classList.add("collapsed");
     syncExpanded(li);
   }
-  parentUl.appendChild(li);
+  if (put) put(li, rec); else parentUl.appendChild(li);
   if (!isGroup) return;
   if (rec.collapsed) {
     li._pending = rec.children;

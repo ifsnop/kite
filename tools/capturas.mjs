@@ -352,10 +352,22 @@ scenario("pie-panel.png", "2.2", async out => {
   const { ctx, page } = await openApp();
   await sierra(page, { expandSensores: true });
   await page.fill("#search-box", "zona");
-  await page.waitForFunction(() => /\d/.test(document.getElementById("search-count").textContent));
+  await page.waitForFunction(() => treeFilter && !filterApplying && /\d/.test(document.getElementById("search-count").textContent));
   await stamps(page);
   const d = await page.locator("#dropzone").boundingBox();
   await page.screenshot({ path: out, clip: clip(0, d.y - 8, 400, VIEW.height - d.y + 8) });
+  await ctx.close();
+});
+
+/* ===== 2.3 El árbol filtrado por el buscador ===== */
+scenario("filtro-arbol.png", "2.3", async out => {
+  const { ctx, page } = await openApp();
+  await sierra(page, { expandSensores: true });
+  await page.click("#search-box");
+  await page.keyboard.type("zona");
+  await page.waitForFunction(() => treeFilter && !filterApplying);
+  await stamps(page);
+  await page.screenshot({ path: out, clip: clip(0, 0, 400, VIEW.height) });
   await ctx.close();
 });
 

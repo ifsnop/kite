@@ -1426,7 +1426,7 @@ function serializeNode(li) {
     if (li._arcgisLayer.data) rec.data = true;
     if (li._isContainer) {
       rec.collapsed = li.classList.contains("collapsed");
-      rec.children = li._pending ? serializePendingRecords(li._pending) : serializeNodes(nodeUl(li));
+      rec.children = serializeChildren(li, nodeUl(li));
     }
     return [rec];
   }
@@ -1434,7 +1434,7 @@ function serializeNode(li) {
     const a = li._arcgis;
     return [{ ...base, t: "arcgis", collapsed: li.classList.contains("collapsed"), url: a.url,
               opacity: a.opacity, tile: a.tile, extent: a.extent, attribution: a.attribution,
-              children: li._pending ? serializePendingRecords(li._pending) : serializeNodes(nodeUl(li)) }];
+              children: serializeChildren(li, nodeUl(li)) }];
   }
   /* li._isContainer evita este querySelector en toda capa hoja (la
      inmensa mayoría de los nodos de un árbol grande): solo carpetas y
@@ -1446,7 +1446,7 @@ function serializeNode(li) {
        se serializa directamente desde los registros, sin construir ni
        una sola fila — coste casi nulo para lo que nadie ha llegado a
        abrir.                                                          */
-    const children = li._pending ? serializePendingRecords(li._pending) : serializeNodes(ul);
+    const children = serializeChildren(li, ul);
     const rec = { ...base, t: li.classList.contains("file") ? "file" : "folder",
                   collapsed: li.classList.contains("collapsed"), children };
     if (li._appSection) rec.sec = true; /* sección creada por la aplicación */
@@ -1464,6 +1464,79 @@ function serializeNode(li) {
   return [rec];
 }
 const serializeNodes = ul => [...ul.children].flatMap(serializeNode);
+
+/* ---------- Carpetas a medio construir ----------
+   Una carpeta puede tener filas Y registros pendientes a la vez: lo que el
+   filtro del panel pidió (materializeMatching, 31-tree-node.js) es una fila
+   y el resto sigue en `li._pending`. Son conjuntos DISJUNTOS —un registro
+   que se construye sale de `_pending`—, así que lo que ya recorría los dos
+   (containerState, cascadeVisibility, removeSubtreeFromMap, findMatches…)
+   no cuenta nada dos veces. Lo que no podía con eso era guardar y colocar:
+
+   - Guardar: se tomaban los hijos de `_pending` O del DOM, nunca de los dos,
+     y se perdía uno de los dos conjuntos (ya pasaba al soltar un archivo en
+     una carpeta colapsada con pendientes).
+   - Colocar: construir solo algunas filas las dejaba fuera de su sitio.
+
+   Ambos se resuelven con la posición ORIGINAL de cada registro (`rec._pos`,
+   su índice en el nivel antes de partirlo, que la fila hereda en `li._pos`).
+   `ensurePos` la asigna una sola vez por nivel.                           */
+function ensurePos(records) {
+  if (records.length && records[0]._pos === undefined) records.forEach((r, i) => { r._pos = i; });
+}
+
+/* Parte `records` en lo elegido y el resto, conservando el orden de cada
+   mitad. Pura: no construye nada.                                       */
+function splitPending(records, only) {
+  ensurePos(records);
+  const chosen = [], rest = [];
+  for (const rec of records) (only(rec) ? chosen : rest).push(rec);
+  return { chosen, rest };
+}
+
+/* Coloca las filas nuevas de un nivel en el sitio que les toca por `_pos`
+   mezclando dos listas ya ordenadas: las que hay en el <ul> y las que
+   llegan (en orden). Con un ancla que avanza solo hacia delante cuesta
+   O(1) por fila, no O(filas ya puestas) —con 20 000 y una fila cada 500, la
+   búsqueda lineal de cada una sería N × x—. Devuelve null si el nivel nunca
+   se partió (sin `_pos`): ahí se añade al final, como siempre. Una fila sin
+   `_pos` (un pin o un archivo soltado después) cuenta como «al final».    */
+function placementAnchor(parentUl, records) {
+  if (!records.length || records[0]._pos === undefined) return null;
+  let anchor = parentUl.firstElementChild;
+  return (li, pos) => {
+    /* Si el usuario borró la fila ancla mientras cedíamos el hilo, se vuelve a empezar */
+    if (anchor && anchor.parentNode !== parentUl) anchor = parentUl.firstElementChild;
+    while (anchor && anchor._pos !== undefined && anchor._pos < pos) anchor = anchor.nextElementSibling;
+    parentUl.insertBefore(li, anchor); /* ancla nula = al final */
+  };
+}
+
+/* Los hijos de un contenedor, listos para guardar. Solo filas: lo de siempre;
+   solo pendientes: lo de siempre (sin construir ni una fila); LAS DOS COSAS:
+   se fusionan por posición original. Si el usuario reordenó a mano las filas
+   construidas (sus `_pos` ya no crecen en el DOM), no hay una posición que
+   respetar: filas en el orden en que están y luego los pendientes.       */
+function serializeChildren(li, ul) {
+  if (!li._pending) return serializeNodes(ul);
+  if (!ul || !ul.firstElementChild) return serializePendingRecords(li._pending);
+  const pend = li._pending;
+  ensurePos(pend);
+  const pendOut = serializePendingRecords(pend); /* en paralelo a `pend` */
+  const rows = [...ul.children].filter(c => c._name !== undefined);
+  const rowOut = rows.map(serializeNode);
+  const pos = r => r._pos === undefined ? Infinity : r._pos;
+  let last = -1, ordered = true;
+  for (const r of rows) { if (pos(r) < last) { ordered = false; break; } last = pos(r); }
+  if (!ordered) return [...rowOut.flat(), ...pendOut];
+  const out = [];
+  let i = 0, j = 0;
+  while (i < rows.length || j < pend.length) {
+    if (j < pend.length && (i >= rows.length || pend[j]._pos < pos(rows[i]))) out.push(pendOut[j++]);
+    else out.push(...rowOut[i++]);
+  }
+  return out;
+}
 
 /* Gemela de serializeNode/serializeNodes, pero sobre registros pendientes
    (li._pending) en vez de filas del DOM: misma forma de salida exacta,
@@ -1989,8 +2062,16 @@ async function buildRecordsFromStorage(nodes, prog, opts = {}) {
    lleva parámetro de progreso: el trabajo caro (parsear geometría,
    construir capas Leaflet) ya pasó en la fase de registros, que sí
    lo muestra; esto solo cede el hilo para no bloquear.                 */
-async function materializeRecords(records, parentUl) {
+async function materializeRecords(records, parentUl, only = null) {
   let n = 0;
+  /* Dónde va cada fila: al final, como siempre, salvo que este nivel se haya
+     partido ya (rec._pos): entonces por su posición original, mezclando con
+     las filas que ya hay (ver placementAnchor). */
+  const anchored = placementAnchor(parentUl, records);
+  const put = (li, rec) => {
+    if (rec._pos !== undefined) li._pos = rec._pos;
+    if (anchored) anchored(li, rec._pos); else parentUl.appendChild(li);
+  };
   for (const rec of records) {
     if (rec.t === "folder" || rec.t === "file") {
       const li = makeNode({
@@ -2000,11 +2081,19 @@ async function materializeRecords(records, parentUl) {
       rec._li = li; /* referencia inversa: la usa resolveMatch para llegar aquí desde una búsqueda pendiente */
       if (rec.collapsed) li.classList.add("collapsed");
       syncExpanded(li);
-      parentUl.appendChild(li);
+      put(li, rec);
       /* la sección que contiene mediciones recupera su papel, mire o no
          esta llamada dentro de sus hijos: rec.children ya existe       */
       if (rec.t === "file" && rec.children.some(c => c.t === "measure")) measureLi = li;
-      if (rec.collapsed) {
+      if (only) {
+        /* Construcción parcial (el filtro del panel): de esta carpeta solo se
+           construye lo que pide `only` y el resto queda en SU _pending,
+           aunque no esté colapsada (al quitar el filtro se completa).    */
+        const sub = splitPending(rec.children, only);
+        li._pending = sub.rest.length ? sub.rest : null;
+        if (li._pending) partialFolders.add(li);
+        await materializeRecords(sub.chosen, nodeUl(li), only);
+      } else if (rec.collapsed) {
         li._pending = rec.children;
         /* Sus hijos no llegan a ser filas, así que la pasada recursiva
            no va a recalcular esta casilla por ellos: se hace aquí, con
@@ -2032,7 +2121,7 @@ async function materializeRecords(records, parentUl) {
         rec._pendingHandlers = null;
       }
       if (rec.geo) li._geo = rec.geo;
-      parentUl.appendChild(li);
+      put(li, rec);
       if (rec.mstyle) {
         li._mstyle = rec.mstyle;
         applyMarkerStyle(li); /* síncrona: los iconos van empotrados */
@@ -2046,7 +2135,7 @@ async function materializeRecords(records, parentUl) {
     } else if (rec.t === "measure") {
       const li = makeMeasureLi(rec._m);
       rec._li = li;
-      parentUl.appendChild(li);
+      put(li, rec);
       if (!rec.checked) li.querySelector(":scope > .node-row > input").checked = false;
       updateMeasurement(rec._m);
     } else if (rec.t === "elevGrid") {
@@ -2056,19 +2145,19 @@ async function materializeRecords(records, parentUl) {
       });
       rec._li = li;
       li._elevGrid = { cells: rec.cells, profile: rec.profile || null };
-      parentUl.appendChild(li);
+      put(li, rec);
     } else if (rec.t === "imageOverlay") {
       const li = makeNode({ name: rec.name, layer: rec._layer, styleable: true, checked: !!rec.checked });
       rec._li = li;
       li._imageOverlay = { box: rec.box, dataUrl: rec.dataUrl, opacity: rec.opacity };
-      parentUl.appendChild(li);
+      put(li, rec);
     } else if (rec.t === "cog") {
       const li = makeNode({ name: rec.name, layer: rec._layer, styleable: true, checked: !!rec.checked });
       rec._li = li;
       li._cog = { rasterId: rec.rasterId, box: rec.box, opacity: rec.opacity };
-      parentUl.appendChild(li);
+      put(li, rec);
     } else if (rec.t === "arcgis" || rec.t === "arcgisLayer") {
-      await materializeArcgisRecord(rec, parentUl);
+      await materializeArcgisRecord(rec, parentUl, put);
     }
     if (++n % PROGRESS_BATCH === 0) await yieldFrame();
   }

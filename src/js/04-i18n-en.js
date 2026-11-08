@@ -385,6 +385,8 @@ registerLang("en", "English", {
   "Tramo {n}: {dist} · {brg}°": "Leg {n}: {dist} · {brg}°",
   "Coordenadas no válidas: revise la latitud y la longitud.": "Invalid coordinates: check the latitude and longitude.",
   "Ninguno (solo se ve el texto)": "None (only the text is shown)",
+  /* 45-tree-filter.js */
+  "Ninguna coincidencia con «{term}»": "No matches for «{term}»",
   /* 51-geodesy.js */
   "UTM no definido en esta latitud (zona polar)": "UTM is not defined at this latitude (polar zone)",
   "La distancia oblicua no puede ser menor que la diferencia de alturas.": "The slant distance cannot be less than the height difference.",
@@ -804,6 +806,8 @@ registerLang("en", "English", {
   "Propiedades de lo seleccionado": "Properties of what is selected",
   "Ctrl + F": "Ctrl + F",
   "Ir al buscador": "Go to the search box",
+  "Esc (en el buscador)": "Esc (in the search box)",
+  "Borrar la búsqueda y mostrar todo el árbol": "Clear the search and show the whole tree",
   "? o Mayús + /": "? or Shift + /",
   "Abrir esta ayuda": "Open this help",
   "Arrastrar una fila por su nombre": "Drag a row by its name",
@@ -998,6 +1002,7 @@ registerLang("en", "English", {
   "Ayuda y atajos de teclado (tecla ?)": "Help and keyboard shortcuts (key ?)",
   "Cerrar los resultados": "Close the results",
   "Sin conexión a la red. KITE sigue funcionando con lo guardado en este navegador; los mapas base, la búsqueda de lugares y las elevaciones necesitan red.": "No network connection. KITE keeps working with what is saved in this browser; base maps, place search and elevations need a network connection.",
+  "Borrar la búsqueda": "Clear the search",
   "Ocurrencia anterior": "Previous occurrence",
   "Siguiente ocurrencia": "Next occurrence",
   "Mostrar / ocultar navegación": "Show / hide navigation",
@@ -1018,6 +1023,7 @@ registerLang("en", "English", {
   "Guardar la gráfica, tal como se ve, como imagen PNG": "Save the chart, as it looks, as a PNG image",
   "Guardar los datos de la ruta entera como CSV: distancia, latitud, longitud y la altura de cada serie": "Save the data of the whole route as CSV: distance, latitude, longitude and the height of each series",
   "Árbol de capas": "Layer tree",
+  "Buscar capas y carpetas…": "Search layers and folders…",
   "Elegir color": "Choose color",
   "Unidad de la altura de origen": "Unit of the origin height",
   "Unidad de la altura de destino": "Unit of the target height",
@@ -1039,7 +1045,6 @@ registerLang("en", "English", {
   "Filtrar filas": "Filter rows",
   "Buscar un lugar o unas coordenadas…": "Search for a place or coordinates…",
   "Nombre de carpeta": "Folder name",
-  "Buscar capas y carpetas…": "Search layers and folders…",
   "Filtrar filas…": "Filter rows…",
   /* Bloques de HTML de index.html (data-i18n-html): el valor es el HTML entero */
   "html.gnp-intro": "Associations saved between the structure of the <code>properties</code> of a GeoJSON and the property used as the name.",

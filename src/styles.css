@@ -349,6 +349,15 @@
   }
   li.collapsed > .node-row > .caret { transform: rotate(-90deg); }
   li.collapsed > ul.node-list { display: none; }
+  /* Filtro del árbol (45-tree-filter.js): lo que no coincide va con `hidden`;
+     una carpeta colapsada con coincidencias dentro se ve abierta SIN tocar
+     `collapsed` (que es lo que se guarda), con esta clase aparte. */
+  #tree li[hidden] { display: none; }
+  li.collapsed.filter-open > ul.node-list { display: block; }
+  li.collapsed.filter-open > .node-row > .caret { transform: none; }
+  .filter-count { color: var(--muted); font-size: 12px; white-space: nowrap; }
+  #tree-filter-empty { margin: 0; padding: 14px 14px 0; color: var(--muted); font-size: 13px; }
+  #tree-filter-empty[hidden] { display: none; }
   .caret-spacer { width: 14px; min-width: 14px; }
 
   .swatch {
@@ -419,6 +428,18 @@
     border-top: 1px solid var(--border);
   }
   #nav-search .nav-actions { margin-bottom: 0; }
+  /* Campo de búsqueda con la × dentro (borra y quita el filtro del árbol) */
+  .search-field { position: relative; flex: 1; min-width: 0; display: flex; }
+  #search-box { padding-right: 24px; }
+  #search-box.filtering { border-color: var(--accent); }
+  #search-clear {
+    position: absolute; right: 3px; top: 50%; transform: translateY(-50%);
+    padding: 0 6px; border: none; border-radius: 4px; background: none;
+    color: var(--muted); font: 400 18px/1.2 system-ui, sans-serif; cursor: pointer;
+  }
+  #search-clear:hover { background: var(--border); color: var(--text); }
+  #search-clear:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+  #search-clear[hidden] { display: none; }
   #search-count {
     font-size: 12px;
     color: var(--muted);

@@ -35,9 +35,26 @@ paths:
 - **Moverse por el árbol cuesta O(profundidad)**, no O(nodos) — ver
   `tree-navigation-selection.md`. Ninguna operación de selección recorre
   la selección entera ni consulta el árbol por nodo. El buscador
-  (`search-box`) sigue la disciplina: `SEARCH_DEBOUNCE_MS` (150 ms),
-  mínimo `SEARCH_MIN_CHARS` (3) para no barrer ~8-10k nodos en cada
-  tecla; Enter/Shift+Enter y ◀▶ no llevan ese mínimo (acción explícita).
+  (`search-box`) FILTRA el árbol (`tree-navigation-selection.md`, «Filtro del
+  árbol»): `SEARCH_DEBOUNCE_MS` (150 ms) y `SEARCH_MIN_CHARS` (3) para no
+  recorrer el árbol en cada tecla ni filtrar con una letra que coincide con
+  medio árbol; Intro lo aplica al momento con cualquier longitud (acción
+  explícita). **Llegar a una coincidencia dentro de una carpeta sin desplegar
+  construía la carpeta ENTERA** (`ensureMaterialized`, todo o nada): medido con
+  20 000 capas perezosas (Chromium sin GPU, página limpia), ≈ 6,9 s coincidieran
+  1 o 4 000. `materializeMatching` construye solo lo elegido: 5 ms con 38
+  coincidencias, 18 ms con 200, 84 ms con 1 000, 0,46 s con 4 000 y 1,9 s con
+  10 000 (proporcional a las coincidencias), y recorrer los nombres para
+  encontrarlas, 5 ms con 20 000. De ahí el tope `FILTER_BUILD_MAX` (300, < 100
+  ms): por encima, la carpeta sale cerrada con «(n)» y se construye al
+  desplegarla. Construir todo y ocultar lo que no coincide costaría 6,9 s + 134
+  ms (ocultar 20 000 filas). **Un árbol con 20 000 filas ya construidas
+  ralentiza lo que se construya después** (400 filas: 213 ms frente a 18 ms en
+  página limpia; causa sin investigar), otro motivo para no construir de más.
+  El filtro solo escribe `hidden` donde cambia y cachea la clave normalizada de
+  cada fila y registro (`rowKey`/`recKey`); `findMatches` usa una pila de
+  cadena compartida (antes copiaba `[...chain, rec]` por registro: 29 ms con
+  una letra).
 - **Borrado de selección completa purga el `Set` UNA VEZ**
   (`clearSelection()` tras el bucle, no dentro de `deleteNode` por cada
   nodo — evita O(k²) al borrar k nodos de golpe). El resto de llamadas a

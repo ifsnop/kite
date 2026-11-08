@@ -11,6 +11,7 @@ paths:
   `aria-selected` y `aria-expanded` (`syncExpanded` / `syncAllExpanded`
   tras cualquier cambio de colapso). Los botones que solo tienen icono
   llevan `aria-label` además del `title`.
+- **El buscador del panel** (`#nav-search`, `role="search"`): el campo lleva `aria-label`; los botones ↑ ↓ y la × llevan `aria-label` además del `title`; `#search-count` es una región `aria-live="polite"` (el recuento de coincidencias se anuncia) y el aviso «Ninguna coincidencia» (`#tree-filter-empty`) es `role="status"`. Una fila que el filtro oculta es `hidden` (fuera del árbol de accesibilidad) y una carpeta que el filtro enseña abierta tiene `aria-expanded="true"`.
 - `<html lang>` sigue al idioma de la interfaz (`setUiLang`, ver `i18n.md`); los textos de `aria-label` y `title` se traducen como cualquier otro.
 - Los diálogos se registran con `setupDialog`: `role="dialog"`,
   `aria-modal` según sean modales o no, `aria-labelledby` a su título y
