@@ -1028,12 +1028,14 @@ function openCtxSubmenu(triggerBtn, items, latlng) {
   document.body.appendChild(ctxSubmenuEl);
   renderCtxItems(ctxSubmenuEl, items, latlng);
   const r = triggerBtn.getBoundingClientRect();
-  const sr = ctxSubmenuEl.getBoundingClientRect();
+  /* offsetWidth/Height: the rect would include the entrance's scale() */
+  const sw = ctxSubmenuEl.offsetWidth, sh = ctxSubmenuEl.offsetHeight;
   /* Se abre a la derecha del disparador; a la izquierda si no cabe */
   let left = r.right - 2;
-  if (left + sr.width > window.innerWidth - 4) left = r.left - sr.width + 2;
+  if (left + sw > window.innerWidth - 4) left = r.left - sw + 2;
   ctxSubmenuEl.style.left = `${Math.max(0, left)}px`;
-  ctxSubmenuEl.style.top = `${Math.max(0, Math.min(r.top, window.innerHeight - sr.height - 4))}px`;
+  ctxSubmenuEl.style.setProperty("--ctx-origin", left < r.left ? "right top" : "left top");
+  ctxSubmenuEl.style.top = `${Math.max(0, Math.min(r.top, window.innerHeight - sh - 4))}px`;
 }
 
 function openCtxMenu(latlng, x, y, hits = []) {
@@ -1041,9 +1043,17 @@ function openCtxMenu(latlng, x, y, hits = []) {
   renderCtxItems(ctxMenuEl, ctxItemsFor(hits), latlng);
   ctxMenuEl.hidden = false;
   /* Clamp to viewport so a click near an edge doesn't open off-screen */
-  const r = ctxMenuEl.getBoundingClientRect();
-  ctxMenuEl.style.left = `${Math.max(0, Math.min(x, window.innerWidth - r.width - 4))}px`;
-  ctxMenuEl.style.top = `${Math.max(0, Math.min(y, window.innerHeight - r.height - 4))}px`;
+  /* offsetWidth/Height, NOT getBoundingClientRect: the box is mid-entrance
+     (scale .96, styles.css) and the rect includes that transform, so the
+     clamp would use a width up to 4 % too small and let the edge overflow. */
+  const w = ctxMenuEl.offsetWidth, h = ctxMenuEl.offsetHeight;
+  const left = Math.max(0, Math.min(x, window.innerWidth - w - 4));
+  const top = Math.max(0, Math.min(y, window.innerHeight - h - 4));
+  ctxMenuEl.style.left = `${left}px`;
+  ctxMenuEl.style.top = `${top}px`;
+  /* The entrance grows from the pointer, not from the box centre (even when
+     clamping moved the box away from it): spatial origin, motion.md. */
+  ctxMenuEl.style.setProperty("--ctx-origin", `${x - left}px ${y - top}px`);
   /* No autofocus on open: the menu is mouse-first (it opens from a right
      click), and pre-focusing the first row left a lingering keyboard
      highlight fighting the mouse's hover highlight for a different row. */

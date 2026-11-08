@@ -104,7 +104,8 @@
     --danger-soft: light-dark(#fdf1ef, #3d2420);
     --alert: light-dark(#d32f2f, #ff6b61);
     --surface: light-dark(#ffffff, #2f302d);
-    --surface-glass: light-dark(rgba(255,255,255,.85), rgba(37,38,36,.85));
+    --surface-glass: light-dark(rgba(255,255,255,.78), rgba(37,38,36,.78));
+    --glass-blur: blur(8px) saturate(160%);       /* material de las superficies sobre el mapa; sin blur con transparencia reducida */
     --ink-strong: light-dark(#000000, #f2f2ee);
     --shadow: light-dark(rgba(0,0,0,.25), rgba(0,0,0,.6));
     --shadow-soft: light-dark(rgba(0,0,0,.15), rgba(0,0,0,.5));
@@ -154,7 +155,7 @@
     margin: 0 0 10px;
     font-size: 15px;
     font-weight: 600;
-    letter-spacing: 0.02em;
+    letter-spacing: -0.01em; /* un título se aprieta: el tracking positivo es para texto pequeño */
   }
   #dropzone {
     border: 2px dashed var(--border);
@@ -204,6 +205,19 @@
      para no hacer nada. Mismos valores que .color-btn:disabled.      */
   .btn:disabled { opacity: .35; cursor: default; }
   .btn:disabled:hover { border-color: var(--border); color: inherit; }
+  /* Respuesta al PULSAR, no al soltar (apple-design §1): al bajar el botón
+     el control se hunde y se oscurece al instante; al soltarlo vuelve en
+     100 ms. Solo transform y filter (van en el compositor). Lo comparten
+     los controles que son botones; ver motion.md.                       */
+  .btn, .dlg-close, #nav-toggle, .base-toggle, .color-btn, .ctx-menu-item,
+  .leaflet-bar a { transition: transform .1s ease-out, filter .1s ease-out; }
+  .btn:not(:disabled):active, .dlg-close:active, #nav-toggle:active, .base-toggle:active,
+  .color-btn:not(:disabled):active, .ctx-menu-item:not(:disabled):active,
+  .leaflet-bar a:not(.leaflet-disabled):active {
+    transform: scale(.97);
+    filter: brightness(.94);
+    transition-duration: 0s;
+  }
   /* Acción que borra algo sin vuelta atrás (Propiedades › Restaurar) */
   .btn.btn-danger { color: var(--danger); border-color: var(--danger); background: var(--danger-soft); }
   .btn.btn-danger:hover { color: var(--danger); border-color: var(--danger); filter: brightness(.95); }
@@ -501,6 +515,7 @@
     background: var(--border);
   }
   #splitter:hover { background: var(--accent); }
+  #splitter { touch-action: none; } /* el arrastre es del separador (Pointer Events), no un desplazamiento de la página */
   #nav-toggle {
     position: absolute;
     top: 50%;
@@ -649,6 +664,8 @@
        falta limitar su ancho, y así cabe la línea de la diferencia
        entre superficie y terreno.                                  */
     background: var(--surface-glass);
+    -webkit-backdrop-filter: var(--glass-blur);
+    backdrop-filter: var(--glass-blur);
     border: 1px solid var(--border);
     border-radius: 4px;
     padding: 3px 8px;
@@ -785,6 +802,10 @@
     background: var(--surface-glass);
     color: var(--muted-2);
   }
+  .leaflet-container .leaflet-control-attribution {
+    -webkit-backdrop-filter: var(--glass-blur);
+    backdrop-filter: var(--glass-blur);
+  }
   .leaflet-container .leaflet-control-attribution a { color: var(--accent); }
   .leaflet-container .leaflet-control-scale-line { border-color: var(--muted-2); text-shadow: none; }
   .leaflet-control-attribution {
@@ -843,7 +864,7 @@
     position: fixed;
     inset: 0;
     z-index: 2000;
-    background: var(--backdrop);
+    background-color: var(--backdrop);
     display: flex;
     align-items: center;
     justify-content: center;
@@ -876,6 +897,25 @@
     z-index: 2000;
   }
   .dlg-float[hidden] { display: none; }
+  /* Entradas ancladas (apple-design §7 y §12), solo al ABRIR: opacidad y una
+     escala casi imperceptible, sin rebote (no las lanza un gesto con
+     inercia). Cerrar es inmediato: Escape, la × y Cancelar encadenan
+     trabajo (foco, restaurar la foto) y quien cierra quiere el mapa ya.
+     Son @keyframes y no `@starting-style`: el minificador del build
+     (clean-css) no conoce esa regla y la DESTROZA en kitelocal.min.html
+     (medido: pierde la regla de `.dlg-box`). Una animación solo con
+     `from` parte de ahí y llega al estilo normal; se repite cada vez que
+     el elemento pasa de `hidden` a visible. El menú nace en el punto
+     pulsado (--ctx-origin, 70-view-controls.js) y el popover de color,
+     bajo su botón. Con movimiento reducido no hay ninguna (bloque
+     final del archivo; tests/statics.js lo exige).                    */
+  @keyframes enter-dialog { from { opacity: 0; transform: scale(.98); } }
+  @keyframes enter-menu { from { opacity: 0; transform: scale(.96); } }
+  @keyframes enter-backdrop { from { background-color: transparent; } }
+  .dlg-box { animation: enter-dialog .16s ease-out; }
+  .ctx-menu { animation: enter-menu .12s ease-out; transform-origin: var(--ctx-origin, top left); }
+  .color-popover { animation: enter-menu .12s ease-out; transform-origin: top left; }
+  .dlg-overlay { animation: enter-backdrop .16s ease-out; }
   /* La calculadora geodésica va abajo a la derecha: arriba a la derecha
      está el diálogo de estilos y se taparían entre sí.                 */
   #geocalc-dialog { top: auto; bottom: 40px; }
@@ -1092,7 +1132,9 @@
   .geocalc-out > p { margin: 0; }
   /* Mismo tamaño que el texto de los campos (.dlg-row, 13px); pre-line:
      los resultados de varias líneas llevan «\n» en el texto, sin HTML. */
-  .geocalc-result { font-size: 13px; line-height: 1.4; font-weight: 600; white-space: pre-line; }
+  .geocalc-result { font-size: 13px; line-height: 1.4; font-weight: 600; white-space: pre-line; font-variant-numeric: tabular-nums; }
+  /* Cifras que se repintan al arrastrar: que no bailen de ancho */
+  #ms-values .dlg-note, #ms-legs { font-variant-numeric: tabular-nums; }
   /* Sub-dialog of the style dialog always sits above it */
   #icon-picker { z-index: 2100; }
   /* The colour picker is a POPOVER anchored to whichever button opened
@@ -1806,6 +1848,53 @@
     line-height: 1.2;
     white-space: nowrap;
     border-radius: 5px;
+  }
+
+  /* ================= Cambio de tema suave =================
+     applyUiTheme(theme, true) pone esta clase 250 ms al elegir un tema en
+     Propiedades: un salto claro↔oscuro de golpe deslumbra. NO se usa al
+     arrancar (no hay nada que suavizar) ni con movimiento reducido.     */
+  html.theme-switching, html.theme-switching * {
+    transition: background-color .25s ease, color .25s ease, border-color .25s ease !important;
+  }
+
+  /* ================= Preferencias de accesibilidad del sistema =================
+     Movimiento reducido NO es «sin respuesta»: se quita lo que se mueve
+     (giros, latidos, rayas, entradas, el hundido del botón) y se conserva
+     lo que ayuda a entender (cambios de color y de opacidad). TODA
+     `animation:` del archivo tiene su anulación aquí; tests/statics.js lo
+     comprueba. Ver motion.md.                                           */
+  @media (prefers-reduced-motion: reduce) {
+    .spinner { animation: none; }
+    #progress-fill.indet { animation: none; }
+    .node-row.cascading > label { animation: none; opacity: .7; }
+    .caret, #progress-fill, #profile-progress-fill { transition: none; }
+    .dlg-box { animation: none; }
+    .ctx-menu { animation: none; }
+    .color-popover { animation: none; }
+    .dlg-overlay { animation: none; }
+    .btn, .dlg-close, #nav-toggle, .base-toggle, .color-btn, .ctx-menu-item, .leaflet-bar a { transition: none; }
+    .btn:not(:disabled):active, .dlg-close:active, #nav-toggle:active, .base-toggle:active,
+    .color-btn:not(:disabled):active, .ctx-menu-item:not(:disabled):active,
+    .leaflet-bar a:not(.leaflet-disabled):active { transform: none; }
+    html.theme-switching, html.theme-switching * { transition: none !important; }
+  }
+  /* Transparencia reducida: superficies opacas y sin desenfoque */
+  @media (prefers-reduced-transparency: reduce) {
+    :root {
+      --surface-glass: var(--surface);
+      --glass-blur: none;
+    }
+  }
+  /* Contraste alto: bordes y texto secundario más marcados. Cambia el valor
+     de los TOKENS, nunca un color suelto (theme.md). */
+  @media (prefers-contrast: more) {
+    :root {
+      --border: light-dark(#6b6b66, #8a8a84);
+      --muted: light-dark(#5a5a55, #bdbdb6);
+      --muted-2: light-dark(#3d3d3a, #d0d0c9);
+    }
+    .dlg-close { border: 1px solid var(--border); }
   }
 </style>
 </head>
@@ -5241,7 +5330,7 @@ map.on("resize rotate", fitWorldMinZoom);
 
 /* Fecha de generación del código (versión): AÑOMESDIAHORAMINUTO.
    Actualizar en cada generación; se muestra junto al crédito de Leaflet. */
-const BUILD = "202611061701";
+const BUILD = "202611080918";
 /* Versión de release (la de package.json, horneada aquí por build.js
    al construir — ver «Versión y releases de GitHub» en CLAUDE.md): a
    diferencia de BUILD, que cambia en CADA generación, esta solo cambia
@@ -15810,8 +15899,18 @@ const propsArcSegmentsInput = document.getElementById("props-arc-segments");
    sin data-theme manda prefers-color-scheme EN VIVO, así que "auto" no
    necesita matchMedia ni escuchar cambios del sistema.                 */
 let uiTheme = "auto";
-function applyUiTheme(theme) {
+/* `soft` (a theme picked in Propiedades) fades the colours for 250 ms
+   instead of flashing light↔dark; boot and Cancelar's re-apply pass nothing
+   (styles.css, «Cambio de tema suave»). */
+let themeSoftTimer = 0;
+function applyUiTheme(theme, soft = false) {
   uiTheme = theme;
+  if (soft) {
+    const root = document.documentElement;
+    root.classList.add("theme-switching");
+    clearTimeout(themeSoftTimer);
+    themeSoftTimer = setTimeout(() => root.classList.remove("theme-switching"), 250);
+  }
   if (theme === "auto") document.documentElement.removeAttribute("data-theme");
   else document.documentElement.setAttribute("data-theme", theme);
 }
@@ -15972,7 +16071,7 @@ propsUnitSelect.addEventListener("change", () => {
   renderPropsProfileMax();
 });
 propsAltUnitSelect.addEventListener("change", () => setAltitudeUnit(propsAltUnitSelect.value));
-propsThemeSelect.addEventListener("change", () => applyUiTheme(propsThemeSelect.value));
+propsThemeSelect.addEventListener("change", () => applyUiTheme(propsThemeSelect.value, true));
 /* Lee un campo numérico de ajustes: vacío o ilegible → null (el llamador
    deja el valor vigente); fuera de [min, max] se AJUSTA a la cota más
    cercana y se avisa, en vez de volver en silencio al anterior (reportado
@@ -16097,7 +16196,7 @@ function cancelPropsDialog() {
   releaseFocus();
   if (!propsOriginal) return;
   /* Deshace la previsualización en vivo con el mismo camino que la aplicó. */
-  if (propsOriginal.uiTheme !== uiTheme) applyUiTheme(propsOriginal.uiTheme);
+  if (propsOriginal.uiTheme !== uiTheme) applyUiTheme(propsOriginal.uiTheme, true);
   if (propsOriginal.unit !== measureUnit) setMeasureUnit(propsOriginal.unit);
   if (propsOriginal.altitudeUnit !== altitudeUnit) setAltitudeUnit(propsOriginal.altitudeUnit);
   profileMaxM = propsOriginal.profileMaxM;
@@ -18099,19 +18198,44 @@ function setNavWidth(px) {
   px = Math.min(600, Math.max(200, px));
   document.documentElement.style.setProperty("--nav-width", px + "px");
 }
-splitter.addEventListener("mousedown", e => {
-  e.preventDefault();
+/* Pointer Events con captura (apple-design §2): el mismo gesto sirve para
+   ratón, lápiz y dedo, y el seguimiento no se pierde aunque el puntero salga
+   del separador (5 px de ancho) o pase sobre el mapa. Se recuerda dónde se
+   agarró (desfase entre el puntero y el borde del panel) para que el borde
+   no salte al puntero. `invalidateSize` es caro con miles de capas y los
+   eventos llegan a más de 100/s, así que va UNA vez por fotograma
+   (performance.md); la anchura sí se aplica en cada evento, para que el
+   separador siga al puntero 1:1.                                          */
+let splitFrame = 0;
+function scheduleMapResize() {
+  if (splitFrame) return;
+  splitFrame = requestAnimationFrame(() => { splitFrame = 0; map.invalidateSize(); });
+}
+let splitGrab = null; /* { id, dx } mientras se arrastra */
+splitter.addEventListener("pointerdown", e => {
+  /* En un móvil el panel ocupa la pantalla (phone-layout): `setNavWidth`
+     escribe --nav-width en línea y taparía la regla de ese diseño. */
+  if (e.button !== 0 || document.documentElement.classList.contains("phone-layout")) return;
+  splitGrab = { id: e.pointerId, dx: splitter.getBoundingClientRect().left - e.clientX };
+  splitter.setPointerCapture(e.pointerId);
   document.body.classList.add("resizing");
-  const onMove = ev => { setNavWidth(ev.clientX); map.invalidateSize(); };
-  const onUp = () => {
-    document.removeEventListener("mousemove", onMove);
-    document.removeEventListener("mouseup", onUp);
-    document.body.classList.remove("resizing");
-    map.invalidateSize();
-  };
-  document.addEventListener("mousemove", onMove);
-  document.addEventListener("mouseup", onUp);
+  e.preventDefault();
 });
+splitter.addEventListener("pointermove", e => {
+  if (!splitGrab || e.pointerId !== splitGrab.id) return;
+  setNavWidth(e.clientX + splitGrab.dx);
+  scheduleMapResize();
+});
+function endSplitDrag(e) {
+  if (!splitGrab || e.pointerId !== splitGrab.id) return;
+  splitGrab = null;
+  document.body.classList.remove("resizing");
+  cancelAnimationFrame(splitFrame);
+  splitFrame = 0;
+  map.invalidateSize();
+}
+splitter.addEventListener("pointerup", endSplitDrag);
+splitter.addEventListener("pointercancel", endSplitDrag);
 
 function setNavHidden(hidden) {
   document.body.classList.toggle("nav-hidden", hidden);
@@ -28008,12 +28132,14 @@ function openCtxSubmenu(triggerBtn, items, latlng) {
   document.body.appendChild(ctxSubmenuEl);
   renderCtxItems(ctxSubmenuEl, items, latlng);
   const r = triggerBtn.getBoundingClientRect();
-  const sr = ctxSubmenuEl.getBoundingClientRect();
+  /* offsetWidth/Height: the rect would include the entrance's scale() */
+  const sw = ctxSubmenuEl.offsetWidth, sh = ctxSubmenuEl.offsetHeight;
   /* Se abre a la derecha del disparador; a la izquierda si no cabe */
   let left = r.right - 2;
-  if (left + sr.width > window.innerWidth - 4) left = r.left - sr.width + 2;
+  if (left + sw > window.innerWidth - 4) left = r.left - sw + 2;
   ctxSubmenuEl.style.left = `${Math.max(0, left)}px`;
-  ctxSubmenuEl.style.top = `${Math.max(0, Math.min(r.top, window.innerHeight - sr.height - 4))}px`;
+  ctxSubmenuEl.style.setProperty("--ctx-origin", left < r.left ? "right top" : "left top");
+  ctxSubmenuEl.style.top = `${Math.max(0, Math.min(r.top, window.innerHeight - sh - 4))}px`;
 }
 
 function openCtxMenu(latlng, x, y, hits = []) {
@@ -28021,9 +28147,17 @@ function openCtxMenu(latlng, x, y, hits = []) {
   renderCtxItems(ctxMenuEl, ctxItemsFor(hits), latlng);
   ctxMenuEl.hidden = false;
   /* Clamp to viewport so a click near an edge doesn't open off-screen */
-  const r = ctxMenuEl.getBoundingClientRect();
-  ctxMenuEl.style.left = `${Math.max(0, Math.min(x, window.innerWidth - r.width - 4))}px`;
-  ctxMenuEl.style.top = `${Math.max(0, Math.min(y, window.innerHeight - r.height - 4))}px`;
+  /* offsetWidth/Height, NOT getBoundingClientRect: the box is mid-entrance
+     (scale .96, styles.css) and the rect includes that transform, so the
+     clamp would use a width up to 4 % too small and let the edge overflow. */
+  const w = ctxMenuEl.offsetWidth, h = ctxMenuEl.offsetHeight;
+  const left = Math.max(0, Math.min(x, window.innerWidth - w - 4));
+  const top = Math.max(0, Math.min(y, window.innerHeight - h - 4));
+  ctxMenuEl.style.left = `${left}px`;
+  ctxMenuEl.style.top = `${top}px`;
+  /* The entrance grows from the pointer, not from the box centre (even when
+     clamping moved the box away from it): spatial origin, motion.md. */
+  ctxMenuEl.style.setProperty("--ctx-origin", `${x - left}px ${y - top}px`);
   /* No autofocus on open: the menu is mouse-first (it opens from a right
      click), and pre-focusing the first row left a lingering keyboard
      highlight fighting the mouse's hover highlight for a different row. */

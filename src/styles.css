@@ -23,7 +23,8 @@
     --danger-soft: light-dark(#fdf1ef, #3d2420);
     --alert: light-dark(#d32f2f, #ff6b61);
     --surface: light-dark(#ffffff, #2f302d);
-    --surface-glass: light-dark(rgba(255,255,255,.85), rgba(37,38,36,.85));
+    --surface-glass: light-dark(rgba(255,255,255,.78), rgba(37,38,36,.78));
+    --glass-blur: blur(8px) saturate(160%);       /* material de las superficies sobre el mapa; sin blur con transparencia reducida */
     --ink-strong: light-dark(#000000, #f2f2ee);
     --shadow: light-dark(rgba(0,0,0,.25), rgba(0,0,0,.6));
     --shadow-soft: light-dark(rgba(0,0,0,.15), rgba(0,0,0,.5));
@@ -73,7 +74,7 @@
     margin: 0 0 10px;
     font-size: 15px;
     font-weight: 600;
-    letter-spacing: 0.02em;
+    letter-spacing: -0.01em; /* un título se aprieta: el tracking positivo es para texto pequeño */
   }
   #dropzone {
     border: 2px dashed var(--border);
@@ -123,6 +124,19 @@
      para no hacer nada. Mismos valores que .color-btn:disabled.      */
   .btn:disabled { opacity: .35; cursor: default; }
   .btn:disabled:hover { border-color: var(--border); color: inherit; }
+  /* Respuesta al PULSAR, no al soltar (apple-design §1): al bajar el botón
+     el control se hunde y se oscurece al instante; al soltarlo vuelve en
+     100 ms. Solo transform y filter (van en el compositor). Lo comparten
+     los controles que son botones; ver motion.md.                       */
+  .btn, .dlg-close, #nav-toggle, .base-toggle, .color-btn, .ctx-menu-item,
+  .leaflet-bar a { transition: transform .1s ease-out, filter .1s ease-out; }
+  .btn:not(:disabled):active, .dlg-close:active, #nav-toggle:active, .base-toggle:active,
+  .color-btn:not(:disabled):active, .ctx-menu-item:not(:disabled):active,
+  .leaflet-bar a:not(.leaflet-disabled):active {
+    transform: scale(.97);
+    filter: brightness(.94);
+    transition-duration: 0s;
+  }
   /* Acción que borra algo sin vuelta atrás (Propiedades › Restaurar) */
   .btn.btn-danger { color: var(--danger); border-color: var(--danger); background: var(--danger-soft); }
   .btn.btn-danger:hover { color: var(--danger); border-color: var(--danger); filter: brightness(.95); }
@@ -420,6 +434,7 @@
     background: var(--border);
   }
   #splitter:hover { background: var(--accent); }
+  #splitter { touch-action: none; } /* el arrastre es del separador (Pointer Events), no un desplazamiento de la página */
   #nav-toggle {
     position: absolute;
     top: 50%;
@@ -568,6 +583,8 @@
        falta limitar su ancho, y así cabe la línea de la diferencia
        entre superficie y terreno.                                  */
     background: var(--surface-glass);
+    -webkit-backdrop-filter: var(--glass-blur);
+    backdrop-filter: var(--glass-blur);
     border: 1px solid var(--border);
     border-radius: 4px;
     padding: 3px 8px;
@@ -704,6 +721,10 @@
     background: var(--surface-glass);
     color: var(--muted-2);
   }
+  .leaflet-container .leaflet-control-attribution {
+    -webkit-backdrop-filter: var(--glass-blur);
+    backdrop-filter: var(--glass-blur);
+  }
   .leaflet-container .leaflet-control-attribution a { color: var(--accent); }
   .leaflet-container .leaflet-control-scale-line { border-color: var(--muted-2); text-shadow: none; }
   .leaflet-control-attribution {
@@ -762,7 +783,7 @@
     position: fixed;
     inset: 0;
     z-index: 2000;
-    background: var(--backdrop);
+    background-color: var(--backdrop);
     display: flex;
     align-items: center;
     justify-content: center;
@@ -795,6 +816,25 @@
     z-index: 2000;
   }
   .dlg-float[hidden] { display: none; }
+  /* Entradas ancladas (apple-design §7 y §12), solo al ABRIR: opacidad y una
+     escala casi imperceptible, sin rebote (no las lanza un gesto con
+     inercia). Cerrar es inmediato: Escape, la × y Cancelar encadenan
+     trabajo (foco, restaurar la foto) y quien cierra quiere el mapa ya.
+     Son @keyframes y no `@starting-style`: el minificador del build
+     (clean-css) no conoce esa regla y la DESTROZA en kitelocal.min.html
+     (medido: pierde la regla de `.dlg-box`). Una animación solo con
+     `from` parte de ahí y llega al estilo normal; se repite cada vez que
+     el elemento pasa de `hidden` a visible. El menú nace en el punto
+     pulsado (--ctx-origin, 70-view-controls.js) y el popover de color,
+     bajo su botón. Con movimiento reducido no hay ninguna (bloque
+     final del archivo; tests/statics.js lo exige).                    */
+  @keyframes enter-dialog { from { opacity: 0; transform: scale(.98); } }
+  @keyframes enter-menu { from { opacity: 0; transform: scale(.96); } }
+  @keyframes enter-backdrop { from { background-color: transparent; } }
+  .dlg-box { animation: enter-dialog .16s ease-out; }
+  .ctx-menu { animation: enter-menu .12s ease-out; transform-origin: var(--ctx-origin, top left); }
+  .color-popover { animation: enter-menu .12s ease-out; transform-origin: top left; }
+  .dlg-overlay { animation: enter-backdrop .16s ease-out; }
   /* La calculadora geodésica va abajo a la derecha: arriba a la derecha
      está el diálogo de estilos y se taparían entre sí.                 */
   #geocalc-dialog { top: auto; bottom: 40px; }
@@ -1011,7 +1051,9 @@
   .geocalc-out > p { margin: 0; }
   /* Mismo tamaño que el texto de los campos (.dlg-row, 13px); pre-line:
      los resultados de varias líneas llevan «\n» en el texto, sin HTML. */
-  .geocalc-result { font-size: 13px; line-height: 1.4; font-weight: 600; white-space: pre-line; }
+  .geocalc-result { font-size: 13px; line-height: 1.4; font-weight: 600; white-space: pre-line; font-variant-numeric: tabular-nums; }
+  /* Cifras que se repintan al arrastrar: que no bailen de ancho */
+  #ms-values .dlg-note, #ms-legs { font-variant-numeric: tabular-nums; }
   /* Sub-dialog of the style dialog always sits above it */
   #icon-picker { z-index: 2100; }
   /* The colour picker is a POPOVER anchored to whichever button opened
@@ -1725,4 +1767,51 @@
     line-height: 1.2;
     white-space: nowrap;
     border-radius: 5px;
+  }
+
+  /* ================= Cambio de tema suave =================
+     applyUiTheme(theme, true) pone esta clase 250 ms al elegir un tema en
+     Propiedades: un salto claro↔oscuro de golpe deslumbra. NO se usa al
+     arrancar (no hay nada que suavizar) ni con movimiento reducido.     */
+  html.theme-switching, html.theme-switching * {
+    transition: background-color .25s ease, color .25s ease, border-color .25s ease !important;
+  }
+
+  /* ================= Preferencias de accesibilidad del sistema =================
+     Movimiento reducido NO es «sin respuesta»: se quita lo que se mueve
+     (giros, latidos, rayas, entradas, el hundido del botón) y se conserva
+     lo que ayuda a entender (cambios de color y de opacidad). TODA
+     `animation:` del archivo tiene su anulación aquí; tests/statics.js lo
+     comprueba. Ver motion.md.                                           */
+  @media (prefers-reduced-motion: reduce) {
+    .spinner { animation: none; }
+    #progress-fill.indet { animation: none; }
+    .node-row.cascading > label { animation: none; opacity: .7; }
+    .caret, #progress-fill, #profile-progress-fill { transition: none; }
+    .dlg-box { animation: none; }
+    .ctx-menu { animation: none; }
+    .color-popover { animation: none; }
+    .dlg-overlay { animation: none; }
+    .btn, .dlg-close, #nav-toggle, .base-toggle, .color-btn, .ctx-menu-item, .leaflet-bar a { transition: none; }
+    .btn:not(:disabled):active, .dlg-close:active, #nav-toggle:active, .base-toggle:active,
+    .color-btn:not(:disabled):active, .ctx-menu-item:not(:disabled):active,
+    .leaflet-bar a:not(.leaflet-disabled):active { transform: none; }
+    html.theme-switching, html.theme-switching * { transition: none !important; }
+  }
+  /* Transparencia reducida: superficies opacas y sin desenfoque */
+  @media (prefers-reduced-transparency: reduce) {
+    :root {
+      --surface-glass: var(--surface);
+      --glass-blur: none;
+    }
+  }
+  /* Contraste alto: bordes y texto secundario más marcados. Cambia el valor
+     de los TOKENS, nunca un color suelto (theme.md). */
+  @media (prefers-contrast: more) {
+    :root {
+      --border: light-dark(#6b6b66, #8a8a84);
+      --muted: light-dark(#5a5a55, #bdbdb6);
+      --muted-2: light-dark(#3d3d3a, #d0d0c9);
+    }
+    .dlg-close { border: 1px solid var(--border); }
   }

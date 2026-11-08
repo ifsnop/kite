@@ -128,7 +128,11 @@ export async function openApp(browser, url, opts = {}) {
   /* `locale: "es-ES"`: las suites comparan textos en español y «Automático»
      sigue al navegador (Playwright arranca en en-US); lo de los idiomas lo
      prueba browser/i18n.mjs, que pasa el suyo.                          */
-  const ctx = await browser.newContext({ serviceWorkers: "block", locale: "es-ES", ...opts });
+  /* `reducedMotion: "reduce"`: la aplicación anima la ENTRADA de menús y
+     ventanas (160 ms, styles.css) y las pruebas miden posiciones y clican
+     al instante: con la caja a medio escalar saldrían medidas torcidas.
+     Quien prueba el movimiento (browser/motion.mjs) pide `no-preference`. */
+  const ctx = await browser.newContext({ serviceWorkers: "block", locale: "es-ES", reducedMotion: "reduce", ...opts });
   await stubTiles(ctx);
   const page = await ctx.newPage();
   const errors = [];

@@ -1692,8 +1692,18 @@ const propsArcSegmentsInput = document.getElementById("props-arc-segments");
    sin data-theme manda prefers-color-scheme EN VIVO, así que "auto" no
    necesita matchMedia ni escuchar cambios del sistema.                 */
 let uiTheme = "auto";
-function applyUiTheme(theme) {
+/* `soft` (a theme picked in Propiedades) fades the colours for 250 ms
+   instead of flashing light↔dark; boot and Cancelar's re-apply pass nothing
+   (styles.css, «Cambio de tema suave»). */
+let themeSoftTimer = 0;
+function applyUiTheme(theme, soft = false) {
   uiTheme = theme;
+  if (soft) {
+    const root = document.documentElement;
+    root.classList.add("theme-switching");
+    clearTimeout(themeSoftTimer);
+    themeSoftTimer = setTimeout(() => root.classList.remove("theme-switching"), 250);
+  }
   if (theme === "auto") document.documentElement.removeAttribute("data-theme");
   else document.documentElement.setAttribute("data-theme", theme);
 }
@@ -1854,7 +1864,7 @@ propsUnitSelect.addEventListener("change", () => {
   renderPropsProfileMax();
 });
 propsAltUnitSelect.addEventListener("change", () => setAltitudeUnit(propsAltUnitSelect.value));
-propsThemeSelect.addEventListener("change", () => applyUiTheme(propsThemeSelect.value));
+propsThemeSelect.addEventListener("change", () => applyUiTheme(propsThemeSelect.value, true));
 /* Lee un campo numérico de ajustes: vacío o ilegible → null (el llamador
    deja el valor vigente); fuera de [min, max] se AJUSTA a la cota más
    cercana y se avisa, en vez de volver en silencio al anterior (reportado
@@ -1979,7 +1989,7 @@ function cancelPropsDialog() {
   releaseFocus();
   if (!propsOriginal) return;
   /* Deshace la previsualización en vivo con el mismo camino que la aplicó. */
-  if (propsOriginal.uiTheme !== uiTheme) applyUiTheme(propsOriginal.uiTheme);
+  if (propsOriginal.uiTheme !== uiTheme) applyUiTheme(propsOriginal.uiTheme, true);
   if (propsOriginal.unit !== measureUnit) setMeasureUnit(propsOriginal.unit);
   if (propsOriginal.altitudeUnit !== altitudeUnit) setAltitudeUnit(propsOriginal.altitudeUnit);
   profileMaxM = propsOriginal.profileMaxM;
