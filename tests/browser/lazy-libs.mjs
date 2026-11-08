@@ -36,7 +36,7 @@ const sum = list => list.reduce((n, e) => n + e.bytes, 0);
 
 /* ---------- 1. El arranque ya no las descarga ---------- */
 {
-  const ctx = await browser.newContext({ serviceWorkers: "block", locale: "es-ES" });
+  const ctx = await browser.newContext({ serviceWorkers: "block", locale: "es-ES", reducedMotion: "reduce" });
 await stubTiles(ctx);
   const page = await ctx.newPage();
   const errors = [];

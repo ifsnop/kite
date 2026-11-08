@@ -28,6 +28,10 @@
       los tres que ya la tenían, su propio `id`) apunta a un botón de la
       MISMA caja. Y un diálogo con un único botón en el pie no lo lleva
       en el pie: es la × y no tiene pie (`no-actions`).
+   6. Movimiento reducido (ver .claude/rules/motion.md): toda
+      `animation:` del CSS tiene su anulación dentro de
+      `@media (prefers-reduced-motion: reduce)`. Una animación nueva que
+      se olvide de ahí la verían girar quienes pidieron que nada se mueva.
 
    La segunda exige mirar el código de verdad, no con una expresión
    regular sobre el texto en bruto: los comentarios de este proyecto
@@ -261,5 +265,30 @@ for (const m of code.matchAll(/^(?:async\s+)?(?:function\s*\*?|const|let|var|cla
 ok(topNames.size > 300, `se han encontrado nombres de nivel superior: ${topNames.size}`);
 const twice = [...topNames].filter(([, n]) => n > 1).map(([k]) => k);
 ok(twice.length === 0, "nombre de nivel superior declarado dos veces (el segundo pisa al primero): " + twice.join(", "));
+
+/* ---------- 6. Toda animación tiene su anulación en movimiento reducido ----------
+   Se lee el CSS del propio archivo entregado. El bloque se localiza
+   contando llaves; cada `animation:` de fuera se identifica por su
+   selector y ha de aparecer dentro del bloque con `animation: none`. */
+const cssText = [...html.matchAll(/<style\b[^>]*>([\s\S]*?)<\/style>/g)].map(m => m[1]).join("\n");
+const reduceAt = cssText.search(/@media\s*\(prefers-reduced-motion:\s*reduce\)\s*\{/);
+ok(reduceAt >= 0, "el CSS tiene un bloque @media (prefers-reduced-motion: reduce)");
+if (reduceAt >= 0) {
+  let i = cssText.indexOf("{", reduceAt), depth = 0, end = i;
+  for (; end < cssText.length; end++) {
+    if (cssText[end] === "{") depth++;
+    else if (cssText[end] === "}" && --depth === 0) break;
+  }
+  const reduceBlock = cssText.slice(i + 1, end);
+  const outside = cssText.slice(0, reduceAt) + cssText.slice(end + 1);
+  const animSelectors = new Set();
+  for (const m of outside.replace(/\/\*[\s\S]*?\*\//g, "").matchAll(/([^{}]+)\{([^{}]*\banimation\s*:[^{}]*)\}/g)) {
+    animSelectors.add(m[1].trim().replace(/\s+/g, " "));
+  }
+  ok(animSelectors.size >= 3, `se han encontrado las animaciones del CSS: ${[...animSelectors].join(" | ")}`);
+  const flat = reduceBlock.replace(/\s+/g, " ");
+  const missing = [...animSelectors].filter(sel => !new RegExp(sel.replace(/[.*+?^${}()|[\]\\]/g, "\\$&") + " \\{[^}]*animation: none").test(flat));
+  ok(missing.length === 0, "animación sin anular en prefers-reduced-motion: " + missing.join(" | "));
+}
 
 if (!process.exitCode) console.log("STATIC CHECKS OK");

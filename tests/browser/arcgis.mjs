@@ -356,7 +356,7 @@ await page.evaluate(() => deleteNode([...document.querySelectorAll("#tree > ul >
 ok(await page.evaluate(() => arcgisLayersOnMap.size === 1), "borrar la carpeta quita también la capa del servicio pendiente (queda solo el otro)");
 
 /* ---------- 14. Un árbol v8 (anterior a los servicios) se lee tal cual ---------- */
-const ctx2 = await browser.newContext({ serviceWorkers: "block", locale: "es-ES" });
+const ctx2 = await browser.newContext({ serviceWorkers: "block", locale: "es-ES", reducedMotion: "reduce" });
 await stubTiles(ctx2);
 const p2 = await ctx2.newPage();
 await p2.goto(srv.url);

@@ -322,7 +322,7 @@ await pageB.close();
 ok(!errors.length, "sin errores de página: " + errors.join(" | "));
 
 /* ---------- 11. Una base v4 con un «root» v8 con todo en línea ---------- */
-const ctx2 = await browser.newContext({ serviceWorkers: "block", locale: "es-ES" });
+const ctx2 = await browser.newContext({ serviceWorkers: "block", locale: "es-ES", reducedMotion: "reduce" });
 await stubTiles(ctx2);
 await ctx2.route("**/blank", r => r.fulfill({ contentType: "text/html", body: "<!doctype html><title>b</title>" }));
 const p2 = await ctx2.newPage();
