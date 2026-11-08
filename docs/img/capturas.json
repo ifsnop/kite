@@ -3,226 +3,226 @@
   "fondo": "OpenStreetMap",
   "images": {
     "anadir-url.png": {
-      "sha256": "28569fa9a35851f11001e5a51ef092ba1d6d3c25d6a3a8a04645cc1b6331d8b6",
+      "sha256": "eae081587be1c5edfca280486a1022c37fb00eb3e0fad1caff7ceeaac19badd9",
       "section": "7.1",
       "version": "2.3.0",
-      "build": "202611061129"
+      "build": "202611080918"
     },
     "anillos-dialogo.png": {
       "sha256": "a1d0f283232949b6e548dab23b9c751795e88b53ca0eb43a9baa03d1c8a78176",
       "section": "7.13",
       "version": "2.3.0",
-      "build": "202611061129"
+      "build": "202611080918"
     },
     "anillos-resultado.png": {
-      "sha256": "f5a57e9f703b8d6e87a5b27f73b4f1c7a01500b80fc1f3df42c5753720a56179",
+      "sha256": "56c79db7cf73d7c1272547a9a20d29dd7ad913ce1062783b2e74345d9bf1b61e",
       "section": "7.13",
       "version": "2.3.0",
-      "build": "202611061129"
+      "build": "202611080918"
     },
     "arbol-estructura.png": {
-      "sha256": "259b40249b07857a0990d99777182ab704b28fe2020a1a992ce01225002732f6",
+      "sha256": "7f6048ed5e0300dd5785e6ee49705a84b3a418be045594377a6661de0c32a47d",
       "section": "3",
       "version": "2.3.0",
-      "build": "202611061129"
+      "build": "202611080918"
     },
     "atajos.png": {
       "sha256": "ad736bc193e61585be8f1cf60f5bfc55e5249c710f800d0511d878b3aef603df",
       "section": "8",
       "version": "2.3.0",
-      "build": "202611061129"
+      "build": "202611080918"
     },
     "aviso-movil.png": {
-      "sha256": "83243091af44d4d475389466c5db623ee2ee8516f46ba5d126bc8497c5d6530d",
+      "sha256": "d86effd9dab1ef062ae2ef1eb686957a643314f4c4583b8cd1aff217e5ef5644",
       "section": "4",
       "version": "2.3.0",
-      "build": "202611061129"
+      "build": "202611080918"
     },
     "barra-herramientas.png": {
-      "sha256": "73f0cb7efd40fa0619e0be6b9124ef5083aac83bae41b70a51843252cb57e692",
+      "sha256": "1f088be479a5d807d3df70064d3442feb43070896a2835de4ed3bbe9d36489fb",
       "section": "4.2",
       "version": "2.3.0",
-      "build": "202611061129"
+      "build": "202611080918"
     },
     "borrar-capas.png": {
-      "sha256": "e6f7468d11129b130ddfef859d1b02661db2f574e8678ef1cc8024a553902fee",
+      "sha256": "733021d4257e3fdbacc445e4d9cda2990ab7d78c315ae520e902c076d581ce0d",
       "section": "6.4",
       "version": "2.3.0",
-      "build": "202611061129"
+      "build": "202611080918"
     },
     "buscador-lugares.png": {
-      "sha256": "0de8635a2be898c8a06244f66a708289d59b4ff9c9a01fa264a2c7bba59fc36a",
+      "sha256": "90074c365c2f18cff55c2c390536b5477c7ea3b9ae12de90258fc549cc1d464a",
       "section": "2.1",
       "version": "2.3.0",
-      "build": "202611061129"
+      "build": "202611080918"
     },
     "cabecera-panel.png": {
-      "sha256": "62d10ab89084f3ce0a7ed44e11c80c4a8cf8709d724fa50a3e71c8ca4725d44a",
+      "sha256": "c04f5bb97e268d414140fa09e8835a80142ab407cfb975fd5673d46df6f3c690",
       "section": "2.1",
       "version": "2.3.0",
-      "build": "202611061129"
+      "build": "202611080918"
     },
     "calculos-geodesicos.png": {
-      "sha256": "6642048947089a1030dc530e0dbec6511acea57110ff52d5c6d388289c17aa6c",
+      "sha256": "58f82e25af6315e197f876ec1f4b8e0db3dee9224b020791c3d061656cfab530",
       "section": "2.1",
       "version": "2.3.0",
-      "build": "202611061129"
+      "build": "202611080918"
     },
     "checkbox-indeterminado.png": {
-      "sha256": "7c3446fb1dca0bf698dab99ed0f5ce8532c5fccbee81a7c94ccbdcd9e323b725",
+      "sha256": "230c52d1db8a21b7f6f96989635721a323c2ff394d0003beb1cb85fc2f0c4409",
       "section": "3.2",
       "version": "2.3.0",
-      "build": "202611061129"
+      "build": "202611080918"
     },
     "consulta-elevacion.png": {
-      "sha256": "f0798964c036b11d97d51471956ce1e345f1cb059f4bbf80810c84483e5f9eca",
+      "sha256": "c5c5409a174465fb20fbc752bf13c6f6f2bc00c9e69e50e6ce05f653a64617e6",
       "section": "7.8",
       "version": "2.3.0",
-      "build": "202611061129"
+      "build": "202611080918"
     },
     "coordenadas-elevacion.png": {
-      "sha256": "a1c700efc629c16285ddde7ce3aa59fa6b4ef30d3cdc9a96edd5cf7dd11e7378",
+      "sha256": "f345b927418dcb2deeaa08ae3969ef1dfea2e6323ce9557e6091a8df9c8eafe4",
       "section": "7.8",
       "version": "2.3.0",
-      "build": "202611061129"
+      "build": "202611080918"
     },
     "copiar-origen.png": {
-      "sha256": "f301e41eb8db16188e13e508f84fa05d206fc0eb81b1e1b257266589aad5935c",
+      "sha256": "b0d8674a9ed6a560c9d1c8872b3e5c00750c8f2f5d2f11b242bedc2ef8502e0a",
       "section": "7.5",
       "version": "2.3.0",
-      "build": "202611061129"
+      "build": "202611080918"
     },
     "custom-wms.png": {
       "sha256": "f51c8725259d8559ecedb575815289258ed0374b41eb01a0067ae5126b62c8c1",
       "section": "4.1",
       "version": "2.3.0",
-      "build": "202611061129"
+      "build": "202611080918"
     },
     "dibujar-poligono.png": {
-      "sha256": "cd4823bb26e122bedbb27e6b4322a9c407ddda79331f4a92a9018f7bfc62e6c7",
+      "sha256": "92179a9e13a5e7997c69fa2d9e6bdeeb61451ce184f82b18a5232938aedee207",
       "section": "7.3",
       "version": "2.3.0",
-      "build": "202611061129"
+      "build": "202611080918"
     },
     "duplicados.png": {
-      "sha256": "a3ea49e15b3b6f897be35ffb094ef522f7291d6e7dffb68d0ffcaccdf959e88b",
+      "sha256": "504bcac6d93e45dce4d131ee45cbf357baadeca82f4053b3b501d0cb70a66398",
       "section": "7.1",
       "version": "2.3.0",
-      "build": "202611061129"
+      "build": "202611080918"
     },
     "editar-varios.png": {
-      "sha256": "7c6c268133750035112d826f18592d95b096e13561079f517f3b4db7753ca14d",
+      "sha256": "3675372592192ce4ca33cbfe75855510bdcec0f4d83ea3e0e0fbb8c803827550",
       "section": "6.4",
       "version": "2.3.0",
-      "build": "202611061129"
+      "build": "202611080918"
     },
     "editor-puntos.png": {
-      "sha256": "c4b93070ceb6bebcc74f2128dda233e508b5364c476002691f4491ffce0f8fb2",
+      "sha256": "f0627afb320189f273d2b3107d428cce727abc42efd8911f44b3f1397ad8cc83",
       "section": "6.2",
       "version": "2.3.0",
-      "build": "202611061129"
+      "build": "202611080918"
     },
     "elegir-nombre.png": {
-      "sha256": "4707c06d44e82a31d635bafba53e783d851758b96bdda59e65ddac0fe89fc91f",
+      "sha256": "e4d0392b106fcb91451504aff997e7f95a66687459513f5462632389e807e31d",
       "section": "7.1",
       "version": "2.3.0",
-      "build": "202611061129"
+      "build": "202611080918"
     },
     "estilo-atributo.png": {
-      "sha256": "db0f6725b52750e684c929bec0dfd614fb78908e721a615f7d821cb57ee2932f",
+      "sha256": "2b72bf6e3f77dcf4684e2128b9c810f9496e8e8d1011b71846ae032c5ced466a",
       "section": "7.15",
       "version": "2.3.0",
-      "build": "202611061129"
+      "build": "202611080918"
     },
     "estilo-marcador.png": {
-      "sha256": "77e82b52e03c16e2952c58b1ec5f16ddfe5334de36ea51166a770f28c29f2c40",
+      "sha256": "dd4b2ebc9da9f3fb06233be9e39ebbfba03640721a544399310b043a3e0ac8c8",
       "section": "6.1",
       "version": "2.3.0",
-      "build": "202611061129"
+      "build": "202611080918"
     },
     "estilo-medicion.png": {
-      "sha256": "ac4db7600e3716503d74f3e590a857363a10725fdefae55b873a9ac47c8763cb",
+      "sha256": "1a7018602a6abd351fa9182514e0af73b47eb96b300785586694ecb9c2f6eae4",
       "section": "6.3",
       "version": "2.3.0",
-      "build": "202611061129"
+      "build": "202611080918"
     },
     "estilo-poligono.png": {
-      "sha256": "f460462878d1763c700aabcbe370d4d2de6d0168466124df13b7adc8ef2370c4",
+      "sha256": "1604957180f6f5b167f752ea6375dba1632971b621499b4638d540a1cb517566",
       "section": "6.2",
       "version": "2.3.0",
-      "build": "202611061129"
+      "build": "202611080918"
     },
     "etiquetas-html.png": {
-      "sha256": "9f0ddab316d7ddb3a397bcfc9e7e28d98029357e4917b092ec55e8887a775f2e",
+      "sha256": "35cff941634dd22692160bcdad5ecddd1c1e25795bb7588bacaf28f0d4ff6cf6",
       "section": "7.1",
       "version": "2.3.0",
-      "build": "202611061129"
+      "build": "202611080918"
     },
     "ficha-propiedades.png": {
-      "sha256": "b744ed15e4e346e2abbb3bcdf86c5740c0edb2f773e51966c547299500055408",
+      "sha256": "140f89bf75bff094d2aedb9ebcf58e066ad2def3bcd5129fad2c0748f915b8c9",
       "section": "6.5",
       "version": "2.3.0",
-      "build": "202611061129"
+      "build": "202611080918"
     },
     "fila-seleccionada.png": {
-      "sha256": "23b1a524809a8f6ba5ac3b9b540ddfca4907263bba965f3fed5858568fdd6399",
+      "sha256": "b01ecd1a317c5905c4cedc9b71441942f18a82d1e81cb5e305ee14946bd13093",
       "section": "3.3",
       "version": "2.3.0",
-      "build": "202611061129"
+      "build": "202611080918"
     },
     "mapa-girado.png": {
-      "sha256": "04fae8cd6409063f6d58b6eca28c41c2060579c7c175079088bebb82b882b4b7",
+      "sha256": "c66be3386f77e9de4c1b94929b3c728e3af4a7e16f95ab92dd5fddf803bff880",
       "section": "4.4",
       "version": "2.3.0",
-      "build": "202611061129"
+      "build": "202611080918"
     },
     "mapas-base.png": {
-      "sha256": "3a04ef9037f8af55282cd329fdc613e54ed4f62b5733e7901cf0bfb5101e131a",
+      "sha256": "421b20c8da0b3af49bf001073e403ff5c350d67bb3e8db5cf6898a05f7df12f3",
       "section": "4.1",
       "version": "2.3.0",
-      "build": "202611061129"
+      "build": "202611080918"
     },
     "medicion-mapa.png": {
-      "sha256": "45dc9c2a2cf701f475286d4f12759564ea4c36ca85b14a65ed5943c6b7101afc",
+      "sha256": "78360b3a578b1f94d706d5bc0212a57473d58acc015d436f09ba76d173b0e855",
       "section": "7.2",
       "version": "2.3.0",
-      "build": "202611061129"
+      "build": "202611080918"
     },
     "menu-consultas.png": {
-      "sha256": "d33f4fa5bbcbdde51a03e9f42caf41fcab3c86bc4f6d28ed7aadabbbf80f52e3",
+      "sha256": "ccc41555b8d88572be70f91d8d63af8ae68e8792e649215a158975025d8b7a9a",
       "section": "5",
       "version": "2.3.0",
-      "build": "202611061129"
+      "build": "202611080918"
     },
     "menu-contextual-submenu.png": {
-      "sha256": "b5c0fccca0eed25adb9d9c29b2f4f3b87a266b3a48f135fa1454fd4744aa11d1",
+      "sha256": "268a1701fd81fc639c1023bd1936c0a650ce15174d0dadedd900ccd518bb5b97",
       "section": "5",
       "version": "2.3.0",
-      "build": "202611061129"
+      "build": "202611080918"
     },
     "menu-contextual.png": {
-      "sha256": "cd2387acf47e48833e526bf67da33f6396da67d456ca001322a7c7213ba37b1e",
+      "sha256": "36e08b0868111c718b1a67c4962360c535819951c2754fd7b36de416c5ee57ff",
       "section": "5",
       "version": "2.3.0",
-      "build": "202611061129"
+      "build": "202611080918"
     },
     "menu-copiar.png": {
-      "sha256": "b1a15768d72b124e0c69aefb962b823f8428b6834686e8c75cb4caf0d370140a",
+      "sha256": "7120daf1915d4e7ef42dccf2511b7c77f2c207884a08d473de9258bc05039394",
       "section": "5",
       "version": "2.3.0",
-      "build": "202611061129"
+      "build": "202611080918"
     },
     "menu-exportar.png": {
-      "sha256": "e3491dd17da22c80c7c145d84dcc4b6d0dd4a897dd775790ef08e1852a6b9127",
+      "sha256": "1a1dec13ad0fae60b836ce474329ac32660c117d441393a7c7ebd9eed5012869",
       "section": "7.6",
       "version": "2.3.0",
-      "build": "202611061129"
+      "build": "202611080918"
     },
     "menu-ruta-perfil.png": {
-      "sha256": "250648f28467b48c92caab8f9ca3bb46a0343dc5b24c0522fd8408a8efc553b4",
+      "sha256": "ea380bcd92c40a2c2d3de442884f28f0b9d57a12d6fdbfcef1f324820ba3ef33",
       "section": "7.9",
       "version": "2.3.0",
-      "build": "202611061129"
+      "build": "202611080918"
     },
     "ortofoto-cog.png": {
       "sha256": "a62fef4dfe38f057fef923a4382468e2fd8e5c88b251e90829e7391e4a914d7e",
@@ -232,130 +232,130 @@
       "externa": "Sentinel-2 de 362 MB: no se puede versionar ni regenerar"
     },
     "parcela-catastral.png": {
-      "sha256": "21933bb1f2ee8f3aa298e10981a9e07a7482245ff3b758b5faa885b11bad07ae",
+      "sha256": "09027b456310e715f6960adaf0eff9d0d8612b2dcb9615d6ec73e41429bb3e93",
       "section": "7.12",
       "version": "2.3.0",
-      "build": "202611061129"
+      "build": "202611080918"
     },
     "parcela-ficha.png": {
-      "sha256": "1a0e9f605f11785db21fc090ded572d4e0fc3e88952ca714cb6eee3f0a778fb5",
+      "sha256": "f2d047bde479a91b41f92ce3d5699799e261ff557fd4f847c1528ed85469b4ca",
       "section": "7.12",
       "version": "2.3.0",
-      "build": "202611061129"
+      "build": "202611080918"
     },
     "pegar-destino.png": {
-      "sha256": "5d412ade88abafbcc462ce8059e9a9def6854d17e579a19c1d893e7f03cb8de7",
+      "sha256": "270bbabf948ebe0989909fb09817c3ece89226d892519824026f39e22e674ec9",
       "section": "7.5",
       "version": "2.3.0",
-      "build": "202611061129"
+      "build": "202611080918"
     },
     "perfil-obstaculos.png": {
-      "sha256": "ab046aef41700673e2ca069a25674d33e88258bb9b0aff7505cdd9daba245638",
+      "sha256": "225254a442fe0b71d24401f8f0070cfdee57050e2bf7cc948e42f057d4acf489",
       "section": "7.9",
       "version": "2.3.0",
-      "build": "202611061129"
+      "build": "202611080918"
     },
     "perfil-ruta.png": {
-      "sha256": "cb2f89d3c52d6e33327e4f20db4cfbce48820468aab98e557eb8789a7ebe9cee",
+      "sha256": "03ccf448f310bb779c3a86eb16f95de1f73d819e22e06bd12fefeb77875a0a54",
       "section": "7.9",
       "version": "2.3.0",
-      "build": "202611061129"
+      "build": "202611080918"
     },
     "pie-panel.png": {
-      "sha256": "4e42b5e5fb964395f3c9197952626b483922d657265f8a6e392614c72da067da",
+      "sha256": "43385ab1a1511303bdf5c50f5756b82228ac2eee3b0e1d8fd096f8d6c76f13f3",
       "section": "2.2",
       "version": "2.3.0",
-      "build": "202611061129"
+      "build": "202611080918"
     },
     "propiedades-fuentes.png": {
-      "sha256": "fa7e6996d78e6d2fd22367e0b03b06b600e0ccce7eb3aa623f64746153be1897",
+      "sha256": "431915bfa4222ee0b962efc0ba81e83569e1e5152ebfdeeb03ad2cdaffb87138",
       "section": "2.1",
       "version": "2.3.0",
-      "build": "202611061129"
+      "build": "202611080918"
     },
     "propiedades-preferencias.png": {
-      "sha256": "f00dec4d06ee9958352de3e708adb2802ae8b9ce4854528c0204cf0d95545f48",
+      "sha256": "8d1db7af5cbd7ef87c9396c2e02dfafd3d24252db825bafe4c0e6f22a973bee2",
       "section": "2.1",
       "version": "2.3.0",
-      "build": "202611061129"
+      "build": "202611080918"
     },
     "propiedades-restaurar.png": {
-      "sha256": "08c1612c3d53f27d46e05928c538810811e758d119b8dbab2ca5daad2cf3e6fd",
+      "sha256": "ff7ad0decf603cb2ab10ef791fc57bd5ed47fd5b07914490021c6819547e4c84",
       "section": "2.1",
       "version": "2.3.0",
-      "build": "202611061129"
+      "build": "202611080918"
     },
     "registro-avisos.png": {
-      "sha256": "a18f138ee971e3452c1ef54f99e367f89e10ccf91970677e59a34a0858b95709",
+      "sha256": "2e49f9d5e1ecd53d0e82d01890232d9b31a872f1c2ce564112ee223251e3b316",
       "section": "2.1",
       "version": "2.3.0",
-      "build": "202611061129"
+      "build": "202611080918"
     },
     "restaurar-confirmar.png": {
       "sha256": "afe732a58999c1e6959c94aceb2419e80cafecae03410e4270736eb402067297",
       "section": "2.1",
       "version": "2.3.0",
-      "build": "202611061129"
+      "build": "202611080918"
     },
     "seleccion-multiple.png": {
-      "sha256": "c6b5a2ca25d2577c52215a978b676e417dfce3a360c365462c6f34d275410f77",
+      "sha256": "a79cc1eeedc92e9f7d1fb48a445a20c1c44c4f011aa6bf87d3806179f2692d14",
       "section": "3.4",
       "version": "2.3.0",
-      "build": "202611061129"
+      "build": "202611080918"
     },
     "selector-iconos.png": {
-      "sha256": "823045b736b27b6db7e587f4364ec31dfd78909c1afa04e86be020095124d91c",
+      "sha256": "df03e6caf54c8a4b36d49540d5284524565e682133741376223ca24e99f8e0ae",
       "section": "6.1",
       "version": "2.3.0",
-      "build": "202611061129"
+      "build": "202611080918"
     },
     "servicio-arcgis-atributos.png": {
-      "sha256": "1ef17f7c462f9633f6b7560c6ded65c111ab681e5af27db851b707b0e12d567f",
+      "sha256": "04ababf0fb4442af2c2cea3e0d28e36497b55bf3a999b4336d25a0ea42d3672c",
       "section": "7.16",
       "version": "2.3.0",
-      "build": "202611061129"
+      "build": "202611080918"
     },
     "servicio-arcgis-datos.png": {
-      "sha256": "fdbfadbb5da64724843374e70cc90f201c12eaab12162b8248b38b762c9cd3d9",
+      "sha256": "83c78337d2084965e25e4ac1ff7cd4759cf1f5cc0b07d77cbaf2381de8ab1704",
       "section": "7.16",
       "version": "2.3.0",
-      "build": "202611061129"
+      "build": "202611080918"
     },
     "servicio-arcgis.png": {
-      "sha256": "08c547fd4efd1fd5ad0fa3faba267be5c4860536bda227bee7df57adb004c123",
+      "sha256": "d4ebab7e5882513dc798ccbd6cb7a73e15c8c2dc22a5916a8b812c0ae0b6e0b9",
       "section": "7.16",
       "version": "2.3.0",
-      "build": "202611061129"
+      "build": "202611080918"
     },
     "sin-conexion.png": {
-      "sha256": "20cad2acb624b9af489a95ac3265f993d820147f99d0cdd3f4b436bd89b38a49",
+      "sha256": "1f6dad7239e1f73facbf61b7955949c2a96953c6268712c0c98b4ddda4e8a4ac",
       "section": "7.11",
       "version": "2.3.0",
-      "build": "202611061129"
+      "build": "202611080918"
     },
     "tabla-atributos.png": {
-      "sha256": "7ff4661e8b5d96b4a760e865cb98553e8628b206e5601a90b6bed333862239b5",
+      "sha256": "f779e83bf6aa35c350f3ee7be55ae2e37c7c8a071b0e82e54c2505561f037038",
       "section": "7.15",
       "version": "2.3.0",
-      "build": "202611061129"
+      "build": "202611080918"
     },
     "tema-oscuro.png": {
-      "sha256": "4f0be46d4bf810cccb73740080b03bbadcec4d79e9ddaaf82bba64b32d2b94a8",
+      "sha256": "c654d07c01952d2d3628608124bcc6737c7f0cb7f80158dda9cd7b457b56a45f",
       "section": "2.1",
       "version": "2.3.0",
-      "build": "202611061129"
+      "build": "202611080918"
     },
     "url-arcgis.png": {
-      "sha256": "ab3e8f96eb48fb934e4f5f36674ea10c8480667bc04030b0abc6e9be5983e043",
+      "sha256": "48eb51e5cf10d4e934541bacecc8cc8f817759ee068a4afcfbde6dfb4705c45a",
       "section": "7.16",
       "version": "2.3.0",
-      "build": "202611061129"
+      "build": "202611080918"
     },
     "vista-general.png": {
-      "sha256": "ac47036bed7950244280b8096ea8cad701d669e1bff3803cca87a770a2fee11c",
+      "sha256": "17c7eb3db88eab89c2f3a9d267346017d8cdf97d6aca928ab43404b765097c48",
       "section": "1",
       "version": "2.3.0",
-      "build": "202611061129"
+      "build": "202611080918"
     }
   }
 }

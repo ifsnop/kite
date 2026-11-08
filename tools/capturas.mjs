@@ -108,6 +108,10 @@ async function openApp(opts = {}) {
   const ctx = await browser.newContext({
     viewport: opts.viewport || VIEW, locale: opts.locale || "es-ES", timezoneId: "Europe/Madrid",
     colorScheme: opts.colorScheme || "light", serviceWorkers: opts.serviceWorkers || "block",
+    /* Movimiento reducido: las ventanas y el menú ENTRAN con una animación de
+       120-160 ms (motion.md) y una figura debe enseñar el estado final, no la
+       caja a medio escalar; de paso los spinners no salen en un ángulo al azar. */
+    reducedMotion: "reduce",
     deviceScaleFactor: 1, hasTouch: !!opts.touch, isMobile: !!opts.touch,
     permissions: ["clipboard-read", "clipboard-write"]
   });
