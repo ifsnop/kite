@@ -86,10 +86,6 @@ Los polígonos con altitud como obstáculos de un perfil (apartado 7.9 del manua
 
 La lupa 🔍 de una fila que forma parte de una selección múltiple encuadra el conjunto, pero su texto de ayuda («Centrar la vista aquí y acercar (zoom 14)») sigue describiendo solo el caso de una fila. Se dejó así para no añadir textos nuevos a las dos lenguas; el manual (apartados 3.1 y 3.4) sí lo explica.
 
-### 1.13 Los comentarios del código que ya están en español
-
-Desde el 9 de noviembre de 2026 TODOS los comentarios del código y de GitHub van en inglés (principio nº3 de `00-principles.md`), pero casi todo lo escrito antes está en español: una estimación por lo bajo (solo cuenta las líneas que empiezan por `/*`, `*`, `//` o `<!--`, y la mayoría de los bloques continúan sin asterisco) da unas **3 300 líneas** —≈ 1 450 en `src/js`, ≈ 1 500 en las pruebas, ≈ 140 en `styles.css`, ≈ 100 en las herramientas y ≈ 40 en `index.html`—. No se traducen de golpe: se traducen al tocarlas. Una pasada completa sería un cambio enorme y sin ningún efecto en el comportamiento (`kitelocal.html` cambiaría solo en comentarios), así que conviene hacerla por archivos y con la identidad byte a byte de `kitelocal.min.html` como prueba de que no se ha roto nada.
-
 ## 2. Hecho a medias
 
 No confundir con pendiente: está hecho lo principal y queda un cabo.
@@ -156,3 +152,4 @@ Para no volver a proponerlo sin un caso nuevo.
 - **Leer ortofotos ECW.** No hay decodificador en JavaScript y el del fabricante es propietario; se rechazan con la receta para convertirlas a COG.
 - **Más idiomas de la interfaz por ahora.** Español e inglés están hechos; el francés es solo una puerta abierta (`.claude/rules/i18n.md`), y los idiomas de derecha a izquierda no se contemplan.
 - **Arrastre nativo de HTML5 en el árbol.** Un arrastre empezado sin querer congelaba la aplicación 30 segundos; el arrastre es propio (`.claude/rules/tree-navigation-selection.md`).
+- **Translating the existing Spanish comments, rules and documents into English.** Decided on 2026-11-09: everything NEW that other collaborators may read is written in English (principle 3 of `.claude/rules/00-principles.md`), but nothing old is translated. About 3,300 comment lines are in Spanish (a lower bound: it only counts lines starting with `/*`, `*`, `//` or `<!--`), plus the rule files and `tests/README.md`; translating them would be a huge diff with no behavioural effect and would bury the history under noise.
