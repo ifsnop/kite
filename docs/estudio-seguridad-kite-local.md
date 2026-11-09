@@ -5,10 +5,10 @@
 | | |
 |---|---|
 | **Documento** | Estudio de seguridad — KITE Local (KML Interactive Tree Explorer) |
-| **Versión del documento** | 1.10 |
-| **Fecha** | 6 de noviembre de 2026 |
+| **Versión del documento** | 1.11 |
+| **Fecha** | 9 de noviembre de 2026 |
 | **Preparado por** | Diego Torres |
-| **Versión de la aplicación auditada** | v2.3.0 (202611061701) |
+| **Versión de la aplicación auditada** | v2.4.0 (202611091532) |
 | **Repositorio público del código fuente** | https://github.com/ifsnop/kite |
 
 ---
@@ -273,6 +273,8 @@ En la fecha de este documento, la batería está compuesta por 131 conjuntos de 
 - Aviso al abrir la aplicación desde un móvil y diseño del panel en ese caso.
 - Teclado y rueda del visor: velocidad de las flechas mantenidas, zoom continuo y foco que se queda en el mapa.
 - Pie del panel: la cifra de memoria se esconde cuando no hay un dato fiable que dar.
+- Filtro del árbol de capas por nombre: la comparación sin distinguir mayúsculas ni tildes y dentro de las palabras, el recuento de coincidencias dentro de carpetas que aún no se han desplegado sin construirlas, el criterio de qué filas se construyen, y que guardar una carpeta construida a medias da exactamente lo mismo, y en el mismo orden, que antes de construirla.
+- Movimiento reducido: toda animación de la hoja de estilos de la aplicación tiene su anulación para quien pide que nada se mueva.
 
 **Comprobaciones sobre el propio artefacto entregado**
 - Que todo elemento de la interfaz referenciado internamente exista realmente.
@@ -320,6 +322,9 @@ En la fecha de este documento, la batería está compuesta por 131 conjuntos de 
 - Que el mapa se puede desplazar arrastrándolo mientras se dibuja un polígono o una ruta sin que el final del arrastre añada un vértice, que mover un vértice no desplaza el mapa y que el círculo y el arco siguen dibujando al arrastrar.
 - Que el pin, los anillos de alcance y el sector esperan un clic que fija el centro y abren entonces sus propiedades, sin crear nada hasta aceptar, y que Escape, otro botón o un arrastre del mapa no los disparan.
 - La lupa y el borrado desde el diálogo de propiedades de una capa: con una capa, lo mismo que su fila del árbol; con varias, la lupa encuadra el conjunto y borrar pide una confirmación que ni Cancelar, ni la ×, ni Escape confirman, y deshacer devuelve el estilo original.
+- El filtro del árbol con teclado y ratón reales: filtra a partir de la tercera letra o con Intro, enseña solo lo que coincide sin cambiar lo guardado ni qué carpetas están abiertas o cerradas, no construye ninguna fila de una carpeta sin desplegar cuando hay muchas coincidencias y construye solo las coincidentes cuando hay pocas, y lo guardado a medio construir coincide con lo que muestra la aplicación, también tras recargar; se quita con la × o con Escape, y el teclado no aterriza en filas ocultas.
+- Movimiento y respuesta de la interfaz en un navegador real: con movimiento reducido nada se anima; sin él, los menús y las ventanas entran con una animación corta y cerrar es inmediato, los botones responden al pulsar y el separador del panel se arrastra con los gestos de puntero, con un solo redibujado del mapa por fotograma.
+- Con varios elementos seleccionados, la casilla de visibilidad de uno de ellos aplica el estado elegido a todos sin deshacer la selección, y su lupa encuadra el conjunto.
 
 ### 7.3 Integración continua
 

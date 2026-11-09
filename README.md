@@ -120,7 +120,9 @@ KITE Local does not impose fixed limits on KML file size, imported features or v
 - global, file, folder, subtree and individual visibility controls
 - rename, delete, reorder and alphabetically sort nodes
 - drag layers and folders within the tree
-- multi-selection, including Shift ranges and single-node toggles
+- multi-selection, including Shift ranges and single-node toggles; on a row
+  that belongs to the selection, the visibility checkbox, the 🔍 magnifier, delete
+  and properties act on the whole selection (the magnifier frames the set)
 - cut, copy and paste; undo and redo
 - keyboard navigation modelled on a file-explorer tree, with a shortcut
   cheat sheet built in
@@ -154,6 +156,10 @@ KITE Local does not impose fixed limits on KML file size, imported features or v
   the application has saved in the browser, after a second confirmation
 - a light/dark interface theme that follows the system or is forced, and
   English and Spanish interfaces that follow the browser or are forced
+- the interface follows the system's accessibility preferences (reduced motion,
+  reduced transparency, increased contrast); buttons respond the moment they are
+  pressed, menus and dialogs enter with a short animation (closing is instant),
+  and the panel splitter works with a mouse, a pen or a finger
 - a phone notice («better from a computer») and a full-screen panel layout on
   small touch screens
 
@@ -546,6 +552,9 @@ Do not use public tile, geocoding or CDN services for sensitive work without an 
 - **Obstacles in a route profile**: polygons with altitude (the KML altitude mode is now kept, shown and editable) cross the route as blocks and show whether they block the start–end line; they are saved with the profile, together with its towers.
 - **An English interface**, with Spanish as the source language, and a
   light/dark theme.
+- **A live tree filter**: typing in the layer search keeps only what matches (a
+  20,000-layer folder filters in about 20 ms instead of building every row), and
+  interface motion that respects the reduced-motion preference.
 - **Offline reload**: a small service worker keeps the application and its
   pinned libraries, so a discarded tab comes back without a network.
 
