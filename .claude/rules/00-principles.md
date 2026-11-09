@@ -47,10 +47,14 @@ description: Principios no negociables, vocabulario y checklist de KITE Local. S
    titles and descriptions, PR and issue comments and reviews, branch names)
    and any new developer-facing documentation (rule files under
    `.claude/rules/`, `tests/README.md`, `docs/pendientes…`, trail learnings,
-   `README.md`). **Nothing old is translated**: existing Spanish comments,
-   rules and documents stay as they are, and no translation pass is wanted
-   (a huge diff with no behavioural effect). Text added to an existing Spanish
-   file is written in English anyway. **What stays in Spanish**: UI strings and
+   `README.md`). **There is no bulk translation of old text**: existing Spanish
+   comments, rules and documents are not translated in a dedicated pass (a
+   huge diff with no behavioural effect), so what nobody touches stays as it
+   is. **But whatever a change modifies is translated**: when a change
+   corrects or edits a line whose comment is in Spanish, that comment is
+   rewritten in English in the same change (the same goes for a paragraph of
+   a Spanish rule or document that gets edited), and text added to an
+   existing Spanish file is written in English. **What stays in Spanish**: UI strings and
    messages to the user, written in Spanish inside `tr("…")` — Spanish is the
    key and English (or any other language) goes in a dictionary; see
    `i18n.md` — and the two documents written for end users and auditors, the
@@ -205,4 +209,5 @@ que quien lea la documentación la encuentre. Aquí no se duplica:
     GitHub (commits, PR titles and bodies, comments, branch names), and any new
     developer-facing documentation, are written in ENGLISH (principle no. 3).
     UI strings stay Spanish inside `tr()`; the user manual and the security
-    study stay in Spanish. Nothing old is translated.
+    study stay in Spanish. No bulk translation of old text, but a comment (or
+    paragraph) that a change modifies is rewritten in English in that change.
