@@ -4,7 +4,7 @@
 
 Este documento reúne en un solo sitio lo que **está pendiente** en KITE Local y las **ideas** que se han propuesto para seguir desarrollándolo. Antes estaba repartido entre las reglas del proyecto, el README y notas de varias conversaciones; aquí es la única lista. Quien quiera saber qué hace hoy la aplicación debe leer el [manual de usuario](manual-usuario-kite-local.md); quien quiera saber en qué se apoya la confianza en sus datos, el [estudio de seguridad](estudio-seguridad-kite-local.md).
 
-- **Última revisión:** 6 de noviembre de 2026 (versión 2.3.0 de la aplicación).
+- **Última revisión:** 9 de noviembre de 2026 (versión 2.4.0 de la aplicación).
 - **Cómo se mantiene:** lo que se hace **se borra** de este documento en el mismo cambio que lo hace (y se cuenta en el manual y el README, si lo ve el usuario); una idea que se descarta pasa a «Descartado» con su motivo, para no volver a proponerla sin un caso nuevo. Una idea se convierte en pendiente cuando alguien decide hacerla. Ver `.claude/rules/docs-maintenance.md`.
 - **Qué NO es:** no es un compromiso de calendario. Hay ideas que quizá no se hagan nunca.
 
@@ -51,7 +51,7 @@ Leaflet y JSZip siguen cargándose desde una red de distribución al abrir la p�
 
 ### 1.8 Límites de recursos no configurables
 
-Los topes de importación (2000 entradas y razón de compresión de un KMZ, 100 000 elementos de un shapefile, 100 000 entidades de un servicio ArcGIS…) son constantes del código. Solo la longitud máxima de un perfil y el tamaño máximo de un KMZ descomprimido se ajustan en Propiedades.
+Los topes de importación (2000 entradas y razón de compresión de un KMZ, 100 000 elementos de un shapefile, 100 000 entidades de un servicio ArcGIS…) y el de coincidencias que el filtro del árbol construye de una vez (300, `FILTER_BUILD_MAX`) son constantes del código. Solo la longitud máxima de un perfil y el tamaño máximo de un KMZ descomprimido se ajustan en Propiedades.
 
 ### 1.9 Cuadro de límites del manual contrastado con el código
 
@@ -65,7 +65,8 @@ Medido con un KML real de 309 MB (62 673 placemarks, 9,66 M de vértices, todos 
 - **El primer guardado escribe un segmento de ~0,6 GB** (clon síncrono del `put`, 3,3 s): partirlo en varios segmentos con transacciones separadas toca `segmentPlan`/`commitPayloads` y la regla «como mucho un segmento por guardado» (`persistence-indexeddb.md`).
 - **Leer el árbol al arrancar son 2,5 s** de deserialización de esos 0,6 GB.
 - **Encender de golpe una carpeta de decenas de miles de capas las construye todas** (9,66 M de `LatLng`, ~1,1 GB): es lo que se pide, pero con un heap pequeño es el camino que sigue pudiendo ahogar la pestaña.
-- **Desplegar una carpeta construye las capas de sus filas** (`materializeRecords` → `makeNode`), no solo la fila.
+- **Desplegar una carpeta construye las capas de sus filas** (`materializeRecords` → `makeNode`), no solo la fila. Con el filtro del buscador puesto solo se construyen las que coinciden (5 ms con 38 coincidencias en una carpeta de 20 000, frente a ≈ 6,9 s).
+- **Con decenas de miles de filas ya construidas, construir más cuesta más**: 400 filas tardaron 213 ms en una página que ya tenía 20 000 y 18 ms en una limpia. Causa sin investigar.
 
 ### 1.11 Obstáculos del perfil: lo que no se hace
 
@@ -80,6 +81,10 @@ Los polígonos con altitud como obstáculos de un perfil (apartado 7.9 del manua
 
 
 ---
+
+### 1.12 El texto de ayuda de la lupa describe solo el caso de una fila
+
+La lupa 🔍 de una fila que forma parte de una selección múltiple encuadra el conjunto, pero su texto de ayuda («Centrar la vista aquí y acercar (zoom 14)») sigue describiendo solo el caso de una fila. Se dejó así para no añadir textos nuevos a las dos lenguas; el manual (apartados 3.1 y 3.4) sí lo explica.
 
 ## 2. Hecho a medias
 
