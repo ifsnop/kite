@@ -50,7 +50,10 @@ function readCatalog() {
   return {
     pin: pin[1],
     none: none[1],
-    groups: new Function(`const LEAFLET_PIN = ${JSON.stringify(pin[1])};\nconst NO_ICON = ${JSON.stringify(none[1])};\n${decl}\nreturn MDI_ICONS;`)()
+    /* The category names go through tr() in the source; only the icon names matter
+       here, so an identity `tr` is enough (the tool had been failing with
+       "tr is not defined" since the interface languages were introduced). */
+    groups: new Function("tr", `const LEAFLET_PIN = ${JSON.stringify(pin[1])};\nconst NO_ICON = ${JSON.stringify(none[1])};\n${decl}\nreturn MDI_ICONS;`)(text => text)
   };
 }
 

@@ -215,6 +215,20 @@ function styleKind(li) {
   return kind;
 }
 
+/* Glyphs that are only a bare letter or shape (the Wikipedia "W"): on a dark
+   base map, an orthophoto or shaded terrain a dark glyph with no background
+   disappears, so they get their own round badge (light, or dark when the
+   glyph colour is light) and keep their contrast on any base. Keyed by the
+   icon name, so it also holds for a marker restored from storage. */
+const BADGED_ICONS = new Set(["wikipedia"]);
+function markerBadgeBackground(color) {
+  const m = /^#([0-9a-f]{6})$/i.exec(color || "");
+  if (!m) return "#fff";
+  const n = parseInt(m[1], 16);
+  const luma = (0.2126 * (n >> 16) + 0.7152 * ((n >> 8) & 255) + 0.0722 * (n & 255)) / 255;
+  return luma > 0.6 ? "#202122" : "#fff";
+}
+
 /* Leaflet icon + text offset for a marker style. The two icon families
    anchor differently: the Leaflet pin points at its tip (bottom centre,
    as in stock Leaflet), while MDI glyphs are symmetric and sit centred
@@ -251,7 +265,9 @@ function buildMarkerIcon(s, svg) {
   return {
     icon: L.divIcon({
       className: "mdi-pin",
-      html: `<span style="color:${s.color};display:block;width:${s.size}px;height:${s.size}px">${svg}</span>`,
+      html: BADGED_ICONS.has(s.icon)
+        ? `<span class="icon-badge" style="color:${s.color};background:${markerBadgeBackground(s.color)};width:${s.size}px;height:${s.size}px">${svg}</span>`
+        : `<span style="color:${s.color};display:block;width:${s.size}px;height:${s.size}px">${svg}</span>`,
       iconSize: [s.size, s.size],
       iconAnchor: [s.size / 2, s.size / 2]
     }),
@@ -274,11 +290,15 @@ function buildMarkerIcon(s, svg) {
    en vivo, ni el aviso de "no se pudo cargar el icono". Un icono
    desconocido (un \u00E1rbol guardado con otro cat\u00E1logo) devuelve null y
    buildMarkerIcon cae en la gota de Leaflet.                         */
-function styleMarkerIcon(layer, s) {
+function styleMarkerIcon(layer, s, name) {
   const svg = s.icon === LEAFLET_PIN || s.icon === NO_ICON ? null : mdiSvg(s.icon);
   const { icon, textOffset } = buildMarkerIcon(s, svg);
   const each = l => {
-    if (l instanceof L.Marker) l.setIcon(icon);
+    if (l instanceof L.Marker) {
+      l.setIcon(icon);
+      /* a raw layer (no row yet) still gets its accessible name; see nameMarkerIcon */
+      if (name) nameMarkerIcon(l, name);
+    }
     if (l.eachLayer) l.eachLayer(each);
   };
   each(layer);
@@ -293,6 +313,19 @@ function applyMarkerStyle(li) {
   applyMarkerText(li, textOffset);
   const sw = li.querySelector(":scope > .node-row > .swatch");
   if (sw) sw.style.background = s.color;
+}
+
+/* Leaflet makes every marker icon a keyboard-focusable role="button" and gives
+   it no name, so a screen reader hears "button" a hundred times. The name goes
+   on the icon element, which Leaflet recreates when the layer is added to the
+   map or the icon changes, so it is also (re)applied on "add". `aria-label`
+   rather than `title`: no native tooltip over the hover card. */
+function nameMarkerIcon(marker, name) {
+  const set = () => { if (marker._icon) marker._icon.setAttribute("aria-label", name); };
+  if (marker._kiteNamer) marker.off("add", marker._kiteNamer);
+  marker._kiteNamer = set;
+  marker.on("add", set);
+  set();
 }
 
 /* Bind the layer name to each marker as a compact text box: a permanent
@@ -315,6 +348,7 @@ function applyMarkerText(li, offset) {
   layer.unbindPopup(); /* drop the group-level popup bound at creation */
   const each = l => {
     if (l instanceof L.Marker) {
+      nameMarkerIcon(l, li._name);
       if (s.textAlways) l.closePopup();
       l.unbindPopup();
       l.unbindTooltip();

@@ -264,9 +264,10 @@ Un clic derecho sobre el mapa abre un menú con las acciones más habituales, ag
 - **«Copiar»**: un submenú con lo que se puede llevar al portapapeles.
   - **«Coordenadas»**: la posición del punto pulsado, en grados decimales.
   - **«Enlace a esta vista»**: una dirección que, al abrirla, deja el mapa donde está ahora (apartado 7.14).
-- **«Consultas»**: un submenú con las dos consultas a un servicio sobre el punto pulsado, cada una por su cuenta.
+- **«Consultas»**: un submenú con las tres consultas a un servicio sobre el punto pulsado, cada una por su cuenta.
   - **«Elevación»**: descarga el terreno y la superficie de la zona alrededor del punto (apartado 7.8). Sale deshabilitada, con el motivo al pasar el ratón, si el mapa está girado o si las dos fuentes de elevación están en «Ninguna».
   - **«Parcela catastral»**: trae la parcela que hay en el punto pulsado como una capa del árbol (apartado 7.12).
+  - **«Artículos de Wikipedia en la vista»**: trae los artículos de Wikipedia con coordenadas que caen en lo que se ve del mapa, a partir del punto pulsado, como marcadores «W» con su resumen y un enlace al artículo completo (apartado 7.17).
 - **«Medir»**: un submenú con las tres herramientas de medición, **«Ruta»**, **«Círculo»** y **«Arco»** (apartado 4.2). Elegir una activa la herramienta; elegirla otra vez, la desactiva.
 - **«Crear»**: un submenú para dibujar o colocar algo nuevo.
   - **«Polígono o línea»**: activa o desactiva la herramienta de dibujo (apartados 4.2 y 7.3).
@@ -283,8 +284,8 @@ Los encuadres (autoescalar, península y Baleares, islas Canarias), la retícula
 ![El menú contextual con el submenú «Copiar» abierto, con las entradas Coordenadas y Enlace a esta vista](img/menu-copiar.png)
 *Figura 24. El submenú «Copiar»: «Coordenadas» y «Enlace a esta vista».*
 
-![El menú contextual con el submenú «Consultas» abierto, con las entradas Elevación y Parcela catastral](img/menu-consultas.png)
-*Figura 25. El submenú «Consultas», que se abre al pasar el ratón por encima o con un clic: «Elevación» y «Parcela catastral», cada una por su cuenta.*
+![El menú contextual con el submenú «Consultas» abierto, con las entradas Elevación, Parcela catastral y Artículos de Wikipedia en la vista](img/menu-consultas.png)
+*Figura 25. El submenú «Consultas», que se abre al pasar el ratón por encima o con un clic: «Elevación», «Parcela catastral» y «Artículos de Wikipedia en la vista», cada una por su cuenta.*
 
 Si el clic derecho cae sobre una capa, el menú antepone «Ir al nodo en el panel» (que despliega el árbol hasta esa fila, la selecciona y la hace parpadear en el mapa para identificarla), «Mostrar atributos» si la capa tiene algo que mostrar (la ficha KML o la tabla de propiedades de un GeoJSON, la misma que el botón ℹ) y, si su tipo admite el diálogo de propiedades, **«Editar propiedades»**, que lo abre directamente —el mismo diálogo, con sus pestañas «Estilos» y «Atributos», que el botón 🎨 o Alt+Intro, sin tener que ir antes al árbol—. Sobre una ruta (también un arco) añade **«Obtener perfil»** (apartado 7.9), o **«Mostrar perfil»** si ya lo tiene; «Obtener» sale deshabilitada —con el motivo al pasar el ratón— si no hay ninguna fuente de elevación elegida o si la ruta es más larga que el límite de Preferencias. Cuando hay varias capas superpuestas exactamente bajo el cursor, estas opciones se convierten en un submenú con una entrada por capa, para elegir sobre cuál de todas se quiere actuar; la del perfil sigue estando aunque bajo la ruta haya una cuadrícula de elevación (por ejemplo, las celdas de su propio perfil), y con varias rutas debajo es un submenú «Perfil de ruta» con una entrada por ruta.
 
@@ -356,7 +357,7 @@ Con más de una capa seleccionada, el diálogo de estilos se abre igual, pero co
 
 ### 6.5 Ficha de información y propiedades
 
-Cuando una capa procede de un KML con una descripción, o de un GeoJSON con propiedades, el botón ℹ de su fila —o pasar el ratón por encima de la capa en el mapa, o «Mostrar atributos» del menú contextual— abre una ficha con esa información: el texto original en el caso de un KML (filtrado de cualquier contenido peligroso, conservando el texto) o una tabla de clave y valor en el caso de un GeoJSON. Si el tipo de capa admite edición (marcador, forma, medición…), la ficha lleva un botón «Editar propiedades» que la cierra y abre el diálogo de propiedades de esa misma capa (estilos y atributos: color, tamaño, posición, etc.).
+Cuando una capa procede de un KML con una descripción, o de un GeoJSON con propiedades, el botón ℹ de su fila —o pasar el ratón por encima de la capa en el mapa, o «Mostrar atributos» del menú contextual— abre una ficha con esa información (la que abre el ratón se cierra sola poco después de apartarlo de la capa, pero se queda mientras el puntero está sobre la propia ficha, para poder leerla o llegar a su enlace; la que abren el botón ℹ o «Mostrar atributos» se queda hasta cerrarla): el texto original en el caso de un KML (filtrado de cualquier contenido peligroso, conservando el texto) o una tabla de clave y valor en el caso de un GeoJSON. Si el tipo de capa admite edición (marcador, forma, medición…), la ficha lleva un botón «Editar propiedades» que la cierra y abre el diálogo de propiedades de esa misma capa (estilos y atributos: color, tamaño, posición, etc.).
 
 ![Ficha de propiedades de un elemento GeoJSON, en tabla de clave y valor](img/ficha-propiedades.png)
 *Figura 34. Propiedades de «Sensor 1», tal como venían en el archivo GeoJSON de origen.*
@@ -649,6 +650,25 @@ Un servicio **ArcGIS REST (MapServer)** publica un mapa con varias capas —por 
 - **Qué se guarda.** Se guarda, con el árbol, la dirección del servicio, su lista de capas y cuáles están marcadas: al volver a abrir la aplicación **no se vuelve a pedir el catálogo**, pero un servicio guardado como activo sí vuelve a pedir sus imágenes. El servicio **sí viaja** en un archivo `.kite.json` (💾), pero no en KML ni en GeoJSON (el aviso lo nombra: sus capas son un catálogo remoto, no datos). Al abrir el `.kite.json` de otra persona, o pegar desde otra pestaña, el servicio **llega apagado**, con todas sus capas, y un aviso dice de qué servidor se trata: no se consulta ningún servidor hasta que se enciende.
 - **Privacidad.** Como con cualquier mapa base, el servidor ve la dirección IP del usuario y las zonas del mapa que consulta; al traer los datos de una capa, además, qué capa. Del contenido de los archivos cargados no le llega nada (ver el estudio de seguridad).
 
+### 7.17 Consultar los artículos de Wikipedia de los alrededores
+
+Con el botón derecho sobre el mapa, **«Consultas» › «Artículos de Wikipedia en la vista»** pregunta a **Wikipedia** qué artículos tienen coordenadas dentro de lo que se ve del mapa, contado desde el punto pulsado, y los añade al árbol como marcadores, dentro de la sección «Wikipedia», en una carpeta nueva («Wikipedia 1», «Wikipedia 2»…). Cada artículo es un marcador con una **«W» sobre un círculo blanco** (así se lee igual sobre el mapa de calles que sobre una ortofoto o un fondo oscuro), y su nombre es el título del artículo. Como el mapa no se mueve, la carpeta nueva queda **plegada y resaltada** en el árbol, y el aviso dice cómo verlos: pulse **🔍** en la carpeta y la vista se encuadra sobre todos los artículos. **La distancia es la de la vista actual**: el radio llega hasta la esquina más lejana del visor (con el mapa girado también), de modo que acercar el mapa busca solo alrededor y alejarlo busca más lejos. Se piden como mucho los **100 más cercanos** al punto pulsado: con una vista grande o en el centro de una ciudad caben todos en unos pocos cientos de metros, y entonces un aviso lo dice, con la distancia en la unidad elegida en Propiedades («Se muestran los 100 artículos más cercanos; puede haber más a menos de 0.337 NM»). **Wikipedia no admite radios de más de 10 km** (ni menos de 10 m): con una vista más ancha se busca hasta 10 km y otro aviso lo dice; los 100 más cercanos son el límite que manda en ese caso.
+
+![Los artículos de Wikipedia alrededor de la Puerta del Sol, en Madrid, como marcadores «W» sobre el mapa, y su carpeta en el árbol](img/wikipedia.png)
+*Figura 60. Los 100 artículos de Wikipedia más cercanos a la Puerta del Sol (Madrid), como marcadores «W», y su carpeta «Wikipedia 1» en la sección «Wikipedia» del árbol. La atribución de Wikipedia ha pasado a la línea inferior.*
+
+La ficha de un marcador (el botón ℹ, o un clic sobre él) trae el **resumen** del artículo (las primeras frases, sin formato), un enlace **«Leer el artículo completo en Wikipedia»**, que se abre en otra pestaña, y la **distancia** desde el punto consultado, en la unidad elegida en Propiedades (con tres decimales en km, mi y NM, y sin decimales en m y ft). Es un texto fijo: si luego se cambia la unidad, la ficha ya creada no se actualiza. Cada marcador es una capa como las demás: se puede ocultar, renombrar, cambiar de estilo (🎨), borrar, deshacer, exportar y copiar.
+
+![La ficha de un artículo: su resumen, el enlace al artículo completo y la distancia al punto consultado](img/wikipedia-ficha.png)
+*Figura 61. La ficha del artículo «Puerta del Sol»: el resumen, el enlace «Leer el artículo completo en Wikipedia» y, debajo, la distancia al punto consultado y el crédito de la licencia.*
+
+- **Es una consulta expresa.** Solo se pide algo a Wikipedia cuando se elige esta opción; mover el ratón o abrir un archivo no consulta nada. Mientras dura, el cursor sobre el mapa es el de espera. Se envían las coordenadas del punto pulsado y el radio y, después, los identificadores de los artículos que devuelve. La vista no se mueve, y funciona también con el mapa girado.
+- **Idioma.** Se consulta la Wikipedia en español si la interfaz está en español y la inglesa en cualquier otro caso. El máximo (100 artículos) y el tope de 10 km son fijos; el radio, dentro de ese tope, es el de la vista.
+- **Cada consulta, una carpeta.** Repetirla, en el mismo punto o en otro, añade una carpeta nueva; no se fusionan ni se comprueban duplicados. Si no hay ningún artículo en el radio, se avisa y no se crea nada. Si se vuelve a elegir mientras la consulta de ese mismo punto sigue en marcha, un aviso lo dice y no se lanza otra.
+- **Fallos.** Un fallo pasajero del servicio (no responde, está ocupado) se repite solo hasta tres veces; si no se consigue, aparece un aviso con la causa. Si fallan solo los resúmenes de algunos artículos, esos marcadores entran igualmente, con el enlace pero sin resumen, y el aviso dice cuántos y por qué. Sin conexión, la opción avisa de que no hay red.
+- **Atribución y licencia.** El texto de Wikipedia se publica con licencia CC BY-SA 4.0: «© Wikipedia (CC BY-SA 4.0)» aparece en la línea inferior del mapa la primera vez que se consulta en la sesión y también al abrir la aplicación si el árbol guardado ya tiene marcadores de Wikipedia; la ficha de cada artículo lo recuerda. (Un `.kite.json` con marcadores de Wikipedia, o pegarlos desde otra pestaña, no lo añade hasta que se recarga.)
+- **Privacidad.** Wikipedia ve la dirección IP del usuario, el punto pulsado y qué artículos se piden; del contenido de los archivos cargados no le llega nada (ver el estudio de seguridad).
+
 ## 8. Atajos de teclado
 
 La misma información está disponible en cualquier momento con la tecla `?` o el botón de ayuda de la cabecera, organizada en pestañas («Navegación», «Actuar», «Visor», «Dibujar y editar») para no tener que scrollear una única tabla larga. Se cierra con la **×** de arriba a la derecha, con Escape o con la misma tecla `?`.
@@ -656,7 +676,7 @@ La misma información está disponible en cualquier momento con la tecla `?` o e
 Esa × es la norma de **todas** las ventanas de la aplicación: arriba a la derecha de la barra del título, siempre en el mismo sitio y con el mismo aspecto, y **equivale al botón «Cancelar»** de la ventana o, si no tiene, a «Cerrar» (con «Escape» pasa lo mismo). En las ventanas cuyo único botón sería «Cerrar» (la chuleta, los cálculos geodésicos y el perfil de una ruta) es además lo único: en vez de un pie con un solo botón, la × en la barra del título, que se ve siempre, y ese espacio para el contenido. Las demás conservan su pie con «Cancelar», «Aceptar», etc.
 
 ![Chuleta de atajos de teclado completa](img/atajos.png)
-*Figura 60. Chuleta de atajos de teclado (tecla `?`), pestaña «Navegación». Las otras tres son «Actuar», «Visor» y «Dibujar y editar».*
+*Figura 62. Chuleta de atajos de teclado (tecla `?`), pestaña «Navegación». Las otras tres son «Actuar», «Visor» y «Dibujar y editar».*
 
 **Moverse por el árbol**
 

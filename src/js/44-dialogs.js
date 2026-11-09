@@ -547,6 +547,11 @@ const descTitle = document.getElementById("desc-title");
 const descBody = document.getElementById("desc-body");
 const descEditBtn = document.getElementById("desc-edit");
 let descLayer = null; /* capa cuya ficha se muestra ahora */
+/* A panel opened by hovering stays while the pointer is ON it (to read it, to
+   reach its link, or because it opened over the layer) and closes soon after the
+   pointer leaves it; see scheduleLayerInfoHide. */
+descBox.addEventListener("mouseenter", cancelLayerInfoHide);
+descBox.addEventListener("mouseleave", scheduleLayerInfoHide);
 /* De la ficha de atributos (solo lectura) a la edición de la misma capa:
    cierra la ficha y abre el diálogo de propiedades (pestaña Estilos). */
 descEditBtn.addEventListener("click", () => {

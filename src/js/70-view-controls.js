@@ -785,12 +785,14 @@ const CTX_MENU_ITEMS = [
      su cuenta: «Elevación» descarga MDT/MDS de la tesela bajo el puntero
      con las fuentes de Propiedades → Fuentes de datos (ver
      queryElevationAt), «Parcela catastral» el polígono y la ficha de la
-     parcela (ver queryCadastralParcelAt).                              */
+     parcela (ver queryCadastralParcelAt) and «Artículos de Wikipedia en la vista»
+     the articles around the point (see queryWikipediaAt).               */
   {
     label: tr("Consultas"),
     items: [
       { label: tr("Elevación"), action: latlng => queryElevationAt(latlng), disabled: () => elevQueryDisabled() },
-      { label: tr("Parcela catastral"), action: latlng => queryCadastralParcelAt(latlng) }
+      { label: tr("Parcela catastral"), action: latlng => queryCadastralParcelAt(latlng) },
+      { label: tr("Artículos de Wikipedia en la vista"), action: latlng => queryWikipediaAt(latlng) }
     ]
   },
   /* Las tres mediciones agrupadas en un submenú: son la misma familia y

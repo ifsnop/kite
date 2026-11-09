@@ -160,6 +160,14 @@ paths:
     antes o usados solo en tiempo de ejecución. Va tras `65-cadastre.js`;
     lo llaman archivos anteriores (30, 31, 32, 40, 44) solo en tiempo de
     ejecución. Ver `arcgis.md`.
+11f. **Artículos de Wikipedia** (`67-wikipedia.js`): dos consultas a la API de
+    MediaWiki (geosearch y extracts) y marcadores «W» en una carpeta numerada;
+    lo puro (coordenadas, direcciones, lectura de las respuestas, limpieza del
+    texto, ficha) se prueba en Node. Va tras `66-arcgis.js` y usa
+    `withElevRetries`/`isRetryableElevError` (`52`), `readCapped` (`65`),
+    `describeHttp` (`40`), `makeNode`, `applyMarkerStyle`, `fmtUnitDist` y
+    `escapeHtml`; el menú contextual (`70`) la llama solo en tiempo de
+    ejecución. Ver `wikipedia.md`.
 12. **Controles de vista**: autoescala, ES/IC, retícula, coordenadas.
 13. **Arranque**: restauración del árbol guardado. Al final, para que
     todo esté definido.

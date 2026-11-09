@@ -19,10 +19,10 @@ function buildApi({ hideDelay = 5, guardMs = 5 } = {}) {
     const focusReturn = [];
   ` + [fn("hideLayerInfo"), fn("cancelLayerInfoHide"), fn("scheduleLayerInfoHide"), fn("showLayerInfo"), fn("setTool")].join("\n");
 
-  const focusState = { insideDesc: false };
+  const focusState = { insideDesc: false, pointerOver: false };
   const descDialog = { hidden: true };
   const styleDialog = { hidden: true };
-  const descBox = { contains: () => focusState.insideDesc };
+  const descBox = { contains: () => focusState.insideDesc, matches: sel => sel === ":hover" && focusState.pointerOver };
   const descTitle = { textContent: "" };
   const descBody = { innerHTML: "" };
   const toolButtons = {};
@@ -164,6 +164,19 @@ for (const tool of ["route", "circle"]) {
   b9.api.scheduleLayerInfoHide();
   await wait(20);
   ok(b9.api.dialogHidden() === false, "con el foco de teclado dentro del panel, el cierre diferido no actúa");
+
+  // 10. El puntero sobre la propia ficha la mantiene abierta (puede abrirse justo
+  //     encima de la capa que se recorre, o el usuario va hacia su enlace)
+  const b10 = buildApi({ hideDelay: 5 });
+  b10.api.showLayerInfo(li, { focus: false });
+  b10.focusState.pointerOver = true;
+  b10.api.scheduleLayerInfoHide();
+  await wait(20);
+  ok(b10.api.dialogHidden() === false, "con el puntero sobre la ficha, el cierre diferido no la cierra");
+  b10.focusState.pointerOver = false;
+  b10.api.scheduleLayerInfoHide();
+  await wait(20);
+  ok(b10.api.dialogHidden() === true, "y al salir el puntero, se cierra como siempre");
 
   if (!process.exitCode) console.log("TOOLS TESTS OK");
 })();

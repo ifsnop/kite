@@ -243,8 +243,8 @@ const submenu = (disparador, pulsar = null) => page.evaluate(([d, p]) => {
 
 ok(JSON.stringify((await submenu("Copiar ▸")).labels) === JSON.stringify(["Coordenadas", "Enlace a esta vista"]),
   "«Copiar» ofrece las coordenadas y el enlace a la vista");
-ok(JSON.stringify((await submenu("Consultas ▸")).labels) === JSON.stringify(["Elevación", "Parcela catastral"]),
-  "«Consultas» ofrece Elevación y Parcela catastral, cada una por su cuenta");
+ok(JSON.stringify((await submenu("Consultas ▸")).labels) === JSON.stringify(["Elevación", "Parcela catastral", "Artículos de Wikipedia en la vista"]),
+  "«Consultas» ofrece Elevación, Parcela catastral y Artículos de Wikipedia, cada una por su cuenta");
 /* Pasar a otro disparador cambia de submenú: solo hay uno abierto a la vez */
 const medirSub = await submenu("Medir ▸");
 ok(JSON.stringify(medirSub.labels) === JSON.stringify(["Ruta", "Círculo", "Arco"]),
