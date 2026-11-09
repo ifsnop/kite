@@ -39,12 +39,21 @@ description: Principios no negociables, vocabulario y checklist de KITE Local. S
    no se mantenía y ya había que corregirlo; recortado a lo que se usa
    y atado a Leaflet 1.9.4 (ver `map-rotation.md`). Incorporar otra
    librería así exige la misma justificación.
-3. **Código limpio, comentado en inglés.** Comentarios en inglés,
-   explican el *porqué* no el *qué*; textos de interfaz y mensajes al
-   usuario escritos EN ESPAÑOL dentro de `tr("…")` — el español es la
-   clave y el inglés (y cualquier otro idioma) va en un diccionario;
-   ver `i18n.md`. Funciones pequeñas, una responsabilidad. Al
-   terminar un cambio, `grep` y eliminar referencias muertas.
+3. **Código limpio, comentado en inglés.** **TODOS los comentarios del
+   código (JS, CSS, HTML, `build.js`, herramientas y pruebas) y TODOS los
+   comentarios en GitHub (título y descripción de un PR, comentarios y
+   reseñas de PR e issues, mensajes de commit) van en INGLÉS, sin
+   excepción** (regla pedida expresamente por el usuario, 2026-11-09). Los
+   comentarios explican el *porqué* no el *qué*. Lo que NO es un comentario
+   sigue como estaba: los textos de interfaz y mensajes al usuario se
+   escriben EN ESPAÑOL dentro de `tr("…")` — el español es la clave y el
+   inglés (y cualquier otro idioma) va en un diccionario; ver `i18n.md` — y
+   los documentos (`docs/`, estas reglas, el manual) siguen en español, salvo
+   el `README.md`, que ya es inglés. **Lo que ya está escrito en español no se
+   traduce de golpe** (son miles de líneas, ver `docs/pendientes…`, 1.13): se
+   traduce al tocarlo, y todo lo NUEVO nace en inglés. Funciones pequeñas, una
+   responsabilidad. Al terminar un cambio, `grep` y eliminar referencias
+   muertas.
 4. **Sin código de compatibilidad hacia atrás.** El almacenamiento está
    versionado; lo que no corresponda a la versión actual se BORRA, no
    se migra. No subir versiones sin cambio que lo justifique.
@@ -189,3 +198,6 @@ que quien lea la documentación la encuentre. Aquí no se duplica:
     `docs/pendientes-y-propuestas-kite-local.md`, BORRARLO de ahí; si deja una
     deuda a propósito o descubre una limitación, APUNTARLA. Ver el apartado
     «Pendiente» de arriba.
+16. **Idioma de lo que se escribe**: los comentarios del código y todo lo que
+    se publica en GitHub (commits, título y cuerpo de un PR, comentarios) en
+    INGLÉS (principio nº3). Los textos de interfaz, en español dentro de `tr()`.
