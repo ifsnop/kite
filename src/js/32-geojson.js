@@ -611,7 +611,16 @@ function cancelLayerInfoHide() {
 function scheduleLayerInfoHide() {
   if (descDialog.hidden || descBox.contains(document.activeElement)) return;
   cancelLayerInfoHide();
-  layerInfoHideTimer = setTimeout(() => { hideLayerInfo(); layerInfoHideTimer = null; }, LAYER_INFO_HIDE_DELAY);
+  layerInfoHideTimer = setTimeout(() => {
+    layerInfoHideTimer = null;
+    /* The pointer is on the panel itself: it always opens in the same corner, so
+       it can land right over the layer being hovered (a «W» near the top-right
+       edge) or the user may be heading for the link inside it. Closing it now
+       would put the layer back under the pointer, reopen it and blink for ever.
+       It closes when the pointer leaves it (`mouseleave`, 44-dialogs.js). */
+    if (descBox.matches(":hover")) return;
+    hideLayerInfo();
+  }, LAYER_INFO_HIDE_DELAY);
 }
 
 /* One-shot guard set when LEAVING a drawing tool (see setTool): the
@@ -1959,7 +1968,7 @@ function buildRecordLayer(rec) {
      la gota de Leaflet al activarlo tras recargar. Aplicarlo dos
      veces (otra vez en materializeRecords, si la fila sí llega a
      crearse) es inocuo: setIcon con el mismo icono no hace nada.  */
-  if (rec.mstyle) styleMarkerIcon(layer, rec.mstyle);
+  if (rec.mstyle) styleMarkerIcon(layer, rec.mstyle, typeof rec.name === "string" ? rec.name : "");
   return layer;
 }
 

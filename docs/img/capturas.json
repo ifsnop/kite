@@ -195,10 +195,10 @@
       "build": "202611091532"
     },
     "menu-consultas.png": {
-      "sha256": "b8db8e5cb451d073207789b5f969c623366b5475f9585af57ff68ea1fb53721e",
+      "sha256": "160b28e9d8b568ae1808d8a139453e7afbf226c8fd81cd45f9b685886791cecf",
       "section": "5",
       "version": "2.4.0",
-      "build": "202611091532"
+      "build": "202611091544"
     },
     "menu-contextual-submenu.png": {
       "sha256": "daf715af01c3ddb4d3a9844a072893d16aeaa0e4492bb9bab4fb31d5c72d428a",
@@ -362,6 +362,18 @@
       "section": "1",
       "version": "2.4.0",
       "build": "202611091532"
+    },
+    "wikipedia-ficha.png": {
+      "sha256": "283172a633caf847c0cb9908ca3c3459d9b11ab5f104ac352ffa415cdc5f2844",
+      "section": "7.17",
+      "version": "2.4.0",
+      "build": "202611091544"
+    },
+    "wikipedia.png": {
+      "sha256": "10621e7e5b7ea5214dc1ecb15df4a3bf66218680c0f88b29b5fd8a6a93e5b622",
+      "section": "7.17",
+      "version": "2.4.0",
+      "build": "202611091544"
     }
   }
 }

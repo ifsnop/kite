@@ -9,8 +9,8 @@ paths:
 
 - `CTX_MENU_ITEMS`: lista genérica, en click derecho sin capa. **Cuatro
   filas, sin separadores, agrupadas por tema** (pedido, 30-10-2026):
-  **«Copiar ▸»** con «Coordenadas» y «Enlace a esta vista» (`copyViewLink`, ver `view-controls-map.md`); **«Consultas ▸»** con «Elevación» y «Parcela
-  catastral» (dos entradas distintas que se activan por separado, no una
+  **«Copiar ▸»** con «Coordenadas» y «Enlace a esta vista» (`copyViewLink`, ver `view-controls-map.md`); **«Consultas ▸»** con «Elevación», «Parcela
+  catastral» y «Artículos de Wikipedia en la vista» (tres entradas distintas que se activan por separado, no una
   combinada); **«Medir ▸»** con Ruta, Círculo y Arco; **«Crear ▸»** con
   «Polígono o línea», «Anillos de alcance…», «Sector…» y «Pin» (el MISMO orden que los botones de la barra de dibujo). **Fuera, a propósito**: los tres «Centrar…»,
   «Paralelos y meridianos» y «Exportar PNG», que ya tienen su botón en la
@@ -30,6 +30,7 @@ paths:
 - **`disabled()` opcional en un ítem**: devuelve el MOTIVO (texto, va al `title`) o algo falso. El ítem se pinta deshabilitado, no se esconde. Hoy lo usan «Consultas › Elevación» (`elevQueryDisabled`: mapa rotado, o las dos fuentes de elevación en «Ninguna») y «Obtener perfil» (`routeProfileDisabled`).
 - **«Consultas › Elevación»** (`queryElevationAt(latlng)`) sustituye al antiguo interruptor «Modo elevación» y al botón ⛰: una consulta puntual de la tesela bajo el puntero, una capa por consulta. Ver `elevation-dem.md`.
 - **«Consultas › Parcela catastral»** (`queryCadastralParcelAt(latlng)`, `65-cadastre.js`), junto a «Elevación» en el submenú «Consultas» de `CTX_MENU_ITEMS`: trae el polígono de la parcela bajo el puntero como capa del árbol. Sin `disabled()`: no depende del giro del mapa. Ver `cadastre.md`.
+- **«Consultas › Artículos de Wikipedia (5 km)»** (`queryWikipediaAt(latlng)`, `67-wikipedia.js`), tercera entrada del submenú «Consultas»: marcadores «W» con el resumen de cada artículo a menos de 5 km. Sin `disabled()`. Ver `wikipedia.md`.
 - **«Obtener perfil» / «Mostrar perfil»** sobre una ruta (`isRouteLi`, arcos incluidos): un solo ítem, `routeProfileCtxItem(li)` (`63-route-profile.js`), «Mostrar» si ya tiene perfil; «Obtener» con `disabled: () => routeProfileDisabled(li)` (sin fuentes, o ruta más larga que el límite). El `disabled()` genérico de `renderCtxItems` vale también para los ítems de capa y los de un submenú. **Va también en el menú de VARIAS capas** (`ctxItemsFor`): una ruta, el ítem tal cual; varias, submenú «Perfil de ruta» por nombre. **Trampa (fallo real)**: una ruta casi nunca está sola bajo el cursor — las celdas de su propio perfil (o de cualquier cuadrícula de elevación) quedan debajo y el hit-testing las acierta aunque sus rectángulos sean `interactive: false` (prueba la geometría, no los eventos de Leaflet); con el ítem solo en `layerCtxItems`, la opción desaparecía tras el primer perfil. Ver `elevation-dem.md`, «Perfil de una ruta».
 - **«Medir ▸» es un submenú fijo de `CTX_MENU_ITEMS`** con Ruta, Círculo y Arco (cada uno alterna su herramienta con `setTool`); «Crear ▸» agrupa «Polígono o línea» (también alterna `setTool`), «Anillos de alcance…»/«Sector…» (`openRangeDialog(modo, latlng)`, `53-range-rings.js`) y «Pin» (`createPin(latlng)`; el último, como el botón): las tres hojas que USAN el punto pulsado (es el centro, o el lugar del pin), así que su `action` recibe `latlng`. Los botones ◎, ◔ y 📍 de la barra hacen lo mismo con UN clic en el mapa (herramientas `PLACE_TOOLS`).
 - **Elegir una acción devuelve el foco al VISOR antes de ejecutarla**

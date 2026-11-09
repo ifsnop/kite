@@ -98,6 +98,7 @@ const JS = [
   "64-cog.js",            /* ortofotos COG: almacén "rasters", GridLayer reproyectada */
   "65-cadastre.js",       /* parcela catastral (menú contextual): RCCOOR + WFS INSPIRE del Catastro */
   "66-arcgis.js",         /* servicios ArcGIS (MapServer) como nodo del árbol: /export por teselas y /query */
+  "67-wikipedia.js",      /* artículos de Wikipedia a menos de 5 km (menú contextual): geosearch + extracts */
   "70-view-controls.js",  /* controles de vista y menú contextual */
   "99-boot.js"            /* arranque: restaurar el árbol guardado */
 ];

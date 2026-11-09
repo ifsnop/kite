@@ -26,4 +26,4 @@ paths:
   se está creando) no se lleva el foco (`focusDialog(box, false)`, vía
   `openStyleDialog(li, { focus: false })`): las teclas del visor tienen
   que seguir llegando (ver `view-controls-map.md`).
-
+- **Marker icons have an accessible name** (`nameMarkerIcon`, `42-hittest.js`): Leaflet makes every marker icon a keyboard-focusable `role="button"` and names none of them, so a screen reader heard "button" a hundred times in a folder of Wikipedia articles. The node name goes in `aria-label` (not `title`, which would add a native tooltip over the hover card). It is set where the style is applied (`applyMarkerText`, for rows) and on the raw layer of a restored record (`styleMarkerIcon(layer, s, name)`, which has no row yet), and again on the layer's `add` event because Leaflet recreates the icon element. Only marker layers with a custom style go through there; the default Leaflet pin is unchanged.

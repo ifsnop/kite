@@ -140,6 +140,8 @@
   let nodes = null, treeRead = false;
   try { nodes = await dbLoadTree(); treeRead = true; } catch { nodes = null; }
   if (nodes && nodes.length) await restoreTree(nodes);
+  /* Wikipedia markers saved earlier still need their CC BY-SA credit (67-wikipedia.js) */
+  if (nodes && wikipediaInRecords(nodes)) ensureWikipediaAttribution();
   /* Ortofotos COG que ya no nombra nadie (borradas en otra sesión): solo
      si el árbol se leyó de verdad; con un fallo de lectura, borrar
      sería tirar las de un árbol que sigue ahí.                       */

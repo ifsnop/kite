@@ -110,7 +110,9 @@ const MDI_ICONS = [
     "square-outline", "triangle", "triangle-outline", "hexagon", "pentagon",
     "rhombus", "octagon"]],
   [tr("Se\u00F1ales"), ["sign-caution", "sign-direction", "sign-pole", "sign-text",
-    "traffic-light", "road-variant", "alert", "alert-octagon", "map-marker-alert"]]
+    "traffic-light", "road-variant", "alert", "alert-octagon", "map-marker-alert"]],
+  /* The "W" of the Wikipedia markers (67-wikipedia.js); also offered in the picker */
+  [tr("Informaci\u00F3n"), ["wikipedia"]]
 ];
 
 /* Un nombre que la tabla no conozca (un árbol guardado con un catálogo

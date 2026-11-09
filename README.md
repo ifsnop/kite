@@ -262,11 +262,17 @@ the flag clears by itself when the tiles come back.
   dropped), and a service that arrives inside someone else's `.kite.json`
   arrives switched off, with a notice naming the server
 
-### Cadastral parcel and orthophotos
+### Cadastral parcel, Wikipedia articles and orthophotos
 
 - right-click → «Consultas» › «Parcela catastral» asks the Spanish Cadastre
   which parcel lies under the click and adds it as a polygon, with its
   cadastral reference
+- right-click → «Consultas» › «Artículos de Wikipedia en la vista» asks Wikipedia
+  for the geotagged articles within the reach of the current view from the click
+  (up to the service's 10 km maximum; the 100 nearest) and adds
+  them as «W» markers in a new folder; each marker's card holds the article's
+  summary, a link to the full article and its distance, and the CC BY-SA credit
+  is added to the map's attribution
 - Cloud Optimized GeoTIFF orthophotos and elevation models (see
   [File support](#file-support)) stay in the browser's own store and are never
   part of an export
@@ -429,6 +435,11 @@ The current build is not fully offline and makes external requests:
   with the user's own instance ID;
 - a cadastral parcel is requested from the Spanish Cadastre (INSPIRE WFS), only
   when you ask for one from the context menu;
+- the Wikipedia articles near a point are requested from the MediaWiki API of
+  `es.wikipedia.org` or `en.wikipedia.org` (the language of the interface),
+  only when you ask for them from the context menu: the coordinates of the
+  click and the radius of the current view (10 m to 10 km), then the ids of the
+  articles found;
 - an ArcGIS map service you add is asked for its layer list once, and then for
   the images of the layers you tick, from the address you pasted — the only
   server in this list that the user names.
@@ -526,10 +537,10 @@ Do not use public tile, geocoding or CDN services for sensitive work without an 
 ### Done
 
 - **The sources are split.** The application is edited as `src/index.html`,
-  `src/styles.css`, `src/sw.js` and 41 JavaScript files, concatenated into the
+  `src/styles.css`, `src/sw.js` and 42 JavaScript files, concatenated into the
   shipped file by `build.js`. The single-file product is the output, not the
   source.
-- **There are automated tests.** 131 suites run against the shipped
+- **There are automated tests.** 133 suites run against the shipped
   file — most under Node, plus a set that drives a real headless browser —
   covering coordinate parsing and formatting, UTM, KML namespaces and
   styles, geometry conversion, serialization, tree navigation and
@@ -555,6 +566,9 @@ Do not use public tile, geocoding or CDN services for sensitive work without an 
 - **A live tree filter**: typing in the layer search keeps only what matches (a
   20,000-layer folder filters in about 20 ms instead of building every row), and
   interface motion that respects the reduced-motion preference.
+- **Nearby Wikipedia articles** from the context menu: the geotagged articles
+  within the current view of a point become «W» markers with a summary and a link to the
+  full article.
 - **Offline reload**: a small service worker keeps the application and its
   pinned libraries, so a discarded tab comes back without a network.
 

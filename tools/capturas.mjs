@@ -921,6 +921,48 @@ scenario("parcela-catastral.png", "7.12", async out => {
   await ctx.close();
 }, ["parcela-ficha.png"]);
 
+/* ===== 7.17 Wikipedia articles within the current view ===== */
+/* The REAL answers of the Spanish Wikipedia (tests/fixtures): the geosearch around the
+   Puerta del Sol and the summaries of the 20 nearest articles. The other pages get a
+   placeholder summary: only the nearest ones are looked at in the figures.        */
+const wikipediaRoute = page => page.route(/\.wikipedia\.org/, route => {
+  const u = new URL(route.request().url());
+  const json = body => route.fulfill({ status: 200, contentType: "application/json; charset=utf-8",
+    body: JSON.stringify(body), headers: { "access-control-allow-origin": "*" } });
+  const geo = JSON.parse(fixture("wikipedia-geosearch-madrid.json"));
+  if (u.searchParams.get("list") === "geosearch") return json(geo);
+  const real = new Map(JSON.parse(fixture("wikipedia-extracts-madrid.json")).query.pages.map(p => [p.pageid, p]));
+  const titles = new Map(geo.query.geosearch.map(r => [r.pageid, r.title]));
+  const ids = u.searchParams.get("pageids").split("|").map(Number);
+  return json({ batchcomplete: true, query: { pages: ids.map(id => real.get(id)
+    || { pageid: id, ns: 0, title: titles.get(id) || "", extract: "Resumen de ejemplo del artículo." }) } });
+});
+
+scenario("wikipedia.png", "7.17", async out => {
+  const { ctx, page } = await openApp({ route: wikipediaRoute });
+  await view(page, [40.4169, -3.7035], 17);
+  await settle(page);
+  const q = await pt(page, 40.4169, -3.7035);
+  await page.mouse.move(q.x, q.y);
+  await page.mouse.click(q.x, q.y, { button: "right" });
+  await page.locator("#map-ctxmenu .ctx-menu-item", { hasText: "Consultas" }).click();
+  await page.locator(".ctx-menu:not(#map-ctxmenu) .ctx-menu-item", { hasText: "Artículos de Wikipedia" }).click();
+  await page.waitForFunction(() => [...document.querySelectorAll("#tree li")].filter(li => li._mstyle && li._mstyle.icon === "wikipedia").length >= 100);
+  /* the folder arrives collapsed and highlighted; the figure shows it opened, as the user would */
+  const caret = await page.evaluate(() => {
+    const r = [...document.querySelectorAll("#tree li")].find(li => li._name === "Wikipedia 1").querySelector(":scope > .node-row .caret").getBoundingClientRect();
+    return { x: r.x + r.width / 2, y: r.y + r.height / 2 };
+  });
+  await page.mouse.click(caret.x, caret.y);
+  await settle(page, { ms: 900 });
+  await page.mouse.move(VIEW.width - 300, 120);
+  await fullShot(page, out);
+  await page.evaluate(() => showLayerInfo([...document.querySelectorAll("#tree li")].find(li => li._name === "Puerta del Sol")));
+  await page.waitForSelector("#desc-dialog:not([hidden])");
+  await dialog(page, path.join(path.dirname(out), "wikipedia-ficha.png"), "desc-dialog");
+  await ctx.close();
+}, ["wikipedia-ficha.png"]);
+
 /* ===== 7.16 Servicio de mapas ArcGIS (MapServer) ===== */
 /* El catálogo es el REAL de un servicio de ENAIRE (tests/fixtures), servido bajo
    una dirección de ejemplo; las imágenes de /export se piden una vez por
