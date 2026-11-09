@@ -692,6 +692,8 @@ This application currently uses or accesses:
 - [Nominatim](https://nominatim.org/)
 - Esri World Terrain and hillshade
 - Spanish PNOA, IGN WMTS, WMS and WCS services
+- [Dirección General del Catastro](https://www.sedecatastro.gob.es/) — cadastral reference and INSPIRE parcel service, only when you ask for a parcel
+- [Wikipedia](https://www.wikipedia.org/) (MediaWiki API, Wikimedia Foundation) — geotagged articles and their summaries, only when you ask for them; the text is under CC BY-SA 4.0
 - [Ayuntamiento de Madrid orthophoto WMS](https://geoportal.madrid.es/) (data source: Ayuntamiento de Madrid)
 - [SRTM30 tiles from terrestris](https://ows.terrestris.de/) (SRTM data © NASA LP DAAC)
 - [Copernicus DEM through Sentinel Hub](https://dataspace.copernicus.eu/)
