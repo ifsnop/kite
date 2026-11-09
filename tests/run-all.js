@@ -101,7 +101,7 @@ const BROWSER = [
   ["browser/dialogs.mjs", "Navegador: las ventanas fijan cabecera y pie, y se redimensionan"],
   ["browser/split-save.mjs", "Navegador: guardado en dos niveles — plegar, marcar y borrar solo reescriben el esqueleto; disco = memoria tras borrar, mover, ordenar, cortar, pegar, editar una copia, deshacer y 200 operaciones aleatorias; fusión al arrancar, archivo soltado al arrancar, dos pestañas y subida desde la base v4"],
   ["browser/tree-move.mjs", "Navegador: mover un nodo de rama recalcula la casilla de los dos extremos"],
-  ["browser/multiedit.mjs", "Navegador: editar varios nodos a la vez y el nombre siempre a la vista de un trazo"],
+  ["browser/multiedit.mjs", "Navegador: editar varios nodos a la vez, la casilla de una fila seleccionada vale para toda la selección, y el nombre siempre a la vista de un trazo"],
   ["browser/live-preview.mjs", "Navegador: el diálogo de estilos aplica en vivo tamaño, icono y color, y Cancelar los revierte"],
   ["browser/lazy-cascade.mjs", "Navegador: desplegar y marcar una carpeta grande a la vez no la deja a medio encender"],
   ["browser/tree-filter.mjs", "Navegador: filtro del árbol con teclado y ratón reales — filtra a la 3.ª letra o con Intro, sin tildes ni mayúsculas y dentro de las palabras; no toca lo guardado ni collapsed; carpetas sin desplegar con «(n)» sobre el tope y solo las coincidentes por debajo; desplegar con el filtro construye solo lo que coincide; la × y Escape lo quitan; el teclado y Ctrl+A saltan lo oculto; lo nuevo se filtra solo; y lo guardado a medio construir es lo mismo, en el mismo orden, también tras recargar"],
@@ -149,7 +149,7 @@ const BROWSER = [
   ["browser/context-pending.mjs", "Navegador: el clic derecho sobre una capa de una carpeta nunca desplegada (tras recargar) la materializa y ofrece sus entradas, y una ruta con su perfil ofrece «Mostrar perfil» con «Mediciones» y «Perfiles de ruta» desplegadas o colapsadas"],
   ["browser/place-coords.mjs", "Navegador: unas coordenadas escritas en el buscador crean un marcador en «Lugares» y llevan el mapa allí a zoom 17 sin ninguna petición a Nominatim (con Intro y con el botón), un lugar sigue yendo a Nominatim, y una búsqueda en vuelo no repinta tras unas coordenadas"],
   ["browser/lazy-layers.mjs", "Navegador: un placemark apagado de polígonos o líneas guarda solo su GeoJSON (igual que toGeoJSON() de Leaflet, con un corpus) y su capa se construye al leerla: guardar, encuadrar, atributos y borrar no la construyen; recargar los deja perezosos; encender los construye"],
-  ["browser/focus-zoom.mjs", "Navegador: la lupa de un marcador centra el visor y acerca al zoom 14, siempre igual, y un polígono se encuadra entero sin ese zoom"],
+  ["browser/focus-zoom.mjs", "Navegador: la lupa de un marcador centra el visor y acerca al zoom 14, siempre igual, un polígono se encuadra entero sin ese zoom, y la lupa de una fila seleccionada encuadra todo el conjunto"],
   ["browser/i18n.mjs", "Navegador: idioma de la interfaz — «Automático» según el navegador, español e inglés sin español colado, el ajuste de Propiedades (guarda al Aceptar, vale al recargar) y un idioma nuevo sin tocar código"]
 ];
 

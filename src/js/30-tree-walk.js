@@ -515,9 +515,10 @@ function focusOnNode(li) {
   else map.setView(b.getCenter(), FOCUS_ZOOM);
 }
 
-/* La lupa del diálogo de propiedades, que puede tener VARIAS capas: con una,
-   exactamente la del árbol (`focusOnNode`); con varias, el CONJUNTO entero
-   encuadrado con margen. Si todas caen en el mismo punto (dos marcadores
+/* La lupa que puede tener VARIAS capas —la del diálogo de propiedades y la de
+   una fila que forma parte de una selección múltiple—: con una, exactamente
+   la del árbol (`focusOnNode`); con varias, el CONJUNTO entero encuadrado con
+   margen. Si todas caen en el mismo punto (dos marcadores
    superpuestos) no hay caja que encuadrar: zoom de trabajo, como un marcador. */
 function focusOnNodes(items) {
   if (items.length === 1) { focusOnNode(items[0]); return; }

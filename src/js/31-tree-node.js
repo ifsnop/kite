@@ -82,6 +82,11 @@ function makeNode({ name, layer = null, isFolder = false, isFile = false,
        indeterminadas; una carpeta ya se ha recalculado por dentro y
        aquí le tocan sus ancestros. Ver refreshAncestorChecks.      */
     if (!ul) refreshAncestorChecks(li);
+    /* La casilla de una fila de una selección múltiple vale para TODA la
+       selección (como el Espacio): el estado que se acaba de elegir aquí se
+       aplica a las demás. Gana el estado de la pulsada, no se invierte cada
+       una. Ver propagateCheck.                                            */
+    if (!propagatingCheck && selection.size > 1 && selection.has(li)) propagateCheck(li, chk.checked);
   });
   row.appendChild(chk);
 
@@ -130,6 +135,11 @@ function makeNode({ name, layer = null, isFolder = false, isFile = false,
     /* Los botones de la fila actúan sobre la selección existente: no
        deben cambiarla al pulsarlos                                   */
     if (e.target.closest(".actions")) return;
+    /* La casilla de una fila que YA está en una selección múltiple tampoco la
+       deshace: el `click` llega a la fila ANTES que el `change` de la casilla,
+       así que sin esto la selección se reducía a esta fila justo antes de que
+       la casilla mirase a quién aplicarse.                                 */
+    if (e.target === chk && !e.shiftKey && selection.size > 1 && selection.has(li)) return;
     if (e.shiftKey) {
       e.preventDefault();
       if (e.ctrlKey || e.metaKey) toggleOne(li);
@@ -274,6 +284,29 @@ function setFilterOpen(li, on) {
    y el filtro respeta ese cierre hasta que se quita. */
 function closeFilterOpen(li) { setFilterOpen(li, false); filterClosed.add(li); }
 
+/* Aplica `on` a las demás casillas de la selección múltiple cuando se pulsa
+   la de una de ellas. Recorre los nodos de nivel superior de la selección (lo
+   que cuelga de otra carpeta seleccionada ya lo cubre su cascada, igual que
+   en el Espacio) y a cada uno le pone el estado y le dispara `change`, así se
+   reutiliza TAL CUAL todo lo que ya hace una casilla (cascada de carpetas,
+   visibilidad, guardado, estado de los ancestros). `|| c.indeterminate`: una
+   carpeta a medias cuyo `checked` ya vale `on` sigue necesitando la cascada.
+   El indicador evita que cada `change` disparado aquí vuelva a propagar.  */
+let propagatingCheck = false;
+function propagateCheck(origin, on) {
+  propagatingCheck = true;
+  try {
+    for (const n of topLevelSelection()) {
+      if (n === origin) continue;
+      const c = nodeCheckbox(n);
+      if (c && (c.checked !== on || c.indeterminate)) {
+        c.checked = on;
+        c.dispatchEvent(new Event("change"));
+      }
+    }
+  } finally { propagatingCheck = false; }
+}
+
 /* Carpetas con filas Y registros pendientes (construidas a medias por el
    filtro). El filtro las completa al quitarse si están abiertas. Un Set de
    <li> a propósito: una carpeta borrada deja de estar conectada y se
@@ -354,8 +387,13 @@ function makeActions(li, sortable, styleable, layer, focusable = styleable, { fi
   }
   if (sortable) btn("\u25A6", tr("Tabla de atributos de esta carpeta"), "", () => openAttrTable(li));
   if (focusable) {
-    btn("\uD83D\uDD0D", tr("Centrar la vista aqu\u00ED y acercar (zoom {zoom})", { zoom: FOCUS_ZOOM }), "",
-        () => focusOnNode(li));
+    btn("\uD83D\uDD0D", tr("Centrar la vista aqu\u00ED y acercar (zoom {zoom})", { zoom: FOCUS_ZOOM }), "", () => {
+      /* si el nodo forma parte de la selección, la lupa encuadra el CONJUNTO
+         (como el × borra toda la selección y el 🎨 abre las propiedades de
+         todas); fuera de ella, solo esta fila                              */
+      const multi = selection.has(li) && selection.size > 1;
+      focusOnNodes(multi ? topLevelSelection() : [li]);
+    });
   }
   if (styleable) btn("\uD83C\uDFA8", tr("Editar propiedades"), "", () => openStyleDialog(li));
   /* Un marcador siempre lleva el botón, oculto mientras no tenga ficha:

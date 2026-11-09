@@ -451,6 +451,88 @@ const abierta = await page.evaluate(() => {
 ok(abierta.valor === "stroke" && abierta.gris === "both:gris,stroke:libre,fill:gris,none:gris", "una línea abierta solo admite «Solo contorno»: «Ninguno» sale en gris: " + JSON.stringify(abierta));
 ok(abierta.poligono === "ok,ok,ok,ok", "un polígono cerrado tiene las cuatro libres");
 
+/* ---------- La casilla de una fila seleccionada vale para TODA la selección ----------
+   Antes pulsar la casilla de una de varias filas seleccionadas solo cambiaba
+   esa y además DESHACÍA la selección: el `click` llega a la fila antes que el
+   `change` de la casilla, y el manejador de la fila deja «esta fila» como única
+   seleccionada. Con ratón y teclado de verdad, porque el fallo ES el orden de
+   los eventos y un `.click()` de JavaScript no lo ve igual.                  */
+await page.setViewportSize({ width: 1280, height: 900 });
+await page.evaluate(() => {
+  clearSelection();
+  const ul = __limpiar();
+  const marcador = nombre => {
+    const li = makeNode({ name: nombre, layer: L.marker([40.4, -3.7]), checked: false });
+    ul.appendChild(li);
+    return li;
+  };
+  for (const n of ["A", "B", "C", "D"]) marcador(n);
+  const f = makeNode({ name: "F", isFolder: true, checked: false });
+  ul.appendChild(f);
+  for (const n of ["F1", "F2"]) {
+    const h = makeNode({ name: n, layer: L.marker([40.5, -3.6]), checked: false });
+    nodeUl(f).appendChild(h);
+  }
+  marcador("E");
+  window.__li = n => [...document.querySelectorAll("#tree li")].find(l => l._name === n);
+  window.__estado = () => [...document.querySelectorAll("#tree li")].filter(l => l._name !== undefined).map(l => {
+    const c = l._row.querySelector("input");
+    return l._name + "=" + (c.checked ? 1 : 0) + (c._layer && rootGroup.hasLayer(c._layer) ? "m" : "");
+  }).join(" ");
+  window.__sel = () => [...selection].map(l => l._name).sort().join("") || "-";
+});
+const centro = (n, que) => page.evaluate(([n, que]) => {
+  const r = __li(n)._row.querySelector(que).getBoundingClientRect();
+  return { x: r.left + Math.min(8, r.width / 2), y: r.top + r.height / 2 };
+}, [n, que]);
+const clic = async (n, que, mods = []) => {
+  const p = await centro(n, que);
+  for (const m of mods) await page.keyboard.down(m);
+  await page.mouse.click(p.x, p.y);
+  for (const m of mods.reverse()) await page.keyboard.up(m);
+};
+const estado = () => page.evaluate(() => __estado());
+const sel = () => page.evaluate(() => __sel());
+
+await clic("A", "label");
+await clic("C", "label", ["Shift"]);
+ok(await sel() === "ABC", "A, B y C seleccionadas con Mayús+clic: " + await sel());
+await clic("B", "input");
+ok(/A=1m B=1m C=1m D=0 /.test(await estado()), "la casilla de B activa A, B y C, y las tres se ven en el mapa; D no: " + await estado());
+ok(await sel() === "ABC", "y la selección sigue siendo A, B y C (antes quedaba solo B): " + await sel());
+await clic("B", "input");
+ok(/A=0 B=0 C=0 D=0 /.test(await estado()), "otro clic las apaga a las tres y las quita del mapa: " + await estado());
+ok(await sel() === "ABC", "con la selección intacta");
+
+/* gana el estado de la casilla pulsada: no se invierte cada una */
+await page.evaluate(() => { const c = __li("A")._row.querySelector("input"); c.checked = true; applyVisibility(c); });
+await clic("B", "input");
+ok(/A=1m B=1m C=1m /.test(await estado()), "con A ya marcada, pulsar B (sin marcar) deja las tres MARCADAS, no A apagada: " + await estado());
+await page.evaluate(() => { const c = __li("A")._row.querySelector("input"); c.checked = false; applyVisibility(c); });
+await clic("B", "input");
+ok(/A=0 B=0 C=0 /.test(await estado()), "y si lo pulsado pasa a desmarcado, las tres quedan desmarcadas: " + await estado());
+
+/* Espacio: lo mismo, y ya NO colapsa la selección (cada casilla pulsada por dentro subía a la fila) */
+await page.keyboard.press(" ");
+ok(/A=1m B=1m C=1m D=0 /.test(await estado()), "Espacio activa las tres seleccionadas: " + await estado());
+ok(await sel() === "ABC", "y conserva la selección (antes quedaba solo la última): " + await sel());
+await page.keyboard.press(" ");
+ok(/A=0 B=0 C=0 /.test(await estado()), "otro Espacio las apaga");
+
+/* una casilla FUERA de la selección se queda como siempre: solo esa, y pasa a ser la única seleccionada */
+await clic("D", "input");
+ok(/A=0 B=0 C=0 D=1m /.test(await estado()), "la casilla de D (fuera de la selección) solo activa D: " + await estado());
+ok(await sel() === "D", "y D pasa a ser la única seleccionada: " + await sel());
+
+/* una carpeta y una capa seleccionadas: la casilla de la capa cascadea también la carpeta */
+await clic("F", "label");
+await clic("E", "label", ["Control", "Shift"]);
+ok(await sel() === "EF", "carpeta F y capa E seleccionadas con Ctrl+Mayús+clic: " + await sel());
+await clic("E", "input");
+await page.waitForFunction(() => !cascadingNodes.size);
+ok(/F=1 F1=1m F2=1m E=1m/.test(await estado()), "la casilla de E activa también la carpeta F y sus capas: " + await estado());
+ok(await sel() === "EF", "con la selección intacta");
+
 ok(errors.length === 0, "sin errores de página: " + JSON.stringify(errors));
 
 await browser.close();
