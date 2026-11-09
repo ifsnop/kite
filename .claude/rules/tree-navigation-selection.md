@@ -101,7 +101,15 @@ paths:
   polígono o medición (`styleKind` "polygon"/"measure") se encuadran
   enteros con margen (`fitBoundsFramed`, 20%) en vez de zoom fijo, para
   no cortar una ruta ancha. El doble click sobre esas filas sigue la
-  escalera normal; solo cambió el botón 🔍. **Una capa de elevación
+  escalera normal; solo cambió el botón 🔍. **Con la fila en una selección
+  múltiple, la lupa encuadra el CONJUNTO** (`focusOnNodes`: la unión de
+  `subtreeBounds` con `fitBoundsFramed`, o el zoom de trabajo si todo cae en el
+  mismo punto), igual que el × borra toda la selección y el 🎨 abre las
+  propiedades de todas; fuera de la selección, o con una sola, la fila sola. No
+  cambia la selección (el `click` de la fila sale en cuanto cae en `.actions`) y
+  usa `topLevelSelection()`, no `movableSelection()`: enfocar no mueve nada y
+  las capas de un servicio ArcGIS no se dejan fuera. Probado en
+  `tests/browser/focus-zoom.mjs`. **Una capa de elevación
   (`elevGrid`) también lleva 🔍** (pedido) aunque no tenga 🎨: `makeNode`
   acepta `focusable` (por defecto, `styleable`), que pasan
   `makeElevGridNode` y la rama `elevGrid` de `materializeRecords`; se
@@ -156,7 +164,19 @@ paths:
   nodos). No reintroducir barridos globales en el camino del teclado.
 - **El click lleva el cursor donde se pulsa** y deja ese nodo como
   única selección, salvo si cae en un botón de fila (actúan sobre la
-  selección existente sin cambiarla).
+  selección existente sin cambiarla) o en la **casilla de una fila que
+  ya forma parte de una selección múltiple**: esa casilla aplica el
+  estado que se acaba de elegir a TODA la selección (`propagateCheck`,
+  `31-tree-node.js`: gana el estado de la pulsada, no se invierte cada
+  una, y reutiliza el `change` de cada casilla —cascada, mapa, guardado—)
+  y no la deshace. La casilla de una fila FUERA de la selección sigue
+  siendo la de siempre: solo esa, y pasa a ser la única seleccionada.
+  **Trampa del orden de eventos**: el `click` de la casilla sube a la
+  fila ANTES de que se dispare su `change`; sin cortar ahí el manejador
+  de la fila, la selección ya se había reducido a esa fila cuando la
+  casilla miraba a quién aplicarse. El mismo orden hacía que el Espacio
+  (`toggleVisibility`, que pulsa cada casilla con `.click()`) activase
+  todas las seleccionadas pero dejase como selección solo la última.
 - **Los botones de fila aparecen solo con el ratón encima** — ni la
   fila del cursor ni `:focus-within` (el foco pasa a la casilla al
   pulsar, y `:focus-within` los dejaría fijos sin ratón). No son

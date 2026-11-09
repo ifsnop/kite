@@ -206,6 +206,9 @@ const GLOBALS = new Set([
   /* `MutationObserver`: el filtro del árbol (45-tree-filter.js) re-filtra lo
      que nazca con el filtro puesto. Disponible en todos los navegadores objetivo. */
   "MutationObserver",
+  /* `Event`: la casilla de una fila de una selección múltiple dispara el
+     `change` de las demás seleccionadas (propagateCheck, 31-tree-node.js). */
+  "Event",
   /* `Image`, `XMLSerializer` y `getComputedStyle`: exportar la gráfica del
      perfil como PNG (63-route-profile.js): se serializa su SVG con los
      estilos ya calculados y se dibuja en un lienzo. Disponibles en todos
