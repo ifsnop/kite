@@ -252,6 +252,50 @@ function parseCoord(txt, isLat) {
   return isFinite(deg) && Math.abs(deg) <= (isLat ? 90 : 180) ? deg : NaN;
 }
 
+/* ¿Lo escrito en el buscador de lugares son unas COORDENADAS? Devuelve
+   { lat, lng } o null (y entonces es un nombre de lugar para Nominatim).
+   PURA. Primero la latitud, luego la longitud (el orden de Google Maps y de
+   toda la aplicación), salvo con letras de hemisferio, que mandan:
+     decimales      40.4168, -3.7038   40.4168 -3.7038   40.4168; -3.7038
+     coma decimal   40,4168 -3,7038    40,4168; -3,7038
+     con letras     40°25'0.5"N 3°42'13"W   40 25 0.5 N, 3 42 13 W
+                    N 40.4168, W 3.7038   3.7038 W 40.4168 N  (cualquier orden)
+   Lo que no encaje del todo (una palabra de más, una latitud de 120°) NO es
+   unas coordenadas: se busca como un lugar. Se pregunta a `parseCoord`, el
+   mismo que los campos de coordenadas de la aplicación (GMS o decimal, con
+   hemisferio N/S/E/W/O), así que acepta lo mismo y rechaza lo mismo.   */
+function parsePlaceCoordinates(text) {
+  const t = String(text).trim().replace(/\u2212/g, "-")
+    .replace(/[\u00B0\u00BA\u02DA\u2032\u2019\u2018'\u2033\u201D\u201C"]/g, " ").replace(/\s+/g, " ").trim();
+  if (!t || t.length > 100) return null;
+  const inRange = (lat, lng) => Number.isFinite(lat) && Number.isFinite(lng) && Math.abs(lat) <= 90 && Math.abs(lng) <= 180;
+  const NUMS = "[\\d\\s.,+-]+?";
+  /* Con letras de hemisferio: delante (N 40 25, W 3 42) o detrás (40 25 N, 3 42 W) */
+  const withLetters = (a, b, c, d, letterFirst) => {
+    const p = letterFirst ? [[a, b], [c, d]] : [[b, a], [d, c]]; /* [letra, cifras] */
+    const lat = p.find(([l]) => "NS".includes(l.toUpperCase())), lng = p.find(([l]) => "EWO".includes(l.toUpperCase()));
+    if (!lat || !lng) return null;
+    const la = parseCoord(lat[1] + " " + lat[0], true), lo = parseCoord(lng[1] + " " + lng[0], false);
+    return inRange(la, lo) ? { lat: la, lng: lo } : null;
+  };
+  let m = new RegExp("^([NSEWO]) ?(" + NUMS + ") ?[,;/]? ?([NSEWO]) ?(" + NUMS + ")$", "i").exec(t);
+  if (m) return withLetters(m[1], m[2], m[3], m[4], true);
+  m = new RegExp("^(" + NUMS + ") ?([NSEWO]) ?[,;/]? ?(" + NUMS + ") ?([NSEWO])$", "i").exec(t);
+  if (m) return withLetters(m[1], m[2], m[3], m[4], false);
+  /* Sin letras: dos decimales, con punto (separados por coma, punto y coma,
+     barra o espacio) o con coma decimal (separados por punto y coma, barra
+     o espacio: una coma sola no se sabría si separa o es el decimal).    */
+  const toPair = (a, b) => {
+    const lat = Number(a.replace(",", ".")), lng = Number(b.replace(",", "."));
+    return inRange(lat, lng) ? { lat, lng } : null;
+  };
+  m = /^([+-]?\d+(?:\.\d+)?)(?: ?[,;/] ?| )([+-]?\d+(?:\.\d+)?)$/.exec(t);
+  if (m) return toPair(m[1], m[2]);
+  m = /^([+-]?\d+(?:[.,]\d+)?)(?: ?[;/] ?| )([+-]?\d+(?:[.,]\d+)?)$/.exec(t);
+  if (m) return toPair(m[1], m[2]);
+  return null;
+}
+
 /* The single marker of a layer, or null when it has none or several:
    editing a position only makes sense for exactly one marker.        */
 function soleMarker(li) {
@@ -380,8 +424,13 @@ let vertexEditSnapshot = null; /* geometría al abrir el diálogo, para que Canc
 /* Copia independiente de una estructura de anillos (array de L.LatLng, o
    array de arrays): `rings` no debe compartir los objetos que Leaflet
    tiene en su _latlngs interno, o mutarlos aquí mutaría la capa a medias. */
+/* Con la altitud: `L.latLng(lat, lng)` a secas la tira, y la edición
+   interactiva vuelca estos anillos a la capa en el primer arrastre, así que
+   un solo vértice movido dejaba TODOS los del polígono sin la altitud que el
+   usuario les había puesto (y sin ella, un polígono no puede ser un
+   obstáculo del perfil). También la foto de Cancelar pasa por aquí.      */
 function cloneLatLngRings(rings) {
-  return rings.map(r => r.map(p => L.latLng(p.lat, p.lng)));
+  return rings.map(r => r.map(p => L.latLng(p.lat, p.lng, p.alt)));
 }
 
 /* true si pudo construir los manejadores (y por tanto activar la
@@ -504,7 +553,9 @@ function wireVertexEditHandle(handle) {
   attachVertexDrag(handle, false, latlng => {
     const pos = findVertexEditPos(handle);
     if (!pos) return;
-    vertexEdit.rings[pos[0]][pos[1]] = latlng;
+    /* El ratón da una posición, no una altitud: el vértice conserva la suya */
+    const prev = vertexEdit.rings[pos[0]][pos[1]];
+    vertexEdit.rings[pos[0]][pos[1]] = L.latLng(latlng.lat, latlng.lng, prev.alt);
     applyVertexEditRings();
   }, scheduleSave);
   handle.on("contextmenu", ev => {
@@ -561,7 +612,15 @@ function insertVertexEditPoint(handle, latlng) {
     const pos = findVertexEditPos(handle);
     if (pos) { ri = pos[0]; pi = pos[1] + 1; }
   }
-  const pos2 = L.latLng(latlng.lat, latlng.lng);
+  /* Un vértice nuevo entre dos con altitud toma la media de las suyas (con una
+     sola, o ninguna, queda sin altitud: no se inventa un número). Tras la última
+     posición de un anillo CERRADO el vecino es el primero; en una línea abierta,
+     añadir al final no tiene vecino de después.                               */
+  const ring = vertexEdit.rings[ri];
+  const before = ring[pi - 1], after = vertexEdit.closed ? ring[pi % ring.length] : ring[pi];
+  const alt = before && after && Number.isFinite(before.alt) && Number.isFinite(after.alt)
+    ? (before.alt + after.alt) / 2 : undefined;
+  const pos2 = L.latLng(latlng.lat, latlng.lng, alt);
   const h = makeHandle(pos2, true);
   wireVertexEditHandle(h);
   vertexEdit.rings[ri].splice(pi, 0, pos2);
@@ -1595,6 +1654,7 @@ const propsTabFreq = document.getElementById("props-tab-freq");
 const propsTabRestoreBtn = document.getElementById("props-tab-btn-restore");
 const propsTabRestore = document.getElementById("props-tab-restore");
 const propsFresnelFreqInput = document.getElementById("props-fresnel-freq");
+const propsKmzMaxInput = document.getElementById("props-kmz-max");
 const propsSrcSelect = {
   mdt: document.getElementById("props-src-mdt"),
   mds: document.getElementById("props-src-mds")
@@ -1632,8 +1692,18 @@ const propsArcSegmentsInput = document.getElementById("props-arc-segments");
    sin data-theme manda prefers-color-scheme EN VIVO, así que "auto" no
    necesita matchMedia ni escuchar cambios del sistema.                 */
 let uiTheme = "auto";
-function applyUiTheme(theme) {
+/* `soft` (a theme picked in Propiedades) fades the colours for 250 ms
+   instead of flashing light↔dark; boot and Cancelar's re-apply pass nothing
+   (styles.css, «Cambio de tema suave»). */
+let themeSoftTimer = 0;
+function applyUiTheme(theme, soft = false) {
   uiTheme = theme;
+  if (soft) {
+    const root = document.documentElement;
+    root.classList.add("theme-switching");
+    clearTimeout(themeSoftTimer);
+    themeSoftTimer = setTimeout(() => root.classList.remove("theme-switching"), 250);
+  }
   if (theme === "auto") document.documentElement.removeAttribute("data-theme");
   else document.documentElement.setAttribute("data-theme", theme);
 }
@@ -1778,13 +1848,23 @@ function renderPropsPrefsTab() {
   propsCoordFormatSelect.value = coordFormat;
   gnpVertexMaxInput.value = vertexEditMax;
   propsArcSegmentsInput.value = arcSegments;
+  propsKmzMaxInput.value = kmzMaxUncompressedMB;
 }
+/* Sin previsualización posible (solo cuenta al abrir un archivo): `change`,
+   un valor ilegible vuelve al vigente y uno fuera de rango se ajusta al
+   límite más cercano avisando (readClampedNumber). Enteros: son MB.    */
+propsKmzMaxInput.addEventListener("change", () => {
+  const v = readClampedNumber(propsKmzMaxInput, KMZ_MAX_UNCOMPRESSED_MIN_MB, KMZ_MAX_UNCOMPRESSED_MAX_MB,
+    tr("El tamaño máximo"), "MB");
+  if (v !== null) kmzMaxUncompressedMB = Math.round(v);
+  propsKmzMaxInput.value = kmzMaxUncompressedMB;
+});
 propsUnitSelect.addEventListener("change", () => {
   setMeasureUnit(propsUnitSelect.value);
   renderPropsProfileMax();
 });
 propsAltUnitSelect.addEventListener("change", () => setAltitudeUnit(propsAltUnitSelect.value));
-propsThemeSelect.addEventListener("change", () => applyUiTheme(propsThemeSelect.value));
+propsThemeSelect.addEventListener("change", () => applyUiTheme(propsThemeSelect.value, true));
 /* Lee un campo numérico de ajustes: vacío o ilegible → null (el llamador
    deja el valor vigente); fuera de [min, max] se AJUSTA a la cota más
    cercana y se avisa, en vez de volver en silencio al anterior (reportado
@@ -1891,7 +1971,7 @@ async function togglePropsDialog() {
   if (!gnpStore) gnpStore = await dbLoadGnp();
   propsDraftGnp = { ...gnpStore };
   propsOriginal = { uiTheme, unit: measureUnit, altitudeUnit, profileMaxM, fresnelFreqMHz, coordFormat, vertexEditMax,
-                    arcSegments, elevSources };
+                    arcSegments, kmzMaxUncompressedMB, elevSources };
   renderGnpEditor();
   renderPropsPrefsTab();
   renderPropsFreqTab();
@@ -1909,7 +1989,7 @@ function cancelPropsDialog() {
   releaseFocus();
   if (!propsOriginal) return;
   /* Deshace la previsualización en vivo con el mismo camino que la aplicó. */
-  if (propsOriginal.uiTheme !== uiTheme) applyUiTheme(propsOriginal.uiTheme);
+  if (propsOriginal.uiTheme !== uiTheme) applyUiTheme(propsOriginal.uiTheme, true);
   if (propsOriginal.unit !== measureUnit) setMeasureUnit(propsOriginal.unit);
   if (propsOriginal.altitudeUnit !== altitudeUnit) setAltitudeUnit(propsOriginal.altitudeUnit);
   profileMaxM = propsOriginal.profileMaxM;
@@ -1927,6 +2007,7 @@ function cancelPropsDialog() {
     syncVertexOwnerForDialog();
   }
   arcSegments = propsOriginal.arcSegments;
+  kmzMaxUncompressedMB = propsOriginal.kmzMaxUncompressedMB;
   elevSources = propsOriginal.elevSources;
   propsDraftGnp = null;
   propsOriginal = null;
@@ -1944,6 +2025,7 @@ document.getElementById("props-accept").addEventListener("click", () => {
   dbSaveCoordFormat(coordFormat);
   dbSaveVertexEditMax(vertexEditMax);
   dbSaveArcSegments(arcSegments);
+  dbSaveKmzMax(kmzMaxUncompressedMB);
   dbSaveElevSources(elevSources);
   if (propsLangSelect.value !== loadUiLangPref()) {
     saveUiLangPref(propsLangSelect.value);
@@ -1963,7 +2045,10 @@ const pointsDialog = document.getElementById("points-dialog");
 const pointsBox = pointsDialog.querySelector(".dlg-box");
 const pointsText = document.getElementById("points-text");
 const pointsError = document.getElementById("points-error");
-let pointsTarget = null;  /* { li, path, nested } (polígono) o { li, measure } mientras está abierto */
+const pointsAltRow = document.getElementById("points-altmode-row");
+const pointsAltSel = document.getElementById("points-altmode");
+const pointsAltNote = document.getElementById("points-altmode-note");
+let pointsTarget = null;  /* { li, path, nested, altMode } (polígono) o { li, measure } mientras está abierto */
 
 function closePointsDialog() {
   pointsDialog.hidden = true;
@@ -1997,11 +2082,39 @@ function openPointsDialogCommon(li, rings, { showRingsHint }) {
   focusDialog(pointsBox);
 }
 
+/* ¿Trae alguna posición del texto una altitud DISTINTA DE 0? Sin ella el
+   modo no significa nada y el polígono no puede ser un obstáculo en un
+   perfil. La columna siempre existe: un punto sin altitud se escribe como
+   0 (ver pointsToText), así que 0 y «sin altitud» son lo mismo aquí. Se
+   mira el texto de la ventana, no la capa: el usuario puede estar
+   escribiendo la altitud ahora.                                         */
+function pointsTextHasAltitude() {
+  const { rings } = textToPoints(pointsText.value);
+  return rings.some(r => r.some(p => p.length > 2 && Number.isFinite(p[2]) && p[2] !== 0));
+}
+function syncPointsAltNote() {
+  const show = !pointsAltRow.hidden && !pointsTextHasAltitude();
+  pointsAltNote.hidden = !show;
+  pointsAltNote.textContent = show ? tr("Ningún punto tiene una altitud distinta de 0: no puede ser un obstáculo en un perfil.") : "";
+}
+/* Con espera: leer el texto entero por tecla costaría ~24 ms por cada mil
+   puntos (medido al aplicar) en un polígono grande.                   */
+let pointsAltTimer = 0;
+pointsText.addEventListener("input", () => {
+  clearTimeout(pointsAltTimer);
+  pointsAltTimer = setTimeout(syncPointsAltNote, 300);
+});
+
 function openPointsDialogForPath(li) {
   const path = solePath(li);
   if (!path) return;
   const { rings, nested } = pathRings(path);
-  pointsTarget = { li, path, nested };
+  /* El modo sale del Feature de la capa (`kiteAlt`); sin él —un GeoJSON, o
+     un KML sin <altitudeMode>— se enseña AMSL, que es lo que el perfil
+     hace con una Z sin modo. `altMode` guarda lo que había, para que
+     aceptar sin tocar nada no convierta «sin modo» en `abs`.          */
+  const altMode = featureAltMode(path.feature);
+  pointsTarget = { li, path, nested, altMode };
   /* Las dos formas de editar la misma geometría no pueden convivir: si
      ya había manejadores interactivos para este nodo, se retiran aquí
      (mismo motivo que el comentario en syncVertexOwnerForDialog).
@@ -2010,6 +2123,11 @@ function openPointsDialogForPath(li) {
      closePointsDialog los restaura al cerrar.                        */
   if (vertexOwner && vertexOwner.kind === "polygon" && vertexOwner.li === li) teardownVertexOwner();
   openPointsDialogCommon(li, rings, { showRingsHint: true });
+  /* Solo un polígono: una línea o una ruta no encierran nada que pueda
+     tapar la visual. Va tras el común, que ya muestra el diálogo.     */
+  pointsAltRow.hidden = !(path instanceof L.Polygon);
+  pointsAltSel.value = altMode || "abs";
+  syncPointsAltNote();
 }
 
 function openPointsDialogForMeasure(li) {
@@ -2023,6 +2141,8 @@ function openPointsDialogForMeasure(li) {
      vertexOwner, así que aquí no hay nada que retirar en ese caso).    */
   if (vertexOwner && vertexOwner.li === li) teardownVertexOwner();
   openPointsDialogCommon(li, rings, { showRingsHint: false });
+  pointsAltRow.hidden = true;
+  syncPointsAltNote();
 }
 
 function openPointsDialog(li) {
@@ -2118,6 +2238,12 @@ $id("points-accept").addEventListener("click", () => {
   }
   pushUndo(tr("editar puntos"));
   path.setLatLngs(nested || rings.length > 1 ? rings : rings[0]);
+  /* Un Feature NUEVO, nunca el mismo con otra clave: la ficha de la capa se
+     conoce por identidad (ver persistence-indexeddb.md). Solo si el usuario
+     lo cambió: abrir y aceptar no escribe un modo que el archivo no tenía. */
+  if (closed && pointsAltSel.value !== (pointsTarget.altMode || "abs") && ALT_MODES.includes(pointsAltSel.value)) {
+    path.feature = { ...(path.feature || { type: "Feature", properties: {} }), kiteAlt: pointsAltSel.value };
+  }
   invalidateGeo(li);   /* la geometría cambió: la caché serializada ya no vale */
   scheduleSave();
   closePointsDialog();

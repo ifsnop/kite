@@ -36,6 +36,10 @@ const src = `
   const navMessage = () => {};
   const materializeCalls = [];
   const ensureMaterialized = async li => { materializeCalls.push(li); }; /* nada pendiente en este árbol de prueba */
+  /* expandFolder y closeFilterOpen son de 31-tree-node.js: sin filtro puesto, la primera es
+     ensureMaterialized y la segunda solo quita la clase (el cierre a la vista de lo que el filtro abrió) */
+  const expandFolder = li => ensureMaterialized(li);
+  const closeFilterOpen = li => li.classList.remove("filter-open");
   const ensureRootUl = () => rootUl;
   function makeNode({ name, isFolder }) {
     const li = document.createElement("li");
@@ -52,8 +56,8 @@ const src = `
   const nodeRow = li => li._row;
   const selection = new Set();
   let selCursor = null, selAnchor = null;
-  const isRow = li => li && li.tagName === "LI" && li._name !== undefined;
-  const isOpen = li => nodeUl(li) && !li.classList.contains("collapsed");
+  const isRow = li => li && li.tagName === "LI" && li._name !== undefined && !li.hidden;
+  const isOpen = li => nodeUl(li) && (!li.classList.contains("collapsed") || li.classList.contains("filter-open"));
   const childRows = ul => (ul ? [...ul.children].filter(isRow) : []);
   const parentRow = li => { const p = li.parentElement && li.parentElement.closest("li"); return isRow(p) ? p : null; };
   const siblingRows = li => childRows(li ? li.parentElement : rootUl);
@@ -125,6 +129,25 @@ ok(F1.classList.contains("collapsed"), "izquierda sobre una carpeta abierta la c
 // se vuelve a dejar todo desplegado: las pruebas anteriores cerraron F1
 F1.classList.remove("collapsed"); F2.classList.remove("collapsed");
 ok(order() === "AF1bcF2dE", "árbol de nuevo desplegado: " + order());
+
+// el filtro del panel: una fila OCULTA no es una fila (45-tree-filter.js, isRow)
+b.hidden = true;
+ok(order() === "AF1cF2dE", "una fila oculta se salta hacia delante: " + order());
+ok(orderBack() === "AF1cF2dE", "y hacia atrás: " + orderBack());
+ok(api.siblingRows(c).map(n=>n._name).join("") === "cF2", "Inicio y Fin no la cuentan: " + api.siblingRows(c).map(n=>n._name).join(""));
+api.clearSelection(); api.selectNode(F1, true);
+api.moveCursorTo(c, true);
+ok(names(api.selection) === "F1c", "un rango con Mayús no recoge la oculta: " + names(api.selection));
+b.hidden = false;
+// una carpeta abierta SOLO por el filtro (collapsed intacto) cuenta como abierta
+F2.classList.add("collapsed", "filter-open");
+ok(order() === "AF1bcF2dE", "filter-open: se recorre como abierta aunque siga colapsada: " + order());
+api.clearSelection(); api.selectNode(F2, true);
+api.collapseOrLeave(F2, false);
+ok(!F2.classList.contains("filter-open") && F2.classList.contains("collapsed"),
+   "izquierda sobre una abierta por el filtro solo cierra lo que se VE, sin tocar collapsed");
+F2.classList.remove("collapsed", "filter-open");
+api.clearSelection();
 
 // saltos de página, con tope en los extremos
 ok(api.stepRows(A, 3)._name === "c", "tres filas abajo desde A: " + api.stepRows(A,3)._name);

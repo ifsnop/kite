@@ -175,6 +175,56 @@ const after = await page.evaluate(async () => {
 ok(after.names.includes("Anillos de alcance 1") && after.names.includes("20 NM") && after.sector, "tras recargar siguen las capas: " + after.names.join("|"));
 ok(after.ringPts === 180 && after.maxLng > 180, "y el anillo del antimeridiano sigue entero, sin que la restauración lo rechace: " + JSON.stringify(after));
 
+/* ---- Los botones de la barra del visor ----
+   Los dos diálogos también se abren desde la barra, en la caja «Crear» (tras el polígono y antes del
+   pin), con el MISMO orden que «Crear» del menú contextual; medir, crear y el PNG, cada uno en su caja, con
+   huecos. Son herramientas de un clic: el clic fija el centro.        */
+await page.evaluate(() => map.setView([41.5, -2.2], 9, { animate: false }));
+const bars = await page.evaluate(() => [...document.querySelectorAll(".leaflet-top.leaflet-left .measure-bar")].map(b => ({
+  glyphs: [...b.querySelectorAll("a")].map(a => a.textContent), titles: [...b.querySelectorAll("a")].map(a => a.title),
+  top: b.getBoundingClientRect().top, bottom: b.getBoundingClientRect().bottom })));
+ok(bars.length >= 3, "medir, crear y la cámara son tres cajas distintas: " + bars.length);
+ok(JSON.stringify(bars[0].glyphs) === JSON.stringify(["\u2933", "\u25EF", "\u25E0"]),
+  "«Medir»: ruta, círculo y arco: " + JSON.stringify(bars[0].glyphs));
+ok(JSON.stringify(bars[1].glyphs) === JSON.stringify(["\u2B20", "\u25CE", "\u25D4", "\uD83D\uDCCD"]),
+  "«Crear»: polígono, anillos (◎), sector (◔) y pin, en ese orden: " + JSON.stringify(bars[1].glyphs));
+ok(JSON.stringify(bars[2].glyphs) === JSON.stringify(["\uD83D\uDCF7"]), "y la cámara, sola en su caja: " + JSON.stringify(bars[2].glyphs));
+ok(bars[1].top - bars[0].bottom >= 8, `con un hueco entre medir y crear: ${(bars[1].top - bars[0].bottom).toFixed(1)} px`);
+ok(bars[2].top - bars[1].bottom >= 8, `y entre el pin y la cámara: ${(bars[2].top - bars[1].bottom).toFixed(1)} px`);
+ok(/Anillos de alcance/.test(bars[1].titles[1]) && /Sector/.test(bars[1].titles[2]), "con su título: " + bars[1].titles.slice(1, 3).join(" | "));
+
+const barBtn = n => page.locator(".leaflet-top.leaflet-left .measure-bar").nth(1).locator("a").nth(n);
+const dlg = () => page.evaluate(() => ({ open: !document.getElementById("range-dialog").hidden,
+  mode: document.getElementById("rg-mode").value, title: document.getElementById("rg-title").textContent,
+  lat: Number(document.getElementById("rg-lat").value), lng: Number(document.getElementById("rg-lng").value),
+  c: { lat: map.getCenter().lat, lng: map.getCenter().lng } }));
+/* ◎ y ◔ arman una herramienta de UN CLIC: el clic en el mapa fija el CENTRO (antes nacían en el centro
+   de la vista) y entonces se abre el diálogo; allí todavía se puede corregir. Detalle en click-to-place.mjs */
+const clickAtLatLng = ll => page.evaluate(([la, ln]) => {
+  const p = map.latLngToContainerPoint([la, ln]), r = map.getContainer().getBoundingClientRect();
+  return { x: r.left + p.x, y: r.top + p.y };
+}, ll);
+const target = [41.2, -2.6];
+await barBtn(1).click();
+ok(!(await dlg()).open && (await page.evaluate(() => activeTool)) === "rings", "◎ arma la herramienta y NO abre el diálogo todavía");
+let tp = await clickAtLatLng(target);
+await page.mouse.click(tp.x, tp.y);
+await page.waitForFunction(() => !document.getElementById("range-dialog").hidden);
+let d = await dlg();
+ok(d.mode === "rings" && d.title === "Anillos de alcance", "el clic abre «Anillos de alcance»: " + JSON.stringify(d));
+ok(Math.abs(d.lat - target[0]) < 5e-3 && Math.abs(d.lng - target[1]) < 5e-3, "con el punto pulsado como centro (no el de la vista): " + JSON.stringify([d.lat, d.lng]));
+ok(Math.abs(d.lat - d.c.lat) > 0.05, "que no es el centro de la vista");
+ok((await page.evaluate(() => activeTool)) === null, "y la herramienta se suelta sola");
+await page.click("#rg-cancel");
+await barBtn(2).click();
+tp = await clickAtLatLng(target);
+await page.mouse.click(tp.x, tp.y);
+await page.waitForFunction(() => !document.getElementById("range-dialog").hidden);
+d = await dlg();
+ok(d.mode === "sector" && d.title === "Sector" && Math.abs(d.lat - target[0]) < 5e-3, "◔ abre «Sector» en el punto pulsado: " + JSON.stringify(d));
+await page.click("#rg-cancel");
+ok(!(await dlg()).open, "Cancelar los cierra sin dejar nada");
+
 ok(errors.length === 0, "sin errores de página: " + errors.join(" | "));
 ok((await page.evaluate(() => window.__csp)).length === 0, "sin violaciones de la CSP");
 await ctx.close(); await browser.close();

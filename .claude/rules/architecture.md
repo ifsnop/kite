@@ -61,6 +61,16 @@ paths:
    `persistence-indexeddb.md`).
 5. **Acciones del panel**: búsqueda, buscador de lugares (Nominatim),
    crear carpeta, seleccionar todo, selección masiva con teclado.
+5b. **Filtro del árbol** (`45-tree-filter.js`, tras `44-dialogs.js`): el
+   motor del buscador del panel (`applyTreeFilter`/`clearTreeFilter`, el
+   `MutationObserver` que filtra lo que nazca con el filtro puesto). Lo
+   que comparten el árbol y el filtro vive en `31-tree-node.js`
+   (`treeFilterWanted`, `expandFolder`, `setFilterOpen`, `partialFolders`,
+   `materializeMatching`) y la normalización y las claves, en
+   `40-panel-actions.js` (`normSearch`, `rowKey`, `recKey`): todo se
+   REFERENCIA solo en tiempo de ejecución, así que el orden entre archivos
+   no importa. `30-tree-walk.js` solo sabe de `li.hidden` y `filter-open`
+   (`isRow`, `isOpen`). Ver `tree-navigation-selection.md`.
 6. **Estilos de capa**: `makeDialogMovable`, selector de color,
    coordenadas (`formatCoord`/`parseCoord`), diálogo de estilos con
    borrador y Cancelar/Aceptar (botón 🎨), catálogo `MDI_ICONS`,
@@ -150,6 +160,14 @@ paths:
     antes o usados solo en tiempo de ejecución. Va tras `65-cadastre.js`;
     lo llaman archivos anteriores (30, 31, 32, 40, 44) solo en tiempo de
     ejecución. Ver `arcgis.md`.
+11f. **Artículos de Wikipedia** (`67-wikipedia.js`): dos consultas a la API de
+    MediaWiki (geosearch y extracts) y marcadores «W» en una carpeta numerada;
+    lo puro (coordenadas, direcciones, lectura de las respuestas, limpieza del
+    texto, ficha) se prueba en Node. Va tras `66-arcgis.js` y usa
+    `withElevRetries`/`isRetryableElevError` (`52`), `readCapped` (`65`),
+    `describeHttp` (`40`), `makeNode`, `applyMarkerStyle`, `fmtUnitDist` y
+    `escapeHtml`; el menú contextual (`70`) la llama solo en tiempo de
+    ejecución. Ver `wikipedia.md`.
 12. **Controles de vista**: autoescala, ES/IC, retícula, coordenadas.
 13. **Arranque**: restauración del árbol guardado. Al final, para que
     todo esté definido.

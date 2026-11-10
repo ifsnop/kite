@@ -7,19 +7,44 @@ function setNavWidth(px) {
   px = Math.min(600, Math.max(200, px));
   document.documentElement.style.setProperty("--nav-width", px + "px");
 }
-splitter.addEventListener("mousedown", e => {
-  e.preventDefault();
+/* Pointer Events con captura (apple-design §2): el mismo gesto sirve para
+   ratón, lápiz y dedo, y el seguimiento no se pierde aunque el puntero salga
+   del separador (5 px de ancho) o pase sobre el mapa. Se recuerda dónde se
+   agarró (desfase entre el puntero y el borde del panel) para que el borde
+   no salte al puntero. `invalidateSize` es caro con miles de capas y los
+   eventos llegan a más de 100/s, así que va UNA vez por fotograma
+   (performance.md); la anchura sí se aplica en cada evento, para que el
+   separador siga al puntero 1:1.                                          */
+let splitFrame = 0;
+function scheduleMapResize() {
+  if (splitFrame) return;
+  splitFrame = requestAnimationFrame(() => { splitFrame = 0; map.invalidateSize(); });
+}
+let splitGrab = null; /* { id, dx } mientras se arrastra */
+splitter.addEventListener("pointerdown", e => {
+  /* En un móvil el panel ocupa la pantalla (phone-layout): `setNavWidth`
+     escribe --nav-width en línea y taparía la regla de ese diseño. */
+  if (e.button !== 0 || document.documentElement.classList.contains("phone-layout")) return;
+  splitGrab = { id: e.pointerId, dx: splitter.getBoundingClientRect().left - e.clientX };
+  splitter.setPointerCapture(e.pointerId);
   document.body.classList.add("resizing");
-  const onMove = ev => { setNavWidth(ev.clientX); map.invalidateSize(); };
-  const onUp = () => {
-    document.removeEventListener("mousemove", onMove);
-    document.removeEventListener("mouseup", onUp);
-    document.body.classList.remove("resizing");
-    map.invalidateSize();
-  };
-  document.addEventListener("mousemove", onMove);
-  document.addEventListener("mouseup", onUp);
+  e.preventDefault();
 });
+splitter.addEventListener("pointermove", e => {
+  if (!splitGrab || e.pointerId !== splitGrab.id) return;
+  setNavWidth(e.clientX + splitGrab.dx);
+  scheduleMapResize();
+});
+function endSplitDrag(e) {
+  if (!splitGrab || e.pointerId !== splitGrab.id) return;
+  splitGrab = null;
+  document.body.classList.remove("resizing");
+  cancelAnimationFrame(splitFrame);
+  splitFrame = 0;
+  map.invalidateSize();
+}
+splitter.addEventListener("pointerup", endSplitDrag);
+splitter.addEventListener("pointercancel", endSplitDrag);
 
 function setNavHidden(hidden) {
   document.body.classList.toggle("nav-hidden", hidden);

@@ -97,7 +97,7 @@
       <button id="help-btn" class="btn" title="Ayuda y atajos de teclado (tecla ?)">?</button>
     </h1>
     <div class="nav-actions">
-      <input type="text" id="place-box" placeholder="Buscar un lugar y a&#241;adir marcador&#8230;">
+      <input type="text" id="place-box" placeholder="Buscar un lugar o unas coordenadas&#8230;">
       <button class="btn" id="place-btn">Buscar</button>
     </div>
     <div id="place-results" hidden>
@@ -124,14 +124,18 @@
       <div class="bar"><div id="progress-fill"></div></div>
     </div>
   </header>
+  <p id="tree-filter-empty" role="status" hidden></p>
   <div id="tree" role="tree" aria-label="Árbol de capas" tabindex="0"></div>
   <div id="dropzone">Arrastre aquí sus archivos KML/KMZ (incl. ortofotos), GPX, JSON/TopoJSON, shapefiles (.shp con su .dbf y .prj, o en .zip), ortofotos COG (.tif) o carpetas exportadas (.kite.json)</div>
-  <footer id="nav-search">
+  <footer id="nav-search" role="search">
     <div class="nav-actions">
-      <input type="text" id="search-box" placeholder="Buscar capas y carpetas&#8230;">
-      <button class="btn" id="search-prev" title="Ocurrencia anterior">&#8593;</button>
-      <button class="btn" id="search-next" title="Siguiente ocurrencia">&#8595;</button>
-      <span id="search-count"></span>
+      <span class="search-field">
+        <input type="text" id="search-box" placeholder="Buscar capas y carpetas&#8230;" aria-label="Buscar capas y carpetas&#8230;" autocomplete="off">
+        <button type="button" id="search-clear" title="Borrar la b&#250;squeda" aria-label="Borrar la b&#250;squeda" hidden>&#215;</button>
+      </span>
+      <button class="btn" id="search-prev" title="Ocurrencia anterior" aria-label="Ocurrencia anterior">&#8593;</button>
+      <button class="btn" id="search-next" title="Siguiente ocurrencia" aria-label="Siguiente ocurrencia">&#8595;</button>
+      <span id="search-count" role="status" aria-live="polite"></span>
     </div>
   </footer>
   <!-- Las dos cotas con las que se topa un árbol grande: lo que ocupa en
@@ -152,6 +156,13 @@
 <div id="style-dialog" class="dlg-float" hidden>
   <div class="dlg-box">
     <h2 class="dlg-head"><span class="dlg-title" id="style-title">Propiedades</span><button type="button" class="dlg-close" data-cancel="style-cancel" title="Cancelar" aria-label="Cancelar">&#215;</button></h2>
+    <!-- Ir a la capa y borrarla, como los botones de su fila del árbol (los
+         títulos se escriben al abrir: el de la lupa lleva el zoom). Con
+         varias capas, la lupa encuadra el conjunto y Borrar pide confirmar. -->
+    <div class="dlg-tools" id="style-tools">
+      <button type="button" id="style-focus">&#128269;</button>
+      <button type="button" id="style-delete" class="delete">&#215;</button>
+    </div>
     <!-- El nombre es de cada nodo, pero con varios seleccionados el campo
          no se deja en blanco: enseña los nombres que hay (en gris y
          cursiva, como marca de "esto no es un valor") y escribir uno
@@ -281,9 +292,10 @@
         <tr><td>Esc (renombrando)</td><td>Cancela y restaura el nombre anterior</td></tr>
         <tr><td>Supr</td><td>Borrar lo seleccionado</td></tr>
         <tr><td>Ctrl + C / X / V</td><td>Copiar, cortar y pegar (tambi&#233;n entre pesta&#241;as de KITE)</td></tr>
-        <tr><td>Ctrl + Z / Ctrl + Y</td><td>Deshacer y rehacer</td></tr>
+        <tr><td>Ctrl + Z / Ctrl + Y</td><td>Deshacer y rehacer (tambi&#233;n con el mapa enfocado)</td></tr>
         <tr><td>Alt + Intro</td><td>Propiedades de lo seleccionado</td></tr>
         <tr><td>Ctrl + F</td><td>Ir al buscador</td></tr>
+        <tr><td>Esc (en el buscador)</td><td>Borrar la b&#250;squeda y mostrar todo el &#225;rbol</td></tr>
         <tr><td>? o May&#250;s + /</td><td>Abrir esta ayuda</td></tr>
         <tr><td>Arrastrar una fila por su nombre</td><td>Mover el nodo a otra carpeta o posici&#243;n (Esc cancela)</td></tr>
       </table>
@@ -315,7 +327,7 @@
         <tr><td>Doble clic sobre el &#250;ltimo v&#233;rtice</td><td>Cerrar el pol&#237;gono y terminar</td></tr>
         <tr><td>Doble clic fuera de un v&#233;rtice</td><td>Terminar la l&#237;nea o la ruta sin cerrarla</td></tr>
         <tr><td>Clic derecho sobre un v&#233;rtice</td><td>Quitar ese v&#233;rtice</td></tr>
-        <tr><td>Supr</td><td>Quitar el &#250;ltimo v&#233;rtice</td></tr>
+        <tr><td>Supr</td><td>Quitar el &#250;ltimo v&#233;rtice (en una ruta con solo dos puntos, la deshace y deja el primero como vista previa)</td></tr>
         <tr><th colspan="2">Editar v&#233;rtices de una ruta o un pol&#237;gono ya creados</th></tr>
         <tr><td>Abrir sus propiedades (🎨 o Alt+Intro)</td><td>Activa mover/borrar/insertar v&#233;rtices sobre el mapa</td></tr>
         <tr><td>Clic en un v&#233;rtice</td><td>Seleccionarlo</td></tr>
@@ -493,6 +505,9 @@
       <p class="dlg-hint">Longitud máxima de una ruta para «Obtener perfil». Acota lo que se descarga y, sobre todo, lo que el perfil deja guardado en el árbol: una celda de elevación por cada una que recorre la ruta. Solo cuenta si alguna fuente elegida es de malla fina (5 a 30 m); con el MDT200 como única fuente no hay límite.</p>
       <div class="dlg-row"><span>Longitud máxima de un perfil</span>
         <span class="props-with-unit"><input type="number" id="props-profile-max" min="0" step="any"><span id="props-profile-max-unit"></span></span></div>
+      <p class="dlg-hint">Tamaño máximo que puede ocupar un KMZ (o un .zip de shapefile) una vez descomprimido. Frena los archivos desproporcionados o hostiles antes de descomprimir nada; súbelo si tienes un KMZ legítimo más grande y memoria de sobra, bájalo en un equipo justo. Solo afecta a los archivos que abras después.</p>
+      <div class="dlg-row"><span>Tamaño máximo de un KMZ descomprimido</span>
+        <span class="props-with-unit"><input type="number" id="props-kmz-max" min="1" max="4096" step="1"><span>MB</span></span></div>
     </div>
     <div id="props-tab-gnp" class="dlg-tabpanel" hidden role="tabpanel">
       <p class="dlg-hint" data-i18n-html="html.gnp-intro">Asociaciones guardadas entre la estructura de <code>properties</code> de un GeoJSON y la propiedad usada como nombre.</p>
@@ -535,6 +550,19 @@
     <div class="dlg-actions">
       <button class="btn" id="restore-cancel">Cancelar</button>
       <button class="btn btn-danger" id="restore-accept">Borrar todo</button>
+    </div>
+  </div>
+</div>
+
+<!-- Confirmación de borrar VARIAS capas desde su diálogo de propiedades (con
+     una sola, se borra sin preguntar, como el × de su fila). -->
+<div id="delete-confirm" class="dlg-overlay" hidden>
+  <div class="dlg-box">
+    <h2 class="dlg-head"><span class="dlg-title">Borrar capas</span><button type="button" class="dlg-close" data-cancel="delete-cancel" title="Cancelar" aria-label="Cancelar">&#215;</button></h2>
+    <p class="dlg-hint" id="delete-confirm-text"></p>
+    <div class="dlg-actions">
+      <button class="btn" id="delete-cancel">Cancelar</button>
+      <button class="btn btn-danger" id="delete-accept">Borrar</button>
     </div>
   </div>
 </div>
@@ -617,7 +645,7 @@
     <!-- Cabecera de la gráfica (63-route-profile.js). A la izquierda, lo que
          cambia la recta inicio–fin: la propia línea, el elipsoide de Fresnel
          y las alturas de torre. A la derecha, el rectángulo de lectura del
-         cursor: tamaño FIJO (cuadrícula de 2 × 4, con guiones en reposo), para
+         cursor: tamaño FIJO (cuadrícula de 2 × 5, con guiones en reposo), para
          que ni la gráfica ni nada salte al mover el ratón. Zoom con el ratón:
          rueda = distancia; Mayús+rueda o rueda sobre el eje de alturas =
          altura; arrastrar = desplazar. La frecuencia de Fresnel está en
@@ -629,6 +657,16 @@
             <input type="checkbox" id="pf-los"> Línea inicio–fin</label>
           <label class="pf-check" title="Primera zona de Fresnel alrededor de la línea inicio–fin, entre las dos torres (contorno discontinuo) y, rellena, su zona del 60 %, que debe quedar libre de obstáculos. La frecuencia se elige en Propiedades → Frecuencias">
             <input type="checkbox" id="pf-fresnel"> Elipsoide de Fresnel (60 %)</label>
+          <label class="pf-check" title="Polígonos con altitud (KML o GeoJSON) que cruzan la ruta, como bloques desde el terreno hasta su techo. En rojo, donde la línea inicio–fin pasa por debajo del techo. Son los polígonos visibles cuando se obtuvo el perfil; «Actualizar obstáculos» los vuelve a recoger">
+            <input type="checkbox" id="pf-obstacles"> Obstáculos</label>
+        </div>
+        <div class="pf-row">
+          <label class="pf-field" title="Contra qué se miden las filas «Despeje» y «Margen Fresnel» de la lectura: el terreno (MDT), la superficie (MDS) o el techo del obstáculo que haya bajo el cursor. El radio de Fresnel y la línea inicio–fin no cambian: la línea nace del suelo de cada torre (el MDS, o el MDT si no hay MDS)">
+            Despeje y Fresnel respecto a <select id="pf-ref">
+              <option value="mdt">MDT (terreno)</option>
+              <option value="mds">MDS (superficie)</option>
+              <option value="obs">Obstáculos (techo)</option>
+            </select></label>
         </div>
         <div class="pf-row towers">
           <label class="pf-field" title="Altura de la torre de inicio, SOBRE EL TERRENO: sube ese extremo de la línea inicio–fin">
@@ -651,12 +689,17 @@
         <div class="pf-info-row" data-k="mdt"><i class="pf-key mdt"></i><span class="pf-info-label">MDT</span><b class="pf-info-val">—</b></div>
         <div class="pf-info-row" data-k="mds"><i class="pf-key mds"></i><span class="pf-info-label">MDS</span><b class="pf-info-val">—</b></div>
         <div class="pf-info-row" data-k="diff"><i class="pf-key"></i><span class="pf-info-label">MDS−MDT</span><b class="pf-info-val">—</b></div>
+        <div class="pf-info-row" data-k="obs"><i class="pf-key obstacle"></i><span class="pf-info-label">Obstáculo</span><b class="pf-info-val">—</b></div>
         <div class="pf-info-row" data-k="bulge"><i class="pf-key earth"></i><span class="pf-info-label">Curvatura</span><b class="pf-info-val">—</b></div>
         <div class="pf-info-row" data-k="clear"><i class="pf-key los"></i><span class="pf-info-label">Despeje</span><b class="pf-info-val">—</b></div>
         <div class="pf-info-row" data-k="fres"><i class="pf-key fresnel"></i><span class="pf-info-label">Fresnel 60 %</span><b class="pf-info-val">—</b></div>
         <div class="pf-info-row" data-k="margin"><i class="pf-key fresnel"></i><span class="pf-info-label">Margen</span><b class="pf-info-val">—</b></div>
+        <div class="pf-info-row" data-k="oclear"><i class="pf-key obstacle"></i><span class="pf-info-label">Despeje obstáculo</span><b class="pf-info-val">—</b></div>
       </div>
     </div>
+    <!-- Lo que responde a «¿hay algo en medio?»: qué obstáculos tapan la
+         línea inicio–fin y con cuánto (la escribe cada redibujado) -->
+    <p class="dlg-hint" id="profile-obstructions" role="status" hidden></p>
     <div id="profile-chart" aria-live="polite"></div>
     <!-- Pie: lo que cambia la vista de la gráfica entera (eje Y, curvatura) y
          la vuelta a la ruta entera, con la pista de los gestos. -->
@@ -670,6 +713,7 @@
           <option value="flat">Tierra plana, rayo curvo</option>
           <option value="origin">Desde el inicio</option>
         </select></label>
+      <button class="btn" id="pf-obstacles-refresh" title="Vuelve a recoger los polígonos con altitud que están visibles ahora (sin descargar nada) y los guarda con el perfil">Actualizar obstáculos</button>
       <button class="btn" id="pf-reset" title="Ruta entera y altura automática">Ver todo</button>
       <button class="btn" id="pf-png" title="Guardar la gráfica, tal como se ve, como imagen PNG">PNG</button>
       <button class="btn" id="pf-csv" title="Guardar los datos de la ruta entera como CSV: distancia, latitud, longitud y la altura de cada serie">CSV</button>
@@ -687,6 +731,13 @@
       separadas por tabulador. Se puede copiar y pegar directamente en una hoja de c&#225;lculo.
       Al pegar tambi&#233;n se admiten comas o espacios como separador.</p>
     <p class="dlg-hint" id="points-rings" hidden></p>
+    <div class="dlg-row" id="points-altmode-row" hidden><label for="points-altmode">Modo de altitud</label><select id="points-altmode">
+      <option value="abs">Sobre el nivel del mar (AMSL)</option>
+      <option value="agl">Sobre el terreno (AGL)</option>
+      <option value="ground">Pegado al suelo</option>
+      <option value="sea">Sobre el fondo marino (no admitido en perfiles)</option>
+    </select></div>
+    <p class="dlg-hint" id="points-altmode-note" hidden></p>
     <textarea id="points-text" spellcheck="false" wrap="off"
               aria-label="Lista de puntos de la capa"></textarea>
     <p class="dlg-hint" id="points-count"></p>

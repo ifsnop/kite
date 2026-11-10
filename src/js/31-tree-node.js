@@ -82,6 +82,11 @@ function makeNode({ name, layer = null, isFolder = false, isFile = false,
        indeterminadas; una carpeta ya se ha recalculado por dentro y
        aquí le tocan sus ancestros. Ver refreshAncestorChecks.      */
     if (!ul) refreshAncestorChecks(li);
+    /* La casilla de una fila de una selección múltiple vale para TODA la
+       selección (como el Espacio): el estado que se acaba de elegir aquí se
+       aplica a las demás. Gana el estado de la pulsada, no se invierte cada
+       una. Ver propagateCheck.                                            */
+    if (!propagatingCheck && selection.size > 1 && selection.has(li)) propagateCheck(li, chk.checked);
   });
   row.appendChild(chk);
 
@@ -130,6 +135,11 @@ function makeNode({ name, layer = null, isFolder = false, isFile = false,
     /* Los botones de la fila actúan sobre la selección existente: no
        deben cambiarla al pulsarlos                                   */
     if (e.target.closest(".actions")) return;
+    /* La casilla de una fila que YA está en una selección múltiple tampoco la
+       deshace: el `click` llega a la fila ANTES que el `change` de la casilla,
+       así que sin esto la selección se reducía a esta fila justo antes de que
+       la casilla mirase a quién aplicarse.                                 */
+    if (e.target === chk && !e.shiftKey && selection.size > 1 && selection.has(li)) return;
     if (e.shiftKey) {
       e.preventDefault();
       if (e.ctrlKey || e.metaKey) toggleOne(li);
@@ -210,7 +220,7 @@ function wireLayerEvents(li, layer) {
      mismo, aunque ya no invalide el vértice elegido (la selección
      del árbol dejó de tener ninguna relación con vertexOwner).      */
   layer.on("click", e => {
-    if (activeTool === "polygon") return;
+    if (clickPicksPoint()) return;
     const t = e.originalEvent && e.originalEvent.target;
     if (t && t.closest && t.closest(".measure-handle")) return;
     highlightNode(li);
@@ -239,17 +249,92 @@ const syncAllExpanded = () => {
    ANTES de empezar, así que una llamada reentrante ve `_materializing`
    en vez de arrancar otra pasada sobre los mismos registros.           */
 async function ensureMaterialized(li) {
+  /* Una construcción PARCIAL en vuelo (materializeMatching) deja su resto en
+     _pending: se espera a que acabe y entonces se construye ese resto. Una
+     completa ya dejó _pending a null, así que aquí no espera: como siempre. */
+  if (li._pending && li._materializing) await li._materializing;
   if (!li._pending) return;
   if (li._materializing) return li._materializing;
   const records = li._pending;
   li._pending = null;
-  /* Las dos cuentas son lo que deja a una cascada en curso saber que
-     el conjunto de nodos todavía se está moviendo (ver
-     cascadeVisibility). Se suma ANTES de arrancar: materializeRecords
-     construye su primer lote de forma síncrona, así que una cascada
-     que llegue después tiene que ver ya que hay trabajo en vuelo.  */
+  partialFolders.delete(li);
+  return runMaterialize(li, records, null);
+}
+
+/* Estado que comparten el árbol y el filtro del panel (45-tree-filter.js).
+   `treeFilterWanted` es el criterio «este registro, o algo de dentro,
+   coincide» MIENTRAS hay un filtro puesto (null si no). Desplegar una
+   carpeta con el filtro puesto construye solo eso (expandFolder), igual que
+   lo hace el propio filtro; sin él, todo, como siempre.                  */
+let treeFilterWanted = null;
+const filterClosed = new Set(); /* carpetas que el usuario cerró a mano con el filtro puesto */
+function expandFolder(li) {
+  return treeFilterWanted ? materializeMatching(li, treeFilterWanted) : ensureMaterialized(li);
+}
+/* Una carpeta colapsada (`collapsed`, lo que se guarda) que el filtro enseña
+   abierta porque dentro hay coincidencias: clase aparte, que anula el
+   `display:none` del CSS. NUNCA se toca `collapsed` desde el filtro. */
+function setFilterOpen(li, on) {
+  const want = on && li.classList.contains("collapsed");
+  if (li.classList.contains("filter-open") === want) return;
+  li.classList.toggle("filter-open", want);
+  if (want) li.setAttribute("aria-expanded", "true"); else syncExpanded(li);
+}
+/* Cerrar a mano lo que solo el filtro tenía abierto: no cambia nada guardado
+   y el filtro respeta ese cierre hasta que se quita. */
+function closeFilterOpen(li) { setFilterOpen(li, false); filterClosed.add(li); }
+
+/* Aplica `on` a las demás casillas de la selección múltiple cuando se pulsa
+   la de una de ellas. Recorre los nodos de nivel superior de la selección (lo
+   que cuelga de otra carpeta seleccionada ya lo cubre su cascada, igual que
+   en el Espacio) y a cada uno le pone el estado y le dispara `change`, así se
+   reutiliza TAL CUAL todo lo que ya hace una casilla (cascada de carpetas,
+   visibilidad, guardado, estado de los ancestros). `|| c.indeterminate`: una
+   carpeta a medias cuyo `checked` ya vale `on` sigue necesitando la cascada.
+   El indicador evita que cada `change` disparado aquí vuelva a propagar.  */
+let propagatingCheck = false;
+function propagateCheck(origin, on) {
+  propagatingCheck = true;
+  try {
+    for (const n of topLevelSelection()) {
+      if (n === origin) continue;
+      const c = nodeCheckbox(n);
+      if (c && (c.checked !== on || c.indeterminate)) {
+        c.checked = on;
+        c.dispatchEvent(new Event("change"));
+      }
+    }
+  } finally { propagatingCheck = false; }
+}
+
+/* Carpetas con filas Y registros pendientes (construidas a medias por el
+   filtro). El filtro las completa al quitarse si están abiertas. Un Set de
+   <li> a propósito: una carpeta borrada deja de estar conectada y se
+   descarta al recorrerlo.                                               */
+const partialFolders = new Set();
+
+/* Construye SOLO lo que pide `only` de los registros pendientes de la carpeta
+   (el resto sigue en li._pending, en su sitio) y recursa con el mismo
+   criterio. Cuesta lo que las coincidencias, no lo que la carpeta: con 20 000
+   capas y 38 coincidencias, 5 ms en vez de 6,9 s (performance.md). Sin
+   registros pendientes, o sin nada que elegir, no hace nada.            */
+async function materializeMatching(li, only) {
+  if (li._pending && li._materializing) await li._materializing;
+  if (!li._pending || li._materializing) return;
+  const { chosen, rest } = splitPending(li._pending, only);
+  if (!chosen.length) return;
+  li._pending = rest.length ? rest : null;
+  if (rest.length) partialFolders.add(li); else partialFolders.delete(li);
+  return runMaterialize(li, chosen, only);
+}
+
+/* Lo común de las dos: las cuentas que dejan a una cascada en curso saber
+   que el conjunto de nodos todavía se está moviendo (ver cascadeVisibility)
+   se suman ANTES de arrancar, porque materializeRecords construye su primer
+   lote de forma síncrona.                                               */
+function runMaterialize(li, records, only) {
   materializingNow++;
-  li._materializing = materializeRecords(records, nodeUl(li))
+  li._materializing = materializeRecords(records, nodeUl(li), only)
     .finally(() => { li._materializing = null; materializingNow--; materializeSeq++; });
   return li._materializing;
 }
@@ -261,11 +346,13 @@ function makeCaret(li) {
   caret.textContent = "\u25BE";
   caret.title = tr("Colapsar / desplegar");
   caret.addEventListener("click", () => {
+    /* Abierta solo por el filtro: se cierra a la vista sin tocar lo guardado */
+    if (li.classList.contains("filter-open")) { closeFilterOpen(li); return; }
     const collapsing = !li.classList.contains("collapsed");
     li.classList.toggle("collapsed");
     syncExpanded(li);
     scheduleSave();
-    if (!collapsing) ensureMaterialized(li); /* desplegar: construye el DOM diferido, por lotes */
+    if (!collapsing) expandFolder(li); /* desplegar: construye el DOM diferido, por lotes (solo lo que coincide con el filtro puesto) */
   });
   return caret;
 }
@@ -300,8 +387,13 @@ function makeActions(li, sortable, styleable, layer, focusable = styleable, { fi
   }
   if (sortable) btn("\u25A6", tr("Tabla de atributos de esta carpeta"), "", () => openAttrTable(li));
   if (focusable) {
-    btn("\uD83D\uDD0D", tr("Centrar la vista aqu\u00ED y acercar (zoom {zoom})", { zoom: FOCUS_ZOOM }), "",
-        () => focusOnNode(li));
+    btn("\uD83D\uDD0D", tr("Centrar la vista aqu\u00ED y acercar (zoom {zoom})", { zoom: FOCUS_ZOOM }), "", () => {
+      /* si el nodo forma parte de la selección, la lupa encuadra el CONJUNTO
+         (como el × borra toda la selección y el 🎨 abre las propiedades de
+         todas); fuera de ella, solo esta fila                              */
+      const multi = selection.has(li) && selection.size > 1;
+      focusOnNodes(multi ? topLevelSelection() : [li]);
+    });
   }
   if (styleable) btn("\uD83C\uDFA8", tr("Editar propiedades"), "", () => openStyleDialog(li));
   /* Un marcador siempre lleva el botón, oculto mientras no tenga ficha:
@@ -325,23 +417,32 @@ function makeActions(li, sortable, styleable, layer, focusable = styleable, { fi
     if (next) { li.parentElement.insertBefore(next, li); scheduleSave(); }
   });
   btn("\u00D7", tr("Borrar"), "delete", () => {
-    pushUndo(tr("borrar \u00AB{name}\u00BB", { name: li._name }));
     /* si el nodo forma parte de la selección, se borra toda la selección */
-    if (selection.has(li) && selection.size > 1) {
-      const items = movableSelection();
-      const next = cursorAfterDelete(isRow(selCursor) ? selCursor : items[0], items);
-      for (const s of items) deleteNode(s, { pruneSelection: false });
-      clearSelection();
-      if (next) selectNode(next, true);
-    } else {
-      /* El cursor no desaparece: se mueve a la fila que ocupe el hueco,
-         como en cualquier gestor de archivos.                        */
-      const next = cursorAfterDelete(li, [li]);
-      deleteNode(li);
-      if (next) selectNode(next, true);
-    }
+    const multi = selection.has(li) && selection.size > 1;
+    deleteItemsFromUi(multi ? movableSelection() : [li], tr("borrar \u00AB{name}\u00BB", { name: li._name }), multi);
   });
   return box;
+}
+
+/* El borrado de la INTERFAZ, uno solo para el × de una fila y para el × del
+   diálogo de propiedades (que borra SUS capas): deshacer, el cursor que no
+   desaparece y la selección. `multi`: son varias (la selección entera) y se
+   borran sin podar la selección uno a uno (`pruneSelection: false`, se
+   vacía una vez al final: O(k), no O(k²)); si no, una sola.              */
+function deleteItemsFromUi(items, label, multi) {
+  pushUndo(label);
+  if (multi) {
+    const next = cursorAfterDelete(isRow(selCursor) ? selCursor : items[0], items);
+    for (const s of items) deleteNode(s, { pruneSelection: false });
+    clearSelection();
+    if (next) selectNode(next, true);
+  } else {
+    /* El cursor no desaparece: se mueve a la fila que ocupe el hueco,
+       como en cualquier gestor de archivos.                        */
+    const next = cursorAfterDelete(items[0], items);
+    deleteNode(items[0]);
+    if (next) selectNode(next, true);
+  }
 }
 
 /* Ordena alfabéticamente los hijos directos de una carpeta o archivo.
@@ -419,6 +520,8 @@ function startRename(li) {
    ningún checkbox.                                                    */
 function removeRecordsFromMap(records) {
   for (const rec of records) {
+    /* Una capa perezosa que nunca se construyó no está en el mapa */
+    if (recLayerPending(rec)) continue;
     /* Un contenedor con capa propia (un servicio ArcGIS) la quita también */
     if (rec.children && rec._layer) rootGroup.removeLayer(rec._layer);
     if (rec.children) { removeRecordsFromMap(rec.children); continue; }
@@ -655,8 +758,26 @@ function markDrop(row, zone) {
 
 /* Cede el hilo y deja que el navegador pinte un frame */
 const yieldFrame = () => new Promise(r => requestAnimationFrame(() => setTimeout(r, 0)));
+/* Cuenta un elemento más de `prog` y cede el hilo (y repinta la barra) si
+   lleva más de YIELD_BUDGET_MS desde la última vez.                    */
+async function yieldIfDue(prog) {
+  prog.done++;
+  const now = performance.now();
+  if (prog.last === undefined) prog.last = now;
+  if (now - prog.last < YIELD_BUDGET_MS) return;
+  prog.update(prog.done);
+  await yieldFrame();
+  prog.last = performance.now();
+}
 
 const PROGRESS_BATCH = 150; /* capas construidas entre cesiones del hilo */
+/* Las funciones que CONSTRUYEN registros (buildKmlRecords,
+   buildRecordsFromStorage) ceden por TIEMPO y no por recuento: 150
+   placemarks pueden ser desde 10 ms hasta 1,5 s (un KML real tenía
+   placemarks de 21 000 vértices), y cada cesión cuesta un fotograma
+   entero (`yieldFrame`, ~17 ms): 418 cesiones fijas eran 6,5 s de pura
+   espera en 62 000 placemarks. Medido con KML de 309 MB.            */
+const YIELD_BUDGET_MS = 50;
 const CASCADE_BATCH = 300; /* casillas conmutadas entre cesiones del hilo en
                                una cascada de visibilidad: cada iteración es
                                más barata que construir una fila (solo un
@@ -677,6 +798,7 @@ function makeImportReport(fileName) {
     causes: new Map(),
     kinds: new Set(),
     notes: [],
+    seaFloor: 0, /* polígonos KML con altitud sobre el fondo marino (aviso único) */
     /* Una entidad que no ha entrado */
     warn(why) {
       this.skipped++;
@@ -732,31 +854,44 @@ async function buildKmlRecords(el, styleIndex, inheritedVisible, prog, report, z
       const name = text(child, "name") || "Placemark";
       try {
         const style = placemarkStyle(child, styleIndex);
-        const { group: layer, reported } = buildPlacemarkLayer(child, style, report);
-        if (!layer) {
-          /* Ya se cont\u00F3 arriba con una causa concreta (p. ej. "punto sin
-             coordenadas v\u00E1lidas"); solo hace falta este gen\u00E9rico cuando
-             el placemark no ten\u00EDa ninguna geometr\u00EDa que intentar.      */
-          if (!reported && report) report.warn(tr("\u00AB{name}\u00BB sin geometr\u00EDa utilizable", { name }));
-          continue;
-        }
         const visible = inheritedVisible && ownVisibility(child);
-        if (visible) layer.addTo(rootGroup);
+        const els = placemarkGeomEls(child);
         /* La ficha del placemark suele traer una tabla con los datos
            reales del elemento; se guarda para poder consultarla       */
-        const rec = { t: "layer", name, checked: visible, style,
-                       desc: text(child, "description") || null, _layer: layer };
-        wirePendingLayerEvents(rec);
+        const desc = text(child, "description") || null;
+        let rec;
+        if (!visible && !els.pointEls.length && (els.polygonEls.length || els.lineEls.length)) {
+          /* Apagado y sin marcadores: solo su GeoJSON, que es lo que se
+             guarda. La capa Leaflet (millones de LatLng en un KML grande)
+             se construye si alguien la enciende: ver defineLazyLayer.   */
+          const { geo, reported } = buildPlacemarkGeo(child, style, report, els);
+          if (!geo) {
+            if (!reported && report) report.warn(tr("\u00AB{name}\u00BB sin geometr\u00EDa utilizable", { name }));
+            continue;
+          }
+          rec = { t: "layer", name, checked: false, style, desc, geo };
+          defineLazyLayer(rec, () => buildRecordLayer(rec));
+          if (report) { report.loaded++; report.kinds.add("polygon"); }
+        } else {
+          const { group: layer, reported } = buildPlacemarkLayer(child, style, report, els);
+          if (!layer) {
+            /* Ya se cont\u00F3 arriba con una causa concreta (p. ej. "punto sin
+               coordenadas v\u00E1lidas"); solo hace falta este gen\u00E9rico cuando
+               el placemark no ten\u00EDa ninguna geometr\u00EDa que intentar.      */
+            if (!reported && report) report.warn(tr("\u00AB{name}\u00BB sin geometr\u00EDa utilizable", { name }));
+            continue;
+          }
+          if (visible) layer.addTo(rootGroup);
+          rec = { t: "layer", name, checked: visible, style, desc, _layer: layer };
+          wirePendingLayerEvents(rec);
+          if (report) { report.loaded++; report.kinds.add(layerKind(layer) || "?"); }
+        }
         out.push(rec);
-        if (report) { report.loaded++; report.kinds.add(layerKind(layer) || "?"); }
       } catch (err) {
         /* One bad entity must never abort the whole import */
         if (report) report.warn(`\u00AB${name}\u00BB: ${err.message}`);
       }
-      if (prog && ++prog.done % PROGRESS_BATCH === 0) {
-        prog.update(prog.done);
-        await yieldFrame();
-      }
+      if (prog) await yieldIfDue(prog);
     } else if (tag === "GroundOverlay") {
       const name = text(child, "name") || tr("Ortofoto");
       try {
@@ -772,10 +907,7 @@ async function buildKmlRecords(el, styleIndex, inheritedVisible, prog, report, z
         /* One bad entity must never abort the whole import */
         if (report) report.warn(`«${name}»: ${err.message}`);
       }
-      if (prog && ++prog.done % PROGRESS_BATCH === 0) {
-        prog.update(prog.done);
-        await yieldFrame();
-      }
+      if (prog) await yieldIfDue(prog);
     }
   }
   return out;

@@ -23,7 +23,8 @@
     --danger-soft: light-dark(#fdf1ef, #3d2420);
     --alert: light-dark(#d32f2f, #ff6b61);
     --surface: light-dark(#ffffff, #2f302d);
-    --surface-glass: light-dark(rgba(255,255,255,.85), rgba(37,38,36,.85));
+    --surface-glass: light-dark(rgba(255,255,255,.78), rgba(37,38,36,.78));
+    --glass-blur: blur(8px) saturate(160%);       /* material de las superficies sobre el mapa; sin blur con transparencia reducida */
     --ink-strong: light-dark(#000000, #f2f2ee);
     --shadow: light-dark(rgba(0,0,0,.25), rgba(0,0,0,.6));
     --shadow-soft: light-dark(rgba(0,0,0,.15), rgba(0,0,0,.5));
@@ -36,6 +37,12 @@
     --pf-mds: light-dark(#2e7d32, #45a84b);
     --pf-fresnel: light-dark(#7b1fa2, #a86fe0);
     --pf-earth: light-dark(#8d6e63, #b09a90);
+    /* Obstáculos (polígonos con altitud): naranja. Validado con validate_palette.js del skill dataviz:
+       dentro de la banda de luminosidad y contraste ≥ 3:1 sobre blanco (claro) y sobre --panel (oscuro).
+       Honesto: un naranja y el verde del MDS se confunden con protanopia (ΔE 2,6), como cualquier tono
+       cálido junto a un verde. Lo salva la FORMA, no el color: el obstáculo es un bloque relleno con
+       contorno y el MDS una línea, y cada uno lleva su entrada rotulada en la leyenda. */
+    --pf-obstacle: light-dark(#c25e00, #d9731a);
     --pf-outside: light-dark(rgba(0,0,0,.05), rgba(0,0,0,.26)); /* velo de lo que queda fuera del enlace: apaga en los dos temas */
     --nav-width: 400px;
   }
@@ -67,7 +74,7 @@
     margin: 0 0 10px;
     font-size: 15px;
     font-weight: 600;
-    letter-spacing: 0.02em;
+    letter-spacing: -0.01em; /* un título se aprieta: el tracking positivo es para texto pequeño */
   }
   #dropzone {
     border: 2px dashed var(--border);
@@ -117,6 +124,19 @@
      para no hacer nada. Mismos valores que .color-btn:disabled.      */
   .btn:disabled { opacity: .35; cursor: default; }
   .btn:disabled:hover { border-color: var(--border); color: inherit; }
+  /* Respuesta al PULSAR, no al soltar (apple-design §1): al bajar el botón
+     el control se hunde y se oscurece al instante; al soltarlo vuelve en
+     100 ms. Solo transform y filter (van en el compositor). Lo comparten
+     los controles que son botones; ver motion.md.                       */
+  .btn, .dlg-close, #nav-toggle, .base-toggle, .color-btn, .ctx-menu-item,
+  .leaflet-bar a { transition: transform .1s ease-out, filter .1s ease-out; }
+  .btn:not(:disabled):active, .dlg-close:active, #nav-toggle:active, .base-toggle:active,
+  .color-btn:not(:disabled):active, .ctx-menu-item:not(:disabled):active,
+  .leaflet-bar a:not(.leaflet-disabled):active {
+    transform: scale(.97);
+    filter: brightness(.94);
+    transition-duration: 0s;
+  }
   /* Acción que borra algo sin vuelta atrás (Propiedades › Restaurar) */
   .btn.btn-danger { color: var(--danger); border-color: var(--danger); background: var(--danger-soft); }
   .btn.btn-danger:hover { color: var(--danger); border-color: var(--danger); filter: brightness(.95); }
@@ -329,6 +349,15 @@
   }
   li.collapsed > .node-row > .caret { transform: rotate(-90deg); }
   li.collapsed > ul.node-list { display: none; }
+  /* Filtro del árbol (45-tree-filter.js): lo que no coincide va con `hidden`;
+     una carpeta colapsada con coincidencias dentro se ve abierta SIN tocar
+     `collapsed` (que es lo que se guarda), con esta clase aparte. */
+  #tree li[hidden] { display: none; }
+  li.collapsed.filter-open > ul.node-list { display: block; }
+  li.collapsed.filter-open > .node-row > .caret { transform: none; }
+  .filter-count { color: var(--muted); font-size: 12px; white-space: nowrap; }
+  #tree-filter-empty { margin: 0; padding: 14px 14px 0; color: var(--muted); font-size: 13px; }
+  #tree-filter-empty[hidden] { display: none; }
   .caret-spacer { width: 14px; min-width: 14px; }
 
   .swatch {
@@ -384,12 +413,33 @@
   .actions button:hover { color: var(--accent); background: var(--surface); }
   .actions button.delete:hover { color: var(--danger); }
   .actions button.az { font-size: 10px; font-weight: 600; }
+  /* Fila de iconos del diálogo de propiedades (🔍 ir a la capa, × borrar): el
+     mismo aspecto de icono que los botones de la fila del árbol */
+  .dlg-tools { display: flex; gap: 4px; margin: 2px 0 6px; }
+  .dlg-tools button { border: none; background: none; color: var(--muted); font-size: 15px; line-height: 1;
+                      cursor: pointer; padding: 4px 6px; border-radius: 4px; }
+  .dlg-tools button:hover:not(:disabled) { color: var(--accent); background: var(--surface); }
+  .dlg-tools button.delete:hover:not(:disabled) { color: var(--danger); }
+  .dlg-tools button:disabled { opacity: .35; cursor: default; }
+  .dlg-tools button[hidden] { display: none; }
   .actions button[hidden] { display: none; }
   #nav-search {
     padding: 8px 14px;
     border-top: 1px solid var(--border);
   }
   #nav-search .nav-actions { margin-bottom: 0; }
+  /* Campo de búsqueda con la × dentro (borra y quita el filtro del árbol) */
+  .search-field { position: relative; flex: 1; min-width: 0; display: flex; }
+  #search-box { padding-right: 24px; }
+  #search-box.filtering { border-color: var(--accent); }
+  #search-clear {
+    position: absolute; right: 3px; top: 50%; transform: translateY(-50%);
+    padding: 0 6px; border: none; border-radius: 4px; background: none;
+    color: var(--muted); font: 400 18px/1.2 system-ui, sans-serif; cursor: pointer;
+  }
+  #search-clear:hover { background: var(--border); color: var(--text); }
+  #search-clear:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+  #search-clear[hidden] { display: none; }
   #search-count {
     font-size: 12px;
     color: var(--muted);
@@ -405,6 +455,7 @@
     background: var(--border);
   }
   #splitter:hover { background: var(--accent); }
+  #splitter { touch-action: none; } /* el arrastre es del separador (Pointer Events), no un desplazamiento de la página */
   #nav-toggle {
     position: absolute;
     top: 50%;
@@ -471,6 +522,8 @@
      — así, al activarse, `.active` gana por orden de cascada y el
      icono se ve blanco sobre el fondo de acento, igual que cualquier
      otro botón de esta barra.                                        */
+  /* ◔ (el sector) sale mucho más pequeño que ◎ o ◯ en la misma letra: se compensa */
+  .measure-bar a.glyph-lg { font-size: 23px; }
   .measure-bar a.dn-toggle { color: #f5a623; }
   .measure-bar a.active { background: var(--accent); color: #fff; }
   .measure-bar a.disabled { opacity: .35; cursor: not-allowed; }
@@ -479,6 +532,14 @@
      regardless of specificity, so the `hidden` property silently does
      nothing without this explicit override.                           */
   .measure-bar a[hidden] { display: none; }
+  /* A− / A+ del tamaño de las cifras de elevación, encima de la escala: dos
+     botones en fila, a la derecha. `hidden` pierde contra `display` de autor
+     (misma trampa que .measure-bar a[hidden]), de ahí su regla.          */
+  .elev-font-bar { display: flex; float: right; }
+  .elev-font-bar[hidden] { display: none; }
+  .elev-font-bar a { width: 32px; height: 26px; line-height: 26px; text-align: center; font: 700 13px/26px system-ui, sans-serif; cursor: pointer; border-bottom: none; }
+  .elev-font-bar a + a { border-left: 1px solid var(--border); }
+  .elev-font-bar a.disabled { opacity: .35; cursor: not-allowed; }
   /* Círculo blanco PEQUEÑO por defecto, sin cursor propio: un waypoint
      de ruta o el centro/borde de un círculo son manejadores PERMANENTES
      (existen aunque su diálogo de propiedades esté cerrado, ver
@@ -543,6 +604,8 @@
        falta limitar su ancho, y así cabe la línea de la diferencia
        entre superficie y terreno.                                  */
     background: var(--surface-glass);
+    -webkit-backdrop-filter: var(--glass-blur);
+    backdrop-filter: var(--glass-blur);
     border: 1px solid var(--border);
     border-radius: 4px;
     padding: 3px 8px;
@@ -657,7 +720,8 @@
      registro, el cursor es la señal (ver syncElevBusy, syncCadastreBusy). `!important` y `*`: las capas
      interactivas y el arrastre ponen su propio cursor.               */
   .leaflet-container.elev-busy, .leaflet-container.elev-busy *,
-  .leaflet-container.cadastre-busy, .leaflet-container.cadastre-busy * { cursor: progress !important; }
+  .leaflet-container.cadastre-busy, .leaflet-container.cadastre-busy *,
+  .leaflet-container.wikipedia-busy, .leaflet-container.wikipedia-busy * { cursor: progress !important; }
 
   .coords-zoom { font-weight: 600; }
   /* La atribución se queda en una sola línea, la de abajo del todo */
@@ -678,6 +742,10 @@
   .leaflet-container .leaflet-control-scale-line {
     background: var(--surface-glass);
     color: var(--muted-2);
+  }
+  .leaflet-container .leaflet-control-attribution {
+    -webkit-backdrop-filter: var(--glass-blur);
+    backdrop-filter: var(--glass-blur);
   }
   .leaflet-container .leaflet-control-attribution a { color: var(--accent); }
   .leaflet-container .leaflet-control-scale-line { border-color: var(--muted-2); text-shadow: none; }
@@ -737,7 +805,7 @@
     position: fixed;
     inset: 0;
     z-index: 2000;
-    background: var(--backdrop);
+    background-color: var(--backdrop);
     display: flex;
     align-items: center;
     justify-content: center;
@@ -770,6 +838,25 @@
     z-index: 2000;
   }
   .dlg-float[hidden] { display: none; }
+  /* Entradas ancladas (apple-design §7 y §12), solo al ABRIR: opacidad y una
+     escala casi imperceptible, sin rebote (no las lanza un gesto con
+     inercia). Cerrar es inmediato: Escape, la × y Cancelar encadenan
+     trabajo (foco, restaurar la foto) y quien cierra quiere el mapa ya.
+     Son @keyframes y no `@starting-style`: el minificador del build
+     (clean-css) no conoce esa regla y la DESTROZA en kitelocal.min.html
+     (medido: pierde la regla de `.dlg-box`). Una animación solo con
+     `from` parte de ahí y llega al estilo normal; se repite cada vez que
+     el elemento pasa de `hidden` a visible. El menú nace en el punto
+     pulsado (--ctx-origin, 70-view-controls.js) y el popover de color,
+     bajo su botón. Con movimiento reducido no hay ninguna (bloque
+     final del archivo; tests/statics.js lo exige).                    */
+  @keyframes enter-dialog { from { opacity: 0; transform: scale(.98); } }
+  @keyframes enter-menu { from { opacity: 0; transform: scale(.96); } }
+  @keyframes enter-backdrop { from { background-color: transparent; } }
+  .dlg-box { animation: enter-dialog .16s ease-out; }
+  .ctx-menu { animation: enter-menu .12s ease-out; transform-origin: var(--ctx-origin, top left); }
+  .color-popover { animation: enter-menu .12s ease-out; transform-origin: top left; }
+  .dlg-overlay { animation: enter-backdrop .16s ease-out; }
   /* La calculadora geodésica va abajo a la derecha: arriba a la derecha
      está el diálogo de estilos y se taparían entre sí.                 */
   #geocalc-dialog { top: auto; bottom: 40px; }
@@ -829,18 +916,20 @@
                   margin: 4px 0 0; font-size: 13px; }
   #profile-foot .pf-hint { flex: 1 1 8rem; min-width: 0; text-align: right; white-space: nowrap;
                            overflow: hidden; text-overflow: ellipsis; color: var(--muted); font-size: 11px; }
-  /* Rectángulo de lectura: 2 columnas × 4 filas SIEMPRE (guiones en reposo,
+  /* Rectángulo de lectura: 2 columnas × 5 filas SIEMPRE (guiones en reposo,
      filas apagadas atenuadas pero presentes), así su caja no cambia al
      mover el ratón y la gráfica no salta. El valor manda (negrita, cifras
      tabulares); la etiqueta es secundaria; cada línea lleva su clave de
      trazo del color de su curva, y el texto sigue en tinta de texto.   */
-  #profile-info { flex: 0 0 26rem; max-width: 100%; box-sizing: border-box;
-                  display: grid; grid-template-columns: 1fr 1fr; grid-template-rows: repeat(4, auto);
+  #profile-info { flex: 0 0 31rem; max-width: 100%; box-sizing: border-box;
+                  display: grid; grid-template-columns: 1fr 1fr; grid-template-rows: repeat(5, auto);
                   grid-auto-flow: column; gap: 0 18px; padding: 5px 10px;
                   border: 1px solid var(--border); border-radius: 4px; background: var(--panel); }
   .pf-info-row { display: flex; align-items: center; gap: 6px; min-width: 0; height: 20px; font-size: 12px; }
   .pf-info-row.off { opacity: .45; }
-  .pf-info-label { color: var(--muted); white-space: nowrap; }
+  /* Las etiquetas que nombran su referencia («Margen Fresnel (Obstáculo)») pueden ser largas: se cortan, y el texto entero va en el title */
+  .pf-info-label { color: var(--muted); white-space: nowrap; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+  .pf-info-val { flex: none; }
   .pf-info-val { margin-left: auto; white-space: nowrap; font-variant-numeric: tabular-nums; color: var(--text); font-weight: 600; }
   .pf-info-val.alert { color: var(--alert); }
   .pf-key { flex: 0 0 14px; height: 0; border-top: 3px solid transparent; }
@@ -849,6 +938,11 @@
   .pf-key.earth { border-top-color: var(--pf-earth); }
   .pf-key.los { border-top-color: var(--ink-strong); }
   .pf-key.fresnel { border-top: 2px dashed var(--pf-fresnel); }
+  .pf-key.obstacle { border-top-color: var(--pf-obstacle); }
+  /* El nombre de un obstáculo puede ser largo: se corta, y el texto entero va en el title */
+  .pf-info-row[data-k="obs"] .pf-info-val { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+  #profile-obstructions { margin: 4px 0 0; }
+  #profile-obstructions.alert { color: var(--alert); font-weight: 600; }
   #profile-chart.dragging { cursor: grabbing; }
   #profile-chart svg { display: block; width: 100%; height: 100%; font: 11px system-ui, sans-serif; }
   #profile-chart .pf-axis { stroke: var(--muted); stroke-width: 1; }
@@ -884,8 +978,16 @@
   #profile-chart .pf-tower-label { fill: var(--text); font-weight: 600; paint-order: stroke;
                                    stroke: var(--panel); stroke-width: 3px; stroke-linejoin: round; }
   #profile-chart .pf-fresnel { fill: none; stroke: var(--pf-fresnel); stroke-width: 1; stroke-dasharray: 4 3; }
+  /* Obstáculos: bloque del terreno al techo; en rojo, donde la recta pasa por
+     debajo. La tinta del contorno es la del token, no la de las curvas. */
+  #profile-chart .pf-obstacle { fill: var(--pf-obstacle); fill-opacity: 0.32; stroke: var(--pf-obstacle); stroke-width: 1.5; stroke-linejoin: round; }
+  #profile-chart .pf-obstacle-hit { fill: var(--alert); fill-opacity: 0.45; stroke: var(--alert); }
+  #profile-chart .pf-legend.obstacle { stroke: var(--pf-obstacle); }
   #profile-chart .pf-fresnel60 { fill: var(--pf-fresnel); fill-opacity: 0.12; stroke: var(--pf-fresnel); stroke-width: 1; }
-  #profile-chart .pf-legend.fresnel { stroke: var(--pf-fresnel); }
+  /* La leyenda de Fresnel imita lo que nombra: raya discontinua = el contorno
+     de la primera zona (100 %); cuadrito relleno = la zona del 60 %.         */
+  #profile-chart .pf-legend.fresnel { stroke: var(--pf-fresnel); stroke-width: 1.5; stroke-dasharray: 4 3; }
+  #profile-chart .pf-legend-swatch.pf-fresnel60 { fill-opacity: 0.25; }
   /* Puntos de lectura sobre cada curva bajo el cursor (≥ 8 px, anillo de
      superficie de 2 px); la lectura sigue en el rectángulo de arriba */
   #profile-chart .pf-dot { stroke: var(--panel); stroke-width: 2; }
@@ -971,7 +1073,9 @@
   .geocalc-out > p { margin: 0; }
   /* Mismo tamaño que el texto de los campos (.dlg-row, 13px); pre-line:
      los resultados de varias líneas llevan «\n» en el texto, sin HTML. */
-  .geocalc-result { font-size: 13px; line-height: 1.4; font-weight: 600; white-space: pre-line; }
+  .geocalc-result { font-size: 13px; line-height: 1.4; font-weight: 600; white-space: pre-line; font-variant-numeric: tabular-nums; }
+  /* Cifras que se repintan al arrastrar: que no bailen de ancho */
+  #ms-values .dlg-note, #ms-legs { font-variant-numeric: tabular-nums; }
   /* Sub-dialog of the style dialog always sits above it */
   #icon-picker { z-index: 2100; }
   /* The colour picker is a POPOVER anchored to whichever button opened
@@ -1163,7 +1267,7 @@
      instead of stretching almost edge to edge.                       */
   /* Sin esto heredan el max-width: 90vw de .dlg-box y una caja de texto
      corto se estira a casi toda la pantalla.                          */
-  #kml-tags-picker .dlg-box, #kml-dup-picker .dlg-box, #sh-creds .dlg-box, #mobile-notice .dlg-box, #restore-confirm .dlg-box { max-width: 42ch; }
+  #kml-tags-picker .dlg-box, #kml-dup-picker .dlg-box, #sh-creds .dlg-box, #mobile-notice .dlg-box, #restore-confirm .dlg-box, #delete-confirm .dlg-box { max-width: 42ch; }
   /* ---------- Ventanas redimensionables ----------
      `resize: both` es el redimensionado nativo del navegador; su tirador
      va en la esquina inferior derecha y no estorba al arrastre por el
@@ -1368,7 +1472,7 @@
     /* Con ancho fijo, un valor sin espacios desbordaría la celda */
     overflow-wrap: anywhere;
   }
-  .desc-body .props td:first-child { width: var(--props-key, 38%); }
+  .desc-body .props td:first-child { width: var(--props-key, var(--props-key-auto, 38%)); }
   /* El tirador cubre la tabla de arriba abajo (el envoltorio mide lo
      que ella) y se centra sobre la línea divisoria. Ancho generoso para
      poder agarrarlo, pero transparente: lo que se ve es el borde de la
@@ -1377,7 +1481,7 @@
     position: absolute;
     top: 0;
     bottom: 0;
-    left: var(--props-key, 38%);
+    left: var(--props-key, var(--props-key-auto, 38%));
     width: 9px;
     margin-left: -4px;
     cursor: col-resize;
@@ -1490,6 +1594,10 @@
     border: 1px solid var(--border); border-radius: 4px; padding: 6px; box-sizing: border-box;
   }
   #points-text.bad { border-color: var(--danger); }
+  /* «Modo de altitud»: el desplegable lleva textos largos («Sobre el fondo marino
+     (no admitido en perfiles)»); el tope de 190px de .dlg-row los cortaba.     */
+  #points-altmode-row > label { flex: 0 0 auto; }
+  #points-altmode-row > select { flex: 1 1 auto; min-width: 0; max-width: none; }
   .sh-field, .url-field { display: block; margin-top: 10px; font-size: 13px; }
   .sh-field input, .url-field input, .url-field textarea {
     display: block; width: 100%; margin-top: 4px; font: inherit; padding: 4px 6px;
@@ -1507,6 +1615,7 @@
   #geojson-name-picker { z-index: 2100; }
   /* La segunda confirmación de Restaurar se abre desde Propiedades (2050) */
   #restore-confirm { z-index: 2100; }
+  #delete-confirm { z-index: 2100; } /* encima del diálogo de propiedades (flotante) desde el que se abre */
   /* El panel Propiedades lleva ALTURA DE PARTIDA explícita, mismo motivo
      que #points-dialog/#log-dialog/#url-dialog: un hijo en `flex: 1`
      sobre un contenedor de altura automática se queda en nada, así que
@@ -1647,6 +1756,18 @@
     filter: drop-shadow(0 1px 1px rgba(0,0,0,.4));
   }
 
+  /* Glyphs that are a bare letter get a round badge of their own (see
+     BADGED_ICONS in 42-hittest.js): the glyph keeps its contrast on any base map. */
+  .mdi-pin .icon-badge {
+    display: block;
+    box-sizing: border-box;
+    padding: 12%;
+    border: 2px solid currentColor;
+    border-radius: 50%;
+    box-shadow: 0 1px 2px rgba(0,0,0,.5);
+  }
+  .mdi-pin .icon-badge svg { filter: none; }
+
   /* Compact popup fitted to its text, so it hides as little map as possible */
   .leaflet-popup.compacto .leaflet-popup-content-wrapper {
     padding: 0;
@@ -1680,4 +1801,51 @@
     line-height: 1.2;
     white-space: nowrap;
     border-radius: 5px;
+  }
+
+  /* ================= Cambio de tema suave =================
+     applyUiTheme(theme, true) pone esta clase 250 ms al elegir un tema en
+     Propiedades: un salto claro↔oscuro de golpe deslumbra. NO se usa al
+     arrancar (no hay nada que suavizar) ni con movimiento reducido.     */
+  html.theme-switching, html.theme-switching * {
+    transition: background-color .25s ease, color .25s ease, border-color .25s ease !important;
+  }
+
+  /* ================= Preferencias de accesibilidad del sistema =================
+     Movimiento reducido NO es «sin respuesta»: se quita lo que se mueve
+     (giros, latidos, rayas, entradas, el hundido del botón) y se conserva
+     lo que ayuda a entender (cambios de color y de opacidad). TODA
+     `animation:` del archivo tiene su anulación aquí; tests/statics.js lo
+     comprueba. Ver motion.md.                                           */
+  @media (prefers-reduced-motion: reduce) {
+    .spinner { animation: none; }
+    #progress-fill.indet { animation: none; }
+    .node-row.cascading > label { animation: none; opacity: .7; }
+    .caret, #progress-fill, #profile-progress-fill { transition: none; }
+    .dlg-box { animation: none; }
+    .ctx-menu { animation: none; }
+    .color-popover { animation: none; }
+    .dlg-overlay { animation: none; }
+    .btn, .dlg-close, #nav-toggle, .base-toggle, .color-btn, .ctx-menu-item, .leaflet-bar a { transition: none; }
+    .btn:not(:disabled):active, .dlg-close:active, #nav-toggle:active, .base-toggle:active,
+    .color-btn:not(:disabled):active, .ctx-menu-item:not(:disabled):active,
+    .leaflet-bar a:not(.leaflet-disabled):active { transform: none; }
+    html.theme-switching, html.theme-switching * { transition: none !important; }
+  }
+  /* Transparencia reducida: superficies opacas y sin desenfoque */
+  @media (prefers-reduced-transparency: reduce) {
+    :root {
+      --surface-glass: var(--surface);
+      --glass-blur: none;
+    }
+  }
+  /* Contraste alto: bordes y texto secundario más marcados. Cambia el valor
+     de los TOKENS, nunca un color suelto (theme.md). */
+  @media (prefers-contrast: more) {
+    :root {
+      --border: light-dark(#6b6b66, #8a8a84);
+      --muted: light-dark(#5a5a55, #bdbdb6);
+      --muted-2: light-dark(#3d3d3a, #d0d0c9);
+    }
+    .dlg-close { border: 1px solid var(--border); }
   }

@@ -2,7 +2,16 @@
 
 const MEASURE_COLORS = { circle: "#7c3aed", route: "#0ea5e9" };
 let measureLi = null;
-let activeTool = null; /* null | "circle" | "arc" | "polygon" | "route" */
+let activeTool = null; /* null | "circle" | "arc" | "polygon" | "route" | "pin" | "rings" | "sector" */
+/* Herramientas de UN CLIC: esperan un clic en el mapa que fija el centro (el
+   pin, los anillos de alcance y el sector), abren sus propiedades —donde
+   todavía se puede cambiar casi todo antes de guardar— y se sueltan solas.
+   Como el círculo o el polígono: se arman con su botón, la cruz es el cursor
+   y Escape las cancela.                                                  */
+const PLACE_TOOLS = new Set(["pin", "rings", "sector"]);
+/* ¿Un clic sobre el mapa va a fijar un punto (vértice o centro) y no a
+   seleccionar la capa que haya debajo? */
+const clickPicksPoint = () => activeTool === "polygon" || PLACE_TOOLS.has(activeTool);
 let drawing = null;    /* medición en curso durante el arrastre de creación */
 let polyDraft = null;  /* polígono en curso: { vertices, handles, poly, group } | null */
 /* Crear una ruta se comporta como EDITARLA: no usa polyDraft en absoluto
@@ -53,7 +62,7 @@ function pngTimestamp(d = new Date()) {
    y `.dn-celestial-overlay`) también se ocultan: son un efecto del
    momento actual, no parte del contenido del mapa, y html2canvas no
    garantiza capturar bien un canvas WebGL.                           */
-const HIDE_FOR_PNG = ".leaflet-control-zoom, .measure-bar, .base-box, .daynight-canvas, .dn-celestial-overlay";
+const HIDE_FOR_PNG = ".leaflet-control-zoom, .measure-bar, .base-box, .elev-font-bar, .daynight-canvas, .dn-celestial-overlay";
 
 async function exportMapPng() {
   /* Bajo demanda (07-lazy-libs.js): se pide ANTES de ocultar los
@@ -103,24 +112,52 @@ const MeasureControl = L.Control.extend({
     toolButtons.arc = makeToolButton(bar, "\u25E0",
       tr("Medir arco: arrastra (o haz clic) del centro al inicio del arco, recorre el per\u00EDmetro "
       + "y haz clic donde acaba"), "arc");
+    L.DomEvent.disableClickPropagation(bar);
+    return bar;
+  }
+});
+
+/* «Crear», en su propia caja como el submenú «Crear» del menú contextual
+   frente a «Medir»: un hueco separa lo que mide de lo que crea.            */
+const CreateControl = L.Control.extend({
+  options: { position: "topleft" },
+  onAdd() {
+    const bar = L.DomUtil.create("div", "leaflet-bar measure-bar");
     toolButtons.polygon = makeToolButton(bar, "\u2B20",
       tr("Dibujar: click para cada v\u00E9rtice; doble click sobre el \u00FAltimo v\u00E9rtice cierra el "
       + "pol\u00EDgono, doble click fuera termina la l\u00EDnea sin cerrarla"), "polygon");
 
-    /* Not a drag tool like the other two: it acts on click, so it does not
-       go through setTool and never disables panning                      */
-    const pin = L.DomUtil.create("a", "", bar);
-    pin.href = "#";
-    pin.textContent = "\uD83D\uDCCD";
-    pin.title = tr("Crear un marcador en el centro de la vista");
-    pin.addEventListener("click", e => { e.preventDefault(); createPin(); });
+    /* Anillos de alcance, sector y pin: herramientas de UN CLIC (PLACE_TOOLS).
+       Se arman con el botón, se hace clic en el mapa donde va el CENTRO y
+       entonces se abren sus propiedades (el diálogo de anillos y sector con
+       su vista previa, el del marcador con `isNew`), donde todavía se puede
+       corregir la posición y el resto antes de guardar. Antes nacían en el
+       centro de la vista y eso no servía. Mismo orden que «Crear» del menú
+       contextual: polígono, anillos, sector, pin.                        */
+    toolButtons.rings = makeToolButton(bar, "\u25CE",
+      tr("Anillos de alcance: haz clic en el mapa en el centro de los círculos concéntricos"), "rings");
+    toolButtons.sector = makeToolButton(bar, "\u25D4",
+      tr("Sector: haz clic en el mapa en el centro del sector circular"), "sector");
+    toolButtons.sector.classList.add("glyph-lg");
+    toolButtons.pin = makeToolButton(bar, "\uD83D\uDCCD", tr("Crear un marcador: haz clic en el mapa donde ponerlo"), "pin");
 
+    L.DomEvent.disableClickPropagation(bar);
+    return bar;
+  }
+});
+
+/* La imagen PNG, en su propia caja: un hueco la separa de las herramientas
+   de crear (Leaflet deja 10 px entre controles de la misma esquina). Lleva
+   también `.measure-bar`: se oculta en la propia imagen (HIDE_FOR_PNG).    */
+const ExportPngControl = L.Control.extend({
+  options: { position: "topleft" },
+  onAdd() {
+    const bar = L.DomUtil.create("div", "leaflet-bar measure-bar");
     const png = L.DomUtil.create("a", "", bar);
     png.href = "#";
     png.textContent = "\uD83D\uDCF7";
     png.title = tr("Exportar el visor como imagen PNG");
     png.addEventListener("click", e => { e.preventDefault(); exportMapPng(); });
-
     L.DomEvent.disableClickPropagation(bar);
     return bar;
   }
@@ -134,6 +171,8 @@ function makeToolButton(bar, glyph, title, tool) {
   return a;
 }
 map.addControl(new MeasureControl());
+map.addControl(new CreateControl());
+map.addControl(new ExportPngControl());
 
 function setTool(tool) {
   if (drawing) { rootGroup.removeLayer(drawing.group); drawing = null; }
@@ -149,7 +188,7 @@ function setTool(tool) {
   /* An info panel already open (from a hover right before activating the
      tool) could sit exactly where the user needs to click to fix a
      vertex inside another polygon                                     */
-  if ((tool === "polygon" || tool === "route") && !descDialog.hidden) {
+  if ((tool === "polygon" || tool === "route" || PLACE_TOOLS.has(tool)) && !descDialog.hidden) {
     hideLayerInfo({ dismiss: true });
   }
   /* Leaving any drawing tool (route, polygon, or circle): the double
@@ -172,9 +211,16 @@ function setTool(tool) {
      pensada justo para esto: forzar el cursor de una herramienta de
      dibujo también sobre lo que hay debajo.                           */
   map.getContainer().classList.toggle("leaflet-crosshair", !!tool);
-  /* Con la herramienta activa, el arrastre dibuja en vez de hacer pan, y
-     el doble click de "cerrar polígono" no debe además hacer zoom      */
-  if (tool) { map.dragging.disable(); map.doubleClickZoom.disable(); }
+  /* Solo el círculo y el arco dibujan ARRASTRANDO: con ellos el arrastre no
+     puede ser también un pan. El polígono y la ruta añaden vértices con CLIC,
+     así que dejan el pan activo (arrastrar el mapa lo desplaza sin tocar el
+     dibujo: el clic que sigue a un arrastre se ignora, ver `clickWasDrag`).
+     El doble click de «cerrar polígono» no debe además hacer zoom, en
+     ninguno de los casos.                                                */
+  if (tool) {
+    if (tool === "circle" || tool === "arc") map.dragging.disable(); else map.dragging.enable();
+    map.doubleClickZoom.disable();
+  }
   /* Al SOLTAR una herramienta, doubleClickZoom no se reactiva a ciegas:
      puede seguir habiendo un polígono/ruta/círculo en edición al mismo
      tiempo (activeTool y vertexOwner NO son excluyentes — se puede abrir
@@ -204,6 +250,8 @@ document.addEventListener("keydown", e => {
   if (e.key !== "Escape") return;
   /* Escape closes open dialogs first; otherwise cancels tool/selection */
   if (!ctxMenuEl.hidden) { closeCtxMenu(); return; }
+  /* La confirmación de borrar varias capas está encima de todo lo demás */
+  if (!deleteConfirmDialog.hidden) { closeDeleteConfirm(); return; }
   if (!shortcutsDialog.hidden) { toggleShortcuts(); return; }
   if (!logDialog.hidden) { toggleLog(); return; }
   if (!urlDialog.hidden) { closeUrlDialog(); return; }
@@ -225,6 +273,9 @@ document.addEventListener("keydown", e => {
   if (!customTilesDialog.hidden) { closeCustomTilesDialog(); return; }
   if (!customWmsDialog.hidden) { closeCustomWmsDialog(); return; }
   if (!pointsDialog.hidden) { closePointsDialog(); return; }
+  /* La lista de mapas base, flotando sobre el visor: lo último que se cierra
+     antes de tocar herramienta y selección (un diálogo la tapa, no al revés) */
+  if (!baseControl._list.hidden) { closeBasePanel(); return; }
   /* Cancelar a medio dibujar una ruta (closeStyleDialog(false) borra el
      nodo por ser "isNew", mismo camino que un pin recién creado, y
      además sale de la herramienta) vive dentro de closeStyleDialog
@@ -475,16 +526,16 @@ function attachVertexDrag(handle, requireCtrl, onMove, onDrop, canStart) {
     if (canStart && !canStart()) return;
     L.DomEvent.stop(oe);
     /* Gestionar map.dragging es independiente de si hace falta Ctrl para
-       EMPEZAR el gesto: mientras se dibuja, setTool ya lo desactivó para
-       TODA la sesión, y hacerlo también aquí lo reactivaría a mitad de
-       dibujo en cuanto se soltara este vértice. Fuera de una herramienta
-       activa (edición de una forma ya creada) nadie más lo gestiona, así
-       que hace falta aquí — sobre todo ahora que mover un vértice ya no
-       exige Ctrl (wireVertexEditHandle/wireRouteHandle): sin esto el
-       mapa competiría por el mismo gesto, y ese arrastre-de-mapa a
-       medias es lo que le hacía suprimir el "dblclick" que seguía
-       (reportado como "doble click no hace zoom en modo edición").     */
-    const manageDragging = !activeTool;
+       EMPEZAR el gesto. Se apaga durante el arrastre SOLO si el pan está
+       activo (`enabled()`): con el círculo o el arco armados setTool ya lo
+       desactivó para toda la sesión y reactivarlo aquí lo dejaría encendido
+       a mitad de dibujo al soltar el vértice; con el polígono, la ruta o sin
+       herramienta (edición de una forma ya creada) está activo y nadie más
+       lo gestiona, así que hace falta aquí — sin esto el mapa competiría por
+       el mismo gesto, y ese arrastre-de-mapa a medias es lo que suprimía el
+       "dblclick" que seguía (reportado como "doble click no hace zoom en
+       modo edición").                                                      */
+    const manageDragging = map.dragging.enabled();
     if (manageDragging) map.dragging.disable();
     const move = e => { handle.setLatLng(e.latlng); onMove(e.latlng); };
     const up = () => {
@@ -551,7 +602,7 @@ function attachCircleHandleDrag(m, handle, isOrigin) {
     const oe = ev.originalEvent;
     if (!styleDialogShows(m.treeLabel && m.treeLabel.closest("li"))) return;
     L.DomEvent.stop(oe);
-    const manageDragging = !activeTool;
+    const manageDragging = map.dragging.enabled();
     if (manageDragging) map.dragging.disable();
 
     const translateCircle = isOrigin && m.type === "circle";
@@ -783,9 +834,9 @@ function addPolyVertex(latlng) {
   }
   const h = makeHandle(latlng, true);
   h.on("contextmenu", ev => { L.DomEvent.stop(ev.originalEvent); removePolyVertex(h); });
-  /* Mover un vértice ANTES de cerrar: sin Ctrl, porque mientras se
-     dibuja el mapa ya tiene dragging.disable() (ver setTool) y un
-     arrastre normal sobre el manejador no compite con hacer pan. El
+  /* Mover un vértice ANTES de cerrar: sin Ctrl. attachVertexDrag apaga el
+     pan del mapa mientras dura el arrastre del vértice (con el polígono
+     el mapa SÍ se puede desplazar, ver setTool), así que no compite. El
      índice se busca en el momento del arrastre, no se captura aquí:
      borrar un vértice de en medio desplaza los que le siguen.        */
   attachVertexDrag(h, false, ll => {
@@ -991,6 +1042,9 @@ function removeRouteWaypoint(m, handle) {
   const i = m.handles.indexOf(handle);
   if (i === -1) return;
   if (m.handles.length <= 2) {
+    /* Una ruta que se está CREANDO no se queda atascada en 2 puntos: el
+       otro vuelve a ser la vista previa (ver revertRouteToPreview).      */
+    if (routeMeasurement === m) { revertRouteToPreview(m, handle); return; }
     navMessage(tr("Faltan waypoints para seguir siendo una ruta (mínimo 2)."));
     return;
   }
@@ -1000,6 +1054,30 @@ function removeRouteWaypoint(m, handle) {
   m.group.removeLayer(m.legLabels.pop()); /* el conteo de tramos baja en uno; da igual cuál se retire */
   updateMeasurement(m);
   scheduleSave();
+}
+
+/* Quitar uno de los DOS waypoints de una ruta que se está creando. Desde el
+   2.º punto la ruta es una medición REAL (nodo en el árbol y diálogo abierto)
+   y una medición no puede tener menos de 2 waypoints, así que antes se
+   rechazaba con un aviso y no había forma de rectificar el punto; el polígono
+   en curso, que sigue siendo un borrador, no tiene ese mínimo. Ahora se
+   DESHACE la medición y vuelve la vista previa de UN punto (el que queda),
+   con la herramienta todavía armada: el clic siguiente la crea otra vez. Se
+   cancela como lo haría Escape —el nodo `isNew` se borra con el diálogo,
+   `closeStyleDialog(false)`— y, por si el diálogo ya no mostraba esta ruta,
+   se borra el nodo aparte. Una ruta YA terminada no pasa por aquí.        */
+function revertRouteToPreview(m, removed) {
+  const keep = m.handles.find(h => h !== removed);
+  if (!keep) return;
+  const at = keep.getLatLng();
+  const li = m.treeLabel && m.treeLabel.closest("li");
+  closeStyleDialog(false); /* cancelar: borra el nodo isNew, sale de la herramienta */
+  if (li && li.isConnected) deleteNode(li);
+  routeMeasurement = null;
+  setTool("route");
+  const h = makeHandle(at, true);
+  routeDraft = { first: L.latLng(at.lat, at.lng), previewGroup: L.featureGroup([h]).addTo(rootGroup) };
+  navMessage(tr("Se ha deshecho la ruta: vuelve a quedar solo su primer punto."), { tone: "info" });
 }
 
 /* Inserta un waypoint nuevo justo después de `handle` (o al final si
@@ -1058,8 +1136,36 @@ function clickOnControl(el) {
    punto cae sobre una capa con su propio "click" — así que aquí no se
    pierde pase lo que pase con ese despacho. mouseEventToLatLng es la
    misma conversión pública que usa Leaflet internamente.              */
+/* ¿El clic que llega es el final de un ARRASTRE? Con el pan activo mientras se
+   dibuja, soltar tras desplazar el mapa dispara también un `click`, que no
+   debe añadir un vértice. Se compara dónde se pulsó (mousedown, en captura:
+   un manejador de vértice lo detiene después) con dónde se suelta, con la
+   misma tolerancia que Leaflet (`clickTolerance`, 3 px: un clic con algo de
+   temblor sigue siendo un clic). Sin pulsación previa (un clic sintético, el
+   de un teclado) no hay arrastre. Se consume en cada clic.               */
+let drawMouseDown = null;
+map.getContainer().addEventListener("mousedown", e => { drawMouseDown = { x: e.clientX, y: e.clientY }; }, true);
+function clickWasDrag(e) {
+  const d = drawMouseDown;
+  drawMouseDown = null;
+  return !!d && Math.hypot(e.clientX - d.x, e.clientY - d.y) > (map.options.clickTolerance || 3);
+}
+/* Una herramienta de UN CLIC: el clic fija el centro, abre las propiedades y la
+   herramienta se suelta ANTES (así el diálogo no nace con una herramienta
+   armada detrás). Un clic sobre cualquier cosa vale, también sobre un
+   manejador o una capa: aquí no se «añade nada ahí encima».               */
+function placeWithTool(tool, latlng) {
+  setTool(null);
+  if (tool === "pin") createPin(latlng); else openRangeDialog(tool, latlng);
+}
 map.getContainer().addEventListener("click", e => {
-  if ((activeTool !== "polygon" && activeTool !== "route") || clickOnControl(e.target)) return;
+  const dragged = clickWasDrag(e);
+  if (!activeTool || clickOnControl(e.target)) return;
+  /* El final de un arrastre no cuenta ni como vértice ni en el historial
+     del doble clic (prevClickAdded/lastClickAdded, justo debajo)        */
+  if (dragged) return;
+  if (PLACE_TOOLS.has(activeTool)) { placeWithTool(activeTool, map.mouseEventToLatLng(e)); return; }
+  if (activeTool !== "polygon" && activeTool !== "route") return;
   /* Un click sobre un manejador de vértice (propio o de una medición ya
      terminada) no añade un vértice ahí encima                        */
   const onHandle = !!(e.target.closest && e.target.closest(".measure-handle"));

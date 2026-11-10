@@ -137,6 +137,10 @@ for (const [nombre, archivo, puerto] of [["legible", READABLE, 8821], ["minifica
     et("Madrid: atribución exigida por sus condiciones: " + madrid.credito));
   ok(madrid.dentro && !madrid.fuera, et("Madrid: solo pide teselas dentro de su cobertura: " + madrid.bounds));
   ok(madrid.apagada, et("Madrid: apagada por defecto"));
+  /* Las teselas de OpenStreetMap de las pruebas no salen a la red (stubTiles, _browser.mjs):
+     una real pesa kilobytes, la de mentira, 67 bytes. */
+  const tesela = await page.evaluate(async () => (await (await fetch("https://tile.openstreetmap.org/0/0/0.png")).arrayBuffer()).byteLength);
+  ok(tesela < 200, et("las teselas de OpenStreetMap son de mentira, no de la red: " + tesela + " bytes"));
   ok(errors.length === 0, et("sin errores de página: " + JSON.stringify(errors)));
 
   await ctx.close();

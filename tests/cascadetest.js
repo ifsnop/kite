@@ -36,7 +36,7 @@ const CASCADE_BATCH = 3; /* small on purpose: exercise the yield path with a man
    indeterminado— y eso es comportamiento suyo, no de otro sitio.     */
 const src = "const nodeUl = li => li.querySelector(':scope > ul.node-list');\n"
   + constDecl("nodeRow") + "\n"
-  + fn("setLayerVisible") + "\n" + fn("applyVisibility") + "\n"
+  + fn("setLayerVisible") + "\n" + fn("applyVisibility") + "\n" + constDecl("recLayerPending") + "\n"
   + constDecl("nodeCheckbox") + "\n" + fn("recordState") + "\n"
   + fn("containerState") + "\n" + fn("applyContainerState") + "\n"
   + fn("refreshChecksFrom") + "\n" + constDecl("refreshAncestorChecks") + "\n"

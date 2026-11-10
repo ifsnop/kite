@@ -66,6 +66,7 @@ paths:
   - Pruebas: `tests/splitsave.js` (lo puro) y `tests/browser/split-save.mjs`
     (disco = memoria tras cada operación, 200 al azar, fusión, dos
     pestañas, subida desde v4).
+- **Restaurar no construye la capa de Leaflet de lo apagado** (`buildRecordsFromStorage`, ver «Capas Leaflet PEREZOSAS» en `performance.md`): un registro `layer` sin marcar, sin `mstyle`, sin marcadores y de este navegador (no `foreign`) se queda con su `geo` y su capa se construye al leerla. Es lo que hace que un árbol de 62 673 capas apagadas arranque en 5 s y 1,5 GB en vez de 15 s y 3,1 GB. No cambia lo que se guarda ni `TREE_SCHEMA`: el registro serializado es el mismo, con `geo` ya hecho.
 - **Borrar toda la base** (`wipeAllData`, `32-geojson.js`; Propiedades › «Restaurar», ver `units-coordinates-properties-panel.md`): `dbWiped = true` → `clearTimeout(saveTimer)` → espera `saveChain` → cierra NUESTRA conexión (`dbPromise`; si no, `deleteDatabase` se queda bloqueada por ella) → `indexedDB.deleteDatabase(DB_NAME)` → `location.reload()`. Recargar es lo que lo hace seguro: el estado en memoria (árbol, deshacer, portapapeles) no puede reescribir lo borrado. **Guardia `dbWiped`**: `openDb()` rechaza con `restoring` y `scheduleSave`/`saveTree` no hacen nada, así que un guardado tardío (la vista del mapa, un autoguardado) no puede recrear la base entre el borrado y la recarga; todos los que llaman a `openDb` ya capturan el rechazo. `onblocked` (otra pestaña con la base abierta) avisa y espera; un error vuelve a `dbWiped = false` con aviso. Solo IndexedDB: `localStorage` (idioma) y el service worker no se tocan.
 - **Almacén `rasters`** (`64-cog.js`): clave = id aleatorio de 32 hex
   (`newStoreId`, el mismo generador que el de los segmentos), valor = `{ blob, name, size }` con el `Blob`/`File`
@@ -90,6 +91,21 @@ paths:
   un árbol anterior sigue funcionando. Sube la versión solo cambiar la
   FORMA del registro: tipo de nodo nuevo, campo que desaparece, campo
   que cambia de significado.
+- **Hijos en dos sitios a la vez** (`serializeChildren`, `32-geojson.js`): una
+  carpeta puede tener filas Y registros pendientes (el filtro construye solo lo
+  que coincide, `materializeMatching`, y el resto sigue en `li._pending`; antes
+  ya ocurría al soltar un archivo en una carpeta colapsada, y se PERDÍA uno de
+  los dos conjuntos al guardar). Se fusionan por la posición original de cada
+  registro (`rec._pos`, su índice antes de partir el nivel, asignado una vez
+  por `ensurePos`; la fila lo hereda en `li._pos`): sin ella, las coincidentes
+  pasarían al principio de la carpeta tras guardar y recargar. Si el usuario
+  reordenó a mano las filas construidas, van como están y los pendientes
+  detrás; una fila creada después (sin `_pos`) va al final. Son conjuntos
+  DISJUNTOS —un registro que se construye sale de `_pending`—, por eso lo que
+  ya miraba filas y registros a la vez (`containerState`, `cascadeVisibility`…)
+  no cuenta nada dos veces. `_pos` no se serializa. Probado en
+  `tests/lazytree.js` y `tests/browser/tree-filter.mjs` (disco = memoria y
+  recargar).
 - `serializeNode(li)` serializa un nodo y sus hijos (`serializeNodes`);
   `serializeTree()` es esa pasada sobre la raíz — consumida por el
   guardado automático y la exportación de carpeta. Cada tipo de nodo
@@ -116,6 +132,9 @@ paths:
   `import-parsing.md`.
 - **Segmentos de un arco** (`arcSegments`, `ARC_SEGMENTS_SCHEMA`): entero en [`ARC_SEGMENTS_MIN`, `ARC_SEGMENTS_MAX`] (2–720), validado al leer; clave propia del mismo almacén. Un arco ya dibujado es una ruta y no guarda nada de esto.
 - **Fuentes de elevación** (`elevSources`, `ELEV_SOURCES_SCHEMA`): `{ v, mdt, mds }` con un id del catálogo `ELEV_SOURCES` o `null` («Ninguna»); `dbLoadElevSources` lo pasa por `validElevSources` (id retirado o de otro tipo → el de por defecto; así cae también el antiguo `ign-mdt`, hoy `ign-mdt05`). Restaurado en `99-boot.js`. Las celdas de una capa `elevGrid` omiten la clave `mdt`/`mds` del modelo no consultado: JSON lo conserva tal cual, NO sube `TREE_SCHEMA` (ver `elevation-dem.md`). La capa de un **perfil de ruta** lleva además un campo opcional `profile` (`{ key, total, vertices, mdt, mds }`, curvas compactas `[d, v]`): campo añadido y opcional, tampoco sube `TREE_SCHEMA`; se valida al leer con `validRouteProfile` en `buildElevGridRecord` (entrada ajena: un perfil inválido se descarta y la capa queda como cuadrícula normal). Viaja por `serializeNode`, `serializePendingRecords` y `materializeRecords`.
+- **Campos opcionales del `profile` de un perfil: `obstacles` y `towers`** (ver `elevation-dem.md`, «Obstáculos y torres guardadas»): `validRouteProfile` los valida con `validProfileObstacles`/`validProfileTowers` (uno malo se descarta; el perfil sigue). No suben `TREE_SCHEMA`. Cambiar las torres sustituye el objeto `profile` (`persistProfileEdit`) y lo escribe en `li._elevGrid.profile` (con fila) o en `rec.profile` (registro pendiente): el guardado se entera por IDENTIDAD. **Miembro `kiteAlt` del Feature** de un polígono (modo de altitud, ver `import-parsing.md`): va dentro del GeoJSON guardado (`geo`), también opcional; **cambiarlo = Feature NUEVO** (`{ ...feature, kiteAlt }`), nunca mutar el que hay.
+- **Tamaño de las cifras de las celdas de elevación** (`elevFontStep`, `ELEV_FONT_KEY` = `"elevFont"`, `ELEV_FONT_SCHEMA`, `{ v, step }`, `validElevFont`: entero dentro de `ELEV_FONT_STEPS`): clave propia del almacén `tree`, restaurada en `99-boot.js`. No sube `DB_VERSION` ni `TREE_SCHEMA`. Ver `elevation-dem.md`.
+- **Tamaño máximo descomprimido de un KMZ** (`kmzMaxUncompressedMB`, `KMZ_MAX_KEY` = `"kmzMaxUncompressed"`, `KMZ_MAX_SCHEMA`, `{ v, mb }`, `validKmzMax`: entero en [`KMZ_MAX_UNCOMPRESSED_MIN_MB`, `KMZ_MAX_UNCOMPRESSED_MAX_MB`] = 1–4096): clave propia del almacén `tree`, restaurada en `99-boot.js`. No sube `DB_VERSION` ni `TREE_SCHEMA`. Ver `import-parsing.md`.
 - **Unidad de altitud** (`altitudeUnit`, `ALTITUDE_UNIT_SCHEMA`, `validAltitudeUnit`: una de `MEASURE_UNITS`) y **longitud máxima de un perfil** (`profileMax`, `PROFILE_MAX_SCHEMA`, `{ v, m }` en metros, `validProfileMax`: finito y en [`PROFILE_MAX_MIN`, `PROFILE_MAX_MAX`]): claves propias del almacén `tree`, restauradas en `99-boot.js`. Ver `units-coordinates-properties-panel.md`.
 - **Frecuencia de Fresnel** (`fresnelFreqMHz`, `FRESNEL_FREQ_KEY` = `"fresnelFreq"`, `FRESNEL_FREQ_SCHEMA`, `{ v, f }` en MHz, `validFresnelFreq`: finito y en [`FRESNEL_FREQ_MIN`, `FRESNEL_FREQ_MAX`]): clave propia del almacén `tree`, como `profileMax`; restaurada en `99-boot.js`. No sube `DB_VERSION` ni `TREE_SCHEMA`. Ver `units-coordinates-properties-panel.md`.
 - **Tope de vértices editables** (`vertexEditMax`, `VERTMAX_SCHEMA`):

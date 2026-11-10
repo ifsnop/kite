@@ -243,15 +243,15 @@ const submenu = (disparador, pulsar = null) => page.evaluate(([d, p]) => {
 
 ok(JSON.stringify((await submenu("Copiar ▸")).labels) === JSON.stringify(["Coordenadas", "Enlace a esta vista"]),
   "«Copiar» ofrece las coordenadas y el enlace a la vista");
-ok(JSON.stringify((await submenu("Consultas ▸")).labels) === JSON.stringify(["Elevación", "Parcela catastral"]),
-  "«Consultas» ofrece Elevación y Parcela catastral, cada una por su cuenta");
+ok(JSON.stringify((await submenu("Consultas ▸")).labels) === JSON.stringify(["Elevación", "Parcela catastral", "Artículos de Wikipedia en la vista"]),
+  "«Consultas» ofrece Elevación, Parcela catastral y Artículos de Wikipedia, cada una por su cuenta");
 /* Pasar a otro disparador cambia de submenú: solo hay uno abierto a la vez */
 const medirSub = await submenu("Medir ▸");
 ok(JSON.stringify(medirSub.labels) === JSON.stringify(["Ruta", "Círculo", "Arco"]),
   "el submenú «Medir» ofrece Ruta, Círculo y Arco, y sustituye al de «Consultas»: " + JSON.stringify(medirSub.labels));
 const crearSub = await submenu("Crear ▸");
-ok(JSON.stringify(crearSub.labels) === JSON.stringify(["Polígono o línea", "Pin", "Anillos de alcance…", "Sector…"]),
-  "el submenú «Crear» ofrece Polígono o línea, Pin, Anillos de alcance y Sector: " + JSON.stringify(crearSub.labels));
+ok(JSON.stringify(crearSub.labels) === JSON.stringify(["Polígono o línea", "Anillos de alcance…", "Sector…", "Pin"]),
+  "el submenú «Crear» ofrece, en el orden de los botones, Polígono o línea, Anillos de alcance, Sector y Pin: " + JSON.stringify(crearSub.labels));
 
 const arco = await submenu("Medir ▸", "Arco");
 ok(arco.tool === "arc" && arco.menuHidden, "«Arco» activa la herramienta de arco y cierra el menú: " + JSON.stringify(arco));

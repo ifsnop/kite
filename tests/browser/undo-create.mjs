@@ -109,6 +109,36 @@ await page.evaluate(() => redoLast());
 const namesAfterCircleRedo = await leafNames();
 ok(namesAfterCircleRedo.includes("Círculo 1"), "Ctrl+Y lo rehace");
 
+/* ---------- Con el foco en el VISOR: el teclado real ----------
+   Ctrl+Z y Ctrl+Y valen también con el mapa enfocado (antes el visor se
+   quedaba con todas las teclas y solo respondían con el foco en el árbol).
+   Con una herramienta de dibujo en marcha NO: a medias de una forma, un
+   Ctrl+Z que revirtiera de pronto el árbol sorprendería.                */
+const focusMap = () => page.evaluate(() => { map.getContainer().focus(); return document.activeElement === map.getContainer(); });
+await page.evaluate(() => { createPin(); closeStyleDialog(true); });
+ok((await leafNames()).includes("Marcador 2"), "un marcador nuevo para deshacer");
+ok(await focusMap(), "el foco está en el visor");
+await page.keyboard.press("Control+z");
+await page.waitForFunction(() => ![...document.querySelectorAll("#tree li")].some(el => el._name === "Marcador 2"));
+ok(!(await leafNames()).includes("Marcador 2"), "Ctrl+Z con el visor enfocado deshace la creación");
+ok(await page.evaluate(() => document.activeElement === map.getContainer()), "y el foco sigue en el visor");
+await page.keyboard.press("Control+y");
+await page.waitForFunction(() => [...document.querySelectorAll("#tree li")].some(el => el._name === "Marcador 2"));
+ok((await leafNames()).includes("Marcador 2"), "Ctrl+Y con el visor enfocado lo rehace");
+/* con una herramienta de dibujo activa, no */
+await page.evaluate(() => setTool("polygon"));
+await focusMap();
+await page.keyboard.press("Control+z");
+await page.waitForTimeout(300);
+ok((await leafNames()).includes("Marcador 2"), "con la herramienta de polígono activa, Ctrl+Z no toca el árbol");
+await page.evaluate(() => setTool(null));
+/* la tecla sola, sin Ctrl, y con Alt, no hacen nada */
+await focusMap();
+await page.keyboard.press("z");
+await page.keyboard.press("Alt+z");
+await page.waitForTimeout(200);
+ok((await leafNames()).includes("Marcador 2"), "«z» sola o con Alt no deshacen");
+
 ok(errors.length === 0, "sin errores de página: " + JSON.stringify(errors));
 
 await browser.close();

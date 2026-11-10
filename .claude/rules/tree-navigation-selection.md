@@ -101,7 +101,15 @@ paths:
   polígono o medición (`styleKind` "polygon"/"measure") se encuadran
   enteros con margen (`fitBoundsFramed`, 20%) en vez de zoom fijo, para
   no cortar una ruta ancha. El doble click sobre esas filas sigue la
-  escalera normal; solo cambió el botón 🔍. **Una capa de elevación
+  escalera normal; solo cambió el botón 🔍. **Con la fila en una selección
+  múltiple, la lupa encuadra el CONJUNTO** (`focusOnNodes`: la unión de
+  `subtreeBounds` con `fitBoundsFramed`, o el zoom de trabajo si todo cae en el
+  mismo punto), igual que el × borra toda la selección y el 🎨 abre las
+  propiedades de todas; fuera de la selección, o con una sola, la fila sola. No
+  cambia la selección (el `click` de la fila sale en cuanto cae en `.actions`) y
+  usa `topLevelSelection()`, no `movableSelection()`: enfocar no mueve nada y
+  las capas de un servicio ArcGIS no se dejan fuera. Probado en
+  `tests/browser/focus-zoom.mjs`. **Una capa de elevación
   (`elevGrid`) también lleva 🔍** (pedido) aunque no tenga 🎨: `makeNode`
   acepta `focusable` (por defecto, `styleable`), que pasan
   `makeElevGridNode` y la rama `elevGrid` de `materializeRecords`; se
@@ -117,6 +125,7 @@ paths:
   en cada llamada (el máximo depende del mapa base activo) y descarta
   peldaños duplicados. Excepción: un resultado del buscador de lugares
   encuadra su `boundingbox` (o centra sus coordenadas) directamente.
+- **Buscador de lugares, con coordenadas** (`runPlaceSearch`, `40-panel-actions.js`): ANTES de preguntar a Nominatim se pregunta a `parsePlaceCoordinates` (`43-points-editor.js`, pura: decimales con punto o con coma decimal, y GMS con letras N/S/E/W/O en cualquier orden —la letra manda—, vía `parseCoord`, el mismo de los campos de coordenadas). Si lo escrito son coordenadas, `goToCoordinates` crea un marcador en «Lugares» (`createPlaceMarker`, el mismo que usa un resultado de Nominatim, llamado como lo escrito y con la caja vaciada) y va allí a `COORD_SEARCH_ZOOM` = 17 con `map.setView`, SIN petición; antes iba a zoom 9 y no creaba marcador; el usuario lo dio por un fallo (nov 2026) y pidió marcador y zoom 17; cancela una búsqueda de lugar en vuelo (`placeSeq++` + `abort`) para que su respuesta tardía no repinte. Es una de las pocas veces que la aplicación mueve la vista sola (pedirlo es ir allí, como elegir un resultado). Lo que no encaja del todo (una palabra de más, latitud > 90°) NO son coordenadas y se busca como un lugar; no se «arregla» dando la vuelta al orden. UTM y MGRS no se reconocen (ver `docs/pendientes-y-propuestas-kite-local.md`). Probado en `tests/placecoords.js` y `tests/browser/place-coords.mjs`.
 - **Buscador de lugares**: consulta Nominatim, hasta 5 resultados; la
   lista vive en la cabecera y empuja el árbol hacia abajo (se cierra
   con «×»). Elegir un resultado crea un marcador por defecto en
@@ -125,7 +134,7 @@ paths:
 - **Gestos del visor**: Shift+arrastre = box-zoom de Leaflet (reservado);
   ni un vértice de ruta/polígono ni el centro/borde de un círculo de
   medición exigen ya Ctrl: se arrastran sin más (ver «Selección de
-  vértice»); herramienta de medición activa = el arrastre dibuja (pan desactivado;
+  vértice»); herramienta de medición activa: el círculo y el arco dibujan ARRASTRANDO (pan desactivado), el polígono y la ruta no (clic por vértice; el pan sigue activo, ver `measurements-drawing-vertex-editing.md`;
   mover un vértice ya puesto durante el dibujo es arrastre SIN Ctrl,
   mismo motivo que quitó el Ctrl a la edición post-creación). **Mover,
   insertar o borrar un vértice, o el centro/borde de un círculo, exige
@@ -155,7 +164,19 @@ paths:
   nodos). No reintroducir barridos globales en el camino del teclado.
 - **El click lleva el cursor donde se pulsa** y deja ese nodo como
   única selección, salvo si cae en un botón de fila (actúan sobre la
-  selección existente sin cambiarla).
+  selección existente sin cambiarla) o en la **casilla de una fila que
+  ya forma parte de una selección múltiple**: esa casilla aplica el
+  estado que se acaba de elegir a TODA la selección (`propagateCheck`,
+  `31-tree-node.js`: gana el estado de la pulsada, no se invierte cada
+  una, y reutiliza el `change` de cada casilla —cascada, mapa, guardado—)
+  y no la deshace. La casilla de una fila FUERA de la selección sigue
+  siendo la de siempre: solo esa, y pasa a ser la única seleccionada.
+  **Trampa del orden de eventos**: el `click` de la casilla sube a la
+  fila ANTES de que se dispare su `change`; sin cortar ahí el manejador
+  de la fila, la selección ya se había reducido a esa fila cuando la
+  casilla miraba a quién aplicarse. El mismo orden hacía que el Espacio
+  (`toggleVisibility`, que pulsa cada casilla con `.click()`) activase
+  todas las seleccionadas pero dejase como selección solo la última.
 - **Los botones de fila aparecen solo con el ratón encima** — ni la
   fila del cursor ni `:focus-within` (el foco pasa a la casilla al
   pulsar, y `:focus-within` los dejaría fijos sin ratón). No son
@@ -188,7 +209,23 @@ paths:
   capas del mismo tipo: manda el tipo de la primera encontrada y se
   avisa por `navMessage` de cuántas quedan fuera.
 
+- **El borrado de la interfaz es UNO** (`deleteItemsFromUi(items, label, multi)`, `31-tree-node.js`): el × de una fila (borra toda la selección si el nodo forma parte de ella, SIN confirmación) y el × del diálogo de propiedades (borra SUS capas; con varias pide confirmación antes, ver `style-dialogs-ui.md`) pasan por él: `pushUndo`, el cursor que no desaparece y la selección. Supr (`41-selection.js`) tiene su propio camino, con su etiqueta de deshacer.
 - **Contenedor con capa propia y filas fijas (servicio ArcGIS, ver `arcgis.md`)**: el nodo `arcgis` es un contenedor cuya casilla lleva además una capa de Leaflet (`chk._layer`): `applyContainerState`, `cascadeVisibility` (también sobre registros pendientes), `removeRecordsFromMap` y `extendBoundsFromRecords` la tratan. Sus filas hijas son `_fixed`: no se mueven, copian, cortan, borran ni renombran (`movableSelection()` las deja fuera y AVISA), y nada se suelta ni se pega dentro (`arcgisServiceOf`).
+
+## Filtro del árbol (buscador del panel)
+
+Pedido del usuario: teclear en el buscador deja en el árbol SOLO lo que coincide, sin distinguir mayúsculas ni tildes y dentro de las palabras, y una × para volver al árbol entero. **Sin librería** (Fuse, FlexSearch o MiniSearch son búsqueda difusa o indexada y exigirían CDN con SRI, `LAZY_LIBS`, lista del service worker y CSP): es `includes` sobre `normalize("NFD")` sin diacríticos (`normSearch`). Motor en `45-tree-filter.js`; medidas en `performance.md`.
+
+- **Cuándo**: pausa de 150 ms y a partir de 3 letras (`SEARCH_MIN_CHARS`); con menos de 3 se QUITA el filtro (el árbol no se queda con un término que ya no está escrito). **Intro** filtra con cualquier longitud; si el filtro ya es lo escrito, Intro / Mayús+Intro y los botones ↑ ↓ saltan a la siguiente / anterior (`gotoMatch`). **Teclear ya no selecciona, desplaza ni abre carpetas** (antes saltaba solo a la primera coincidencia, y con una carpeta de 20 000 capas eso construía las 20 000 filas).
+- **×** (`#search-clear`) y **Escape con texto** borran la búsqueda y el filtro (`clearSearch`); el Escape NO llega al global de `52-measure.js` (que limpia selección y herramienta). Con el campo vacío, Escape sigue haciendo lo de siempre.
+- **Qué se ve**: filas cuyo `li._name` coincide (NUNCA el texto de la etiqueta: una medición lleva «— 85 km» añadido) y sus ancestros. **Estricto**: una carpeta que coincide por su nombre pero cuyas hijas no, se ve sola. Mensaje «Ninguna coincidencia con «x»» (`#tree-filter-empty`, FUERA de `#tree` porque `showTreePlaceholder` lo reescribe). Contador = total; `i/n` tras saltar.
+- **El filtro no toca lo guardado**: lo oculto es `li.hidden`; una carpeta colapsada con coincidencias dentro se VE abierta con la clase `filter-open`, que anula `li.collapsed > ul.node-list` en el CSS. **Nunca se cambia `collapsed`** (es lo que se serializa; `highlightNode` sí lo cambia y persiste, y por eso el filtro no lo usa). Probado: `serializeTree()` idéntico con filtro, sin él y tras quitarlo. El caret de una carpeta `filter-open` solo la cierra A LA VISTA (`closeFilterOpen`, `filterClosed` recuerda el cierre hasta quitar el filtro); un segundo clic la abre de verdad. «Colapsar todo» también quita `filter-open` (`collapseDescendants`).
+- **`isRow` excluye `li.hidden` y `isOpen` cuenta `filter-open`** (`30-tree-walk.js`): flechas, Mayús+rango, Ctrl+A, Inicio y Fin pasan todos por ahí y saltan lo oculto sin más cambios, manteniendo O(profundidad). **`tests/navtest.js` lleva COPIAS de `isRow`/`isOpen`** (y stubs de `expandFolder`/`closeFilterOpen`): al cambiar los de `30-tree-walk.js`, también esos. Al aplicar el filtro, lo oculto pierde la selección (`dropHiddenSelection`): Supr, cortar o arrastrar no pueden actuar sobre lo que no se ve. «Activar/Desactivar todo» y el resto de acciones masivas siguen actuando sobre TODO el árbol, también lo oculto (se documenta en el manual).
+- **Carpetas sin desplegar** (`li._pending`): se CUENTAN sin construir (`countMatches`). Si el total de coincidencias pendientes es ≤ `FILTER_BUILD_MAX` (300) se construyen SOLO esas (`materializeMatching(li, recWanted)`: «construir lo que coincide o lleva una coincidencia dentro»); por encima no se construye nada y la carpeta sale cerrada con «(n)» (`.filter-count`). Es un tope GLOBAL, no por carpeta: así es predecible. Desplegar con el filtro puesto (`expandFolder`: caret y →) construye solo lo que coincide, sin tope (lo pidió el usuario). `arcgis`/`arcgisLayer` nunca se parten: coincidir construye el servicio entero (sus filas reflejan el catálogo).
+- **Construcción parcial** (`materializeMatching`, `splitPending`, `placementAnchor`, `partialFolders`; reglas en `persistence-indexeddb.md`): `li._pending` se PARTE en dos conjuntos disjuntos, lo elegido pasa a filas y el resto queda pendiente, aunque la carpeta no esté colapsada. Al quitar el filtro, una carpeta ABIERTA a medias se completa (`ensureMaterialized`: una abierta con solo parte de sus hijas sería un árbol incorrecto) y una cerrada se completa al desplegarla. **Completar una carpeta NO completa las hijas que quedaron a medias** (cada una está en `partialFolders`). `ensureMaterialized` espera a una construcción parcial en vuelo y construye entonces su resto; una completa en vuelo sigue sin esperarse (como antes).
+- **Lo que nazca con el filtro puesto** (importar, pegar, un pin, deshacer/rehacer, renombrar) se filtra solo: un único `MutationObserver` sobre `#tree`, solo mientras hay filtro, que ignora lo que el propio filtro escribe (las insignias) y la pasada en curso. Una fila nueva que no coincida con lo escrito se OCULTA (el campo resaltado avisa de que hay un filtro).
+- **Trampas ya pisadas**: la regex de tildes `[\u0300-\u036f]` debe llegar al archivo con UNA barra (escribiéndola desde Python con una cadena normal, `\\u0300`); una pasada del filtro abandonada por otra más reciente (`filterGen`) no debe dejar `filterApplying` a medias, y la que gana lo apaga; con el disco sin espacio, un script que reescribe un archivo lo deja TRUNCADO (le pasó a `build.js`): escribir a un temporal, `fsync` y `rename`.
+- Probado en `tests/treefilter.js` (lo puro), `tests/lazytree.js` (construcción parcial y guardado) y `tests/browser/tree-filter.mjs` (de punta a punta, con teclado y ratón reales).
 
 ## Secciones que crea la aplicación (azul pastel)
 

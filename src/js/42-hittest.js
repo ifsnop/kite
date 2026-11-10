@@ -165,6 +165,21 @@ function layersAtPoint(latlng, containerPoint) {
   return hits;
 }
 
+/* Las CAPAS DE LEAFLET bajo el cursor, con fila o sin ella. Una capa cuya
+   carpeta no se ha desplegado nunca (tras recargar, cualquiera que se
+   guardara colapsada) sigue dibujada en rootGroup pero todavía no tiene
+   `_li`: `layersAtPoint` no la ve, y el menú contextual salía sin ella
+   —sin «Ir al nodo», sin «Editar propiedades» y, en una ruta, sin «Mostrar
+   perfil». Aquí entran todas; `resolveLayerLi` (40-panel-actions.js)
+   materializa lo que haga falta para darles fila.                      */
+function layerHitsAtPoint(latlng, containerPoint) {
+  const hits = [];
+  rootGroup.eachLayer(layer => {
+    if (layerHitTest(layer, latlng, containerPoint)) hits.push(layer);
+  });
+  return hits;
+}
+
 /* "marker" wins over "polygon" on mixed geometries: points sit on top and
    the marker panel is the useful one there. Split out of styleKind so a
    freshly-built KML/GeoJSON layer can be classified for the import report
@@ -200,11 +215,38 @@ function styleKind(li) {
   return kind;
 }
 
+/* Glyphs that are only a bare letter or shape (the Wikipedia "W"): on a dark
+   base map, an orthophoto or shaded terrain a dark glyph with no background
+   disappears, so they get their own round badge (light, or dark when the
+   glyph colour is light) and keep their contrast on any base. Keyed by the
+   icon name, so it also holds for a marker restored from storage. */
+const BADGED_ICONS = new Set(["wikipedia"]);
+function markerBadgeBackground(color) {
+  const m = /^#([0-9a-f]{6})$/i.exec(color || "");
+  if (!m) return "#fff";
+  const n = parseInt(m[1], 16);
+  const luma = (0.2126 * (n >> 16) + 0.7152 * ((n >> 8) & 255) + 0.0722 * (n & 255)) / 255;
+  return luma > 0.6 ? "#202122" : "#fff";
+}
+
 /* Leaflet icon + text offset for a marker style. The two icon families
    anchor differently: the Leaflet pin points at its tip (bottom centre,
    as in stock Leaflet), while MDI glyphs are symmetric and sit centred
    on the coordinate, like Google Earth pushpins.                        */
 function buildMarkerIcon(s, svg) {
+  if (s.icon === NO_ICON) {
+    /* Solo el texto: una caja transparente para poder pulsarlo, y el nombre
+       CENTRADO sobre el punto (con el icono real va encima de él).        */
+    return {
+      icon: L.divIcon({
+        className: "mdi-pin no-icon",
+        html: "",
+        iconSize: [NO_ICON_HIT, NO_ICON_HIT],
+        iconAnchor: [NO_ICON_HIT / 2, NO_ICON_HIT / 2]
+      }),
+      textOffset: L.point(0, 0)
+    };
+  }
   if (s.icon === LEAFLET_PIN || !svg) {
     const h = s.size, w = Math.round(h * LEAFLET_PIN_RATIO);
     return {
@@ -223,7 +265,9 @@ function buildMarkerIcon(s, svg) {
   return {
     icon: L.divIcon({
       className: "mdi-pin",
-      html: `<span style="color:${s.color};display:block;width:${s.size}px;height:${s.size}px">${svg}</span>`,
+      html: BADGED_ICONS.has(s.icon)
+        ? `<span class="icon-badge" style="color:${s.color};background:${markerBadgeBackground(s.color)};width:${s.size}px;height:${s.size}px">${svg}</span>`
+        : `<span style="color:${s.color};display:block;width:${s.size}px;height:${s.size}px">${svg}</span>`,
       iconSize: [s.size, s.size],
       iconAnchor: [s.size / 2, s.size / 2]
     }),
@@ -246,11 +290,15 @@ function buildMarkerIcon(s, svg) {
    en vivo, ni el aviso de "no se pudo cargar el icono". Un icono
    desconocido (un \u00E1rbol guardado con otro cat\u00E1logo) devuelve null y
    buildMarkerIcon cae en la gota de Leaflet.                         */
-function styleMarkerIcon(layer, s) {
-  const svg = s.icon === LEAFLET_PIN ? null : mdiSvg(s.icon);
+function styleMarkerIcon(layer, s, name) {
+  const svg = s.icon === LEAFLET_PIN || s.icon === NO_ICON ? null : mdiSvg(s.icon);
   const { icon, textOffset } = buildMarkerIcon(s, svg);
   const each = l => {
-    if (l instanceof L.Marker) l.setIcon(icon);
+    if (l instanceof L.Marker) {
+      l.setIcon(icon);
+      /* a raw layer (no row yet) still gets its accessible name; see nameMarkerIcon */
+      if (name) nameMarkerIcon(l, name);
+    }
     if (l.eachLayer) l.eachLayer(each);
   };
   each(layer);
@@ -267,6 +315,19 @@ function applyMarkerStyle(li) {
   if (sw) sw.style.background = s.color;
 }
 
+/* Leaflet makes every marker icon a keyboard-focusable role="button" and gives
+   it no name, so a screen reader hears "button" a hundred times. The name goes
+   on the icon element, which Leaflet recreates when the layer is added to the
+   map or the icon changes, so it is also (re)applied on "add". `aria-label`
+   rather than `title`: no native tooltip over the hover card. */
+function nameMarkerIcon(marker, name) {
+  const set = () => { if (marker._icon) marker._icon.setAttribute("aria-label", name); };
+  if (marker._kiteNamer) marker.off("add", marker._kiteNamer);
+  marker._kiteNamer = set;
+  marker.on("add", set);
+  set();
+}
+
 /* Bind the layer name to each marker as a compact text box: a permanent
    tooltip when "always visible", a click popup otherwise. Both use the
    "compacto" classes so the box shrink-wraps to the text.               */
@@ -276,6 +337,9 @@ function applyMarkerText(li, offset) {
   if (!s || !layer) return;
   const html = `<span style="font-size:${s.textSize}px;color:${s.textColor}">${escapeHtml(li._name)}</span>`;
   if (!offset) offset = buildMarkerIcon(s, null).textOffset;
+  /* Sin icono el nombre va CENTRADO en el punto; el globo, sobre su caja */
+  const noIcon = s.icon === NO_ICON;
+  const popupOffset = noIcon ? L.point(0, -NO_ICON_HIT / 2) : offset;
   /* Leaflet's unbindPopup() does NOT close a popup that is already open
      (they stay up, autoClose is off): with the permanent label added
      next, the name would show twice — the closable popup and the
@@ -284,15 +348,16 @@ function applyMarkerText(li, offset) {
   layer.unbindPopup(); /* drop the group-level popup bound at creation */
   const each = l => {
     if (l instanceof L.Marker) {
+      nameMarkerIcon(l, li._name);
       if (s.textAlways) l.closePopup();
       l.unbindPopup();
       l.unbindTooltip();
       if (s.textAlways) {
-        l.bindTooltip(html, { permanent: true, direction: "top",
+        l.bindTooltip(html, { permanent: true, direction: noIcon ? "center" : "top",
                               className: "compacto", offset });
       } else {
         l.bindPopup(html, { className: "compacto", autoClose: false,
-                            closeOnClick: false, offset });
+                            closeOnClick: false, offset: popupOffset });
       }
     }
     if (l.eachLayer) l.eachLayer(each);

@@ -39,12 +39,28 @@ description: Principios no negociables, vocabulario y checklist de KITE Local. S
    no se mantenía y ya había que corregirlo; recortado a lo que se usa
    y atado a Leaflet 1.9.4 (ver `map-rotation.md`). Incorporar otra
    librería así exige la misma justificación.
-3. **Código limpio, comentado en inglés.** Comentarios en inglés,
-   explican el *porqué* no el *qué*; textos de interfaz y mensajes al
-   usuario escritos EN ESPAÑOL dentro de `tr("…")` — el español es la
-   clave y el inglés (y cualquier otro idioma) va en un diccionario;
-   ver `i18n.md`. Funciones pequeñas, una responsabilidad. Al
-   terminar un cambio, `grep` y eliminar referencias muertas.
+3. **Clean code, and English for everything other collaborators may read.**
+   Rule requested by the maintainer (2026-11-09): from now on everything NEW
+   that another collaborator can read is written in **English**, so that
+   anyone can work on the project: all code comments (JS, CSS, HTML,
+   `build.js`, tools and tests), everything on GitHub (commit messages, PR
+   titles and descriptions, PR and issue comments and reviews, branch names)
+   and any new developer-facing documentation (rule files under
+   `.claude/rules/`, `tests/README.md`, `docs/pendientes…`, trail learnings,
+   `README.md`). **There is no bulk translation of old text**: existing Spanish
+   comments, rules and documents are not translated in a dedicated pass (a
+   huge diff with no behavioural effect), so what nobody touches stays as it
+   is. **But whatever a change modifies is translated**: when a change
+   corrects or edits a line whose comment is in Spanish, that comment is
+   rewritten in English in the same change (the same goes for a paragraph of
+   a Spanish rule or document that gets edited), and text added to an
+   existing Spanish file is written in English. **What stays in Spanish**: UI strings and
+   messages to the user, written in Spanish inside `tr("…")` — Spanish is the
+   key and English (or any other language) goes in a dictionary; see
+   `i18n.md` — and the two documents written for end users and auditors, the
+   user manual and the security study (`docs/`). Comments explain the *why*,
+   not the *what*. Small functions, one responsibility. After finishing a
+   change, `grep` and remove dead references.
 4. **Sin código de compatibilidad hacia atrás.** El almacenamiento está
    versionado; lo que no corresponda a la versión actual se BORRA, no
    se migra. No subir versiones sin cambio que lo justifique.
@@ -189,3 +205,9 @@ que quien lea la documentación la encuentre. Aquí no se duplica:
     `docs/pendientes-y-propuestas-kite-local.md`, BORRARLO de ahí; si deja una
     deuda a propósito o descubre una limitación, APUNTARLA. Ver el apartado
     «Pendiente» de arriba.
+16. **Language of what is written**: new code comments and everything on
+    GitHub (commits, PR titles and bodies, comments, branch names), and any new
+    developer-facing documentation, are written in ENGLISH (principle no. 3).
+    UI strings stay Spanish inside `tr()`; the user manual and the security
+    study stay in Spanish. No bulk translation of old text, but a comment (or
+    paragraph) that a change modifies is rewritten in English in that change.

@@ -100,6 +100,21 @@ export async function serveSite(port, { file = READABLE, transform = h => h } = 
   return site;
 }
 
+/* Las teselas de OpenStreetMap NO se piden de verdad. La aplicación arranca con
+   ese mapa base encendido, así que cada página de cada suite pedía ~20 teselas
+   reales: unos cientos por batería, contra la política de uso de OpenStreetMap, y
+   un fallo de red (`ERR_CONNECTION_RESET`, visto en el CI con dos ejecuciones a la
+   vez) rompía el «sin errores de consola» de cualquier suite que no tiene nada que
+   ver con el mapa. Una tesela lisa de 1×1 basta para que Leaflet las dé por
+   cargadas. Va en el contexto, así que la ruta propia de una prueba (en la
+   página, que manda sobre la del contexto) la sustituye sin más.           */
+const BLANK_TILE = Buffer.from(
+  "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8/+L1fwAIfgN/f1c1QQAAAABJRU5ErkJggg==", "base64");
+export async function stubTiles(ctx) {
+  await ctx.route(/^https:\/\/[a-c]?\.?tile\.openstreetmap\.org\//, route =>
+    route.fulfill({ status: 200, contentType: "image/png", body: BLANK_TILE }));
+}
+
 /* Abre la aplicación y espera a que esté viva de verdad, no solo a que
    el HTML haya llegado: `map` construido y el árbol resuelto (o con
    filas, o ya con su aviso de vacío). Esperar por una condición y no
@@ -113,7 +128,12 @@ export async function openApp(browser, url, opts = {}) {
   /* `locale: "es-ES"`: las suites comparan textos en español y «Automático»
      sigue al navegador (Playwright arranca en en-US); lo de los idiomas lo
      prueba browser/i18n.mjs, que pasa el suyo.                          */
-  const ctx = await browser.newContext({ serviceWorkers: "block", locale: "es-ES", ...opts });
+  /* `reducedMotion: "reduce"`: la aplicación anima la ENTRADA de menús y
+     ventanas (160 ms, styles.css) y las pruebas miden posiciones y clican
+     al instante: con la caja a medio escalar saldrían medidas torcidas.
+     Quien prueba el movimiento (browser/motion.mjs) pide `no-preference`. */
+  const ctx = await browser.newContext({ serviceWorkers: "block", locale: "es-ES", reducedMotion: "reduce", ...opts });
+  await stubTiles(ctx);
   const page = await ctx.newPage();
   const errors = [];
   page.on("pageerror", e => errors.push("pageerror: " + e.message));

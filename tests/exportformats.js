@@ -7,11 +7,11 @@ const near = (a, b, tol) => Math.abs(a - b) <= tol;
 
 const L = { latLng: (lat, lng) => ({ lat, lng }) };
 const prelude = [constDecl("EARTH_R"), constDecl("toRad"), constDecl("toDeg"), fn("destPoint"), fn("arcPoints"),
-  fn("normalizePathStyle"), fn("stringifyPropValue")].join("\n");
+  fn("normalizePathStyle"), fn("stringifyPropValue"), constDecl("ALT_MODES"), constDecl("featureAltMode")].join("\n");
 const region = between("const EXPORT_CIRCLE_SEGMENTS", "/* ---------- Descarga");
 const x = new Function("L", `${prelude}\n${region}\n${fn("skippedMessage")}
 return { haversineM, geoToFeatures, recordFeatures, exportRoot, simpleStyle, putProp, recordsToGeoJson,
-         recordsToKml, xmlEsc, cssToKmlColor, skippedMessage };`)(L);
+         recordsToKml, xmlEsc, xmlCdata, cssToKmlColor, skippedMessage };`)(L);
 
 /* El importador real, para la ida y vuelta */
 const coordsSrc = [constDecl("COORD_EPS"), "let coordClamped = 0;", fn("clampDeg"), fn("clampLatLng")].join("\n");
@@ -131,7 +131,9 @@ const nStyles = imp.elsByTag(doc, "Style").length;
 ok(nStyles === 6, "los estilos iguales se comparten (línea y 'Mismo estilo' un solo Style): " + nStyles);
 
 const pPoint = pmByName("Marcador \"A\"");
-ok(imp.text(pPoint, "description") === "<b>hola</b> & adiós", "la ficha HTML se escapa y se recupera como texto");
+ok(imp.text(pPoint, "description") === "<b>hola</b> & adiós", "la ficha HTML va en CDATA y se recupera como texto");
+ok(k.text.includes("<description><![CDATA[<b>hola</b> & adiós]]></description>") && !k.text.includes("&lt;b&gt;"),
+  "la ficha se escribe tal cual en CDATA, sin escapar");
 const pos = imp.parseCoords(imp.text(pPoint, "coordinates"));
 ok(pos.length === 1 && pos[0][0] === 40.4 && pos[0][1] === -3.7 && pos[0][2] === 650, "coordenadas y altitud: " + JSON.stringify(pos));
 ok(imp.elsByTag(doc, "IconStyle").length === 1, "el color del marcador va en IconStyle");
@@ -159,6 +161,21 @@ ok(x.xmlEsc("<a href=\"x\">&'") === "&lt;a href=&quot;x&quot;&gt;&amp;&apos;", "
 const dirty = x.recordsToKml([{ name: "Mal\u0001o\u0000", checked: true, t: "layer", style: null,
   geo: fc([feat({ type: "Point", coordinates: [0, 0] })]) }]);
 ok(parseXml(dirty.text).errors.length === 0 && !/[\u0000-\u0008]/.test(dirty.text), "se quitan los caracteres de control no válidos en XML 1.0");
+
+/* CDATA: la única secuencia que no cabe es "]]>", que se parte en dos secciones */
+ok(x.xmlCdata("a]]>b") === "<![CDATA[a]]]]><![CDATA[>b]]>", "xmlCdata parte el terminador");
+for (const desc of ["a]]>b", "]]>x", "x]]>", "]]>]]>", "]]]>", "]]]]>>", "<p class=\"a\">]]> & 'x'</p>", "sin nada raro"]) {
+  const r = x.recordsToKml([{ name: "F", checked: true, t: "layer", style: null, desc,
+    geo: fc([feat({ type: "Point", coordinates: [1, 2] })]) }]);
+  const p = parseXml(r.text);
+  ok(p.errors.length === 0, "KML bien formado con la ficha " + JSON.stringify(desc) + ": " + p.errors.join("; "));
+  ok(imp.text(imp.elsByTag(p.doc, "Placemark")[0], "description") === desc.trim(),
+    "la ficha " + JSON.stringify(desc) + " vuelve idéntica");
+}
+const dirtyCard = x.recordsToKml([{ name: "F", checked: true, t: "layer", style: null, desc: "<b>Mal\u0001o\u0000</b>",
+  geo: fc([feat({ type: "Point", coordinates: [0, 0] })]) }]);
+ok(parseXml(dirtyCard.text).errors.length === 0 && !/[\u0000-\u0008]/.test(dirtyCard.text) && dirtyCard.text.includes("<b>Malo</b>"),
+  "una ficha con caracteres de control sale limpia y bien formada");
 
 /* Entradas hostiles: no lanzan y no inventan geometría */
 const junk = [
@@ -190,5 +207,26 @@ ok(x.skippedMessage([{ name: "A" }], "KML") === "«A» se queda fuera de KML: so
 ok(/se quedan fuera de GeoJSON/.test(x.skippedMessage([{ name: "A" }, { name: "B" }], "GeoJSON")), "plural");
 const many = Array.from({ length: 7 }, (_, i) => ({ name: "N" + i }));
 ok(/«N4» \+2 se quedan/.test(x.skippedMessage(many, "KML")) && !/N5/.test(x.skippedMessage(many, "KML")), "más de cinco: los cinco primeros y +N");
+
+/* Modo de altitud de un polígono (`kiteAlt`, 20-kml-geom.js): se escribe de vuelta en KML
+   (antes de los anillos, y con gx: solo para el fondo marino) y viaja como miembro propio
+   del Feature en GeoJSON; un valor que no sea de los cuatro es «sin modo» y no sale. */
+const zRing = [[0, 0, 5], [1, 0, 5], [1, 1, 5], [0, 0, 5]];
+const withMode = mode => ({ name: "P-" + mode, checked: true, t: "layer", style: null,
+  geo: fc([{ ...feat({ type: "Polygon", coordinates: [zRing] }), kiteAlt: mode }]) });
+const modeKml = m => x.recordsToKml([withMode(m)]).text;
+ok(/<Polygon><altitudeMode>absolute<\/altitudeMode><outerBoundaryIs>/.test(modeKml("abs")), "abs → absolute, antes de los anillos");
+ok(/<Polygon><altitudeMode>relativeToGround<\/altitudeMode>/.test(modeKml("agl")), "agl → relativeToGround");
+ok(/<Polygon><altitudeMode>clampToGround<\/altitudeMode>/.test(modeKml("ground")), "ground → clampToGround");
+ok(/<Polygon><gx:altitudeMode>relativeToSeaFloor<\/gx:altitudeMode>/.test(modeKml("sea")) && /<kml [^>]*xmlns:gx="http:\/\/www\.google\.com\/kml\/ext\/2\.2"/.test(modeKml("sea")),
+  "sea → gx:relativeToSeaFloor y declara el espacio de nombres gx");
+ok(!/xmlns:gx/.test(modeKml("abs")), "sin el fondo marino no se declara gx");
+ok(!/altitudeMode/.test(modeKml("volando")) && !/altitudeMode/.test(modeKml(undefined)), "un valor desconocido, o ninguno: sin <altitudeMode>");
+ok(parseXml(modeKml("sea")).errors.length === 0, "el KML con gx: es XML bien formado");
+const multi = { name: "M", checked: true, t: "layer", style: null, geo: fc([{ ...feat({ type: "MultiPolygon", coordinates: [[zRing], [zRing]] }), kiteAlt: "agl" }]) };
+ok((x.recordsToKml([multi]).text.match(/<altitudeMode>relativeToGround/g) || []).length === 2, "un MultiPolygon: el modo en cada polígono");
+const gjMode = JSON.parse(x.recordsToGeoJson([withMode("agl"), withMode("x"), { ...withMode("abs"), geo: fc([feat({ type: "Polygon", coordinates: [zRing] })]) }]).text).features;
+ok(gjMode[0].kiteAlt === "agl" && !("kiteAlt" in gjMode[1]) && !("kiteAlt" in gjMode[2]), "GeoJSON: kiteAlt como miembro del Feature, solo si es válido");
+ok(!("kiteAlt" in gjMode[0].properties), "y no en properties (no es un atributo del usuario)");
 
 if (!process.exitCode) console.log("EXPORT FORMATS TESTS OK");

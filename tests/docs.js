@@ -381,7 +381,7 @@ const DIALOG_DOC = {
   "kml-tags-picker": "Etiquetas en los nombres", "kml-dup-picker": "Marcadores duplicados",
   "geojson-name-picker": "Elegir nombre", "geocalc-dialog": "Cálculos geodésicos", "profile-dialog": "Obtener perfil",
   "points-dialog": "Ver y editar…", "log-dialog": "Registro de avisos", "url-dialog": "Añadir desde una dirección", "range-dialog": "Anillos de alcance", "attr-dialog": "Tabla de atributos", "attrstyle-dialog": "Estilo por atributo",
-  "restore-confirm": "Borrar todos los datos", "sh-creds": "credencial", "custom-tiles-creds": "Custom Tile Map Service", "custom-wms-creds": "Custom Web Map Service"
+  "restore-confirm": "Borrar todos los datos", "delete-confirm": "Borrar capas", "sh-creds": "credencial", "custom-tiles-creds": "Custom Tile Map Service", "custom-wms-creds": "Custom Web Map Service"
 };
 const dialogIds = html => [...html.matchAll(/<div id="([a-z0-9-]+)" class="(?:dlg-overlay|dlg-float)"/g)].map(m => m[1]);
 function checkDialogs(ids, map, manual) {

@@ -316,10 +316,49 @@ function arcgisLabelField(json) {
   return null;
 }
 
+/* ¿Se ve algo al dibujar este símbolo del servidor? Un símbolo de relleno
+   sin relleno (o con alfa 0) y sin contorno (nulo, con alfa 0 o grosor 0) no
+   deja ningún píxel: es el de una capa que solo existe para rotular. Un
+   símbolo de imagen o de texto, o uno que no se conoce, SE VE (ante la duda,
+   no es una capa de rótulos).                                          */
+const arcgisAlpha = c => (Array.isArray(c) && c.length >= 4 ? c[3] : 255);
+const arcgisLineGone = l => !l || l.style === "esriSLSNull" || arcgisAlpha(l.color) === 0 || !(l.width > 0);
+function arcgisSymbolInvisible(s) {
+  if (!s || typeof s !== "object") return false;
+  if (s.type === "esriSLS") return arcgisLineGone(s);
+  if (s.type === "esriSFS") return (s.style === "esriSFSNull" || arcgisAlpha(s.color) === 0) && arcgisLineGone(s.outline);
+  if (s.type === "esriSMS") return arcgisAlpha(s.color) === 0 && arcgisLineGone(s.outline);
+  return false;
+}
+/* Todos los símbolos del renderizador (simple, valores únicos o rangos) */
+function arcgisRendererInvisible(r) {
+  if (!r || typeof r !== "object") return false;
+  const syms = [r.symbol, r.defaultSymbol];
+  for (const i of Array.isArray(r.uniqueValueInfos) ? r.uniqueValueInfos : []) syms.push(i && i.symbol);
+  for (const i of Array.isArray(r.classBreakInfos) ? r.classBreakInfos : []) syms.push(i && i.symbol);
+  for (const g of Array.isArray(r.uniqueValueGroups) ? r.uniqueValueGroups : []) {
+    for (const c of g && Array.isArray(g.classes) ? g.classes : []) syms.push(c && c.symbol);
+  }
+  const present = syms.filter(Boolean);
+  return present.length > 0 && present.every(arcgisSymbolInvisible);
+}
+/* Una capa que existe SOLO para rotular (las `*_texto` de ENAIRE: polígonos
+   que no se ven y una regla de rotulado). Se reconoce por la convención del
+   nombre o porque nada de lo que dibuja se ve; el segundo criterio solo no
+   basta (la `CTR_texto` real tiene relleno opaco y el servidor lo oculta con
+   una variable visual por campo). Sus entidades NO son datos: el nombre de
+   cada una es su rótulo y no hace falta preguntarlo.                    */
+function arcgisIsLabelLayer(json) {
+  if (!arcgisLabelField(json)) return false;
+  if (typeof json.name === "string" && /(^|[_\s])texto([_\s]|$)/i.test(json.name)) return true;
+  return arcgisRendererInvisible(json.drawingInfo && json.drawingInfo.renderer);
+}
+
 /* La ficha de una capa (`<servicio>/<id>?f=json`) → lo que decide cómo se
    pide: si sabe devolver GeoJSON, si pagina y de cuánto en cuánto, y por
-   qué campo ordenar y con qué campo rotula el servidor. Devuelve { error } o
-   { name, pagination, maxRecord, oidField, labelField }. */
+   qué campo ordenar y con qué campo rotula el servidor (y si la capa es solo
+   de rótulos). Devuelve { error } o
+   { name, pagination, maxRecord, oidField, labelField, labelOnly }. */
 function parseArcgisLayerInfo(json) {
   if (!json || typeof json !== "object") return { error: tr("la respuesta no es la ficha de una capa") };
   if (json.error) return { error: arcgisErrorText(json.error) };
@@ -340,7 +379,7 @@ function parseArcgisLayerInfo(json) {
   }
   return { name: typeof json.name === "string" ? json.name : "", pagination: !!(adv && adv.supportsPagination === true),
            maxRecord: Math.min(max, ARCGIS_PAGE_MAX), oidField: oid && ARCGIS_OID_RE.test(oid) ? oid : null,
-           labelField: arcgisLabelField(json) };
+           labelField: arcgisLabelField(json), labelOnly: arcgisIsLabelLayer(json) };
 }
 
 function arcgisCountOf(json) {
@@ -520,7 +559,7 @@ function arcgisForeignNotice(foreign) {
 }
 
 /* Fila de un servicio o de una de sus capas (lo llama materializeRecords) */
-async function materializeArcgisRecord(rec, parentUl) {
+async function materializeArcgisRecord(rec, parentUl, put) {
   const isService = rec.t === "arcgis";
   const isGroup = !!rec.children;
   const li = isService
@@ -544,7 +583,7 @@ async function materializeArcgisRecord(rec, parentUl) {
     if (rec.collapsed) li.classList.add("collapsed");
     syncExpanded(li);
   }
-  parentUl.appendChild(li);
+  if (put) put(li, rec); else parentUl.appendChild(li);
   if (!isGroup) return;
   if (rec.collapsed) {
     li._pending = rec.children;
@@ -624,7 +663,7 @@ function arcgisFailText(err) {
 }
 
 /* Lo que se descarga de UNA capa: ficha, recuento y páginas. Devuelve
-   { fc, partial: { got, total } | null, labelField }. `onProgress(got, total, bytes)`
+   { fc, partial: { got, total } | null, labelField, labelOnly }. `onProgress(got, total, bytes)`
    alimenta la barra.                                                     */
 async function arcgisDownloadLayer(base, id, signal, onProgress) {
   const info = parseArcgisLayerInfo((await arcgisGetJson(arcgisLayerInfoUrl(base, id), signal, ARCGIS_JSON_MAX)).json);
@@ -654,7 +693,7 @@ async function arcgisDownloadLayer(base, id, signal, onProgress) {
   if (!merged.fc.features.length) throw new Error(tr("el servidor no devolvió ninguna entidad"));
   /* Sin paginación el servidor corta en su límite: se trae lo que hay y se dice */
   const partial = !info.pagination && merged.exceeded ? { got: merged.fc.features.length, total } : null;
-  return { fc: merged.fc, partial, labelField: info.labelField };
+  return { fc: merged.fc, partial, labelField: info.labelField, labelOnly: info.labelOnly };
 }
 
 /* El origen de las asociaciones de nombre de «Índices de GeoJSON» de una capa
@@ -696,7 +735,7 @@ async function arcgisFetchLayerData(li, button) {
   arcgisSetDataButton(button, true);
   progress.indet(tr("Consultando «{name}»…", { name }));
   try {
-    const { fc, partial, labelField } = await arcgisDownloadLayer(service._arcgis.url, li._arcgisLayer.id, run.ctrl.signal,
+    const { fc, partial, labelField, labelOnly } = await arcgisDownloadLayer(service._arcgis.url, li._arcgisLayer.id, run.ctrl.signal,
       (got, total, bytes) => progress.set(100 * got / total,
         tr("Trayendo «{name}»… {got} de {total} entidades ({size})", { name, got, total, size: fmtBytes(bytes) })));
     progress.hide();
@@ -705,13 +744,19 @@ async function arcgisFetchLayerData(li, button) {
         { sticky: true });
     }
     const file = new File([JSON.stringify(fc)], safeFileName(name) + ".geojson");
-    /* Si el servidor rotula la capa con un campo, ese es el nombre de los
-       elementos (sin preguntarlo) y se ve siempre sobre el mapa: la imagen
-       del servidor los corta en el borde de cada tesela, los polígonos no. */
+    /* Si la capa es SOLO de rótulos (`*_texto`) y el servidor los dibuja con
+       un campo, ese es el nombre de los elementos (sin preguntarlo) y se ve
+       siempre sobre el mapa: la imagen del servidor los corta en el borde de
+       cada tesela, los polígonos no. En cualquier OTRA capa los elementos son
+       datos y el nombre lo elige el usuario como en cualquier GeoJSON; la
+       regla del servidor solo sirve de sugerencia (viene ya marcada). Antes
+       se aplicaba a toda capa con regla de rotulado y una capa de datos
+       como «Elementos» se nombraba sin preguntar nada.                  */
     let after = null;
     /* La asociación de nombres es de ESTA capa de ESTE servicio, no de cualquiera que comparta campos */
     file.kiteNameScope = arcgisNameScope(service._arcgis.url, li._arcgisLayer.id);
-    if (labelField) {
+    if (labelField && !labelOnly) file.kiteNameHint = [labelField];
+    if (labelField && labelOnly) {
       file.kiteNameKeys = [labelField];
       if (fc.features.length <= ARCGIS_LABEL_MAX) after = carpeta => arcgisShowLabels(carpeta, name, labelField);
       else navMessage(tr("«{name}»: {n} entidades son demasiadas para rotularlas todas sobre el mapa (el máximo es {max}); el nombre queda en cada una.",

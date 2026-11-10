@@ -611,7 +611,16 @@ function cancelLayerInfoHide() {
 function scheduleLayerInfoHide() {
   if (descDialog.hidden || descBox.contains(document.activeElement)) return;
   cancelLayerInfoHide();
-  layerInfoHideTimer = setTimeout(() => { hideLayerInfo(); layerInfoHideTimer = null; }, LAYER_INFO_HIDE_DELAY);
+  layerInfoHideTimer = setTimeout(() => {
+    layerInfoHideTimer = null;
+    /* The pointer is on the panel itself: it always opens in the same corner, so
+       it can land right over the layer being hovered (a «W» near the top-right
+       edge) or the user may be heading for the link inside it. Closing it now
+       would put the layer back under the pointer, reopen it and blink for ever.
+       It closes when the pointer leaves it (`mouseleave`, 44-dialogs.js). */
+    if (descBox.matches(":hover")) return;
+    hideLayerInfo();
+  }, LAYER_INFO_HIDE_DELAY);
 }
 
 /* One-shot guard set when LEAVING a drawing tool (see setTool): the
@@ -654,7 +663,7 @@ function showLayerInfo(li, { focus = true } = {}) {
      drawing a polygon: the floating panel could sit exactly where the
      user needs to click to fix a vertex inside another polygon, and
      the hover would block it.                                        */
-  if (!focus && (layerInfoDismissed || !styleDialog.hidden || activeTool === "polygon")) return;
+  if (!focus && (layerInfoDismissed || !styleDialog.hidden || clickPicksPoint())) return;
   if (focus) layerInfoDismissed = false; /* explicit open: re-arms the hover */
   const html = infoHtmlFor(li);
   if (html == null) return;
@@ -702,6 +711,7 @@ async function applySnapshot(nodes) {
      deshacer dejaba las de antes, y una ruta seguía «teniendo» un
      perfil que ya no estaba (findRouteProfile).                      */
   elevGridGroups.length = 0;
+  syncElevFontControl(); /* (60-elevation.js) */
   showEmptyMessage();
   if (nodes.length) await restoreTree(nodes);
   scheduleSave();
@@ -737,38 +747,6 @@ const VIEW_KEY = "view";
 const VIEW_SCHEMA = 1;
 const BASE_KEY = "bases";
 const BASE_SCHEMA = 1;
-/* Reparto de las dos columnas de la ficha de properties. Otra clave del
-   MISMO almacén, con su propia versión: no toca subir DB_VERSION.   */
-const PROPS_KEY = "propsSplit";
-const PROPS_SCHEMA = 1;
-
-async function dbSaveProps(frac) {
-  const db = await openDb();
-  return new Promise((resolve, reject) => {
-    const tx = db.transaction(DB_TREE, "readwrite");
-    tx.objectStore(DB_TREE).put({ v: PROPS_SCHEMA, frac }, PROPS_KEY);
-    tx.oncomplete = resolve;
-    tx.onerror = () => reject(tx.error);
-  });
-}
-
-/* Lo leído se valida antes de usarse, como la vista guardada: un
-   registro corrupto dejaría una columna invisible y sin forma obvia de
-   recuperarla. `Number.isFinite` no convierte, así que un "0.4" guardado
-   por error no se cuela como número.                                 */
-async function dbLoadProps() {
-  const db = await openDb();
-  return new Promise((resolve, reject) => {
-    const tx = db.transaction(DB_TREE, "readonly");
-    const rq = tx.objectStore(DB_TREE).get(PROPS_KEY);
-    rq.onsuccess = () => {
-      const r = rq.result;
-      resolve(r && r.v === PROPS_SCHEMA && Number.isFinite(r.frac) ? r.frac : null);
-    };
-    rq.onerror = () => reject(rq.error);
-  });
-}
-
 /* ---------- Tope de vértices editables interactivamente sobre el mapa ----------
    Otra clave del mismo almacén: no hace falta subir DB_VERSION. Depende
    del hardware de quien lo usa (ver VERTEX_EDIT_MAX_DEFAULT en
@@ -969,6 +947,63 @@ async function dbLoadFresnelFreq() {
     const tx = db.transaction(DB_TREE, "readonly");
     const rq = tx.objectStore(DB_TREE).get(FRESNEL_FREQ_KEY);
     rq.onsuccess = () => resolve(validFresnelFreq(rq.result));
+    rq.onerror = () => reject(rq.error);
+  });
+}
+
+/* Tamaño máximo descomprimido de un KMZ o .zip, en MB enteros (Propiedades →
+   Preferencias; ver loadZipChecked en 33-kml-import.js). Clave propia del
+   almacén `tree`, como la frecuencia de Fresnel; no sube DB_VERSION ni
+   TREE_SCHEMA. Validado al leer: fuera de rango o no entero se descarta y
+   queda el de partida.                                                   */
+const KMZ_MAX_KEY = "kmzMaxUncompressed";
+const KMZ_MAX_SCHEMA = 1;
+const validKmzMax = r =>
+  (r && r.v === KMZ_MAX_SCHEMA && Number.isInteger(r.mb)
+    && r.mb >= KMZ_MAX_UNCOMPRESSED_MIN_MB && r.mb <= KMZ_MAX_UNCOMPRESSED_MAX_MB ? r.mb : null);
+async function dbSaveKmzMax(mb) {
+  const db = await openDb();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(DB_TREE, "readwrite");
+    tx.objectStore(DB_TREE).put({ v: KMZ_MAX_SCHEMA, mb }, KMZ_MAX_KEY);
+    tx.oncomplete = resolve;
+    tx.onerror = () => reject(tx.error);
+  });
+}
+async function dbLoadKmzMax() {
+  const db = await openDb();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(DB_TREE, "readonly");
+    const rq = tx.objectStore(DB_TREE).get(KMZ_MAX_KEY);
+    rq.onsuccess = () => resolve(validKmzMax(rq.result));
+    rq.onerror = () => reject(rq.error);
+  });
+}
+
+/* Tamaño de las cifras de las celdas de elevación (botones A− / A+, ver
+   ElevFontControl en 60-elevation.js): un ÍNDICE de ELEV_FONT_STEPS. Clave
+   propia del almacén `tree`, como la frecuencia de Fresnel; no sube
+   DB_VERSION ni TREE_SCHEMA. Validado al leer: un índice que ya no existe
+   (escalones cambiados) vuelve al de partida.                            */
+const ELEV_FONT_KEY = "elevFont";
+const ELEV_FONT_SCHEMA = 1;
+const validElevFont = r =>
+  (r && r.v === ELEV_FONT_SCHEMA && Number.isInteger(r.step) && r.step >= 0 && r.step < ELEV_FONT_STEPS.length ? r.step : null);
+async function dbSaveElevFont(step) {
+  const db = await openDb();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(DB_TREE, "readwrite");
+    tx.objectStore(DB_TREE).put({ v: ELEV_FONT_SCHEMA, step }, ELEV_FONT_KEY);
+    tx.oncomplete = resolve;
+    tx.onerror = () => reject(tx.error);
+  });
+}
+async function dbLoadElevFont() {
+  const db = await openDb();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(DB_TREE, "readonly");
+    const rq = tx.objectStore(DB_TREE).get(ELEV_FONT_KEY);
+    rq.onsuccess = () => resolve(validElevFont(rq.result));
     rq.onerror = () => reject(rq.error);
   });
 }
@@ -1400,7 +1435,7 @@ function serializeNode(li) {
     if (li._arcgisLayer.data) rec.data = true;
     if (li._isContainer) {
       rec.collapsed = li.classList.contains("collapsed");
-      rec.children = li._pending ? serializePendingRecords(li._pending) : serializeNodes(nodeUl(li));
+      rec.children = serializeChildren(li, nodeUl(li));
     }
     return [rec];
   }
@@ -1408,7 +1443,7 @@ function serializeNode(li) {
     const a = li._arcgis;
     return [{ ...base, t: "arcgis", collapsed: li.classList.contains("collapsed"), url: a.url,
               opacity: a.opacity, tile: a.tile, extent: a.extent, attribution: a.attribution,
-              children: li._pending ? serializePendingRecords(li._pending) : serializeNodes(nodeUl(li)) }];
+              children: serializeChildren(li, nodeUl(li)) }];
   }
   /* li._isContainer evita este querySelector en toda capa hoja (la
      inmensa mayoría de los nodos de un árbol grande): solo carpetas y
@@ -1420,7 +1455,7 @@ function serializeNode(li) {
        se serializa directamente desde los registros, sin construir ni
        una sola fila — coste casi nulo para lo que nadie ha llegado a
        abrir.                                                          */
-    const children = li._pending ? serializePendingRecords(li._pending) : serializeNodes(ul);
+    const children = serializeChildren(li, ul);
     const rec = { ...base, t: li.classList.contains("file") ? "file" : "folder",
                   collapsed: li.classList.contains("collapsed"), children };
     if (li._appSection) rec.sec = true; /* sección creada por la aplicación */
@@ -1438,6 +1473,79 @@ function serializeNode(li) {
   return [rec];
 }
 const serializeNodes = ul => [...ul.children].flatMap(serializeNode);
+
+/* ---------- Carpetas a medio construir ----------
+   Una carpeta puede tener filas Y registros pendientes a la vez: lo que el
+   filtro del panel pidió (materializeMatching, 31-tree-node.js) es una fila
+   y el resto sigue en `li._pending`. Son conjuntos DISJUNTOS —un registro
+   que se construye sale de `_pending`—, así que lo que ya recorría los dos
+   (containerState, cascadeVisibility, removeSubtreeFromMap, findMatches…)
+   no cuenta nada dos veces. Lo que no podía con eso era guardar y colocar:
+
+   - Guardar: se tomaban los hijos de `_pending` O del DOM, nunca de los dos,
+     y se perdía uno de los dos conjuntos (ya pasaba al soltar un archivo en
+     una carpeta colapsada con pendientes).
+   - Colocar: construir solo algunas filas las dejaba fuera de su sitio.
+
+   Ambos se resuelven con la posición ORIGINAL de cada registro (`rec._pos`,
+   su índice en el nivel antes de partirlo, que la fila hereda en `li._pos`).
+   `ensurePos` la asigna una sola vez por nivel.                           */
+function ensurePos(records) {
+  if (records.length && records[0]._pos === undefined) records.forEach((r, i) => { r._pos = i; });
+}
+
+/* Parte `records` en lo elegido y el resto, conservando el orden de cada
+   mitad. Pura: no construye nada.                                       */
+function splitPending(records, only) {
+  ensurePos(records);
+  const chosen = [], rest = [];
+  for (const rec of records) (only(rec) ? chosen : rest).push(rec);
+  return { chosen, rest };
+}
+
+/* Coloca las filas nuevas de un nivel en el sitio que les toca por `_pos`
+   mezclando dos listas ya ordenadas: las que hay en el <ul> y las que
+   llegan (en orden). Con un ancla que avanza solo hacia delante cuesta
+   O(1) por fila, no O(filas ya puestas) —con 20 000 y una fila cada 500, la
+   búsqueda lineal de cada una sería N × x—. Devuelve null si el nivel nunca
+   se partió (sin `_pos`): ahí se añade al final, como siempre. Una fila sin
+   `_pos` (un pin o un archivo soltado después) cuenta como «al final».    */
+function placementAnchor(parentUl, records) {
+  if (!records.length || records[0]._pos === undefined) return null;
+  let anchor = parentUl.firstElementChild;
+  return (li, pos) => {
+    /* Si el usuario borró la fila ancla mientras cedíamos el hilo, se vuelve a empezar */
+    if (anchor && anchor.parentNode !== parentUl) anchor = parentUl.firstElementChild;
+    while (anchor && anchor._pos !== undefined && anchor._pos < pos) anchor = anchor.nextElementSibling;
+    parentUl.insertBefore(li, anchor); /* ancla nula = al final */
+  };
+}
+
+/* Los hijos de un contenedor, listos para guardar. Solo filas: lo de siempre;
+   solo pendientes: lo de siempre (sin construir ni una fila); LAS DOS COSAS:
+   se fusionan por posición original. Si el usuario reordenó a mano las filas
+   construidas (sus `_pos` ya no crecen en el DOM), no hay una posición que
+   respetar: filas en el orden en que están y luego los pendientes.       */
+function serializeChildren(li, ul) {
+  if (!li._pending) return serializeNodes(ul);
+  if (!ul || !ul.firstElementChild) return serializePendingRecords(li._pending);
+  const pend = li._pending;
+  ensurePos(pend);
+  const pendOut = serializePendingRecords(pend); /* en paralelo a `pend` */
+  const rows = [...ul.children].filter(c => c._name !== undefined);
+  const rowOut = rows.map(serializeNode);
+  const pos = r => r._pos === undefined ? Infinity : r._pos;
+  let last = -1, ordered = true;
+  for (const r of rows) { if (pos(r) < last) { ordered = false; break; } last = pos(r); }
+  if (!ordered) return [...rowOut.flat(), ...pendOut];
+  const out = [];
+  let i = 0, j = 0;
+  while (i < rows.length || j < pend.length) {
+    if (j < pend.length && (i >= rows.length || pend[j]._pos < pos(rows[i]))) out.push(pendOut[j++]);
+    else out.push(...rowOut[i++]);
+  }
+  return out;
+}
 
 /* Gemela de serializeNode/serializeNodes, pero sobre registros pendientes
    (li._pending) en vez de filas del DOM: misma forma de salida exacta,
@@ -1803,6 +1911,96 @@ async function restoreTree(nodes) {
   await materializeRecords(records, ensureRootUl());
 }
 
+/* ---------- Capas Leaflet perezosas ----------
+   Un registro `layer` APAGADO guarda solo su `geo` (el GeoJSON, que es lo
+   que se persiste) y su capa Leaflet se construye la PRIMERA vez que
+   alguien la lee. Motivo, medido con un KML de 309 MB (62 673
+   placemarks apagados, 9,66 M de vértices): construirlas todas eran 9,4 s
+   y +1,1 GB de heap al importar y OTROS 7,6 s y 3,1 GB en cada arranque, y
+   copiarlas de vuelta a GeoJSON para guardar, 1,3 s y +0,6 GB más; con un
+   límite de heap de 3 GB el guardado pasó de 1,3 s a 67 s (el recolector
+   de basura contra el techo) y con menos la pestaña moría.
+
+   `rec._layer` pasa a ser un getter que construye, se sustituye a sí
+   mismo por el valor y registra los manejadores del registro pendiente
+   (`wirePendingLayerEvents`): los sitios que leen `rec._layer` no se
+   enteran. Quien solo quiere APAGAR o QUITAR una capa, o medirla, NO debe
+   construirla: pregunta antes `recLayerPending(rec)` (apagar una capa que
+   nunca existió no hace nada; su encuadre sale de `rec.geo`).
+   La capa que se construye es EXACTAMENTE la de un registro restaurado
+   (`buildRecordLayer`, la misma que usa `buildRecordsFromStorage`): nada
+   nuevo que probar más allá de que se construye tarde.                 */
+function defineLazyLayer(rec, build) {
+  rec._built = false;
+  const settle = layer => Object.defineProperty(rec, "_layer",
+    { value: layer, writable: true, configurable: true, enumerable: true });
+  Object.defineProperty(rec, "_layer", {
+    configurable: true, enumerable: true,
+    get() {
+      const layer = build();
+      settle(layer);
+      rec._built = true;
+      wirePendingLayerEvents(rec);
+      return layer;
+    },
+    set(layer) { settle(layer); rec._built = true; }
+  });
+}
+/* ¿Es un registro perezoso cuya capa aún no existe? (`_built` solo lo
+   tienen los perezosos) */
+const recLayerPending = rec => rec._built === false;
+
+/* La capa Leaflet de un registro `layer` a partir de su GeoJSON, con el
+   estilo, el popup y el icono propio: lo que hacía en línea el arranque. */
+function buildRecordLayer(rec) {
+  const layer = L.geoJSON(rec.geo, rec.style ? { style: rec.style } : undefined);
+  clearFillOnOpenPaths(layer); /* una línea no se rellena, ver esa función */
+  layer.bindPopup(escapeHtml(rec.name), COMPACT_POPUP);
+  /* El icono personalizado se aplica AQUÍ, sobre la capa cruda, no
+     solo cuando materializeRecords construya su fila más adelante:
+     un marcador dentro de una carpeta colapsada puede pasar de
+     "pendiente" a "visible" con la cascada de la casilla de la
+     carpeta (cascadeVisibility → walkRecords) sin que su fila
+     llegue a crearse nunca — ese camino solo hace
+     setLayerVisible(rec._layer, checked), sin tocar el icono.
+     Reportado: un marcador con icono MDI (no la gota por defecto),
+     desactivado y dentro de una carpeta nunca desplegada, volvía a
+     la gota de Leaflet al activarlo tras recargar. Aplicarlo dos
+     veces (otra vez en materializeRecords, si la fila sí llega a
+     crearse) es inocuo: setIcon con el mismo icono no hace nada.  */
+  if (rec.mstyle) styleMarkerIcon(layer, rec.mstyle, typeof rec.name === "string" ? rec.name : "");
+  return layer;
+}
+
+/* ¿Puede un GeoJSON quedarse sin capa hasta que haga falta? Solo si no
+   tiene ningún punto (un marcador necesita su icono, que es de Leaflet) ni
+   nada que no se reconozca: ante la duda, se construye ya.            */
+const LAZY_GEOMETRIES = new Set(["Polygon", "MultiPolygon", "LineString", "MultiLineString"]);
+function geoIsLazyable(g) {
+  if (!g || typeof g !== "object") return false;
+  if (g.type === "FeatureCollection") return Array.isArray(g.features) && g.features.every(geoIsLazyable);
+  if (g.type === "Feature") return !!g.geometry && LAZY_GEOMETRIES.has(g.geometry.type);
+  return LAZY_GEOMETRIES.has(g.type);
+}
+
+/* Encuadre de un GeoJSON sin construir su capa (la caja de todas sus
+   posiciones, que es la que da `getBounds()`), o null si no hay ninguna.
+   Se guarda en el registro: se pide en cada "ir a la carpeta".          */
+function recGeoBounds(rec) {
+  if (rec._bounds !== undefined) return rec._bounds;
+  let s = Infinity, w = Infinity, n = -Infinity, e = -Infinity;
+  const walk = c => {
+    if (typeof c[0] === "number") {
+      if (c[1] < s) s = c[1]; if (c[1] > n) n = c[1];
+      if (c[0] < w) w = c[0]; if (c[0] > e) e = c[0];
+    } else for (const x of c) walk(x);
+  };
+  const geoms = g => g.type === "FeatureCollection" ? g.features.forEach(f => geoms(f))
+    : g.type === "Feature" ? (g.geometry && geoms(g.geometry)) : walk(g.coordinates);
+  try { geoms(rec.geo); } catch { /* geometría rota: sin encuadre */ }
+  return (rec._bounds = s <= n ? L.latLngBounds([s, w], [n, e]) : null);
+}
+
 /* Reconstruye la geometría/capas Leaflet de un árbol guardado
    (restaurar, deshacer/rehacer, pegar, importar un .kite.json), como
    REGISTROS — nunca filas del panel. Igual que buildKmlRecords: la
@@ -1832,28 +2030,20 @@ async function buildRecordsFromStorage(nodes, prog, opts = {}) {
       const rec = buildCogRecord(n);
       if (rec) out.push(rec);
     } else if (n.t === "layer") {
-      const layer = L.geoJSON(n.geo, n.style ? { style: n.style } : undefined);
-      clearFillOnOpenPaths(layer); /* una línea no se rellena, ver esa función */
-      layer.bindPopup(escapeHtml(n.name), COMPACT_POPUP);
-      /* El icono personalizado se aplica AQUÍ, sobre la capa cruda, no
-         solo cuando materializeRecords construya su fila más adelante:
-         un marcador dentro de una carpeta colapsada puede pasar de
-         "pendiente" a "visible" con la cascada de la casilla de la
-         carpeta (cascadeVisibility → walkRecords) sin que su fila
-         llegue a crearse nunca — ese camino solo hace
-         setLayerVisible(rec._layer, checked), sin tocar el icono.
-         Reportado: un marcador con icono MDI (no la gota por defecto),
-         desactivado y dentro de una carpeta nunca desplegada, volvía a
-         la gota de Leaflet al activarlo tras recargar. Aplicarlo dos
-         veces (otra vez en materializeRecords, si la fila sí llega a
-         crearse) es inocuo: setIcon con el mismo icono no hace nada.  */
-      if (n.mstyle) styleMarkerIcon(layer, n.mstyle);
-      if (n.checked) layer.addTo(rootGroup);
       const rec = { t: "layer", name: n.name, checked: !!n.checked, style: n.style || null,
-                    geo: n.geo, mstyle: n.mstyle, desc: n.desc || null, _layer: layer };
-      /* geo ya es el toGeoJSON() que serializeNode recalcularía: se
-         reutiliza en vez de perder la caché (ver materializeRecords) */
-      wirePendingLayerEvents(rec);
+                    geo: n.geo, mstyle: n.mstyle, desc: n.desc || null };
+      /* Apagada, sin marcadores y de este navegador (lo AJENO se construye
+         ya: Leaflet es quien rechaza una geometría rota, y es mejor que
+         falle al cargar que al encender): sin capa hasta que se pida. */
+      if (!rec.checked && !opts.foreign && geoIsLazyable(rec.geo)) {
+        defineLazyLayer(rec, () => buildRecordLayer(rec));
+      } else {
+        rec._layer = buildRecordLayer(rec);
+        if (rec.checked) rec._layer.addTo(rootGroup);
+        /* geo ya es el toGeoJSON() que serializeNode recalcularía: se
+           reutiliza en vez de perder la caché (ver materializeRecords) */
+        wirePendingLayerEvents(rec);
+      }
       out.push(rec);
     } else {
       const children = await buildRecordsFromStorage(n.children || [], prog, opts);
@@ -1862,10 +2052,7 @@ async function buildRecordsFromStorage(nodes, prog, opts = {}) {
       if (n.t === "file" && n.sec === true) rec.sec = true;
       out.push(rec);
     }
-    if (prog && LEAF_RECORD_TYPES.has(n.t) && ++prog.done % PROGRESS_BATCH === 0) {
-      prog.update(prog.done);
-      await yieldFrame();
-    }
+    if (prog && LEAF_RECORD_TYPES.has(n.t)) await yieldIfDue(prog);
   }
   return out;
 }
@@ -1884,8 +2071,16 @@ async function buildRecordsFromStorage(nodes, prog, opts = {}) {
    lleva parámetro de progreso: el trabajo caro (parsear geometría,
    construir capas Leaflet) ya pasó en la fase de registros, que sí
    lo muestra; esto solo cede el hilo para no bloquear.                 */
-async function materializeRecords(records, parentUl) {
+async function materializeRecords(records, parentUl, only = null) {
   let n = 0;
+  /* Dónde va cada fila: al final, como siempre, salvo que este nivel se haya
+     partido ya (rec._pos): entonces por su posición original, mezclando con
+     las filas que ya hay (ver placementAnchor). */
+  const anchored = placementAnchor(parentUl, records);
+  const put = (li, rec) => {
+    if (rec._pos !== undefined) li._pos = rec._pos;
+    if (anchored) anchored(li, rec._pos); else parentUl.appendChild(li);
+  };
   for (const rec of records) {
     if (rec.t === "folder" || rec.t === "file") {
       const li = makeNode({
@@ -1895,11 +2090,19 @@ async function materializeRecords(records, parentUl) {
       rec._li = li; /* referencia inversa: la usa resolveMatch para llegar aquí desde una búsqueda pendiente */
       if (rec.collapsed) li.classList.add("collapsed");
       syncExpanded(li);
-      parentUl.appendChild(li);
+      put(li, rec);
       /* la sección que contiene mediciones recupera su papel, mire o no
          esta llamada dentro de sus hijos: rec.children ya existe       */
       if (rec.t === "file" && rec.children.some(c => c.t === "measure")) measureLi = li;
-      if (rec.collapsed) {
+      if (only) {
+        /* Construcción parcial (el filtro del panel): de esta carpeta solo se
+           construye lo que pide `only` y el resto queda en SU _pending,
+           aunque no esté colapsada (al quitar el filtro se completa).    */
+        const sub = splitPending(rec.children, only);
+        li._pending = sub.rest.length ? sub.rest : null;
+        if (li._pending) partialFolders.add(li);
+        await materializeRecords(sub.chosen, nodeUl(li), only);
+      } else if (rec.collapsed) {
         li._pending = rec.children;
         /* Sus hijos no llegan a ser filas, así que la pasada recursiva
            no va a recalcular esta casilla por ellos: se hace aquí, con
@@ -1927,7 +2130,7 @@ async function materializeRecords(records, parentUl) {
         rec._pendingHandlers = null;
       }
       if (rec.geo) li._geo = rec.geo;
-      parentUl.appendChild(li);
+      put(li, rec);
       if (rec.mstyle) {
         li._mstyle = rec.mstyle;
         applyMarkerStyle(li); /* síncrona: los iconos van empotrados */
@@ -1941,7 +2144,7 @@ async function materializeRecords(records, parentUl) {
     } else if (rec.t === "measure") {
       const li = makeMeasureLi(rec._m);
       rec._li = li;
-      parentUl.appendChild(li);
+      put(li, rec);
       if (!rec.checked) li.querySelector(":scope > .node-row > input").checked = false;
       updateMeasurement(rec._m);
     } else if (rec.t === "elevGrid") {
@@ -1951,19 +2154,19 @@ async function materializeRecords(records, parentUl) {
       });
       rec._li = li;
       li._elevGrid = { cells: rec.cells, profile: rec.profile || null };
-      parentUl.appendChild(li);
+      put(li, rec);
     } else if (rec.t === "imageOverlay") {
       const li = makeNode({ name: rec.name, layer: rec._layer, styleable: true, checked: !!rec.checked });
       rec._li = li;
       li._imageOverlay = { box: rec.box, dataUrl: rec.dataUrl, opacity: rec.opacity };
-      parentUl.appendChild(li);
+      put(li, rec);
     } else if (rec.t === "cog") {
       const li = makeNode({ name: rec.name, layer: rec._layer, styleable: true, checked: !!rec.checked });
       rec._li = li;
       li._cog = { rasterId: rec.rasterId, box: rec.box, opacity: rec.opacity };
-      parentUl.appendChild(li);
+      put(li, rec);
     } else if (rec.t === "arcgis" || rec.t === "arcgisLayer") {
-      await materializeArcgisRecord(rec, parentUl);
+      await materializeArcgisRecord(rec, parentUl, put);
     }
     if (++n % PROGRESS_BATCH === 0) await yieldFrame();
   }

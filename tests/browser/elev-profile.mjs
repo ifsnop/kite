@@ -276,8 +276,10 @@ const [csvDl] = await Promise.all([page.waitForEvent("download"), page.click("#p
 const csv = fs.readFileSync(await csvDl.path(), "utf8");
 const csvLines = csv.split("\r\n");
 ok(csvDl.suggestedFilename() === "Ruta 1-perfil.csv", "nombre del CSV: " + csvDl.suggestedFilename());
-ok(csvLines[0] === `\uFEFFDistancia (${units.d}),Latitud,Longitud,MDT (${units.a}),MDS (${units.a})`, "BOM y cabecera con las unidades de la gráfica: " + JSON.stringify(csvLines[0]));
-const body = csvLines.slice(1, -1).map(r => r.split(","));
+/* La interfaz está en español: punto y coma entre campos y coma decimal */
+ok(csvLines[0] === `\uFEFFDistancia (${units.d});Latitud;Longitud;MDT (${units.a});MDS (${units.a})`, "BOM y cabecera con las unidades de la gráfica, con punto y coma: " + JSON.stringify(csvLines[0]));
+const body = csvLines.slice(1, -1).map(r => r.split(";").map(c => c.replace(",", ".")));
+ok(!/\d\.\d/.test(csvLines.slice(1).join("\n")), "en español, los decimales llevan coma y no punto");
 ok(body.length > 380 && body.length < 1000 && body.every(r => r.length === 5), "una fila por distancia de las dos series: " + body.length);
 ok(body.every((r, i) => i === 0 || Number(r[0]) > Number(body[i - 1][0])), "en orden y sin repetir");
 ok(Math.abs(Number(body[0][1]) - WAYPOINTS[0].lat) < 1e-4 && Math.abs(Number(body[0][2]) - WAYPOINTS[0].lng) < 1e-4, "la primera fila, en el primer waypoint: " + body[0]);
@@ -287,6 +289,16 @@ ok(Math.abs(Number(end[0]) * units.fd - route.total) < 20, "y su distancia es la
 const both = body.filter(r => r[3] !== "" && r[4] !== "");
 ok(both.length > 300 && both.every(r => Number(r[4]) > Number(r[3])), "con las dos series, el MDS por encima del MDT (como los servicios simulados): " + both.length);
 ok(body.every(r => r[3] === "" || Number(r[3]) > 0) && body.every(r => r[4] === "" || Number(r[4]) > 0), "ninguna celda con un 0 inventado: lo que falta va vac\u00EDo");
+
+/* En inglés: coma entre campos y punto decimal, con el MISMO contenido */
+await page.evaluate(() => setUiLang("en"));
+const [csvEn] = await Promise.all([page.waitForEvent("download"), page.click("#pf-csv")]);
+await page.evaluate(() => setUiLang("es"));
+const csvEnLines = fs.readFileSync(await csvEn.path(), "utf8").split("\r\n");
+ok(csvEnLines[0] === `\uFEFFDistance (${units.d}),Latitude,Longitude,MDT (${units.a}),MDS (${units.a})`, "en inglés, la cabecera con comas: " + JSON.stringify(csvEnLines[0]));
+const bodyEn = csvEnLines.slice(1, -1).map(r => r.split(","));
+ok(bodyEn.length === body.length && bodyEn.every(r => r.length === 5), "las mismas filas y cinco campos cada una: " + bodyEn.length);
+ok(bodyEn.every((r, i) => r.every((c, j) => c === body[i][j])), "y las mismas cifras, con punto decimal");
 
 const [pngDl] = await Promise.all([page.waitForEvent("download"), page.click("#pf-png")]);
 const png = fs.readFileSync(await pngDl.path());
@@ -750,7 +762,8 @@ const fr1 = await page.evaluate(() => {
   return { has60: !!el, hasFull: !!full, legend: [...profileChart.querySelectorAll(".pf-legend-label")].map(t => t.textContent).join("|"),
            ratio: h(p60) / h(pf), want: 0.6, px: h(pf) / 2, wantPx: r / (lay.ym.b - lay.ym.a) * lay.ph, fill: getComputedStyle(el).fillOpacity };
 });
-ok(fr1.has60 && fr1.hasFull && /Fresnel 1090 MHz \(zona 60 %\)/.test(fr1.legend), "el elipsoide y su leyenda: " + JSON.stringify(fr1));
+ok(fr1.has60 && fr1.hasFull && /Fresnel 100 %\|60 % · 1090 MHz/.test(fr1.legend),
+  "el elipsoide y su leyenda, con una entrada por zona: " + JSON.stringify(fr1));
 ok(Math.abs(fr1.ratio - 0.6) < 0.03, "la zona rellena mide el 60 % del contorno: " + fr1.ratio);
 ok(Math.abs(fr1.px - fr1.wantPx) < 0.6, "el radio central es el de Fresnel (sqrt(λ·d·(L−d)/L)): " + JSON.stringify([fr1.px, fr1.wantPx]));
 /* La frecuencia ya no está en la ventana: es de Propiedades → Frecuencias (persistente, con Cancelar/Aceptar) */
@@ -774,6 +787,45 @@ await page.click("#props-cancel");
 await frames();
 ok(await page.evaluate(() => fresnelFreqMHz === 1090 && /1090 MHz/.test([...profileChart.querySelectorAll(".pf-legend-label")].map(t => t.textContent).join("|"))),
   "Cancelar la deshace y el perfil vuelve a 1090 MHz");
+
+/* ---- CSV con la recta, Fresnel y las torres activados ---- */
+const [csvLk] = await Promise.all([page.waitForEvent("download"), page.click("#pf-csv")]);
+const lk = fs.readFileSync(await csvLk.path(), "utf8").split("\r\n");
+ok(lk[0] === `\uFEFFDistancia (${units.d});Latitud;Longitud;MDT (${units.a});MDS (${units.a});Torre;Línea de vista (${units.a});Fresnel 60 % inferior (${units.a});Fresnel 60 % superior (${units.a})`,
+  "con la recta y Fresnel activados, el CSV añade Torre, Línea de vista y Fresnel 60 % inferior y superior: " + JSON.stringify(lk[0]));
+/* y en inglés: comas y las cabeceras traducidas */
+await page.evaluate(() => setUiLang("en"));
+const [csvLkEn] = await Promise.all([page.waitForEvent("download"), page.click("#pf-csv")]);
+await page.evaluate(() => setUiLang("es"));
+ok(fs.readFileSync(await csvLkEn.path(), "utf8").split("\r\n")[0] === `\uFEFFDistance (${units.d}),Latitude,Longitude,MDT (${units.a}),MDS (${units.a}),Tower,Line of sight (${units.a}),Fresnel 60 % lower (${units.a}),Fresnel 60 % upper (${units.a})`,
+  "en inglés, con comas y las cabeceras traducidas");
+const lkRows = lk.slice(1, -1).map(r => r.split(";").map(c => c.replace(",", ".")));
+ok(lkRows.every(r => r.length === 9), "nueve campos en cada fila");
+const tw = lkRows.map((r, i) => [r[5], i]).filter(([t]) => t !== "0");
+ok(tw.length === 2 && tw[0][0] === "1" && tw[1][0] === "2", "la columna Torre marca una fila con 1 y otra con 2, y el resto 0: " + JSON.stringify(tw));
+const t1 = lkRows[tw[0][1]], t2 = lkRows[tw[1][1]];
+ok(Math.abs(Number(t1[1]) - WAYPOINTS[0].lat) < 1e-4 && Math.abs(Number(t1[2]) - WAYPOINTS[0].lng) < 1e-4, "la torre 1 está en el primer waypoint: " + t1.slice(0, 3));
+ok(Math.abs(Number(t2[1]) - WAYPOINTS[2].lat) < 5e-4 && Math.abs(Number(t2[2]) - WAYPOINTS[2].lng) < 5e-4, "y la 2 en el último: " + t2.slice(0, 3));
+const exp = await page.evaluate(() => {
+  const m = profileData.series.find(s => s.kind === "mds").points.filter(p => typeof p.v === "number");
+  return { a: m[0].v + profileTowerM.a, b: m[m.length - 1].v + profileTowerM.b, ha: profileTowerM.a, hb: profileTowerM.b };
+});
+ok(Math.abs(Number(t1[6]) - exp.a) < 0.06 && Math.abs(Number(t2[6]) - exp.b) < 0.06,
+  `la línea de vista vale, en las torres, el terreno más la torre (${exp.ha} y ${exp.hb} m): ${t1[6]} y ${t2[6]} frente a ${exp.a.toFixed(1)} y ${exp.b.toFixed(1)}`);
+ok(t1[7] === t1[6] && t1[8] === t1[6] && t2[7] === t2[6] && t2[8] === t2[6], "y en las antenas Fresnel vale lo mismo (radio 0)");
+const mid = lkRows[Math.floor(lkRows.length / 2)];
+const lay = await page.evaluate(d => ({ los: profileLayout.losAt(d), lift: profileLayout.lift(d), r: PF_FRESNEL_ZONE * profileLayout.fresnel(d) }), Number(mid[0]) * units.fd);
+ok(Math.abs(Number(mid[6]) - (lay.los - lay.lift)) < 0.06, `la altitud de la recta a mitad de ruta es la de la gráfica: ${mid[6]} frente a ${(lay.los - lay.lift).toFixed(2)}`);
+ok(Math.abs(Number(mid[8]) - Number(mid[7]) - 2 * lay.r) < 0.12 && Number(mid[7]) < Number(mid[6]) && Number(mid[6]) < Number(mid[8]),
+  `Fresnel al 60 % (±${lay.r.toFixed(2)} m) por debajo y por encima de la recta: ${mid.slice(6)}`);
+/* Sin la recta: la columna desaparece; sin Fresnel, también las suyas */
+await page.click("#pf-fresnel");
+await frames();
+const [csvNoFr] = await Promise.all([page.waitForEvent("download"), page.click("#pf-csv")]);
+const noFr = fs.readFileSync(await csvNoFr.path(), "utf8").split("\r\n")[0];
+ok(noFr.endsWith(`;Torre;Línea de vista (${units.a})`), "sin Fresnel, solo Torre y Línea de vista: " + JSON.stringify(noFr));
+await page.click("#pf-fresnel");
+await frames();
 await page.evaluate(() => { togglePropsDialog(); });
 await page.waitForFunction(() => !document.getElementById("props-dialog").hidden);
 await page.click("#props-tab-btn-freq");
@@ -824,7 +876,7 @@ const curveState = async mode => {
              legend: [...profileChart.querySelectorAll(".pf-legend-label")].map(t => t.textContent).join("|"),
              straight: (() => { const p = profileChart.querySelector("polyline.pf-los").getAttribute("points").trim().split(/\s+/).map(t => t.split(",").map(Number));
                const a = p[0], b = p[p.length - 1], q = p[Math.floor(p.length / 2)];
-               return Math.abs(q[1] - (a[1] + (b[1] - a[1]) * (q[0] - a[0]) / (b[0] - a[0]))) < 0.05; })(),
+               return Math.abs(q[1] - (a[1] + (b[1] - a[1]) * (q[0] - a[0]) / (b[0] - a[0]))) < 0.11; })(), /* las coordenadas del SVG van a 0,1 px: tres redondeos suman hasta 0,1 */
              total: lay.total, y: e.y1 };
   });
 };

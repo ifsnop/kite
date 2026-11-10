@@ -96,6 +96,7 @@ saltos: se notaba dibujando una ruta). Todo en `70-view-controls.js`.
 - **Toque = lo de siempre**: 80 px (`KEY_PAN_STEP`, el
   `keyboardPanDelta` de Leaflet) o ±1 nivel. Soltada antes, la flecha
   COMPLETA el paso sin pasarse; soltada después, se para en seco.
+- **Ctrl+Z / Ctrl+Y con el visor enfocado también deshacen y rehacen** (listener global de `40-panel-actions.js`: con el mapa enfocado devuelve antes de las teclas del árbol, pero deshacer/rehacer son del espacio de trabajo entero y no de la fila seleccionada). Salvo con una herramienta de dibujo en marcha (`activeTool`): a medias de una forma, que el árbol retroceda de pronto sorprendería. Sin Ctrl, o con Alt, nada. En la chuleta («Actuar») y en el manual (apartado 8). Probado con el teclado real en `tests/browser/undo-create.mjs`.
 - **Flechas**: arrancan en el keydown a 400 px/s, aceleran a partir de
   500 ms hasta 1600 px/s en 1 s (`keyPanSpeed`), dos a la vez en
   diagonal y Mayús ×3 (`keyPanVector`). En PANTALLA: girado, ↑ sigue
@@ -227,7 +228,7 @@ sola línea con elipsis si no cabe.
   `10-map.js` ES la posición en pantalla** — invertirlo pone la escala
   debajo.
 - **Exportar PNG** (`exportMapPng`) oculta `.leaflet-control-zoom`,
-  `.measure-bar` (cubre medición/pin/📷 y vista) y `.base-box` antes de
+  `.measure-bar` (cubre medir, crear y 📷, y vista) y `.base-box` antes de
   `html2canvas`, restaurados en `finally` aunque falle la captura. El
   cuadro de coordenadas, la atribución (licencia CC BY del PNOA/IGN) y
   **la escala** NO se ocultan a propósito.

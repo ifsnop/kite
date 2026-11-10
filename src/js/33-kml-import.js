@@ -290,11 +290,17 @@ function importCancelled() {
    duplicar en memoria lo más grande de la importación. Sin texto que
    medir, «grande» lo decide el número de elementos.                  */
 const BIG_FEATURE_COUNT = 5000;
+/* Por encima de esto se avisa ANTES de empezar: un KML de 309 MB tarda
+   unos 20 s en cargar (la lectura del XML es una sola tarea de ~4 s que
+   el navegador no puede partir) y llega a 1,5-2 GB de memoria. Solo un
+   aviso informativo, nunca un diálogo que bloquee.                    */
+const HUGE_IMPORT_CHARS = 100 * 1024 * 1024;
 /* `report`: un informe ya empezado por quien llama (lo que se ve al leer
    un shapefile —sin .prj, ED50…— va en el mismo resumen).             */
 /* `presetNameKeys`: un formato que define él mismo qué es el nombre (el
-   <name> de un GPX) lo da hecho y no se pregunta ni se recuerda nada.  */
-async function addFileNode(name, kind, content, insertBefore = null, dropTargetUl = null, zip = null, report = null, presetNameKeys = null, nameScope = null) {
+   <name> de un GPX) lo da hecho y no se pregunta ni se recuerda nada.
+   `nameHint`: lo que el selector enseña ya marcado (se pregunta igual).  */
+async function addFileNode(name, kind, content, insertBefore = null, dropTargetUl = null, zip = null, report = null, presetNameKeys = null, nameScope = null, nameHint = null) {
   const big = typeof content === "string"
     ? content.length > SIZE_THRESHOLD
     : geojsonFeatures(content).length > BIG_FEATURE_COUNT;
@@ -316,6 +322,10 @@ async function addFileNode(name, kind, content, insertBefore = null, dropTargetU
   }
 
   try {
+    if (typeof content === "string" && content.length >= HUGE_IMPORT_CHARS) {
+      navMessage(tr("\u00AB{name}\u00BB es muy grande ({size}): cargarlo puede tardar y necesita mucha memoria.",
+        { name, size: fmtBytes(content.length) }), { tone: "info" });
+    }
     if (kind === "kml") {
       if (big) {
         /* DOMParser es síncrono y monolítico: solo cabe indicar la fase
@@ -323,7 +333,7 @@ async function addFileNode(name, kind, content, insertBefore = null, dropTargetU
         progress.indet(tr("Procesando XML de {name}\u2026", { name }));
         await yieldFrame();
       }
-      const { xml, repaired } = parseKmlDocument(content);
+      let { xml, repaired } = parseKmlDocument(content);
       if (repaired.length) {
         report.note(tr("prefijos XML sin declarar, corregidos al vuelo: {prefixes}", { prefixes: repaired.join(", ") }));
       }
@@ -352,6 +362,16 @@ async function addFileNode(name, kind, content, insertBefore = null, dropTargetU
       if (styleIndex.externalRefs) {
         report.note(tr("{externalRefs} estilo(s) en archivos externos, no aplicados", { externalRefs: styleIndex.externalRefs }));
       }
+      /* UN aviso por archivo, no uno por polígono: un KML puede traer miles */
+      if (report.seaFloor) {
+        report.note(trn(report.seaFloor,
+          "{n} pol\u00EDgono con altitud sobre el fondo marino: no servir\u00E1 como obst\u00E1culo en un perfil",
+          "{n} pol\u00EDgonos con altitud sobre el fondo marino: no servir\u00E1n como obst\u00E1culo en un perfil",
+          { n: report.seaFloor }));
+      }
+      /* El DOM (más de 1 GB en un KML de 300 MB) ya no hace falta: se suelta
+         antes de materializar y de guardar, que es cuando la memoria aprieta */
+      xml = null;
       await materializeRecords(records, target);
     } else {
       if (big) {
@@ -379,7 +399,7 @@ async function addFileNode(name, kind, content, insertBefore = null, dropTargetU
           nameKeys = stored;
           navMessage(tr("\u00AB{name}\u00BB: nombre de los elementos seg\u00FAn la selecci\u00F3n guardada ({keys})", { name, keys: stored.join(NAME_JOIN) }), { tone: "info" });
         } else {
-          nameKeys = await pickNameProperty(Object.keys(firstProps), name, { sample: firstProps });
+          nameKeys = await pickNameProperty(Object.keys(firstProps), name, { sample: firstProps, selected: nameHint || [] });
           if (!nameKeys) throw importCancelled();
           gnpStore[fp] = nameKeys;
           await dbSaveGnp(gnpStore);
@@ -453,7 +473,13 @@ async function addFileNode(name, kind, content, insertBefore = null, dropTargetU
    kmlFromZip, `onPct` recibe el porcentaje descomprimido, la única fase
    con progreso medible de verdad.                                      */
 const KMZ_MAX_ENTRIES = 2000;              /* entradas dentro del zip      */
-const KMZ_MAX_UNCOMPRESSED = 300 * 1024 * 1024; /* 300 MB descomprimidos    */
+/* El tope de tamaño descomprimido es una PREFERENCIA (Propiedades →
+   Preferencias, en MB): depende de la memoria del equipo de quien lo usa.
+   `kmzMaxUncompressedMB` es el valor vigente; se lee en cada apertura, no
+   se copia a una constante.                                            */
+const KMZ_MAX_UNCOMPRESSED_DEFAULT_MB = 500;
+const KMZ_MAX_UNCOMPRESSED_MIN_MB = 1, KMZ_MAX_UNCOMPRESSED_MAX_MB = 4096;
+let kmzMaxUncompressedMB = KMZ_MAX_UNCOMPRESSED_DEFAULT_MB;
 const KMZ_MAX_RATIO = 200;                 /* descomprimido / comprimido    */
 
 /* Abre un zip (un KMZ o el .zip de un shapefile) y aplica las cotas
@@ -474,8 +500,10 @@ async function loadZipChecked(file, what) {
     const size = (f._data && f._data.uncompressedSize) || 0;
     uncompressed += size;
   }
-  if (uncompressed > KMZ_MAX_UNCOMPRESSED) {
-    throw new Error(tr("el {what} ocupa demasiado descomprimido ({size})", { what, size: fmtBytes(uncompressed) }));
+  const maxBytes = kmzMaxUncompressedMB * 1024 * 1024;
+  if (uncompressed > maxBytes) {
+    throw new Error(tr("el {what} ocupa demasiado descomprimido ({size}; el l\u00EDmite es {limit}, ajustable en \uD83C\uDFF7\uFE0F Propiedades)",
+      { what, size: fmtBytes(uncompressed), limit: fmtBytes(maxBytes) }));
   }
   if (file.size && uncompressed / file.size > KMZ_MAX_RATIO) {
     throw new Error(tr("relaci\u00F3n de compresi\u00F3n sospechosa (\u00D7{ratio})", { ratio: Math.round(uncompressed / file.size) }));
@@ -611,9 +639,10 @@ async function handleDroppedFiles(files, insertBefore, dropTargetUl = null) {
         continue;
       }
       /* `kiteNameKeys`: quien fabrica el archivo (una capa de un servicio
-         ArcGIS, 66-arcgis.js) puede dar ya hecho qué campo es el nombre */
+         ArcGIS, 66-arcgis.js) puede dar ya hecho qué campo es el nombre;
+         `kiteNameHint`, solo sugerirlo (el selector lo enseña marcado) */
       await addFileNode(file.name, kind, content, insertBefore, dropTargetUl, zip, null,
-        file.kiteNameKeys || null, file.kiteNameScope || null);
+        file.kiteNameKeys || null, file.kiteNameScope || null, file.kiteNameHint || null);
       scheduleSave();
     } catch (err) {
       if (err.cancelled) { navMessage(tr("Carga de \u00AB{name}\u00BB cancelada.", { name: file.name }), { tone: "info" }); continue; }

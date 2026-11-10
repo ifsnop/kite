@@ -11,7 +11,7 @@
    El viewport es CORTO a propósito (620 px, 85vh = 527): es donde el
    fallo se reproduce. En una pantalla alta casi todo cabe y la prueba
    no probaría nada.                                                   */
-import { launch, serve, openApp, reporter, READABLE } from "./_browser.mjs";
+import { launch, serve, openApp, waitAppReady, reporter, READABLE } from "./_browser.mjs";
 
 const { ok, done } = reporter("BROWSER DIALOG LAYOUT TESTS OK");
 
@@ -557,6 +557,38 @@ ok(crecimiento.antes.partidas > 0 && crecimiento.ancha.partidas === 0,
 ok(crecimiento.alta.alto > crecimiento.baja.alto + 150,
   `y darle altura se la da al contenido: ${crecimiento.baja.alto} → ${crecimiento.alta.alto} px`);
 
+/* ---------- Las claves ocupan lo que miden, no un 38 % fijo ----------
+   Una URL larga se partía en tres o cuatro líneas porque más de un tercio de
+   la tabla era para claves como «Dirección», y ensanchar la ventana
+   ensanchaba la columna de las claves en la misma proporción. Sin reparto
+   elegido, la clave mide su clave más larga (con tope) y el resto es del
+   valor; y una dirección se parte tras cada «/», no a media palabra.        */
+const reparto = await page.evaluate(() => {
+  const body = document.getElementById("desc-body"), box = document.querySelector("#desc-dialog .dlg-box");
+  document.getElementById("desc-dialog").hidden = false;
+  body.innerHTML = propertiesTableHtml({
+    "Dirección": "https://servais-pre.enaire.es/insignias/rest/services/Elementos_INGENA/MapServer",
+    "Capas": "12 (4 con datos)", "Atribución": "AIS de pruebas" });
+  applyPropsSplit();
+  const medir = w => {
+    box.style.width = w + "px";
+    const fila = body.querySelector(".props tr");
+    return { clave: Math.round(fila.children[0].getBoundingClientRect().width),
+             valor: Math.round(fila.children[1].getBoundingClientRect().width), alto: Math.round(fila.getBoundingClientRect().height) };
+  };
+  const r = { estrecho: medir(420), ancho: medir(900), wbr: body.querySelectorAll("wbr").length,
+              fijo: body.style.getPropertyValue("--props-key"), auto: body.querySelector(".props-wrap").style.getPropertyValue("--props-key-auto") };
+  box.style.width = "620px";
+  return r;
+});
+ok(reparto.fijo === "" && /calc\(/.test(reparto.auto), "sin reparto elegido, la clave se mide por su texto: " + JSON.stringify({ fijo: reparto.fijo, auto: reparto.auto }));
+ok(reparto.estrecho.clave < 130 && Math.abs(reparto.estrecho.clave - reparto.ancho.clave) <= 2,
+  `la columna de las claves no crece con la ventana: ${reparto.estrecho.clave} px a 420, ${reparto.ancho.clave} px a 900`);
+ok(reparto.ancho.valor > reparto.ancho.clave * 5, `y el valor se queda con el resto: ${reparto.ancho.valor} px frente a ${reparto.ancho.clave}`);
+ok(reparto.ancho.alto < 30, `a 900 px una dirección de 85 caracteres cabe en UNA línea (alto de fila ${reparto.ancho.alto} px)`);
+ok(reparto.estrecho.alto > reparto.ancho.alto, "y en una estrecha se parte (para que no desborde)");
+ok(reparto.wbr >= 6, "una dirección se parte tras cada «/» (<wbr>): " + reparto.wbr);
+
 /* ---------- Separador móvil de las dos columnas de la ficha ----------
    Las properties son clave/valor, o sea dos columnas fijas, y el
    reparto entre ellas se arrastra. Se prueba con un arrastre REAL del
@@ -628,26 +660,65 @@ const trasReabrir = await page.evaluate(() => {
 ok(trasReabrir === alTope.frac,
   `el reparto elegido sobrevive al cambio de capa: ${alTope.frac} → ${trasReabrir}`);
 
-/* El reparto PERSISTE entre sesiones. No es como la unidad de medida o
-   el formato de coordenadas, que se cambian para mirar un dato: este
-   depende de cómo son los archivos con los que uno trabaja, y sin
-   guardarlo habría que reajustarlo en cada arranque.
-   Se recarga en el MISMO contexto: cada contexto de navegador tiene su
-   propio IndexedDB, así que en uno nuevo no habría nada que restaurar y
-   la comprobación no diría nada.                                      */
-const guardado = await page.evaluate(() => dbLoadProps());
-ok(guardado !== null && Math.abs(guardado - parseFloat(alTope.frac) / 100) < 0.001,
-  `el reparto queda guardado en IndexedDB: ${guardado} vs ${alTope.frac}`);
+/* El separador también se arrastra en la pestaña «Atributos» del diálogo de
+   propiedades de una capa (comparte reparto con la ficha), con el ratón de
+   verdad. Vale mientras la página siga abierta —también al cerrar y volver a
+   abrir el diálogo—, pero NO se guarda: al recargar vuelve el reparto
+   automático. (Antes se guardaba en IndexedDB; se decidió que no merece una
+   clave: el reparto de partida ya acierta.)                                 */
+await page.evaluate(async () => {
+  const kml = '<kml xmlns="http://www.opengis.net/kml/2.2"><Document><name>D</name><open>1</open><Placemark><name>Con atributos</name>'
+    + '<ExtendedData><Data name="Dirección"><value>https://servais-pre.enaire.es/insignias/rest/services/Elementos_INGENA/MapServer</value></Data>'
+    + '<Data name="Capas"><value>12</value></Data></ExtendedData><Point><coordinates>-3.7,40.4</coordinates></Point></Placemark></Document></kml>';
+  await handleDroppedFiles([new File([kml], "attrs.kml")]);
+});
+// Estado limpio: sin reparto elegido
+await page.evaluate(() => { propsKeyFrac = null; applyPropsSplit(); });
+const abrirAtributos = () => page.evaluate(() => {
+  const li = [...document.querySelectorAll("#tree li")].find(x => x._name === "Con atributos");
+  openStyleDialog(li); showStyleTab("attrs");
+});
+const anchosAtributos = () => page.evaluate(() => {
+  const fila = document.querySelector("#style-attrs-body .props tr");
+  return { clave: Math.round(fila.children[0].getBoundingClientRect().width), valor: Math.round(fila.children[1].getBoundingClientRect().width),
+           fijo: document.getElementById("style-attrs-body").style.getPropertyValue("--props-key") };
+});
+await abrirAtributos();
+await page.waitForSelector("#style-attrs-body .props-grip");
+await page.evaluate(() => document.querySelector("#style-dialog .dlg-box").style.width = "620px");
+const a0 = await anchosAtributos();
+ok(a0.fijo === "", "en Atributos, de partida, reparto automático: " + JSON.stringify(a0));
+/* Al centro de la caja, no «si hace falta»: con la fila de iconos de arriba el diálogo es más alto que
+   el visor de la prueba y el borde inferior del separador quedaba bajo el pie fijo (Cancelar/Aceptar),
+   que se llevaba el clic. */
+await page.evaluate(() => document.querySelector("#style-attrs-body .props-grip").scrollIntoView({ block: "center" }));
+const ga = await page.locator("#style-attrs-body .props-grip").boundingBox();
+await page.mouse.move(ga.x + ga.width / 2, ga.y + 12);
+await page.mouse.down();
+await page.mouse.move(ga.x + ga.width / 2 + 120, ga.y + 12, { steps: 10 });
+await page.mouse.up();
+const a1 = await anchosAtributos();
+ok(Math.abs(a1.clave - (a0.clave + 120)) <= 4 && a1.valor < a0.valor - 100,
+  `arrastrar el separador en Atributos ensancha la clave y estrecha el valor: ${a0.clave} → ${a1.clave} / ${a0.valor} → ${a1.valor}`);
+ok(a1.fijo !== "", "y pasa a ser un reparto elegido: " + a1.fijo);
+await page.click("#style-cancel");
+await abrirAtributos();
+await page.evaluate(() => document.querySelector("#style-dialog .dlg-box").style.width = "620px");
+const a2 = await anchosAtributos();
+ok(Math.abs(a2.clave - a1.clave) <= 2, `se conserva al cerrar y volver a abrir el diálogo: ${a1.clave} → ${a2.clave}`);
+await page.click("#style-cancel");
 
-const recargada = await ctx.newPage();
-await recargada.goto(srv.url);
-await recargada.waitForFunction(() => typeof map === "object" && !!document.getElementById("tree"));
-await recargada.waitForFunction(() => window.__arranqueListo === undefined || true);
-await recargada.waitForTimeout(1500); /* el arranque restaura antes del árbol */
-const trasRecargar = await recargada.evaluate(() => propsKeyFrac);
-ok(Math.abs(trasRecargar - guardado) < 0.001,
-  `y se restaura al recargar: ${guardado} → ${trasRecargar}`);
-await recargada.close();
+/* NO se guarda: recargando vuelve el automático y no hay clave en IndexedDB */
+await page.reload(); await waitAppReady(page);
+const trasRecargar = await page.evaluate(async () => ({
+  frac: propsKeyFrac,
+  clave: await new Promise((res, rej) => {
+    const rq = indexedDB.open("visor-kml");
+    rq.onsuccess = () => { const get = rq.result.transaction("tree", "readonly").objectStore("tree").get("propsSplit"); get.onsuccess = () => res(get.result === undefined ? null : get.result); get.onerror = () => rej(get.error); };
+    rq.onerror = () => rej(rq.error);
+  }) }));
+ok(trasRecargar.frac === null, "al recargar vuelve el reparto automático: " + trasRecargar.frac);
+ok(trasRecargar.clave === null, "y no queda ninguna clave `propsSplit` en IndexedDB: " + JSON.stringify(trasRecargar.clave));
 
 /* ---------- La × de TODO diálogo: misma posición, mismo tamaño y mismo efecto ----------
    Regla (dialog-close-button.md): arriba a la derecha, igual que la de «Cálculos

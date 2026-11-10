@@ -37,7 +37,12 @@ function geoToFeatures(geo) {
     : geo.type === "Feature" ? [geo] : [{ type: "Feature", properties: {}, geometry: geo }];
   return (Array.isArray(list) ? list : [])
     .filter(f => f && f.geometry && typeof f.geometry === "object" && finiteGeometry(f.geometry))
-    .map(f => ({ type: "Feature", properties: f.properties || {}, geometry: f.geometry }));
+    .map(f => {
+      const out = { type: "Feature", properties: f.properties || {}, geometry: f.geometry };
+      const mode = featureAltMode(f); /* modo de altitud del polígono, ver 20-kml-geom.js */
+      if (mode) out.kiteAlt = mode;
+      return out;
+    });
 }
 
 /* Una medición como geometría. La ruta es una LineString; el círculo, un
@@ -121,7 +126,12 @@ function recordsToGeoJson(records) {
       const feats = recordFeatures(rec);
       if (!feats) { skipped.push({ name: rec.name, t: rec.t }); continue; }
       for (const f of feats) {
-        features.push({ type: "Feature", properties: featureProps(f, rec, path), geometry: f.geometry });
+        /* `kiteAlt` viaja como miembro propio del Feature (RFC 7946 los admite):
+           la vuelta a KITE conserva el modo de altitud; otros lectores lo ignoran */
+        const mode = featureAltMode(f);
+        features.push(mode
+          ? { type: "Feature", properties: featureProps(f, rec, path), kiteAlt: mode, geometry: f.geometry }
+          : { type: "Feature", properties: featureProps(f, rec, path), geometry: f.geometry });
       }
     }
   };
@@ -135,9 +145,17 @@ function recordsToGeoJson(records) {
 
 /* Texto XML 1.0: escapa y quita los caracteres de control que el formato
    NO admite ni escapados (un solo \u0001 hace ilegible el documento).  */
-const xmlEsc = s => String(s)
-  .replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F￾￿]/g, "")
+const xmlClean = s => String(s)
+  .replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F￾￿]/g, "");
+const xmlEsc = s => xmlClean(s)
   .replace(/[<>&"']/g, c => ({ "<": "&lt;", ">": "&gt;", "&": "&amp;", '"': "&quot;", "'": "&apos;" })[c]);
+
+/* A placemark's HTML card goes in CDATA, as Google Earth writes it: escaping
+   turns every < > " into 4-6 characters, which made a card-heavy file ~55%
+   bigger for the very same content. The only text CDATA cannot hold is the
+   terminator "]]>", so it is split across two sections; a reader joins them
+   back. Control characters are stripped first, as in xmlEsc.             */
+const xmlCdata = s => "<![CDATA[" + xmlClean(s).replace(/\]\]>/g, "]]]]><![CDATA[>") + "]]>";
 
 /* "#rrggbb" (o "#rgb") + opacidad → aabbggrr, el orden de KML. Un color
    que no sea hexadecimal (un nombre CSS de un simplestyle ajeno) cae al
@@ -161,14 +179,26 @@ function kmlRing(ring, tag) {
   const c = kmlCoords(ring);
   return c ? `<${tag}><LinearRing><coordinates>${c}</coordinates></LinearRing></${tag}>` : "";
 }
-function kmlPolygon(rings) {
+/* El modo de altitud de un polígono (`kiteAlt`, 20-kml-geom.js) como lo
+   escribe KML, ANTES de los anillos (así lo pide el esquema). Los dos
+   modos del fondo marino se guardan como uno y salen como el relativo:
+   solo hace falta que se sepa que no es altitud sobre el mar ni el
+   terreno. Va con el prefijo gx: (extensión de Google, `kmlPlacemark`
+   declara el espacio de nombres solo cuando hace falta).               */
+const KML_ALT_TAG = {
+  abs: "<altitudeMode>absolute</altitudeMode>",
+  agl: "<altitudeMode>relativeToGround</altitudeMode>",
+  ground: "<altitudeMode>clampToGround</altitudeMode>",
+  sea: "<gx:altitudeMode>relativeToSeaFloor</gx:altitudeMode>"
+};
+function kmlPolygon(rings, mode = null) {
   if (!Array.isArray(rings) || !rings.length) return "";
   const outer = kmlRing(rings[0], "outerBoundaryIs");
   if (!outer) return "";
-  return `<Polygon>${outer}${rings.slice(1).map(r => kmlRing(r, "innerBoundaryIs")).join("")}</Polygon>`;
+  return `<Polygon>${mode ? KML_ALT_TAG[mode] : ""}${outer}${rings.slice(1).map(r => kmlRing(r, "innerBoundaryIs")).join("")}</Polygon>`;
 }
 
-function kmlGeometry(g) {
+function kmlGeometry(g, mode = null) {
   if (!g || typeof g !== "object") return "";
   const many = parts => {
     const xs = parts.filter(Boolean);
@@ -180,11 +210,11 @@ function kmlGeometry(g) {
   switch (g.type) {
     case "Point": return point(g.coordinates);
     case "LineString": return line(g.coordinates);
-    case "Polygon": return kmlPolygon(g.coordinates);
+    case "Polygon": return kmlPolygon(g.coordinates, mode);
     case "MultiPoint": return many(list(g.coordinates).map(point));
     case "MultiLineString": return many(list(g.coordinates).map(line));
-    case "MultiPolygon": return many(list(g.coordinates).map(kmlPolygon));
-    case "GeometryCollection": return many(list(g.geometries).map(kmlGeometry));
+    case "MultiPolygon": return many(list(g.coordinates).map(p => kmlPolygon(p, mode)));
+    case "GeometryCollection": return many(list(g.geometries).map(x => kmlGeometry(x, mode)));
   }
   return "";
 }
@@ -206,7 +236,10 @@ function geometryKinds(geoms) {
 function kmlStyleXml(kinds, style, mstyle) {
   let x = "";
   if (kinds.point && mstyle && mstyle.color) {
-    const scale = Number.isFinite(mstyle.size) ? `<scale>${+(mstyle.size / 41).toFixed(2)}</scale>` : "";
+    /* «Ninguno» (NO_ICON = "none", 41-selection.js, que carga después): en KML un
+       icono de escala 0 no se dibuja y el nombre sigue a la vista */
+    const scale = mstyle.icon === "none" ? "<scale>0</scale>"
+      : Number.isFinite(mstyle.size) ? `<scale>${+(mstyle.size / 41).toFixed(2)}</scale>` : "";
     x += `<IconStyle><color>${cssToKmlColor(mstyle.color)}</color>${scale}</IconStyle>`;
   }
   if (kinds.line || kinds.poly) {
@@ -232,7 +265,10 @@ function kmlExtendedData(props) {
    primera entidad (un nodo de GeoJSON es siempre una).                  */
 function kmlPlacemark(rec, feats, ctx) {
   const geoms = feats.map(f => f.geometry);
-  const parts = geoms.map(kmlGeometry).filter(Boolean);
+  /* El modo es del Feature (de su polígono), no del nodo */
+  const modes = feats.map(featureAltMode);
+  if (modes.includes("sea")) ctx.gx = true;
+  const parts = geoms.map((g, i) => kmlGeometry(g, modes[i])).filter(Boolean);
   if (!parts.length) return "";
   const styleXml = kmlStyleXml(geometryKinds(geoms), rec.style, rec.mstyle);
   let styleRef = "";
@@ -242,7 +278,7 @@ function kmlPlacemark(rec, feats, ctx) {
   }
   ctx.count++;
   return `<Placemark><name>${xmlEsc(rec.name)}</name>${rec.checked ? "" : "<visibility>0</visibility>"}`
-    + (rec.desc ? `<description>${xmlEsc(rec.desc)}</description>` : "")
+    + (rec.desc ? `<description>${xmlCdata(rec.desc)}</description>` : "")
     + styleRef + kmlExtendedData(feats[0].properties)
     + (parts.length === 1 ? parts[0] : `<MultiGeometry>${parts.join("")}</MultiGeometry>`)
     + "</Placemark>";
@@ -270,7 +306,8 @@ function recordsToKml(records) {
   const ctx = { styles: new Map(), skipped: [], count: 0 };
   const body = kmlNodes(list, ctx);
   const defs = [...ctx.styles].map(([xml, id]) => `<Style id="${id}">${xml}</Style>`).join("\n");
-  const text = `<?xml version="1.0" encoding="UTF-8"?>\n<kml xmlns="http://www.opengis.net/kml/2.2">\n<Document>\n`
+  const gx = ctx.gx ? ' xmlns:gx="http://www.google.com/kml/ext/2.2"' : "";
+  const text = `<?xml version="1.0" encoding="UTF-8"?>\n<kml xmlns="http://www.opengis.net/kml/2.2"${gx}>\n<Document>\n`
     + `<name>${xmlEsc(name == null ? "KITE Local" : name)}</name>\n${defs}${defs ? "\n" : ""}${body}\n</Document>\n</kml>\n`;
   return { text, count: ctx.count, skipped: ctx.skipped };
 }

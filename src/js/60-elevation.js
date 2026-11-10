@@ -913,8 +913,17 @@ const ELEV_ZOOM_DIFF_ONLY = 19; /* ==: una sola línea (la diferencia)  */
 const ELEV_ALERT_DIFF = 1;      /* m: umbral de "MDS por encima del MDT" */
 const GRID_ALERT_FILL = "#ff8a80"; /* rojo pastel, relleno de aviso a zoom bajo */
 
-const gridFontSize = zoom =>
-  Math.min(GRID_FONT_MAX, GRID_FONT_BASE + Math.max(0, Math.round(zoom) - GRID_FONT_FROM + 1));
+/* El tamaño de las cifras lo elige el usuario con los botones A− / A+ de la
+   esquina inferior derecha (ver ElevFontControl): un escalón de
+   ELEV_FONT_STEPS multiplica el tamaño de partida (y su tope). Se guarda
+   (clave `elevFont`, ver 32-geojson.js).                                */
+const ELEV_FONT_STEPS = [0.7, 0.85, 1, 1.2, 1.45, 1.75, 2.1, 2.5];
+const ELEV_FONT_DEFAULT_STEP = 2; /* 1 */
+let elevFontStep = ELEV_FONT_DEFAULT_STEP;
+const elevFontScale = () => ELEV_FONT_STEPS[elevFontStep];
+
+const gridFontSize = (zoom, scale = elevFontScale()) =>
+  Math.round(Math.min(GRID_FONT_MAX, GRID_FONT_BASE + Math.max(0, Math.round(zoom) - GRID_FONT_FROM + 1)) * scale);
 
 /* Banda de contenido según el zoom, ver comentario arriba. Pura: se
    prueba en Node sin necesitar un mapa real.                        */
@@ -963,6 +972,7 @@ const elevGridGroups = [];
 function forgetElevGridGroup(group) {
   const i = elevGridGroups.indexOf(group);
   if (i >= 0) elevGridGroups.splice(i, 1);
+  syncElevFontControl(); /* sin cuadrículas en el mapa, A− / A+ se esconden */
 }
 
 /* Esquinas de la rejilla a latitud/longitud según el sistema en que se
@@ -995,15 +1005,45 @@ const fmtDiff = d => d === null || d === undefined ? "—"
    del 20. Con un solo modelo consultado no hay diferencia que dar: la
    línea única es su valor. El aviso (`.alert`) va SIEMPRE en la
    diferencia cuando supera ELEV_ALERT_DIFF, sea cual sea la banda.  */
-function elevCellHtml(cell, band) {
-  if (band === "mini") return "";
+function elevCellTexts(cell, band) {
+  if (band === "mini") return [];
   const t = hasMdt(cell), s = hasMds(cell);
-  const tSpan = `<span class="ec-t">${fmtCell(cell.mdt)}</span>`;
-  const sSpan = `<span class="ec-s">${fmtCell(cell.mds)}</span>`;
-  if (!(t && s)) return t ? tSpan : s ? sSpan : "";
-  const diffSpan = `<span class="ec-d${isElevAlert(cell) ? " alert" : ""}">${fmtDiff(cell.diff)}</span>`;
-  if (band === "diff") return diffSpan;
-  return tSpan + sSpan + diffSpan;
+  if (!(t && s)) return t ? [{ cls: "ec-t", text: fmtCell(cell.mdt) }] : s ? [{ cls: "ec-s", text: fmtCell(cell.mds) }] : [];
+  const diff = { cls: "ec-d" + (isElevAlert(cell) ? " alert" : ""), text: fmtDiff(cell.diff) };
+  if (band === "diff") return [diff];
+  return [{ cls: "ec-t", text: fmtCell(cell.mdt) }, { cls: "ec-s", text: fmtCell(cell.mds) }, diff];
+}
+function elevCellHtml(cell, band) {
+  return elevCellTexts(cell, band).map(x => `<span class="${x.cls}">${x.text}</span>`).join("");
+}
+
+/* Lo que mide una celda EN PÍXELES al zoom (real) dado: la longitud es
+   lineal en grados; la latitud se estira por 1/cos(φ) en Web Mercator.  */
+function elevCellPx(cell, zoom) {
+  const pxPerDeg = 256 * 2 ** zoom / 360;
+  const lat = (cell.sw[0] + cell.ne[0]) / 2;
+  return { w: (cell.ne[1] - cell.sw[1]) * pxPerDeg,
+           h: (cell.ne[0] - cell.sw[0]) * pxPerDeg / Math.cos(lat * Math.PI / 180) };
+}
+
+/* La banda que una celda MUESTRA de verdad: la de su zoom, salvo que sus
+   cifras no quepan dentro de ella, y entonces la de «mini» (sin texto y con
+   el relleno de aviso: rojo si el MDS supera al MDT, blanco si no), que es
+   lo que ya se ve con poco zoom. Se mide con la caja del texto: la fuente
+   es monoespaciada (un carácter ≈ 0,6 em) y las líneas miden 1,15 em
+   (`.elev-cell` en styles.css). Lo hace depender del tamaño de las cifras
+   que el usuario elija: más grandes, antes se pasa a «mini».          */
+const ELEV_CHAR_EM = 0.602, ELEV_LINE_EM = 1.15;
+function elevCellBand(cell, zoom, scale = elevFontScale()) {
+  const z = zoom + elevCellZoomUp(cell);
+  const band = elevZoomBand(z);
+  if (band === "mini") return band;
+  const texts = elevCellTexts(cell, band);
+  if (!texts.length) return band;
+  const font = gridFontSize(z, scale), px = elevCellPx(cell, zoom);
+  const w = Math.max(...texts.map(x => x.text.length)) * font * ELEV_CHAR_EM;
+  const h = texts.length * font * ELEV_LINE_EM;
+  return w <= px.w && h <= px.h ? band : "mini";
 }
 
 /* El relleno del rectángulo solo avisa en la banda "mini": ahí es la
@@ -1011,7 +1051,7 @@ function elevCellHtml(cell, band) {
    más de ELEV_ALERT_DIFF se colorea en rojo pastel; el resto de bandas
    siempre llevan el blanco translúcido de siempre.                   */
 function renderElevRect(rect, cell, zoom) {
-  const mini = elevZoomBand(zoom + elevCellZoomUp(cell)) === "mini";
+  const mini = elevCellBand(cell, zoom) === "mini";
   rect.setStyle({ fillColor: (mini && isElevAlert(cell)) ? GRID_ALERT_FILL : "#ffffff" });
 }
 
@@ -1042,8 +1082,7 @@ function refreshElevCells() {
 
 /* El icono de la cifra de una celda: banda y letra según su zoom EFECTIVO */
 function elevLabelIcon(cell, zoom) {
-  const z = zoom + elevCellZoomUp(cell);
-  return cellIcon(elevCellHtml(cell, elevZoomBand(z)), gridFontSize(z));
+  return cellIcon(elevCellHtml(cell, elevCellBand(cell, zoom)), gridFontSize(zoom + elevCellZoomUp(cell)));
 }
 
 /* Las cifras son marcadores DOM, y Leaflet recoloca CADA UNO en cada
@@ -1083,6 +1122,8 @@ function syncElevLabels() {
       if (shown && elevZoomBand(z) !== "mini") {
         const big = (cell.ne[1] - cell.sw[1]) * pxPerDeg > ELEV_BIG_CELL_LABELS * gridIconSize(gridFontSize(z))[0];
         at = elevLabelAnchor(cell, plain, padded, big);
+        /* Lo caro (formatear las cifras) solo para las que están a la vista */
+        if (at && elevCellBand(cell, zoom) === "mini") at = null;
       }
       if (at && !rect._label) {
         rect._label = L.marker(at, { interactive: false });
@@ -1100,6 +1141,53 @@ function syncElevLabels() {
 }
 map.on("moveend", syncElevLabels);
 map.on("zoomend", refreshElevCells);
+
+/* A− / A+ encima de la escala: el tamaño de las cifras de las celdas. Solo
+   se ve mientras haya una cuadrícula de elevaciones (o un perfil) en el
+   mapa. Cambiar el tamaño repinta las cifras y puede pasar celdas a «mini»
+   (cuando ya no caben) o devolverlas a su banda. Va añadido DESPUÉS de la
+   escala y la atribución (10-map.js): Leaflet pone cada control nuevo de
+   una esquina inferior arriba de los anteriores.                         */
+let elevFontBar = null;
+function syncElevFontControl() {
+  if (!elevFontBar) return;
+  elevFontBar.hidden = !elevGridGroups.some(g => rootGroup.hasLayer(g));
+  elevFontBar.querySelector(".ef-minus").classList.toggle("disabled", elevFontStep <= 0);
+  elevFontBar.querySelector(".ef-plus").classList.toggle("disabled", elevFontStep >= ELEV_FONT_STEPS.length - 1);
+}
+function stepElevFont(dir) {
+  const next = Math.max(0, Math.min(ELEV_FONT_STEPS.length - 1, elevFontStep + dir));
+  if (next === elevFontStep) return;
+  elevFontStep = next;
+  refreshElevCells();
+  syncElevLabels();
+  syncElevFontControl();
+  dbSaveElevFont(next).catch(() => {});
+}
+const ElevFontControl = L.Control.extend({
+  options: { position: "bottomright" },
+  onAdd() {
+    const bar = elevFontBar = L.DomUtil.create("div", "leaflet-bar elev-font-bar");
+    bar.hidden = true;
+    const button = (cls, text, title, dir) => {
+      const a = L.DomUtil.create("a", cls, bar);
+      a.href = "#"; a.textContent = text; a.title = title;
+      a.setAttribute("role", "button"); a.setAttribute("aria-label", title);
+      a.addEventListener("click", e => {
+        e.preventDefault(); stepElevFont(dir);
+        /* `.leaflet-bar a:focus` pinta el fondo oscuro del hover: sin devolver el
+           foco al visor el botón se quedaba «pulsado» tras el clic (y las teclas
+           del visor, flechas y Re/Av Pág, tienen que seguir llegando).        */
+        map.getContainer().focus({ preventScroll: true });
+      });
+    };
+    button("ef-minus", "A\u2212", tr("Reducir el tamaño de las cifras de las celdas de elevación"), -1);
+    button("ef-plus", "A+", tr("Aumentar el tamaño de las cifras de las celdas de elevación"), 1);
+    L.DomEvent.disableClickPropagation(bar);
+    return bar;
+  }
+});
+map.addControl(new ElevFontControl());
 
 /* Cálculo puro: convierte un par de rejillas (MDT/MDS) en registros de
    celda autocontenidos (esquinas en lat/lng + valores), sin construir
@@ -1179,6 +1267,11 @@ function buildElevGridGroup(cells) {
   group._rects = cells.map(cell => makeElevCellRect(cell, zoom));
   for (const rect of group._rects) group.addLayer(rect);
   group.on("add", syncElevLabels);
+  /* A− / A+ solo con cuadrículas a la vista. Al salir, Leaflet dispara
+     «remove» ANTES de quitarla de rootGroup (hasLayer sigue diciendo que sí):
+     se mira un tic después.                                             */
+  group.on("add", syncElevFontControl);
+  group.on("remove", () => setTimeout(syncElevFontControl, 0));
   return group;
 }
 
@@ -1380,8 +1473,12 @@ function buildElevGridRecord(n) {
   group._profile = n.profile === undefined ? null : validRouteProfile(n.profile);
   elevGridGroups.push(group);
   if (n.checked) group.addTo(rootGroup);
-  return { t: "elevGrid", name: n.name, checked: !!n.checked, cells: n.cells,
-           profile: group._profile, _layer: group };
+  const rec = { t: "elevGrid", name: n.name, checked: !!n.checked, cells: n.cells,
+                profile: group._profile, _layer: group };
+  /* Mientras la fila no exista, quien cambie el perfil (las torres, los
+     obstáculos: 63-route-profile.js) lo escribe aquí; con fila, en la fila */
+  group._rec = rec;
+  return rec;
 }
 
 /* Reconstruye una ortofoto guardada (usado al restaurar el árbol), como

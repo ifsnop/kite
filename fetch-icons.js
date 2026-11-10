@@ -43,10 +43,17 @@ function readCatalog() {
   if (i < 0 || j < 0) throw new Error("no se encuentra MDI_ICONS en " + SRC_CATALOG);
   const pin = /const LEAFLET_PIN = "([^"]+)"/.exec(src);
   if (!pin) throw new Error("no se encuentra LEAFLET_PIN en " + SRC_CATALOG);
+  /* «Ninguno» tampoco es un icono de MDI: es un marcador sin dibujo */
+  const none = /const NO_ICON = "([^"]+)"/.exec(src);
+  if (!none) throw new Error("no se encuentra NO_ICON en " + SRC_CATALOG);
   const decl = src.slice(i, j + 3);
   return {
     pin: pin[1],
-    groups: new Function(`const LEAFLET_PIN = ${JSON.stringify(pin[1])};\n${decl}\nreturn MDI_ICONS;`)()
+    none: none[1],
+    /* The category names go through tr() in the source; only the icon names matter
+       here, so an identity `tr` is enough (the tool had been failing with
+       "tr is not defined" since the interface languages were introduced). */
+    groups: new Function("tr", `const LEAFLET_PIN = ${JSON.stringify(pin[1])};\nconst NO_ICON = ${JSON.stringify(none[1])};\n${decl}\nreturn MDI_ICONS;`)(text => text)
   };
 }
 
@@ -106,8 +113,8 @@ ${lines.join("\n")}
 
 (async () => {
   try {
-    const { pin, groups } = readCatalog();
-    const names = groups.flatMap(([, ns]) => ns).filter(n => n !== pin);
+    const { pin, none, groups } = readCatalog();
+    const names = groups.flatMap(([, ns]) => ns).filter(n => n !== pin && n !== none);
     const data = await fetchBodies(names);
     const out = render(groups, data);
     if (process.argv.includes("--check")) {

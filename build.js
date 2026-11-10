@@ -84,6 +84,7 @@ const JS = [
   "42-hittest.js",        /* acierto bajo el cursor del menú contextual */
   "43-points-editor.js",  /* lista de puntos editable, diálogos de estilo */
   "44-dialogs.js",        /* diálogos restantes y credenciales */
+  "45-tree-filter.js",    /* filtro del árbol: el buscador del panel deja solo lo que coincide */
   "50-splitter.js",       /* separador redimensionable */
   "51-geodesy.js",        /* geodesia y UTM */
   "52-measure.js",        /* herramientas de medición */
@@ -97,6 +98,7 @@ const JS = [
   "64-cog.js",            /* ortofotos COG: almacén "rasters", GridLayer reproyectada */
   "65-cadastre.js",       /* parcela catastral (menú contextual): RCCOOR + WFS INSPIRE del Catastro */
   "66-arcgis.js",         /* servicios ArcGIS (MapServer) como nodo del árbol: /export por teselas y /query */
+  "67-wikipedia.js",      /* artículos de Wikipedia a menos de 5 km (menú contextual): geosearch + extracts */
   "70-view-controls.js",  /* controles de vista y menú contextual */
   "98-watchdog.js",       /* DIAGNÓSTICO de la rama `debug`: vigilante del
                              hilo principal. NO fusionar en main */

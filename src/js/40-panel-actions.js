@@ -1,11 +1,32 @@
 /* ================= Acciones del panel de navegación ================= */
 
 /* ---------- Búsqueda entre capas y carpetas ----------
-   Parcial y sin distinguir mayúsculas. Las flechas recorren las
-   ocurrencias; highlightNode despliega las carpetas necesarias.   */
+   Parcial (dentro de las palabras) y sin distinguir mayúsculas ni tildes.
+   Teclear FILTRA el árbol (45-tree-filter.js: solo se ve lo que coincide, y
+   las carpetas sin desplegar se cuentan sin construirse); Intro, Mayús+Intro
+   y las flechas ↑ ↓ saltan de una coincidencia a otra, y highlightNode
+   despliega las carpetas necesarias.                                    */
 const searchBox = document.getElementById("search-box");
 const searchCount = document.getElementById("search-count");
+const searchClear = document.getElementById("search-clear");
 let searchIdx = -1;
+
+/* Texto comparable: sin tildes ni mayúsculas. «Parcela» encuentra «parcéla»
+   y «PARC». La clave de una fila o de un registro se calcula una vez y se
+   guarda junto al nombre con el que se calculó (si se renombra, se rehace):
+   buscar en 60 000 registros no puede normalizar 60 000 cadenas por tecla. */
+const normSearch = s => String(s).normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
+function rowKey(li) {
+  const n = li._name;
+  return li._nk && li._nk.s === n ? li._nk.k : (li._nk = { s: n, k: normSearch(n) }).k;
+}
+const recKeys = new WeakMap(); /* aparte, no un campo del registro: los registros son datos y no se les mezcla nada propio */
+function recKey(rec) {
+  const n = rec.name;
+  let e = recKeys.get(rec);
+  if (!e || e.s !== n) recKeys.set(rec, e = { s: n, k: normSearch(n) });
+  return e.k;
+}
 
 /* Recorre TODO el árbol -- filas ya materializadas MÁS registros dentro
    de carpetas pendientes (li._pending), sin materializar nada todavía --
@@ -17,14 +38,17 @@ let searchIdx = -1;
    fila real corresponde una capa concreta (por identidad) o encontrar
    una capa de un tipo dado que ya esté en rootGroup son el MISMO
    recorrido con un predicado distinto — ver resolveRecordLi y
-   visibleElevGridLis.                                                 */
+   resolveLayerLi.                                                     */
 function findMatches(matchLi, matchRec) {
   const out = [];
-  const scanRecords = (records, startLi, chain) => {
+  /* `path` es UNA pila compartida: solo se copia al encontrar algo (antes se
+     copiaba la cadena entera por cada registro, 29 ms con una letra). */
+  const scanRecords = (records, startLi, path) => {
     for (const rec of records) {
-      const nextChain = [...chain, rec];
-      if (matchRec(rec)) out.push({ startLi, chain: nextChain });
-      if (rec.children) scanRecords(rec.children, startLi, nextChain);
+      path.push(rec);
+      if (matchRec(rec)) out.push({ startLi, chain: path.slice() });
+      if (rec.children) scanRecords(rec.children, startLi, path);
+      path.pop();
     }
   };
   const scanLi = li => {
@@ -37,11 +61,11 @@ function findMatches(matchLi, matchRec) {
   return out;
 }
 function searchMatches() {
-  const term = searchBox.value.trim().toLowerCase();
+  const term = normSearch(searchBox.value.trim());
   if (!term) return [];
   return findMatches(
-    li => li._name !== undefined && li._name.toLowerCase().includes(term),
-    rec => rec.name.toLowerCase().includes(term)
+    li => li._name !== undefined && rowKey(li).includes(term),
+    rec => recKey(rec).includes(term)
   );
 }
 /* Materializa la cadena de una coincidencia pendiente hasta obtener su
@@ -51,11 +75,15 @@ function searchMatches() {
    ya materializado es un no-op, así que recorrer el chain entero
    llamándolo en cada paso es seguro aunque varios eslabones ya
    estuvieran abiertos (se cascadearon solos en la misma pasada).      */
-async function resolveMatch(match) {
+async function resolveMatch(match, partial = false) {
   if (match.li) return match.li;
   let li = match.startLi;
   for (const rec of match.chain) {
-    await ensureMaterialized(li);
+    /* `partial` (saltar entre coincidencias con el filtro puesto): cada
+       eslabón de la cadena coincide o contiene una coincidencia, así que
+       basta construir lo que el filtro quiere de cada nivel y no la
+       carpeta entera (6,9 s con 20 000 capas). Sin filtro, todo, como siempre. */
+    await (partial && treeFilterWanted ? materializeMatching(li, treeFilterWanted) : ensureMaterialized(li));
     li = rec._li;
     if (!li) return null; /* defensivo: no debería ocurrir */
   }
@@ -73,6 +101,22 @@ async function resolveRecordLi(rec) {
   return matches.length ? resolveMatch(matches[0]) : null; /* defensivo: no debería ocurrir */
 }
 
+/* La capa de Leaflet que un registro pendiente tiene en el mapa: la de
+   una capa, ortofoto o cuadrícula (`_layer`) o el grupo de una medición
+   (`_m.group`). Null si el tipo no tiene (nada que acertar con el clic). */
+const recMapLayer = rec => recLayerPending(rec) ? null : (rec._layer || (rec._m && rec._m.group) || null);
+
+/* El <li> de una CAPA de Leaflet, materializando la cadena de carpetas
+   ancestras si todavía es un registro pendiente (lo que cuesta construir
+   las filas de la carpeta, como al pasar el ratón por una capa pendiente
+   o buscarla). Null si ningún registro ni fila la reclama: una capa que
+   no es del árbol.                                                    */
+async function resolveLayerLi(layer) {
+  if (layer._li) return layer._li;
+  const found = findMatches(() => false, rec => recMapLayer(rec) === layer);
+  return found.length ? resolveMatch(found[0]) : null;
+}
+
 /* Engancha clic/hover en el momento de construir una capa "layer"
    (buildKmlRecords/buildGeoJsonRecords/buildRecordsFromStorage), antes
    de que tenga fila real: resolveRecordLi materializa lo necesario la
@@ -83,7 +127,7 @@ async function resolveRecordLi(rec) {
    el nodo dos veces.                                                  */
 function wirePendingLayerEvents(rec) {
   const onClick = async () => {
-    if (activeTool === "polygon") return; /* that click fixes a vertex, it doesn't highlight the layer */
+    if (clickPicksPoint()) return; /* that click fixes a vertex or a centre, it doesn't highlight the layer */
     const li = await resolveRecordLi(rec); if (li) highlightNode(li);
   };
   const onHover = async () => { const li = await resolveRecordLi(rec); if (li) showLayerInfo(li, { focus: false }); };
@@ -92,8 +136,8 @@ function wirePendingLayerEvents(rec) {
   rec._pendingHandlers = { onClick, onHover, onLeave };
 }
 function updateSearchCount(total) {
-  searchCount.textContent = searchBox.value.trim()
-    ? `${searchIdx + 1}/${total}` : "";
+  searchCount.textContent = !searchBox.value.trim() ? ""
+    : searchIdx >= 0 ? `${searchIdx + 1}/${total}` : String(total);
 }
 async function gotoMatch(dir) {
   const matches = searchMatches(); /* recalculado: el árbol puede cambiar */
@@ -101,41 +145,70 @@ async function gotoMatch(dir) {
   /* con el índice sin estrenar, "anterior" debe caer en la última ocurrencia */
   if (searchIdx === -1 && dir === -1) searchIdx = 0;
   searchIdx = ((searchIdx + dir) % matches.length + matches.length) % matches.length;
-  const li = await resolveMatch(matches[searchIdx]);
+  const li = await resolveMatch(matches[searchIdx], true);
   if (li) highlightNode(li);
   updateSearchCount(matches.length);
 }
-/* Busca en vivo mientras se teclea: debounced (evita recorrer el árbol
-   completo en cada tecla, ~8.000-10.000 nodos) y solo a partir de
-   SEARCH_MIN_CHARS (evita saltar de resultado mientras el usuario
-   todavía está afinando el término). gotoMatch (Enter, botones ◀▶) no
-   lleva este mínimo: es una acción explícita, no debe quedarse callada
-   por un término corto.                                              */
+/* Filtra en vivo mientras se teclea: con pausa (SEARCH_DEBOUNCE_MS, no se
+   recorre el árbol en cada tecla) y solo a partir de SEARCH_MIN_CHARS letras
+   (una o dos coinciden con medio árbol y no enseñan nada). Con menos, se
+   quita el filtro que hubiera: el árbol no se queda a medias con un término
+   que ya no está escrito. Intro es una acción explícita y filtra con
+   cualquier longitud; si el filtro ya corresponde a lo escrito, salta a la
+   siguiente coincidencia (Mayús+Intro, a la anterior), como los botones ↑ ↓.
+   Teclear NO salta, selecciona ni despliega nada por su cuenta: el árbol
+   filtrado ya enseña lo que hay.                                         */
 const SEARCH_DEBOUNCE_MS = 150;
 const SEARCH_MIN_CHARS = 3;
 let searchTimer = null;
 
+async function clearSearch() {
+  clearTimeout(searchTimer);
+  searchBox.value = "";
+  searchIdx = -1;
+  searchCount.textContent = "";
+  syncSearchClear();
+  await clearTreeFilter();
+}
+function syncSearchClear() {
+  searchClear.hidden = !searchBox.value;
+  searchBox.classList.toggle("filtering", !!treeFilter);
+}
 async function runLiveSearch() {
-  if (searchBox.value.trim().length < SEARCH_MIN_CHARS) {
-    searchIdx = -1;
+  const raw = searchBox.value.trim();
+  searchIdx = -1;
+  if (raw.length < SEARCH_MIN_CHARS) {
     searchCount.textContent = "";
+    if (treeFilter) await clearTreeFilter();
+    syncSearchClear();
     return;
   }
-  const matches = searchMatches();
-  searchIdx = matches.length ? 0 : -1;
-  if (matches.length) {
-    const li = await resolveMatch(matches[0]);
-    if (li) highlightNode(li);
-  }
-  updateSearchCount(matches.length);
+  await applyTreeFilter(raw);
+  syncSearchClear();
 }
 searchBox.addEventListener("input", () => {
+  syncSearchClear();
   clearTimeout(searchTimer);
   searchTimer = setTimeout(runLiveSearch, SEARCH_DEBOUNCE_MS);
 });
-searchBox.addEventListener("keydown", e => {
-  if (e.key === "Enter") gotoMatch(e.shiftKey ? -1 : 1);
+searchBox.addEventListener("keydown", async e => {
+  if (e.key === "Enter") {
+    e.preventDefault();
+    clearTimeout(searchTimer);
+    const raw = searchBox.value.trim();
+    if (!raw) { await clearSearch(); return; }
+    if (!treeFilter || treeFilter.raw !== raw) { searchIdx = -1; await applyTreeFilter(raw); syncSearchClear(); }
+    else gotoMatch(e.shiftKey ? -1 : 1);
+  } else if (e.key === "Escape" && searchBox.value) {
+    /* Con texto, Escape es «borrar la búsqueda» y no llega al Escape global
+       (52-measure.js), que limpiaría la selección y la herramienta. Con el
+       campo vacío sigue haciendo lo de siempre. */
+    e.preventDefault();
+    e.stopPropagation();
+    await clearSearch();
+  }
 });
+searchClear.addEventListener("click", async () => { await clearSearch(); searchBox.focus(); });
 document.getElementById("search-next").addEventListener("click", () => gotoMatch(1));
 document.getElementById("search-prev").addEventListener("click", () => gotoMatch(-1));
 
@@ -276,12 +349,10 @@ async function searchPlaces(query) {
   }
 }
 
-/* Marker for a chosen result. `ensureMarkerDefaults` gives it the default
-   style (Leaflet pin, #1b5e97), the same one imported markers get.      */
-function addPlaceMarker(r) {
-  const lat = Number(r.lat), lon = Number(r.lon);
-  if (!isFinite(lat) || !isFinite(lon)) { navMessage(tr("El resultado no trae coordenadas v\u00E1lidas.")); return; }
-  const name = r.name || String(r.display_name).split(",")[0];
+/* A marker in «Lugares» at the given point. `ensureMarkerDefaults` gives it
+   the default style (Leaflet pin, #1b5e97), the same one imported markers
+   get. Shared by a chosen search result and by typed coordinates.        */
+function createPlaceMarker(name, lat, lon) {
   pushUndo(tr("añadir un lugar"));
   const layer = L.marker([lat, lon]).addTo(rootGroup);
   const li = makeNode({ name, layer, style: { color: DEFAULT_MARKER_STYLE.color } });
@@ -291,6 +362,12 @@ function addPlaceMarker(r) {
   hidePlaceResults();
   placeBox.value = "";
   scheduleSave();
+}
+
+function addPlaceMarker(r) {
+  const lat = Number(r.lat), lon = Number(r.lon);
+  if (!isFinite(lat) || !isFinite(lon)) { navMessage(tr("El resultado no trae coordenadas v\u00E1lidas.")); return; }
+  createPlaceMarker(r.name || String(r.display_name).split(",")[0], lat, lon);
 
   /* Choosing a search result IS asking to go there, so this is the one
      case where the app moves the view on its own                       */
@@ -302,14 +379,16 @@ function addPlaceMarker(r) {
   }
 }
 
-/* Pin created from the viewer toolbar: dropped at the centre of the
-   current view and opened straight into the style dialog, where its
-   icon, text, size and position can be set. Cancelling there removes
-   it again (see `styleIsNew`).                                       */
+/* A pin dropped where the user clicked (the toolbar's one-click tool, or the
+   context menu's «Pin») and opened straight into the style dialog, where its
+   icon, text, size and position can still be changed. Cancelling there
+   removes it again (see `styleIsNew`). Without a point it falls back to the
+   centre of the view: nothing calls it that way any more, but a pin without
+   a place makes no sense.                                                */
 const PINS_SECTION = tr("Marcadores");
-function createPin() {
+function createPin(latlng = map.getCenter()) {
   pushUndo(tr("crear marcador"));
-  const marker = L.marker(map.getCenter()).addTo(rootGroup);
+  const marker = L.marker(latlng).addTo(rootGroup);
   /* Autonumerado como las formas dibujadas y las mediciones: con un
      nombre fijo, veinte pines se llamaban todos "Marcador" y no había
      forma de distinguirlos en el árbol.                              */
@@ -323,9 +402,27 @@ function createPin() {
   openStyleDialog(li, { isNew: true });
 }
 
+/* Zoom al que se va cuando lo escrito en el buscador son coordenadas: un
+   punto exacto, así que el de calle (17), no el de región.             */
+const COORD_SEARCH_ZOOM = 17;
+
+/* Unas coordenadas escritas se resuelven aquí, sin red y ANTES que
+   Nominatim. Como elegir un resultado, pedirlas es pedir ir allí: crea un
+   marcador en «Lugares» (llamado como lo escrito) y la aplicación mueve la
+   vista sola, centrada en él. Una búsqueda de lugar en vuelo ya no
+   interesa.                                                              */
+function goToCoordinates(at, text) {
+  placeSeq++;
+  if (placeAbort) { placeAbort.abort(); placeAbort = null; }
+  createPlaceMarker(text, at.lat, at.lng);
+  map.setView([at.lat, at.lng], COORD_SEARCH_ZOOM);
+}
+
 function runPlaceSearch() {
   const q = placeBox.value.trim();
-  if (!q) { navMessage(tr("Escriba un lugar que buscar.")); return; }
+  if (!q) { navMessage(tr("Escriba un lugar o unas coordenadas.")); return; }
+  const at = parsePlaceCoordinates(q);
+  if (at) { goToCoordinates(at, q); return; }
   searchPlaces(q);
 }
 document.getElementById("place-btn").addEventListener("click", runPlaceSearch);
@@ -393,7 +490,7 @@ async function setPendingChecked(records, state, counter) {
   for (const rec of records) {
     rec.checked = state;
     if (rec.children) await setPendingChecked(rec.children, state, counter);
-    else setLayerVisible(rec._layer, state);
+    else if (state || !recLayerPending(rec)) setLayerVisible(rec._layer, state); /* apagar una capa aún sin construir no hace nada */
     if (++counter.n % CASCADE_BATCH === 0) await yieldFrame();
   }
 }
@@ -449,11 +546,12 @@ function moveCursorTo(to, extend) {
    se resuelve sola en cuanto la materialización acaba.                */
 async function expandOrEnter(li, extend) {
   if (!nodeUl(li)) return;
-  if (li.classList.contains("collapsed")) {
+  /* Abierta solo por el filtro no cuenta como colapsada: se entra en su primer hijo visible */
+  if (li.classList.contains("collapsed") && !li.classList.contains("filter-open")) {
     li.classList.remove("collapsed");
     syncExpanded(li);
     scheduleSave();
-    await ensureMaterialized(li);
+    await expandFolder(li);
     return;
   }
   const first = childRows(nodeUl(li))[0];
@@ -462,6 +560,7 @@ async function expandOrEnter(li, extend) {
 
 /* Colapsa, o sube a la carpeta madre si ya estaba colapsada */
 function collapseOrLeave(li, extend) {
+  if (li.classList.contains("filter-open")) { closeFilterOpen(li); return; }
   if (nodeUl(li) && !li.classList.contains("collapsed")) {
     li.classList.add("collapsed");
     syncExpanded(li);
@@ -610,8 +709,19 @@ document.addEventListener("keydown", e => {
   const t = e.target;
   /* Los campos de texto se quedan con todas las teclas */
   if (t.matches && t.matches("input:not([type=checkbox]), textarea, select, [contenteditable]")) return;
-  /* Con el mapa enfocado, las flechas son el desplazamiento de Leaflet */
-  if (t.closest && t.closest("#map")) return;
+  /* Con el mapa enfocado, las flechas son el desplazamiento de Leaflet y el
+     resto de teclas del árbol no valen; SÍ valen deshacer y rehacer, que
+     son del espacio de trabajo entero y no de la fila seleccionada. Sin una
+     herramienta de dibujo en marcha: a medias de una forma, un Ctrl+Z que
+     revirtiera de pronto la última operación del árbol sorprendería.     */
+  if (t.closest && t.closest("#map")) {
+    if ((e.ctrlKey || e.metaKey) && !e.altKey && !activeTool) {
+      const k = e.key.toLowerCase();
+      if (k === "z") { e.preventDefault(); undoLast(); }
+      else if (k === "y") { e.preventDefault(); redoLast(); }
+    }
+    return;
+  }
 
   /* Sin listas: el cursor y sus vecinos se buscan en local */
   const cur = isRow(selCursor) && selCursor.isConnected ? selCursor : null;

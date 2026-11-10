@@ -785,12 +785,14 @@ const CTX_MENU_ITEMS = [
      su cuenta: «Elevación» descarga MDT/MDS de la tesela bajo el puntero
      con las fuentes de Propiedades → Fuentes de datos (ver
      queryElevationAt), «Parcela catastral» el polígono y la ficha de la
-     parcela (ver queryCadastralParcelAt).                              */
+     parcela (ver queryCadastralParcelAt) and «Artículos de Wikipedia en la vista»
+     the articles around the point (see queryWikipediaAt).               */
   {
     label: tr("Consultas"),
     items: [
       { label: tr("Elevación"), action: latlng => queryElevationAt(latlng), disabled: () => elevQueryDisabled() },
-      { label: tr("Parcela catastral"), action: latlng => queryCadastralParcelAt(latlng) }
+      { label: tr("Parcela catastral"), action: latlng => queryCadastralParcelAt(latlng) },
+      { label: tr("Artículos de Wikipedia en la vista"), action: latlng => queryWikipediaAt(latlng) }
     ]
   },
   /* Las tres mediciones agrupadas en un submenú: son la misma familia y
@@ -807,10 +809,12 @@ const CTX_MENU_ITEMS = [
     label: tr("Crear"),
     items: [
       { label: tr("Polígono o línea"), action: () => setTool(activeTool === "polygon" ? null : "polygon") },
-      { label: tr("Pin"), action: () => createPin() },
-      /* Estas dos SÍ usan el punto pulsado: es el centro por defecto */
+      /* Estas tres usan el punto pulsado: es el centro (o el lugar del pin).
+         El orden es el de los botones de la barra del visor (52-measure.js):
+         polígono o línea, anillos, sector y pin.                       */
       { label: tr("Anillos de alcance…"), action: latlng => openRangeDialog("rings", latlng) },
-      { label: tr("Sector…"), action: latlng => openRangeDialog("sector", latlng) }
+      { label: tr("Sector…"), action: latlng => openRangeDialog("sector", latlng) },
+      { label: tr("Pin"), action: latlng => createPin(latlng) }
     ]
   }
 ];
@@ -1026,12 +1030,14 @@ function openCtxSubmenu(triggerBtn, items, latlng) {
   document.body.appendChild(ctxSubmenuEl);
   renderCtxItems(ctxSubmenuEl, items, latlng);
   const r = triggerBtn.getBoundingClientRect();
-  const sr = ctxSubmenuEl.getBoundingClientRect();
+  /* offsetWidth/Height: the rect would include the entrance's scale() */
+  const sw = ctxSubmenuEl.offsetWidth, sh = ctxSubmenuEl.offsetHeight;
   /* Se abre a la derecha del disparador; a la izquierda si no cabe */
   let left = r.right - 2;
-  if (left + sr.width > window.innerWidth - 4) left = r.left - sr.width + 2;
+  if (left + sw > window.innerWidth - 4) left = r.left - sw + 2;
   ctxSubmenuEl.style.left = `${Math.max(0, left)}px`;
-  ctxSubmenuEl.style.top = `${Math.max(0, Math.min(r.top, window.innerHeight - sr.height - 4))}px`;
+  ctxSubmenuEl.style.setProperty("--ctx-origin", left < r.left ? "right top" : "left top");
+  ctxSubmenuEl.style.top = `${Math.max(0, Math.min(r.top, window.innerHeight - sh - 4))}px`;
 }
 
 function openCtxMenu(latlng, x, y, hits = []) {
@@ -1039,9 +1045,17 @@ function openCtxMenu(latlng, x, y, hits = []) {
   renderCtxItems(ctxMenuEl, ctxItemsFor(hits), latlng);
   ctxMenuEl.hidden = false;
   /* Clamp to viewport so a click near an edge doesn't open off-screen */
-  const r = ctxMenuEl.getBoundingClientRect();
-  ctxMenuEl.style.left = `${Math.max(0, Math.min(x, window.innerWidth - r.width - 4))}px`;
-  ctxMenuEl.style.top = `${Math.max(0, Math.min(y, window.innerHeight - r.height - 4))}px`;
+  /* offsetWidth/Height, NOT getBoundingClientRect: the box is mid-entrance
+     (scale .96, styles.css) and the rect includes that transform, so the
+     clamp would use a width up to 4 % too small and let the edge overflow. */
+  const w = ctxMenuEl.offsetWidth, h = ctxMenuEl.offsetHeight;
+  const left = Math.max(0, Math.min(x, window.innerWidth - w - 4));
+  const top = Math.max(0, Math.min(y, window.innerHeight - h - 4));
+  ctxMenuEl.style.left = `${left}px`;
+  ctxMenuEl.style.top = `${top}px`;
+  /* The entrance grows from the pointer, not from the box centre (even when
+     clamping moved the box away from it): spatial origin, motion.md. */
+  ctxMenuEl.style.setProperty("--ctx-origin", `${x - left}px ${y - top}px`);
   /* No autofocus on open: the menu is mouse-first (it opens from a right
      click), and pre-focusing the first row left a lingering keyboard
      highlight fighting the mouse's hover highlight for a different row. */
@@ -1060,8 +1074,14 @@ function openCtxMenu(latlng, x, y, hits = []) {
    sirve para las dos llamadas sin cambios.                            */
 function openCtxMenuFromMouseEvent(e) {
   L.DomEvent.preventDefault(e.originalEvent);
-  const hits = layersAtPoint(e.latlng, e.containerPoint);
-  openCtxMenu(e.latlng, e.originalEvent.clientX, e.originalEvent.clientY, hits);
+  const { latlng } = e, { clientX, clientY } = e.originalEvent;
+  const layers = layerHitsAtPoint(latlng, e.containerPoint);
+  /* Lo normal: todas tienen fila y el menú sale en el acto. Con una capa de
+     una carpeta nunca desplegada (tras recargar) hay que darle fila antes:
+     el menú sale en cuanto se materializa, y con ello conserva lo que ofrece
+     una capa (ir al nodo, propiedades, «Mostrar perfil» de una ruta).     */
+  if (layers.every(l => l._li)) { openCtxMenu(latlng, clientX, clientY, layers.map(l => l._li)); return; }
+  Promise.all(layers.map(resolveLayerLi)).then(lis => openCtxMenu(latlng, clientX, clientY, lis.filter(Boolean)));
 }
 map.on("contextmenu", openCtxMenuFromMouseEvent);
 map.on("movestart zoomstart", closeCtxMenu);

@@ -60,9 +60,9 @@ function mockLayer(tag) {
    feeds it).                                                          */
 global.L = {
   Marker: class {}, Path: class {},
-  latLngBounds: () => {
+  latLngBounds: (sw, ne) => {
     const pts = [];
-    return { extend(v) { if (v) pts.push(v); }, points: pts };
+    return { sw, ne, extend(v) { if (v) pts.push(v); }, points: pts };
   }
 };
 
@@ -104,11 +104,19 @@ const src = [
   fn("materializeRecords"), fn("ensureMaterialized"), fn("materializeSubtree"), fn("selectFolderLayers"),
   fn("serializeNode"), "const serializeNodes = ul => [...ul.children].flatMap(serializeNode);",
   fn("serializePendingRecords"),
+  /* carpetas a medio construir (32-geojson.js, 31-tree-node.js) */
+  fn("ensurePos"), fn("splitPending"), fn("placementAnchor"), fn("serializeChildren"),
+  fn("runMaterialize"), fn("materializeMatching"), "const partialFolders = new Set();",
+  /* el criterio del filtro: la búsqueda lo usa para comparar sin tildes (40-panel-actions.js) */
+  constDecl("normSearch"), fn("rowKey"), "const recKeys = new WeakMap();", fn("recKey"),
+  "let treeFilterWanted = null;",
   fn("extendBounds"), fn("extendBoundsFromRecords"), fn("subtreeBounds"),
   fn("findMatches"), fn("searchMatches"), fn("resolveMatch"),
   fn("resolveRecordLi"), fn("wirePendingLayerEvents"),
   fn("blinkLayer"),
   fn("removeRecordsFromMap"), fn("removeSubtreeFromMap"), fn("deleteNode"),
+  /* capas perezosas (32-geojson.js): se prueban abajo */
+  fn("defineLazyLayer"), constDecl("recLayerPending"), fn("recGeoBounds"),
   /* materializeRecords y deleteNode recalculan el estado de los
      contenedores de arriba (tercer estado de la casilla); este test no
      construye casillas, así que solo hace falta que exista.          */
@@ -129,23 +137,26 @@ const src = [
 const api = new Function(
   "rootGroup", "yieldFrame", "PROGRESS_BATCH", "scheduleSave", "navMessage", "showEmptyMessage",
   "syncExpanded", "measureLi", "selection", "searchBox", "treeEl", "rootUl", "makeNode",
-  "highlightNode", "showLayerInfo", "scheduleLayerInfoHide", "BLINK_STEPS", "BLINK_INTERVAL_MS", "activeTool",
+  "highlightNode", "showLayerInfo", "scheduleLayerInfoHide", "BLINK_STEPS", "BLINK_INTERVAL_MS", "activeTool", "clickPicksPoint",
   src + `\nreturn {
     materializeRecords, ensureMaterialized, serializeNode, serializeNodes, serializePendingRecords,
+    materializeMatching, partialFolders, serializeChildren, splitPending,
     subtreeBounds, findMatches, searchMatches, resolveMatch, resolveRecordLi,
     wirePendingLayerEvents, blinkLayer, deleteNode, selectFolderLayers,
-    clearSelection,
+    clearSelection, defineLazyLayer, recLayerPending, recGeoBounds, removeRecordsFromMap,
     cuentas: () => ({ enVuelo: materializingNow, terminadas: materializeSeq })
   };`
 )(rootGroup, yieldFrame, PROGRESS_BATCH, scheduleSave, navMessage, showEmptyMessage,
   syncExpanded, measureLi, selection, searchBox, treeEl, rootUl, makeNode,
   highlightNode, showLayerInfo, scheduleLayerInfoHide, 4 /* BLINK_STEPS, igual que en producción */, 2 /* BLINK_INTERVAL_MS: mínimo, para que el test no espere */,
-  null /* activeTool: la herramienta de dibujo no interviene en este test */);
+  null /* activeTool: la herramienta de dibujo no interviene en este test */,
+  () => false /* clickPicksPoint: ninguna herramienta armada que fije un punto */);
 const {
   materializeRecords, ensureMaterialized, serializeNode, serializeNodes,
   subtreeBounds, findMatches, searchMatches, resolveMatch, resolveRecordLi,
   wirePendingLayerEvents, blinkLayer, deleteNode, selectFolderLayers,
-  clearSelection
+  clearSelection, defineLazyLayer, recLayerPending, recGeoBounds, removeRecordsFromMap, serializePendingRecords,
+  materializeMatching, partialFolders, serializeChildren, splitPending
 } = api;
 
 const ok = (c, m) => { if (!c) { console.error("FAIL: " + m); process.exitCode = 1; } };
@@ -365,6 +376,139 @@ const folderRec = (name, collapsed, children) => ({ t: "folder", name, checked: 
   await sleep(BLINK_WAIT);
   ok(!rootGroup.hasLayer(blinkTag),
      "si se desactiva el checkbox mientras parpadea, termina oculta (el estado real), no visible a la fuerza");
+
+  /* ---------- capas perezosas: la capa de Leaflet se construye al leerla ----------
+     Un registro apagado y sin marcadores guarda solo su GeoJSON; tocarlo
+     para apagar, quitar, guardar o encuadrar NO debe construir su capa
+     (en un KML de 62 000 placemarks eso eran 9 s y 1,1 GB), y leerla la
+     construye UNA vez, con sus manejadores.                              */
+  let built = 0;
+  const lazyGeo = { type: "FeatureCollection", features: [
+    { type: "Feature", properties: { ref: "A" }, geometry: { type: "Polygon", coordinates: [[[10, 20], [12, 20], [12, 23], [10, 20]]] } },
+    { type: "Feature", properties: {}, geometry: { type: "LineString", coordinates: [[-5, 40], [-4, 41]] } }] };
+  const lazyRec = name => {
+    const rec = { t: "layer", name, checked: false, style: null, geo: lazyGeo };
+    defineLazyLayer(rec, () => { built++; return mockLayer("lazy-" + name); });
+    return rec;
+  };
+
+  const lz = lazyRec("perezosa");
+  ok(recLayerPending(lz) && lz._built === false && built === 0, "recién creada: pendiente y sin construir");
+  ok(!recLayerPending({ t: "layer", _layer: {} }) && !recLayerPending({ t: "folder", children: [] }), "un registro normal no es perezoso");
+
+  const ser = serializePendingRecords([lz]);
+  ok(built === 0 && ser[0].geo === lazyGeo && ser[0].checked === false, "guardar usa su geo y no la construye");
+
+  const bnd = recGeoBounds(lz);
+  ok(built === 0 && JSON.stringify(bnd.sw) === "[20,-5]" && JSON.stringify(bnd.ne) === "[41,12]", "encuadre desde el GeoJSON (sur-oeste/norte-este): " + JSON.stringify([bnd.sw, bnd.ne]));
+  ok(recGeoBounds(lz) === bnd, "y se guarda en el registro");
+  const lzFolder = makeNode({ name: "lz-bounds", isFolder: true, checked: false });
+  lzFolder._pending = [lazyRec("b1")];
+  rootUl.appendChild(lzFolder);
+  const lzb = subtreeBounds(lzFolder);
+  ok(built === 0 && lzb.points.length === 1 && lzb.points[0].ne, "subtreeBounds de una carpeta pendiente con capas perezosas no las construye");
+  ok(recGeoBounds({ geo: { type: "FeatureCollection", features: [] } }) === null, "sin posiciones, sin encuadre");
+
+  removeRecordsFromMap([lz, lazyRec("quitar")]);
+  ok(built === 0 && calls.every(c => !String(c[1]).startsWith("lazy-")), "quitar del mapa lo que nunca se construyó no lo construye ni lo toca");
+
+  const layer1 = lz._layer;
+  ok(built === 1 && layer1.tag === "lazy-perezosa" && lz._built === true && !recLayerPending(lz), "leer _layer la construye una vez");
+  ok(lz._layer === layer1 && built === 1, "y la siguiente lectura devuelve la misma sin reconstruir");
+  ok(layer1.count("click") === 1 && layer1.count("mouseover") === 1 && lz._pendingHandlers, "con sus manejadores de registro pendiente ya enganchados");
+  lz._layer = mockLayer("otra"); /* la asignación sustituye, como en un registro normal */
+  ok(lz._layer.tag === "otra" && built === 1, "se puede reasignar");
+
+  /* una carpeta que se despliega construye las capas de SUS filas (y solo de ellas) */
+  const open1 = lazyRec("fila1"), open2 = lazyRec("fila2"), quiet = lazyRec("sin-desplegar");
+  built = 0;
+  const ulLazy = document.createElement("ul");
+  await materializeRecords([folderRec("abierta", false, [open1, open2]), folderRec("cerrada", true, [quiet])], ulLazy);
+  ok(built === 2 && recLayerPending(quiet) && !recLayerPending(open1),
+     "desplegar construye solo las capas de las filas que se crean (2), no las de la carpeta colapsada: " + built);
+
+  /* ---------- carpetas a MEDIO construir (el filtro del panel) ----------
+     materializeMatching construye solo lo elegido y deja el resto en
+     `_pending`. Lo que tiene que cumplirse, y es lo que se rompe si alguien
+     toca el guardado o el orden: serializar da SIEMPRE lo mismo que antes de
+     partir (mismo contenido, mismo ORDEN), también tras borrar, renombrar,
+     reordenar a mano o crear una fila nueva, y completar lo deja en orden. */
+  const nombres = out => out.map(n => n.name);
+  const mkPartial = nombre => {
+    const kids = [layerRec("a0"), layerRec("a1"), layerRec("a2"), layerRec("a3"), layerRec("a4"),
+      folderRec("fx", false, [layerRec("b0"), layerRec("b1"), layerRec("b2")]),
+      layerRec("a6"), layerRec("a7"), layerRec("a8"), layerRec("a9")];
+    const f = makeNode({ name: nombre, isFolder: true, checked: true });
+    f._pending = kids;
+    rootUl.appendChild(f);
+    return f;
+  };
+  const filas = f => [...f.querySelector(":scope > ul.node-list").children];
+  const onlyHas = txt => rec => rec.name.includes(txt) || (rec.children || []).some(c => c.name.includes(txt));
+
+  const sp = splitPending([layerRec("x1"), layerRec("y"), layerRec("x2")], r => r.name.startsWith("x"));
+  ok(nombres(sp.chosen).join() === "x1,x2" && nombres(sp.rest).join() === "y" && sp.chosen[1]._pos === 2,
+     "splitPending conserva el orden de cada mitad y anota la posición original");
+
+  const par = mkPartial("parcial");
+  const antes = JSON.stringify(serializeNode(par));
+  await materializeMatching(par, onlyHas("1"));
+  ok(filas(par).map(l => l._name).join() === "a1,fx" && par._pending.length === 8 && partialFolders.has(par),
+     "construye solo lo elegido (a1 y la carpeta que contiene b1), en su orden, y lo anota como a medias: " + filas(par).map(l => l._name));
+  const fxLi = filas(par)[1];
+  ok(filas(fxLi).map(l => l._name).join() === "b1" && fxLi._pending.length === 2,
+     "recursa: de la carpeta solo se construye b1 y el resto queda en SU _pending");
+  ok(JSON.stringify(serializeNode(par)) === antes,
+     "guardar a medio construir da EXACTAMENTE lo mismo que antes (contenido y orden):\n  " + JSON.stringify(serializeNode(par)) + "\n  " + antes);
+
+  await materializeMatching(par, onlyHas("7"));
+  ok(filas(par).map(l => l._name).join() === "a1,fx,a7" && JSON.stringify(serializeNode(par)) === antes,
+     "una segunda construcción se intercala por su posición original, sin reordenar: " + filas(par).map(l => l._name));
+
+  /* un archivo soltado después (sin posición) va al final, pero ya no se pierde */
+  const nuevo = makeNode({ name: "nuevo", layer: { tag: "nuevo", toGeoJSON: () => ({ fake: true }) }, checked: true });
+  par.querySelector(":scope > ul.node-list").appendChild(nuevo);
+  const conNuevo = serializeNode(par)[0].children;
+  ok(nombres(conNuevo).join() === "a0,a1,a2,a3,a4,fx,a6,a7,a8,a9,nuevo",
+     "una fila creada después se guarda (antes se perdía con pendientes) y va al final: " + nombres(conNuevo));
+  nuevo.remove();
+
+  /* renombrar y borrar una fila construida: el registro ya salió de _pending, no resucita */
+  filas(par)[0]._name = "renombrada";
+  deleteNode(filas(par)[2]); /* a7 */
+  const trasEditar = nombres(serializeNode(par)[0].children).join();
+  ok(trasEditar === "a0,renombrada,a2,a3,a4,fx,a6,a8,a9",
+     "renombrar y borrar una fila construida se refleja y lo borrado no vuelve: " + trasEditar);
+
+  /* completar: el resto entra en su sitio, no al final */
+  await ensureMaterialized(par);
+  ok(!par._pending && !partialFolders.has(par), "completar deja _pending vacío y la carpeta ya no está a medias");
+  ok(filas(par).map(l => l._name).join() === "a0,renombrada,a2,a3,a4,fx,a6,a8,a9",
+     "completar coloca el resto en su sitio original: " + filas(par).map(l => l._name));
+  /* Completar una carpeta NO completa las hijas que quedaron a medias: cada una se completa al
+     desplegarla (o, abierta, cuando el filtro se quita: partialFolders las recuerda). */
+  const fxDentro = filas(par)[5];
+  ok(partialFolders.has(fxDentro) && fxDentro._pending.length === 2,
+     "la carpeta hija sigue a medias y anotada: completar el padre no la toca");
+  await ensureMaterialized(fxDentro);
+  ok(filas(fxDentro).map(l => l._name).join() === "b0,b1,b2" && !fxDentro._pending && !partialFolders.has(fxDentro),
+     "y al completarla ella, sus hijas quedan en orden: " + filas(fxDentro).map(l => l._name));
+
+  /* orden a mano: sin posición que respetar, las filas van como están y luego los pendientes */
+  const man = mkPartial("manual");
+  await materializeMatching(man, onlyHas("1"));
+  await materializeMatching(man, onlyHas("7"));
+  const ulMan = man.querySelector(":scope > ul.node-list");
+  ulMan.insertBefore(filas(man)[2], filas(man)[0]); /* a7 antes de a1: el usuario las reordenó */
+  const manual = nombres(serializeNode(man)[0].children);
+  ok(manual.slice(0, 3).join() === "a7,a1,fx" && manual.length === 10 && new Set(manual).size === 10,
+     "reordenadas a mano, van en el orden del DOM y los pendientes detrás, sin perder ni repetir ninguna: " + manual);
+
+  /* una carpeta sin nada que elegir no cambia */
+  const quieta = mkPartial("quieta");
+  await materializeMatching(quieta, () => false);
+  ok(quieta._pending.length === 10 && filas(quieta).length === 0 && !partialFolders.has(quieta),
+     "sin coincidencias no se construye nada ni queda anotada");
 
   if (!process.exitCode) console.log("LAZY TREE TESTS OK");
 })();

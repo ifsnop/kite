@@ -4,7 +4,7 @@
 
 Este documento reúne en un solo sitio lo que **está pendiente** en KITE Local y las **ideas** que se han propuesto para seguir desarrollándolo. Antes estaba repartido entre las reglas del proyecto, el README y notas de varias conversaciones; aquí es la única lista. Quien quiera saber qué hace hoy la aplicación debe leer el [manual de usuario](manual-usuario-kite-local.md); quien quiera saber en qué se apoya la confianza en sus datos, el [estudio de seguridad](estudio-seguridad-kite-local.md).
 
-- **Última revisión:** 2 de noviembre de 2026 (versión 2.0.0 de la aplicación).
+- **Última revisión:** 9 de noviembre de 2026 (versión 2.5.0 de la aplicación).
 - **Cómo se mantiene:** lo que se hace **se borra** de este documento en el mismo cambio que lo hace (y se cuenta en el manual y el README, si lo ve el usuario); una idea que se descarta pasa a «Descartado» con su motivo, para no volver a proponerla sin un caso nuevo. Una idea se convierte en pendiente cuando alguien decide hacerla. Ver `.claude/rules/docs-maintenance.md`.
 - **Qué NO es:** no es un compromiso de calendario. Hay ideas que quizá no se hagan nunca.
 
@@ -51,13 +51,40 @@ Leaflet y JSZip siguen cargándose desde una red de distribución al abrir la p�
 
 ### 1.8 Límites de recursos no configurables
 
-Los topes de importación (tamaño de KMZ, 100 000 elementos de un shapefile, 100 000 entidades de un servicio ArcGIS, 10 NM de un perfil…) son constantes del código. Solo la longitud máxima de un perfil se ajusta en Propiedades.
+Los topes de importación (2000 entradas y razón de compresión de un KMZ, 100 000 elementos de un shapefile, 100 000 entidades de un servicio ArcGIS…) y el de coincidencias que el filtro del árbol construye de una vez (300, `FILTER_BUILD_MAX`) son constantes del código. Solo la longitud máxima de un perfil y el tamaño máximo de un KMZ descomprimido se ajustan en Propiedades.
 
 ### 1.9 Cuadro de límites del manual contrastado con el código
 
 Fase 4 de `tests/docs.js`: un cuadro de límites y valores por defecto del manual (300 MB, 100 000 elementos, 10 NM, 15 s…) con el nombre de su constante y una prueba que extraiga esas constantes y las compare. Mientras no exista, la revisión semestral (`.claude/rules/docs-maintenance.md`, C.1) las comprueba a mano.
 
+### 1.10 Un KML de cientos de MB sigue costando ~13 s al importar y ~5 s al arrancar
+
+Medido con un KML real de 309 MB (62 673 placemarks, 9,66 M de vértices, todos apagados; 4,2 GB de heap, Chromium sin GPU): importar 13 s, recargar 5,3 s, heap máximo 1,1–1,5 GB. Antes de las capas perezosas (`.claude/rules/performance.md`) eran 21 s, 15 s y 3,1 GB, y con un heap de 3 GB un guardado de 67 s. Lo que queda, de mayor a menor:
+
+- **Leer el XML es UNA tarea de ~4,3 s** (`DOMParser` 3,3 s + búsqueda de duplicados 0,8 s): el navegador no lo puede partir y un worker no tiene `DOMParser`. Solo un lector XML en streaming lo evitaría.
+- **El primer guardado escribe un segmento de ~0,6 GB** (clon síncrono del `put`, 3,3 s): partirlo en varios segmentos con transacciones separadas toca `segmentPlan`/`commitPayloads` y la regla «como mucho un segmento por guardado» (`persistence-indexeddb.md`).
+- **Leer el árbol al arrancar son 2,5 s** de deserialización de esos 0,6 GB.
+- **Encender de golpe una carpeta de decenas de miles de capas las construye todas** (9,66 M de `LatLng`, ~1,1 GB): es lo que se pide, pero con un heap pequeño es el camino que sigue pudiendo ahogar la pestaña.
+- **Desplegar una carpeta construye las capas de sus filas** (`materializeRecords` → `makeNode`), no solo la fila. Con el filtro del buscador puesto solo se construyen las que coinciden (5 ms con 38 coincidencias en una carpeta de 20 000, frente a ≈ 6,9 s).
+- **Con decenas de miles de filas ya construidas, construir más cuesta más**: 400 filas tardaron 213 ms en una página que ya tenía 20 000 y 18 ms en una limpia. Causa sin investigar.
+
+### 1.11 Obstáculos del perfil: lo que no se hace
+
+Los polígonos con altitud como obstáculos de un perfil (apartado 7.9 del manual) tienen límites que se dejaron a propósito:
+
+- **No se lee `<extrude>`**: todo obstáculo es un bloque del terreno al techo, y un polígono en AMSL «flotante» (a 300 m de altitud sobre un valle) se dibuja igual, aunque en la realidad deje pasar por debajo.
+- **AGL con el terreno del cruce, no el de los vértices**: la altura relativa al terreno se suma al terreno de la propia ruta en cada punto del tramo (el que el perfil ya descargó), no al de los vértices del polígono, que pueden estar lejos de la ruta y habría que pedir aparte. En un polígono muy grande sobre un terreno muy distinto en cada extremo, el techo sigue el relieve de la ruta y no el del polígono.
+- **Los dos modos del fondo marino** (`relativeToSeaFloor`, `clampToSeaFloor`) se guardan como uno solo y salen como `relativeToSeaFloor` en un KML exportado.
+- **Un placemark con varios polígonos** (`MultiGeometry`) conserva el modo de cada uno al importar y el perfil los usa, pero el selector «Modo de altitud» de la lista de puntos solo vale para una capa con UN polígono (como el resto de esa ventana).
+- **Las alturas de un polígono dibujado a mano son 0** (la lista de puntos escribe 0 donde no hay altitud y, al aceptar, deja ese 0 en la capa), así que ese polígono no puede ser un obstáculo hasta que se le escriban altitudes.
+- **Un obstáculo es una fotografía** del momento de obtener el perfil (o de «Actualizar obstáculos»): si después se edita el polígono, el perfil guardado no cambia.
+
+
 ---
+
+### 1.12 El texto de ayuda de la lupa describe solo el caso de una fila
+
+La lupa 🔍 de una fila que forma parte de una selección múltiple encuadra el conjunto, pero su texto de ayuda («Centrar la vista aquí y acercar (zoom 14)») sigue describiendo solo el caso de una fila. Se dejó así para no añadir textos nuevos a las dos lenguas; el manual (apartados 3.1 y 3.4) sí lo explica.
 
 ## 2. Hecho a medias
 
@@ -85,9 +112,9 @@ Es lo que se suele recibir de una hoja de cálculo: columnas latitud/longitud, o
 
 Se pulsa un punto, se da la altura de antena y el alcance, y se pinta qué celdas del MDT/MDS se ven y cuáles quedan tapadas. Es la extensión natural del perfil de una ruta, que ya calcula línea de vista, curvatura 4/3 y elipsoide de Fresnel, pero solo entre dos puntos. Una entrada nueva en «Consultas» del menú contextual, con la misma descarga por trozos del perfil y la misma disciplina de red (`.claude/rules/external-network.md`). Es el trabajo más grande de la lista y el que más encaja con el uso aeronáutico de la aplicación.
 
-### 3.4 MGRS y buscar o pegar coordenadas
+### 3.4 MGRS y UTM en el buscador
 
-Hay grados decimales, GMS y UTM, pero no **MGRS**. Tampoco se puede pegar «40.4168, -3.7038» o una referencia MGRS en el buscador para ir allí: el buscador solo habla con Nominatim. Ayudaría a quien trabaja con coordenadas dictadas o impresas. Se resuelve en el buscador y en `parseCoord`, y la calculadora geodésica ganaría un conversor.
+El buscador ya entiende latitud y longitud (decimales o en grados, minutos y segundos, con letras de hemisferio) y crea un marcador en «Lugares» y va allí a zoom 17 sin consultar nada. Faltan las referencias **MGRS** y las coordenadas **UTM** («30T 440610 4473779»), que hoy solo se leen en el cuadro de coordenadas del visor. Ayudaría a quien trabaja con coordenadas dictadas o impresas. Se resolvería en `parsePlaceCoordinates` (`43-points-editor.js`), y la calculadora geodésica ganaría un conversor.
 
 ### 3.5 Agrupar marcadores cuando son miles
 
@@ -113,6 +140,19 @@ Con Turf.js por CDN y bajo demanda (como proj4): zona de influencia (buffer) de 
 
 Con la API de geolocalización del navegador: centrar el mapa en la posición, con su círculo de precisión, y un seguimiento opcional que deje un track grabable. Va al final porque el producto está pensado para trabajar con archivos y no en campo, y porque obliga a tratar un dato sensible (la posición del usuario) con cuidado: nada saldría del navegador, pero habría que decirlo.
 
+### 3.11 Wikipedia: what the first version leaves out
+
+«Artículos de Wikipedia en la vista» searches from the clicked point out to the farthest corner of the current view, and asks for the 100 nearest geotagged articles, in the Wikipedia of the interface language (Spanish, or English for any other). The service only accepts a radius between 10 m and 10 km (`gsradius`; `gsbbox` has the same kind of limit), so a view wider than that is searched up to 10 km and a notice says so. In a city centre the 100 nearest fit within a few hundred metres, so the radius is rarely the limit that applies there, and the notice says so. Decided on purpose for the first version (one click, no settings) and recorded here so they are not lost:
+
+- **Limit and language are fixed.** Possible: a limit chosen by the user (the API allows up to 500 results per request), a Wikipedia language independent of the interface (and showing it in the card), and not repeating articles that an earlier folder already holds (needs the page id kept with each marker). A view wider than 10 km cannot be covered by a single query; covering it would take several queries around different points, and the 100-article limit would stay.
+- **Hovering opens the card on every marker crossed.** The hover card (`31-tree-node.js`, `layer.on("mouseover", …)`) is existing, tested behaviour for any layer, but this feature is the first to make dense clusters the normal case: moving the pointer across 100 «W» within a few hundred metres opens and re-renders the card continuously. A short hover-intent delay for layers in a large folder is the option; revisit on user feedback. (What is fixed: the card no longer blinks when it opens right over the marker being hovered, and it stays while the pointer is on it. What is not: the pointer must reach a hover-opened card within the 200 ms close delay, so with the card far from the marker its link is only reachable by opening it with ℹ or «Mostrar atributos»; a longer delay or a «safe path» towards the card would fix it, at the cost of the card lingering when crossing between neighbouring layers.)
+- **Overlap of 100 glyphs in a dense centre.** Overlapping is geometry, not design; the real answer is marker clustering (3.5), and this is the first case that asks for it. (The glyph does keep its contrast: the «W» sits on a round badge, see `marker-icons.md`.)
+- **Touch.** There is no hover on a touch screen and a tap on a marker only shows its name, so the summary and the link are reached through the ℹ of the tree row, which the phone layout hides until the panel is opened. Putting the summary link in the marker's popup is the fix; it belongs with the touch support of 1.6.
+- **The card's distance is static text**: changing the distance unit later does not update a card that already exists, as with any imported description.
+- **Credit after an import or a paste.** The CC BY-SA credit is added on the first query and at start-up when the saved tree holds Wikipedia markers; a `.kite.json` or a paste from another tab that brings them does not add it until the next reload.
+- **No progress or cancel.** A query is up to 6 sequential requests (one geosearch and five of summaries) and a busy service can add several seconds of retries to each; only the wait cursor shows it. A transient «Consultando Wikipedia…» notice, or cancelling with Escape, would help.
+- **Folders say nothing about where the query was made** («Wikipedia 3»). The clicked coordinates in the folder's description would tell them apart; a place name would need a Nominatim call and was rejected.
+
 ---
 
 ## 4. Descartado a propósito
@@ -125,3 +165,4 @@ Para no volver a proponerlo sin un caso nuevo.
 - **Leer ortofotos ECW.** No hay decodificador en JavaScript y el del fabricante es propietario; se rechazan con la receta para convertirlas a COG.
 - **Más idiomas de la interfaz por ahora.** Español e inglés están hechos; el francés es solo una puerta abierta (`.claude/rules/i18n.md`), y los idiomas de derecha a izquierda no se contemplan.
 - **Arrastre nativo de HTML5 en el árbol.** Un arrastre empezado sin querer congelaba la aplicación 30 segundos; el arrastre es propio (`.claude/rules/tree-navigation-selection.md`).
+- **A dedicated pass to translate the existing Spanish comments, rules and documents into English.** Decided on 2026-11-09: everything NEW that other collaborators may read is written in English (principle 3 of `.claude/rules/00-principles.md`), and a comment or paragraph is rewritten in English whenever a change modifies it, but there is no bulk translation. About 3,300 comment lines are in Spanish (a lower bound: it only counts lines starting with `/*`, `*`, `//` or `<!--`), plus the rule files and `tests/README.md`; translating them all at once would be a huge diff with no behavioural effect and would bury the history under noise.

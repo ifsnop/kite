@@ -140,8 +140,13 @@ async function selectFolderLayers(li) {
    nodos, y con la tecla repetida el panel se atasca. Se navega en local:
    el siguiente y el anterior se encuentran mirando hermanos, hijos y
    madre, o sea O(profundidad), no O(nodos).                           */
-const isRow = li => li && li.tagName === "LI" && li._name !== undefined;
-const isOpen = li => nodeUl(li) && !li.classList.contains("collapsed");
+/* Una fila que el filtro del panel oculta (`li.hidden`, 45-tree-filter.js)
+   NO es una fila: el teclado, los rangos con Mayús, Ctrl+A, Inicio y Fin la
+   saltan sin más cambios, porque todos pasan por aquí. Y una carpeta que se
+   ve abierta solo por el filtro (`filter-open`, sin tocar `collapsed`, que
+   es lo que se guarda) cuenta como abierta.                              */
+const isRow = li => li && li.tagName === "LI" && li._name !== undefined && !li.hidden;
+const isOpen = li => nodeUl(li) && (!li.classList.contains("collapsed") || li.classList.contains("filter-open"));
 const childRows = ul => (ul ? [...ul.children].filter(isRow) : []);
 
 function nextSiblingRow(li) {
@@ -267,14 +272,20 @@ function extendBounds(bounds, l) {
   else if (l.getLatLng) bounds.extend(l.getLatLng());
 }
 /* Recorre registros pendientes (li._pending) SIN materializar nada: sus
-   capas Leaflet ya existen (construidas al importar/restaurar,
-   independientemente del panel), así que sus límites se leen
-   directamente de rec._layer. Forzar la materialización de una carpeta
-   entera solo para enfocarla sería mucho más caro que esto.           */
+   capas Leaflet existen ya (construidas al importar/restaurar,
+   independientemente del panel) y sus límites se leen directamente de
+   rec._layer; las que son PEREZOSAS (apagadas, sin marcadores: ver
+   defineLazyLayer) no existen aún y se encuadran por su GeoJSON. Forzar
+   la materialización de una carpeta entera solo para enfocarla sería
+   mucho más caro que esto.                                            */
 function extendBoundsFromRecords(bounds, records) {
   for (const rec of records) {
     if (rec.children) extendBoundsFromRecords(bounds, rec.children);
-    if (!rec.children || rec._layer) extendBounds(bounds, rec._layer); /* un servicio ArcGIS: contenedor con capa propia */
+    /* Una capa perezosa (aún sin construir) se encuadra por su GeoJSON:
+       pedirle `_layer` la construiría, y en una carpeta de decenas de
+       miles de capas eso es justo lo que se evita.                    */
+    if (recLayerPending(rec)) { const b = recGeoBounds(rec); if (b) bounds.extend(b); }
+    else if (!rec.children || rec._layer) extendBounds(bounds, rec._layer); /* un servicio ArcGIS: contenedor con capa propia */
   }
 }
 function subtreeBounds(li) {
@@ -296,6 +307,8 @@ function collapseDescendants(root) {
   for (const li of root.querySelectorAll("li")) {
     if (nodeUl(li)) li.classList.add("collapsed");
   }
+  /* lo que el filtro tenía abierto sin tocar `collapsed` también se cierra */
+  for (const li of root.querySelectorAll("li.filter-open")) setFilterOpen(li, false);
   if (root.tagName === "LI" && nodeUl(root)) root.classList.add("collapsed");
   syncAllExpanded();
   scheduleSave();
@@ -500,6 +513,20 @@ function focusOnNode(li) {
   const kind = styleKind(li);
   if (kind === "polygon" || kind === "measure" || kind === "elevGrid" || kind === "cog" || kind === "arcgis") fitBoundsFramed(b);
   else map.setView(b.getCenter(), FOCUS_ZOOM);
+}
+
+/* La lupa que puede tener VARIAS capas —la del diálogo de propiedades y la de
+   una fila que forma parte de una selección múltiple—: con una, exactamente
+   la del árbol (`focusOnNode`); con varias, el CONJUNTO entero encuadrado con
+   margen. Si todas caen en el mismo punto (dos marcadores
+   superpuestos) no hay caja que encuadrar: zoom de trabajo, como un marcador. */
+function focusOnNodes(items) {
+  if (items.length === 1) { focusOnNode(items[0]); return; }
+  const all = L.latLngBounds([]);
+  for (const li of items) { const b = subtreeBounds(li); if (b.isValid()) all.extend(b); }
+  if (!all.isValid()) { navMessage(tr("Estas capas no tienen geometr\u00EDa que enfocar.")); return; }
+  if (all.getSouthWest().equals(all.getNorthEast())) map.setView(all.getCenter(), FOCUS_ZOOM);
+  else fitBoundsFramed(all);
 }
 
 /* ---------- Escalera de zoom del doble click ----------
@@ -739,7 +766,10 @@ async function cascadeVisibility(li, checked) {
         if (rec.children) { if (!(await walkRecords(rec.children))) return false; }
         /* Un contenedor con capa propia (un servicio ArcGIS) la enciende
            también: no basta con sus hijos, que no tienen capa.         */
-        if (!rec.children || rec._layer) setLayerVisible(rec._layer, checked);
+        /* Apagar una capa que aún no se ha construido no hay que hacerlo:
+           leer `_layer` la construiría solo para quitarla de un mapa al
+           que nunca llegó (ver defineLazyLayer). Encenderla sí la crea. */
+        if (!(recLayerPending(rec) && !checked) && (!rec.children || rec._layer)) setLayerVisible(rec._layer, checked);
         if (!(await yieldMaybe())) return false;
       }
       return true;

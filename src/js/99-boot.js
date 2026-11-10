@@ -34,14 +34,6 @@
      puesto y no se guardaron: lo que se abrió es lo que se recuerda.   */
   if (viewLink) scheduleViewSave();
 
-  /* El reparto de columnas de la ficha: si no se restaura, habría que
-     reajustarlo en cada arranque. Antes del árbol porque no depende de
-     él y es una lectura mínima.                                      */
-  try {
-    const frac = await dbLoadProps();
-    if (frac !== null) setPropsSplit(frac);
-  } catch { /* sin reparto guardado se usa el de por defecto */ }
-
   /* Tope de vértices editables interactivamente: depende del hardware
      de quien lo usa (ver VERTEX_EDIT_MAX_DEFAULT, 43-points-editor.js),
      así que sin valor guardado se queda con ese valor de partida.     */
@@ -73,6 +65,14 @@
     const f = await dbLoadFresnelFreq();
     if (f !== null) fresnelFreqMHz = f;
   } catch { /* frecuencia de Fresnel por defecto (1090 MHz) */ }
+  try {
+    const mb = await dbLoadKmzMax();
+    if (mb !== null) kmzMaxUncompressedMB = mb;
+  } catch { /* tope de KMZ descomprimido por defecto (500 MB) */ }
+  try {
+    const step = await dbLoadElevFont();
+    if (step !== null) elevFontStep = step;
+  } catch { /* tamaño de las cifras por defecto */ }
   try {
     const fmt = await dbLoadCoordFormat();
     if (fmt !== null) coordFormat = fmt;
@@ -140,6 +140,8 @@
   let nodes = null, treeRead = false;
   try { nodes = await dbLoadTree(); treeRead = true; } catch { nodes = null; }
   if (nodes && nodes.length) await restoreTree(nodes);
+  /* Wikipedia markers saved earlier still need their CC BY-SA credit (67-wikipedia.js) */
+  if (nodes && wikipediaInRecords(nodes)) ensureWikipediaAttribution();
   /* Ortofotos COG que ya no nombra nadie (borradas en otra sesión): solo
      si el árbol se leyó de verdad; con un fallo de lectura, borrar
      sería tirar las de un árbol que sigue ahí.                       */
