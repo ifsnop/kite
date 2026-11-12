@@ -396,10 +396,17 @@ function makeActions(li, sortable, styleable, layer, focusable = styleable, { fi
     });
   }
   if (styleable) btn("\uD83C\uDFA8", tr("Editar propiedades"), "", () => openStyleDialog(li));
-  /* Un marcador siempre lleva el botón, oculto mientras no tenga ficha:
-     con la iluminación real activa la gana (horas del sol), y
-     refreshInfoButtons lo muestra/oculta sin reconstruir la fila.      */
-  if (li._desc || li._hasInfo || layerProperties(layer) || layerKind(layer) === "marker") {
+  /* A marker, a shape or a measurement always has a card, its basic one at
+     least (basicInfoProps, 41-selection.js): decided here from `styleable` and
+     the layer's geometry because styleKind cannot be asked yet (li._measure
+     and friends are set after makeNode, and styleKind caches its answer).
+     Elevation grids are not styleable; image overlays and COGs are neither
+     markers nor paths. Any other marker still gets the button, hidden while
+     it has no card (with the real lighting on it gets the sun times, and
+     refreshInfoButtons shows or hides it without rebuilding the row). */
+  const lk = layerKind(layer);
+  li._basicInfo = styleable && (lk === "marker" || lk === "polygon");
+  if (li._desc || li._hasInfo || li._basicInfo || layerProperties(layer) || lk === "marker") {
     btn("\u2139", tr("Ver informaci\u00F3n de la capa"), "info-btn", () => showLayerInfo(li));
     box.lastChild.hidden = !hasInfo(li, layer);
   }

@@ -249,20 +249,71 @@ function baseInfoHtml(li) {
   return props ? propertiesTableHtml(props) : null;
 }
 
+/* Basic card of a layer with geometry and nothing of its own to show (a pin,
+   a drawn shape, a measurement): its name, its kind and where it is or what it
+   measures, in the units and coordinate format of Properties. Reported as a
+   bug: with a polygon that had attributes and three pins inside it, «Ir al
+   nodo» and «Editar propiedades» listed all four layers and «Mostrar
+   atributos» only the polygon, because the pins had no description and no
+   properties. Hovering still opens only a layer's OWN card (showLayerInfo
+   asks baseInfoHtml), or crossing any pin would open a window. Built when
+   shown: a static reading, like the distance of a Wikipedia card. */
+const BASIC_CARD_KINDS = new Set(["marker", "polygon", "measure"]);
+function basicInfoProps(li) {
+  if (!li._basicInfo || !BASIC_CARD_KINDS.has(styleKind(li))) return null;
+  const kind = styleKind(li);
+  const props = { [tr("Nombre")]: li._name };
+  if (kind === "measure") {
+    const v = measurementValues(li._measure);
+    props[tr("Tipo")] = v.route ? tr("Ruta") : tr("Círculo");
+    if (v.route) {
+      props[tr("Distancia total")] = fmtUnitDist(v.dist, measureUnit);
+      props[tr("Tramos")] = String(v.legs ? v.legs.length : 0);
+    } else {
+      props[tr("Radio")] = fmtUnitDist(v.dist, measureUnit);
+      props[tr("Latitud")] = formatCoord(v.center.lat, true, coordFormat);
+      props[tr("Longitud")] = formatCoord(v.center.lng, false, coordFormat);
+      props[tr("Área")] = fmtUnitArea(v.area, measureUnit);
+    }
+    return props;
+  }
+  if (kind === "marker") {
+    const m = soleMarker(li);
+    if (!m) return props; /* several markers in one layer: no single position to give */
+    const ll = m.getLatLng();
+    props[tr("Tipo")] = tr("Marcador");
+    props[tr("Latitud")] = formatCoord(ll.lat, true, coordFormat);
+    props[tr("Longitud")] = formatCoord(ll.lng, false, coordFormat);
+    if (Number.isFinite(ll.alt)) props[tr("Altitud")] = fmtHeight(ll.alt, altitudeUnit);
+    return props;
+  }
+  const pm = polygonMeasures(li);
+  if (!pm) return props;
+  props[tr("Tipo")] = pm.open ? tr("Línea") : tr("Polígono");
+  props[pm.open ? trc("de una línea", "Longitud") : tr("Perímetro")] = fmtUnitDist(pm.perim, measureUnit);
+  if (pm.area != null) props[tr("Área")] = fmtUnitArea(pm.area, measureUnit);
+  return props;
+}
+function basicInfoHtml(li) {
+  const props = basicInfoProps(li);
+  return props ? propertiesTableHtml(props) : null;
+}
+
 /* HTML a mostrar en el panel de información de la capa: su ficha propia
-   más, con la iluminación real activa y un único marcador, las horas
-   del sol y crepúsculos (sunInfoHtmlFor, 61-daynight.js). null = nada
-   que mostrar.                                                       */
+   (or, without one, its basic card) más, con la iluminación real activa y
+   un único marcador, las horas del sol y crepúsculos (sunInfoHtmlFor,
+   61-daynight.js). null = nada que mostrar.                          */
 function infoHtmlFor(li) {
-  const base = baseInfoHtml(li);
+  const base = baseInfoHtml(li) ?? basicInfoHtml(li);
   const sun = sunInfoHtmlFor(li);
   return base == null && !sun ? null : (base || "") + sun;
 }
 
 /* ¿Tiene ficha? Versión barata de `infoHtmlFor(li) != null`, sin
-   construir el HTML: decide si se ve el botón ℹ de la fila.          */
+   construir el HTML: decide si se ve el botón ℹ de la fila. `_basicInfo`
+   is decided by makeActions (a layer that can have a basic card). */
 function hasInfo(li, layer = nodeLayer(li)) {
-  return !!(li._desc || li._hasInfo || layerProperties(layer) || (dayNightOn && soleMarkerOfLayer(layer)));
+  return !!(li._desc || li._hasInfo || li._basicInfo || layerProperties(layer) || (dayNightOn && soleMarkerOfLayer(layer)));
 }
 
 /* Al activar/desactivar la iluminación cambia qué marcadores tienen

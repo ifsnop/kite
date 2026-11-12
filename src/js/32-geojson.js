@@ -593,34 +593,227 @@ function sanitizeHtml(html) {
 let layerInfoDismissed = false;
 
 /* Deferred close on mouseout: if no mouseover on some layer cancels it
-   within LAYER_INFO_HIDE_DELAY, the hover-opened panel closes. Without
-   this there was no path at all for "the mouse is no longer over
-   anything" — only explicit closes existed (Cerrar, Escape, opening the
-   style dialog, entering polygon mode), so the panel could stay open
-   indefinitely once the mouse left every layer. The short delay avoids
-   a flicker when crossing the gap between two neighbouring layers:
-   moving between layers must only update the content, never close the
-   panel in between (see showLayerInfo below). Skipped while the panel
-   holds keyboard focus (an explicit open via the ℹ button or the
-   context menu): that close stays the user's call, same as today.    */
+   within LAYER_INFO_HIDE_DELAY, the hover-opened card stops showing the
+   layer it showed. The short delay avoids a flicker when crossing the gap
+   between two neighbouring layers. What happens then depends on the stack
+   of recent cards (below): the layer the pointer rested on joins it and the
+   card shrinks to that stack ("compact"); with nothing in the stack it
+   closes, as it always did. Skipped while the card holds keyboard focus (an
+   explicit open via the ℹ button or the context menu): that close stays the
+   user's call.                                                           */
 const LAYER_INFO_HIDE_DELAY = 200; /* ms */
 let layerInfoHideTimer = null;
+let infoHideHeld = false; /* the deferred close waits for a text selection in the card to go (44-dialogs.js) */
 function cancelLayerInfoHide() {
   if (layerInfoHideTimer) { clearTimeout(layerInfoHideTimer); layerInfoHideTimer = null; }
 }
 function scheduleLayerInfoHide() {
-  if (descDialog.hidden || descBox.contains(document.activeElement)) return;
+  cancelHoverIntent(); /* the pointer left a layer before its intent fired: it never shows */
+  if (liveInfo && liveInfo.leftAt == null) liveInfo.leftAt = Date.now();
+  /* With the focus in the card, closing it stays the user's call, but only
+     while it shows the layer opened on purpose (ℹ, «Mostrar atributos»): once
+     the pointer brought another layer, it is a hover card again. Before, the
+     last layer hovered after an explicit open stayed on screen for ever (the
+     focus never left the card), while its tabs expired around it. */
+  if (descDialog.hidden || (descBox.contains(document.activeElement) && liveInfo && liveInfo.explicit)) return;
   cancelLayerInfoHide();
   layerInfoHideTimer = setTimeout(() => {
     layerInfoHideTimer = null;
-    /* The pointer is on the panel itself: it always opens in the same corner, so
+    /* The pointer is on the card itself: it always opens in the same corner, so
        it can land right over the layer being hovered (a «W» near the top-right
-       edge) or the user may be heading for the link inside it. Closing it now
-       would put the layer back under the pointer, reopen it and blink for ever.
-       It closes when the pointer leaves it (`mouseleave`, 44-dialogs.js). */
+       edge), the user may be heading for the link inside it, or for a row of
+       its stack. Closing it now would put the layer back under the pointer,
+       reopen it and blink for ever. It acts when the pointer leaves it
+       (`mouseleave`, 44-dialogs.js). */
     if (descBox.matches(":hover")) return;
-    hideLayerInfo();
+    /* Text selected in the card (to copy it): it must not change under the
+       selection. It acts once the selection goes (selectionchange, 44). */
+    if (infoSelectionInCard()) { infoHideHeld = true; return; }
+    collapseLayerInfo();
   }, LAYER_INFO_HIDE_DELAY);
+}
+
+/* ---------- Hover intent ----------
+   Sweeping the mouse across many markers used to rewrite the card on every
+   one of them, so none could be read. With the card already showing a layer,
+   another layer takes it over only once the pointer has RESTED on it for
+   LAYER_INFO_HOVER_INTENT_MS; just crossing it changes nothing. A closed or
+   compact card still opens at once on the first layer.                    */
+const LAYER_INFO_HOVER_INTENT_MS = 250; /* ms */
+let hoverIntent = null; /* { li, timer } */
+function cancelHoverIntent() {
+  if (hoverIntent) { clearTimeout(hoverIntent.timer); hoverIntent = null; }
+}
+
+/* ---------- Stack of recent cards ----------
+   Every layer the pointer rested on (INFO_STACK_DWELL_MS, counted from when it
+   entered the layer) or that was opened on purpose (ℹ, «Mostrar atributos»)
+   leaves a one-line row in the card when another layer takes over or the
+   pointer leaves them all. The rows are tabs under the title (44-dialogs.js):
+   hovering one shows its card in the body and outlines its layer on the map;
+   the pin keeps it, the F key pins the layer under the pointer.
+   Rules decided with the user:
+   - Rows never move: a new one goes on top, revisiting a layer leaves its row
+     where it is (it only renews its lease).
+   - At most INFO_STACK_MAX unpinned rows, first in first out: the one that
+     entered the queue earliest goes (`q`). Pinned rows do not count (their own
+     cap, INFO_STACK_MAX_PINNED); unpinning one puts it back in the queue as
+     its newest entry, with a fresh lease, and it expires like any other.
+   - Unpinned rows expire INFO_STACK_TTL_MS after their last use (dimmed for
+     the last INFO_STACK_WARN_MS).
+   - While the pointer is on the card NOTHING leaves: every row's clock stops
+     (dimming included) and goes on from where it was when the pointer leaves,
+     so leaving never makes several rows vanish at once; the queue cap is not
+     applied meanwhile either (a row unpinned while there waits).
+   Session state only: rows point at live tree rows, which undo and reload
+   rebuild. Rendering lives in 44-dialogs.js (renderInfoStack).            */
+const INFO_STACK_DWELL_MS = 400;
+const INFO_STACK_TTL_MS = 30000;
+const INFO_STACK_WARN_MS = 5000;
+const INFO_STACK_MAX = 6;
+const INFO_STACK_MAX_PINNED = 6;
+let infoStack = [];      /* [{ li, pinned, t: last use, q: order of entry in the queue }], newest first, never reordered */
+let infoQueueSeq = 0;    /* q comes from a counter, not the clock: two rows can enter within the same millisecond */
+let liveInfo = null;     /* { li, enteredAt, leftAt, explicit }: the layer under the pointer or opened on purpose */
+let infoPeek = null;     /* the recent card whose tab is being looked at (pointer or focus on it) */
+let infoStackTimer = null;
+let infoStackPaused = false;
+let infoPausedAt = 0;    /* when the clocks stopped (pointer on the card) */
+/* The stack's clock: frozen while the pointer is on the card */
+const infoStackClock = () => infoStackPaused ? infoPausedAt : Date.now();
+
+/* `rows` with `li` added on top, or, if already there, left in place with a
+   renewed lease. Unchanged (same array) when `li` should enter pinned and the
+   pinned cap is full. Trims the queue unless `paused`. Pure, tested in
+   tests/toolstest.js. */
+function infoStackWith(rows, li, now, { pinned = false, max = INFO_STACK_MAX, maxPinned = INFO_STACK_MAX_PINNED, paused = false, q = now } = {}) {
+  if (rows.some(r => r.li === li)) return rows.map(r => r.li === li ? { ...r, t: now } : r);
+  if (pinned && rows.filter(r => r.pinned).length >= maxPinned) return rows;
+  const next = [{ li, pinned, t: now, q }, ...rows];
+  return paused ? next : infoStackTrim(next, max);
+}
+/* First in, first out over the unpinned rows: drops the ones that entered the
+   queue earliest until `max` are left. Pure. */
+function infoStackTrim(rows, max = INFO_STACK_MAX) {
+  const queue = rows.filter(r => !r.pinned);
+  if (queue.length <= max) return rows;
+  const out = new Set([...queue].sort((a, b) => a.q - b.q).slice(0, queue.length - max));
+  return rows.filter(r => !out.has(r));
+}
+/* Pin or unpin the row of `li` in place. Unpinning puts it back in the queue as
+   its newest entry (q, t = now). Same array back when pinning would pass the
+   pinned cap. Pure. */
+function infoStackPinned(rows, li, pinned, now, { max = INFO_STACK_MAX, maxPinned = INFO_STACK_MAX_PINNED, paused = false, q = now } = {}) {
+  const row = rows.find(r => r.li === li);
+  if (!row) return infoStackWith(rows, li, now, { pinned, max, maxPinned, paused, q });
+  if (row.pinned === pinned) return rows;
+  if (pinned && rows.filter(r => r.pinned).length >= maxPinned) return rows;
+  const next = rows.map(r => r === row ? (pinned ? { ...r, pinned } : { ...r, pinned, t: now, q }) : r);
+  return paused ? next : infoStackTrim(next, max);
+}
+/* The rows still worth showing: unpinned ones expire (not while `paused`), and
+   a layer that left the tree (deleted, or rebuilt by undo) goes. Pure. */
+function infoStackAlive(rows, now, ttl = INFO_STACK_TTL_MS, paused = false) {
+  return rows.filter(r => r.li.isConnected !== false && (r.pinned || paused || now - r.t < ttl));
+}
+/* The clocks go on after a pause of `pausedFor` ms: every unpinned row keeps
+   the time it had left. Pure. */
+function infoStackResumed(rows, pausedFor) {
+  return rows.map(r => r.pinned ? r : { ...r, t: r.t + pausedFor });
+}
+function infoStackExpiring(row, now, ttl = INFO_STACK_TTL_MS, warn = INFO_STACK_WARN_MS) {
+  return !row.pinned && now >= row.t + ttl - warn;
+}
+/* When the next row starts dimming or expires (Infinity: nothing pending). Pure. */
+function infoStackNextEvent(rows, now, ttl = INFO_STACK_TTL_MS, warn = INFO_STACK_WARN_MS) {
+  let next = Infinity;
+  for (const r of rows) {
+    if (r.pinned) continue;
+    for (const at of [r.t + ttl - warn, r.t + ttl]) if (at > now && at < next) next = at;
+  }
+  return next;
+}
+
+/* One timer for the whole stack, armed for its next event only. */
+function scheduleInfoStackTick() {
+  clearTimeout(infoStackTimer);
+  infoStackTimer = null;
+  if (infoStackPaused) return;
+  const now = Date.now();
+  const next = infoStackNextEvent(infoStack, now);
+  if (next !== Infinity) infoStackTimer = setTimeout(refreshInfoStack, next - now + 20);
+}
+/* While the pointer is on the card the user is reading the rows: their clocks
+   stop. Leaving restarts them where they were and applies the queue cap that
+   waited (a row unpinned meanwhile may have passed it). */
+function pauseInfoStack(paused) {
+  if (paused === infoStackPaused) return;
+  if (paused) {
+    infoPausedAt = Date.now();
+    infoStackPaused = true;
+    scheduleInfoStackTick(); /* clears the timer */
+    return;
+  }
+  infoStack = infoStackTrim(infoStackResumed(infoStack, Date.now() - infoPausedAt));
+  infoStackPaused = false;
+  if (infoStack.length || liveInfo) refreshInfoStack();
+  else scheduleInfoStackTick();
+}
+/* Drops what expired or left the tree and repaints; a card left with nothing
+   to show closes. Also called from scheduleSave, so a deleted or renamed
+   layer is reflected at once (a handful of rows to look at). */
+function refreshInfoStack() {
+  if (!infoStack.length && !liveInfo) return;
+  infoStack = infoStackAlive(infoStack, infoStackClock(), INFO_STACK_TTL_MS, infoStackPaused);
+  if (liveInfo && liveInfo.li.isConnected === false) liveInfo = null;
+  if (infoPeek && !infoStack.some(r => r.li === infoPeek)) { infoPeek = null; setInfoHalo(null); }
+  if (!descDialog.hidden) {
+    const shown = infoPeek || (liveInfo && liveInfo.li);
+    if (!shown && !infoStack.length) hideLayerInfo();
+    else paintLayerInfo(shown || null);
+  }
+  scheduleInfoStackTick();
+}
+
+/* The card stops showing the layer under the pointer: it joins the stack if
+   the pointer rested on it or it was opened on purpose; already there, its
+   row stays where it is with a renewed lease. */
+function retireLiveInfo() {
+  const live = liveInfo;
+  liveInfo = null;
+  if (!live || !infoStackActive()) return;
+  const now = Date.now();
+  const dwell = (live.leftAt ?? now) - live.enteredAt;
+  if (live.explicit || dwell >= INFO_STACK_DWELL_MS || infoStack.some(r => r.li === live.li)) {
+    infoStack = infoStackWith(infoStack, live.li, infoStackClock(), { paused: infoStackPaused, q: ++infoQueueSeq });
+    scheduleInfoStackTick();
+  }
+}
+/* The pointer left every layer and the card: shrink to the stack, or close. */
+function collapseLayerInfo() {
+  retireLiveInfo();
+  /* a tab chosen with a click stays on screen; otherwise the card shrinks */
+  if (infoStack.length && infoStackActive()) paintLayerInfo(infoPeek || null);
+  else hideLayerInfo();
+}
+function toggleInfoPin(li) {
+  if (!li || !infoStackActive()) return;
+  const row = infoStack.find(r => r.li === li);
+  const next = infoStackPinned(infoStack, li, !(row && row.pinned), infoStackClock(), { paused: infoStackPaused, q: ++infoQueueSeq });
+  if (next === infoStack) {
+    navMessage(tr("Ya hay {n} fichas fijadas: suelte alguna para fijar otra.", { n: INFO_STACK_MAX_PINNED }));
+    return;
+  }
+  infoStack = next;
+  scheduleInfoStackTick();
+  if (!descDialog.hidden) renderInfoStack();
+}
+/* F with the map focused: pins (or unpins) the layer under the pointer.
+   False when there is none, so the key does nothing else. */
+function pinLiveLayerInfo() {
+  if (descDialog.hidden || !liveInfo) return false;
+  toggleInfoPin(liveInfo.li);
+  return true;
 }
 
 /* One-shot guard set when LEAVING a drawing tool (see setTool): the
@@ -646,13 +839,58 @@ let suppressNextHover = false;
    (showLayerInfo always pushes one entry). Focus is restored only if it
    was in the panel or already lost to <body>: a hover-opened panel that
    times out must not pull focus away from wherever the user is now.   */
-function hideLayerInfo({ dismiss = false } = {}) {
+/* `clear` (by default, a close the user asked for) also empties the stack of
+   recent cards, except the pinned ones; a close that only gets the card out of
+   the way (opening the style dialog over it) keeps it for the next time.   */
+function hideLayerInfo({ dismiss = false, clear = dismiss } = {}) {
+  cancelHoverIntent();
   if (descDialog.hidden) return;
+  retireLiveInfo();
+  if (clear) infoStack = infoStack.filter(r => r.pinned);
+  clearInfoPeek();
   const a = document.activeElement;
   const hadFocus = !a || a === document.body || descBox.contains(a);
   descDialog.hidden = true;
   if (dismiss) layerInfoDismissed = true;
   if (hadFocus) releaseFocus(); else focusReturn.pop();
+  scheduleInfoStackTick();
+}
+/* Puts `li`'s card in the body (the live layer, or the recent card whose tab
+   is being looked at); with no layer the card shrinks to its title and its
+   tabs. The body is
+   only rewritten when the layer changes (or on `force`): rewriting it on
+   every repaint of the stack would reset its scroll under the reader.     */
+function paintLayerInfo(li, html = undefined, force = false) {
+  if (li !== descLayer || force) {
+    const h = li ? (html === undefined ? infoHtmlFor(li) : html) : null;
+    descLayer = h == null ? null : li;
+    descTitle.textContent = descLayer ? li._name : tr("Fichas recientes");
+    descTitle.title = descTitle.textContent; /* one line (it must not move the tabs): the whole name on hover */
+    descBody.innerHTML = descLayer ? h : "";
+    descBody.hidden = !descLayer;
+    descEditBtn.hidden = !descLayer || !STYLE_EDITABLE_KINDS.has(styleKind(li));
+    if (descLayer) applyPropsSplit(); /* el reparto elegido sobrevive al cambio de capa */
+  }
+  renderInfoStack();
+}
+/* The card shows `li` as the live layer (under the pointer, or opened on
+   purpose); the one it showed before goes to the stack. */
+function setLiveInfo(li, focus, enteredAt, html = infoHtmlFor(li)) {
+  if (html == null) return;
+  if (liveInfo && liveInfo.li !== li) retireLiveInfo();
+  /* A new live layer ends the choice of a tab (44-dialogs.js) */
+  if (infoPeek) { infoPeek = null; setInfoHalo(null); }
+  liveInfo = { li, enteredAt, leftAt: null, explicit: focus };
+  paintLayerInfo(li, html, true);
+  const wasHidden = descDialog.hidden;
+  descDialog.hidden = false;
+  if (wasHidden) {
+    clampToViewport(descBox);
+    if (focus) focusDialog(descBox);
+    /* Opened by hovering the viewer: closing it must land back there,
+       not wherever focus happened to be when the cursor crossed it.   */
+    else focusReturn.push(map.getContainer());
+  }
 }
 function showLayerInfo(li, { focus = true } = {}) {
   cancelLayerInfoHide(); /* a real hover cancels any pending deferred close */
@@ -663,7 +901,8 @@ function showLayerInfo(li, { focus = true } = {}) {
      drawing a polygon: the floating panel could sit exactly where the
      user needs to click to fix a vertex inside another polygon, and
      the hover would block it.                                        */
-  if (!focus && (layerInfoDismissed || !styleDialog.hidden || clickPicksPoint())) return;
+  const hoverBlocked = () => layerInfoDismissed || !styleDialog.hidden || clickPicksPoint();
+  if (!focus && hoverBlocked()) return;
   if (focus) layerInfoDismissed = false; /* explicit open: re-arms the hover */
   const html = infoHtmlFor(li);
   if (html == null) return;
@@ -671,20 +910,25 @@ function showLayerInfo(li, { focus = true } = {}) {
      sin nada más tenga las horas del sol (con la iluminación activa) no
      debe abrir una ventana cada vez que se cruza uno.                  */
   if (!focus && baseInfoHtml(li) == null) return;
-  descTitle.textContent = li._name;
-  descBody.innerHTML = html;
-  descLayer = li;
-  descEditBtn.hidden = !STYLE_EDITABLE_KINDS.has(styleKind(li));
-  applyPropsSplit(); /* el reparto elegido sobrevive al cambio de capa */
-  const wasHidden = descDialog.hidden;
-  descDialog.hidden = false;
-  if (wasHidden) {
-    clampToViewport(descBox);
-    if (focus) focusDialog(descBox);
-    /* Opened by hovering the viewer: closing it must land back there,
-       not wherever focus happened to be when the cursor crossed it.   */
-    else focusReturn.push(map.getContainer());
+  const now = Date.now();
+  if (!focus && liveInfo && !descDialog.hidden) {
+    if (liveInfo.li === li) { /* back on the layer already shown */
+      cancelHoverIntent();
+      liveInfo.leftAt = null;
+      return;
+    }
+    /* Another layer is on the card: it only takes over if the pointer stays */
+    if (hoverIntent && hoverIntent.li === li) return;
+    cancelHoverIntent();
+    hoverIntent = { li, timer: setTimeout(() => {
+      hoverIntent = null;
+      if (descDialog.hidden || hoverBlocked()) return;
+      setLiveInfo(li, false, now);
+    }, LAYER_INFO_HOVER_INTENT_MS) };
+    return;
   }
+  cancelHoverIntent();
+  setLiveInfo(li, focus, now, html);
 }
 
 /* ================= Deshacer =================
@@ -1752,6 +1996,7 @@ function scheduleSave() {
   if (dbWiped) return; /* se está borrando la base: nada que guardar */
   scheduleReorder(); /* toda mutación del árbol también puede haber cambiado el orden de pintado */
   scheduleArcgisSync(); /* y, de un servicio ArcGIS, qué capas pide al servidor (66-arcgis.js) */
+  refreshInfoStack(); /* a deleted or renamed layer leaves or renames its row in the info card's stack */
   clearTimeout(saveTimer);
   const wait = Math.min(SAVE_MAX_MS, Math.max(SAVE_MIN_MS, saveCost * 4));
   saveTimer = setTimeout(saveTree, wait);

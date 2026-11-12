@@ -70,7 +70,7 @@ const SUITES = [
   ["openshape.js", "Formas abiertas: una línea no tiene área ni relleno"],
   ["polyarea.js",         "Perímetro y área de polígonos: anillos cerrados/sin cerrar, agujeros, multipolígono"],
   ["geocalc.js",          "Calculadora geodésica: elevación, cono, corrección por presión (ISA) y vector GPS, con su validación"],
-  ["toolstest.js",        "showLayerInfo/setTool: el panel de información no se cuela ni queda pegado al salir de una herramienta de dibujo"],
+  ["toolstest.js",        "showLayerInfo/setTool: el panel de información no se cuela ni queda pegado al salir de una herramienta de dibujo; espera del ratón y pila de fichas recientes"],
   ["rotation.js",         "Rotación del mapa: ángulo de la brújula, giro con el botón central, recorte de la retícula y arrastre limitado al mundo con el mapa girado; giro, transform y caja envolvente del código incorporado, y versión de Leaflet fijada"],
   ["placecoords.js", "Buscador de lugares: reconocer unas coordenadas escritas (decimales con punto o coma, GMS con letras de hemisferio en cualquier orden) y rechazar lo que no lo es (lugares, direcciones, latitudes imposibles, cifras sueltas)"],
   ["profileexport.js", "Exportar el perfil de ruta a CSV: una fila por distancia de cualquier serie, huecos vacíos, unidades de la gráfica, posición de cada punto, torres, línea de vista y Fresnel al 60 %, y sin notación científica"],
@@ -95,6 +95,7 @@ const BENCH = [["selbench.js", "Coste de seleccionar y de topLevelSelection"]];
 const BROWSER = [
   ["browser/app.mjs", "Navegador: la aplicación arranca y funciona, en los DOS artefactos"],
   ["browser/clipboard.mjs", "Navegador: copiar y pegar entre instancias de distinto origen, con el portapapeles real"],
+  ["browser/info-stack.mjs", "Navegador: pila de fichas recientes con el ratón real — barrer no reescribe la ficha ni llena la pila, pararse deja una pestaña por capa bajo el título, cada pestaña enseña su ficha (una a la vez) sin mover ninguna pestaña, seleccionar texto para copiarlo no cambia nada, «Mostrar atributos» apila, la cola es FIFO y no reordena, F y el pin fijan, la × deja solo las fijadas y una capa borrada sale"],
   ["browser/sun-times-info.mjs", "Navegador: horas del sol y crepúsculos en la ficha de un marcador con la iluminación real activa"],
   ["browser/geojson-name.mjs", "Navegador: nombre de GeoJSON con varias claves, selección guardada sin preguntar, cancelar y cambiarla desde Propiedades"],
   ["browser/geojson-html.mjs", "Navegador: etiquetas tipo HTML en properties de GeoJSON, de punta a punta"],

@@ -7,26 +7,7 @@ paths:
 
 ## Menú contextual del visor
 
-- `CTX_MENU_ITEMS`: lista genérica, en click derecho sin capa. **Cuatro
-  filas, sin separadores, agrupadas por tema** (pedido, 30-10-2026):
-  **«Copiar ▸»** con «Coordenadas» y «Enlace a esta vista» (`copyViewLink`, ver `view-controls-map.md`); **«Consultas ▸»** con «Elevación», «Parcela
-  catastral» y «Artículos de Wikipedia en la vista» (tres entradas distintas que se activan por separado, no una
-  combinada); **«Medir ▸»** con Ruta, Círculo y Arco; **«Crear ▸»** con
-  «Polígono o línea», «Anillos de alcance…», «Sector…» y «Pin» (el MISMO orden que los botones de la barra de dibujo). **Fuera, a propósito**: los tres «Centrar…»,
-  «Paralelos y meridianos» y «Exportar PNG», que ya tienen su botón en la
-  barra del visor (⤢, IB, GC, #, 📷) — un menú que repite los botones solo
-  estorba. Un grupo nuevo de entradas del mismo tema es otro submenú, no
-  filas sueltas. Ya no hay entradas con `checked()` (interruptor): se quitó
-  su soporte de `renderCtxItems`; si hace falta otra vez, se reañade con su
-  prueba. Sobre una capa se anteponen «Ir al nodo en el
-  panel» (`highlightNode`), «Mostrar atributos» si hay algo que
-  enseñar (`showLayerInfo`, solo lectura) y «Editar propiedades» si el
-  tipo admite diálogo de estilos (`STYLE_EDITABLE_KINDS`, mismo criterio
-  que `openStyleDialog`; incluye `cog`, aunque una ortofoto COG —como una
-  de KMZ— no se acierta con el clic derecho: `subHitTest` no sabe de
-  rásteres, se edita desde su fila). Nombrado distinto de «Mostrar atributos» a
-  propósito (dos ítems iguales confundirían), aunque el resto de la app
-  llame «propiedades» a ambos indistintamente.
+- `CTX_MENU_ITEMS`: the generic list, on a right click with no layer. **Four rows, no separators, grouped by theme** (requested, 30-10-2026): **«Copiar ▸»** with «Coordenadas» and «Enlace a esta vista» (`copyViewLink`, see `view-controls-map.md`); **«Consultas ▸»** with «Elevación», «Parcela catastral» and «Artículos de Wikipedia en la vista» (three separate entries, not a combined one); **«Medir ▸»** with Ruta, Círculo and Arco; **«Crear ▸»** with «Polígono o línea», «Anillos de alcance…», «Sector…» and «Pin» (the SAME order as the buttons of the drawing bar). **Left out on purpose**: the three «Centrar…», «Paralelos y meridianos» and «Exportar PNG», which already have their button in the viewer bar (⤢, IB, GC, #, 📷) — a menu that repeats the buttons only gets in the way. A new group of entries on one theme is another submenu, not loose rows. There are no `checked()` (toggle) entries any more: their support was removed from `renderCtxItems`; if needed again, it comes back with its test. Over a layer the menu puts first «Ir al nodo en el panel» (`highlightNode`), «Mostrar atributos» (`showLayerInfo`, read only; every marker, shape and measurement has a card, its basic one at least, so with overlapping layers its submenu lists the same layers as the other two: see `style-dialogs-ui.md`, «Basic card») and «Editar propiedades» if the kind admits the style dialog (`STYLE_EDITABLE_KINDS`, the same criterion as `openStyleDialog`; it includes `cog`, although a COG orthophoto —like a KMZ one— is not hit by a right click: `subHitTest` knows nothing of rasters, it is edited from its row). Named differently from «Mostrar atributos» on purpose (two identical items would confuse), although the rest of the app calls both «propiedades» indiscriminately.
 - **`disabled()` opcional en un ítem**: devuelve el MOTIVO (texto, va al `title`) o algo falso. El ítem se pinta deshabilitado, no se esconde. Hoy lo usan «Consultas › Elevación» (`elevQueryDisabled`: mapa rotado, o las dos fuentes de elevación en «Ninguna») y «Obtener perfil» (`routeProfileDisabled`).
 - **«Consultas › Elevación»** (`queryElevationAt(latlng)`) sustituye al antiguo interruptor «Modo elevación» y al botón ⛰: una consulta puntual de la tesela bajo el puntero, una capa por consulta. Ver `elevation-dem.md`.
 - **«Consultas › Parcela catastral»** (`queryCadastralParcelAt(latlng)`, `65-cadastre.js`), junto a «Elevación» en el submenú «Consultas» de `CTX_MENU_ITEMS`: trae el polígono de la parcela bajo el puntero como capa del árbol. Sin `disabled()`: no depende del giro del mapa. Ver `cadastre.md`.

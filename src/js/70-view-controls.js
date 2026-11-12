@@ -279,6 +279,12 @@ map.getContainer().addEventListener("keydown", e => {
   e.preventDefault();
   resetNorth();
 });
+/* F with the map focused and the pointer over a layer: pins its card in the
+   stack of recent cards (32-geojson.js). Same listener pattern as R. */
+map.getContainer().addEventListener("keydown", e => {
+  if ((e.key !== "f" && e.key !== "F") || e.ctrlKey || e.metaKey || e.altKey) return;
+  if (pinLiveLayerInfo()) e.preventDefault();
+});
 
 /* ---------- Girar con el botón central del ratón ----------
    Mantener pulsado el botón central (la rueda) y arrastrar gira el mapa

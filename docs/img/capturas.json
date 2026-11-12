@@ -158,11 +158,17 @@
       "version": "2.5.0",
       "build": "202611092327"
     },
-    "ficha-propiedades.png": {
-      "sha256": "140f89bf75bff094d2aedb9ebcf58e066ad2def3bcd5129fad2c0748f915b8c9",
+    "ficha-pila.png": {
+      "sha256": "219d06f61a8c8fb338802985ed35b4352e8e1af0bb037b8836ffe0a8b9c8afe8",
       "section": "6.5",
       "version": "2.5.0",
-      "build": "202611092327"
+      "build": "202611092342"
+    },
+    "ficha-propiedades.png": {
+      "sha256": "351bbf39b38dc4adc60221b6725b5ae8e66499e662773cf05e99578131ac2341",
+      "section": "6.5",
+      "version": "2.5.0",
+      "build": "202611092342"
     },
     "fila-seleccionada.png": {
       "sha256": "b01ecd1a317c5905c4cedc9b71441942f18a82d1e81cb5e305ee14946bd13093",

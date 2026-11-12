@@ -129,10 +129,10 @@
      100 ms. Solo transform y filter (van en el compositor). Lo comparten
      los controles que son botones; ver motion.md.                       */
   .btn, .dlg-close, #nav-toggle, .base-toggle, .color-btn, .ctx-menu-item,
-  .leaflet-bar a { transition: transform .1s ease-out, filter .1s ease-out; }
+  .leaflet-bar a, .dlg-pin, .info-tab-btn { transition: transform .1s ease-out, filter .1s ease-out; }
   .btn:not(:disabled):active, .dlg-close:active, #nav-toggle:active, .base-toggle:active,
   .color-btn:not(:disabled):active, .ctx-menu-item:not(:disabled):active,
-  .leaflet-bar a:not(.leaflet-disabled):active {
+  .leaflet-bar a:not(.leaflet-disabled):active, .dlg-pin:active, .info-tab-btn:active {
     transform: scale(.97);
     filter: brightness(.94);
     transition-duration: 0s;
@@ -1443,6 +1443,64 @@
     display: flex; flex-direction: column;
     width: min(92vw, 34rem);
   }
+  /* ---------- Stack of recent cards (32-geojson.js, 44-dialogs.js) ----------
+     One line of tabs between the title and the card, scrolling sideways when
+     they do not fit; one card at a time in the body below. The title stays on
+     one line: if a long name wrapped when switching cards, the tabs would move
+     under the pointer. Compact (no layer shown: the pointer left them all) the
+     card is just its title and the tabs; no footer then, its only button
+     would be «Cerrar», which the × already is (dialog-close-button.md).    */
+  #desc-title { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; overflow-wrap: normal; }
+  .desc-stack {
+    flex: none;
+    margin: 0 -16px 8px;
+    padding: 0 12px;
+    overflow-x: auto; overflow-y: hidden;
+    scrollbar-width: thin;
+    border-bottom: 1px solid var(--border);
+  }
+  .desc-stack[hidden] { display: none; }
+  /* Screen readers only (the count): the tabs say what they are */
+  .desc-stack-label {
+    position: absolute; width: 1px; height: 1px; overflow: hidden;
+    clip-path: inset(50%); white-space: nowrap;
+  }
+  .desc-stack-list { list-style: none; margin: 0; padding: 0; display: flex; gap: 2px; width: max-content; }
+  .info-tab { flex: none; animation: enter-row .12s ease-out; }
+  .info-tab.expiring { opacity: .55; } /* about to expire: kept with reduced motion, it is not movement */
+  .info-tab-btn {
+    display: flex; align-items: center; gap: 6px;
+    height: 28px; padding: 0 10px;
+    border: 0; border-bottom: 2px solid transparent; border-radius: 6px 6px 0 0;
+    background: none; color: var(--muted-2);
+    font: inherit; font-size: 12.5px; text-align: left; cursor: pointer;
+  }
+  .info-tab-btn:hover { background: var(--bg); color: var(--text); }
+  .info-tab.selected .info-tab-btn { color: var(--text); font-weight: 600; border-bottom-color: var(--accent); background: var(--accent-soft); }
+  .info-tab-swatch { flex: none; width: 9px; height: 9px; border-radius: 50%; }
+  .info-tab-swatch[hidden] { display: none; }
+  /* Room for a name like «MLAT LEPA RX 30» in bold (~122 px with system-ui at
+     12.5 px, measured; 12.5em leaves margin for wider fonts); longer ones end
+     in an ellipsis, the whole name on hover */
+  .info-tab-name { max-width: 12.5em; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .info-tab-pin { flex: none; display: inline-flex; color: var(--accent); }
+  .info-tab-pin[hidden] { display: none; }
+  .dlg-pin {
+    flex: none;
+    width: 26px; height: 26px; padding: 0; margin: -3px 0 0 6px;
+    display: inline-flex; align-items: center; justify-content: center;
+    border: 0; border-radius: 5px; background: none;
+    color: var(--muted); cursor: pointer;
+  }
+  .dlg-pin[hidden] { display: none; }
+  .dlg-pin:hover { background: var(--border); color: var(--text); }
+  .dlg-pin[aria-pressed="true"] { color: var(--accent); }
+  .dlg-pin[aria-pressed="true"] .pin-head { fill: currentColor; }
+  .info-tab-btn:focus-visible, .dlg-pin:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+  #desc-dialog .dlg-box.info-compact { padding-bottom: 10px; }
+  .info-compact .dlg-actions { display: none; }
+  .info-compact .desc-stack { margin-bottom: 0; border-bottom: 0; }
+  @keyframes enter-row { from { opacity: 0; transform: translateY(-3px); } }
   .desc-body {
     flex: 1 1 auto; min-height: 0;
     overflow: auto;
@@ -1826,10 +1884,13 @@
     .ctx-menu { animation: none; }
     .color-popover { animation: none; }
     .dlg-overlay { animation: none; }
-    .btn, .dlg-close, #nav-toggle, .base-toggle, .color-btn, .ctx-menu-item, .leaflet-bar a { transition: none; }
+    .info-tab { animation: none; }
+    .btn, .dlg-close, #nav-toggle, .base-toggle, .color-btn, .ctx-menu-item, .leaflet-bar a,
+    .dlg-pin, .info-tab-btn { transition: none; }
     .btn:not(:disabled):active, .dlg-close:active, #nav-toggle:active, .base-toggle:active,
     .color-btn:not(:disabled):active, .ctx-menu-item:not(:disabled):active,
-    .leaflet-bar a:not(.leaflet-disabled):active { transform: none; }
+    .leaflet-bar a:not(.leaflet-disabled):active, .dlg-pin:active,
+    .info-tab-btn:active { transform: none; }
     html.theme-switching, html.theme-switching * { transition: none !important; }
   }
   /* Transparencia reducida: superficies opacas y sin desenfoque */
