@@ -906,8 +906,10 @@ function setupDialog(box, { modal }) {
 let focusReturn = [];
 function focusDialog(box, move = true) {
   focusReturn.push(document.activeElement);
+  /* `.dlg-skip-focus`: secondary controls placed before the main ones (the
+     info card's pin and its stack, where focus would expand a row) */
   const first = move && ([...box.querySelectorAll("button, input, select")]
-    .find(el => !el.classList.contains("dlg-close") && el.offsetParent !== null)
+    .find(el => !el.closest(".dlg-close, .dlg-skip-focus") && el.offsetParent !== null)
     || box.querySelector(".dlg-close"));
   if (first) first.focus();
 }
@@ -969,8 +971,9 @@ function makeDialogMovable(box) {
   const handle = box.querySelector("h2");
   let from = null;
   handle.addEventListener("pointerdown", e => {
-    /* the close button lives in the handle: its press is a click, not a drag */
-    if (e.button !== 0 || e.target.closest(".dlg-close")) return;
+    /* the close button (and the info card's pin) live in the handle: their
+       press is a click, not a drag */
+    if (e.button !== 0 || e.target.closest("button")) return;
     const r = box.getBoundingClientRect();
     box.style.position = "fixed";
     box.style.margin = "0";

@@ -70,7 +70,11 @@ const tabs0 = await page.evaluate(() => ({
   vacio: document.getElementById("style-attrs-empty").textContent
 }));
 ok(tabs0.estilos && !tabs0.atributos, "el diálogo abre en la pestaña Estilos: " + JSON.stringify(tabs0));
-ok(/no tiene atributos/.test(tabs0.vacio), "capa sin atributos: la pestaña lo dice: " + tabs0.vacio);
+/* A shape without attributes of its own shows its basic card there (name,
+   kind, measures: basicInfoProps), the same «Mostrar atributos» opens */
+const attrs0 = await page.evaluate(() => document.getElementById("style-attrs-body").textContent);
+ok(!/no tiene atributos/.test(tabs0.vacio) && /Parcela contextual/.test(attrs0) && /Polígono/.test(attrs0) && /Perímetro/.test(attrs0),
+  "capa sin atributos propios: la pestaña enseña su ficha básica: " + JSON.stringify({ vacio: tabs0.vacio, attrs0 }));
 await page.evaluate(() => closeStyleDialog(true));
 
 const boton = await page.evaluate(() => {
@@ -271,6 +275,53 @@ await page.waitForTimeout(200);
 const pinsDespues = await page.evaluate(() => [...document.querySelectorAll("#tree li")].filter(li => /^Marcador \d+$/.test(li._name)).length);
 ok(pinsDespues === pinsAntes + 1, `«Crear › Pin» crea un marcador: ${pinsAntes} → ${pinsDespues}`);
 await page.evaluate(() => { document.getElementById("style-cancel").click(); });
+
+/* ---------- Reported bug: a polygon with attributes and three pins inside ----------
+   «Ir al nodo» and «Editar propiedades» listed the polygon and the pin under the
+   cursor, «Mostrar atributos» only the polygon: a pin made by hand has no
+   description and no properties. Now every marker, shape and measurement has
+   a card (its basic one at least), so the three submenus list the same layers. */
+await page.evaluate(() => map.setView([40.0, -3.0], 15, { animate: false }));
+await page.evaluate(() => {
+  const gj = L.geoJSON({ type: "Feature", properties: { zona: "Norte", uso: "pasto" },
+    geometry: { type: "Polygon", coordinates: [[[-3.006, 39.996], [-2.994, 39.996], [-2.994, 40.004], [-3.006, 40.004], [-3.006, 39.996]]] } }).addTo(rootGroup);
+  ensureRootUl().appendChild(makeNode({ name: "Zona con atributos", layer: gj, style: normalizePathStyle({}) }));
+});
+for (const dx of [-0.002, 0, 0.002]) {
+  await page.evaluate(d => createPin(L.latLng(40.0, -3.0 + d)), dx);
+  await page.waitForSelector("#style-dialog:not([hidden])");
+  if (!(await page.isChecked("#mk-text-always"))) await page.click("#mk-text-always");
+  await page.click("#style-accept");
+}
+const pinPt = await page.evaluate(() => {
+  const p = map.latLngToContainerPoint(L.latLng(40.0, -3.0)), r = map.getContainer().getBoundingClientRect();
+  return { x: r.left + p.x, y: r.top + p.y - 20 }; /* inside the pin, anchored at its tip */
+});
+const pinName = await page.evaluate(() => {
+  const li = [...document.querySelectorAll("#tree li")].find(x => x._mstyle && soleMarker(x) && Math.abs(soleMarker(x).getLatLng().lng + 3.0) < 1e-9);
+  return li._name;
+});
+await page.mouse.click(pinPt.x, pinPt.y, { button: "right" });
+await page.waitForSelector("#map-ctxmenu:not([hidden])");
+const goto = (await submenu("Ir al nodo en el panel ▸")).labels;
+const show = (await submenu("Mostrar atributos ▸")).labels;
+const edit = (await submenu("Editar propiedades ▸")).labels;
+ok(goto.includes("Zona con atributos") && goto.includes(pinName), "«Ir al nodo» lists the polygon and the pin: " + JSON.stringify(goto));
+ok(JSON.stringify(show) === JSON.stringify(goto) && JSON.stringify(edit) === JSON.stringify(goto),
+  "«Mostrar atributos» and «Editar propiedades» list the same layers: " + JSON.stringify({ show, edit }));
+await submenu("Mostrar atributos ▸", pinName);
+const pinCard = await page.evaluate(() => ({ open: !document.getElementById("desc-dialog").hidden,
+  title: document.getElementById("desc-title").textContent, body: document.getElementById("desc-body").textContent }));
+ok(pinCard.open && pinCard.title === pinName && /Marcador/.test(pinCard.body) && /Latitud/.test(pinCard.body) && /40\.000000/.test(pinCard.body),
+  "the pin's card is its basic one: kind and position: " + JSON.stringify(pinCard));
+await page.evaluate(() => hideLayerInfo({ dismiss: true }));
+await page.evaluate(() => { layerInfoDismissed = false; });
+await page.mouse.move(pinPt.x + 40, pinPt.y + 60);
+await page.mouse.move(pinPt.x, pinPt.y, { steps: 4 });
+await page.waitForTimeout(400);
+const hovered = await page.evaluate(() => ({ hidden: document.getElementById("desc-dialog").hidden, title: document.getElementById("desc-title").textContent }));
+ok(hovered.hidden || hovered.title !== pinName,
+  "hovering a pin with only its basic card does not open it (hover shows a layer's own card only; the polygon under it has one): " + JSON.stringify(hovered));
 
 ok(errors.length === 0, "sin errores de página: " + JSON.stringify(errors));
 

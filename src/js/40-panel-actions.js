@@ -131,7 +131,13 @@ function wirePendingLayerEvents(rec) {
     const li = await resolveRecordLi(rec); if (li) highlightNode(li);
   };
   const onHover = async () => { const li = await resolveRecordLi(rec); if (li) showLayerInfo(li, { focus: false }); };
-  const onLeave = scheduleLayerInfoHide; /* doesn't need resolveRecordLi: only hides whatever is already open */
+  /* Doesn't need resolveRecordLi: only acts on whatever is already open. Its
+     OWN function, not scheduleLayerInfoHide itself: makeNode registers that
+     very function when the row is built, Leaflet ignores a listener that is
+     already there, and the `off` of this one in materializeRecords then took
+     the only copy away. Every layer that came out of a never-expanded folder
+     lost its mouseout, so the card never heard the pointer leave it. */
+  const onLeave = () => scheduleLayerInfoHide();
   rec._layer.on("click", onClick).on("mouseover", onHover).on("mouseout", onLeave);
   rec._pendingHandlers = { onClick, onHover, onLeave };
 }

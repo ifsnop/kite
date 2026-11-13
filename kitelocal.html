@@ -210,10 +210,10 @@
      100 ms. Solo transform y filter (van en el compositor). Lo comparten
      los controles que son botones; ver motion.md.                       */
   .btn, .dlg-close, #nav-toggle, .base-toggle, .color-btn, .ctx-menu-item,
-  .leaflet-bar a { transition: transform .1s ease-out, filter .1s ease-out; }
+  .leaflet-bar a, .dlg-pin, .info-tab-btn { transition: transform .1s ease-out, filter .1s ease-out; }
   .btn:not(:disabled):active, .dlg-close:active, #nav-toggle:active, .base-toggle:active,
   .color-btn:not(:disabled):active, .ctx-menu-item:not(:disabled):active,
-  .leaflet-bar a:not(.leaflet-disabled):active {
+  .leaflet-bar a:not(.leaflet-disabled):active, .dlg-pin:active, .info-tab-btn:active {
     transform: scale(.97);
     filter: brightness(.94);
     transition-duration: 0s;
@@ -1524,6 +1524,64 @@
     display: flex; flex-direction: column;
     width: min(92vw, 34rem);
   }
+  /* ---------- Stack of recent cards (32-geojson.js, 44-dialogs.js) ----------
+     One line of tabs between the title and the card, scrolling sideways when
+     they do not fit; one card at a time in the body below. The title stays on
+     one line: if a long name wrapped when switching cards, the tabs would move
+     under the pointer. Compact (no layer shown: the pointer left them all) the
+     card is just its title and the tabs; no footer then, its only button
+     would be «Cerrar», which the × already is (dialog-close-button.md).    */
+  #desc-title { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; overflow-wrap: normal; }
+  .desc-stack {
+    flex: none;
+    margin: 0 -16px 8px;
+    padding: 0 12px;
+    overflow-x: auto; overflow-y: hidden;
+    scrollbar-width: thin;
+    border-bottom: 1px solid var(--border);
+  }
+  .desc-stack[hidden] { display: none; }
+  /* Screen readers only (the count): the tabs say what they are */
+  .desc-stack-label {
+    position: absolute; width: 1px; height: 1px; overflow: hidden;
+    clip-path: inset(50%); white-space: nowrap;
+  }
+  .desc-stack-list { list-style: none; margin: 0; padding: 0; display: flex; gap: 2px; width: max-content; }
+  .info-tab { flex: none; animation: enter-row .12s ease-out; }
+  .info-tab.expiring { opacity: .55; } /* about to expire: kept with reduced motion, it is not movement */
+  .info-tab-btn {
+    display: flex; align-items: center; gap: 6px;
+    height: 28px; padding: 0 10px;
+    border: 0; border-bottom: 2px solid transparent; border-radius: 6px 6px 0 0;
+    background: none; color: var(--muted-2);
+    font: inherit; font-size: 12.5px; text-align: left; cursor: pointer;
+  }
+  .info-tab-btn:hover { background: var(--bg); color: var(--text); }
+  .info-tab.selected .info-tab-btn { color: var(--text); font-weight: 600; border-bottom-color: var(--accent); background: var(--accent-soft); }
+  .info-tab-swatch { flex: none; width: 9px; height: 9px; border-radius: 50%; }
+  .info-tab-swatch[hidden] { display: none; }
+  /* Room for a name like «MLAT LEPA RX 30» in bold (~122 px with system-ui at
+     12.5 px, measured; 12.5em leaves margin for wider fonts); longer ones end
+     in an ellipsis, the whole name on hover */
+  .info-tab-name { max-width: 12.5em; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .info-tab-pin { flex: none; display: inline-flex; color: var(--accent); }
+  .info-tab-pin[hidden] { display: none; }
+  .dlg-pin {
+    flex: none;
+    width: 26px; height: 26px; padding: 0; margin: -3px 0 0 6px;
+    display: inline-flex; align-items: center; justify-content: center;
+    border: 0; border-radius: 5px; background: none;
+    color: var(--muted); cursor: pointer;
+  }
+  .dlg-pin[hidden] { display: none; }
+  .dlg-pin:hover { background: var(--border); color: var(--text); }
+  .dlg-pin[aria-pressed="true"] { color: var(--accent); }
+  .dlg-pin[aria-pressed="true"] .pin-head { fill: currentColor; }
+  .info-tab-btn:focus-visible, .dlg-pin:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+  #desc-dialog .dlg-box.info-compact { padding-bottom: 10px; }
+  .info-compact .dlg-actions { display: none; }
+  .info-compact .desc-stack { margin-bottom: 0; border-bottom: 0; }
+  @keyframes enter-row { from { opacity: 0; transform: translateY(-3px); } }
   .desc-body {
     flex: 1 1 auto; min-height: 0;
     overflow: auto;
@@ -1907,10 +1965,13 @@
     .ctx-menu { animation: none; }
     .color-popover { animation: none; }
     .dlg-overlay { animation: none; }
-    .btn, .dlg-close, #nav-toggle, .base-toggle, .color-btn, .ctx-menu-item, .leaflet-bar a { transition: none; }
+    .info-tab { animation: none; }
+    .btn, .dlg-close, #nav-toggle, .base-toggle, .color-btn, .ctx-menu-item, .leaflet-bar a,
+    .dlg-pin, .info-tab-btn { transition: none; }
     .btn:not(:disabled):active, .dlg-close:active, #nav-toggle:active, .base-toggle:active,
     .color-btn:not(:disabled):active, .ctx-menu-item:not(:disabled):active,
-    .leaflet-bar a:not(.leaflet-disabled):active { transform: none; }
+    .leaflet-bar a:not(.leaflet-disabled):active, .dlg-pin:active,
+    .info-tab-btn:active { transform: none; }
     html.theme-switching, html.theme-switching * { transition: none !important; }
   }
   /* Transparencia reducida: superficies opacas y sin desenfoque */
@@ -2161,6 +2222,7 @@
         <tr><td>Rueda del rat&#243;n</td><td>Zoom continuo hacia el puntero; al parar se ajusta al nivel siguiente</td></tr>
         <tr><td>Arrastrar la br&#250;jula</td><td>Girar el mapa (el norte deja de apuntar arriba)</td></tr>
         <tr><td>R (con el mapa enfocado) o clic en la br&#250;jula</td><td>Volver a poner el norte arriba</td></tr>
+        <tr><td>F (con el mapa enfocado y el rat&#243;n sobre una capa)</td><td>Fijar su ficha en &#171;Fichas recientes&#187;; otra vez, soltarla</td></tr>
         <tr><td>Bot&#243;n central (rueda) pulsado + arrastrar a izquierda/derecha</td><td>Girar el mapa alrededor del punto pulsado</td></tr>
       </table>
       <table class="keys">
@@ -2195,8 +2257,14 @@
 <!-- Ficha original del elemento (description del KML) -->
 <div id="desc-dialog" class="dlg-float" hidden>
   <div class="dlg-box">
-    <h2 class="dlg-head"><span class="dlg-title" id="desc-title">Ficha</span><button type="button" class="dlg-close" data-cancel="desc-close" title="Cerrar" aria-label="Cerrar">&#215;</button></h2>
-    <div id="desc-body" class="desc-body"></div>
+    <h2 class="dlg-head"><span class="dlg-title" id="desc-title">Ficha</span><button type="button" class="dlg-pin dlg-skip-focus" id="desc-pin" title="Fijar la ficha (F)" aria-label="Fijar la ficha" aria-pressed="false"><svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true"><path class="pin-head" d="M6 1.75h4l-.6 4.5 2.35 2.25h-7.5L6.6 6.25z" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"/><path d="M8 8.5v5.75" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg></button><button type="button" class="dlg-close" data-cancel="desc-close" title="Cerrar" aria-label="Cerrar">&#215;</button></h2>
+    <!-- Stack of recent cards: one line of tabs under the title, one card at a
+         time in the body below (32-geojson.js, 44-dialogs.js) -->
+    <div id="desc-stack" class="desc-stack dlg-skip-focus" hidden>
+      <div class="desc-stack-label" id="desc-stack-label">Fichas recientes</div>
+      <ol class="desc-stack-list" id="desc-stack-list" role="tablist" aria-labelledby="desc-stack-label"></ol>
+    </div>
+    <div id="desc-body" class="desc-body" role="tabpanel"></div>
     <div class="dlg-actions">
       <button class="btn" id="desc-close">Cerrar</button>
       <button class="btn" id="desc-edit" hidden>Editar propiedades</button>
@@ -3169,6 +3237,8 @@ registerLang("en", "English", {
   "geometría no válida o fuera de rango ({type})": "invalid or out-of-range geometry ({type})",
   "elemento sin geometría": "item without geometry",
   "Otra pestaña está usando el almacenamiento; ciérrela para continuar.": "Another tab is using the storage; close it to continue.",
+  "Ya hay {n} fichas fijadas: suelte alguna para fijar otra.": "There are already {n} pinned cards: unpin one to pin another.",
+  "Fichas recientes": "Recent cards",
   "No hay nada que deshacer.": "There is nothing to undo.",
   "Deshecho: {label}.": "Undone: {label}.",
   "No hay nada que rehacer.": "There is nothing to redo.",
@@ -3310,6 +3380,21 @@ registerLang("en", "English", {
   "Señales": "Signs",
   "Información": "Information",
   "Arrastre para repartir el ancho entre clave y valor": "Drag to split the width between key and value",
+  "Nombre": "Name",
+  "Tipo": "Type",
+  "Ruta": "Route",
+  "Círculo": "Circle",
+  "Distancia total": "Total distance",
+  "Tramos": "Legs",
+  "Radio": "Radius",
+  "Latitud": "Latitude",
+  "Longitud": "Longitude",
+  "Área": "Area",
+  "Altitud": "Altitude",
+  "Línea": "Line",
+  "Polígono": "Polygon",
+  "de una línea\u0004Longitud": "Length",
+  "Perímetro": "Perimeter",
   /* 43-points-editor.js */
   "hacen falta al menos latitud y longitud": "at least latitude and longitude are required",
   "latitud o longitud no numérica": "latitude or longitude is not a number",
@@ -3400,6 +3485,13 @@ registerLang("en", "English", {
   "Debe ser una dirección https:// válida.": "It must be a valid https:// address.",
   "Servidor de Custom Web Map Service borrado.": "Custom Web Map Service server deleted.",
   "Debe ser una dirección https:// válida, sin usuario ni contraseña.": "It must be a valid https:// address, without a user name or password.",
+  "{name} (bajo el cursor)": "{name} (under the pointer)",
+  "{name} (fijada)": "{name} (pinned)",
+  "Fichas recientes ({n})": "Recent cards ({n})",
+  "Soltar la ficha (F)": "Unpin the card (F)",
+  "Fijar la ficha (F)": "Pin the card (F)",
+  "Soltar la ficha": "Unpin the card",
+  "Fijar la ficha": "Pin the card",
   "{list} y {rest} más": "{list} and {rest} more",
   "Los atributos son de cada capa: deje seleccionada una sola para verlos.": "Attributes belong to each layer: leave only one selected to see them.",
   "Esta capa no tiene atributos.": "This layer has no attributes.",
@@ -3414,10 +3506,6 @@ registerLang("en", "English", {
   "Descargar las alturas MDT y MDS a lo largo de la ruta y dibujar su perfil": "Download the DTM and DSM heights along the route and draw its profile",
   "y {n} más": "and {n} more",
   "Se borrarán {n} capas: {names}. Se puede deshacer con Ctrl+Z.": "{n} layers will be deleted: {names}. You can undo with Ctrl+Z.",
-  "de una línea\u0004Longitud": "Length",
-  "Perímetro": "Perimeter",
-  "Radio": "Radius",
-  "Distancia total": "Total distance",
   "Distancia": "Distance",
   "Tramo {n}: {dist} · {brg}°": "Leg {n}: {dist} · {brg}°",
   "Coordenadas no válidas: revise la latitud y la longitud.": "Invalid coordinates: check the latitude and longitude.",
@@ -3455,8 +3543,6 @@ registerLang("en", "English", {
   "Recorre el perímetro hasta donde debe acabar el arco y haz clic.": "Follow the perimeter to where the arc should end and click.",
   "{name} — {dist} total, {n} tramos": { one: "{name} — {dist} total, {n} leg", other: "{name} — {dist} total, {n} legs" },
   "Mediciones": "Measurements",
-  "Círculo": "Circle",
-  "Ruta": "Route",
   "Arco": "Arc",
   "crear círculo": "create circle",
   "crear ruta": "create route",
@@ -3465,8 +3551,6 @@ registerLang("en", "English", {
   "Faltan vértices para terminar la línea (mínimo 2).": "More vertices are needed to finish the line (minimum 2).",
   "crear polígono": "create polygon",
   "crear línea": "create line",
-  "Polígono": "Polygon",
-  "Línea": "Line",
   "Faltan waypoints para terminar la ruta (mínimo 2).": "More waypoints are needed to finish the route (minimum 2).",
   "Faltan waypoints para seguir siendo una ruta (mínimo 2).": "More waypoints are needed to remain a route (minimum 2).",
   "Se ha deshecho la ruta: vuelve a quedar solo su primer punto.": "The route has been undone: only its first point is left.",
@@ -3488,7 +3572,6 @@ registerLang("en", "English", {
   "crear anillos de alcance": "create range rings",
   "Radiales cada {step}°": "Radials every {step}°",
   /* 54-attr-table.js */
-  "Nombre": "Name",
   "{n} capas": { one: "{n} layer", other: "{n} layers" },
   "{shown} de {n} capas": "{shown} of {n} layers",
   "Esa capa ya no está en el árbol.": "That layer is no longer in the tree.",
@@ -3638,8 +3721,6 @@ registerLang("en", "English", {
   "{n} obstáculos en el perfil.": { one: "{n} obstacle in the profile.", other: "{n} obstacles in the profile." },
   "La altura de torre": "The tower height",
   "Distancia ({unit})": "Distance ({unit})",
-  "Latitud": "Latitude",
-  "Longitud": "Longitude",
   "Torre": "Tower",
   "Línea de vista ({unit})": "Line of sight ({unit})",
   "Fresnel {zone} % inferior ({unit})": "Fresnel {zone} % lower ({unit})",
@@ -3812,7 +3893,6 @@ registerLang("en", "English", {
   "Color del relleno": "Fill color",
   "Opacidad del relleno": "Fill opacity",
   "Mostrar el nombre siempre (si no, solo al hacer click)": "Always show the name (otherwise only on click)",
-  "Área": "Area",
   "Puntos": "Points",
   "Ver y editar…": "View and edit…",
   "Ancho del trazo": "Line width",
@@ -3820,7 +3900,6 @@ registerLang("en", "English", {
   "Mostrar las etiquetas de distancia y rumbo": "Show the distance and bearing labels",
   "Centro": "Center",
   "Orientación": "Bearing",
-  "Tramos": "Legs",
   "Perfil del terreno": "Terrain profile",
   "Cancelar": "Cancel",
   "Atajos de teclado": "Keyboard shortcuts",
@@ -3886,6 +3965,8 @@ registerLang("en", "English", {
   "Girar el mapa (el norte deja de apuntar arriba)": "Rotate the map (north no longer points up)",
   "R (con el mapa enfocado) o clic en la brújula": "R (with the map focused) or click on the compass",
   "Volver a poner el norte arriba": "Put north at the top again",
+  "F (con el mapa enfocado y el ratón sobre una capa)": "F (with the map focused and the mouse over a layer)",
+  "Fijar su ficha en «Fichas recientes»; otra vez, soltarla": "Pin its card in “Recent cards”; again, unpin it",
   "Botón central (rueda) pulsado + arrastrar a izquierda/derecha": "Middle button (wheel) pressed + drag left/right",
   "Girar el mapa alrededor del punto pulsado": "Rotate the map around the pressed point",
   "Gráfica del perfil de una ruta": "Route profile chart",
@@ -4041,7 +4122,6 @@ registerLang("en", "English", {
   "Estilo por atributo…": "Style by attribute…",
   "Estilo por atributo": "Style by attribute",
   "Atributo": "Attribute",
-  "Tipo": "Type",
   "Categorías": "Categories",
   "Graduado": "Graduated",
   "Clases": "Classes",
@@ -5397,7 +5477,7 @@ map.on("resize rotate", fitWorldMinZoom);
 
 /* Fecha de generación del código (versión): AÑOMESDIAHORAMINUTO.
    Actualizar en cada generación; se muestra junto al crédito de Leaflet. */
-const BUILD = "202611092342";
+const BUILD = "202611122242";
 /* Versión de release (la de package.json, horneada aquí por build.js
    al construir — ver «Versión y releases de GitHub» en CLAUDE.md): a
    diferencia de BUILD, que cambia en CADA generación, esta solo cambia
@@ -8449,10 +8529,17 @@ function makeActions(li, sortable, styleable, layer, focusable = styleable, { fi
     });
   }
   if (styleable) btn("\uD83C\uDFA8", tr("Editar propiedades"), "", () => openStyleDialog(li));
-  /* Un marcador siempre lleva el botón, oculto mientras no tenga ficha:
-     con la iluminación real activa la gana (horas del sol), y
-     refreshInfoButtons lo muestra/oculta sin reconstruir la fila.      */
-  if (li._desc || li._hasInfo || layerProperties(layer) || layerKind(layer) === "marker") {
+  /* A marker, a shape or a measurement always has a card, its basic one at
+     least (basicInfoProps, 41-selection.js): decided here from `styleable` and
+     the layer's geometry because styleKind cannot be asked yet (li._measure
+     and friends are set after makeNode, and styleKind caches its answer).
+     Elevation grids are not styleable; image overlays and COGs are neither
+     markers nor paths. Any other marker still gets the button, hidden while
+     it has no card (with the real lighting on it gets the sun times, and
+     refreshInfoButtons shows or hides it without rebuilding the row). */
+  const lk = layerKind(layer);
+  li._basicInfo = styleable && (lk === "marker" || lk === "polygon");
+  if (li._desc || li._hasInfo || li._basicInfo || layerProperties(layer) || lk === "marker") {
     btn("\u2139", tr("Ver informaci\u00F3n de la capa"), "info-btn", () => showLayerInfo(li));
     box.lastChild.hidden = !hasInfo(li, layer);
   }
@@ -9583,34 +9670,227 @@ function sanitizeHtml(html) {
 let layerInfoDismissed = false;
 
 /* Deferred close on mouseout: if no mouseover on some layer cancels it
-   within LAYER_INFO_HIDE_DELAY, the hover-opened panel closes. Without
-   this there was no path at all for "the mouse is no longer over
-   anything" — only explicit closes existed (Cerrar, Escape, opening the
-   style dialog, entering polygon mode), so the panel could stay open
-   indefinitely once the mouse left every layer. The short delay avoids
-   a flicker when crossing the gap between two neighbouring layers:
-   moving between layers must only update the content, never close the
-   panel in between (see showLayerInfo below). Skipped while the panel
-   holds keyboard focus (an explicit open via the ℹ button or the
-   context menu): that close stays the user's call, same as today.    */
+   within LAYER_INFO_HIDE_DELAY, the hover-opened card stops showing the
+   layer it showed. The short delay avoids a flicker when crossing the gap
+   between two neighbouring layers. What happens then depends on the stack
+   of recent cards (below): the layer the pointer rested on joins it and the
+   card shrinks to that stack ("compact"); with nothing in the stack it
+   closes, as it always did. Skipped while the card holds keyboard focus (an
+   explicit open via the ℹ button or the context menu): that close stays the
+   user's call.                                                           */
 const LAYER_INFO_HIDE_DELAY = 200; /* ms */
 let layerInfoHideTimer = null;
+let infoHideHeld = false; /* the deferred close waits for a text selection in the card to go (44-dialogs.js) */
 function cancelLayerInfoHide() {
   if (layerInfoHideTimer) { clearTimeout(layerInfoHideTimer); layerInfoHideTimer = null; }
 }
 function scheduleLayerInfoHide() {
-  if (descDialog.hidden || descBox.contains(document.activeElement)) return;
+  cancelHoverIntent(); /* the pointer left a layer before its intent fired: it never shows */
+  if (liveInfo && liveInfo.leftAt == null) liveInfo.leftAt = Date.now();
+  /* With the focus in the card, closing it stays the user's call, but only
+     while it shows the layer opened on purpose (ℹ, «Mostrar atributos»): once
+     the pointer brought another layer, it is a hover card again. Before, the
+     last layer hovered after an explicit open stayed on screen for ever (the
+     focus never left the card), while its tabs expired around it. */
+  if (descDialog.hidden || (descBox.contains(document.activeElement) && liveInfo && liveInfo.explicit)) return;
   cancelLayerInfoHide();
   layerInfoHideTimer = setTimeout(() => {
     layerInfoHideTimer = null;
-    /* The pointer is on the panel itself: it always opens in the same corner, so
+    /* The pointer is on the card itself: it always opens in the same corner, so
        it can land right over the layer being hovered (a «W» near the top-right
-       edge) or the user may be heading for the link inside it. Closing it now
-       would put the layer back under the pointer, reopen it and blink for ever.
-       It closes when the pointer leaves it (`mouseleave`, 44-dialogs.js). */
+       edge), the user may be heading for the link inside it, or for a row of
+       its stack. Closing it now would put the layer back under the pointer,
+       reopen it and blink for ever. It acts when the pointer leaves it
+       (`mouseleave`, 44-dialogs.js). */
     if (descBox.matches(":hover")) return;
-    hideLayerInfo();
+    /* Text selected in the card (to copy it): it must not change under the
+       selection. It acts once the selection goes (selectionchange, 44). */
+    if (infoSelectionInCard()) { infoHideHeld = true; return; }
+    collapseLayerInfo();
   }, LAYER_INFO_HIDE_DELAY);
+}
+
+/* ---------- Hover intent ----------
+   Sweeping the mouse across many markers used to rewrite the card on every
+   one of them, so none could be read. With the card already showing a layer,
+   another layer takes it over only once the pointer has RESTED on it for
+   LAYER_INFO_HOVER_INTENT_MS; just crossing it changes nothing. A closed or
+   compact card still opens at once on the first layer.                    */
+const LAYER_INFO_HOVER_INTENT_MS = 250; /* ms */
+let hoverIntent = null; /* { li, timer } */
+function cancelHoverIntent() {
+  if (hoverIntent) { clearTimeout(hoverIntent.timer); hoverIntent = null; }
+}
+
+/* ---------- Stack of recent cards ----------
+   Every layer the pointer rested on (INFO_STACK_DWELL_MS, counted from when it
+   entered the layer) or that was opened on purpose (ℹ, «Mostrar atributos»)
+   leaves a one-line row in the card when another layer takes over or the
+   pointer leaves them all. The rows are tabs under the title (44-dialogs.js):
+   hovering one shows its card in the body and outlines its layer on the map;
+   the pin keeps it, the F key pins the layer under the pointer.
+   Rules decided with the user:
+   - Rows never move: a new one goes on top, revisiting a layer leaves its row
+     where it is (it only renews its lease).
+   - At most INFO_STACK_MAX unpinned rows, first in first out: the one that
+     entered the queue earliest goes (`q`). Pinned rows do not count (their own
+     cap, INFO_STACK_MAX_PINNED); unpinning one puts it back in the queue as
+     its newest entry, with a fresh lease, and it expires like any other.
+   - Unpinned rows expire INFO_STACK_TTL_MS after their last use (dimmed for
+     the last INFO_STACK_WARN_MS).
+   - While the pointer is on the card NOTHING leaves: every row's clock stops
+     (dimming included) and goes on from where it was when the pointer leaves,
+     so leaving never makes several rows vanish at once; the queue cap is not
+     applied meanwhile either (a row unpinned while there waits).
+   Session state only: rows point at live tree rows, which undo and reload
+   rebuild. Rendering lives in 44-dialogs.js (renderInfoStack).            */
+const INFO_STACK_DWELL_MS = 400;
+const INFO_STACK_TTL_MS = 30000;
+const INFO_STACK_WARN_MS = 5000;
+const INFO_STACK_MAX = 6;
+const INFO_STACK_MAX_PINNED = 6;
+let infoStack = [];      /* [{ li, pinned, t: last use, q: order of entry in the queue }], newest first, never reordered */
+let infoQueueSeq = 0;    /* q comes from a counter, not the clock: two rows can enter within the same millisecond */
+let liveInfo = null;     /* { li, enteredAt, leftAt, explicit }: the layer under the pointer or opened on purpose */
+let infoPeek = null;     /* the recent card whose tab is being looked at (pointer or focus on it) */
+let infoStackTimer = null;
+let infoStackPaused = false;
+let infoPausedAt = 0;    /* when the clocks stopped (pointer on the card) */
+/* The stack's clock: frozen while the pointer is on the card */
+const infoStackClock = () => infoStackPaused ? infoPausedAt : Date.now();
+
+/* `rows` with `li` added on top, or, if already there, left in place with a
+   renewed lease. Unchanged (same array) when `li` should enter pinned and the
+   pinned cap is full. Trims the queue unless `paused`. Pure, tested in
+   tests/toolstest.js. */
+function infoStackWith(rows, li, now, { pinned = false, max = INFO_STACK_MAX, maxPinned = INFO_STACK_MAX_PINNED, paused = false, q = now } = {}) {
+  if (rows.some(r => r.li === li)) return rows.map(r => r.li === li ? { ...r, t: now } : r);
+  if (pinned && rows.filter(r => r.pinned).length >= maxPinned) return rows;
+  const next = [{ li, pinned, t: now, q }, ...rows];
+  return paused ? next : infoStackTrim(next, max);
+}
+/* First in, first out over the unpinned rows: drops the ones that entered the
+   queue earliest until `max` are left. Pure. */
+function infoStackTrim(rows, max = INFO_STACK_MAX) {
+  const queue = rows.filter(r => !r.pinned);
+  if (queue.length <= max) return rows;
+  const out = new Set([...queue].sort((a, b) => a.q - b.q).slice(0, queue.length - max));
+  return rows.filter(r => !out.has(r));
+}
+/* Pin or unpin the row of `li` in place. Unpinning puts it back in the queue as
+   its newest entry (q, t = now). Same array back when pinning would pass the
+   pinned cap. Pure. */
+function infoStackPinned(rows, li, pinned, now, { max = INFO_STACK_MAX, maxPinned = INFO_STACK_MAX_PINNED, paused = false, q = now } = {}) {
+  const row = rows.find(r => r.li === li);
+  if (!row) return infoStackWith(rows, li, now, { pinned, max, maxPinned, paused, q });
+  if (row.pinned === pinned) return rows;
+  if (pinned && rows.filter(r => r.pinned).length >= maxPinned) return rows;
+  const next = rows.map(r => r === row ? (pinned ? { ...r, pinned } : { ...r, pinned, t: now, q }) : r);
+  return paused ? next : infoStackTrim(next, max);
+}
+/* The rows still worth showing: unpinned ones expire (not while `paused`), and
+   a layer that left the tree (deleted, or rebuilt by undo) goes. Pure. */
+function infoStackAlive(rows, now, ttl = INFO_STACK_TTL_MS, paused = false) {
+  return rows.filter(r => r.li.isConnected !== false && (r.pinned || paused || now - r.t < ttl));
+}
+/* The clocks go on after a pause of `pausedFor` ms: every unpinned row keeps
+   the time it had left. Pure. */
+function infoStackResumed(rows, pausedFor) {
+  return rows.map(r => r.pinned ? r : { ...r, t: r.t + pausedFor });
+}
+function infoStackExpiring(row, now, ttl = INFO_STACK_TTL_MS, warn = INFO_STACK_WARN_MS) {
+  return !row.pinned && now >= row.t + ttl - warn;
+}
+/* When the next row starts dimming or expires (Infinity: nothing pending). Pure. */
+function infoStackNextEvent(rows, now, ttl = INFO_STACK_TTL_MS, warn = INFO_STACK_WARN_MS) {
+  let next = Infinity;
+  for (const r of rows) {
+    if (r.pinned) continue;
+    for (const at of [r.t + ttl - warn, r.t + ttl]) if (at > now && at < next) next = at;
+  }
+  return next;
+}
+
+/* One timer for the whole stack, armed for its next event only. */
+function scheduleInfoStackTick() {
+  clearTimeout(infoStackTimer);
+  infoStackTimer = null;
+  if (infoStackPaused) return;
+  const now = Date.now();
+  const next = infoStackNextEvent(infoStack, now);
+  if (next !== Infinity) infoStackTimer = setTimeout(refreshInfoStack, next - now + 20);
+}
+/* While the pointer is on the card the user is reading the rows: their clocks
+   stop. Leaving restarts them where they were and applies the queue cap that
+   waited (a row unpinned meanwhile may have passed it). */
+function pauseInfoStack(paused) {
+  if (paused === infoStackPaused) return;
+  if (paused) {
+    infoPausedAt = Date.now();
+    infoStackPaused = true;
+    scheduleInfoStackTick(); /* clears the timer */
+    return;
+  }
+  infoStack = infoStackTrim(infoStackResumed(infoStack, Date.now() - infoPausedAt));
+  infoStackPaused = false;
+  if (infoStack.length || liveInfo) refreshInfoStack();
+  else scheduleInfoStackTick();
+}
+/* Drops what expired or left the tree and repaints; a card left with nothing
+   to show closes. Also called from scheduleSave, so a deleted or renamed
+   layer is reflected at once (a handful of rows to look at). */
+function refreshInfoStack() {
+  if (!infoStack.length && !liveInfo) return;
+  infoStack = infoStackAlive(infoStack, infoStackClock(), INFO_STACK_TTL_MS, infoStackPaused);
+  if (liveInfo && liveInfo.li.isConnected === false) liveInfo = null;
+  if (infoPeek && !infoStack.some(r => r.li === infoPeek)) { infoPeek = null; setInfoHalo(null); }
+  if (!descDialog.hidden) {
+    const shown = infoPeek || (liveInfo && liveInfo.li);
+    if (!shown && !infoStack.length) hideLayerInfo();
+    else paintLayerInfo(shown || null);
+  }
+  scheduleInfoStackTick();
+}
+
+/* The card stops showing the layer under the pointer: it joins the stack if
+   the pointer rested on it or it was opened on purpose; already there, its
+   row stays where it is with a renewed lease. */
+function retireLiveInfo() {
+  const live = liveInfo;
+  liveInfo = null;
+  if (!live || !infoStackActive()) return;
+  const now = Date.now();
+  const dwell = (live.leftAt ?? now) - live.enteredAt;
+  if (live.explicit || dwell >= INFO_STACK_DWELL_MS || infoStack.some(r => r.li === live.li)) {
+    infoStack = infoStackWith(infoStack, live.li, infoStackClock(), { paused: infoStackPaused, q: ++infoQueueSeq });
+    scheduleInfoStackTick();
+  }
+}
+/* The pointer left every layer and the card: shrink to the stack, or close. */
+function collapseLayerInfo() {
+  retireLiveInfo();
+  /* a tab chosen with a click stays on screen; otherwise the card shrinks */
+  if (infoStack.length && infoStackActive()) paintLayerInfo(infoPeek || null);
+  else hideLayerInfo();
+}
+function toggleInfoPin(li) {
+  if (!li || !infoStackActive()) return;
+  const row = infoStack.find(r => r.li === li);
+  const next = infoStackPinned(infoStack, li, !(row && row.pinned), infoStackClock(), { paused: infoStackPaused, q: ++infoQueueSeq });
+  if (next === infoStack) {
+    navMessage(tr("Ya hay {n} fichas fijadas: suelte alguna para fijar otra.", { n: INFO_STACK_MAX_PINNED }));
+    return;
+  }
+  infoStack = next;
+  scheduleInfoStackTick();
+  if (!descDialog.hidden) renderInfoStack();
+}
+/* F with the map focused: pins (or unpins) the layer under the pointer.
+   False when there is none, so the key does nothing else. */
+function pinLiveLayerInfo() {
+  if (descDialog.hidden || !liveInfo) return false;
+  toggleInfoPin(liveInfo.li);
+  return true;
 }
 
 /* One-shot guard set when LEAVING a drawing tool (see setTool): the
@@ -9636,13 +9916,58 @@ let suppressNextHover = false;
    (showLayerInfo always pushes one entry). Focus is restored only if it
    was in the panel or already lost to <body>: a hover-opened panel that
    times out must not pull focus away from wherever the user is now.   */
-function hideLayerInfo({ dismiss = false } = {}) {
+/* `clear` (by default, a close the user asked for) also empties the stack of
+   recent cards, except the pinned ones; a close that only gets the card out of
+   the way (opening the style dialog over it) keeps it for the next time.   */
+function hideLayerInfo({ dismiss = false, clear = dismiss } = {}) {
+  cancelHoverIntent();
   if (descDialog.hidden) return;
+  retireLiveInfo();
+  if (clear) infoStack = infoStack.filter(r => r.pinned);
+  clearInfoPeek();
   const a = document.activeElement;
   const hadFocus = !a || a === document.body || descBox.contains(a);
   descDialog.hidden = true;
   if (dismiss) layerInfoDismissed = true;
   if (hadFocus) releaseFocus(); else focusReturn.pop();
+  scheduleInfoStackTick();
+}
+/* Puts `li`'s card in the body (the live layer, or the recent card whose tab
+   is being looked at); with no layer the card shrinks to its title and its
+   tabs. The body is
+   only rewritten when the layer changes (or on `force`): rewriting it on
+   every repaint of the stack would reset its scroll under the reader.     */
+function paintLayerInfo(li, html = undefined, force = false) {
+  if (li !== descLayer || force) {
+    const h = li ? (html === undefined ? infoHtmlFor(li) : html) : null;
+    descLayer = h == null ? null : li;
+    descTitle.textContent = descLayer ? li._name : tr("Fichas recientes");
+    descTitle.title = descTitle.textContent; /* one line (it must not move the tabs): the whole name on hover */
+    descBody.innerHTML = descLayer ? h : "";
+    descBody.hidden = !descLayer;
+    descEditBtn.hidden = !descLayer || !STYLE_EDITABLE_KINDS.has(styleKind(li));
+    if (descLayer) applyPropsSplit(); /* el reparto elegido sobrevive al cambio de capa */
+  }
+  renderInfoStack();
+}
+/* The card shows `li` as the live layer (under the pointer, or opened on
+   purpose); the one it showed before goes to the stack. */
+function setLiveInfo(li, focus, enteredAt, html = infoHtmlFor(li)) {
+  if (html == null) return;
+  if (liveInfo && liveInfo.li !== li) retireLiveInfo();
+  /* A new live layer ends the choice of a tab (44-dialogs.js) */
+  if (infoPeek) { infoPeek = null; setInfoHalo(null); }
+  liveInfo = { li, enteredAt, leftAt: null, explicit: focus };
+  paintLayerInfo(li, html, true);
+  const wasHidden = descDialog.hidden;
+  descDialog.hidden = false;
+  if (wasHidden) {
+    clampToViewport(descBox);
+    if (focus) focusDialog(descBox);
+    /* Opened by hovering the viewer: closing it must land back there,
+       not wherever focus happened to be when the cursor crossed it.   */
+    else focusReturn.push(map.getContainer());
+  }
 }
 function showLayerInfo(li, { focus = true } = {}) {
   cancelLayerInfoHide(); /* a real hover cancels any pending deferred close */
@@ -9653,7 +9978,8 @@ function showLayerInfo(li, { focus = true } = {}) {
      drawing a polygon: the floating panel could sit exactly where the
      user needs to click to fix a vertex inside another polygon, and
      the hover would block it.                                        */
-  if (!focus && (layerInfoDismissed || !styleDialog.hidden || clickPicksPoint())) return;
+  const hoverBlocked = () => layerInfoDismissed || !styleDialog.hidden || clickPicksPoint();
+  if (!focus && hoverBlocked()) return;
   if (focus) layerInfoDismissed = false; /* explicit open: re-arms the hover */
   const html = infoHtmlFor(li);
   if (html == null) return;
@@ -9661,20 +9987,25 @@ function showLayerInfo(li, { focus = true } = {}) {
      sin nada más tenga las horas del sol (con la iluminación activa) no
      debe abrir una ventana cada vez que se cruza uno.                  */
   if (!focus && baseInfoHtml(li) == null) return;
-  descTitle.textContent = li._name;
-  descBody.innerHTML = html;
-  descLayer = li;
-  descEditBtn.hidden = !STYLE_EDITABLE_KINDS.has(styleKind(li));
-  applyPropsSplit(); /* el reparto elegido sobrevive al cambio de capa */
-  const wasHidden = descDialog.hidden;
-  descDialog.hidden = false;
-  if (wasHidden) {
-    clampToViewport(descBox);
-    if (focus) focusDialog(descBox);
-    /* Opened by hovering the viewer: closing it must land back there,
-       not wherever focus happened to be when the cursor crossed it.   */
-    else focusReturn.push(map.getContainer());
+  const now = Date.now();
+  if (!focus && liveInfo && !descDialog.hidden) {
+    if (liveInfo.li === li) { /* back on the layer already shown */
+      cancelHoverIntent();
+      liveInfo.leftAt = null;
+      return;
+    }
+    /* Another layer is on the card: it only takes over if the pointer stays */
+    if (hoverIntent && hoverIntent.li === li) return;
+    cancelHoverIntent();
+    hoverIntent = { li, timer: setTimeout(() => {
+      hoverIntent = null;
+      if (descDialog.hidden || hoverBlocked()) return;
+      setLiveInfo(li, false, now);
+    }, LAYER_INFO_HOVER_INTENT_MS) };
+    return;
   }
+  cancelHoverIntent();
+  setLiveInfo(li, focus, now, html);
 }
 
 /* ================= Deshacer =================
@@ -10742,6 +11073,7 @@ function scheduleSave() {
   if (dbWiped) return; /* se está borrando la base: nada que guardar */
   scheduleReorder(); /* toda mutación del árbol también puede haber cambiado el orden de pintado */
   scheduleArcgisSync(); /* y, de un servicio ArcGIS, qué capas pide al servidor (66-arcgis.js) */
+  refreshInfoStack(); /* a deleted or renamed layer leaves or renames its row in the info card's stack */
   clearTimeout(saveTimer);
   const wait = Math.min(SAVE_MAX_MS, Math.max(SAVE_MIN_MS, saveCost * 4));
   saveTimer = setTimeout(saveTree, wait);
@@ -13054,7 +13386,13 @@ function wirePendingLayerEvents(rec) {
     const li = await resolveRecordLi(rec); if (li) highlightNode(li);
   };
   const onHover = async () => { const li = await resolveRecordLi(rec); if (li) showLayerInfo(li, { focus: false }); };
-  const onLeave = scheduleLayerInfoHide; /* doesn't need resolveRecordLi: only hides whatever is already open */
+  /* Doesn't need resolveRecordLi: only acts on whatever is already open. Its
+     OWN function, not scheduleLayerInfoHide itself: makeNode registers that
+     very function when the row is built, Leaflet ignores a listener that is
+     already there, and the `off` of this one in materializeRecords then took
+     the only copy away. Every layer that came out of a never-expanded folder
+     lost its mouseout, so the card never heard the pointer leave it. */
+  const onLeave = () => scheduleLayerInfoHide();
   rec._layer.on("click", onClick).on("mouseover", onHover).on("mouseout", onLeave);
   rec._pendingHandlers = { onClick, onHover, onLeave };
 }
@@ -14046,20 +14384,71 @@ function baseInfoHtml(li) {
   return props ? propertiesTableHtml(props) : null;
 }
 
+/* Basic card of a layer with geometry and nothing of its own to show (a pin,
+   a drawn shape, a measurement): its name, its kind and where it is or what it
+   measures, in the units and coordinate format of Properties. Reported as a
+   bug: with a polygon that had attributes and three pins inside it, «Ir al
+   nodo» and «Editar propiedades» listed all four layers and «Mostrar
+   atributos» only the polygon, because the pins had no description and no
+   properties. Hovering still opens only a layer's OWN card (showLayerInfo
+   asks baseInfoHtml), or crossing any pin would open a window. Built when
+   shown: a static reading, like the distance of a Wikipedia card. */
+const BASIC_CARD_KINDS = new Set(["marker", "polygon", "measure"]);
+function basicInfoProps(li) {
+  if (!li._basicInfo || !BASIC_CARD_KINDS.has(styleKind(li))) return null;
+  const kind = styleKind(li);
+  const props = { [tr("Nombre")]: li._name };
+  if (kind === "measure") {
+    const v = measurementValues(li._measure);
+    props[tr("Tipo")] = v.route ? tr("Ruta") : tr("Círculo");
+    if (v.route) {
+      props[tr("Distancia total")] = fmtUnitDist(v.dist, measureUnit);
+      props[tr("Tramos")] = String(v.legs ? v.legs.length : 0);
+    } else {
+      props[tr("Radio")] = fmtUnitDist(v.dist, measureUnit);
+      props[tr("Latitud")] = formatCoord(v.center.lat, true, coordFormat);
+      props[tr("Longitud")] = formatCoord(v.center.lng, false, coordFormat);
+      props[tr("Área")] = fmtUnitArea(v.area, measureUnit);
+    }
+    return props;
+  }
+  if (kind === "marker") {
+    const m = soleMarker(li);
+    if (!m) return props; /* several markers in one layer: no single position to give */
+    const ll = m.getLatLng();
+    props[tr("Tipo")] = tr("Marcador");
+    props[tr("Latitud")] = formatCoord(ll.lat, true, coordFormat);
+    props[tr("Longitud")] = formatCoord(ll.lng, false, coordFormat);
+    if (Number.isFinite(ll.alt)) props[tr("Altitud")] = fmtHeight(ll.alt, altitudeUnit);
+    return props;
+  }
+  const pm = polygonMeasures(li);
+  if (!pm) return props;
+  props[tr("Tipo")] = pm.open ? tr("Línea") : tr("Polígono");
+  props[pm.open ? trc("de una línea", "Longitud") : tr("Perímetro")] = fmtUnitDist(pm.perim, measureUnit);
+  if (pm.area != null) props[tr("Área")] = fmtUnitArea(pm.area, measureUnit);
+  return props;
+}
+function basicInfoHtml(li) {
+  const props = basicInfoProps(li);
+  return props ? propertiesTableHtml(props) : null;
+}
+
 /* HTML a mostrar en el panel de información de la capa: su ficha propia
-   más, con la iluminación real activa y un único marcador, las horas
-   del sol y crepúsculos (sunInfoHtmlFor, 61-daynight.js). null = nada
-   que mostrar.                                                       */
+   (or, without one, its basic card) más, con la iluminación real activa y
+   un único marcador, las horas del sol y crepúsculos (sunInfoHtmlFor,
+   61-daynight.js). null = nada que mostrar.                          */
 function infoHtmlFor(li) {
-  const base = baseInfoHtml(li);
+  const base = baseInfoHtml(li) ?? basicInfoHtml(li);
   const sun = sunInfoHtmlFor(li);
   return base == null && !sun ? null : (base || "") + sun;
 }
 
 /* ¿Tiene ficha? Versión barata de `infoHtmlFor(li) != null`, sin
-   construir el HTML: decide si se ve el botón ℹ de la fila.          */
+   construir el HTML: decide si se ve el botón ℹ de la fila. `_basicInfo`
+   is decided by makeActions (a layer that can have a basic card). */
 function hasInfo(li, layer = nodeLayer(li)) {
-  return !!(li._desc || li._hasInfo || layerProperties(layer) || (dayNightOn && soleMarkerOfLayer(layer)));
+  return !!(li._desc || li._hasInfo || li._basicInfo || layerProperties(layer) || (dayNightOn && soleMarkerOfLayer(layer)));
 }
 
 /* Al activar/desactivar la iluminación cambia qué marcadores tienen
@@ -15473,8 +15862,10 @@ function setupDialog(box, { modal }) {
 let focusReturn = [];
 function focusDialog(box, move = true) {
   focusReturn.push(document.activeElement);
+  /* `.dlg-skip-focus`: secondary controls placed before the main ones (the
+     info card's pin and its stack, where focus would expand a row) */
   const first = move && ([...box.querySelectorAll("button, input, select")]
-    .find(el => !el.classList.contains("dlg-close") && el.offsetParent !== null)
+    .find(el => !el.closest(".dlg-close, .dlg-skip-focus") && el.offsetParent !== null)
     || box.querySelector(".dlg-close"));
   if (first) first.focus();
 }
@@ -15536,8 +15927,9 @@ function makeDialogMovable(box) {
   const handle = box.querySelector("h2");
   let from = null;
   handle.addEventListener("pointerdown", e => {
-    /* the close button lives in the handle: its press is a click, not a drag */
-    if (e.button !== 0 || e.target.closest(".dlg-close")) return;
+    /* the close button (and the info card's pin) live in the handle: their
+       press is a click, not a drag */
+    if (e.button !== 0 || e.target.closest("button")) return;
     const r = box.getBoundingClientRect();
     box.style.position = "fixed";
     box.style.margin = "0";
@@ -17372,18 +17764,196 @@ const descTitle = document.getElementById("desc-title");
 const descBody = document.getElementById("desc-body");
 const descEditBtn = document.getElementById("desc-edit");
 let descLayer = null; /* capa cuya ficha se muestra ahora */
-/* A panel opened by hovering stays while the pointer is ON it (to read it, to
-   reach its link, or because it opened over the layer) and closes soon after the
-   pointer leaves it; see scheduleLayerInfoHide. */
-descBox.addEventListener("mouseenter", cancelLayerInfoHide);
-descBox.addEventListener("mouseleave", scheduleLayerInfoHide);
-/* De la ficha de atributos (solo lectura) a la edición de la misma capa:
-   cierra la ficha y abre el diálogo de propiedades (pestaña Estilos). */
-descEditBtn.addEventListener("click", () => {
-  const li = descLayer;
-  hideLayerInfo({ dismiss: true });
-  if (li) openStyleDialog(li);
+const descPinBtn = document.getElementById("desc-pin");
+const descStack = document.getElementById("desc-stack");
+const descStackLabel = document.getElementById("desc-stack-label");
+const descStackList = document.getElementById("desc-stack-list");
+/* A card opened by hovering stays while the pointer is ON it (to read it, to
+   reach its link or a tab, or because it opened over the layer) and acts soon
+   after the pointer leaves it; see scheduleLayerInfoHide. A tab chosen with a
+   click stays chosen when the pointer leaves the card. */
+descBox.addEventListener("mouseenter", () => { cancelLayerInfoHide(); pauseInfoStack(true); });
+descBox.addEventListener("mouseleave", () => {
+  pauseInfoStack(false);
+  scheduleLayerInfoHide();
 });
+function infoSelectionInCard() {
+  const sel = document.getSelection();
+  return !!sel && !sel.isCollapsed && descBox.contains(sel.anchorNode);
+}
+/* The deferred close waited for a selection in the card (infoHideHeld, set in
+   scheduleLayerInfoHide): once it is gone, with the pointer away, it goes on. */
+document.addEventListener("selectionchange", () => {
+  if (!infoHideHeld || infoSelectionInCard()) return;
+  infoHideHeld = false;
+  if (descDialog.hidden || descBox.matches(":hover")) return;
+  scheduleLayerInfoHide();
+});
+/* From the read-only card to editing the same layer: hides the card and opens
+   the properties dialog (Styles tab). The stack is kept: the user is moving on
+   to edit, not done with the cards. */
+function editFromInfoCard(li) {
+  hideLayerInfo({ dismiss: true, clear: false });
+  if (li) openStyleDialog(li);
+}
+descEditBtn.addEventListener("click", () => editFromInfoCard(descLayer));
+/* A mouse click on a tab or on the header pin must not move the focus into
+   the card: with the focus inside, the deferred close stays the user's call
+   (an explicit open), so after one click the card never shrank again when
+   the pointer left the layers. The keyboard still reaches them with Tab. */
+const keepFocusOnClick = e => e.preventDefault();
+descPinBtn.addEventListener("mousedown", keepFocusOnClick);
+descPinBtn.addEventListener("click", () => toggleInfoPin(descLayer));
+
+/* ---------- Tabs of the stack of recent cards (state: 32-geojson.js) ----------
+   One line of tabs under the title, scrolling sideways when they do not fit
+   (the wheel scrolls it too). The first tab is the live layer (the one under
+   the pointer or opened on purpose), the rest the recent cards, newest first,
+   a pin glyph on the pinned ones. ONE card at a time, in the body below the
+   strip: a CLICK on a tab shows its card there and outlines its layer
+   (Enter or Space with the tab focused, ← and → move between tabs). Hovering
+   a tab does nothing (decided with the user: switching on hover, even after
+   a short rest, changed the card while the pointer travelled to the text or
+   to another tab). The chosen card stays when the pointer leaves the card;
+   the first tab goes back to the live layer, and a new live layer (the
+   pointer resting on another layer, an explicit open) or closing the card
+   ends the choice. The strip is above the body and the title never wraps
+   (#desc-title), so switching cards never moves a tab under the pointer.
+   Replaced an accordion (one row per card, opening under its name) that took
+   too much room (decided with the user). A phone has no hover and no room
+   for it: no stack there (mobile-view.md). */
+function infoStackActive() {
+  return !document.documentElement.classList.contains("phone-layout");
+}
+/* Shows `li`'s card in the body; the live layer's tab just goes back to it */
+function peekInfoTab(li) {
+  const live = liveInfo && liveInfo.li;
+  infoPeek = li === live ? null : li;
+  setInfoHalo(infoPeek);
+  paintLayerInfo(infoPeek || live || null);
+}
+function clearInfoPeek() {
+  if (!infoPeek && !infoHalo) return;
+  infoPeek = null;
+  setInfoHalo(null);
+  if (!descDialog.hidden) paintLayerInfo(liveInfo ? liveInfo.li : null);
+}
+/* The wheel scrolls the strip sideways when it overflows */
+descStack.addEventListener("wheel", e => {
+  if (descStack.scrollWidth <= descStack.clientWidth || !e.deltaY) return;
+  e.preventDefault();
+  descStack.scrollLeft += e.deltaY;
+}, { passive: false });
+/* ← and → move the focus between tabs; Enter or Space chooses one (a click) */
+descStackList.addEventListener("keydown", e => {
+  if (e.key !== "ArrowLeft" && e.key !== "ArrowRight") return;
+  const tabs = [...descStackList.querySelectorAll(".info-tab-btn")];
+  const i = tabs.indexOf(document.activeElement);
+  if (i < 0) return;
+  e.preventDefault();
+  const next = tabs[Math.min(tabs.length - 1, Math.max(0, i + (e.key === "ArrowRight" ? 1 : -1)))];
+  next.focus();
+});
+const PIN_ICON_SVG = '<svg viewBox="0 0 16 16" width="12" height="12" aria-hidden="true">'
+  + '<path class="pin-head" d="M6 1.75h4l-.6 4.5 2.35 2.25h-7.5L6.6 6.25z" fill="currentColor" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"/>'
+  + '<path d="M8 8.5v5.75" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg>';
+/* One element per layer, reused across repaints: re-creating them would replay
+   the entry animation of every tab each time one changes. */
+const infoTabEls = new WeakMap();
+function makeInfoTab(li) {
+  const item = document.createElement("li");
+  item.className = "info-tab";
+  const btn = document.createElement("button");
+  btn.type = "button";
+  btn.className = "info-tab-btn";
+  btn.setAttribute("role", "tab");
+  btn.setAttribute("aria-controls", "desc-body");
+  const swatch = document.createElement("span");
+  swatch.className = "info-tab-swatch";
+  const name = document.createElement("span");
+  name.className = "info-tab-name";
+  const pin = document.createElement("span");
+  pin.className = "info-tab-pin";
+  pin.innerHTML = PIN_ICON_SVG;
+  btn.append(swatch, name, pin);
+  item.append(btn);
+  btn.addEventListener("mousedown", keepFocusOnClick);
+  btn.addEventListener("click", () => peekInfoTab(li));
+  return item;
+}
+function paintInfoTab(item, li, { live, pinned, expiring }) {
+  const btn = item.firstChild;
+  const [swatch, name, pin] = btn.children;
+  const treeSwatch = li.querySelector(":scope > .node-row > .swatch");
+  swatch.hidden = !treeSwatch;
+  if (treeSwatch) swatch.style.background = treeSwatch.style.background;
+  name.textContent = li._name;
+  /* The first tab is the layer under the pointer; it says so on hover (a dot
+     next to the colour swatch read as two swatches) */
+  btn.title = live ? tr("{name} (bajo el cursor)", { name: li._name })
+    : pinned ? tr("{name} (fijada)", { name: li._name }) : li._name;
+  pin.hidden = !pinned;
+  const selected = li === descLayer;
+  btn.setAttribute("aria-selected", String(selected));
+  item.classList.toggle("selected", selected);
+  item.classList.toggle("live", live);
+  item.classList.toggle("expiring", !selected && expiring);
+}
+function renderInfoStack() {
+  const now = infoStackClock(); /* frozen with the pointer on the card: no tab starts dimming */
+  const compact = !descLayer;
+  const live = liveInfo && liveInfo.li;
+  descBox.classList.toggle("info-compact", compact);
+  if (infoPeek && !infoStack.some(r => r.li === infoPeek)) { infoPeek = null; setInfoHalo(null); }
+  const others = infoStack.filter(r => r.li !== live);
+  /* With no recent card there is nothing to choose: no strip, just the card */
+  descStack.hidden = !others.length;
+  descStackLabel.textContent = tr("Fichas recientes ({n})", { n: infoStack.length });
+  descPinBtn.hidden = !infoStackActive();
+  descPinBtn.style.visibility = compact ? "hidden" : "";
+  const pinned = !compact && infoStack.some(r => r.li === descLayer && r.pinned);
+  descPinBtn.setAttribute("aria-pressed", String(pinned));
+  descPinBtn.title = pinned ? tr("Soltar la ficha (F)") : tr("Fijar la ficha (F)");
+  descPinBtn.setAttribute("aria-label", pinned ? tr("Soltar la ficha") : tr("Fijar la ficha"));
+  const tabs = others.length && live
+    ? [{ li: live, live: true, pinned: infoStack.some(r => r.li === live && r.pinned), expiring: false }, ...others.map(r => ({ li: r.li, live: false, pinned: r.pinned, expiring: infoStackExpiring(r, now) }))]
+    : others.map(r => ({ li: r.li, live: false, pinned: r.pinned, expiring: infoStackExpiring(r, now) }));
+  let cursor = descStackList.firstElementChild;
+  for (const tab of tabs) {
+    let item = infoTabEls.get(tab.li);
+    if (!item) { item = makeInfoTab(tab.li); infoTabEls.set(tab.li, item); }
+    paintInfoTab(item, tab.li, tab);
+    if (item === cursor) cursor = cursor.nextElementSibling;
+    else descStackList.insertBefore(item, cursor);
+  }
+  while (cursor) { const next = cursor.nextElementSibling; cursor.remove(); cursor = next; }
+}
+
+/* Outline of the layer whose tab is being looked at: a ring round a point, a
+   dashed box round anything bigger. Static (no blink: hovering rows would make
+   the map flicker, and it stays readable with reduced motion), on the map and
+   NOT in rootGroup, so it is neither saved nor hit by the context menu, and
+   never moves the view. Map content, so it is not themed (theme.md): white
+   under orange reads on light and dark maps alike. */
+const INFO_HALO_COLOR = "#e65100";
+let infoHalo = null;
+function setInfoHalo(li) {
+  if (infoHalo) { infoHalo.remove(); infoHalo = null; }
+  if (!li) return;
+  const b = subtreeBounds(li);
+  if (!b.isValid()) return;
+  const sw = map.latLngToContainerPoint(b.getSouthWest());
+  const ne = map.latLngToContainerPoint(b.getNorthEast());
+  const point = Math.abs(sw.x - ne.x) < 24 && Math.abs(sw.y - ne.y) < 24;
+  const base = { interactive: false, fill: false };
+  const under = { ...base, color: "#ffffff", weight: 6, opacity: 0.9 };
+  const over = { ...base, color: INFO_HALO_COLOR, weight: 3, dashArray: point ? null : "6 5" };
+  infoHalo = point
+    ? L.layerGroup([L.circleMarker(b.getCenter(), { ...under, radius: 20 }),
+                    L.circleMarker(b.getCenter(), { ...over, radius: 20, fill: true, fillColor: INFO_HALO_COLOR, fillOpacity: 0.12 })])
+    : L.layerGroup([L.rectangle(b.pad(0.08), under), L.rectangle(b.pad(0.08), over)]);
+  infoHalo.addTo(map);
+}
 document.getElementById("desc-close").addEventListener("click", () => {
   hideLayerInfo({ dismiss: true });
 });
@@ -28317,6 +28887,12 @@ map.getContainer().addEventListener("keydown", e => {
   if ((e.key !== "r" && e.key !== "R") || e.ctrlKey || e.metaKey || e.altKey) return;
   e.preventDefault();
   resetNorth();
+});
+/* F with the map focused and the pointer over a layer: pins its card in the
+   stack of recent cards (32-geojson.js). Same listener pattern as R. */
+map.getContainer().addEventListener("keydown", e => {
+  if ((e.key !== "f" && e.key !== "F") || e.ctrlKey || e.metaKey || e.altKey) return;
+  if (pinLiveLayerInfo()) e.preventDefault();
 });
 
 /* ---------- Girar con el botón central del ratón ----------

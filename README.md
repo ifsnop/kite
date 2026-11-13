@@ -137,7 +137,12 @@ KITE Local does not impose fixed limits on KML file size, imported features or v
   the map to loaded content
 - an information panel per layer: the original KML `description`
   (sanitized against an allow-list) or a table of the GeoJSON
-  `properties`
+  `properties` (a pin, shape or measurement without attributes shows its
+  name, kind and position or measures); sweeping the mouse across the map only changes it where the
+  pointer rests, and every layer rested on stays as a tab in one strip under
+  the card's title (click a tab to see its card, one at a time, and outline
+  the layer on the map; pin it, or press F over a layer, to keep it;
+  selecting text to copy it never changes the card)
 - right-click menu on the map, which resolves overlapping layers into a
   submenu instead of guessing one
 - export any folder, file or layer as KML, GeoJSON or a portable `.kite.json`
@@ -540,7 +545,7 @@ Do not use public tile, geocoding or CDN services for sensitive work without an 
   `src/styles.css`, `src/sw.js` and 42 JavaScript files, concatenated into the
   shipped file by `build.js`. The single-file product is the output, not the
   source.
-- **There are automated tests.** 133 suites run against the shipped
+- **There are automated tests.** 134 suites run against the shipped
   file — most under Node, plus a set that drives a real headless browser —
   covering coordinate parsing and formatting, UTM, KML namespaces and
   styles, geometry conversion, serialization, tree navigation and
@@ -571,6 +576,9 @@ Do not use public tile, geocoding or CDN services for sensitive work without an 
   full article.
 - **Offline reload**: a small service worker keeps the application and its
   pinned libraries, so a discarded tab comes back without a network.
+- **Recent cards**: the information card no longer flickers or vanishes while
+  the mouse sweeps across many markers; the ones the pointer rested on stay as
+  tabs that can be looked at again, outlined on the map, and pinned.
 
 ### Still open
 

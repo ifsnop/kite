@@ -96,6 +96,7 @@ saltos: se notaba dibujando una ruta). Todo en `70-view-controls.js`.
 - **Toque = lo de siempre**: 80 px (`KEY_PAN_STEP`, el
   `keyboardPanDelta` de Leaflet) o ±1 nivel. Soltada antes, la flecha
   COMPLETA el paso sin pasarse; soltada después, se para en seco.
+- **F with the viewer focused pins the card of the layer under the pointer** in the info card's stack of recent cards (`pinLiveLayerInfo`, listener on the map container like R; it only calls `preventDefault` when there was a layer to pin). In the cheat sheet («Visor») and in manual §8. See `style-dialogs-ui.md`, «Hover intent and the stack of recent cards».
 - **Ctrl+Z / Ctrl+Y con el visor enfocado también deshacen y rehacen** (listener global de `40-panel-actions.js`: con el mapa enfocado devuelve antes de las teclas del árbol, pero deshacer/rehacer son del espacio de trabajo entero y no de la fila seleccionada). Salvo con una herramienta de dibujo en marcha (`activeTool`): a medias de una forma, que el árbol retroceda de pronto sorprendería. Sin Ctrl, o con Alt, nada. En la chuleta («Actuar») y en el manual (apartado 8). Probado con el teclado real en `tests/browser/undo-create.mjs`.
 - **Flechas**: arrancan en el keydown a 400 px/s, aceleran a partir de
   500 ms hasta 1600 px/s en 1 s (`keyPanSpeed`), dos a la vez en

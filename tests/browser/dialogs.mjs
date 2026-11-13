@@ -608,28 +608,30 @@ await page.evaluate(() => {
 });
 
 const anchos = () => page.evaluate(() => ({
-  clave: Math.round(document.querySelector(".props td").getBoundingClientRect().width),
-  valor: Math.round(document.querySelectorAll(".props td")[1].getBoundingClientRect().width),
+  clave: Math.round(document.querySelector("#desc-body .props td").getBoundingClientRect().width),
+  valor: Math.round(document.querySelectorAll("#desc-body .props td")[1].getBoundingClientRect().width),
   frac: document.getElementById("desc-body").style.getPropertyValue("--props-key"),
-  layout: getComputedStyle(document.querySelector(".props")).tableLayout
+  layout: getComputedStyle(document.querySelector("#desc-body .props")).tableLayout
 }));
 
 const inicial = await anchos();
 ok(inicial.layout === "fixed",
   "la tabla es de reparto FIJO: con el automático el ancho pedido se ignora y el separador no movería nada");
-ok(await page.locator(".props-grip").count() === 1, "hay un tirador entre las dos columnas");
+/* Counted inside the card: the «Atributos» tab of a style dialog opened earlier
+   in this suite also holds a table now (the basic card of its layer) */
+ok(await page.locator("#desc-dialog .props-grip").count() === 1, "hay un tirador entre las dos columnas");
 /* Y NO en una tabla que venga de la <description> de un KML, que es
    HTML del archivo y puede tener las columnas que quiera.           */
 const enKml = await page.evaluate(() => {
   document.getElementById("desc-body").innerHTML = "<table><tr><td>a</td><td>b</td><td>c</td></tr></table>";
-  return document.querySelectorAll(".props-grip").length;
+  return document.querySelectorAll("#desc-dialog .props-grip").length;
 });
 ok(enKml === 0, "una tabla de una ficha KML no lleva separador: sus columnas son del autor");
 
 /* Vuelta a la tabla de properties para arrastrar de verdad */
 await page.evaluate(() => showLayerInfo(
   [...document.querySelectorAll("#tree li")].find(x => x._name === "Con properties")));
-const grip = await page.locator(".props-grip").boundingBox();
+const grip = await page.locator("#desc-dialog .props-grip").boundingBox();
 await page.mouse.move(grip.x + grip.width / 2, grip.y + 30);
 await page.mouse.down();
 await page.mouse.move(grip.x + grip.width / 2 + 150, grip.y + 30, { steps: 10 });
@@ -641,7 +643,7 @@ ok(trasArrastrar.valor < inicial.valor - 100,
   `y estrecha el valor: ${inicial.valor} → ${trasArrastrar.valor} px`);
 
 /* Al extremo: ninguna columna puede desaparecer */
-const g2 = await page.locator(".props-grip").boundingBox();
+const g2 = await page.locator("#desc-dialog .props-grip").boundingBox();
 await page.mouse.move(g2.x + g2.width / 2, g2.y + 30);
 await page.mouse.down();
 await page.mouse.move(g2.x - 3000, g2.y + 30, { steps: 8 });

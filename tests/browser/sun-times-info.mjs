@@ -1,12 +1,12 @@
 /* Horas del sol y crepúsculos en la ficha de un marcador, con la
    iluminación real activa: de punta a punta.
 
-   Se prueba en el navegador y no solo en Node (tests/daynight.js cubre
-   la matemática) porque lo que importa es lo que se VE y CUÁNDO: que el
-   ℹ de un marcador sin descripción aparezca al activar la iluminación
-   y desaparezca al apagarla, que la ficha lleve la sección, que pasar
-   el ratón por encima NO abra una ventana por cada marcador, y que un
-   marcador con su propia ficha la conserve y reciba la sección detrás. */
+   Tested in the browser and not only in Node (tests/daynight.js covers the
+   maths) because what matters is what is SEEN and WHEN: that a marker with
+   no description gets the sun section when the lighting is switched on and
+   loses it when it is switched off (its basic card, and so its ℹ, are there
+   either way), that hovering does NOT open a window for every marker, and
+   that a marker with its own card keeps it and gets the section after it. */
 import { launch, serve, openApp, reporter, READABLE } from "./_browser.mjs";
 
 const { ok, done } = reporter("BROWSER SUN TIMES INFO TESTS OK");
@@ -41,7 +41,9 @@ const info = nombre => page.evaluate(n => {
 
 /* ---------- Iluminación apagada: todo como siempre ---------- */
 let a = await info("Sin nada");
-ok(a.html === null && (!a.hay || !a.visible), "sin iluminación, un marcador sin nada no tiene ficha ni ℹ visible");
+/* Without a card of its own a marker still has its basic one (name, kind,
+   position: basicInfoProps), and so its ℹ; no sun section without lighting */
+ok(a.visible && /Latitud/.test(a.html) && !a.html.includes("Sol y crep"), "sin iluminación, un marcador sin nada tiene su ficha básica (posición) y su ℹ, sin sección del sol");
 a = await info("Con ficha");
 ok(a.visible && a.html.includes("Torre vieja") && !a.html.includes("Sol y crep"), "con ficha propia, sin sección del sol");
 
@@ -61,7 +63,7 @@ ok(/UTC[+−]\d/.test(a.html), "con el desfase horario del navegador a la vista"
 a = await info("Con ficha");
 ok(a.html.startsWith("Torre vieja") && a.html.includes("Sol y crep"), "con ficha propia: primero la suya, la sección del sol detrás");
 a = await info("Dos puntos");
-ok(a.html === null && !a.visible, "varios marcadores en una capa: no hay un único punto, no hay sección");
+ok(!a.html.includes("Sol y crep") && !/Latitud/.test(a.html), "varios marcadores en una capa: no hay un único punto, ni sección del sol ni posición en su ficha básica");
 
 /* Abrir de verdad desde el botón */
 await page.evaluate(() => {
@@ -100,7 +102,7 @@ ok(menu, "«Mostrar atributos» aparece en el menú contextual del marcador");
 /* ---------- Apagar: vuelve a como estaba ---------- */
 await page.evaluate(() => { document.getElementById("desc-dialog").hidden = true; document.querySelector(".dn-toggle").click(); });
 a = await info("Sin nada");
-ok(!(await page.evaluate(() => dayNightOn)) && a.html === null && !a.visible, "al apagar la iluminación, el ℹ se va y no hay ficha");
+ok(!(await page.evaluate(() => dayNightOn)) && !a.html.includes("Sol y crep") && /Latitud/.test(a.html), "al apagar la iluminación, la sección del sol se va y queda su ficha básica");
 a = await info("Con ficha");
 ok(a.visible && !a.html.includes("Sol y crep"), "y el marcador con ficha propia conserva la suya, sin la sección");
 

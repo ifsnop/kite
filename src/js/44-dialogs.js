@@ -547,18 +547,196 @@ const descTitle = document.getElementById("desc-title");
 const descBody = document.getElementById("desc-body");
 const descEditBtn = document.getElementById("desc-edit");
 let descLayer = null; /* capa cuya ficha se muestra ahora */
-/* A panel opened by hovering stays while the pointer is ON it (to read it, to
-   reach its link, or because it opened over the layer) and closes soon after the
-   pointer leaves it; see scheduleLayerInfoHide. */
-descBox.addEventListener("mouseenter", cancelLayerInfoHide);
-descBox.addEventListener("mouseleave", scheduleLayerInfoHide);
-/* De la ficha de atributos (solo lectura) a la edición de la misma capa:
-   cierra la ficha y abre el diálogo de propiedades (pestaña Estilos). */
-descEditBtn.addEventListener("click", () => {
-  const li = descLayer;
-  hideLayerInfo({ dismiss: true });
-  if (li) openStyleDialog(li);
+const descPinBtn = document.getElementById("desc-pin");
+const descStack = document.getElementById("desc-stack");
+const descStackLabel = document.getElementById("desc-stack-label");
+const descStackList = document.getElementById("desc-stack-list");
+/* A card opened by hovering stays while the pointer is ON it (to read it, to
+   reach its link or a tab, or because it opened over the layer) and acts soon
+   after the pointer leaves it; see scheduleLayerInfoHide. A tab chosen with a
+   click stays chosen when the pointer leaves the card. */
+descBox.addEventListener("mouseenter", () => { cancelLayerInfoHide(); pauseInfoStack(true); });
+descBox.addEventListener("mouseleave", () => {
+  pauseInfoStack(false);
+  scheduleLayerInfoHide();
 });
+function infoSelectionInCard() {
+  const sel = document.getSelection();
+  return !!sel && !sel.isCollapsed && descBox.contains(sel.anchorNode);
+}
+/* The deferred close waited for a selection in the card (infoHideHeld, set in
+   scheduleLayerInfoHide): once it is gone, with the pointer away, it goes on. */
+document.addEventListener("selectionchange", () => {
+  if (!infoHideHeld || infoSelectionInCard()) return;
+  infoHideHeld = false;
+  if (descDialog.hidden || descBox.matches(":hover")) return;
+  scheduleLayerInfoHide();
+});
+/* From the read-only card to editing the same layer: hides the card and opens
+   the properties dialog (Styles tab). The stack is kept: the user is moving on
+   to edit, not done with the cards. */
+function editFromInfoCard(li) {
+  hideLayerInfo({ dismiss: true, clear: false });
+  if (li) openStyleDialog(li);
+}
+descEditBtn.addEventListener("click", () => editFromInfoCard(descLayer));
+/* A mouse click on a tab or on the header pin must not move the focus into
+   the card: with the focus inside, the deferred close stays the user's call
+   (an explicit open), so after one click the card never shrank again when
+   the pointer left the layers. The keyboard still reaches them with Tab. */
+const keepFocusOnClick = e => e.preventDefault();
+descPinBtn.addEventListener("mousedown", keepFocusOnClick);
+descPinBtn.addEventListener("click", () => toggleInfoPin(descLayer));
+
+/* ---------- Tabs of the stack of recent cards (state: 32-geojson.js) ----------
+   One line of tabs under the title, scrolling sideways when they do not fit
+   (the wheel scrolls it too). The first tab is the live layer (the one under
+   the pointer or opened on purpose), the rest the recent cards, newest first,
+   a pin glyph on the pinned ones. ONE card at a time, in the body below the
+   strip: a CLICK on a tab shows its card there and outlines its layer
+   (Enter or Space with the tab focused, ← and → move between tabs). Hovering
+   a tab does nothing (decided with the user: switching on hover, even after
+   a short rest, changed the card while the pointer travelled to the text or
+   to another tab). The chosen card stays when the pointer leaves the card;
+   the first tab goes back to the live layer, and a new live layer (the
+   pointer resting on another layer, an explicit open) or closing the card
+   ends the choice. The strip is above the body and the title never wraps
+   (#desc-title), so switching cards never moves a tab under the pointer.
+   Replaced an accordion (one row per card, opening under its name) that took
+   too much room (decided with the user). A phone has no hover and no room
+   for it: no stack there (mobile-view.md). */
+function infoStackActive() {
+  return !document.documentElement.classList.contains("phone-layout");
+}
+/* Shows `li`'s card in the body; the live layer's tab just goes back to it */
+function peekInfoTab(li) {
+  const live = liveInfo && liveInfo.li;
+  infoPeek = li === live ? null : li;
+  setInfoHalo(infoPeek);
+  paintLayerInfo(infoPeek || live || null);
+}
+function clearInfoPeek() {
+  if (!infoPeek && !infoHalo) return;
+  infoPeek = null;
+  setInfoHalo(null);
+  if (!descDialog.hidden) paintLayerInfo(liveInfo ? liveInfo.li : null);
+}
+/* The wheel scrolls the strip sideways when it overflows */
+descStack.addEventListener("wheel", e => {
+  if (descStack.scrollWidth <= descStack.clientWidth || !e.deltaY) return;
+  e.preventDefault();
+  descStack.scrollLeft += e.deltaY;
+}, { passive: false });
+/* ← and → move the focus between tabs; Enter or Space chooses one (a click) */
+descStackList.addEventListener("keydown", e => {
+  if (e.key !== "ArrowLeft" && e.key !== "ArrowRight") return;
+  const tabs = [...descStackList.querySelectorAll(".info-tab-btn")];
+  const i = tabs.indexOf(document.activeElement);
+  if (i < 0) return;
+  e.preventDefault();
+  const next = tabs[Math.min(tabs.length - 1, Math.max(0, i + (e.key === "ArrowRight" ? 1 : -1)))];
+  next.focus();
+});
+const PIN_ICON_SVG = '<svg viewBox="0 0 16 16" width="12" height="12" aria-hidden="true">'
+  + '<path class="pin-head" d="M6 1.75h4l-.6 4.5 2.35 2.25h-7.5L6.6 6.25z" fill="currentColor" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"/>'
+  + '<path d="M8 8.5v5.75" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg>';
+/* One element per layer, reused across repaints: re-creating them would replay
+   the entry animation of every tab each time one changes. */
+const infoTabEls = new WeakMap();
+function makeInfoTab(li) {
+  const item = document.createElement("li");
+  item.className = "info-tab";
+  const btn = document.createElement("button");
+  btn.type = "button";
+  btn.className = "info-tab-btn";
+  btn.setAttribute("role", "tab");
+  btn.setAttribute("aria-controls", "desc-body");
+  const swatch = document.createElement("span");
+  swatch.className = "info-tab-swatch";
+  const name = document.createElement("span");
+  name.className = "info-tab-name";
+  const pin = document.createElement("span");
+  pin.className = "info-tab-pin";
+  pin.innerHTML = PIN_ICON_SVG;
+  btn.append(swatch, name, pin);
+  item.append(btn);
+  btn.addEventListener("mousedown", keepFocusOnClick);
+  btn.addEventListener("click", () => peekInfoTab(li));
+  return item;
+}
+function paintInfoTab(item, li, { live, pinned, expiring }) {
+  const btn = item.firstChild;
+  const [swatch, name, pin] = btn.children;
+  const treeSwatch = li.querySelector(":scope > .node-row > .swatch");
+  swatch.hidden = !treeSwatch;
+  if (treeSwatch) swatch.style.background = treeSwatch.style.background;
+  name.textContent = li._name;
+  /* The first tab is the layer under the pointer; it says so on hover (a dot
+     next to the colour swatch read as two swatches) */
+  btn.title = live ? tr("{name} (bajo el cursor)", { name: li._name })
+    : pinned ? tr("{name} (fijada)", { name: li._name }) : li._name;
+  pin.hidden = !pinned;
+  const selected = li === descLayer;
+  btn.setAttribute("aria-selected", String(selected));
+  item.classList.toggle("selected", selected);
+  item.classList.toggle("live", live);
+  item.classList.toggle("expiring", !selected && expiring);
+}
+function renderInfoStack() {
+  const now = infoStackClock(); /* frozen with the pointer on the card: no tab starts dimming */
+  const compact = !descLayer;
+  const live = liveInfo && liveInfo.li;
+  descBox.classList.toggle("info-compact", compact);
+  if (infoPeek && !infoStack.some(r => r.li === infoPeek)) { infoPeek = null; setInfoHalo(null); }
+  const others = infoStack.filter(r => r.li !== live);
+  /* With no recent card there is nothing to choose: no strip, just the card */
+  descStack.hidden = !others.length;
+  descStackLabel.textContent = tr("Fichas recientes ({n})", { n: infoStack.length });
+  descPinBtn.hidden = !infoStackActive();
+  descPinBtn.style.visibility = compact ? "hidden" : "";
+  const pinned = !compact && infoStack.some(r => r.li === descLayer && r.pinned);
+  descPinBtn.setAttribute("aria-pressed", String(pinned));
+  descPinBtn.title = pinned ? tr("Soltar la ficha (F)") : tr("Fijar la ficha (F)");
+  descPinBtn.setAttribute("aria-label", pinned ? tr("Soltar la ficha") : tr("Fijar la ficha"));
+  const tabs = others.length && live
+    ? [{ li: live, live: true, pinned: infoStack.some(r => r.li === live && r.pinned), expiring: false }, ...others.map(r => ({ li: r.li, live: false, pinned: r.pinned, expiring: infoStackExpiring(r, now) }))]
+    : others.map(r => ({ li: r.li, live: false, pinned: r.pinned, expiring: infoStackExpiring(r, now) }));
+  let cursor = descStackList.firstElementChild;
+  for (const tab of tabs) {
+    let item = infoTabEls.get(tab.li);
+    if (!item) { item = makeInfoTab(tab.li); infoTabEls.set(tab.li, item); }
+    paintInfoTab(item, tab.li, tab);
+    if (item === cursor) cursor = cursor.nextElementSibling;
+    else descStackList.insertBefore(item, cursor);
+  }
+  while (cursor) { const next = cursor.nextElementSibling; cursor.remove(); cursor = next; }
+}
+
+/* Outline of the layer whose tab is being looked at: a ring round a point, a
+   dashed box round anything bigger. Static (no blink: hovering rows would make
+   the map flicker, and it stays readable with reduced motion), on the map and
+   NOT in rootGroup, so it is neither saved nor hit by the context menu, and
+   never moves the view. Map content, so it is not themed (theme.md): white
+   under orange reads on light and dark maps alike. */
+const INFO_HALO_COLOR = "#e65100";
+let infoHalo = null;
+function setInfoHalo(li) {
+  if (infoHalo) { infoHalo.remove(); infoHalo = null; }
+  if (!li) return;
+  const b = subtreeBounds(li);
+  if (!b.isValid()) return;
+  const sw = map.latLngToContainerPoint(b.getSouthWest());
+  const ne = map.latLngToContainerPoint(b.getNorthEast());
+  const point = Math.abs(sw.x - ne.x) < 24 && Math.abs(sw.y - ne.y) < 24;
+  const base = { interactive: false, fill: false };
+  const under = { ...base, color: "#ffffff", weight: 6, opacity: 0.9 };
+  const over = { ...base, color: INFO_HALO_COLOR, weight: 3, dashArray: point ? null : "6 5" };
+  infoHalo = point
+    ? L.layerGroup([L.circleMarker(b.getCenter(), { ...under, radius: 20 }),
+                    L.circleMarker(b.getCenter(), { ...over, radius: 20, fill: true, fillColor: INFO_HALO_COLOR, fillOpacity: 0.12 })])
+    : L.layerGroup([L.rectangle(b.pad(0.08), under), L.rectangle(b.pad(0.08), over)]);
+  infoHalo.addTo(map);
+}
 document.getElementById("desc-close").addEventListener("click", () => {
   hideLayerInfo({ dismiss: true });
 });

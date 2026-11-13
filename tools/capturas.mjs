@@ -608,6 +608,36 @@ scenario("ficha-propiedades.png", "6.5", async out => {
   await ctx.close();
 });
 
+/* The stack of recent cards: the live card of «Sensor 1» (first tab) and, as
+   tabs under the title, the layers the pointer rested on before it, one
+   pinned. Set directly (what a real mouse would leave behind;
+   tests/browser/info-stack.mjs drives the mouse). */
+/* Three more stations (the example scene has only two layers with a card),
+   dropped here so the other figures keep the scene as it is. */
+const ESTACIONES = JSON.stringify({ type: "FeatureCollection", features: [
+  ["Estación Navacerrada", "Lluvia", 8, -4.01, 40.79], ["Estación Cotos", "Nieve", 10, -3.96, 40.82],
+  ["Estación La Barranca", "Viento", 15, -4.04, 40.76]
+].map(([name, categoria, altura_m, lng, lat]) => ({ type: "Feature", properties: { name, categoria, altura_m, estado: "activo" },
+  geometry: { type: "Point", coordinates: [lng, lat] } })) });
+scenario("ficha-pila.png", "6.5", async out => {
+  const { ctx, page } = await openApp();
+  await sierra(page, { expandSensores: true });
+  /* Same properties as sensores.geojson: the saved name choice applies with no
+     picker, so not through drop(), which waits for one */
+  await page.evaluate(t => handleDroppedFiles([new File([t], "estaciones.geojson")]), ESTACIONES);
+  await expandNode(page, "estaciones.geojson");
+  await page.evaluate(() => {
+    const row = n => [...document.querySelectorAll("#tree li")].find(li => li._name === n);
+    const now = Date.now();
+    infoStack = [["Estación Cotos", false], ["Sensor 2", true], ["Estación Navacerrada", false]]
+      .map(([n, pinned]) => ({ li: row(n), pinned, t: now }));
+    showLayerInfo(row("Sensor 1"), { focus: false });
+  });
+  await page.waitForSelector("#desc-dialog:not([hidden])");
+  await dialog(page, out, "desc-dialog");
+  await ctx.close();
+});
+
 /* ===== 7. Tareas ===== */
 scenario("elegir-nombre.png", "7.1", async out => {
   const { ctx, page } = await openApp();

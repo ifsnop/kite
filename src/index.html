@@ -311,6 +311,7 @@
         <tr><td>Rueda del rat&#243;n</td><td>Zoom continuo hacia el puntero; al parar se ajusta al nivel siguiente</td></tr>
         <tr><td>Arrastrar la br&#250;jula</td><td>Girar el mapa (el norte deja de apuntar arriba)</td></tr>
         <tr><td>R (con el mapa enfocado) o clic en la br&#250;jula</td><td>Volver a poner el norte arriba</td></tr>
+        <tr><td>F (con el mapa enfocado y el rat&#243;n sobre una capa)</td><td>Fijar su ficha en &#171;Fichas recientes&#187;; otra vez, soltarla</td></tr>
         <tr><td>Bot&#243;n central (rueda) pulsado + arrastrar a izquierda/derecha</td><td>Girar el mapa alrededor del punto pulsado</td></tr>
       </table>
       <table class="keys">
@@ -345,8 +346,14 @@
 <!-- Ficha original del elemento (description del KML) -->
 <div id="desc-dialog" class="dlg-float" hidden>
   <div class="dlg-box">
-    <h2 class="dlg-head"><span class="dlg-title" id="desc-title">Ficha</span><button type="button" class="dlg-close" data-cancel="desc-close" title="Cerrar" aria-label="Cerrar">&#215;</button></h2>
-    <div id="desc-body" class="desc-body"></div>
+    <h2 class="dlg-head"><span class="dlg-title" id="desc-title">Ficha</span><button type="button" class="dlg-pin dlg-skip-focus" id="desc-pin" title="Fijar la ficha (F)" aria-label="Fijar la ficha" aria-pressed="false"><svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true"><path class="pin-head" d="M6 1.75h4l-.6 4.5 2.35 2.25h-7.5L6.6 6.25z" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"/><path d="M8 8.5v5.75" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg></button><button type="button" class="dlg-close" data-cancel="desc-close" title="Cerrar" aria-label="Cerrar">&#215;</button></h2>
+    <!-- Stack of recent cards: one line of tabs under the title, one card at a
+         time in the body below (32-geojson.js, 44-dialogs.js) -->
+    <div id="desc-stack" class="desc-stack dlg-skip-focus" hidden>
+      <div class="desc-stack-label" id="desc-stack-label">Fichas recientes</div>
+      <ol class="desc-stack-list" id="desc-stack-list" role="tablist" aria-labelledby="desc-stack-label"></ol>
+    </div>
+    <div id="desc-body" class="desc-body" role="tabpanel"></div>
     <div class="dlg-actions">
       <button class="btn" id="desc-close">Cerrar</button>
       <button class="btn" id="desc-edit" hidden>Editar propiedades</button>

@@ -86,6 +86,16 @@ Los polígonos con altitud como obstáculos de un perfil (apartado 7.9 del manua
 
 La lupa 🔍 de una fila que forma parte de una selección múltiple encuadra el conjunto, pero su texto de ayuda («Centrar la vista aquí y acercar (zoom 14)») sigue describiendo solo el caso de una fila. Se dejó así para no añadir textos nuevos a las dos lenguas; el manual (apartados 3.1 y 3.4) sí lo explica.
 
+### 1.13 Recent cards: what the first version leaves out
+
+The info card's stack of recent cards (manual 6.5) keeps one tab per layer the pointer rested on. Left on purpose, to revisit on user feedback:
+
+- **A layer out of view gets no hint.** Hovering its tab outlines it on the map without moving the view, so a layer outside the current view shows nothing; a small arrow at the edge pointing at it (or clicking the tab to frame it) would fix it.
+- **Undo empties the stack.** Undo and redo rebuild every tree row, and the tabs of the stack point at the old ones, so they go. Keeping them would mean finding each layer again in the rebuilt tree (by identity of its record).
+- **A short glance still closes.** A layer the pointer did not rest on (under ~0.4 s) leaves no tab, so its card closes 200 ms after the pointer leaves it, as before: its link is only reachable by resting on it, or with ℹ or «Mostrar atributos».
+- **Timings and caps are fixed** (intent 250 ms on the map, dwell 400 ms, 30 s, 6 unpinned rows and 6 pinned ones), not preferences.
+- **Many tabs scroll.** With the 6 recent cards and up to 6 pinned ones the strip can be wider than the card: it scrolls sideways (wheel and ← →) and long names are cut with an ellipsis (the whole name on hover). A tab out of sight is not brought into view on its own: doing it while the pointer is on the strip would move the tabs under it.
+
 ## 2. Hecho a medias
 
 No confundir con pendiente: está hecho lo principal y queda un cabo.
@@ -145,7 +155,6 @@ Con la API de geolocalización del navegador: centrar el mapa en la posición, c
 «Artículos de Wikipedia en la vista» searches from the clicked point out to the farthest corner of the current view, and asks for the 100 nearest geotagged articles, in the Wikipedia of the interface language (Spanish, or English for any other). The service only accepts a radius between 10 m and 10 km (`gsradius`; `gsbbox` has the same kind of limit), so a view wider than that is searched up to 10 km and a notice says so. In a city centre the 100 nearest fit within a few hundred metres, so the radius is rarely the limit that applies there, and the notice says so. Decided on purpose for the first version (one click, no settings) and recorded here so they are not lost:
 
 - **Limit and language are fixed.** Possible: a limit chosen by the user (the API allows up to 500 results per request), a Wikipedia language independent of the interface (and showing it in the card), and not repeating articles that an earlier folder already holds (needs the page id kept with each marker). A view wider than 10 km cannot be covered by a single query; covering it would take several queries around different points, and the 100-article limit would stay.
-- **Hovering opens the card on every marker crossed.** The hover card (`31-tree-node.js`, `layer.on("mouseover", …)`) is existing, tested behaviour for any layer, but this feature is the first to make dense clusters the normal case: moving the pointer across 100 «W» within a few hundred metres opens and re-renders the card continuously. A short hover-intent delay for layers in a large folder is the option; revisit on user feedback. (What is fixed: the card no longer blinks when it opens right over the marker being hovered, and it stays while the pointer is on it. What is not: the pointer must reach a hover-opened card within the 200 ms close delay, so with the card far from the marker its link is only reachable by opening it with ℹ or «Mostrar atributos»; a longer delay or a «safe path» towards the card would fix it, at the cost of the card lingering when crossing between neighbouring layers.)
 - **Overlap of 100 glyphs in a dense centre.** Overlapping is geometry, not design; the real answer is marker clustering (3.5), and this is the first case that asks for it. (The glyph does keep its contrast: the «W» sits on a round badge, see `marker-icons.md`.)
 - **Touch.** There is no hover on a touch screen and a tap on a marker only shows its name, so the summary and the link are reached through the ℹ of the tree row, which the phone layout hides until the panel is opened. Putting the summary link in the marker's popup is the fix; it belongs with the touch support of 1.6.
 - **The card's distance is static text**: changing the distance unit later does not update a card that already exists, as with any imported description.
