@@ -129,10 +129,10 @@
      100 ms. Solo transform y filter (van en el compositor). Lo comparten
      los controles que son botones; ver motion.md.                       */
   .btn, .dlg-close, #nav-toggle, .base-toggle, .color-btn, .ctx-menu-item,
-  .leaflet-bar a, .dlg-pin, .info-tab-btn { transition: transform .1s ease-out, filter .1s ease-out; }
+  .leaflet-bar a, .dlg-pin, .info-tab-btn, .info-tab-pin { transition: transform .1s ease-out, filter .1s ease-out; }
   .btn:not(:disabled):active, .dlg-close:active, #nav-toggle:active, .base-toggle:active,
   .color-btn:not(:disabled):active, .ctx-menu-item:not(:disabled):active,
-  .leaflet-bar a:not(.leaflet-disabled):active, .dlg-pin:active, .info-tab-btn:active {
+  .leaflet-bar a:not(.leaflet-disabled):active, .dlg-pin:active, .info-tab-btn:active, .info-tab-pin:active {
     transform: scale(.97);
     filter: brightness(.94);
     transition-duration: 0s;
@@ -1466,25 +1466,39 @@
     clip-path: inset(50%); white-space: nowrap;
   }
   .desc-stack-list { list-style: none; margin: 0; padding: 0; display: flex; gap: 2px; width: max-content; }
-  .info-tab { flex: none; animation: enter-row .12s ease-out; }
+  /* A tab = the tab button and its own small pin, side by side; the tab's
+     look (selected, hover) is on the <li> so it covers both */
+  .info-tab {
+    flex: none; display: flex; align-items: center;
+    border-bottom: 2px solid transparent; border-radius: 6px 6px 0 0;
+    animation: enter-row .12s ease-out;
+  }
+  .info-tab:hover { background: var(--bg); }
+  .info-tab.selected { border-bottom-color: var(--accent); background: var(--accent-soft); }
   .info-tab.expiring { opacity: .55; } /* about to expire: kept with reduced motion, it is not movement */
   .info-tab-btn {
     display: flex; align-items: center; gap: 6px;
-    height: 28px; padding: 0 10px;
-    border: 0; border-bottom: 2px solid transparent; border-radius: 6px 6px 0 0;
-    background: none; color: var(--muted-2);
+    height: 28px; padding: 0 2px 0 10px;
+    border: 0; background: none; color: var(--muted-2);
     font: inherit; font-size: 12.5px; text-align: left; cursor: pointer;
   }
-  .info-tab-btn:hover { background: var(--bg); color: var(--text); }
-  .info-tab.selected .info-tab-btn { color: var(--text); font-weight: 600; border-bottom-color: var(--accent); background: var(--accent-soft); }
+  .info-tab:hover .info-tab-btn { color: var(--text); }
+  .info-tab.selected .info-tab-btn { color: var(--text); font-weight: 600; }
   .info-tab-swatch { flex: none; width: 9px; height: 9px; border-radius: 50%; }
   .info-tab-swatch[hidden] { display: none; }
   /* Room for a name like «MLAT LEPA RX 30» in bold (~122 px with system-ui at
      12.5 px, measured; 12.5em leaves margin for wider fonts); longer ones end
      in an ellipsis, the whole name on hover */
   .info-tab-name { max-width: 12.5em; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  .info-tab-pin { flex: none; display: inline-flex; color: var(--accent); }
-  .info-tab-pin[hidden] { display: none; }
+  .info-tab-pin {
+    flex: none; width: 20px; height: 20px; margin-right: 4px; padding: 0;
+    display: inline-flex; align-items: center; justify-content: center;
+    border: 0; border-radius: 4px; background: none;
+    color: var(--muted); cursor: pointer;
+  }
+  .info-tab-pin:hover { background: var(--border); color: var(--text); }
+  .info-tab.pinned .info-tab-pin { color: var(--accent); }
+  .info-tab.pinned .info-tab-pin .pin-head { fill: currentColor; }
   .dlg-pin {
     flex: none;
     width: 26px; height: 26px; padding: 0; margin: -3px 0 0 6px;
@@ -1496,7 +1510,7 @@
   .dlg-pin:hover { background: var(--border); color: var(--text); }
   .dlg-pin[aria-pressed="true"] { color: var(--accent); }
   .dlg-pin[aria-pressed="true"] .pin-head { fill: currentColor; }
-  .info-tab-btn:focus-visible, .dlg-pin:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+  .info-tab-btn:focus-visible, .info-tab-pin:focus-visible, .dlg-pin:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
   #desc-dialog .dlg-box.info-compact { padding-bottom: 10px; }
   .info-compact .dlg-actions { display: none; }
   .info-compact .desc-stack { margin-bottom: 0; border-bottom: 0; }
@@ -1886,11 +1900,11 @@
     .dlg-overlay { animation: none; }
     .info-tab { animation: none; }
     .btn, .dlg-close, #nav-toggle, .base-toggle, .color-btn, .ctx-menu-item, .leaflet-bar a,
-    .dlg-pin, .info-tab-btn { transition: none; }
+    .dlg-pin, .info-tab-btn, .info-tab-pin { transition: none; }
     .btn:not(:disabled):active, .dlg-close:active, #nav-toggle:active, .base-toggle:active,
     .color-btn:not(:disabled):active, .ctx-menu-item:not(:disabled):active,
     .leaflet-bar a:not(.leaflet-disabled):active, .dlg-pin:active,
-    .info-tab-btn:active { transform: none; }
+    .info-tab-btn:active, .info-tab-pin:active { transform: none; }
     html.theme-switching, html.theme-switching * { transition: none !important; }
   }
   /* Transparencia reducida: superficies opacas y sin desenfoque */

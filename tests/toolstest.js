@@ -10,7 +10,7 @@ const wait = ms => new Promise(r => setTimeout(r, ms));
    stack) still see the card close when the pointer leaves. */
 const STACK_FNS = ["cancelHoverIntent", "infoStackWith", "infoStackTrim", "infoStackPinned", "infoStackResumed", "infoStackAlive", "infoStackExpiring",
   "infoStackNextEvent", "scheduleInfoStackTick", "pauseInfoStack", "refreshInfoStack", "retireLiveInfo",
-  "collapseLayerInfo", "toggleInfoPin", "pinLiveLayerInfo", "paintLayerInfo", "setLiveInfo"];
+  "collapseLayerInfo", "toggleInfoPin", "pinLiveLayerInfo", "paintLayerInfo", "setLiveInfo", "infoCardLocked", "settleHoverCandidate"];
 /* ttl = Infinity arms no expiry timer at all (a long real one would keep Node alive) */
 function buildApi({ hideDelay = 5, guardMs = 5, intent = 2, dwell = Infinity, ttl = Infinity, warn = 1, max = 6, maxPinned = 6 } = {}) {
   const src = `
@@ -22,7 +22,7 @@ function buildApi({ hideDelay = 5, guardMs = 5, intent = 2, dwell = Infinity, tt
     const clickPicksPoint = () => activeTool === "polygon" || PLACE_TOOLS.has(activeTool);
     let layerInfoHideTimer = null;
     let suppressNextHover = false;
-    let hoverIntent = null, infoStack = [], liveInfo = null, infoPeek = null, infoStackTimer = null, infoStackPaused = false, infoHideHeld = false, infoQueueSeq = 0, infoPausedAt = 0;
+    let hoverIntent = null, infoStack = [], liveInfo = null, infoPeek = null, infoStackTimer = null, infoStackPaused = false, infoHideHeld = false, infoQueueSeq = 0, infoPausedAt = 0, infoHoverCandidate = null;
     const infoStackClock = () => infoStackPaused ? infoPausedAt : Date.now();
     const focusReturn = [];
   ` + [fn("hideLayerInfo"), fn("cancelLayerInfoHide"), fn("scheduleLayerInfoHide"), fn("showLayerInfo"), fn("setTool"),
@@ -298,6 +298,31 @@ for (const tool of ["route", "circle"]) {
   await wait(20);
   ok(b21.descTitle.textContent === "Fichas recientes", "once it is a hover card, leaving shrinks it even with the focus still inside: " + b21.descTitle.textContent);
 
+  // 15c. A pinned card on screen is locked: hovering other layers does not
+  //      change it and leaving them all does not shrink it; a layer rested on
+  //      meanwhile joins the stack as a tab, F pins the layer under the pointer,
+  //      and unpinning unlocks it.
+  const b22 = buildApi({ hideDelay: 5, intent: 2, dwell: 0 });
+  b22.api.showLayerInfo(li, { focus: false });
+  b22.api.pinLiveLayerInfo();                          /* A pinned: the card is locked on it */
+  b22.api.showLayerInfo(otherLi, { focus: false });    /* the pointer rests on B */
+  await wait(15);
+  ok(b22.descTitle.textContent === "capa A", "locked: hovering B does not change the card: " + b22.descTitle.textContent);
+  b22.api.scheduleLayerInfoHide();                     /* and leaves it */
+  await wait(20);
+  ok(b22.descTitle.textContent === "capa A" && b22.api.dialogHidden() === false, "locked: leaving every layer does not shrink or close the card");
+  ok(b22.api.stack().some(r => r.li === otherLi && !r.pinned), "B, rested on, joined the stack as a tab without being shown");
+  const C = { _name: "capa C" };
+  b22.api.showLayerInfo(C, { focus: false });
+  ok(b22.api.pinLiveLayerInfo() === true && b22.api.stack().some(r => r.li === C && r.pinned), "F pins the layer under the pointer even with the card locked on another");
+  ok(b22.descTitle.textContent === "capa A", "and the card stays on A");
+  b22.api.scheduleLayerInfoHide();
+  b22.api.toggleInfoPin(li);                           /* A unpinned: unlocked */
+  const D = { _name: "capa D" };
+  b22.api.showLayerInfo(D, { focus: false });
+  await wait(15);
+  ok(b22.descTitle.textContent === "capa D", "unpinned, the card follows the pointer again: " + b22.descTitle.textContent);
+
   // 16. The pure helpers: rows never move, first in first out over the
   //     unpinned ones, pinned rows outside the cap, nothing leaves while paused
   {
@@ -357,6 +382,22 @@ for (const tool of ["route", "circle"]) {
   ok(b20.api.stack().length === 2, "the pointer is on the card: nothing leaves");
   b20.api.pauseInfoStack(false);
   ok(b20.api.stack().length === 1 && b20.api.stack()[0].li === otherLi, "on leaving, first in first out: A (entered first) goes, B (re-entered on unpinning) stays");
+
+  // 19. The saved position and size of the card are validated on reading
+  //     (another tab or version may have written anything)
+  {
+    const validInfoBox = new Function("INFO_BOX_SCHEMA", "INFO_BOX_MIN_PX", "INFO_BOX_MAX_PX",
+      fn("validInfoBox") + "\nreturn validInfoBox;")(1, 120, 20000);
+    const good = { v: 1, left: -40, top: 20, width: 300, height: 200 };
+    ok(JSON.stringify(validInfoBox(good)) === JSON.stringify({ left: -40, top: 20, width: 300, height: 200 }), "a valid record comes back without its version");
+    ok(JSON.stringify(validInfoBox({ v: 1, left: null, top: null, width: 300, height: null })) === JSON.stringify({ left: null, top: null, width: 300, height: null }),
+      "what the user never touched is null and stays null");
+    for (const [bad, why] of [[null, "nothing"], ["x", "not an object"], [{ ...good, v: 2 }, "another version"],
+                              [{ ...good, left: NaN }, "NaN"], [{ ...good, top: "20" }, "a string"], [{ ...good, top: null }, "left without top"],
+                              [{ ...good, width: 50 }, "too small"], [{ ...good, height: 1e9 }, "absurdly large"], [{ ...good, left: Infinity }, "infinite"]]) {
+      ok(validInfoBox(bad) === null, "rejected: " + why);
+    }
+  }
 
   if (!process.exitCode) console.log("TOOLS TESTS OK");
 })();

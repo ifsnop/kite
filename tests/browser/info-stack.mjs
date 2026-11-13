@@ -11,7 +11,7 @@
    the layer under the pointer; the × keeps only pinned cards; a deleted layer
    leaves the stack. The state rules (intent, expiry, queue, pins, pause) are
    also covered in Node by tests/toolstest.js. */
-import { launch, serve, openApp, reporter, READABLE } from "./_browser.mjs";
+import { launch, serve, openApp, waitAppReady, reporter, READABLE } from "./_browser.mjs";
 
 const { ok, done } = reporter("BROWSER INFO STACK TESTS OK");
 
@@ -240,6 +240,37 @@ await page.evaluate(() => {
 s = await state();
 ok(!s.rows.includes("M3"), "deleting M3 takes its row out of the stack: " + JSON.stringify(s.rows));
 
+/* ---------- 9b. A pinned card on screen is locked; every tab has its own pin ---------- */
+s = await state();
+ok(s.title === "M5" && s.pinned.includes("M5"), "the card shows M5, pinned: locked on it: " + JSON.stringify(s));
+await rest("M1", 700);
+s = await state();
+ok(s.title === "M5", "resting on M1 on the map does not change a locked card: " + s.title);
+await toEmpty();
+s = await state();
+ok(!s.hidden && s.title === "M5" && s.stack.includes("M1"), "leaving the layers neither shrinks it, and M1 joined as a tab without being shown: " + JSON.stringify(s));
+const tabM1 = await tabAt("M1");
+await page.mouse.click(tabM1.x, tabM1.y);
+s = await state();
+ok(s.title === "M1" && s.selected.join() === "M1", "a click on the M1 tab is the way to change it: " + s.title);
+const pinM1 = await page.evaluate(() => {
+  const item = [...document.querySelectorAll("#desc-stack-list .info-tab")].find(t => t.querySelector(".info-tab-name").textContent === "M1");
+  const r = item.querySelector(".info-tab-pin").getBoundingClientRect();
+  return { x: r.left + r.width / 2, y: r.top + r.height / 2 };
+});
+await page.mouse.click(pinM1.x, pinM1.y);
+s = await state();
+const pinState = await page.evaluate(() => {
+  const item = [...document.querySelectorAll("#desc-stack-list .info-tab")].find(t => t.querySelector(".info-tab-name").textContent === "M1");
+  return { pressed: item.querySelector(".info-tab-pin").getAttribute("aria-pressed"), pinnedClass: item.classList.contains("pinned"),
+           focusOnPin: !!document.activeElement.closest(".info-tab-pin") };
+});
+ok(s.pinned.includes("M1") && pinState.pressed === "true" && pinState.pinnedClass && s.title === "M1",
+  "the small pin of the M1 tab pins it, without switching the card: " + JSON.stringify({ s, pinState }));
+ok(!pinState.focusOnPin, "and the click does not move the focus to the pin");
+await page.mouse.click(pinM1.x, pinM1.y);
+ok(!(await state()).pinned.includes("M1"), "a second click unpins it");
+
 /* ---------- 10. A tab has room for a name like «MLAT LEPA RX 30» ---------- */
 await page.evaluate(() => {
   hideLayerInfo({ dismiss: true });
@@ -256,6 +287,31 @@ ok(!plain.cut, "«MLAT LEPA RX 30» fits in its tab: " + JSON.stringify(plain));
 await page.evaluate(() => [...document.querySelectorAll("#desc-stack-list .info-tab-btn")].find(b => b.textContent.includes("MLAT")).click());
 const bold = await cut();
 ok(!bold.cut, "and still fits chosen, in bold: " + JSON.stringify(bold));
+
+/* ---------- 11. The card's position and size come back after a reload ---------- */
+const head = await page.evaluate(() => { const r = descBox.querySelector("h2").getBoundingClientRect(); return { x: r.left + 60, y: r.top + r.height / 2 }; });
+await page.mouse.move(head.x, head.y);
+await page.mouse.down();
+await page.mouse.move(head.x - 300, head.y + 120, { steps: 10 }); /* drag it by its title */
+await page.mouse.up();
+const corner = await page.evaluate(() => { const r = descBox.getBoundingClientRect(); return { x: r.right - 3, y: r.bottom - 3 }; });
+await page.mouse.move(corner.x, corner.y);
+await page.mouse.down();
+await page.mouse.move(corner.x + 80, corner.y + 60, { steps: 8 }); /* and resize it from its corner */
+await page.mouse.up();
+await page.waitForTimeout(700); /* past the save delay */
+const before = await page.evaluate(() => ({ left: descBox.style.left, top: descBox.style.top, width: descBox.style.width, height: descBox.style.height }));
+ok(before.left && before.width && before.height, "dragging and resizing set the card's position and size: " + JSON.stringify(before));
+await page.reload();
+await waitAppReady(page);
+const after = await page.evaluate(async () => {
+  await ensureMaterialized([...document.querySelectorAll("#tree li")].find(x => x._name === "Doc")); /* back collapsed after the reload */
+  showLayerInfo([...document.querySelectorAll("#tree li")].find(x => x._name === "M1"));
+  return { left: descBox.style.left, top: descBox.style.top, width: descBox.style.width, height: descBox.style.height,
+           shown: !document.getElementById("desc-dialog").hidden };
+});
+ok(after.shown && after.left === before.left && after.top === before.top && after.width === before.width && after.height === before.height,
+  "after a reload the card opens where it was left, with the size it was given: " + JSON.stringify({ before, after }));
 
 ok(errors.length === 0, "no page errors: " + JSON.stringify(errors));
 await ctx.close();

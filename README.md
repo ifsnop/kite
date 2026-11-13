@@ -141,7 +141,8 @@ KITE Local does not impose fixed limits on KML file size, imported features or v
   name, kind and position or measures); sweeping the mouse across the map only changes it where the
   pointer rests, and every layer rested on stays as a tab in one strip under
   the card's title (click a tab to see its card, one at a time, and outline
-  the layer on the map; pin it, or press F over a layer, to keep it;
+  the layer on the map; the small pin on each tab, or F over a layer, keeps
+  it, and a pinned card on screen no longer follows the mouse;
   selecting text to copy it never changes the card)
 - right-click menu on the map, which resolves overlapping layers into a
   submenu instead of guessing one
