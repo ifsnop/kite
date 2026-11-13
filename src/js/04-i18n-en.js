@@ -383,6 +383,8 @@ registerLang("en", "English", {
   "Debe ser una dirección https:// válida, sin usuario ni contraseña.": "It must be a valid https:// address, without a user name or password.",
   "{name} (bajo el cursor)": "{name} (under the pointer)",
   "{name} (fijada)": "{name} (pinned)",
+  "Soltar esta ficha": "Unpin this card",
+  "Fijar esta ficha": "Pin this card",
   "Fichas recientes ({n})": "Recent cards ({n})",
   "Soltar la ficha (F)": "Unpin the card (F)",
   "Fijar la ficha (F)": "Pin the card (F)",

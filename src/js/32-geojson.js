@@ -610,6 +610,9 @@ function cancelLayerInfoHide() {
 function scheduleLayerInfoHide() {
   cancelHoverIntent(); /* the pointer left a layer before its intent fired: it never shows */
   if (liveInfo && liveInfo.leftAt == null) liveInfo.leftAt = Date.now();
+  settleHoverCandidate();
+  /* A pinned card on screen stays until the user picks another tab or closes it */
+  if (infoCardLocked()) return;
   /* With the focus in the card, closing it stays the user's call, but only
      while it shows the layer opened on purpose (ℹ, «Mostrar atributos»): once
      the pointer brought another layer, it is a hover card again. Before, the
@@ -629,6 +632,7 @@ function scheduleLayerInfoHide() {
     /* Text selected in the card (to copy it): it must not change under the
        selection. It acts once the selection goes (selectionchange, 44). */
     if (infoSelectionInCard()) { infoHideHeld = true; return; }
+    if (infoCardLocked()) return;
     collapseLayerInfo();
   }, LAYER_INFO_HIDE_DELAY);
 }
@@ -808,11 +812,34 @@ function toggleInfoPin(li) {
   scheduleInfoStackTick();
   if (!descDialog.hidden) renderInfoStack();
 }
-/* F with the map focused: pins (or unpins) the layer under the pointer.
-   False when there is none, so the key does nothing else. */
+/* ---------- A pinned card on screen is locked ----------
+   Requested: with the card showing a pinned card (the live layer pinned, or a
+   pinned tab chosen with a click), hovering other layers of the map does not
+   change it, and leaving them all does not shrink it; only a click on another
+   tab, an explicit open (ℹ, «Mostrar atributos») or closing the card do. A
+   layer the pointer rests on meanwhile joins the stack as a tab without being
+   shown (`infoHoverCandidate`), so it can be picked with a click. */
+let infoHoverCandidate = null; /* { li, enteredAt, leftAt }: the layer under the pointer while the card is locked */
+function infoCardLocked() {
+  return !!descLayer && infoStack.some(r => r.li === descLayer && r.pinned);
+}
+/* The pointer left the candidate: it becomes a tab if it rested on it */
+function settleHoverCandidate() {
+  const c = infoHoverCandidate;
+  if (!c) return;
+  infoHoverCandidate = null;
+  if (!infoStackActive() || Date.now() - c.enteredAt < INFO_STACK_DWELL_MS) return;
+  infoStack = infoStackWith(infoStack, c.li, infoStackClock(), { paused: infoStackPaused, q: ++infoQueueSeq });
+  scheduleInfoStackTick();
+  if (!descDialog.hidden) renderInfoStack();
+}
+/* F with the map focused: pins (or unpins) the layer under the pointer, also
+   when the card is locked on another one. False when there is none, so the key
+   does nothing else. */
 function pinLiveLayerInfo() {
-  if (descDialog.hidden || !liveInfo) return false;
-  toggleInfoPin(liveInfo.li);
+  const target = infoHoverCandidate ? infoHoverCandidate.li : liveInfo && liveInfo.li;
+  if (descDialog.hidden || !target) return false;
+  toggleInfoPin(target);
   return true;
 }
 
@@ -844,6 +871,7 @@ let suppressNextHover = false;
    the way (opening the style dialog over it) keeps it for the next time.   */
 function hideLayerInfo({ dismiss = false, clear = dismiss } = {}) {
   cancelHoverIntent();
+  infoHoverCandidate = null;
   if (descDialog.hidden) return;
   retireLiveInfo();
   if (clear) infoStack = infoStack.filter(r => r.pinned);
@@ -878,6 +906,7 @@ function paintLayerInfo(li, html = undefined, force = false) {
 function setLiveInfo(li, focus, enteredAt, html = infoHtmlFor(li)) {
   if (html == null) return;
   if (liveInfo && liveInfo.li !== li) retireLiveInfo();
+  infoHoverCandidate = null;
   /* A new live layer ends the choice of a tab (44-dialogs.js) */
   if (infoPeek) { infoPeek = null; setInfoHalo(null); }
   liveInfo = { li, enteredAt, leftAt: null, explicit: focus };
@@ -911,6 +940,13 @@ function showLayerInfo(li, { focus = true } = {}) {
      debe abrir una ventana cada vez que se cruza uno.                  */
   if (!focus && baseInfoHtml(li) == null) return;
   const now = Date.now();
+  if (!focus && !descDialog.hidden && infoCardLocked()) {
+    cancelHoverIntent();
+    if (li === descLayer) return;
+    if (infoHoverCandidate && infoHoverCandidate.li === li) return;
+    infoHoverCandidate = { li, enteredAt: now, leftAt: null };
+    return;
+  }
   if (!focus && liveInfo && !descDialog.hidden) {
     if (liveInfo.li === li) { /* back on the layer already shown */
       cancelHoverIntent();
@@ -1248,6 +1284,46 @@ async function dbLoadElevFont() {
     const tx = db.transaction(DB_TREE, "readonly");
     const rq = tx.objectStore(DB_TREE).get(ELEV_FONT_KEY);
     rq.onsuccess = () => resolve(validElevFont(rq.result));
+    rq.onerror = () => reject(rq.error);
+  });
+}
+
+/* Position and size of the info card (#desc-dialog), kept across reloads
+   (requested). Only what the user set: left/top after dragging it by its
+   title (the box goes position: fixed, makeDialogMovable), width/height after
+   resizing it (the inline style the resize handle writes); null for what was
+   never touched, which keeps the default. Own key of the `tree` store: no
+   DB_VERSION or TREE_SCHEMA bump. Validated on reading (another tab or an old
+   version may have written anything): finite numbers, left and top together,
+   sizes of at least INFO_BOX_MIN_PX. Off-screen is fixed when the card opens
+   (clampToViewport), not here: the window may be another size by then. */
+const INFO_BOX_KEY = "infoBox";
+const INFO_BOX_SCHEMA = 1;
+const INFO_BOX_MIN_PX = 120;
+const INFO_BOX_MAX_PX = 20000;
+function validInfoBox(r) {
+  if (!r || typeof r !== "object" || r.v !== INFO_BOX_SCHEMA) return null;
+  const pos = n => n === null || (Number.isFinite(n) && Math.abs(n) <= INFO_BOX_MAX_PX);
+  const size = n => n === null || (Number.isFinite(n) && n >= INFO_BOX_MIN_PX && n <= INFO_BOX_MAX_PX);
+  if (!pos(r.left) || !pos(r.top) || !size(r.width) || !size(r.height)) return null;
+  if ((r.left === null) !== (r.top === null)) return null;
+  return { left: r.left, top: r.top, width: r.width, height: r.height };
+}
+async function dbSaveInfoBox(geom) {
+  const db = await openDb();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(DB_TREE, "readwrite");
+    tx.objectStore(DB_TREE).put({ v: INFO_BOX_SCHEMA, ...geom }, INFO_BOX_KEY);
+    tx.oncomplete = resolve;
+    tx.onerror = () => reject(tx.error);
+  });
+}
+async function dbLoadInfoBox() {
+  const db = await openDb();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(DB_TREE, "readonly");
+    const rq = tx.objectStore(DB_TREE).get(INFO_BOX_KEY);
+    rq.onsuccess = () => resolve(validInfoBox(rq.result));
     rq.onerror = () => reject(rq.error);
   });
 }

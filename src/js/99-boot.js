@@ -74,6 +74,10 @@
     if (step !== null) elevFontStep = step;
   } catch { /* tamaño de las cifras por defecto */ }
   try {
+    const g = await dbLoadInfoBox();
+    if (g) applyInfoBox(g);
+  } catch { /* the info card where it opens by default */ }
+  try {
     const fmt = await dbLoadCoordFormat();
     if (fmt !== null) coordFormat = fmt;
   } catch { /* formato por defecto (decimal) */ }

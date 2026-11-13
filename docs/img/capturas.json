@@ -159,16 +159,16 @@
       "build": "202611092327"
     },
     "ficha-pila.png": {
-      "sha256": "219d06f61a8c8fb338802985ed35b4352e8e1af0bb037b8836ffe0a8b9c8afe8",
+      "sha256": "e240c242d546d835268f3f494a120b4b6a16914f7b7fa6c40b7e2bf5c6c4abc3",
       "section": "6.5",
       "version": "2.5.0",
-      "build": "202611092342"
+      "build": "202611122242"
     },
     "ficha-propiedades.png": {
-      "sha256": "351bbf39b38dc4adc60221b6725b5ae8e66499e662773cf05e99578131ac2341",
+      "sha256": "2f495e0f88533c793403d819fbca2a84177847bf553a0148cf5af6deabd2c082",
       "section": "6.5",
       "version": "2.5.0",
-      "build": "202611092342"
+      "build": "202611122242"
     },
     "fila-seleccionada.png": {
       "sha256": "b01ecd1a317c5905c4cedc9b71441942f18a82d1e81cb5e305ee14946bd13093",

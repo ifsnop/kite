@@ -588,6 +588,48 @@ const keepFocusOnClick = e => e.preventDefault();
 descPinBtn.addEventListener("mousedown", keepFocusOnClick);
 descPinBtn.addEventListener("click", () => toggleInfoPin(descLayer));
 
+/* ---------- Position and size of the card, kept across reloads ----------
+   (storage: INFO_BOX_KEY, 32-geojson.js). Read from the inline styles, which
+   only the user sets: makeDialogMovable writes left/top when the title is
+   dragged, the resize handle writes width/height. Saved after a drag (the
+   pointerup on the title) and after a resize (ResizeObserver; it also fires
+   when the content changes the height, so nothing is written unless the
+   inline values changed), a moment later so a resize gesture writes once. */
+const INFO_BOX_SAVE_MS = 400;
+const inlinePx = v => (v ? parseFloat(v) : null);
+const infoBoxGeometry = () => ({
+  left: inlinePx(descBox.style.left), top: inlinePx(descBox.style.top),
+  width: inlinePx(descBox.style.width), height: inlinePx(descBox.style.height)
+});
+let infoBoxSaved = null;
+let infoBoxSaveTimer = null;
+function saveInfoBoxSoon() {
+  clearTimeout(infoBoxSaveTimer);
+  infoBoxSaveTimer = setTimeout(() => {
+    const g = infoBoxGeometry();
+    if (JSON.stringify(g) === JSON.stringify(infoBoxSaved)) return;
+    infoBoxSaved = g;
+    dbSaveInfoBox(g).catch(() => { /* not kept: the next change tries again */ });
+  }, INFO_BOX_SAVE_MS);
+}
+descBox.querySelector("h2").addEventListener("pointerup", saveInfoBoxSoon);
+new ResizeObserver(() => {
+  if (!descDialog.hidden && (descBox.style.width || descBox.style.height)) saveInfoBoxSoon();
+}).observe(descBox);
+/* At boot (99-boot.js): the same inline styles makeDialogMovable and the
+   resize handle would have written */
+function applyInfoBox(g) {
+  infoBoxSaved = g;
+  if (g.left !== null) {
+    descBox.style.position = "fixed";
+    descBox.style.margin = "0";
+    descBox.style.left = `${g.left}px`;
+    descBox.style.top = `${g.top}px`;
+  }
+  if (g.width !== null) descBox.style.width = `${g.width}px`;
+  if (g.height !== null) descBox.style.height = `${g.height}px`;
+}
+
 /* ---------- Tabs of the stack of recent cards (state: 32-geojson.js) ----------
    One line of tabs under the title, scrolling sideways when they do not fit
    (the wheel scrolls it too). The first tab is the live layer (the one under
@@ -637,11 +679,19 @@ descStackList.addEventListener("keydown", e => {
   const next = tabs[Math.min(tabs.length - 1, Math.max(0, i + (e.key === "ArrowRight" ? 1 : -1)))];
   next.focus();
 });
-const PIN_ICON_SVG = '<svg viewBox="0 0 16 16" width="12" height="12" aria-hidden="true">'
-  + '<path class="pin-head" d="M6 1.75h4l-.6 4.5 2.35 2.25h-7.5L6.6 6.25z" fill="currentColor" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"/>'
-  + '<path d="M8 8.5v5.75" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg>';
+/* The pin of each tab: a classic pushpin (cap, body, flared base, needle)
+   tilted 45° (requested: the upright one did not read as a pin), hollow when
+   unpinned and filled when pinned (CSS). The header pin in index.html is the
+   same drawing. */
+const PIN_ICON_SVG = '<svg viewBox="0 0 16 16" width="13" height="13" aria-hidden="true"><g transform="rotate(45 8 8)">'
+  + '<path class="pin-head" d="M5.5 1.5h5a.75.75 0 0 1 0 1.5h-.9v3.6l2.4 2.4H4l2.4-2.4V3h-.9a.75.75 0 0 1 0-1.5z" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round"/>'
+  + '<path d="M8 9v5.5" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/></g></svg>';
 /* One element per layer, reused across repaints: re-creating them would replay
-   the entry animation of every tab each time one changes. */
+   the entry animation of every tab each time one changes. A tab is two
+   buttons side by side (a button cannot hold another): the tab itself, whose
+   click shows its card, and its small pin, which pins or unpins it (it never
+   expires and, on screen, the card stays on it: see infoCardLocked) without
+   switching the card. Neither takes the focus on a mouse click. */
 const infoTabEls = new WeakMap();
 function makeInfoTab(li) {
   const item = document.createElement("li");
@@ -655,18 +705,21 @@ function makeInfoTab(li) {
   swatch.className = "info-tab-swatch";
   const name = document.createElement("span");
   name.className = "info-tab-name";
-  const pin = document.createElement("span");
+  btn.append(swatch, name);
+  const pin = document.createElement("button");
+  pin.type = "button";
   pin.className = "info-tab-pin";
   pin.innerHTML = PIN_ICON_SVG;
-  btn.append(swatch, name, pin);
-  item.append(btn);
+  item.append(btn, pin);
   btn.addEventListener("mousedown", keepFocusOnClick);
   btn.addEventListener("click", () => peekInfoTab(li));
+  pin.addEventListener("mousedown", keepFocusOnClick);
+  pin.addEventListener("click", () => toggleInfoPin(li));
   return item;
 }
 function paintInfoTab(item, li, { live, pinned, expiring }) {
-  const btn = item.firstChild;
-  const [swatch, name, pin] = btn.children;
+  const [btn, pin] = item.children;
+  const [swatch, name] = btn.children;
   const treeSwatch = li.querySelector(":scope > .node-row > .swatch");
   swatch.hidden = !treeSwatch;
   if (treeSwatch) swatch.style.background = treeSwatch.style.background;
@@ -675,10 +728,14 @@ function paintInfoTab(item, li, { live, pinned, expiring }) {
      next to the colour swatch read as two swatches) */
   btn.title = live ? tr("{name} (bajo el cursor)", { name: li._name })
     : pinned ? tr("{name} (fijada)", { name: li._name }) : li._name;
-  pin.hidden = !pinned;
+  pin.setAttribute("aria-pressed", String(pinned));
+  const pinLabel = pinned ? tr("Soltar esta ficha") : tr("Fijar esta ficha");
+  pin.title = pinLabel;
+  pin.setAttribute("aria-label", pinLabel);
   const selected = li === descLayer;
   btn.setAttribute("aria-selected", String(selected));
   item.classList.toggle("selected", selected);
+  item.classList.toggle("pinned", pinned);
   item.classList.toggle("live", live);
   item.classList.toggle("expiring", !selected && expiring);
 }
@@ -689,8 +746,6 @@ function renderInfoStack() {
   descBox.classList.toggle("info-compact", compact);
   if (infoPeek && !infoStack.some(r => r.li === infoPeek)) { infoPeek = null; setInfoHalo(null); }
   const others = infoStack.filter(r => r.li !== live);
-  /* With no recent card there is nothing to choose: no strip, just the card */
-  descStack.hidden = !others.length;
   descStackLabel.textContent = tr("Fichas recientes ({n})", { n: infoStack.length });
   descPinBtn.hidden = !infoStackActive();
   descPinBtn.style.visibility = compact ? "hidden" : "";
@@ -698,9 +753,14 @@ function renderInfoStack() {
   descPinBtn.setAttribute("aria-pressed", String(pinned));
   descPinBtn.title = pinned ? tr("Soltar la ficha (F)") : tr("Fijar la ficha (F)");
   descPinBtn.setAttribute("aria-label", pinned ? tr("Soltar la ficha") : tr("Fijar la ficha"));
-  const tabs = others.length && live
+  /* The live layer's tab goes first once there is something else to choose,
+     or when it is pinned (its pin must stay reachable); `others` leaves it
+     out, so a pinned live layer is not repeated */
+  const tabs = live && (others.length || infoStack.some(r => r.li === live))
     ? [{ li: live, live: true, pinned: infoStack.some(r => r.li === live && r.pinned), expiring: false }, ...others.map(r => ({ li: r.li, live: false, pinned: r.pinned, expiring: infoStackExpiring(r, now) }))]
     : others.map(r => ({ li: r.li, live: false, pinned: r.pinned, expiring: infoStackExpiring(r, now) }));
+  /* No tab (no recent card, the live layer not pinned): no strip, just the card */
+  descStack.hidden = !tabs.length;
   let cursor = descStackList.firstElementChild;
   for (const tab of tabs) {
     let item = infoTabEls.get(tab.li);
