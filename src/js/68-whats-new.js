@@ -10,14 +10,14 @@
    WHATS_NEW is the source of those texts, newest first. Rules (see
    .claude/rules/whats-new.md):
    - Every PR that changes something a user sees adds its line to the
-     entry "next": a sentence for the user, not for a developer (what they
+     entry "next" (creating it at the top after a release): a sentence for the user, not for a developer (what they
      can now do, or what works better), in Spanish inside N_() and with
      its English in the dictionary.
    - "next" is never shown. When a release is prepared, it is renamed to
      the new version (tests/whatsnew.js fails if package.json's version
      has no entry).                                                     */
 const WHATS_NEW = [
-  { version: "next", items: [
+  { version: "2.6.0", items: [
     N_("La ficha de información es más tranquila: al pasar el ratón por muchos elementos ya no cambia con cada uno, y las fichas en las que te detienes quedan como pestañas que puedes volver a mirar y fijar."),
     N_("Todos los marcadores, formas y mediciones tienen su ficha, con su posición o sus medidas, aunque no traigan atributos."),
     N_("La ficha recuerda dónde la dejaste y de qué tamaño."),

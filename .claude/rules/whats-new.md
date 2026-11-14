@@ -18,7 +18,8 @@ works better.
 ### The texts: `WHATS_NEW`, filled PR by PR
 
 - **Every PR that changes something a user sees adds its line to the entry
-  `"next"`** (top of `WHATS_NEW`), in the same PR. One sentence each, for the
+  `"next"`** (top of `WHATS_NEW`; right after a release there is none, and the
+  first such PR creates it), in the same PR. One sentence each, for the
   user and not for a developer: no function names, no `TREE_SCHEMA`, no «refactor»;
   what they can now do or what works better. Spanish inside `N_()` (the item is
   translated when shown, `tr(item)`), its English in the dictionary
