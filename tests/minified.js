@@ -113,12 +113,12 @@ for (const [nombre, origen] of [["script-src", "https://unpkg.com"],
   ok(!!d && d.includes(origen), `${nombre} conserva ${origen}: ${d}`);
   ok(!!d && !/(^|\s)https:(\s|$)/.test(d), `y ${nombre} NO admite cualquier https: ${d}`);
 }
-/* connect-src e img-src SÍ son abiertas, y a propósito: la dirección de
-   la que se descarga (botón 🔗) o de la que se piden teselas (mapa base
-   «Custom Tile Map Service» y «Custom Web Map Service», su propio servidor) las elige el usuario, así que
-   enumerar orígenes es imposible por definición. Que esté aquí escrito
-   es lo que convierte abrirlas en una decisión visible y no en algo que
-   se cuela en un diff.                                                */
+/* connect-src and img-src ARE open, on purpose: the address something is
+   downloaded from (the 🔗 button) or tiles are requested from (a user base
+   layer, their own server) is chosen by the user, so enumerating origins
+   is impossible by definition. Having it written here is what turns
+   opening them into a visible decision and not something that slips into
+   a diff.                                                              */
 ok(directiva("connect-src") === "'self' https:",
   "connect-src admite cualquier https, y nada más: " + directiva("connect-src"));
 ok(directiva("img-src") === "'self' data: blob: https:",

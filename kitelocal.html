@@ -762,7 +762,8 @@
     font-size: 9px; line-height: 1; padding: 2px 3px; cursor: pointer; color: var(--muted);
   }
   .base-moves button:disabled { opacity: .35; cursor: default; }
-  .base-row label { cursor: pointer; white-space: nowrap; }
+  /* A user's layer name can be long (80 characters): cut, whole in its title */
+  .base-row label { cursor: pointer; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 22em; }
   .base-row input[type="range"], .base-row select { grid-column: 1 / -1; width: 100%; }
   .base-row select { font: inherit; }
   .base-row.failed label { color: var(--danger); }
@@ -776,6 +777,10 @@
     font-size: 13px; line-height: 1; cursor: pointer; padding: 2px 3px; border-radius: 4px;
   }
   .base-gear:hover { color: var(--fg); }
+  .base-del { font-size: 15px; }
+  .base-del:hover { color: var(--danger); }
+  /* «+ Añadir capa…» closes the list, below the last row */
+  .base-add { display: block; width: 100%; margin: 8px 0 2px; font: inherit; }
 
   /* Celdas de la cuadrícula de elevaciones */
   .elev-cell {
@@ -1348,7 +1353,7 @@
      instead of stretching almost edge to edge.                       */
   /* Sin esto heredan el max-width: 90vw de .dlg-box y una caja de texto
      corto se estira a casi toda la pantalla.                          */
-  #kml-tags-picker .dlg-box, #kml-dup-picker .dlg-box, #sh-creds .dlg-box, #mobile-notice .dlg-box, #restore-confirm .dlg-box, #delete-confirm .dlg-box { max-width: 42ch; }
+  #kml-tags-picker .dlg-box, #kml-dup-picker .dlg-box, #sh-creds .dlg-box, #mobile-notice .dlg-box, #restore-confirm .dlg-box, #delete-confirm .dlg-box, #user-base-delete .dlg-box { max-width: 42ch; }
   /* ---------- Ventanas redimensionables ----------
      `resize: both` es el redimensionado nativo del navegador; su tirador
      va en la esquina inferior derecha y no estorba al arrastre por el
@@ -1374,10 +1379,15 @@
      `overflow-wrap` de .dlg-box h2, que parte también un nombre sin
      espacios).                                                        */
   #style-dialog .dlg-box { width: min(92vw, 24rem); }
-  /* Contenido fijo (tres párrafos cortos + un campo), no redimensionable
-     como #sh-creds, pero más ancho: explica el formato de servidor
-     exigido y 42ch se quedaría corto para leerlo con comodidad.       */
-  #custom-tiles-creds .dlg-box, #custom-wms-creds .dlg-box { width: min(92vw, 30rem); }
+  /* Fixed content (a type choice, two fields and a few short paragraphs),
+     not resizable like #sh-creds, but wider: it explains the server format
+     it needs and 42ch would be too narrow to read it comfortably.       */
+  #user-base .dlg-box { width: min(92vw, 30rem); }
+  .ub-types { border: none; margin: 10px 0 4px; padding: 0; display: flex; flex-wrap: wrap; gap: 4px 16px; }
+  .ub-types legend { padding: 0; margin-bottom: 4px; }
+  .ub-types label, .ub-check { display: flex; align-items: center; gap: 6px; cursor: pointer; }
+  .ub-check { margin: 4px 0 8px; }
+  .ub-check[hidden] { display: none; }
   /* Tesela de un servidor propio que no llegó (ver flagTileError). Leaflet
      deja oculta (`visibility: hidden`) toda tesela que no cargó, y esa es
      justo la que hay que ver. El contorno va por DENTRO (offset negativo)
@@ -2841,67 +2851,72 @@
   </div>
 </div>
 
-<!-- Servidor de teselas de "Custom Tile Map Service": una dirección propia del
-     usuario (t&#237;picamente una cach&#233;/proxy delante de OpenStreetMap u
-     otro servicio, para no descargar de golpe el servicio p&#250;blico
-     ajeno), nunca de la aplicaci&#243;n. -->
-<div id="custom-tiles-creds" class="dlg-overlay" hidden>
+<!-- A base layer of the user's own: a tile server or a WMS server. The «+»
+     button at the bottom of the base map list opens it to add one, and the
+     gear of a user row to edit it (11-base-panel.js, 44-dialogs.js). The
+     paragraphs with data-ub-type are shown only for that type. -->
+<div id="user-base" class="dlg-overlay" hidden>
   <div class="dlg-box">
-    <h2 class="dlg-head"><span class="dlg-title">Custom Tile Map Service (TMS)</span><button type="button" class="dlg-close" data-cancel="custom-tiles-cancel" title="Cancelar" aria-label="Cancelar">&#215;</button></h2>
-    <p class="dlg-hint" data-i18n-html="html.ctiles-help">La capa <em>Custom Tile Map Service</em> solo admite servidores de
-      teselas (<em>Tile Map Service</em>): pide sus teselas a la direcci&#243;n que pongas
-      aqu&#237;, a&#241;adiendo <code>{z}/{x}/{y}.png</code> al final por su cuenta &#8212;
-      no hace falta escribirlo. Para un servidor WMS usa la capa
-      <em>Custom Web Map Service</em>.</p>
-    <label class="sh-field">Direcci&#243;n base del servidor
-      <input type="text" id="custom-tiles-input" spellcheck="false" autocomplete="off"
-             placeholder="https://mi-cache.ejemplo.org/tiles/">
+    <h2 class="dlg-head"><span class="dlg-title" id="user-base-title">Nueva capa base</span><button type="button" class="dlg-close" data-cancel="user-base-cancel" title="Cancelar" aria-label="Cancelar">&#215;</button></h2>
+    <fieldset class="ub-types">
+      <legend>Tipo de servidor</legend>
+      <label><input type="radio" name="user-base-type" value="tiles" checked> Teselas (TMS/XYZ)</label>
+      <label><input type="radio" name="user-base-type" value="wms"> WMS</label>
+    </fieldset>
+    <p class="dlg-hint" data-ub-type="tiles" data-i18n-html="html.ubase-tiles-help">Un servidor de
+      <em>teselas</em> (<em>Tile Map Service</em>, como OpenStreetMap). Puedes escribir solo su
+      direcci&#243;n base, y la aplicaci&#243;n a&#241;ade <code>{z}/{x}/{y}.png</code> al final, o
+      una plantilla completa con <code>{z}</code>, <code>{x}</code> e <code>{y}</code> donde
+      vayan (por ejemplo <code>.../{z}/{y}/{x}.jpg</code>); <code>{-y}</code> cuenta las filas
+      desde abajo y <code>{s}</code> reparte entre los subdominios a, b y c.</p>
+    <p class="dlg-hint" data-ub-type="wms" hidden data-i18n-html="html.ubase-wms-help">Un servidor
+      <em>WMS</em> (<em>Web Map Service</em>): la aplicaci&#243;n lee la lista de capas que publica y
+      te deja elegir una en la fila de esta capa, que se activa y desactiva como el resto de
+      mapas base.</p>
+    <label class="sh-field">Nombre
+      <input type="text" id="user-base-name" maxlength="80" spellcheck="false" autocomplete="off"
+             placeholder="Si se deja vac&#237;o, el del servidor">
     </label>
-    <p class="dlg-hint" data-i18n-html="html.ctiles-requirements">Debe responder en <strong>https</strong> a peticiones del tipo
-      <code>.../{z}/{x}/{y}.png</code> (esquema XYZ est&#225;ndar: <code>z</code> = nivel de
-      zoom, <code>x</code>/<code>y</code> = columna/fila de la tesela, igual que
-      OpenStreetMap) con im&#225;genes PNG de 256&#215;256 &#8212;con canal alfa si se quiere
-      transparencia&#8212; y CORS abierto (<code>Access-Control-Allow-Origin</code>), o el
-      navegador bloquear&#225; las teselas aunque el servidor responda bien.</p>
-    <p class="dlg-hint" data-i18n-html="html.ctiles-storage">Se guarda solo en este navegador y &#250;nicamente se env&#237;a a la
-      direcci&#243;n que pongas. Nunca viaja en un <code>.kite.json</code> exportado.</p>
-    <p class="dlg-hint sh-bad" id="custom-tiles-error" hidden></p>
+    <label class="sh-field">Direcci&#243;n
+      <input type="text" id="user-base-url" spellcheck="false" autocomplete="off">
+    </label>
+    <label class="ub-check" data-ub-type="tiles"><input type="checkbox" id="user-base-tms">
+      Filas contadas desde abajo (TMS)</label>
+    <p class="dlg-hint" data-ub-type="tiles" data-i18n-html="html.ubase-tiles-requirements">Debe
+      responder en <strong>https</strong> con im&#225;genes de 256&#215;256 (PNG con canal alfa si se
+      quiere transparencia, o JPEG) en el esquema de OpenStreetMap: <code>z</code> = nivel de
+      zoom, <code>x</code>/<code>y</code> = columna/fila de la tesela, contadas desde arriba
+      salvo que marques <em>TMS</em>. Y con CORS abierto
+      (<code>Access-Control-Allow-Origin</code>), o el navegador bloquear&#225; las teselas aunque
+      el servidor responda bien.</p>
+    <p class="dlg-hint" data-ub-type="wms" hidden data-i18n-html="html.ubase-wms-requirements">El
+      servidor debe responder en <strong>https</strong> a una consulta <code>GetCapabilities</code>
+      (<code>?service=WMS&amp;request=GetCapabilities</code>, que la aplicaci&#243;n a&#241;ade por
+      su cuenta &#8212;si pegas una petici&#243;n completa, se quitan sus par&#225;metros de
+      OGC&#8212;) con CORS abierto (<code>Access-Control-Allow-Origin</code>), o el navegador
+      impedir&#225; leer la lista de capas. Debe poder dibujar en Web Mercator
+      (<code>EPSG:3857</code>). El formato de imagen se elige solo seg&#250;n lo que anuncie el
+      servidor: <code>image/png</code> (con transparencia) si lo sirve y, si no,
+      <code>image/jpeg</code>.</p>
+    <p class="dlg-hint" data-i18n-html="html.ubase-storage">Se guarda solo en este navegador y
+      &#250;nicamente se env&#237;a a la direcci&#243;n que pongas. Nunca viaja en un
+      <code>.kite.json</code> exportado ni en un enlace a la vista.</p>
+    <p class="dlg-hint sh-bad" id="user-base-error" hidden></p>
     <div class="dlg-actions">
-      <button class="btn" id="custom-tiles-cancel">Cancelar</button>
-      <button class="btn" id="custom-tiles-clear">Borrar</button>
-      <button class="btn" id="custom-tiles-accept">Aceptar</button>
+      <button class="btn" id="user-base-cancel">Cancelar</button>
+      <button class="btn" id="user-base-accept">A&#241;adir</button>
     </div>
   </div>
 </div>
 
-<!-- Servidor de "Custom Web Map Service": la direcci&#243;n de un WMS del
-     usuario. Sus capas se descubren con su GetCapabilities. -->
-<div id="custom-wms-creds" class="dlg-overlay" hidden>
+<!-- Deleting a user base layer: base maps have no undo, so it asks. -->
+<div id="user-base-delete" class="dlg-overlay" hidden>
   <div class="dlg-box">
-    <h2 class="dlg-head"><span class="dlg-title">Custom Web Map Service (WMS)</span><button type="button" class="dlg-close" data-cancel="custom-wms-cancel" title="Cancelar" aria-label="Cancelar">&#215;</button></h2>
-    <p class="dlg-hint" data-i18n-html="html.cwms-help">La capa <em>Custom Web Map Service</em> lee de tu servidor WMS
-      (<em>Web Map Service</em>) la lista de capas que publica y te deja elegir una, que
-      puedes activar y desactivar como el resto de mapas base.</p>
-    <label class="sh-field">Direcci&#243;n del servidor WMS
-      <input type="text" id="custom-wms-input" spellcheck="false" autocomplete="off"
-             placeholder="https://mi-servidor.ejemplo.org/wms">
-    </label>
-    <p class="dlg-hint" data-i18n-html="html.cwms-requirements">El servidor debe responder en <strong>https</strong> a una consulta
-      <code>GetCapabilities</code> (<code>?service=WMS&amp;request=GetCapabilities</code>, que
-      la aplicaci&#243;n a&#241;ade por su cuenta &#8212;si pegas una petici&#243;n completa, se
-      quitan sus par&#225;metros de OGC&#8212;) con CORS abierto
-      (<code>Access-Control-Allow-Origin</code>), o el navegador impedir&#225; leer la lista
-      de capas. Debe poder dibujar en Web Mercator (<code>EPSG:3857</code>). El
-      formato de imagen se elige solo seg&#250;n lo que anuncie el servidor:
-      <code>image/png</code> (con transparencia) si lo sirve y, si no,
-      <code>image/jpeg</code>.</p>
-    <p class="dlg-hint" data-i18n-html="html.cwms-storage">Se guarda solo en este navegador y &#250;nicamente se env&#237;a a la
-      direcci&#243;n que pongas. Nunca viaja en un <code>.kite.json</code> exportado.</p>
-    <p class="dlg-hint sh-bad" id="custom-wms-error" hidden></p>
+    <h2 class="dlg-head"><span class="dlg-title">Eliminar capa base</span><button type="button" class="dlg-close" data-cancel="user-base-delete-cancel" title="Cancelar" aria-label="Cancelar">&#215;</button></h2>
+    <p class="dlg-hint" id="user-base-delete-text"></p>
     <div class="dlg-actions">
-      <button class="btn" id="custom-wms-cancel">Cancelar</button>
-      <button class="btn" id="custom-wms-clear">Borrar</button>
-      <button class="btn" id="custom-wms-accept">Aceptar</button>
+      <button class="btn" id="user-base-delete-cancel">Cancelar</button>
+      <button class="btn btn-danger" id="user-base-delete-accept">Eliminar</button>
     </div>
   </div>
 </div>
@@ -3157,10 +3172,20 @@ registerLang("en", "English", {
   "Cargando catálogo…": "Loading catalog…",
   "La capa guardada para «{name}» ya no está disponible; se usa {wmsLayer}.": "The layer saved for “{name}” is no longer available; {wmsLayer} is used instead.",
   "Cambiar o borrar la configuración": "Change or delete the configuration",
+  "Una plantilla solo admite {z}, {x}, {y}, {-y} y {s}; no se reconoce «{var}».": "A template only accepts {z}, {x}, {y}, {-y} and {s}; «{var}» is not recognised.",
+  "Una plantilla tiene que llevar {z}, {x} e {y} (o {-y}).": "A template must contain {z}, {x} and {y} (or {-y}).",
+  "Debe ser una dirección https:// válida.": "It must be a valid https:// address.",
+  "La dirección no puede llevar usuario ni contraseña.": "The address cannot include a user name or password.",
   "Capas del servidor": "Server layers",
+  "Capa del servidor WMS": "WMS server layer",
+  "Modificar esta capa base": "Edit this base layer",
   "la respuesta no es un GetCapabilities de WMS con capas": "the response is not a WMS GetCapabilities document with layers",
   "el servidor no responde": "the server is not responding",
   "no se pudo conectar con el servidor WMS (¿CORS?)": "could not connect to the WMS server (CORS?)",
+  "Eliminar esta capa base": "Delete this base layer",
+  "+ Añadir capa…": "+ Add layer…",
+  "Ya hay {n} capas propias, el máximo. Elimina alguna para añadir otra.": "There are already {n} layers of your own, the maximum. Delete one to add another.",
+  "Añadir un servidor de teselas o WMS propio como capa base": "Add a tile or WMS server of your own as a base layer",
   "excepción del servicio sin mensaje": "service exception without a message",
   "respuesta {type} en vez de una imagen": "response {type} instead of an image",
   "sin tipo": "no type",
@@ -3181,10 +3206,6 @@ registerLang("en", "English", {
   "Capa de Copernicus": "Copernicus layer",
   "Requiere credencial": "Requires credentials",
   "Configurar la credencial de Sentinel Hub que exige Copernicus": "Set up the Sentinel Hub credentials that Copernicus requires",
-  "Requiere URL": "Requires URL",
-  "Configurar la URL del servidor de teselas de Custom Tile Map Service": "Set up the tile server URL for Custom Tile Map Service",
-  "Capa del servidor WMS": "WMS server layer",
-  "Configurar la URL del servidor de Custom Web Map Service": "Set up the server URL for Custom Web Map Service",
   /* 20-kml-geom.js */
   "polígono sin anillo exterior válido": "polygon without a valid outer ring",
   "polígono ilegible ({message})": "unreadable polygon ({message})",
@@ -3495,10 +3516,10 @@ registerLang("en", "English", {
   "añadir desde una dirección": "add from an address",
   "Credencial de Copernicus borrada.": "Copernicus credentials deleted.",
   "El instance ID debe ser un UUID como 12345678-90ab-cdef-1234-567890abcdef.": "The instance ID must be a UUID such as 12345678-90ab-cdef-1234-567890abcdef.",
-  "Servidor de Custom Tile Map Service borrado.": "Custom Tile Map Service server deleted.",
-  "Debe ser una dirección https:// válida.": "It must be a valid https:// address.",
-  "Servidor de Custom Web Map Service borrado.": "Custom Web Map Service server deleted.",
-  "Debe ser una dirección https:// válida, sin usuario ni contraseña.": "It must be a valid https:// address, without a user name or password.",
+  "Modificar capa base": "Edit base layer",
+  "Nueva capa base": "New base layer",
+  "Añadir": "Add",
+  "Se eliminará la capa base «{name}» y se olvidará su dirección. No se puede deshacer.": "The base layer «{name}» will be deleted and its address forgotten. This cannot be undone.",
   "{name} (bajo el cursor)": "{name} (under the pointer)",
   "{name} (fijada)": "{name} (pinned)",
   "Soltar esta ficha": "Unpin this card",
@@ -4146,10 +4167,12 @@ registerLang("en", "English", {
   "Cuantiles": "Quantiles",
   "Credencial de Copernicus": "Copernicus credentials",
   "Instance ID": "Instance ID",
-  "Custom Tile Map Service (TMS)": "Custom Tile Map Service (TMS)",
-  "Dirección base del servidor": "Server base address",
-  "Custom Web Map Service (WMS)": "Custom Web Map Service (WMS)",
-  "Dirección del servidor WMS": "WMS server address",
+  "Tipo de servidor": "Server type",
+  "Teselas (TMS/XYZ)": "Tiles (TMS/XYZ)",
+  "WMS": "WMS",
+  "Filas contadas desde abajo (TMS)": "Rows counted from the bottom (TMS)",
+  "Eliminar capa base": "Delete base layer",
+  "Eliminar": "Delete",
   "KML Interactive Tree Explorer": "KML Interactive Tree Explorer",
   "Añadir contenido desde una dirección (URL)": "Add content from an address (URL)",
   "Ayuda y atajos de teclado (tecla ?)": "Help and keyboard shortcuts (key ?)",
@@ -4199,18 +4222,18 @@ registerLang("en", "English", {
   "Buscar un lugar o unas coordenadas…": "Search for a place or coordinates…",
   "Nombre de carpeta": "Folder name",
   "Filtrar filas…": "Filter rows…",
+  "Si se deja vacío, el del servidor": "If left empty, the server's",
   /* Bloques de HTML de index.html (data-i18n-html): el valor es el HTML entero */
   "html.gnp-intro": "Associations saved between the structure of the <code>properties</code> of a GeoJSON and the property used as the name.",
   "html.points-help": "One point per line, with <strong>latitude, longitude and altitude</strong> separated by a tab. It can be copied and pasted directly into a spreadsheet. When pasting, commas or spaces are also accepted as separators.",
   "html.log-help": "Messages from this session, from oldest to newest. Those marked with <strong>!</strong> required confirmation. It is lost when the page is closed.",
   "html.copernicus-help": "Copernicus does not publish any anonymous WMS: its layers are served through Sentinel Hub, which identifies each request with an <em>instance ID</em> from your own account. It is created for free in the Copernicus Data Space dashboard, under <em>Dashboard → Configuration Utility</em>, where you also choose which layers that configuration publishes (for example the <em>Copernicus DEM</em>).",
   "html.copernicus-storage": "It is saved only in this browser and sent only to <code>sh.dataspace.copernicus.eu</code>. You can delete it whenever you want.",
-  "html.ctiles-help": "The <em>Custom Tile Map Service</em> layer only supports tile servers (<em>Tile Map Service</em>): it requests its tiles from the address you enter here, adding <code>{z}/{x}/{y}.png</code> at the end on its own — there is no need to type it. For a WMS server use the <em>Custom Web Map Service</em> layer.",
-  "html.ctiles-requirements": "It must answer over <strong>https</strong> to requests of the form <code>.../{z}/{x}/{y}.png</code> (standard XYZ scheme: <code>z</code> = zoom level, <code>x</code>/<code>y</code> = tile column/row, as in OpenStreetMap) with 256×256 PNG images —with an alpha channel if you want transparency— and open CORS (<code>Access-Control-Allow-Origin</code>), or the browser will block the tiles even if the server answers correctly.",
-  "html.ctiles-storage": "It is saved only in this browser and sent only to the address you enter. It never travels in an exported <code>.kite.json</code>.",
-  "html.cwms-help": "The <em>Custom Web Map Service</em> layer reads from your WMS server (<em>Web Map Service</em>) the list of layers it publishes and lets you choose one, which you can turn on and off like the rest of the base maps.",
-  "html.cwms-requirements": "The server must answer over <strong>https</strong> to a <code>GetCapabilities</code> request (<code>?service=WMS&amp;request=GetCapabilities</code>, which the application adds on its own —if you paste a full request, its OGC parameters are removed—) with open CORS (<code>Access-Control-Allow-Origin</code>), or the browser will prevent reading the list of layers. It must be able to draw in Web Mercator (<code>EPSG:3857</code>). The image format is chosen automatically according to what the server announces: <code>image/png</code> (with transparency) if it serves it and, if not, <code>image/jpeg</code>.",
-  "html.cwms-storage": "It is saved only in this browser and sent only to the address you enter. It never travels in an exported <code>.kite.json</code>."
+  "html.ubase-tiles-help": "A <em>tile</em> server (<em>Tile Map Service</em>, like OpenStreetMap). You can type just its base address, and the application adds <code>{z}/{x}/{y}.png</code> at the end, or a full template with <code>{z}</code>, <code>{x}</code> and <code>{y}</code> where they go (for example <code>.../{z}/{y}/{x}.jpg</code>); <code>{-y}</code> counts rows from the bottom and <code>{s}</code> spreads requests over the subdomains a, b and c.",
+  "html.ubase-wms-help": "A <em>WMS</em> server (<em>Web Map Service</em>): the application reads the list of layers it publishes and lets you choose one in this layer's row, which you turn on and off like the rest of the base maps.",
+  "html.ubase-tiles-requirements": "It must answer over <strong>https</strong> with 256×256 images (PNG with an alpha channel if you want transparency, or JPEG) in the OpenStreetMap scheme: <code>z</code> = zoom level, <code>x</code>/<code>y</code> = tile column/row, counted from the top unless you tick <em>TMS</em>. And with open CORS (<code>Access-Control-Allow-Origin</code>), or the browser will block the tiles even if the server answers correctly.",
+  "html.ubase-wms-requirements": "The server must answer over <strong>https</strong> to a <code>GetCapabilities</code> request (<code>?service=WMS&amp;request=GetCapabilities</code>, which the application adds on its own —if you paste a full request, its OGC parameters are removed—) with open CORS (<code>Access-Control-Allow-Origin</code>), or the browser will prevent reading the list of layers. It must be able to draw in Web Mercator (<code>EPSG:3857</code>). The image format is chosen automatically according to what the server announces: <code>image/png</code> (with transparency) if it serves it and, if not, <code>image/jpeg</code>.",
+  "html.ubase-storage": "It is saved only in this browser and sent only to the address you enter. It never travels in an exported <code>.kite.json</code> nor in a link to the view."
 });
 /* Fija el idioma de la interfaz y traduce el HTML estático. Va DESPUÉS
    de todos los diccionarios (03-i18n.js los registra, 04-i18n-xx.js los
@@ -5493,7 +5516,7 @@ map.on("resize rotate", fitWorldMinZoom);
 
 /* Fecha de generación del código (versión): AÑOMESDIAHORAMINUTO.
    Actualizar en cada generación; se muestra junto al crédito de Leaflet. */
-const BUILD = "202611132048";
+const BUILD = "202611141933";
 /* Versión de release (la de package.json, horneada aquí por build.js
    al construir — ver «Versión y releases de GitHub» en CLAUDE.md): a
    diferencia de BUILD, que cambia en CADA generación, esta solo cambia
@@ -5574,10 +5597,9 @@ const COP_CREDIT = "Copernicus DEM \u2014 Copernicus Data Space / Sentinel Hub";
    Ver la definici\u00f3n de la capa.                                       */
 const COP_MIN_NATIVE_ZOOM = 7;
 const COP_MIN_ZOOM = 6;
-/* Servidores propios del usuario (ver "Custom Tile Map Service" y
-   "Custom Web Map Service" más abajo): al no ser ningún servicio
-   conocido no hay a quién dar crédito, solo dejar claro que las
-   teselas no vienen de la aplicación.                                */
+/* The user's own servers (the user base layers, 11-base-panel.js): they
+   are no known service, so there is nobody to credit; the attribution only
+   makes clear that those tiles do not come from the application.      */
 const CUSTOM_TILES_CREDIT = tr("Servidor de teselas personalizado");
 const CUSTOM_WMS_CREDIT = tr("Servidor WMS personalizado");
 
@@ -5682,50 +5704,22 @@ const BASE_LAYERS = [
       "https://servpub.madrid.es/georaster/ORTOFOTOS/ORTOFOTO_MADRID/ows", {
       layers: "ORTOFOTO_MADRID", format: "image/png", version: "1.3.0", transparent: false,
       bounds: [[40.2788, -3.9367], [40.6671, -3.4793]],
-      maxNativeZoom: 20, maxZoom: MAX_ZOOM, attribution: MADRID_CREDIT }) },
-
-  /* Servidor de teselas del propio usuario \u2014 t\u00EDpicamente una cach\u00E9/proxy
-     delante de OpenStreetMap u otro servicio, para no descargar de golpe
-     el servicio p\u00FAblico ajeno. No es una fuente "dynamic" (no hay
-     cat\u00E1logo que descubrir ni nombre de capa que elegir, solo una URL):
-     lleva `source` para reutilizar el mecanismo de la tuerca \u2699 y el
-     estado "bloqueada sin configurar" (ver DYNAMIC_SOURCES,
-     12-copernicus.js), pero no `dynamic: true`, as\u00ED que el panel no le
-     ofrece ning\u00FAn <select> \u2014no hay nada entre lo que elegir. `layer()`
-     lee `buildCustomTilesUrl()` (11-base-panel.js) en el momento de
-     crearse, nunca antes: la URL puede no estar configurada todav\u00EDa.
-     El id sigue siendo "custom" (lo guardado lo nombra); solo cambi\u00F3
-     el t\u00EDtulo, que ahora dice de qu\u00E9 tipo de servidor se trata.      */
-  { id: "custom", name: "Custom Tile Map Service", on: false, opacity: 1, source: "custom-tiles",
-    diagnoseTiles: true,
-    layer: () => L.tileLayer(buildCustomTilesUrl(), {
-      maxNativeZoom: 19, maxZoom: MAX_ZOOM, attribution: CUSTOM_TILES_CREDIT }) },
-
-  /* Servidor WMS del propio usuario. A diferencia del anterior S\u00CD tiene
-     cat\u00E1logo: sus capas salen del GetCapabilities de SU servidor, igual
-     que las del PNOA hist\u00F3rico, as\u00ED que es "dynamic" y el panel le da
-     el <select> de capas adem\u00E1s de la tuerca \u2699 de la direcci\u00F3n. La URL
-     y la versi\u00F3n y el formato (PNG o, si es lo \u00FAnico que sirve, JPEG)
-     que anunci\u00F3 el servidor se leen en `layer()` (customWmsBase/
-     customWmsVersion/customWmsFormat, 11-base-panel.js), nunca antes.
-     JPEG no tiene canal alfa: se pide `transparent` solo con PNG.      */
-  { id: "custom-wms", name: "Custom Web Map Service", on: false, opacity: 1,
-    dynamic: true, source: "custom-wms", diagnoseTiles: true,
-    layer: (wmsLayer) => L.tileLayer.wms(customWmsBase(), {
-      layers: wmsLayer, format: customWmsFormat, version: customWmsVersion,
-      transparent: customWmsFormat === "image/png",
-      maxZoom: MAX_ZOOM, attribution: CUSTOM_WMS_CREDIT }) }
+      maxNativeZoom: 20, maxZoom: MAX_ZOOM, attribution: MADRID_CREDIT }) }
 ];
 
 /* Teselas fallidas seguidas (sin ninguna buena de por medio) antes de
    marcar la capa como caída en el panel.                              */
 const BASE_FAIL_TILES = 8;
 
-/* Estado en vivo de cada capa base */
-const baseState = new Map(BASE_LAYERS.map((d, i) => [d.id, {
-  def: d, layer: null, on: d.on, opacity: d.opacity, zIndex: i + 1, failed: false, wmsLayer: null,
-  tileNoticed: new Set() /* capas WMS cuya primera tesela fallida ya se explicó, ver flagTileError */
-}]));
+/* Live state of a base layer. The user's own layers (11-base-panel.js,
+   «Capas base del usuario») are added to `baseState` with the same shape. */
+function baseStateFor(def, zIndex) {
+  return {
+    def, layer: null, on: !!def.on, opacity: def.opacity ?? 1, zIndex, failed: false, wmsLayer: null,
+    tileNoticed: new Set() /* WMS layers whose first failed tile was already explained, see flagTileError */
+  };
+}
+const baseState = new Map(BASE_LAYERS.map((d, i) => [d.id, baseStateFor(d, i + 1)]));
 
 /* Al recuperar la red, Leaflet no reintenta por su cuenta las teselas
    que fallaron: se quedan en blanco hasta que el usuario mueve el mapa,
@@ -5753,16 +5747,6 @@ function applyBaseLayer(id) {
       const cat = src && src.get();
       if (cat) st.wmsLayer = src.pickDefault(cat);
       else { if (src) src.ensure(); return; }
-    }
-    /* Una fuente configurable SIN catálogo (hoy, "Custom Tile Map
-       Service": no hay nombre de capa que elegir, solo una URL) no
-       tiene equivalente al `ensure()`/`wmsLayer` de arriba: sin la URL
-       puesta todavía no hay nada que construir, así que se queda inerte
-       hasta que se configure (setCustomTilesUrl vuelve a llamar aquí al
-       aceptar).                                                       */
-    if (!st.def.dynamic) {
-      const src = dynSource(st.def);
-      if (src && src.blocked && src.blocked()) return;
     }
     if (!st.layer) {
       st.layer = st.def.dynamic ? st.def.layer(st.wmsLayer) : st.def.layer();
@@ -5899,6 +5883,8 @@ function renderBasePanel() {
     const label = document.createElement("label");
     label.htmlFor = chk.id;
     label.textContent = st.def.name + (st.failed ? " " + tr("(sin respuesta)") : "");
+    /* a user's name can be long: the row cuts it and the tooltip has it whole */
+    if (st.def.user) label.title = st.def.name;
     const slider = document.createElement("input");
     slider.type = "range";
     slider.min = 0; slider.max = 1; slider.step = 0.05;
@@ -5910,12 +5896,11 @@ function renderBasePanel() {
        (si no, se queda con el `disabled` de la primera pintada y no
        reacciona a encender/apagar la capa).                          */
     const sel = st.def.dynamic ? buildDynamicLayerSelect(id, st) : null;
-    /* La tuerca depende de tener una fuente CONFIGURABLE (`configure`),
-       no de ser "dynamic": "Custom Tile Map Service" tiene tuerca (una URL que
-       ajustar) pero no catálogo ni <select> entre el que elegir —a
-       diferencia de PNOA histórico/Copernicus, que tienen las dos
-       cosas. La tuerca no se deshabilita con la capa apagada a
-       propósito: ver buildDynamicConfigButton.                        */
+    /* The gear depends on having a CONFIGURABLE source (`configure`),
+       not on being "dynamic": a user tile layer has a gear (an address to
+       change) but no catalog nor <select> to choose from, unlike
+       Copernicus or a user WMS, which have both. The gear is not disabled
+       with the layer off on purpose: see buildDynamicConfigButton.     */
     const src = dynSource(st.def);
     const gear = src && src.configure ? buildDynamicConfigButton(st) : null;
     /* Un selector bloqueado (sin credencial) no se rehabilita al
@@ -5946,15 +5931,17 @@ function renderBasePanel() {
       b.addEventListener("click", () => moveBaseLayer(id, delta));
       moves.appendChild(b);
     }
-    /* La tuerca va a la izquierda de las flechas, en la misma celda */
+    /* Gear and delete go left of the arrows, in the same cell */
     const tools = document.createElement("span");
     tools.className = "base-tools";
     if (gear) tools.appendChild(gear);
+    if (st.def.user) tools.appendChild(buildUserBaseDeleteButton(st));
     tools.appendChild(moves);
     row.append(chk, label, tools, slider);
     if (sel) row.append(sel);
     list.appendChild(row);
   }
+  list.appendChild(buildAddUserBaseButton());
 }
 
 /* Primera fila del panel, antes de cualquier capa: el color que se ve
@@ -6074,7 +6061,7 @@ function buildDynamicConfigButton(st) {
   const src = dynSource(st.def);
   if (!src || !src.configure) return null;
   const blocked = src.blocked && src.blocked();
-  const label = blocked ? blocked.hint : tr("Cambiar o borrar la configuración");
+  const label = blocked ? blocked.hint : src.configureLabel || tr("Cambiar o borrar la configuración");
   const gear = document.createElement("button");
   gear.className = "base-gear";
   gear.textContent = "⚙";
@@ -6084,106 +6071,140 @@ function buildDynamicConfigButton(st) {
   return gear;
 }
 
-/* ---------- "Custom Tile Map Service": servidor de teselas del propio usuario ----------
-   A diferencia de PNOA histórico/Copernicus, aquí no hay ningún
-   catálogo que descubrir ni nombre de capa que elegir: una única URL
-   base, puesta por el usuario, a la que el código añade siempre
-   `{z}/{x}/{y}.png` (esquema XYZ). Por eso esta fuente solo aporta
-   `blocked`/`configure` a DYNAMIC_SOURCES (12-copernicus.js) y NO lleva
-   `dynamic: true` en su BASE_LAYERS (10-map.js): el panel no le ofrece
-   ningún <select>, solo la tuerca ⚙.                                   */
-let customTilesUrl = null; /* URL base del usuario, sin la barra final, o null */
+/* ---------- User base layers: tile and WMS servers the user adds ----------
+   Besides the fixed list (BASE_LAYERS, 10-map.js) the user can add, edit
+   and delete their own base layers from the panel: the «＋» button at the
+   bottom of the list opens a dialog (44-dialogs.js) where they choose the
+   type, give a name and paste the address. Two types, the two ways a map
+   server is reached:
+   - "tiles": a tile server (XYZ or TMS). Either a base address, to which
+     `{z}/{x}/{y}.png` is appended (a cache in front of OpenStreetMap), or
+     a whole template with its own placeholders, which covers the other
+     orders and formats of the fixed layers (Esri's `{z}/{y}/{x}`, `.jpg`,
+     a WMTS in KVP form like the IGN's). `tms` counts rows from the bottom.
+   - "wms": a WMS server WITH a catalog: its layers come from its own
+     GetCapabilities, like PNOA histórico's, so the row gets the <select>.
+   Each layer carries its own source (`def.src`, read by `dynSource`): the
+   catalog, the version and image format the server announced and the
+   query in flight belong to that layer, not to a module global, so there
+   can be several of each type. A user layer always has a valid address:
+   there is no "blocked" state. They are kept in this browser only
+   (`userBases`, 32-geojson.js), never in a .kite.json nor in a view link
+   (LINK_BASE_IDS only lists BASE_LAYERS).                               */
+const USER_BASES_MAX = 20;
+const USER_BASE_NAME_MAX = 80;
+const USER_BASE_TYPES = ["tiles", "wms"];
+const USER_BASE_ID = /^u[0-9a-f]{12}$/;
+/* Placeholders a tile template may carry: the ones Leaflet's L.tileLayer
+   fills in by itself. Any other would make it throw on every tile.     */
+const USER_TILE_VARS = new Set(["z", "x", "y", "-y", "s"]);
+const TEMPLATE_VAR = /\{([^{}]*)\}/g;
 
-/* Quita cualquier barra final: `buildCustomTilesUrl` añade la suya
-   propia, y una URL con dos barras seguidas ("...\/\/{z}/...") es una
-   ruta distinta para muchos servidores.                                */
+/* Drops any trailing slash: `userTilesTemplate` adds its own, and two
+   slashes in a row ("...//{z}/...") are a different path on many servers. */
 function normalizeCustomTilesBase(url) {
   return url.trim().replace(/\/+$/, "");
 }
 
-/* Se exige https (igual que connect-src, y por el mismo motivo: el
-   origen lo elige el usuario, así que no hay lista cerrada posible) y
-   una URL con forma válida — evita una petición condenada de antemano
-   y un error críptico del navegador en vez de uno propio y legible.    */
-function validCustomTilesUrl(txt) {
-  try {
-    return new URL(txt.trim()).protocol === "https:";
-  } catch {
-    return false;
+const templateVars = url => [...url.matchAll(TEMPLATE_VAR)].map(m => m[1]);
+
+/* What L.tileLayer receives: the template as written, or the base address
+   with the XYZ scheme appended. Only called when the layer is built.    */
+function userTilesTemplate(url) {
+  return templateVars(url).length ? url.trim() : `${normalizeCustomTilesBase(url)}/{z}/{x}/{y}.png`;
+}
+
+/* Why an address cannot be used, in one line, or null if it can. Only
+   https (as connect-src: the user picks the origin, so no closed list is
+   possible) and no user or password (fetch rejects such a URL with a
+   cryptic error; for tiles it would only leak them in every request).   */
+function userBaseUrlProblem(type, txt) {
+  const s = (txt || "").trim();
+  let probe = s;
+  if (type === "tiles") {
+    const vars = templateVars(s);
+    const unknown = vars.find(v => !USER_TILE_VARS.has(v));
+    if (unknown !== undefined) {
+      return tr("Una plantilla solo admite {z}, {x}, {y}, {-y} y {s}; no se reconoce «{var}».", { var: `{${unknown}}` });
+    }
+    if (vars.length && !(vars.includes("z") && vars.includes("x") && (vars.includes("y") || vars.includes("-y")))) {
+      return tr("Una plantilla tiene que llevar {z}, {x} e {y} (o {-y}).");
+    }
+    probe = s.replace(TEMPLATE_VAR, "0");
   }
+  let u;
+  try { u = new URL(probe); } catch { u = null; }
+  if (!u || u.protocol !== "https:") return tr("Debe ser una dirección https:// válida.");
+  if (u.username || u.password) return tr("La dirección no puede llevar usuario ni contraseña.");
+  return null;
 }
 
-/* Plantilla final que consume L.tileLayer. Se llama SOLO al crear la
-   capa (ver su `layer()` en BASE_LAYERS), nunca antes: `customTilesUrl`
-   puede no estar configurada todavía.                                  */
-function buildCustomTilesUrl() {
-  return `${normalizeCustomTilesBase(customTilesUrl || "")}/{z}/{x}/{y}.png`;
+/* Stored form of an address: a WMS loses its OGC parameters, a tile
+   address is kept as written (its template is built when the layer is). */
+function normalizeUserBaseUrl(type, url) {
+  return type === "wms" ? normalizeCustomWmsBase(url) : url.trim();
 }
 
-/* Cambiar (o borrar) la URL invalida la capa ya creada, cuya plantilla
-   lleva la URL anterior incrustada — mismo patrón que setInstanceId. */
-function setCustomTilesUrl(url) {
-  customTilesUrl = url ? normalizeCustomTilesBase(url) : null;
-  const st = baseState.get("custom");
-  if (st) {
-    if (st.layer && map.hasLayer(st.layer)) map.removeLayer(st.layer);
-    st.layer = null;
-    st.failed = false;
-    st.tileNoticed.clear();
-    if (!customTilesUrl) st.on = false;
+/* Name for a layer whose name was left empty: its server's host.       */
+function userBaseDefaultName(url) {
+  try { return new URL(url.trim().replace(TEMPLATE_VAR, "0")).hostname || url.trim(); } catch { return url.trim(); }
+}
+
+/* Builds a stored record from what the dialog or IndexedDB gives, or
+   returns null if it is not valid. Pure: the dialog and the reading of
+   what was saved (foreign input: another version, a tampered database)
+   go through the same checks.                                          */
+function userBaseRecord(id, input) {
+  if (!input || typeof input !== "object" || typeof id !== "string" || !USER_BASE_ID.test(id)) return null;
+  const type = input.type;
+  if (!USER_BASE_TYPES.includes(type) || typeof input.url !== "string") return null;
+  if (userBaseUrlProblem(type, input.url)) return null;
+  const url = normalizeUserBaseUrl(type, input.url);
+  const typed = typeof input.name === "string" ? input.name.trim().slice(0, USER_BASE_NAME_MAX) : "";
+  const rec = { id, type, name: typed || userBaseDefaultName(url).slice(0, USER_BASE_NAME_MAX), url };
+  if (type === "tiles" && input.tms === true) rec.tms = true;
+  return rec;
+}
+
+/* What was saved: bad entries and repeated ids are dropped, and no more
+   than USER_BASES_MAX survive.                                         */
+function validUserBases(list) {
+  if (!Array.isArray(list)) return [];
+  const out = [], seen = new Set();
+  for (const item of list) {
+    if (out.length >= USER_BASES_MAX) break;
+    const rec = item && userBaseRecord(item.id, item);
+    if (!rec || seen.has(rec.id)) continue;
+    seen.add(rec.id);
+    out.push(rec);
   }
-  (customTilesUrl ? dbSaveCustomTilesUrl({ url: customTilesUrl }) : dbDeleteCustomTilesUrl()).catch(() => {});
-  scheduleBaseSave();
-  renderBasePanel();
-  if (st && st.on) applyBaseLayer("custom");
+  return out;
 }
 
-/* ---------- "Custom Web Map Service": servidor WMS del propio usuario ----------
-   Lo contrario de "Custom Tile Map Service": aquí SÍ hay catálogo. El
-   usuario da la dirección de su servidor WMS y las capas salen de su
-   GetCapabilities (mismo recorrido que PNOA histórico/Copernicus, con
-   `parseWmsCapabilities`), así que es una fuente "dynamic" completa
-   (`get`/`groups`/`pickDefault`/`ensure`) además de configurable. Sin
-   dirección está "bloqueada" y el <select> sale deshabilitado.        */
+/* WMS tile requests and the GetCapabilities of a user WMS */
 const CUSTOM_WMS_TIMEOUT = 15000;
-/* Un servidor propio puede anidar sus capas en grupos (los títulos de
-   grupo ya etiquetan a sus hijos); las que cuelgan directamente de la
-   raíz van a este cajón.                                              */
+/* A user server may nest its layers in groups (the group titles already
+   label their children); those hanging straight from the root go here. */
 const CUSTOM_WMS_OPTS = { exclude: new Set(), rootGroup: N_("Capas del servidor") };
-/* Parámetros de OGC que pone el código (o `L.tileLayer.wms`) y que
-   deben salir de la dirección que pegue el usuario, que a menudo es una
-   petición GetCapabilities o GetMap entera. Los demás (p. ej. el
-   `map=/ruta.map` de MapServer) son parte de la dirección y se
-   conservan.                                                          */
+/* OGC parameters that the code (or `L.tileLayer.wms`) sets and that must
+   leave the address the user pastes, which is often a whole GetCapabilities
+   or GetMap request. The rest (e.g. MapServer's `map=/path.map`) are part
+   of the address and are kept.                                          */
 const CUSTOM_WMS_RESERVED = ["service", "request", "version", "wmtver", "layers", "styles", "crs", "srs",
   "format", "transparent", "width", "height", "bbox"];
 const CUSTOM_WMS_VERSIONS = ["1.1.0", "1.1.1", "1.3.0"];
-/* Formatos de imagen que sabemos pedir, por orden de preferencia: PNG
-   (admite transparencia, que es lo que se quiere para superponer) y
-   JPEG (hay servidores que solo sirven este, típicamente ortofotos).  */
+/* Image formats we know how to request, by preference: PNG (transparency,
+   what an overlay wants) and JPEG (some servers serve only that,
+   typically orthophotos).                                               */
 const CUSTOM_WMS_FORMATS = ["image/png", "image/jpeg", "image/jpg"];
 
-let customWmsUrl = null;        /* dirección base del usuario, o null */
-let customWmsVersion = "1.3.0"; /* la que anunció su GetCapabilities */
-let customWmsFormat = "image/png"; /* el que eligió `wmsGetMapFormat` */
-let customWmsCatalog = null;    /* [{name, title, group}] una vez resuelto */
-let customWmsError = null;
-let customWmsDiscovering = null;
-
-/* Mismo criterio que validCustomTilesUrl, y además sin usuario ni
-   contraseña en la dirección: `fetch` rechaza una URL con credenciales
-   y el error sería críptico.                                           */
+/* Same rule as userBaseUrlProblem for a WMS, as a yes/no. */
 function validCustomWmsUrl(txt) {
-  try {
-    const u = new URL(txt.trim());
-    return u.protocol === "https:" && !u.username && !u.password;
-  } catch {
-    return false;
-  }
+  return userBaseUrlProblem("wms", txt) === null;
 }
 
-/* Deja la dirección en lo que sirve de base: sin los parámetros de OGC
-   (se pegan a menudo con un GetCapabilities completo) y sin ancla.     */
+/* Leaves the address as a base: without the OGC parameters (often pasted
+   with a whole GetCapabilities) and without an anchor.                 */
 function normalizeCustomWmsBase(url) {
   const u = new URL(url.trim());
   u.hash = "";
@@ -6193,8 +6214,8 @@ function normalizeCustomWmsBase(url) {
   return u.toString();
 }
 
-/* `searchParams.set` respeta los parámetros propios de la dirección
-   (`?map=...`) en vez de pegar un segundo `?`.                         */
+/* `searchParams.set` keeps the address's own parameters (`?map=...`)
+   instead of appending a second `?`.                                    */
 function customWmsCapabilitiesUrl(base) {
   const u = new URL(base);
   u.searchParams.set("service", "WMS");
@@ -6203,21 +6224,20 @@ function customWmsCapabilitiesUrl(base) {
   return u.toString();
 }
 
-/* Un servidor que solo habla 1.1.1 responde a una petición 1.3.0 con su
-   propia versión; las teselas se piden entonces en esa (Leaflet cambia
-   `crs`/`srs` según la versión). Lo que no se reconozca se queda en
-   1.3.0, la que se pidió.                                              */
+/* A server that only speaks 1.1.1 answers a 1.3.0 request with its own
+   version; tiles are then requested in that one (Leaflet switches
+   `crs`/`srs` with the version). Anything unknown stays at 1.3.0.       */
 function wmsCapabilitiesVersion(xmlText) {
   const m = /<(?:[\w.-]+:)?WM(?:S|T_MS)_Capabilities\b[^>]*?\sversion\s*=\s*["']([^"']+)["']/.exec(xmlText);
   return m && CUSTOM_WMS_VERSIONS.includes(m[1]) ? m[1] : "1.3.0";
 }
 
-/* Formato de imagen para GetMap: el primero de CUSTOM_WMS_FORMATS que el
-   servidor declare en su <GetMap>. Los parámetros se ignoran al comparar
-   ("image/png; mode=8bit") y se pide el tipo a secas. Si no declara
-   ninguno de los que sabemos pedir, o el documento no se lee, PNG: es lo
-   que se pedía antes, y si el servidor tampoco lo sirve las teselas
-   fallan a la vista (BASE_FAIL_TILES) en vez de elegir a ciegas.       */
+/* Image format for GetMap: the first of CUSTOM_WMS_FORMATS the server
+   declares in its <GetMap>. Parameters are ignored when comparing
+   ("image/png; mode=8bit") and the bare type is requested. If it declares
+   none we know, or the document cannot be read, PNG: if the server does
+   not serve it either, the tiles fail in sight (BASE_FAIL_TILES) instead
+   of choosing blindly.                                                  */
 function wmsGetMapFormat(xmlText) {
   const doc = new DOMParser().parseFromString(xmlText, "text/xml");
   if (parserErrorText(doc)) return "image/png";
@@ -6227,7 +6247,7 @@ function wmsGetMapFormat(xmlText) {
   return CUSTOM_WMS_FORMATS.find(f => offered.includes(f)) || "image/png";
 }
 
-/* Agrupa para el <select> en el orden en que el servidor las publica */
+/* Groups for the <select> in the order the server publishes them */
 function groupWmsEntries(entries) {
   const byGroup = new Map();
   for (const e of entries) {
@@ -6237,105 +6257,226 @@ function groupWmsEntries(entries) {
   return [...byGroup].map(([group, items]) => ({ group, items }));
 }
 
-/* Plantilla base de la capa. Se llama SOLO al crearla (ver su `layer()`
-   en BASE_LAYERS): la dirección puede no estar configurada todavía.   */
-function customWmsBase() { return customWmsUrl || ""; }
+/* The source of a user WMS: the shape of a DYNAMIC_SOURCES entry
+   (12-copernicus.js), with its state inside. `err` and not `error`: the
+   latter is the method the panel calls.                                 */
+function makeUserWmsSource(def) {
+  const src = {
+    selectTitle: tr("Capa del servidor WMS"),
+    configureLabel: tr("Modificar esta capa base"),
+    get: () => src.catalog,
+    error: () => src.err,
+    ensure: () => ensureUserWmsCatalog(def),
+    pickDefault: entries => entries[0] && entries[0].name,
+    groups: groupWmsEntries,
+    configure: () => openUserBaseDialog(def.id)
+  };
+  resetUserWmsSource(src);
+  return src;
+}
+function resetUserWmsSource(src) {
+  src.catalog = null;      /* [{name, title, group}] once resolved */
+  src.err = null;
+  src.discovering = null;
+  src.version = "1.3.0";   /* the one its GetCapabilities announced */
+  src.format = "image/png"; /* the one `wmsGetMapFormat` chose */
+}
 
-async function fetchCustomWmsCatalog() {
-  if (customWmsCatalog) return customWmsCatalog;
-  if (customWmsDiscovering) return customWmsDiscovering;
-  const base = customWmsUrl;
-  /* Cambiar la dirección con una consulta en vuelo: lo que conteste la
-     vieja no vale para la nueva y no debe pisar su catálogo ni su error. */
-  const stale = () => base !== customWmsUrl;
-  customWmsError = null;
+/* The definition a user layer gets in `baseState`: the same fields as a
+   BASE_LAYERS entry (the panel and applyBaseLayer do not tell them
+   apart) plus `user`, its stored record. `layer()` reads the address,
+   version and format at the moment it builds, never before.            */
+function makeUserBaseDef(rec) {
+  const def = { id: rec.id, name: rec.name, user: rec, diagnoseTiles: true };
+  if (rec.type === "wms") {
+    def.dynamic = true;
+    def.src = makeUserWmsSource(def);
+    /* JPEG has no alpha channel: `transparent` only with PNG */
+    def.layer = wmsLayer => L.tileLayer.wms(def.user.url, {
+      layers: wmsLayer, format: def.src.format, version: def.src.version,
+      transparent: def.src.format === "image/png",
+      maxZoom: MAX_ZOOM, attribution: CUSTOM_WMS_CREDIT });
+  } else {
+    /* No catalog and no <select>: the source only brings the gear */
+    def.src = { configureLabel: tr("Modificar esta capa base"), configure: () => openUserBaseDialog(def.id) };
+    def.layer = () => L.tileLayer(userTilesTemplate(def.user.url), {
+      tms: !!def.user.tms, maxNativeZoom: 19, maxZoom: MAX_ZOOM, attribution: CUSTOM_TILES_CREDIT });
+  }
+  return def;
+}
+
+async function fetchUserWmsCatalog(def) {
+  const src = def.src;
+  if (src.catalog) return src.catalog;
+  if (src.discovering) return src.discovering;
+  const base = def.user.url;
+  /* An address changed, or the layer deleted, while the query was in
+     flight: what the old one answers must not overwrite anything.       */
+  const stale = () => base !== def.user.url || !baseState.has(def.id);
+  src.err = null;
   const discovering = (async () => {
     const r = await fetch(customWmsCapabilitiesUrl(base),
       { signal: AbortSignal.timeout(CUSTOM_WMS_TIMEOUT) });
     const txt = await r.text();
-    /* El error OGC puede viajar en el cuerpo aunque el HTTP sea 200 */
+    /* The OGC error may travel in the body even with HTTP 200 */
     const ex = parseWmsServiceException(txt);
     if (ex) throw new Error(ex.msg);
     if (!r.ok) throw new Error(describeHttp(r.status));
     const entries = parseWmsCapabilities(txt, CUSTOM_WMS_OPTS);
     if (!entries) throw new Error(tr("la respuesta no es un GetCapabilities de WMS con capas"));
     if (!stale()) {
-      customWmsCatalog = entries;
-      /* Una capa ya creada (la guardada como encendida, que se levanta
-         sin esperar al catálogo) lleva la versión y el formato
-         supuestos: si el servidor habla otra cosa, se rehace.         */
+      src.catalog = entries;
+      /* A layer already built (one saved as on, raised without waiting
+         for the catalog) carries the assumed version and format: if the
+         server speaks something else, it is rebuilt.                    */
       const version = wmsCapabilitiesVersion(txt), format = wmsGetMapFormat(txt);
-      if (version !== customWmsVersion || format !== customWmsFormat) {
-        customWmsVersion = version;
-        customWmsFormat = format;
-        dropCustomWmsLayer();
+      if (version !== src.version || format !== src.format) {
+        src.version = version;
+        src.format = format;
+        dropBaseLayer(baseState.get(def.id));
       }
     }
     return entries;
   })().catch(err => {
-    if (customWmsDiscovering === discovering) customWmsDiscovering = null; /* permite reintentar */
+    if (src.discovering === discovering) src.discovering = null; /* allows a retry */
     if (!stale()) {
-      customWmsError = err.name === "TimeoutError" ? tr("el servidor no responde")
+      src.err = err.name === "TimeoutError" ? tr("el servidor no responde")
         : err.message === "Failed to fetch" ? netFailText(tr("no se pudo conectar con el servidor WMS (¿CORS?)"))
         : err.message;
     }
     throw err;
   });
-  customWmsDiscovering = discovering;
+  src.discovering = discovering;
   return discovering;
 }
 
-function ensureCustomWmsCatalog() {
-  if (customWmsCatalog || !customWmsUrl) return;
-  fetchCustomWmsCatalog().then(onDynamicCatalogReady).catch(() => renderBasePanel());
+function ensureUserWmsCatalog(def) {
+  if (def.src.catalog || !baseState.has(def.id)) return;
+  fetchUserWmsCatalog(def).then(onDynamicCatalogReady).catch(() => renderBasePanel());
 }
 
-/* Quita del mapa la capa ya creada, para que `applyBaseLayer` la rehaga
-   con la dirección y la versión de ahora. Devuelve su estado.          */
-function dropCustomWmsLayer() {
-  const st = baseState.get("custom-wms");
-  if (st) {
-    if (st.layer && map.hasLayer(st.layer)) map.removeLayer(st.layer);
-    st.layer = null;
-    st.failed = false;
-    st.tileNoticed.clear();
-  }
+/* Takes the built layer off the map so that `applyBaseLayer` builds it
+   again with what holds now (address, version, format).                */
+function dropBaseLayer(st) {
+  if (!st) return;
+  if (st.layer && map.hasLayer(st.layer)) map.removeLayer(st.layer);
+  st.layer = null;
+  st.failed = false;
+  st.tileNoticed.clear();
+}
+
+const userBaseStates = () => [...baseState.values()].filter(st => st.def.user);
+
+/* Puts a user layer in `baseState`, on top of the stack (the end of the
+   Map), without saving anything: the boot calls it for what was saved. */
+function addUserBaseLayer(rec) {
+  const st = baseStateFor(makeUserBaseDef(rec), baseState.size + 1);
+  baseState.set(rec.id, st);
   return st;
 }
 
-/* Cambiar (o borrar) la dirección invalida el catálogo y la capa ya
-   creada, cuya URL lleva dentro la anterior — mismo patrón que
-   setInstanceId.                                                       */
-function setCustomWmsUrl(url) {
-  customWmsUrl = url ? normalizeCustomWmsBase(url) : null;
-  customWmsCatalog = null; customWmsError = null; customWmsDiscovering = null;
-  customWmsVersion = "1.3.0";
-  customWmsFormat = "image/png";
-  const st = dropCustomWmsLayer();
-  if (st) {
-    st.wmsLayer = null;
-    if (!customWmsUrl) st.on = false;
-  }
-  (customWmsUrl ? dbSaveCustomWmsUrl({ url: customWmsUrl }) : dbDeleteCustomWmsUrl()).catch(() => {});
-  scheduleBaseSave();
-  if (customWmsUrl) ensureCustomWmsCatalog();
-  renderBasePanel();
-  if (st && st.on) applyBaseLayer("custom-wms");
+function saveUserBases() {
+  dbSaveUserBases(userBaseStates().map(st => st.def.user)).catch(() => {});
 }
 
-/* ---------- Teselas que el servidor no entrega (servidores propios) ----------
-   Un servidor que contesta con un error (un WMS lo hace con HTTP 200 y
-   un <ServiceException> en XML) no deja ver nada: la tesela es un <img>
-   que no descifra esa respuesta, Leaflet la deja oculta y se ve lo que
-   hay debajo, sin pista de que falta algo. Dos cosas por eso, solo para
-   los servidores que pone el usuario (`diagnoseTiles` en BASE_LAYERS: en
-   los servicios conocidos las teselas fuera de cobertura son normales y
-   pintarlas de rojo sería ruido):
-   - la tesela se marca con un contorno rojo (`.tile-error`, styles.css);
-   - la PRIMERA de cada capa se vuelve a pedir con `fetch` para leer qué
-     dijo el servidor, y se avisa con ese texto. Una sola vez por capa:
-     con un servidor que falla en medio mapa serían decenas de peticiones
-     repetidas a un servicio que ya está fallando.                       */
+/* «Añadir»: the new layer goes on top and ON. The user asked for it, so
+   they get to see it; turning it off is one click.                     */
+function createUserBase(input) {
+  if (userBaseStates().length >= USER_BASES_MAX) return null;
+  const rec = userBaseRecord("u" + newStoreId().slice(0, 12), input);
+  if (!rec) return null;
+  const st = addUserBaseLayer(rec);
+  st.on = true;
+  saveUserBases();
+  scheduleBaseSave();
+  if (st.def.dynamic) ensureUserWmsCatalog(st.def);
+  renderBasePanel();
+  applyBaseLayer(rec.id);
+  return rec.id;
+}
+
+/* The gear: name, address and (tiles) row order. The type does not
+   change: that is another layer. Renaming touches nothing else; a new
+   address or row order drops the built layer, whose template carries the
+   old one, and for a WMS the catalog and the chosen layer too.          */
+function updateUserBase(id, input) {
+  const st = baseState.get(id);
+  if (!st || !st.def.user) return false;
+  const old = st.def.user;
+  const rec = userBaseRecord(id, { ...input, type: old.type });
+  if (!rec) return false;
+  st.def.user = rec;
+  st.def.name = rec.name;
+  const moved = rec.url !== old.url || !!rec.tms !== !!old.tms;
+  if (moved) {
+    dropBaseLayer(st);
+    if (st.def.dynamic) {
+      resetUserWmsSource(st.def.src);
+      st.wmsLayer = null;
+      ensureUserWmsCatalog(st.def);
+    }
+  }
+  saveUserBases();
+  scheduleBaseSave();
+  renderBasePanel();
+  if (moved && st.on) applyBaseLayer(id);
+  return true;
+}
+
+/* Delete (after the confirmation, 44-dialogs.js): off the map, out of the
+   list, and the rest of the stack keeps its order with contiguous z.    */
+function removeUserBase(id) {
+  const st = baseState.get(id);
+  if (!st || !st.def.user) return;
+  dropBaseLayer(st);
+  baseState.delete(id);
+  let z = 0;
+  for (const other of baseState.values()) {
+    other.zIndex = ++z;
+    if (other.layer) other.layer.setZIndex(other.zIndex);
+  }
+  saveUserBases();
+  scheduleBaseSave();
+  renderBasePanel();
+}
+
+/* Row buttons and the «＋» at the bottom of the list */
+function buildUserBaseDeleteButton(st) {
+  const label = tr("Eliminar esta capa base");
+  const b = document.createElement("button");
+  b.className = "base-gear base-del";
+  b.textContent = "×";
+  b.title = label;
+  b.setAttribute("aria-label", label);
+  b.addEventListener("click", () => openUserBaseDeleteConfirm(st.def.id));
+  return b;
+}
+function buildAddUserBaseButton() {
+  const b = document.createElement("button");
+  b.type = "button";
+  b.className = "btn base-add";
+  b.textContent = tr("+ Añadir capa…");
+  const full = userBaseStates().length >= USER_BASES_MAX;
+  b.disabled = full;
+  b.title = full ? tr("Ya hay {n} capas propias, el máximo. Elimina alguna para añadir otra.", { n: USER_BASES_MAX })
+    : tr("Añadir un servidor de teselas o WMS propio como capa base");
+  b.addEventListener("click", () => openUserBaseDialog(null));
+  return b;
+}
+
+/* ---------- Tiles a user's server does not deliver ----------
+   A server that answers with an error (a WMS does it with HTTP 200 and an
+   XML <ServiceException>) shows nothing: the tile is an <img> that cannot
+   decode that answer, Leaflet hides it and what lies below shows through,
+   with no hint that something is missing. Two things, only for the
+   servers the user adds (`diagnoseTiles`, set by makeUserBaseDef: with the
+   known services tiles outside their coverage are normal and painting
+   them red would be noise):
+   - the tile gets a red outline (`.tile-error`, styles.css);
+   - the FIRST one of each layer is requested again with `fetch` to read
+     what the server said, and a notice gives that text. Once per layer:
+     with a server failing across the map it would be dozens of repeated
+     requests to a service that is already failing.                      */
 const TILE_DIAG_TIMEOUT = 10000;
 const TILE_REASON_MAX = 200;
 
@@ -6658,44 +6799,17 @@ const DYNAMIC_SOURCES = {
       hint: tr("Configurar la credencial de Sentinel Hub que exige Copernicus")
     },
     configure: () => openShCredsDialog()
-  },
-  /* Sin catálogo ni `get`/`groups`/`pickDefault`/`ensure`: "Custom Tile
-     Map Service" no tiene nombre de capa que elegir, solo una URL — `blocked`/
-     `configure` son lo único que consulta buildDynamicConfigButton, y
-     su BASE_LAYERS (10-map.js) no lleva `dynamic: true`, así que el
-     panel tampoco intenta pedirle un <select> (buildDynamicLayerSelect
-     solo se llama para fuentes "dynamic").                            */
-  "custom-tiles": {
-    blocked: () => customTilesUrl ? null : {
-      label: tr("Requiere URL"),
-      hint: tr("Configurar la URL del servidor de teselas de Custom Tile Map Service")
-    },
-    configure: () => openCustomTilesDialog()
-  },
-  /* A diferencia de la anterior, "Custom Web Map Service" sí tiene
-     catálogo (el GetCapabilities del servidor del usuario): fuente
-     completa, como Copernicus, bloqueada mientras no haya dirección.   */
-  "custom-wms": {
-    selectTitle: tr("Capa del servidor WMS"),
-    get: () => customWmsCatalog,
-    error: () => customWmsError,
-    ensure: ensureCustomWmsCatalog,
-    pickDefault: entries => entries[0] && entries[0].name,
-    groups: groupWmsEntries,
-    blocked: () => customWmsUrl ? null : {
-      label: tr("Requiere URL"),
-      hint: tr("Configurar la URL del servidor de Custom Web Map Service")
-    },
-    configure: () => openCustomWmsDialog()
   }
 };
-function dynSource(def) { return (def && def.source && DYNAMIC_SOURCES[def.source]) || null; }
+/* A user base layer brings its own source (`def.src`, 11-base-panel.js);
+   the fixed ones name an entry of this registry.                       */
+function dynSource(def) { return (def && (def.src || (def.source && DYNAMIC_SOURCES[def.source]))) || null; }
 
 function ensureDynamicCatalogs() {
   for (const st of baseState.values()) {
     const src = dynSource(st.def);
-    /* "Custom Tile Map Service" no tiene catálogo (su fuente no aporta
-       `ensure`): nada que adelantar al abrir el panel, solo la tuerca ⚙. */
+    /* A user tile layer has no catalog (its source brings no `ensure`):
+       nothing to fetch ahead when the panel opens, only the gear ⚙.     */
     if (src && src.ensure) src.ensure();
   }
 }
@@ -10595,82 +10709,38 @@ async function dbLoadSh() {
   });
 }
 
-/* ---------- Servidor de teselas de "Custom Tile Map Service" ----------
-   Otra clave del mismo almacén, mismo criterio que la credencial de
-   Sentinel Hub: es del usuario (su propio servidor de teselas, típico
-   caso: una caché/proxy delante de OpenStreetMap u otro servicio) y
-   solo vive en su navegador — nunca se serializa con el árbol ni viaja
-   en un .kite.json exportado.                                        */
-const CUSTOM_TILES_KEY = "customTilesUrl";
-const CUSTOM_TILES_SCHEMA = 1;
+/* ---------- User base layers (11-base-panel.js) ----------
+   Another key of the same store, same rule as the Sentinel Hub
+   credential: the addresses are the user's own servers and live only in
+   their browser, never serialized with the tree nor in an exported
+   .kite.json. The whole list as one record: at most USER_BASES_MAX short
+   entries. Read through `validUserBases`: it is foreign input.          */
+const USER_BASES_KEY = "userBases";
+const USER_BASES_SCHEMA = 1;
+/* The keys of the two fixed «Custom» layers this list replaced. They are
+   not migrated (decided with the user): reading the list deletes them.  */
+const RETIRED_CUSTOM_KEYS = ["customTilesUrl", "customWmsUrl"];
 
-async function dbSaveCustomTilesUrl(rec) {
+async function dbSaveUserBases(list) {
   const db = await openDb();
   return new Promise((resolve, reject) => {
     const tx = db.transaction(DB_TREE, "readwrite");
-    tx.objectStore(DB_TREE).put({ v: CUSTOM_TILES_SCHEMA, ...rec }, CUSTOM_TILES_KEY);
+    tx.objectStore(DB_TREE).put({ v: USER_BASES_SCHEMA, list }, USER_BASES_KEY);
     tx.oncomplete = resolve;
     tx.onerror = () => reject(tx.error);
   });
 }
-/* Borrar la URL RETIRA la clave, no guarda un registro vacío: mismo
-   criterio que dbDeleteSh.                                            */
-async function dbDeleteCustomTilesUrl() {
+async function dbLoadUserBases() {
   const db = await openDb();
   return new Promise((resolve, reject) => {
     const tx = db.transaction(DB_TREE, "readwrite");
-    tx.objectStore(DB_TREE).delete(CUSTOM_TILES_KEY);
-    tx.oncomplete = resolve;
+    const store = tx.objectStore(DB_TREE);
+    for (const key of RETIRED_CUSTOM_KEYS) store.delete(key);
+    const rq = store.get(USER_BASES_KEY);
+    let rec = null;
+    rq.onsuccess = () => { rec = rq.result; };
+    tx.oncomplete = () => resolve(rec && rec.v === USER_BASES_SCHEMA ? validUserBases(rec.list) : []);
     tx.onerror = () => reject(tx.error);
-  });
-}
-async function dbLoadCustomTilesUrl() {
-  const db = await openDb();
-  return new Promise((resolve, reject) => {
-    const tx = db.transaction(DB_TREE, "readonly");
-    const rq = tx.objectStore(DB_TREE).get(CUSTOM_TILES_KEY);
-    rq.onsuccess = () => {
-      const rec = rq.result;
-      resolve(rec && rec.v === CUSTOM_TILES_SCHEMA && typeof rec.url === "string" ? rec : null);
-    };
-    rq.onerror = () => reject(rq.error);
-  });
-}
-
-/* ---------- Servidor de "Custom Web Map Service" ----------
-   Mismo criterio que el de teselas de arriba: la dirección del WMS es
-   del usuario, vive solo en su navegador y no viaja en un .kite.json.  */
-const CUSTOM_WMS_KEY = "customWmsUrl";
-const CUSTOM_WMS_SCHEMA = 1;
-
-async function dbSaveCustomWmsUrl(rec) {
-  const db = await openDb();
-  return new Promise((resolve, reject) => {
-    const tx = db.transaction(DB_TREE, "readwrite");
-    tx.objectStore(DB_TREE).put({ v: CUSTOM_WMS_SCHEMA, ...rec }, CUSTOM_WMS_KEY);
-    tx.oncomplete = resolve;
-    tx.onerror = () => reject(tx.error);
-  });
-}
-async function dbDeleteCustomWmsUrl() {
-  const db = await openDb();
-  return new Promise((resolve, reject) => {
-    const tx = db.transaction(DB_TREE, "readwrite");
-    tx.objectStore(DB_TREE).delete(CUSTOM_WMS_KEY);
-    tx.oncomplete = resolve;
-    tx.onerror = () => reject(tx.error);
-  });
-}
-async function dbLoadCustomWmsUrl() {
-  const db = await openDb();
-  return new Promise((resolve, reject) => {
-    const tx = db.transaction(DB_TREE, "readonly");
-    const rq = tx.objectStore(DB_TREE).get(CUSTOM_WMS_KEY);
-    rq.onsuccess = () => {
-      const rec = rq.result;
-      resolve(rec && rec.v === CUSTOM_WMS_SCHEMA && typeof rec.url === "string" ? rec : null);
-    };
-    rq.onerror = () => reject(rq.error);
   });
 }
 
@@ -17766,88 +17836,109 @@ document.getElementById("sh-accept").addEventListener("click", () => {
   closeShCredsDialog();
 });
 
-/* ---------- Diálogo del servidor de teselas de "Custom Tile Map Service" ----------
-   Mismo patrón que el de la credencial de Copernicus, justo arriba:
-   edición diferida, «Aceptar» es lo único que guarda y rearma la capa. */
-const customTilesDialog = document.getElementById("custom-tiles-creds");
-const customTilesBox = customTilesDialog.querySelector(".dlg-box");
-const customTilesInput = document.getElementById("custom-tiles-input");
-const customTilesErrorEl = document.getElementById("custom-tiles-error");
+/* ---------- User base layer dialog: add (＋) or edit (⚙) ----------
+   One dialog for both types. Adding, the user picks the type and the help
+   below the address is that type's; editing, the type is fixed (another
+   type is another layer) and name and address come filled in. Deferred
+   like the Copernicus credential just above: only «Aceptar» saves, and it
+   does not close with an address that cannot be used.                  */
+const userBaseDialog = $id("user-base");
+const userBaseBox = userBaseDialog.querySelector(".dlg-box");
+const userBaseNameInput = $id("user-base-name");
+const userBaseUrlInput = $id("user-base-url");
+const userBaseTmsInput = $id("user-base-tms");
+const userBaseErrorEl = $id("user-base-error");
+const userBaseTypeInputs = [...userBaseBox.querySelectorAll('input[name="user-base-type"]')];
+let userBaseEditing = null; /* id of the layer being edited, or null when adding */
 
-function closeCustomTilesDialog() {
-  customTilesDialog.hidden = true;
+function userBaseType() {
+  const on = userBaseTypeInputs.find(i => i.checked);
+  return on ? on.value : "tiles";
+}
+/* What depends on the type: its help paragraphs and the row-order box
+   (`data-ub-type`), and the example address. The examples are fictitious
+   hosts (security study, Annex A).                                      */
+function showUserBaseType(type) {
+  for (const el of userBaseBox.querySelectorAll("[data-ub-type]")) el.hidden = el.dataset.ubType !== type;
+  userBaseUrlInput.placeholder = type === "wms" ? "https://mi-servidor.ejemplo.org/wms"
+    : "https://mi-cache.ejemplo.org/tiles/";
+  userBaseErrorEl.hidden = true;
+}
+for (const input of userBaseTypeInputs) input.addEventListener("change", () => showUserBaseType(userBaseType()));
+
+function openUserBaseDialog(id) {
+  const st = id ? baseState.get(id) : null;
+  const rec = st && st.def.user;
+  userBaseEditing = rec ? rec.id : null;
+  $id("user-base-title").textContent = rec ? tr("Modificar capa base") : tr("Nueva capa base");
+  for (const input of userBaseTypeInputs) {
+    input.checked = input.value === (rec ? rec.type : "tiles");
+    input.disabled = !!rec;
+  }
+  userBaseNameInput.value = rec ? rec.name : "";
+  userBaseUrlInput.value = rec ? rec.url : "";
+  userBaseTmsInput.checked = !!(rec && rec.tms);
+  $id("user-base-accept").textContent = rec ? tr("Aceptar") : tr("Añadir");
+  showUserBaseType(userBaseType());
+  userBaseDialog.hidden = false;
+  clampToViewport(userBaseBox);
+  focusDialog(userBaseBox);
+  (rec ? userBaseNameInput : userBaseUrlInput).focus();
+}
+function closeUserBaseDialog() {
+  userBaseDialog.hidden = true;
+  userBaseEditing = null;
   releaseFocus();
 }
-function openCustomTilesDialog() {
-  customTilesInput.value = customTilesUrl || "";
-  customTilesErrorEl.hidden = true;
-  customTilesDialog.hidden = false;
-  clampToViewport(customTilesBox);
-  focusDialog(customTilesBox);
-  customTilesInput.focus();
-  customTilesInput.select();
-}
-document.getElementById("custom-tiles-cancel").addEventListener("click", closeCustomTilesDialog);
-document.getElementById("custom-tiles-clear").addEventListener("click", () => {
-  /* Borrar actúa sobre el campo, no sobre el diálogo: mismo criterio
-     que sh-clear.                                                     */
-  setCustomTilesUrl(null);
-  customTilesInput.value = "";
-  customTilesErrorEl.hidden = true;
-  customTilesInput.focus();
-  navMessage(tr("Servidor de Custom Tile Map Service borrado."), { tone: "info" });
-});
-document.getElementById("custom-tiles-accept").addEventListener("click", () => {
-  const txt = customTilesInput.value.trim();
-  if (!validCustomTilesUrl(txt)) {
-    customTilesErrorEl.textContent = tr("Debe ser una dirección https:// válida.");
-    customTilesErrorEl.hidden = false;
-    customTilesInput.focus();
+$id("user-base-cancel").addEventListener("click", closeUserBaseDialog);
+$id("user-base-accept").addEventListener("click", () => {
+  const type = userBaseType();
+  const problem = userBaseUrlProblem(type, userBaseUrlInput.value);
+  if (problem) {
+    userBaseErrorEl.textContent = problem;
+    userBaseErrorEl.hidden = false;
+    userBaseUrlInput.focus();
     return;
   }
-  setCustomTilesUrl(txt);
-  closeCustomTilesDialog();
+  const input = { type, name: userBaseNameInput.value, url: userBaseUrlInput.value, tms: userBaseTmsInput.checked };
+  const editing = userBaseEditing;
+  closeUserBaseDialog();
+  if (editing) updateUserBase(editing, input);
+  else createUserBase(input);
 });
+/* Enter in a field accepts, as in the other short dialogs */
+for (const input of [userBaseNameInput, userBaseUrlInput]) {
+  input.addEventListener("keydown", e => { if (e.key === "Enter") { e.preventDefault(); $id("user-base-accept").click(); } });
+}
 
-/* ---------- Diálogo del servidor de "Custom Web Map Service" ----------
-   Gemelo del anterior: la dirección es de un WMS, y al aceptar el panel
-   le pide su GetCapabilities para ofrecer sus capas.                    */
-const customWmsDialog = document.getElementById("custom-wms-creds");
-const customWmsBox = customWmsDialog.querySelector(".dlg-box");
-const customWmsInput = document.getElementById("custom-wms-input");
-const customWmsErrorEl = document.getElementById("custom-wms-error");
+/* ---------- Deleting a user base layer asks first ----------
+   Base maps have no undo (they are not in the tree), so a slip would lose
+   the address for good.                                                */
+const userBaseDeleteDialog = $id("user-base-delete");
+const userBaseDeleteBox = userBaseDeleteDialog.querySelector(".dlg-box");
+let userBaseDeleting = null;
 
-function closeCustomWmsDialog() {
-  customWmsDialog.hidden = true;
+function openUserBaseDeleteConfirm(id) {
+  const st = baseState.get(id);
+  if (!st || !st.def.user) return;
+  userBaseDeleting = id;
+  /* textContent: the name is the user's */
+  $id("user-base-delete-text").textContent = tr("Se eliminará la capa base «{name}» y se olvidará su dirección. No se puede deshacer.",
+    { name: st.def.name });
+  userBaseDeleteDialog.hidden = false;
+  clampToViewport(userBaseDeleteBox);
+  focusDialog(userBaseDeleteBox);
+}
+function closeUserBaseDeleteConfirm() {
+  userBaseDeleteDialog.hidden = true;
+  userBaseDeleting = null;
   releaseFocus();
 }
-function openCustomWmsDialog() {
-  customWmsInput.value = customWmsUrl || "";
-  customWmsErrorEl.hidden = true;
-  customWmsDialog.hidden = false;
-  clampToViewport(customWmsBox);
-  focusDialog(customWmsBox);
-  customWmsInput.focus();
-  customWmsInput.select();
-}
-document.getElementById("custom-wms-cancel").addEventListener("click", closeCustomWmsDialog);
-document.getElementById("custom-wms-clear").addEventListener("click", () => {
-  setCustomWmsUrl(null);
-  customWmsInput.value = "";
-  customWmsErrorEl.hidden = true;
-  customWmsInput.focus();
-  navMessage(tr("Servidor de Custom Web Map Service borrado."), { tone: "info" });
-});
-document.getElementById("custom-wms-accept").addEventListener("click", () => {
-  const txt = customWmsInput.value.trim();
-  if (!validCustomWmsUrl(txt)) {
-    customWmsErrorEl.textContent = tr("Debe ser una dirección https:// válida, sin usuario ni contraseña.");
-    customWmsErrorEl.hidden = false;
-    customWmsInput.focus();
-    return;
-  }
-  setCustomWmsUrl(txt);
-  closeCustomWmsDialog();
+$id("user-base-delete-cancel").addEventListener("click", closeUserBaseDeleteConfirm);
+$id("user-base-delete-accept").addEventListener("click", () => {
+  const id = userBaseDeleting;
+  closeUserBaseDeleteConfirm();
+  if (id) removeUserBase(id);
 });
 
 const descDialog = document.getElementById("desc-dialog");
@@ -18194,7 +18285,7 @@ wirePropsGrip(styleAttrsBody);
    button opened it (see openColorPicker/positionColorPicker), not a
    draggable window with its own dialog role — that separate-window
    treatment is exactly what the popover replaced.                    */
-for (const box of [styleBox, iconBox, descBox, shortcutsBox, ktpBox, kdpBox, gnpBox, propsBox, shBox, customTilesBox, customWmsBox, pointsBox, logBox, urlBox, restoreBox]) makeDialogMovable(box);
+for (const box of [styleBox, iconBox, descBox, shortcutsBox, ktpBox, kdpBox, gnpBox, propsBox, shBox, userBaseBox, userBaseDeleteBox, pointsBox, logBox, urlBox, restoreBox]) makeDialogMovable(box);
 setupDialog(styleBox, { modal: false }); /* flotante: el mapa sigue vivo */
 setupDialog(iconBox, { modal: true });
 setupDialog(descBox, { modal: false });
@@ -18204,15 +18295,15 @@ setupDialog(kdpBox, { modal: true });
 setupDialog(gnpBox, { modal: true });
 setupDialog(propsBox, { modal: true });
 setupDialog(shBox, { modal: true });
-setupDialog(customTilesBox, { modal: true });
-setupDialog(customWmsBox, { modal: true });
+setupDialog(userBaseBox, { modal: true });
+setupDialog(userBaseDeleteBox, { modal: true });
 setupDialog(pointsBox, { modal: true });
 setupDialog(logBox, { modal: true });
 setupDialog(urlBox, { modal: true });
 setupDialog(restoreBox, { modal: true });
 window.addEventListener("resize", () => {
   /* a moved dialog must not fall off-screen */
-  for (const box of [styleBox, iconBox, descBox, shortcutsBox, ktpBox, kdpBox, gnpBox, propsBox, shBox, customTilesBox, customWmsBox, pointsBox, logBox, urlBox]) clampToViewport(box);
+  for (const box of [styleBox, iconBox, descBox, shortcutsBox, ktpBox, kdpBox, gnpBox, propsBox, shBox, userBaseBox, userBaseDeleteBox, pointsBox, logBox, urlBox]) clampToViewport(box);
   /* the popover's anchor button may have moved too; closing is simpler
      and less confusing than reclamping a stale position              */
   if (!colorPicker.hidden) closeColorPicker();
@@ -20300,8 +20391,8 @@ document.addEventListener("keydown", e => {
   if (!restoreDialog.hidden) { closeRestoreConfirm(); return; } /* encima de Propiedades */
   if (!propsDialog.hidden) { cancelPropsDialog(); return; }
   if (!shDialog.hidden) { closeShCredsDialog(); return; }
-  if (!customTilesDialog.hidden) { closeCustomTilesDialog(); return; }
-  if (!customWmsDialog.hidden) { closeCustomWmsDialog(); return; }
+  if (!userBaseDeleteDialog.hidden) { closeUserBaseDeleteConfirm(); return; }
+  if (!userBaseDialog.hidden) { closeUserBaseDialog(); return; }
   if (!pointsDialog.hidden) { closePointsDialog(); return; }
   /* La lista de mapas base, flotando sobre el visor: lo último que se cierra
      antes de tocar herramienta y selección (un diálogo la tapa, no al revés) */
@@ -29907,15 +29998,16 @@ function applySavedBases(saved) {
   }
 }
 
-/* ---------- Enlace a la vista ----------
-   `#map=zoom/lat/lng[/giro]&base=id,id`: el centro, el zoom, el giro (solo
-   si lo hay) y los mapas base ENCENDIDOS que cualquiera puede tener. No
-   lleva el árbol (vive en el navegador de cada uno) ni los mapas con
-   dirección o credencial propias (Custom Tile/Web Map Service, Copernicus,
-   PNOA histórico, que necesita elegir capa de un catálogo): llegarían
-   bloqueados al otro lado. Lo que llega en la dirección es entrada AJENA:
-   `parseViewHash` solo acepta números llanos y ids conocidos, con tope de
-   longitud, y nunca nada de ello se inserta como HTML.                  */
+/* ---------- Link to the view ----------
+   `#map=zoom/lat/lng[/bearing]&base=id,id`: centre, zoom, bearing (only if
+   there is one) and the base maps ON that anyone can have. It does not
+   carry the tree (it lives in each one's browser) nor the maps with an
+   address or credential of their own (the user base layers, which are not
+   in BASE_LAYERS at all, Copernicus, PNOA histórico, which needs a layer
+   chosen from a catalog): they would arrive blocked on the other side.
+   What arrives in the address is FOREIGN input: `parseViewHash` only
+   accepts plain numbers and known ids, with a length cap, and nothing of
+   it is ever inserted as HTML.                                          */
 const linkBaseIds = defs => defs.filter(d => !d.dynamic && !d.source).map(d => d.id);
 const LINK_BASE_IDS = new Set(linkBaseIds(BASE_LAYERS));
 const LINK_MAX_HASH = 400;
@@ -30149,17 +30241,12 @@ setInterval(checkServerVersion, VERSION_CHECK_MS);
     if (sh && validInstanceId(sh.instanceId)) shInstanceId = sh.instanceId.trim();
   } catch { /* sin credencial guardada la capa pedirá configurarla */ }
 
-  /* Igual que la de Copernicus, antes que los mapas base: sin ella
-     "Custom Tile Map Service" no puede construir su plantilla de
-     teselas, ni "Custom Web Map Service" pedir su GetCapabilities.   */
+  /* The user's own base layers, before the saved state of the base maps:
+     `applySavedBases` must find their ids to give back their order,
+     opacity and the chosen WMS layer.                                  */
   try {
-    const ct = await dbLoadCustomTilesUrl();
-    if (ct && validCustomTilesUrl(ct.url)) customTilesUrl = normalizeCustomTilesBase(ct.url);
-  } catch { /* sin URL guardada la capa pedirá configurarla */ }
-  try {
-    const cw = await dbLoadCustomWmsUrl();
-    if (cw && validCustomWmsUrl(cw.url)) customWmsUrl = normalizeCustomWmsBase(cw.url);
-  } catch { /* sin URL guardada la capa pedirá configurarla */ }
+    for (const rec of await dbLoadUserBases()) addUserBaseLayer(rec);
+  } catch { /* without the list, only the fixed layers */ }
 
   /* Color de fondo del mapa: antes de pintar el panel de mapas base,
      cuya primera fila lo muestra. Sin valor guardado se queda con el
@@ -30188,10 +30275,8 @@ setInterval(checkServerVersion, VERSION_CHECK_MS);
      dejado de publicarse), sin esperar a que se abra el panel.       */
   for (const st of baseState.values()) {
     const src = dynSource(st.def);
-    /* "Custom Tile Map Service" (source sin `dynamic: true`) no tiene
-       catálogo que descubrir, así que su fuente no aporta `ensure` —
-       nada que adelantar aquí, `applyBaseLayer` ya construyó su capa
-       arriba si la URL estaba configurada.                            */
+    /* A user tile layer has no catalog to discover (its source brings no
+       `ensure`): `applyBaseLayer` already built it above.              */
     if (st.on && src && src.ensure) src.ensure();
   }
 

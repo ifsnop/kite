@@ -1146,15 +1146,16 @@ function applySavedBases(saved) {
   }
 }
 
-/* ---------- Enlace a la vista ----------
-   `#map=zoom/lat/lng[/giro]&base=id,id`: el centro, el zoom, el giro (solo
-   si lo hay) y los mapas base ENCENDIDOS que cualquiera puede tener. No
-   lleva el árbol (vive en el navegador de cada uno) ni los mapas con
-   dirección o credencial propias (Custom Tile/Web Map Service, Copernicus,
-   PNOA histórico, que necesita elegir capa de un catálogo): llegarían
-   bloqueados al otro lado. Lo que llega en la dirección es entrada AJENA:
-   `parseViewHash` solo acepta números llanos y ids conocidos, con tope de
-   longitud, y nunca nada de ello se inserta como HTML.                  */
+/* ---------- Link to the view ----------
+   `#map=zoom/lat/lng[/bearing]&base=id,id`: centre, zoom, bearing (only if
+   there is one) and the base maps ON that anyone can have. It does not
+   carry the tree (it lives in each one's browser) nor the maps with an
+   address or credential of their own (the user base layers, which are not
+   in BASE_LAYERS at all, Copernicus, PNOA histórico, which needs a layer
+   chosen from a catalog): they would arrive blocked on the other side.
+   What arrives in the address is FOREIGN input: `parseViewHash` only
+   accepts plain numbers and known ids, with a length cap, and nothing of
+   it is ever inserted as HTML.                                          */
 const linkBaseIds = defs => defs.filter(d => !d.dynamic && !d.source).map(d => d.id);
 const LINK_BASE_IDS = new Set(linkBaseIds(BASE_LAYERS));
 const LINK_MAX_HASH = 400;

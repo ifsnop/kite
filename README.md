@@ -225,6 +225,13 @@ stacking order can be changed:
   instance ID; it is stored in that browser only and never travels with
   an export
 - optional blank base map
+- **base layers of your own**: the «+» button at the bottom of the list adds
+  a tile server (a base address, or a full template with `{z}`, `{x}`, `{y}`
+  in any order and format, rows counted from the top or from the bottom) or a
+  WMS server (its layers are read from its `GetCapabilities` and chosen in the
+  row), up to twenty. Each one can be renamed, pointed elsewhere or deleted
+  (after a confirmation); they are kept in that browser only and never travel
+  with an export or a view link
 
 A base layer whose service stops answering is flagged in the panel, and
 the flag clears by itself when the tiles come back.
@@ -447,8 +454,10 @@ The current build is not fully offline and makes external requests:
   click and the radius of the current view (10 m to 10 km), then the ids of the
   articles found;
 - an ArcGIS map service you add is asked for its layer list once, and then for
-  the images of the layers you tick, from the address you pasted — the only
-  server in this list that the user names.
+  the images of the layers you tick, from the address you pasted;
+- a base layer of your own requests its tiles (and, for a WMS, its layer list)
+  from the address you typed. These two are the only servers in this list that
+  the user names.
 
 Material Design marker icons are **embedded in the file** and cost no request at all. They used to be fetched one by one from `api.iconify.design`, which meant 79 simultaneous requests every time the icon picker was opened; past the service's rate limit the icons silently went blank. They are now baked in at build time.
 
@@ -577,6 +586,9 @@ Do not use public tile, geocoding or CDN services for sensitive work without an 
   full article.
 - **Offline reload**: a small service worker keeps the application and its
   pinned libraries, so a discarded tab comes back without a network.
+- **Base layers of your own**: add, rename, re-point and delete tile (XYZ/TMS,
+  any template) and WMS servers in the base map panel, instead of the two fixed
+  «Custom» layers there used to be.
 - **Recent cards**: the information card no longer flickers or vanishes while
   the mouse sweeps across many markers; the ones the pointer rested on stay as
   tabs that can be looked at again, outlined on the map, and pinned.

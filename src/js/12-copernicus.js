@@ -119,44 +119,17 @@ const DYNAMIC_SOURCES = {
       hint: tr("Configurar la credencial de Sentinel Hub que exige Copernicus")
     },
     configure: () => openShCredsDialog()
-  },
-  /* Sin catálogo ni `get`/`groups`/`pickDefault`/`ensure`: "Custom Tile
-     Map Service" no tiene nombre de capa que elegir, solo una URL — `blocked`/
-     `configure` son lo único que consulta buildDynamicConfigButton, y
-     su BASE_LAYERS (10-map.js) no lleva `dynamic: true`, así que el
-     panel tampoco intenta pedirle un <select> (buildDynamicLayerSelect
-     solo se llama para fuentes "dynamic").                            */
-  "custom-tiles": {
-    blocked: () => customTilesUrl ? null : {
-      label: tr("Requiere URL"),
-      hint: tr("Configurar la URL del servidor de teselas de Custom Tile Map Service")
-    },
-    configure: () => openCustomTilesDialog()
-  },
-  /* A diferencia de la anterior, "Custom Web Map Service" sí tiene
-     catálogo (el GetCapabilities del servidor del usuario): fuente
-     completa, como Copernicus, bloqueada mientras no haya dirección.   */
-  "custom-wms": {
-    selectTitle: tr("Capa del servidor WMS"),
-    get: () => customWmsCatalog,
-    error: () => customWmsError,
-    ensure: ensureCustomWmsCatalog,
-    pickDefault: entries => entries[0] && entries[0].name,
-    groups: groupWmsEntries,
-    blocked: () => customWmsUrl ? null : {
-      label: tr("Requiere URL"),
-      hint: tr("Configurar la URL del servidor de Custom Web Map Service")
-    },
-    configure: () => openCustomWmsDialog()
   }
 };
-function dynSource(def) { return (def && def.source && DYNAMIC_SOURCES[def.source]) || null; }
+/* A user base layer brings its own source (`def.src`, 11-base-panel.js);
+   the fixed ones name an entry of this registry.                       */
+function dynSource(def) { return (def && (def.src || (def.source && DYNAMIC_SOURCES[def.source]))) || null; }
 
 function ensureDynamicCatalogs() {
   for (const st of baseState.values()) {
     const src = dynSource(st.def);
-    /* "Custom Tile Map Service" no tiene catálogo (su fuente no aporta
-       `ensure`): nada que adelantar al abrir el panel, solo la tuerca ⚙. */
+    /* A user tile layer has no catalog (its source brings no `ensure`):
+       nothing to fetch ahead when the panel opens, only the gear ⚙.     */
     if (src && src.ensure) src.ensure();
   }
 }

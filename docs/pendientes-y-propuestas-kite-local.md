@@ -136,7 +136,7 @@ Hoy se ignoran (un track de GPX sí entra, con sus horas). Un control de tiempo 
 
 ### 3.7 Leer GeoPackage y proyectos de QGIS
 
-**GeoPackage** (`.gpkg`, una base SQLite): casi todos los proyectos modernos apuntan a él, y leerlo exigiría una librería de SQLite en el navegador, cargada bajo demanda como las demás. **Proyecto de QGIS** (`.qgz`/`.qgs`): habría que soltarlo junto a sus archivos, como las piezas de un shapefile; leería el árbol de grupos, el orden, la visibilidad y los nombres, los estilos de símbolo único y, con el estilo por atributo ya hecho, los categorizados, y las capas WMS/XYZ del proyecto como fuentes base dinámicas (`11-base-panel.js` ya las admite). Va detrás del GeoPackage porque sin él solo serviría para proyectos de shapefile, KML o GeoJSON.
+**GeoPackage** (`.gpkg`, an SQLite database): almost every modern project points to it, and reading it would need an SQLite library in the browser, loaded on demand like the others. **QGIS project** (`.qgz`/`.qgs`): it would be dropped together with its files, like the pieces of a shapefile; it would read the group tree, the order, the visibility and the names, the single-symbol styles and, now that styling by attribute exists, the categorized ones, and the project's WMS/XYZ layers as user base layers (the base map panel already lets the user add tile and WMS servers, `11-base-panel.js`). It goes after GeoPackage because without it it would only serve projects of shapefiles, KML or GeoJSON.
 
 ### 3.8 KML más completo
 

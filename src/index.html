@@ -916,67 +916,72 @@
   </div>
 </div>
 
-<!-- Servidor de teselas de "Custom Tile Map Service": una dirección propia del
-     usuario (t&#237;picamente una cach&#233;/proxy delante de OpenStreetMap u
-     otro servicio, para no descargar de golpe el servicio p&#250;blico
-     ajeno), nunca de la aplicaci&#243;n. -->
-<div id="custom-tiles-creds" class="dlg-overlay" hidden>
+<!-- A base layer of the user's own: a tile server or a WMS server. The «+»
+     button at the bottom of the base map list opens it to add one, and the
+     gear of a user row to edit it (11-base-panel.js, 44-dialogs.js). The
+     paragraphs with data-ub-type are shown only for that type. -->
+<div id="user-base" class="dlg-overlay" hidden>
   <div class="dlg-box">
-    <h2 class="dlg-head"><span class="dlg-title">Custom Tile Map Service (TMS)</span><button type="button" class="dlg-close" data-cancel="custom-tiles-cancel" title="Cancelar" aria-label="Cancelar">&#215;</button></h2>
-    <p class="dlg-hint" data-i18n-html="html.ctiles-help">La capa <em>Custom Tile Map Service</em> solo admite servidores de
-      teselas (<em>Tile Map Service</em>): pide sus teselas a la direcci&#243;n que pongas
-      aqu&#237;, a&#241;adiendo <code>{z}/{x}/{y}.png</code> al final por su cuenta &#8212;
-      no hace falta escribirlo. Para un servidor WMS usa la capa
-      <em>Custom Web Map Service</em>.</p>
-    <label class="sh-field">Direcci&#243;n base del servidor
-      <input type="text" id="custom-tiles-input" spellcheck="false" autocomplete="off"
-             placeholder="https://mi-cache.ejemplo.org/tiles/">
+    <h2 class="dlg-head"><span class="dlg-title" id="user-base-title">Nueva capa base</span><button type="button" class="dlg-close" data-cancel="user-base-cancel" title="Cancelar" aria-label="Cancelar">&#215;</button></h2>
+    <fieldset class="ub-types">
+      <legend>Tipo de servidor</legend>
+      <label><input type="radio" name="user-base-type" value="tiles" checked> Teselas (TMS/XYZ)</label>
+      <label><input type="radio" name="user-base-type" value="wms"> WMS</label>
+    </fieldset>
+    <p class="dlg-hint" data-ub-type="tiles" data-i18n-html="html.ubase-tiles-help">Un servidor de
+      <em>teselas</em> (<em>Tile Map Service</em>, como OpenStreetMap). Puedes escribir solo su
+      direcci&#243;n base, y la aplicaci&#243;n a&#241;ade <code>{z}/{x}/{y}.png</code> al final, o
+      una plantilla completa con <code>{z}</code>, <code>{x}</code> e <code>{y}</code> donde
+      vayan (por ejemplo <code>.../{z}/{y}/{x}.jpg</code>); <code>{-y}</code> cuenta las filas
+      desde abajo y <code>{s}</code> reparte entre los subdominios a, b y c.</p>
+    <p class="dlg-hint" data-ub-type="wms" hidden data-i18n-html="html.ubase-wms-help">Un servidor
+      <em>WMS</em> (<em>Web Map Service</em>): la aplicaci&#243;n lee la lista de capas que publica y
+      te deja elegir una en la fila de esta capa, que se activa y desactiva como el resto de
+      mapas base.</p>
+    <label class="sh-field">Nombre
+      <input type="text" id="user-base-name" maxlength="80" spellcheck="false" autocomplete="off"
+             placeholder="Si se deja vac&#237;o, el del servidor">
     </label>
-    <p class="dlg-hint" data-i18n-html="html.ctiles-requirements">Debe responder en <strong>https</strong> a peticiones del tipo
-      <code>.../{z}/{x}/{y}.png</code> (esquema XYZ est&#225;ndar: <code>z</code> = nivel de
-      zoom, <code>x</code>/<code>y</code> = columna/fila de la tesela, igual que
-      OpenStreetMap) con im&#225;genes PNG de 256&#215;256 &#8212;con canal alfa si se quiere
-      transparencia&#8212; y CORS abierto (<code>Access-Control-Allow-Origin</code>), o el
-      navegador bloquear&#225; las teselas aunque el servidor responda bien.</p>
-    <p class="dlg-hint" data-i18n-html="html.ctiles-storage">Se guarda solo en este navegador y &#250;nicamente se env&#237;a a la
-      direcci&#243;n que pongas. Nunca viaja en un <code>.kite.json</code> exportado.</p>
-    <p class="dlg-hint sh-bad" id="custom-tiles-error" hidden></p>
+    <label class="sh-field">Direcci&#243;n
+      <input type="text" id="user-base-url" spellcheck="false" autocomplete="off">
+    </label>
+    <label class="ub-check" data-ub-type="tiles"><input type="checkbox" id="user-base-tms">
+      Filas contadas desde abajo (TMS)</label>
+    <p class="dlg-hint" data-ub-type="tiles" data-i18n-html="html.ubase-tiles-requirements">Debe
+      responder en <strong>https</strong> con im&#225;genes de 256&#215;256 (PNG con canal alfa si se
+      quiere transparencia, o JPEG) en el esquema de OpenStreetMap: <code>z</code> = nivel de
+      zoom, <code>x</code>/<code>y</code> = columna/fila de la tesela, contadas desde arriba
+      salvo que marques <em>TMS</em>. Y con CORS abierto
+      (<code>Access-Control-Allow-Origin</code>), o el navegador bloquear&#225; las teselas aunque
+      el servidor responda bien.</p>
+    <p class="dlg-hint" data-ub-type="wms" hidden data-i18n-html="html.ubase-wms-requirements">El
+      servidor debe responder en <strong>https</strong> a una consulta <code>GetCapabilities</code>
+      (<code>?service=WMS&amp;request=GetCapabilities</code>, que la aplicaci&#243;n a&#241;ade por
+      su cuenta &#8212;si pegas una petici&#243;n completa, se quitan sus par&#225;metros de
+      OGC&#8212;) con CORS abierto (<code>Access-Control-Allow-Origin</code>), o el navegador
+      impedir&#225; leer la lista de capas. Debe poder dibujar en Web Mercator
+      (<code>EPSG:3857</code>). El formato de imagen se elige solo seg&#250;n lo que anuncie el
+      servidor: <code>image/png</code> (con transparencia) si lo sirve y, si no,
+      <code>image/jpeg</code>.</p>
+    <p class="dlg-hint" data-i18n-html="html.ubase-storage">Se guarda solo en este navegador y
+      &#250;nicamente se env&#237;a a la direcci&#243;n que pongas. Nunca viaja en un
+      <code>.kite.json</code> exportado ni en un enlace a la vista.</p>
+    <p class="dlg-hint sh-bad" id="user-base-error" hidden></p>
     <div class="dlg-actions">
-      <button class="btn" id="custom-tiles-cancel">Cancelar</button>
-      <button class="btn" id="custom-tiles-clear">Borrar</button>
-      <button class="btn" id="custom-tiles-accept">Aceptar</button>
+      <button class="btn" id="user-base-cancel">Cancelar</button>
+      <button class="btn" id="user-base-accept">A&#241;adir</button>
     </div>
   </div>
 </div>
 
-<!-- Servidor de "Custom Web Map Service": la direcci&#243;n de un WMS del
-     usuario. Sus capas se descubren con su GetCapabilities. -->
-<div id="custom-wms-creds" class="dlg-overlay" hidden>
+<!-- Deleting a user base layer: base maps have no undo, so it asks. -->
+<div id="user-base-delete" class="dlg-overlay" hidden>
   <div class="dlg-box">
-    <h2 class="dlg-head"><span class="dlg-title">Custom Web Map Service (WMS)</span><button type="button" class="dlg-close" data-cancel="custom-wms-cancel" title="Cancelar" aria-label="Cancelar">&#215;</button></h2>
-    <p class="dlg-hint" data-i18n-html="html.cwms-help">La capa <em>Custom Web Map Service</em> lee de tu servidor WMS
-      (<em>Web Map Service</em>) la lista de capas que publica y te deja elegir una, que
-      puedes activar y desactivar como el resto de mapas base.</p>
-    <label class="sh-field">Direcci&#243;n del servidor WMS
-      <input type="text" id="custom-wms-input" spellcheck="false" autocomplete="off"
-             placeholder="https://mi-servidor.ejemplo.org/wms">
-    </label>
-    <p class="dlg-hint" data-i18n-html="html.cwms-requirements">El servidor debe responder en <strong>https</strong> a una consulta
-      <code>GetCapabilities</code> (<code>?service=WMS&amp;request=GetCapabilities</code>, que
-      la aplicaci&#243;n a&#241;ade por su cuenta &#8212;si pegas una petici&#243;n completa, se
-      quitan sus par&#225;metros de OGC&#8212;) con CORS abierto
-      (<code>Access-Control-Allow-Origin</code>), o el navegador impedir&#225; leer la lista
-      de capas. Debe poder dibujar en Web Mercator (<code>EPSG:3857</code>). El
-      formato de imagen se elige solo seg&#250;n lo que anuncie el servidor:
-      <code>image/png</code> (con transparencia) si lo sirve y, si no,
-      <code>image/jpeg</code>.</p>
-    <p class="dlg-hint" data-i18n-html="html.cwms-storage">Se guarda solo en este navegador y &#250;nicamente se env&#237;a a la
-      direcci&#243;n que pongas. Nunca viaja en un <code>.kite.json</code> exportado.</p>
-    <p class="dlg-hint sh-bad" id="custom-wms-error" hidden></p>
+    <h2 class="dlg-head"><span class="dlg-title">Eliminar capa base</span><button type="button" class="dlg-close" data-cancel="user-base-delete-cancel" title="Cancelar" aria-label="Cancelar">&#215;</button></h2>
+    <p class="dlg-hint" id="user-base-delete-text"></p>
     <div class="dlg-actions">
-      <button class="btn" id="custom-wms-cancel">Cancelar</button>
-      <button class="btn" id="custom-wms-clear">Borrar</button>
-      <button class="btn" id="custom-wms-accept">Aceptar</button>
+      <button class="btn" id="user-base-delete-cancel">Cancelar</button>
+      <button class="btn btn-danger" id="user-base-delete-accept">Eliminar</button>
     </div>
   </div>
 </div>

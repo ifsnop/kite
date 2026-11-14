@@ -681,7 +681,8 @@
     font-size: 9px; line-height: 1; padding: 2px 3px; cursor: pointer; color: var(--muted);
   }
   .base-moves button:disabled { opacity: .35; cursor: default; }
-  .base-row label { cursor: pointer; white-space: nowrap; }
+  /* A user's layer name can be long (80 characters): cut, whole in its title */
+  .base-row label { cursor: pointer; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 22em; }
   .base-row input[type="range"], .base-row select { grid-column: 1 / -1; width: 100%; }
   .base-row select { font: inherit; }
   .base-row.failed label { color: var(--danger); }
@@ -695,6 +696,10 @@
     font-size: 13px; line-height: 1; cursor: pointer; padding: 2px 3px; border-radius: 4px;
   }
   .base-gear:hover { color: var(--fg); }
+  .base-del { font-size: 15px; }
+  .base-del:hover { color: var(--danger); }
+  /* «+ Añadir capa…» closes the list, below the last row */
+  .base-add { display: block; width: 100%; margin: 8px 0 2px; font: inherit; }
 
   /* Celdas de la cuadrícula de elevaciones */
   .elev-cell {
@@ -1267,7 +1272,7 @@
      instead of stretching almost edge to edge.                       */
   /* Sin esto heredan el max-width: 90vw de .dlg-box y una caja de texto
      corto se estira a casi toda la pantalla.                          */
-  #kml-tags-picker .dlg-box, #kml-dup-picker .dlg-box, #sh-creds .dlg-box, #mobile-notice .dlg-box, #restore-confirm .dlg-box, #delete-confirm .dlg-box { max-width: 42ch; }
+  #kml-tags-picker .dlg-box, #kml-dup-picker .dlg-box, #sh-creds .dlg-box, #mobile-notice .dlg-box, #restore-confirm .dlg-box, #delete-confirm .dlg-box, #user-base-delete .dlg-box { max-width: 42ch; }
   /* ---------- Ventanas redimensionables ----------
      `resize: both` es el redimensionado nativo del navegador; su tirador
      va en la esquina inferior derecha y no estorba al arrastre por el
@@ -1293,10 +1298,15 @@
      `overflow-wrap` de .dlg-box h2, que parte también un nombre sin
      espacios).                                                        */
   #style-dialog .dlg-box { width: min(92vw, 24rem); }
-  /* Contenido fijo (tres párrafos cortos + un campo), no redimensionable
-     como #sh-creds, pero más ancho: explica el formato de servidor
-     exigido y 42ch se quedaría corto para leerlo con comodidad.       */
-  #custom-tiles-creds .dlg-box, #custom-wms-creds .dlg-box { width: min(92vw, 30rem); }
+  /* Fixed content (a type choice, two fields and a few short paragraphs),
+     not resizable like #sh-creds, but wider: it explains the server format
+     it needs and 42ch would be too narrow to read it comfortably.       */
+  #user-base .dlg-box { width: min(92vw, 30rem); }
+  .ub-types { border: none; margin: 10px 0 4px; padding: 0; display: flex; flex-wrap: wrap; gap: 4px 16px; }
+  .ub-types legend { padding: 0; margin-bottom: 4px; }
+  .ub-types label, .ub-check { display: flex; align-items: center; gap: 6px; cursor: pointer; }
+  .ub-check { margin: 4px 0 8px; }
+  .ub-check[hidden] { display: none; }
   /* Tesela de un servidor propio que no llegó (ver flagTileError). Leaflet
      deja oculta (`visibility: hidden`) toda tesela que no cargó, y esa es
      justo la que hay que ver. El contorno va por DENTRO (offset negativo)

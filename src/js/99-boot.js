@@ -95,17 +95,12 @@
     if (sh && validInstanceId(sh.instanceId)) shInstanceId = sh.instanceId.trim();
   } catch { /* sin credencial guardada la capa pedirá configurarla */ }
 
-  /* Igual que la de Copernicus, antes que los mapas base: sin ella
-     "Custom Tile Map Service" no puede construir su plantilla de
-     teselas, ni "Custom Web Map Service" pedir su GetCapabilities.   */
+  /* The user's own base layers, before the saved state of the base maps:
+     `applySavedBases` must find their ids to give back their order,
+     opacity and the chosen WMS layer.                                  */
   try {
-    const ct = await dbLoadCustomTilesUrl();
-    if (ct && validCustomTilesUrl(ct.url)) customTilesUrl = normalizeCustomTilesBase(ct.url);
-  } catch { /* sin URL guardada la capa pedirá configurarla */ }
-  try {
-    const cw = await dbLoadCustomWmsUrl();
-    if (cw && validCustomWmsUrl(cw.url)) customWmsUrl = normalizeCustomWmsBase(cw.url);
-  } catch { /* sin URL guardada la capa pedirá configurarla */ }
+    for (const rec of await dbLoadUserBases()) addUserBaseLayer(rec);
+  } catch { /* without the list, only the fixed layers */ }
 
   /* Color de fondo del mapa: antes de pintar el panel de mapas base,
      cuya primera fila lo muestra. Sin valor guardado se queda con el
@@ -134,10 +129,8 @@
      dejado de publicarse), sin esperar a que se abra el panel.       */
   for (const st of baseState.values()) {
     const src = dynSource(st.def);
-    /* "Custom Tile Map Service" (source sin `dynamic: true`) no tiene
-       catálogo que descubrir, así que su fuente no aporta `ensure` —
-       nada que adelantar aquí, `applyBaseLayer` ya construyó su capa
-       arriba si la URL estaba configurada.                            */
+    /* A user tile layer has no catalog to discover (its source brings no
+       `ensure`): `applyBaseLayer` already built it above.              */
     if (st.on && src && src.ensure) src.ensure();
   }
 

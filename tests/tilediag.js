@@ -1,8 +1,8 @@
-/* Teselas que un servidor propio no entrega: `tileFailureReason` dice, en
-   una línea, qué contestó el servidor en lugar de la imagen. Es lo que
-   leen los avisos de «Custom Web Map Service»/«Custom Tile Map Service»
-   cuando una tesela vuelve con error (el contorno rojo y la petición de
-   diagnóstico se prueban en tests/browser/custom-wms.mjs).             */
+/* Tiles a user's server does not deliver: `tileFailureReason` says, in
+   one line, what the server answered instead of the image. It is what the
+   notices of a user base layer read when a tile comes back with an error
+   (the red outline and the diagnosis request are tested in
+   tests/browser/user-bases.mjs).                                       */
 const { DOMParser } = require("@xmldom/xmldom");
 const { fn, between } = require("./_extract");
 const helpers = between("/* Nombre sin prefijo", "/* KML usa color");
