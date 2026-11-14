@@ -124,6 +124,9 @@ async function openApp(opts = {}) {
       return p === 0x9246 || p === 0x1F01 ? "ANGLE (NVIDIA, NVIDIA GeForce GTX 1650 Direct3D11 vs_5_0 ps_5_0, D3D11)" : orig.call(this, p);
     };
   });
+  /* Without the «Novedades» window at startup (68-whats-new.js), except in
+     its own figure (`whatsNew: true`) */
+  if (!opts.whatsNew) await page.addInitScript(() => { window.__kiteSkipWhatsNew = true; });
   await page.route(/tile\.openstreetmap\.org|tms-pnoa|server\.arcgisonline|ows\.terrestris/, tileRoute);
   if (opts.route) await opts.route(page);
   await page.goto(opts.url || APP);
@@ -412,6 +415,13 @@ scenario("seleccion-multiple.png", "3.4", async out => {
 });
 
 /* ===== 4. El visor ===== */
+scenario("novedades.png", "1", async out => {
+  const { ctx, page } = await openApp({ whatsNew: true });
+  await page.waitForSelector("#whats-new:not([hidden])");
+  await dialog(page, out, "whats-new");
+  await ctx.close();
+});
+
 scenario("mapas-base.png", "4.1", async out => {
   const { ctx, page } = await openApp({ viewport: { width: 1440, height: 1200 } });
   await sierra(page);

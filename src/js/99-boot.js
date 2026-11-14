@@ -149,6 +149,9 @@
      sustituyó el aviso y borrarlo dejaría su importación colgando de un
      <ul> desconectado.                                                */
   if (!rootUl) showEmptyMessage();
+  /* What changed since the version the user last ran: once the tree is
+     on screen, so the window is not shown over «Inicializando…».      */
+  showWhatsNewAtBoot().catch(() => {});
 
   refreshStorageUsage();
   /* La memoria cambia sin que el árbol se toque, así que lleva su

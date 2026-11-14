@@ -431,6 +431,20 @@
   </div>
 </div>
 
+<!-- «Novedades»: what each release brought, shown at startup until the
+     user ticks the box (68-whats-new.js). The button is asked for on purpose
+     next to the box, so this footer has a single button. -->
+<div id="whats-new" class="dlg-overlay" hidden>
+  <div class="dlg-box">
+    <h2 class="dlg-head"><span class="dlg-title">Novedades</span><button type="button" class="dlg-close" data-cancel="whats-new-close" title="Cerrar" aria-label="Cerrar">&#215;</button></h2>
+    <div class="whats-new-body" id="whats-new-body"></div>
+    <div class="dlg-actions">
+      <label class="wn-dismiss"><input type="checkbox" id="whats-new-dismiss"> No volver a mostrar hasta la pr&#243;xima versi&#243;n</label>
+      <button class="btn" id="whats-new-close">Cerrar</button>
+    </div>
+  </div>
+</div>
+
 <div id="kml-tags-picker" class="dlg-overlay" hidden>
   <div class="dlg-box">
     <h2 class="dlg-head"><span class="dlg-title" id="ktp-title">Etiquetas en los nombres</span><button type="button" class="dlg-close" data-cancel="ktp-cancel" title="Cancelar" aria-label="Cancelar">&#215;</button></h2>

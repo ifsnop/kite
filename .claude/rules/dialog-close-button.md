@@ -12,16 +12,17 @@ paths:
 **REGLA (pedida expresamente): todas las ventanas/diálogos tienen una × en la
 esquina superior derecha, con la misma posición, tamaño y tipo que la de
 «Cálculos geodésicos». Pulsarla equivale a CANCELAR o, si el diálogo no tiene
-cancelar, a CERRAR.** Hoy, los 22 de `index.html` (`dlg-overlay`/`dlg-float`).
+cancelar, a CERRAR.** Hoy, los 23 de `index.html` (`dlg-overlay`/`dlg-float`).
 Un diálogo nuevo la lleva desde el primer día; `tests/statics.js` y
 `tests/browser/dialogs.mjs` fallan si falta o si no es igual.
 
-Marcado (el mismo en los 22):
+Marcado (el mismo en los 23):
 `<h2 class="dlg-head"><span class="dlg-title" [id]>Título</span><button type="button" class="dlg-close" data-cancel="<id del botón>" title="Cancelar|Cerrar" aria-label="Cancelar|Cerrar">&#215;</button></h2>`.
 
-- **What it does**: a single delegated listener (`43-points-editor.js`, next to `makeDialogMovable`) calls `.click()` on the button named by `data-cancel`, so it is EXACTLY what that button already did (and Escape: `52-measure.js` calls the same functions). No logic of the × of its own. It is called «Cancelar» if the button is the cancel one (`style-cancel`, `icon-cancel`, `ktp-cancel` «Dejarlas», `kdp-cancel` «Mantener todos», `gnp-cancel` —aborts the load, like Escape—, `restore-cancel` (confirmation of Propiedades › Restaurar), `delete-cancel`, `props-cancel`, `points-cancel`, `rg-cancel`, `as-cancel`, `sh-cancel`, `user-base-cancel`, `user-base-delete-cancel`) and «Cerrar» if there is no cancel (`desc-close`, `mobile-close`, `log-close`, `url-close`, `attr-close`). The three that already had it before (shortcuts, geodesic calculations, profile) have their own handler by `id` and no `data-cancel`.
+- **What it does**: a single delegated listener (`43-points-editor.js`, next to `makeDialogMovable`) calls `.click()` on the button named by `data-cancel`, so it is EXACTLY what that button already did (and Escape: `52-measure.js` calls the same functions). No logic of the × of its own. It is called «Cancelar» if the button is the cancel one (`style-cancel`, `icon-cancel`, `ktp-cancel` «Dejarlas», `kdp-cancel` «Mantener todos», `gnp-cancel` —aborts the load, like Escape—, `restore-cancel` (confirmation of Propiedades › Restaurar), `delete-cancel`, `props-cancel`, `points-cancel`, `rg-cancel`, `as-cancel`, `sh-cancel`, `user-base-cancel`, `user-base-delete-cancel`) and «Cerrar» if there is no cancel (`desc-close`, `mobile-close`, `log-close`, `url-close`, `attr-close`, `whats-new-close`). The three that already had it before (shortcuts, geodesic calculations, profile) have their own handler by `id` and no `data-cancel`.
 - **El pie con sus botones SE QUEDA** en los diálogos que lo tienen (Cancelar/Aceptar, Cerrar/Copiar/Borrar…): la × es un camino más, no sustituye a nada. Orden de botones del pie: `style-dialogs-ui.md`.
 - **Si el único botón del pie sería «Cerrar», no hay pie**: la × es ese botón, la caja lleva `no-actions` y el espacio del pie se lo queda el contenido (pedido expreso: en el perfil de una ruta, lo que ocupaba el pie es gráfica). Un diálogo que gane un segundo botón vuelve al pie `.dlg-actions`. Hoy sin pie: atajos, cálculos geodésicos y perfil.
+- **Exception, asked for by the user: «Novedades»** (`#whats-new`, `whats-new.md`) keeps a footer with ONE button, «Cerrar», because the user asked for a button besides the × and the footer also holds the «No volver a mostrar hasta la próxima versión» box, which belongs next to it. `tests/statics.js` allows a single-button footer only when it contains a checkbox.
 
 ## Los cinco botones de la cabecera abren Y cierran
 
@@ -38,4 +39,4 @@ Detalles que no son adorno:
 - **El foco al abrir no va a la ×** aunque sea el primero del marcado: `focusDialog` busca el primer control VISIBLE que no sea `.dlg-close`, y solo si no hay ninguno (el perfil mientras descarga) va a ella.
 - **Sin pie, el relleno de abajo lo pone la caja** (`.dlg-box.no-actions { padding-bottom }`).
 - **`title` y `aria-label`** (traducidos como cualquier atributo del HTML estático, ver `i18n.md`) son «Cancelar» o «Cerrar»; la × no tiene texto visible que lo diga. El perfil la renombra («Cancelar la descarga» mientras descarga).
-- `tests/statics.js` lo comprueba sobre el HTML: TODO diálogo tiene exactamente una `.dlg-close` en su `<h2 class="dlg-head">`, con `title` y `aria-label`, y su `data-cancel` apunta a un botón de la MISMA caja; ningún pie de un solo botón; una caja `no-actions` no lleva pie. `tests/browser/dialogs.mjs` mide en el navegador la × de los 22 (misma posición, tamaño y tipo que la de geodésicos, ±1 px) y que pulsarla llega al botón que dice y a ninguno más.
+- `tests/statics.js` lo comprueba sobre el HTML: TODO diálogo tiene exactamente una `.dlg-close` en su `<h2 class="dlg-head">`, con `title` y `aria-label`, y su `data-cancel` apunta a un botón de la MISMA caja; ningún pie de un solo botón; una caja `no-actions` no lleva pie. `tests/browser/dialogs.mjs` mide en el navegador la × de los 23 (misma posición, tamaño y tipo que la de geodésicos, ±1 px) y que pulsarla llega al botón que dice y a ninguno más.

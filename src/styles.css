@@ -1302,6 +1302,14 @@
      not resizable like #sh-creds, but wider: it explains the server format
      it needs and 42ch would be too narrow to read it comfortably.       */
   #user-base .dlg-box { width: min(92vw, 30rem); }
+  /* «Novedades»: a list to read, so a comfortable line length; the box
+     scrolls with the head and footer fixed, like every window.          */
+  #whats-new .dlg-box { width: min(92vw, 34rem); }
+  .whats-new-body h3 { font-size: 13px; margin: 14px 0 4px; }
+  .whats-new-body ul { margin: 0 0 4px; padding-left: 20px; }
+  .whats-new-body li { margin: 3px 0; line-height: 1.4; }
+  /* The box goes left and «Cerrar» right, in the same footer */
+  .wn-dismiss { display: flex; align-items: center; gap: 6px; margin-right: auto; cursor: pointer; }
   .ub-types { border: none; margin: 10px 0 4px; padding: 0; display: flex; flex-wrap: wrap; gap: 4px 16px; }
   .ub-types legend { padding: 0; margin-bottom: 4px; }
   .ub-types label, .ub-check { display: flex; align-items: center; gap: 6px; cursor: pointer; }

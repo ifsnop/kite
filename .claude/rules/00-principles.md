@@ -211,3 +211,8 @@ que quien lea la documentación la encuentre. Aquí no se duplica:
     UI strings stay Spanish inside `tr()`; the user manual and the security
     study stay in Spanish. No bulk translation of old text, but a comment (or
     paragraph) that a change modifies is rewritten in English in that change.
+17. **What's new**: a change a user can see adds ONE plain sentence (what they
+    can now do, or what works better; nothing technical) to the `"next"` entry
+    of `WHATS_NEW` (`src/js/68-whats-new.js`), with its English in the
+    dictionary. The «Novedades» window shows it once the release renames
+    `"next"` to its version. See `whats-new.md`.

@@ -168,6 +168,9 @@ KITE Local does not impose fixed limits on KML file size, imported features or v
   and the panel splitter works with a mouse, a pen or a finger
 - a phone notice («better from a computer») and a full-screen panel layout on
   small touch screens
+- a «What's new» window at startup with a short, plain summary of what each
+  release brought since the version last opened (the first time, since 2.0);
+  «Don't show again until the next version» keeps it closed until a new one
 
 ### Loading
 
@@ -552,10 +555,10 @@ Do not use public tile, geocoding or CDN services for sensitive work without an 
 ### Done
 
 - **The sources are split.** The application is edited as `src/index.html`,
-  `src/styles.css`, `src/sw.js` and 42 JavaScript files, concatenated into the
+  `src/styles.css`, `src/sw.js` and 43 JavaScript files, concatenated into the
   shipped file by `build.js`. The single-file product is the output, not the
   source.
-- **There are automated tests.** 134 suites run against the shipped
+- **There are automated tests.** 136 suites run against the shipped
   file — most under Node, plus a set that drives a real headless browser —
   covering coordinate parsing and formatting, UTM, KML namespaces and
   styles, geometry conversion, serialization, tree navigation and
@@ -586,6 +589,9 @@ Do not use public tile, geocoding or CDN services for sensitive work without an 
   full article.
 - **Offline reload**: a small service worker keeps the application and its
   pinned libraries, so a discarded tab comes back without a network.
+- **What's new**: a window at startup sums up, in a few plain sentences, what
+  changed since the version last opened (the first time, since 2.0); a box keeps
+  it closed until the next version.
 - **Base layers of your own**: add, rename, re-point and delete tile (XYZ/TMS,
   any template) and WMS servers in the base map panel, instead of the two fixed
   «Custom» layers there used to be.

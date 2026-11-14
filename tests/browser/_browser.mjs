@@ -110,9 +110,14 @@ export async function serveSite(port, { file = READABLE, transform = h => h } = 
    página, que manda sobre la del contexto) la sustituye sin más.           */
 const BLANK_TILE = Buffer.from(
   "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8/+L1fwAIfgN/f1c1QQAAAABJRU5ErkJggg==", "base64");
-export async function stubTiles(ctx) {
+/* It also keeps the «Novedades» window (68-whats-new.js) from opening at
+   startup: it is modal and would cover whatever a suite clicks first.
+   Every context goes through here (openApp, and the suites with their own
+   `newContext`); browser/whats-new.mjs passes `{ whatsNew: true }`.     */
+export async function stubTiles(ctx, { whatsNew = false } = {}) {
   await ctx.route(/^https:\/\/[a-c]?\.?tile\.openstreetmap\.org\//, route =>
     route.fulfill({ status: 200, contentType: "image/png", body: BLANK_TILE }));
+  if (!whatsNew) await ctx.addInitScript(() => { window.__kiteSkipWhatsNew = true; });
 }
 
 /* Abre la aplicación y espera a que esté viva de verdad, no solo a que

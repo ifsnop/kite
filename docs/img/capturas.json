@@ -236,6 +236,12 @@
       "version": "2.5.0",
       "build": "202611092327"
     },
+    "novedades.png": {
+      "sha256": "ce9856a986035d689e11044f52e118fcf25d30f3f644379e31336aba9ccd15ba",
+      "section": "1",
+      "version": "2.5.0",
+      "build": "202611141933"
+    },
     "ortofoto-cog.png": {
       "sha256": "a62fef4dfe38f057fef923a4382468e2fd8e5c88b251e90829e7391e4a914d7e",
       "section": null,

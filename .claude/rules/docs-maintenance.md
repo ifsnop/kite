@@ -170,7 +170,7 @@ volver a pensarlos. Orden obligatorio dentro de cada uno.
 Después de reunir los PR y ANTES de tagear (ver `build-and-release.md`):
 
 1. `npm run build` y `git status`: árbol limpio salvo lo que se va a subir.
-2. Subir `package.json.version`.
+2. Subir `package.json.version`, and rename the `"next"` entry of `WHATS_NEW` (`src/js/68-whats-new.js`) to it, rereading its lines as a user would (see `whats-new.md`).
 3. `npm run capturas` (todas; ~1 minuto más lo que tarden las teselas). Mirar las
    PNG que hayan cambiado respecto a la versión anterior (`git diff --stat
    docs/img`; las que casi no cambian de tamaño suelen ser las que no cambiaron).
