@@ -8,16 +8,17 @@ const ok = (c, m) => { if (!c) { console.error("FAIL: " + m); process.exitCode =
 /* La lista real de mapas base trae funciones y llamadas a Leaflet: basta su forma */
 const BASE_LAYERS = [
   { id: "osm" }, { id: "terrain" }, { id: "pnoa" }, { id: "mdt" }, { id: "madrid-orto" },
-  { id: "copernicus-dem", dynamic: true, source: "copernicus" }, { id: "pnoa-hist", dynamic: true, source: "pnoa-hist" },
-  { id: "custom", source: "custom-tiles" }, { id: "custom-wms", dynamic: true, source: "custom-wms" }
+  { id: "copernicus-dem", dynamic: true, source: "copernicus" }, { id: "pnoa-hist", dynamic: true, source: "pnoa-hist" }
 ];
+/* A user base layer is not in BASE_LAYERS (11-base-panel.js adds it to baseState) */
+const USER_ID = "u0123456789ab";
 const api = new Function("BASE_LAYERS", [constDecl("linkBaseIds"), constDecl("LINK_BASE_IDS"), constDecl("LINK_MAX_HASH"), constDecl("LINK_NUM"),
   fn("buildViewHash"), fn("parseViewHash")].join("\n") + "\nreturn { linkBaseIds, LINK_BASE_IDS, buildViewHash, parseViewHash, LINK_MAX_HASH };")(BASE_LAYERS);
 const { linkBaseIds, LINK_BASE_IDS, buildViewHash, parseViewHash, LINK_MAX_HASH } = api;
 
 /* ---------- Qué mapas base viajan ---------- */
 ok(linkBaseIds(BASE_LAYERS).join() === "osm,terrain,pnoa,mdt,madrid-orto", "solo los públicos: " + linkBaseIds(BASE_LAYERS));
-for (const privado of ["custom", "custom-wms", "copernicus-dem", "pnoa-hist"]) ok(!LINK_BASE_IDS.has(privado), `«${privado}» (dirección o credencial propias) no viaja`);
+for (const privado of [USER_ID, "copernicus-dem", "pnoa-hist"]) ok(!LINK_BASE_IDS.has(privado), `«${privado}» (dirección o credencial propias) no viaja`);
 
 /* ---------- Construir ---------- */
 ok(buildViewHash({ lat: 40.405, lng: -3.69, zoom: 14 }, 0, ["osm", "pnoa"]) === "#map=14/40.405/-3.69&base=osm,pnoa", "sin giro no hay cuarto número: " + buildViewHash({ lat: 40.405, lng: -3.69, zoom: 14 }, 0, ["osm", "pnoa"]));
@@ -50,7 +51,7 @@ for (const [que, h] of Object.entries(malos)) ok(parseViewHash(h) === null, `rec
 ok(parseViewHash(null) === null && parseViewHash(undefined) === null && parseViewHash(42) === null, "ni null, ni undefined, ni un número");
 
 /* ---------- Lo que se ignora dentro de un enlace válido ---------- */
-const mix = parseViewHash("#map=5/10/20&base=osm,inventada,custom,custom-wms,copernicus-dem,pnoa-hist,osm,<img>,terrain");
+const mix = parseViewHash(`#map=5/10/20&base=osm,inventada,${USER_ID},copernicus-dem,pnoa-hist,osm,<img>,terrain`);
 ok(mix.bases.join() === "osm,terrain", "ids desconocidos, propios o repetidos se descartan: " + mix.bases);
 ok(parseViewHash("#map=5/10/20&otra=cosa&base=osm&x").bases.join() === "osm", "parámetros ajenos, ignorados");
 ok(parseViewHash("#map=5/10/20&base=osm%2Cpnoa").bases.length === 0, "no se decodifica nada: un id escapado no es un id");

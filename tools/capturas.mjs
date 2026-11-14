@@ -424,13 +424,14 @@ scenario("mapas-base.png", "4.1", async out => {
   await ctx.close();
 });
 
-scenario("custom-wms.png", "4.1", async out => {
+scenario("capa-base-propia.png", "4.1", async out => {
   const { ctx, page } = await openApp();
   await page.click(".base-toggle");
-  await page.click('.base-gear[title*="Web Map"]');
-  await page.waitForSelector("#custom-wms-creds:not([hidden])");
-  await page.fill("#custom-wms-input", "https://mi-servidor.ejemplo.org/wms");
-  await dialog(page, out, "custom-wms-creds");
+  await page.click(".base-add");
+  await page.waitForSelector("#user-base:not([hidden])");
+  await page.fill("#user-base-name", "Caché de OpenStreetMap");
+  await page.fill("#user-base-url", "https://mi-cache.ejemplo.org/tiles/");
+  await dialog(page, out, "user-base");
   await ctx.close();
 });
 

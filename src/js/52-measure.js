@@ -270,8 +270,8 @@ document.addEventListener("keydown", e => {
   if (!restoreDialog.hidden) { closeRestoreConfirm(); return; } /* encima de Propiedades */
   if (!propsDialog.hidden) { cancelPropsDialog(); return; }
   if (!shDialog.hidden) { closeShCredsDialog(); return; }
-  if (!customTilesDialog.hidden) { closeCustomTilesDialog(); return; }
-  if (!customWmsDialog.hidden) { closeCustomWmsDialog(); return; }
+  if (!userBaseDeleteDialog.hidden) { closeUserBaseDeleteConfirm(); return; }
+  if (!userBaseDialog.hidden) { closeUserBaseDialog(); return; }
   if (!pointsDialog.hidden) { closePointsDialog(); return; }
   /* La lista de mapas base, flotando sobre el visor: lo último que se cierra
      antes de tocar herramienta y selección (un diálogo la tapa, no al revés) */

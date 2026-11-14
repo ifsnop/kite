@@ -457,88 +457,109 @@ document.getElementById("sh-accept").addEventListener("click", () => {
   closeShCredsDialog();
 });
 
-/* ---------- Diálogo del servidor de teselas de "Custom Tile Map Service" ----------
-   Mismo patrón que el de la credencial de Copernicus, justo arriba:
-   edición diferida, «Aceptar» es lo único que guarda y rearma la capa. */
-const customTilesDialog = document.getElementById("custom-tiles-creds");
-const customTilesBox = customTilesDialog.querySelector(".dlg-box");
-const customTilesInput = document.getElementById("custom-tiles-input");
-const customTilesErrorEl = document.getElementById("custom-tiles-error");
+/* ---------- User base layer dialog: add (＋) or edit (⚙) ----------
+   One dialog for both types. Adding, the user picks the type and the help
+   below the address is that type's; editing, the type is fixed (another
+   type is another layer) and name and address come filled in. Deferred
+   like the Copernicus credential just above: only «Aceptar» saves, and it
+   does not close with an address that cannot be used.                  */
+const userBaseDialog = $id("user-base");
+const userBaseBox = userBaseDialog.querySelector(".dlg-box");
+const userBaseNameInput = $id("user-base-name");
+const userBaseUrlInput = $id("user-base-url");
+const userBaseTmsInput = $id("user-base-tms");
+const userBaseErrorEl = $id("user-base-error");
+const userBaseTypeInputs = [...userBaseBox.querySelectorAll('input[name="user-base-type"]')];
+let userBaseEditing = null; /* id of the layer being edited, or null when adding */
 
-function closeCustomTilesDialog() {
-  customTilesDialog.hidden = true;
+function userBaseType() {
+  const on = userBaseTypeInputs.find(i => i.checked);
+  return on ? on.value : "tiles";
+}
+/* What depends on the type: its help paragraphs and the row-order box
+   (`data-ub-type`), and the example address. The examples are fictitious
+   hosts (security study, Annex A).                                      */
+function showUserBaseType(type) {
+  for (const el of userBaseBox.querySelectorAll("[data-ub-type]")) el.hidden = el.dataset.ubType !== type;
+  userBaseUrlInput.placeholder = type === "wms" ? "https://mi-servidor.ejemplo.org/wms"
+    : "https://mi-cache.ejemplo.org/tiles/";
+  userBaseErrorEl.hidden = true;
+}
+for (const input of userBaseTypeInputs) input.addEventListener("change", () => showUserBaseType(userBaseType()));
+
+function openUserBaseDialog(id) {
+  const st = id ? baseState.get(id) : null;
+  const rec = st && st.def.user;
+  userBaseEditing = rec ? rec.id : null;
+  $id("user-base-title").textContent = rec ? tr("Modificar capa base") : tr("Nueva capa base");
+  for (const input of userBaseTypeInputs) {
+    input.checked = input.value === (rec ? rec.type : "tiles");
+    input.disabled = !!rec;
+  }
+  userBaseNameInput.value = rec ? rec.name : "";
+  userBaseUrlInput.value = rec ? rec.url : "";
+  userBaseTmsInput.checked = !!(rec && rec.tms);
+  $id("user-base-accept").textContent = rec ? tr("Aceptar") : tr("Añadir");
+  showUserBaseType(userBaseType());
+  userBaseDialog.hidden = false;
+  clampToViewport(userBaseBox);
+  focusDialog(userBaseBox);
+  (rec ? userBaseNameInput : userBaseUrlInput).focus();
+}
+function closeUserBaseDialog() {
+  userBaseDialog.hidden = true;
+  userBaseEditing = null;
   releaseFocus();
 }
-function openCustomTilesDialog() {
-  customTilesInput.value = customTilesUrl || "";
-  customTilesErrorEl.hidden = true;
-  customTilesDialog.hidden = false;
-  clampToViewport(customTilesBox);
-  focusDialog(customTilesBox);
-  customTilesInput.focus();
-  customTilesInput.select();
-}
-document.getElementById("custom-tiles-cancel").addEventListener("click", closeCustomTilesDialog);
-document.getElementById("custom-tiles-clear").addEventListener("click", () => {
-  /* Borrar actúa sobre el campo, no sobre el diálogo: mismo criterio
-     que sh-clear.                                                     */
-  setCustomTilesUrl(null);
-  customTilesInput.value = "";
-  customTilesErrorEl.hidden = true;
-  customTilesInput.focus();
-  navMessage(tr("Servidor de Custom Tile Map Service borrado."), { tone: "info" });
-});
-document.getElementById("custom-tiles-accept").addEventListener("click", () => {
-  const txt = customTilesInput.value.trim();
-  if (!validCustomTilesUrl(txt)) {
-    customTilesErrorEl.textContent = tr("Debe ser una dirección https:// válida.");
-    customTilesErrorEl.hidden = false;
-    customTilesInput.focus();
+$id("user-base-cancel").addEventListener("click", closeUserBaseDialog);
+$id("user-base-accept").addEventListener("click", () => {
+  const type = userBaseType();
+  const problem = userBaseUrlProblem(type, userBaseUrlInput.value);
+  if (problem) {
+    userBaseErrorEl.textContent = problem;
+    userBaseErrorEl.hidden = false;
+    userBaseUrlInput.focus();
     return;
   }
-  setCustomTilesUrl(txt);
-  closeCustomTilesDialog();
+  const input = { type, name: userBaseNameInput.value, url: userBaseUrlInput.value, tms: userBaseTmsInput.checked };
+  const editing = userBaseEditing;
+  closeUserBaseDialog();
+  if (editing) updateUserBase(editing, input);
+  else createUserBase(input);
 });
+/* Enter in a field accepts, as in the other short dialogs */
+for (const input of [userBaseNameInput, userBaseUrlInput]) {
+  input.addEventListener("keydown", e => { if (e.key === "Enter") { e.preventDefault(); $id("user-base-accept").click(); } });
+}
 
-/* ---------- Diálogo del servidor de "Custom Web Map Service" ----------
-   Gemelo del anterior: la dirección es de un WMS, y al aceptar el panel
-   le pide su GetCapabilities para ofrecer sus capas.                    */
-const customWmsDialog = document.getElementById("custom-wms-creds");
-const customWmsBox = customWmsDialog.querySelector(".dlg-box");
-const customWmsInput = document.getElementById("custom-wms-input");
-const customWmsErrorEl = document.getElementById("custom-wms-error");
+/* ---------- Deleting a user base layer asks first ----------
+   Base maps have no undo (they are not in the tree), so a slip would lose
+   the address for good.                                                */
+const userBaseDeleteDialog = $id("user-base-delete");
+const userBaseDeleteBox = userBaseDeleteDialog.querySelector(".dlg-box");
+let userBaseDeleting = null;
 
-function closeCustomWmsDialog() {
-  customWmsDialog.hidden = true;
+function openUserBaseDeleteConfirm(id) {
+  const st = baseState.get(id);
+  if (!st || !st.def.user) return;
+  userBaseDeleting = id;
+  /* textContent: the name is the user's */
+  $id("user-base-delete-text").textContent = tr("Se eliminará la capa base «{name}» y se olvidará su dirección. No se puede deshacer.",
+    { name: st.def.name });
+  userBaseDeleteDialog.hidden = false;
+  clampToViewport(userBaseDeleteBox);
+  focusDialog(userBaseDeleteBox);
+}
+function closeUserBaseDeleteConfirm() {
+  userBaseDeleteDialog.hidden = true;
+  userBaseDeleting = null;
   releaseFocus();
 }
-function openCustomWmsDialog() {
-  customWmsInput.value = customWmsUrl || "";
-  customWmsErrorEl.hidden = true;
-  customWmsDialog.hidden = false;
-  clampToViewport(customWmsBox);
-  focusDialog(customWmsBox);
-  customWmsInput.focus();
-  customWmsInput.select();
-}
-document.getElementById("custom-wms-cancel").addEventListener("click", closeCustomWmsDialog);
-document.getElementById("custom-wms-clear").addEventListener("click", () => {
-  setCustomWmsUrl(null);
-  customWmsInput.value = "";
-  customWmsErrorEl.hidden = true;
-  customWmsInput.focus();
-  navMessage(tr("Servidor de Custom Web Map Service borrado."), { tone: "info" });
-});
-document.getElementById("custom-wms-accept").addEventListener("click", () => {
-  const txt = customWmsInput.value.trim();
-  if (!validCustomWmsUrl(txt)) {
-    customWmsErrorEl.textContent = tr("Debe ser una dirección https:// válida, sin usuario ni contraseña.");
-    customWmsErrorEl.hidden = false;
-    customWmsInput.focus();
-    return;
-  }
-  setCustomWmsUrl(txt);
-  closeCustomWmsDialog();
+$id("user-base-delete-cancel").addEventListener("click", closeUserBaseDeleteConfirm);
+$id("user-base-delete-accept").addEventListener("click", () => {
+  const id = userBaseDeleting;
+  closeUserBaseDeleteConfirm();
+  if (id) removeUserBase(id);
 });
 
 const descDialog = document.getElementById("desc-dialog");
@@ -885,7 +906,7 @@ wirePropsGrip(styleAttrsBody);
    button opened it (see openColorPicker/positionColorPicker), not a
    draggable window with its own dialog role — that separate-window
    treatment is exactly what the popover replaced.                    */
-for (const box of [styleBox, iconBox, descBox, shortcutsBox, ktpBox, kdpBox, gnpBox, propsBox, shBox, customTilesBox, customWmsBox, pointsBox, logBox, urlBox, restoreBox]) makeDialogMovable(box);
+for (const box of [styleBox, iconBox, descBox, shortcutsBox, ktpBox, kdpBox, gnpBox, propsBox, shBox, userBaseBox, userBaseDeleteBox, pointsBox, logBox, urlBox, restoreBox]) makeDialogMovable(box);
 setupDialog(styleBox, { modal: false }); /* flotante: el mapa sigue vivo */
 setupDialog(iconBox, { modal: true });
 setupDialog(descBox, { modal: false });
@@ -895,15 +916,15 @@ setupDialog(kdpBox, { modal: true });
 setupDialog(gnpBox, { modal: true });
 setupDialog(propsBox, { modal: true });
 setupDialog(shBox, { modal: true });
-setupDialog(customTilesBox, { modal: true });
-setupDialog(customWmsBox, { modal: true });
+setupDialog(userBaseBox, { modal: true });
+setupDialog(userBaseDeleteBox, { modal: true });
 setupDialog(pointsBox, { modal: true });
 setupDialog(logBox, { modal: true });
 setupDialog(urlBox, { modal: true });
 setupDialog(restoreBox, { modal: true });
 window.addEventListener("resize", () => {
   /* a moved dialog must not fall off-screen */
-  for (const box of [styleBox, iconBox, descBox, shortcutsBox, ktpBox, kdpBox, gnpBox, propsBox, shBox, customTilesBox, customWmsBox, pointsBox, logBox, urlBox]) clampToViewport(box);
+  for (const box of [styleBox, iconBox, descBox, shortcutsBox, ktpBox, kdpBox, gnpBox, propsBox, shBox, userBaseBox, userBaseDeleteBox, pointsBox, logBox, urlBox]) clampToViewport(box);
   /* the popover's anchor button may have moved too; closing is simpler
      and less confusing than reclamping a stale position              */
   if (!colorPicker.hidden) closeColorPicker();

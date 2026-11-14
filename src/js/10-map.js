@@ -137,7 +137,7 @@ map.on("resize rotate", fitWorldMinZoom);
 
 /* Fecha de generación del código (versión): AÑOMESDIAHORAMINUTO.
    Actualizar en cada generación; se muestra junto al crédito de Leaflet. */
-const BUILD = "202611132048";
+const BUILD = "202611141933";
 /* Versión de release (la de package.json, horneada aquí por build.js
    al construir — ver «Versión y releases de GitHub» en CLAUDE.md): a
    diferencia de BUILD, que cambia en CADA generación, esta solo cambia
@@ -218,10 +218,9 @@ const COP_CREDIT = "Copernicus DEM \u2014 Copernicus Data Space / Sentinel Hub";
    Ver la definici\u00f3n de la capa.                                       */
 const COP_MIN_NATIVE_ZOOM = 7;
 const COP_MIN_ZOOM = 6;
-/* Servidores propios del usuario (ver "Custom Tile Map Service" y
-   "Custom Web Map Service" más abajo): al no ser ningún servicio
-   conocido no hay a quién dar crédito, solo dejar claro que las
-   teselas no vienen de la aplicación.                                */
+/* The user's own servers (the user base layers, 11-base-panel.js): they
+   are no known service, so there is nobody to credit; the attribution only
+   makes clear that those tiles do not come from the application.      */
 const CUSTOM_TILES_CREDIT = tr("Servidor de teselas personalizado");
 const CUSTOM_WMS_CREDIT = tr("Servidor WMS personalizado");
 
@@ -326,50 +325,22 @@ const BASE_LAYERS = [
       "https://servpub.madrid.es/georaster/ORTOFOTOS/ORTOFOTO_MADRID/ows", {
       layers: "ORTOFOTO_MADRID", format: "image/png", version: "1.3.0", transparent: false,
       bounds: [[40.2788, -3.9367], [40.6671, -3.4793]],
-      maxNativeZoom: 20, maxZoom: MAX_ZOOM, attribution: MADRID_CREDIT }) },
-
-  /* Servidor de teselas del propio usuario \u2014 t\u00EDpicamente una cach\u00E9/proxy
-     delante de OpenStreetMap u otro servicio, para no descargar de golpe
-     el servicio p\u00FAblico ajeno. No es una fuente "dynamic" (no hay
-     cat\u00E1logo que descubrir ni nombre de capa que elegir, solo una URL):
-     lleva `source` para reutilizar el mecanismo de la tuerca \u2699 y el
-     estado "bloqueada sin configurar" (ver DYNAMIC_SOURCES,
-     12-copernicus.js), pero no `dynamic: true`, as\u00ED que el panel no le
-     ofrece ning\u00FAn <select> \u2014no hay nada entre lo que elegir. `layer()`
-     lee `buildCustomTilesUrl()` (11-base-panel.js) en el momento de
-     crearse, nunca antes: la URL puede no estar configurada todav\u00EDa.
-     El id sigue siendo "custom" (lo guardado lo nombra); solo cambi\u00F3
-     el t\u00EDtulo, que ahora dice de qu\u00E9 tipo de servidor se trata.      */
-  { id: "custom", name: "Custom Tile Map Service", on: false, opacity: 1, source: "custom-tiles",
-    diagnoseTiles: true,
-    layer: () => L.tileLayer(buildCustomTilesUrl(), {
-      maxNativeZoom: 19, maxZoom: MAX_ZOOM, attribution: CUSTOM_TILES_CREDIT }) },
-
-  /* Servidor WMS del propio usuario. A diferencia del anterior S\u00CD tiene
-     cat\u00E1logo: sus capas salen del GetCapabilities de SU servidor, igual
-     que las del PNOA hist\u00F3rico, as\u00ED que es "dynamic" y el panel le da
-     el <select> de capas adem\u00E1s de la tuerca \u2699 de la direcci\u00F3n. La URL
-     y la versi\u00F3n y el formato (PNG o, si es lo \u00FAnico que sirve, JPEG)
-     que anunci\u00F3 el servidor se leen en `layer()` (customWmsBase/
-     customWmsVersion/customWmsFormat, 11-base-panel.js), nunca antes.
-     JPEG no tiene canal alfa: se pide `transparent` solo con PNG.      */
-  { id: "custom-wms", name: "Custom Web Map Service", on: false, opacity: 1,
-    dynamic: true, source: "custom-wms", diagnoseTiles: true,
-    layer: (wmsLayer) => L.tileLayer.wms(customWmsBase(), {
-      layers: wmsLayer, format: customWmsFormat, version: customWmsVersion,
-      transparent: customWmsFormat === "image/png",
-      maxZoom: MAX_ZOOM, attribution: CUSTOM_WMS_CREDIT }) }
+      maxNativeZoom: 20, maxZoom: MAX_ZOOM, attribution: MADRID_CREDIT }) }
 ];
 
 /* Teselas fallidas seguidas (sin ninguna buena de por medio) antes de
    marcar la capa como caída en el panel.                              */
 const BASE_FAIL_TILES = 8;
 
-/* Estado en vivo de cada capa base */
-const baseState = new Map(BASE_LAYERS.map((d, i) => [d.id, {
-  def: d, layer: null, on: d.on, opacity: d.opacity, zIndex: i + 1, failed: false, wmsLayer: null,
-  tileNoticed: new Set() /* capas WMS cuya primera tesela fallida ya se explicó, ver flagTileError */
-}]));
+/* Live state of a base layer. The user's own layers (11-base-panel.js,
+   «Capas base del usuario») are added to `baseState` with the same shape. */
+function baseStateFor(def, zIndex) {
+  return {
+    def, layer: null, on: !!def.on, opacity: def.opacity ?? 1, zIndex, failed: false, wmsLayer: null,
+    tileNoticed: new Set() /* WMS layers whose first failed tile was already explained, see flagTileError */
+  };
+}
+const baseState = new Map(BASE_LAYERS.map((d, i) => [d.id, baseStateFor(d, i + 1)]));
 
 /* Al recuperar la red, Leaflet no reintenta por su cuenta las teselas
    que fallaron: se quedan en blanco hasta que el usuario mueve el mapa,
@@ -397,16 +368,6 @@ function applyBaseLayer(id) {
       const cat = src && src.get();
       if (cat) st.wmsLayer = src.pickDefault(cat);
       else { if (src) src.ensure(); return; }
-    }
-    /* Una fuente configurable SIN catálogo (hoy, "Custom Tile Map
-       Service": no hay nombre de capa que elegir, solo una URL) no
-       tiene equivalente al `ensure()`/`wmsLayer` de arriba: sin la URL
-       puesta todavía no hay nada que construir, así que se queda inerte
-       hasta que se configure (setCustomTilesUrl vuelve a llamar aquí al
-       aceptar).                                                       */
-    if (!st.def.dynamic) {
-      const src = dynSource(st.def);
-      if (src && src.blocked && src.blocked()) return;
     }
     if (!st.layer) {
       st.layer = st.def.dynamic ? st.def.layer(st.wmsLayer) : st.def.layer();

@@ -1,18 +1,18 @@
-/* "Custom Web Map Service": servidor WMS del propio usuario. A diferencia
-   de "Custom Tile Map Service" sus capas salen del GetCapabilities del
-   servidor, así que aquí se prueban las piezas puras: validación de la
-   dirección, normalización (quita los parámetros de OGC que se cuelan al
-   pegar una petición entera), URL del GetCapabilities, versión que
-   anuncia el servidor, agrupado para el <select> y la lectura de un
-   servidor con una sola capa publicada como raíz, y el formato de imagen
-   (PNG si lo hay, JPEG si es lo único).                                */
+/* A user WMS base layer (11-base-panel.js): unlike a tile server its
+   layers come from the server's GetCapabilities, so these are the pure
+   pieces: validating the address, normalizing it (it drops the OGC
+   parameters that slip in when a whole request is pasted), the
+   GetCapabilities URL, the version the server announces, the grouping
+   for the <select>, reading a server whose only layer is published as
+   the root, and the image format (PNG if there is one, JPEG if that is
+   all).                                                                */
 const { DOMParser } = require("@xmldom/xmldom");
-const { fn, between } = require("./_extract");
+const { fn, between, constDecl } = require("./_extract");
 const helpers = between("/* Nombre sin prefijo", "/* KML usa color");
-const consts = between("const CUSTOM_WMS_OPTS", "let customWmsUrl");
-const src = "const parserErrorText = () => null;\n" + helpers + consts + [
+const consts = between("const CUSTOM_WMS_OPTS", "/* Same rule as userBaseUrlProblem");
+const src = "const parserErrorText = () => null;\n" + helpers + consts + constDecl("TEMPLATE_VAR") + "\n" + [
   fn("directChildText"), fn("collectWmsLayers"), fn("parseWmsCapabilities"),
-  fn("validCustomWmsUrl"), fn("normalizeCustomWmsBase"), fn("customWmsCapabilitiesUrl"),
+  fn("userBaseUrlProblem"), fn("validCustomWmsUrl"), fn("normalizeCustomWmsBase"), fn("customWmsCapabilitiesUrl"),
   fn("wmsCapabilitiesVersion"), fn("wmsGetMapFormat"), fn("groupWmsEntries")].join("\n");
 const api = new Function("DOMParser", src +
   "\nreturn {parseWmsCapabilities, validCustomWmsUrl, normalizeCustomWmsBase," +

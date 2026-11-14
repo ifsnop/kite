@@ -68,6 +68,12 @@
       "version": "2.5.0",
       "build": "202611092327"
     },
+    "capa-base-propia.png": {
+      "sha256": "ce860438adc23d9a0fb7806936fa8a3f863a108f460ed8fc020a3f42951575c4",
+      "section": "4.1",
+      "version": "2.5.0",
+      "build": "202611132048"
+    },
     "checkbox-indeterminado.png": {
       "sha256": "f4c70cdb34772173feb70cdd2cd22bd68b5d71557c507cd34b1ab18f364d135d",
       "section": "3.2",
@@ -89,12 +95,6 @@
     "copiar-origen.png": {
       "sha256": "b0d8674a9ed6a560c9d1c8872b3e5c00750c8f2f5d2f11b242bedc2ef8502e0a",
       "section": "7.5",
-      "version": "2.5.0",
-      "build": "202611092327"
-    },
-    "custom-wms.png": {
-      "sha256": "f51c8725259d8559ecedb575815289258ed0374b41eb01a0067ae5126b62c8c1",
-      "section": "4.1",
       "version": "2.5.0",
       "build": "202611092327"
     },

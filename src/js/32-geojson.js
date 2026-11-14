@@ -1502,82 +1502,38 @@ async function dbLoadSh() {
   });
 }
 
-/* ---------- Servidor de teselas de "Custom Tile Map Service" ----------
-   Otra clave del mismo almacén, mismo criterio que la credencial de
-   Sentinel Hub: es del usuario (su propio servidor de teselas, típico
-   caso: una caché/proxy delante de OpenStreetMap u otro servicio) y
-   solo vive en su navegador — nunca se serializa con el árbol ni viaja
-   en un .kite.json exportado.                                        */
-const CUSTOM_TILES_KEY = "customTilesUrl";
-const CUSTOM_TILES_SCHEMA = 1;
+/* ---------- User base layers (11-base-panel.js) ----------
+   Another key of the same store, same rule as the Sentinel Hub
+   credential: the addresses are the user's own servers and live only in
+   their browser, never serialized with the tree nor in an exported
+   .kite.json. The whole list as one record: at most USER_BASES_MAX short
+   entries. Read through `validUserBases`: it is foreign input.          */
+const USER_BASES_KEY = "userBases";
+const USER_BASES_SCHEMA = 1;
+/* The keys of the two fixed «Custom» layers this list replaced. They are
+   not migrated (decided with the user): reading the list deletes them.  */
+const RETIRED_CUSTOM_KEYS = ["customTilesUrl", "customWmsUrl"];
 
-async function dbSaveCustomTilesUrl(rec) {
+async function dbSaveUserBases(list) {
   const db = await openDb();
   return new Promise((resolve, reject) => {
     const tx = db.transaction(DB_TREE, "readwrite");
-    tx.objectStore(DB_TREE).put({ v: CUSTOM_TILES_SCHEMA, ...rec }, CUSTOM_TILES_KEY);
+    tx.objectStore(DB_TREE).put({ v: USER_BASES_SCHEMA, list }, USER_BASES_KEY);
     tx.oncomplete = resolve;
     tx.onerror = () => reject(tx.error);
   });
 }
-/* Borrar la URL RETIRA la clave, no guarda un registro vacío: mismo
-   criterio que dbDeleteSh.                                            */
-async function dbDeleteCustomTilesUrl() {
+async function dbLoadUserBases() {
   const db = await openDb();
   return new Promise((resolve, reject) => {
     const tx = db.transaction(DB_TREE, "readwrite");
-    tx.objectStore(DB_TREE).delete(CUSTOM_TILES_KEY);
-    tx.oncomplete = resolve;
+    const store = tx.objectStore(DB_TREE);
+    for (const key of RETIRED_CUSTOM_KEYS) store.delete(key);
+    const rq = store.get(USER_BASES_KEY);
+    let rec = null;
+    rq.onsuccess = () => { rec = rq.result; };
+    tx.oncomplete = () => resolve(rec && rec.v === USER_BASES_SCHEMA ? validUserBases(rec.list) : []);
     tx.onerror = () => reject(tx.error);
-  });
-}
-async function dbLoadCustomTilesUrl() {
-  const db = await openDb();
-  return new Promise((resolve, reject) => {
-    const tx = db.transaction(DB_TREE, "readonly");
-    const rq = tx.objectStore(DB_TREE).get(CUSTOM_TILES_KEY);
-    rq.onsuccess = () => {
-      const rec = rq.result;
-      resolve(rec && rec.v === CUSTOM_TILES_SCHEMA && typeof rec.url === "string" ? rec : null);
-    };
-    rq.onerror = () => reject(rq.error);
-  });
-}
-
-/* ---------- Servidor de "Custom Web Map Service" ----------
-   Mismo criterio que el de teselas de arriba: la dirección del WMS es
-   del usuario, vive solo en su navegador y no viaja en un .kite.json.  */
-const CUSTOM_WMS_KEY = "customWmsUrl";
-const CUSTOM_WMS_SCHEMA = 1;
-
-async function dbSaveCustomWmsUrl(rec) {
-  const db = await openDb();
-  return new Promise((resolve, reject) => {
-    const tx = db.transaction(DB_TREE, "readwrite");
-    tx.objectStore(DB_TREE).put({ v: CUSTOM_WMS_SCHEMA, ...rec }, CUSTOM_WMS_KEY);
-    tx.oncomplete = resolve;
-    tx.onerror = () => reject(tx.error);
-  });
-}
-async function dbDeleteCustomWmsUrl() {
-  const db = await openDb();
-  return new Promise((resolve, reject) => {
-    const tx = db.transaction(DB_TREE, "readwrite");
-    tx.objectStore(DB_TREE).delete(CUSTOM_WMS_KEY);
-    tx.oncomplete = resolve;
-    tx.onerror = () => reject(tx.error);
-  });
-}
-async function dbLoadCustomWmsUrl() {
-  const db = await openDb();
-  return new Promise((resolve, reject) => {
-    const tx = db.transaction(DB_TREE, "readonly");
-    const rq = tx.objectStore(DB_TREE).get(CUSTOM_WMS_KEY);
-    rq.onsuccess = () => {
-      const rec = rq.result;
-      resolve(rec && rec.v === CUSTOM_WMS_SCHEMA && typeof rec.url === "string" ? rec : null);
-    };
-    rq.onerror = () => reject(rq.error);
   });
 }
 

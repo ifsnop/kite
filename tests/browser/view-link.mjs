@@ -49,11 +49,13 @@ ok(c1.link === srv.url + "#map=7/41.1/-2.2/75&base=osm,pnoa", "el enlace lleva l
 ok(/portapapeles/.test(c1.msg), "y se avisa: " + c1.msg.slice(0, 80));
 
 /* un mapa con dirección propia encendido no viaja, y se dice */
-await page.evaluate(() => { baseState.get("custom").on = true; });
+await page.evaluate(() => {
+  addUserBaseLayer({ id: "u0123456789ab", type: "tiles", name: "Mía", url: "https://c.example.test/" }).on = true;
+});
 const c2 = await copyLink();
-ok(!/custom/.test(c2.link) && c2.link === c1.link, "un mapa propio (Custom) no va en el enlace: " + c2.link);
+ok(!/u0123456789ab/.test(c2.link) && c2.link === c1.link, "a user base layer does not travel in the link: " + c2.link);
 ok(/no viajan/.test(c2.msg), "y el aviso lo explica: " + c2.msg.slice(0, 120));
-await page.evaluate(() => { baseState.get("custom").on = false; });
+await page.evaluate(() => { baseState.delete("u0123456789ab"); });
 
 /* ---- abrirlo en otra pestaña: manda sobre lo guardado ---- */
 await page.waitForTimeout(1500); /* se guarda la vista actual (41.1, -2.2) */
@@ -88,7 +90,7 @@ for (const malo of ["#map=abc", "#map=99/10/20", "#map=5/95/20", "#map=5/10/20/1
   ok(near(now.lat, before.lat) && near(now.lng, before.lng) && now.zoom === before.zoom && now.on.join() === before.on.join(), `«${malo}» no cambia nada: ` + JSON.stringify(now));
 }
 /* Un enlace válido con ids de mapa inventados o con marcado: se aplica y los ids se descartan, sin inyectar nada */
-await page.evaluate(() => { location.hash = "#map=4/30/-20&base=terrain,<img src=x onerror=alert(1)>,custom"; });
+await page.evaluate(() => { location.hash = "#map=4/30/-20&base=terrain,<img src=x onerror=alert(1)>,u0123456789ab"; });
 await page.waitForFunction(() => Math.abs(map.getCenter().lat - 30) < 1e-3);
 s = await state(page);
 ok(s.on.join() === "terrain", "ids con marcado o propios se descartan y el resto se aplica: " + s.on);
