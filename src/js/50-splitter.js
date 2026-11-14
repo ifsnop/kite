@@ -79,12 +79,18 @@ const mobileBox = mobileDialog.querySelector(".dlg-box");
 setupDialog(mobileBox, { modal: true });
 makeDialogMovable(mobileBox);
 
+/* What waits for the notice to close (the «Novedades» window, 68-whats-new.js,
+   which must not stack on it at startup) */
+let mobileNoticeThen = null;
 function closeMobileNotice(choice) {
   if (mobileDialog.hidden) return;
   mobileDialog.hidden = true;
   releaseFocus();
   if (choice === "map") setNavHidden(true);
   dbSaveMobileView(choice).catch(() => { /* sin guardar, se vuelve a preguntar */ });
+  const then = mobileNoticeThen;
+  mobileNoticeThen = null;
+  if (then) then();
 }
 document.getElementById("mobile-close").addEventListener("click", () => closeMobileNotice("nav"));
 document.getElementById("mobile-continue").addEventListener("click", () => closeMobileNotice("map"));

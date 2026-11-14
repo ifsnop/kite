@@ -764,7 +764,7 @@ for (const c of cruces) {
   ok(c.titulo && c.aria, `${c.id}: con title y aria-label (${c.titulo})`);
 }
 /* Cancelar o Cerrar, según lo que tenga el diálogo */
-const CIERRE = { "mobile-notice": "Cerrar", "log-dialog": "Cerrar", "url-dialog": "Cerrar", "attr-dialog": "Cerrar", "desc-dialog": "Cerrar" };
+const CIERRE = { "mobile-notice": "Cerrar", "log-dialog": "Cerrar", "url-dialog": "Cerrar", "attr-dialog": "Cerrar", "desc-dialog": "Cerrar", "whats-new": "Cerrar" };
 for (const c of cruces.filter(c => c.cancel)) {
   ok(c.titulo === (CIERRE[c.id] || "Cancelar"), `${c.id}: la × se llama «${CIERRE[c.id] || "Cancelar"}»: ${c.titulo}`);
 }

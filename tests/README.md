@@ -248,6 +248,16 @@ USER BASE LAYERS TESTS OK
 
 **Qué cubre:** The pure pieces behind the user base layers (`11-base-panel.js`). `userBaseUrlProblem`, for both types: only `https://` (no `http:`, other schemes, loose text or empty) and no user or password in the address, each with its reason; for a tile template, the placeholders Leaflet fills in (`{z}`, `{x}`, `{y}`, `{-y}`, `{s}`), in any order and also in the query (a WMTS in KVP form), an unknown one named in the reason, and `{z}`, `{x}` and `{y}` (or `{-y}`) required; in a WMS braces are not a template. `userTilesTemplate`: a base address gets `{z}/{x}/{y}.png` with a single slash (trailing slashes and spaces removed), a full template is kept as written. `userBaseDefaultName`: the server's host, also with a template. `userBaseRecord` (what the dialog and IndexedDB go through): name and address trimmed, a WMS loses its OGC parameters and takes the host as its name, the name capped at 80 characters, `tms` only with an exact `true` and never on a WMS, and an unknown type, an id that is not a user layer's (the fixed ones included) or a bad address give nothing. `validUserBases` (what was saved, foreign input): bad entries and repeated ids dropped in order, anything but a list gives nothing, and no more than `USER_BASES_MAX`.
 
+### `whatsnew.js`
+
+**Salida de `npm test`:**
+```
+── What's new window: its texts (versions, an entry for package.json, short sentences) and the decision of what to show from what was saved
+WHATS NEW TESTS OK
+```
+
+**Qué cubre:** The «Novedades» window (`68-whats-new.js`). **Its texts** (`WHATS_NEW`), which a release depends on: every entry is an `x.y.z` version or «next», no repeated versions, «next» only at the top, released entries newest first, an entry for `package.json`'s version (a release without its notes fails: «next» has to be renamed), none above it, and every line a short sentence (trimmed, ≤ 220 characters, ending in a full stop). **What is listed** (`whatsNewEntries`): released entries after the version last run and up to the current one, newest first, never «next», by numbers (2.10 after 2.9). **The decision from what was saved** (`whatsNewPlan`): the first time, since 2.0 and with a record to save; the same version unticked, the same list again; the same version ticked, nothing; a newer version, shown again from the one last run even if it had been ticked; a downgrade, since 2.0; no real version, nothing. **A saved record** (`validWhatsNewRecord`) is foreign input: extra fields dropped, broken versions, odd `since` and a `dismissed` that is not a boolean rejected. And `compareVersions`, part by part.
+
 ### `tilediag.js`
 
 **Salida de `npm test`:**
@@ -1099,6 +1109,16 @@ BROWSER USER BASE LAYERS TESTS OK
 ```
 
 **Qué cubre:** The user base layers end to end, with simulated tile and WMS servers (`ctx.route` on fake https domains; the CSP leaves `connect-src`/`img-src` open to https, so it is the same path a real one follows). With none, the list has no delete button and ends in the «+» button, and the two old fixed «Custom» rows are gone. The «+» opens «Nueva capa base» on the tile type with its help and the TMS box; choosing WMS switches the help, hides TMS and changes the example address. An `http://` address, a template with an unknown placeholder (named in the error) or without `{y}` keep the dialog open and send nothing. Adding a tile template puts the layer ON, last in the list (top of the stack, highest z) with gear and ×, and its tiles are requested in the template's order and format. The gear opens «Modificar capa base» with name and address and the type fixed; renaming changes the row without rebuilding the layer, and a base address with TMS rebuilds it with `{z}/{x}/{y}.png` and `tms`. A WMS added with a whole GetCapabilities pasted, and no name, takes the server's host as its name and sends ONE GetCapabilities with the OGC parameters once and its own `map=` kept; the selector offers the server's layers grouped as published; on, it asks `GetMap` of the first layer in the version the server announced (1.1.1 → `srs`), Web Mercator and PNG; changing the layer asks the other one. A second WMS has its own catalog and the first keeps its own and its chosen layer. After a reload the three layers come back with their state, order, chosen layer, TMS and the version rebuilt when the catalog arrives, and the key of the retired «Custom» layer is deleted at boot without migrating it. The × asks for confirmation naming the layer; Cancel and Escape keep it; «Eliminar» removes it and leaves the stack contiguous. A WMS whose GetCapabilities answers an OGC exception shows it in the selector («Servidor en mantenimiento»); one that only announces JPEG gets `GetMap` in `image/jpeg` without `transparent`; one whose `GetMap` answers an exception with HTTP 200 leaves EVERY tile with a visible 2 px red outline, a notice with the server's text naming the layer, and only ONE tile requested again to diagnose. Escape closes the dialog without adding anything. With `USER_BASES_MAX` layers the «+» is disabled and says why, and no more can be created. No CSP violations nor page errors.
+
+### `browser/whats-new.mjs`
+
+**Salida de `npm test`:**
+```
+── Browser: the what's new window at startup — releases since 2.0, close by button, × or Escape, comes back until the box is ticked, a new version shows it again, and it waits for the phone notice
+BROWSER WHATS NEW TESTS OK
+```
+
+**Qué cubre:** The «Novedades» window end to end (every other suite keeps it closed through `stubTiles`; this one passes `{ whatsNew: true }`). It opens on its own at startup with the focus inside, titled «Novedades», «desde la versión 2.0.0», one section per released version newest first (the first, the running one) and nothing from «next»; the box starts unticked and the record notes the version and since when it lists. «Cerrar», the × and Escape close it; unticked, it comes back at every reload with the same list. Ticked and closed, the record says so and a reload does not show it. A record from an older version (ticked) shows it again listing only what came after that version, and the new record says so. A tampered record counts as nothing saved (since 2.0). On a phone, the «Mejor desde un ordenador» notice comes first, without the window on top, and closing it opens the window. No page errors nor CSP violations. Expectations are computed from the page's own `VERSION` and `WHATS_NEW`, so a release does not touch the suite.
 
 ### `browser/url-import.mjs`
 

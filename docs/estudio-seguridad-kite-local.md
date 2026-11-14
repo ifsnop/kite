@@ -19,7 +19,7 @@ KITE Local es una aplicación de visualización y consulta de información geoes
 
 1. **El origen de cada capa de información es conocido, declarado y verificable.** Tanto la cartografía de fondo como los servicios auxiliares (elevación del terreno, búsqueda de topónimos) proceden de organismos oficiales o de proveedores identificados, y la propia aplicación restringe por configuración los orígenes de red a los que puede conectarse — con dos excepciones deliberadas y acotadas en las que el propio usuario elige el origen (una dirección que escribe para descargar un archivo o para consultar un servicio de mapas ArcGIS, y un mapa base de teselas de un servidor propio), descritas en el apartado 6.2.
 2. **La aplicación no modifica los datos geoespaciales que muestra.** La geometría, las coordenadas y la altitud de cada elemento cargado se conservan tal como están definidas en el archivo de origen a lo largo de todo el ciclo de vida (carga, visualización, guardado y exportación). Las únicas excepciones son un número reducido de correcciones controladas, de alcance mínimo, siempre notificadas al usuario y nunca aplicadas en silencio, que se describen en detalle en el apartado 4.
-3. **El comportamiento descrito está verificado mediante una batería de pruebas automatizadas** que se ejecuta contra el propio archivo que se distribuye —no contra una copia aparte del código— y que en la fecha de este documento supera sus 134 conjuntos de comprobaciones sin ninguna incidencia.
+3. **El comportamiento descrito está verificado mediante una batería de pruebas automatizadas** que se ejecuta contra el propio archivo que se distribuye —no contra una copia aparte del código— y que en la fecha de este documento supera sus 136 conjuntos de comprobaciones sin ninguna incidencia.
 
 El documento está dirigido a personal auditor y experto en seguridad, no a personal programador: describe el comportamiento de la aplicación, su alcance y sus garantías, sin entrar en detalles de implementación.
 
@@ -208,7 +208,7 @@ Esta forma de proceder asegura que lo que las pruebas certifican es, literalment
 
 ### 7.2 Alcance actual de la batería de pruebas
 
-En la fecha de este documento, la batería está compuesta por 134 conjuntos de pruebas independientes, agrupados por área, y todos ellos superados sin ninguna incidencia en la última ejecución realizada para este estudio. Las áreas cubiertas incluyen, entre otras:
+En la fecha de este documento, la batería está compuesta por 136 conjuntos de pruebas independientes, agrupados por área, y todos ellos superados sin ninguna incidencia en la última ejecución realizada para este estudio. Las áreas cubiertas incluyen, entre otras:
 
 **Interpretación de archivos y formatos de origen**
 - Lectura de archivos KML, con independencia del prefijo de espacio de nombres que use cada archivo.
@@ -275,6 +275,7 @@ En la fecha de este documento, la batería está compuesta por 134 conjuntos de 
 - Idioma de la interfaz: cada texto tiene su traducción al inglés con los mismos marcadores, ningún texto en español queda fuera del sistema de traducción y «Automático» sigue al idioma del navegador.
 - Tema claro y oscuro de la interfaz (automático según el sistema, o forzado), sin tocar el contenido del mapa.
 - Aviso al abrir la aplicación desde un móvil y diseño del panel en ese caso.
+- Ventana de novedades al abrir una versión nueva: lista lo publicado desde la última versión que se abrió (la primera vez, desde la 2.0), vuelve a salir mientras no se marque «No volver a mostrar…» y una versión nueva la enseña de nuevo; los textos de cada versión están completos antes de publicarla.
 - Teclado y rueda del visor: velocidad de las flechas mantenidas, zoom continuo y foco que se queda en el mapa.
 - Pie del panel: la cifra de memoria se esconde cuando no hay un dato fiable que dar.
 - Ficha de información al recorrer el mapa con el ratón (con un ratón real): la ficha solo cambia cuando el ratón se detiene sobre una capa, las capas consultadas quedan como pestañas en «Fichas recientes», una ficha a la vez, con su caducidad, su tope y la opción de fijarlas, seleccionar texto para copiarlo no cambia la ficha, y el recuadro con el que se señala una de ellas en el mapa no mueve la vista, no se guarda y no modifica ninguna capa.
@@ -337,7 +338,7 @@ Esta batería de pruebas se ejecuta de forma obligatoria en cada cambio propuest
 
 ### 7.4 Resultado verificado para este documento
 
-Como parte de la elaboración de este estudio se ha vuelto a ejecutar la batería completa de pruebas contra la versión de la aplicación identificada en la cabecera de este documento. Resultado: **134 de 134 conjuntos de pruebas superados, sin ninguna incidencia.**
+Como parte de la elaboración de este estudio se ha vuelto a ejecutar la batería completa de pruebas contra la versión de la aplicación identificada en la cabecera de este documento. Resultado: **136 de 136 conjuntos de pruebas superados, sin ninguna incidencia.**
 
 ---
 
@@ -359,7 +360,7 @@ Sobre la base de la revisión del código fuente, de la configuración de red y 
 
 1. El origen de cada fuente de cartografía y de cada servicio auxiliar que KITE Local puede consultar está identificado, documentado y restringido por configuración a una lista cerrada de proveedores oficiales o reconocidos, salvo dos excepciones deliberadas y acotadas en las que el propio usuario elige el origen (una dirección que escribe para descargar un archivo o para añadir un servicio de mapas ArcGIS, y las capas base propias contra un servidor propio), ambas descritas en el apartado 6.2.
 2. KITE Local no modifica la geometría, las coordenadas ni la altitud de los datos que carga y representa; las únicas intervenciones automáticas están acotadas a corregir errores menores y evitables del propio archivo de origen, tienen un alcance mínimo y verificable, y se comunican siempre a la persona usuaria.
-3. Este comportamiento está verificado por una batería de 134 conjuntos de pruebas automatizadas, ejecutadas contra el artefacto realmente distribuido, con resultado íntegramente satisfactorio en la fecha de este documento.
+3. Este comportamiento está verificado por una batería de 136 conjuntos de pruebas automatizadas, ejecutadas contra el artefacto realmente distribuido, con resultado íntegramente satisfactorio en la fecha de este documento.
 
 Estas tres garantías, tomadas en conjunto, sustentan el uso de KITE Local como herramienta de consulta y visualización fiel de información geoespacial dentro del alcance descrito en el apartado 8.
 

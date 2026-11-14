@@ -168,6 +168,14 @@ paths:
     `describeHttp` (`40`), `makeNode`, `applyMarkerStyle`, `fmtUnitDist` y
     `escapeHtml`; el menú contextual (`70`) la llama solo en tiempo de
     ejecución. Ver `wikipedia.md`.
+11g. **«Novedades» window** (`68-whats-new.js`): the `WHATS_NEW` texts, the pure
+    decision of what to list (`whatsNewPlan`, `whatsNewEntries`,
+    `validWhatsNewRecord`, `compareVersions`, tested in Node) and the window,
+    bound to the DOM the first time it opens. It reads `VERSION` (`10`) and
+    `mobileDialog`/`mobileNoticeThen` (`50`) and uses `setupDialog`/
+    `makeDialogMovable`/`$id` (43, 44) only at run time; `99-boot.js` calls
+    `showWhatsNewAtBoot` and `52-measure.js` closes it with Escape. See
+    `whats-new.md`.
 12. **Controles de vista**: autoescala, ES/IC, retícula, coordenadas.
 13. **Arranque**: restauración del árbol guardado. Al final, para que
     todo esté definido.

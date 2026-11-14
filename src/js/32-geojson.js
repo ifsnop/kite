@@ -1394,6 +1394,32 @@ async function dbLoadMobileView() {
     rq.onerror = () => reject(rq.error);
   });
 }
+/* The «Novedades» window (68-whats-new.js): for which version it was last
+   shown, from which version it lists, and whether the user asked not to
+   see it again until the next one. Read through `validWhatsNewRecord`. */
+const WHATS_NEW_KEY = "whatsNew";
+const WHATS_NEW_SCHEMA = 1;
+async function dbSaveWhatsNew(rec) {
+  const db = await openDb();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(DB_TREE, "readwrite");
+    tx.objectStore(DB_TREE).put({ v: WHATS_NEW_SCHEMA, ...rec }, WHATS_NEW_KEY);
+    tx.oncomplete = resolve;
+    tx.onerror = () => reject(tx.error);
+  });
+}
+async function dbLoadWhatsNew() {
+  const db = await openDb();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(DB_TREE, "readonly");
+    const rq = tx.objectStore(DB_TREE).get(WHATS_NEW_KEY);
+    rq.onsuccess = () => {
+      const r = rq.result;
+      resolve(r && r.v === WHATS_NEW_SCHEMA ? validWhatsNewRecord(r) : null);
+    };
+    rq.onerror = () => reject(rq.error);
+  });
+}
 async function dbLoadCoordFormat() {
   const db = await openDb();
   return new Promise((resolve, reject) => {

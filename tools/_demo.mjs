@@ -53,6 +53,8 @@ export async function openDemoApp({ viewport, tool, noBg = false }) {
       return p === 0x9246 || p === 0x1F01 ? "ANGLE (NVIDIA, NVIDIA GeForce GTX 1650 Direct3D11 vs_5_0 ps_5_0, D3D11)" : orig.call(this, p);
     };
   });
+  /* Without the «Novedades» window at startup (68-whats-new.js) */
+  await page.addInitScript(() => { window.__kiteSkipWhatsNew = true; });
   await page.route(/tile\.openstreetmap\.org/, tileRoute);
   await page.goto(`http://127.0.0.1:${server.address().port}/`);
   await page.waitForFunction(() => typeof map === "object" && map && typeof map.getZoom === "function"

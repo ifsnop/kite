@@ -236,8 +236,11 @@ const unused = declaredFns.filter(n => !called.has(n));
 if (unused.length) console.log("  (aviso, no fallo) funciones declaradas y nunca llamadas: " + unused.join(", "));
 
 /* ---------- 4. La × de TODO diálogo, arriba a la derecha ---------- */
+/* Exception: a footer that also holds a checkbox keeps its single button
+   next to it (the «Novedades» window: «No volver a mostrar…» + «Cerrar»,
+   asked for by the user; see dialog-close-button.md).                 */
 const lone = [...html.matchAll(/<div class="dlg-actions">([\s\S]*?)<\/div>/g)]
-  .filter(m => (m[1].match(/<button\b/g) || []).length === 1)
+  .filter(m => (m[1].match(/<button\b/g) || []).length === 1 && !/type="checkbox"/.test(m[1]))
   .map(m => (m[1].match(/id="([^"]+)"/) || [, "?"])[1]);
 ok(lone.length === 0, "diálogo con un pie de un solo botón (la regla lo pone como × en la cabecera): " + lone.join(", "));
 const dialogStarts = [...html.matchAll(/<div id="([a-z0-9-]+)" class="(?:dlg-overlay|dlg-float)"/g)];
