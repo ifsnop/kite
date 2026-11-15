@@ -91,16 +91,22 @@ await page.reload(); await waitAppReady(page);
 await page.waitForTimeout(600);
 ok(!(await shown(page)).open, "y al recargar ya no sale");
 
-/* ---------- 4. A new version shows it again, with only what came after ---------- */
-const older = await page.evaluate(() => whatsNewEntries(WHATS_NEW, WHATS_NEW_FIRST, VERSION).map(e => e.version)[1]);
-ok(!!older, "hay una versión anterior con la que simular el salto");
+/* ---------- 4. A new version shows it again, with EVERY version since the one last used ----------
+   Three versions skipped: the record says KITE was last used three releases
+   ago, so the window lists the current version and the two in between, each
+   with all its items (reported as a possible bug: «only the latest» would
+   be one). */
+const older = await page.evaluate(() => whatsNewEntries(WHATS_NEW, WHATS_NEW_FIRST, VERSION).map(e => e.version)[3]);
+ok(!!older, "hay una versión tres publicaciones atrás con la que simular el salto");
 await putRecord(page, { shownFor: older, since: "2.0.0", dismissed: true });
 await page.reload(); await waitAppReady(page);
 ok(await waitShown(page), "con una versión nueva vuelve a salir aunque se marcara la casilla");
 s = await shown(page);
-const after = await page.evaluate(older => whatsNewEntries(WHATS_NEW, older, VERSION).map(e => tr("Versión {version}", { version: e.version })), older);
-ok(s.intro.includes(older) && s.heads.join("|") === after.join("|"),
-  `y lista solo lo posterior a la ${older}: ${s.heads.join(", ")}`);
+const after = await page.evaluate(older => whatsNewEntries(WHATS_NEW, older, VERSION)
+  .map(e => ({ head: tr("Versión {version}", { version: e.version }), items: e.items.map(i => tr(i)) })), older);
+ok(s.intro.includes(older) && after.length === 3 && s.heads.join("|") === after.map(e => e.head).join("|"),
+  `tres versiones saltadas, tres versiones listadas, todas las posteriores a la ${older}: ${s.heads.join(", ")}`);
+ok(s.items.join("|") === after.flatMap(e => e.items).join("|"), "con todas las novedades de cada una: " + s.items.length);
 r = await record(page);
 ok(r && r.shownFor === expected.version && r.since === older && r.dismissed === false, "y lo apunta: " + JSON.stringify(r));
 await page.click("#whats-new-close");
