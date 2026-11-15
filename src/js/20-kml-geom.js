@@ -130,14 +130,13 @@ function parsePolygon(polyEl) {
    tabla de atributos que una de GeoJSON. Entrada AJENA: tope de campos,
    primer valor de un nombre repetido y nombres que no pueden ser
    propiedades (`__proto__`) fuera. null si no hay ninguno.            */
-const EXT_MAX_FIELDS = 200;
 function parseExtendedData(pm) {
   const ext = childrenByTag(pm, "ExtendedData")[0];
   if (!ext) return null;
   const props = {};
   let n = 0;
   const put = (key, value) => {
-    if (!key || key === "__proto__" || n >= EXT_MAX_FIELDS) return;
+    if (!key || key === "__proto__" || n >= CFG.EXT_MAX_FIELDS) return;
     if (Object.prototype.hasOwnProperty.call(props, key)) return;
     props[key] = value;
     n++;

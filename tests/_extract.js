@@ -125,4 +125,13 @@ const i18nCore = new Function(between("/* ================= Idiomas de la interf
   + "\nreturn { tr, trn, trc, N_, UI_LANGS, I18N_DICT, registerLang, setUiLang };")();
 Object.assign(globalThis, { tr: i18nCore.tr, trn: i18nCore.trn, trc: i18nCore.trc, N_: i18nCore.N_, uiLang: "es" });
 
-module.exports = { HTML_PATH, script, fn, constDecl, between, i18nCore };
+/* The settings tunable in Propiedades (04-tunables.js) are read as
+   `CFG.<name>` wherever they are used, so every extracted function that
+   reads one needs the global. The DELIVERED table is installed with its
+   defaults; a suite that wants another value sets `CFG.X` and puts it back.
+   `tunablesCore` also gives the pure helpers to tests/tunables.js. */
+const tunablesCore = new Function(between("/* ================= Tunable settings", "/* ================= Iconos MDI empotrados")
+  + "\nreturn { TUNABLES, TUNABLES_TABS, TUNABLES_SCHEMA, CFG, validTunables, tunableOverrides, tunableValid, tunableShown, tunableStored };")();
+globalThis.CFG = tunablesCore.CFG;
+
+module.exports = { HTML_PATH, script, fn, constDecl, between, i18nCore, tunablesCore };

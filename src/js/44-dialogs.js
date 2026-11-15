@@ -60,7 +60,7 @@ function toggleLog() {
   msgLogUnseen = 0;
   refreshLogButton();
   logDialog.hidden = false;
-  clampToViewport(logBox);
+  fitInViewport(logBox);
   focusDialog(logBox);
   /* Con lo más reciente abajo, hay que bajar el scroll o habría que
      desplazarse a mano justo a lo que se viene a consultar.          */
@@ -100,8 +100,6 @@ document.getElementById("log-copy").addEventListener("click", () => {
    `urlBox` se usa en ese bucle, que corre al EVALUAR el archivo, y
    declararlo por debajo reventaría al cargar por zona muerta temporal
    —el mismo tropiezo que ya costó una tarde con `descBody`—.        */
-const URL_TIMEOUT = 20000;                 /* tope de respuesta        */
-const URL_MAX_BYTES = 100 * 1024 * 1024;   /* tope de descarga         */
 
 const urlDialog = document.getElementById("url-dialog");
 const urlBox = urlDialog.querySelector(".dlg-box");
@@ -158,7 +156,7 @@ function openUrlDialog() {
   urlReady = null;
   setUrlState("inicial");
   urlDialog.hidden = false;
-  clampToViewport(urlBox);
+  fitInViewport(urlBox);
   focusDialog(urlBox);
   urlInput.focus();
   /* Seleccionado, no borrado: lo normal al reabrir es corregir una
@@ -174,7 +172,7 @@ function openUrlDialog() {
    contesta, y convertiría en fallo lo que ahora funciona; y las cookies
    del usuario no tienen nada que hacer en una descarga hacia un tercero.
    Es justo el cambio «inocente» que alguien haría más adelante.      */
-async function fetchRemoteFile(url, signal, onBytes, max = URL_MAX_BYTES) {
+async function fetchRemoteFile(url, signal, onBytes, max = CFG.URL_MAX_BYTES) {
   const resp = await fetch(url, { signal, credentials: "omit", redirect: "follow" });
   if (!resp.ok) throw new Error(tr("No se pudo descargar: {why}.", { why: describeHttp(resp.status) }));
 
@@ -256,12 +254,12 @@ async function runUrlFetch() {
   urlReady = null;
   const seq = ++urlSeq;
   const ctrl = urlAbort = new AbortController();
-  const timer = setTimeout(() => ctrl.abort("timeout"), URL_TIMEOUT);
+  const timer = setTimeout(() => ctrl.abort("timeout"), CFG.URL_TIMEOUT);
   setUrlState("descargando", tr("Descargando…"));
   try {
     const bytes = await fetchRemoteFile(svc ? svc.base + "?f=json" : url, ctrl.signal,
       n => { if (seq === urlSeq) setUrlState("descargando", tr("Descargando… {size}", { size: fmtBytes(n) })); },
-      svc ? ARCGIS_JSON_MAX : URL_MAX_BYTES);
+      svc ? ARCGIS_JSON_MAX : CFG.URL_MAX_BYTES);
     if (seq !== urlSeq) return; /* superada o cancelada: no pinta nada */
     if (!bytes.length) { setUrlState("error", tr("La descarga ha llegado vacía (0 bytes)."), true); return; }
     if (svc) {
@@ -302,7 +300,7 @@ async function runUrlFetch() {
        distinguen por el motivo del abort.                            */
     if (err.name === "AbortError") {
       if (ctrl.signal.reason === "timeout") {
-        setUrlState("error", tr("El servidor ha tardado más de {seconds} s en responder.", { seconds: URL_TIMEOUT / 1000 }), true);
+        setUrlState("error", tr("El servidor ha tardado más de {seconds} s en responder.", { seconds: CFG.URL_TIMEOUT / 1000 }), true);
       } else {
         setUrlState("inicial", tr("Descarga cancelada."));
       }
@@ -426,7 +424,7 @@ function openShCredsDialog() {
   shInput.value = shInstanceId || "";
   shErrorEl.hidden = true;
   shDialog.hidden = false;
-  clampToViewport(shBox);
+  fitInViewport(shBox);
   focusDialog(shBox);
   shInput.focus();
   shInput.select();
@@ -502,7 +500,7 @@ function openUserBaseDialog(id) {
   $id("user-base-accept").textContent = rec ? tr("Aceptar") : tr("Añadir");
   showUserBaseType(userBaseType());
   userBaseDialog.hidden = false;
-  clampToViewport(userBaseBox);
+  fitInViewport(userBaseBox);
   focusDialog(userBaseBox);
   (rec ? userBaseNameInput : userBaseUrlInput).focus();
 }
@@ -547,7 +545,7 @@ function openUserBaseDeleteConfirm(id) {
   $id("user-base-delete-text").textContent = tr("Se eliminará la capa base «{name}» y se olvidará su dirección. No se puede deshacer.",
     { name: st.def.name });
   userBaseDeleteDialog.hidden = false;
-  clampToViewport(userBaseDeleteBox);
+  fitInViewport(userBaseDeleteBox);
   focusDialog(userBaseDeleteBox);
 }
 function closeUserBaseDeleteConfirm() {
@@ -618,8 +616,14 @@ descPinBtn.addEventListener("click", () => toggleInfoPin(descLayer));
    inline values changed), a moment later so a resize gesture writes once. */
 const INFO_BOX_SAVE_MS = 400;
 const inlinePx = v => (v ? parseFloat(v) : null);
+/* The place the USER chose (a drag of the title, or the saved one restored at
+   boot), kept apart from the inline left/top: fitInViewport moves the card
+   inside a window smaller than when it was saved, and that forced place must
+   not overwrite the chosen one, or a bigger window later would not get it
+   back. */
+let infoBoxPlace = null; /* { left, top } | null */
 const infoBoxGeometry = () => ({
-  left: inlinePx(descBox.style.left), top: inlinePx(descBox.style.top),
+  left: infoBoxPlace ? infoBoxPlace.left : null, top: infoBoxPlace ? infoBoxPlace.top : null,
   width: inlinePx(descBox.style.width), height: inlinePx(descBox.style.height)
 });
 let infoBoxSaved = null;
@@ -633,15 +637,35 @@ function saveInfoBoxSoon() {
     dbSaveInfoBox(g).catch(() => { /* not kept: the next change tries again */ });
   }, INFO_BOX_SAVE_MS);
 }
-descBox.querySelector("h2").addEventListener("pointerup", saveInfoBoxSoon);
+descBox.querySelector("h2").addEventListener("pointerup", () => {
+  if (descBox.style.left) infoBoxPlace = { left: inlinePx(descBox.style.left), top: inlinePx(descBox.style.top) };
+  saveInfoBoxSoon();
+});
+/* A size change: the user's resize handle (saved), or the content growing as
+   the card follows another layer (nothing to save). Either way the card must
+   stay whole inside the window: when only its top is fixed, a taller card
+   would hang below the bottom edge. */
 new ResizeObserver(() => {
-  if (!descDialog.hidden && (descBox.style.width || descBox.style.height)) saveInfoBoxSoon();
+  if (descDialog.hidden) return;
+  fitInViewport(descBox);
+  if (descBox.style.width || descBox.style.height) saveInfoBoxSoon();
 }).observe(descBox);
+/* The card back at the user's place and then fitted into the window: when it
+   opens and when the browser is resized, so a window that grows again gives
+   back the place a smaller one had forced. */
+function placeInfoBox() {
+  if (infoBoxPlace) {
+    descBox.style.left = `${infoBoxPlace.left}px`;
+    descBox.style.top = `${infoBoxPlace.top}px`;
+  }
+  fitInViewport(descBox);
+}
 /* At boot (99-boot.js): the same inline styles makeDialogMovable and the
    resize handle would have written */
 function applyInfoBox(g) {
   infoBoxSaved = g;
   if (g.left !== null) {
+    infoBoxPlace = { left: g.left, top: g.top };
     descBox.style.position = "fixed";
     descBox.style.margin = "0";
     descBox.style.left = `${g.left}px`;
@@ -923,8 +947,9 @@ setupDialog(logBox, { modal: true });
 setupDialog(urlBox, { modal: true });
 setupDialog(restoreBox, { modal: true });
 window.addEventListener("resize", () => {
-  /* a moved dialog must not fall off-screen */
-  for (const box of [styleBox, iconBox, descBox, shortcutsBox, ktpBox, kdpBox, gnpBox, propsBox, shBox, userBaseBox, userBaseDeleteBox, pointsBox, logBox, urlBox]) clampToViewport(box);
+  /* a moved window stays whole inside the browser window (hidden ones are
+     fitted when they open: their size cannot be measured now) */
+  for (const box of floatingBoxes) if (box === descBox) placeInfoBox(); else fitInViewport(box);
   /* the popover's anchor button may have moved too; closing is simpler
      and less confusing than reclamping a stale position              */
   if (!colorPicker.hidden) closeColorPicker();
@@ -1321,7 +1346,7 @@ function openStyleDialog(li, { isNew = false, focus = true } = {}) {
   renderStyleAttrs();
   showStyleTab("styles"); /* siempre abre en Estilos, no recuerda la última */
   styleDialog.hidden = false;
-  clampToViewport(styleBox);
+  fitInViewport(styleBox);
   focusDialog(styleBox, focus);
   /* Última: styleTargets/styleKindOpen ya están fijados y el diálogo ya
      está visible, que es justo lo que styleDialogShows comprueba.     */
@@ -1359,7 +1384,7 @@ function syncStyleTools() {
   const several = styleTargets.length > 1;
   const hasGeometry = styleTargets.some(t => subtreeBounds(t).isValid());
   styleFocusBtn.disabled = !hasGeometry;
-  set(styleFocusBtn, hasGeometry ? tr("Centrar la vista aqu\u00ED y acercar (zoom {zoom})", { zoom: FOCUS_ZOOM })
+  set(styleFocusBtn, hasGeometry ? tr("Centrar la vista aqu\u00ED y acercar (zoom {zoom})", { zoom: CFG.FOCUS_ZOOM })
     : several ? tr("Estas capas no tienen geometr\u00EDa que enfocar.") : tr("Esta capa no tiene geometr\u00EDa que enfocar."));
   set(styleDeleteBtn, tr("Borrar"));
   styleDeleteBtn.hidden = styleIsNew;
@@ -1394,7 +1419,7 @@ function openDeleteConfirm(items) {
   /* textContent: los nombres vienen del archivo */
   $id("delete-confirm-text").textContent = tr("Se borrar\u00E1n {n} capas: {names}. Se puede deshacer con Ctrl+Z.", { n: items.length, names });
   deleteConfirmDialog.hidden = false;
-  clampToViewport(deleteConfirmBox);
+  fitInViewport(deleteConfirmBox);
   focusDialog(deleteConfirmBox);
 }
 function closeDeleteConfirm() {
@@ -1626,11 +1651,11 @@ const PROFILE_MAX_DEFAULT = 10 * 1852;
 const PROFILE_MAX_MIN = 100;
 const PROFILE_MAX_MAX = 100 * 1852;
 let profileMaxM = PROFILE_MAX_DEFAULT;
-/* Frecuencia (MHz) con la que se calcula el elipsoide de Fresnel del
-   perfil de una ruta (63-route-profile.js): ajuste global, en la pestaña
-   «Frecuencias» de Propiedades. 1090 MHz de partida. Va aquí y no en el
-   archivo del perfil porque Propiedades (43) la lee y el perfil carga
-   DESPUÉS (zona muerta temporal).                                      */
+/* Frequency (MHz) of the Fresnel ellipsoid of a route profile
+   (63-route-profile.js): a global setting, in the «Elevación y perfil» tab
+   of Propiedades. 1090 MHz by default. It lives here and not in the
+   profile's file because Propiedades (43) reads it and the profile loads
+   AFTER (temporal dead zone).                                           */
 const FRESNEL_FREQ_DEFAULT = 1090;
 const FRESNEL_FREQ_MIN = 1, FRESNEL_FREQ_MAX = 300000;
 let fresnelFreqMHz = FRESNEL_FREQ_DEFAULT;
@@ -1957,7 +1982,7 @@ $id("icon-preview-btn").addEventListener("click", () => {
   pendingIcon = styleDraft.icon;
   buildIconGrid(colorOf($id("mk-color")));
   iconPicker.hidden = false;
-  clampToViewport(iconBox);
+  fitInViewport(iconBox);
   focusDialog(iconBox);
 });
 function cancelIconPicker() {

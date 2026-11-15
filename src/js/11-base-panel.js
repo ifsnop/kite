@@ -382,8 +382,6 @@ function validUserBases(list) {
   return out;
 }
 
-/* WMS tile requests and the GetCapabilities of a user WMS */
-const CUSTOM_WMS_TIMEOUT = 15000;
 /* A user server may nest its layers in groups (the group titles already
    label their children); those hanging straight from the root go here. */
 const CUSTOM_WMS_OPTS = { exclude: new Set(), rootGroup: N_("Capas del servidor") };
@@ -517,7 +515,7 @@ async function fetchUserWmsCatalog(def) {
   src.err = null;
   const discovering = (async () => {
     const r = await fetch(customWmsCapabilitiesUrl(base),
-      { signal: AbortSignal.timeout(CUSTOM_WMS_TIMEOUT) });
+      { signal: AbortSignal.timeout(CFG.CUSTOM_WMS_TIMEOUT) });
     const txt = await r.text();
     /* The OGC error may travel in the body even with HTTP 200 */
     const ex = parseWmsServiceException(txt);

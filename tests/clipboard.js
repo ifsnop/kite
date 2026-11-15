@@ -99,10 +99,9 @@ ok(/format !== EXPORT_FORMAT/.test(listener) && /doc\.schema !== TREE_SCHEMA/.te
   "comprueba las dos versiones antes de reconstruir nada");
 
 /* ---------- Tope de tamaño ---------- */
-const cap = constDecl("CLIPBOARD_MAX");
-ok(/5 \* 1024 \* 1024/.test(cap), "hay un tope de tamaño para el portapapeles del sistema: " + cap.trim());
+ok(CFG.CLIPBOARD_MAX === 5 * 1024 * 1024, "hay un tope de tamaño para el portapapeles del sistema (5 MB de partida): " + CFG.CLIPBOARD_MAX);
 const copyFn = fn("copyToSystemClipboard");
-ok(/txt\.length > CLIPBOARD_MAX/.test(copyFn), "y se comprueba antes de escribir");
+ok(/txt\.length > CFG\.CLIPBOARD_MAX/.test(copyFn), "y se comprueba antes de escribir");
 ok(/return;/.test(copyFn) && /navMessage/.test(copyFn),
   "por encima se avisa y se sigue: el portapapeles interno aún funciona en esta pestaña");
 /* Un fallo al escribir no puede tumbar el copiado interno */

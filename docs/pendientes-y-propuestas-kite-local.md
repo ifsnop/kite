@@ -49,9 +49,9 @@ La navegación del árbol con teclado está hecha, pero **no tiene equivalente t
 
 Leaflet y JSZip siguen cargándose desde una red de distribución al abrir la página (el service worker las guarda tras la primera visita, y proj4, geotiff.js y html2canvas se piden solo cuando hacen falta). Para un despliegue controlado sin red hay que vendorizar esas librerías (el README lo menciona). El código no lo impide, pero no hay un modo de construcción que lo haga.
 
-### 1.8 Límites de recursos no configurables
+### 1.8 Resource limits that are still fixed
 
-Los topes de importación (2000 entradas y razón de compresión de un KMZ, 100 000 elementos de un shapefile, 100 000 entidades de un servicio ArcGIS…) y el de coincidencias que el filtro del árbol construye de una vez (300, `FILTER_BUILD_MAX`) son constantes del código. Solo la longitud máxima de un perfil y el tamaño máximo de un KMZ descomprimido se ajustan en Propiedades.
+Most import limits, timeouts and retries are tunable in Propiedades since the tunable-settings tabs (`04-tunables.js`). Still constants in the code, on purpose for now: the entities fetched from an ArcGIS service (100,000, `ARCGIS_MAX_FEATURES`) and its catalogue limits, the response caps of the Cadastre and Wikipedia, and how many matches the tree filter builds at once (300, `FILTER_BUILD_MAX`). Anything copied at load time (`MAX_ZOOM`, `ELEV_WINDOW`, the refresh intervals) cannot become a setting without rebuilding what holds the copy.
 
 ### 1.9 Cuadro de límites del manual contrastado con el código
 

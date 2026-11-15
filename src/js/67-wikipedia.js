@@ -34,12 +34,9 @@ const WIKIPEDIA_RADIUS_MIN_M = 10;
 const WIKIPEDIA_RADIUS_MAX_M = 10000;
 /* The nearest N. In the centre of a big city 100 articles fit in ~300 m: the
    radius is a ceiling, not a promise of coverage (docs/pendientes). */
-const WIKIPEDIA_LIMIT = 100;
 const WIKIPEDIA_EXTRACT_CHUNK = 20; /* the API's cap for `exlimit` */
-const WIKIPEDIA_TIMEOUT = 15000;
 /* The service answers "search is too busy" (HTTP 200 with an `error` object)
    roughly one request in three at peak: that is retried like a 503. */
-const WIKIPEDIA_RETRIES = 3;
 const WIKIPEDIA_RETRY_DELAYS = [1000, 2000, 3000];
 const WIKIPEDIA_MAX_BYTES = 2 * 1024 * 1024;
 const WIKIPEDIA_MAX_TITLE = 255;
@@ -88,7 +85,7 @@ function wikipediaGeoUrl(lang, latlng, radius) {
   }
   const q = new URLSearchParams({
     action: "query", list: "geosearch", gscoord: `${lat.toFixed(6)}|${lng.toFixed(6)}`,
-    gsradius: String(radius), gslimit: String(WIKIPEDIA_LIMIT),
+    gsradius: String(radius), gslimit: String(CFG.WIKIPEDIA_LIMIT),
     format: "json", formatversion: "2", origin: "*"
   });
   return `${WIKIPEDIA_APIS[wikipediaLang(lang)]}?${q}`;
@@ -170,7 +167,7 @@ function parseWikipediaGeosearch(json) {
     if (!a || seen.has(a.pageid)) { skipped++; continue; }
     seen.add(a.pageid);
     articles.push(a);
-    if (articles.length >= WIKIPEDIA_LIMIT) break;
+    if (articles.length >= CFG.WIKIPEDIA_LIMIT) break;
   }
   return { articles, skipped };
 }
@@ -204,7 +201,7 @@ function wikipediaDistance(meters, unit) {
    summaries that fail, so the user learns the cause and not just the count) */
 function wikipediaWhy(err) {
   if (err && err.name === "TimeoutError") {
-    return tr("el servicio ha tardado más de {seconds} s en responder", { seconds: WIKIPEDIA_TIMEOUT / 1000 });
+    return tr("el servicio ha tardado más de {seconds} s en responder", { seconds: CFG.WIKIPEDIA_TIMEOUT / 1000 });
   }
   if (err instanceof TypeError) {
     return netFailText(tr("error de red, o el servicio no admite consultas desde el navegador (CORS)"));
@@ -245,7 +242,7 @@ function wikipediaCardHtml(lang, article, extract, distance) {
    transient (`withElevRetries`). The response is read as bytes with a cap. */
 function wikipediaGet(url) {
   return withElevRetries(async () => {
-    const resp = await fetch(url, { credentials: "omit", signal: AbortSignal.timeout(WIKIPEDIA_TIMEOUT) });
+    const resp = await fetch(url, { credentials: "omit", signal: AbortSignal.timeout(CFG.WIKIPEDIA_TIMEOUT) });
     if (!resp.ok) {
       const err = new Error(describeHttp(resp.status));
       err.status = resp.status;
@@ -256,7 +253,7 @@ function wikipediaGet(url) {
     try { json = JSON.parse(new TextDecoder("utf-8").decode(bytes)); }
     catch { throw new Error(tr("respuesta ilegible")); }
     return wikipediaCheck(json);
-  }, { retries: WIKIPEDIA_RETRIES, delays: WIKIPEDIA_RETRY_DELAYS });
+  }, { retries: CFG.WIKIPEDIA_RETRIES, delays: WIKIPEDIA_RETRY_DELAYS });
 }
 
 const wikipediaInFlight = new Set();
@@ -363,7 +360,7 @@ async function queryWikipediaAt(latlng) {
       "{n} artículo de Wikipedia añadido en «{folder}»; pulse 🔍 en la carpeta para verlo.",
       "{n} artículos de Wikipedia añadidos en «{folder}»; pulse 🔍 en la carpeta para verlos.",
       { folder: folder._name }), { tone: "info" });
-    if (articles.length >= WIKIPEDIA_LIMIT) {
+    if (articles.length >= CFG.WIKIPEDIA_LIMIT) {
       navMessage(tr("Se muestran los {n} artículos más cercanos; puede haber más a menos de {distance}.",
         { n: articles.length, distance: reach }), { tone: "info" });
     }

@@ -13,12 +13,11 @@
    que no encaja.                                                     */
 
 const SHP_PARTS = new Set(["shp", "dbf", "prj", "cpg", "shx"]);
-/* Cotas ante un archivo ajeno: lo leído (.shp + .dbf) y los elementos.
-   Cada elemento es una capa de Leaflet y una fila del árbol; el árbol
-   se ha medido con unos 8.000 nodos, así que cien mil ya es un tope de
-   «esto no es para este visor», no de rendimiento fino.              */
-const SHP_MAX_BYTES = 300 * 1024 * 1024;
-const SHP_MAX_FEATURES = 100000;
+/* The limits against a foreign file, what is read (.shp + .dbf,
+   CFG.SHP_MAX_BYTES) and the items (CFG.SHP_MAX_FEATURES), are tunable in
+   Propiedades. Each item is a Leaflet layer and a tree row; the tree was
+   measured with some 8,000 nodes, so the default of a hundred thousand is
+   a limit of «this is not for this viewer», not fine performance tuning. */
 
 /* "dir/Carreteras.SHP" → { key: "dir/carreteras", ext: "shp" } */
 function splitShpName(name) {
@@ -204,8 +203,8 @@ const shpPartSize = part => (typeof part.size === "number" ? part.size
 async function readShapefile(group, report) {
   if (typeof shapefile === "undefined") throw new Error(tr("no se pudo cargar el soporte de shapefiles"));
   const bytes = shpPartSize(group.shp) + (group.dbf ? shpPartSize(group.dbf) : 0);
-  if (bytes > SHP_MAX_BYTES) {
-    throw new Error(tr("el shapefile es demasiado grande ({size}, tope {max})", { size: fmtBytes(bytes), max: fmtBytes(SHP_MAX_BYTES) }));
+  if (bytes > CFG.SHP_MAX_BYTES) {
+    throw new Error(tr("el shapefile es demasiado grande ({size}, tope {max})", { size: fmtBytes(bytes), max: fmtBytes(CFG.SHP_MAX_BYTES) }));
   }
   const shp = await shpPartBytes(group.shp);
   const dbf = group.dbf ? await shpPartBytes(group.dbf) : null;
@@ -236,7 +235,7 @@ async function readShapefile(group, report) {
   for (;;) {
     const r = await source.read();
     if (r.done) break;
-    if (features.length >= SHP_MAX_FEATURES) { skipped++; continue; }
+    if (features.length >= CFG.SHP_MAX_FEATURES) { skipped++; continue; }
     const f = r.value;
     f.properties = shpPropsToPlain(f.properties);
     if (f.geometry && project) {
@@ -249,7 +248,7 @@ async function readShapefile(group, report) {
     }
   }
   if (skipped) {
-    report.warn(tr("{skipped} elemento(s) omitidos: el tope es {shpMaxFeatures} por shapefile", { skipped, shpMaxFeatures: SHP_MAX_FEATURES }));
+    report.warn(tr("{skipped} elemento(s) omitidos: el tope es {shpMaxFeatures} por shapefile", { skipped, shpMaxFeatures: CFG.SHP_MAX_FEATURES }));
   }
   return { type: "FeatureCollection", features };
 }

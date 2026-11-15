@@ -8,6 +8,15 @@
     if (theme !== null) applyUiTheme(theme);
   } catch { /* automático */ }
 
+  /* The settings tunable in Propiedades (04-tunables.js), early: the rest
+     of the boot (messages, the tree, the info card) already reads them. */
+  try {
+    Object.assign(CFG, await dbLoadTunables());
+  } catch { /* the defaults */ }
+  try {
+    advancedPrefs = await dbLoadAdvancedPrefs();
+  } catch { /* advanced tabs hidden */ }
+
   /* En un móvil, el aviso de «mejor desde un ordenador» (o lo que se
      eligió la vez anterior): antes que nada para que no se vea el panel
      de 400 px desbordado mientras se lee el resto.                     */

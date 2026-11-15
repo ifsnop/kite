@@ -299,11 +299,28 @@ scenario("registro-avisos.png", "2.1", async out => {
 });
 
 scenario("propiedades-preferencias.png", "2.1", async out => {
+  const { ctx, page } = await openApp({ viewport: { width: 1440, height: 1300 } });
+  await page.click("#gnp-editor-btn");
+  await page.waitForSelector("#props-dialog:not([hidden])");
+  /* The box is resizable (resize: both): taller, to see every row down to
+     «Preferencias avanzadas» */
+  await page.evaluate(() => { document.querySelector("#props-dialog .dlg-box").style.height = "1060px"; });
+  await page.waitForTimeout(200);
+  await dialog(page, out, "props-dialog");
+  await ctx.close();
+});
+
+/* One of the advanced tabs (shown with «Preferencias avanzadas», in red),
+   with one value changed (its label in bold) */
+scenario("propiedades-ajustes.png", "2.1", async out => {
   const { ctx, page } = await openApp({ viewport: { width: 1440, height: 1100 } });
   await page.click("#gnp-editor-btn");
   await page.waitForSelector("#props-dialog:not([hidden])");
-  /* La caja se redimensiona (resize: both): más alta, para ver todas las filas */
-  await page.evaluate(() => { document.querySelector("#props-dialog .dlg-box").style.height = "860px"; });
+  await page.check("#props-advanced");
+  await page.click("#props-tab-btn-files");
+  await page.fill("#tunable-SHP_MAX_BYTES", "600");
+  await page.dispatchEvent("#tunable-SHP_MAX_BYTES", "change");
+  await page.evaluate(() => { document.querySelector("#props-dialog .dlg-box").style.height = "820px"; });
   await page.waitForTimeout(200);
   await dialog(page, out, "props-dialog");
   await ctx.close();

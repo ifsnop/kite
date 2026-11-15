@@ -32,18 +32,11 @@ const geocalcTabs = {
 };
 let geocalcActiveTab = "elev";
 
-/* Cada pestaña tiene una altura distinta. Sin arrastrar, la ventana está
-   anclada abajo y crece hacia arriba sola; pero una vez arrastrada
-   queda fijada POR ARRIBA (makeDialogMovable) y una pestaña más alta
-   saca el pie de la pantalla. `clampToViewport` no sirve aquí: solo
-   garantiza que el título sea alcanzable, no que quepa el cuadro. Se
-   sube lo justo para que el borde inferior se vea.                     */
-function fitGeocalcBottom() {
-  if (!geocalcBox.style.top) return; /* nunca movida: el ancla ya lo resuelve */
-  const r = geocalcBox.getBoundingClientRect();
-  const top = Math.max(0, Math.min(r.top, window.innerHeight - r.height - 8));
-  geocalcBox.style.top = `${top}px`;
-}
+/* Each tab has a different height. Not dragged, the window is anchored at
+   the bottom and grows upwards by itself; once dragged it is fixed BY ITS
+   TOP (makeDialogMovable) and a taller tab would push its foot off the
+   screen, so showing a tab fits the whole box inside the window again
+   (fitInViewport, which also does nothing for a window never moved). */
 function showGeocalcTab(tab) {
   geocalcActiveTab = tab;
   for (const [key, { btn, panel }] of Object.entries(geocalcTabs)) {
@@ -52,7 +45,7 @@ function showGeocalcTab(tab) {
     btn.setAttribute("aria-selected", String(active));
     panel.hidden = !active;
   }
-  fitGeocalcBottom();
+  fitInViewport(geocalcBox);
   geocalcTabs[tab].calc();
 }
 for (const [key, { btn, panel, calc }] of Object.entries(geocalcTabs)) {
@@ -262,8 +255,7 @@ function toggleGeocalcDialog() {
   geocalcDialog.hidden = !geocalcDialog.hidden;
   if (geocalcDialog.hidden) { releaseFocus(); return; }
   seedGeocalcUnits();
-  clampToViewport(geocalcBox);
-  fitGeocalcBottom();
+  fitInViewport(geocalcBox);
   focusDialog(geocalcBox);
   geocalcTabs[geocalcActiveTab].calc(); /* el vector GPS ya trae datos de partida */
 }

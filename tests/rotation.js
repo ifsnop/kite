@@ -29,7 +29,7 @@ const ok = (c, m) => { if (!c) { console.error("FAIL: " + m); process.exitCode =
 const near = (a, b, eps = 1e-9) => Math.abs(a - b) < eps;
 
 const R = new Function(fn("pointerAngleDeg") + "\n" + fn("dragBearing") + "\n"
-  + constDecl("ROTATE_DEG_PER_PX") + "\n" + fn("pivotDragBearing") + "\n"
+  + fn("pivotDragBearing") + "\n"
   + fn("clipSegmentToRect") + "\n" + fn("clampRotatedDragOffset") + "\n"
   + fn("rotateXY") + "\n" + fn("rotatedTransformCss") + "\n" + fn("enclosingBox")
   + "\nreturn { pointerAngleDeg, dragBearing, pivotDragBearing, clipSegmentToRect, clampRotatedDragOffset,"

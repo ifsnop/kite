@@ -387,7 +387,7 @@ function makeActions(li, sortable, styleable, layer, focusable = styleable, { fi
   }
   if (sortable) btn("\u25A6", tr("Tabla de atributos de esta carpeta"), "", () => openAttrTable(li));
   if (focusable) {
-    btn("\uD83D\uDD0D", tr("Centrar la vista aqu\u00ED y acercar (zoom {zoom})", { zoom: FOCUS_ZOOM }), "", () => {
+    btn("\uD83D\uDD0D", tr("Centrar la vista aqu\u00ED y acercar (zoom {zoom})", { zoom: CFG.FOCUS_ZOOM }), "", () => {
       /* si el nodo forma parte de la selección, la lupa encuadra el CONJUNTO
          (como el × borra toda la selección y el 🎨 abre las propiedades de
          todas); fuera de ella, solo esta fila                              */
@@ -612,9 +612,8 @@ function highlightNode(li) {
 
 /* Lo que NO es asa: controles que se PULSAN, no se arrastran */
 const DRAG_NOT_HANDLE = ".caret, input, button, .actions";
-/* Píxeles que hay que recorrer para que esto sea un arrastre y no un
-   clic con pulso. Por debajo, el gesto sigue siendo un clic.        */
-const DRAG_THRESHOLD_PX = 6;
+/* CFG.DRAG_THRESHOLD_PX: the pixels to travel for this to be a drag and
+   not a shaky click. Below it, the gesture is still a click.        */
 
 let dragPress = null;   /* pulsación en curso que podría ser arrastre */
 let dropTarget = null;  /* { row, li, zone } bajo el puntero ahora */
@@ -641,7 +640,7 @@ function cancelTreeDrag() {
 document.addEventListener("pointermove", e => {
   if (!dragPress) return;
   if (!dragItems) {
-    if (Math.hypot(e.clientX - dragPress.x, e.clientY - dragPress.y) < DRAG_THRESHOLD_PX) return;
+    if (Math.hypot(e.clientX - dragPress.x, e.clientY - dragPress.y) < CFG.DRAG_THRESHOLD_PX) return;
     /* Arrastrar un nodo seleccionado arrastra toda la selección;
        arrastrar uno no seleccionado la descarta y lo lleva solo.    */
     if (selection.has(dragPress.li)) dragItems = movableSelection();

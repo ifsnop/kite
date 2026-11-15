@@ -16,7 +16,7 @@ const ok = (c, m) => { if (!c) { console.error("FAIL: " + m); process.exitCode =
 /* EXPORT_KIND y EXPORT_EXT viven en otro archivo del script: sin ellos,
    sniffJsonKind no sabría reconocer una carpeta exportada.           */
 const src = constDecl("EXPORT_KIND") + "\n" + constDecl("EXPORT_EXT") + "\n"
-  + constDecl("safeFileName") + "\n" + constDecl("KMZ_MAX_ENTRIES") + "\n"
+  + constDecl("safeFileName") + "\n"
   + between("/* ---------- Reconocimiento de lo descargado de una dirección",
             "/* ================= Acciones del panel");
 const api = new Function(src + `\nreturn { fileNameFromUrl, isZipSignature, sniffJsonKind,

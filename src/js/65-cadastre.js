@@ -10,8 +10,6 @@
 
 const CADASTRE_RCCOOR = "https://ovc.catastro.meh.es/ovcservweb/OVCSWLocalizacionRC/OVCCoordenadas.asmx/Consulta_RCCOOR";
 const CADASTRE_WFS = "https://ovc.catastro.meh.es/INSPIRE/wfsCP.aspx";
-const CADASTRE_TIMEOUT = 15000;
-const CADASTRE_RETRIES = 2;
 const CADASTRE_RETRY_DELAYS = [1000, 2000];
 /* Una parcela real pesa unos pocos KB; las rústicas enormes, decenas */
 const CADASTRE_MAX_BYTES = 5 * 1024 * 1024;
@@ -204,14 +202,14 @@ async function readCapped(resp, max) {
    reintentos solo de lo pasajero (`withElevRetries`).                 */
 function cadastreGet(url) {
   return withElevRetries(async () => {
-    const resp = await fetch(url, { credentials: "omit", signal: AbortSignal.timeout(CADASTRE_TIMEOUT) });
+    const resp = await fetch(url, { credentials: "omit", signal: AbortSignal.timeout(CFG.CADASTRE_TIMEOUT) });
     if (!resp.ok) {
       const err = new Error(describeHttp(resp.status));
       err.status = resp.status;
       throw err;
     }
     return parseCadastreXml(decodeXmlBytes(await readCapped(resp, CADASTRE_MAX_BYTES)));
-  }, { retries: CADASTRE_RETRIES, delays: CADASTRE_RETRY_DELAYS });
+  }, { retries: CFG.CADASTRE_RETRIES, delays: CADASTRE_RETRY_DELAYS });
 }
 
 const cadastreInFlight = new Set();
@@ -264,7 +262,7 @@ async function queryCadastralParcelAt(latlng) {
   } catch (err) {
     if (err.name === "AbortError") return;
     const why = err.name === "TimeoutError"
-      ? tr("el servicio ha tardado m\u00E1s de {seconds} s en responder", { seconds: CADASTRE_TIMEOUT / 1000 })
+      ? tr("el servicio ha tardado m\u00E1s de {seconds} s en responder", { seconds: CFG.CADASTRE_TIMEOUT / 1000 })
       : err instanceof TypeError
         ? netFailText(tr("error de red, o el servicio no admite consultas desde el navegador (CORS)"))
         : err.message;

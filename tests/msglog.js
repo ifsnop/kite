@@ -7,7 +7,7 @@
    modo que uno que no diera tiempo a leer se perdía para siempre.   */
 const { parseHTML } = require("linkedom");
 const { fn, between } = require("./_extract");
-const consts = between("const MSG_TIMEOUT", "function msgStamp");
+const consts = between("const msgLog", "function msgStamp");
 
 const { document } = parseHTML("<div id='nav-msg'></div><button id='log-btn'></button>");
 global.document = document;
@@ -26,7 +26,7 @@ const src = consts + [fn("msgStamp"), fn("logText"), fn("paintMsgLine"),
   + "\nfunction refreshLogButton() {}";
 const api = new Function("document",
   src + "\nreturn {msgStamp, logText, navMessage, clearNavMessage, msgLog,"
-      + " MSG_LOG_MAX, getUnseen: () => msgLogUnseen, setUnseen: v => { msgLogUnseen = v; }};")(document);
+      + " getUnseen: () => msgLogUnseen, setUnseen: v => { msgLogUnseen = v; }};")(document);
 const ok = (c, m) => { if (!c) { console.error("FAIL: " + m); process.exitCode = 1; } };
 
 const lines = () => [...msgEl.querySelectorAll(".nav-msg-line")];
@@ -112,8 +112,8 @@ ok(lines().length === 0 && api.msgLog.length === 1,
 
 /* ---------- Tope del registro ---------- */
 reset();
-for (let i = 0; i < api.MSG_LOG_MAX + 5; i++) api.navMessage("aviso " + i);
-ok(api.msgLog.length === api.MSG_LOG_MAX, "el registro se topa: " + api.msgLog.length);
+for (let i = 0; i < CFG.MSG_LOG_MAX + 5; i++) api.navMessage("aviso " + i);
+ok(api.msgLog.length === CFG.MSG_LOG_MAX, "el registro se topa: " + api.msgLog.length);
 ok(api.msgLog[0].text === "aviso 5", "al desbordar se pierde la MÁS ANTIGUA: " + api.msgLog[0].text);
 
 /* ---------- Entradas sin ver ---------- */

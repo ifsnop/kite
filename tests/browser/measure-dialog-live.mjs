@@ -110,7 +110,7 @@ const focus = await page.evaluate(async () => {
   const b = subtreeBounds(li);
   const mapBounds = map.getBounds();
   return {
-    zoomIsFocusZoom: map.getZoom() === FOCUS_ZOOM,
+    zoomIsFocusZoom: map.getZoom() === CFG.FOCUS_ZOOM,
     mapContainsMeasure: mapBounds.contains(b),
     /* Con margen del 20%, el encuadre del mapa debe ser visiblemente
        más ancho que la propia medición, no pegado a sus bordes.      */

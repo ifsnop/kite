@@ -300,11 +300,10 @@ map.getContainer().addEventListener("keydown", e => {
    compatibilidad (y con él el autodesplazamiento del navegador).
    Durante el gesto el cursor es una rosa de los vientos con su norte
    donde apunta el norte del mapa.                                     */
-const ROTATE_DEG_PER_PX = 0.5;
 
 /* Rumbo tras desplazar el puntero `dx` píxeles en horizontal */
 function pivotDragBearing(startBearing, dx) {
-  return dragBearing(startBearing, 0, dx * ROTATE_DEG_PER_PX);
+  return dragBearing(startBearing, 0, dx * CFG.ROTATE_DEG_PER_PX);
 }
 
 function roseCursor(bearing) {
@@ -476,25 +475,22 @@ map.getContainer().addEventListener("mouseleave", () => {
    flechas se cogen en CAPTURA y no se propagan: el `Keyboard` de
    Leaflet escucha en `document` y, si las viera, desplazaría dos veces
    (sus `+`/`-`/Escape siguen siendo suyos).                           */
-const KEY_PAN_STEP = 80;           /* px de un toque: el keyboardPanDelta de Leaflet */
-const KEY_PAN_SPEED = 400;         /* px/s al empezar a mantener */
-const KEY_PAN_MAX_SPEED = 1600;    /* px/s, tras la rampa */
 const KEY_PAN_ACCEL_MS = 500;      /* mantenida más que esto, acelera… */
 const KEY_PAN_RAMP_MS = 1000;      /* …hasta el tope en este tiempo */
-const KEY_PAN_SHIFT = 3;           /* Mayús: más rápido, como en Leaflet */
-const KEY_ZOOM_RATE = 3;           /* niveles/s mientras se mantiene */
 const KEY_PAN_DIRS = { ArrowLeft: [-1, 0], ArrowRight: [1, 0], ArrowUp: [0, -1], ArrowDown: [0, 1] };
 
-/* Velocidad (px/s) de una flecha mantenida `heldMs` */
+/* Speed (px/s) of an arrow held for `heldMs`. Both speeds are tunable: a
+   top speed set below the starting one never slows the pan down. */
 function keyPanSpeed(heldMs) {
-  if (heldMs <= KEY_PAN_ACCEL_MS) return KEY_PAN_SPEED;
+  if (heldMs <= KEY_PAN_ACCEL_MS) return CFG.KEY_PAN_SPEED;
   const k = Math.min(1, (heldMs - KEY_PAN_ACCEL_MS) / KEY_PAN_RAMP_MS);
-  return KEY_PAN_SPEED + (KEY_PAN_MAX_SPEED - KEY_PAN_SPEED) * k;
+  const top = Math.max(CFG.KEY_PAN_SPEED, CFG.KEY_PAN_MAX_SPEED);
+  return CFG.KEY_PAN_SPEED + (top - CFG.KEY_PAN_SPEED) * k;
 }
 /* Velocidad combinada en pantalla de las flechas vivas, `keys` =
    [[tecla, px/s], …]: dos a la vez dan diagonal, opuestas se anulan. */
 function keyPanVector(keys, shift) {
-  const f = shift ? KEY_PAN_SHIFT : 1;
+  const f = shift ? CFG.KEY_PAN_SHIFT : 1;
   let x = 0, y = 0;
   for (const [key, v] of keys) {
     const d = KEY_PAN_DIRS[key];
@@ -518,7 +514,6 @@ function keyZoomTarget(z0, z, dir, min, max) {
    fraccionario y la vista lo alcanza con frenada (WHEEL_EASE_MS) por el
    mismo camino del pellizco que Re/Av Pág; parada la rueda, se asienta
    en el nivel entero siguiente en la dirección del último giro.     */
-const WHEEL_PX_PER_LEVEL = 100;    /* px de rueda por nivel: una muesca (100–120 px) da uno */
 const WHEEL_EASE_MS = 200;         /* tiempo para alcanzar el objetivo de cada evento */
 const WHEEL_SETTLE_MS = 150;       /* del objetivo fraccionario al nivel entero */
 const WHEEL_IDLE_MS = 150;         /* sin rueda este rato, el gesto ha terminado */
@@ -529,7 +524,7 @@ const WHEEL_IDLE_MS = 150;         /* sin rueda este rato, el gesto ha terminado
    una rueda de líneas o páginas no salte varios de golpe.          */
 function wheelLevels(deltaY, deltaMode) {
   const px = deltaMode === 1 ? deltaY * 40 : deltaMode === 2 ? deltaY * 800 : deltaY;
-  return Math.max(-1, Math.min(1, -px / WHEEL_PX_PER_LEVEL));
+  return Math.max(-1, Math.min(1, -px / CFG.WHEEL_PX_PER_LEVEL));
 }
 /* Nivel ENTERO en que se asienta un zoom de rueda que va por z: el
    siguiente en la dirección `dir` (z ya entero se queda), en [min, max] */
@@ -584,10 +579,10 @@ const easeOutCubic = k => 1 - Math.pow(1 - k, 3);
       /* Soltada: si no llegó al paso de un toque, lo completa sin
          pasarse; si ya lo pasó, se para en seco.                     */
       const v = k.down ? keyPanSpeed(now - k.t0)
-        : Math.max(0, Math.min(KEY_PAN_SPEED, (KEY_PAN_STEP - k.traveled) / dt));
+        : Math.max(0, Math.min(CFG.KEY_PAN_SPEED, (CFG.KEY_PAN_STEP - k.traveled) / dt));
       k.traveled += v * dt;
       keys.push([key, v]);
-      if (!k.down && k.traveled >= KEY_PAN_STEP - 0.01) pan.delete(key);
+      if (!k.down && k.traveled >= CFG.KEY_PAN_STEP - 0.01) pan.delete(key);
     }
     const v = keyPanVector(keys, shift);
     panAcc.x += v.x * dt; panAcc.y += v.y * dt;
@@ -670,7 +665,7 @@ const easeOutCubic = k => 1 - Math.pow(1 - k, 3);
     const zm = zoom;
     const k = zm.dur ? Math.min(1, Math.max(0, now - zm.t0) / zm.dur) : 1;
     const z = zm.kind === "key"
-      ? clampZoom(zm.z0 + zm.dir * KEY_ZOOM_RATE * Math.max(0, now - zm.t0) / 1000)
+      ? clampZoom(zm.z0 + zm.dir * CFG.KEY_ZOOM_RATE * Math.max(0, now - zm.t0) / 1000)
       : k === 1 ? zm.goal : zm.from + (zm.goal - zm.from) * easeOutCubic(k);
     if (z !== zm.z) {
       zm.z = z;

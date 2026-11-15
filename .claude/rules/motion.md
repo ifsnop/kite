@@ -36,6 +36,6 @@ Salió de aplicar el skill `apple-design` al cromo de la aplicación. Es una her
 ### Lo que no se anima, a propósito
 
 - **Plegar y mostrar el panel de navegación**: cada fotograma obligaría a `invalidateSize()` del mapa con miles de capas en lienzo.
-- **El choque de un diálogo con el borde** (`clampToViewport`) y **la brújula** (`map-rotation.md`): lo que hay funciona y es más claro para una herramienta de trabajo.
+- **A window meeting the edge** (`clampToViewport` while dragging, `fitInViewport` when it opens or the browser is resized) and **la brújula** (`map-rotation.md`): lo que hay funciona y es más claro para una herramienta de trabajo.
 
 Probado en `tests/browser/motion.mjs` y, la regla de la anulación, en `tests/statics.js`.

@@ -7,7 +7,7 @@ const fonts = between("const GRID_FONT_BASE", "const elevGridGroups");
    webMercatorHalf→parseCoverageDescription) la necesita al evaluarse. */
 const elevWindow = between("const ELEV_WINDOW", "const ELEV_CELL");
 const consts = fonts + elevWindow
-  + between("const ELEV_RETRIES", "const demTimes")
+  + between("const ELEV_RETRY_DELAYS", "const demTimes")
   + between("const ELEV_GEO_CRS", "function toWebMercator")
   + between("const webMercatorHalf", "function parseCoverageDescription");
 /* Unidades y formato de alturas (51-geodesy.js): fmtCell/fmtDiff y el
@@ -29,7 +29,7 @@ const arrows = [
   between("const PROFILE_MAX_DEFAULT", "let profileMaxM"),
   between("const ALTITUDE_UNIT_KEY", "async function dbSaveAltitudeUnit"),
   between("const PROFILE_MAX_KEY", "async function dbSaveProfileMax"),
-  /* Frecuencia de Fresnel (Propiedades → Frecuencias) */
+  /* Fresnel frequency (Propiedades → «Elevación y perfil») */
   between("const FRESNEL_FREQ_DEFAULT", "let fresnelFreqMHz"),
   between("const FRESNEL_FREQ_KEY", "async function dbSaveFresnelFreq"),
   /* Perfil de una ruta (63-route-profile.js), solo lo puro */
@@ -62,7 +62,7 @@ const src = "const parserErrorText = () => null;\nconst toRad = d => d * Math.PI
 const apiExports = "\nreturn {parseWcsCapabilities, mdtCoverages, pickMdsCoverage, pickDeaDemCoverage," +
   " pickGeoCrs, pickElevFormat, parseCoverageDescription, pickFinestCoverage, describeElevChoice," +
   " validElevSources, ELEV_SOURCES, ELEV_SOURCE_DEFAULT, elevSourceById, elevNodeName," +
-  " isOutOfCoverage, parseOwsException, isRetryableElevError, withElevRetries, ELEV_RETRIES," +
+  " isOutOfCoverage, parseOwsException, isRetryableElevError, withElevRetries," +
   " parseAsciiGrid, gridFromRaster, pickWebMercator, webMercatorHalf, gridCellBounds, gridFontSize," +
   " gridIconSize, snapTile, latticeKey, ELEV_TILE_WEB, ELEV_TILE_GEO, ELEV_WINDOW, gridToLatLng," +
   " buildElevCells, elevCellHtml, elevCellTexts, elevCellPx, elevCellBand, ELEV_FONT_STEPS, elevZoomBand, isElevAlert, pointInCell, sessionStamp," +
@@ -72,7 +72,7 @@ const apiExports = "\nreturn {parseWcsCapabilities, mdtCoverages, pickMdsCoverag
   " nearestProfilePoint, PROFILE_CHUNK_CELLS, elevTileFactor, routeProfileKey, profilePointAt," +
   " validRouteProfile, profileTreeCells, clampProfileView, zoomProfileView, panProfileView," +
   " visibleProfilePoints, zoomRange, distDecimals, elevOutputCell, snapToCells, tileToCells, elevBandLat, packProfilePoints, unpackProfilePoints, PROFILE_MAX_PTS," +
-  " validFresnelFreq, FRESNEL_FREQ_SCHEMA, FRESNEL_FREQ_DEFAULT, FRESNEL_FREQ_MIN, FRESNEL_FREQ_MAX, elevCellZoomUp, elevLabelAnchor, fresnelRadius, PF_FRESNEL_ZONE, profileCurve, PF_CURVE_MODES, profileTowerSpan, profileLosEnds, PF_K_FACTOR, profileLimitApplies," +
+  " validFresnelFreq, FRESNEL_FREQ_SCHEMA, FRESNEL_FREQ_DEFAULT, FRESNEL_FREQ_MIN, FRESNEL_FREQ_MAX, elevCellZoomUp, elevLabelAnchor, fresnelRadius, profileCurve, PF_CURVE_MODES, profileTowerSpan, profileLosEnds, PF_K_FACTOR, profileLimitApplies," +
   " fmtTraceBytes, describeTraceGrid, describeTraceError};";
 const api = new Function("DOMParser", src + apiExports)(DOMParser);
 const ok=(c,m)=>{ if(!c){ console.error("FAIL: "+m); process.exitCode=1; } };
@@ -666,7 +666,7 @@ ok(api.sessionStamp(new Date(2026, 9, 5, 7, 3)) === "2026-10-05 07:03",
   ok(!api.isRetryableElevError(E({ status: 404 })) && !api.isRetryableElevError(E({ status: 400 })), "otro 4xx: no");
   ok(!api.isRetryableElevError(E({ owsCode: "InvalidSubsetting", status: 404 })), "fuera de cobertura es una respuesta: no");
   ok(!api.isRetryableElevError(E({ name: "AbortError" })), "cancelado por el usuario: no");
-  ok(api.ELEV_RETRIES >= 3, "al menos tres reintentos (pedido)");
+  ok(CFG.ELEV_RETRIES >= 3, "al menos tres reintentos (pedido)");
 }
 (async () => {
   const waits = [];
@@ -689,8 +689,8 @@ ok(api.sessionStamp(new Date(2026, 9, 5, 7, 3)) === "2026-10-05 07:03",
   ok(r.err && r.calls === 1, "fuera de cobertura: un solo intento");
   const tmo = Object.assign(new Error("t"), { name: "TimeoutError" });
   r = await run([tmo]);
-  ok(r.err && r.calls === 1 + api.ELEV_RETRIES && r.err.attempts === 1 + api.ELEV_RETRIES,
-     `siempre tiempo agotado: ${1 + api.ELEV_RETRIES} intentos y se rinde: ` + r.calls);
+  ok(r.err && r.calls === 1 + CFG.ELEV_RETRIES && r.err.attempts === 1 + CFG.ELEV_RETRIES,
+     `siempre tiempo agotado: ${1 + CFG.ELEV_RETRIES} intentos y se rinde: ` + r.calls);
 
   /* ---- Preferencias: unidad de altitud y límite del perfil ---- */
   ok(api.validAltitudeUnit({ v: api.ALTITUDE_UNIT_SCHEMA, unit: "ft" }) === "ft", "unidad de altitud válida");
@@ -955,7 +955,7 @@ ok(api.sessionStamp(new Date(2026, 9, 5, 7, 3)) === "2026-10-05 07:03",
     ok(e && e.kind === "mds" && e.a === 130 && e.b === 150, "torres en vértices intermedios: el dato más cercano: " + JSON.stringify(e));
     e = api.profileLosEnds([{ kind: "mds", points: pts(1, null, 3, null, 5) }, mdt], 10, 30);
     ok(e && e.a === 1 && e.b === 3 || e && e.a === 3 && e.b === 5, "un vértice en un hueco toma el vecino con dato: " + JSON.stringify(e));
-    /* ---- frecuencia guardada (Propiedades → Frecuencias) ---- */
+    /* ---- saved frequency (Propiedades → «Elevación y perfil») ---- */
     const vf = f => api.validFresnelFreq({ v: api.FRESNEL_FREQ_SCHEMA, f });
     ok(api.FRESNEL_FREQ_DEFAULT === 1090 && api.FRESNEL_FREQ_MIN === 1 && api.FRESNEL_FREQ_MAX === 300000, "frecuencia de Fresnel: 1090 MHz, de 1 a 300 000");
     ok(vf(1090) === 1090 && vf(1) === 1 && vf(300000) === 300000 && vf(2400.5) === 2400.5, "frecuencias válidas, extremos incluidos");
@@ -963,7 +963,7 @@ ok(api.sessionStamp(new Date(2026, 9, 5, 7, 3)) === "2026-10-05 07:03",
     ok(api.validFresnelFreq({ v: api.FRESNEL_FREQ_SCHEMA + 1, f: 1090 }) === null && api.validFresnelFreq(null) === null && api.validFresnelFreq(undefined) === null,
       "otra versión del registro, o ninguno: descartado");
     /* ---- elipsoide de Fresnel ---- */
-    ok(api.PF_FRESNEL_ZONE === 0.6, "zona de Fresnel del 60 %");
+    ok(CFG.PF_FRESNEL_ZONE === 0.6, "zona de Fresnel del 60 %");
     const lambda = 299792458 / 1090e6;
     ok(Math.abs(api.fresnelRadius(5000, 10000, 1090) - Math.sqrt(lambda * 5000 * 5000 / 10000)) < 1e-9
       && Math.abs(api.fresnelRadius(5000, 10000, 1090) - 26.22) < 0.01, "centro de 10 km a 1090 MHz: ~26,2 m: " + api.fresnelRadius(5000, 10000, 1090));
@@ -991,7 +991,7 @@ ok(api.sessionStamp(new Date(2026, 9, 5, 7, 3)) === "2026-10-05 07:03",
       "tiempo agotado: cuánto y cuándo se reintenta");
     ok(api.describeTraceError(E({ status: 503, message: "no disponible" }), 2, 12000) === "HTTP 503: no disponible · se reintenta en 4 s",
       "5xx: el estado, y la espera que toca a ese intento");
-    ok(!/reintenta/.test(api.describeTraceError(E({ status: 503 }), api.ELEV_RETRIES, 12000)),
+    ok(!/reintenta/.test(api.describeTraceError(E({ status: 503 }), CFG.ELEV_RETRIES, 12000)),
       "agotados los intentos, ya no se reintenta");
     ok(api.describeTraceError(E({ owsCode: "InvalidSubsetting", message: "fuera" }), 0, 12000)
       === "excepción del servicio InvalidSubsetting: fuera (fuera de cobertura: no es un error)",

@@ -297,7 +297,7 @@ function openAttrStyleDialog() {
   ui.n.value = String(st.n);
   ui.method.value = "equal";
   ui.dialog.hidden = false;
-  clampToViewport(ui.box);
+  fitInViewport(ui.box);
   focusDialog(ui.box);
   rebuildAttrClassing();
 }

@@ -18,8 +18,6 @@
    Todo se mide en PÍXELES de contenedor, no en grados: un margen en
    grados vale distancias muy distintas según la latitud y el zoom (la
    misma razón por la que isCenteredOn compara en píxeles).            */
-const MARKER_HIT_PX = 20; /* radio de acierto en píxeles, del orden del icono de un marcador */
-const PATH_HIT_PX = 10;   /* igual que el clickTolerance por defecto de Leaflet */
 
 /* Distancia AL CUADRADO de un punto a un segmento: se evita la raíz
    comparando contra el cuadrado de la tolerancia.                     */
@@ -83,7 +81,7 @@ function ringToPoints(ring) {
    grueso debe poder acertarse en todo su ancho.                       */
 function pathTolerance(sub) {
   const w = (sub.options && sub.options.weight) || 0;
-  return Math.max(PATH_HIT_PX, w / 2 + 4);
+  return Math.max(CFG.PATH_HIT_PX, w / 2 + 4);
 }
 
 /* Criba barata: la caja envolvente en píxeles, ensanchada por la
@@ -116,7 +114,7 @@ function nearBounds(sub, containerPoint, tol) {
    extiende L.Polyline.                                                */
 function subHitTest(sub, latlng, containerPoint) {
   if (sub instanceof L.Marker) {
-    return map.latLngToContainerPoint(sub.getLatLng()).distanceTo(containerPoint) <= MARKER_HIT_PX;
+    return map.latLngToContainerPoint(sub.getLatLng()).distanceTo(containerPoint) <= CFG.MARKER_HIT_PX;
   }
   if (sub instanceof L.Circle) {
     /* En metros, que es como L.Circle define su radio. La tolerancia se
@@ -144,7 +142,7 @@ function subHitTest(sub, latlng, containerPoint) {
   /* Cualquier otro overlay anclado a un punto (la etiqueta L.Tooltip de
      una medición): sigue valiendo la distancia en píxeles.            */
   if (typeof sub.getLatLng === "function") {
-    return map.latLngToContainerPoint(sub.getLatLng()).distanceTo(containerPoint) <= MARKER_HIT_PX;
+    return map.latLngToContainerPoint(sub.getLatLng()).distanceTo(containerPoint) <= CFG.MARKER_HIT_PX;
   }
   return false;
 }

@@ -274,11 +274,9 @@ function arcgisExportUrl(base, bbox, px, dpi, ids) {
    y, con paginación, orderByFields=<OID> (páginas estables, sin huecos ni
    repetidas). NO se manda geometría de filtro ni simplificación: se trae la
    capa entera a resolución completa.                                      */
-const ARCGIS_QUERY_TIMEOUT = 30000;      /* POR INTENTO */
 const ARCGIS_MAX_FEATURES = 100000;      /* el mismo tope que un shapefile (SHP_MAX_FEATURES) */
 const ARCGIS_PAGE_MAX = 2000;            /* nunca más por página, aunque el servidor admita más */
 const ARCGIS_MAX_PAGES = 500;            /* cinturón contra un servidor que no avanza */
-const ARCGIS_RETRIES = 2;
 const ARCGIS_LABEL_MAX = 1000;           /* rótulos permanentes a la vez: cada uno es un nodo del DOM */
 const ARCGIS_OID_RE = /^[A-Za-z_][A-Za-z0-9_.]{0,63}$/;
 
@@ -639,7 +637,7 @@ async function addArcgisServiceNode(cat, base) {
    mismo. Devuelve { json, size }.                                       */
 function arcgisGetJson(url, signal, cap) {
   return withElevRetries(async () => {
-    const t = AbortSignal.timeout(ARCGIS_QUERY_TIMEOUT);
+    const t = AbortSignal.timeout(CFG.ARCGIS_QUERY_TIMEOUT);
     const resp = await fetch(url, { credentials: "omit", signal: signal ? AbortSignal.any([signal, t]) : t });
     if (!resp.ok) {
       const err = new Error(describeHttp(resp.status));
@@ -652,7 +650,7 @@ function arcgisGetJson(url, signal, cap) {
     catch { throw Object.assign(new Error(tr("la respuesta del servicio no es JSON")), { owsCode: "json" }); }
     if (json && json.error) throw Object.assign(new Error(arcgisErrorText(json.error)), { owsCode: "arcgis" });
     return { json, size: bytes.length };
-  }, { signal, retries: ARCGIS_RETRIES });
+  }, { signal, retries: CFG.ARCGIS_RETRIES });
 }
 
 /* El mensaje de un fallo de red/cancelación, en una frase */
@@ -680,7 +678,7 @@ async function arcgisDownloadLayer(base, id, signal, onProgress) {
   for (let i = 0; i < ARCGIS_MAX_PAGES; i++) {
     const url = arcgisQueryUrl(base, id, info.pagination
       ? { offset, count: info.maxRecord, orderBy: info.oidField } : {});
-    const { json, size } = await arcgisGetJson(url, signal, URL_MAX_BYTES - bytes);
+    const { json, size } = await arcgisGetJson(url, signal, CFG.URL_MAX_BYTES - bytes);
     bytes += size;
     pages.push(json);
     const got = Array.isArray(json.features) ? json.features.length : 0;

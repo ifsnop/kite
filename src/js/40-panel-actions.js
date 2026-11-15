@@ -164,8 +164,6 @@ async function gotoMatch(dir) {
    siguiente coincidencia (Mayús+Intro, a la anterior), como los botones ↑ ↓.
    Teclear NO salta, selecciona ni despliega nada por su cuenta: el árbol
    filtrado ya enseña lo que hay.                                         */
-const SEARCH_DEBOUNCE_MS = 150;
-const SEARCH_MIN_CHARS = 3;
 let searchTimer = null;
 
 async function clearSearch() {
@@ -183,7 +181,7 @@ function syncSearchClear() {
 async function runLiveSearch() {
   const raw = searchBox.value.trim();
   searchIdx = -1;
-  if (raw.length < SEARCH_MIN_CHARS) {
+  if (raw.length < CFG.SEARCH_MIN_CHARS) {
     searchCount.textContent = "";
     if (treeFilter) await clearTreeFilter();
     syncSearchClear();
@@ -195,7 +193,7 @@ async function runLiveSearch() {
 searchBox.addEventListener("input", () => {
   syncSearchClear();
   clearTimeout(searchTimer);
-  searchTimer = setTimeout(runLiveSearch, SEARCH_DEBOUNCE_MS);
+  searchTimer = setTimeout(runLiveSearch, CFG.SEARCH_DEBOUNCE_MS);
 });
 searchBox.addEventListener("keydown", async e => {
   if (e.key === "Enter") {
@@ -294,7 +292,6 @@ function hidePlaceResults() {
   placeStatus.textContent = "";
 }
 
-const PLACE_TIMEOUT = 10000;
 let placeAbort = null; /* petición en vuelo, para poder cancelarla */
 
 /* Traduce el fallo a algo accionable en vez de "error de red" */
@@ -313,7 +310,7 @@ async function searchPlaces(query) {
      conexión debe liberarse, no quedarse en vuelo                    */
   if (placeAbort) placeAbort.abort();
   const ctrl = placeAbort = new AbortController();
-  const timer = setTimeout(() => ctrl.abort("timeout"), PLACE_TIMEOUT);
+  const timer = setTimeout(() => ctrl.abort("timeout"), CFG.PLACE_TIMEOUT);
 
   placeResults.hidden = false;
   placeList.innerHTML = "";
@@ -329,7 +326,7 @@ async function searchPlaces(query) {
   } catch (err) {
     if (seq !== placeSeq) return; /* cancelada por otra búsqueda: sin ruido */
     const why = err.name === "AbortError"
-      ? tr("el servicio ha tardado m\u00E1s de {seconds} s en responder", { seconds: PLACE_TIMEOUT / 1000 })
+      ? tr("el servicio ha tardado m\u00E1s de {seconds} s en responder", { seconds: CFG.PLACE_TIMEOUT / 1000 })
       : err.message;
     placeStatus.textContent = tr("No se pudo consultar el servicio de b\u00FAsqueda.");
     navMessage(tr("Error al buscar el lugar: {reason}.", { reason: err instanceof TypeError ? netFailText(why) : why }));
@@ -381,7 +378,7 @@ function addPlaceMarker(r) {
   if (bb && bb.length === 4 && bb.every(isFinite)) {
     map.fitBounds([[bb[0], bb[2]], [bb[1], bb[3]]], { padding: [30, 30] });
   } else {
-    map.setView([lat, lon], Math.max(map.getZoom(), 14));
+    map.setView([lat, lon], Math.max(map.getZoom(), CFG.PLACE_ZOOM));
   }
 }
 
@@ -408,10 +405,6 @@ function createPin(latlng = map.getCenter()) {
   openStyleDialog(li, { isNew: true });
 }
 
-/* Zoom al que se va cuando lo escrito en el buscador son coordenadas: un
-   punto exacto, así que el de calle (17), no el de región.             */
-const COORD_SEARCH_ZOOM = 17;
-
 /* Unas coordenadas escritas se resuelven aquí, sin red y ANTES que
    Nominatim. Como elegir un resultado, pedirlas es pedir ir allí: crea un
    marcador en «Lugares» (llamado como lo escrito) y la aplicación mueve la
@@ -421,7 +414,7 @@ function goToCoordinates(at, text) {
   placeSeq++;
   if (placeAbort) { placeAbort.abort(); placeAbort = null; }
   createPlaceMarker(text, at.lat, at.lng);
-  map.setView([at.lat, at.lng], COORD_SEARCH_ZOOM);
+  map.setView([at.lat, at.lng], CFG.COORD_SEARCH_ZOOM);
 }
 
 function runPlaceSearch() {
@@ -526,7 +519,6 @@ document.getElementById("collapse-all").addEventListener("click", () => collapse
    derecha/izquierda despliegan y colapsan; Inicio/Fin van a los extremos
    de la carpeta actual; espacio activa o desactiva; Ctrl+X/C/V mueven y
    copian ramas; Alt+Intro abre las propiedades.                       */
-const PAGE_STEP = 10;
 
 /* Hermanos visibles del nodo: lo que recorren Inicio y Fin, que trabajan
    dentro de la carpeta actual y no sobre la lista entera             */
@@ -610,7 +602,6 @@ let clipboard = null; /* { nodes, cut: [li], move: bool } */
 
    El portapapeles del sistema es del USUARIO, no del origen: no hace
    falta CORS, ni postMessage, ni que las dos instancias se conozcan. */
-const CLIPBOARD_MAX = 5 * 1024 * 1024; /* texto; por encima solo va el interno */
 
 /* Lo último que ESTA pestaña escribió en el portapapeles del sistema.
    Sirve para reconocer nuestra propia copia al pegarla: ver el escucha
@@ -633,7 +624,7 @@ function copyToSystemClipboard(all) {
   /* Un árbol grande serializado son decenas de MB: escribirlo bloquea y
      el navegador puede rechazarlo. El portapapeles interno sigue
      funcionando dentro de esta pestaña, así que se avisa y se sigue. */
-  if (txt.length > CLIPBOARD_MAX) {
+  if (txt.length > CFG.CLIPBOARD_MAX) {
     navMessage(tr("La selección ocupa {size} y no cabe en el portapapeles del "
       + "sistema: se podrá pegar en esta pestaña, pero no en otra. Use el botón 💾 para "
       + "llevarla a otra instancia.", { size: fmtBytes(txt.length) }));
@@ -770,11 +761,11 @@ document.addEventListener("keydown", e => {
       return;
     case "PageDown":
       e.preventDefault();
-      moveCursorTo(cur ? stepRows(cur, PAGE_STEP) : firstRow(), e.shiftKey);
+      moveCursorTo(cur ? stepRows(cur, CFG.PAGE_STEP) : firstRow(), e.shiftKey);
       return;
     case "PageUp":
       e.preventDefault();
-      moveCursorTo(cur ? stepRows(cur, -PAGE_STEP) : lastRow(), e.shiftKey);
+      moveCursorTo(cur ? stepRows(cur, -CFG.PAGE_STEP) : lastRow(), e.shiftKey);
       return;
     case "Home": case "End": {
       e.preventDefault();
