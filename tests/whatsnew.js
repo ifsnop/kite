@@ -62,6 +62,25 @@ ok(plan({ shownFor: "2.6.0", since: "2.5.0", dismissed: true }, "2.5.0").since =
   "volver a una versión anterior lista desde la 2.0");
 ok(plan(null, "{{VERSION}}") === null && plan(null, "") === null, "sin una versión de verdad no se enseña nada");
 
+/* ---------- Several versions skipped: all of them are listed ----------
+   Reported as a bug (it was not one, but nothing fixed it): someone who
+   last used KITE three versions ago must see the three versions, not only
+   the latest. Decision and listing together, as showWhatsNewAtBoot does. */
+const shownSince = (saved, current, table = WHATS_NEW) => {
+  const pl = plan(saved, current);
+  return pl ? entries(table, pl.since, current).map(e => e.version).join() : null;
+};
+ok(shownSince({ shownFor: "2.3.0", since: "2.0.0", dismissed: true }, "2.6.0") === "2.6.0,2.5.0,2.4.0",
+  "con la tabla real: de la 2.3 a la 2.6 salen la 2.6, la 2.5 y la 2.4: " + shownSince({ shownFor: "2.3.0", since: "2.0.0", dismissed: true }, "2.6.0"));
+const later = [{ version: "next", items: ["n."] }, { version: "2.7.0", items: ["g."] }, { version: "2.6.0", items: ["f."] },
+  { version: "2.5.0", items: ["e."] }, { version: "2.4.0", items: ["d."] }, { version: "2.0.1", items: ["a."] }];
+ok(shownSince({ shownFor: "2.4.0", since: "2.0.0", dismissed: false }, "2.7.0", later) === "2.7.0,2.6.0,2.5.0",
+  "usada por última vez la 2.4, al abrir la 2.7 salen la 2.7, la 2.6 y la 2.5");
+ok(shownSince({ shownFor: "2.6.0", since: "2.5.0", dismissed: true }, "2.7.0", later) === "2.7.0",
+  "usada por última vez la 2.6 (ya vio sus novedades), al abrir la 2.7 solo la 2.7");
+ok(shownSince(null, "2.7.0", later) === "2.7.0,2.6.0,2.5.0,2.4.0,2.0.1",
+  "sin registro (usuario anterior a la 2.6 o nuevo), todo desde la 2.0 (decidido con el usuario)");
+
 /* ---------- A saved record is foreign input ---------- */
 ok(JSON.stringify(valid({ shownFor: "2.5.0", since: "2.0.0", dismissed: true, extra: "x" }))
   === '{"shownFor":"2.5.0","since":"2.0.0","dismissed":true}', "un registro bueno, sin lo que sobra");

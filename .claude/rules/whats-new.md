@@ -45,6 +45,13 @@ works better.
   the box had been ticked. The same version: the same list, unless `dismissed`.
   A fresh record is saved as soon as the window is decided, so later starts of
   the same version keep the same `since`.
+- **Every skipped version is listed** (checked after a user asked whether
+  opening 2.7.0 would also show 2.6.0, 2.5.0…): last used 2.4.0 → 2.7.0, 2.6.0
+  and 2.5.0; last used 2.6.0 → only 2.7.0 (already seen). `tests/whatsnew.js`
+  and `browser/whats-new.mjs` (a jump of three releases) fix it: listing only
+  the latest version would be a regression. Without a record (the window was
+  born in 2.6.0, so users of older versions have none) everything since 2.0.0
+  is listed, kept so by the user.
 - Released entries only (`x.y.z`), `since < version ≤ VERSION`, newest first. With
   nothing to list, no window.
 - **Closing**: «Cerrar», the × (its `data-cancel` is «Cerrar») and Escape (chain
