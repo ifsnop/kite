@@ -153,7 +153,6 @@ function stripHtmlTagsFromKmlNames(xml) {
    already documents elsewhere in the file as "far above rounding noise"
    — genuine duplicates from the same source are far closer than that;
    two legitimately distinct nearby places never are.                   */
-const DUP_POS_DECIMALS = 5;
 function findDuplicatePlacemarks(xml) {
   const groups = new Map(); /* "name|lat|lng" -> [<Placemark> elements] */
   for (const pm of elsByTag(xml, "Placemark")) {
@@ -164,7 +163,7 @@ function findDuplicatePlacemarks(xml) {
     const pts = coordsEl ? parseCoords(coordsEl.textContent) : [];
     if (!pts.length) continue;
     const [lat, lng] = pts[0];
-    const key = `${name}|${lat.toFixed(DUP_POS_DECIMALS)}|${lng.toFixed(DUP_POS_DECIMALS)}`;
+    const key = `${name}|${lat.toFixed(CFG.DUP_POS_DECIMALS)}|${lng.toFixed(CFG.DUP_POS_DECIMALS)}`;
     if (!groups.has(key)) groups.set(key, []);
     groups.get(key).push(pm);
   }
@@ -216,7 +215,7 @@ function findDuplicateFeatures(features, nameKeys) {
     const props = (typeof f.properties === "object" && f.properties) || {};
     const name = featureDupName(props, nameKeys);
     if (!name) continue;
-    const key = `${name}|${lat.toFixed(DUP_POS_DECIMALS)}|${lng.toFixed(DUP_POS_DECIMALS)}`;
+    const key = `${name}|${lat.toFixed(CFG.DUP_POS_DECIMALS)}|${lng.toFixed(CFG.DUP_POS_DECIMALS)}`;
     if (!groups.has(key)) groups.set(key, []);
     groups.get(key).push(f);
   }
@@ -294,7 +293,6 @@ const BIG_FEATURE_COUNT = 5000;
    unos 20 s en cargar (la lectura del XML es una sola tarea de ~4 s que
    el navegador no puede partir) y llega a 1,5-2 GB de memoria. Solo un
    aviso informativo, nunca un diálogo que bloquee.                    */
-const HUGE_IMPORT_CHARS = 100 * 1024 * 1024;
 /* `report`: un informe ya empezado por quien llama (lo que se ve al leer
    un shapefile —sin .prj, ED50…— va en el mismo resumen).             */
 /* `presetNameKeys`: un formato que define él mismo qué es el nombre (el
@@ -322,7 +320,7 @@ async function addFileNode(name, kind, content, insertBefore = null, dropTargetU
   }
 
   try {
-    if (typeof content === "string" && content.length >= HUGE_IMPORT_CHARS) {
+    if (typeof content === "string" && content.length >= CFG.HUGE_IMPORT_CHARS) {
       navMessage(tr("\u00AB{name}\u00BB es muy grande ({size}): cargarlo puede tardar y necesita mucha memoria.",
         { name, size: fmtBytes(content.length) }), { tone: "info" });
     }
@@ -472,7 +470,6 @@ async function addFileNode(name, kind, content, insertBefore = null, dropTargetU
 /* Cotas de cualquier zip que se abra (KMZ o shapefile comprimido). En
    kmlFromZip, `onPct` recibe el porcentaje descomprimido, la única fase
    con progreso medible de verdad.                                      */
-const KMZ_MAX_ENTRIES = 2000;              /* entradas dentro del zip      */
 /* El tope de tamaño descomprimido es una PREFERENCIA (Propiedades →
    Preferencias, en MB): depende de la memoria del equipo de quien lo usa.
    `kmzMaxUncompressedMB` es el valor vigente; se lee en cada apertura, no
@@ -480,7 +477,6 @@ const KMZ_MAX_ENTRIES = 2000;              /* entradas dentro del zip      */
 const KMZ_MAX_UNCOMPRESSED_DEFAULT_MB = 500;
 const KMZ_MAX_UNCOMPRESSED_MIN_MB = 1, KMZ_MAX_UNCOMPRESSED_MAX_MB = 4096;
 let kmzMaxUncompressedMB = KMZ_MAX_UNCOMPRESSED_DEFAULT_MB;
-const KMZ_MAX_RATIO = 200;                 /* descomprimido / comprimido    */
 
 /* Abre un zip (un KMZ o el .zip de un shapefile) y aplica las cotas
    antes de descomprimir nada. `what` es cómo se le llama en el aviso. */
@@ -492,8 +488,8 @@ async function loadZipChecked(file, what) {
      visor no impone cuotas de uso, pero sí debe evitar que un archivo
      hostil o accidental agote la memoria del navegador.              */
   const entries = Object.values(zip.files).filter(f => !f.dir);
-  if (entries.length > KMZ_MAX_ENTRIES) {
-    throw new Error(tr("el {what} tiene demasiadas entradas ({length} > {kmzMaxEntries})", { what, length: entries.length, kmzMaxEntries: KMZ_MAX_ENTRIES }));
+  if (entries.length > CFG.KMZ_MAX_ENTRIES) {
+    throw new Error(tr("el {what} tiene demasiadas entradas ({length} > {kmzMaxEntries})", { what, length: entries.length, kmzMaxEntries: CFG.KMZ_MAX_ENTRIES }));
   }
   let uncompressed = 0;
   for (const f of entries) {
@@ -505,7 +501,7 @@ async function loadZipChecked(file, what) {
     throw new Error(tr("el {what} ocupa demasiado descomprimido ({size}; el l\u00EDmite es {limit}, ajustable en \uD83C\uDFF7\uFE0F Propiedades)",
       { what, size: fmtBytes(uncompressed), limit: fmtBytes(maxBytes) }));
   }
-  if (file.size && uncompressed / file.size > KMZ_MAX_RATIO) {
+  if (file.size && uncompressed / file.size > CFG.KMZ_MAX_RATIO) {
     throw new Error(tr("relaci\u00F3n de compresi\u00F3n sospechosa (\u00D7{ratio})", { ratio: Math.round(uncompressed / file.size) }));
   }
   return zip;
@@ -814,7 +810,7 @@ function zipEntryNames(bytes) {
     if (dv.getUint32(i, true) === 0x06054B50) { eocd = i; break; }
   }
   if (eocd < 0) return [];
-  const count = Math.min(dv.getUint16(eocd + 10, true), KMZ_MAX_ENTRIES);
+  const count = Math.min(dv.getUint16(eocd + 10, true), CFG.KMZ_MAX_ENTRIES);
   let p = dv.getUint32(eocd + 16, true);
   const names = [];
   const dec = new TextDecoder("utf-8");

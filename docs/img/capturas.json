@@ -285,23 +285,29 @@
       "version": "2.6.0",
       "build": "202611142046"
     },
-    "propiedades-fuentes.png": {
-      "sha256": "6fff82dfeacd7cd97f28e4f121b56ee45044949bf3fc70a820a21542280d5b07",
+    "propiedades-ajustes.png": {
+      "sha256": "eadf3ff0bc73477aacf526adf0969893576cc720f5d93060aa05543a1282ee7b",
       "section": "2.1",
       "version": "2.6.0",
-      "build": "202611142046"
+      "build": "202611142105"
+    },
+    "propiedades-fuentes.png": {
+      "sha256": "6bd25bd1107e8970a3ee975f702af03680ab653db3604971884d2ef28ce71bff",
+      "section": "2.1",
+      "version": "2.6.0",
+      "build": "202611142105"
     },
     "propiedades-preferencias.png": {
-      "sha256": "8d1db7af5cbd7ef87c9396c2e02dfafd3d24252db825bafe4c0e6f22a973bee2",
+      "sha256": "48972f9f0509fec8226a83dddceb03ce4859d8fb4a9493d2371cc9e601ed27ee",
       "section": "2.1",
       "version": "2.6.0",
-      "build": "202611142046"
+      "build": "202611142105"
     },
     "propiedades-restaurar.png": {
-      "sha256": "2ac40c31115dfe6b18e2adfe083c2ecdd989e2de077c82f9e2148a600fbc88f4",
+      "sha256": "15c091eb71af946eee7b5dc207a12a46019f86de813f48203182efb81e83635e",
       "section": "2.1",
       "version": "2.6.0",
-      "build": "202611142046"
+      "build": "202611142105"
     },
     "registro-avisos.png": {
       "sha256": "2e49f9d5e1ecd53d0e82d01890232d9b31a872f1c2ce564112ee223251e3b316",

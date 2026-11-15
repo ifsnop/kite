@@ -19,7 +19,7 @@ KITE Local es una aplicación de visualización y consulta de información geoes
 
 1. **El origen de cada capa de información es conocido, declarado y verificable.** Tanto la cartografía de fondo como los servicios auxiliares (elevación del terreno, búsqueda de topónimos) proceden de organismos oficiales o de proveedores identificados, y la propia aplicación restringe por configuración los orígenes de red a los que puede conectarse — con dos excepciones deliberadas y acotadas en las que el propio usuario elige el origen (una dirección que escribe para descargar un archivo o para consultar un servicio de mapas ArcGIS, y un mapa base de teselas de un servidor propio), descritas en el apartado 6.2.
 2. **La aplicación no modifica los datos geoespaciales que muestra.** La geometría, las coordenadas y la altitud de cada elemento cargado se conservan tal como están definidas en el archivo de origen a lo largo de todo el ciclo de vida (carga, visualización, guardado y exportación). Las únicas excepciones son un número reducido de correcciones controladas, de alcance mínimo, siempre notificadas al usuario y nunca aplicadas en silencio, que se describen en detalle en el apartado 4.
-3. **El comportamiento descrito está verificado mediante una batería de pruebas automatizadas** que se ejecuta contra el propio archivo que se distribuye —no contra una copia aparte del código— y que en la fecha de este documento supera sus 136 conjuntos de comprobaciones sin ninguna incidencia.
+3. **El comportamiento descrito está verificado mediante una batería de pruebas automatizadas** que se ejecuta contra el propio archivo que se distribuye —no contra una copia aparte del código— y que en la fecha de este documento supera sus 138 conjuntos de comprobaciones sin ninguna incidencia.
 
 El documento está dirigido a personal auditor y experto en seguridad, no a personal programador: describe el comportamiento de la aplicación, su alcance y sus garantías, sin entrar en detalles de implementación.
 
@@ -157,6 +157,8 @@ Si la construcción de un archivo se interrumpe a mitad de proceso (por ejemplo,
 
 Los archivos KMZ (KML comprimido) se someten a comprobaciones antes de descomprimirse: un número máximo de archivos dentro del comprimido (2000), un tamaño máximo una vez descomprimido (500 megabytes de partida; el usuario puede cambiarlo en Propiedades, de 1 a 4096 megabytes, y la aplicación recuerda su elección en el navegador) y una relación máxima entre el tamaño descomprimido y el comprimido (200 veces). Estas cotas evitan que un archivo comprimido de forma desproporcionada o deliberadamente hostil ("bomba de descompresión") agote los recursos del dispositivo antes de que la aplicación pueda siquiera informar del problema. Las mismas cotas se aplican a un shapefile comprimido en .zip, y cada shapefile tiene además las suyas: 300 megabytes entre geometría y atributos y 100 000 elementos, por encima de los cuales lo sobrante se omite y se cuenta en el resumen.
 
+**Estos límites, y los de un GPX (2 000 000 de puntos), una descarga desde una dirección (100 megabytes) o los atributos de un elemento KML (200), se pueden ajustar en Propiedades** (pestaña «Archivos»; el tamaño descomprimido de un KMZ, en «Preferencias»), igual que los tiempos de espera y los reintentos de los servicios externos (pestaña «Red»). Las dos pestañas son **preferencias avanzadas**: solo se ven tras marcar esa casilla, con el nombre en rojo. Las cifras de este estudio son los valores de partida. Cada ajuste tiene un máximo fijado en el código que el usuario no puede superar (por ejemplo, 4096 megabytes para un shapefile, 10 000 veces de compresión, 10 peticiones de elevación por segundo o 5 reintentos), de modo que la protección frente a un archivo hostil y la disciplina de peticiones se mantienen aunque se suban; un valor guardado fuera de esos márgenes se descarta al leerlo y se usa el de partida. «Restaurar» devuelve todos a sus valores de partida.
+
 Una ortofoto COG se valida antes de copiarse al almacenamiento del navegador: tiene que ser un GeoTIFF legible, de 8 bits por canal (una ortofoto) o de una sola banda de 16 o más bits (un modelo de elevación, que además debe traer alguna altitud válida), georreferenciado en uno de los sistemas admitidos y con una extensión geográfica válida; si no, se rechaza y no ocupa espacio. También se comprueba antes que cabe en la cuota del navegador. Al dibujarla, cada trozo del mapa lee como máximo una ventana acotada de la imagen (unos cuatro millones de píxeles), y la lectura de varios trozos a la vez está limitada, de modo que una imagen sin niveles reducidos no puede agotar la memoria al alejarse: esos trozos simplemente no se dibujan, y el aviso de la carga ya lo advierte.
 
 ---
@@ -208,7 +210,7 @@ Esta forma de proceder asegura que lo que las pruebas certifican es, literalment
 
 ### 7.2 Alcance actual de la batería de pruebas
 
-En la fecha de este documento, la batería está compuesta por 136 conjuntos de pruebas independientes, agrupados por área, y todos ellos superados sin ninguna incidencia en la última ejecución realizada para este estudio. Las áreas cubiertas incluyen, entre otras:
+En la fecha de este documento, la batería está compuesta por 138 conjuntos de pruebas independientes, agrupados por área, y todos ellos superados sin ninguna incidencia en la última ejecución realizada para este estudio. Las áreas cubiertas incluyen, entre otras:
 
 **Interpretación de archivos y formatos de origen**
 - Lectura de archivos KML, con independencia del prefijo de espacio de nombres que use cada archivo.
@@ -278,6 +280,7 @@ En la fecha de este documento, la batería está compuesta por 136 conjuntos de 
 - Ventana de novedades al abrir una versión nueva: lista lo publicado desde la última versión que se abrió (la primera vez, desde la 2.0), vuelve a salir mientras no se marque «No volver a mostrar…» y una versión nueva la enseña de nuevo; los textos de cada versión están completos antes de publicarla.
 - Teclado y rueda del visor: velocidad de las flechas mantenidas, zoom continuo y foco que se queda en el mapa.
 - Pie del panel: la cifra de memoria se esconde cuando no hay un dato fiable que dar.
+- Ajustes de Propiedades que antes eran constantes del código (tiempos de las fichas, topes de importación, tiempos de espera y reintentos de red): cada valor de partida es el que tenía la constante, un valor guardado fuera de su máximo o de su mínimo se descarta al leerlo, solo se guarda lo que difiere, y «Restaurar» los devuelve todos; y que las ventanas se abren enteras dentro del navegador aunque su posición se guardara con una ventana mayor, sin pisar esa posición.
 - Ficha de información al recorrer el mapa con el ratón (con un ratón real): la ficha solo cambia cuando el ratón se detiene sobre una capa, las capas consultadas quedan como pestañas en «Fichas recientes», una ficha a la vez, con su caducidad, su tope y la opción de fijarlas, seleccionar texto para copiarlo no cambia la ficha, y el recuadro con el que se señala una de ellas en el mapa no mueve la vista, no se guarda y no modifica ninguna capa.
 - Filtro del árbol de capas por nombre: la comparación sin distinguir mayúsculas ni tildes y dentro de las palabras, el recuento de coincidencias dentro de carpetas que aún no se han desplegado sin construirlas, el criterio de qué filas se construyen, y que guardar una carpeta construida a medias da exactamente lo mismo, y en el mismo orden, que antes de construirla.
 - Movimiento reducido: toda animación de la hoja de estilos de la aplicación tiene su anulación para quien pide que nada se mueva.
@@ -338,7 +341,7 @@ Esta batería de pruebas se ejecuta de forma obligatoria en cada cambio propuest
 
 ### 7.4 Resultado verificado para este documento
 
-Como parte de la elaboración de este estudio se ha vuelto a ejecutar la batería completa de pruebas contra la versión de la aplicación identificada en la cabecera de este documento. Resultado: **136 de 136 conjuntos de pruebas superados, sin ninguna incidencia.**
+Como parte de la elaboración de este estudio se ha vuelto a ejecutar la batería completa de pruebas contra la versión de la aplicación identificada en la cabecera de este documento. Resultado: **138 de 138 conjuntos de pruebas superados, sin ninguna incidencia.**
 
 ---
 
@@ -360,7 +363,7 @@ Sobre la base de la revisión del código fuente, de la configuración de red y 
 
 1. El origen de cada fuente de cartografía y de cada servicio auxiliar que KITE Local puede consultar está identificado, documentado y restringido por configuración a una lista cerrada de proveedores oficiales o reconocidos, salvo dos excepciones deliberadas y acotadas en las que el propio usuario elige el origen (una dirección que escribe para descargar un archivo o para añadir un servicio de mapas ArcGIS, y las capas base propias contra un servidor propio), ambas descritas en el apartado 6.2.
 2. KITE Local no modifica la geometría, las coordenadas ni la altitud de los datos que carga y representa; las únicas intervenciones automáticas están acotadas a corregir errores menores y evitables del propio archivo de origen, tienen un alcance mínimo y verificable, y se comunican siempre a la persona usuaria.
-3. Este comportamiento está verificado por una batería de 136 conjuntos de pruebas automatizadas, ejecutadas contra el artefacto realmente distribuido, con resultado íntegramente satisfactorio en la fecha de este documento.
+3. Este comportamiento está verificado por una batería de 138 conjuntos de pruebas automatizadas, ejecutadas contra el artefacto realmente distribuido, con resultado íntegramente satisfactorio en la fecha de este documento.
 
 Estas tres garantías, tomadas en conjunto, sustentan el uso de KITE Local como herramienta de consulta y visualización fiel de información geoespacial dentro del alcance descrito en el apartado 8.
 

@@ -103,7 +103,7 @@ function initPhoneLayout(saved) {
   if (saved === "map") { setNavHidden(true); return; }
   if (saved === "nav") return;
   mobileDialog.hidden = false;
-  clampToViewport(mobileBox);
+  fitInViewport(mobileBox);
   focusDialog(mobileBox);
 }
 

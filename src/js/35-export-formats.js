@@ -9,7 +9,6 @@
    elevación, ortofotos de GroundOverlay y COG) se deja fuera y se
    NOMBRA en `skipped`: nunca se pierde en silencio.                    */
 
-const EXPORT_CIRCLE_SEGMENTS = 120; /* un vértice cada 3°: a escala de mapa es un círculo */
 const EXPORT_PATH_SEP = " / ";
 
 /* ---------- Registros → entidades GeoJSON ---------- */
@@ -54,7 +53,7 @@ function measureFeatures(rec) {
   if (w.length < 2 || !w.every(p => p && Number.isFinite(p.lat) && Number.isFinite(p.lng))) return [];
   if (rec.mtype === "circle") {
     const r = haversineM(w[0], w[1]);
-    const ring = arcPoints(w[0], r, 0, 360, EXPORT_CIRCLE_SEGMENTS).map(p => [p.lng, p.lat]);
+    const ring = arcPoints(w[0], r, 0, 360, CFG.EXPORT_CIRCLE_SEGMENTS).map(p => [p.lng, p.lat]);
     ring[ring.length - 1] = ring[0].slice(); /* cierre exacto, sin ruido de coma flotante */
     return [{ type: "Feature", properties: { measure: "circle", radius_m: Math.round(r * 100) / 100 },
               geometry: { type: "Polygon", coordinates: [ring] } }];

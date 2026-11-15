@@ -13,6 +13,11 @@ paths:
    estático. Los diccionarios (`04-i18n-xx.js`) van antes de
    `04-i18n-init.js`, que fija el idioma; desde ahí `tr()` vale en el
    nivel superior de cualquier módulo. Sin dependencias. Ver `i18n.md`.
+0a. **Tunable settings** (`04-tunables.js`, right after `04-i18n-init.js`):
+   `TUNABLES` (the table, labels with `N_()`) and `CFG` (the live values),
+   plus pure helpers. Data and functions only, no DOM. It must come before
+   every file that reads `CFG.<name>`, including at load time through a
+   default parameter evaluated later. See `tunables.md`.
 0b. **Parches de Leaflet y cargador**, todos ANTES de crear el mapa:
    - `06-offline.js`: uso sin conexión (lista de lo que guarda el
      service worker, indicador «Sin conexión», `netFailText`); solo

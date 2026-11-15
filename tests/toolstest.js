@@ -51,8 +51,13 @@ function buildApi({ hideDelay = 5, guardMs = 5, intent = 2, dwell = Infinity, tt
      propio setTool no comprueba vertexOwner), basta un stub.         */
   const refreshDoubleClickZoomCalls = [];
   const refreshDoubleClickZoom = () => refreshDoubleClickZoomCalls.push(true);
-  const clampToViewportCalls = [];
-  const clampToViewport = () => clampToViewportCalls.push(true);
+  /* Opening the card places it (at the user's place, fitted into the
+     window: 44-dialogs.js); nothing to place here. */
+  const placeInfoBox = () => {};
+  /* The delays and caps are tunable settings read as CFG.<name>: a CFG of
+     this build's own shadows the global one. */
+  const CFG = { LAYER_INFO_HIDE_DELAY: hideDelay, LAYER_INFO_HOVER_INTENT_MS: intent, INFO_STACK_DWELL_MS: dwell,
+    INFO_STACK_TTL_MS: ttl, INFO_STACK_WARN_MS: warn, INFO_STACK_MAX: max, INFO_STACK_MAX_PINNED: maxPinned };
   const focusDialogCalls = [];
   const focusDialog = () => focusDialogCalls.push(true);
   const infoState = { html: "<p>info</p>" };
@@ -76,9 +81,8 @@ function buildApi({ hideDelay = 5, guardMs = 5, intent = 2, dwell = Infinity, tt
   const navMessage = t => messages.push(t);
 
   const api = new Function(
-    "LAYER_INFO_HIDE_DELAY", "TOOL_EXIT_HOVER_GUARD_MS", "LAYER_INFO_HOVER_INTENT_MS", "INFO_STACK_DWELL_MS",
-    "INFO_STACK_TTL_MS", "INFO_STACK_WARN_MS", "INFO_STACK_MAX", "INFO_STACK_MAX_PINNED", "descDialog", "styleDialog", "descBox",
-    "descTitle", "descBody", "toolButtons", "rootGroup", "map", "clampToViewport", "focusDialog",
+    "CFG", "TOOL_EXIT_HOVER_GUARD_MS", "descDialog", "styleDialog", "descBox",
+    "descTitle", "descBody", "toolButtons", "rootGroup", "map", "placeInfoBox", "focusDialog",
     "infoHtmlFor", "baseInfoHtml", "applyPropsSplit", "releaseFocus", "refreshDoubleClickZoom",
     "descEditBtn", "STYLE_EDITABLE_KINDS", "styleKind", "renderInfoStack", "clearInfoPeek", "setInfoHalo", "infoSelectionInCard", "infoStackActive", "navMessage",
     "let descLayer = null;\n" + src + `
@@ -90,8 +94,8 @@ function buildApi({ hideDelay = 5, guardMs = 5, intent = 2, dwell = Infinity, tt
         activeToolNow: () => activeTool, dialogHidden: () => descDialog.hidden,
       };
     `
-  )(hideDelay, guardMs, intent, dwell, ttl, warn, max, maxPinned, descDialog, styleDialog, descBox, descTitle, descBody, toolButtons,
-    rootGroup, map, clampToViewport, focusDialog, infoHtmlFor, baseInfoHtml, applyPropsSplit, releaseFocus,
+  )(CFG, guardMs, descDialog, styleDialog, descBox, descTitle, descBody, toolButtons,
+    rootGroup, map, placeInfoBox, focusDialog, infoHtmlFor, baseInfoHtml, applyPropsSplit, releaseFocus,
     refreshDoubleClickZoom, descEditBtn, STYLE_EDITABLE_KINDS, styleKind, renderInfoStack, clearInfoPeek, setInfoHalo, infoSelectionInCard, infoStackActive, navMessage);
 
   return { api, focusState, descDialog, styleDialog, descTitle, descBody, infoState, releaseFocusCalls, messages };

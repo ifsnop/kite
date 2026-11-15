@@ -168,7 +168,7 @@ function openRangeDialog(mode, latlng) {
   fillRangeDefaults(latlng);
   rangeSetMode(mode);
   ui.dialog.hidden = false;
-  clampToViewport(ui.box);
+  fitInViewport(ui.box);
   focusDialog(ui.box);
   updateRangePreview();
 }

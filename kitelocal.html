@@ -1837,6 +1837,28 @@
     color: var(--muted); cursor: pointer;
   }
   .dlg-tab.active { color: var(--text); border-bottom-color: var(--accent); font-weight: 600; }
+  /* Propiedades has ten tabs: they wrap onto a second line instead of
+     running off the box. */
+  #props-dialog .dlg-tabs { flex-wrap: wrap; }
+  /* Advanced settings (requested: told apart from the usual ones): their
+     tabs, and the advanced rows of «Elevación y perfil» under a heading, are
+     red and only shown with «Preferencias avanzadas» ticked, which puts
+     `show-advanced` on the dialog (43-points-editor.js). Red is the danger
+     token: these are values that seldom need touching. */
+  .dlg-tab.advanced, .dlg-tab.advanced.active { color: var(--danger); }
+  .dlg-tab.advanced.active { border-bottom-color: var(--danger); }
+  .props-advanced-head {
+    margin: 14px 0 0; padding-top: 8px; border-top: 1px solid var(--border);
+    font-size: 12px; font-weight: 600; color: var(--danger);
+  }
+  #props-dialog:not(.show-advanced) .dlg-tab.advanced,
+  #props-dialog:not(.show-advanced) .props-advanced-head,
+  #props-dialog:not(.show-advanced) .tunables-list[data-tunables="elev"] { display: none; }
+  /* Rows built from TUNABLES (43-points-editor.js): a value that differs
+     from its default shows its label in bold, so what was changed is seen
+     at a glance; the numbers can be long (50 000 000 points). */
+  .tunables-list .dlg-row.changed > label { font-weight: 600; }
+  .tunables-list .props-with-unit input[type="number"] { width: 104px; }
   .dlg-tabpanel { flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; }
   /* La dirección del servicio bajo cada selector de fuente: una URL
      larga no tiene espacios por los que partir y desbordaría la caja. */
@@ -2434,9 +2456,14 @@
     <h2 class="dlg-head"><span class="dlg-title">Propiedades</span><button type="button" class="dlg-close" data-cancel="props-cancel" title="Cancelar" aria-label="Cancelar">&#215;</button></h2>
     <div class="dlg-tabs" role="tablist">
       <button type="button" class="dlg-tab active" id="props-tab-btn-prefs" role="tab" aria-selected="true" aria-controls="props-tab-prefs">Preferencias</button>
-      <button type="button" class="dlg-tab" id="props-tab-btn-gnp" role="tab" aria-selected="false" aria-controls="props-tab-gnp">Índices de GeoJSON</button>
+      <button type="button" class="dlg-tab advanced" id="props-tab-btn-ui" role="tab" aria-selected="false" aria-controls="props-tab-ui">Interfaz</button>
+      <button type="button" class="dlg-tab advanced" id="props-tab-btn-cards" role="tab" aria-selected="false" aria-controls="props-tab-cards">Fichas</button>
+      <button type="button" class="dlg-tab advanced" id="props-tab-btn-map" role="tab" aria-selected="false" aria-controls="props-tab-map">Mapa y teclado</button>
+      <button type="button" class="dlg-tab advanced" id="props-tab-btn-files" role="tab" aria-selected="false" aria-controls="props-tab-files">Archivos</button>
+      <button type="button" class="dlg-tab advanced" id="props-tab-btn-net" role="tab" aria-selected="false" aria-controls="props-tab-net">Red</button>
+      <button type="button" class="dlg-tab" id="props-tab-btn-freq" role="tab" aria-selected="false" aria-controls="props-tab-freq">Elevación y perfil</button>
       <button type="button" class="dlg-tab" id="props-tab-btn-sources" role="tab" aria-selected="false" aria-controls="props-tab-sources">Fuentes de datos</button>
-      <button type="button" class="dlg-tab" id="props-tab-btn-freq" role="tab" aria-selected="false" aria-controls="props-tab-freq">Frecuencias</button>
+      <button type="button" class="dlg-tab" id="props-tab-btn-gnp" role="tab" aria-selected="false" aria-controls="props-tab-gnp">Índices de GeoJSON</button>
       <button type="button" class="dlg-tab" id="props-tab-btn-restore" role="tab" aria-selected="false" aria-controls="props-tab-restore">Restaurar</button>
     </div>
     <div id="props-tab-prefs" class="dlg-tabpanel" role="tabpanel">
@@ -2472,6 +2499,32 @@
       <p class="dlg-hint">Tamaño máximo que puede ocupar un KMZ (o un .zip de shapefile) una vez descomprimido. Frena los archivos desproporcionados o hostiles antes de descomprimir nada; súbelo si tienes un KMZ legítimo más grande y memoria de sobra, bájalo en un equipo justo. Solo afecta a los archivos que abras después.</p>
       <div class="dlg-row"><span>Tamaño máximo de un KMZ descomprimido</span>
         <span class="props-with-unit"><input type="number" id="props-kmz-max" min="1" max="4096" step="1"><span>MB</span></span></div>
+      <!-- Shows or hides the tabs of advanced settings (red) and the advanced
+           rows of «Elevación y perfil»; see 43-points-editor.js. -->
+      <p class="dlg-hint">Muestra las pestañas de preferencias avanzadas, marcadas en rojo: tiempos, topes y tolerancias que casi nunca hace falta tocar. Los valores cambiados siguen valiendo aunque se oculten.</p>
+      <div class="dlg-row"><label for="props-advanced">Preferencias avanzadas</label><input type="checkbox" id="props-advanced"></div>
+    </div>
+    <!-- The rows of these tabs are built from TUNABLES (04-tunables.js):
+         a new tunable setting appears in its tab by itself. -->
+    <div id="props-tab-ui" class="dlg-tabpanel" hidden role="tabpanel">
+      <p class="dlg-hint">Avisos del panel, buscador del árbol, deshacer y teclado del árbol. Un valor fuera de rango se ajusta al límite más cercano; «Restaurar» devuelve todos los de estas pestañas a los de partida.</p>
+      <div class="tunables-list" data-tunables="ui"></div>
+    </div>
+    <div id="props-tab-cards" class="dlg-tabpanel" hidden role="tabpanel">
+      <p class="dlg-hint">Cuándo se abre y se cierra la ficha de una capa al pasar el ratón, y cuántas fichas recientes y fijadas guarda.</p>
+      <div class="tunables-list" data-tunables="cards"></div>
+    </div>
+    <div id="props-tab-map" class="dlg-tabpanel" hidden role="tabpanel">
+      <p class="dlg-hint">Zoom al centrar o buscar, desplazamiento con las flechas, zoom con Re Pág / Av Pág y la rueda, giro con el botón central y tolerancia al pulsar una capa.</p>
+      <div class="tunables-list" data-tunables="map"></div>
+    </div>
+    <div id="props-tab-files" class="dlg-tabpanel" hidden role="tabpanel">
+      <p class="dlg-hint">Límites al abrir archivos ajenos: frenan los desproporcionados o hostiles antes de que agoten la memoria. Súbelos si tienes un archivo legítimo más grande y memoria de sobra; solo afectan a los archivos que abras después.</p>
+      <div class="tunables-list" data-tunables="files"></div>
+    </div>
+    <div id="props-tab-net" class="dlg-tabpanel" hidden role="tabpanel">
+      <p class="dlg-hint">Tiempo de espera por intento y reintentos de los servicios externos. Solo se reintenta lo pasajero (tiempo agotado, red, servicio saturado), nunca un error del propio servicio.</p>
+      <div class="tunables-list" data-tunables="net"></div>
     </div>
     <div id="props-tab-gnp" class="dlg-tabpanel" hidden role="tabpanel">
       <p class="dlg-hint" data-i18n-html="html.gnp-intro">Asociaciones guardadas entre la estructura de <code>properties</code> de un GeoJSON y la propiedad usada como nombre.</p>
@@ -2493,9 +2546,11 @@
       <p class="dlg-hint">Frecuencia con la que se calcula el elipsoide de Fresnel del perfil de una ruta (casilla «Elipsoide de Fresnel» de su ventana). De 1 a 300&#8239;000 MHz; 1090 MHz de partida. Un valor fuera de rango se ajusta al l&#237;mite m&#225;s cercano.</p>
       <div class="dlg-row"><span>Frecuencia c&#225;lculos de Fresnel</span>
         <span class="props-with-unit"><input type="number" id="props-fresnel-freq" min="1" max="300000" step="any"><span>MHz</span></span></div>
+      <h3 class="props-advanced-head">Avanzadas</h3>
+      <div class="tunables-list" data-tunables="elev"></div>
     </div>
     <div id="props-tab-restore" class="dlg-tabpanel" hidden role="tabpanel">
-      <p class="dlg-hint">Borra todo lo que KITE guarda en este navegador: el &#225;rbol de capas, las ortofotos copiadas y todos los ajustes (unidades, fuentes de datos, vista del mapa, mapas base y credenciales). No se puede deshacer. El idioma de la interfaz se conserva. Antes de borrar se pide una segunda confirmaci&#243;n y, al terminar, la p&#225;gina se recarga.</p>
+      <p class="dlg-hint">Borra todo lo que KITE guarda en este navegador: el &#225;rbol de capas, las ortofotos copiadas y todos los ajustes (unidades, fuentes de datos, vista del mapa, mapas base y credenciales); los valores de las dem&#225;s pesta&#241;as vuelven a los de partida. No se puede deshacer. El idioma de la interfaz se conserva. Antes de borrar se pide una segunda confirmaci&#243;n y, al terminar, la p&#225;gina se recarga.</p>
       <div class="dlg-row"><span></span><button class="btn btn-danger" id="props-restore-btn">Borrar todos los datos guardados&#8230;</button></div>
     </div>
     <div class="dlg-actions">
@@ -2612,14 +2667,14 @@
          cursor: tamaño FIJO (cuadrícula de 2 × 5, con guiones en reposo), para
          que ni la gráfica ni nada salte al mover el ratón. Zoom con el ratón:
          rueda = distancia; Mayús+rueda o rueda sobre el eje de alturas =
-         altura; arrastrar = desplazar. La frecuencia de Fresnel está en
-         Propiedades → Frecuencias. -->
+         altura; arrastrar = desplazar. The Fresnel frequency is in
+         Propiedades → «Elevación y perfil». -->
     <div id="profile-tools" hidden>
       <div id="profile-opts">
         <div class="pf-row">
           <label class="pf-check" title="Recta negra entre las dos torres (MDS; si no está elegido, MDT), con sus alturas de torre. Antes de la torre de inicio y después de la final sigue, discontinua, hasta los extremos de la ruta">
             <input type="checkbox" id="pf-los"> Línea inicio–fin</label>
-          <label class="pf-check" title="Primera zona de Fresnel alrededor de la línea inicio–fin, entre las dos torres (contorno discontinuo) y, rellena, su zona del 60 %, que debe quedar libre de obstáculos. La frecuencia se elige en Propiedades → Frecuencias">
+          <label class="pf-check" title="Primera zona de Fresnel alrededor de la línea inicio–fin, entre las dos torres (contorno discontinuo) y, rellena, su zona del 60 %, que debe quedar libre de obstáculos. La frecuencia se elige en Propiedades → Elevación y perfil">
             <input type="checkbox" id="pf-fresnel"> Elipsoide de Fresnel (60 %)</label>
           <label class="pf-check" title="Polígonos con altitud (KML o GeoJSON) que cruzan la ruta, como bloques desde el terreno hasta su techo. En rojo, donde la línea inicio–fin pasa por debajo del techo. Son los polígonos visibles cuando se obtuvo el perfil; «Actualizar obstáculos» los vuelve a recoger">
             <input type="checkbox" id="pf-obstacles"> Obstáculos</label>
@@ -3158,6 +3213,65 @@ function saveUiLangPref(pref) {
 registerLang("en", "English", {
   /* 04-i18n-init.js */
   "(varios)": "(various)",
+  /* 04-tunables.js */
+  "Espera antes de abrir la ficha al pasar el ratón": "Wait before opening the card on hover",
+  "Espera antes de cerrarla al salir el ratón": "Wait before closing it when the pointer leaves",
+  "Tiempo sobre una capa para guardarla en las recientes": "Time over a layer to keep it among the recent cards",
+  "Duración de una ficha reciente": "Lifetime of a recent card",
+  "Aviso antes de que caduque": "Warning before it expires",
+  "Fichas recientes como máximo": "Recent cards, at most",
+  "Fichas fijadas como máximo": "Pinned cards, at most",
+  "Duración de un aviso del panel": "Duration of a panel notice",
+  "Avisos a la vista como máximo": "Notices on screen, at most",
+  "Avisos guardados en el registro": "Notices kept in the log",
+  "Pausa al escribir antes de filtrar el árbol": "Typing pause before filtering the tree",
+  "Letras mínimas para filtrar el árbol": "Minimum letters to filter the tree",
+  "Pasos que se pueden deshacer": "Steps that can be undone",
+  "Filas que salta Re Pág / Av Pág en el árbol": "Rows Page Up / Page Down skip in the tree",
+  "Distancia para empezar a arrastrar una fila": "Distance to start dragging a row",
+  "Zoom al centrar un punto (🔍)": "Zoom when centring a point (🔍)",
+  "Zoom al buscar unas coordenadas": "Zoom when searching for coordinates",
+  "Zoom mínimo al elegir un lugar sin extensión": "Minimum zoom when choosing a place with no extent",
+  "Margen al encuadrar una forma": "Margin when framing a shape",
+  "Desplazamiento de un toque de flecha": "Pan of one arrow key press",
+  "Velocidad al mantener una flecha": "Speed while holding an arrow key",
+  "Velocidad máxima al mantenerla": "Top speed while holding it",
+  "Multiplicador con Mayús": "Multiplier with Shift",
+  "Zoom al mantener Re Pág / Av Pág": "Zoom while holding Page Up / Page Down",
+  "niveles/s": "levels/s",
+  "Rueda: píxeles por nivel de zoom": "Wheel: pixels per zoom level",
+  "Giro con el botón central": "Rotation with the middle button",
+  "Tolerancia al pulsar un marcador": "Tolerance when clicking a marker",
+  "Tolerancia al pulsar una línea": "Tolerance when clicking a line",
+  "Archivos dentro de un KMZ o zip": "Files inside a KMZ or zip",
+  "Compresión máxima de un KMZ (descomprimido / comprimido)": "Maximum compression of a KMZ (uncompressed / compressed)",
+  "Tamaño máximo de un shapefile": "Maximum size of a shapefile",
+  "Elementos de un shapefile como máximo": "Items of a shapefile, at most",
+  "Puntos de un GPX como máximo": "Points of a GPX, at most",
+  "Preguntar antes de abrir un texto de más de": "Warn before opening a text larger than",
+  "Descarga máxima desde una dirección (🔗)": "Maximum download from an address (🔗)",
+  "Texto máximo al portapapeles del sistema": "Maximum text to the system clipboard",
+  "Atributos por elemento de un KML como máximo": "Attributes per KML item, at most",
+  "Decimales de posición para detectar duplicados": "Position decimals to detect duplicates",
+  "Vértices de un círculo al exportar": "Vertices of a circle when exporting",
+  "Tiempo de espera del buscador de lugares": "Timeout of the place search",
+  "Tiempo de espera de una descarga (🔗)": "Timeout of a download (🔗)",
+  "Tiempo de espera del catálogo de un WMS propio": "Timeout of your own WMS catalogue",
+  "Tiempo de espera de una consulta de elevación": "Timeout of an elevation query",
+  "Reintentos de una consulta de elevación": "Retries of an elevation query",
+  "Peticiones de elevación por segundo": "Elevation requests per second",
+  "Tiempo de espera del Catastro": "Timeout of the Cadastre",
+  "Reintentos del Catastro": "Retries of the Cadastre",
+  "Tiempo de espera de un servicio ArcGIS": "Timeout of an ArcGIS service",
+  "Reintentos de un servicio ArcGIS": "Retries of an ArcGIS service",
+  "Tiempo de espera de Wikipedia": "Timeout of Wikipedia",
+  "Reintentos de Wikipedia": "Retries of Wikipedia",
+  "Artículos de Wikipedia como máximo": "Wikipedia articles, at most",
+  "Zona de Fresnel que debe quedar libre": "Fresnel zone that must stay clear",
+  "Aviso rojo si el MDS supera al MDT en más de": "Red warning if the DSM is above the DTM by more than",
+  "Rejillas de elevación en memoria": "Elevation grids kept in memory",
+  "Líneas del registro de descarga de un perfil": "Lines of a profile's download log",
+  "Escala del PNG de un perfil": "Scale of a profile's PNG",
   /* 06-offline.js */
   "sin conexión a la red": "no network connection",
   "Sin conexión: KITE sigue funcionando con lo guardado en este navegador. Los mapas base, la búsqueda de lugares y las elevaciones necesitan red.": "Offline: KITE keeps working with what is saved in this browser. Base maps, place search and elevations need a network connection.",
@@ -3473,6 +3587,7 @@ registerLang("en", "English", {
   "Elige qué propiedades de «{fileName}» forman el nombre de cada elemento. El orden en que las marques es el orden en que se unen con « / ».": "Choose which properties of “{fileName}” make up the name of each item. The order in which you tick them is the order in which they are joined with “ / ”.",
   "Esta elección se recuerda para futuros archivos con esta misma estructura y se puede cambiar en 🏷️ Propiedades → Índices de GeoJSON.": "This choice is remembered for future files with the same structure and can be changed in 🏷️ Properties → GeoJSON indexes.",
   "Automático": "Automatic",
+  "Valor de partida: {value}": "Default value: {value}",
   "Ninguna": "None",
   "No se consulta.": "Not queried.",
   "Conjunto de datos: {dataset}. Proveedor: {provider}.": "Dataset: {dataset}. Provider: {provider}.",
@@ -3483,6 +3598,7 @@ registerLang("en", "English", {
   "El tamaño máximo": "The maximum size",
   "{what} va de {min} a {max} {unit}: se queda en {value} {unit}.": "{what} ranges from {min} to {max} {unit}: it is set to {value} {unit}.",
   "La longitud máxima de un perfil": "The maximum length of a profile",
+  "No se pudieron guardar los ajustes: valdrán hasta cerrar la página.": "The settings could not be saved: they will last until the page is closed.",
   "El idioma de la interfaz cambiará al recargar la página (F5).": "The interface language will change when the page is reloaded (F5).",
   "Puntos de «{name}»": "Points of “{name}”",
   "{n} puntos": { one: "{n} point", other: "{n} points" },
@@ -3889,6 +4005,8 @@ registerLang("en", "English", {
   "La vista es más grande de lo que Wikipedia permite buscar: se han buscado los artículos a menos de {distance} del punto.": "The view is larger than Wikipedia can search: articles were searched within {distance} of the point.",
   "No se pudo obtener el resumen de {n} artículo(s) ({reason}): solo llevan el enlace.": "Could not get the summary of {n} article(s) ({reason}): they only carry the link.",
   /* 68-whats-new.js */
+  "Las ventanas, y la ficha que recuerda su sitio, se abren siempre enteras dentro del navegador aunque la ventana sea ahora más pequeña.": "Windows, and the card that remembers its place, always open whole inside the browser even if the window is now smaller.",
+  "Con la casilla «Preferencias avanzadas» de Propiedades aparecen, en rojo, pestañas para ajustar tiempos, topes y tolerancias que antes eran fijos.": "The “Advanced preferences” box in Properties shows, in red, tabs to adjust times, limits and tolerances that used to be fixed.",
   "La ficha de información es más tranquila: al pasar el ratón por muchos elementos ya no cambia con cada uno, y las fichas en las que te detienes quedan como pestañas que puedes volver a mirar y fijar.": "The information card is calmer: sweeping the mouse across many items no longer changes it on each one, and the cards you rest on stay as tabs you can look at again and pin.",
   "Todos los marcadores, formas y mediciones tienen su ficha, con su posición o sus medidas, aunque no traigan atributos.": "Every marker, shape and measurement has its card, with its position or its measurements, even without attributes.",
   "La ficha recuerda dónde la dejaste y de qué tamaño.": "The card remembers where you left it and its size.",
@@ -4103,9 +4221,14 @@ registerLang("en", "English", {
   "Fusionar": "Merge",
   "Elegir nombre": "Choose name",
   "Preferencias": "Preferences",
-  "Índices de GeoJSON": "GeoJSON indexes",
+  "Interfaz": "Interface",
+  "Fichas": "Cards",
+  "Mapa y teclado": "Map and keyboard",
+  "Archivos": "Files",
+  "Red": "Network",
+  "Elevación y perfil": "Elevation and profile",
   "Fuentes de datos": "Data sources",
-  "Frecuencias": "Frequencies",
+  "Índices de GeoJSON": "GeoJSON indexes",
   "Restaurar": "Reset",
   "Tema": "Theme",
   "Según el sistema": "Follow the system",
@@ -4131,12 +4254,20 @@ registerLang("en", "English", {
   "Tamaño máximo que puede ocupar un KMZ (o un .zip de shapefile) una vez descomprimido. Frena los archivos desproporcionados o hostiles antes de descomprimir nada; súbelo si tienes un KMZ legítimo más grande y memoria de sobra, bájalo en un equipo justo. Solo afecta a los archivos que abras después.": "Largest size a KMZ (or a shapefile .zip) may take once uncompressed. It stops oversized or hostile files before anything is unpacked; raise it if you have a legitimate larger KMZ and plenty of memory, lower it on a tight machine. It only affects files you open afterwards.",
   "Tamaño máximo de un KMZ descomprimido": "Maximum size of an uncompressed KMZ",
   "MB": "MB",
+  "Muestra las pestañas de preferencias avanzadas, marcadas en rojo: tiempos, topes y tolerancias que casi nunca hace falta tocar. Los valores cambiados siguen valiendo aunque se oculten.": "Shows the tabs of advanced preferences, marked in red: times, limits and tolerances that seldom need touching. Changed values still apply while hidden.",
+  "Preferencias avanzadas": "Advanced preferences",
+  "Avisos del panel, buscador del árbol, deshacer y teclado del árbol. Un valor fuera de rango se ajusta al límite más cercano; «Restaurar» devuelve todos los de estas pestañas a los de partida.": "Panel notices, tree search, undo and tree keyboard. A value out of range is adjusted to the nearest limit; “Reset” brings every value of these tabs back to its default.",
+  "Cuándo se abre y se cierra la ficha de una capa al pasar el ratón, y cuántas fichas recientes y fijadas guarda.": "When a layer's card opens and closes on hover, and how many recent and pinned cards it keeps.",
+  "Zoom al centrar o buscar, desplazamiento con las flechas, zoom con Re Pág / Av Pág y la rueda, giro con el botón central y tolerancia al pulsar una capa.": "Zoom when centring or searching, panning with the arrow keys, zooming with Page Up / Page Down and the wheel, rotating with the middle button and tolerance when clicking a layer.",
+  "Límites al abrir archivos ajenos: frenan los desproporcionados o hostiles antes de que agoten la memoria. Súbelos si tienes un archivo legítimo más grande y memoria de sobra; solo afectan a los archivos que abras después.": "Limits when opening foreign files: they stop disproportionate or hostile ones before they exhaust the memory. Raise them if you have a larger legitimate file and memory to spare; they only affect the files you open afterwards.",
+  "Tiempo de espera por intento y reintentos de los servicios externos. Solo se reintenta lo pasajero (tiempo agotado, red, servicio saturado), nunca un error del propio servicio.": "Timeout per attempt and retries of the external services. Only what is transient is retried (timeout, network, busy service), never an error of the service itself.",
   "Borrar todo": "Delete all",
   "Servicios WCS de los que «Consultas › Elevación» (menú contextual del visor) descarga el terreno y la superficie. Con «Ninguna», ese modelo no se consulta: la cuadrícula muestra solo el otro, sin diferencia.": "WCS services from which “Queries › Elevation” (viewer context menu) downloads the terrain and the surface. With “None”, that model is not queried: the grid shows only the other one, without a difference.",
   "Frecuencia con la que se calcula el elipsoide de Fresnel del perfil de una ruta (casilla «Elipsoide de Fresnel» de su ventana). De 1 a 300 000 MHz; 1090 MHz de partida. Un valor fuera de rango se ajusta al límite más cercano.": "Frequency used to compute the Fresnel ellipsoid of a route profile (“Fresnel ellipsoid” checkbox in its window). From 1 to 300 000 MHz; 1090 MHz to start with. A value out of range is adjusted to the nearest limit.",
   "Frecuencia cálculos de Fresnel": "Fresnel calculation frequency",
   "MHz": "MHz",
-  "Borra todo lo que KITE guarda en este navegador: el árbol de capas, las ortofotos copiadas y todos los ajustes (unidades, fuentes de datos, vista del mapa, mapas base y credenciales). No se puede deshacer. El idioma de la interfaz se conserva. Antes de borrar se pide una segunda confirmación y, al terminar, la página se recarga.": "Deletes everything KITE stores in this browser: the layer tree, the copied orthophotos and all settings (units, data sources, map view, base maps and credentials). This cannot be undone. The interface language is kept. A second confirmation is asked before deleting and the page reloads when it is done.",
+  "Avanzadas": "Advanced",
+  "Borra todo lo que KITE guarda en este navegador: el árbol de capas, las ortofotos copiadas y todos los ajustes (unidades, fuentes de datos, vista del mapa, mapas base y credenciales); los valores de las demás pestañas vuelven a los de partida. No se puede deshacer. El idioma de la interfaz se conserva. Antes de borrar se pide una segunda confirmación y, al terminar, la página se recarga.": "Deletes everything KITE keeps in this browser: the layer tree, the copied orthophotos and every setting (units, data sources, map view, base maps and credentials); the values of the other tabs go back to their defaults. It cannot be undone. The interface language is kept. A second confirmation is asked before deleting and, when done, the page reloads.",
   "Borrar todos los datos guardados…": "Delete all saved data…",
   "Borrar todos los datos": "Delete all data",
   "Se borrarán el árbol de capas, las ortofotos y todos los ajustes guardados en este navegador, y la página se recargará. No se puede deshacer. ¿Continuar?": "The layer tree, the orthophotos and all settings saved in this browser will be deleted, and the page will reload. This cannot be undone. Continue?",
@@ -4237,7 +4368,7 @@ registerLang("en", "English", {
   "Notación anterior": "Previous notation",
   "Notación siguiente": "Next notation",
   "Recta negra entre las dos torres (MDS; si no está elegido, MDT), con sus alturas de torre. Antes de la torre de inicio y después de la final sigue, discontinua, hasta los extremos de la ruta": "Black line between the two towers (MDS; MDT if it is not chosen), with their tower heights. Before the start tower and after the end one it continues, dashed, to the ends of the route",
-  "Primera zona de Fresnel alrededor de la línea inicio–fin, entre las dos torres (contorno discontinuo) y, rellena, su zona del 60 %, que debe quedar libre de obstáculos. La frecuencia se elige en Propiedades → Frecuencias": "First Fresnel zone around the start–end line, between the two towers (dashed outline) and, filled, its 60 % zone, which must be free of obstacles. The frequency is chosen in Properties → Frequencies",
+  "Primera zona de Fresnel alrededor de la línea inicio–fin, entre las dos torres (contorno discontinuo) y, rellena, su zona del 60 %, que debe quedar libre de obstáculos. La frecuencia se elige en Propiedades → Elevación y perfil": "First Fresnel zone around the start–end line, between the two towers (dashed outline) and, filled, its 60 % zone, which must be free of obstacles. The frequency is chosen in Properties → Elevation and profile",
   "Polígonos con altitud (KML o GeoJSON) que cruzan la ruta, como bloques desde el terreno hasta su techo. En rojo, donde la línea inicio–fin pasa por debajo del techo. Son los polígonos visibles cuando se obtuvo el perfil; «Actualizar obstáculos» los vuelve a recoger": "Polygons with altitude (KML or GeoJSON) that cross the route, as blocks from the terrain up to their roof. In red, where the start–end line passes below the roof. They are the polygons that were visible when the profile was obtained; «Update obstacles» collects them again",
   "Contra qué se miden las filas «Despeje» y «Margen Fresnel» de la lectura: el terreno (MDT), la superficie (MDS) o el techo del obstáculo que haya bajo el cursor. El radio de Fresnel y la línea inicio–fin no cambian: la línea nace del suelo de cada torre (el MDS, o el MDT si no hay MDS)": "What the «Despeje» (clearance) and «Margen Fresnel» rows of the readout are measured against: the terrain (MDT), the surface (MDS) or the roof of the obstacle under the cursor. The Fresnel radius and the start–end line do not change: the line starts from the ground under each tower (the MDS, or the MDT if there is no MDS)",
   "Altura de la torre de inicio, SOBRE EL TERRENO: sube ese extremo de la línea inicio–fin": "Height of the start tower, ABOVE THE GROUND: raises that end of the start–end line",
@@ -4298,6 +4429,153 @@ translateDom(document.body);
    traductor. Cada uno es una variable que el CSS lee (con el español de
    respaldo) y que se fija aquí.                                          */
 document.documentElement.style.setProperty("--txt-mixed", JSON.stringify(" " + tr("(varios)")));
+/* ================= Tunable settings (Propiedades) =================
+   Values that used to be fixed constants and that the user can now change
+   in the Properties dialog, grouped in tabs (requested, 2026-11-15). Each
+   entry keeps the name the constant had, so a grep for INFO_STACK_MAX still
+   lands here and on every use (`CFG.INFO_STACK_MAX`).
+
+   - `def` is the value the constant had: «Restaurar» (which wipes the whole
+     database) brings every setting back to it. tests/tunables.js pins each
+     default, so a default cannot drift without the test saying so.
+   - `def`, `min` and `max` are in the unit the CODE uses (ms, bytes, a
+     fraction). The dialog shows `value / scale` in `unit`: seconds for a
+     timeout, MB for a size, % for a fraction.
+   - `int`: the stored value is an integer (counts, ms, bytes, zoom levels).
+   - The bounds keep the protections in place: the import limits stop
+     hostile files, the network ones keep the discipline of
+     external-network.md (timeouts of at most a few minutes, at most five
+     retries, at most ten elevation requests per second).
+
+   Only constants that are read when they are USED live here. Anything
+   copied at load time (MAX_ZOOM into the map options, ELEV_WINDOW into the
+   elevation lattice, the refresh intervals) stays a constant in its file:
+   a new value would not reach the copy.
+
+   Saved in IndexedDB as ONE key holding only what differs from the default
+   (`tunables`, 32-geojson.js), so a future change to a default reaches
+   whoever never touched that setting. Restored at boot (99-boot.js) before
+   anything reads them in earnest.                                      */
+const TUNABLES_TABS = ["cards", "ui", "map", "files", "net", "elev"];
+const TUNABLE_MB = 1024 * 1024;
+const TUNABLES = [
+  /* ---- Info cards ---- */
+  { id: "LAYER_INFO_HOVER_INTENT_MS", tab: "cards", label: N_("Espera antes de abrir la ficha al pasar el ratón"), unit: "ms", def: 250, min: 0, max: 5000, step: 50 },
+  { id: "LAYER_INFO_HIDE_DELAY", tab: "cards", label: N_("Espera antes de cerrarla al salir el ratón"), unit: "ms", def: 200, min: 0, max: 5000, step: 50 },
+  { id: "INFO_STACK_DWELL_MS", tab: "cards", label: N_("Tiempo sobre una capa para guardarla en las recientes"), unit: "ms", def: 400, min: 0, max: 10000, step: 50 },
+  { id: "INFO_STACK_TTL_MS", tab: "cards", label: N_("Duración de una ficha reciente"), unit: "s", scale: 1000, def: 30000, min: 1000, max: 3600000 },
+  { id: "INFO_STACK_WARN_MS", tab: "cards", label: N_("Aviso antes de que caduque"), unit: "s", scale: 1000, def: 5000, min: 0, max: 600000 },
+  { id: "INFO_STACK_MAX", tab: "cards", label: N_("Fichas recientes como máximo"), def: 6, min: 1, max: 30 },
+  { id: "INFO_STACK_MAX_PINNED", tab: "cards", label: N_("Fichas fijadas como máximo"), def: 6, min: 1, max: 30 },
+
+  /* ---- Interface ---- */
+  { id: "MSG_TIMEOUT", tab: "ui", label: N_("Duración de un aviso del panel"), unit: "s", scale: 1000, def: 6000, min: 1000, max: 600000 },
+  { id: "MSG_MAX_LINES", tab: "ui", label: N_("Avisos a la vista como máximo"), def: 8, min: 1, max: 50 },
+  { id: "MSG_LOG_MAX", tab: "ui", label: N_("Avisos guardados en el registro"), def: 200, min: 10, max: 10000 },
+  { id: "SEARCH_DEBOUNCE_MS", tab: "ui", label: N_("Pausa al escribir antes de filtrar el árbol"), unit: "ms", def: 150, min: 0, max: 3000, step: 50 },
+  { id: "SEARCH_MIN_CHARS", tab: "ui", label: N_("Letras mínimas para filtrar el árbol"), def: 3, min: 1, max: 20 },
+  { id: "UNDO_MAX", tab: "ui", label: N_("Pasos que se pueden deshacer"), def: 20, min: 1, max: 100 },
+  { id: "PAGE_STEP", tab: "ui", label: N_("Filas que salta Re Pág / Av Pág en el árbol"), def: 10, min: 1, max: 200 },
+  { id: "DRAG_THRESHOLD_PX", tab: "ui", label: N_("Distancia para empezar a arrastrar una fila"), unit: "px", def: 6, min: 1, max: 100 },
+
+  /* ---- Map and keyboard ---- */
+  { id: "FOCUS_ZOOM", tab: "map", label: N_("Zoom al centrar un punto (🔍)"), def: 14, min: 1, max: 25 },
+  /* coordinates are an exact point: street scale, not a region */
+  { id: "COORD_SEARCH_ZOOM", tab: "map", label: N_("Zoom al buscar unas coordenadas"), def: 17, min: 1, max: 25 },
+  { id: "PLACE_ZOOM", tab: "map", label: N_("Zoom mínimo al elegir un lugar sin extensión"), def: 14, min: 1, max: 25 },
+  { id: "FRAME_MARGIN_RATIO", tab: "map", label: N_("Margen al encuadrar una forma"), unit: "%", scale: 0.01, int: false, def: 0.2, min: 0, max: 0.45 },
+  { id: "KEY_PAN_STEP", tab: "map", label: N_("Desplazamiento de un toque de flecha"), unit: "px", def: 80, min: 1, max: 2000 },
+  { id: "KEY_PAN_SPEED", tab: "map", label: N_("Velocidad al mantener una flecha"), unit: "px/s", def: 400, min: 10, max: 10000, step: 10 },
+  { id: "KEY_PAN_MAX_SPEED", tab: "map", label: N_("Velocidad máxima al mantenerla"), unit: "px/s", def: 1600, min: 10, max: 20000, step: 10 },
+  { id: "KEY_PAN_SHIFT", tab: "map", label: N_("Multiplicador con Mayús"), unit: "×", int: false, def: 3, min: 1, max: 20, step: 0.5 },
+  { id: "KEY_ZOOM_RATE", tab: "map", label: N_("Zoom al mantener Re Pág / Av Pág"), unit: N_("niveles/s"), int: false, def: 3, min: 0.5, max: 20, step: 0.5 },
+  { id: "WHEEL_PX_PER_LEVEL", tab: "map", label: N_("Rueda: píxeles por nivel de zoom"), unit: "px", def: 100, min: 10, max: 2000, step: 10 },
+  { id: "ROTATE_DEG_PER_PX", tab: "map", label: N_("Giro con el botón central"), unit: "°/px", int: false, def: 0.5, min: 0.05, max: 10, step: 0.05 },
+  /* a marker: about the size of its icon; a line: Leaflet's own default
+     clickTolerance, widened by the stroke where it is thicker */
+  { id: "MARKER_HIT_PX", tab: "map", label: N_("Tolerancia al pulsar un marcador"), unit: "px", def: 20, min: 1, max: 100 },
+  { id: "PATH_HIT_PX", tab: "map", label: N_("Tolerancia al pulsar una línea"), unit: "px", def: 10, min: 1, max: 100 },
+
+  /* ---- Files ---- */
+  { id: "KMZ_MAX_ENTRIES", tab: "files", label: N_("Archivos dentro de un KMZ o zip"), def: 2000, min: 10, max: 100000 },
+  { id: "KMZ_MAX_RATIO", tab: "files", label: N_("Compresión máxima de un KMZ (descomprimido / comprimido)"), unit: "×", def: 200, min: 10, max: 10000 },
+  { id: "SHP_MAX_BYTES", tab: "files", label: N_("Tamaño máximo de un shapefile"), unit: "MB", scale: TUNABLE_MB, def: 300 * TUNABLE_MB, min: TUNABLE_MB, max: 4096 * TUNABLE_MB },
+  { id: "SHP_MAX_FEATURES", tab: "files", label: N_("Elementos de un shapefile como máximo"), def: 100000, min: 100, max: 10000000, step: 100 },
+  { id: "GPX_MAX_POINTS", tab: "files", label: N_("Puntos de un GPX como máximo"), def: 2000000, min: 1000, max: 50000000, step: 1000 },
+  { id: "HUGE_IMPORT_CHARS", tab: "files", label: N_("Preguntar antes de abrir un texto de más de"), unit: "MB", scale: TUNABLE_MB, def: 100 * TUNABLE_MB, min: TUNABLE_MB, max: 4096 * TUNABLE_MB },
+  { id: "URL_MAX_BYTES", tab: "files", label: N_("Descarga máxima desde una dirección (🔗)"), unit: "MB", scale: TUNABLE_MB, def: 100 * TUNABLE_MB, min: TUNABLE_MB, max: 4096 * TUNABLE_MB },
+  /* above it only the internal clipboard gets the copy (the 💾 button exports) */
+  { id: "CLIPBOARD_MAX", tab: "files", label: N_("Texto máximo al portapapeles del sistema"), unit: "MB", scale: TUNABLE_MB, def: 5 * TUNABLE_MB, min: TUNABLE_MB, max: 256 * TUNABLE_MB },
+  { id: "EXT_MAX_FIELDS", tab: "files", label: N_("Atributos por elemento de un KML como máximo"), def: 200, min: 10, max: 5000 },
+  { id: "DUP_POS_DECIMALS", tab: "files", label: N_("Decimales de posición para detectar duplicados"), def: 5, min: 0, max: 10 },
+  /* 120: a vertex every 3°, a circle at map scale */
+  { id: "EXPORT_CIRCLE_SEGMENTS", tab: "files", label: N_("Vértices de un círculo al exportar"), def: 120, min: 8, max: 3600 },
+
+  /* ---- Network ---- */
+  { id: "PLACE_TIMEOUT", tab: "net", label: N_("Tiempo de espera del buscador de lugares"), unit: "s", scale: 1000, def: 10000, min: 1000, max: 120000 },
+  { id: "URL_TIMEOUT", tab: "net", label: N_("Tiempo de espera de una descarga (🔗)"), unit: "s", scale: 1000, def: 20000, min: 1000, max: 600000 },
+  { id: "CUSTOM_WMS_TIMEOUT", tab: "net", label: N_("Tiempo de espera del catálogo de un WMS propio"), unit: "s", scale: 1000, def: 15000, min: 1000, max: 120000 },
+  /* per attempt; a slow source brings its own (Digital Earth Africa, 40 s) */
+  { id: "ELEV_TIMEOUT", tab: "net", label: N_("Tiempo de espera de una consulta de elevación"), unit: "s", scale: 1000, def: 12000, min: 1000, max: 120000 },
+  { id: "ELEV_RETRIES", tab: "net", label: N_("Reintentos de una consulta de elevación"), def: 3, min: 0, max: 5 },
+  /* across every source: a profile waits for its turn */
+  { id: "ELEV_MAX_RPS", tab: "net", label: N_("Peticiones de elevación por segundo"), def: 4, min: 1, max: 10 },
+  { id: "CADASTRE_TIMEOUT", tab: "net", label: N_("Tiempo de espera del Catastro"), unit: "s", scale: 1000, def: 15000, min: 1000, max: 120000 },
+  { id: "CADASTRE_RETRIES", tab: "net", label: N_("Reintentos del Catastro"), def: 2, min: 0, max: 5 },
+  /* per attempt */
+  { id: "ARCGIS_QUERY_TIMEOUT", tab: "net", label: N_("Tiempo de espera de un servicio ArcGIS"), unit: "s", scale: 1000, def: 30000, min: 1000, max: 300000 },
+  { id: "ARCGIS_RETRIES", tab: "net", label: N_("Reintentos de un servicio ArcGIS"), def: 2, min: 0, max: 5 },
+  { id: "WIKIPEDIA_TIMEOUT", tab: "net", label: N_("Tiempo de espera de Wikipedia"), unit: "s", scale: 1000, def: 15000, min: 1000, max: 120000 },
+  { id: "WIKIPEDIA_RETRIES", tab: "net", label: N_("Reintentos de Wikipedia"), def: 3, min: 0, max: 5 },
+  { id: "WIKIPEDIA_LIMIT", tab: "net", label: N_("Artículos de Wikipedia como máximo"), def: 100, min: 1, max: 500 },
+
+  /* ---- Elevation and profile (the Fresnel frequency, its own key, shares the tab) ---- */
+  { id: "PF_FRESNEL_ZONE", tab: "elev", label: N_("Zona de Fresnel que debe quedar libre"), unit: "%", scale: 0.01, int: false, def: 0.6, min: 0.1, max: 1 },
+  { id: "ELEV_ALERT_DIFF", tab: "elev", label: N_("Aviso rojo si el MDS supera al MDT en más de"), unit: "m", int: false, def: 1, min: 0, max: 100, step: 0.1 },
+  { id: "ELEV_CACHE_MAX", tab: "elev", label: N_("Rejillas de elevación en memoria"), def: 200, min: 10, max: 5000 },
+  /* the oldest lines go first */
+  { id: "PROFILE_LOG_MAX", tab: "elev", label: N_("Líneas del registro de descarga de un perfil"), def: 3000, min: 100, max: 100000, step: 100 },
+  { id: "PF_EXPORT_SCALE", tab: "elev", label: N_("Escala del PNG de un perfil"), unit: "×", def: 2, min: 1, max: 4 }
+];
+const TUNABLE_BY_ID = new Map(TUNABLES.map(t => [t.id, t]));
+/* The live values: every use reads CFG.<id> when it runs */
+const CFG = Object.fromEntries(TUNABLES.map(t => [t.id, t.def]));
+
+const tunableScale = t => t.scale || 1;
+const tunableInt = t => t.int !== false;
+/* A value is valid if it is a finite number inside the bounds and, for an
+   integer setting, a whole number. Pure: the reader of the saved record and
+   the dialog both ask here. */
+function tunableValid(t, v) {
+  return typeof v === "number" && Number.isFinite(v) && v >= t.min && v <= t.max
+    && (!tunableInt(t) || Number.isInteger(v));
+}
+/* The saved record ({ v, values }) → the values worth applying. Foreign
+   input (another tab, an older version, a hand-edited database): an unknown
+   id or an invalid value is dropped on its own, the rest still applies. */
+const TUNABLES_SCHEMA = 1;
+function validTunables(r) {
+  const out = {};
+  if (!r || typeof r !== "object" || r.v !== TUNABLES_SCHEMA || !r.values || typeof r.values !== "object") return out;
+  for (const [id, v] of Object.entries(r.values)) {
+    const t = TUNABLE_BY_ID.get(id);
+    if (t && tunableValid(t, v)) out[id] = v;
+  }
+  return out;
+}
+/* Only what differs from the default is saved */
+function tunableOverrides(values = CFG) {
+  const out = {};
+  for (const t of TUNABLES) if (values[t.id] !== t.def) out[t.id] = values[t.id];
+  return out;
+}
+/* Shown ↔ stored. The shown value is rounded to six significant decimals so
+   0.6 / 0.01 reads 60 and not 59.99999999999999. */
+const tunableShown = (t, v) => +(v / tunableScale(t)).toFixed(6);
+function tunableStored(t, shown) {
+  const v = shown * tunableScale(t);
+  return tunableInt(t) ? Math.round(v) : +v.toFixed(9);
+}
 /* ================= Iconos MDI empotrados =================
    GENERADO por fetch-icons.js (npm run icons). No editar a mano: el
    cambio se perdería en la siguiente regeneración, igual que pasa con
@@ -5568,7 +5846,7 @@ map.on("resize rotate", fitWorldMinZoom);
 
 /* Fecha de generación del código (versión): AÑOMESDIAHORAMINUTO.
    Actualizar en cada generación; se muestra junto al crédito de Leaflet. */
-const BUILD = "202611142105";
+const BUILD = "202611151947";
 /* Versión de release (la de package.json, horneada aquí por build.js
    al construir — ver «Versión y releases de GitHub» en CLAUDE.md): a
    diferencia de BUILD, que cambia en CADA generación, esta solo cambia
@@ -6233,8 +6511,6 @@ function validUserBases(list) {
   return out;
 }
 
-/* WMS tile requests and the GetCapabilities of a user WMS */
-const CUSTOM_WMS_TIMEOUT = 15000;
 /* A user server may nest its layers in groups (the group titles already
    label their children); those hanging straight from the root go here. */
 const CUSTOM_WMS_OPTS = { exclude: new Set(), rootGroup: N_("Capas del servidor") };
@@ -6368,7 +6644,7 @@ async function fetchUserWmsCatalog(def) {
   src.err = null;
   const discovering = (async () => {
     const r = await fetch(customWmsCapabilitiesUrl(base),
-      { signal: AbortSignal.timeout(CUSTOM_WMS_TIMEOUT) });
+      { signal: AbortSignal.timeout(CFG.CUSTOM_WMS_TIMEOUT) });
     const txt = await r.text();
     /* The OGC error may travel in the body even with HTTP 200 */
     const ex = parseWmsServiceException(txt);
@@ -7199,14 +7475,13 @@ function parsePolygon(polyEl) {
    tabla de atributos que una de GeoJSON. Entrada AJENA: tope de campos,
    primer valor de un nombre repetido y nombres que no pueden ser
    propiedades (`__proto__`) fuera. null si no hay ninguno.            */
-const EXT_MAX_FIELDS = 200;
 function parseExtendedData(pm) {
   const ext = childrenByTag(pm, "ExtendedData")[0];
   if (!ext) return null;
   const props = {};
   let n = 0;
   const put = (key, value) => {
-    if (!key || key === "__proto__" || n >= EXT_MAX_FIELDS) return;
+    if (!key || key === "__proto__" || n >= CFG.EXT_MAX_FIELDS) return;
     if (Object.prototype.hasOwnProperty.call(props, key)) return;
     props[key] = value;
     n++;
@@ -7780,16 +8055,14 @@ function showLoadingMessage() { showTreePlaceholder(tr("Inicializando…")); }
 showLoadingMessage();
 
 /* Mensajes informativos/de error del panel de navegación */
-/* Avisos del panel. Los transitorios se van solos a los 6 s; los que el
-   usuario TIENE que leer (resúmenes de importación con elementos
-   omitidos) se quedan hasta que pulsa "Aceptar", porque si no, no da
-   tiempo a leerlos. Se acumulan por líneas para que soltar varios
-   archivos a la vez no haga que un aviso pise al anterior.           */
-const MSG_TIMEOUT = 6000;
-const MSG_MAX_LINES = 8;
-/* Tope del registro de la sesión. Solo vive en memoria: no se guarda en
-   IndexedDB, así que se pierde al cerrar la página.                   */
-const MSG_LOG_MAX = 200;
+/* Panel notices. Transient ones go away by themselves after
+   CFG.MSG_TIMEOUT (6 s by default, tunable in Propiedades); the ones the
+   user HAS to read (import summaries with skipped items) stay until
+   "Aceptar" is pressed, or there would be no time to read them. They
+   pile up line by line (at most CFG.MSG_MAX_LINES) so dropping several
+   files at once does not make one notice overwrite the previous one.
+   The session log keeps CFG.MSG_LOG_MAX entries, in memory only: it is
+   not saved in IndexedDB and goes when the page closes.               */
 
 /* Registro de la sesión: sobrevive a que la línea del panel se vaya a
    los MSG_TIMEOUT, que es lo que antes hacía imposible leer un aviso
@@ -7856,14 +8129,14 @@ function navMessage(txt, { sticky = false, tone = "error" } = {}) {
        el texto bajo el cursor.                                        */
     if (old._timer) {
       clearTimeout(old._timer);
-      old._timer = setTimeout(() => old.remove(), MSG_TIMEOUT);
+      old._timer = setTimeout(() => old.remove(), CFG.MSG_TIMEOUT);
     }
     return;
   }
 
   const entry = { text: txt, tone, sticky, count: 1, first: now, last: now };
   msgLog.push(entry);
-  if (msgLog.length > MSG_LOG_MAX) msgLog.shift();
+  if (msgLog.length > CFG.MSG_LOG_MAX) msgLog.shift();
   msgLogUnseen++;
   refreshLogButton();
 
@@ -7884,7 +8157,7 @@ function navMessage(txt, { sticky = false, tone = "error" } = {}) {
 
   /* Tope de líneas: se retiran las más antiguas que no exijan lectura */
   const lines = [...el.querySelectorAll(".nav-msg-line")];
-  for (const old of lines.slice(0, Math.max(0, lines.length - MSG_MAX_LINES))) {
+  for (const old of lines.slice(0, Math.max(0, lines.length - CFG.MSG_MAX_LINES))) {
     if (!old.classList.contains("keep")) old.remove();
   }
 
@@ -7898,7 +8171,7 @@ function navMessage(txt, { sticky = false, tone = "error" } = {}) {
       el.appendChild(ok);
     }
   } else {
-    line._timer = setTimeout(() => line.remove(), MSG_TIMEOUT);
+    line._timer = setTimeout(() => line.remove(), CFG.MSG_TIMEOUT);
   }
 }
 
@@ -7906,10 +8179,9 @@ function clearNavMessage() {
   document.getElementById("nav-msg").textContent = "";
 }
 
-/* hwAccelerated se calculó antes de crear el mapa (para poder pasar
-   zoomAnimation en sus opciones), pero el aviso no puede lanzarse hasta
-   aquí: navMessage necesita MSG_MAX_LINES/MSG_TIMEOUT, declaradas más
-   abajo en el script.                                                 */
+/* hwAccelerated was worked out before creating the map (to pass
+   zoomAnimation in its options), but the notice can only be raised from
+   here on: navMessage is declared in this file.                        */
 if (!hwAccelerated) {
   navMessage(
     tr("No se detecta aceleración por hardware en el navegador. "
@@ -7922,17 +8194,16 @@ if (!hwAccelerated) {
 /* Centrar la vista en un nodo y acercar a un zoom de trabajo. A
    diferencia del doble click, no depende de dónde estuviera la vista ni
    de la escalera: siempre deja el nodo centrado y a la misma escala. */
-/* 14: a escala de calle, donde un marcador se ve en su entorno y se pueden
-   distinguir los vecinos (antes 9, a escala de provincia, pedido 30-10-2026). */
-const FOCUS_ZOOM = 14;
-/* Margen relativo al tama\u00F1o del panel del visor (20% a cada lado), no
-   una cifra fija de p\u00EDxeles: as\u00ED un pol\u00EDgono peque\u00F1o y uno grande, o el
-   panel en una ventana estrecha y en una ancha, quedan igual de
-   enmarcados sin tocar los bordes.                                    */
-const FRAME_MARGIN_RATIO = 0.2;
+/* CFG.FOCUS_ZOOM, 14 by default: street scale, where a marker is seen in
+   its surroundings and its neighbours can be told apart (it was 9, a
+   province, until requested on 30-10-2026). The framing margin
+   (CFG.FRAME_MARGIN_RATIO, 20 % on each side by default) is relative to
+   the size of the viewer, not a fixed number of pixels: a small polygon
+   and a large one, or the viewer in a narrow window and in a wide one,
+   end up framed alike without touching the edges.                      */
 function fitBoundsFramed(bounds) {
   const size = map.getSize();
-  map.fitBounds(bounds, { padding: [size.x * FRAME_MARGIN_RATIO, size.y * FRAME_MARGIN_RATIO] });
+  map.fitBounds(bounds, { padding: [size.x * CFG.FRAME_MARGIN_RATIO, size.y * CFG.FRAME_MARGIN_RATIO] });
 }
 /* Los nodos de pol\u00EDgono (styleKind "polygon": tambi\u00E9n las l\u00EDneas, que
    comparten estilo) y las mediciones no usan el zoom de trabajo fijo:
@@ -7948,7 +8219,7 @@ function focusOnNode(li) {
   if (!b.isValid()) { navMessage(tr("Esta capa no tiene geometr\u00EDa que enfocar.")); return; }
   const kind = styleKind(li);
   if (kind === "polygon" || kind === "measure" || kind === "elevGrid" || kind === "cog" || kind === "arcgis") fitBoundsFramed(b);
-  else map.setView(b.getCenter(), FOCUS_ZOOM);
+  else map.setView(b.getCenter(), CFG.FOCUS_ZOOM);
 }
 
 /* La lupa que puede tener VARIAS capas —la del diálogo de propiedades y la de
@@ -7961,7 +8232,7 @@ function focusOnNodes(items) {
   const all = L.latLngBounds([]);
   for (const li of items) { const b = subtreeBounds(li); if (b.isValid()) all.extend(b); }
   if (!all.isValid()) { navMessage(tr("Estas capas no tienen geometr\u00EDa que enfocar.")); return; }
-  if (all.getSouthWest().equals(all.getNorthEast())) map.setView(all.getCenter(), FOCUS_ZOOM);
+  if (all.getSouthWest().equals(all.getNorthEast())) map.setView(all.getCenter(), CFG.FOCUS_ZOOM);
   else fitBoundsFramed(all);
 }
 
@@ -8702,7 +8973,7 @@ function makeActions(li, sortable, styleable, layer, focusable = styleable, { fi
   }
   if (sortable) btn("\u25A6", tr("Tabla de atributos de esta carpeta"), "", () => openAttrTable(li));
   if (focusable) {
-    btn("\uD83D\uDD0D", tr("Centrar la vista aqu\u00ED y acercar (zoom {zoom})", { zoom: FOCUS_ZOOM }), "", () => {
+    btn("\uD83D\uDD0D", tr("Centrar la vista aqu\u00ED y acercar (zoom {zoom})", { zoom: CFG.FOCUS_ZOOM }), "", () => {
       /* si el nodo forma parte de la selección, la lupa encuadra el CONJUNTO
          (como el × borra toda la selección y el 🎨 abre las propiedades de
          todas); fuera de ella, solo esta fila                              */
@@ -8927,9 +9198,8 @@ function highlightNode(li) {
 
 /* Lo que NO es asa: controles que se PULSAN, no se arrastran */
 const DRAG_NOT_HANDLE = ".caret, input, button, .actions";
-/* Píxeles que hay que recorrer para que esto sea un arrastre y no un
-   clic con pulso. Por debajo, el gesto sigue siendo un clic.        */
-const DRAG_THRESHOLD_PX = 6;
+/* CFG.DRAG_THRESHOLD_PX: the pixels to travel for this to be a drag and
+   not a shaky click. Below it, the gesture is still a click.        */
 
 let dragPress = null;   /* pulsación en curso que podría ser arrastre */
 let dropTarget = null;  /* { row, li, zone } bajo el puntero ahora */
@@ -8956,7 +9226,7 @@ function cancelTreeDrag() {
 document.addEventListener("pointermove", e => {
   if (!dragPress) return;
   if (!dragItems) {
-    if (Math.hypot(e.clientX - dragPress.x, e.clientY - dragPress.y) < DRAG_THRESHOLD_PX) return;
+    if (Math.hypot(e.clientX - dragPress.x, e.clientY - dragPress.y) < CFG.DRAG_THRESHOLD_PX) return;
     /* Arrastrar un nodo seleccionado arrastra toda la selección;
        arrastrar uno no seleccionado la descarta y lo lleva solo.    */
     if (selection.has(dragPress.li)) dragItems = movableSelection();
@@ -9860,7 +10130,6 @@ let layerInfoDismissed = false;
    closes, as it always did. Skipped while the card holds keyboard focus (an
    explicit open via the ℹ button or the context menu): that close stays the
    user's call.                                                           */
-const LAYER_INFO_HIDE_DELAY = 200; /* ms */
 let layerInfoHideTimer = null;
 let infoHideHeld = false; /* the deferred close waits for a text selection in the card to go (44-dialogs.js) */
 function cancelLayerInfoHide() {
@@ -9893,7 +10162,7 @@ function scheduleLayerInfoHide() {
     if (infoSelectionInCard()) { infoHideHeld = true; return; }
     if (infoCardLocked()) return;
     collapseLayerInfo();
-  }, LAYER_INFO_HIDE_DELAY);
+  }, CFG.LAYER_INFO_HIDE_DELAY);
 }
 
 /* ---------- Hover intent ----------
@@ -9902,7 +10171,6 @@ function scheduleLayerInfoHide() {
    another layer takes it over only once the pointer has RESTED on it for
    LAYER_INFO_HOVER_INTENT_MS; just crossing it changes nothing. A closed or
    compact card still opens at once on the first layer.                    */
-const LAYER_INFO_HOVER_INTENT_MS = 250; /* ms */
 let hoverIntent = null; /* { li, timer } */
 function cancelHoverIntent() {
   if (hoverIntent) { clearTimeout(hoverIntent.timer); hoverIntent = null; }
@@ -9930,11 +10198,6 @@ function cancelHoverIntent() {
      applied meanwhile either (a row unpinned while there waits).
    Session state only: rows point at live tree rows, which undo and reload
    rebuild. Rendering lives in 44-dialogs.js (renderInfoStack).            */
-const INFO_STACK_DWELL_MS = 400;
-const INFO_STACK_TTL_MS = 30000;
-const INFO_STACK_WARN_MS = 5000;
-const INFO_STACK_MAX = 6;
-const INFO_STACK_MAX_PINNED = 6;
 let infoStack = [];      /* [{ li, pinned, t: last use, q: order of entry in the queue }], newest first, never reordered */
 let infoQueueSeq = 0;    /* q comes from a counter, not the clock: two rows can enter within the same millisecond */
 let liveInfo = null;     /* { li, enteredAt, leftAt, explicit }: the layer under the pointer or opened on purpose */
@@ -9949,7 +10212,7 @@ const infoStackClock = () => infoStackPaused ? infoPausedAt : Date.now();
    renewed lease. Unchanged (same array) when `li` should enter pinned and the
    pinned cap is full. Trims the queue unless `paused`. Pure, tested in
    tests/toolstest.js. */
-function infoStackWith(rows, li, now, { pinned = false, max = INFO_STACK_MAX, maxPinned = INFO_STACK_MAX_PINNED, paused = false, q = now } = {}) {
+function infoStackWith(rows, li, now, { pinned = false, max = CFG.INFO_STACK_MAX, maxPinned = CFG.INFO_STACK_MAX_PINNED, paused = false, q = now } = {}) {
   if (rows.some(r => r.li === li)) return rows.map(r => r.li === li ? { ...r, t: now } : r);
   if (pinned && rows.filter(r => r.pinned).length >= maxPinned) return rows;
   const next = [{ li, pinned, t: now, q }, ...rows];
@@ -9957,7 +10220,7 @@ function infoStackWith(rows, li, now, { pinned = false, max = INFO_STACK_MAX, ma
 }
 /* First in, first out over the unpinned rows: drops the ones that entered the
    queue earliest until `max` are left. Pure. */
-function infoStackTrim(rows, max = INFO_STACK_MAX) {
+function infoStackTrim(rows, max = CFG.INFO_STACK_MAX) {
   const queue = rows.filter(r => !r.pinned);
   if (queue.length <= max) return rows;
   const out = new Set([...queue].sort((a, b) => a.q - b.q).slice(0, queue.length - max));
@@ -9966,7 +10229,7 @@ function infoStackTrim(rows, max = INFO_STACK_MAX) {
 /* Pin or unpin the row of `li` in place. Unpinning puts it back in the queue as
    its newest entry (q, t = now). Same array back when pinning would pass the
    pinned cap. Pure. */
-function infoStackPinned(rows, li, pinned, now, { max = INFO_STACK_MAX, maxPinned = INFO_STACK_MAX_PINNED, paused = false, q = now } = {}) {
+function infoStackPinned(rows, li, pinned, now, { max = CFG.INFO_STACK_MAX, maxPinned = CFG.INFO_STACK_MAX_PINNED, paused = false, q = now } = {}) {
   const row = rows.find(r => r.li === li);
   if (!row) return infoStackWith(rows, li, now, { pinned, max, maxPinned, paused, q });
   if (row.pinned === pinned) return rows;
@@ -9976,7 +10239,7 @@ function infoStackPinned(rows, li, pinned, now, { max = INFO_STACK_MAX, maxPinne
 }
 /* The rows still worth showing: unpinned ones expire (not while `paused`), and
    a layer that left the tree (deleted, or rebuilt by undo) goes. Pure. */
-function infoStackAlive(rows, now, ttl = INFO_STACK_TTL_MS, paused = false) {
+function infoStackAlive(rows, now, ttl = CFG.INFO_STACK_TTL_MS, paused = false) {
   return rows.filter(r => r.li.isConnected !== false && (r.pinned || paused || now - r.t < ttl));
 }
 /* The clocks go on after a pause of `pausedFor` ms: every unpinned row keeps
@@ -9984,11 +10247,14 @@ function infoStackAlive(rows, now, ttl = INFO_STACK_TTL_MS, paused = false) {
 function infoStackResumed(rows, pausedFor) {
   return rows.map(r => r.pinned ? r : { ...r, t: r.t + pausedFor });
 }
-function infoStackExpiring(row, now, ttl = INFO_STACK_TTL_MS, warn = INFO_STACK_WARN_MS) {
-  return !row.pinned && now >= row.t + ttl - warn;
+/* Both are tunable: a warning longer than the lifetime just dims a row from
+   the moment it enters, never before it exists. */
+function infoStackExpiring(row, now, ttl = CFG.INFO_STACK_TTL_MS, warn = CFG.INFO_STACK_WARN_MS) {
+  return !row.pinned && now >= row.t + ttl - Math.min(warn, ttl);
 }
 /* When the next row starts dimming or expires (Infinity: nothing pending). Pure. */
-function infoStackNextEvent(rows, now, ttl = INFO_STACK_TTL_MS, warn = INFO_STACK_WARN_MS) {
+function infoStackNextEvent(rows, now, ttl = CFG.INFO_STACK_TTL_MS, warn = CFG.INFO_STACK_WARN_MS) {
+  warn = Math.min(warn, ttl);
   let next = Infinity;
   for (const r of rows) {
     if (r.pinned) continue;
@@ -10027,7 +10293,7 @@ function pauseInfoStack(paused) {
    layer is reflected at once (a handful of rows to look at). */
 function refreshInfoStack() {
   if (!infoStack.length && !liveInfo) return;
-  infoStack = infoStackAlive(infoStack, infoStackClock(), INFO_STACK_TTL_MS, infoStackPaused);
+  infoStack = infoStackAlive(infoStack, infoStackClock(), CFG.INFO_STACK_TTL_MS, infoStackPaused);
   if (liveInfo && liveInfo.li.isConnected === false) liveInfo = null;
   if (infoPeek && !infoStack.some(r => r.li === infoPeek)) { infoPeek = null; setInfoHalo(null); }
   if (!descDialog.hidden) {
@@ -10047,7 +10313,7 @@ function retireLiveInfo() {
   if (!live || !infoStackActive()) return;
   const now = Date.now();
   const dwell = (live.leftAt ?? now) - live.enteredAt;
-  if (live.explicit || dwell >= INFO_STACK_DWELL_MS || infoStack.some(r => r.li === live.li)) {
+  if (live.explicit || dwell >= CFG.INFO_STACK_DWELL_MS || infoStack.some(r => r.li === live.li)) {
     infoStack = infoStackWith(infoStack, live.li, infoStackClock(), { paused: infoStackPaused, q: ++infoQueueSeq });
     scheduleInfoStackTick();
   }
@@ -10064,7 +10330,7 @@ function toggleInfoPin(li) {
   const row = infoStack.find(r => r.li === li);
   const next = infoStackPinned(infoStack, li, !(row && row.pinned), infoStackClock(), { paused: infoStackPaused, q: ++infoQueueSeq });
   if (next === infoStack) {
-    navMessage(tr("Ya hay {n} fichas fijadas: suelte alguna para fijar otra.", { n: INFO_STACK_MAX_PINNED }));
+    navMessage(tr("Ya hay {n} fichas fijadas: suelte alguna para fijar otra.", { n: CFG.INFO_STACK_MAX_PINNED }));
     return;
   }
   infoStack = next;
@@ -10087,7 +10353,7 @@ function settleHoverCandidate() {
   const c = infoHoverCandidate;
   if (!c) return;
   infoHoverCandidate = null;
-  if (!infoStackActive() || Date.now() - c.enteredAt < INFO_STACK_DWELL_MS) return;
+  if (!infoStackActive() || Date.now() - c.enteredAt < CFG.INFO_STACK_DWELL_MS) return;
   infoStack = infoStackWith(infoStack, c.li, infoStackClock(), { paused: infoStackPaused, q: ++infoQueueSeq });
   scheduleInfoStackTick();
   if (!descDialog.hidden) renderInfoStack();
@@ -10173,7 +10439,7 @@ function setLiveInfo(li, focus, enteredAt, html = infoHtmlFor(li)) {
   const wasHidden = descDialog.hidden;
   descDialog.hidden = false;
   if (wasHidden) {
-    clampToViewport(descBox);
+    placeInfoBox();
     if (focus) focusDialog(descBox);
     /* Opened by hovering the viewer: closing it must land back there,
        not wherever focus happened to be when the cursor crossed it.   */
@@ -10219,7 +10485,7 @@ function showLayerInfo(li, { focus = true } = {}) {
       hoverIntent = null;
       if (descDialog.hidden || hoverBlocked()) return;
       setLiveInfo(li, false, now);
-    }, LAYER_INFO_HOVER_INTENT_MS) };
+    }, CFG.LAYER_INFO_HOVER_INTENT_MS) };
     return;
   }
   cancelHoverIntent();
@@ -10231,13 +10497,12 @@ function showLayerInfo(li, { focus = true } = {}) {
    poco desde que la geometría se cachea (~5 ms con 8.000 capas) y porque
    las instantáneas COMPARTEN esa geometría en vez de clonarla: lo que
    ocupa es la estructura, no las coordenadas.                        */
-const UNDO_MAX = 20;
 const undoStack = [];
 const redoStack = [];
 
 function pushUndo(label) {
   undoStack.push({ label, nodes: serializeTree() });
-  if (undoStack.length > UNDO_MAX) undoStack.shift();
+  if (undoStack.length > CFG.UNDO_MAX) undoStack.shift();
   /* Una acción nueva invalida lo rehacible: la historia se bifurca */
   redoStack.length = 0;
 }
@@ -10464,8 +10729,8 @@ async function dbLoadProfileMax() {
   });
 }
 
-/* Frecuencia del elipsoide de Fresnel, en MHz (pestaña «Frecuencias» de
-   Propiedades). Fuera de [FRESNEL_FREQ_MIN, FRESNEL_FREQ_MAX] se descarta. */
+/* Frequency of the Fresnel ellipsoid, in MHz (the «Elevación y perfil» tab
+   of Propiedades). Outside [FRESNEL_FREQ_MIN, FRESNEL_FREQ_MAX] it is dropped. */
 const FRESNEL_FREQ_KEY = "fresnelFreq";
 const FRESNEL_FREQ_SCHEMA = 1;
 const validFresnelFreq = r =>
@@ -10555,7 +10820,7 @@ async function dbLoadElevFont() {
    DB_VERSION or TREE_SCHEMA bump. Validated on reading (another tab or an old
    version may have written anything): finite numbers, left and top together,
    sizes of at least INFO_BOX_MIN_PX. Off-screen is fixed when the card opens
-   (clampToViewport), not here: the window may be another size by then. */
+   (fitInViewport), not here: the window may be another size by then. */
 const INFO_BOX_KEY = "infoBox";
 const INFO_BOX_SCHEMA = 1;
 const INFO_BOX_MIN_PX = 120;
@@ -10583,6 +10848,55 @@ async function dbLoadInfoBox() {
     const tx = db.transaction(DB_TREE, "readonly");
     const rq = tx.objectStore(DB_TREE).get(INFO_BOX_KEY);
     rq.onsuccess = () => resolve(validInfoBox(rq.result));
+    rq.onerror = () => reject(rq.error);
+  });
+}
+
+/* The settings tunable in Propiedades (04-tunables.js): ONE key of the
+   `tree` store holding only what differs from the defaults, so a future
+   change to a default reaches whoever never touched that setting. No
+   DB_VERSION or TREE_SCHEMA bump. Read through validTunables (foreign input:
+   an unknown id or a value out of bounds is dropped on its own). */
+const TUNABLES_KEY = "tunables";
+async function dbSaveTunables(values) {
+  const db = await openDb();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(DB_TREE, "readwrite");
+    tx.objectStore(DB_TREE).put({ v: TUNABLES_SCHEMA, values }, TUNABLES_KEY);
+    tx.oncomplete = resolve;
+    tx.onerror = () => reject(tx.error);
+  });
+}
+async function dbLoadTunables() {
+  const db = await openDb();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(DB_TREE, "readonly");
+    const rq = tx.objectStore(DB_TREE).get(TUNABLES_KEY);
+    rq.onsuccess = () => resolve(validTunables(rq.result));
+    rq.onerror = () => reject(rq.error);
+  });
+}
+
+/* Whether Propiedades shows its advanced tabs («Preferencias avanzadas»).
+   Own key of the `tree` store, `{ v, on }`; anything but a boolean is read
+   as «hidden». No DB_VERSION or TREE_SCHEMA bump. */
+const ADVANCED_PREFS_KEY = "advancedPrefs";
+const ADVANCED_PREFS_SCHEMA = 1;
+async function dbSaveAdvancedPrefs(on) {
+  const db = await openDb();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(DB_TREE, "readwrite");
+    tx.objectStore(DB_TREE).put({ v: ADVANCED_PREFS_SCHEMA, on: on === true }, ADVANCED_PREFS_KEY);
+    tx.oncomplete = resolve;
+    tx.onerror = () => reject(tx.error);
+  });
+}
+async function dbLoadAdvancedPrefs() {
+  const db = await openDb();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(DB_TREE, "readonly");
+    const rq = tx.objectStore(DB_TREE).get(ADVANCED_PREFS_KEY);
+    rq.onsuccess = () => { const r = rq.result; resolve(!!r && r.v === ADVANCED_PREFS_SCHEMA && r.on === true); };
     rq.onerror = () => reject(rq.error);
   });
 }
@@ -11920,7 +12234,6 @@ function stripHtmlTagsFromKmlNames(xml) {
    already documents elsewhere in the file as "far above rounding noise"
    — genuine duplicates from the same source are far closer than that;
    two legitimately distinct nearby places never are.                   */
-const DUP_POS_DECIMALS = 5;
 function findDuplicatePlacemarks(xml) {
   const groups = new Map(); /* "name|lat|lng" -> [<Placemark> elements] */
   for (const pm of elsByTag(xml, "Placemark")) {
@@ -11931,7 +12244,7 @@ function findDuplicatePlacemarks(xml) {
     const pts = coordsEl ? parseCoords(coordsEl.textContent) : [];
     if (!pts.length) continue;
     const [lat, lng] = pts[0];
-    const key = `${name}|${lat.toFixed(DUP_POS_DECIMALS)}|${lng.toFixed(DUP_POS_DECIMALS)}`;
+    const key = `${name}|${lat.toFixed(CFG.DUP_POS_DECIMALS)}|${lng.toFixed(CFG.DUP_POS_DECIMALS)}`;
     if (!groups.has(key)) groups.set(key, []);
     groups.get(key).push(pm);
   }
@@ -11983,7 +12296,7 @@ function findDuplicateFeatures(features, nameKeys) {
     const props = (typeof f.properties === "object" && f.properties) || {};
     const name = featureDupName(props, nameKeys);
     if (!name) continue;
-    const key = `${name}|${lat.toFixed(DUP_POS_DECIMALS)}|${lng.toFixed(DUP_POS_DECIMALS)}`;
+    const key = `${name}|${lat.toFixed(CFG.DUP_POS_DECIMALS)}|${lng.toFixed(CFG.DUP_POS_DECIMALS)}`;
     if (!groups.has(key)) groups.set(key, []);
     groups.get(key).push(f);
   }
@@ -12061,7 +12374,6 @@ const BIG_FEATURE_COUNT = 5000;
    unos 20 s en cargar (la lectura del XML es una sola tarea de ~4 s que
    el navegador no puede partir) y llega a 1,5-2 GB de memoria. Solo un
    aviso informativo, nunca un diálogo que bloquee.                    */
-const HUGE_IMPORT_CHARS = 100 * 1024 * 1024;
 /* `report`: un informe ya empezado por quien llama (lo que se ve al leer
    un shapefile —sin .prj, ED50…— va en el mismo resumen).             */
 /* `presetNameKeys`: un formato que define él mismo qué es el nombre (el
@@ -12089,7 +12401,7 @@ async function addFileNode(name, kind, content, insertBefore = null, dropTargetU
   }
 
   try {
-    if (typeof content === "string" && content.length >= HUGE_IMPORT_CHARS) {
+    if (typeof content === "string" && content.length >= CFG.HUGE_IMPORT_CHARS) {
       navMessage(tr("\u00AB{name}\u00BB es muy grande ({size}): cargarlo puede tardar y necesita mucha memoria.",
         { name, size: fmtBytes(content.length) }), { tone: "info" });
     }
@@ -12239,7 +12551,6 @@ async function addFileNode(name, kind, content, insertBefore = null, dropTargetU
 /* Cotas de cualquier zip que se abra (KMZ o shapefile comprimido). En
    kmlFromZip, `onPct` recibe el porcentaje descomprimido, la única fase
    con progreso medible de verdad.                                      */
-const KMZ_MAX_ENTRIES = 2000;              /* entradas dentro del zip      */
 /* El tope de tamaño descomprimido es una PREFERENCIA (Propiedades →
    Preferencias, en MB): depende de la memoria del equipo de quien lo usa.
    `kmzMaxUncompressedMB` es el valor vigente; se lee en cada apertura, no
@@ -12247,7 +12558,6 @@ const KMZ_MAX_ENTRIES = 2000;              /* entradas dentro del zip      */
 const KMZ_MAX_UNCOMPRESSED_DEFAULT_MB = 500;
 const KMZ_MAX_UNCOMPRESSED_MIN_MB = 1, KMZ_MAX_UNCOMPRESSED_MAX_MB = 4096;
 let kmzMaxUncompressedMB = KMZ_MAX_UNCOMPRESSED_DEFAULT_MB;
-const KMZ_MAX_RATIO = 200;                 /* descomprimido / comprimido    */
 
 /* Abre un zip (un KMZ o el .zip de un shapefile) y aplica las cotas
    antes de descomprimir nada. `what` es cómo se le llama en el aviso. */
@@ -12259,8 +12569,8 @@ async function loadZipChecked(file, what) {
      visor no impone cuotas de uso, pero sí debe evitar que un archivo
      hostil o accidental agote la memoria del navegador.              */
   const entries = Object.values(zip.files).filter(f => !f.dir);
-  if (entries.length > KMZ_MAX_ENTRIES) {
-    throw new Error(tr("el {what} tiene demasiadas entradas ({length} > {kmzMaxEntries})", { what, length: entries.length, kmzMaxEntries: KMZ_MAX_ENTRIES }));
+  if (entries.length > CFG.KMZ_MAX_ENTRIES) {
+    throw new Error(tr("el {what} tiene demasiadas entradas ({length} > {kmzMaxEntries})", { what, length: entries.length, kmzMaxEntries: CFG.KMZ_MAX_ENTRIES }));
   }
   let uncompressed = 0;
   for (const f of entries) {
@@ -12272,7 +12582,7 @@ async function loadZipChecked(file, what) {
     throw new Error(tr("el {what} ocupa demasiado descomprimido ({size}; el l\u00EDmite es {limit}, ajustable en \uD83C\uDFF7\uFE0F Propiedades)",
       { what, size: fmtBytes(uncompressed), limit: fmtBytes(maxBytes) }));
   }
-  if (file.size && uncompressed / file.size > KMZ_MAX_RATIO) {
+  if (file.size && uncompressed / file.size > CFG.KMZ_MAX_RATIO) {
     throw new Error(tr("relaci\u00F3n de compresi\u00F3n sospechosa (\u00D7{ratio})", { ratio: Math.round(uncompressed / file.size) }));
   }
   return zip;
@@ -12581,7 +12891,7 @@ function zipEntryNames(bytes) {
     if (dv.getUint32(i, true) === 0x06054B50) { eocd = i; break; }
   }
   if (eocd < 0) return [];
-  const count = Math.min(dv.getUint16(eocd + 10, true), KMZ_MAX_ENTRIES);
+  const count = Math.min(dv.getUint16(eocd + 10, true), CFG.KMZ_MAX_ENTRIES);
   let p = dv.getUint32(eocd + 16, true);
   const names = [];
   const dec = new TextDecoder("utf-8");
@@ -12648,12 +12958,11 @@ function downloadFileName(url, kind) {
    que no encaja.                                                     */
 
 const SHP_PARTS = new Set(["shp", "dbf", "prj", "cpg", "shx"]);
-/* Cotas ante un archivo ajeno: lo leído (.shp + .dbf) y los elementos.
-   Cada elemento es una capa de Leaflet y una fila del árbol; el árbol
-   se ha medido con unos 8.000 nodos, así que cien mil ya es un tope de
-   «esto no es para este visor», no de rendimiento fino.              */
-const SHP_MAX_BYTES = 300 * 1024 * 1024;
-const SHP_MAX_FEATURES = 100000;
+/* The limits against a foreign file, what is read (.shp + .dbf,
+   CFG.SHP_MAX_BYTES) and the items (CFG.SHP_MAX_FEATURES), are tunable in
+   Propiedades. Each item is a Leaflet layer and a tree row; the tree was
+   measured with some 8,000 nodes, so the default of a hundred thousand is
+   a limit of «this is not for this viewer», not fine performance tuning. */
 
 /* "dir/Carreteras.SHP" → { key: "dir/carreteras", ext: "shp" } */
 function splitShpName(name) {
@@ -12839,8 +13148,8 @@ const shpPartSize = part => (typeof part.size === "number" ? part.size
 async function readShapefile(group, report) {
   if (typeof shapefile === "undefined") throw new Error(tr("no se pudo cargar el soporte de shapefiles"));
   const bytes = shpPartSize(group.shp) + (group.dbf ? shpPartSize(group.dbf) : 0);
-  if (bytes > SHP_MAX_BYTES) {
-    throw new Error(tr("el shapefile es demasiado grande ({size}, tope {max})", { size: fmtBytes(bytes), max: fmtBytes(SHP_MAX_BYTES) }));
+  if (bytes > CFG.SHP_MAX_BYTES) {
+    throw new Error(tr("el shapefile es demasiado grande ({size}, tope {max})", { size: fmtBytes(bytes), max: fmtBytes(CFG.SHP_MAX_BYTES) }));
   }
   const shp = await shpPartBytes(group.shp);
   const dbf = group.dbf ? await shpPartBytes(group.dbf) : null;
@@ -12871,7 +13180,7 @@ async function readShapefile(group, report) {
   for (;;) {
     const r = await source.read();
     if (r.done) break;
-    if (features.length >= SHP_MAX_FEATURES) { skipped++; continue; }
+    if (features.length >= CFG.SHP_MAX_FEATURES) { skipped++; continue; }
     const f = r.value;
     f.properties = shpPropsToPlain(f.properties);
     if (f.geometry && project) {
@@ -12884,7 +13193,7 @@ async function readShapefile(group, report) {
     }
   }
   if (skipped) {
-    report.warn(tr("{skipped} elemento(s) omitidos: el tope es {shpMaxFeatures} por shapefile", { skipped, shpMaxFeatures: SHP_MAX_FEATURES }));
+    report.warn(tr("{skipped} elemento(s) omitidos: el tope es {shpMaxFeatures} por shapefile", { skipped, shpMaxFeatures: CFG.SHP_MAX_FEATURES }));
   }
   return { type: "FeatureCollection", features };
 }
@@ -12931,7 +13240,6 @@ async function importShapefilesFromZip(zip, zipName, insertBefore, dropTargetUl)
    elevación, ortofotos de GroundOverlay y COG) se deja fuera y se
    NOMBRA en `skipped`: nunca se pierde en silencio.                    */
 
-const EXPORT_CIRCLE_SEGMENTS = 120; /* un vértice cada 3°: a escala de mapa es un círculo */
 const EXPORT_PATH_SEP = " / ";
 
 /* ---------- Registros → entidades GeoJSON ---------- */
@@ -12976,7 +13284,7 @@ function measureFeatures(rec) {
   if (w.length < 2 || !w.every(p => p && Number.isFinite(p.lat) && Number.isFinite(p.lng))) return [];
   if (rec.mtype === "circle") {
     const r = haversineM(w[0], w[1]);
-    const ring = arcPoints(w[0], r, 0, 360, EXPORT_CIRCLE_SEGMENTS).map(p => [p.lng, p.lat]);
+    const ring = arcPoints(w[0], r, 0, 360, CFG.EXPORT_CIRCLE_SEGMENTS).map(p => [p.lng, p.lat]);
     ring[ring.length - 1] = ring[0].slice(); /* cierre exacto, sin ruido de coma flotante */
     return [{ type: "Feature", properties: { measure: "circle", radius_m: Math.round(r * 100) / 100 },
               geometry: { type: "Polygon", coordinates: [ring] } }];
@@ -13363,10 +13671,10 @@ function openExportMenu(btn, li) {
    aportaría nada.                                                      */
 
 const GPX_NAME_KEYS = ["name"];
-/* Cota de una entrada hostil: un track real de varios días ronda los 10⁵
-   puntos; con diez veces más se avisa y se corta, en vez de colgar el
-   navegador construyendo arrays.                                       */
-const GPX_MAX_POINTS = 2000000;
+/* The limit against a hostile input is CFG.GPX_MAX_POINTS: a real track
+   of several days is about 10⁵ points; with ten times more (the default)
+   the import warns and stops, instead of hanging the browser building
+   arrays.                                                              */
 const GPX_TEXT_FIELDS = ["name", "desc", "cmt", "src", "sym", "type"];
 
 /* Una posición <wpt>/<rtept>/<trkpt> → [lng, lat(, alt)], o null si le
@@ -13414,7 +13722,7 @@ function gpxProps(el, kind) {
 function gpxLine(pointEls, ctx) {
   const coords = [], times = [];
   for (const el of pointEls) {
-    if (ctx.points >= GPX_MAX_POINTS) { ctx.capped = true; break; }
+    if (ctx.points >= CFG.GPX_MAX_POINTS) { ctx.capped = true; break; }
     ctx.points++;
     const pos = gpxPosition(el);
     if (!pos) { ctx.badPoints++; continue; }
@@ -13441,7 +13749,7 @@ function gpxToGeoJson(text, report) {
   const add = (properties, geometry) => features.push({ type: "Feature", properties, geometry });
 
   for (const el of childrenByTag(root, "wpt")) {
-    if (ctx.points >= GPX_MAX_POINTS) { ctx.capped = true; break; }
+    if (ctx.points >= CFG.GPX_MAX_POINTS) { ctx.capped = true; break; }
     ctx.points++;
     const pos = gpxPosition(el);
     if (!pos) { report.warn(tr("waypoint sin coordenadas válidas")); continue; }
@@ -13475,7 +13783,7 @@ function gpxToGeoJson(text, report) {
     report.note(tr("{n} coordenada(s) fuera de rango por redondeo, ajustadas al límite (menos de {eps}°)",
       { n: coordClamped - clamped0, eps: COORD_EPS }));
   }
-  if (ctx.capped) report.warn(tr("se corta en {max} puntos: es el tope por archivo GPX", { max: GPX_MAX_POINTS }));
+  if (ctx.capped) report.warn(tr("se corta en {max} puntos: es el tope por archivo GPX", { max: CFG.GPX_MAX_POINTS }));
   if (!features.length) throw new Error(tr("el archivo GPX no contiene ningún waypoint, ruta ni track"));
   return { type: "FeatureCollection", features };
 }
@@ -13659,8 +13967,6 @@ async function gotoMatch(dir) {
    siguiente coincidencia (Mayús+Intro, a la anterior), como los botones ↑ ↓.
    Teclear NO salta, selecciona ni despliega nada por su cuenta: el árbol
    filtrado ya enseña lo que hay.                                         */
-const SEARCH_DEBOUNCE_MS = 150;
-const SEARCH_MIN_CHARS = 3;
 let searchTimer = null;
 
 async function clearSearch() {
@@ -13678,7 +13984,7 @@ function syncSearchClear() {
 async function runLiveSearch() {
   const raw = searchBox.value.trim();
   searchIdx = -1;
-  if (raw.length < SEARCH_MIN_CHARS) {
+  if (raw.length < CFG.SEARCH_MIN_CHARS) {
     searchCount.textContent = "";
     if (treeFilter) await clearTreeFilter();
     syncSearchClear();
@@ -13690,7 +13996,7 @@ async function runLiveSearch() {
 searchBox.addEventListener("input", () => {
   syncSearchClear();
   clearTimeout(searchTimer);
-  searchTimer = setTimeout(runLiveSearch, SEARCH_DEBOUNCE_MS);
+  searchTimer = setTimeout(runLiveSearch, CFG.SEARCH_DEBOUNCE_MS);
 });
 searchBox.addEventListener("keydown", async e => {
   if (e.key === "Enter") {
@@ -13789,7 +14095,6 @@ function hidePlaceResults() {
   placeStatus.textContent = "";
 }
 
-const PLACE_TIMEOUT = 10000;
 let placeAbort = null; /* petición en vuelo, para poder cancelarla */
 
 /* Traduce el fallo a algo accionable en vez de "error de red" */
@@ -13808,7 +14113,7 @@ async function searchPlaces(query) {
      conexión debe liberarse, no quedarse en vuelo                    */
   if (placeAbort) placeAbort.abort();
   const ctrl = placeAbort = new AbortController();
-  const timer = setTimeout(() => ctrl.abort("timeout"), PLACE_TIMEOUT);
+  const timer = setTimeout(() => ctrl.abort("timeout"), CFG.PLACE_TIMEOUT);
 
   placeResults.hidden = false;
   placeList.innerHTML = "";
@@ -13824,7 +14129,7 @@ async function searchPlaces(query) {
   } catch (err) {
     if (seq !== placeSeq) return; /* cancelada por otra búsqueda: sin ruido */
     const why = err.name === "AbortError"
-      ? tr("el servicio ha tardado m\u00E1s de {seconds} s en responder", { seconds: PLACE_TIMEOUT / 1000 })
+      ? tr("el servicio ha tardado m\u00E1s de {seconds} s en responder", { seconds: CFG.PLACE_TIMEOUT / 1000 })
       : err.message;
     placeStatus.textContent = tr("No se pudo consultar el servicio de b\u00FAsqueda.");
     navMessage(tr("Error al buscar el lugar: {reason}.", { reason: err instanceof TypeError ? netFailText(why) : why }));
@@ -13876,7 +14181,7 @@ function addPlaceMarker(r) {
   if (bb && bb.length === 4 && bb.every(isFinite)) {
     map.fitBounds([[bb[0], bb[2]], [bb[1], bb[3]]], { padding: [30, 30] });
   } else {
-    map.setView([lat, lon], Math.max(map.getZoom(), 14));
+    map.setView([lat, lon], Math.max(map.getZoom(), CFG.PLACE_ZOOM));
   }
 }
 
@@ -13903,10 +14208,6 @@ function createPin(latlng = map.getCenter()) {
   openStyleDialog(li, { isNew: true });
 }
 
-/* Zoom al que se va cuando lo escrito en el buscador son coordenadas: un
-   punto exacto, así que el de calle (17), no el de región.             */
-const COORD_SEARCH_ZOOM = 17;
-
 /* Unas coordenadas escritas se resuelven aquí, sin red y ANTES que
    Nominatim. Como elegir un resultado, pedirlas es pedir ir allí: crea un
    marcador en «Lugares» (llamado como lo escrito) y la aplicación mueve la
@@ -13916,7 +14217,7 @@ function goToCoordinates(at, text) {
   placeSeq++;
   if (placeAbort) { placeAbort.abort(); placeAbort = null; }
   createPlaceMarker(text, at.lat, at.lng);
-  map.setView([at.lat, at.lng], COORD_SEARCH_ZOOM);
+  map.setView([at.lat, at.lng], CFG.COORD_SEARCH_ZOOM);
 }
 
 function runPlaceSearch() {
@@ -14021,7 +14322,6 @@ document.getElementById("collapse-all").addEventListener("click", () => collapse
    derecha/izquierda despliegan y colapsan; Inicio/Fin van a los extremos
    de la carpeta actual; espacio activa o desactiva; Ctrl+X/C/V mueven y
    copian ramas; Alt+Intro abre las propiedades.                       */
-const PAGE_STEP = 10;
 
 /* Hermanos visibles del nodo: lo que recorren Inicio y Fin, que trabajan
    dentro de la carpeta actual y no sobre la lista entera             */
@@ -14105,7 +14405,6 @@ let clipboard = null; /* { nodes, cut: [li], move: bool } */
 
    El portapapeles del sistema es del USUARIO, no del origen: no hace
    falta CORS, ni postMessage, ni que las dos instancias se conozcan. */
-const CLIPBOARD_MAX = 5 * 1024 * 1024; /* texto; por encima solo va el interno */
 
 /* Lo último que ESTA pestaña escribió en el portapapeles del sistema.
    Sirve para reconocer nuestra propia copia al pegarla: ver el escucha
@@ -14128,7 +14427,7 @@ function copyToSystemClipboard(all) {
   /* Un árbol grande serializado son decenas de MB: escribirlo bloquea y
      el navegador puede rechazarlo. El portapapeles interno sigue
      funcionando dentro de esta pestaña, así que se avisa y se sigue. */
-  if (txt.length > CLIPBOARD_MAX) {
+  if (txt.length > CFG.CLIPBOARD_MAX) {
     navMessage(tr("La selección ocupa {size} y no cabe en el portapapeles del "
       + "sistema: se podrá pegar en esta pestaña, pero no en otra. Use el botón 💾 para "
       + "llevarla a otra instancia.", { size: fmtBytes(txt.length) }));
@@ -14265,11 +14564,11 @@ document.addEventListener("keydown", e => {
       return;
     case "PageDown":
       e.preventDefault();
-      moveCursorTo(cur ? stepRows(cur, PAGE_STEP) : firstRow(), e.shiftKey);
+      moveCursorTo(cur ? stepRows(cur, CFG.PAGE_STEP) : firstRow(), e.shiftKey);
       return;
     case "PageUp":
       e.preventDefault();
-      moveCursorTo(cur ? stepRows(cur, -PAGE_STEP) : lastRow(), e.shiftKey);
+      moveCursorTo(cur ? stepRows(cur, -CFG.PAGE_STEP) : lastRow(), e.shiftKey);
       return;
     case "Home": case "End": {
       e.preventDefault();
@@ -14721,8 +15020,6 @@ function refreshInfoButtons() {
    Todo se mide en PÍXELES de contenedor, no en grados: un margen en
    grados vale distancias muy distintas según la latitud y el zoom (la
    misma razón por la que isCenteredOn compara en píxeles).            */
-const MARKER_HIT_PX = 20; /* radio de acierto en píxeles, del orden del icono de un marcador */
-const PATH_HIT_PX = 10;   /* igual que el clickTolerance por defecto de Leaflet */
 
 /* Distancia AL CUADRADO de un punto a un segmento: se evita la raíz
    comparando contra el cuadrado de la tolerancia.                     */
@@ -14786,7 +15083,7 @@ function ringToPoints(ring) {
    grueso debe poder acertarse en todo su ancho.                       */
 function pathTolerance(sub) {
   const w = (sub.options && sub.options.weight) || 0;
-  return Math.max(PATH_HIT_PX, w / 2 + 4);
+  return Math.max(CFG.PATH_HIT_PX, w / 2 + 4);
 }
 
 /* Criba barata: la caja envolvente en píxeles, ensanchada por la
@@ -14819,7 +15116,7 @@ function nearBounds(sub, containerPoint, tol) {
    extiende L.Polyline.                                                */
 function subHitTest(sub, latlng, containerPoint) {
   if (sub instanceof L.Marker) {
-    return map.latLngToContainerPoint(sub.getLatLng()).distanceTo(containerPoint) <= MARKER_HIT_PX;
+    return map.latLngToContainerPoint(sub.getLatLng()).distanceTo(containerPoint) <= CFG.MARKER_HIT_PX;
   }
   if (sub instanceof L.Circle) {
     /* En metros, que es como L.Circle define su radio. La tolerancia se
@@ -14847,7 +15144,7 @@ function subHitTest(sub, latlng, containerPoint) {
   /* Cualquier otro overlay anclado a un punto (la etiqueta L.Tooltip de
      una medición): sigue valiendo la distancia en píxeles.            */
   if (typeof sub.getLatLng === "function") {
-    return map.latLngToContainerPoint(sub.getLatLng()).distanceTo(containerPoint) <= MARKER_HIT_PX;
+    return map.latLngToContainerPoint(sub.getLatLng()).distanceTo(containerPoint) <= CFG.MARKER_HIT_PX;
   }
   return false;
 }
@@ -16066,6 +16363,32 @@ function clampToViewport(box) {
   box.style.left = `${left}px`;
   box.style.top = `${top}px`;
 }
+/* The WHOLE box inside the browser window (requested): when a window opens,
+   when the info card comes back to its saved place in a window that is now
+   smaller, when its content grows, and when the browser is resized. Dragging
+   stays free (clampToViewport above: only the title must stay reachable), so
+   a window can still be left half outside to see the map under it.
+   - Only a box that was moved (or restored to a saved place): one placed by
+     its wrapper (centred, anchored to a corner) already fits.
+   - Nothing for a hidden box: its size reads 0 and would pull it to the edge.
+   - offsetWidth/offsetHeight, not getBoundingClientRect: the entry animation
+     scales the rect (motion.md).
+   - Only the position changes, never the size: `.dlg-box` already caps the
+     rendered size (max-width/max-height), so a saved size survives for a
+     bigger window. When the box is still bigger than the window, its top
+     left corner wins (the title is the handle).                        */
+const VIEWPORT_MARGIN_PX = 8;
+function fitInViewport(box) {
+  if (!box.style.left || !box.offsetWidth) return;
+  const m = VIEWPORT_MARGIN_PX;
+  const left = Math.max(m, Math.min(parseFloat(box.style.left), window.innerWidth - box.offsetWidth - m));
+  const top = Math.max(m, Math.min(parseFloat(box.style.top), window.innerHeight - box.offsetHeight - m));
+  box.style.left = `${left}px`;
+  box.style.top = `${top}px`;
+}
+/* Every movable window (makeDialogMovable adds it), whatever file builds it:
+   the window's resize listener (44-dialogs.js) fits the visible ones. */
+const floatingBoxes = new Set();
 
 /* ---------- Accesibilidad de los diálogos ----------
    Each dialog announces itself as such, keeps the keyboard inside while
@@ -16164,6 +16487,7 @@ document.addEventListener("click", e => {
 }, true);
 
 function makeDialogMovable(box) {
+  floatingBoxes.add(box);
   const handle = box.querySelector("h2");
   let from = null;
   handle.addEventListener("pointerdown", e => {
@@ -16662,7 +16986,7 @@ function confirmStripHtmlTags(fileName, kind = "names") {
   ktpTitle.textContent = w.titulo();
   ktpIntro.textContent = w.intro(fileName);
   ktpDialog.hidden = false;
-  clampToViewport(ktpBox);
+  fitInViewport(ktpBox);
   focusDialog(ktpBox);
   return new Promise(resolve => { ktpResolve = resolve; });
 }
@@ -16690,7 +17014,7 @@ function confirmMergeDuplicates(fileName, groups) {
     "«{file}» tiene {n} nombres repetidos con la misma posición ({total} marcador(es) de más). ¿Fusionarlos y mantener solo uno de cada grupo?",
     { file: fileName, total });
   kdpDialog.hidden = false;
-  clampToViewport(kdpBox);
+  fitInViewport(kdpBox);
   focusDialog(kdpBox);
   return new Promise(resolve => { kdpResolve = resolve; });
 }
@@ -16775,7 +17099,7 @@ function pickNameProperty(keys, fileName, { sample = null, selected = [] } = {})
   gnpResult.textContent = "";
   refreshGnpOrder();
   gnpDialog.hidden = false;
-  clampToViewport(gnpBox);
+  fitInViewport(gnpBox);
   focusDialog(gnpBox);
   return new Promise(resolve => { gnpResolve = resolve; });
 }
@@ -16821,7 +17145,7 @@ function toggleShortcuts() {
   shortcutsDialog.hidden = !shortcutsDialog.hidden;
   if (!shortcutsDialog.hidden) {
     showShortcutsTab("nav"); /* no se queda en la última pestaña vista la vez anterior */
-    clampToViewport(shortcutsBox);
+    fitInViewport(shortcutsBox);
     focusDialog(shortcutsBox);
   } else releaseFocus();
 }
@@ -16910,11 +17234,19 @@ function applyUiTheme(theme, soft = false) {
 let propsDraftGnp = null; /* clon de gnpStore mientras el panel está abierto */
 let propsOriginal = null; /* ajustes al abrir (unidades, formato, topes, fuentes…), para Cancelar */
 
+/* The tabs of the tunable settings (04-tunables.js) are found by id; the
+   «Elevación y perfil» one is the old «Frecuencias» tab (`freq`). */
+const propsTabPair = id => [document.getElementById(`props-tab-btn-${id}`), document.getElementById(`props-tab-${id}`)];
 const PROPS_TABS = {
   prefs: [propsTabPrefsBtn, propsTabPrefs],
-  gnp: [propsTabGnpBtn, propsTabGnp],
-  sources: [propsTabSourcesBtn, propsTabSources],
+  ui: propsTabPair("ui"),
+  cards: propsTabPair("cards"),
+  map: propsTabPair("map"),
+  files: propsTabPair("files"),
+  net: propsTabPair("net"),
   freq: [propsTabFreqBtn, propsTabFreq],
+  sources: [propsTabSourcesBtn, propsTabSources],
+  gnp: [propsTabGnpBtn, propsTabGnp],
   restore: [propsTabRestoreBtn, propsTabRestore]
 };
 function showPropsTab(tab) {
@@ -16927,6 +17259,92 @@ function showPropsTab(tab) {
 for (const id of Object.keys(PROPS_TABS)) {
   PROPS_TABS[id][0].addEventListener("click", () => showPropsTab(id));
 }
+
+/* ---------- Tunable settings (TUNABLES, 04-tunables.js) ----------
+   One row per setting in the tab it names (`.tunables-list[data-tunables]`),
+   built once at load: a new entry in TUNABLES appears in its tab by itself.
+   Same deferred editing as the rest of the dialog: `change` applies the value
+   to CFG at once (and repaints what shows it), Cancel puts back what there
+   was when the dialog opened, Accept saves what differs from the defaults.
+   A value out of bounds is adjusted to the nearest one with a notice
+   (readClampedNumber), an unreadable one goes back to the current value. The
+   label of a changed setting is in bold; the row's title gives the default. */
+const tunableRows = new Map(); /* id → { t, row, input } */
+const tunableText = (t, v) => `${tunableShown(t, v).toLocaleString(uiLang)}${t.unit ? " " + tr(t.unit) : ""}`;
+function buildTunableRows() {
+  for (const t of TUNABLES) {
+    const list = propsDialog.querySelector(`.tunables-list[data-tunables="${t.tab}"]`);
+    const row = document.createElement("div");
+    row.className = "dlg-row";
+    row.title = tr("Valor de partida: {value}", { value: tunableText(t, t.def) });
+    const input = document.createElement("input");
+    input.type = "number";
+    input.id = `tunable-${t.id}`;
+    input.min = tunableShown(t, t.min);
+    input.max = tunableShown(t, t.max);
+    input.step = t.step || 1;
+    const label = document.createElement("label");
+    label.htmlFor = input.id;
+    label.textContent = tr(t.label);
+    const box = document.createElement("span");
+    box.className = "props-with-unit";
+    box.append(input);
+    if (t.unit) {
+      const unit = document.createElement("span");
+      unit.textContent = tr(t.unit);
+      box.append(unit);
+    }
+    row.append(label, box);
+    list.append(row);
+    tunableRows.set(t.id, { t, row, input });
+    input.addEventListener("change", () => {
+      const v = readClampedNumber(input, tunableShown(t, t.min), tunableShown(t, t.max), tr(t.label), t.unit ? tr(t.unit) : "");
+      if (v !== null) setTunable(t.id, Math.min(t.max, Math.max(t.min, tunableStored(t, v))));
+      renderTunable(t.id);
+    });
+  }
+}
+function renderTunable(id) {
+  const { t, row, input } = tunableRows.get(id);
+  input.value = tunableShown(t, CFG[id]);
+  row.classList.toggle("changed", CFG[id] !== t.def);
+}
+function renderTunables() {
+  for (const id of tunableRows.keys()) renderTunable(id);
+}
+/* What has to be repainted when a setting changes; the rest is read at its
+   next use (the next notice, the next request, the next import). */
+const TUNABLE_EFFECTS = {
+  INFO_STACK_MAX: () => { infoStack = infoStackTrim(infoStack); refreshInfoStack(); },
+  INFO_STACK_TTL_MS: () => refreshInfoStack(),
+  INFO_STACK_WARN_MS: () => refreshInfoStack(),
+  PF_FRESNEL_ZONE: () => refreshProfileChart(),
+  ELEV_ALERT_DIFF: () => { refreshElevCells(); refreshProfileChart(); }
+};
+function setTunable(id, v) {
+  if (CFG[id] === v) return;
+  CFG[id] = v;
+  if (TUNABLE_EFFECTS[id]) TUNABLE_EFFECTS[id]();
+}
+buildTunableRows();
+
+/* «Preferencias avanzadas» (requested): the tabs of tunable settings except
+   «Elevación y perfil» are advanced (red, `.advanced`), and so are the
+   tunable rows of «Elevación y perfil», which keeps the Fresnel frequency it
+   always had. Unticked, the dialog hides them (CSS, `show-advanced`); the
+   values still apply. Part of the deferred editing: Cancel puts it back,
+   Accept saves it (`advancedPrefs` key). */
+let advancedPrefs = false;
+const propsAdvancedInput = document.getElementById("props-advanced");
+function applyAdvancedPrefs(on) {
+  advancedPrefs = on;
+  propsAdvancedInput.checked = on;
+  propsDialog.classList.toggle("show-advanced", on);
+  /* hiding the tab on screen would leave its panel with no tab */
+  const shown = Object.entries(PROPS_TABS).find(([, [btn]]) => btn.classList.contains("active"));
+  if (!on && shown && shown[1][0].classList.contains("advanced")) showPropsTab("prefs");
+}
+propsAdvancedInput.addEventListener("change", () => applyAdvancedPrefs(propsAdvancedInput.checked));
 
 /* Pestaña «Fuentes de datos»: un selector por modelo, rellenado desde
    el catálogo ELEV_SOURCES (60-elevation.js) AL ABRIR, no al cargar:
@@ -17027,9 +17445,9 @@ function renderPropsProfileMax() {
   propsProfileMaxInput.max = Number((PROFILE_MAX_MAX / f).toPrecision(6));
   document.getElementById("props-profile-max-unit").textContent = POLY_UNIT_LABEL[measureUnit];
 }
-/* Pestaña «Frecuencias»: la del elipsoide de Fresnel del perfil. Se
-   previsualiza en vivo (el perfil, si está abierto, se redibuja) y solo
-   Aceptar la guarda; Cancelar vuelve a la de al abrir.                 */
+/* «Elevación y perfil» tab (the old «Frecuencias»): the Fresnel frequency
+   of the profile. Previewed live (an open profile is redrawn), only Accept
+   saves it; Cancel goes back to the value it had when the dialog opened. */
 function renderPropsFreqTab() {
   propsFresnelFreqInput.value = fresnelFreqMHz;
 }
@@ -17146,7 +17564,7 @@ const restoreBox = restoreDialog.querySelector(".dlg-box");
 const restoreAcceptBtn = document.getElementById("restore-accept");
 function openRestoreConfirm() {
   restoreDialog.hidden = false;
-  clampToViewport(restoreBox);
+  fitInViewport(restoreBox);
   focusDialog(restoreBox);
 }
 function closeRestoreConfirm() {
@@ -17170,14 +17588,16 @@ async function togglePropsDialog() {
   if (!gnpStore) gnpStore = await dbLoadGnp();
   propsDraftGnp = { ...gnpStore };
   propsOriginal = { uiTheme, unit: measureUnit, altitudeUnit, profileMaxM, fresnelFreqMHz, coordFormat, vertexEditMax,
-                    arcSegments, kmzMaxUncompressedMB, elevSources };
+                    arcSegments, kmzMaxUncompressedMB, elevSources, tunables: { ...CFG }, advancedPrefs };
+  applyAdvancedPrefs(advancedPrefs);
   renderGnpEditor();
   renderPropsPrefsTab();
+  renderTunables();
   renderPropsFreqTab();
   renderPropsSourcesTab();
   showPropsTab("prefs");
   propsDialog.hidden = false;
-  clampToViewport(propsBox);
+  fitInViewport(propsBox);
   focusDialog(propsBox);
 }
 document.getElementById("gnp-editor-btn").addEventListener("click", togglePropsDialog);
@@ -17208,6 +17628,8 @@ function cancelPropsDialog() {
   arcSegments = propsOriginal.arcSegments;
   kmzMaxUncompressedMB = propsOriginal.kmzMaxUncompressedMB;
   elevSources = propsOriginal.elevSources;
+  for (const [id, v] of Object.entries(propsOriginal.tunables)) setTunable(id, v);
+  advancedPrefs = propsOriginal.advancedPrefs;
   propsDraftGnp = null;
   propsOriginal = null;
 }
@@ -17226,6 +17648,8 @@ document.getElementById("props-accept").addEventListener("click", () => {
   dbSaveArcSegments(arcSegments);
   dbSaveKmzMax(kmzMaxUncompressedMB);
   dbSaveElevSources(elevSources);
+  dbSaveAdvancedPrefs(advancedPrefs).catch(() => { /* shown or hidden again at the next start */ });
+  dbSaveTunables(tunableOverrides()).catch(() => navMessage(tr("No se pudieron guardar los ajustes: valdrán hasta cerrar la página.")));
   if (propsLangSelect.value !== loadUiLangPref()) {
     saveUiLangPref(propsLangSelect.value);
     navMessage(tr("El idioma de la interfaz cambiará al recargar la página (F5)."), { tone: "info", sticky: true });
@@ -17277,7 +17701,7 @@ function openPointsDialogCommon(li, rings, { showRingsHint }) {
     : tr("Esta capa tiene {n} trazos (contorno exterior primero, luego los "
       + "agujeros). Van separados por una línea en blanco; mantén esa separación.", { n: rings.length });
   pointsDialog.hidden = false;
-  clampToViewport(pointsBox);
+  fitInViewport(pointsBox);
   focusDialog(pointsBox);
 }
 
@@ -17517,7 +17941,7 @@ function toggleLog() {
   msgLogUnseen = 0;
   refreshLogButton();
   logDialog.hidden = false;
-  clampToViewport(logBox);
+  fitInViewport(logBox);
   focusDialog(logBox);
   /* Con lo más reciente abajo, hay que bajar el scroll o habría que
      desplazarse a mano justo a lo que se viene a consultar.          */
@@ -17557,8 +17981,6 @@ document.getElementById("log-copy").addEventListener("click", () => {
    `urlBox` se usa en ese bucle, que corre al EVALUAR el archivo, y
    declararlo por debajo reventaría al cargar por zona muerta temporal
    —el mismo tropiezo que ya costó una tarde con `descBody`—.        */
-const URL_TIMEOUT = 20000;                 /* tope de respuesta        */
-const URL_MAX_BYTES = 100 * 1024 * 1024;   /* tope de descarga         */
 
 const urlDialog = document.getElementById("url-dialog");
 const urlBox = urlDialog.querySelector(".dlg-box");
@@ -17615,7 +18037,7 @@ function openUrlDialog() {
   urlReady = null;
   setUrlState("inicial");
   urlDialog.hidden = false;
-  clampToViewport(urlBox);
+  fitInViewport(urlBox);
   focusDialog(urlBox);
   urlInput.focus();
   /* Seleccionado, no borrado: lo normal al reabrir es corregir una
@@ -17631,7 +18053,7 @@ function openUrlDialog() {
    contesta, y convertiría en fallo lo que ahora funciona; y las cookies
    del usuario no tienen nada que hacer en una descarga hacia un tercero.
    Es justo el cambio «inocente» que alguien haría más adelante.      */
-async function fetchRemoteFile(url, signal, onBytes, max = URL_MAX_BYTES) {
+async function fetchRemoteFile(url, signal, onBytes, max = CFG.URL_MAX_BYTES) {
   const resp = await fetch(url, { signal, credentials: "omit", redirect: "follow" });
   if (!resp.ok) throw new Error(tr("No se pudo descargar: {why}.", { why: describeHttp(resp.status) }));
 
@@ -17713,12 +18135,12 @@ async function runUrlFetch() {
   urlReady = null;
   const seq = ++urlSeq;
   const ctrl = urlAbort = new AbortController();
-  const timer = setTimeout(() => ctrl.abort("timeout"), URL_TIMEOUT);
+  const timer = setTimeout(() => ctrl.abort("timeout"), CFG.URL_TIMEOUT);
   setUrlState("descargando", tr("Descargando…"));
   try {
     const bytes = await fetchRemoteFile(svc ? svc.base + "?f=json" : url, ctrl.signal,
       n => { if (seq === urlSeq) setUrlState("descargando", tr("Descargando… {size}", { size: fmtBytes(n) })); },
-      svc ? ARCGIS_JSON_MAX : URL_MAX_BYTES);
+      svc ? ARCGIS_JSON_MAX : CFG.URL_MAX_BYTES);
     if (seq !== urlSeq) return; /* superada o cancelada: no pinta nada */
     if (!bytes.length) { setUrlState("error", tr("La descarga ha llegado vacía (0 bytes)."), true); return; }
     if (svc) {
@@ -17759,7 +18181,7 @@ async function runUrlFetch() {
        distinguen por el motivo del abort.                            */
     if (err.name === "AbortError") {
       if (ctrl.signal.reason === "timeout") {
-        setUrlState("error", tr("El servidor ha tardado más de {seconds} s en responder.", { seconds: URL_TIMEOUT / 1000 }), true);
+        setUrlState("error", tr("El servidor ha tardado más de {seconds} s en responder.", { seconds: CFG.URL_TIMEOUT / 1000 }), true);
       } else {
         setUrlState("inicial", tr("Descarga cancelada."));
       }
@@ -17883,7 +18305,7 @@ function openShCredsDialog() {
   shInput.value = shInstanceId || "";
   shErrorEl.hidden = true;
   shDialog.hidden = false;
-  clampToViewport(shBox);
+  fitInViewport(shBox);
   focusDialog(shBox);
   shInput.focus();
   shInput.select();
@@ -17959,7 +18381,7 @@ function openUserBaseDialog(id) {
   $id("user-base-accept").textContent = rec ? tr("Aceptar") : tr("Añadir");
   showUserBaseType(userBaseType());
   userBaseDialog.hidden = false;
-  clampToViewport(userBaseBox);
+  fitInViewport(userBaseBox);
   focusDialog(userBaseBox);
   (rec ? userBaseNameInput : userBaseUrlInput).focus();
 }
@@ -18004,7 +18426,7 @@ function openUserBaseDeleteConfirm(id) {
   $id("user-base-delete-text").textContent = tr("Se eliminará la capa base «{name}» y se olvidará su dirección. No se puede deshacer.",
     { name: st.def.name });
   userBaseDeleteDialog.hidden = false;
-  clampToViewport(userBaseDeleteBox);
+  fitInViewport(userBaseDeleteBox);
   focusDialog(userBaseDeleteBox);
 }
 function closeUserBaseDeleteConfirm() {
@@ -18075,8 +18497,14 @@ descPinBtn.addEventListener("click", () => toggleInfoPin(descLayer));
    inline values changed), a moment later so a resize gesture writes once. */
 const INFO_BOX_SAVE_MS = 400;
 const inlinePx = v => (v ? parseFloat(v) : null);
+/* The place the USER chose (a drag of the title, or the saved one restored at
+   boot), kept apart from the inline left/top: fitInViewport moves the card
+   inside a window smaller than when it was saved, and that forced place must
+   not overwrite the chosen one, or a bigger window later would not get it
+   back. */
+let infoBoxPlace = null; /* { left, top } | null */
 const infoBoxGeometry = () => ({
-  left: inlinePx(descBox.style.left), top: inlinePx(descBox.style.top),
+  left: infoBoxPlace ? infoBoxPlace.left : null, top: infoBoxPlace ? infoBoxPlace.top : null,
   width: inlinePx(descBox.style.width), height: inlinePx(descBox.style.height)
 });
 let infoBoxSaved = null;
@@ -18090,15 +18518,35 @@ function saveInfoBoxSoon() {
     dbSaveInfoBox(g).catch(() => { /* not kept: the next change tries again */ });
   }, INFO_BOX_SAVE_MS);
 }
-descBox.querySelector("h2").addEventListener("pointerup", saveInfoBoxSoon);
+descBox.querySelector("h2").addEventListener("pointerup", () => {
+  if (descBox.style.left) infoBoxPlace = { left: inlinePx(descBox.style.left), top: inlinePx(descBox.style.top) };
+  saveInfoBoxSoon();
+});
+/* A size change: the user's resize handle (saved), or the content growing as
+   the card follows another layer (nothing to save). Either way the card must
+   stay whole inside the window: when only its top is fixed, a taller card
+   would hang below the bottom edge. */
 new ResizeObserver(() => {
-  if (!descDialog.hidden && (descBox.style.width || descBox.style.height)) saveInfoBoxSoon();
+  if (descDialog.hidden) return;
+  fitInViewport(descBox);
+  if (descBox.style.width || descBox.style.height) saveInfoBoxSoon();
 }).observe(descBox);
+/* The card back at the user's place and then fitted into the window: when it
+   opens and when the browser is resized, so a window that grows again gives
+   back the place a smaller one had forced. */
+function placeInfoBox() {
+  if (infoBoxPlace) {
+    descBox.style.left = `${infoBoxPlace.left}px`;
+    descBox.style.top = `${infoBoxPlace.top}px`;
+  }
+  fitInViewport(descBox);
+}
 /* At boot (99-boot.js): the same inline styles makeDialogMovable and the
    resize handle would have written */
 function applyInfoBox(g) {
   infoBoxSaved = g;
   if (g.left !== null) {
+    infoBoxPlace = { left: g.left, top: g.top };
     descBox.style.position = "fixed";
     descBox.style.margin = "0";
     descBox.style.left = `${g.left}px`;
@@ -18380,8 +18828,9 @@ setupDialog(logBox, { modal: true });
 setupDialog(urlBox, { modal: true });
 setupDialog(restoreBox, { modal: true });
 window.addEventListener("resize", () => {
-  /* a moved dialog must not fall off-screen */
-  for (const box of [styleBox, iconBox, descBox, shortcutsBox, ktpBox, kdpBox, gnpBox, propsBox, shBox, userBaseBox, userBaseDeleteBox, pointsBox, logBox, urlBox]) clampToViewport(box);
+  /* a moved window stays whole inside the browser window (hidden ones are
+     fitted when they open: their size cannot be measured now) */
+  for (const box of floatingBoxes) if (box === descBox) placeInfoBox(); else fitInViewport(box);
   /* the popover's anchor button may have moved too; closing is simpler
      and less confusing than reclamping a stale position              */
   if (!colorPicker.hidden) closeColorPicker();
@@ -18778,7 +19227,7 @@ function openStyleDialog(li, { isNew = false, focus = true } = {}) {
   renderStyleAttrs();
   showStyleTab("styles"); /* siempre abre en Estilos, no recuerda la última */
   styleDialog.hidden = false;
-  clampToViewport(styleBox);
+  fitInViewport(styleBox);
   focusDialog(styleBox, focus);
   /* Última: styleTargets/styleKindOpen ya están fijados y el diálogo ya
      está visible, que es justo lo que styleDialogShows comprueba.     */
@@ -18816,7 +19265,7 @@ function syncStyleTools() {
   const several = styleTargets.length > 1;
   const hasGeometry = styleTargets.some(t => subtreeBounds(t).isValid());
   styleFocusBtn.disabled = !hasGeometry;
-  set(styleFocusBtn, hasGeometry ? tr("Centrar la vista aqu\u00ED y acercar (zoom {zoom})", { zoom: FOCUS_ZOOM })
+  set(styleFocusBtn, hasGeometry ? tr("Centrar la vista aqu\u00ED y acercar (zoom {zoom})", { zoom: CFG.FOCUS_ZOOM })
     : several ? tr("Estas capas no tienen geometr\u00EDa que enfocar.") : tr("Esta capa no tiene geometr\u00EDa que enfocar."));
   set(styleDeleteBtn, tr("Borrar"));
   styleDeleteBtn.hidden = styleIsNew;
@@ -18851,7 +19300,7 @@ function openDeleteConfirm(items) {
   /* textContent: los nombres vienen del archivo */
   $id("delete-confirm-text").textContent = tr("Se borrar\u00E1n {n} capas: {names}. Se puede deshacer con Ctrl+Z.", { n: items.length, names });
   deleteConfirmDialog.hidden = false;
-  clampToViewport(deleteConfirmBox);
+  fitInViewport(deleteConfirmBox);
   focusDialog(deleteConfirmBox);
 }
 function closeDeleteConfirm() {
@@ -19083,11 +19532,11 @@ const PROFILE_MAX_DEFAULT = 10 * 1852;
 const PROFILE_MAX_MIN = 100;
 const PROFILE_MAX_MAX = 100 * 1852;
 let profileMaxM = PROFILE_MAX_DEFAULT;
-/* Frecuencia (MHz) con la que se calcula el elipsoide de Fresnel del
-   perfil de una ruta (63-route-profile.js): ajuste global, en la pestaña
-   «Frecuencias» de Propiedades. 1090 MHz de partida. Va aquí y no en el
-   archivo del perfil porque Propiedades (43) la lee y el perfil carga
-   DESPUÉS (zona muerta temporal).                                      */
+/* Frequency (MHz) of the Fresnel ellipsoid of a route profile
+   (63-route-profile.js): a global setting, in the «Elevación y perfil» tab
+   of Propiedades. 1090 MHz by default. It lives here and not in the
+   profile's file because Propiedades (43) reads it and the profile loads
+   AFTER (temporal dead zone).                                           */
 const FRESNEL_FREQ_DEFAULT = 1090;
 const FRESNEL_FREQ_MIN = 1, FRESNEL_FREQ_MAX = 300000;
 let fresnelFreqMHz = FRESNEL_FREQ_DEFAULT;
@@ -19414,7 +19863,7 @@ $id("icon-preview-btn").addEventListener("click", () => {
   pendingIcon = styleDraft.icon;
   buildIconGrid(colorOf($id("mk-color")));
   iconPicker.hidden = false;
-  clampToViewport(iconBox);
+  fitInViewport(iconBox);
   focusDialog(iconBox);
 });
 function cancelIconPicker() {
@@ -19736,7 +20185,7 @@ function initPhoneLayout(saved) {
   if (saved === "map") { setNavHidden(true); return; }
   if (saved === "nav") return;
   mobileDialog.hidden = false;
-  clampToViewport(mobileBox);
+  fitInViewport(mobileBox);
   focusDialog(mobileBox);
 }
 
@@ -21495,15 +21944,11 @@ const ELEV_WINDOW = 20;      /* m: media ventana pedida alrededor del punto.
                                 Más ancha que las celdas del modelo (5 m),
                                 para que una consulta cubra varias celdas */
 const ELEV_CELL = 25;        /* m: tamaño de la celda cacheada              */
-const ELEV_CACHE_MAX = 200;
-const ELEV_TIMEOUT = 12000;  /* ms por intento; una fuente lenta lleva el suyo */
-const ELEV_MAX_RPS = 4;      /* peticiones por segundo, entre todas las fuentes */
 const ELEV_STATUS_QUIET = 20000;
 /* Reintentos de una petición que falla por algo PASAJERO, con espera
    creciente entre intentos. Medido contra Digital Earth Africa (octubre
    de 2026): la primera petición a una zona tarda 17-33 s y la misma,
    repetida, 1-5 s; el usuario tenía que repetir la consulta a mano. */
-const ELEV_RETRIES = 3;
 const ELEV_RETRY_DELAYS = [1000, 2000, 4000];
 
 const demTimes = [];
@@ -21515,7 +21960,7 @@ const demErrorAt = new Map(); /* clave (fuente) → último aviso de error */
 function demRateOk() {
   const now = Date.now();
   while (demTimes.length && now - demTimes[0] > 1000) demTimes.shift();
-  if (demTimes.length >= ELEV_MAX_RPS) return false;
+  if (demTimes.length >= CFG.ELEV_MAX_RPS) return false;
   demTimes.push(now);
   return true;
 }
@@ -21534,7 +21979,7 @@ function demError(key, detail) {
    perfil encadena decenas de peticiones que el usuario ya ha pedido,
    y descartar la que no cabe dejaría un hueco en la gráfica.          */
 async function demRateWait(signal) {
-  while (!demRateOk()) await elevSleep(1000 / ELEV_MAX_RPS, signal);
+  while (!demRateOk()) await elevSleep(1000 / CFG.ELEV_MAX_RPS, signal);
 }
 
 /* Espera cancelable: abortar (cerrar el diálogo del perfil) no tiene
@@ -21562,7 +22007,7 @@ function isRetryableElevError(err) {
 
 /* `attempt(i)` hace UN intento (i = 0, 1…). Pura salvo la espera, que
    se inyecta para probarla en Node sin relojes.                       */
-async function withElevRetries(attempt, { signal = null, retries = ELEV_RETRIES,
+async function withElevRetries(attempt, { signal = null, retries = CFG.ELEV_RETRIES,
                                           delays = ELEV_RETRY_DELAYS, sleep = elevSleep } = {}) {
   for (let i = 0; ; i++) {
     try {
@@ -21784,7 +22229,7 @@ function openRangeDialog(mode, latlng) {
   fillRangeDefaults(latlng);
   rangeSetMode(mode);
   ui.dialog.hidden = false;
-  clampToViewport(ui.box);
+  fitInViewport(ui.box);
   focusDialog(ui.box);
   updateRangePreview();
 }
@@ -22080,7 +22525,7 @@ function openAttrTable(li) {
   ui.csv.disabled = !rows.length;
   ui.style.disabled = cols.length < 2; /* sin atributos no hay con qué colorear */
   ui.dialog.hidden = false;
-  clampToViewport(ui.box);
+  fitInViewport(ui.box);
   focusDialog(ui.box);
   updateAttrView();
 }
@@ -22413,7 +22858,7 @@ function openAttrStyleDialog() {
   ui.n.value = String(st.n);
   ui.method.value = "equal";
   ui.dialog.hidden = false;
-  clampToViewport(ui.box);
+  fitInViewport(ui.box);
   focusDialog(ui.box);
   rebuildAttrClassing();
 }
@@ -22750,7 +23195,7 @@ function describeTraceError(err, attempt, timeoutMs) {
     : err.owsCode ? tr("excepción del servicio {code}: {message}", { code: err.owsCode, message: err.message })
     : err.status ? tr("HTTP {status}: {message}", { status: err.status, message: err.message }) : err.message;
   const out = isOutOfCoverage(err) ? " " + tr("(fuera de cobertura: no es un error)") : "";
-  const again = attempt < ELEV_RETRIES && isRetryableElevError(err)
+  const again = attempt < CFG.ELEV_RETRIES && isRetryableElevError(err)
     ? " · " + tr("se reintenta en {seconds} s", { seconds: ELEV_RETRY_DELAYS[Math.min(attempt, ELEV_RETRY_DELAYS.length - 1)] / 1000 }) : "";
   return why + out + again;
 }
@@ -22836,7 +23281,7 @@ function elevAttemptSignal(timeout, signal) {
 
 function makeElevationSource(source) {
   const { base, label, pickCoverage } = source;
-  const timeout = source.timeout || ELEV_TIMEOUT;
+  const timeout = source.timeout || CFG.ELEV_TIMEOUT;
   let config = null, discovering = null;
 
   const url = (params, extra = []) => {
@@ -23106,7 +23551,7 @@ function makeElevationSource(source) {
         const g = await fetchValue(lat, lon);
         if (g && g.located) {
           grids.push(g);
-          while (grids.length > ELEV_CACHE_MAX) grids.shift();
+          while (grids.length > CFG.ELEV_CACHE_MAX) grids.shift();
         } else if (ek) {
           emptyAt.add(ek); /* sin rejilla utilizable en esta zona */
         }
@@ -23363,7 +23808,6 @@ const GRID_FONT_MAX = 22;    /* tope, para que quepa en la celda    */
 const ELEV_ZOOM_MINI = 18;      /* <=: sin texto, solo aviso de relleno */
 const ELEV_ZOOM_DIFF_ONLY = 19; /* ==: una sola línea (la diferencia)  */
                                  /* >=20: las tres líneas, como siempre */
-const ELEV_ALERT_DIFF = 1;      /* m: umbral de "MDS por encima del MDT" */
 const GRID_ALERT_FILL = "#ff8a80"; /* rojo pastel, relleno de aviso a zoom bajo */
 
 /* El tamaño de las cifras lo elige el usuario con los botones A− / A+ de la
@@ -23409,7 +23853,7 @@ function elevCellZoomUp(cell) {
 /* El aviso se decide siempre en METROS, con independencia de la unidad
    de visualización: es un umbral físico fijo, no una comodidad de
    pantalla.                                                          */
-const isElevAlert = cell => typeof cell.diff === "number" && cell.diff > ELEV_ALERT_DIFF;
+const isElevAlert = cell => typeof cell.diff === "number" && cell.diff > CFG.ELEV_ALERT_DIFF;
 
 /* La caja de la etiqueta acompaña al texto: tres líneas más margen */
 const gridIconSize = font => [Math.round(font * 5.4), Math.round(font * 3.6)];
@@ -24504,18 +24948,11 @@ const geocalcTabs = {
 };
 let geocalcActiveTab = "elev";
 
-/* Cada pestaña tiene una altura distinta. Sin arrastrar, la ventana está
-   anclada abajo y crece hacia arriba sola; pero una vez arrastrada
-   queda fijada POR ARRIBA (makeDialogMovable) y una pestaña más alta
-   saca el pie de la pantalla. `clampToViewport` no sirve aquí: solo
-   garantiza que el título sea alcanzable, no que quepa el cuadro. Se
-   sube lo justo para que el borde inferior se vea.                     */
-function fitGeocalcBottom() {
-  if (!geocalcBox.style.top) return; /* nunca movida: el ancla ya lo resuelve */
-  const r = geocalcBox.getBoundingClientRect();
-  const top = Math.max(0, Math.min(r.top, window.innerHeight - r.height - 8));
-  geocalcBox.style.top = `${top}px`;
-}
+/* Each tab has a different height. Not dragged, the window is anchored at
+   the bottom and grows upwards by itself; once dragged it is fixed BY ITS
+   TOP (makeDialogMovable) and a taller tab would push its foot off the
+   screen, so showing a tab fits the whole box inside the window again
+   (fitInViewport, which also does nothing for a window never moved). */
 function showGeocalcTab(tab) {
   geocalcActiveTab = tab;
   for (const [key, { btn, panel }] of Object.entries(geocalcTabs)) {
@@ -24524,7 +24961,7 @@ function showGeocalcTab(tab) {
     btn.setAttribute("aria-selected", String(active));
     panel.hidden = !active;
   }
-  fitGeocalcBottom();
+  fitInViewport(geocalcBox);
   geocalcTabs[tab].calc();
 }
 for (const [key, { btn, panel, calc }] of Object.entries(geocalcTabs)) {
@@ -24734,8 +25171,7 @@ function toggleGeocalcDialog() {
   geocalcDialog.hidden = !geocalcDialog.hidden;
   if (geocalcDialog.hidden) { releaseFocus(); return; }
   seedGeocalcUnits();
-  clampToViewport(geocalcBox);
-  fitGeocalcBottom();
+  fitInViewport(geocalcBox);
   focusDialog(geocalcBox);
   geocalcTabs[geocalcActiveTab].calc(); /* el vector GPS ya trae datos de partida */
 }
@@ -24998,13 +25434,12 @@ function profileTowerSpan(vertices, at) {
 
 /* Elipsoide de Fresnel: el radio de la PRIMERA zona a una distancia `d`
    de un extremo de un trayecto de longitud `total` es
-   sqrt(λ·d·(total−d)/total), con λ = c/f. Se dibuja la zona del 60 %
-   (PF_FRESNEL_ZONE), la que ha de estar libre de obstáculos para no
-   perder señal de forma apreciable. Metros; 0 en los extremos y fuera.
-   La longitud es la de la ruta, no la de la cuerda: como la línea de
-   vista, trata la ruta como un trayecto recto. La frecuencia (MHz) es
-   el ajuste global `fresnelFreqMHz` (Propiedades → Frecuencias).      */
-const PF_FRESNEL_ZONE = 0.6;
+   sqrt(λ·d·(total−d)/total), with λ = c/f. The zone drawn is the 60 %
+   one (CFG.PF_FRESNEL_ZONE, tunable), which must stay clear of obstacles
+   not to lose signal noticeably. Metres; 0 at the ends and outside.
+   The length is the route's, not the chord's: like the line of sight, the
+   route is treated as a straight path. The frequency (MHz) is the global
+   setting `fresnelFreqMHz` (Propiedades → «Elevación y perfil»).        */
 const PF_TOWER_MAX = 10000;     /* m */
 const PF_LIGHT_MS = 299792458;
 function fresnelRadius(d, total, freqMHz) {
@@ -25465,7 +25900,6 @@ function setProfileProgress(done, total, what = "MDS") {
    en el bloque de progreso y se va con él al terminar. Los mensajes de
    un servicio son ajenos: siempre por textContent. Sigue al final
    salvo que el usuario haya subido a leer.                         */
-const PROFILE_LOG_MAX = 3000; /* líneas; se descartan las más viejas */
 const PROFILE_LOG_PREFIX = { req: "→ ", res: "← ", err: "✗ ", info: "  ", head: "" };
 const profileLogBox = document.getElementById("profile-log");
 let profileLogStart = 0;
@@ -25483,7 +25917,7 @@ function profileLog(kind, txt) {
   const secs = ((performance.now() - profileLogStart) / 1000).toFixed(1).padStart(6);
   row.textContent = `${secs} s  ${PROFILE_LOG_PREFIX[kind] ?? ""}${txt}`;
   box.appendChild(row);
-  while (box.childElementCount > PROFILE_LOG_MAX) box.firstChild.remove();
+  while (box.childElementCount > CFG.PROFILE_LOG_MAX) box.firstChild.remove();
   if (atEnd) box.scrollTop = box.scrollHeight;
 }
 
@@ -25517,7 +25951,7 @@ function openProfileDialog(title) {
   showProfileTools(false);
   profileChart.innerHTML = "";
   profileDialog.hidden = false;
-  clampToViewport(profileBox);
+  fitInViewport(profileBox);
   focusDialog(profileBox);
 }
 
@@ -26180,7 +26614,7 @@ function renderProfileChart() {
       return up.concat(down.reverse()).join(" ");
     };
     parts.push(`<polygon class="pf-fresnel" clip-path="url(#pf-clip)" points="${ring(1)}"/>`,
-      `<polygon class="pf-fresnel60" clip-path="url(#pf-clip)" points="${ring(PF_FRESNEL_ZONE)}"/>`);
+      `<polygon class="pf-fresnel60" clip-path="url(#pf-clip)" points="${ring(CFG.PF_FRESNEL_ZONE)}"/>`);
   }
   /* Obstáculos: un bloque del terreno al techo entre la entrada y la salida
      de la ruta, y encima, en rojo, lo que cae donde la recta pasa por
@@ -26254,7 +26688,7 @@ function renderProfileChart() {
        los textos largos), y la frecuencia se lee aquí (las pruebas la miran). */
     extras.push({ cls: "fresnel", label: tr("Fresnel 100 %") });
     extras.push({ cls: "pf-fresnel60", swatch: true,
-      label: tr("{zone} % · {freq} MHz", { zone: Math.round(PF_FRESNEL_ZONE * 100), freq: fresnelFreqMHz }) });
+      label: tr("{zone} % · {freq} MHz", { zone: Math.round(CFG.PF_FRESNEL_ZONE * 100), freq: fresnelFreqMHz }) });
   }
   if (obstacles.length) extras.push({ cls: "obstacle", label: tr("Obstáculos ({n})", { n: obstacles.length }) });
   if (profileCurveMode !== "none") extras.push({ cls: "earth", label: PF_EARTH_LABEL[profileCurveMode]() });
@@ -26395,7 +26829,7 @@ function showProfileCursor(x) {
   for (const kind of ["mdt", "mds"]) if (at[kind] !== undefined) info[kind] = { txt: fmtHeight(at[kind], altitudeUnit) };
   if (at.mdt !== undefined && at.mds !== undefined) {
     const diff = at.mds - at.mdt;
-    info.diff = { txt: diffTxt(diff), alert: diff > ELEV_ALERT_DIFF };
+    info.diff = { txt: diffTxt(diff), alert: diff > CFG.ELEV_ALERT_DIFF };
   }
   /* Lo que responde a «¿hay línea de vista?»: la corrección de curvatura
      de este modo a esta distancia (la que se suma al terreno o a la
@@ -26433,11 +26867,11 @@ function showProfileCursor(x) {
     const clear = lay.losAt(d) - lift - base;
     info.clear = { txt: diffTxt(clear), alert: clear < 0 };
     if (profileFresnel && between) {
-      const margin = clear - PF_FRESNEL_ZONE * lay.fresnel(d);
+      const margin = clear - CFG.PF_FRESNEL_ZONE * lay.fresnel(d);
       info.margin = { txt: diffTxt(margin), alert: margin < 0 };
     }
   }
-  if (lay.los && profileFresnel && between) info.fres = { txt: fmtHeight(PF_FRESNEL_ZONE * lay.fresnel(d), altitudeUnit) };
+  if (lay.los && profileFresnel && between) info.fres = { txt: fmtHeight(CFG.PF_FRESNEL_ZONE * lay.fresnel(d), altitudeUnit) };
   /* Con otra referencia, «Despeje obstáculo» sigue dando el del techo (sin Fresnel) */
   if (top && lineHere && ref !== "obs") {
     const clear = lay.losAt(d) - lift - top.z;
@@ -26670,7 +27104,7 @@ function profileCsv(data, u, locate, dialect = CSV_DEFAULT, link = null, obstacl
     }
     return row;
   });
-  const zone = Math.round(PF_FRESNEL_ZONE * 100); /* 60 */
+  const zone = Math.round(CFG.PF_FRESNEL_ZONE * 100); /* 60 */
   const header = [tr("Distancia ({unit})", { unit: u.distLabel }), tr("Latitud"), tr("Longitud"),
     ...data.series.map(s => `${s.kind.toUpperCase()} (${u.altLabel})`),
     ...(link ? [tr("Torre")] : []),
@@ -26692,7 +27126,7 @@ function profileCsvLink(data) {
   const m = profileLinkModel(data.series, data.vertices, profileLinkOpts());
   if (!m.los) return null;
   return { dA: m.dA, dB: m.dB, showLos: profileShowLos, showFresnel: profileFresnel,
-    altitude: d => m.losAt(d) - m.lift(d), radius: d => PF_FRESNEL_ZONE * m.fresnel(d) };
+    altitude: d => m.losAt(d) - m.lift(d), radius: d => CFG.PF_FRESNEL_ZONE * m.fresnel(d) };
 }
 
 function exportProfileCsv() {
@@ -26717,7 +27151,6 @@ const PF_EXPORT_PROPS = ["fill", "fill-opacity", "stroke", "stroke-width", "stro
   "stroke-linecap", "stroke-linejoin", "opacity", "font-family", "font-size", "font-weight", "text-anchor",
   "dominant-baseline", "paint-order", "visibility"];
 const PF_EXPORT_TITLE_PX = 30;
-const PF_EXPORT_SCALE = 2;
 
 function inlineSvgStyles(src, dst) {
   const from = [src, ...src.querySelectorAll("*")], to = [dst, ...dst.querySelectorAll("*")];
@@ -26761,10 +27194,10 @@ async function exportProfilePng() {
       img.src = "data:image/svg+xml;charset=utf-8," + encodeURIComponent(out.svg);
     });
     const canvas = document.createElement("canvas");
-    canvas.width = out.w * PF_EXPORT_SCALE;
-    canvas.height = out.h * PF_EXPORT_SCALE;
+    canvas.width = out.w * CFG.PF_EXPORT_SCALE;
+    canvas.height = out.h * CFG.PF_EXPORT_SCALE;
     const g = canvas.getContext("2d");
-    g.scale(PF_EXPORT_SCALE, PF_EXPORT_SCALE);
+    g.scale(CFG.PF_EXPORT_SCALE, CFG.PF_EXPORT_SCALE);
     g.drawImage(img, 0, 0, out.w, out.h);
     const blob = await new Promise(resolve => canvas.toBlob(resolve, "image/png"));
     if (!blob) throw new Error(tr("no se pudo generar la imagen"));
@@ -27494,8 +27927,6 @@ async function addCogNodeSteps(file, insertBefore, dropTargetUl) {
 
 const CADASTRE_RCCOOR = "https://ovc.catastro.meh.es/ovcservweb/OVCSWLocalizacionRC/OVCCoordenadas.asmx/Consulta_RCCOOR";
 const CADASTRE_WFS = "https://ovc.catastro.meh.es/INSPIRE/wfsCP.aspx";
-const CADASTRE_TIMEOUT = 15000;
-const CADASTRE_RETRIES = 2;
 const CADASTRE_RETRY_DELAYS = [1000, 2000];
 /* Una parcela real pesa unos pocos KB; las rústicas enormes, decenas */
 const CADASTRE_MAX_BYTES = 5 * 1024 * 1024;
@@ -27688,14 +28119,14 @@ async function readCapped(resp, max) {
    reintentos solo de lo pasajero (`withElevRetries`).                 */
 function cadastreGet(url) {
   return withElevRetries(async () => {
-    const resp = await fetch(url, { credentials: "omit", signal: AbortSignal.timeout(CADASTRE_TIMEOUT) });
+    const resp = await fetch(url, { credentials: "omit", signal: AbortSignal.timeout(CFG.CADASTRE_TIMEOUT) });
     if (!resp.ok) {
       const err = new Error(describeHttp(resp.status));
       err.status = resp.status;
       throw err;
     }
     return parseCadastreXml(decodeXmlBytes(await readCapped(resp, CADASTRE_MAX_BYTES)));
-  }, { retries: CADASTRE_RETRIES, delays: CADASTRE_RETRY_DELAYS });
+  }, { retries: CFG.CADASTRE_RETRIES, delays: CADASTRE_RETRY_DELAYS });
 }
 
 const cadastreInFlight = new Set();
@@ -27748,7 +28179,7 @@ async function queryCadastralParcelAt(latlng) {
   } catch (err) {
     if (err.name === "AbortError") return;
     const why = err.name === "TimeoutError"
-      ? tr("el servicio ha tardado m\u00E1s de {seconds} s en responder", { seconds: CADASTRE_TIMEOUT / 1000 })
+      ? tr("el servicio ha tardado m\u00E1s de {seconds} s en responder", { seconds: CFG.CADASTRE_TIMEOUT / 1000 })
       : err instanceof TypeError
         ? netFailText(tr("error de red, o el servicio no admite consultas desde el navegador (CORS)"))
         : err.message;
@@ -28034,11 +28465,9 @@ function arcgisExportUrl(base, bbox, px, dpi, ids) {
    y, con paginación, orderByFields=<OID> (páginas estables, sin huecos ni
    repetidas). NO se manda geometría de filtro ni simplificación: se trae la
    capa entera a resolución completa.                                      */
-const ARCGIS_QUERY_TIMEOUT = 30000;      /* POR INTENTO */
 const ARCGIS_MAX_FEATURES = 100000;      /* el mismo tope que un shapefile (SHP_MAX_FEATURES) */
 const ARCGIS_PAGE_MAX = 2000;            /* nunca más por página, aunque el servidor admita más */
 const ARCGIS_MAX_PAGES = 500;            /* cinturón contra un servidor que no avanza */
-const ARCGIS_RETRIES = 2;
 const ARCGIS_LABEL_MAX = 1000;           /* rótulos permanentes a la vez: cada uno es un nodo del DOM */
 const ARCGIS_OID_RE = /^[A-Za-z_][A-Za-z0-9_.]{0,63}$/;
 
@@ -28399,7 +28828,7 @@ async function addArcgisServiceNode(cat, base) {
    mismo. Devuelve { json, size }.                                       */
 function arcgisGetJson(url, signal, cap) {
   return withElevRetries(async () => {
-    const t = AbortSignal.timeout(ARCGIS_QUERY_TIMEOUT);
+    const t = AbortSignal.timeout(CFG.ARCGIS_QUERY_TIMEOUT);
     const resp = await fetch(url, { credentials: "omit", signal: signal ? AbortSignal.any([signal, t]) : t });
     if (!resp.ok) {
       const err = new Error(describeHttp(resp.status));
@@ -28412,7 +28841,7 @@ function arcgisGetJson(url, signal, cap) {
     catch { throw Object.assign(new Error(tr("la respuesta del servicio no es JSON")), { owsCode: "json" }); }
     if (json && json.error) throw Object.assign(new Error(arcgisErrorText(json.error)), { owsCode: "arcgis" });
     return { json, size: bytes.length };
-  }, { signal, retries: ARCGIS_RETRIES });
+  }, { signal, retries: CFG.ARCGIS_RETRIES });
 }
 
 /* El mensaje de un fallo de red/cancelación, en una frase */
@@ -28440,7 +28869,7 @@ async function arcgisDownloadLayer(base, id, signal, onProgress) {
   for (let i = 0; i < ARCGIS_MAX_PAGES; i++) {
     const url = arcgisQueryUrl(base, id, info.pagination
       ? { offset, count: info.maxRecord, orderBy: info.oidField } : {});
-    const { json, size } = await arcgisGetJson(url, signal, URL_MAX_BYTES - bytes);
+    const { json, size } = await arcgisGetJson(url, signal, CFG.URL_MAX_BYTES - bytes);
     bytes += size;
     pages.push(json);
     const got = Array.isArray(json.features) ? json.features.length : 0;
@@ -28587,12 +29016,9 @@ const WIKIPEDIA_RADIUS_MIN_M = 10;
 const WIKIPEDIA_RADIUS_MAX_M = 10000;
 /* The nearest N. In the centre of a big city 100 articles fit in ~300 m: the
    radius is a ceiling, not a promise of coverage (docs/pendientes). */
-const WIKIPEDIA_LIMIT = 100;
 const WIKIPEDIA_EXTRACT_CHUNK = 20; /* the API's cap for `exlimit` */
-const WIKIPEDIA_TIMEOUT = 15000;
 /* The service answers "search is too busy" (HTTP 200 with an `error` object)
    roughly one request in three at peak: that is retried like a 503. */
-const WIKIPEDIA_RETRIES = 3;
 const WIKIPEDIA_RETRY_DELAYS = [1000, 2000, 3000];
 const WIKIPEDIA_MAX_BYTES = 2 * 1024 * 1024;
 const WIKIPEDIA_MAX_TITLE = 255;
@@ -28641,7 +29067,7 @@ function wikipediaGeoUrl(lang, latlng, radius) {
   }
   const q = new URLSearchParams({
     action: "query", list: "geosearch", gscoord: `${lat.toFixed(6)}|${lng.toFixed(6)}`,
-    gsradius: String(radius), gslimit: String(WIKIPEDIA_LIMIT),
+    gsradius: String(radius), gslimit: String(CFG.WIKIPEDIA_LIMIT),
     format: "json", formatversion: "2", origin: "*"
   });
   return `${WIKIPEDIA_APIS[wikipediaLang(lang)]}?${q}`;
@@ -28723,7 +29149,7 @@ function parseWikipediaGeosearch(json) {
     if (!a || seen.has(a.pageid)) { skipped++; continue; }
     seen.add(a.pageid);
     articles.push(a);
-    if (articles.length >= WIKIPEDIA_LIMIT) break;
+    if (articles.length >= CFG.WIKIPEDIA_LIMIT) break;
   }
   return { articles, skipped };
 }
@@ -28757,7 +29183,7 @@ function wikipediaDistance(meters, unit) {
    summaries that fail, so the user learns the cause and not just the count) */
 function wikipediaWhy(err) {
   if (err && err.name === "TimeoutError") {
-    return tr("el servicio ha tardado más de {seconds} s en responder", { seconds: WIKIPEDIA_TIMEOUT / 1000 });
+    return tr("el servicio ha tardado más de {seconds} s en responder", { seconds: CFG.WIKIPEDIA_TIMEOUT / 1000 });
   }
   if (err instanceof TypeError) {
     return netFailText(tr("error de red, o el servicio no admite consultas desde el navegador (CORS)"));
@@ -28798,7 +29224,7 @@ function wikipediaCardHtml(lang, article, extract, distance) {
    transient (`withElevRetries`). The response is read as bytes with a cap. */
 function wikipediaGet(url) {
   return withElevRetries(async () => {
-    const resp = await fetch(url, { credentials: "omit", signal: AbortSignal.timeout(WIKIPEDIA_TIMEOUT) });
+    const resp = await fetch(url, { credentials: "omit", signal: AbortSignal.timeout(CFG.WIKIPEDIA_TIMEOUT) });
     if (!resp.ok) {
       const err = new Error(describeHttp(resp.status));
       err.status = resp.status;
@@ -28809,7 +29235,7 @@ function wikipediaGet(url) {
     try { json = JSON.parse(new TextDecoder("utf-8").decode(bytes)); }
     catch { throw new Error(tr("respuesta ilegible")); }
     return wikipediaCheck(json);
-  }, { retries: WIKIPEDIA_RETRIES, delays: WIKIPEDIA_RETRY_DELAYS });
+  }, { retries: CFG.WIKIPEDIA_RETRIES, delays: WIKIPEDIA_RETRY_DELAYS });
 }
 
 const wikipediaInFlight = new Set();
@@ -28916,7 +29342,7 @@ async function queryWikipediaAt(latlng) {
       "{n} artículo de Wikipedia añadido en «{folder}»; pulse 🔍 en la carpeta para verlo.",
       "{n} artículos de Wikipedia añadidos en «{folder}»; pulse 🔍 en la carpeta para verlos.",
       { folder: folder._name }), { tone: "info" });
-    if (articles.length >= WIKIPEDIA_LIMIT) {
+    if (articles.length >= CFG.WIKIPEDIA_LIMIT) {
       navMessage(tr("Se muestran los {n} artículos más cercanos; puede haber más a menos de {distance}.",
         { n: articles.length, distance: reach }), { tone: "info" });
     }
@@ -28954,6 +29380,10 @@ async function queryWikipediaAt(latlng) {
      the new version (tests/whatsnew.js fails if package.json's version
      has no entry).                                                     */
 const WHATS_NEW = [
+  { version: "next", items: [
+    N_("Las ventanas, y la ficha que recuerda su sitio, se abren siempre enteras dentro del navegador aunque la ventana sea ahora más pequeña."),
+    N_("Con la casilla «Preferencias avanzadas» de Propiedades aparecen, en rojo, pestañas para ajustar tiempos, topes y tolerancias que antes eran fijos.")
+  ] },
   { version: "2.6.0", items: [
     N_("La ficha de información es más tranquila: al pasar el ratón por muchos elementos ya no cambia con cada uno, y las fichas en las que te detienes quedan como pestañas que puedes volver a mirar y fijar."),
     N_("Todos los marcadores, formas y mediciones tienen su ficha, con su posición o sus medidas, aunque no traigan atributos."),
@@ -29076,7 +29506,7 @@ function openWhatsNew(entries, plan) {
   ui.dismiss.checked = false;
   ui.dialog.hidden = false;
   ui.body.scrollTop = 0;
-  clampToViewport(ui.box);
+  fitInViewport(ui.box);
   focusDialog(ui.box);
 }
 
@@ -29413,11 +29843,10 @@ map.getContainer().addEventListener("keydown", e => {
    compatibilidad (y con él el autodesplazamiento del navegador).
    Durante el gesto el cursor es una rosa de los vientos con su norte
    donde apunta el norte del mapa.                                     */
-const ROTATE_DEG_PER_PX = 0.5;
 
 /* Rumbo tras desplazar el puntero `dx` píxeles en horizontal */
 function pivotDragBearing(startBearing, dx) {
-  return dragBearing(startBearing, 0, dx * ROTATE_DEG_PER_PX);
+  return dragBearing(startBearing, 0, dx * CFG.ROTATE_DEG_PER_PX);
 }
 
 function roseCursor(bearing) {
@@ -29589,25 +30018,22 @@ map.getContainer().addEventListener("mouseleave", () => {
    flechas se cogen en CAPTURA y no se propagan: el `Keyboard` de
    Leaflet escucha en `document` y, si las viera, desplazaría dos veces
    (sus `+`/`-`/Escape siguen siendo suyos).                           */
-const KEY_PAN_STEP = 80;           /* px de un toque: el keyboardPanDelta de Leaflet */
-const KEY_PAN_SPEED = 400;         /* px/s al empezar a mantener */
-const KEY_PAN_MAX_SPEED = 1600;    /* px/s, tras la rampa */
 const KEY_PAN_ACCEL_MS = 500;      /* mantenida más que esto, acelera… */
 const KEY_PAN_RAMP_MS = 1000;      /* …hasta el tope en este tiempo */
-const KEY_PAN_SHIFT = 3;           /* Mayús: más rápido, como en Leaflet */
-const KEY_ZOOM_RATE = 3;           /* niveles/s mientras se mantiene */
 const KEY_PAN_DIRS = { ArrowLeft: [-1, 0], ArrowRight: [1, 0], ArrowUp: [0, -1], ArrowDown: [0, 1] };
 
-/* Velocidad (px/s) de una flecha mantenida `heldMs` */
+/* Speed (px/s) of an arrow held for `heldMs`. Both speeds are tunable: a
+   top speed set below the starting one never slows the pan down. */
 function keyPanSpeed(heldMs) {
-  if (heldMs <= KEY_PAN_ACCEL_MS) return KEY_PAN_SPEED;
+  if (heldMs <= KEY_PAN_ACCEL_MS) return CFG.KEY_PAN_SPEED;
   const k = Math.min(1, (heldMs - KEY_PAN_ACCEL_MS) / KEY_PAN_RAMP_MS);
-  return KEY_PAN_SPEED + (KEY_PAN_MAX_SPEED - KEY_PAN_SPEED) * k;
+  const top = Math.max(CFG.KEY_PAN_SPEED, CFG.KEY_PAN_MAX_SPEED);
+  return CFG.KEY_PAN_SPEED + (top - CFG.KEY_PAN_SPEED) * k;
 }
 /* Velocidad combinada en pantalla de las flechas vivas, `keys` =
    [[tecla, px/s], …]: dos a la vez dan diagonal, opuestas se anulan. */
 function keyPanVector(keys, shift) {
-  const f = shift ? KEY_PAN_SHIFT : 1;
+  const f = shift ? CFG.KEY_PAN_SHIFT : 1;
   let x = 0, y = 0;
   for (const [key, v] of keys) {
     const d = KEY_PAN_DIRS[key];
@@ -29631,7 +30057,6 @@ function keyZoomTarget(z0, z, dir, min, max) {
    fraccionario y la vista lo alcanza con frenada (WHEEL_EASE_MS) por el
    mismo camino del pellizco que Re/Av Pág; parada la rueda, se asienta
    en el nivel entero siguiente en la dirección del último giro.     */
-const WHEEL_PX_PER_LEVEL = 100;    /* px de rueda por nivel: una muesca (100–120 px) da uno */
 const WHEEL_EASE_MS = 200;         /* tiempo para alcanzar el objetivo de cada evento */
 const WHEEL_SETTLE_MS = 150;       /* del objetivo fraccionario al nivel entero */
 const WHEEL_IDLE_MS = 150;         /* sin rueda este rato, el gesto ha terminado */
@@ -29642,7 +30067,7 @@ const WHEEL_IDLE_MS = 150;         /* sin rueda este rato, el gesto ha terminado
    una rueda de líneas o páginas no salte varios de golpe.          */
 function wheelLevels(deltaY, deltaMode) {
   const px = deltaMode === 1 ? deltaY * 40 : deltaMode === 2 ? deltaY * 800 : deltaY;
-  return Math.max(-1, Math.min(1, -px / WHEEL_PX_PER_LEVEL));
+  return Math.max(-1, Math.min(1, -px / CFG.WHEEL_PX_PER_LEVEL));
 }
 /* Nivel ENTERO en que se asienta un zoom de rueda que va por z: el
    siguiente en la dirección `dir` (z ya entero se queda), en [min, max] */
@@ -29697,10 +30122,10 @@ const easeOutCubic = k => 1 - Math.pow(1 - k, 3);
       /* Soltada: si no llegó al paso de un toque, lo completa sin
          pasarse; si ya lo pasó, se para en seco.                     */
       const v = k.down ? keyPanSpeed(now - k.t0)
-        : Math.max(0, Math.min(KEY_PAN_SPEED, (KEY_PAN_STEP - k.traveled) / dt));
+        : Math.max(0, Math.min(CFG.KEY_PAN_SPEED, (CFG.KEY_PAN_STEP - k.traveled) / dt));
       k.traveled += v * dt;
       keys.push([key, v]);
-      if (!k.down && k.traveled >= KEY_PAN_STEP - 0.01) pan.delete(key);
+      if (!k.down && k.traveled >= CFG.KEY_PAN_STEP - 0.01) pan.delete(key);
     }
     const v = keyPanVector(keys, shift);
     panAcc.x += v.x * dt; panAcc.y += v.y * dt;
@@ -29783,7 +30208,7 @@ const easeOutCubic = k => 1 - Math.pow(1 - k, 3);
     const zm = zoom;
     const k = zm.dur ? Math.min(1, Math.max(0, now - zm.t0) / zm.dur) : 1;
     const z = zm.kind === "key"
-      ? clampZoom(zm.z0 + zm.dir * KEY_ZOOM_RATE * Math.max(0, now - zm.t0) / 1000)
+      ? clampZoom(zm.z0 + zm.dir * CFG.KEY_ZOOM_RATE * Math.max(0, now - zm.t0) / 1000)
       : k === 1 ? zm.goal : zm.from + (zm.goal - zm.from) * easeOutCubic(k);
     if (z !== zm.z) {
       zm.z = z;
@@ -30414,6 +30839,15 @@ setInterval(checkServerVersion, VERSION_CHECK_MS);
     const theme = await dbLoadUiTheme();
     if (theme !== null) applyUiTheme(theme);
   } catch { /* automático */ }
+
+  /* The settings tunable in Propiedades (04-tunables.js), early: the rest
+     of the boot (messages, the tree, the info card) already reads them. */
+  try {
+    Object.assign(CFG, await dbLoadTunables());
+  } catch { /* the defaults */ }
+  try {
+    advancedPrefs = await dbLoadAdvancedPrefs();
+  } catch { /* advanced tabs hidden */ }
 
   /* En un móvil, el aviso de «mejor desde un ordenador» (o lo que se
      eligió la vez anterior): antes que nada para que no se vea el panel

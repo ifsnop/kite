@@ -297,7 +297,7 @@ function describeTraceError(err, attempt, timeoutMs) {
     : err.owsCode ? tr("excepción del servicio {code}: {message}", { code: err.owsCode, message: err.message })
     : err.status ? tr("HTTP {status}: {message}", { status: err.status, message: err.message }) : err.message;
   const out = isOutOfCoverage(err) ? " " + tr("(fuera de cobertura: no es un error)") : "";
-  const again = attempt < ELEV_RETRIES && isRetryableElevError(err)
+  const again = attempt < CFG.ELEV_RETRIES && isRetryableElevError(err)
     ? " · " + tr("se reintenta en {seconds} s", { seconds: ELEV_RETRY_DELAYS[Math.min(attempt, ELEV_RETRY_DELAYS.length - 1)] / 1000 }) : "";
   return why + out + again;
 }
@@ -383,7 +383,7 @@ function elevAttemptSignal(timeout, signal) {
 
 function makeElevationSource(source) {
   const { base, label, pickCoverage } = source;
-  const timeout = source.timeout || ELEV_TIMEOUT;
+  const timeout = source.timeout || CFG.ELEV_TIMEOUT;
   let config = null, discovering = null;
 
   const url = (params, extra = []) => {
@@ -653,7 +653,7 @@ function makeElevationSource(source) {
         const g = await fetchValue(lat, lon);
         if (g && g.located) {
           grids.push(g);
-          while (grids.length > ELEV_CACHE_MAX) grids.shift();
+          while (grids.length > CFG.ELEV_CACHE_MAX) grids.shift();
         } else if (ek) {
           emptyAt.add(ek); /* sin rejilla utilizable en esta zona */
         }
@@ -910,7 +910,6 @@ const GRID_FONT_MAX = 22;    /* tope, para que quepa en la celda    */
 const ELEV_ZOOM_MINI = 18;      /* <=: sin texto, solo aviso de relleno */
 const ELEV_ZOOM_DIFF_ONLY = 19; /* ==: una sola línea (la diferencia)  */
                                  /* >=20: las tres líneas, como siempre */
-const ELEV_ALERT_DIFF = 1;      /* m: umbral de "MDS por encima del MDT" */
 const GRID_ALERT_FILL = "#ff8a80"; /* rojo pastel, relleno de aviso a zoom bajo */
 
 /* El tamaño de las cifras lo elige el usuario con los botones A− / A+ de la
@@ -956,7 +955,7 @@ function elevCellZoomUp(cell) {
 /* El aviso se decide siempre en METROS, con independencia de la unidad
    de visualización: es un umbral físico fijo, no una comodidad de
    pantalla.                                                          */
-const isElevAlert = cell => typeof cell.diff === "number" && cell.diff > ELEV_ALERT_DIFF;
+const isElevAlert = cell => typeof cell.diff === "number" && cell.diff > CFG.ELEV_ALERT_DIFF;
 
 /* La caja de la etiqueta acompaña al texto: tres líneas más margen */
 const gridIconSize = font => [Math.round(font * 5.4), Math.round(font * 3.6)];

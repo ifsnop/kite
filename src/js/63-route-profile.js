@@ -255,13 +255,12 @@ function profileTowerSpan(vertices, at) {
 
 /* Elipsoide de Fresnel: el radio de la PRIMERA zona a una distancia `d`
    de un extremo de un trayecto de longitud `total` es
-   sqrt(λ·d·(total−d)/total), con λ = c/f. Se dibuja la zona del 60 %
-   (PF_FRESNEL_ZONE), la que ha de estar libre de obstáculos para no
-   perder señal de forma apreciable. Metros; 0 en los extremos y fuera.
-   La longitud es la de la ruta, no la de la cuerda: como la línea de
-   vista, trata la ruta como un trayecto recto. La frecuencia (MHz) es
-   el ajuste global `fresnelFreqMHz` (Propiedades → Frecuencias).      */
-const PF_FRESNEL_ZONE = 0.6;
+   sqrt(λ·d·(total−d)/total), with λ = c/f. The zone drawn is the 60 %
+   one (CFG.PF_FRESNEL_ZONE, tunable), which must stay clear of obstacles
+   not to lose signal noticeably. Metres; 0 at the ends and outside.
+   The length is the route's, not the chord's: like the line of sight, the
+   route is treated as a straight path. The frequency (MHz) is the global
+   setting `fresnelFreqMHz` (Propiedades → «Elevación y perfil»).        */
 const PF_TOWER_MAX = 10000;     /* m */
 const PF_LIGHT_MS = 299792458;
 function fresnelRadius(d, total, freqMHz) {
@@ -722,7 +721,6 @@ function setProfileProgress(done, total, what = "MDS") {
    en el bloque de progreso y se va con él al terminar. Los mensajes de
    un servicio son ajenos: siempre por textContent. Sigue al final
    salvo que el usuario haya subido a leer.                         */
-const PROFILE_LOG_MAX = 3000; /* líneas; se descartan las más viejas */
 const PROFILE_LOG_PREFIX = { req: "→ ", res: "← ", err: "✗ ", info: "  ", head: "" };
 const profileLogBox = document.getElementById("profile-log");
 let profileLogStart = 0;
@@ -740,7 +738,7 @@ function profileLog(kind, txt) {
   const secs = ((performance.now() - profileLogStart) / 1000).toFixed(1).padStart(6);
   row.textContent = `${secs} s  ${PROFILE_LOG_PREFIX[kind] ?? ""}${txt}`;
   box.appendChild(row);
-  while (box.childElementCount > PROFILE_LOG_MAX) box.firstChild.remove();
+  while (box.childElementCount > CFG.PROFILE_LOG_MAX) box.firstChild.remove();
   if (atEnd) box.scrollTop = box.scrollHeight;
 }
 
@@ -774,7 +772,7 @@ function openProfileDialog(title) {
   showProfileTools(false);
   profileChart.innerHTML = "";
   profileDialog.hidden = false;
-  clampToViewport(profileBox);
+  fitInViewport(profileBox);
   focusDialog(profileBox);
 }
 
@@ -1437,7 +1435,7 @@ function renderProfileChart() {
       return up.concat(down.reverse()).join(" ");
     };
     parts.push(`<polygon class="pf-fresnel" clip-path="url(#pf-clip)" points="${ring(1)}"/>`,
-      `<polygon class="pf-fresnel60" clip-path="url(#pf-clip)" points="${ring(PF_FRESNEL_ZONE)}"/>`);
+      `<polygon class="pf-fresnel60" clip-path="url(#pf-clip)" points="${ring(CFG.PF_FRESNEL_ZONE)}"/>`);
   }
   /* Obstáculos: un bloque del terreno al techo entre la entrada y la salida
      de la ruta, y encima, en rojo, lo que cae donde la recta pasa por
@@ -1511,7 +1509,7 @@ function renderProfileChart() {
        los textos largos), y la frecuencia se lee aquí (las pruebas la miran). */
     extras.push({ cls: "fresnel", label: tr("Fresnel 100 %") });
     extras.push({ cls: "pf-fresnel60", swatch: true,
-      label: tr("{zone} % · {freq} MHz", { zone: Math.round(PF_FRESNEL_ZONE * 100), freq: fresnelFreqMHz }) });
+      label: tr("{zone} % · {freq} MHz", { zone: Math.round(CFG.PF_FRESNEL_ZONE * 100), freq: fresnelFreqMHz }) });
   }
   if (obstacles.length) extras.push({ cls: "obstacle", label: tr("Obstáculos ({n})", { n: obstacles.length }) });
   if (profileCurveMode !== "none") extras.push({ cls: "earth", label: PF_EARTH_LABEL[profileCurveMode]() });
@@ -1652,7 +1650,7 @@ function showProfileCursor(x) {
   for (const kind of ["mdt", "mds"]) if (at[kind] !== undefined) info[kind] = { txt: fmtHeight(at[kind], altitudeUnit) };
   if (at.mdt !== undefined && at.mds !== undefined) {
     const diff = at.mds - at.mdt;
-    info.diff = { txt: diffTxt(diff), alert: diff > ELEV_ALERT_DIFF };
+    info.diff = { txt: diffTxt(diff), alert: diff > CFG.ELEV_ALERT_DIFF };
   }
   /* Lo que responde a «¿hay línea de vista?»: la corrección de curvatura
      de este modo a esta distancia (la que se suma al terreno o a la
@@ -1690,11 +1688,11 @@ function showProfileCursor(x) {
     const clear = lay.losAt(d) - lift - base;
     info.clear = { txt: diffTxt(clear), alert: clear < 0 };
     if (profileFresnel && between) {
-      const margin = clear - PF_FRESNEL_ZONE * lay.fresnel(d);
+      const margin = clear - CFG.PF_FRESNEL_ZONE * lay.fresnel(d);
       info.margin = { txt: diffTxt(margin), alert: margin < 0 };
     }
   }
-  if (lay.los && profileFresnel && between) info.fres = { txt: fmtHeight(PF_FRESNEL_ZONE * lay.fresnel(d), altitudeUnit) };
+  if (lay.los && profileFresnel && between) info.fres = { txt: fmtHeight(CFG.PF_FRESNEL_ZONE * lay.fresnel(d), altitudeUnit) };
   /* Con otra referencia, «Despeje obstáculo» sigue dando el del techo (sin Fresnel) */
   if (top && lineHere && ref !== "obs") {
     const clear = lay.losAt(d) - lift - top.z;
@@ -1927,7 +1925,7 @@ function profileCsv(data, u, locate, dialect = CSV_DEFAULT, link = null, obstacl
     }
     return row;
   });
-  const zone = Math.round(PF_FRESNEL_ZONE * 100); /* 60 */
+  const zone = Math.round(CFG.PF_FRESNEL_ZONE * 100); /* 60 */
   const header = [tr("Distancia ({unit})", { unit: u.distLabel }), tr("Latitud"), tr("Longitud"),
     ...data.series.map(s => `${s.kind.toUpperCase()} (${u.altLabel})`),
     ...(link ? [tr("Torre")] : []),
@@ -1949,7 +1947,7 @@ function profileCsvLink(data) {
   const m = profileLinkModel(data.series, data.vertices, profileLinkOpts());
   if (!m.los) return null;
   return { dA: m.dA, dB: m.dB, showLos: profileShowLos, showFresnel: profileFresnel,
-    altitude: d => m.losAt(d) - m.lift(d), radius: d => PF_FRESNEL_ZONE * m.fresnel(d) };
+    altitude: d => m.losAt(d) - m.lift(d), radius: d => CFG.PF_FRESNEL_ZONE * m.fresnel(d) };
 }
 
 function exportProfileCsv() {
@@ -1974,7 +1972,6 @@ const PF_EXPORT_PROPS = ["fill", "fill-opacity", "stroke", "stroke-width", "stro
   "stroke-linecap", "stroke-linejoin", "opacity", "font-family", "font-size", "font-weight", "text-anchor",
   "dominant-baseline", "paint-order", "visibility"];
 const PF_EXPORT_TITLE_PX = 30;
-const PF_EXPORT_SCALE = 2;
 
 function inlineSvgStyles(src, dst) {
   const from = [src, ...src.querySelectorAll("*")], to = [dst, ...dst.querySelectorAll("*")];
@@ -2018,10 +2015,10 @@ async function exportProfilePng() {
       img.src = "data:image/svg+xml;charset=utf-8," + encodeURIComponent(out.svg);
     });
     const canvas = document.createElement("canvas");
-    canvas.width = out.w * PF_EXPORT_SCALE;
-    canvas.height = out.h * PF_EXPORT_SCALE;
+    canvas.width = out.w * CFG.PF_EXPORT_SCALE;
+    canvas.height = out.h * CFG.PF_EXPORT_SCALE;
     const g = canvas.getContext("2d");
-    g.scale(PF_EXPORT_SCALE, PF_EXPORT_SCALE);
+    g.scale(CFG.PF_EXPORT_SCALE, CFG.PF_EXPORT_SCALE);
     g.drawImage(img, 0, 0, out.w, out.h);
     const blob = await new Promise(resolve => canvas.toBlob(resolve, "image/png"));
     if (!blob) throw new Error(tr("no se pudo generar la imagen"));

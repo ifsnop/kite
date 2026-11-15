@@ -601,7 +601,6 @@ let layerInfoDismissed = false;
    closes, as it always did. Skipped while the card holds keyboard focus (an
    explicit open via the ℹ button or the context menu): that close stays the
    user's call.                                                           */
-const LAYER_INFO_HIDE_DELAY = 200; /* ms */
 let layerInfoHideTimer = null;
 let infoHideHeld = false; /* the deferred close waits for a text selection in the card to go (44-dialogs.js) */
 function cancelLayerInfoHide() {
@@ -634,7 +633,7 @@ function scheduleLayerInfoHide() {
     if (infoSelectionInCard()) { infoHideHeld = true; return; }
     if (infoCardLocked()) return;
     collapseLayerInfo();
-  }, LAYER_INFO_HIDE_DELAY);
+  }, CFG.LAYER_INFO_HIDE_DELAY);
 }
 
 /* ---------- Hover intent ----------
@@ -643,7 +642,6 @@ function scheduleLayerInfoHide() {
    another layer takes it over only once the pointer has RESTED on it for
    LAYER_INFO_HOVER_INTENT_MS; just crossing it changes nothing. A closed or
    compact card still opens at once on the first layer.                    */
-const LAYER_INFO_HOVER_INTENT_MS = 250; /* ms */
 let hoverIntent = null; /* { li, timer } */
 function cancelHoverIntent() {
   if (hoverIntent) { clearTimeout(hoverIntent.timer); hoverIntent = null; }
@@ -671,11 +669,6 @@ function cancelHoverIntent() {
      applied meanwhile either (a row unpinned while there waits).
    Session state only: rows point at live tree rows, which undo and reload
    rebuild. Rendering lives in 44-dialogs.js (renderInfoStack).            */
-const INFO_STACK_DWELL_MS = 400;
-const INFO_STACK_TTL_MS = 30000;
-const INFO_STACK_WARN_MS = 5000;
-const INFO_STACK_MAX = 6;
-const INFO_STACK_MAX_PINNED = 6;
 let infoStack = [];      /* [{ li, pinned, t: last use, q: order of entry in the queue }], newest first, never reordered */
 let infoQueueSeq = 0;    /* q comes from a counter, not the clock: two rows can enter within the same millisecond */
 let liveInfo = null;     /* { li, enteredAt, leftAt, explicit }: the layer under the pointer or opened on purpose */
@@ -690,7 +683,7 @@ const infoStackClock = () => infoStackPaused ? infoPausedAt : Date.now();
    renewed lease. Unchanged (same array) when `li` should enter pinned and the
    pinned cap is full. Trims the queue unless `paused`. Pure, tested in
    tests/toolstest.js. */
-function infoStackWith(rows, li, now, { pinned = false, max = INFO_STACK_MAX, maxPinned = INFO_STACK_MAX_PINNED, paused = false, q = now } = {}) {
+function infoStackWith(rows, li, now, { pinned = false, max = CFG.INFO_STACK_MAX, maxPinned = CFG.INFO_STACK_MAX_PINNED, paused = false, q = now } = {}) {
   if (rows.some(r => r.li === li)) return rows.map(r => r.li === li ? { ...r, t: now } : r);
   if (pinned && rows.filter(r => r.pinned).length >= maxPinned) return rows;
   const next = [{ li, pinned, t: now, q }, ...rows];
@@ -698,7 +691,7 @@ function infoStackWith(rows, li, now, { pinned = false, max = INFO_STACK_MAX, ma
 }
 /* First in, first out over the unpinned rows: drops the ones that entered the
    queue earliest until `max` are left. Pure. */
-function infoStackTrim(rows, max = INFO_STACK_MAX) {
+function infoStackTrim(rows, max = CFG.INFO_STACK_MAX) {
   const queue = rows.filter(r => !r.pinned);
   if (queue.length <= max) return rows;
   const out = new Set([...queue].sort((a, b) => a.q - b.q).slice(0, queue.length - max));
@@ -707,7 +700,7 @@ function infoStackTrim(rows, max = INFO_STACK_MAX) {
 /* Pin or unpin the row of `li` in place. Unpinning puts it back in the queue as
    its newest entry (q, t = now). Same array back when pinning would pass the
    pinned cap. Pure. */
-function infoStackPinned(rows, li, pinned, now, { max = INFO_STACK_MAX, maxPinned = INFO_STACK_MAX_PINNED, paused = false, q = now } = {}) {
+function infoStackPinned(rows, li, pinned, now, { max = CFG.INFO_STACK_MAX, maxPinned = CFG.INFO_STACK_MAX_PINNED, paused = false, q = now } = {}) {
   const row = rows.find(r => r.li === li);
   if (!row) return infoStackWith(rows, li, now, { pinned, max, maxPinned, paused, q });
   if (row.pinned === pinned) return rows;
@@ -717,7 +710,7 @@ function infoStackPinned(rows, li, pinned, now, { max = INFO_STACK_MAX, maxPinne
 }
 /* The rows still worth showing: unpinned ones expire (not while `paused`), and
    a layer that left the tree (deleted, or rebuilt by undo) goes. Pure. */
-function infoStackAlive(rows, now, ttl = INFO_STACK_TTL_MS, paused = false) {
+function infoStackAlive(rows, now, ttl = CFG.INFO_STACK_TTL_MS, paused = false) {
   return rows.filter(r => r.li.isConnected !== false && (r.pinned || paused || now - r.t < ttl));
 }
 /* The clocks go on after a pause of `pausedFor` ms: every unpinned row keeps
@@ -725,11 +718,14 @@ function infoStackAlive(rows, now, ttl = INFO_STACK_TTL_MS, paused = false) {
 function infoStackResumed(rows, pausedFor) {
   return rows.map(r => r.pinned ? r : { ...r, t: r.t + pausedFor });
 }
-function infoStackExpiring(row, now, ttl = INFO_STACK_TTL_MS, warn = INFO_STACK_WARN_MS) {
-  return !row.pinned && now >= row.t + ttl - warn;
+/* Both are tunable: a warning longer than the lifetime just dims a row from
+   the moment it enters, never before it exists. */
+function infoStackExpiring(row, now, ttl = CFG.INFO_STACK_TTL_MS, warn = CFG.INFO_STACK_WARN_MS) {
+  return !row.pinned && now >= row.t + ttl - Math.min(warn, ttl);
 }
 /* When the next row starts dimming or expires (Infinity: nothing pending). Pure. */
-function infoStackNextEvent(rows, now, ttl = INFO_STACK_TTL_MS, warn = INFO_STACK_WARN_MS) {
+function infoStackNextEvent(rows, now, ttl = CFG.INFO_STACK_TTL_MS, warn = CFG.INFO_STACK_WARN_MS) {
+  warn = Math.min(warn, ttl);
   let next = Infinity;
   for (const r of rows) {
     if (r.pinned) continue;
@@ -768,7 +764,7 @@ function pauseInfoStack(paused) {
    layer is reflected at once (a handful of rows to look at). */
 function refreshInfoStack() {
   if (!infoStack.length && !liveInfo) return;
-  infoStack = infoStackAlive(infoStack, infoStackClock(), INFO_STACK_TTL_MS, infoStackPaused);
+  infoStack = infoStackAlive(infoStack, infoStackClock(), CFG.INFO_STACK_TTL_MS, infoStackPaused);
   if (liveInfo && liveInfo.li.isConnected === false) liveInfo = null;
   if (infoPeek && !infoStack.some(r => r.li === infoPeek)) { infoPeek = null; setInfoHalo(null); }
   if (!descDialog.hidden) {
@@ -788,7 +784,7 @@ function retireLiveInfo() {
   if (!live || !infoStackActive()) return;
   const now = Date.now();
   const dwell = (live.leftAt ?? now) - live.enteredAt;
-  if (live.explicit || dwell >= INFO_STACK_DWELL_MS || infoStack.some(r => r.li === live.li)) {
+  if (live.explicit || dwell >= CFG.INFO_STACK_DWELL_MS || infoStack.some(r => r.li === live.li)) {
     infoStack = infoStackWith(infoStack, live.li, infoStackClock(), { paused: infoStackPaused, q: ++infoQueueSeq });
     scheduleInfoStackTick();
   }
@@ -805,7 +801,7 @@ function toggleInfoPin(li) {
   const row = infoStack.find(r => r.li === li);
   const next = infoStackPinned(infoStack, li, !(row && row.pinned), infoStackClock(), { paused: infoStackPaused, q: ++infoQueueSeq });
   if (next === infoStack) {
-    navMessage(tr("Ya hay {n} fichas fijadas: suelte alguna para fijar otra.", { n: INFO_STACK_MAX_PINNED }));
+    navMessage(tr("Ya hay {n} fichas fijadas: suelte alguna para fijar otra.", { n: CFG.INFO_STACK_MAX_PINNED }));
     return;
   }
   infoStack = next;
@@ -828,7 +824,7 @@ function settleHoverCandidate() {
   const c = infoHoverCandidate;
   if (!c) return;
   infoHoverCandidate = null;
-  if (!infoStackActive() || Date.now() - c.enteredAt < INFO_STACK_DWELL_MS) return;
+  if (!infoStackActive() || Date.now() - c.enteredAt < CFG.INFO_STACK_DWELL_MS) return;
   infoStack = infoStackWith(infoStack, c.li, infoStackClock(), { paused: infoStackPaused, q: ++infoQueueSeq });
   scheduleInfoStackTick();
   if (!descDialog.hidden) renderInfoStack();
@@ -914,7 +910,7 @@ function setLiveInfo(li, focus, enteredAt, html = infoHtmlFor(li)) {
   const wasHidden = descDialog.hidden;
   descDialog.hidden = false;
   if (wasHidden) {
-    clampToViewport(descBox);
+    placeInfoBox();
     if (focus) focusDialog(descBox);
     /* Opened by hovering the viewer: closing it must land back there,
        not wherever focus happened to be when the cursor crossed it.   */
@@ -960,7 +956,7 @@ function showLayerInfo(li, { focus = true } = {}) {
       hoverIntent = null;
       if (descDialog.hidden || hoverBlocked()) return;
       setLiveInfo(li, false, now);
-    }, LAYER_INFO_HOVER_INTENT_MS) };
+    }, CFG.LAYER_INFO_HOVER_INTENT_MS) };
     return;
   }
   cancelHoverIntent();
@@ -972,13 +968,12 @@ function showLayerInfo(li, { focus = true } = {}) {
    poco desde que la geometría se cachea (~5 ms con 8.000 capas) y porque
    las instantáneas COMPARTEN esa geometría en vez de clonarla: lo que
    ocupa es la estructura, no las coordenadas.                        */
-const UNDO_MAX = 20;
 const undoStack = [];
 const redoStack = [];
 
 function pushUndo(label) {
   undoStack.push({ label, nodes: serializeTree() });
-  if (undoStack.length > UNDO_MAX) undoStack.shift();
+  if (undoStack.length > CFG.UNDO_MAX) undoStack.shift();
   /* Una acción nueva invalida lo rehacible: la historia se bifurca */
   redoStack.length = 0;
 }
@@ -1205,8 +1200,8 @@ async function dbLoadProfileMax() {
   });
 }
 
-/* Frecuencia del elipsoide de Fresnel, en MHz (pestaña «Frecuencias» de
-   Propiedades). Fuera de [FRESNEL_FREQ_MIN, FRESNEL_FREQ_MAX] se descarta. */
+/* Frequency of the Fresnel ellipsoid, in MHz (the «Elevación y perfil» tab
+   of Propiedades). Outside [FRESNEL_FREQ_MIN, FRESNEL_FREQ_MAX] it is dropped. */
 const FRESNEL_FREQ_KEY = "fresnelFreq";
 const FRESNEL_FREQ_SCHEMA = 1;
 const validFresnelFreq = r =>
@@ -1296,7 +1291,7 @@ async function dbLoadElevFont() {
    DB_VERSION or TREE_SCHEMA bump. Validated on reading (another tab or an old
    version may have written anything): finite numbers, left and top together,
    sizes of at least INFO_BOX_MIN_PX. Off-screen is fixed when the card opens
-   (clampToViewport), not here: the window may be another size by then. */
+   (fitInViewport), not here: the window may be another size by then. */
 const INFO_BOX_KEY = "infoBox";
 const INFO_BOX_SCHEMA = 1;
 const INFO_BOX_MIN_PX = 120;
@@ -1324,6 +1319,55 @@ async function dbLoadInfoBox() {
     const tx = db.transaction(DB_TREE, "readonly");
     const rq = tx.objectStore(DB_TREE).get(INFO_BOX_KEY);
     rq.onsuccess = () => resolve(validInfoBox(rq.result));
+    rq.onerror = () => reject(rq.error);
+  });
+}
+
+/* The settings tunable in Propiedades (04-tunables.js): ONE key of the
+   `tree` store holding only what differs from the defaults, so a future
+   change to a default reaches whoever never touched that setting. No
+   DB_VERSION or TREE_SCHEMA bump. Read through validTunables (foreign input:
+   an unknown id or a value out of bounds is dropped on its own). */
+const TUNABLES_KEY = "tunables";
+async function dbSaveTunables(values) {
+  const db = await openDb();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(DB_TREE, "readwrite");
+    tx.objectStore(DB_TREE).put({ v: TUNABLES_SCHEMA, values }, TUNABLES_KEY);
+    tx.oncomplete = resolve;
+    tx.onerror = () => reject(tx.error);
+  });
+}
+async function dbLoadTunables() {
+  const db = await openDb();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(DB_TREE, "readonly");
+    const rq = tx.objectStore(DB_TREE).get(TUNABLES_KEY);
+    rq.onsuccess = () => resolve(validTunables(rq.result));
+    rq.onerror = () => reject(rq.error);
+  });
+}
+
+/* Whether Propiedades shows its advanced tabs («Preferencias avanzadas»).
+   Own key of the `tree` store, `{ v, on }`; anything but a boolean is read
+   as «hidden». No DB_VERSION or TREE_SCHEMA bump. */
+const ADVANCED_PREFS_KEY = "advancedPrefs";
+const ADVANCED_PREFS_SCHEMA = 1;
+async function dbSaveAdvancedPrefs(on) {
+  const db = await openDb();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(DB_TREE, "readwrite");
+    tx.objectStore(DB_TREE).put({ v: ADVANCED_PREFS_SCHEMA, on: on === true }, ADVANCED_PREFS_KEY);
+    tx.oncomplete = resolve;
+    tx.onerror = () => reject(tx.error);
+  });
+}
+async function dbLoadAdvancedPrefs() {
+  const db = await openDb();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(DB_TREE, "readonly");
+    const rq = tx.objectStore(DB_TREE).get(ADVANCED_PREFS_KEY);
+    rq.onsuccess = () => { const r = rq.result; resolve(!!r && r.v === ADVANCED_PREFS_SCHEMA && r.on === true); };
     rq.onerror = () => reject(rq.error);
   });
 }

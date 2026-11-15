@@ -12,10 +12,10 @@
    aportaría nada.                                                      */
 
 const GPX_NAME_KEYS = ["name"];
-/* Cota de una entrada hostil: un track real de varios días ronda los 10⁵
-   puntos; con diez veces más se avisa y se corta, en vez de colgar el
-   navegador construyendo arrays.                                       */
-const GPX_MAX_POINTS = 2000000;
+/* The limit against a hostile input is CFG.GPX_MAX_POINTS: a real track
+   of several days is about 10⁵ points; with ten times more (the default)
+   the import warns and stops, instead of hanging the browser building
+   arrays.                                                              */
 const GPX_TEXT_FIELDS = ["name", "desc", "cmt", "src", "sym", "type"];
 
 /* Una posición <wpt>/<rtept>/<trkpt> → [lng, lat(, alt)], o null si le
@@ -63,7 +63,7 @@ function gpxProps(el, kind) {
 function gpxLine(pointEls, ctx) {
   const coords = [], times = [];
   for (const el of pointEls) {
-    if (ctx.points >= GPX_MAX_POINTS) { ctx.capped = true; break; }
+    if (ctx.points >= CFG.GPX_MAX_POINTS) { ctx.capped = true; break; }
     ctx.points++;
     const pos = gpxPosition(el);
     if (!pos) { ctx.badPoints++; continue; }
@@ -90,7 +90,7 @@ function gpxToGeoJson(text, report) {
   const add = (properties, geometry) => features.push({ type: "Feature", properties, geometry });
 
   for (const el of childrenByTag(root, "wpt")) {
-    if (ctx.points >= GPX_MAX_POINTS) { ctx.capped = true; break; }
+    if (ctx.points >= CFG.GPX_MAX_POINTS) { ctx.capped = true; break; }
     ctx.points++;
     const pos = gpxPosition(el);
     if (!pos) { report.warn(tr("waypoint sin coordenadas válidas")); continue; }
@@ -124,7 +124,7 @@ function gpxToGeoJson(text, report) {
     report.note(tr("{n} coordenada(s) fuera de rango por redondeo, ajustadas al límite (menos de {eps}°)",
       { n: coordClamped - clamped0, eps: COORD_EPS }));
   }
-  if (ctx.capped) report.warn(tr("se corta en {max} puntos: es el tope por archivo GPX", { max: GPX_MAX_POINTS }));
+  if (ctx.capped) report.warn(tr("se corta en {max} puntos: es el tope por archivo GPX", { max: CFG.GPX_MAX_POINTS }));
   if (!features.length) throw new Error(tr("el archivo GPX no contiene ningún waypoint, ruta ni track"));
   return { type: "FeatureCollection", features };
 }

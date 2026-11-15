@@ -8,7 +8,7 @@ const near = (a, b, tol) => Math.abs(a - b) <= tol;
 const L = { latLng: (lat, lng) => ({ lat, lng }) };
 const prelude = [constDecl("EARTH_R"), constDecl("toRad"), constDecl("toDeg"), fn("destPoint"), fn("arcPoints"),
   fn("normalizePathStyle"), fn("stringifyPropValue"), constDecl("ALT_MODES"), constDecl("featureAltMode")].join("\n");
-const region = between("const EXPORT_CIRCLE_SEGMENTS", "/* ---------- Descarga");
+const region = between("const EXPORT_PATH_SEP", "/* ---------- Descarga");
 const x = new Function("L", `${prelude}\n${region}\n${fn("skippedMessage")}
 return { haversineM, geoToFeatures, recordFeatures, exportRoot, simpleStyle, putProp, recordsToGeoJson,
          recordsToKml, xmlEsc, xmlCdata, cssToKmlColor, skippedMessage };`)(L);

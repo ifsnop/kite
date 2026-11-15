@@ -870,6 +870,32 @@ function clampToViewport(box) {
   box.style.left = `${left}px`;
   box.style.top = `${top}px`;
 }
+/* The WHOLE box inside the browser window (requested): when a window opens,
+   when the info card comes back to its saved place in a window that is now
+   smaller, when its content grows, and when the browser is resized. Dragging
+   stays free (clampToViewport above: only the title must stay reachable), so
+   a window can still be left half outside to see the map under it.
+   - Only a box that was moved (or restored to a saved place): one placed by
+     its wrapper (centred, anchored to a corner) already fits.
+   - Nothing for a hidden box: its size reads 0 and would pull it to the edge.
+   - offsetWidth/offsetHeight, not getBoundingClientRect: the entry animation
+     scales the rect (motion.md).
+   - Only the position changes, never the size: `.dlg-box` already caps the
+     rendered size (max-width/max-height), so a saved size survives for a
+     bigger window. When the box is still bigger than the window, its top
+     left corner wins (the title is the handle).                        */
+const VIEWPORT_MARGIN_PX = 8;
+function fitInViewport(box) {
+  if (!box.style.left || !box.offsetWidth) return;
+  const m = VIEWPORT_MARGIN_PX;
+  const left = Math.max(m, Math.min(parseFloat(box.style.left), window.innerWidth - box.offsetWidth - m));
+  const top = Math.max(m, Math.min(parseFloat(box.style.top), window.innerHeight - box.offsetHeight - m));
+  box.style.left = `${left}px`;
+  box.style.top = `${top}px`;
+}
+/* Every movable window (makeDialogMovable adds it), whatever file builds it:
+   the window's resize listener (44-dialogs.js) fits the visible ones. */
+const floatingBoxes = new Set();
 
 /* ---------- Accesibilidad de los diálogos ----------
    Each dialog announces itself as such, keeps the keyboard inside while
@@ -968,6 +994,7 @@ document.addEventListener("click", e => {
 }, true);
 
 function makeDialogMovable(box) {
+  floatingBoxes.add(box);
   const handle = box.querySelector("h2");
   let from = null;
   handle.addEventListener("pointerdown", e => {
@@ -1466,7 +1493,7 @@ function confirmStripHtmlTags(fileName, kind = "names") {
   ktpTitle.textContent = w.titulo();
   ktpIntro.textContent = w.intro(fileName);
   ktpDialog.hidden = false;
-  clampToViewport(ktpBox);
+  fitInViewport(ktpBox);
   focusDialog(ktpBox);
   return new Promise(resolve => { ktpResolve = resolve; });
 }
@@ -1494,7 +1521,7 @@ function confirmMergeDuplicates(fileName, groups) {
     "«{file}» tiene {n} nombres repetidos con la misma posición ({total} marcador(es) de más). ¿Fusionarlos y mantener solo uno de cada grupo?",
     { file: fileName, total });
   kdpDialog.hidden = false;
-  clampToViewport(kdpBox);
+  fitInViewport(kdpBox);
   focusDialog(kdpBox);
   return new Promise(resolve => { kdpResolve = resolve; });
 }
@@ -1579,7 +1606,7 @@ function pickNameProperty(keys, fileName, { sample = null, selected = [] } = {})
   gnpResult.textContent = "";
   refreshGnpOrder();
   gnpDialog.hidden = false;
-  clampToViewport(gnpBox);
+  fitInViewport(gnpBox);
   focusDialog(gnpBox);
   return new Promise(resolve => { gnpResolve = resolve; });
 }
@@ -1625,7 +1652,7 @@ function toggleShortcuts() {
   shortcutsDialog.hidden = !shortcutsDialog.hidden;
   if (!shortcutsDialog.hidden) {
     showShortcutsTab("nav"); /* no se queda en la última pestaña vista la vez anterior */
-    clampToViewport(shortcutsBox);
+    fitInViewport(shortcutsBox);
     focusDialog(shortcutsBox);
   } else releaseFocus();
 }
@@ -1714,11 +1741,19 @@ function applyUiTheme(theme, soft = false) {
 let propsDraftGnp = null; /* clon de gnpStore mientras el panel está abierto */
 let propsOriginal = null; /* ajustes al abrir (unidades, formato, topes, fuentes…), para Cancelar */
 
+/* The tabs of the tunable settings (04-tunables.js) are found by id; the
+   «Elevación y perfil» one is the old «Frecuencias» tab (`freq`). */
+const propsTabPair = id => [document.getElementById(`props-tab-btn-${id}`), document.getElementById(`props-tab-${id}`)];
 const PROPS_TABS = {
   prefs: [propsTabPrefsBtn, propsTabPrefs],
-  gnp: [propsTabGnpBtn, propsTabGnp],
-  sources: [propsTabSourcesBtn, propsTabSources],
+  ui: propsTabPair("ui"),
+  cards: propsTabPair("cards"),
+  map: propsTabPair("map"),
+  files: propsTabPair("files"),
+  net: propsTabPair("net"),
   freq: [propsTabFreqBtn, propsTabFreq],
+  sources: [propsTabSourcesBtn, propsTabSources],
+  gnp: [propsTabGnpBtn, propsTabGnp],
   restore: [propsTabRestoreBtn, propsTabRestore]
 };
 function showPropsTab(tab) {
@@ -1731,6 +1766,92 @@ function showPropsTab(tab) {
 for (const id of Object.keys(PROPS_TABS)) {
   PROPS_TABS[id][0].addEventListener("click", () => showPropsTab(id));
 }
+
+/* ---------- Tunable settings (TUNABLES, 04-tunables.js) ----------
+   One row per setting in the tab it names (`.tunables-list[data-tunables]`),
+   built once at load: a new entry in TUNABLES appears in its tab by itself.
+   Same deferred editing as the rest of the dialog: `change` applies the value
+   to CFG at once (and repaints what shows it), Cancel puts back what there
+   was when the dialog opened, Accept saves what differs from the defaults.
+   A value out of bounds is adjusted to the nearest one with a notice
+   (readClampedNumber), an unreadable one goes back to the current value. The
+   label of a changed setting is in bold; the row's title gives the default. */
+const tunableRows = new Map(); /* id → { t, row, input } */
+const tunableText = (t, v) => `${tunableShown(t, v).toLocaleString(uiLang)}${t.unit ? " " + tr(t.unit) : ""}`;
+function buildTunableRows() {
+  for (const t of TUNABLES) {
+    const list = propsDialog.querySelector(`.tunables-list[data-tunables="${t.tab}"]`);
+    const row = document.createElement("div");
+    row.className = "dlg-row";
+    row.title = tr("Valor de partida: {value}", { value: tunableText(t, t.def) });
+    const input = document.createElement("input");
+    input.type = "number";
+    input.id = `tunable-${t.id}`;
+    input.min = tunableShown(t, t.min);
+    input.max = tunableShown(t, t.max);
+    input.step = t.step || 1;
+    const label = document.createElement("label");
+    label.htmlFor = input.id;
+    label.textContent = tr(t.label);
+    const box = document.createElement("span");
+    box.className = "props-with-unit";
+    box.append(input);
+    if (t.unit) {
+      const unit = document.createElement("span");
+      unit.textContent = tr(t.unit);
+      box.append(unit);
+    }
+    row.append(label, box);
+    list.append(row);
+    tunableRows.set(t.id, { t, row, input });
+    input.addEventListener("change", () => {
+      const v = readClampedNumber(input, tunableShown(t, t.min), tunableShown(t, t.max), tr(t.label), t.unit ? tr(t.unit) : "");
+      if (v !== null) setTunable(t.id, Math.min(t.max, Math.max(t.min, tunableStored(t, v))));
+      renderTunable(t.id);
+    });
+  }
+}
+function renderTunable(id) {
+  const { t, row, input } = tunableRows.get(id);
+  input.value = tunableShown(t, CFG[id]);
+  row.classList.toggle("changed", CFG[id] !== t.def);
+}
+function renderTunables() {
+  for (const id of tunableRows.keys()) renderTunable(id);
+}
+/* What has to be repainted when a setting changes; the rest is read at its
+   next use (the next notice, the next request, the next import). */
+const TUNABLE_EFFECTS = {
+  INFO_STACK_MAX: () => { infoStack = infoStackTrim(infoStack); refreshInfoStack(); },
+  INFO_STACK_TTL_MS: () => refreshInfoStack(),
+  INFO_STACK_WARN_MS: () => refreshInfoStack(),
+  PF_FRESNEL_ZONE: () => refreshProfileChart(),
+  ELEV_ALERT_DIFF: () => { refreshElevCells(); refreshProfileChart(); }
+};
+function setTunable(id, v) {
+  if (CFG[id] === v) return;
+  CFG[id] = v;
+  if (TUNABLE_EFFECTS[id]) TUNABLE_EFFECTS[id]();
+}
+buildTunableRows();
+
+/* «Preferencias avanzadas» (requested): the tabs of tunable settings except
+   «Elevación y perfil» are advanced (red, `.advanced`), and so are the
+   tunable rows of «Elevación y perfil», which keeps the Fresnel frequency it
+   always had. Unticked, the dialog hides them (CSS, `show-advanced`); the
+   values still apply. Part of the deferred editing: Cancel puts it back,
+   Accept saves it (`advancedPrefs` key). */
+let advancedPrefs = false;
+const propsAdvancedInput = document.getElementById("props-advanced");
+function applyAdvancedPrefs(on) {
+  advancedPrefs = on;
+  propsAdvancedInput.checked = on;
+  propsDialog.classList.toggle("show-advanced", on);
+  /* hiding the tab on screen would leave its panel with no tab */
+  const shown = Object.entries(PROPS_TABS).find(([, [btn]]) => btn.classList.contains("active"));
+  if (!on && shown && shown[1][0].classList.contains("advanced")) showPropsTab("prefs");
+}
+propsAdvancedInput.addEventListener("change", () => applyAdvancedPrefs(propsAdvancedInput.checked));
 
 /* Pestaña «Fuentes de datos»: un selector por modelo, rellenado desde
    el catálogo ELEV_SOURCES (60-elevation.js) AL ABRIR, no al cargar:
@@ -1831,9 +1952,9 @@ function renderPropsProfileMax() {
   propsProfileMaxInput.max = Number((PROFILE_MAX_MAX / f).toPrecision(6));
   document.getElementById("props-profile-max-unit").textContent = POLY_UNIT_LABEL[measureUnit];
 }
-/* Pestaña «Frecuencias»: la del elipsoide de Fresnel del perfil. Se
-   previsualiza en vivo (el perfil, si está abierto, se redibuja) y solo
-   Aceptar la guarda; Cancelar vuelve a la de al abrir.                 */
+/* «Elevación y perfil» tab (the old «Frecuencias»): the Fresnel frequency
+   of the profile. Previewed live (an open profile is redrawn), only Accept
+   saves it; Cancel goes back to the value it had when the dialog opened. */
 function renderPropsFreqTab() {
   propsFresnelFreqInput.value = fresnelFreqMHz;
 }
@@ -1950,7 +2071,7 @@ const restoreBox = restoreDialog.querySelector(".dlg-box");
 const restoreAcceptBtn = document.getElementById("restore-accept");
 function openRestoreConfirm() {
   restoreDialog.hidden = false;
-  clampToViewport(restoreBox);
+  fitInViewport(restoreBox);
   focusDialog(restoreBox);
 }
 function closeRestoreConfirm() {
@@ -1974,14 +2095,16 @@ async function togglePropsDialog() {
   if (!gnpStore) gnpStore = await dbLoadGnp();
   propsDraftGnp = { ...gnpStore };
   propsOriginal = { uiTheme, unit: measureUnit, altitudeUnit, profileMaxM, fresnelFreqMHz, coordFormat, vertexEditMax,
-                    arcSegments, kmzMaxUncompressedMB, elevSources };
+                    arcSegments, kmzMaxUncompressedMB, elevSources, tunables: { ...CFG }, advancedPrefs };
+  applyAdvancedPrefs(advancedPrefs);
   renderGnpEditor();
   renderPropsPrefsTab();
+  renderTunables();
   renderPropsFreqTab();
   renderPropsSourcesTab();
   showPropsTab("prefs");
   propsDialog.hidden = false;
-  clampToViewport(propsBox);
+  fitInViewport(propsBox);
   focusDialog(propsBox);
 }
 document.getElementById("gnp-editor-btn").addEventListener("click", togglePropsDialog);
@@ -2012,6 +2135,8 @@ function cancelPropsDialog() {
   arcSegments = propsOriginal.arcSegments;
   kmzMaxUncompressedMB = propsOriginal.kmzMaxUncompressedMB;
   elevSources = propsOriginal.elevSources;
+  for (const [id, v] of Object.entries(propsOriginal.tunables)) setTunable(id, v);
+  advancedPrefs = propsOriginal.advancedPrefs;
   propsDraftGnp = null;
   propsOriginal = null;
 }
@@ -2030,6 +2155,8 @@ document.getElementById("props-accept").addEventListener("click", () => {
   dbSaveArcSegments(arcSegments);
   dbSaveKmzMax(kmzMaxUncompressedMB);
   dbSaveElevSources(elevSources);
+  dbSaveAdvancedPrefs(advancedPrefs).catch(() => { /* shown or hidden again at the next start */ });
+  dbSaveTunables(tunableOverrides()).catch(() => navMessage(tr("No se pudieron guardar los ajustes: valdrán hasta cerrar la página.")));
   if (propsLangSelect.value !== loadUiLangPref()) {
     saveUiLangPref(propsLangSelect.value);
     navMessage(tr("El idioma de la interfaz cambiará al recargar la página (F5)."), { tone: "info", sticky: true });
@@ -2081,7 +2208,7 @@ function openPointsDialogCommon(li, rings, { showRingsHint }) {
     : tr("Esta capa tiene {n} trazos (contorno exterior primero, luego los "
       + "agujeros). Van separados por una línea en blanco; mantén esa separación.", { n: rings.length });
   pointsDialog.hidden = false;
-  clampToViewport(pointsBox);
+  fitInViewport(pointsBox);
   focusDialog(pointsBox);
 }
 

@@ -23,13 +23,13 @@ const { fn, constDecl } = require("./_extract");
 const ok = (c, m) => { if (!c) { console.error("FAIL: " + m); process.exitCode = 1; } };
 const near = (a, b, eps = 1e-9) => Math.abs(a - b) < eps;
 
-const K = new Function(["KEY_PAN_STEP", "KEY_PAN_SPEED", "KEY_PAN_MAX_SPEED", "KEY_PAN_ACCEL_MS",
-  "KEY_PAN_RAMP_MS", "KEY_PAN_SHIFT", "KEY_PAN_DIRS"].map(constDecl).join("\n")
-  + "\n" + constDecl("WHEEL_PX_PER_LEVEL")
+const K = new Function(["KEY_PAN_ACCEL_MS", "KEY_PAN_RAMP_MS", "KEY_PAN_DIRS"].map(constDecl).join("\n")
   + "\n" + fn("keyPanSpeed") + "\n" + fn("keyPanVector") + "\n" + fn("keyZoomTarget")
   + "\n" + fn("wheelLevels") + "\n" + fn("wheelZoomTarget")
   + "\nreturn { keyPanSpeed, keyPanVector, keyZoomTarget, wheelLevels, wheelZoomTarget,"
-  + " KEY_PAN_SPEED, KEY_PAN_MAX_SPEED, KEY_PAN_ACCEL_MS, KEY_PAN_RAMP_MS, KEY_PAN_SHIFT };")();
+  + " KEY_PAN_ACCEL_MS, KEY_PAN_RAMP_MS };")();
+/* The speeds and the Shift factor are tunable settings (CFG, 04-tunables.js) */
+Object.assign(K, { KEY_PAN_SPEED: CFG.KEY_PAN_SPEED, KEY_PAN_MAX_SPEED: CFG.KEY_PAN_MAX_SPEED, KEY_PAN_SHIFT: CFG.KEY_PAN_SHIFT });
 
 /* ================= 1. Perfil de velocidad ================= */
 ok(K.keyPanSpeed(0) === K.KEY_PAN_SPEED, "arranca ya a la velocidad base, sin pausa");

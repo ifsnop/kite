@@ -152,14 +152,25 @@ KITE Local does not impose fixed limits on KML file size, imported features or v
   Downloads, Measurements…) are tinted pastel blue, so they are not mistaken
   for an imported file or a row under the mouse
 - local storage usage indicator, and a session log of every notice shown
-- a Properties panel with five tabs. *Preferences*: theme, language, the
-  distance and altitude units, coordinate format, the interactive-vertex-edit
-  cap, arc segments, the longest profile and the largest size a KMZ may take
-  once uncompressed (500 MB by default) — previewed live where it can be, and
-  only saved on Accept. *GeoJSON indexes*: remembers which property names each GeoJSON
-  structure. *Data sources*: which service supplies the terrain and surface
-  models. *Frequencies*: the Fresnel frequency. *Restore*: deletes everything
-  the application has saved in the browser, after a second confirmation
+- a Properties panel. *Preferences*: theme, language, the distance and
+  altitude units, coordinate format, the interactive-vertex-edit cap, arc
+  segments, the longest profile and the largest size a KMZ may take once
+  uncompressed (500 MB by default) — previewed live where it can be, and only
+  saved on Accept. An *Advanced preferences* box shows, with their names in
+  red, the values that used to be fixed in the code, each bounded and back to
+  its default with *Restore*: *Interface*
+  (notices, tree search, undo depth), *Cards* (hover delays and how many recent
+  and pinned cards), *Map and keyboard* (zoom levels, arrow-key and wheel
+  speeds, click tolerance), *Files* (the limits against hostile files),
+  *Network* (timeouts and retries of every external service) and some rows of
+  *Elevation and profile*, a tab always shown for the Fresnel frequency.
+  *Data sources*:
+  which service supplies the terrain and surface models. *GeoJSON indexes*:
+  remembers which property names each GeoJSON structure. *Restore*: deletes
+  everything the application has saved in the browser, after a second
+  confirmation
+- windows, and the info card that remembers where it was left, always open
+  whole inside the browser window, even when it is now smaller
 - a light/dark interface theme that follows the system or is forced, and
   English and Spanish interfaces that follow the browser or are forced
 - the interface follows the system's accessibility preferences (reduced motion,
@@ -534,7 +545,7 @@ The interface is primarily designed for mouse and keyboard use. On a phone it sh
 - The application is a 2D Leaflet viewer, not a 3D virtual globe.
 - The simple compatibility statement applies to conventional folder/placemark/line/polygon KML, not every feature in the full KML specification.
 - `DOMParser` and `JSON.parse` are synchronous and can briefly block the interface on large inputs (reading the XML of a 309 MB KML is one task of about 4 seconds).
-- The application sets no explicit KML-size or feature-count limit, but the browser, RAM, IndexedDB quota and rendering performance impose practical limits. A KMZ (or shapefile `.zip`) is checked before anything is unpacked: at most 2000 entries, a 200× compression ratio and an uncompressed size of 500 MB by default, which you can change in Properties → Preferences.
+- The application sets no explicit KML-size or feature-count limit, but the browser, RAM, IndexedDB quota and rendering performance impose practical limits. A KMZ (or shapefile `.zip`) is checked before anything is unpacked: at most 2000 entries, a 200× compression ratio and an uncompressed size of 500 MB by default; the uncompressed size can be changed in Properties → Preferences, and the other import limits, within bounds, in Properties → Files (an advanced tab).
 - Altitude is carried through import, storage and export, but it is not drawn on the map: this is a 2D viewer (the one place it is used is a route profile, where a polygon with altitude counts as an obstacle; `<extrude>` is not read, so such a polygon is always a block from the terrain up). Two placemarks at the same latitude and longitude but different altitudes are still treated as duplicates.
 - KML style handling is partial: shared and inline styles for basic line and polygon appearance, and `StyleMap` normal-style references. (Namespaces are not a limitation — elements are matched by local name, so prefixed, default-namespaced and namespace-less KML all work.)
 - External services can change, rate-limit requests or become unavailable.
@@ -555,10 +566,10 @@ Do not use public tile, geocoding or CDN services for sensitive work without an 
 ### Done
 
 - **The sources are split.** The application is edited as `src/index.html`,
-  `src/styles.css`, `src/sw.js` and 43 JavaScript files, concatenated into the
+  `src/styles.css`, `src/sw.js` and 44 JavaScript files, concatenated into the
   shipped file by `build.js`. The single-file product is the output, not the
   source.
-- **There are automated tests.** 136 suites run against the shipped
+- **There are automated tests.** 138 suites run against the shipped
   file — most under Node, plus a set that drives a real headless browser —
   covering coordinate parsing and formatting, UTM, KML namespaces and
   styles, geometry conversion, serialization, tree navigation and

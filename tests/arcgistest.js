@@ -8,7 +8,7 @@ const fs = require("fs");
 const path = require("path");
 const { fn, between, constDecl } = require("./_extract");
 const consts = between("const ARCGIS_MAX_LAYERS", "/* Base address of a MapServer")
-  + between("const ARCGIS_QUERY_TIMEOUT", "const arcgisLayerInfoUrl") + constDecl("arcgisLayerInfoUrl") + constDecl("arcgisCountUrl");
+  + between("const ARCGIS_MAX_FEATURES", "const arcgisLayerInfoUrl") + constDecl("arcgisLayerInfoUrl") + constDecl("arcgisCountUrl");
 const src = consts + [
   fn("describeHttp"), fn("arcgisServiceBase"), fn("arcgisServiceName"), fn("arcgisErrorText"),
   fn("arcgisTileReason"), fn("arcgisExtent4326"), fn("parseArcgisCatalog"), fn("arcgisCatalogRecord"),

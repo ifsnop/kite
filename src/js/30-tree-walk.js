@@ -344,16 +344,14 @@ function showLoadingMessage() { showTreePlaceholder(tr("Inicializando…")); }
 showLoadingMessage();
 
 /* Mensajes informativos/de error del panel de navegación */
-/* Avisos del panel. Los transitorios se van solos a los 6 s; los que el
-   usuario TIENE que leer (resúmenes de importación con elementos
-   omitidos) se quedan hasta que pulsa "Aceptar", porque si no, no da
-   tiempo a leerlos. Se acumulan por líneas para que soltar varios
-   archivos a la vez no haga que un aviso pise al anterior.           */
-const MSG_TIMEOUT = 6000;
-const MSG_MAX_LINES = 8;
-/* Tope del registro de la sesión. Solo vive en memoria: no se guarda en
-   IndexedDB, así que se pierde al cerrar la página.                   */
-const MSG_LOG_MAX = 200;
+/* Panel notices. Transient ones go away by themselves after
+   CFG.MSG_TIMEOUT (6 s by default, tunable in Propiedades); the ones the
+   user HAS to read (import summaries with skipped items) stay until
+   "Aceptar" is pressed, or there would be no time to read them. They
+   pile up line by line (at most CFG.MSG_MAX_LINES) so dropping several
+   files at once does not make one notice overwrite the previous one.
+   The session log keeps CFG.MSG_LOG_MAX entries, in memory only: it is
+   not saved in IndexedDB and goes when the page closes.               */
 
 /* Registro de la sesión: sobrevive a que la línea del panel se vaya a
    los MSG_TIMEOUT, que es lo que antes hacía imposible leer un aviso
@@ -420,14 +418,14 @@ function navMessage(txt, { sticky = false, tone = "error" } = {}) {
        el texto bajo el cursor.                                        */
     if (old._timer) {
       clearTimeout(old._timer);
-      old._timer = setTimeout(() => old.remove(), MSG_TIMEOUT);
+      old._timer = setTimeout(() => old.remove(), CFG.MSG_TIMEOUT);
     }
     return;
   }
 
   const entry = { text: txt, tone, sticky, count: 1, first: now, last: now };
   msgLog.push(entry);
-  if (msgLog.length > MSG_LOG_MAX) msgLog.shift();
+  if (msgLog.length > CFG.MSG_LOG_MAX) msgLog.shift();
   msgLogUnseen++;
   refreshLogButton();
 
@@ -448,7 +446,7 @@ function navMessage(txt, { sticky = false, tone = "error" } = {}) {
 
   /* Tope de líneas: se retiran las más antiguas que no exijan lectura */
   const lines = [...el.querySelectorAll(".nav-msg-line")];
-  for (const old of lines.slice(0, Math.max(0, lines.length - MSG_MAX_LINES))) {
+  for (const old of lines.slice(0, Math.max(0, lines.length - CFG.MSG_MAX_LINES))) {
     if (!old.classList.contains("keep")) old.remove();
   }
 
@@ -462,7 +460,7 @@ function navMessage(txt, { sticky = false, tone = "error" } = {}) {
       el.appendChild(ok);
     }
   } else {
-    line._timer = setTimeout(() => line.remove(), MSG_TIMEOUT);
+    line._timer = setTimeout(() => line.remove(), CFG.MSG_TIMEOUT);
   }
 }
 
@@ -470,10 +468,9 @@ function clearNavMessage() {
   document.getElementById("nav-msg").textContent = "";
 }
 
-/* hwAccelerated se calculó antes de crear el mapa (para poder pasar
-   zoomAnimation en sus opciones), pero el aviso no puede lanzarse hasta
-   aquí: navMessage necesita MSG_MAX_LINES/MSG_TIMEOUT, declaradas más
-   abajo en el script.                                                 */
+/* hwAccelerated was worked out before creating the map (to pass
+   zoomAnimation in its options), but the notice can only be raised from
+   here on: navMessage is declared in this file.                        */
 if (!hwAccelerated) {
   navMessage(
     tr("No se detecta aceleración por hardware en el navegador. "
@@ -486,17 +483,16 @@ if (!hwAccelerated) {
 /* Centrar la vista en un nodo y acercar a un zoom de trabajo. A
    diferencia del doble click, no depende de dónde estuviera la vista ni
    de la escalera: siempre deja el nodo centrado y a la misma escala. */
-/* 14: a escala de calle, donde un marcador se ve en su entorno y se pueden
-   distinguir los vecinos (antes 9, a escala de provincia, pedido 30-10-2026). */
-const FOCUS_ZOOM = 14;
-/* Margen relativo al tama\u00F1o del panel del visor (20% a cada lado), no
-   una cifra fija de p\u00EDxeles: as\u00ED un pol\u00EDgono peque\u00F1o y uno grande, o el
-   panel en una ventana estrecha y en una ancha, quedan igual de
-   enmarcados sin tocar los bordes.                                    */
-const FRAME_MARGIN_RATIO = 0.2;
+/* CFG.FOCUS_ZOOM, 14 by default: street scale, where a marker is seen in
+   its surroundings and its neighbours can be told apart (it was 9, a
+   province, until requested on 30-10-2026). The framing margin
+   (CFG.FRAME_MARGIN_RATIO, 20 % on each side by default) is relative to
+   the size of the viewer, not a fixed number of pixels: a small polygon
+   and a large one, or the viewer in a narrow window and in a wide one,
+   end up framed alike without touching the edges.                      */
 function fitBoundsFramed(bounds) {
   const size = map.getSize();
-  map.fitBounds(bounds, { padding: [size.x * FRAME_MARGIN_RATIO, size.y * FRAME_MARGIN_RATIO] });
+  map.fitBounds(bounds, { padding: [size.x * CFG.FRAME_MARGIN_RATIO, size.y * CFG.FRAME_MARGIN_RATIO] });
 }
 /* Los nodos de pol\u00EDgono (styleKind "polygon": tambi\u00E9n las l\u00EDneas, que
    comparten estilo) y las mediciones no usan el zoom de trabajo fijo:
@@ -512,7 +508,7 @@ function focusOnNode(li) {
   if (!b.isValid()) { navMessage(tr("Esta capa no tiene geometr\u00EDa que enfocar.")); return; }
   const kind = styleKind(li);
   if (kind === "polygon" || kind === "measure" || kind === "elevGrid" || kind === "cog" || kind === "arcgis") fitBoundsFramed(b);
-  else map.setView(b.getCenter(), FOCUS_ZOOM);
+  else map.setView(b.getCenter(), CFG.FOCUS_ZOOM);
 }
 
 /* La lupa que puede tener VARIAS capas —la del diálogo de propiedades y la de
@@ -525,7 +521,7 @@ function focusOnNodes(items) {
   const all = L.latLngBounds([]);
   for (const li of items) { const b = subtreeBounds(li); if (b.isValid()) all.extend(b); }
   if (!all.isValid()) { navMessage(tr("Estas capas no tienen geometr\u00EDa que enfocar.")); return; }
-  if (all.getSouthWest().equals(all.getNorthEast())) map.setView(all.getCenter(), FOCUS_ZOOM);
+  if (all.getSouthWest().equals(all.getNorthEast())) map.setView(all.getCenter(), CFG.FOCUS_ZOOM);
   else fitBoundsFramed(all);
 }
 

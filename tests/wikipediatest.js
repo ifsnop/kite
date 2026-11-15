@@ -14,7 +14,7 @@ const src = between("const escapeHtml", "\n\n/* Leaflet layer behind") + "\n" + 
   + pure + "\n" + fn("isRetryableElevError") + "\n"
   + "return { wikipediaLang, wikipediaCoord, wikipediaGeoUrl, wikipediaExtractsUrl, wikipediaArticleUrl,"
   + " cleanWikipediaText, wikipediaCheck, parseWikipediaGeosearch, parseWikipediaExtracts, wikipediaCardHtml,"
-  + " isRetryableElevError, WIKIPEDIA_APIS, WIKIPEDIA_RADIUS_MIN_M, WIKIPEDIA_RADIUS_MAX_M, wikipediaRadius, WIKIPEDIA_LIMIT, WIKIPEDIA_EXTRACT_CHUNK,"
+  + " isRetryableElevError, WIKIPEDIA_APIS, WIKIPEDIA_RADIUS_MIN_M, WIKIPEDIA_RADIUS_MAX_M, wikipediaRadius, WIKIPEDIA_EXTRACT_CHUNK,"
   + " WIKIPEDIA_MAX_EXTRACT, WIKIPEDIA_MAX_TITLE, wikipediaDistance, wikipediaWhy, wikipediaInRecords,"
   + " BADGED_ICONS, markerBadgeBackground, WIKIPEDIA_ICON, WIKIPEDIA_TRANSIENT };";
 const api = new Function(src)();
@@ -134,7 +134,7 @@ const bad = [
 const mixed = parse([entry({ pageid: 11 }), ...bad, entry({ pageid: 12, title: "Another" })]);
 ok(mixed.articles.length === 2 && mixed.skipped === bad.length, `${bad.length} broken entries are skipped one by one and the good ones survive: ${mixed.articles.length}/${mixed.skipped}`);
 ok(parse([entry({ pageid: 5 }), entry({ pageid: 5, title: "Repeat" })]).articles.length === 1, "a repeated page id counts once");
-ok(parse(Array.from({ length: 300 }, (_, i) => entry({ pageid: i + 1 }))).articles.length === api.WIKIPEDIA_LIMIT, "never more than the limit, whatever the service sends");
+ok(parse(Array.from({ length: 300 }, (_, i) => entry({ pageid: i + 1 }))).articles.length === CFG.WIKIPEDIA_LIMIT, "never more than the limit, whatever the service sends");
 ok(parse([entry({ title: "Casa\u200b del\u0007 Rey" })]).articles[0].title === "Casa del Rey", "invisible characters are removed from a title");
 ok(parse([entry({ title: "t".repeat(1000) })]).articles[0].title.length === api.WIKIPEDIA_MAX_TITLE, "a long title is capped");
 ok(parse([]).articles.length === 0, "an empty answer is not an error");

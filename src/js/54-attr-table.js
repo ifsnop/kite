@@ -245,7 +245,7 @@ function openAttrTable(li) {
   ui.csv.disabled = !rows.length;
   ui.style.disabled = cols.length < 2; /* sin atributos no hay con qué colorear */
   ui.dialog.hidden = false;
-  clampToViewport(ui.box);
+  fitInViewport(ui.box);
   focusDialog(ui.box);
   updateAttrView();
 }

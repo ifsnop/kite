@@ -7,8 +7,9 @@ const api = new Function("const EARTH_R = 6371000;\n"
   + between("/* ---------- Línea de vista y curvatura terrestre", "/* Zoom del eje de ALTURAS") + "\n" + fn("nearestProfilePoint")
   + "\n" + fn("profileCsv") + "\n" + between("const CSV_DEFAULT", "const toCsv") + "\n" + constDecl("toCsv")
   + "\n" + fn("csvDialect")
-  + "\nreturn { profileCsv, csvCell, toCsv, csvDialect, profileLinkModel, PF_FRESNEL_ZONE };")();
-const { profileCsv, csvCell, toCsv, csvDialect, profileLinkModel, PF_FRESNEL_ZONE } = api;
+  + "\nreturn { profileCsv, csvCell, toCsv, csvDialect, profileLinkModel };")();
+const { profileCsv, csvCell, toCsv, csvDialect, profileLinkModel } = api;
+const { PF_FRESNEL_ZONE } = CFG;
 
 const NM = 1852, FT = 0.3048;
 const data = {

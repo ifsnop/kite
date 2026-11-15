@@ -1756,6 +1756,28 @@
     color: var(--muted); cursor: pointer;
   }
   .dlg-tab.active { color: var(--text); border-bottom-color: var(--accent); font-weight: 600; }
+  /* Propiedades has ten tabs: they wrap onto a second line instead of
+     running off the box. */
+  #props-dialog .dlg-tabs { flex-wrap: wrap; }
+  /* Advanced settings (requested: told apart from the usual ones): their
+     tabs, and the advanced rows of «Elevación y perfil» under a heading, are
+     red and only shown with «Preferencias avanzadas» ticked, which puts
+     `show-advanced` on the dialog (43-points-editor.js). Red is the danger
+     token: these are values that seldom need touching. */
+  .dlg-tab.advanced, .dlg-tab.advanced.active { color: var(--danger); }
+  .dlg-tab.advanced.active { border-bottom-color: var(--danger); }
+  .props-advanced-head {
+    margin: 14px 0 0; padding-top: 8px; border-top: 1px solid var(--border);
+    font-size: 12px; font-weight: 600; color: var(--danger);
+  }
+  #props-dialog:not(.show-advanced) .dlg-tab.advanced,
+  #props-dialog:not(.show-advanced) .props-advanced-head,
+  #props-dialog:not(.show-advanced) .tunables-list[data-tunables="elev"] { display: none; }
+  /* Rows built from TUNABLES (43-points-editor.js): a value that differs
+     from its default shows its label in bold, so what was changed is seen
+     at a glance; the numbers can be long (50 000 000 points). */
+  .tunables-list .dlg-row.changed > label { font-weight: 600; }
+  .tunables-list .props-with-unit input[type="number"] { width: 104px; }
   .dlg-tabpanel { flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; }
   /* La dirección del servicio bajo cada selector de fuente: una URL
      larga no tiene espacios por los que partir y desbordaría la caja. */

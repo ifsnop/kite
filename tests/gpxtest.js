@@ -8,10 +8,9 @@ const { fn, between, constDecl } = require("./_extract");
 const ok = (c, m) => { if (!c) { console.error("FAIL: " + m); process.exitCode = 1; } };
 
 const xmlHelpers = between("/* Nombre sin prefijo", "/* Crea las capas Leaflet de un placemark");
-const build = (maxPoints = null) => {
-  let region = [constDecl("GPX_NAME_KEYS"), constDecl("GPX_MAX_POINTS"), constDecl("GPX_TEXT_FIELDS"),
+const build = () => {
+  const region = [constDecl("GPX_NAME_KEYS"), constDecl("GPX_TEXT_FIELDS"),
     fn("gpxPosition"), fn("gpxTime"), fn("gpxProps"), fn("gpxLine"), fn("gpxToGeoJson")].join("\n");
-  if (maxPoints) region = region.replace("const GPX_MAX_POINTS = 2000000;", `const GPX_MAX_POINTS = ${maxPoints};`);
   return new Function("DOMParser", `${xmlHelpers}
 ${constDecl("MAX_REPORT_DETAIL")}\n${fn("makeImportReport")}
 const parseKmlDocument = text => ({ xml: new DOMParser({ onError() {} }).parseFromString(text, "text/xml"), repaired: [] });
@@ -84,9 +83,12 @@ ok(edge.gj.features[0].geometry.coordinates.join() === "180,90", "ajustado al lÃ
 ok(edge.report.notes.some(n => /fuera de rango por redondeo/.test(n)), "el ajuste se comunica, no es en silencio");
 
 /* Cota de puntos */
-const capped = build(5);
+/* The limit is a tunable setting (CFG.GPX_MAX_POINTS, 2 000 000 by default) */
+ok(CFG.GPX_MAX_POINTS === 2000000, "la cota de partida es 2 000 000 de puntos");
 const many = `<gpx><trk><trkseg>${Array.from({ length: 20 }, (_, i) => `<trkpt lat="${i}" lon="${i}"/>`).join("")}</trkseg></trk></gpx>`;
-const c = parse(many, capped);
+CFG.GPX_MAX_POINTS = 5;
+const c = parse(many);
+CFG.GPX_MAX_POINTS = 2000000;
 ok(c.gj.features[0].geometry.coordinates.length === 5, "la cota corta el track en 5 puntos");
 ok([...c.report.causes.keys()].some(k => /tope por archivo GPX/.test(k)), "y lo dice");
 

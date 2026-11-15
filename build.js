@@ -54,6 +54,9 @@ const JS = [
                              archivo igual a este y una línea más aquí, ANTES de init  */
   "04-i18n-init.js",      /* fija el idioma elegido y traduce el HTML estático; va tras
                              todos los diccionarios (necesita saber cuáles hay)       */
+  "04-tunables.js",       /* settings the user can tune in Propiedades (CFG): data and
+                             pure functions only, after N_() and before every file
+                             that reads CFG                                      */
   "05-mdi-icons.js",      /* GENERADO por fetch-icons.js: cuerpos SVG empotrados.
                              Datos puros, sin ninguna dependencia, y antes de
                              todo lo que los use                              */

@@ -766,7 +766,7 @@ ok(fr1.has60 && fr1.hasFull && /Fresnel 100 %\|60 % · 1090 MHz/.test(fr1.legend
   "el elipsoide y su leyenda, con una entrada por zona: " + JSON.stringify(fr1));
 ok(Math.abs(fr1.ratio - 0.6) < 0.03, "la zona rellena mide el 60 % del contorno: " + fr1.ratio);
 ok(Math.abs(fr1.px - fr1.wantPx) < 0.6, "el radio central es el de Fresnel (sqrt(λ·d·(L−d)/L)): " + JSON.stringify([fr1.px, fr1.wantPx]));
-/* La frecuencia ya no está en la ventana: es de Propiedades → Frecuencias (persistente, con Cancelar/Aceptar) */
+/* The frequency is not in the window: it is in Propiedades → «Elevación y perfil» (saved, with Cancel/Accept) */
 const r1090 = await page.evaluate(() => profileLayout.fresnel(profileLayout.total / 2));
 await page.evaluate(() => { togglePropsDialog(); });
 await page.waitForFunction(() => !document.getElementById("props-dialog").hidden);
@@ -774,8 +774,8 @@ await page.click("#props-tab-btn-freq");
 const fq0 = await page.evaluate(() => ({ visible: !document.getElementById("props-tab-freq").hidden,
   tabs: [...document.querySelectorAll("#props-dialog .dlg-tab")].map(t => t.textContent).join("|"),
   label: document.querySelector("#props-tab-freq .dlg-row span").textContent, value: document.getElementById("props-fresnel-freq").value }));
-ok(fq0.visible && /Frecuencias/.test(fq0.tabs) && fq0.tabs.split("|").length === 5 && /^Frecuencia cálculos de Fresnel$/.test(fq0.label) && fq0.value === "1090",
-  "Propiedades tiene la pestaña «Frecuencias» con «Frecuencia cálculos de Fresnel» = 1090: " + JSON.stringify(fq0));
+ok(fq0.visible && /Elevación y perfil/.test(fq0.tabs) && fq0.tabs.split("|").length === 10 && /^Frecuencia cálculos de Fresnel$/.test(fq0.label) && fq0.value === "1090",
+  "Propiedades tiene la pestaña «Elevación y perfil» con «Frecuencia cálculos de Fresnel» = 1090: " + JSON.stringify(fq0));
 await setField("props-fresnel-freq", "4360");
 const r4360 = await page.evaluate(() => ({ r: profileLayout.fresnel(profileLayout.total / 2), legend: [...profileChart.querySelectorAll(".pf-legend-label")].map(t => t.textContent).join("|") }));
 ok(Math.abs(r4360.r * 2 - r1090) < 1e-9 && /4360 MHz/.test(r4360.legend), "la frecuencia se previsualiza en vivo en el perfil abierto: a 4× la frecuencia, la mitad de radio: " + JSON.stringify([r1090, r4360]));
@@ -814,7 +814,7 @@ ok(Math.abs(Number(t1[6]) - exp.a) < 0.06 && Math.abs(Number(t2[6]) - exp.b) < 0
   `la línea de vista vale, en las torres, el terreno más la torre (${exp.ha} y ${exp.hb} m): ${t1[6]} y ${t2[6]} frente a ${exp.a.toFixed(1)} y ${exp.b.toFixed(1)}`);
 ok(t1[7] === t1[6] && t1[8] === t1[6] && t2[7] === t2[6] && t2[8] === t2[6], "y en las antenas Fresnel vale lo mismo (radio 0)");
 const mid = lkRows[Math.floor(lkRows.length / 2)];
-const lay = await page.evaluate(d => ({ los: profileLayout.losAt(d), lift: profileLayout.lift(d), r: PF_FRESNEL_ZONE * profileLayout.fresnel(d) }), Number(mid[0]) * units.fd);
+const lay = await page.evaluate(d => ({ los: profileLayout.losAt(d), lift: profileLayout.lift(d), r: CFG.PF_FRESNEL_ZONE * profileLayout.fresnel(d) }), Number(mid[0]) * units.fd);
 ok(Math.abs(Number(mid[6]) - (lay.los - lay.lift)) < 0.06, `la altitud de la recta a mitad de ruta es la de la gráfica: ${mid[6]} frente a ${(lay.los - lay.lift).toFixed(2)}`);
 ok(Math.abs(Number(mid[8]) - Number(mid[7]) - 2 * lay.r) < 0.12 && Number(mid[7]) < Number(mid[6]) && Number(mid[6]) < Number(mid[8]),
   `Fresnel al 60 % (±${lay.r.toFixed(2)} m) por debajo y por encima de la recta: ${mid.slice(6)}`);
