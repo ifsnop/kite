@@ -96,6 +96,8 @@ const TUNABLES = [
   { id: "ARCGIS_RETRIES", tab: "net", label: N_("Reintentos de un servicio ArcGIS"), def: 2, min: 0, max: 5 },
   { id: "WIKIPEDIA_TIMEOUT", tab: "net", label: N_("Tiempo de espera de Wikipedia"), unit: "s", scale: 1000, def: 15000, min: 1000, max: 120000 },
   { id: "WIKIPEDIA_RETRIES", tab: "net", label: N_("Reintentos de Wikipedia"), def: 3, min: 0, max: 5 },
+  { id: "ORS_TIMEOUT", tab: "net", label: N_("Tiempo de espera de un itinerario (openrouteservice)"), unit: "s", scale: 1000, def: 20000, min: 1000, max: 120000 },
+  { id: "ORS_RETRIES", tab: "net", label: N_("Reintentos de un itinerario"), def: 2, min: 0, max: 5 },
   { id: "WIKIPEDIA_LIMIT", tab: "net", label: N_("Artículos de Wikipedia como máximo"), def: 100, min: 1, max: 500 },
 
   /* ---- Elevation and profile (the Fresnel frequency, its own key, shares the tab) ---- */

@@ -182,6 +182,12 @@
       "version": "2.6.0",
       "build": "202611142046"
     },
+    "itinerario.png": {
+      "sha256": "84683f0792250809bafffa13aa57096c648ad10bc339291dd4fe2df1b53492e8",
+      "section": "7.18",
+      "version": "2.6.0",
+      "build": "202611151947"
+    },
     "mapa-girado.png": {
       "sha256": "d0df1db2dfa99d26e44d94b3165e6dd35410695a4d888d6ff65b3324f478d15f",
       "section": "4.4",
@@ -201,10 +207,10 @@
       "build": "202611142046"
     },
     "menu-consultas.png": {
-      "sha256": "37fa62a3fe048f2441ee5cfb960410b817b1a0dcf35d1dccbf31f69e2c49674f",
+      "sha256": "42c25b51feb02866eb2bf0f8eec5308c85bc893626202d43f911c1e27c6e43da",
       "section": "5",
       "version": "2.6.0",
-      "build": "202611142046"
+      "build": "202611151947"
     },
     "menu-contextual-submenu.png": {
       "sha256": "5fcdc1fcfe63dc482479bfc739ac9840881fea53d6b2ebe004233d5446ce1fe4",
@@ -298,10 +304,10 @@
       "build": "202611142105"
     },
     "propiedades-preferencias.png": {
-      "sha256": "48972f9f0509fec8226a83dddceb03ce4859d8fb4a9493d2371cc9e601ed27ee",
+      "sha256": "7e83209b2248fd2b607dfc7889b8996bf1fa04d8ced6651ee8fe3789666ec817",
       "section": "2.1",
       "version": "2.6.0",
-      "build": "202611142105"
+      "build": "202611151947"
     },
     "propiedades-restaurar.png": {
       "sha256": "15c091eb71af946eee7b5dc207a12a46019f86de813f48203182efb81e83635e",

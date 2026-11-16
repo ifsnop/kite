@@ -56,6 +56,7 @@ nuevo, no que la regla no exista.
 | `external-network.md` | Disciplina de peticiones de red externa (tope, tiempo por intento, reintentos de lo pasajero) | `40-panel-actions.js`, `60-elevation.js`, `63-route-profile.js`, `65-cadastre.js`, `12-copernicus.js` |
 | `base-maps.md` | Base layers, dynamic sources, the user's own base layers (add, edit, delete: tile and WMS servers), background colour, stacking | `10-map.js`, `11-base-panel.js`, `12-copernicus.js` |
 | `cadastre.md` | Parcela catastral desde el menú contextual: RCCOOR + WFS INSPIRE del Catastro, GML en ISO-8859-1, orden de ejes, validación de lo recibido, capa normal del árbol, repetidas | `65-cadastre.js` |
+| `routing.md` | Itinerarios entre dos puntos con openrouteservice (HeiGIT): clave del usuario en Preferencias, entradas del menú contextual, diálogo «Calcular itinerario», petición simple y su validación, errores sin reintentar la cuota, capa en «Itinerarios» y su atribución | `69-routing.js`, `70-view-controls.js`, `52-measure.js`, `tests/routing.js`, `tests/browser/routing.mjs` |
 | `wikipedia.md` | Artículos de Wikipedia cercanos desde el menú contextual: geosearch + extracts de la API de MediaWiki, errores dentro de un 200, texto hostil, marcadores «W» en una carpeta numerada, crédito CC BY-SA | `67-wikipedia.js` |
 | `url-import.md` | Botón 🔗, descarga de una URL en dos pasos | `40-panel-actions.js`, `src/index.html` |
 | `context-menu.md` | Menú contextual del visor, hit-testing por geometría | `42-hittest.js`, `70-view-controls.js` |

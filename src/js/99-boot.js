@@ -16,6 +16,11 @@
   try {
     advancedPrefs = await dbLoadAdvancedPrefs();
   } catch { /* advanced tabs hidden */ }
+  /* The openrouteservice key (69-routing.js): without it the itinerary
+     entries of the context menu are disabled with the reason. */
+  try {
+    orsKey = await dbLoadOrsKey();
+  } catch { /* no key */ }
 
   /* En un móvil, el aviso de «mejor desde un ordenador» (o lo que se
      eligió la vez anterior): antes que nada para que no se vea el panel
@@ -148,6 +153,7 @@
   if (nodes && nodes.length) await restoreTree(nodes);
   /* Wikipedia markers saved earlier still need their CC BY-SA credit (67-wikipedia.js) */
   if (nodes && wikipediaInRecords(nodes)) ensureWikipediaAttribution();
+  if (nodes && routesInRecords(nodes)) ensureRouteAttribution(); /* itineraries: openrouteservice and OSM credit */
   /* Ortofotos COG que ya no nombra nadie (borradas en otra sesión): solo
      si el árbol se leyó de verdad; con un fallo de lectura, borrar
      sería tirar las de un árbol que sigue ahí.                       */

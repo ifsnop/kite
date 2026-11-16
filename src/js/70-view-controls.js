@@ -793,7 +793,11 @@ const CTX_MENU_ITEMS = [
     items: [
       { label: tr("Elevación"), action: latlng => queryElevationAt(latlng), disabled: () => elevQueryDisabled() },
       { label: tr("Parcela catastral"), action: latlng => queryCadastralParcelAt(latlng) },
-      { label: tr("Artículos de Wikipedia en la vista"), action: latlng => queryWikipediaAt(latlng) }
+      { label: tr("Artículos de Wikipedia en la vista"), action: latlng => queryWikipediaAt(latlng) },
+      /* An itinerary from or to the clicked point (openrouteservice, with the
+         user's key: disabled with the reason without it; 69-routing.js) */
+      { label: tr("Ruta desde aquí"), action: latlng => setRouteEnd("from", latlng), disabled: () => routeDisabled() },
+      { label: tr("Ruta hasta aquí"), action: latlng => setRouteEnd("to", latlng), disabled: () => routeDisabled() }
     ]
   },
   /* Las tres mediciones agrupadas en un submenú: son la misma familia y
@@ -910,7 +914,17 @@ function layerCtxItems(li) {
      o, si ya lo tiene, «Mostrar»; el motivo de no poder obtenerlo va en
      el ítem deshabilitado (sin fuentes, demasiado larga).            */
   if (isRouteLi(li)) items.push(routeProfileCtxItem(li));
+  /* A marker can be an end of an itinerary, with its own name (69-routing.js) */
+  if (soleMarker(li)) items.push(markerRouteCtxItem(li));
   return items;
+}
+/* «Itinerario ›» over one marker: from or to it */
+function markerRouteCtxItem(li) {
+  const at = () => soleMarker(li).getLatLng();
+  return { label: tr("Itinerario"), items: [
+    { label: tr("Desde este marcador"), action: () => setRouteEnd("from", at(), li._name), disabled: () => routeDisabled() },
+    { label: tr("Hasta este marcador"), action: () => setRouteEnd("to", at(), li._name), disabled: () => routeDisabled() }
+  ] };
 }
 
 /* Con varias capas bajo el cursor, "Ir al nodo…", "Mostrar
@@ -951,6 +965,15 @@ function ctxItemsFor(hits) {
       label: tr("Perfil de ruta"),
       items: routes.map(li => ({ ...routeProfileCtxItem(li), label: li._name }))
     });
+  }
+  /* Several markers under the cursor: one submenu per end, by name */
+  const markers = hits.filter(li => soleMarker(li));
+  if (markers.length === 1) items.push(markerRouteCtxItem(markers[0]));
+  else if (markers.length > 1) {
+    for (const [end, label] of [["from", tr("Itinerario desde")], ["to", tr("Itinerario hasta")]]) {
+      items.push({ label, items: markers.map(li => ({ label: li._name,
+        action: () => setRouteEnd(end, soleMarker(li).getLatLng(), li._name), disabled: () => routeDisabled() })) });
+    }
   }
   return [...items, { separator: true }, ...CTX_MENU_ITEMS];
 }

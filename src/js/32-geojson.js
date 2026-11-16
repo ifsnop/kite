@@ -1572,6 +1572,43 @@ async function dbLoadSh() {
   });
 }
 
+/* The user's openrouteservice (HeiGIT) API key (69-routing.js): same rule as
+   the Sentinel Hub credential. Own key of the store, never serialized with the
+   tree nor in an exported .kite.json; clearing it REMOVES the key. Read through
+   `validOrsKey` (another tab or an old version may have written anything). */
+const ORS_KEY_KEY = "orsKey";
+const ORS_KEY_SCHEMA = 1;
+async function dbSaveOrsKey(key) {
+  const db = await openDb();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(DB_TREE, "readwrite");
+    tx.objectStore(DB_TREE).put({ v: ORS_KEY_SCHEMA, key }, ORS_KEY_KEY);
+    tx.oncomplete = resolve;
+    tx.onerror = () => reject(tx.error);
+  });
+}
+async function dbDeleteOrsKey() {
+  const db = await openDb();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(DB_TREE, "readwrite");
+    tx.objectStore(DB_TREE).delete(ORS_KEY_KEY);
+    tx.oncomplete = resolve;
+    tx.onerror = () => reject(tx.error);
+  });
+}
+async function dbLoadOrsKey() {
+  const db = await openDb();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(DB_TREE, "readonly");
+    const rq = tx.objectStore(DB_TREE).get(ORS_KEY_KEY);
+    rq.onsuccess = () => {
+      const rec = rq.result;
+      resolve(rec && rec.v === ORS_KEY_SCHEMA && validOrsKey(rec.key) ? rec.key : null);
+    };
+    rq.onerror = () => reject(rq.error);
+  });
+}
+
 /* ---------- User base layers (11-base-panel.js) ----------
    Another key of the same store, same rule as the Sentinel Hub
    credential: the addresses are the user's own servers and live only in

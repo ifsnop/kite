@@ -807,7 +807,8 @@
      interactivas y el arrastre ponen su propio cursor.               */
   .leaflet-container.elev-busy, .leaflet-container.elev-busy *,
   .leaflet-container.cadastre-busy, .leaflet-container.cadastre-busy *,
-  .leaflet-container.wikipedia-busy, .leaflet-container.wikipedia-busy * { cursor: progress !important; }
+  .leaflet-container.wikipedia-busy, .leaflet-container.wikipedia-busy *,
+  .leaflet-container.route-busy, .leaflet-container.route-busy * { cursor: progress !important; }
 
   .coords-zoom { font-weight: 600; }
   /* La atribución se queda en una sola línea, la de abajo del todo */
@@ -1134,6 +1135,12 @@
   .as-class { justify-content: flex-start; margin: 4px 0; }
   .as-class .as-label { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   #geocalc-dialog .dlg-box { width: min(92vw, 30rem); }
+  /* The itinerary dialog: an end is a field and its «Elegir en el mapa»
+     button side by side; the field takes the room left (a name or two
+     coordinates in DMS are long). */
+  #route-dialog .dlg-box { width: min(92vw, 30rem); }
+  .route-end { display: inline-flex; gap: 6px; flex: 1 1 auto; min-width: 0; justify-content: flex-end; }
+  .route-end input[type="text"] { flex: 1 1 auto; min-width: 0; max-width: none; }
   .geocalc-field { display: flex; gap: 6px; }
   #geocalc-dialog .dlg-row input[type="number"] { width: 110px; }
   /* Latitud y longitud van EN LA MISMA LÍNEA (un solo campo cada una, con
@@ -2499,6 +2506,11 @@
       <p class="dlg-hint">Tamaño máximo que puede ocupar un KMZ (o un .zip de shapefile) una vez descomprimido. Frena los archivos desproporcionados o hostiles antes de descomprimir nada; súbelo si tienes un KMZ legítimo más grande y memoria de sobra, bájalo en un equipo justo. Solo afecta a los archivos que abras después.</p>
       <div class="dlg-row"><span>Tamaño máximo de un KMZ descomprimido</span>
         <span class="props-with-unit"><input type="number" id="props-kmz-max" min="1" max="4096" step="1"><span>MB</span></span></div>
+      <!-- The user's own openrouteservice key (69-routing.js): stored only in
+           this browser; without it the itinerary entries are disabled. -->
+      <p class="dlg-hint">Clave de la API de openrouteservice (HeiGIT) para calcular itinerarios entre dos puntos desde el menú del botón derecho. Se guarda solo en este navegador y únicamente se envía a api.openrouteservice.org. Sin clave, el cálculo de itinerarios está deshabilitado; vacíe el campo para borrarla.</p>
+      <div class="dlg-row"><label for="props-ors-key">Clave de openrouteservice (HeiGIT)</label>
+        <input type="password" id="props-ors-key" autocomplete="off" spellcheck="false"></div>
       <!-- Shows or hides the tabs of advanced settings (red) and the advanced
            rows of «Elevación y perfil»; see 43-points-editor.js. -->
       <p class="dlg-hint">Muestra las pestañas de preferencias avanzadas, marcadas en rojo: tiempos, topes y tolerancias que casi nunca hace falta tocar. Los valores cambiados siguen valiendo aunque se oculten.</p>
@@ -2591,6 +2603,25 @@
      de unidad se rellenan desde #props-unit (62-geocalc.js). Cada panel
      lleva su propio resultado y su propio aviso de error, y se recalcula
      SOLO, al cambiar cualquier dato: no hay botón «Calcular». -->
+<!-- Itinerary between two points with openrouteservice (69-routing.js):
+     non-modal, so the context menu and «Elegir en el mapa» can fill the ends. -->
+<div id="route-dialog" class="dlg-float" hidden>
+  <div class="dlg-box">
+    <h2 class="dlg-head"><span class="dlg-title">Calcular itinerario</span><button type="button" class="dlg-close" data-cancel="route-cancel" title="Cancelar" aria-label="Cancelar">&#215;</button></h2>
+    <p class="dlg-hint">Origen y destino: el nombre de un marcador o unas coordenadas (se pueden escribir). «Elegir en el mapa» espera un clic; sobre un marcador, se usa ese marcador.</p>
+    <div class="dlg-row"><label for="route-from">Origen</label>
+      <span class="route-end"><input type="text" id="route-from" spellcheck="false"><button type="button" class="btn" id="route-from-pick">Elegir en el mapa</button></span></div>
+    <div class="dlg-row"><span></span><button type="button" class="btn" id="route-swap" title="Intercambiar origen y destino" aria-label="Intercambiar origen y destino">&#8645;</button></div>
+    <div class="dlg-row"><label for="route-to">Destino</label>
+      <span class="route-end"><input type="text" id="route-to" spellcheck="false"><button type="button" class="btn" id="route-to-pick">Elegir en el mapa</button></span></div>
+    <div class="dlg-row"><label for="route-profile">Modo</label><select id="route-profile"></select></div>
+    <div class="dlg-actions">
+      <button class="btn" id="route-cancel">Cancelar</button>
+      <button class="btn" id="route-calc" data-mode="calc">Calcular</button>
+    </div>
+  </div>
+</div>
+
 <div id="geocalc-dialog" class="dlg-float" hidden>
   <div class="dlg-box no-actions">
     <h2 class="dlg-head"><span class="dlg-title">C&#225;lculos geod&#233;sicos</span><button type="button" class="dlg-close" id="geocalc-close" title="Cerrar" aria-label="Cerrar">&#215;</button></h2>
@@ -3266,6 +3297,8 @@ registerLang("en", "English", {
   "Reintentos de un servicio ArcGIS": "Retries of an ArcGIS service",
   "Tiempo de espera de Wikipedia": "Timeout of Wikipedia",
   "Reintentos de Wikipedia": "Retries of Wikipedia",
+  "Tiempo de espera de un itinerario (openrouteservice)": "Timeout of an itinerary (openrouteservice)",
+  "Reintentos de un itinerario": "Retries of an itinerary",
   "Artículos de Wikipedia como máximo": "Wikipedia articles, at most",
   "Zona de Fresnel que debe quedar libre": "Fresnel zone that must stay clear",
   "Aviso rojo si el MDS supera al MDT en más de": "Red warning if the DSM is above the DTM by more than",
@@ -3588,6 +3621,7 @@ registerLang("en", "English", {
   "Esta elección se recuerda para futuros archivos con esta misma estructura y se puede cambiar en 🏷️ Propiedades → Índices de GeoJSON.": "This choice is remembered for future files with the same structure and can be changed in 🏷️ Properties → GeoJSON indexes.",
   "Automático": "Automatic",
   "Valor de partida: {value}": "Default value: {value}",
+  "Esa clave de openrouteservice no es válida: solo letras, cifras y los signos _ = . -, de 20 a 512 caracteres.": "That openrouteservice key is not valid: only letters, digits and the signs _ = . -, from 20 to 512 characters.",
   "Ninguna": "None",
   "No se consulta.": "Not queried.",
   "Conjunto de datos: {dataset}. Proveedor: {provider}.": "Dataset: {dataset}. Provider: {provider}.",
@@ -3598,6 +3632,7 @@ registerLang("en", "English", {
   "El tamaño máximo": "The maximum size",
   "{what} va de {min} a {max} {unit}: se queda en {value} {unit}.": "{what} ranges from {min} to {max} {unit}: it is set to {value} {unit}.",
   "La longitud máxima de un perfil": "The maximum length of a profile",
+  "No se pudo guardar la clave de openrouteservice: valdrá hasta cerrar la página.": "The openrouteservice key could not be saved: it will last until the page is closed.",
   "No se pudieron guardar los ajustes: valdrán hasta cerrar la página.": "The settings could not be saved: they will last until the page is closed.",
   "El idioma de la interfaz cambiará al recargar la página (F5).": "The interface language will change when the page is reloaded (F5).",
   "Puntos de «{name}»": "Points of “{name}”",
@@ -4005,6 +4040,7 @@ registerLang("en", "English", {
   "La vista es más grande de lo que Wikipedia permite buscar: se han buscado los artículos a menos de {distance} del punto.": "The view is larger than Wikipedia can search: articles were searched within {distance} of the point.",
   "No se pudo obtener el resumen de {n} artículo(s) ({reason}): solo llevan el enlace.": "Could not get the summary of {n} article(s) ({reason}): they only carry the link.",
   /* 68-whats-new.js */
+  "Itinerarios entre dos puntos en coche, en bicicleta o a pie, con su distancia y su tiempo, desde el menú del botón derecho y con su clave de openrouteservice (HeiGIT).": "Itineraries between two points by car, by bicycle or on foot, with their distance and time, from the right-click menu and with your openrouteservice (HeiGIT) key.",
   "Las ventanas, y la ficha que recuerda su sitio, se abren siempre enteras dentro del navegador aunque la ventana sea ahora más pequeña.": "Windows, and the card that remembers its place, always open whole inside the browser even if the window is now smaller.",
   "Con la casilla «Preferencias avanzadas» de Propiedades aparecen, en rojo, pestañas para ajustar tiempos, topes y tolerancias que antes eran fijos.": "The “Advanced preferences” box in Properties shows, in red, tabs to adjust times, limits and tolerances that used to be fixed.",
   "La ficha de información es más tranquila: al pasar el ratón por muchos elementos ya no cambia con cada uno, y las fichas en las que te detienes quedan como pestañas que puedes volver a mirar y fijar.": "The information card is calmer: sweeping the mouse across many items no longer changes it on each one, and the cards you rest on stay as tabs you can look at again and pin.",
@@ -4034,6 +4070,43 @@ registerLang("en", "English", {
   "Los CSV del perfil y de la tabla de atributos siguen el idioma de la interfaz, para que la hoja de cálculo los abra bien.": "The CSV files of the profile and of the attribute table follow the interface language, so the spreadsheet opens them correctly.",
   "Lo nuevo desde la versión {version}:": "What's new since version {version}:",
   "Versión {version}": "Version {version}",
+  /* 69-routing.js */
+  "Coche": "Car",
+  "Bicicleta": "Bicycle",
+  "A pie": "On foot",
+  "Itinerarios": "Itineraries",
+  "modo de transporte desconocido": "unknown mode of transport",
+  "la clave de openrouteservice no es válida": "the openrouteservice key is not valid",
+  "un punto del itinerario no es válido": "a point of the itinerary is not valid",
+  "el servicio ha devuelto un itinerario que no se puede usar ({why})": "the service returned an itinerary that cannot be used ({why})",
+  "sin línea": "no line",
+  "menos de dos puntos": "fewer than two points",
+  "demasiados puntos": "too many points",
+  "coordenadas fuera de rango": "coordinates out of range",
+  "resumen inválido": "invalid summary",
+  "la clave de openrouteservice no es válida o no tiene permiso (revísela en Propiedades → Preferencias)": "the openrouteservice key is not valid or has no permission (check it in Properties → Preferences)",
+  "se ha agotado la cuota de la clave de openrouteservice (consultas por minuto o por día)": "the openrouteservice key has used up its quota (requests per minute or per day)",
+  "no hay ningún itinerario entre los dos puntos con ese modo de transporte": "there is no itinerary between the two points with that mode of transport",
+  "uno de los puntos está demasiado lejos de cualquier camino": "one of the points is too far from any road or path",
+  "el itinerario es demasiado largo para el servicio": "the itinerary is too long for the service",
+  "{n} s": "{n} s",
+  "{m} min": "{m} min",
+  "{h} h {m} min": "{h} h {m} min",
+  "{h} h": "{h} h",
+  "Origen": "Origin",
+  "Destino": "Destination",
+  "Modo": "Mode",
+  "Duración": "Duration",
+  "Calculado": "Calculated",
+  "Servicio": "Service",
+  "Necesita una clave de openrouteservice: Propiedades → Preferencias.": "Needs an openrouteservice key: Properties → Preferences.",
+  "Falta el origen o el destino.": "The origin or the destination is missing.",
+  "Cancelar cálculo": "Cancel calculation",
+  "Calcular": "Calculate",
+  "calcular itinerario": "calculate itinerary",
+  "Itinerario añadido en «{section}»: {summary}.": "Itinerary added in “{section}”: {summary}.",
+  "Error al calcular el itinerario: {reason}.": "Error calculating the itinerary: {reason}.",
+  "Itinerario": "Itinerary",
   /* 70-view-controls.js */
   "Autoescalar: ajustar el zoom a lo cargado": "Auto-fit: adjust the zoom to what is loaded",
   "Centrar la vista en la península y Baleares": "Center the view on the Iberian Peninsula and the Balearic Islands",
@@ -4053,6 +4126,8 @@ registerLang("en", "English", {
   "Consultas": "Queries",
   "Parcela catastral": "Cadastral parcel",
   "Artículos de Wikipedia en la vista": "Wikipedia articles in the view",
+  "Ruta desde aquí": "Route from here",
+  "Ruta hasta aquí": "Route to here",
   "Medir": "Measure",
   "Crear": "Create",
   "Polígono o línea": "Polygon or line",
@@ -4062,7 +4137,11 @@ registerLang("en", "English", {
   "Menú contextual del visor": "Viewer context menu",
   "Ir al nodo en el panel": "Go to the node in the panel",
   "Mostrar atributos": "Show attributes",
+  "Desde este marcador": "From this marker",
+  "Hasta este marcador": "To this marker",
   "Perfil de ruta": "Route profile",
+  "Itinerario desde": "Itinerary from",
+  "Itinerario hasta": "Itinerary to",
   "Enlace a la vista copiado. Solo sirve en este equipo: la aplicación está abierta como archivo.": "Link to the view copied. It only works on this computer: the application is open as a file.",
   "Enlace a la vista copiado. Los mapas con dirección propia no viajan en el enlace.": "Link to the view copied. Maps with their own address are not included in the link.",
   "Enlace a la vista copiado al portapapeles.": "Link to the view copied to the clipboard.",
@@ -4254,6 +4333,8 @@ registerLang("en", "English", {
   "Tamaño máximo que puede ocupar un KMZ (o un .zip de shapefile) una vez descomprimido. Frena los archivos desproporcionados o hostiles antes de descomprimir nada; súbelo si tienes un KMZ legítimo más grande y memoria de sobra, bájalo en un equipo justo. Solo afecta a los archivos que abras después.": "Largest size a KMZ (or a shapefile .zip) may take once uncompressed. It stops oversized or hostile files before anything is unpacked; raise it if you have a legitimate larger KMZ and plenty of memory, lower it on a tight machine. It only affects files you open afterwards.",
   "Tamaño máximo de un KMZ descomprimido": "Maximum size of an uncompressed KMZ",
   "MB": "MB",
+  "Clave de la API de openrouteservice (HeiGIT) para calcular itinerarios entre dos puntos desde el menú del botón derecho. Se guarda solo en este navegador y únicamente se envía a api.openrouteservice.org. Sin clave, el cálculo de itinerarios está deshabilitado; vacíe el campo para borrarla.": "openrouteservice (HeiGIT) API key to calculate itineraries between two points from the right-click menu. It is kept only in this browser and only sent to api.openrouteservice.org. Without a key, itineraries are disabled; empty the field to delete it.",
+  "Clave de openrouteservice (HeiGIT)": "openrouteservice key (HeiGIT)",
   "Muestra las pestañas de preferencias avanzadas, marcadas en rojo: tiempos, topes y tolerancias que casi nunca hace falta tocar. Los valores cambiados siguen valiendo aunque se oculten.": "Shows the tabs of advanced preferences, marked in red: times, limits and tolerances that seldom need touching. Changed values still apply while hidden.",
   "Preferencias avanzadas": "Advanced preferences",
   "Avisos del panel, buscador del árbol, deshacer y teclado del árbol. Un valor fuera de rango se ajusta al límite más cercano; «Restaurar» devuelve todos los de estas pestañas a los de partida.": "Panel notices, tree search, undo and tree keyboard. A value out of range is adjusted to the nearest limit; “Reset” brings every value of these tabs back to its default.",
@@ -4272,6 +4353,9 @@ registerLang("en", "English", {
   "Borrar todos los datos": "Delete all data",
   "Se borrarán el árbol de capas, las ortofotos y todos los ajustes guardados en este navegador, y la página se recargará. No se puede deshacer. ¿Continuar?": "The layer tree, the orthophotos and all settings saved in this browser will be deleted, and the page will reload. This cannot be undone. Continue?",
   "Borrar capas": "Delete layers",
+  "Calcular itinerario": "Calculate itinerary",
+  "Origen y destino: el nombre de un marcador o unas coordenadas (se pueden escribir). «Elegir en el mapa» espera un clic; sobre un marcador, se usa ese marcador.": "Origin and destination: the name of a marker or some coordinates (they can be typed). “Pick on the map” waits for a click; on a marker, that marker is used.",
+  "Elegir en el mapa": "Pick on the map",
   "Cálculos geodésicos": "Geodesic calculations",
   "Ángulo de elevación": "Elevation angle",
   "Vector GPS": "GPS vector",
@@ -4367,6 +4451,7 @@ registerLang("en", "English", {
   "Mostrar / ocultar navegación": "Show / hide navigation",
   "Notación anterior": "Previous notation",
   "Notación siguiente": "Next notation",
+  "Intercambiar origen y destino": "Swap origin and destination",
   "Recta negra entre las dos torres (MDS; si no está elegido, MDT), con sus alturas de torre. Antes de la torre de inicio y después de la final sigue, discontinua, hasta los extremos de la ruta": "Black line between the two towers (MDS; MDT if it is not chosen), with their tower heights. Before the start tower and after the end one it continues, dashed, to the ends of the route",
   "Primera zona de Fresnel alrededor de la línea inicio–fin, entre las dos torres (contorno discontinuo) y, rellena, su zona del 60 %, que debe quedar libre de obstáculos. La frecuencia se elige en Propiedades → Elevación y perfil": "First Fresnel zone around the start–end line, between the two towers (dashed outline) and, filled, its 60 % zone, which must be free of obstacles. The frequency is chosen in Properties → Elevation and profile",
   "Polígonos con altitud (KML o GeoJSON) que cruzan la ruta, como bloques desde el terreno hasta su techo. En rojo, donde la línea inicio–fin pasa por debajo del techo. Son los polígonos visibles cuando se obtuvo el perfil; «Actualizar obstáculos» los vuelve a recoger": "Polygons with altitude (KML or GeoJSON) that cross the route, as blocks from the terrain up to their roof. In red, where the start–end line passes below the roof. They are the polygons that were visible when the profile was obtained; «Update obstacles» collects them again",
@@ -4527,6 +4612,8 @@ const TUNABLES = [
   { id: "ARCGIS_RETRIES", tab: "net", label: N_("Reintentos de un servicio ArcGIS"), def: 2, min: 0, max: 5 },
   { id: "WIKIPEDIA_TIMEOUT", tab: "net", label: N_("Tiempo de espera de Wikipedia"), unit: "s", scale: 1000, def: 15000, min: 1000, max: 120000 },
   { id: "WIKIPEDIA_RETRIES", tab: "net", label: N_("Reintentos de Wikipedia"), def: 3, min: 0, max: 5 },
+  { id: "ORS_TIMEOUT", tab: "net", label: N_("Tiempo de espera de un itinerario (openrouteservice)"), unit: "s", scale: 1000, def: 20000, min: 1000, max: 120000 },
+  { id: "ORS_RETRIES", tab: "net", label: N_("Reintentos de un itinerario"), def: 2, min: 0, max: 5 },
   { id: "WIKIPEDIA_LIMIT", tab: "net", label: N_("Artículos de Wikipedia como máximo"), def: 100, min: 1, max: 500 },
 
   /* ---- Elevation and profile (the Fresnel frequency, its own key, shares the tab) ---- */
@@ -5846,7 +5933,7 @@ map.on("resize rotate", fitWorldMinZoom);
 
 /* Fecha de generación del código (versión): AÑOMESDIAHORAMINUTO.
    Actualizar en cada generación; se muestra junto al crédito de Leaflet. */
-const BUILD = "202611151947";
+const BUILD = "202611161942";
 /* Versión de release (la de package.json, horneada aquí por build.js
    al construir — ver «Versión y releases de GitHub» en CLAUDE.md): a
    diferencia de BUILD, que cambia en CADA generación, esta solo cambia
@@ -11096,6 +11183,43 @@ async function dbLoadSh() {
     rq.onsuccess = () => {
       const rec = rq.result;
       resolve(rec && rec.v === SH_SCHEMA && typeof rec.instanceId === "string" ? rec : null);
+    };
+    rq.onerror = () => reject(rq.error);
+  });
+}
+
+/* The user's openrouteservice (HeiGIT) API key (69-routing.js): same rule as
+   the Sentinel Hub credential. Own key of the store, never serialized with the
+   tree nor in an exported .kite.json; clearing it REMOVES the key. Read through
+   `validOrsKey` (another tab or an old version may have written anything). */
+const ORS_KEY_KEY = "orsKey";
+const ORS_KEY_SCHEMA = 1;
+async function dbSaveOrsKey(key) {
+  const db = await openDb();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(DB_TREE, "readwrite");
+    tx.objectStore(DB_TREE).put({ v: ORS_KEY_SCHEMA, key }, ORS_KEY_KEY);
+    tx.oncomplete = resolve;
+    tx.onerror = () => reject(tx.error);
+  });
+}
+async function dbDeleteOrsKey() {
+  const db = await openDb();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(DB_TREE, "readwrite");
+    tx.objectStore(DB_TREE).delete(ORS_KEY_KEY);
+    tx.oncomplete = resolve;
+    tx.onerror = () => reject(tx.error);
+  });
+}
+async function dbLoadOrsKey() {
+  const db = await openDb();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(DB_TREE, "readonly");
+    const rq = tx.objectStore(DB_TREE).get(ORS_KEY_KEY);
+    rq.onsuccess = () => {
+      const rec = rq.result;
+      resolve(rec && rec.v === ORS_KEY_SCHEMA && validOrsKey(rec.key) ? rec.key : null);
     };
     rq.onerror = () => reject(rq.error);
   });
@@ -17336,6 +17460,23 @@ buildTunableRows();
    Accept saves it (`advancedPrefs` key). */
 let advancedPrefs = false;
 const propsAdvancedInput = document.getElementById("props-advanced");
+
+/* The openrouteservice key (69-routing.js, `orsKey`): deferred like the rest
+   of the dialog. An empty field means «no key» (Accept removes it from the
+   database); a value that cannot be a key is refused with a notice and the
+   field goes back to the current one. */
+const propsOrsKeyInput = document.getElementById("props-ors-key");
+propsOrsKeyInput.addEventListener("change", () => {
+  const v = propsOrsKeyInput.value.trim();
+  if (v === "") orsKey = null;
+  else if (validOrsKey(v)) orsKey = v;
+  else {
+    navMessage(tr("Esa clave de openrouteservice no es válida: solo letras, cifras y los signos _ = . -, de 20 a 512 caracteres."));
+    propsOrsKeyInput.value = orsKey || "";
+    return;
+  }
+  syncRouteCalc();
+});
 function applyAdvancedPrefs(on) {
   advancedPrefs = on;
   propsAdvancedInput.checked = on;
@@ -17588,8 +17729,9 @@ async function togglePropsDialog() {
   if (!gnpStore) gnpStore = await dbLoadGnp();
   propsDraftGnp = { ...gnpStore };
   propsOriginal = { uiTheme, unit: measureUnit, altitudeUnit, profileMaxM, fresnelFreqMHz, coordFormat, vertexEditMax,
-                    arcSegments, kmzMaxUncompressedMB, elevSources, tunables: { ...CFG }, advancedPrefs };
+                    arcSegments, kmzMaxUncompressedMB, elevSources, tunables: { ...CFG }, advancedPrefs, orsKey };
   applyAdvancedPrefs(advancedPrefs);
+  propsOrsKeyInput.value = orsKey || "";
   renderGnpEditor();
   renderPropsPrefsTab();
   renderTunables();
@@ -17630,6 +17772,8 @@ function cancelPropsDialog() {
   elevSources = propsOriginal.elevSources;
   for (const [id, v] of Object.entries(propsOriginal.tunables)) setTunable(id, v);
   advancedPrefs = propsOriginal.advancedPrefs;
+  orsKey = propsOriginal.orsKey;
+  syncRouteCalc();
   propsDraftGnp = null;
   propsOriginal = null;
 }
@@ -17648,6 +17792,10 @@ document.getElementById("props-accept").addEventListener("click", () => {
   dbSaveArcSegments(arcSegments);
   dbSaveKmzMax(kmzMaxUncompressedMB);
   dbSaveElevSources(elevSources);
+  if (propsOriginal && orsKey !== propsOriginal.orsKey) {
+    (orsKey ? dbSaveOrsKey(orsKey) : dbDeleteOrsKey())
+      .catch(() => navMessage(tr("No se pudo guardar la clave de openrouteservice: valdrá hasta cerrar la página.")));
+  }
   dbSaveAdvancedPrefs(advancedPrefs).catch(() => { /* shown or hidden again at the next start */ });
   dbSaveTunables(tunableOverrides()).catch(() => navMessage(tr("No se pudieron guardar los ajustes: valdrán hasta cerrar la página.")));
   if (propsLangSelect.value !== loadUiLangPref()) {
@@ -20656,13 +20804,15 @@ function polygonParts(latlngs) {
 
 const MEASURE_COLORS = { circle: "#7c3aed", route: "#0ea5e9" };
 let measureLi = null;
-let activeTool = null; /* null | "circle" | "arc" | "polygon" | "route" | "pin" | "rings" | "sector" */
+let activeTool = null; /* null | "circle" | "arc" | "polygon" | "route" | "pin" | "rings" | "sector" | "route-from" | "route-to" */
 /* Herramientas de UN CLIC: esperan un clic en el mapa que fija el centro (el
    pin, los anillos de alcance y el sector), abren sus propiedades —donde
    todavía se puede cambiar casi todo antes de guardar— y se sueltan solas.
    Como el círculo o el polígono: se arman con su botón, la cruz es el cursor
    y Escape las cancela.                                                  */
-const PLACE_TOOLS = new Set(["pin", "rings", "sector"]);
+/* «Elegir en el mapa» of the itinerary dialog (69-routing.js) is one too:
+   the click fixes the origin or the destination. */
+const PLACE_TOOLS = new Set(["pin", "rings", "sector", "route-from", "route-to"]);
 /* ¿Un clic sobre el mapa va a fijar un punto (vértice o centro) y no a
    seleccionar la capa que haya debajo? */
 const clickPicksPoint = () => activeTool === "polygon" || PLACE_TOOLS.has(activeTool);
@@ -20910,6 +21060,9 @@ document.addEventListener("keydown", e => {
   if (!logDialog.hidden) { toggleLog(); return; }
   if (!urlDialog.hidden) { closeUrlDialog(); return; }
   if (isRangeDialogOpen()) { cancelRangeDialog(); return; }
+  /* Picking an end of an itinerary: Escape gives up the pick, not the dialog */
+  if (activeTool === "route-from" || activeTool === "route-to") { setTool(null); return; }
+  if (isRouteDialogOpen()) { closeRouteDialog(); return; }
   if (isAttrStyleOpen()) { cancelAttrStyleDialog(); return; }
   if (isAttrDialogOpen()) { closeAttrDialog(); return; }
   if (!descDialog.hidden) { hideLayerInfo({ dismiss: true }); return; }
@@ -21811,7 +21964,9 @@ function clickWasDrag(e) {
    manejador o una capa: aquí no se «añade nada ahí encima».               */
 function placeWithTool(tool, latlng) {
   setTool(null);
-  if (tool === "pin") createPin(latlng); else openRangeDialog(tool, latlng);
+  if (tool === "pin") createPin(latlng);
+  else if (tool === "route-from" || tool === "route-to") pickRouteEndAt(tool, latlng);
+  else openRangeDialog(tool, latlng);
 }
 map.getContainer().addEventListener("click", e => {
   const dragged = clickWasDrag(e);
@@ -29381,6 +29536,7 @@ async function queryWikipediaAt(latlng) {
      has no entry).                                                     */
 const WHATS_NEW = [
   { version: "next", items: [
+    N_("Itinerarios entre dos puntos en coche, en bicicleta o a pie, con su distancia y su tiempo, desde el menú del botón derecho y con su clave de openrouteservice (HeiGIT)."),
     N_("Las ventanas, y la ficha que recuerda su sitio, se abren siempre enteras dentro del navegador aunque la ventana sea ahora más pequeña."),
     N_("Con la casilla «Preferencias avanzadas» de Propiedades aparecen, en rojo, pestañas para ajustar tiempos, topes y tolerancias que antes eran fijos.")
   ] },
@@ -29540,6 +29696,339 @@ async function showWhatsNewAtBoot() {
   const open = () => openWhatsNew(entries, plan);
   if (!mobileDialog.hidden) mobileNoticeThen = open;
   else open();
+}
+/* ================= Itineraries with openrouteservice (HeiGIT) =================
+   Requested by the user: a route between two points (a marker or any point of
+   the map) by car, bicycle or on foot, with its distance and time, using the
+   openrouteservice API of HeiGIT with the user's OWN key (entered in
+   Propiedades › Preferencias; without it the entries are disabled with the
+   reason). Decided with the user: picked from the context menu («Ruta desde
+   aquí» / «Ruta hasta aquí», and «Itinerario ›» over a marker) into a small
+   non-modal dialog; only the summary (no turn-by-turn instructions); three
+   modes.
+
+   - ONE request per calculation, only when the user presses «Calcular»:
+     `GET https://api.openrouteservice.org/v2/directions/{profile}` with
+     `api_key`, `start` and `end` (lon,lat) in the query. A SIMPLE request
+     (`credentials: "omit"`, no headers of our own: no preflight, see
+     url-import.md); the key travels only to that server.
+   - The response is foreign input (`parseOrsRoute`): one LineString with
+     finite coordinates in range, a vertex cap, a finite summary. Errors come
+     in the body, as `{ error: { code, message } }` or `{ error: "text" }`.
+   - The result is a NORMAL line layer in the «Itinerarios» section
+     (`TREE_SCHEMA` does not change): its card is the table of the Feature's
+     properties; an own member `kiteSrc: "ors"` lets the boot add the
+     attribution when the saved tree holds one.
+   Pure functions first (tested in tests/routing.js), then network, dialog and
+   tree (DOM bound the first time the dialog opens). */
+const ORS_HOST = "https://api.openrouteservice.org";
+const ORS_PROFILES = {
+  "driving-car": { label: N_("Coche"), color: "#1565c0" },
+  "cycling-regular": { label: N_("Bicicleta"), color: "#2e7d32" },
+  "foot-walking": { label: N_("A pie"), color: "#e65100" }
+};
+const ORS_DEFAULT_PROFILE = "driving-car";
+const ORS_MAX_BYTES = 10 * 1024 * 1024;
+const ORS_MAX_VERTICES = 100000;
+const ORS_RETRY_DELAYS = [1000, 2000];
+const ORS_MESSAGE_MAX = 300;
+const ORS_SRC = "ors";
+const ROUTES_SECTION = tr("Itinerarios");
+const ORS_ATTRIB = '© <a href="https://openrouteservice.org/">openrouteservice.org</a> by HeiGIT · © OpenStreetMap contributors';
+
+/* A key as HeiGIT hands them out (base64-like text, or a longer token): only
+   the characters that can travel in a query without surprises. Loose on
+   purpose: the service is the one that says whether it is valid. */
+function validOrsKey(k) {
+  return typeof k === "string" && /^[A-Za-z0-9_=.\-]{20,512}$/.test(k);
+}
+
+/* The request. `from`/`to` are { lat, lng }; GeoJSON order (lon,lat) and six
+   decimals (~0.1 m). Refuses an unknown profile or a point out of range, so
+   nothing malformed reaches the service. */
+function orsDirectionsUrl(profile, from, to, key) {
+  if (!Object.prototype.hasOwnProperty.call(ORS_PROFILES, profile)) throw new Error(tr("modo de transporte desconocido"));
+  if (!validOrsKey(key)) throw new Error(tr("la clave de openrouteservice no es válida"));
+  const pair = p => {
+    if (!p || !Number.isFinite(p.lat) || !Number.isFinite(p.lng) || Math.abs(p.lat) > 90 || Math.abs(p.lng) > 180) {
+      throw new Error(tr("un punto del itinerario no es válido"));
+    }
+    return `${p.lng.toFixed(6)},${p.lat.toFixed(6)}`;
+  };
+  const q = new URLSearchParams({ api_key: key, start: pair(from), end: pair(to) });
+  return `${ORS_HOST}/v2/directions/${profile}?${q}`;
+}
+
+/* The route out of the response, or an Error with the reason. The summary may
+   leave out a zero (same start and end): read as 0. */
+function parseOrsRoute(json) {
+  const bad = why => new Error(tr("el servicio ha devuelto un itinerario que no se puede usar ({why})", { why }));
+  const f = json && Array.isArray(json.features) ? json.features[0] : null;
+  if (!f || f.type !== "Feature" || !f.geometry || f.geometry.type !== "LineString") throw bad(tr("sin línea"));
+  const c = f.geometry.coordinates;
+  if (!Array.isArray(c) || c.length < 2) throw bad(tr("menos de dos puntos"));
+  if (c.length > ORS_MAX_VERTICES) throw bad(tr("demasiados puntos"));
+  const coords = [];
+  for (const p of c) {
+    if (!Array.isArray(p) || !Number.isFinite(p[0]) || !Number.isFinite(p[1])
+        || Math.abs(p[0]) > 180 || Math.abs(p[1]) > 90) throw bad(tr("coordenadas fuera de rango"));
+    coords.push([p[0], p[1]]);
+  }
+  const s = (f.properties && f.properties.summary) || {};
+  const num = v => (v === undefined ? 0 : v);
+  const distance = num(s.distance), duration = num(s.duration);
+  if (!Number.isFinite(distance) || !Number.isFinite(duration) || distance < 0 || duration < 0) throw bad(tr("resumen inválido"));
+  return { coords, distance, duration };
+}
+
+/* Why the service said no, in words. The body is read first: openrouteservice
+   explains itself there (`{ error: { code, message } }`, or a bare string for
+   the key and the quota). Known codes get our own sentence; any other message
+   is shown as text, cleaned and capped. */
+function orsErrorText(status, body) {
+  const e = body && body.error;
+  const code = e && typeof e === "object" ? e.code : null;
+  const raw = e && typeof e === "object" ? e.message : typeof e === "string" ? e : "";
+  if (status === 401 || status === 403) return tr("la clave de openrouteservice no es válida o no tiene permiso (revísela en Propiedades → Preferencias)");
+  if (status === 429) return tr("se ha agotado la cuota de la clave de openrouteservice (consultas por minuto o por día)");
+  if (code === 2009) return tr("no hay ningún itinerario entre los dos puntos con ese modo de transporte");
+  if (code === 2010) return tr("uno de los puntos está demasiado lejos de cualquier camino");
+  if (code === 2004) return tr("el itinerario es demasiado largo para el servicio");
+  const msg = typeof raw === "string" ? raw.replace(/[\p{Cc}\p{Cf}\p{Zl}\p{Zp}]/gu, " ").trim() : "";
+  if (msg) return msg.length > ORS_MESSAGE_MAX ? msg.slice(0, ORS_MESSAGE_MAX) + "…" : msg;
+  return describeHttp(status);
+}
+
+/* «1 h 23 min», «45 min», «30 s»: rounded to the minute from one minute up */
+function fmtDuration(seconds) {
+  if (!Number.isFinite(seconds) || seconds < 0) return "";
+  if (seconds < 60) return tr("{n} s", { n: Math.round(seconds) });
+  const total = Math.round(seconds / 60);
+  const h = Math.floor(total / 60), m = total % 60;
+  if (!h) return tr("{m} min", { m });
+  return m ? tr("{h} h {m} min", { h, m }) : tr("{h} h", { h });
+}
+
+/* What an end of the itinerary is called: the marker's name, or its
+   coordinates in the format chosen in Propiedades */
+function routeEndLabel(end, fmt) {
+  if (end.name) return end.name;
+  return `${formatCoord(end.lat, true, fmt)}, ${formatCoord(end.lng, false, fmt)}`;
+}
+
+/* The suffix of the node's name and the card's properties (keys in the
+   language of the moment, saved as they are: i18n.md rule 8) */
+function routeSummaryText(profile, route, unit) {
+  return `${tr(ORS_PROFILES[profile].label)} · ${fmtUnitDist(route.distance, unit)} · ${fmtDuration(route.duration)}`;
+}
+function routeProps(profile, from, to, route, unit, fmt, when) {
+  return {
+    [tr("Origen")]: routeEndLabel(from, fmt),
+    [tr("Destino")]: routeEndLabel(to, fmt),
+    [tr("Modo")]: tr(ORS_PROFILES[profile].label),
+    [tr("Distancia")]: fmtUnitDist(route.distance, unit),
+    [tr("Duración")]: fmtDuration(route.duration),
+    [tr("Calculado")]: when,
+    [tr("Servicio")]: "openrouteservice (HeiGIT)"
+  };
+}
+function routeFeature(route, props) {
+  return { type: "Feature", properties: props, kiteSrc: ORS_SRC, geometry: { type: "LineString", coordinates: route.coords } };
+}
+
+/* Does a saved tree hold itineraries? (the records `serializeTree` gives: a
+   layer's `geo` is a FeatureCollection whose features keep `kiteSrc`) */
+function routesInRecords(records) {
+  const stack = Array.isArray(records) ? [...records] : [];
+  while (stack.length) {
+    const r = stack.pop();
+    if (!r || typeof r !== "object") continue;
+    const feats = r.geo && Array.isArray(r.geo.features) ? r.geo.features : [];
+    if (feats.some(f => f && f.kiteSrc === ORS_SRC)) return true;
+    if (Array.isArray(r.children)) stack.push(...r.children);
+  }
+  return false;
+}
+
+/* ---------- Network, dialog and tree (needs the browser) ---------- */
+
+let orsKey = null;            /* the key, from Propiedades (99-boot.js loads it) */
+let routeProfile = ORS_DEFAULT_PROFILE; /* the last mode chosen, for the session */
+let routeAttribDone = false;
+function ensureRouteAttribution() {
+  if (routeAttribDone) return;
+  routeAttribDone = true;
+  map.attributionControl.addAttribution(ORS_ATTRIB);
+}
+/* The reason the entries are disabled, or null */
+const routeDisabled = () => (orsKey ? null : tr("Necesita una clave de openrouteservice: Propiedades → Preferencias."));
+
+/* One request: a time limit per attempt combined with the user's cancel,
+   retries only for what is transient: a time-out, the network, a 5xx. An
+   answer below 500 carries `owsCode` and is never retried, like the
+   Cadastre's OGC exceptions, and that includes 429: the key's quota is per
+   minute or per day, and retrying a second later only spends more of it. */
+function orsGet(url, signal) {
+  return withElevRetries(async () => {
+    const t = AbortSignal.timeout(CFG.ORS_TIMEOUT);
+    const resp = await fetch(url, { credentials: "omit", signal: AbortSignal.any([signal, t]) });
+    const bytes = await readCapped(resp, ORS_MAX_BYTES);
+    let json = null;
+    try { json = JSON.parse(new TextDecoder("utf-8").decode(bytes)); } catch { /* handled below */ }
+    if (!resp.ok) {
+      const err = new Error(orsErrorText(resp.status, json));
+      err.status = resp.status;
+      if (resp.status < 500) err.owsCode = "ors";
+      throw err;
+    }
+    if (!json) throw Object.assign(new Error(tr("respuesta ilegible")), { owsCode: "ors" });
+    return json;
+  }, { signal, retries: CFG.ORS_RETRIES, delays: ORS_RETRY_DELAYS });
+}
+function routeWhy(err) {
+  if (err && err.name === "TimeoutError") return tr("el servicio ha tardado más de {seconds} s en responder", { seconds: CFG.ORS_TIMEOUT / 1000 });
+  if (err instanceof TypeError) return netFailText(tr("error de red, o el servicio no admite consultas desde el navegador (CORS)"));
+  return err && err.message ? err.message : tr("error desconocido");
+}
+
+/* The dialog: two ends ({ lat, lng, name }), the mode, «Calcular». Bound to
+   the DOM the first time it opens (no DOM work when the file loads). */
+const routeEnds = { from: null, to: null };
+let routeRun = null; /* { ctrl, cancelled } while a calculation runs */
+let routeUiCache = null;
+function routeUi() {
+  if (routeUiCache) return routeUiCache;
+  const dialog = $id("route-dialog");
+  const box = dialog.querySelector(".dlg-box");
+  setupDialog(box, { modal: false });
+  makeDialogMovable(box);
+  const ui = routeUiCache = {
+    dialog, box, profile: $id("route-profile"), calc: $id("route-calc"),
+    fields: { from: $id("route-from"), to: $id("route-to") }
+  };
+  for (const [id, p] of Object.entries(ORS_PROFILES)) {
+    const o = document.createElement("option");
+    o.value = id;
+    o.textContent = tr(p.label);
+    ui.profile.appendChild(o);
+  }
+  ui.profile.addEventListener("change", () => { routeProfile = ui.profile.value; });
+  for (const end of ["from", "to"]) {
+    ui.fields[end].addEventListener("change", () => readRouteField(end));
+    $id(`route-${end}-pick`).addEventListener("click", () => setTool(end === "from" ? "route-from" : "route-to"));
+  }
+  $id("route-swap").addEventListener("click", () => {
+    [routeEnds.from, routeEnds.to] = [routeEnds.to, routeEnds.from];
+    renderRouteDialog();
+  });
+  $id("route-cancel").addEventListener("click", closeRouteDialog);
+  ui.calc.addEventListener("click", () => {
+    if (ui.calc.dataset.mode === "cancel") { if (routeRun) { routeRun.cancelled = true; routeRun.ctrl.abort(); } return; }
+    calculateRoute();
+  });
+  return ui;
+}
+const isRouteDialogOpen = () => !!routeUiCache && !routeUiCache.dialog.hidden;
+
+/* A typed end: coordinates (the same reader as the place search). Unreadable,
+   the field turns red and the end is empty until fixed. */
+function readRouteField(end) {
+  const field = routeUiCache.fields[end];
+  const at = parsePlaceCoordinates(field.value);
+  routeEnds[end] = at ? { lat: at.lat, lng: at.lng, name: null } : null;
+  field.classList.toggle("bad", !at && field.value.trim() !== "");
+  syncRouteCalc();
+}
+function renderRouteDialog() {
+  const ui = routeUi();
+  for (const end of ["from", "to"]) {
+    ui.fields[end].value = routeEnds[end] ? routeEndLabel(routeEnds[end], coordFormat) : "";
+    ui.fields[end].classList.remove("bad");
+  }
+  ui.profile.value = routeProfile;
+  syncRouteCalc();
+}
+function syncRouteCalc() {
+  const ui = routeUiCache;
+  if (!ui || ui.calc.dataset.mode === "cancel") return;
+  const why = routeDisabled() || (!routeEnds.from || !routeEnds.to ? tr("Falta el origen o el destino.") : null);
+  ui.calc.disabled = !!why;
+  ui.calc.title = why || "";
+}
+function setRouteBusy(busy) {
+  const ui = routeUiCache;
+  ui.calc.dataset.mode = busy ? "cancel" : "calc";
+  ui.calc.textContent = busy ? tr("Cancelar cálculo") : tr("Calcular");
+  map.getContainer().classList.toggle("route-busy", busy);
+  if (!busy) syncRouteCalc(); else { ui.calc.disabled = false; ui.calc.title = ""; }
+}
+
+/* Entry point of the context menu and of the pick tool: fills one end and
+   shows the dialog (a second «Ruta hasta…» with it open fills the other) */
+function setRouteEnd(end, latlng, name = null) {
+  routeEnds[end] = { lat: latlng.lat, lng: latlng.lng, name };
+  const ui = routeUi();
+  const wasHidden = ui.dialog.hidden;
+  renderRouteDialog();
+  if (wasHidden) {
+    ui.dialog.hidden = false;
+    fitInViewport(ui.box);
+    focusDialog(ui.box, false); /* opened from the map: its keys stay with the map */
+  }
+}
+/* «Elegir en el mapa»: one click, and a click on a marker takes that marker */
+function pickRouteEndAt(tool, latlng) {
+  const end = tool === "route-from" ? "from" : "to";
+  const hit = layersAtPoint(latlng, map.latLngToContainerPoint(latlng)).find(li => soleMarker(li));
+  if (hit) setRouteEnd(end, soleMarker(hit).getLatLng(), hit._name);
+  else setRouteEnd(end, latlng);
+}
+function closeRouteDialog() {
+  if (!isRouteDialogOpen()) return;
+  if (routeRun) { routeRun.cancelled = true; routeRun.ctrl.abort(); }
+  if (activeTool === "route-from" || activeTool === "route-to") setTool(null);
+  routeUiCache.dialog.hidden = true;
+  releaseFocus();
+}
+
+async function calculateRoute() {
+  const from = routeEnds.from, to = routeEnds.to;
+  if (routeDisabled() || !from || !to || routeRun) return;
+  const profile = routeProfile;
+  const run = routeRun = { ctrl: new AbortController(), cancelled: false };
+  setRouteBusy(true);
+  try {
+    const route = parseOrsRoute(await orsGet(orsDirectionsUrl(profile, from, to, orsKey), run.ctrl.signal));
+    ensureRouteAttribution();
+    pushUndo(tr("calcular itinerario"));
+    const li = addRouteNode(profile, from, to, route);
+    scheduleSave();
+    /* The view is never moved: the notice says where the result is */
+    highlightNode(li);
+    navMessage(tr("Itinerario añadido en «{section}»: {summary}.", { section: ROUTES_SECTION, summary: routeSummaryText(profile, route, measureUnit) }),
+      { tone: "info" });
+  } catch (err) {
+    if (!run.cancelled) navMessage(tr("Error al calcular el itinerario: {reason}.", { reason: routeWhy(err) }));
+  } finally {
+    routeRun = null;
+    if (routeUiCache) setRouteBusy(false);
+  }
+}
+
+/* The result: a normal line layer in «Itinerarios», styled by mode, with the
+   summary in its name and its card */
+function addRouteNode(profile, from, to, route) {
+  const name = `${nextNumberedName(tr("Itinerario"))} — ${routeSummaryText(profile, route, measureUnit)}`;
+  const when = new Date().toLocaleString(uiLang);
+  const style = normalizePathStyle({ color: ORS_PROFILES[profile].color, weight: 4 });
+  const layer = L.geoJSON(routeFeature(route, routeProps(profile, from, to, route, measureUnit, coordFormat, when)), { style });
+  clearFillOnOpenPaths(layer);
+  layer.bindPopup(escapeHtml(name), COMPACT_POPUP);
+  layer.addTo(rootGroup);
+  const li = makeNode({ name, layer, style });
+  ensureNamedSection(ROUTES_SECTION).appendChild(li);
+  refreshAncestorChecks(li);
+  return li;
 }
 /* ================= Controles de vista del visor ================= */
 
@@ -30336,7 +30825,11 @@ const CTX_MENU_ITEMS = [
     items: [
       { label: tr("Elevación"), action: latlng => queryElevationAt(latlng), disabled: () => elevQueryDisabled() },
       { label: tr("Parcela catastral"), action: latlng => queryCadastralParcelAt(latlng) },
-      { label: tr("Artículos de Wikipedia en la vista"), action: latlng => queryWikipediaAt(latlng) }
+      { label: tr("Artículos de Wikipedia en la vista"), action: latlng => queryWikipediaAt(latlng) },
+      /* An itinerary from or to the clicked point (openrouteservice, with the
+         user's key: disabled with the reason without it; 69-routing.js) */
+      { label: tr("Ruta desde aquí"), action: latlng => setRouteEnd("from", latlng), disabled: () => routeDisabled() },
+      { label: tr("Ruta hasta aquí"), action: latlng => setRouteEnd("to", latlng), disabled: () => routeDisabled() }
     ]
   },
   /* Las tres mediciones agrupadas en un submenú: son la misma familia y
@@ -30453,7 +30946,17 @@ function layerCtxItems(li) {
      o, si ya lo tiene, «Mostrar»; el motivo de no poder obtenerlo va en
      el ítem deshabilitado (sin fuentes, demasiado larga).            */
   if (isRouteLi(li)) items.push(routeProfileCtxItem(li));
+  /* A marker can be an end of an itinerary, with its own name (69-routing.js) */
+  if (soleMarker(li)) items.push(markerRouteCtxItem(li));
   return items;
+}
+/* «Itinerario ›» over one marker: from or to it */
+function markerRouteCtxItem(li) {
+  const at = () => soleMarker(li).getLatLng();
+  return { label: tr("Itinerario"), items: [
+    { label: tr("Desde este marcador"), action: () => setRouteEnd("from", at(), li._name), disabled: () => routeDisabled() },
+    { label: tr("Hasta este marcador"), action: () => setRouteEnd("to", at(), li._name), disabled: () => routeDisabled() }
+  ] };
 }
 
 /* Con varias capas bajo el cursor, "Ir al nodo…", "Mostrar
@@ -30494,6 +30997,15 @@ function ctxItemsFor(hits) {
       label: tr("Perfil de ruta"),
       items: routes.map(li => ({ ...routeProfileCtxItem(li), label: li._name }))
     });
+  }
+  /* Several markers under the cursor: one submenu per end, by name */
+  const markers = hits.filter(li => soleMarker(li));
+  if (markers.length === 1) items.push(markerRouteCtxItem(markers[0]));
+  else if (markers.length > 1) {
+    for (const [end, label] of [["from", tr("Itinerario desde")], ["to", tr("Itinerario hasta")]]) {
+      items.push({ label, items: markers.map(li => ({ label: li._name,
+        action: () => setRouteEnd(end, soleMarker(li).getLatLng(), li._name), disabled: () => routeDisabled() })) });
+    }
   }
   return [...items, { separator: true }, ...CTX_MENU_ITEMS];
 }
@@ -30848,6 +31360,11 @@ setInterval(checkServerVersion, VERSION_CHECK_MS);
   try {
     advancedPrefs = await dbLoadAdvancedPrefs();
   } catch { /* advanced tabs hidden */ }
+  /* The openrouteservice key (69-routing.js): without it the itinerary
+     entries of the context menu are disabled with the reason. */
+  try {
+    orsKey = await dbLoadOrsKey();
+  } catch { /* no key */ }
 
   /* En un móvil, el aviso de «mejor desde un ordenador» (o lo que se
      eligió la vez anterior): antes que nada para que no se vea el panel
@@ -30980,6 +31497,7 @@ setInterval(checkServerVersion, VERSION_CHECK_MS);
   if (nodes && nodes.length) await restoreTree(nodes);
   /* Wikipedia markers saved earlier still need their CC BY-SA credit (67-wikipedia.js) */
   if (nodes && wikipediaInRecords(nodes)) ensureWikipediaAttribution();
+  if (nodes && routesInRecords(nodes)) ensureRouteAttribution(); /* itineraries: openrouteservice and OSM credit */
   /* Ortofotos COG que ya no nombra nadie (borradas en otra sesión): solo
      si el árbol se leyó de verdad; con un fallo de lectura, borrar
      sería tirar las de un árbol que sigue ahí.                       */

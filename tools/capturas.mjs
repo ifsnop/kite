@@ -1021,6 +1021,42 @@ scenario("wikipedia.png", "7.17", async out => {
   await ctx.close();
 }, ["wikipedia-ficha.png"]);
 
+/* ===== 7.18 Itinerario entre dos puntos (openrouteservice) ===== */
+/* openrouteservice simulated: a walk from the Puerta del Sol to Cibeles along
+   the Calle de Alcalá, in the documented GeoJSON format (no key or network). */
+const ORS_ROUTE = { type: "FeatureCollection", features: [{ type: "Feature",
+  properties: { summary: { distance: 1124.6, duration: 809.7 }, way_points: [0, 6] },
+  geometry: { type: "LineString", coordinates: [[-3.70379, 40.416775], [-3.70275, 40.41705], [-3.7019, 40.4175], [-3.6995, 40.4183],
+    [-3.6968, 40.4189], [-3.6948, 40.41905], [-3.6931, 40.4192]] } }] };
+const orsRoute = page => page.route(/api\.openrouteservice\.org/, route => route.fulfill({ status: 200, contentType: "application/json",
+  body: JSON.stringify(ORS_ROUTE), headers: { "access-control-allow-origin": "*" } }));
+scenario("itinerario.png", "7.18", async out => {
+  const { ctx, page } = await openApp({ route: orsRoute });
+  const KML = `<?xml version="1.0" encoding="UTF-8"?><kml xmlns="http://www.opengis.net/kml/2.2"><Document><name>Madrid centro</name><open>1</open>`
+    + `<Placemark><name>Puerta del Sol</name><Point><coordinates>-3.70379,40.416775,0</coordinates></Point></Placemark>`
+    + `<Placemark><name>Cibeles</name><Point><coordinates>-3.6931,40.4192,0</coordinates></Point></Placemark></Document></kml>`;
+  await drop(page, "madrid-centro.kml", KML);
+  await page.evaluate(() => { orsKey = "5b3ce3597851110001cf6248abcdefabcdefabcdefabcdef12345678"; });
+  await view(page, [40.4182, -3.6985], 16);
+  await settle(page);
+  const pick = (name, label) => page.evaluate(({ name, label }) => {
+    const li = [...document.querySelectorAll("#tree li")].find(x => x._name === name);
+    openCtxMenu(soleMarker(li).getLatLng(), 700, 400, [li]);
+    [...document.querySelectorAll("#map-ctxmenu .ctx-menu-item")].find(x => x.textContent === "Itinerario ▸").click();
+    [...document.querySelectorAll(".ctx-menu:not(#map-ctxmenu) .ctx-menu-item")].find(x => x.textContent === label).click();
+    closeCtxMenu();
+  }, { name, label });
+  await pick("Puerta del Sol", "Desde este marcador");
+  await pick("Cibeles", "Hasta este marcador");
+  await page.selectOption("#route-profile", "foot-walking");
+  await page.click("#route-calc");
+  await page.waitForFunction(() => [...document.querySelectorAll("#tree li")].some(li => /^Itinerario 1/.test(li._name)));
+  await settle(page, { ms: 900 });
+  await page.mouse.move(VIEW.width - 300, 120);
+  await fullShot(page, out);
+  await ctx.close();
+});
+
 /* ===== 7.16 Servicio de mapas ArcGIS (MapServer) ===== */
 /* El catálogo es el REAL de un servicio de ENAIRE (tests/fixtures), servido bajo
    una dirección de ejemplo; las imágenes de /export se piden una vez por
