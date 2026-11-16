@@ -1904,6 +1904,11 @@ function renderPropsSourceUrl(kind) {
     + tr("Conjunto de datos: {dataset}. Proveedor: {provider}.", { dataset: s.dataset, provider: s.provider })
     + (s.coarse ? " " + tr("Malla gruesa: no limita la longitud de un perfil.") : "");
 }
+/* The address the openrouteservice key is sent to (69-routing.js, loaded
+   later: read when the tab is drawn, not at load) */
+function renderPropsOrsUrl() {
+  document.getElementById("props-ors-url").textContent = `${ORS_HOST}/v2/directions`;
+}
 for (const kind of ["mdt", "mds"]) {
   propsSrcSelect[kind].addEventListener("change", () => {
     elevSources = { ...elevSources, [kind]: propsSrcSelect[kind].value || null };
@@ -2120,6 +2125,7 @@ async function togglePropsDialog() {
   renderTunables();
   renderPropsFreqTab();
   renderPropsSourcesTab();
+  renderPropsOrsUrl();
   showPropsTab("prefs");
   propsDialog.hidden = false;
   fitInViewport(propsBox);

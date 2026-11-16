@@ -18,7 +18,10 @@ time, mode, origin, destination; no turn-by-turn instructions); **three modes**
 (`driving-car`, `cycling-regular`, `foot-walking`).
 
 ### The key
-- Propiedades › Preferencias, «Clave de openrouteservice (HeiGIT)»
+- Propiedades › **Fuentes de datos**, block «Itinerarios (openrouteservice,
+  HeiGIT)» (moved there from Preferencias at the user's request, with the
+  address it is sent to under it, `props-ors-url`, filled from `ORS_HOST` by
+  `renderPropsOrsUrl` when the dialog opens): «Clave de openrouteservice»
   (`props-ors-key`, `type="password"`), deferred like the rest of the dialog:
   `propsOriginal.orsKey`, Cancel puts it back, Accept saves it or, with the
   field empty, REMOVES the key. `validOrsKey` (20–512 characters of
@@ -50,11 +53,10 @@ time, mode, origin, destination; no turn-by-turn instructions); **three modes**
 - ONE `GET https://api.openrouteservice.org/v2/directions/{profile}?api_key=…&start=lon,lat&end=lon,lat`
   per «Calcular». A SIMPLE request (`credentials: "omit"`, no headers of our
   own: no preflight, see `url-import.md`); the key goes in the query to the
-  only server that receives it. **Not yet checked against the real service**
-  (no key at hand when it was written): `tests/fixtures/ors-route.json`
-  follows the documented format; replace it with a captured response and
-  confirm the GET (else `POST …/geojson` with `Authorization`) when a key is
-  available.
+  only server that receives it. **Checked by the user against the real service
+  with their key (2026-11-17): it works.** `tests/fixtures/ors-route.json`
+  is still synthetic (shaped like the documented format): replace it with a
+  captured response when a key is at hand in a session.
 - `withElevRetries` with `AbortSignal.timeout(CFG.ORS_TIMEOUT)` per attempt,
   combined with the user's cancel (`AbortSignal.any`), `CFG.ORS_RETRIES`
   (tunable settings, advanced «Red» tab), `readCapped` (10 MB). **Only a 5xx,

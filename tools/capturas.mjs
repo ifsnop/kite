@@ -327,9 +327,12 @@ scenario("propiedades-ajustes.png", "2.1", async out => {
 });
 
 scenario("propiedades-fuentes.png", "2.1", async out => {
-  const { ctx, page } = await openApp();
+  const { ctx, page } = await openApp({ viewport: { width: 1440, height: 1100 } });
   await page.click("#gnp-editor-btn");
   await page.click("#props-tab-btn-sources");
+  /* taller, to show the itineraries' block (key and address) under the elevation sources */
+  await page.evaluate(() => { document.querySelector("#props-dialog .dlg-box").style.height = "720px"; });
+  await page.waitForTimeout(200);
   await dialog(page, out, "props-dialog");
   await ctx.close();
 });

@@ -40,6 +40,18 @@ for (const [nombre, archivo, puerto] of [["legible", READABLE, 8821], ["minifica
     /* La escala va ENCIMA de la atribución, en su misma esquina */
     out.escalaEncima = document.querySelector(".leaflet-control-scale")
       .getBoundingClientRect().bottom <= attr.getBoundingClientRect().top;
+    /* KITE's block (version and GitHub) always fits, at the far right: with a
+       credit far wider than the map, the sources are cut and the block is not */
+    const LONG = "Crédito larguísimo de prueba " + "x".repeat(600);
+    map.attributionControl.addAttribution(LONG);
+    await new Promise(res => requestAnimationFrame(res));
+    const kite = attr.querySelector(".attr-kite"), sources = attr.querySelector(".attr-sources");
+    const mapBox = map.getContainer().getBoundingClientRect(), kb = kite.getBoundingClientRect();
+    out.bloqueKite = { ultimo: attr.lastElementChild === kite, entero: kite.scrollWidth <= kite.clientWidth + 0.5,
+      dentro: kb.left >= mapBox.left && kb.right <= mapBox.right + 0.5,
+      version: /v\d+\.\d+\.\d+ \(\d{12}\)/.test(kite.textContent), github: !!kite.querySelector('a[href*="github.com"]'),
+      fuentesCortadas: sources.scrollWidth > sources.clientWidth, titulo: sources.title.includes("Crédito larguísimo") };
+    map.attributionControl.removeAttribution(LONG);
 
     /* --- Un pin y un icono MDI empotrado --- */
     createPin();
@@ -105,6 +117,8 @@ for (const [nombre, archivo, puerto] of [["legible", READABLE, 8821], ["minifica
     et("la atribución lleva la versión delante del build: " + r.version));
   ok(r.enlaceGitHub, et("y el enlace al repositorio"));
   ok(r.escalaEncima, et("con la escala por encima de ella"));
+  ok(Object.values(r.bloqueKite).every(Boolean),
+    et("con créditos más anchos que el mapa, versión y GitHub siguen enteros a la derecha y se cortan las fuentes: " + JSON.stringify(r.bloqueKite)));
   ok(r.iconoAplicado, et("un icono MDI empotrado llega al marcador"));
   ok(/^(\d+)\/\1$/.test(r.iconos) && r.iconos !== "0/0",
     et("todos los iconos del selector se pintan: " + r.iconos));

@@ -2,7 +2,7 @@
    Requested by the user: a route between two points (a marker or any point of
    the map) by car, bicycle or on foot, with its distance and time, using the
    openrouteservice API of HeiGIT with the user's OWN key (entered in
-   Propiedades › Preferencias; without it the entries are disabled with the
+   Propiedades › Fuentes de datos; without it the entries are disabled with the
    reason). Decided with the user: picked from the context menu («Ruta desde
    aquí» / «Ruta hasta aquí», and «Itinerario ›» over a marker) into a small
    non-modal dialog; only the summary (no turn-by-turn instructions); three
@@ -90,7 +90,7 @@ function orsErrorText(status, body) {
   const e = body && body.error;
   const code = e && typeof e === "object" ? e.code : null;
   const raw = e && typeof e === "object" ? e.message : typeof e === "string" ? e : "";
-  if (status === 401 || status === 403) return tr("la clave de openrouteservice no es válida o no tiene permiso (revísela en Propiedades → Preferencias)");
+  if (status === 401 || status === 403) return tr("la clave de openrouteservice no es válida o no tiene permiso (revísela en Propiedades → Fuentes de datos)");
   if (status === 429) return tr("se ha agotado la cuota de la clave de openrouteservice (consultas por minuto o por día)");
   if (code === 2009) return tr("no hay ningún itinerario entre los dos puntos con ese modo de transporte");
   if (code === 2010) return tr("uno de los puntos está demasiado lejos de cualquier camino");
@@ -162,7 +162,7 @@ function ensureRouteAttribution() {
   map.attributionControl.addAttribution(ORS_ATTRIB);
 }
 /* The reason the entries are disabled, or null */
-const routeDisabled = () => (orsKey ? null : tr("Necesita una clave de openrouteservice: Propiedades → Preferencias."));
+const routeDisabled = () => (orsKey ? null : tr("Necesita una clave de openrouteservice: Propiedades → Fuentes de datos."));
 
 /* One request: a time limit per attempt combined with the user's cancel,
    retries only for what is transient: a time-out, the network, a 5xx. An

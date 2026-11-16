@@ -8,8 +8,9 @@
    - The error texts, read from the body first, per status and code.
    - `fmtDuration`, the summary, the card's properties and the boot check for
      the attribution (`routesInRecords`).
-   The fixture (tests/fixtures/ors-route.json) follows the documented format of
-   `GET /v2/directions/{profile}`; replace it with a captured real response
+   The service was checked by the user with a real key (2026-11-17). The
+   fixture (tests/fixtures/ors-route.json) is still synthetic, shaped like the
+   documented `GET /v2/directions/{profile}`; replace it with a captured response
    when a key is at hand. The dialog and the tree are tested in
    tests/browser/routing.mjs.                                              */
 const fs = require("fs");

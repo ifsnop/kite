@@ -303,7 +303,7 @@ the flag clears by itself when the tiles come back.
 - right-click → «Consultas» › «Ruta desde aquí» / «Ruta hasta aquí», or
   «Itinerario» over a marker, opens «Calcular itinerario»: an itinerary between
   two points by car, bicycle or on foot from openrouteservice (HeiGIT), with
-  your own API key entered in Properties → Preferences; the line goes to an
+  your own API key entered in Properties → Data sources; the line goes to an
   «Itinerarios» section with its distance and duration (no turn-by-turn
   instructions)
 - Cloud Optimized GeoTIFF orthophotos and elevation models (see

@@ -5,8 +5,9 @@
 
    1. Without a key the entries («Consultas › Ruta desde aquí / hasta aquí»,
       «Itinerario › Desde/Hasta este marcador») are disabled with the reason.
-   2. The key in Propiedades › Preferencias: Cancel does not keep it, an
-      invalid one is refused, Accept saves it, an empty field deletes it.
+   2. The key in Propiedades › Fuentes de datos, with the service address
+      under it (and nothing of it left in Preferencias): Cancel does not keep
+      it, an invalid one is refused, Accept saves it.
    3. «Desde este marcador» opens the dialog with the marker's name;
       «Ruta hasta aquí» on the map fills the destination with coordinates;
       «Elegir en el mapa» on another marker (real mouse) takes that marker;
@@ -94,9 +95,18 @@ ok(items && items.map(i => i.text).join("|") === "Desde este marcador|Hasta este
 await page.keyboard.press("Escape");
 
 /* ---------- 2. The key in Propiedades ---------- */
-const openPrefs = async () => { await page.click("#gnp-editor-btn"); await page.waitForSelector("#props-dialog:not([hidden])"); };
+const openPrefs = async () => {
+  await page.click("#gnp-editor-btn");
+  await page.waitForSelector("#props-dialog:not([hidden])");
+  await page.click("#props-tab-btn-sources");
+};
 const setKey = async v => { await page.fill("#props-ors-key", v); await page.dispatchEvent("#props-ors-key", "change"); };
 await openPrefs();
+const where = await page.evaluate(() => ({ inSources: !!document.querySelector("#props-tab-sources #props-ors-key"),
+  inPrefs: !!document.querySelector("#props-tab-prefs #props-ors-key") || /openrouteservice/.test(document.getElementById("props-tab-prefs").textContent),
+  url: document.getElementById("props-ors-url").textContent }));
+ok(where.inSources && !where.inPrefs && where.url === "https://api.openrouteservice.org/v2/directions",
+  "la clave y la dirección del servicio están en «Fuentes de datos», nada en Preferencias: " + JSON.stringify(where));
 await setKey(KEY);
 await page.click("#props-cancel");
 ok(await page.evaluate(async () => orsKey === null && await dbLoadOrsKey() === null), "Cancelar no se queda con la clave");

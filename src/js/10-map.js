@@ -137,7 +137,7 @@ map.on("resize rotate", fitWorldMinZoom);
 
 /* Fecha de generación del código (versión): AÑOMESDIAHORAMINUTO.
    Actualizar en cada generación; se muestra junto al crédito de Leaflet. */
-const BUILD = "202611161942";
+const BUILD = "202611162303";
 /* Versión de release (la de package.json, horneada aquí por build.js
    al construir — ver «Versión y releases de GitHub» en CLAUDE.md): a
    diferencia de BUILD, que cambia en CADA generación, esta solo cambia
@@ -145,17 +145,35 @@ const BUILD = "202611161942";
    crea justo después del commit que la sube. Lo comprueba
    .github/workflows/release.yml antes de publicar el Release.        */
 const VERSION = "{{VERSION}}";
-/* El enlace al repositorio va junto a la versión, que es lo que hace
-   accionable saber qué build se está ejecutando: desde ahí se llega al
-   código de esa versión. `target="_blank"` a propósito —salir de la
-   página en la misma pestaña abandonaría la sesión de trabajo— y con
-   `rel="noopener"`, que es lo que impide que la página destino toque
-   `window.opener`.                                                    */
+/* The link to the repository goes next to the version, which is what makes
+   knowing which build is running actionable: from there one reaches that
+   version's code. `target="_blank"` on purpose —leaving the page in the same
+   tab would abandon the working session— and `rel="noopener"`, which stops the
+   target page from touching `window.opener`.
+
+   KITE's block (version, GitHub and the Leaflet credit its licence asks for)
+   must ALWAYS fit (requested): the sources' credits grow with every base
+   map and service and can overflow the screen. The line is right-aligned,
+   so the block goes LAST, at the far right, and never shrinks; the sources'
+   credits go first, in their own span that is cut with an ellipsis and
+   carries the whole list in its title. Leaflet's `_update` puts the prefix
+   first and joins everything in one string, so this control's `_update` is
+   replaced (patched BEFORE `setPrefix`, which calls it). CSS: `.attr-sources`
+   and `.attr-kite` in styles.css.                                        */
 const REPO_URL = "https://github.com/ifsnop/kite";
+map.attributionControl._update = function () {
+  if (!this._map) return;
+  const sources = Object.keys(this._attributions).filter(a => this._attributions[a]);
+  this._container.innerHTML = (sources.length
+    ? `<span class="attr-sources">${sources.join(", ")}</span><span class="attr-sep" aria-hidden="true">|</span>` : "")
+    + `<span class="attr-kite">${this.options.prefix || ""}</span>`;
+  const list = this._container.querySelector(".attr-sources");
+  if (list) list.title = list.textContent;
+};
 map.attributionControl.setPrefix(
-  `v${VERSION} (${BUILD}) | <a href="${REPO_URL}" target="_blank" rel="noopener"`
-  + ` title="${tr("Código fuente del proyecto en GitHub")}">GitHub</a>`
-  + ' | <a href="https://leafletjs.com" title="A JavaScript library for interactive maps">Leaflet</a>');
+  '<a href="https://leafletjs.com" title="A JavaScript library for interactive maps">Leaflet</a>'
+  + ` | v${VERSION} (${BUILD}) | <a href="${REPO_URL}" target="_blank" rel="noopener"`
+  + ` title="${tr("Código fuente del proyecto en GitHub")}">GitHub</a>`);
 
 /* Escala del mapa: la de Leaflet (L.control.scale), no una propia —
    antes de escribir código hay que mirar si la librería ya lo resuelve,
