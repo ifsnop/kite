@@ -18,6 +18,7 @@
      has no entry).                                                     */
 const WHATS_NEW = [
   { version: "next", items: [
+    N_("La versión y el enlace a GitHub se ven siempre a la derecha de la línea inferior del mapa, aunque los créditos de los mapas no quepan."),
     N_("Itinerarios entre dos puntos en coche, en bicicleta o a pie, con su distancia y su tiempo, desde el menú del botón derecho y con su clave de openrouteservice (HeiGIT)."),
     N_("Las ventanas, y la ficha que recuerda su sitio, se abren siempre enteras dentro del navegador aunque la ventana sea ahora más pequeña."),
     N_("Con la casilla «Preferencias avanzadas» de Propiedades aparecen, en rojo, pestañas para ajustar tiempos, topes y tolerancias que antes eran fijos.")

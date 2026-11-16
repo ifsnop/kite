@@ -34,6 +34,14 @@ ok(prefix.includes("v${VERSION} (${BUILD})"),
 ok(prefix.includes("${REPO_URL}"), "y enlaza al repositorio, sin repetir la URL a mano");
 ok(/>GitHub<\/a>/.test(prefix), "con un texto que dice a dónde va");
 ok(prefix.includes("Leaflet"), "sin perder el crédito de Leaflet, que su licencia pide");
+/* That block goes LAST, in its own span that never shrinks, after the
+   sources' credits (requested: version and GitHub must always fit, and the
+   line is right-aligned). */
+const update = between("map.attributionControl._update = function", "map.attributionControl.setPrefix(");
+ok(/attr-sources/.test(update) && /attr-kite/.test(update) && update.indexOf("attr-sources") < update.indexOf("attr-kite"),
+  "el prefijo de KITE va el ÚLTIMO, en su propio span, tras los créditos de las fuentes");
+ok(script.indexOf("map.attributionControl._update = function") < script.indexOf("map.attributionControl.setPrefix("),
+  "y la sustitución de _update va antes de setPrefix, que la llama");
 
 /* Abrir en otra pestaña no es cosmético: la sesión de trabajo vive en
    esta página, y navegar fuera en la misma pestaña la abandona. Y

@@ -534,11 +534,6 @@
       <p class="dlg-hint">Tamaño máximo que puede ocupar un KMZ (o un .zip de shapefile) una vez descomprimido. Frena los archivos desproporcionados o hostiles antes de descomprimir nada; súbelo si tienes un KMZ legítimo más grande y memoria de sobra, bájalo en un equipo justo. Solo afecta a los archivos que abras después.</p>
       <div class="dlg-row"><span>Tamaño máximo de un KMZ descomprimido</span>
         <span class="props-with-unit"><input type="number" id="props-kmz-max" min="1" max="4096" step="1"><span>MB</span></span></div>
-      <!-- The user's own openrouteservice key (69-routing.js): stored only in
-           this browser; without it the itinerary entries are disabled. -->
-      <p class="dlg-hint">Clave de la API de openrouteservice (HeiGIT) para calcular itinerarios entre dos puntos desde el menú del botón derecho. Se guarda solo en este navegador y únicamente se envía a api.openrouteservice.org. Sin clave, el cálculo de itinerarios está deshabilitado; vacíe el campo para borrarla.</p>
-      <div class="dlg-row"><label for="props-ors-key">Clave de openrouteservice (HeiGIT)</label>
-        <input type="password" id="props-ors-key" autocomplete="off" spellcheck="false"></div>
       <!-- Shows or hides the tabs of advanced settings (red) and the advanced
            rows of «Elevación y perfil»; see 43-points-editor.js. -->
       <p class="dlg-hint">Muestra las pestañas de preferencias avanzadas, marcadas en rojo: tiempos, topes y tolerancias que casi nunca hace falta tocar. Los valores cambiados siguen valiendo aunque se oculten.</p>
@@ -581,6 +576,14 @@
       <div class="dlg-row"><span>MDS (superficie)</span><select id="props-src-mds"></select></div>
       <p class="dlg-hint props-src-info" id="props-src-mds-info"></p>
       <p class="dlg-hint props-src-url" id="props-src-mds-url"></p>
+      <!-- Itineraries (69-routing.js): the user's own openrouteservice key,
+           stored only in this browser, and the address it is sent to (filled
+           from ORS_HOST when the dialog opens). -->
+      <h3 class="props-src-head">Itinerarios (openrouteservice, HeiGIT)</h3>
+      <p class="dlg-hint">Clave de la API de openrouteservice (HeiGIT) para calcular itinerarios entre dos puntos desde el menú del botón derecho. Se guarda solo en este navegador y únicamente se envía a la dirección de abajo. Sin clave, el cálculo de itinerarios está deshabilitado; vacíe el campo para borrarla.</p>
+      <div class="dlg-row"><label for="props-ors-key">Clave de openrouteservice</label>
+        <input type="password" id="props-ors-key" autocomplete="off" spellcheck="false"></div>
+      <p class="dlg-hint props-src-url" id="props-ors-url"></p>
     </div>
     <div id="props-tab-freq" class="dlg-tabpanel" hidden role="tabpanel">
       <p class="dlg-hint">Frecuencia con la que se calcula el elipsoide de Fresnel del perfil de una ruta (casilla «Elipsoide de Fresnel» de su ventana). De 1 a 300&#8239;000 MHz; 1090 MHz de partida. Un valor fuera de rango se ajusta al l&#237;mite m&#225;s cercano.</p>

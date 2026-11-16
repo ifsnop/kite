@@ -215,11 +215,7 @@ encima (`margin-bottom`) y **no lleva ancho máximo** (cortaría la línea
 de diferencia superficie/terreno, que es larga). La atribución va en una
 sola línea con elipsis si no cabe.
 
-- **Atribución**: `v<VERSION> (<BUILD>) | GitHub | Leaflet` vía
-  `setPrefix`. `VERSION` = a qué release corresponde; `BUILD` = instante
-  exacto de esta generación (ver `build-and-release.md`). URL de
-  `REPO_URL`, `target="_blank"` + `rel="noopener"`. Crédito de Leaflet
-  obligatorio por licencia.
+- **Attribution**: the sources' credits first and KITE's block LAST, at the far right: `Leaflet | v<VERSION> (<BUILD>) | GitHub` (requested: the version and the GitHub link must ALWAYS fit, and the sources' credits grow with every base map and service). The attribution control's `_update` is replaced in `10-map.js` (before `setPrefix`, which calls it): the sources go in `.attr-sources`, which shrinks and is cut with an ellipsis (its `title` holds the whole list), and the prefix in `.attr-kite`, which never shrinks (`styles.css`). **The old overflow**: Leaflet's bottom-right corner is anchored only on the right and sizes to its content, so a long line grew past the map's LEFT edge (and the version, then at the start, was off screen); `.leaflet-bottom.leaflet-right { left: 0 }` makes the corner as wide as the map (corners do not take the pointer, only their controls). `VERSION` = which release; `BUILD` = the exact instant of this generation (see `build-and-release.md`). URL from `REPO_URL`, `target="_blank"` + `rel="noopener"`. Leaflet's credit is required by its licence. `tests/attribution.js` (order, in the source) and `tests/browser/app.mjs` (with a credit wider than the map, the block stays whole and inside, in both artifacts).
 - **Escala**: la nativa de Leaflet (`L.control.scale`), no propia —
   métrico+imperial, 100 px por defecto (Leaflet no ofrece millas
   náuticas).
