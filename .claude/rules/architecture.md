@@ -173,6 +173,14 @@ paths:
     `describeHttp` (`40`), `makeNode`, `applyMarkerStyle`, `fmtUnitDist` y
     `escapeHtml`; el menú contextual (`70`) la llama solo en tiempo de
     ejecución. Ver `wikipedia.md`.
+11h. **Itineraries** (`69-routing.js`, after `68`): openrouteservice route
+    between two points. The pure part (URL, key check, response, error texts,
+    duration, card) is tested in Node; the dialog binds the DOM the first time
+    it opens. It uses `withElevRetries` (`52`), `readCapped` (`65`),
+    `describeHttp`/`ensureNamedSection`/`nextNumberedName` (`40`),
+    `parsePlaceCoordinates`/`soleMarker` (`43`) and `layersAtPoint` (`42`)
+    only at run time; `70` (context menu), `52` (pick tool, Escape), `43`
+    (Propiedades) and `99` call it at run time. See `routing.md`.
 11g. **«Novedades» window** (`68-whats-new.js`): the `WHATS_NEW` texts, the pure
     decision of what to list (`whatsNewPlan`, `whatsNewEntries`,
     `validWhatsNewRecord`, `compareVersions`, tested in Node) and the window,

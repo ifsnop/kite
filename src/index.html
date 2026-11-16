@@ -534,6 +534,11 @@
       <p class="dlg-hint">Tamaño máximo que puede ocupar un KMZ (o un .zip de shapefile) una vez descomprimido. Frena los archivos desproporcionados o hostiles antes de descomprimir nada; súbelo si tienes un KMZ legítimo más grande y memoria de sobra, bájalo en un equipo justo. Solo afecta a los archivos que abras después.</p>
       <div class="dlg-row"><span>Tamaño máximo de un KMZ descomprimido</span>
         <span class="props-with-unit"><input type="number" id="props-kmz-max" min="1" max="4096" step="1"><span>MB</span></span></div>
+      <!-- The user's own openrouteservice key (69-routing.js): stored only in
+           this browser; without it the itinerary entries are disabled. -->
+      <p class="dlg-hint">Clave de la API de openrouteservice (HeiGIT) para calcular itinerarios entre dos puntos desde el menú del botón derecho. Se guarda solo en este navegador y únicamente se envía a api.openrouteservice.org. Sin clave, el cálculo de itinerarios está deshabilitado; vacíe el campo para borrarla.</p>
+      <div class="dlg-row"><label for="props-ors-key">Clave de openrouteservice (HeiGIT)</label>
+        <input type="password" id="props-ors-key" autocomplete="off" spellcheck="false"></div>
       <!-- Shows or hides the tabs of advanced settings (red) and the advanced
            rows of «Elevación y perfil»; see 43-points-editor.js. -->
       <p class="dlg-hint">Muestra las pestañas de preferencias avanzadas, marcadas en rojo: tiempos, topes y tolerancias que casi nunca hace falta tocar. Los valores cambiados siguen valiendo aunque se oculten.</p>
@@ -626,6 +631,25 @@
      de unidad se rellenan desde #props-unit (62-geocalc.js). Cada panel
      lleva su propio resultado y su propio aviso de error, y se recalcula
      SOLO, al cambiar cualquier dato: no hay botón «Calcular». -->
+<!-- Itinerary between two points with openrouteservice (69-routing.js):
+     non-modal, so the context menu and «Elegir en el mapa» can fill the ends. -->
+<div id="route-dialog" class="dlg-float" hidden>
+  <div class="dlg-box">
+    <h2 class="dlg-head"><span class="dlg-title">Calcular itinerario</span><button type="button" class="dlg-close" data-cancel="route-cancel" title="Cancelar" aria-label="Cancelar">&#215;</button></h2>
+    <p class="dlg-hint">Origen y destino: el nombre de un marcador o unas coordenadas (se pueden escribir). «Elegir en el mapa» espera un clic; sobre un marcador, se usa ese marcador.</p>
+    <div class="dlg-row"><label for="route-from">Origen</label>
+      <span class="route-end"><input type="text" id="route-from" spellcheck="false"><button type="button" class="btn" id="route-from-pick">Elegir en el mapa</button></span></div>
+    <div class="dlg-row"><span></span><button type="button" class="btn" id="route-swap" title="Intercambiar origen y destino" aria-label="Intercambiar origen y destino">&#8645;</button></div>
+    <div class="dlg-row"><label for="route-to">Destino</label>
+      <span class="route-end"><input type="text" id="route-to" spellcheck="false"><button type="button" class="btn" id="route-to-pick">Elegir en el mapa</button></span></div>
+    <div class="dlg-row"><label for="route-profile">Modo</label><select id="route-profile"></select></div>
+    <div class="dlg-actions">
+      <button class="btn" id="route-cancel">Cancelar</button>
+      <button class="btn" id="route-calc" data-mode="calc">Calcular</button>
+    </div>
+  </div>
+</div>
+
 <div id="geocalc-dialog" class="dlg-float" hidden>
   <div class="dlg-box no-actions">
     <h2 class="dlg-head"><span class="dlg-title">C&#225;lculos geod&#233;sicos</span><button type="button" class="dlg-close" id="geocalc-close" title="Cerrar" aria-label="Cerrar">&#215;</button></h2>

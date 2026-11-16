@@ -86,3 +86,4 @@ paths:
   los tres pueden estar activos simultáneamente. Llamado desde
   `setTool`, `teardownVertexOwner`/`syncVertexOwnerForDialog` y
   `openStyleDialog`/`closeStyleDialog`.
+- **Itineraries** (`69-routing.js`, see `routing.md`): «Consultas» also holds «Ruta desde aquí» and «Ruta hasta aquí», and over a marker (`soleMarker`) `layerCtxItems` adds the submenu «Itinerario ›» (`markerRouteCtxItem`: «Desde este marcador» / «Hasta este marcador»); with several markers under the cursor `ctxItemsFor` adds «Itinerario desde» and «Itinerario hasta», one entry per marker. All of them carry `disabled: () => routeDisabled()` (no openrouteservice key).

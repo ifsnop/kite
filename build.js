@@ -103,6 +103,8 @@ const JS = [
   "66-arcgis.js",         /* servicios ArcGIS (MapServer) como nodo del árbol: /export por teselas y /query */
   "67-wikipedia.js",      /* artículos de Wikipedia a menos de 5 km (menú contextual): geosearch + extracts */
   "68-whats-new.js",      /* the «Novedades» window at startup: what each release brought */
+  "69-routing.js",        /* itineraries with openrouteservice (HeiGIT): pure part,
+                             request, dialog and tree; uses 40, 43, 52, 65 at run time */
   "70-view-controls.js",  /* controles de vista y menú contextual */
   "99-boot.js"            /* arranque: restaurar el árbol guardado */
 ];

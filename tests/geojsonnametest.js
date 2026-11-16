@@ -127,6 +127,8 @@ global.infoHtmlFor = li => li._info || null; /* stub: evita depender de DOM/Leaf
    capa le llega a cada acción) y que las tres hagan parpadear la capa,
    que es lo único que dice CUÁL de las que hay bajo el cursor se ha
    elegido.                                                            */
+/* These loose objects are never a single marker: no «Itinerario» entry (69-routing.js) */
+global.soleMarker = () => null;
 global.highlightCalls = [];
 global.showInfoCalls = [];
 global.editCalls = [];

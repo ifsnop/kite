@@ -300,6 +300,12 @@ the flag clears by itself when the tiles come back.
   them as «W» markers in a new folder; each marker's card holds the article's
   summary, a link to the full article and its distance, and the CC BY-SA credit
   is added to the map's attribution
+- right-click → «Consultas» › «Ruta desde aquí» / «Ruta hasta aquí», or
+  «Itinerario» over a marker, opens «Calcular itinerario»: an itinerary between
+  two points by car, bicycle or on foot from openrouteservice (HeiGIT), with
+  your own API key entered in Properties → Preferences; the line goes to an
+  «Itinerarios» section with its distance and duration (no turn-by-turn
+  instructions)
 - Cloud Optimized GeoTIFF orthophotos and elevation models (see
   [File support](#file-support)) stay in the browser's own store and are never
   part of an export
@@ -467,6 +473,9 @@ The current build is not fully offline and makes external requests:
   only when you ask for them from the context menu: the coordinates of the
   click and the radius of the current view (10 m to 10 km), then the ids of the
   articles found;
+- an itinerary is requested from `api.openrouteservice.org` (HeiGIT) only when
+  you press «Calcular»: your own API key (kept only in your browser, never in
+  an export), the mode and the coordinates of the origin and the destination;
 - an ArcGIS map service you add is asked for its layer list once, and then for
   the images of the layers you tick, from the address you pasted;
 - a base layer of your own requests its tiles (and, for a WMS, its layer list)
@@ -566,10 +575,10 @@ Do not use public tile, geocoding or CDN services for sensitive work without an 
 ### Done
 
 - **The sources are split.** The application is edited as `src/index.html`,
-  `src/styles.css`, `src/sw.js` and 44 JavaScript files, concatenated into the
+  `src/styles.css`, `src/sw.js` and 45 JavaScript files, concatenated into the
   shipped file by `build.js`. The single-file product is the output, not the
   source.
-- **There are automated tests.** 138 suites run against the shipped
+- **There are automated tests.** 140 suites run against the shipped
   file — most under Node, plus a set that drives a real headless browser —
   covering coordinate parsing and formatting, UTM, KML namespaces and
   styles, geometry conversion, serialization, tree navigation and
@@ -598,6 +607,7 @@ Do not use public tile, geocoding or CDN services for sensitive work without an 
 - **Nearby Wikipedia articles** from the context menu: the geotagged articles
   within the current view of a point become «W» markers with a summary and a link to the
   full article.
+- **Itineraries** between two points (openrouteservice, with your own HeiGIT key): by car, bicycle or on foot, with their distance and duration.
 - **Offline reload**: a small service worker keeps the application and its
   pinned libraries, so a discarded tab comes back without a network.
 - **What's new**: a window at startup sums up, in a few plain sentences, what
@@ -732,6 +742,7 @@ This application currently uses or accesses:
 - Spanish PNOA, IGN WMTS, WMS and WCS services
 - [Dirección General del Catastro](https://www.sedecatastro.gob.es/) — cadastral reference and INSPIRE parcel service, only when you ask for a parcel
 - [Wikipedia](https://www.wikipedia.org/) (MediaWiki API, Wikimedia Foundation) — geotagged articles and their summaries, only when you ask for them; the text is under CC BY-SA 4.0
+- [openrouteservice](https://openrouteservice.org/) (HeiGIT) — itineraries between two points, only when you ask for one and with your own API key; route data © OpenStreetMap contributors
 - [Ayuntamiento de Madrid orthophoto WMS](https://geoportal.madrid.es/) (data source: Ayuntamiento de Madrid)
 - [SRTM30 tiles from terrestris](https://ows.terrestris.de/) (SRTM data © NASA LP DAAC)
 - [Copernicus DEM through Sentinel Hub](https://dataspace.copernicus.eu/)

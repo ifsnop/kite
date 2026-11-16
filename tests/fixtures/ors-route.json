@@ -1,0 +1,106 @@
+{
+ "type": "FeatureCollection",
+ "bbox": [
+  -3.70379,
+  40.416775,
+  -3.7002,
+  40.4204
+ ],
+ "features": [
+  {
+   "bbox": [
+    -3.70379,
+    40.416775,
+    -3.7002,
+    40.4204
+   ],
+   "type": "Feature",
+   "properties": {
+    "segments": [
+     {
+      "distance": 512.3,
+      "duration": 95.4,
+      "steps": [
+       {
+        "distance": 512.3,
+        "duration": 95.4,
+        "type": 11,
+        "instruction": "Head north",
+        "name": "Calle Mayor",
+        "way_points": [
+         0,
+         6
+        ]
+       }
+      ]
+     }
+    ],
+    "way_points": [
+     0,
+     6
+    ],
+    "summary": {
+     "distance": 512.3,
+     "duration": 95.4
+    }
+   },
+   "geometry": {
+    "coordinates": [
+     [
+      -3.70379,
+      40.416775
+     ],
+     [
+      -3.7035,
+      40.4171
+     ],
+     [
+      -3.7029,
+      40.4176
+     ],
+     [
+      -3.7021,
+      40.4183
+     ],
+     [
+      -3.7015,
+      40.419
+     ],
+     [
+      -3.7008,
+      40.4198
+     ],
+     [
+      -3.7002,
+      40.4204
+     ]
+    ],
+    "type": "LineString"
+   }
+  }
+ ],
+ "metadata": {
+  "attribution": "openrouteservice.org | OpenStreetMap contributors",
+  "service": "routing",
+  "timestamp": 1763200000000,
+  "query": {
+   "coordinates": [
+    [
+     -3.70379,
+     40.416775
+    ],
+    [
+     -3.7002,
+     40.4204
+    ]
+   ],
+   "profile": "driving-car",
+   "format": "json"
+  },
+  "engine": {
+   "version": "9.0.0",
+   "build_date": "2025-01-01T00:00:00Z",
+   "graph_date": "2025-01-01T00:00:00Z"
+  }
+ }
+}

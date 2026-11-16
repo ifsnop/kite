@@ -53,6 +53,10 @@ Leaflet y JSZip siguen cargándose desde una red de distribución al abrir la p�
 
 Most import limits, timeouts and retries are tunable in Propiedades since the tunable-settings tabs (`04-tunables.js`). Still constants in the code, on purpose for now: the entities fetched from an ArcGIS service (100,000, `ARCGIS_MAX_FEATURES`) and its catalogue limits, the response caps of the Cadastre and Wikipedia, and how many matches the tree filter builds at once (300, `FILTER_BUILD_MAX`). Anything copied at load time (`MAX_ZOOM`, `ELEV_WINDOW`, the refresh intervals) cannot become a setting without rebuilding what holds the copy.
 
+### 1.8b The build does not fail when the JavaScript cannot be minified
+
+Found while adding the itineraries (2026-11-16): a source that the browser cannot parse (a literal line separator inside a regular expression) still produced `kitelocal.html`, and `kitelocal.min.html` came out with the JavaScript unminified (4 % smaller instead of 52 %) without any error. `build.js` should stop with the parse error instead; today only the percentage printed by `npm run build` and the browser suites give it away.
+
 ### 1.9 Cuadro de límites del manual contrastado con el código
 
 Fase 4 de `tests/docs.js`: un cuadro de límites y valores por defecto del manual (300 MB, 100 000 elementos, 10 NM, 15 s…) con el nombre de su constante y una prueba que extraiga esas constantes y las compare. Mientras no exista, la revisión semestral (`.claude/rules/docs-maintenance.md`, C.1) las comprueba a mano.

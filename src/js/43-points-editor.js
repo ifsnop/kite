@@ -1843,6 +1843,23 @@ buildTunableRows();
    Accept saves it (`advancedPrefs` key). */
 let advancedPrefs = false;
 const propsAdvancedInput = document.getElementById("props-advanced");
+
+/* The openrouteservice key (69-routing.js, `orsKey`): deferred like the rest
+   of the dialog. An empty field means «no key» (Accept removes it from the
+   database); a value that cannot be a key is refused with a notice and the
+   field goes back to the current one. */
+const propsOrsKeyInput = document.getElementById("props-ors-key");
+propsOrsKeyInput.addEventListener("change", () => {
+  const v = propsOrsKeyInput.value.trim();
+  if (v === "") orsKey = null;
+  else if (validOrsKey(v)) orsKey = v;
+  else {
+    navMessage(tr("Esa clave de openrouteservice no es válida: solo letras, cifras y los signos _ = . -, de 20 a 512 caracteres."));
+    propsOrsKeyInput.value = orsKey || "";
+    return;
+  }
+  syncRouteCalc();
+});
 function applyAdvancedPrefs(on) {
   advancedPrefs = on;
   propsAdvancedInput.checked = on;
@@ -2095,8 +2112,9 @@ async function togglePropsDialog() {
   if (!gnpStore) gnpStore = await dbLoadGnp();
   propsDraftGnp = { ...gnpStore };
   propsOriginal = { uiTheme, unit: measureUnit, altitudeUnit, profileMaxM, fresnelFreqMHz, coordFormat, vertexEditMax,
-                    arcSegments, kmzMaxUncompressedMB, elevSources, tunables: { ...CFG }, advancedPrefs };
+                    arcSegments, kmzMaxUncompressedMB, elevSources, tunables: { ...CFG }, advancedPrefs, orsKey };
   applyAdvancedPrefs(advancedPrefs);
+  propsOrsKeyInput.value = orsKey || "";
   renderGnpEditor();
   renderPropsPrefsTab();
   renderTunables();
@@ -2137,6 +2155,8 @@ function cancelPropsDialog() {
   elevSources = propsOriginal.elevSources;
   for (const [id, v] of Object.entries(propsOriginal.tunables)) setTunable(id, v);
   advancedPrefs = propsOriginal.advancedPrefs;
+  orsKey = propsOriginal.orsKey;
+  syncRouteCalc();
   propsDraftGnp = null;
   propsOriginal = null;
 }
@@ -2155,6 +2175,10 @@ document.getElementById("props-accept").addEventListener("click", () => {
   dbSaveArcSegments(arcSegments);
   dbSaveKmzMax(kmzMaxUncompressedMB);
   dbSaveElevSources(elevSources);
+  if (propsOriginal && orsKey !== propsOriginal.orsKey) {
+    (orsKey ? dbSaveOrsKey(orsKey) : dbDeleteOrsKey())
+      .catch(() => navMessage(tr("No se pudo guardar la clave de openrouteservice: valdrá hasta cerrar la página.")));
+  }
   dbSaveAdvancedPrefs(advancedPrefs).catch(() => { /* shown or hidden again at the next start */ });
   dbSaveTunables(tunableOverrides()).catch(() => navMessage(tr("No se pudieron guardar los ajustes: valdrán hasta cerrar la página.")));
   if (propsLangSelect.value !== loadUiLangPref()) {

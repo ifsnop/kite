@@ -18,6 +18,7 @@
      has no entry).                                                     */
 const WHATS_NEW = [
   { version: "next", items: [
+    N_("Itinerarios entre dos puntos en coche, en bicicleta o a pie, con su distancia y su tiempo, desde el menú del botón derecho y con su clave de openrouteservice (HeiGIT)."),
     N_("Las ventanas, y la ficha que recuerda su sitio, se abren siempre enteras dentro del navegador aunque la ventana sea ahora más pequeña."),
     N_("Con la casilla «Preferencias avanzadas» de Propiedades aparecen, en rojo, pestañas para ajustar tiempos, topes y tolerancias que antes eran fijos.")
   ] },

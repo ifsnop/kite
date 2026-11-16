@@ -2,13 +2,15 @@
 
 const MEASURE_COLORS = { circle: "#7c3aed", route: "#0ea5e9" };
 let measureLi = null;
-let activeTool = null; /* null | "circle" | "arc" | "polygon" | "route" | "pin" | "rings" | "sector" */
+let activeTool = null; /* null | "circle" | "arc" | "polygon" | "route" | "pin" | "rings" | "sector" | "route-from" | "route-to" */
 /* Herramientas de UN CLIC: esperan un clic en el mapa que fija el centro (el
    pin, los anillos de alcance y el sector), abren sus propiedades —donde
    todavía se puede cambiar casi todo antes de guardar— y se sueltan solas.
    Como el círculo o el polígono: se arman con su botón, la cruz es el cursor
    y Escape las cancela.                                                  */
-const PLACE_TOOLS = new Set(["pin", "rings", "sector"]);
+/* «Elegir en el mapa» of the itinerary dialog (69-routing.js) is one too:
+   the click fixes the origin or the destination. */
+const PLACE_TOOLS = new Set(["pin", "rings", "sector", "route-from", "route-to"]);
 /* ¿Un clic sobre el mapa va a fijar un punto (vértice o centro) y no a
    seleccionar la capa que haya debajo? */
 const clickPicksPoint = () => activeTool === "polygon" || PLACE_TOOLS.has(activeTool);
@@ -256,6 +258,9 @@ document.addEventListener("keydown", e => {
   if (!logDialog.hidden) { toggleLog(); return; }
   if (!urlDialog.hidden) { closeUrlDialog(); return; }
   if (isRangeDialogOpen()) { cancelRangeDialog(); return; }
+  /* Picking an end of an itinerary: Escape gives up the pick, not the dialog */
+  if (activeTool === "route-from" || activeTool === "route-to") { setTool(null); return; }
+  if (isRouteDialogOpen()) { closeRouteDialog(); return; }
   if (isAttrStyleOpen()) { cancelAttrStyleDialog(); return; }
   if (isAttrDialogOpen()) { closeAttrDialog(); return; }
   if (!descDialog.hidden) { hideLayerInfo({ dismiss: true }); return; }
@@ -1157,7 +1162,9 @@ function clickWasDrag(e) {
    manejador o una capa: aquí no se «añade nada ahí encima».               */
 function placeWithTool(tool, latlng) {
   setTool(null);
-  if (tool === "pin") createPin(latlng); else openRangeDialog(tool, latlng);
+  if (tool === "pin") createPin(latlng);
+  else if (tool === "route-from" || tool === "route-to") pickRouteEndAt(tool, latlng);
+  else openRangeDialog(tool, latlng);
 }
 map.getContainer().addEventListener("click", e => {
   const dragged = clickWasDrag(e);

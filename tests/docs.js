@@ -379,7 +379,7 @@ const DIALOG_DOC = {
   "style-dialog": "Editar propiedades", "props-dialog": "Índices de GeoJSON", "shortcuts": "Atajos de teclado",
   "desc-dialog": "Mostrar atributos", "icon-picker": "Cambiar…", "mobile-notice": "Mejor desde un ordenador",
   "kml-tags-picker": "Etiquetas en los nombres", "kml-dup-picker": "Marcadores duplicados",
-  "geojson-name-picker": "Elegir nombre", "geocalc-dialog": "Cálculos geodésicos", "profile-dialog": "Obtener perfil",
+  "geojson-name-picker": "Elegir nombre", "geocalc-dialog": "Cálculos geodésicos", "route-dialog": "Calcular itinerario", "profile-dialog": "Obtener perfil",
   "points-dialog": "Ver y editar…", "log-dialog": "Registro de avisos", "url-dialog": "Añadir desde una dirección", "range-dialog": "Anillos de alcance", "attr-dialog": "Tabla de atributos", "attrstyle-dialog": "Estilo por atributo",
   "restore-confirm": "Borrar todos los datos", "delete-confirm": "Borrar capas", "sh-creds": "credencial", "user-base": "Nueva capa base", "user-base-delete": "Eliminar capa base", "whats-new": "No volver a mostrar hasta la próxima versión"
 };
