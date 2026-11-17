@@ -807,6 +807,7 @@ registerLang("en", "English", {
   "La vista es más grande de lo que Wikipedia permite buscar: se han buscado los artículos a menos de {distance} del punto.": "The view is larger than Wikipedia can search: articles were searched within {distance} of the point.",
   "No se pudo obtener el resumen de {n} artículo(s) ({reason}): solo llevan el enlace.": "Could not get the summary of {n} article(s) ({reason}): they only carry the link.",
   /* 68-whats-new.js */
+  "La lista de mapas base sigue abierta al añadir, modificar o borrar una capa propia, también al cancelar.": "The base-map list stays open when you add, edit or delete one of your own layers, also when you cancel.",
   "La ficha de información se reduce a sus pestañas aunque se le haya cambiado el tamaño, y lo recupera al volver a enseñar una ficha.": "The info card folds to its tabs even after it was resized, and gets its size back when it shows a card again.",
   "La configuración de los mapas base (orden, activación, opacidad, capas propias y color de fondo) se guarda en un archivo con 💾 y se carga arrastrándolo al panel de navegación.": "The base-map configuration (order, on/off, opacity, your own layers and background colour) is saved to a file with 💾 and loaded by dragging it onto the navigation panel.",
   "La versión y el enlace a GitHub se ven siempre a la derecha de la línea inferior del mapa, aunque los créditos de los mapas no quepan.": "The version and the GitHub link are always shown at the right of the map’s bottom line, even when the maps’ credits do not fit.",

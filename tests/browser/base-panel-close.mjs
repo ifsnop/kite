@@ -9,7 +9,11 @@
       ni una tecla pulsada con el foco dentro.
    3) Escape la cierra, pero antes cierra lo que tenga encima (el selector
       de color); Tab y las teclas de modificador no la cierran.
-   4) El botón de capas sigue alternando.                                */
+   4) El botón de capas sigue alternando.
+   5) The windows opened from the list are part of it (requested: cancelling
+      «+ Añadir capa…» closed the list): typing in «Nueva capa base», its
+      Cancel, its ×, Escape and «Añadir» leave the list open; so do the
+      delete confirmation of a user layer and its Cancel.                */
 import { launch, serve, openApp, reporter, READABLE } from "./_browser.mjs";
 
 const { ok, done } = reporter("BROWSER BASE PANEL CLOSE TESTS OK");
@@ -106,6 +110,46 @@ await page.waitForSelector("#shortcuts", { state: "hidden" });
 await openList();
 await page.keyboard.press("Escape");
 ok(!(await listOpen()), "Escape con la lista sola, la cierra");
+
+/* ---------- 5. The windows opened from the list ---------- */
+const openAdd = async () => {
+  await openList();
+  await page.click(".base-add");
+  await page.waitForSelector("#user-base:not([hidden])");
+};
+await openAdd();
+ok(await listOpen(), "abrir «+ Añadir capa…» no la cierra");
+await page.click("#user-base-url");
+await page.keyboard.type("https://cache.ejemplo.org/tiles/");
+ok(await listOpen(), "escribir en la ventana «Nueva capa base» no la cierra");
+await page.click("#user-base-cancel");
+await page.waitForSelector("#user-base", { state: "hidden" });
+ok(await listOpen(), "Cancelar en «Nueva capa base» deja la lista abierta");
+await openAdd();
+await page.click("#user-base .dlg-close");
+await page.waitForSelector("#user-base", { state: "hidden" });
+ok(await listOpen(), "y su × también");
+await openAdd();
+await page.keyboard.press("Escape");
+await page.waitForSelector("#user-base", { state: "hidden" });
+ok(await listOpen(), "Escape cierra la ventana y deja la lista");
+/* «Añadir» too, with a server faked so nothing leaves the machine */
+await page.route(/ejemplo\.org/, route => route.fulfill({ status: 200, contentType: "image/png",
+  body: Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==", "base64") }));
+await openAdd();
+await page.fill("#user-base-url", "https://cache.ejemplo.org/tiles/");
+await page.click("#user-base-accept");
+await page.waitForSelector("#user-base", { state: "hidden" });
+ok(await listOpen() && await page.evaluate(() => userBaseStates().length === 1), "«Añadir» crea la capa y la lista sigue abierta");
+/* the delete confirmation of that layer */
+await openList();
+await page.click(".base-row .base-del");
+await page.waitForSelector("#user-base-delete:not([hidden])");
+await page.click("#user-base-delete-cancel");
+await page.waitForSelector("#user-base-delete", { state: "hidden" });
+ok(await listOpen(), "cancelar el borrado de una capa propia deja la lista abierta");
+await page.mouse.click(p.x, p.y);
+ok(!(await listOpen()), "con las ventanas cerradas, un clic en el mapa la sigue cerrando");
 
 ok(errors.length === 0, "sin errores de página: " + errors.join(" | "));
 await browser.close();

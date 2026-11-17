@@ -38,14 +38,19 @@ map.addControl(baseControl);
    cuelga del <body> pero nace del botón de color de su primera fila. Escape
    no pasa por aquí: lo atiende la cadena de Escape (52-measure.js), que
    cierra antes lo que tenga encima. Pulsar de nuevo el botón de capas la
-   sigue cerrando, como siempre.                                           */
+   sigue cerrando, como siempre.
+   The windows opened from the list hang from the <body> too and are part of
+   it (requested: cancelling «+ Añadir capa…» closed the list): new or edited
+   user layer, its delete confirmation and the Copernicus credential. A click
+   or a key in them, Cancel included, leaves the list open.               */
 function closeBasePanel() { baseControl._list.hidden = true; }
 const BASE_KEYS_IGNORED = new Set(["Escape", "Tab", "Shift", "Control", "Alt", "Meta", "CapsLock"]);
+const BASE_PANEL_PARTS = ["color-picker", "user-base", "user-base-delete", "sh-creds"];
 function closeBasePanelOutside(e) {
   if (baseControl._list.hidden) return;
   const t = e.target;
   if (t instanceof Node && (baseControl.getContainer().contains(t)
-      || document.getElementById("color-picker").contains(t))) return;
+      || BASE_PANEL_PARTS.some(id => { const el = document.getElementById(id); return el && el.contains(t); }))) return;
   closeBasePanel();
 }
 document.addEventListener("pointerdown", closeBasePanelOutside, true);
