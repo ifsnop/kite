@@ -5979,14 +5979,14 @@ map.on("resize rotate", fitWorldMinZoom);
 
 /* Fecha de generación del código (versión): AÑOMESDIAHORAMINUTO.
    Actualizar en cada generación; se muestra junto al crédito de Leaflet. */
-const BUILD = "202611171802";
+const BUILD = "202611172013";
 /* Versión de release (la de package.json, horneada aquí por build.js
    al construir — ver «Versión y releases de GitHub» en CLAUDE.md): a
    diferencia de BUILD, que cambia en CADA generación, esta solo cambia
    al preparar un release, y debe coincidir con el tag de GitHub que se
    crea justo después del commit que la sube. Lo comprueba
    .github/workflows/release.yml antes de publicar el Release.        */
-const VERSION = "2.6.0";
+const VERSION = "2.7.0";
 /* The link to the repository goes next to the version, which is what makes
    knowing which build is running actionable: from there one reaches that
    version's code. `target="_blank"` on purpose —leaving the page in the same
@@ -29770,7 +29770,7 @@ async function queryWikipediaAt(latlng) {
      the new version (tests/whatsnew.js fails if package.json's version
      has no entry).                                                     */
 const WHATS_NEW = [
-  { version: "next", items: [
+  { version: "2.7.0", items: [
     N_("La lista de mapas base sigue abierta al añadir, modificar o borrar una capa propia, también al cancelar."),
     N_("La ficha de información se reduce a sus pestañas aunque se le haya cambiado el tamaño, y lo recupera al volver a enseñar una ficha."),
     N_("La configuración de los mapas base (orden, activación, opacidad, capas propias y color de fondo) se guarda en un archivo con 💾 y se carga arrastrándolo al panel de navegación."),
