@@ -155,7 +155,7 @@ que quien lea la documentación la encuentre. Aquí no se duplica:
 8. `BUILD` (`src/js/10-map.js`) **no se toca a mano**: el hook
    pre-commit (`scripts/hooks/pre-commit`) lo sube y reconstruye si el
    commit toca `src/`/`package.json`. Requiere el hook instalado
-   (symlink, README «Contributing»); si no lo está, `npm run check`/CI
+   (symlink, `CONTRIBUTING.md`, «Setting up»); si no lo está, `npm run check`/CI
    lo detectan como fuente desincronizada.
 9. `VERSION` solo se toca al preparar un release: subir
    `package.json.version` a mano, actualizar cabecera de los dos
