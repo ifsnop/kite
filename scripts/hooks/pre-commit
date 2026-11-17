@@ -2,13 +2,13 @@
 /* Hook de pre-commit: sube BUILD y reconstruye SOLO cuando el commit
    toca src/ o package.json (los dos únicos insumos de build.js).
 
-   No vive en .git/hooks/ porque esa carpeta no se versiona: nadie más
-   la tendría al clonar. Este archivo SÍ está trackeado, y cada clon
-   enlaza .git/hooks/pre-commit aquí con un symlink (ver README.md,
-   «Contributing»). Git invoca los hooks con el directorio de trabajo
-   en la raíz del repositorio, así que todas las rutas de abajo son
-   relativas a ahí — sin necesidad de resolver __dirname a través del
-   symlink, que apuntaría al sitio equivocado si se hiciera mal.
+   It does not live in .git/hooks/ because that folder is not tracked:
+   nobody else would get it when cloning. This file IS tracked, and each
+   clone links .git/hooks/pre-commit to it with a symlink (see
+   CONTRIBUTING.md, «Setting up»). Git runs hooks with the working
+   directory at the root of the repository, so every path below is
+   relative to it, with no need to resolve __dirname through the symlink
+   (which would point to the wrong place if done wrong).
 
    CommonJS a propósito, sin extensión .js/.mjs: es lo que hace falta
    para que el propio archivo sea ejecutable como hook (el symlink

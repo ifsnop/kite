@@ -31,8 +31,8 @@ scripts/hooks/
   pre-commit       Sube BUILD y reconstruye SOLO cuando el commit toca
                    src/ o package.json. Tampoco forma parte de build.js
                    ni corre dentro de él: se instala con un symlink en
-                   .git/hooks/pre-commit (ver «Versión y releases de
-                   GitHub» y README.md, «Contributing»), que no se
+                   .git/hooks/pre-commit (see «Versión y releases de
+                   GitHub» and CONTRIBUTING.md, «Setting up»), que no se
                    versiona, así que hace falta enlazarlo a mano una vez
                    por clon
 kitelocal.html     GENERADO. Es el producto; se versiona (quien clone
@@ -88,7 +88,7 @@ index.html         redirección de la raíz del sitio al minificado
 
 Dos números, cadencia y origen distintos:
 
-- **`BUILD`** (`src/js/10-map.js`, `AAAAMMDDHHMM`): reescrito por el hook `pre-commit` justo antes de `build.js`, solo si el commit toca `src/`/`package.json`. NO se hornea dentro de `build.js` — eso rompería la identidad byte a byte de `build.js --check` (`build()` debe seguir siendo función pura de lo que hay en disco). `.git/hooks/` no se versiona: el hook es un symlink que hay que enlazar a mano una vez por clon (README «Contributing»); sin él, `BUILD` se queda quieto y `npm run check`/CI lo detectan igual que cualquier fuente desincronizada. El hook también reconstruye (`npm run build`) y valida sintaxis (`node --check`) antes de dejar pasar el commit.
+- **`BUILD`** (`src/js/10-map.js`, `AAAAMMDDHHMM`): reescrito por el hook `pre-commit` justo antes de `build.js`, solo si el commit toca `src/`/`package.json`. NO se hornea dentro de `build.js` — eso rompería la identidad byte a byte de `build.js --check` (`build()` debe seguir siendo función pura de lo que hay en disco). `.git/hooks/` no se versiona: el hook es un symlink que hay que enlazar a mano una vez por clon (`CONTRIBUTING.md`, «Setting up»); sin él, `BUILD` se queda quieto y `npm run check`/CI lo detectan igual que cualquier fuente desincronizada. El hook también reconstruye (`npm run build`) y valida sintaxis (`node --check`) antes de dejar pasar el commit.
 - **`VERSION`** (mismo archivo): versión semántica del release (`1.4.0`, sin `v`). Marcador `const VERSION = "{{VERSION}}";` que `build.js` sustituye por `package.json.version` AL CONSTRUIR (mismo mecanismo que `{{STYLES}}`/`{{SCRIPTS}}`) — a diferencia de `BUILD`, que el hook reescribe ANTES de invocar `build.js`. Cadencia: `VERSION` solo al preparar release (bump manual), `BUILD` en cada commit que toque `src/`. `package.json` es la ÚNICA fuente de la versión.
 
 Proceso de release (creación del Release en sí sigue siendo decisión humana, no automatizada):
