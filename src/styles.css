@@ -699,7 +699,11 @@
   .base-del { font-size: 15px; }
   .base-del:hover { color: var(--danger); }
   /* «+ Añadir capa…» closes the list, below the last row */
-  .base-add { display: block; width: 100%; margin: 8px 0 2px; font: inherit; }
+  /* Footer of the base-map list: «+ Añadir capa…» takes the width, the 💾
+     (save the configuration, 11-base-panel.js) sits at its right */
+  .base-foot { display: flex; gap: 6px; align-items: stretch; margin: 8px 0 2px; }
+  .base-add { flex: 1 1 auto; font: inherit; }
+  .base-save { flex: none; font: inherit; padding: 2px 8px; }
 
   /* Celdas de la cuadrícula de elevaciones */
   .elev-cell {

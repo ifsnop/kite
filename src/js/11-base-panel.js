@@ -142,7 +142,11 @@ function renderBasePanel() {
     if (sel) row.append(sel);
     list.appendChild(row);
   }
-  list.appendChild(buildAddUserBaseButton());
+  /* Footer: «+ Añadir capa…» and the 💾 that saves the whole configuration */
+  const foot = document.createElement("div");
+  foot.className = "base-foot";
+  foot.append(buildAddUserBaseButton(), buildSaveBasesButton());
+  list.appendChild(foot);
 }
 
 /* Primera fila del panel, antes de cualquier capa: el color que se ve
@@ -661,6 +665,156 @@ function buildAddUserBaseButton() {
     : tr("Añadir un servidor de teselas o WMS propio como capa base");
   b.addEventListener("click", () => openUserBaseDialog(null));
   return b;
+}
+
+/* ---------- Saving and loading the configuration of the base layers ----------
+   Requested: the stacking order, which layers are on, their opacity, the
+   chosen WMS layer, the user's own servers and the background colour, in a
+   file (💾 at the bottom of the list), loaded back by dropping that file on
+   the navigation panel (handleDroppedFiles, 33-kml-import.js). The Copernicus
+   credential never travels (it is secret, kept in the browser only).
+   Decided with the user: loading APPLIES the file without deleting anything.
+   Its own layers are added, and one with the same type and address is
+   reused; the user's own layers that the file does not name stay, switched
+   off and at the end. A server that did not exist in this browser arrives
+   SWITCHED OFF and the notice names it (the rule of arcgis.md: opening
+   someone else's file must not contact a server they chose). The pure part
+   (`basesExportDoc`, `parseBasesExport`, `planBasesImport`) is tested in
+   tests/basesexport.js. */
+const BASES_EXPORT_KIND = "kite-local/bases";
+const BASES_EXPORT_FORMAT = 1;
+const HEX_COLOR_RE = /^#[0-9a-f]{6}$/i;
+const BASES_WMS_LAYER_MAX = 200;
+
+/* `entries`: [[id, { on, opacity, wmsLayer }]] in stacking order (the
+   bottom first, as baseState keeps them); `users`: the user records */
+function basesExportDoc(entries, users, background, generator, when) {
+  const bases = {};
+  for (const [id, st] of entries) {
+    bases[id] = { on: !!st.on, opacity: st.opacity };
+    if (st.wmsLayer) bases[id].wmsLayer = st.wmsLayer;
+  }
+  return { app: BASES_EXPORT_KIND, format: BASES_EXPORT_FORMAT, generator, exported: when,
+    background, order: entries.map(([id]) => id), bases, userBases: users.map(u => ({ ...u })) };
+}
+function parseBasesExport(text) {
+  let doc;
+  try { doc = JSON.parse(text); } catch { return null; }
+  return doc && typeof doc === "object" && doc.app === BASES_EXPORT_KIND ? doc : null;
+}
+
+/* What loading `doc` would do, from what there is now (`current`: the ids of
+   the fixed layers, the user records, the cap and an id generator). Foreign
+   input: every value is checked on its own and anything unknown dropped. */
+function planBasesImport(doc, { fixedIds, users, max, newId }) {
+  if (!doc || doc.format !== BASES_EXPORT_FORMAT) {
+    throw new Error(tr("el archivo es de otra versión del formato ({format})", { format: String(doc && doc.format) }));
+  }
+  const idMap = new Map(fixedIds.map(id => [id, id]));
+  const add = [], reused = [], taken = new Set(users.map(u => u.id));
+  let skipped = 0, count = users.length;
+  const same = (a, b) => a.type === b.type && a.url === b.url && !!a.tms === !!b.tms;
+  for (const item of Array.isArray(doc.userBases) ? doc.userBases : []) {
+    const rec = item && typeof item === "object" && typeof item.id === "string" ? userBaseRecord(item.id, item) : null;
+    if (!rec) { skipped++; continue; }
+    if (idMap.has(rec.id)) continue; /* repeated in the file */
+    const existing = users.find(u => same(u, rec));
+    if (existing) { idMap.set(rec.id, existing.id); reused.push(existing); continue; }
+    const twin = add.find(a => same(a, rec));
+    if (twin) { idMap.set(rec.id, twin.id); continue; }
+    if (count >= max) { skipped++; continue; }
+    const id = taken.has(rec.id) || fixedIds.includes(rec.id) ? newId() : rec.id;
+    taken.add(id);
+    count++;
+    add.push({ ...rec, id });
+    idMap.set(rec.id, id);
+  }
+  const order = [];
+  for (const fid of Array.isArray(doc.order) ? doc.order : []) {
+    const id = typeof fid === "string" ? idMap.get(fid) : undefined;
+    if (id && !order.includes(id)) order.push(id);
+  }
+  const bases = {};
+  const src = doc.bases && typeof doc.bases === "object" ? doc.bases : {};
+  for (const fid of Object.keys(src)) {
+    const id = idMap.get(fid), r = src[fid];
+    if (!id || !r || typeof r !== "object") continue;
+    const out = {};
+    if (typeof r.on === "boolean") out.on = r.on;
+    if (Number.isFinite(r.opacity)) out.opacity = Math.min(1, Math.max(0, r.opacity));
+    if (typeof r.wmsLayer === "string" && r.wmsLayer && r.wmsLayer.length <= BASES_WMS_LAYER_MAX) out.wmsLayer = r.wmsLayer;
+    bases[id] = out;
+  }
+  /* A server new to this browser arrives switched off */
+  const switchedOff = [];
+  for (const rec of add) {
+    if (bases[rec.id] && bases[rec.id].on) { bases[rec.id].on = false; switchedOff.push(rec.name); }
+  }
+  const background = typeof doc.background === "string" && HEX_COLOR_RE.test(doc.background) ? doc.background.toLowerCase() : null;
+  return { add, reused, idMap, order, bases, background, skipped, switchedOff };
+}
+
+/* 💾: the whole configuration to a file */
+function exportBasesConfig() {
+  const doc = basesExportDoc([...baseState.entries()], userBaseStates().map(st => st.def.user), mapBgColor,
+    `KITE Local ${BUILD}`, new Date().toISOString());
+  const stamp = new Date().toISOString().slice(0, 10).replace(/-/g, "");
+  downloadBlob(new Blob([JSON.stringify(doc, null, 1)], { type: "application/json" }), `capas-base-${stamp}${EXPORT_EXT}`);
+}
+function buildSaveBasesButton() {
+  const label = tr("Guardar la configuración de las capas");
+  const b = document.createElement("button");
+  b.type = "button";
+  b.className = "btn base-save";
+  b.textContent = "💾";
+  b.title = tr("Guardar la configuración de las capas (orden, activación, opacidad, capas propias y color de fondo) en un archivo; para cargarla, arrástrelo al panel de navegación");
+  b.setAttribute("aria-label", label);
+  b.addEventListener("click", exportBasesConfig);
+  return b;
+}
+
+/* Dropping such a file on the navigation panel (33-kml-import.js) */
+function applyBasesImport(doc, fileName) {
+  let plan;
+  try {
+    plan = planBasesImport(doc, {
+      fixedIds: [...baseState.values()].filter(st => !st.def.user).map(st => st.def.id),
+      users: userBaseStates().map(st => st.def.user), max: USER_BASES_MAX,
+      newId: () => "u" + newStoreId().slice(0, 12)
+    });
+  } catch (err) {
+    navMessage(tr("No se pudo cargar la configuración de capas de «{name}»: {reason}.", { name: fileName, reason: err.message }));
+    return;
+  }
+  for (const rec of plan.add) addUserBaseLayer(rec);
+  /* The user's own layers the file does not name: kept, off, at the end
+     (applySavedBases appends the ids missing from the order) */
+  const named = new Set([...plan.order, ...Object.keys(plan.bases)]);
+  for (const st of userBaseStates()) if (!named.has(st.def.id)) st.on = false;
+  applySavedBases({ order: plan.order, bases: plan.bases });
+  for (const [id, st] of baseState) {
+    const src = dynSource(st.def);
+    if (st.on && src && src.blocked && src.blocked()) st.on = false; /* Copernicus without a credential */
+    if (st.layer) st.layer.setZIndex(st.zIndex);
+    applyBaseLayer(id);
+  }
+  if (plan.background) {
+    setMapBackground(plan.background);
+    dbSaveMapBackground(plan.background).catch(() => { /* the next change saves it */ });
+  }
+  renderBasePanel();
+  scheduleBaseSave();
+  saveUserBases();
+  navMessage(tr("Configuración de capas cargada de «{name}»: {added} capa(s) propia(s) añadida(s), {reused} ya existía(n).",
+    { name: fileName, added: plan.add.length, reused: plan.reused.length }), { tone: "info" });
+  if (plan.switchedOff.length) {
+    navMessage(tr("Llegan apagadas porque su servidor no se había usado en este navegador: {names}. Actívelas en el panel de mapas base si se fía de ellas.",
+      { names: plan.switchedOff.join(", ") }), { tone: "info", sticky: true });
+  }
+  if (plan.skipped) {
+    navMessage(tr("{n} capa(s) propia(s) del archivo no se han cargado: no son válidas o se ha llegado al máximo de {max}.",
+      { n: plan.skipped, max: USER_BASES_MAX }));
+  }
 }
 
 /* ---------- Tiles a user's server does not deliver ----------

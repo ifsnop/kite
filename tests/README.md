@@ -783,6 +783,16 @@ VIEW KEYS TESTS OK
 
 **Qué cubre:** Las piezas puras del teclado del visor (`70-view-controls.js`). `keyPanSpeed`: una flecha arranca ya a la velocidad base (sin pausa), constante hasta el umbral de aceleración, rampa lineal hasta el tope y nunca por encima; un tiempo negativo (marca de fotograma anterior al keydown) no la frena. `keyPanVector`: → es x positiva y ↑ y negativa (pantalla), dos flechas dan diagonal, opuestas se anulan, Mayús multiplica y una tecla que no es flecha no mueve nada. `keyZoomTarget`: un toque es ±1 nivel entero, mantenido sigue hasta el entero siguiente en la dirección del zoom (no vuelve atrás), ya en un entero se queda, desde un zoom fraccionario va al entero vecino (no a ±1 del fraccionario) y no se pasa del máximo ni del mínimo. `wheelLevels`: una muesca hacia arriba (100 px) acerca un nivel y una de 120 px hacia abajo aleja uno, no más; un delta pequeño de panel táctil da una fracción; rueda en modo líneas o páginas, como mucho un nivel por evento; sin delta vertical, nada. `wheelZoomTarget`: acercando va al entero siguiente y alejando al anterior, ya en un entero se queda (tres muescas = tres niveles), subir y bajar lo mismo deja donde estaba (sin el ±1 de las teclas) y no sale de [min, max].
 
+### `basesexport.js`
+
+**Salida de `npm test`:**
+```
+── Configuración de las capas base en un archivo: lo que lleva (sin credencial), su envoltorio, y la carga como entrada ajena (reutiliza un servidor ya usado, uno nuevo llega apagado, ids traducidos, tope, valores hostiles fuera)
+BASES EXPORT TESTS OK
+```
+
+**Qué cubre:** La parte pura de guardar y cargar la configuración de las capas base (`11-base-panel.js`). **El archivo** (`basesExportDoc`): envoltorio `kite-local/bases` con versión, el orden de apilado, la activación, la opacidad y la capa WMS elegida, las capas propias y el color de fondo, sin rastro de la credencial de Copernicus; `parseBasesExport` reconoce solo ese envoltorio. **La carga** (`planBasesImport`): sin nada de él en el navegador, las dos capas propias se añaden con su id y el servidor que venía activado llega APAGADO y se nombra; una capa fija conserva su activación; un servidor ya presente (mismo tipo y dirección, otro id) se reutiliza traduciendo el id y conserva la activación del archivo; un id ocupado por otro servidor recibe uno nuevo; por encima del máximo se omiten y se cuentan; valores hostiles (activación que no es booleana, opacidad 5 o −2, una capa WMS desmesurada, ids desconocidos, `__proto__`, orden con repetidos y números, un color que no es `#rrggbb`, una dirección sin https, un id inválido, `null`) fuera; otra versión del formato se rechaza.
+
 ### `routing.js`
 
 **Salida de `npm test`:**
@@ -1509,3 +1519,13 @@ BROWSER ROUTING TESTS OK
 ```
 
 **Qué cubre:** Los itinerarios de punta a punta, con openrouteservice SIMULADO (`page.route`, el fixture con la forma documentada), así que no hacen falta clave ni red y cada petición queda contada. **Sin clave**, «Consultas › Ruta desde aquí / Ruta hasta aquí» y, sobre un marcador, «Itinerario › Desde/Hasta este marcador» salen deshabilitadas con el motivo. **La clave** en Propiedades › Fuentes de datos, con la dirección del servicio debajo y nada de ella en Preferencias: Cancelar no la guarda, una mal formada se rechaza con aviso, Aceptar la guarda en IndexedDB y habilita las entradas. **El diálogo**: «Desde este marcador» lo abre con el nombre del marcador y Calcular deshabilitado con su motivo; «Ruta hasta aquí» pone coordenadas; «Elegir en el mapa» y un clic REAL sobre otro marcador lo toma y suelta la herramienta; ⇅ intercambia; Escape deja de elegir sin cerrar el diálogo; un texto que no son coordenadas se marca en rojo y unas coordenadas escritas valen. **Calcular**: «Itinerarios › Itinerario 1 — A pie · … · 2 min», la vista quieta, un aviso que dice dónde está, UNA petición GET con la clave, origen y destino en lon,lat y el modo, sin cabeceras propias, la ficha con el resumen y la atribución. **Fallos**: 403, 404 con código 2009 y 429 avisan con su frase sin crear nada ni reintentar; un 503 se reintenta y acaba en el itinerario 2; «Cancelar cálculo» corta una petición colgada sin aviso. **Después**: deshacer quita el último; la clave no está en el árbol guardado; tras recargar vuelven la clave, el itinerario y su atribución; «Restaurar» borra la clave. Sin errores de página ni violaciones de la CSP.
+
+### `browser/bases-export.mjs`
+
+**Salida de `npm test`:**
+```
+── Navegador: guardar y cargar la configuración de las capas base — 💾 al pie de la lista descarga orden, activación, opacidad, capas propias y color de fondo sin credencial; soltar el archivo en el panel de navegación lo aplica sin borrar nada (un servidor nuevo llega apagado y se nombra, lo no nombrado se queda apagado al final), cargarlo otra vez no duplica, y todo sigue tras recargar
+BROWSER BASES EXPORT TESTS OK
+```
+
+**Qué cubre:** De punta a punta, con los servidores propios simulados (`page.route`). Con una capa propia activada, la ortofoto al 40 % y arriba del todo y un fondo `#112233`: el 💾 está al pie de la lista, junto a «+ Añadir capa…», con su nombre y el `title` que dice cómo cargarla; la descarga real se llama `capas-base-AAAAMMDD.kite.json` y lleva orden, activación, opacidad, la capa propia y el fondo, sin credencial. Se cambia todo (se borra la capa propia, se añade otra, OpenStreetMap apagado, opacidad y fondo distintos) y se suelta el archivo (`handleDroppedFiles`): las capas fijas y el fondo vuelven, el servidor borrado vuelve APAGADO y nombrado en un aviso, la capa que el archivo no nombra se queda apagada y al final, el resto en el orden del archivo, un aviso resume lo cambiado y nada entra en el árbol. Soltarlo otra vez reutiliza el servidor sin duplicarlo y sigue la activación del archivo. Tras recargar, todo sigue igual. Sin errores de página ni violaciones de la CSP.
