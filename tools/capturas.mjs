@@ -454,6 +454,29 @@ scenario("mapas-base.png", "4.1", async out => {
   await ctx.close();
 });
 
+/* The bottom of the base-map list: «+ Añadir capa…» and the 💾 that saves the
+   whole configuration to a file (with a user layer in the list, to show what
+   travels) */
+scenario("mapas-base-guardar.png", "4.1", async out => {
+  const { ctx, page } = await openApp({ viewport: { width: 1440, height: 1200 } });
+  await sierra(page);
+  /* switched off: the example address answers nothing and would show «(sin respuesta)» */
+  await page.evaluate(() => {
+    const id = createUserBase({ type: "tiles", name: "Caché de OpenStreetMap", url: "https://mi-cache.ejemplo.org/tiles/" });
+    baseState.get(id).on = false;
+    applyBaseLayer(id);
+    renderBasePanel();
+  });
+  await page.click(".base-toggle");
+  await page.waitForSelector(".base-list:not([hidden])");
+  await page.evaluate(() => { const l = document.querySelector(".base-list"); l.scrollTop = l.scrollHeight; });
+  await page.locator(".base-save").hover();
+  await page.waitForTimeout(400);
+  const b = await page.locator(".base-box").boundingBox();
+  await page.screenshot({ path: out, clip: clip(b.x - 6, b.y + b.height - 260, b.width + 12, 266) });
+  await ctx.close();
+});
+
 scenario("capa-base-propia.png", "4.1", async out => {
   const { ctx, page } = await openApp();
   await page.click(".base-toggle");

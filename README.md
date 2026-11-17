@@ -578,7 +578,7 @@ Do not use public tile, geocoding or CDN services for sensitive work without an 
   `src/styles.css`, `src/sw.js` and 45 JavaScript files, concatenated into the
   shipped file by `build.js`. The single-file product is the output, not the
   source.
-- **There are automated tests.** 140 suites run against the shipped
+- **There are automated tests.** 142 suites run against the shipped
   file — most under Node, plus a set that drives a real headless browser —
   covering coordinate parsing and formatting, UTM, KML namespaces and
   styles, geometry conversion, serialization, tree navigation and
@@ -607,6 +607,7 @@ Do not use public tile, geocoding or CDN services for sensitive work without an 
 - **Nearby Wikipedia articles** from the context menu: the geotagged articles
   within the current view of a point become «W» markers with a summary and a link to the
   full article.
+- **Base-map configuration to a file**: 💾 at the bottom of the base-map list saves the order, on/off state, opacity, your own servers and the background colour (never the Copernicus credential); dropping the file on the navigation panel applies it without deleting anything, and a server new to this browser arrives switched off.
 - **Itineraries** between two points (openrouteservice, with your own HeiGIT key): by car, bicycle or on foot, with their distance and duration.
 - **Offline reload**: a small service worker keeps the application and its
   pinned libraries, so a discarded tab comes back without a network.

@@ -8,7 +8,7 @@ paths:
 
 ## Mapas base
 
-- **La lista se cierra al actuar fuera** (`closeBasePanelOutside`, `11-base-panel.js`; pedido del usuario: ocupa mucho del visor y tapaba otros diálogos): un `pointerdown` y un `keydown` en `document`, en CAPTURA (los controles de Leaflet detienen `mousedown`/`click`, así que el mapa nunca los vería), la ocultan si el objetivo no está en `.base-box` NI en `#color-picker` (el selector de color cuelga del `<body>` pero nace del botón de color de la primera fila). Escape y Tab/modificadores no pasan por aquí: Escape lo atiende la cadena de `52-measure.js`, que cierra antes lo que tenga encima (el selector de color, los diálogos) y la lista justo antes de herramienta y selección. Probado en `tests/browser/base-panel-close.mjs` (falla sin los dos oyentes).
+- **La lista se cierra al actuar fuera** (`closeBasePanelOutside`, `11-base-panel.js`; pedido del usuario: ocupa mucho del visor y tapaba otros diálogos): un `pointerdown` y un `keydown` en `document`, en CAPTURA (los controles de Leaflet detienen `mousedown`/`click`, así que el mapa nunca los vería), la ocultan si el objetivo no está en `.base-box` NI en una de las partes que cuelgan del `<body>` pero nacen de la lista (`BASE_PANEL_PARTS`: `#color-picker`, del botón de color de la primera fila, and, requested after cancelling «+ Añadir capa…» closed the list, the windows opened from it: `#user-base`, `#user-base-delete` and `#sh-creds`; a window that a list button opens goes in that list). Escape y Tab/modificadores no pasan por aquí: Escape lo atiende la cadena de `52-measure.js`, que cierra antes lo que tenga encima (el selector de color, los diálogos) y la lista justo antes de herramienta y selección. Probado en `tests/browser/base-panel-close.mjs` (falla sin los dos oyentes).
 - **Primera fila: color de fondo del mapa, no una capa**
   (`buildMapBackgroundRow`, `11-base-panel.js`). Es el color DETRÁS de
   las teselas (huecos, borde del mundo — no hay desplazamiento infinito,
@@ -237,3 +237,10 @@ paths:
   `.base-box` es `float: right` de ancho automático, su borde izquierdo
   se desplaza al desplegar `.base-list`. Mismo patrón que `.actions` de
   una fila.
+- **Saving and loading the configuration** (requested; `11-base-panel.js`, «Saving and loading the configuration of the base layers»): 💾 in the footer of the list (`.base-foot`, next to «+ Añadir capa…», `buildSaveBasesButton`) downloads `capas-base-AAAAMMDD.kite.json`, `{ app: "kite-local/bases", format: 1, background, order, bases: { id: { on, opacity, wmsLayer? } }, userBases }` (`basesExportDoc`). **Never the Copernicus credential.** Dropped on the navigation panel, the JSON branch of `handleDroppedFiles` asks `parseBasesExport` before `parseTreeExport` and calls `applyBasesImport`; nothing enters the tree. The 🔗 recognises it too (`sniffJsonKind` → `"bases"`). Decided with the user: loading APPLIES the file without deleting anything (`planBasesImport`, pure, foreign input):
+  - user records go through `userBaseRecord`; one with the same type, address and `tms` as an existing layer is REUSED (its id is translated); a new one keeps its id or gets a fresh one if taken; past `USER_BASES_MAX` it is skipped and counted;
+  - **a server new to this browser arrives SWITCHED OFF** and a sticky notice names it (the rule of `arcgis.md`: someone else's file must not contact a server they chose); fixed layers and reused user layers follow the file;
+  - the user's own layers the file does not name are kept, switched off, at the end (`applySavedBases` appends the ids missing from the order); a blocked source (Copernicus without credential) is switched off as at boot;
+  - `background` only if `#rrggbb` (`setMapBackground` + `dbSaveMapBackground`);
+  - no `pushUndo` (base maps are outside the tree's undo, like deleting a user layer).
+  Tested in `tests/basesexport.js` (pure) and `tests/browser/bases-export.mjs` (real download, drop, reuse, reload).

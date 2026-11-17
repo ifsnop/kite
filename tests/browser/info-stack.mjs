@@ -313,6 +313,31 @@ const after = await page.evaluate(async () => {
 ok(after.shown && after.left === before.left && after.top === before.top && after.width === before.width && after.height === before.height,
   "after a reload the card opens where it was left, with the size it was given: " + JSON.stringify({ before, after }));
 
+/* ---------- 12. A resized card still folds to its tabs, and grows back to the user's size ----------
+   Requested: compact means only the title and the tabs, even when the user
+   gave the card a size; showing a card again (hover, a click on a tab) brings
+   that size back. The size is the inline style the resize handle wrote. */
+const sized = await page.evaluate(() => {
+  const li = n => [...document.querySelectorAll("#tree li")].find(x => x._name === n);
+  showLayerInfo(li("M1"));
+  showLayerInfo(li("M2")); /* an explicit open: M1 goes to the stack as a tab */
+  return { full: descBox.offsetHeight, inline: descBox.style.height };
+});
+const compact = await page.evaluate(() => {
+  collapseLayerInfo();
+  const strip = document.getElementById("desc-stack").getBoundingClientRect(), box = descBox.getBoundingClientRect();
+  return { compact: descBox.classList.contains("info-compact"), h: descBox.offsetHeight, inline: descBox.style.height,
+    below: box.bottom - strip.bottom, resize: getComputedStyle(descBox).resize };
+});
+ok(compact.compact && compact.h < sized.full - 100 && compact.below < 24 && compact.inline === sized.inline,
+  "folded, the resized card shrinks to its title and tabs (nothing below the strip), keeping the user's size for later: " + JSON.stringify({ sized, compact }));
+ok(compact.resize === "none", "and it cannot be resized while folded (the handle would save the folded height)");
+const tab = await page.evaluate(() => { const b = [...document.querySelectorAll("#desc-stack-list .info-tab-btn")].find(x => x.textContent.includes("M1"));
+  const r = b.getBoundingClientRect(); return { x: r.left + r.width / 2, y: r.top + r.height / 2 }; });
+await page.mouse.click(tab.x, tab.y);
+const regrown = await page.evaluate(() => ({ compact: descBox.classList.contains("info-compact"), h: descBox.offsetHeight }));
+ok(!regrown.compact && Math.abs(regrown.h - sized.full) <= 1, "a click on a tab shows its card at the user's size again: " + JSON.stringify(regrown));
+
 ok(errors.length === 0, "no page errors: " + JSON.stringify(errors));
 await ctx.close();
 await browser.close();

@@ -15,7 +15,7 @@ const ok = (c, m) => { if (!c) { console.error("FAIL: " + m); process.exitCode =
 
 /* EXPORT_KIND y EXPORT_EXT viven en otro archivo del script: sin ellos,
    sniffJsonKind no sabría reconocer una carpeta exportada.           */
-const src = constDecl("EXPORT_KIND") + "\n" + constDecl("EXPORT_EXT") + "\n"
+const src = constDecl("EXPORT_KIND") + "\n" + constDecl("EXPORT_EXT") + "\n" + constDecl("BASES_EXPORT_KIND") + "\n"
   + constDecl("safeFileName") + "\n"
   + between("/* ---------- Reconocimiento de lo descargado de una dirección",
             "/* ================= Acciones del panel");
@@ -93,6 +93,8 @@ ok(sniffTextKind('{"type":"Feature","geometry":null}') === "geojson", "un Featur
 ok(sniffTextKind('{"type":"Polygon","coordinates":[]}') === "geojson", "una geometría suelta");
 ok(sniffTextKind('{"type":"Topology","objects":{}}') === "topojson", "TopoJSON");
 ok(sniffTextKind('{"app":"kite-local/tree","nodes":[]}') === "kite", "una carpeta exportada");
+ok(sniffTextKind('{"app":"kite-local/bases","format":1}') === "bases", "una configuración de capas base (💾 del panel de mapas base)");
+ok(downloadFileName("https://x.com/capas", "bases") === "capas.kite.json", "que se guarda como .kite.json, la rama JSON de handleDroppedFiles");
 /* Un JSON que no es ninguno de los nuestros no se cuela */
 ok(sniffTextKind('{"type":"Cualquiera"}') === null, "otro JSON cualquiera no vale");
 ok(sniffTextKind('{"a":1}') === null, "ni un objeto sin type");
@@ -174,7 +176,7 @@ ok(JSON.stringify(Object.keys(URL_KIND_EXT).sort())
   + Object.keys(URL_KIND_EXT).sort() + " vs " + Object.keys(URL_KIND_LABEL).sort());
 /* Y son exactamente los que devuelven los reconocedores (html aparte,
    que es un diagnóstico, no un formato admitido).                   */
-for (const kind of ["kml", "kmz", "gpx", "geojson", "topojson", "kite", "shpzip"]) {
+for (const kind of ["kml", "kmz", "gpx", "geojson", "topojson", "kite", "bases", "shpzip"]) {
   ok(!!URL_KIND_EXT[kind] && !!URL_KIND_LABEL[kind], `${kind} tiene extensión y etiqueta`);
 }
 

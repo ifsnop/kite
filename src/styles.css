@@ -699,7 +699,11 @@
   .base-del { font-size: 15px; }
   .base-del:hover { color: var(--danger); }
   /* «+ Añadir capa…» closes the list, below the last row */
-  .base-add { display: block; width: 100%; margin: 8px 0 2px; font: inherit; }
+  /* Footer of the base-map list: «+ Añadir capa…» takes the width, the 💾
+     (save the configuration, 11-base-panel.js) sits at its right */
+  .base-foot { display: flex; gap: 6px; align-items: stretch; margin: 8px 0 2px; }
+  .base-add { flex: 1 1 auto; font: inherit; }
+  .base-save { flex: none; font: inherit; padding: 2px 8px; }
 
   /* Celdas de la cuadrícula de elevaciones */
   .elev-cell {
@@ -1550,7 +1554,15 @@
   .dlg-pin[aria-pressed="true"] { color: var(--accent); }
   .dlg-pin[aria-pressed="true"] .pin-head { fill: currentColor; }
   .info-tab-btn:focus-visible, .info-tab-pin:focus-visible, .dlg-pin:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
-  #desc-dialog .dlg-box.info-compact { padding-bottom: 10px; }
+  /* Compact = only the title and the tabs, also when the user resized the
+     card (requested). The resize handle writes the size as inline styles,
+     which a plain rule cannot beat: `height: auto !important` folds it to its
+     content while compact, and the inline height (the user's) is untouched,
+     so the card grows back to it as soon as it shows a card again (a layer
+     under the pointer, a click on a tab). No resizing while compact:
+     Chromium's handle writes BOTH sizes, and a sideways tug would save the
+     folded height as the user's. */
+  #desc-dialog .dlg-box.info-compact { padding-bottom: 10px; height: auto !important; min-height: 0 !important; resize: none; }
   .info-compact .dlg-actions { display: none; }
   .info-compact .desc-stack { margin-bottom: 0; border-bottom: 0; }
   @keyframes enter-row { from { opacity: 0; transform: translateY(-3px); } }

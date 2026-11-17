@@ -194,11 +194,17 @@
       "version": "2.6.0",
       "build": "202611161942"
     },
+    "mapas-base-guardar.png": {
+      "sha256": "743681834d364594b7fb47bf1f9c84606b192ce86c746ba2682fb5ff02ce537b",
+      "section": "4.1",
+      "version": "2.6.0",
+      "build": "202611162303"
+    },
     "mapas-base.png": {
       "sha256": "9afb1bc6ffc5ba842e9af842287dd64a3244463be9f0074d91f504f9ed34da56",
       "section": "4.1",
       "version": "2.6.0",
-      "build": "202611161942"
+      "build": "202611162303"
     },
     "medicion-mapa.png": {
       "sha256": "b608c80dc627b3976a9d5111802f24a75571b0855d0b129740938b88d8ace0bc",

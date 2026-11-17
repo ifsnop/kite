@@ -18,6 +18,9 @@
      has no entry).                                                     */
 const WHATS_NEW = [
   { version: "next", items: [
+    N_("La lista de mapas base sigue abierta al añadir, modificar o borrar una capa propia, también al cancelar."),
+    N_("La ficha de información se reduce a sus pestañas aunque se le haya cambiado el tamaño, y lo recupera al volver a enseñar una ficha."),
+    N_("La configuración de los mapas base (orden, activación, opacidad, capas propias y color de fondo) se guarda en un archivo con 💾 y se carga arrastrándolo al panel de navegación."),
     N_("La versión y el enlace a GitHub se ven siempre a la derecha de la línea inferior del mapa, aunque los créditos de los mapas no quepan."),
     N_("Itinerarios entre dos puntos en coche, en bicicleta o a pie, con su distancia y su tiempo, desde el menú del botón derecho y con su clave de openrouteservice (HeiGIT)."),
     N_("Las ventanas, y la ficha que recuerda su sitio, se abren siempre enteras dentro del navegador aunque la ventana sea ahora más pequeña."),

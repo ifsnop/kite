@@ -608,6 +608,10 @@ async function handleDroppedFiles(files, insertBefore, dropTargetUl = null) {
         /* The JSON family is told apart by its shape, not its extension:
            an exported tree, a TopoJSON topology and plain GeoJSON can all
            arrive with the same .json extension.                        */
+        /* A configuration of the base layers (💾 of the base-map list,
+           11-base-panel.js): applied to the panel, nothing enters the tree */
+        const basesDoc = parseBasesExport(content);
+        if (basesDoc) { applyBasesImport(basesDoc, file.name); continue; }
         const exported = parseTreeExport(content);
         if (exported) {
           await importTreeExport(exported, file.name, insertBefore, dropTargetUl);
@@ -727,13 +731,14 @@ navPanel.addEventListener("drop", async e => {
    así que inventarles `.geojson` o `.topojson` no aportaría nada y sí
    daría un nombre que el servidor no puso.                            */
 const URL_KIND_EXT = {
-  kml: ".kml", kmz: ".kmz", gpx: ".gpx", geojson: ".json", topojson: ".json", kite: EXPORT_EXT,
+  kml: ".kml", kmz: ".kmz", gpx: ".gpx", geojson: ".json", topojson: ".json", kite: EXPORT_EXT, bases: EXPORT_EXT,
   shpzip: ".zip"
 };
 /* Lo que se le dice al usuario que ha llegado */
 const URL_KIND_LABEL = {
   kml: "KML", kmz: tr("KMZ (KML comprimido)"), gpx: "GPX", geojson: "GeoJSON", topojson: "TopoJSON",
-  kite: tr("carpeta exportada de KITE (.kite.json)"), shpzip: tr("shapefile comprimido (.zip)")
+  kite: tr("carpeta exportada de KITE (.kite.json)"), bases: tr("configuración de capas base de KITE (.kite.json)"),
+  shpzip: tr("shapefile comprimido (.zip)")
 };
 
 /* Nombre de archivo que sugiere una dirección: el último segmento de su
@@ -767,6 +772,7 @@ const GEOJSON_DOC_TYPES = new Set([
 function sniffJsonKind(doc) {
   if (!doc || typeof doc !== "object") return null;
   if (doc.app === EXPORT_KIND && Array.isArray(doc.nodes)) return "kite";
+  if (doc.app === BASES_EXPORT_KIND) return "bases";
   if (doc.type === "Topology") return "topojson";
   if (GEOJSON_DOC_TYPES.has(doc.type)) return "geojson";
   return null;
