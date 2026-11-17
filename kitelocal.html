@@ -1635,7 +1635,15 @@
   .dlg-pin[aria-pressed="true"] { color: var(--accent); }
   .dlg-pin[aria-pressed="true"] .pin-head { fill: currentColor; }
   .info-tab-btn:focus-visible, .info-tab-pin:focus-visible, .dlg-pin:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
-  #desc-dialog .dlg-box.info-compact { padding-bottom: 10px; }
+  /* Compact = only the title and the tabs, also when the user resized the
+     card (requested). The resize handle writes the size as inline styles,
+     which a plain rule cannot beat: `height: auto !important` folds it to its
+     content while compact, and the inline height (the user's) is untouched,
+     so the card grows back to it as soon as it shows a card again (a layer
+     under the pointer, a click on a tab). No resizing while compact:
+     Chromium's handle writes BOTH sizes, and a sideways tug would save the
+     folded height as the user's. */
+  #desc-dialog .dlg-box.info-compact { padding-bottom: 10px; height: auto !important; min-height: 0 !important; resize: none; }
   .info-compact .dlg-actions { display: none; }
   .info-compact .desc-stack { margin-bottom: 0; border-bottom: 0; }
   @keyframes enter-row { from { opacity: 0; transform: translateY(-3px); } }
@@ -4073,6 +4081,7 @@ registerLang("en", "English", {
   "La vista es más grande de lo que Wikipedia permite buscar: se han buscado los artículos a menos de {distance} del punto.": "The view is larger than Wikipedia can search: articles were searched within {distance} of the point.",
   "No se pudo obtener el resumen de {n} artículo(s) ({reason}): solo llevan el enlace.": "Could not get the summary of {n} article(s) ({reason}): they only carry the link.",
   /* 68-whats-new.js */
+  "La ficha de información se reduce a sus pestañas aunque se le haya cambiado el tamaño, y lo recupera al volver a enseñar una ficha.": "The info card folds to its tabs even after it was resized, and gets its size back when it shows a card again.",
   "La configuración de los mapas base (orden, activación, opacidad, capas propias y color de fondo) se guarda en un archivo con 💾 y se carga arrastrándolo al panel de navegación.": "The base-map configuration (order, on/off, opacity, your own layers and background colour) is saved to a file with 💾 and loaded by dragging it onto the navigation panel.",
   "La versión y el enlace a GitHub se ven siempre a la derecha de la línea inferior del mapa, aunque los créditos de los mapas no quepan.": "The version and the GitHub link are always shown at the right of the map’s bottom line, even when the maps’ credits do not fit.",
   "Itinerarios entre dos puntos en coche, en bicicleta o a pie, con su distancia y su tiempo, desde el menú del botón derecho y con su clave de openrouteservice (HeiGIT).": "Itineraries between two points by car, by bicycle or on foot, with their distance and time, from the right-click menu and with your openrouteservice (HeiGIT) key.",
@@ -5969,7 +5978,7 @@ map.on("resize rotate", fitWorldMinZoom);
 
 /* Fecha de generación del código (versión): AÑOMESDIAHORAMINUTO.
    Actualizar en cada generación; se muestra junto al crédito de Leaflet. */
-const BUILD = "202611171643";
+const BUILD = "202611171644";
 /* Versión de release (la de package.json, horneada aquí por build.js
    al construir — ver «Versión y releases de GitHub» en CLAUDE.md): a
    diferencia de BUILD, que cambia en CADA generación, esta solo cambia
@@ -29756,6 +29765,7 @@ async function queryWikipediaAt(latlng) {
      has no entry).                                                     */
 const WHATS_NEW = [
   { version: "next", items: [
+    N_("La ficha de información se reduce a sus pestañas aunque se le haya cambiado el tamaño, y lo recupera al volver a enseñar una ficha."),
     N_("La configuración de los mapas base (orden, activación, opacidad, capas propias y color de fondo) se guarda en un archivo con 💾 y se carga arrastrándolo al panel de navegación."),
     N_("La versión y el enlace a GitHub se ven siempre a la derecha de la línea inferior del mapa, aunque los créditos de los mapas no quepan."),
     N_("Itinerarios entre dos puntos en coche, en bicicleta o a pie, con su distancia y su tiempo, desde el menú del botón derecho y con su clave de openrouteservice (HeiGIT)."),
