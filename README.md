@@ -246,6 +246,11 @@ stacking order can be changed:
   row), up to twenty. Each one can be renamed, pointed elsewhere or deleted
   (after a confirmation); they are kept in that browser only and never travel
   with an export or a view link
+- **the whole configuration to a file**: 💾 next to «+» saves the order, which
+  layers are on, their opacity, your own servers and the background colour
+  (never the Copernicus credential) to a `.kite.json`; dropping it on the
+  navigation panel applies it without deleting anything, and a server new to
+  that browser arrives switched off
 
 A base layer whose service stops answering is flagged in the panel, and
 the flag clears by itself when the tiles come back.
@@ -609,6 +614,7 @@ Do not use public tile, geocoding or CDN services for sensitive work without an 
   full article.
 - **Base-map configuration to a file**: 💾 at the bottom of the base-map list saves the order, on/off state, opacity, your own servers and the background colour (never the Copernicus credential); dropping the file on the navigation panel applies it without deleting anything, and a server new to this browser arrives switched off.
 - **Itineraries** between two points (openrouteservice, with your own HeiGIT key): by car, bicycle or on foot, with their distance and duration.
+- **Advanced preferences**: about sixty values that used to be fixed in the code (timeouts, retries, caps against hostile files, hover delays, zoom and keyboard speeds) can be changed in Properties, each bounded, saved only when it differs and back to its default with *Restore*.
 - **Offline reload**: a small service worker keeps the application and its
   pinned libraries, so a discarded tab comes back without a network.
 - **What's new**: a window at startup sums up, in a few plain sentences, what
@@ -629,7 +635,6 @@ The full list, with the ideas that have been proposed (exporting to KMZ and GPX,
   mouse and keyboard.
 - A fully vendored build. Leaflet and JSZip are still loaded from a CDN (the
   service worker only keeps them after a first online visit).
-- More configurable resource limits: only the uncompressed KMZ size and the longest profile are adjustable; the other caps are constants in the source.
 - Crossing the antimeridian: the midpoint and measurements already do, the
   automatic framing and the graticule do not yet.
 - Two placemarks at the same position but different altitudes are still merged
