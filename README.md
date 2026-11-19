@@ -133,7 +133,10 @@ KITE Local does not impose fixed limits on KML file size, imported features or v
   case-, accent- and in-word-insensitive, only the matching rows and the folders
   that hold them stay visible; folders you have never opened are counted without
   being built (a 20,000-layer folder filters instantly, "(37)" next to its name);
-  the × or Esc clears it, Enter and the ↑ ↓ buttons jump between matches
+  several words match along the path («madrid parcela» finds «Parcela 3» inside
+  «Madrid»), a folder that matches shows what it holds, and the typed words are
+  marked in the names; the × or Esc clears it, Enter and the ↑ ↓ buttons jump
+  between matches
 - pan to a node, zoom to a node (a fixed level for a marker; a
   margin-framed fit-to-bounds for a polygon, line or measurement), and fit
   the map to loaded content

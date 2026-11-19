@@ -166,6 +166,16 @@ Con la API de geolocalización del navegador: centrar el mapa en la posición, c
 - **No progress or cancel.** A query is up to 6 sequential requests (one geosearch and five of summaries) and a busy service can add several seconds of retries to each; only the wait cursor shows it. A transient «Consultando Wikipedia…» notice, or cancelling with Escape, would help.
 - **Folders say nothing about where the query was made** («Wikipedia 3»). The clicked coordinates in the folder's description would tell them apart; a place name would need a Nominatim call and was rejected.
 
+### 3.12 Tree search: what the first version leaves out
+
+The panel search matches the NAME of a node, along the path (several words, a folder that matches shows what it holds, the typed words marked). Left out on purpose and recorded here so they are not lost:
+
+- **Searching the attributes or the description.** Possible, behind a box next to the search field (off by default). It means reading the saved card of every layer, and those are the heavy part of a real tree (39 MB of cards in the one measured), so it needs an index built once and kept up to date on rename, import and delete, or it will cost seconds per keystroke on a large tree. The attribute table (`54-attr-table.js`) already filters by value inside one folder; this would be the whole tree.
+- **Selecting all the matches** (a button, or Ctrl+A in the search field) to feed what already exists: zoom with 🔍, switch on with Space, edit several at once, delete. Needs a decision on the matches nobody has built yet (a folder over the 300-row budget): select what is built, or build them.
+- **Operators**: `-word` to exclude and quotes for an exact phrase. Today «a b» means both words anywhere in the name or its path, not the phrase.
+- **Only the first eight words count** (`SEARCH_MAX_TOKENS`, one bit each in a mask) and **at most 1,000 rows are marked** (`FILTER_HIGHLIGHT_MAX`, one `Range` each); the rows past it are still found, just not marked.
+- **A matching folder over the build budget** (300 rows in all, shared with the matches) comes out closed and is built whole when opened; its content is not counted next to its name like the matches inside a closed folder are («(n)»).
+
 ---
 
 ## 4. Descartado a propósito

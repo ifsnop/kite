@@ -17,6 +17,9 @@
      the new version (tests/whatsnew.js fails if package.json's version
      has no entry).                                                     */
 const WHATS_NEW = [
+  { version: "next", items: [
+    N_("El buscador del panel enseña lo que hay dentro de una carpeta que coincide, admite varias palabras (también las de las carpetas de arriba) y marca en cada nombre lo que has escrito.")
+  ] },
   { version: "2.7.0", items: [
     N_("La lista de mapas base sigue abierta al añadir, modificar o borrar una capa propia, también al cancelar."),
     N_("La ficha de información se reduce a sus pestañas aunque se le haya cambiado el tamaño, y lo recupera al volver a enseñar una ficha."),

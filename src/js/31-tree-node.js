@@ -269,7 +269,9 @@ async function ensureMaterialized(li) {
 let treeFilterWanted = null;
 const filterClosed = new Set(); /* carpetas que el usuario cerró a mano con el filtro puesto */
 function expandFolder(li) {
-  return treeFilterWanted ? materializeMatching(li, treeFilterWanted) : ensureMaterialized(li);
+  /* `_fscope` (set by the filter pass): this folder matched, or sits inside
+     one that did, so what it holds is what the user came to see: all of it. */
+  return treeFilterWanted && !li._fscope ? materializeMatching(li, treeFilterWanted) : ensureMaterialized(li);
 }
 /* Una carpeta colapsada (`collapsed`, lo que se guarda) que el filtro enseña
    abierta porque dentro hay coincidencias: clase aparte, que anula el

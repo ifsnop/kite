@@ -394,6 +394,18 @@ scenario("filtro-arbol.png", "2.3", async out => {
   await ctx.close();
 });
 
+/* ===== 2.3 A folder that matches shows what it holds ===== */
+scenario("filtro-arbol-carpeta.png", "2.3", async out => {
+  const { ctx, page } = await openApp();
+  await sierra(page, { expandSensores: true });
+  await page.click("#search-box");
+  await page.keyboard.type("puntos");
+  await page.waitForFunction(() => treeFilter && !filterApplying && treeFilter.raw === "puntos");
+  await stamps(page);
+  await page.screenshot({ path: out, clip: clip(0, 0, 400, VIEW.height) });
+  await ctx.close();
+});
+
 /* ===== 3. El árbol ===== */
 scenario("arbol-estructura.png", "3", async out => {
   const { ctx, page } = await openApp();

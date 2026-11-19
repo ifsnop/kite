@@ -51,6 +51,15 @@ paths:
   ms (ocultar 20 000 filas). **Un árbol con 20 000 filas ya construidas
   ralentiza lo que se construya después** (400 filas: 213 ms frente a 18 ms en
   página limpia; causa sin investigar), otro motivo para no construir de más.
+  **Plan de dos fases** (2026-11-19, varias palabras y carpeta que coincide
+  enseña su contenido): `planRows`/`planRecs` recorren filas y registros
+  pendientes UNA vez (7 ms con 20 000 capas y una letra) y se repiten tras la
+  fase 1, porque las carpetas que ésta construye ya son filas. Medido con
+  20 000 capas pendientes (Chromium sin GPU): «zon» (42 coincidencias, una
+  carpeta de 20 000 que coincide queda cerrada y sin construir) 32 ms, «zona»
+  13, dos palabras 14, «parcela 1» (13 417 coincidencias, sobre el tope) 25,
+  una letra (19 960) 12 y «elemento 19999» (1) 16. El resaltado es un `Range` por
+  fila que se ve, con tope `FILTER_HIGHLIGHT_MAX` (1 000).
   El filtro solo escribe `hidden` donde cambia y cachea la clave normalizada de
   cada fila y registro (`rowKey`/`recKey`); `findMatches` usa una pila de
   cadena compartida (antes copiaba `[...chain, rec]` por registro: 29 ms con

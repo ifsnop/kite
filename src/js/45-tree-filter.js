@@ -1,59 +1,109 @@
-/* ================= Filtro del árbol (buscador del panel) =================
-   Teclear en el buscador deja en el árbol SOLO lo que coincide con lo
-   escrito (sin mayúsculas ni tildes, dentro de las palabras) y los
-   ancestros que lo llevan. Ver tree-navigation-selection.md.
+/* ================= Tree filter (the panel's search box) =================
+   Typing in the box leaves in the tree ONLY what matches (no case, no
+   accents, inside words, several words allowed: see searchTokens in
+   40-panel-actions.js) and the ancestors that lead to it. A folder that
+   matches shows what it holds, one level deep: it is drawn open while the
+   filter lasts, and whatever is inside keeps the state the user left it in.
+   See tree-navigation-selection.md.
 
-   Lo caro era llegar a una coincidencia dentro de una carpeta sin desplegar:
-   sus capas son datos (`li._pending`) y construirlas todas costaba 6,9 s con
-   20 000. Aquí solo se construyen las que coinciden (materializeMatching,
-   31-tree-node.js: 5 ms con 38 coincidencias, 84 ms con 1 000) y, si son más
-   de FILTER_BUILD_MAX, ninguna: la carpeta sale cerrada con «(n)» y se
-   construyen al desplegarla. Encontrarlas es solo recorrer nombres (5 ms
-   con 20 000).
+   The expensive part was reaching a match inside a folder that has never been
+   opened: its layers are data (`li._pending`) and building them all took 6.9 s
+   with 20 000. Building is therefore planned first (planRows/planRecs: one
+   cheap walk over rows AND pending records, 5 ms with 20 000) and done in two
+   phases under ONE budget of FILTER_BUILD_MAX rows:
+     1. the matches and the path to them (materializeMatching, 31-tree-node.js:
+        5 ms with 38 matches, 84 ms with 1 000). Over the budget, nothing: the
+        folder comes out closed with «(n)» and is built when it is opened.
+     2. what each matching folder shows, in document order while budget is
+        left. A folder that does not fit stays closed (`filterNoFit`) and is
+        built whole when it is opened, so one huge folder cannot keep the small
+        matches elsewhere from being seen.
 
-   Lo que el filtro NUNCA toca: `collapsed` (las carpetas se ven abiertas con
-   la clase `filter-open`, que lo anula en el CSS), las casillas ni las capas
-   del mapa. Lo oculto es `li.hidden`, y `isRow` (30-tree-walk.js) lo salta,
-   con lo que el teclado, los rangos y Ctrl+A no aterrizan en una fila que no
-   se ve. Nada de esto se serializa.                                       */
+   What the filter NEVER touches: `collapsed` (folders are drawn open with the
+   class `filter-open`, which the CSS lets override it), the checkboxes and
+   the map layers. What it hides is `li.hidden`, which `isRow`
+   (30-tree-walk.js) skips, so the keyboard, ranges and Ctrl+A never land on a
+   row that cannot be seen. None of this is serialized. The highlight of the
+   typed words uses the CSS Custom Highlight API: ranges over the label's text,
+   no DOM written, so nothing here wakes the observer or races a rename.   */
 const FILTER_BUILD_MAX = 300;
-let treeFilter = null;           /* { raw, term } mientras hay un filtro puesto */
-let filterGen = 0;               /* una pasada en vuelo se abandona si llega otra */
+const FILTER_HIGHLIGHT_MAX = 1000; /* rows highlighted at once: one Range each */
+const F_MATCH = 1, F_BELOW = 2;    /* record flags: it matches / a match is inside it */
+const HL_NAME = "kite-search";
+const canHighlight = typeof CSS !== "undefined" && !!CSS.highlights && typeof Highlight === "function";
+let treeFilter = null;           /* { raw, tokens, all } while a filter is set */
+let filterGen = 0;               /* a pass in flight is dropped when a newer one arrives */
 let filterApplying = false;
-let filterWanted = new WeakMap(); /* caché de UNA pasada: ¿este registro, o algo de dentro, coincide? */
+let filterFlags = new WeakMap();  /* record -> F_MATCH | F_BELOW, from this pass's plan */
+let filterScope = new WeakSet();  /* records phase 2 builds: what a matching folder shows */
+const filterNoFit = new Set();    /* matching folders whose content did not fit the budget */
 let refilterTimer = null;
 const treeFilterEmpty = document.getElementById("tree-filter-empty");
 
-/* ¿Este registro, o algún descendiente, coincide? Es lo que se construye. */
-function recWanted(rec) {
-  let w = filterWanted.get(rec);
-  if (w === undefined) {
-    w = recKey(rec).includes(treeFilter.term) || (!!rec.children && rec.children.some(recWanted));
-    filterWanted.set(rec, w);
-  }
-  return w;
-}
+/* What phase 1 builds, and what the filter lets a folder build when the user
+   opens it: a match, or a record with a match inside. */
+const recWanted = rec => ((filterFlags.get(rec) || 0) & (F_MATCH | F_BELOW)) !== 0;
+const recInScope = rec => filterScope.has(rec);
 
-/* Cuántos registros (a cualquier profundidad) coinciden, sin crear arrays */
-function countMatches(records, term) {
+/* How many pending records match, at any depth (only descends where the plan
+   saw a match below). The «(n)» of a folder that has not been built. */
+function pendingMatches(records) {
   let n = 0;
   for (const r of records) {
-    if (recKey(r).includes(term)) n++;
-    if (r.children) n += countMatches(r.children, term);
+    const f = filterFlags.get(r) || 0;
+    if (f & F_MATCH) n++;
+    if ((f & F_BELOW) && r.children) n += pendingMatches(r.children);
   }
   return n;
 }
 
-/* Las carpetas con registros pendientes, en el orden del documento */
-function collectPending(ul, out) {
+/* The plan for the records of ONE row's `_pending`: flags each record
+   (F_MATCH, F_BELOW: the mask of the ancestors above it travels in `inh`) and
+   collects in `list` the ones the user would SEE if the folder were built as
+   it stands: `showing` says this level is drawn (the parent matches, or is in
+   a matching folder and was left open), `reach` that every record above is in
+   the list too (a record can only be built through its parents).
+   Returns whether a match is here or below. */
+function planRecs(records, inh, showing, reach, ctx, list) {
+  const { tokens, all } = treeFilter;
+  let any = false;
+  for (const rec of records) {
+    const self = tokenMask(recKey(rec), tokens);
+    const match = maskMatches(self, inh, all);
+    if (match) ctx.matches++;
+    if (showing && reach) list.push(rec);
+    const kidsShown = match || (showing && !rec.collapsed);
+    const below = rec.children
+      ? planRecs(rec.children, inh | self, kidsShown, reach && showing, ctx, list) : false;
+    const f = (match ? F_MATCH : 0) | (below ? F_BELOW : 0);
+    if (f) filterFlags.set(rec, f);
+    if (f) any = true;
+  }
+  return any;
+}
+
+/* The same plan over the rows that exist, which carry pending records of
+   their own. `ctx.withMatches`: rows with a match among their pending records
+   (phase 1 builds those); `ctx.shown`: rows with pending records that would be
+   seen, and which ones (phase 2). `ctx.matches` counts pending matches only. */
+function planRows(ul, inh, showing, ctx) {
+  const { tokens, all } = treeFilter;
   for (const li of ul.children) {
     if (li._name === undefined) continue;
-    if (li._pending) out.push(li);
+    const self = tokenMask(rowKey(li), tokens);
+    const match = maskMatches(self, inh, all);
+    const kidsShown = match || (showing && !li.classList.contains("collapsed"));
     const cul = li._isContainer ? nodeUl(li) : null;
-    if (cul) collectPending(cul, out);
+    if (cul) planRows(cul, inh | self, kidsShown, ctx);
+    if (li._pending) {
+      const before = ctx.matches, list = [];
+      planRecs(li._pending, inh | self, kidsShown, true, ctx, list);
+      if (ctx.matches > before) ctx.withMatches.push(li);
+      if (list.length) ctx.shown.push({ li, list });
+    }
   }
-  return out;
 }
+const newPlan = () => ({ matches: 0, withMatches: [], shown: [] });
 
 const setHidden = (li, hide) => { if (li.hidden !== hide) li.hidden = hide; };
 
@@ -75,28 +125,62 @@ function setBadge(li, n) {
   }
 }
 
-/* Una pasada sobre las filas que hay: oculta lo que no coincide, abre (solo a
-   la vista) lo que lleva coincidencias dentro y cuenta. Devuelve si algo se
-   queda a la vista. Solo escribe donde algo cambia: con 20 000 filas
-   construidas, ocultarlas todas medía 134 ms.                           */
-function filterPass(ul, term, st) {
-  let any = false;
+/* One pass over the rows that exist: hides what does not match, draws open
+   (to the eye only) what holds matches, counts, and notes which rows to
+   highlight. `inScope`: the row is inside a folder that matched, so nothing
+   in there is hidden; it stays drawn as the user left it (`collapsed`) unless
+   a match is inside it. Returns bit 1 if something stays visible and bit 2 if
+   a match is here or below (a visible row is not always a match: scope).
+   Only writes where something changes: with 20 000 rows built, hiding them
+   all measured 134 ms.                                                    */
+function filterPass(ul, inh, inScope, st) {
+  const { tokens, all } = treeFilter;
+  let seen = 0;
   for (const li of ul.children) {
-    if (li._name === undefined) { setHidden(li, true); continue; } /* filas de mensaje */
-    const self = rowKey(li).includes(term);
-    if (self) st.matches++;
+    if (li._name === undefined) { setHidden(li, true); continue; } /* message rows */
+    const self = tokenMask(rowKey(li), tokens);
+    const match = maskMatches(self, inh, all);
+    if (match) st.matches++;
+    const shows = match && !filterNoFit.has(li);
     const cul = li._isContainer ? nodeUl(li) : null;
-    const kids = cul ? filterPass(cul, term, st) : false;
-    const pend = li._pending ? countMatches(li._pending, term) : 0;
+    const sub = cul ? filterPass(cul, inh | self, shows || inScope, st) : 0;
+    const pend = li._pending ? pendingMatches(li._pending) : 0;
     st.matches += pend;
-    const visible = self || kids || pend > 0;
+    const deep = (sub & 2) !== 0;
+    const visible = match || inScope || deep || pend > 0;
     setHidden(li, !visible);
-    setFilterOpen(li, visible && kids && !filterClosed.has(li));
+    li._fscope = match || inScope; /* expandFolder: its content is built whole */
+    setFilterOpen(li, visible && !filterClosed.has(li) && (deep || (shows && !!cul)));
     setBadge(li, pend);
-    if (visible) any = true;
+    if (self && visible) st.rows.push(li);
+    if (visible) seen |= 1;
+    if (match || deep || pend > 0) seen |= 2;
   }
-  return any;
+  return seen;
 }
+
+/* Mark the typed words in the labels of the rows that stay (those whose own
+   name holds one). Ranges over the label's text node, nothing written to the
+   DOM. A label that is not just the name (a measurement appends its length)
+   is marked over the name part only. */
+function paintHighlights(rows) {
+  if (!canHighlight) return;
+  const ranges = [];
+  for (const li of rows) {
+    if (ranges.length >= FILTER_HIGHLIGHT_MAX) break;
+    const label = nodeRow(li).querySelector(":scope > label");
+    const node = label && label.firstChild;
+    if (!node || node.nodeType !== 3 || !node.data.startsWith(li._name)) continue;
+    for (const [from, to] of highlightRanges(li._name, treeFilter.tokens)) {
+      const r = document.createRange();
+      r.setStart(node, from);
+      r.setEnd(node, to);
+      ranges.push(r);
+    }
+  }
+  CSS.highlights.set(HL_NAME, new Highlight(...ranges));
+}
+const clearHighlights = () => { if (canHighlight) CSS.highlights.delete(HL_NAME); };
 
 /* Lo oculto no puede quedarse seleccionado: Supr, cortar o arrastrar
    actuarían sobre filas que el usuario no ve. */
@@ -121,33 +205,50 @@ const treeObserver = new MutationObserver(muts => {
 });
 
 async function applyTreeFilter(raw) {
-  const term = normSearch(raw.trim());
-  if (!term) return clearTreeFilter();
+  const text = raw.trim();
+  const tokens = searchTokens(text);
+  if (!tokens.length) return clearTreeFilter();
   const gen = ++filterGen;
-  treeFilter = { raw: raw.trim(), term };
+  treeFilter = { raw: text, tokens, all: tokensAll(tokens) };
   treeFilterWanted = recWanted;
-  filterWanted = new WeakMap();
+  filterFlags = new WeakMap();
+  filterScope = new WeakSet();
+  filterNoFit.clear();
   filterApplying = true;
   try {
     if (rootUl && rootUl.isConnected) {
-      /* Coincidencias dentro de carpetas sin desplegar: se cuentan sin
-         construir y, si caben en el tope, se construyen SOLO ellas */
-      const pend = collectPending(rootUl, []);
-      const counts = pend.map(li => countMatches(li._pending, term));
-      const total = counts.reduce((a, b) => a + b, 0);
-      if (total > 0 && total <= FILTER_BUILD_MAX) {
-        for (let i = 0; i < pend.length; i++) {
-          if (!counts[i]) continue;
-          await materializeMatching(pend[i], recWanted);
+      /* Phase 1: the matches inside folders that were never opened are counted
+         without building and, if they fit the budget, ONLY they get built */
+      let plan = newPlan();
+      planRows(rootUl, 0, false, plan);
+      let spent = 0;
+      if (plan.matches > 0 && plan.matches <= FILTER_BUILD_MAX) {
+        for (const li of plan.withMatches) {
+          await materializeMatching(li, recWanted);
           if (gen !== filterGen) return;
         }
+        spent = plan.matches;
+      }
+      /* Phase 2: what each matching folder shows, with what is left of the
+         budget. Planned again: the folders phase 1 built are rows now and may
+         hold records of their own to show. */
+      plan = newPlan();
+      planRows(rootUl, 0, false, plan);
+      let budget = FILTER_BUILD_MAX - spent;
+      for (const { li, list } of plan.shown) {
+        if (list.length > budget) { filterNoFit.add(li); continue; }
+        budget -= list.length;
+        for (const rec of list) filterScope.add(rec);
+        await materializeMatching(li, recInScope);
+        if (gen !== filterGen) return;
       }
     }
     if (gen !== filterGen) return;
-    const st = { matches: 0 };
-    const any = rootUl && rootUl.isConnected ? filterPass(rootUl, term, st) : false;
+    const st = { matches: 0, rows: [] };
+    const any = rootUl && rootUl.isConnected ? (filterPass(rootUl, 0, false, st) & 1) !== 0 : false;
     dropHiddenSelection();
     searchCount.textContent = String(st.matches);
+    paintHighlights(st.rows);
     treeFilterEmpty.hidden = any;
     if (!any) treeFilterEmpty.textContent = tr("Ninguna coincidencia con «{term}»", { term: treeFilter.raw });
     treeObserver.observe(treeEl, { childList: true, subtree: true });
@@ -168,6 +269,8 @@ async function clearTreeFilter() {
   treeFilterWanted = null;
   filterApplying = false;
   filterClosed.clear();
+  filterNoFit.clear();
+  clearHighlights();
   treeObserver.disconnect();
   for (const li of treeEl.querySelectorAll("li[hidden]")) li.hidden = false;
   for (const li of treeEl.querySelectorAll("li.filter-open")) setFilterOpen(li, false);

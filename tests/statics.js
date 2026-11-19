@@ -184,6 +184,12 @@ const GLOBALS = new Set([
   "cancelAnimationFrame", "clearInterval", "clearTimeout", "encodeURIComponent", "fetch",
   "isFinite", "parseFloat", "parseInt", "requestAnimationFrame",
   "setInterval", "setTimeout",
+  /* `WeakSet`: the records a matching folder builds in the tree filter
+     (45-tree-filter.js), as `WeakMap` already is for their flags.
+     `Highlight`: the CSS Custom Highlight API, which marks the typed words
+     over the labels without writing to the DOM; the code asks for it first
+     (`canHighlight`), so a browser without it just shows no marks.      */
+  "WeakSet", "Highlight",
   /* `Float32Array`: buffer de vértices del quad a pantalla completa del
      efecto de iluminación día/noche (61-daynight.js, WebGL).          */
   "Float32Array",

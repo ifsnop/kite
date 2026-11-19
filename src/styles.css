@@ -21,6 +21,7 @@
     --section-border: light-dark(#b6cde8, #3a536e);
     --danger: light-dark(#b04a3a, #d9705e);
     --danger-soft: light-dark(#fdf1ef, #3d2420);
+    --search-hl: light-dark(#fbe58a, #75621a);      /* the typed words marked in the tree filter */
     --alert: light-dark(#d32f2f, #ff6b61);
     --surface: light-dark(#ffffff, #2f302d);
     --surface-glass: light-dark(rgba(255,255,255,.78), rgba(37,38,36,.78));
@@ -356,6 +357,9 @@
   li.collapsed.filter-open > ul.node-list { display: block; }
   li.collapsed.filter-open > .node-row > .caret { transform: none; }
   .filter-count { color: var(--muted); font-size: 12px; white-space: nowrap; }
+  /* The words typed in the filter, marked over the labels (CSS Custom Highlight
+     API from 45-tree-filter.js: ranges, no elements, so nothing in the DOM). */
+  ::highlight(kite-search) { background-color: var(--search-hl); color: inherit; }
   #tree-filter-empty { margin: 0; padding: 14px 14px 0; color: var(--muted); font-size: 13px; }
   #tree-filter-empty[hidden] { display: none; }
   .caret-spacer { width: 14px; min-width: 14px; }
