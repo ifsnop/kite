@@ -1,8 +1,12 @@
 # KITE Local
 
+**Open any KML. Keep every folder. Nothing leaves your browser.**
+
+*KML Interactive Tree Explorer* is a free, open-source viewer and organizer for **KML, KMZ, GeoJSON, shapefile and GPX** files. It turns the folder structure of your file into a layer tree you can switch on and off, style, filter, measure and export — all in **one HTML file**: no installation, no account, no server, no upload.
+
 ## ▶ [Try it now — ifsnop.github.io/kite](https://ifsnop.github.io/kite/)
 
-Nothing to install, no account, nothing uploaded: open the link and drop a KML or KMZ onto the left panel. No file of your own at hand? Download the [sample KMZ](https://github.com/ifsnop/kite/raw/main/docs/ejemplos/operacion-sierra.kmz) and drop that.
+Open the link and drop a KML or KMZ onto the left panel. No file of your own at hand? Download the [sample KMZ](https://github.com/ifsnop/kite/raw/main/docs/ejemplos/operacion-sierra.kmz) and drop that.
 
 ![Dragging a KMZ onto KITE Local: the folder tree appears, and the layers can be turned off and on from it](media/kite-demo.gif)
 
@@ -10,13 +14,73 @@ Nothing to install, no account, nothing uploaded: open the link and drop a KML o
 [![Release](https://img.shields.io/github/v/release/ifsnop/kite)](https://github.com/ifsnop/kite/releases/latest)
 [![License: AGPL v3](https://img.shields.io/badge/License-AGPL%20v3-blue.svg)](LICENSE)
 
-**KML Interactive Tree Explorer**
+The demo is the application itself, not a hosted service: the page is served from GitHub Pages and everything then runs in your browser. Files you drop onto it are **not uploaded anywhere** — the same guarantee as opening the downloaded file locally.
 
-A privacy-first, browser-based viewer and organizer for **KML, KMZ, GeoJSON, shapefile and GPX** files, Cloud Optimized GeoTIFF orthophotos and ArcGIS map services. It preserves nested KML folder structures as an interactive layer tree, runs from one self-contained HTML file, and keeps imported data inside the user's browser.
+## Why KITE Local
 
-The demo is the application itself, not a hosted service: the page is served from GitHub Pages and everything then runs in the browser. Files dropped onto it are **not uploaded anywhere** — the same guarantee as opening the downloaded file locally.
+- **Your folders stay folders.** The nested `Document` and `Folder` structure of a KML becomes a browsable tree instead of being flattened into geometry layers. One checkbox switches a whole file, a folder, a subtree or a single layer.
+- **Private by design.** Files are read and processed in your browser and the workspace is kept in its local storage. Nothing is sent to an application server. (It does contact third parties when *you* ask it to — map tiles, place search, the optional elevation, Wikipedia and itinerary services — and the [full list](#internet-access-and-privacy) says exactly what and when.)
+- **Nothing to install.** The complete application is one HTML file: download it, double-click it. Served over https it even reloads without a network connection.
+- **No import quotas.** KITE Local sets no limit on file size, feature count or vertex count. A 309 MB KML with 62 000 hidden polygons loads in about 13 seconds and reopens in about 5.
+- **Pick up where you left off.** The tree, its styles, the saved view and your measurements are stored locally, so closing the tab does not mean starting over.
+- **Take your work out again.** Export any folder, file or layer as KML, GeoJSON or a portable `.kite.json`; the current view as a PNG image or a link; a route profile as a PNG image or a CSV file.
 
-> **In short:** if a KML is used as a conventional collection of folders, placemarks, lines and polygons in Google Earth, KITE Local is designed to open it directly while retaining its folder hierarchy. Advanced Google Earth features such as 3D models, tours, screen overlays and network links are outside the current scope; georeferenced ground overlays are supported.
+## What you can do
+
+| | |
+|---|---|
+| **Bring data in** | KML · KMZ (with its ground overlays) · GeoJSON and TopoJSON · GPX · shapefiles (`.shp` or a `.zip`) · Cloud Optimized GeoTIFF orthophotos and elevation models · ArcGIS map services · files from a web address (when the server allows it) |
+| **Organize** | Layer tree with multi-selection, drag and drop, cut/copy/paste, undo/redo, keyboard navigation like a file explorer, and a live filter that keeps only what matches — several words, along the folder path |
+| **Style and edit** | Marker icons, colours and labels; polygon and line styling; drag a vertex, add or delete one; attribute table with sorting, filtering and CSV export; colour layers by attribute |
+| **Measure and analyze** | Geodesic routes and circles, range rings and sectors, a geodesic calculator, terrain and surface elevation queries from public services, route profiles with line of sight, Fresnel zone and obstacles, itineraries between two points (with your own openrouteservice key) |
+| **See it your way** | Several base maps at once with their own opacity, a map you can rotate, graticule and day/night overlay, a light and a dark theme, English and Spanish, and links that share a view |
+| **Spain-specific extras** | IGN and PNOA maps and elevation models, cadastral parcels from the Cadastre, nearby Wikipedia articles |
+
+The [full feature list](#full-feature-list) has every detail.
+
+## Quick start
+
+**Online — nothing to download:** open **[ifsnop.github.io/kite](https://ifsnop.github.io/kite/)** and drag your files onto the left panel. They never leave the browser.
+
+**Your own copy:**
+
+1. Download `kitelocal.html` from the [latest release](https://github.com/ifsnop/kite/releases/latest), or clone this repository:
+
+   ```bash
+   git clone https://github.com/ifsnop/kite.git
+   cd kite
+   ```
+
+2. Open `kitelocal.html` in a modern desktop browser — double-clicking the file is enough.
+3. Drag KML, KMZ, GeoJSON, shapefile, GPX or `.kite.json` files onto the left navigation panel.
+4. Use the retained folder tree to organize, compare, show, hide and style the imported content.
+
+No package manager, web server or build process is required to *use* the viewer. Developing it is another matter: the sources live in `src/` and are concatenated into that file by `build.js` (see the [roadmap](#development-roadmap)), but nobody running the viewer ever needs that step.
+
+Two copies of that file are published, and they are the same application:
+
+- **`kitelocal.html`** — the readable build, with the source and its comments intact. This is the one to download, read or debug.
+- **`kitelocal.min.html`** — a minified derivative, and what the demo link serves: roughly 55 % smaller over the wire (gzip) than the readable build.
+
+When it is served over https (the demo link, or your own server), a third file, **`sw.js`**, lets the page reload **without a network connection**: a small service worker that keeps the app and its pinned, integrity-checked libraries, so a tab the browser discarded comes back with your saved tree. Map tiles, place search and elevation services still need a network; the app says so instead of failing obscurely. Opened by double click (`file://`) no worker is registered and nothing changes. `sw.js` is generated from `src/sw.js` like the other two.
+
+**Found it useful?** A ⭐ on the [repository](https://github.com/ifsnop/kite) helps other people find it, and an [issue](https://github.com/ifsnop/kite/issues) telling us what is missing helps it get better.
+
+## Where it fits
+
+KITE Local does the simple but very common job: **open, organize, compare and measure structured KML content quickly, while keeping it under your control.**
+
+- **Reach for QGIS** for advanced geoprocessing, coordinate reference systems, data editing and cartographic production. General-purpose GIS importers commonly translate KML folders into separate geometry layers or keep the original path only as an attribute; KITE Local keeps the structure visible and directly usable.
+- **Reach for Google Earth** (desktop or web) for a 3D globe, terrain and imagery. KITE Local adds direct file-, folder- and subtree-level visibility controls, needs no application-side upload, and keeps the working tree on your machine.
+- It is a 2D Leaflet viewer. 3D models, tours, screen overlays and network links are outside the current scope (georeferenced ground overlays are supported): see the [supported KML subset](#supported-kml-subset) and the [known limitations](#known-limitations).
+
+## Why this project exists
+
+Google has announced that **as of 25 June 2027 Google Earth Pro for desktop will no longer be available for download** ([Google Earth Help](https://support.google.com/earth/answer/168344?hl=en)).
+
+Many people use that desktop client mainly to open local KML/KMZ files, keep their organization, compare layers, adjust simple styles, add locations and make quick measurements — without installing a full GIS package or uploading data to an application server. KITE Local focuses deliberately on that workflow: if a KML is used as a conventional collection of folders, placemarks, lines and polygons, it is designed to open it directly while retaining its folder hierarchy.
+
+It is an independent AGPL-3.0 project and is **not affiliated with or endorsed by Google, Google Earth, QGIS, OpenStreetMap, Esri, Leaflet, Iconify or Instituto Geográfico Nacional de España**.
 
 ## Documentation
 
@@ -28,51 +92,7 @@ The documents live in [`docs/`](docs/) and are written in Spanish:
 
 For contributors, in English: [**CONTRIBUTING.md**](CONTRIBUTING.md) — reporting a problem, setting up, preparing and testing a change, and translations.
 
-## Why this project exists
-
-Google has announced that new downloads of **Google Earth Pro for desktop will end on 25 June 2027**. Existing installations are expected to continue working, but the desktop client will no longer be the long-term distribution path. Google is directing users towards its web and mobile products.
-
-That transition leaves a practical gap for users who mainly need to open local KML/KMZ files, retain their organization, compare layers, adjust simple styles, add locations and make quick measurements without installing a full GIS package or uploading data to an application server.
-
-KITE Local focuses deliberately on that workflow:
-
-- **Preserve the original nested KML folder hierarchy.** Imported `Document` and `Folder` structures remain a browsable tree instead of being flattened into geometry layers or reduced to metadata.
-- **Control visibility at every level.** Toggle a complete file, folder or subtree with one checkbox, or enable and disable individual layers.
-- **Keep data local.** KML, KMZ and GeoJSON files are read and processed in the browser. They are not uploaded to an application server.
-- **Use one self-contained HTML file.** There is no installer, package manager, compilation step or application backend.
-- **Avoid application-imposed import quotas.** The viewer sets no file-size, feature-count or vertex-count limit; practical capacity is determined by the browser and the user's available memory and storage.
-- **Keep the workspace between sessions.** The tree, its styles, the saved view
-  and the measurements are stored locally through IndexedDB, so closing the tab
-  does not mean starting over.
-- **Take work out again.** Any folder, file or layer can be exported as KML,
-  GeoJSON or a portable `.kite.json` package; the current view, as a PNG image
-  or a link; a route profile, as a PNG image or a CSV file (comma and decimal point in English, semicolon and decimal comma in Spanish).
-
-It is an independent AGPL-3.0 project and is **not affiliated with or endorsed by Google, Google Earth, QGIS, OpenStreetMap, Esri, Leaflet, Iconify or Instituto Geográfico Nacional de España**.
-
-## Key differentiators
-
-### KML hierarchy is a first-class feature
-
-Many KML files are not merely collections of geometries: their nested folders carry operational meaning. KITE Local recreates this hierarchy in the navigation panel and allows each file, folder, subtree and individual layer to be enabled or disabled.
-
-General-purpose GIS importers commonly translate KML folders into separate geometry layers or store the original path as an attribute. KITE Local instead keeps the structure visible and directly usable.
-
-### Local processing and data control
-
-Imported files are parsed locally. Their geometries and workspace remain in the browser and are stored locally through IndexedDB. No application account or backend upload is required.
-
-External requests are still made for libraries, map tiles, WMS imagery and optional place searches; see [Internet access and privacy](#internet-access-and-privacy).
-
-### One portable HTML file
-
-The complete application—interface, styles and program logic—is contained in one HTML file. Download it and open it in a modern browser. No build, installation or server is needed **to use it**. Developing it is another matter: the sources live in `src/` and are concatenated into that file by `build.js` (see the roadmap), but nobody running the viewer ever needs that step.
-
-### No artificial KML import quota
-
-KITE Local does not impose fixed limits on KML file size, imported features or vertices. Actual limits depend on browser capabilities, available RAM, local storage quota and rendering performance.
-
-## Features
+## Full feature list
 
 ### File support
 
@@ -420,95 +440,6 @@ the flag clears by itself when the tiles come back.
   statute miles or nautical miles — the same unit the map labels use
 - persistent measurements stored with the workspace
 
-## Quick start
-
-The fastest way is **[the live demo](https://ifsnop.github.io/kite/)** — nothing to download, and the files still never leave the browser.
-
-To keep a local copy:
-
-1. Download or clone this repository.
-2. Open `kitelocal.html` in a modern desktop browser — double-clicking the file is enough.
-3. Drag KML, KMZ, GeoJSON or `.kite.json` files onto the left navigation panel.
-4. Use the retained folder tree to organize, compare, show, hide and style the imported content.
-
-```bash
-git clone <repository-url>
-cd <repository-directory>
-```
-
-No package manager, web server or build process is required to *use* the viewer. The complete application is distributed as one HTML file.
-
-Two copies of that file are published, and they are the same application:
-
-- **`kitelocal.html`** — the readable build, with the source and its comments intact. This is the one to download, read or debug.
-- **`kitelocal.min.html`** — a minified derivative, and what the demo link serves: roughly 55 % smaller over the wire (gzip) than the readable build.
-
-When it is served over https (the demo link, or your own server), a third file, **`sw.js`**, lets the page reload **without a network connection**: a small service worker that keeps the app and its pinned, integrity-checked libraries, so a tab the browser discarded comes back with your saved tree. Map tiles, place search and elevation services still need a network; the app says so instead of failing obscurely. Opened by double click (`file://`) no worker is registered and nothing changes. `sw.js` is generated from `src/sw.js` like the other two.
-
-## Local persistence and backups
-
-The complete tree is serialized to GeoJSON and saved in the browser using IndexedDB. Imported source files are not required after a successful import. The application also requests persistent browser storage when the browser supports it.
-
-Browser storage is convenient, but it is **not a backup**. It may be cleared by the user, browser policy or storage pressure. Export important folders to `.kite.json` and keep copies outside the browser profile.
-
-To start over, Properties → **Restore** deletes everything the application has saved in the browser (the tree, the copied orthophotos and every setting). A button alone does nothing: it opens a second confirmation, and the page reloads when it is done. The interface language is kept.
-
-## Internet access and privacy
-
-Imported KML/KMZ/GeoJSON content is parsed locally and is **not uploaded to an application server**. The imported geometries and workspace remain in the user's browser.
-
-The current build is not fully offline and makes external requests:
-
-- Leaflet CSS, JavaScript and default marker images, topojson-client and
-  shapefile are loaded from `unpkg.com`, and JSZip from
-  `cdnjs.cloudflare.com`, when the page opens;
-- html2canvas and geotiff.js (`unpkg.com`) and proj4js
-  (`cdnjs.cloudflare.com`) are loaded only the first time they are needed
-  (PNG export, GeoTIFF/COG reading, reprojecting a shapefile `.prj`), with
-  the same pinned version and integrity hash as before;
-- place searches are sent to the public Nominatim service (coordinates typed in the search box are resolved locally and never sent);
-- base-map tiles and WMS images are requested from their respective providers;
-- elevation queries and route profiles are requested from the chosen WCS
-  services (IGN by default, or Digital Earth Africa), and only when you ask
-  for one; a profile is a handful of sequential requests along the route,
-  under the same per-second cap. Digital Earth Africa currently answers
-  Chromium-based browsers (Chrome, Edge…) with 403 Forbidden; it works
-  from Firefox and Safari;
-- the Copernicus DEM base layer, if enabled, is requested from Sentinel Hub
-  with the user's own instance ID;
-- a cadastral parcel is requested from the Spanish Cadastre (INSPIRE WFS), only
-  when you ask for one from the context menu;
-- the Wikipedia articles near a point are requested from the MediaWiki API of
-  `es.wikipedia.org` or `en.wikipedia.org` (the language of the interface),
-  only when you ask for them from the context menu: the coordinates of the
-  click and the radius of the current view (10 m to 10 km), then the ids of the
-  articles found;
-- an itinerary is requested from `api.openrouteservice.org` (HeiGIT) only when
-  you press «Calcular»: your own API key (kept only in your browser, never in
-  an export), the mode and the coordinates of the origin and the destination;
-- an ArcGIS map service you add is asked for its layer list once, and then for
-  the images of the layers you tick, from the address you pasted;
-- a base layer of your own requests its tiles (and, for a WMS, its layer list)
-  from the address you typed. These two are the only servers in this list that
-  the user names.
-
-Material Design marker icons are **embedded in the file** and cost no request at all. They used to be fetched one by one from `api.iconify.design`, which meant 79 simultaneous requests every time the icon picker was opened; past the service's rate limit the icons silently went blank. They are now baked in at build time.
-
-These providers receive ordinary request metadata, and text entered in the place search is sent to Nominatim. The imported KML geometry itself is not sent by the application to these services.
-
-For controlled or offline deployments, vendor the JavaScript, CSS, image and icon dependencies locally, disable or replace the geocoder, and configure approved tile/WMS services.
-
-Opening a URL downloads exactly the address you paste, with no credentials attached, and the content is then processed locally like any dropped file. Nothing is sent anywhere: the download is the only request, and it goes to the server you named.
-
-## Why not just use QGIS or Google Earth on the web?
-
-These tools solve different problems:
-
-- **QGIS** is the better choice for advanced geoprocessing, coordinate reference systems, data editing and cartographic production. KITE Local is optimized for direct viewing and manipulation of the original nested KML tree rather than translating it into GIS layers.
-- **Google Earth** is the better choice for a 3D globe, terrain and imagery. KITE Local provides direct file-, folder- and subtree-level visibility controls, requires no application-side upload, and retains the working tree locally.
-
-KITE Local covers the simpler but common task of opening, organizing, comparing and measuring structured KML content quickly while keeping it under the user's control.
-
 ## Supported KML subset
 
 The viewer handles the core structures used by many conventional KML files:
@@ -571,6 +502,61 @@ The interface is primarily designed for mouse and keyboard use. On a phone it sh
 - Opening a URL only works if that server allows other pages to read it (CORS headers). Most static hosts do; many portals do not, and the browser gives the page no detail about why. For those, download the file and drop it in — the dialog says so when it happens.
 - `.kite.json` is application-specific and currently requires a matching tree schema version.
 - The interface is available in Spanish and English; right-to-left languages are not supported.
+
+## Local persistence and backups
+
+The complete tree is serialized to GeoJSON and saved in the browser using IndexedDB. Imported source files are not required after a successful import. The application also requests persistent browser storage when the browser supports it.
+
+Browser storage is convenient, but it is **not a backup**. It may be cleared by the user, browser policy or storage pressure. Export important folders to `.kite.json` and keep copies outside the browser profile.
+
+To start over, Properties → **Restore** deletes everything the application has saved in the browser (the tree, the copied orthophotos and every setting). A button alone does nothing: it opens a second confirmation, and the page reloads when it is done. The interface language is kept.
+
+## Internet access and privacy
+
+Imported KML/KMZ/GeoJSON content is parsed locally and is **not uploaded to an application server**. The imported geometries and workspace remain in the user's browser.
+
+The current build is not fully offline and makes external requests:
+
+- Leaflet CSS, JavaScript and default marker images, topojson-client and
+  shapefile are loaded from `unpkg.com`, and JSZip from
+  `cdnjs.cloudflare.com`, when the page opens;
+- html2canvas and geotiff.js (`unpkg.com`) and proj4js
+  (`cdnjs.cloudflare.com`) are loaded only the first time they are needed
+  (PNG export, GeoTIFF/COG reading, reprojecting a shapefile `.prj`), with
+  the same pinned version and integrity hash as before;
+- place searches are sent to the public Nominatim service (coordinates typed in the search box are resolved locally and never sent);
+- base-map tiles and WMS images are requested from their respective providers;
+- elevation queries and route profiles are requested from the chosen WCS
+  services (IGN by default, or Digital Earth Africa), and only when you ask
+  for one; a profile is a handful of sequential requests along the route,
+  under the same per-second cap. Digital Earth Africa currently answers
+  Chromium-based browsers (Chrome, Edge…) with 403 Forbidden; it works
+  from Firefox and Safari;
+- the Copernicus DEM base layer, if enabled, is requested from Sentinel Hub
+  with the user's own instance ID;
+- a cadastral parcel is requested from the Spanish Cadastre (INSPIRE WFS), only
+  when you ask for one from the context menu;
+- the Wikipedia articles near a point are requested from the MediaWiki API of
+  `es.wikipedia.org` or `en.wikipedia.org` (the language of the interface),
+  only when you ask for them from the context menu: the coordinates of the
+  click and the radius of the current view (10 m to 10 km), then the ids of the
+  articles found;
+- an itinerary is requested from `api.openrouteservice.org` (HeiGIT) only when
+  you press «Calcular»: your own API key (kept only in your browser, never in
+  an export), the mode and the coordinates of the origin and the destination;
+- an ArcGIS map service you add is asked for its layer list once, and then for
+  the images of the layers you tick, from the address you pasted;
+- a base layer of your own requests its tiles (and, for a WMS, its layer list)
+  from the address you typed. These two are the only servers in this list that
+  the user names.
+
+Material Design marker icons are **embedded in the file** and cost no request at all. They used to be fetched one by one from `api.iconify.design`, which meant 79 simultaneous requests every time the icon picker was opened; past the service's rate limit the icons silently went blank. They are now baked in at build time.
+
+These providers receive ordinary request metadata, and text entered in the place search is sent to Nominatim. The imported KML geometry itself is not sent by the application to these services.
+
+For controlled or offline deployments, vendor the JavaScript, CSS, image and icon dependencies locally, disable or replace the geocoder, and configure approved tile/WMS services.
+
+Opening a URL downloads exactly the address you paste, with no credentials attached, and the content is then processed locally like any dropped file. Nothing is sent anywhere: the download is the only request, and it goes to the server you named.
 
 ## Security notes
 
@@ -741,7 +727,7 @@ Their licenses, attribution requirements, acceptable-use policies and service li
 
 ## Google Earth desktop transition references
 
-- Google Earth Help Community announcement — add the canonical announcement URL when confirmed
+- [Google Earth Help — Update Google Earth Pro](https://support.google.com/earth/answer/168344?hl=en) — Google's own announcement that, as of 25 June 2027, Google Earth Pro for desktop will no longer be available for download
 - [PCWorld coverage of the 25 June 2027 download cutoff](https://www.pcworld.com/article/3186820/you-have-until-2027-to-download-google-earth-pro-do-it-now.html)
 - [Geopera analysis of the desktop transition](https://geopera.com/blog/google-earth-pro-desktop-discontinued)
 
