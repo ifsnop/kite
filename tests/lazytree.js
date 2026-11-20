@@ -109,6 +109,7 @@ const src = [
   fn("runMaterialize"), fn("materializeMatching"), "const partialFolders = new Set();",
   /* el criterio del filtro: la búsqueda lo usa para comparar sin tildes (40-panel-actions.js) */
   constDecl("normSearch"), fn("rowKey"), "const recKeys = new WeakMap();", fn("recKey"),
+  constDecl("SEARCH_MAX_TOKENS"), fn("searchTokens"), fn("tokenMask"), constDecl("tokensAll"), constDecl("maskMatches"),
   "let treeFilterWanted = null;",
   fn("extendBounds"), fn("extendBoundsFromRecords"), fn("subtreeBounds"),
   fn("findMatches"), fn("searchMatches"), fn("resolveMatch"),
@@ -281,6 +282,24 @@ const folderRec = (name, collapsed, children) => ({ t: "folder", name, checked: 
   ok(!!resolved && resolved._name === "needle-aquí", "resolveMatch materializa la cadena y devuelve el <li> real");
   ok(!searchLi._pending, "materializar para llegar al resultado también resuelve el nivel superior");
   searchBox.value = "";
+
+  /* ---------- several words match along the path, pending records included ---------- */
+  const pathLi = makeNode({ name: "path-root", isFolder: true, checked: true });
+  pathLi._pending = [
+    folderRec("Madrid", true, [layerRec("Parcela 3"), folderRec("Sub", true, [layerRec("Parcela 4")])]),
+    layerRec("Parcela 9")
+  ];
+  rootUl.appendChild(pathLi);
+  searchBox.value = "madrid parcela";
+  const byPath = searchMatches().map(m => m.chain.map(r => r.name).join(" > "));
+  ok(JSON.stringify(byPath) === JSON.stringify(["Madrid > Parcela 3", "Madrid > Sub > Parcela 4"]),
+     "«madrid parcela» finds the layers INSIDE «Madrid» (any depth) and not «Parcela 9»: " + JSON.stringify(byPath));
+  searchBox.value = "parcela";
+  ok(searchMatches().length === 3, "one word is the plain «the name holds it»: " + searchMatches().length);
+  searchBox.value = "madrid";
+  ok(searchMatches().length === 1, "a folder that matches alone is one match, not its contents: " + searchMatches().length);
+  searchBox.value = "";
+  rootUl.removeChild(pathLi);
 
   /* ---------- serializeNode sobre pendiente: no crea DOM ---------- */
   const untouched = makeNode({ name: "untouched", isFolder: true, checked: true });

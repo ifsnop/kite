@@ -1,6 +1,6 @@
 {
   "generado": "2026-10-29",
-  "fondo": "OpenStreetMap",
+  "fondo": "liso (--sin-fondo)",
   "images": {
     "anadir-url.png": {
       "sha256": "93667a9ae9a0f16ff56d68731ee6f16142ff67559464d94cfbbc1b0e68aef1ad",
@@ -176,11 +176,17 @@
       "version": "2.7.0",
       "build": "202611171802"
     },
-    "filtro-arbol.png": {
-      "sha256": "60e6d369c792042f9bf8007efc5da330a3d82dc741c87a89d8bbd29a38052b6d",
+    "filtro-arbol-carpeta.png": {
+      "sha256": "7d6296581a8da2ca9304fe9498c3d2e85b5f47986bb87b84177dd9d641415749",
       "section": "2.3",
       "version": "2.7.0",
-      "build": "202611171802"
+      "build": "202611172013"
+    },
+    "filtro-arbol.png": {
+      "sha256": "e9c46823edac43dd0f102b5a679511c597d65a23667829a0b5e7f95032569c9a",
+      "section": "2.3",
+      "version": "2.7.0",
+      "build": "202611172013"
     },
     "itinerario.png": {
       "sha256": "f1d148754b53f40909e1553081f674bc372ca7274af2ab4f3fcf45b0dfc259b8",
@@ -295,7 +301,7 @@
       "sha256": "cac13c3a93e91f9f2c18b34e8d98805e552f2f16d6e7f510c0478dfcd0d8c0e9",
       "section": "2.2",
       "version": "2.7.0",
-      "build": "202611171802"
+      "build": "202611172013"
     },
     "propiedades-ajustes.png": {
       "sha256": "38e6f3585035e989fb406e7b7c9084225db18d79f80b4fe4f23f9306a2a12c45",

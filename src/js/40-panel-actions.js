@@ -28,6 +28,58 @@ function recKey(rec) {
   return e.k;
 }
 
+/* Several words, matched along the path. The typed text splits into words
+   (normalized, no repeats, at most SEARCH_MAX_TOKENS: one bit each in a mask).
+   A node's mask says which words ITS OWN name holds; a node matches when it
+   holds at least one and, together with its ancestors' names, all of them:
+   «madrid parcela» finds «Parcela 3» inside the folder «Madrid». With one
+   word this is the plain «the name contains it» of always.                 */
+const SEARCH_MAX_TOKENS = 8;
+function searchTokens(raw) {
+  const out = [];
+  for (const w of normSearch(raw).split(/\s+/)) if (w && !out.includes(w)) out.push(w);
+  return out.slice(0, SEARCH_MAX_TOKENS);
+}
+function tokenMask(key, tokens) {
+  let m = 0;
+  for (let i = 0; i < tokens.length; i++) if (key.includes(tokens[i])) m |= 1 << i;
+  return m;
+}
+const tokensAll = tokens => (1 << tokens.length) - 1;
+const maskMatches = (self, inh, all) => self !== 0 && (self | inh) === all;
+
+/* Where each word falls in a name as the user wrote it, as merged
+   [start, end) ranges over the ORIGINAL string (the match runs on the
+   normalized one: «Cañada» for «cana» must mark «Caña»). Each original
+   character is normalized on its own, which keeps the two indexes aligned
+   (accents drop out, a character may become none or several).             */
+function highlightRanges(name, tokens) {
+  let norm = "";
+  const starts = [], ends = [];
+  for (let i = 0; i < name.length;) {
+    const cp = name.codePointAt(i);
+    const len = cp > 0xffff ? 2 : 1;
+    const piece = normSearch(name.slice(i, i + len));
+    for (let k = 0; k < piece.length; k++) { starts.push(i); ends.push(i + len); }
+    norm += piece;
+    i += len;
+  }
+  const found = [];
+  for (const t of tokens) {
+    if (!t) continue;
+    for (let at = norm.indexOf(t); at !== -1; at = norm.indexOf(t, at + 1)) {
+      found.push([starts[at], ends[at + t.length - 1]]);
+    }
+  }
+  found.sort((a, b) => a[0] - b[0]);
+  const out = [];
+  for (const r of found) {
+    const last = out[out.length - 1];
+    if (last && r[0] <= last[1]) last[1] = Math.max(last[1], r[1]); else out.push(r);
+  }
+  return out;
+}
+
 /* Recorre TODO el árbol -- filas ya materializadas MÁS registros dentro
    de carpetas pendientes (li._pending), sin materializar nada todavía --
    devolviendo lo que cumpla `matchLi`/`matchRec`. Cada coincidencia
@@ -39,33 +91,44 @@ function recKey(rec) {
    una capa de un tipo dado que ya esté en rootGroup son el MISMO
    recorrido con un predicado distinto — ver resolveRecordLi y
    resolveLayerLi.                                                     */
-function findMatches(matchLi, matchRec) {
+function findMatches(matchLi, matchRec, mask = null) {
   const out = [];
+  /* `mask` ({ li, rec }: a node's own word mask) makes the walk carry the OR
+     of the ancestors' masks and hand it to the predicates as `inh`: it is
+     what lets a name match through the folders above it (searchTokens). The
+     other callers pass none and the predicates ignore the argument. */
+  const maskLi = mask ? mask.li : null;
+  const maskRec = mask ? mask.rec : null;
   /* `path` es UNA pila compartida: solo se copia al encontrar algo (antes se
      copiaba la cadena entera por cada registro, 29 ms con una letra). */
-  const scanRecords = (records, startLi, path) => {
+  const scanRecords = (records, startLi, path, inh) => {
     for (const rec of records) {
       path.push(rec);
-      if (matchRec(rec)) out.push({ startLi, chain: path.slice() });
-      if (rec.children) scanRecords(rec.children, startLi, path);
+      if (matchRec(rec, inh)) out.push({ startLi, chain: path.slice() });
+      if (rec.children) scanRecords(rec.children, startLi, path, maskRec ? inh | maskRec(rec) : 0);
       path.pop();
     }
   };
-  const scanLi = li => {
-    if (matchLi(li)) out.push({ li });
-    if (li._pending) scanRecords(li._pending, li, []);
+  const scanLi = (li, inh) => {
+    if (matchLi(li, inh)) out.push({ li });
+    const down = maskLi && li._name !== undefined ? inh | maskLi(li) : inh;
+    if (li._pending) scanRecords(li._pending, li, [], down);
     const ul = nodeUl(li);
-    if (ul) for (const child of ul.children) scanLi(child);
+    if (ul) for (const child of ul.children) scanLi(child, down);
   };
-  if (rootUl) for (const li of rootUl.children) scanLi(li);
+  if (rootUl) for (const li of rootUl.children) scanLi(li, 0);
   return out;
 }
 function searchMatches() {
-  const term = normSearch(searchBox.value.trim());
-  if (!term) return [];
+  const tokens = searchTokens(searchBox.value.trim());
+  if (!tokens.length) return [];
+  const all = tokensAll(tokens);
+  const liMask = li => (li._name === undefined ? 0 : tokenMask(rowKey(li), tokens));
+  const recMask = rec => tokenMask(recKey(rec), tokens);
   return findMatches(
-    li => li._name !== undefined && rowKey(li).includes(term),
-    rec => recKey(rec).includes(term)
+    (li, inh) => maskMatches(liMask(li), inh, all),
+    (rec, inh) => maskMatches(recMask(rec), inh, all),
+    { li: liMask, rec: recMask }
   );
 }
 /* Materializa la cadena de una coincidencia pendiente hasta obtener su
@@ -83,8 +146,12 @@ async function resolveMatch(match, partial = false) {
        eslabón de la cadena coincide o contiene una coincidencia, así que
        basta construir lo que el filtro quiere de cada nivel y no la
        carpeta entera (6,9 s con 20 000 capas). Sin filtro, todo, como siempre. */
-    await (partial && treeFilterWanted ? materializeMatching(li, treeFilterWanted) : ensureMaterialized(li));
+    const parent = li;
+    await (partial && treeFilterWanted ? materializeMatching(parent, treeFilterWanted) : ensureMaterialized(parent));
     li = rec._li;
+    /* The filter's flags can be older than the typed text (the pause before
+       filtering has not run yet): a link it does not know is built whole. */
+    if (!li && partial) { await ensureMaterialized(parent); li = rec._li; }
     if (!li) return null; /* defensivo: no debería ocurrir */
   }
   return li;
