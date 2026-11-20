@@ -4,15 +4,17 @@
 
 *KML Interactive Tree Explorer* is a free, open-source viewer and organizer for **KML, KMZ, GeoJSON, shapefile and GPX** files. It turns the folder structure of your file into a layer tree you can switch on and off, style, filter, measure and export — all in **one HTML file**: no installation, no account, no server, no upload.
 
-## ▶ [Try it now — ifsnop.github.io/kite](https://ifsnop.github.io/kite/)
-
-Open the link and drop a KML or KMZ onto the left panel. No file of your own at hand? Download the [sample KMZ](https://github.com/ifsnop/kite/raw/main/docs/ejemplos/operacion-sierra.kmz) and drop that.
-
-![Dragging a KMZ onto KITE Local: the folder tree appears, and the layers can be turned off and on from it](media/kite-demo.gif)
-
 [![Tests](https://github.com/ifsnop/kite/actions/workflows/tests.yml/badge.svg)](https://github.com/ifsnop/kite/actions/workflows/tests.yml)
 [![Release](https://img.shields.io/github/v/release/ifsnop/kite)](https://github.com/ifsnop/kite/releases/latest)
 [![License: AGPL v3](https://img.shields.io/badge/License-AGPL%20v3-blue.svg)](LICENSE)
+
+> **Looking for an alternative to Google Earth Pro for desktop?** As of 25 June 2027 Google stops offering it for download ([Google Earth Help](https://support.google.com/earth/answer/168344?hl=en)). KITE Local is built for the everyday KML workflow, in a browser: open your files, keep their folders, compare, style and measure. [Why this project exists →](#why-this-project-exists)
+
+## ▶ [Try it now — ifsnop.github.io/kite](https://ifsnop.github.io/kite/)
+
+Open the link and drop a KML or KMZ onto the left panel. No file of your own at hand? Download the [sample KMZ](https://ifsnop.github.io/kite/docs/ejemplos/operacion-sierra.kmz) (right-click → *Save link as…*) and drop that.
+
+![Dragging a KMZ onto KITE Local: the folder tree appears, and the layers can be turned off and on from it](media/kite-demo.gif)
 
 The demo is the application itself, not a hosted service: the page is served from GitHub Pages and everything then runs in your browser. Files you drop onto it are **not uploaded anywhere** — the same guarantee as opening the downloaded file locally.
 
@@ -63,6 +65,12 @@ Two copies of that file are published, and they are the same application:
 - **`kitelocal.min.html`** — a minified derivative, and what the demo link serves: roughly 55 % smaller over the wire (gzip) than the readable build.
 
 When it is served over https (the demo link, or your own server), a third file, **`sw.js`**, lets the page reload **without a network connection**: a small service worker that keeps the app and its pinned, integrity-checked libraries, so a tab the browser discarded comes back with your saved tree. Map tiles, place search and elevation services still need a network; the app says so instead of failing obscurely. Opened by double click (`file://`) no worker is registered and nothing changes. `sw.js` is generated from `src/sw.js` like the other two.
+
+### Self-hosting on your own server
+
+Copy `kitelocal.min.html` — renamed to `index.html` if you want it at the folder's address — and `sw.js` into the same folder of any static web server (Nginx, Caddy, Apache…) or static host such as GitHub Pages. No backend or Node.js runtime is needed. Serve it over HTTPS (or from `localhost`) to get the offline reload; everything else works over plain HTTP.
+
+The page still loads Leaflet, JSZip and a few other libraries from public CDNs (`unpkg.com`, `cdnjs.cloudflare.com`) and map tiles from their providers, so an air-gapped intranet needs those vendored first: see [Internet access and privacy](#internet-access-and-privacy).
 
 **Found it useful?** A ⭐ on the [repository](https://github.com/ifsnop/kite) helps other people find it, and an [issue](https://github.com/ifsnop/kite/issues) telling us what is missing helps it get better.
 
