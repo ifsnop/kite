@@ -19,7 +19,7 @@ replace names and coordinates, before you upload it.
 If what you hit is a freeze or a slowdown rather than a wrong result, the
 [`debug` branch](https://github.com/ifsnop/kite/tree/debug) carries an
 instrumented build that answers questions a console error cannot — see
-[Diagnosing a freeze or a slowdown](README.md#diagnosing-a-freeze-or-a-slowdown-debug-branch).
+[Diagnosing a freeze or a slowdown](DEVELOPMENT.md#diagnosing-a-freeze-or-a-slowdown-debug-branch).
 Its output pastes straight into an issue.
 
 ## Setting up
@@ -121,7 +121,7 @@ Right-to-left languages are not supported yet. The details are in
 - Say what changed for the user and how it was tested; the CI runs the full
   battery, browser suites included.
 - Releases are prepared by the maintainer (see
-  [Releasing](README.md#releasing) in the README).
+  [Releasing](DEVELOPMENT.md#releasing) in DEVELOPMENT.md).
 
 By contributing you agree that your contribution is licensed under the
 project's [license](LICENSE).

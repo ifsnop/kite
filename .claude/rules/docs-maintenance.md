@@ -2,6 +2,8 @@
 description: Mantenimiento obligatorio de docs/ (manual y estudio de seguridad): cuándo hay captura, cómo se regeneran, qué vigila tests/docs.js, matriz de cobertura y cadencia de revisión.
 paths:
   - "docs/**"
+  - "README.md"
+  - "DEVELOPMENT.md"
   - "tools/capturas.mjs"
   - "tests/docs.js"
 ---
@@ -34,18 +36,30 @@ su motivo. El README («Documentation» y «Still open») y el apartado 1 del
 manual lo enlazan; `tests/docs.js` falla si esos enlaces desaparecen. En cada
 release (B) se relee entero: lo que ya no es cierto se borra.
 
-## `README.md`
+## `README.md` and `DEVELOPMENT.md`
 
-El README (inglés, en la raíz) es el tercer documento que hay que mantener, y el
-que más se desfasa porque nadie lo abre al cambiar código: en octubre de 2026
-decía «twenty JavaScript files» (eran 40), «Fifty-eight suites» (115), que el
-inglés y la exportación a KML estaban *Still open* y que la interfaz «is in
-Spanish». **Cada funcionalidad visible lo actualiza en el mismo cambio** (punto
-14 del checklist de `00-principles.md`): *Features*, *Internet access and
-privacy* si hay un servidor nuevo, *Known limitations* y el *roadmap*.
-`tests/docs.js` comprueba solo lo numérico (el número de suites y el de
-archivos de `src/js` que dice); el resto es revisión. En cada release (B, paso
-nuevo) se relee entero contra el manual.
+The README (English, at the root) is the third document to keep up to date, and
+the one that drifts most because nobody opens it when changing code: in October
+2026 it said «twenty JavaScript files» (there were 40), «Fifty-eight suites»
+(115), that English and the KML export were *Still open* and that the interface
+«is in Spanish». It is now written to be read in thirty seconds (what it is, why,
+how to try it) and keeps the technical reference below that. **Every visible
+feature updates it in the same change** (point 14 of the checklist in
+`00-principles.md`): *Features*, *Internet access and privacy* if there is a new
+server, and *Known limitations*.
+
+**`DEVELOPMENT.md`** (root, English) holds what is for people who work on the
+code and not for people who use it: the *Development roadmap* («Done» / «Still
+open» / «Deliberately not planned»), *Releasing* and *Diagnosing a freeze or a
+slowdown* (the `debug` branch). `CONTRIBUTING.md` and the README link its anchors
+(`#releasing`, `#diagnosing-a-freeze-or-a-slowdown-debug-branch`,
+`#development-roadmap`): moving its sections is safe, renaming those headings is
+not. Like the README it is kept identical on the `debug` branch.
+
+`tests/docs.js` checks only the numbers (the number of suites and of files in
+`src/js`), which now sit in the roadmap of DEVELOPMENT.md: it reads the README and
+DEVELOPMENT.md as one text and fails if either phrase is missing. The rest is
+review. At each release (B, new step) both are reread against the manual.
 
 ## Capturas del manual
 
@@ -159,8 +173,8 @@ volver a pensarlos. Orden obligatorio dentro de cada uno.
    - **Abrir la PNG y mirarla.**
 5. Figura nueva en el manual: bloque `![descripción](img/x.png)` + pie
    `*Figura ?. …*` y renumerar (receta abajo).
-6. ¿Se ve desde fuera (README «Features», «Known limitations», «Still open»)?
-   Actualizar `README.md` (punto 14 del checklist). Si no, anotar «README: sin
+6. ¿Se ve desde fuera (README «Features», «Known limitations»; DEVELOPMENT.md «Still open»)?
+   Actualizar `README.md` y `DEVELOPMENT.md` (punto 14 del checklist). Si no, anotar «README: sin
    cambios» en el resumen.
 7. `node tests/docs.js`, y al final `node tests/run-all.js` completo (principio 6).
    El mensaje del commit dice qué parte de `docs/` se tocó.
@@ -186,7 +200,7 @@ Después de reunir los PR y ANTES de tagear (ver `build-and-release.md`):
      suites: `grep -o '^  \["[^"]*"' tests/run-all.js`). Si no, bullet nuevo.
    - 4.1: si se añadió un servidor o servicio, está descrito (ver el comando de
      servidores en C.3).
-6. Manual: la cabecera lleva la misma versión (`tests/docs.js` lo exige). **README**: releerlo entero contra el manual (qué hace la aplicación, servidores, limitaciones, «Still open») y comprobar que sus cifras siguen siendo ciertas.
+6. Manual: la cabecera lleva la misma versión (`tests/docs.js` lo exige). **README** y **DEVELOPMENT.md**: releerlos enteros contra el manual (qué hace la aplicación, servidores, limitaciones; en DEVELOPMENT.md, «Still open» y los pasos de «Releasing») y comprobar que sus cifras siguen siendo ciertas.
 7. `node tests/docs.js` y `npm run check`. Commit del release (el hook sube
    `BUILD`).
 8. Tag y empuje: `build-and-release.md`.

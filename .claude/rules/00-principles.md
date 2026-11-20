@@ -192,15 +192,17 @@ que quien lea la documentación la encuentre. Aquí no se duplica:
     esté en la chuleta Y en el apartado 8 del manual con las mismas palabras,
     que una **entrada de menú contextual** esté en el apartado 5 y que una
     **ventana nueva** tenga su sitio en el manual (`DIALOG_DOC`).
-14. **Poner al día `README.md`** si la funcionalidad es visible para quien
-    lo lee: *Features* (qué hace, en inglés, una o dos líneas por cosa),
-    *Internet access and privacy* (un servidor nuevo), *Known limitations*
-    (una limitación que aparece o desaparece) y *Development roadmap*
-    («Done» / «Still open»: lo hecho sale de «Still open» y entra en
-    «Done»). El README es lo primero que lee quien llega al repositorio y
-    se había quedado muy por detrás del manual. Las cifras que da (suites, archivos
-    de `src/js`) las vigila `tests/docs.js`. Si el cambio no toca nada de
-    eso, anotarlo en el resumen («README: sin cambios»), como con `docs/`.
+14. **Keep `README.md` and `DEVELOPMENT.md` up to date** if the feature is
+    visible to whoever reads them. README: *Features* (what it does, in English,
+    one or two lines each), *Internet access and privacy* (a new server) and
+    *Known limitations* (one that appears or goes away). DEVELOPMENT.md, the page
+    for people who work on the code: the *Development roadmap* («Done» / «Still
+    open»: what is done leaves «Still open» and goes into «Done»), the release
+    steps and the `debug` branch. The README is the first thing anyone arriving at
+    the repository reads and it had fallen far behind the manual. The two numbers
+    they give (suites, files in `src/js`) live in the roadmap of DEVELOPMENT.md
+    and `tests/docs.js` watches them. If the change touches none of that, say so
+    in the summary («README: sin cambios»), as with `docs/`.
 15. **Pendientes**: si el cambio hace algo que estaba en
     `docs/pendientes-y-propuestas-kite-local.md`, BORRARLO de ahí; si deja una
     deuda a propósito o descubre una limitación, APUNTARLA. Ver el apartado
