@@ -18,7 +18,8 @@
      has no entry).                                                     */
 const WHATS_NEW = [
   { version: "next", items: [
-    N_("El buscador del panel enseña lo que hay dentro de una carpeta que coincide, admite varias palabras (también las de las carpetas de arriba) y marca en cada nombre lo que has escrito.")
+    N_("El buscador del panel enseña lo que hay dentro de una carpeta que coincide, admite varias palabras (también las de las carpetas de arriba) y marca en cada nombre lo que has escrito."),
+    N_("Al quitar la búsqueda, lo que hayas seleccionado entre los resultados se queda a la vista, con sus carpetas desplegadas.")
   ] },
   { version: "2.7.0", items: [
     N_("La lista de mapas base sigue abierta al añadir, modificar o borrar una capa propia, también al cancelar."),

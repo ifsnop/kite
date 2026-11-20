@@ -257,12 +257,32 @@ async function applyTreeFilter(raw) {
   }
 }
 
-/* Quita el filtro y devuelve el árbol tal cual estaba. Las filas construidas
-   se quedan; una carpeta ABIERTA que quedó a medio construir se completa
-   (una abierta con solo parte de sus hijas sería un árbol incorrecto) y una
-   cerrada se completa al desplegarla.                                    */
+/* The folders the filter was showing open that the user's selection needs
+   open: a selected row inside one, or a selected folder shown open itself. A
+   result the user picked must not vanish into a folder that goes back to its
+   saved `collapsed` when the filter goes (the user had it in front of them).
+   Only what the FILTER opened counts (`filter-open`): a folder the user
+   closed by hand with the filter on (filterClosed) stays closed, and a
+   selected row inside a folder that was collapsed all along is not touched. */
+function foldersToKeepOpen() {
+  const keep = new Set();
+  for (const li of selection) {
+    if (li.classList.contains("filter-open")) keep.add(li);
+    for (let p = li.parentElement; p && p !== treeEl; p = p.parentElement) {
+      if (p.tagName === "LI" && p.classList.contains("filter-open")) keep.add(p);
+    }
+  }
+  return keep;
+}
+
+/* Quita el filtro y devuelve el árbol tal cual estaba, salvo lo que la
+   selección necesita a la vista (foldersToKeepOpen: se abre de verdad, y se
+   guarda). Las filas construidas se quedan; una carpeta ABIERTA que quedó a
+   medio construir se completa (una abierta con solo parte de sus hijas sería
+   un árbol incorrecto) y una cerrada se completa al desplegarla.         */
 async function clearTreeFilter() {
   const had = !!treeFilter;
+  const keepOpen = had ? foldersToKeepOpen() : new Set();
   filterGen++;
   clearTimeout(refilterTimer);
   treeFilter = null;
@@ -282,6 +302,12 @@ async function clearTreeFilter() {
   treeFilterEmpty.hidden = true;
   treeFilterEmpty.textContent = "";
   if (!had) return;
+  if (keepOpen.size) {
+    for (const li of keepOpen) { li.classList.remove("collapsed"); syncExpanded(li); }
+    scheduleSave(); /* `collapsed` is what gets saved */
+    const cursor = selCursor && selCursor.isConnected ? selCursor : [...selection][0];
+    if (cursor) nodeRow(cursor).scrollIntoView({ block: "nearest" });
+  }
   for (const li of [...partialFolders]) {
     if (!li.isConnected) { partialFolders.delete(li); continue; }
     if (!li.classList.contains("collapsed")) await ensureMaterialized(li);

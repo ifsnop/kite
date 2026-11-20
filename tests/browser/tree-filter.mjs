@@ -24,7 +24,10 @@
      was saved open is open, what was saved closed stays closed and is built
      whole when opened), and one huge matching folder does not eat the budget
      of the small matches elsewhere (sections 13-15).
-   - The typed words are marked through the CSS Custom Highlight API.      */
+   - The typed words are marked through the CSS Custom Highlight API.
+   - What the user selected among the results stays in view when the filter
+     goes (the folders the FILTER had open, made real and saved); what was not
+     selected, and what the user closed by hand, goes back (section 16).     */
 import { launch, serve, openApp, waitAppReady, reporter, READABLE } from "./_browser.mjs";
 
 const { ok, done } = reporter("BROWSER TREE FILTER TESTS OK");
@@ -364,6 +367,64 @@ const f15 = await page.evaluate(() => ({ rows: __buscar("Cuarto").querySelector(
 ok(f15.rows === N && !f15.collapsed, "al desplegarla se construye entera, sin tope: " + JSON.stringify(f15));
 await page.click("#search-clear");
 await sinFiltro();
+
+/* ---------- 16. What the user selected among the results stays in view when the filter goes ---------- */
+const estado16 = () => page.evaluate(() => ({
+  madrid: __buscar("Madrid").classList.contains("collapsed"),
+  interior: __buscar("Interior").classList.contains("collapsed"),
+  resto: __visibles().includes("Resto"), parcela: __visibles().includes("Parcela 1"),
+  zonaA: __visibles().includes("Zona A"), cursor: selCursor && selCursor._name,
+  guardado: serializeTree()[0].children.find(c => c.name === "Madrid").collapsed }));
+/* Section 14 left «Madrid» open (its selected folder was kept open when the filter went: that is this very rule) */
+await page.evaluate(() => { const m = __buscar("Madrid"); if (!m.classList.contains("collapsed")) m.querySelector(":scope > .node-row > .caret").click(); clearSelection(); });
+ok((await estado16()).madrid, "punto de partida: «Madrid» colapsada y nada seleccionado");
+
+/* A result inside a folder only the filter was showing open */
+await teclear("resto");
+await filtrado("resto");
+await clicRow("Resto");
+await page.click("#search-clear");
+await sinFiltro();
+let k = await estado16();
+ok(!k.madrid && k.resto && k.cursor === "Resto",
+   "el resultado elegido sigue a la vista: su carpeta queda desplegada de verdad: " + JSON.stringify(k));
+ok(k.guardado === false, "y se guarda (collapsed, lo que se serializa): " + k.guardado);
+
+/* A folder that matched and was shown open, selected */
+await page.evaluate(() => { __buscar("Madrid").querySelector(":scope > .node-row > .caret").click(); clearSelection(); });
+ok((await estado16()).madrid, "se vuelve a colapsar «Madrid» a mano");
+await teclear("madrid");
+await filtrado("madrid");
+await clicRow("Madrid");
+await page.click("#search-clear");
+await sinFiltro();
+k = await estado16();
+ok(!k.madrid && k.parcela && k.cursor === "Madrid", "una carpeta elegida que el filtro enseñaba abierta se queda abierta, con su contenido a la vista: " + JSON.stringify(k));
+
+/* What was NOT selected goes back to how it was. «zona c» matches one layer only (the many «Zona E…» do not hold a «c»), so
+   «Interior» is built and shown open by the filter; picking «Datos», which was open all along, must not keep it open */
+await page.evaluate(() => { __buscar("Madrid").querySelector(":scope > .node-row > .caret").click(); clearSelection(); });
+await teclear("zona c");
+await filtrado("zona c");
+ok(await page.evaluate(() => __buscar("Interior").classList.contains("filter-open")), "con el filtro, «Interior» se ve abierta");
+await clicRow("Datos");
+await page.click("#search-clear");
+await sinFiltro();
+k = await estado16();
+ok(k.interior && k.madrid && k.cursor === "Datos",
+   "lo que no se eligió vuelve a su estado: «Interior» y «Madrid» colapsadas: " + JSON.stringify(k));
+
+/* A folder the user closed by hand with the filter on stays closed, even with a result selected inside it */
+await page.evaluate(() => clearSelection());
+await teclear("resto");
+await filtrado("resto");
+await clicRow("Resto");
+await page.evaluate(() => __buscar("Madrid").querySelector(":scope > .node-row > .caret").click());
+ok(await page.evaluate(() => !__buscar("Madrid").classList.contains("filter-open")), "cerrada a mano con el filtro puesto");
+await page.click("#search-clear");
+await sinFiltro();
+k = await estado16();
+ok(k.madrid && !k.resto, "lo cerrado a mano se respeta: " + JSON.stringify(k));
 
 ok(errors.length === 0, "sin errores en consola: " + errors.join(" | "));
 await browser.close();
