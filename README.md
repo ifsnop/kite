@@ -27,18 +27,44 @@ The demo is the application itself, not a hosted service: the page is served fro
 - **Pick up where you left off.** The tree, its styles, the saved view and your measurements are stored locally, so closing the tab does not mean starting over.
 - **Take your work out again.** Export any folder, file or layer as KML, GeoJSON or a portable `.kite.json`; the current view as a PNG image or a link; a route profile as a PNG image or a CSV file.
 
+## See it in action
+
+### Line of sight and Fresnel zone over real terrain
+
+![A route between two points of the Sierra de Guadarrama: its terrain and surface profile, a start–end line between two towers, the Fresnel ellipsoid, the line blocked by a ridge and then cleared by a taller tower, and a red arrow on the map following the pointer over the chart](media/kite-fresnel.gif)
+
+Draw a route and ask for its profile: KITE Local downloads the terrain and the surface model along it from public services (the IGN's, or Digital Earth Africa's for a surface model) and draws them. Put a tower at each end, switch on the start–end line and the Fresnel ellipsoid, and read, at any point of the route, how much clearance there is or which obstacle blocks it (polygons with altitude count as obstacles). Hover the chart and a red arrow follows on the map; the chart exports as a PNG image and its numbers as a CSV file.
+
+*In the clip, the profile is downloaded live from the IGN (MDT05 terrain, MDS surface); a 10 m tower blocks the line at 3 km, a 60 m one clears it and the Fresnel zone still touches the ridge. Manual: [§7.9](docs/manual-usuario-kite-local.md#79-obtener-el-perfil-de-una-ruta)*
+
+### Any GeoTIFF as a map layer
+
+![Dragging a GeoTIFF elevation model of the Sierra de Guadarrama onto the panel: it is drawn with a colour ramp and relief shading over the base map, and the altitude under the pointer is read from the file as it moves](media/kite-geotiff.gif)
+
+Drop a Cloud Optimized GeoTIFF onto the panel: an 8-bit orthophoto, or an elevation model drawn with a colour ramp and relief shading, with the altitude under the pointer read from the file. It is copied into your browser's own storage, so it survives a reload and never leaves it, and only the tiles in view are read and reprojected, so files of hundreds of MB stay usable.
+
+*The clip drops the IGN's MDT25 of the Sierra de Guadarrama (© Instituto Geográfico Nacional de España, CC BY 4.0), downloaded when the clip is made and rebuilt as a COG. Manual: [§7.10](docs/manual-usuario-kite-local.md#710-ver-una-ortofoto-en-cog)*
+
+### Wikipedia articles and itineraries
+
+![Right-clicking the map to bring in the Wikipedia articles around a point as markers, resting on one to read its summary, and asking for an itinerary on foot from that article to another point, drawn on the map with its distance and duration](media/kite-wikipedia.gif)
+
+Right-click the map and the Wikipedia articles around that point appear as markers, each with its summary and a link to the full article. From any marker, or any point, ask for an itinerary by car, by bicycle or on foot, with its distance and duration (openrouteservice, with your own key).
+
+*The articles are asked live from Wikipedia (text under CC BY-SA 4.0). The itinerary in the clip is answered by a stand-in for the openrouteservice response, because a clip cannot use anyone's key; with a key, KITE Local asks the real service. Manual: [§7.17](docs/manual-usuario-kite-local.md#717-consultar-los-artículos-de-wikipedia-de-los-alrededores), [§7.18](docs/manual-usuario-kite-local.md#718-calcular-un-itinerario-entre-dos-puntos)*
+
 ## What you can do
 
 | | |
 |---|---|
-| **Bring data in** | KML · KMZ (with its ground overlays) · GeoJSON and TopoJSON · GPX · shapefiles (`.shp` or a `.zip`) · Cloud Optimized GeoTIFF orthophotos and elevation models · ArcGIS map services · files from a web address (when the server allows it) |
-| **Organize** | Layer tree with multi-selection, drag and drop, cut/copy/paste, undo/redo, keyboard navigation like a file explorer, and a live filter that keeps only what matches — several words, along the folder path |
-| **Style and edit** | Marker icons, colours and labels; polygon and line styling; drag a vertex, add or delete one; attribute table with sorting, filtering and CSV export; colour layers by attribute |
-| **Measure and analyze** | Geodesic routes and circles, range rings and sectors, a geodesic calculator, terrain and surface elevation queries from public services, route profiles with line of sight, Fresnel zone and obstacles, itineraries between two points (with your own openrouteservice key) |
-| **See it your way** | Several base maps at once with their own opacity, a map you can rotate, graticule and day/night overlay, a light and a dark theme, English and Spanish, and links that share a view |
-| **Spain-specific extras** | IGN and PNOA maps and elevation models, cadastral parcels from the Cadastre, nearby Wikipedia articles |
+| **Bring data in** | KML · KMZ (with its ground overlays) · GeoJSON and TopoJSON · GPX · shapefiles (`.shp` or a `.zip`) · Cloud Optimized GeoTIFF orthophotos and elevation models · ArcGIS map services · files from a web address (when the server allows it). Manual: [§7.1](docs/manual-usuario-kite-local.md#71-importar-un-archivo-con-un-polígono-o-cualquier-otro-formato-admitido), [§7.10](docs/manual-usuario-kite-local.md#710-ver-una-ortofoto-en-cog), [§7.16](docs/manual-usuario-kite-local.md#716-ver-un-servicio-de-mapas-arcgis-mapserver) |
+| **Organize** | Layer tree with multi-selection, drag and drop, cut/copy/paste, undo/redo, keyboard navigation like a file explorer, and a live filter that keeps only what matches — several words, along the folder path. Manual: [§3](docs/manual-usuario-kite-local.md#3-el-árbol-de-capas), [§2.3](docs/manual-usuario-kite-local.md#23-buscador-del-árbol), [§7.7](docs/manual-usuario-kite-local.md#77-deshacer-y-rehacer) |
+| **Style and edit** | Marker icons, colours and labels; polygon and line styling; drag a vertex, add or delete one; attribute table with sorting, filtering and CSV export; colour layers by attribute. Manual: [§6](docs/manual-usuario-kite-local.md#6-estilos-de-capa), [§7.4](docs/manual-usuario-kite-local.md#74-personalizar-un-marcador), [§7.15](docs/manual-usuario-kite-local.md#715-ver-los-atributos-de-una-carpeta-y-exportarlos) |
+| **Measure and analyze** | Geodesic routes and circles, range rings and sectors, a geodesic calculator, terrain and surface elevation queries from public services, route profiles with line of sight, Fresnel zone and obstacles, itineraries between two points (with your own openrouteservice key). Manual: [§7.2](docs/manual-usuario-kite-local.md#72-medir-una-distancia-y-un-rumbo), [§7.3](docs/manual-usuario-kite-local.md#73-medir-una-superficie-o-dibujar-una-figura-propia), [§7.13](docs/manual-usuario-kite-local.md#713-dibujar-anillos-de-alcance-y-sectores), [§7.8](docs/manual-usuario-kite-local.md#78-consultar-la-altitud-del-terreno), [§7.9](docs/manual-usuario-kite-local.md#79-obtener-el-perfil-de-una-ruta), [§7.18](docs/manual-usuario-kite-local.md#718-calcular-un-itinerario-entre-dos-puntos) |
+| **See it your way** | Several base maps at once with their own opacity, a map you can rotate, graticule and day/night overlay, a light and a dark theme, English and Spanish, links that share a view, and a page that reloads offline. Manual: [§4.1](docs/manual-usuario-kite-local.md#41-mapas-base), [§4.4](docs/manual-usuario-kite-local.md#44-girar-el-mapa-brújula), [§7.14](docs/manual-usuario-kite-local.md#714-compartir-una-vista-con-un-enlace), [§7.11](docs/manual-usuario-kite-local.md#711-usar-kite-local-sin-conexión) |
+| **Public-data extras (mostly Spain)** | IGN and PNOA maps and elevation models, cadastral parcels from the Spanish Cadastre, nearby Wikipedia articles. Manual: [§7.12](docs/manual-usuario-kite-local.md#712-consultar-una-parcela-catastral), [§7.17](docs/manual-usuario-kite-local.md#717-consultar-los-artículos-de-wikipedia-de-los-alrededores) |
 
-The [full feature list](#full-feature-list) has every detail.
+The **[user manual](docs/manual-usuario-kite-local.md)** (in Spanish) documents every panel, dialog, menu and shortcut ([§8](docs/manual-usuario-kite-local.md#8-atajos-de-teclado)) with screenshots, plus step-by-step recipes for the usual tasks, so this page does not repeat it.
 
 ## Quick start
 
@@ -99,354 +125,6 @@ The documents live in [`docs/`](docs/) and are written in Spanish:
 - [**Pending work and proposals**](docs/pendientes-y-propuestas-kite-local.md) — what is known to be missing and the ideas for developing it further, in a single list.
 
 For contributors, in English: [**CONTRIBUTING.md**](CONTRIBUTING.md) — reporting a problem, setting up, preparing and testing a change, and translations — and [**DEVELOPMENT.md**](DEVELOPMENT.md) — the development roadmap, how a release is cut, and how to diagnose a freeze with the `debug` branch.
-
-## Full feature list
-
-### File support
-
-- KML files, preserving nested `Document` and `Folder` structures
-- KMZ archives, including the images referenced by their ground overlays
-- GeoJSON, TopoJSON and plain JSON
-- GPX: waypoints, routes and tracks (with elevation and times), named from the
-  file's own `<name>`
-- Shapefiles: drop the `.shp` together with its `.dbf`, `.prj` and `.cpg`,
-  or the `.zip` that holds them (one folder per layer). Coordinates are
-  reprojected from the `.prj` with proj4 (ETRS89 UTM, the usual case in
-  Spain; ED50 with the standard peninsular parameters, flagged in the
-  summary). Without a `.prj`, only coordinates already in degrees are
-  accepted. Text encoding comes from the `.cpg`, or is detected (UTF-8,
-  else Windows-1252). Z values are not imported
-- Cloud Optimized GeoTIFF orthophotos (`.tif`, 8-bit RGB or grey) and
-  single-band elevation models (16/32-bit integer or float, drawn with a
-  colour ramp and relief shading, altitude under the cursor): dropped
-  onto the panel, validated, then copied as a Blob into the browser's own
-  IndexedDB store so they survive a reload. Drawn by a custom
-  `L.GridLayer` that reads only the window and overview level each tile
-  needs (geotiff.js `fromBlob`), reprojected per tile through a 16×16
-  proj4 grid (WGS84 UTM any zone north or south, ETRS89 UTM 28–38 (EPSG:258xx and 3040–3050), ED50 UTM
-  28–31, REGCAN95, WGS84, ETRS89, Web Mercator). Not included in `.kite.json` exports or the system
-  clipboard; a deleted one is purged from storage on the next start
-- KITE Local folder exports (`.kite.json`)
-- ArcGIS map services (`MapServer`): see [ArcGIS map services](#arcgis-map-services)
-- drag-and-drop import; dropping onto a folder imports inside it
-- tolerant XML parsing: a namespace prefix that a file uses but never
-  declares — accepted by Google Earth, rejected by any XML parser — is
-  repaired once and reported, instead of losing the whole file
-- per-entity error isolation: one broken geometry cannot abort an import,
-  and every load ends with a summary of what came in, what was skipped
-  and why
-- KML `ExtendedData` (`<Data>` and `<SchemaData>`) are kept as layer attributes
-- optional removal of HTML-like tags left in names by some exporters
-- optional merging of duplicate placemarks (same name and position)
-- for a GeoJSON whose features carry no `name` or `title`, a prompt to
-  choose which property to use as the name, remembered for future files
-  with the same property structure
-- progress indication and batched layer construction for larger files
-- layers a file brings switched off are not drawn until you switch them on: a 309 MB KML with 62 000 hidden polygons loads in about 13 seconds and reopens in about 5, instead of rebuilding every layer on each start
-
-### Layer workspace
-
-- hierarchical tree of files, folders and layers
-- global, file, folder, subtree and individual visibility controls
-- rename, delete, reorder and alphabetically sort nodes
-- drag layers and folders within the tree
-- multi-selection, including Shift ranges and single-node toggles; on a row
-  that belongs to the selection, the visibility checkbox, the 🔍 magnifier, delete
-  and properties act on the whole selection (the magnifier frames the set)
-- cut, copy and paste; undo and redo
-- keyboard navigation modelled on a file-explorer tree, with a shortcut
-  cheat sheet built in
-- collapse and expand folders; deep collapse of a whole branch
-- live filter of the tree by name as you type (from the third letter, or Enter):
-  case-, accent- and in-word-insensitive, only the matching rows and the folders
-  that hold them stay visible; folders you have never opened are counted without
-  being built (a 20,000-layer folder filters instantly, "(37)" next to its name);
-  several words match along the path («madrid parcela» finds «Parcela 3» inside
-  «Madrid»), a folder that matches shows what it holds, and the typed words are
-  marked in the names; the × or Esc clears it, Enter and the ↑ ↓ buttons jump
-  between matches
-- pan to a node, zoom to a node (a fixed level for a marker; a
-  margin-framed fit-to-bounds for a polygon, line or measurement), and fit
-  the map to loaded content
-- an information panel per layer: the original KML `description`
-  (sanitized against an allow-list) or a table of the GeoJSON
-  `properties` (a pin, shape or measurement without attributes shows its
-  name, kind and position or measures); sweeping the mouse across the map only changes it where the
-  pointer rests, and every layer rested on stays as a tab in one strip under
-  the card's title (click a tab to see its card, one at a time, and outline
-  the layer on the map; the small pin on each tab, or F over a layer, keeps
-  it, and a pinned card on screen no longer follows the mouse;
-  selecting text to copy it never changes the card)
-- right-click menu on the map, which resolves overlapping layers into a
-  submenu instead of guessing one
-- export any folder, file or layer as KML, GeoJSON or a portable `.kite.json`
-  package (the 💾 button on its row)
-- sections that the application creates itself (Markers, Elevations,
-  Downloads, Measurements…) are tinted pastel blue, so they are not mistaken
-  for an imported file or a row under the mouse
-- local storage usage indicator, and a session log of every notice shown
-- a Properties panel. *Preferences*: theme, language, the distance and
-  altitude units, coordinate format, the interactive-vertex-edit cap, arc
-  segments, the longest profile and the largest size a KMZ may take once
-  uncompressed (500 MB by default) — previewed live where it can be, and only
-  saved on Accept. An *Advanced preferences* box shows, with their names in
-  red, the values that used to be fixed in the code, each bounded and back to
-  its default with *Restore*: *Interface*
-  (notices, tree search, undo depth), *Cards* (hover delays and how many recent
-  and pinned cards), *Map and keyboard* (zoom levels, arrow-key and wheel
-  speeds, click tolerance), *Files* (the limits against hostile files),
-  *Network* (timeouts and retries of every external service) and some rows of
-  *Elevation and profile*, a tab always shown for the Fresnel frequency.
-  *Data sources*:
-  which service supplies the terrain and surface models. *GeoJSON indexes*:
-  remembers which property names each GeoJSON structure. *Restore*: deletes
-  everything the application has saved in the browser, after a second
-  confirmation
-- windows, and the info card that remembers where it was left, always open
-  whole inside the browser window, even when it is now smaller
-- a light/dark interface theme that follows the system or is forced, and
-  English and Spanish interfaces that follow the browser or are forced
-- the interface follows the system's accessibility preferences (reduced motion,
-  reduced transparency, increased contrast); buttons respond the moment they are
-  pressed, menus and dialogs enter with a short animation (closing is instant),
-  and the panel splitter works with a mouse, a pen or a finger
-- a phone notice («better from a computer») and a full-screen panel layout on
-  small touch screens
-- a «What's new» window at startup with a short, plain summary of what each
-  release brought since the version last opened (the first time, since 2.0);
-  «Don't show again until the next version» keeps it closed until a new one
-
-### Loading
-
-- drag KML, KMZ, GeoJSON, TopoJSON, shapefiles and exported `.kite.json` folders onto
-  the panel, or drop them straight into a folder
-- **open a URL**: paste an address, download it, see what actually
-  arrived — the format is recognised from the content, not the
-  extension — and only then add it to the tree. Downloads collect under a
-  «Descargas» section, one numbered folder each, so where something came
-  from stays visible whatever the format. A download in progress can be cancelled without waiting
-  for the timeout.
-
-### Styling and editing
-
-- Leaflet and Material Design marker icons, embedded in the file
-- marker size, colour, label size and label colour
-- optional permanent marker labels
-- marker renaming and coordinate editing in decimal degrees or DMS
-- marker repositioning by dragging
-- polygon and line outline width and colour
-- polygon fill colour and opacity, with an outline/fill/both selector
-- optional permanent polygon and line labels, like the marker ones
-- read-only perimeter (or length) and area, in metres, kilometres, feet,
-  statute miles or nautical miles
-- interactive vertex editing on the map for an already-created polygon,
-  line or route, while its style dialog is open: drag a vertex to move it,
-  right-click to delete it, Shift+click or the Insert key to add one — with
-  a minimum per ring and an adjustable cap (500 by default) on how many
-  vertices get on-map handles before it falls back to the text editor
-- the properties dialog has the tree row's 🔍 and × (centre on the layer and
-  delete it): with several layers in the dialog, the magnifier frames them all
-  and delete asks for confirmation; Ctrl+Z brings back the original style
-- a point-list editor: one vertex per line, tab-separated, so a geometry
-  can be copied into a spreadsheet and pasted back
-- ground-overlay image opacity
-- batch style changes for selected compatible layers, including renaming.
-  A value that differs across the selection is shown as such and is left
-  alone unless it is edited, so accepting the dialog never quietly
-  levels the settings that were only being looked at
-- every dialog edits a draft: nothing reaches the map until Accept
-
-### Base maps
-
-Several can be enabled at once, each with its own opacity, and their
-stacking order can be changed:
-
-- OpenStreetMap
-- Esri World Terrain and Esri hillshade
-- IGN Base and MTN topographic maps (Spain)
-- PNOA orthophotography, current and historical (Spain)
-- Madrid city orthophotography (Ayuntamiento de Madrid WMS)
-- IGN terrain WMS (Spain)
-- SRTM30 relief (terrestris, 56°S–60°N)
-- Copernicus DEM through Sentinel Hub, which needs the user's own
-  instance ID; it is stored in that browser only and never travels with
-  an export
-- optional blank base map
-- **base layers of your own**: the «+» button at the bottom of the list adds
-  a tile server (a base address, or a full template with `{z}`, `{x}`, `{y}`
-  in any order and format, rows counted from the top or from the bottom) or a
-  WMS server (its layers are read from its `GetCapabilities` and chosen in the
-  row), up to twenty. Each one can be renamed, pointed elsewhere or deleted
-  (after a confirmation); they are kept in that browser only and never travel
-  with an export or a view link
-- **the whole configuration to a file**: 💾 next to «+» saves the order, which
-  layers are on, their opacity, your own servers and the background colour
-  (never the Copernicus credential) to a `.kite.json`; dropping it on the
-  navigation panel applies it without deleting anything, and a server new to
-  that browser arrives switched off
-
-A base layer whose service stops answering is flagged in the panel, and
-the flag clears by itself when the tiles come back.
-
-### Attributes
-
-- the ▦ button of a folder or file opens an attribute table: one row per layer
-  and one column per attribute (GeoJSON and shapefile properties, KML
-  `ExtendedData`). Sort by column (numbers as numbers, empty cells last),
-  filter, jump to a layer and export what is shown as CSV (commas and a decimal point in English, semicolons and a decimal comma in Spanish), with the standard
-  defence against spreadsheet formulas hidden in a foreign file. A folder of
-  5 000 layers keeps about twenty rows in the DOM
-- «Estilo por atributo» colours all the layers of that table once, by category
-  (the most frequent values, plus «Otros» and «sin valor») or graduated over a
-  numeric column (equal intervals or quantiles), with colour-blind-safe
-  palettes, a live preview and Cancel. The result is ordinary layer styles,
-  not a stored rule
-
-### Range rings and sectors
-
-- right-click → «Crear» › «Anillos de alcance…» / «Sector…»: concentric
-  geodesic rings (every radius you list, optional radials) or a sector between
-  two azimuths, optionally an annulus, centred on the point you clicked, with
-  a live preview. They become ordinary layers of the tree, so they can be
-  styled, edited and exported like any other
-- the ◎ and ◔ buttons of the drawing toolbar are one-click tools: press one,
-  click on the map where the centre goes, and the same dialog opens centred
-  there (it can still be moved before saving). The pin (📍) works the same way.
-  The toolbar lists polygon or line, rings, sector and pin in that order — the
-  same order as the «Crear» menu
-
-### ArcGIS map services
-
-- paste the address of an ArcGIS REST `MapServer` into the 🔗 dialog: the
-  service becomes one node of the tree with a row per server layer, drawn by
-  the server itself as image tiles (so its symbols and labels are intact),
-  and the checkboxes choose which layers it is asked for
-- a layer that offers data can be brought in as real features («Traer como
-  datos»), paged, capped, cancellable and imported like any downloaded GeoJSON
-- no credentials are ever stored or exported (a `token` in the address is
-  dropped), and a service that arrives inside someone else's `.kite.json`
-  arrives switched off, with a notice naming the server
-
-### Cadastral parcel, Wikipedia articles and orthophotos
-
-- right-click → «Consultas» › «Parcela catastral» asks the Spanish Cadastre
-  which parcel lies under the click and adds it as a polygon, with its
-  cadastral reference
-- right-click → «Consultas» › «Artículos de Wikipedia en la vista» asks Wikipedia
-  for the geotagged articles within the reach of the current view from the click
-  (up to the service's 10 km maximum; the 100 nearest) and adds
-  them as «W» markers in a new folder; each marker's card holds the article's
-  summary, a link to the full article and its distance, and the CC BY-SA credit
-  is added to the map's attribution
-- right-click → «Consultas» › «Ruta desde aquí» / «Ruta hasta aquí», or
-  «Itinerario» over a marker, opens «Calcular itinerario»: an itinerary between
-  two points by car, bicycle or on foot from openrouteservice (HeiGIT), with
-  your own API key entered in Properties → Data sources; the line goes to an
-  «Itinerarios» section with its distance and duration (no turn-by-turn
-  instructions)
-- Cloud Optimized GeoTIFF orthophotos and elevation models (see
-  [File support](#file-support)) stay in the browser's own store and are never
-  part of an export
-
-### Map tools
-
-- while drawing a polygon, line or route the map can still be panned by
-  dragging it (the click that ends a drag adds no vertex); removing the second
-  point of a route being created undoes the route and leaves its first point
-  as the preview
-- the layers list of the base maps closes when you act anywhere else
-- map rotation: drag the compass (or hold the middle button) to turn the map
-  freely, with a click or the R key to put north back up; layers and the
-  graticule rotate with it and the labels stay horizontal
-- share a view as a link: right-click → «Copiar» › «Enlace a esta vista» keeps
-  centre, zoom, rotation and active base maps in the `#map=…` part of the
-  address, and opening such a link restores them
-- place search through Nominatim; coordinates typed in the same box (decimal, decimal comma, or degrees-minutes-seconds with hemisphere letters) create a marker in "Places" and take the map there at zoom 17 without any request
-- pointer coordinates in decimal degrees, degrees/minutes/seconds and UTM
-- scale bar
-- latitude/longitude graticule
-- shortcuts for the Iberian Peninsula/Balearic Islands and Canary Islands
-- drop a marker where you click (the 📍 tool; its properties open first and Cancel discards it)
-- draw polygons and open lines vertex by vertex
-- a day/night overlay and the sun and twilight times of a marker
-- a geodesic calculator (📐): elevation angle with cone of silence and
-  atmospheric-pressure correction, and the vector between two GPS positions
-- export the current view as a PNG image
-
-### Elevation
-
-- right-click on the map → «Consultas» › «Elevación»: terrain (MDT) and
-  surface (MDS) elevation of a ~40 m square around the point, drawn as a
-  readable grid of cells with the difference between them — the visible
-  sign of buildings or vegetation
-- A− / A+ buttons above the scale make the numbers in the cells smaller or
-  bigger (remembered); when the numbers no longer fit inside a cell it falls
-  back to the plain red/white fill used at low zoom
-- each query becomes an ordinary layer of the tree, inside one folder per
-  session under «Elevaciones»: persistent, toggleable and deletable like
-  any other; hovering a cell shows its values in the coordinates box
-- the data sources are chosen in Properties → «Fuentes de datos», from a
-  list built into the application (or none, to skip that model): the
-  IGN's WCS services by default — MDT05 (5 m), MDT25 or MDT200 for the
-  terrain, MDS (5 m) for the surface; Spain only — and Digital Earth
-  Africa's Copernicus DEM as an alternative surface model (Africa, the
-  Canary Islands and the Iberian Peninsula up to 39° N, ~30 m cells);
-  each layer is named after the dataset and provider it came from
-  («Elevación 3 — MDT25 + MDS (IGN)»)
-- the first query to each service in a session reads its capabilities
-  once, picks the finest grid of the chosen dataset and the ASCII format
-  when offered (GeoTIFF otherwise), and notes the choice in the message
-  log
-- transient failures (timeout, network, 429, 5xx) are retried up to three
-  times with a growing pause; Digital Earth Africa gets a longer timeout,
-  since its first answer for an area takes 17–33 s (measured)
-- heights follow their own unit of altitude, independent of the unit of
-  distance (Properties → Preferencias)
-- each query costs a request to a third party, so nothing is requested
-  until you ask
-
-### Route profile
-
-- right-click on a route (or its properties dialog) → «Obtener perfil»:
-  the chosen terrain (MDT) and surface (MDS) models are downloaded along
-  the route in bounded chunks, with a progress bar and a scrollable debug
-  log of every request sent and what came back, and drawn as an
-  elevation profile — distance from the start across, height up, MDT in
-  blue and MDS in green, leg vertices in bold
-- hovering the chart moves a red line across it and a red arrow along the
-  route on the map, pointing the way of travel; the readout gives the
-  distance, both heights and their MDS−MDT difference (red above 1 m)
-- the mouse wheel zooms the chart's distance around the pointer (from the
-  whole route down to 0.1 m per pixel) and dragging pans it; Shift+wheel,
-  or the wheel over the height axis, zooms the heights on their own
-- heights rescale to what is shown unless the Y axis is locked; a toolbar
-  has −/+ for each axis, «Bloquear eje Y» and «Ver todo»; the curves are
-  straight segments between cell values
-- only the cells the route actually crosses are kept, as a layer of the
-  «Perfiles de ruta» root folder that also stores the curves: from then on
-  the option reads «Mostrar perfil» and shows them without downloading
-  again; editing the route's waypoints asks for a new profile
-- routes longer than a configurable limit (10 NM by default) get no
-  profile, so a long route cannot fill the browser storage with cells
-- polygons with altitude as obstacles: the visible polygons of a KML or a GeoJSON that cross the route are drawn as blocks from the terrain up to their roof, in red where the start–end line passes below it, with a sentence saying which ones block the line and the clearance of each under the cursor. The KML altitude mode of each polygon (`absolute`, `relativeToGround`, `clampToGround`; sea-floor modes are left out with one warning per file) is kept, shown and editable in the polygon's list of points; altitude without a mode, and GeoJSON altitude, count as above sea level. Above-ground heights are added to the terrain the profile has just downloaded, with no extra request. Obstacles and the tower heights and vertices are saved with the profile; «Actualizar obstáculos» collects the visible polygons again
-- the chart exports as a PNG image and its numbers as a CSV file; with the line of sight or the Fresnel ellipsoid on, the file also carries the tower positions (1 for the start tower, 2 for the end tower, 0 elsewhere), the altitude of the line of sight, the lower and upper altitude of the 60 % Fresnel zone and, with obstacles shown, their names and the highest roof at each distance, in the format of the interface language: commas and a decimal point in English, semicolons and a decimal comma in Spanish (what Excel expects there)
-
-### Measurements
-
-- geodesic route measurement: click each waypoint, double-click to finish —
-  distance and initial bearing per leg, plus the running total; a
-  two-waypoint route is the old straight-line measurement
-- geodesic circle radius and area
-- drag a waypoint, or a circle's centre or edge, to move it — no modifier
-  key needed; insert and delete route waypoints the same way as polygon
-  vertices (right-click, Shift+click, Insert, Delete)
-- while its dialog is open, a measurement's figures refresh live as it is
-  dragged, with no need to close and reopen the dialog, and the 🔍 action
-  fits the map to its full geometry with a margin instead of a fixed zoom
-  level
-- stroke and fill styling, and values shown in metres, kilometres, feet,
-  statute miles or nautical miles — the same unit the map labels use
-- persistent measurements stored with the workspace
 
 ## Supported KML subset
 

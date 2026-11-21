@@ -193,9 +193,11 @@ que quien lea la documentación la encuentre. Aquí no se duplica:
     que una **entrada de menú contextual** esté en el apartado 5 y que una
     **ventana nueva** tenga su sitio en el manual (`DIALOG_DOC`).
 14. **Keep `README.md` and `DEVELOPMENT.md` up to date** if the feature is
-    visible to whoever reads them. README: *Features* (what it does, in English,
-    one or two lines each), *Internet access and privacy* (a new server) and
-    *Known limitations* (one that appears or goes away). DEVELOPMENT.md, the page
+    visible to whoever reads them. README: the row that owns it in «What you can do»
+    (one line, in English, linking its manual sections: the detail is NOT repeated
+    there), *Internet access and privacy* (a new server) and *Known limitations*
+    (one that appears or goes away); a feature worth a clip also touches «See it in
+    action» (`npm run demo-scenes`, see `docs-maintenance.md`). DEVELOPMENT.md, the page
     for people who work on the code: the *Development roadmap* («Done» / «Still
     open»: what is done leaves «Still open» and goes into «Done»), the release
     steps and the `debug` branch. The README is the first thing anyone arriving at

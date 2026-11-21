@@ -43,10 +43,14 @@ the one that drifts most because nobody opens it when changing code: in October
 2026 it said «twenty JavaScript files» (there were 40), «Fifty-eight suites»
 (115), that English and the KML export were *Still open* and that the interface
 «is in Spanish». It is now written to be read in thirty seconds (what it is, why,
-how to try it) and keeps the technical reference below that. **Every visible
-feature updates it in the same change** (point 14 of the checklist in
-`00-principles.md`): *Features*, *Internet access and privacy* if there is a new
-server, and *Known limitations*.
+how to try it) and keeps the technical reference below that. It does NOT repeat the
+manual: «What you can do» is one row per area, each linking the manual sections
+(`README.md#…` links to `docs/manual-usuario-kite-local.md#…` use GitHub's anchor
+rule; check them when a manual heading is renamed), and «See it in action» holds
+three clips with real data (see below). **Every visible feature updates it in the
+same change** (point 14 of the checklist in `00-principles.md`): the row that
+owns it in «What you can do», *Internet access and privacy* if there is a new
+server, and *Known limitations*; the detail goes in the manual.
 
 **`DEVELOPMENT.md`** (root, English) holds what is for people who work on the
 code and not for people who use it: the *Development roadmap* («Done» / «Still
@@ -188,7 +192,7 @@ Después de reunir los PR y ANTES de tagear (ver `build-and-release.md`):
 3. `npm run capturas` (todas; ~1 minuto más lo que tarden las teselas). Mirar las
    PNG que hayan cambiado respecto a la versión anterior (`git diff --stat
    docs/img`; las que casi no cambian de tamaño suelen ser las que no cambiaron).
-   `ortofoto-cog.png` no se regenera: se mantiene. Y `npm run demo-gif` (el GIF de la portada del README) y `npm run social-image` (la imagen social).
+   `ortofoto-cog.png` no se regenera: se mantiene. Y `npm run demo-gif` (el GIF de la portada del README), `npm run demo-scenes` (los tres clips de «See it in action»: usan servicios en vivo, así que se miran antes de aceptarlos) y `npm run social-image` (la imagen social).
 4. `KITE_REQUIRE_BROWSER=1 node tests/run-all.js`. Anotar el total («N de N»).
 5. Estudio de seguridad (`docs/estudio-seguridad-kite-local.md`):
    - Las cuatro frases de recuento (resumen, 7.2, 7.4, conclusión) al total del
@@ -246,6 +250,22 @@ release (procedimiento B). Pesa menos de 1 MB (una paleta de 255 colores y solo 
 píxeles que cambian); si el guion crece y pasa de 2-3 MB, se acorta, no se baja la
 calidad. El archivo de ejemplo es `docs/ejemplos/operacion-sierra.kmz` (el mismo KML
 de las capturas, comprimido): si cambia el KML, hay que regenerar también el KMZ.
+
+### The showcase clips (`media/kite-fresnel.gif`, `kite-geotiff.gif`, `kite-wikipedia.gif`)
+
+The three clips of the README's «See it in action»: a route profile with line of
+sight and Fresnel zone, a GeoTIFF elevation model dropped onto the panel, and
+Wikipedia articles plus an itinerary. `tools/demo-scenes.mjs` (`npm run demo-scenes`,
+see `media/README.md`), never by hand, with the same criterion as the other
+images: regenerate when what they show changes and at each release. **They use
+real data on purpose** (live IGN and Wikipedia; the GeoTIFF is an IGN download
+rebuilt as a COG), because a demo with invented terrain misrepresents the tool.
+**The itinerary is the one stand-in** (`tests/fixtures/ors-route.json` is
+synthetic and there is no key in the script): the README caption says so, and
+`ORS_API_KEY` makes the script ask the real service. If a caption states a
+number («a 10 m tower blocks the line at 3 km»), it must be checked against the
+frames after each regeneration: the data is live. They weigh 0.8–1.2 MB each;
+if one grows, shorten the script rather than lower the quality.
 
 ### La imagen social (`media/kite-social.png`)
 
