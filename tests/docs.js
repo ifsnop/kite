@@ -24,6 +24,7 @@ const STUDY = read("docs", "estudio-seguridad-kite-local.md");
 const RUN_ALL = read("tests", "run-all.js");
 const TESTS_README = read("tests", "README.md");
 const README = read("README.md");
+const DEVELOPMENT = read("DEVELOPMENT.md");
 const PKG = JSON.parse(read("package.json"));
 const INDEX_HTML = read("src", "index.html");
 const IMG_DIR = path.join(ROOT, "docs", "img");
@@ -150,7 +151,8 @@ function checkManifest(manifest, version, figs, dir) {
    eran 40 y más de cien. Aquí solo se vigilan esas dos cifras, que son las
    que se pueden contar; el resto del README es revisión (docs-maintenance.md).
    Si falta una de las frases es un problema, para que reescribirla no deje la
-   comprobación sin nada que mirar.                                         */
+   comprobación sin nada que mirar. They live in the roadmap of DEVELOPMENT.md
+   (README and DEVELOPMENT.md are read as one text).                                         */
 function checkReadmeNumbers(text, suites, jsFiles) {
   const problems = [];
   const one = (re, n, what) => {
@@ -414,7 +416,8 @@ clean(checkManifest(manifest, PKG.version, figs, IMG_DIR), "manifiesto de captur
 clean(checkTestsReadme(entries, TESTS_README), "tests/README.md frente a run-all.js");
 clean(checkPendingLinks(README, MANUAL, fs.existsSync(path.join(ROOT, "docs", "pendientes-y-propuestas-kite-local.md"))), "documento de pendientes enlazado desde el README y el manual");
 const jsCount = fs.readdirSync(path.join(ROOT, "src", "js")).filter(f => f.endsWith(".js")).length;
-clean(checkReadmeNumbers(README, entries.length, jsCount), "cifras del README frente al código");
+/* the numbers sit in the roadmap of DEVELOPMENT.md, not in the README: both are read as one text */
+clean(checkReadmeNumbers(README + "\n" + DEVELOPMENT, entries.length, jsCount), "cifras del README y de DEVELOPMENT.md frente al código");
 ok(figs.length > 20, `el manual tiene ${figs.length} figuras`);
 
 /* Fase 2: servidores */

@@ -1,0 +1,125 @@
+# Developing KITE Local
+
+This page is for people who work on the code: what is done and what is still open, how a release is cut, and how to chase a freeze with the instrumented `debug` branch. To **use** KITE Local, the [README](README.md) is all you need. To report a problem or send a change, start with [CONTRIBUTING.md](CONTRIBUTING.md).
+
+- [Development roadmap](#development-roadmap) — what is done, what is still open, what is deliberately not planned
+- [Diagnosing a freeze or a slowdown](#diagnosing-a-freeze-or-a-slowdown-debug-branch) — the `debug` branch and its watchdog
+- [Releasing](#releasing) — preparing, tagging and publishing a version
+
+## Development roadmap
+
+### Done
+
+- **The sources are split.** The application is edited as `src/index.html`,
+  `src/styles.css`, `src/sw.js` and 45 JavaScript files, concatenated into the
+  shipped file by `build.js`. The single-file product is the output, not the
+  source.
+- **There are automated tests.** 142 suites run against the shipped
+  file — most under Node, plus a set that drives a real headless browser —
+  covering coordinate parsing and formatting, UTM, KML namespaces and
+  styles, geometry conversion, serialization, tree navigation and
+  selection, hit-testing, geodesic area and perimeter, route measurement,
+  interactive vertex editing, import and export formats, the attribute
+  table, elevation and route profiles, the interface languages, the
+  documentation itself, and more. Run them with `npm test`.
+- **CDN dependencies carry Subresource Integrity**, so a compromised CDN
+  cannot substitute other content, and marker icons are now embedded in the
+  file rather than fetched.
+- **Input validation and preventive limits.** Everything arriving from outside
+  is treated as hostile: geometry is validated before layers are built,
+  failures are isolated per entity so one bad placemark cannot abort an
+  import, KMZ archives have entry/size/ratio caps, and the user always gets a
+  summary of what loaded and what was skipped, with the reason.
+- **Keyboard navigation, focus management and ARIA labels.** The tree is a
+  proper `role="tree"` with roving focus, dialogs trap and restore focus, and
+  the panel is driven entirely from the keyboard.
+- **Export to KML and GeoJSON**, next to `.kite.json`, and import of GPX.
+- **Obstacles in a route profile**: polygons with altitude (the KML altitude mode is now kept, shown and editable) cross the route as blocks and show whether they block the start–end line; they are saved with the profile, together with its towers.
+- **An English interface**, with Spanish as the source language, and a
+  light/dark theme.
+- **A live tree filter**: typing in the layer search keeps only what matches (a
+  20,000-layer folder filters in about 20 ms instead of building every row), and
+  interface motion that respects the reduced-motion preference.
+- **Nearby Wikipedia articles** from the context menu: the geotagged articles
+  within the current view of a point become «W» markers with a summary and a link to the
+  full article.
+- **Base-map configuration to a file**: 💾 at the bottom of the base-map list saves the order, on/off state, opacity, your own servers and the background colour (never the Copernicus credential); dropping the file on the navigation panel applies it without deleting anything, and a server new to this browser arrives switched off.
+- **Itineraries** between two points (openrouteservice, with your own HeiGIT key): by car, bicycle or on foot, with their distance and duration.
+- **Advanced preferences**: about sixty values that used to be fixed in the code (timeouts, retries, caps against hostile files, hover delays, zoom and keyboard speeds) can be changed in Properties, each bounded, saved only when it differs and back to its default with *Restore*.
+- **Offline reload**: a small service worker keeps the application and its
+  pinned libraries, so a discarded tab comes back without a network.
+- **What's new**: a window at startup sums up, in a few plain sentences, what
+  changed since the version last opened (the first time, since 2.0); a box keeps
+  it closed until the next version.
+- **Base layers of your own**: add, rename, re-point and delete tile (XYZ/TMS,
+  any template) and WMS servers in the base map panel, instead of the two fixed
+  «Custom» layers there used to be.
+- **Recent cards**: the information card no longer flickers or vanishes while
+  the mouse sweeps across many markers; the ones the pointer rested on stay as
+  tabs that can be looked at again, outlined on the map, and pinned.
+
+### Still open
+
+The full list, with the ideas that have been proposed (exporting to KMZ and GPX, importing CSV points, a visibility map, MGRS coordinates, marker clustering, time-aware KML, GeoPackage and QGIS projects…), is kept in one place: [pending work and proposals](docs/pendientes-y-propuestas-kite-local.md). The known gaps, in short:
+
+- Touch interaction in the tree, which remains weak: the interface is built for
+  mouse and keyboard.
+- A fully vendored build. Leaflet and JSZip are still loaded from a CDN (the
+  service worker only keeps them after a first online visit).
+- Crossing the antimeridian: the midpoint and measurements already do, the
+  automatic framing and the graticule do not yet.
+- Two placemarks at the same position but different altitudes are still merged
+  as duplicates.
+
+### Deliberately not planned
+
+- **Web Workers for parsing.** The target file sizes do not justify them, and
+  a worker has neither `DOMParser` nor Leaflet, so the work would have to be
+  split awkwardly across the boundary.
+- **IndexedDB and `.kite.json` migrations.** Storage is versioned, and data
+  from a different version is discarded rather than migrated. The version is
+  only raised when a change requires it, and the user is told when a saved
+  workspace is dropped.
+
+## Diagnosing a freeze or a slowdown (`debug` branch)
+
+There is a second branch, [`debug`](https://github.com/ifsnop/kite/tree/debug), which is `main` plus a main-thread watchdog. The released product on `main` does not carry it, and is not meant to: it is diagnostic code, it wraps several dozen functions to count and time them, and it has no business running in something people use. The two branches are otherwise the same, and this file, like the README, is kept identical on both so the instructions are wherever you happen to be looking.
+
+The watchdog exists because a reported freeze could not be reproduced under test automation: the page was dead to the user while, from the inside, nothing seemed to be running. The instrument is what eventually named the cause — a native HTML5 drag session, which is a nested event loop in the browser, so the page receives no timers, no frames and no input while it lasts, without executing a line of its own code.
+
+Keep it for the next time something hangs or drags its feet.
+
+**How to use it**
+
+1. `git checkout debug && git pull`, then open `kitelocal.html` from that branch. It is already built — no `npm run build` needed.
+2. Work normally. On startup it says `Vigilante activo (N funciones)`.
+3. When something freezes or stalls, run `__kiteDiag()` in the browser console **before reloading**, and keep the output.
+
+**How to read it**
+
+| Field | What it answers |
+|---|---|
+| `bloqueos` | The main thread stopped. Each entry says for how long, which functions ran during the gap, which were still in flight, and the heap before and after — if that number drops sharply, the pause was garbage collection. |
+| `fotogramas` | Gaps between animation frames. Frames stalling while `bloqueos` stays empty means painting is stuck, not scripting: look at the browser, not at the code. |
+| `pulsaciones` | The last presses, each with what was really under the pointer and which layers were open. `tapado: true` is a click eaten by something on top. A `pointerdown` with no matching `click` is a press that turned into a drag — that was the signature of the freeze. |
+| `llamadas` | Cumulative call counts, useful for spotting something called a thousand times more than it should be. |
+| `memoriaSinRecolectar` | `usedJSHeapSize`, which is **not** collected memory: a large number here is not proof of a leak. Measured once at 240 MB where the live heap, after forcing collection, was 15 MB. |
+
+**Two things it taught us, worth remembering before trusting a reading**
+
+- "None of the watched functions" only means what it says if the right functions are watched. The first version did not cover the single-layer toggle path (`applyVisibility` → `setLayerVisible` → `rootGroup`) nor any of Leaflet's, so it reported an idle app during a 30-second block.
+- Asking "what is running now" is useless. For the timer to fire again the thread must already be free, so the stack is always unwound by then. What tells the truth is the difference in call counters between two heartbeats.
+
+To bring the branch up to date after `main` moves: `git checkout debug && git merge main`, then `npm run build` and `node tests/run-all.js`.
+
+## Releasing
+
+Feature work and fixes land on branches, each through its own pull request into `main`. Cutting a release once every intended PR is merged:
+
+1. Bump `package.json`'s `"version"` and update the version shown in the user manual and the security study under `docs/`, then commit — this is the release's final commit. The pre-commit hook (see [Setting up](CONTRIBUTING.md#setting-up) in CONTRIBUTING.md) notices `package.json` changing, bumps `BUILD` and runs `npm run build` on its own, so there's no separate manual build step here anymore.
+2. Tag that exact commit and push the tag: `git tag vX.Y.Z && git push origin vX.Y.Z`. The tag **must** match `package.json`'s version precisely (with a leading `v`).
+3. [`.github/workflows/release.yml`](.github/workflows/release.yml) takes it from there: it verifies the tag matches `package.json`, that `kitelocal.html`/`kitelocal.min.html`/`sw.js` are up to date with `src/`, and runs the full test suite (`npm test`, with the browser suites required) — only then does it publish the GitHub Release itself, with auto-generated release notes from the merged PRs and both artifacts attached as downloadable assets for that exact version.
+
+If any of those checks fail, the workflow fails and **no Release is published** — the test run happens inside this same job specifically so a red suite stops it before the publish step ever runs, rather than racing independently against the separate `tests.yml` workflow that the same tag push also triggers. Fix what's missing (the version bump, `npm run build`, or the failing test), delete the bad tag (`git push --delete origin vX.Y.Z`), and tag the corrected commit.
+
+`package.json`'s `"version"` is the single source of truth: `build.js` bakes it into the app's attribution line (`v<version> (<build>) | GitHub | Leaflet`, bottom-right of the map) at build time, the same way it already inlines the page's CSS and JS.

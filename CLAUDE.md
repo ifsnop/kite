@@ -66,7 +66,7 @@ nuevo, no que la regla no exista.
 | `browser-tests.md` | Suites de Playwright (`tests/browser`) | `tests/browser/**` |
 | `static-checks.md` | Comprobaciones estáticas sobre `kitelocal.html` | `tests/statics.js`, `tests/minified.js`, `tests/attribution.js` |
 | `whats-new.md` | «Novedades» window at startup: the `WHATS_NEW` texts (one plain line per user-visible change in `"next"`, renamed to the version at release), when it shows, «don't show again» kept until a new version, the one-button footer exception | `68-whats-new.js`, `tests/whatsnew.js`, `tests/browser/whats-new.mjs`, `package.json` |
-| `docs-maintenance.md` | Mantenimiento obligatorio de `docs/` (incluida la lista única de pendientes e ideas) y del `README.md`: cuándo hay captura (cambio de aspecto Y funcionalidad nueva), `npm run capturas`, qué vigila `tests/docs.js`, exenciones y cadencia de revisión | `docs/**`, `tools/capturas.mjs`, `tests/docs.js` |
+| `docs-maintenance.md` | Mantenimiento obligatorio de `docs/` (incluida la lista única de pendientes e ideas) y del `README.md` y `DEVELOPMENT.md`: cuándo hay captura (cambio de aspecto Y funcionalidad nueva), `npm run capturas`, qué vigila `tests/docs.js`, exenciones y cadencia de revisión | `docs/**`, `README.md`, `DEVELOPMENT.md`, `tools/capturas.mjs`, `tests/docs.js` |
 
 **Al reorganizar `.claude/rules/` en el futuro**: la fuente de verdad de
 cada regla es su propio archivo, no este índice. Si se añade, renombra o
