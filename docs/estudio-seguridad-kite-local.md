@@ -5,10 +5,10 @@
 | | |
 |---|---|
 | **Documento** | Estudio de seguridad — KITE Local (KML Interactive Tree Explorer) |
-| **Versión del documento** | 1.14 |
-| **Fecha** | 17 de noviembre de 2026 |
+| **Versión del documento** | 1.15 |
+| **Fecha** | 21 de noviembre de 2026 |
 | **Preparado por** | Diego Torres |
-| **Versión de la aplicación auditada** | v2.7.0 (202611171802) |
+| **Versión de la aplicación auditada** | v2.8.0 (202611210202) |
 | **Repositorio público del código fuente** | https://github.com/ifsnop/kite |
 
 ---
@@ -285,7 +285,7 @@ En la fecha de este documento, la batería está compuesta por 142 conjuntos de 
 - Pie del panel: la cifra de memoria se esconde cuando no hay un dato fiable que dar.
 - Ajustes de Propiedades que antes eran constantes del código (tiempos de las fichas, topes de importación, tiempos de espera y reintentos de red): cada valor de partida es el que tenía la constante, un valor guardado fuera de su máximo o de su mínimo se descarta al leerlo, solo se guarda lo que difiere, y «Restaurar» los devuelve todos; y que las ventanas se abren enteras dentro del navegador aunque su posición se guardara con una ventana mayor, sin pisar esa posición.
 - Ficha de información al recorrer el mapa con el ratón (con un ratón real): la ficha solo cambia cuando el ratón se detiene sobre una capa, las capas consultadas quedan como pestañas en «Fichas recientes», una ficha a la vez, con su caducidad, su tope y la opción de fijarlas, seleccionar texto para copiarlo no cambia la ficha, y el recuadro con el que se señala una de ellas en el mapa no mueve la vista, no se guarda y no modifica ninguna capa.
-- Filtro del árbol de capas por nombre: la comparación sin distinguir mayúsculas ni tildes y dentro de las palabras, el recuento de coincidencias dentro de carpetas que aún no se han desplegado sin construirlas, el criterio de qué filas se construyen, y que guardar una carpeta construida a medias da exactamente lo mismo, y en el mismo orden, que antes de construirla.
+- Filtro del árbol de capas por nombre: la comparación sin distinguir mayúsculas ni tildes y dentro de las palabras, las varias palabras de una búsqueda (todas tienen que estar, en el nombre o en el de las carpetas que lo contienen), dónde cae lo escrito en el nombre original para marcarlo, el recuento de coincidencias dentro de carpetas que aún no se han desplegado sin construirlas, el criterio de qué filas se construyen y cuáles enseñaría una carpeta que coincide, y que guardar una carpeta construida a medias da exactamente lo mismo, y en el mismo orden, que antes de construirla.
 - Movimiento reducido: toda animación de la hoja de estilos de la aplicación tiene su anulación para quien pide que nada se mueva.
 
 **Comprobaciones sobre el propio artefacto entregado**
@@ -334,7 +334,7 @@ En la fecha de este documento, la batería está compuesta por 142 conjuntos de 
 - Que el mapa se puede desplazar arrastrándolo mientras se dibuja un polígono o una ruta sin que el final del arrastre añada un vértice, que mover un vértice no desplaza el mapa y que el círculo y el arco siguen dibujando al arrastrar.
 - Que el pin, los anillos de alcance y el sector esperan un clic que fija el centro y abren entonces sus propiedades, sin crear nada hasta aceptar, y que Escape, otro botón o un arrastre del mapa no los disparan.
 - La lupa y el borrado desde el diálogo de propiedades de una capa: con una capa, lo mismo que su fila del árbol; con varias, la lupa encuadra el conjunto y borrar pide una confirmación que ni Cancelar, ni la ×, ni Escape confirman, y deshacer devuelve el estilo original.
-- El filtro del árbol con teclado y ratón reales: filtra a partir de la tercera letra o con Intro, enseña solo lo que coincide sin cambiar lo guardado ni qué carpetas están abiertas o cerradas, no construye ninguna fila de una carpeta sin desplegar cuando hay muchas coincidencias y construye solo las coincidentes cuando hay pocas, y lo guardado a medio construir coincide con lo que muestra la aplicación, también tras recargar; se quita con la × o con Escape, y el teclado no aterriza en filas ocultas.
+- El filtro del árbol con teclado y ratón reales: filtra a partir de la tercera letra o con Intro, enseña lo que coincide (y, de una carpeta que coincide, lo que contiene, un nivel) sin cambiar lo guardado, salvo lo que el usuario eligió entre los resultados, que al quitar el filtro se queda a la vista; no construye ninguna fila de una carpeta sin desplegar cuando hay muchas coincidencias y construye solo las coincidentes cuando hay pocas, sin que una carpeta enorme que coincide impida ver las demás, y lo guardado a medio construir coincide con lo que muestra la aplicación, también tras recargar; se quita con la × o con Escape, y el teclado no aterriza en filas ocultas.
 - Movimiento y respuesta de la interfaz en un navegador real: con movimiento reducido nada se anima; sin él, los menús y las ventanas entran con una animación corta y cerrar es inmediato, los botones responden al pulsar y el separador del panel se arrastra con los gestos de puntero, con un solo redibujado del mapa por fotograma.
 - Con varios elementos seleccionados, la casilla de visibilidad de uno de ellos aplica el estado elegido a todos sin deshacer la selección, y su lupa encuadra el conjunto.
 

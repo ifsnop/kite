@@ -17,7 +17,7 @@
      the new version (tests/whatsnew.js fails if package.json's version
      has no entry).                                                     */
 const WHATS_NEW = [
-  { version: "next", items: [
+  { version: "2.8.0", items: [
     N_("El buscador del panel enseña lo que hay dentro de una carpeta que coincide, admite varias palabras (también las de las carpetas de arriba) y marca en cada nombre lo que has escrito."),
     N_("Al quitar la búsqueda, lo que hayas seleccionado entre los resultados se queda a la vista, con sus carpetas desplegadas.")
   ] },
