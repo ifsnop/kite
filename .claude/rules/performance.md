@@ -199,7 +199,7 @@ paths:
     0,6 GB), la lectura al arrancar (2,5 s) y encender de golpe las 62 673
     capas (las construye todas).
 - **Búsquedas por nombre local en el XML** (`elsByTag`, `firstByTag`,
-  `childrenByTag`, `12-copernicus.js`): `firstByTag` copiaba la colección
+  `childrenByTag`, `20-kml-geom.js`): `firstByTag` copiaba la colección
   entera a un array para quedarse con el primero, y cada búsqueda VACÍA
   (un Placemark de punto busca `Polygon` y `LineString`) caía al filtrado
   a mano de todos sus descendientes. `mayNeedPrefixFallback` averigua una

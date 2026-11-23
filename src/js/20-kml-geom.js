@@ -1,3 +1,202 @@
+/* ================= Utilidades de estilo KML =================
+   Every lookup here is namespace-agnostic. Real-world KML often carries
+   prefixes (<kml:Placemark>, <gx:Track>…) or declares no namespace at
+   all, so nothing may depend on the literal tagName: `localName` and
+   `getElementsByTagNameNS("*", …)` match the element regardless of the
+   prefix or namespace it was written with.                            */
+
+/* Nombre sin prefijo. En un DOM con namespaces `localName` ya lo da; si
+   el documento se analizó sin ellos, se recorta a mano el "kml:".     */
+function bareName(el) {
+  const n = el.localName || el.nodeName || "";
+  const i = n.indexOf(":");
+  return i < 0 ? n : n.slice(i + 1);
+}
+
+/* ¿Puede existir un elemento que la consulta con comodín de namespace
+   NO encuentre y el filtrado a mano sí? Solo si alguno no tiene un
+   `localName` limpio (sin él, o con el prefijo dentro: un documento
+   analizado sin namespaces). Si TODOS lo tienen, `bareName` es su
+   `localName` y el filtrado a mano devuelve exactamente lo que la
+   consulta ya dio: repetirlo es trabajo perdido. Se averigua de una vez
+   por documento (un recorrido) y se recuerda; el documento no gana
+   elementos después de analizarse.
+
+   Medido (importar 10 000 marcadores): cada Placemark buscaba además
+   `Polygon` y `LineString`, que no tiene, y cada búsqueda vacía caía al
+   filtrado de TODOS sus descendientes con una llamada por elemento.   */
+const prefixFallbackByDoc = new WeakMap();
+function mayNeedPrefixFallback(root) {
+  const doc = root.ownerDocument || root;
+  let need = prefixFallbackByDoc.get(doc);
+  if (need === undefined) {
+    need = false;
+    for (const el of doc.getElementsByTagName("*")) {
+      const n = el.localName;
+      if (typeof n !== "string" || !n || n.includes(":")) { need = true; break; }
+    }
+    prefixFallbackByDoc.set(doc, need);
+  }
+  return need;
+}
+
+/* Búsqueda por nombre local. La vía rápida es la consulta con comodín de
+   namespace; si no devuelve nada (documento sin namespaces), se filtra a
+   mano. Con las dos, el parser funciona con KML con prefijo, sin él o
+   con namespaces por defecto.                                        */
+function elsByTag(root, name) {
+  if (!root || !root.getElementsByTagName) return [];
+  if (root.getElementsByTagNameNS) {
+    const found = [...root.getElementsByTagNameNS("*", name)];
+    if (found.length) return found;
+    if (!mayNeedPrefixFallback(root)) return [];
+  }
+  return [...root.getElementsByTagName("*")].filter(el => bareName(el) === name);
+}
+/* El primero, sin copiar la colección entera a un array para quedarse
+   con uno (la colección es «viva» y se detiene en el primer acierto).
+   Mismo resultado que `elsByTag(root, name)[0] || null`.             */
+function firstByTag(root, name) {
+  if (!root || !root.getElementsByTagName) return null;
+  if (root.getElementsByTagNameNS) {
+    const first = root.getElementsByTagNameNS("*", name)[0];
+    if (first) return first;
+    if (!mayNeedPrefixFallback(root)) return null;
+  }
+  for (const el of root.getElementsByTagName("*")) {
+    if (bareName(el) === name) return el;
+  }
+  return null;
+}
+function childrenByTag(parent, name) {
+  const out = [];
+  if (parent) for (const c of parent.children) if (bareName(c) === name) out.push(c);
+  return out;
+}
+
+/* KML usa color en formato aabbggrr; lo pasamos a {color:#rrggbb, opacity} */
+function kmlColor(hex) {
+  if (!hex) return null;
+  hex = hex.trim().replace(/^#/, "");
+  if (!/^[0-9a-f]{6,8}$/i.test(hex)) return null;
+  hex = hex.padStart(8, "0");
+  const a = parseInt(hex.slice(0, 2), 16) / 255;
+  const b = hex.slice(2, 4), g = hex.slice(4, 6), r = hex.slice(6, 8);
+  return { color: `#${r}${g}${b}`, opacity: a };
+}
+
+/* Texto del primer descendiente con ese nombre de etiqueta */
+function text(parent, tag) {
+  const el = firstByTag(parent, tag);
+  return el ? el.textContent.trim() : null;
+}
+
+/* Texto de un HIJO DIRECTO (importante para <visibility> y <open>) */
+function directChildText(parent, tag) {
+  const el = childrenByTag(parent, tag)[0];
+  return el ? el.textContent.trim() : null;
+}
+
+/* <visibility> del propio nodo: por defecto 1 según la especificación KML */
+function ownVisibility(el) {
+  return directChildText(el, "visibility") !== "0";
+}
+
+/* Lee <Style> y devuelve opciones de estilo para L.Polygon / L.Polyline */
+function parseStyleElement(styleEl) {
+  const style = {};
+  const line = firstByTag(styleEl, "LineStyle");
+  if (line) {
+    /* Solo el color: el contorno es siempre 100% opaco (se ignora el alfa) */
+    const c = kmlColor(text(line, "color"));
+    if (c) style.color = c.color;
+    const w = parseFloat(text(line, "width"));
+    if (isFinite(w)) {
+      if (w > 0) style.weight = w;
+      else style.stroke = false; /* width 0: a canvas lineWidth of 0 still
+        draws (the spec falls back to the previous width), so a real
+        outline needs stroke:false, not just weight left at 0 */
+    }
+  }
+  const poly = firstByTag(styleEl, "PolyStyle");
+  if (poly) {
+    const c = kmlColor(text(poly, "color"));
+    if (c) { style.fillColor = c.color; style.fillOpacity = c.opacity; }
+    if (text(poly, "fill") === "0") { style.fillOpacity = 0; style.fill = false; }
+    /* Only meaningful for an actual polygon: per the KML spec, PolyStyle
+       has no defined effect on a LineString. Kept apart from `stroke`
+       (which LineStyle's own width<=0 also sets) until
+       buildPlacemarkLayer knows whether this placemark has a Polygon at
+       all — folding it into `stroke` unconditionally used to also hide
+       a plain line whose shared <Style>/<StyleMap> happened to carry a
+       PolyStyle meant for an unrelated polygon (real KML observed: a
+       route line rendered invisible this way).                        */
+    if (text(poly, "outline") === "0") style.polyOutline = false;
+  }
+  return style;
+}
+
+/* Indexa <Style> y <StyleMap> por id y resuelve las referencias.
+   Un StyleMap puede apuntar a otro StyleMap y una cadena puede tener
+   ciclos, así que la resolución es perezosa, con memoria y con tope de
+   saltos. Los estilos externos ("archivo.kml#id") no se pueden resolver
+   sin descargar ese archivo: se ignoran y se cuentan como aviso.      */
+const STYLE_HOPS = 8;
+
+function buildStyleIndex(doc) {
+  const own = {};      /* id -> opciones propias del <Style> */
+  const links = {};    /* id -> id al que apunta el <StyleMap> "normal" */
+  let external = 0;    /* referencias a otros archivos, no resolubles */
+
+  for (const el of elsByTag(doc, "Style")) {
+    const id = el.getAttribute("id");
+    if (id) own["#" + id] = parseStyleElement(el);
+  }
+  for (const el of elsByTag(doc, "StyleMap")) {
+    const id = el.getAttribute("id");
+    if (!id) continue;
+    for (const pair of elsByTag(el, "Pair")) {
+      if (text(pair, "key") !== "normal") continue;
+      const url = text(pair, "styleUrl");
+      if (url) links["#" + id] = url.trim();
+      /* <Pair> con <Style> incrustado en vez de <styleUrl> */
+      const inline = childrenByTag(pair, "Style")[0];
+      if (inline) own["#" + id] = parseStyleElement(inline);
+    }
+  }
+
+  const cache = {};
+  const resolve = url => {
+    if (!url) return null;
+    url = url.trim();
+    if (url in cache) return cache[url];
+    cache[url] = null; /* corta los ciclos: una referencia en curso no resuelve */
+    if (!url.startsWith("#")) { external++; return (cache[url] = null); }
+    let cur = url, out = null;
+    for (let hop = 0; hop < STYLE_HOPS; hop++) {
+      if (own[cur]) { out = own[cur]; break; }
+      if (!links[cur]) break;
+      const next = links[cur].startsWith("#") ? links[cur] : null;
+      if (!next) { external++; break; }
+      if (next === cur) break;
+      cur = next;
+    }
+    return (cache[url] = out);
+  };
+  return { resolve, get externalRefs() { return external; } };
+}
+
+/* Estilo efectivo de un placemark: styleUrl referenciado o <Style> inline */
+function placemarkStyle(pm, styleIndex) {
+  const defaults = { color: "#3388ff", weight: 2, fillOpacity: 0.35 };
+  let style = styleIndex.resolve(text(pm, "styleUrl")) || {};
+  for (const child of childrenByTag(pm, "Style")) {
+    style = { ...style, ...parseStyleElement(child) };
+  }
+  return { ...defaults, ...style };
+}
+
+
 /* ================= Geometrías KML ================= */
 
 /* ---------- Coordenadas: rango con tolerancia ----------

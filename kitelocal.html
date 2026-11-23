@@ -5985,7 +5985,7 @@ map.on("resize rotate", fitWorldMinZoom);
 
 /* Fecha de generación del código (versión): AÑOMESDIAHORAMINUTO.
    Actualizar en cada generación; se muestra junto al crédito de Leaflet. */
-const BUILD = "202611210202";
+const BUILD = "202611230031";
 /* Versión de release (la de package.json, horneada aquí por build.js
    al construir — ver «Versión y releases de GitHub» en CLAUDE.md): a
    diferencia de BUILD, que cambia en CADA generación, esta solo cambia
@@ -7460,7 +7460,6 @@ function ensureDynamicCatalogs() {
 
 /* Grupo raíz del visor: cuelgan todas las capas de todos los archivos */
 const rootGroup = L.featureGroup().addTo(map);
-
 /* ================= Utilidades de estilo KML =================
    Every lookup here is namespace-agnostic. Real-world KML often carries
    prefixes (<kml:Placemark>, <gx:Track>…) or declares no namespace at
@@ -7658,6 +7657,7 @@ function placemarkStyle(pm, styleIndex) {
   }
   return { ...defaults, ...style };
 }
+
 
 /* ================= Geometrías KML ================= */
 
