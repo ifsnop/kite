@@ -81,9 +81,10 @@ prueba una suite sin tener que abrirla.
 KML PARSER TESTS OK
 NAMESPACE VARIANTS OK
 POLYGON STROKE/FILL TESTS OK
+KML MARKER STYLE TESTS OK
 ```
 
-**Qué cubre:** Parseo de KML con prefijo, con espacio de nombres por defecto y sin ninguno; cadenas de `StyleMap` con ciclos; polígonos con agujeros; color `aabbggrr`. Y el estilo que recibe Leaflet frente al guardado: `polygonRenderStyle` (solo relleno → contorno de 1 px del color y la opacidad del relleno sin tocar el estilo guardado; contorno y relleno, solo contorno y estilo vacío sin cambios, con los valores por defecto de Leaflet explícitos) y la opacidad del contorno en `normalizePathStyle` (1 si falta o es inválida). `polygonModeOf` traduce los dos booleanos al selector de cuatro opciones: «Contorno y relleno», «Solo contorno», «Solo relleno» y «Ninguno» (ni contorno ni relleno), y sin booleanos o con solo el contorno es el de siempre.
+**Qué cubre:** Parseo de KML con prefijo, con espacio de nombres por defecto y sin ninguno; cadenas de `StyleMap` con ciclos; polígonos con agujeros; color `aabbggrr`. Y el estilo que recibe Leaflet frente al guardado: `polygonRenderStyle` (solo relleno → contorno de 1 px del color y la opacidad del relleno sin tocar el estilo guardado; contorno y relleno, solo contorno y estilo vacío sin cambios, con los valores por defecto de Leaflet explícitos) y la opacidad del contorno en `normalizePathStyle` (1 si falta o es inválida). `polygonModeOf` traduce los dos booleanos al selector de cuatro opciones: «Contorno y relleno», «Solo contorno», «Solo relleno» y «Ninguno» (ni contorno ni relleno), y sin booleanos o con solo el contorno es el de siempre. **El estilo de marcador** (`IconStyle`/`LabelStyle`): el ejemplo notificado (`StyleMap` → punto verde, escala 0,5, `LabelStyle` de escala 0) da un círculo `#00ff00` de 21 px sin nombre fijo; una `LineStyle` sola o ningún estilo no dicen nada del marcador y el estilo de la línea se sigue resolviendo; un `<Style>` incrustado manda campo a campo sobre el compartido; el tamaño se limita a 12–64 y sin escala es el de por defecto; la forma sale del NOMBRE del archivo (punto o círculo, cuadrado, estrella, triángulo); una imagen sin equivalente se dibuja como círculo del color (o la gota sin color) y su dirección se anota; escala 0 es «Ninguno» (con su nombre, salvo `LabelStyle` de escala 0) y deja el tamaño por defecto; un valor roto se descarta sin lanzar. Imprime además `KML MARKER STYLE TESTS OK`.
 
 ### `repairtest.js`
 
@@ -1459,6 +1460,16 @@ BROWSER CONTEXT PENDING TESTS OK
 ```
 
 **Qué cubre:** el fallo «tras recargar no sale “Mostrar perfil” en el menú contextual». Una capa de una carpeta que no se ha desplegado nunca (tras recargar, cualquiera que se guardara colapsada) está dibujada en el mapa pero su fila es todavía un registro pendiente, y el hit-testing solo veía capas con fila: el clic derecho no ofrecía ni «Ir al nodo» ni «Editar propiedades» y, en una ruta, ni «Mostrar perfil». Con el clic derecho REAL del ratón: (A) un polígono de un KML dentro de carpetas colapsadas ofrece «Ir al nodo en el panel» y «Editar propiedades», y se materializa la cadena hasta él; (B) una ruta con su perfil (MDT y MDS falsos) con «Mediciones» y «Perfiles de ruta» desplegadas, solo la segunda colapsada, solo la primera, o las dos —la ruta es un registro pendiente tras recargar— ofrece siempre «Mostrar perfil» y sus entradas de capa, y elegirlo abre el perfil guardado sin pedir nada. Comprobado que falla sin la corrección. Sin errores de página ni violaciones de la CSP.
+
+### `browser/kml-marker-style.mjs`
+
+**Salida de `npm test`:**
+```
+── Navegador: los marcadores de un KML conservan el color, el tamaño y la forma de su IconStyle (el ejemplo notificado, una chincheta con color, sin estilo y «Ninguno»), LabelStyle scale 0 no deja el nombre fijo, la imagen del icono no se pide nunca y se nombra en el aviso, una carpeta sin desplegar ya tiene el icono en su capa y todo sigue tras guardar y recargar
+BROWSER KML MARKER STYLE TESTS OK
+```
+
+**Qué cubre:** un KML con el estilo que se notificó (un `StyleMap` cuyo «normal» es un punto verde de media escala con `LabelStyle` de escala 0) y otros cuatro puntos: el verde sale como círculo MDI de 21 px y color `#00ff00`, sin nombre fijo y con su globo al pulsar; una chincheta con color, como círculo de ese color; un punto sin estilo de marcador, con la gota de Leaflet; y `IconStyle` de escala 0 con `LabelStyle` de escala 0, como «Ninguno» sin nombre. El aviso de importación nombra la dirección de la chincheta (la forma que se reconoce no se avisa), y **la imagen nunca se pide**: ninguna petición a `maps.google.com` y ninguna violación de la CSP. Un marcador dentro de una carpeta que nunca se despliega ya lleva su icono en la capa cruda y lo conserva al encender la carpeta con su casilla. Tras guardar y recargar los estilos son los mismos.
 
 ### `browser/lazy-layers.mjs`
 

@@ -64,9 +64,10 @@ document.addEventListener("keydown", e => {
    selection rule guarantees they all share the same kind).               */
 
 /* The Leaflet drop pin. It is a raster image, not an SVG, so `color` has no
-   effect on it — it is offered as the neutral default because imported KML
-   icons cannot be honoured (Google Earth pushpins have no exact equivalent
-   here and <IconStyle> href images point at URLs we do not support).      */
+   effect on it. An imported KML marker keeps the colour, size and shape (dot,
+   square, star, triangle) of its <IconStyle> (kmlMarkerToMstyle); the image
+   itself is never loaded, so a Google Earth pushpin or any other picture
+   becomes a circle of its colour, or this pin when the style has no colour. */
 const LEAFLET_PIN = "leaflet-pin";
 const LEAFLET_PIN_URL = "https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon.png";
 const LEAFLET_PIN_SHADOW = "https://unpkg.com/leaflet@1.9.4/dist/images/marker-shadow.png";

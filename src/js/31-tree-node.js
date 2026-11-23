@@ -797,6 +797,7 @@ const CASCADE_BATCH = 300; /* casillas conmutadas entre cesiones del hilo en
    skipped, counted and described, and the rest of the file still loads.
    At the end the user gets a summary instead of a silent half-import.  */
 const MAX_REPORT_DETAIL = 3; /* distinct causes quoted in the summary */
+const ICON_HREFS_SHOWN = 5;  /* KML icon addresses quoted in the notice */
 
 function makeImportReport(fileName) {
   return {
@@ -807,6 +808,7 @@ function makeImportReport(fileName) {
     kinds: new Set(),
     notes: [],
     seaFloor: 0, /* polígonos KML con altitud sobre el fondo marino (aviso único) */
+    iconHrefs: new Set(), /* <IconStyle> images with no equivalent (one notice per file) */
     /* Una entidad que no ha entrado */
     warn(why) {
       this.skipped++;
@@ -864,6 +866,9 @@ async function buildKmlRecords(el, styleIndex, inheritedVisible, prog, report, z
         const style = placemarkStyle(child, styleIndex);
         const visible = inheritedVisible && ownVisibility(child);
         const els = placemarkGeomEls(child);
+        /* Marker look from IconStyle/LabelStyle (points only; never lazy) */
+        const mstyle = els.pointEls.length
+          ? kmlMarkerToMstyle(placemarkMarkerStyle(child, styleIndex), report && report.iconHrefs) : null;
         /* La ficha del placemark suele traer una tabla con los datos
            reales del elemento; se guarda para poder consultarla       */
         const desc = text(child, "description") || null;
@@ -891,6 +896,9 @@ async function buildKmlRecords(el, styleIndex, inheritedVisible, prog, report, z
           }
           if (visible) layer.addTo(rootGroup);
           rec = { t: "layer", name, checked: visible, style, desc, _layer: layer };
+          /* On the raw layer too: a marker in a folder that is never expanded
+             can be switched on without its row ever being built. */
+          if (mstyle) { rec.mstyle = mstyle; styleMarkerIcon(layer, mstyle, name); }
           wirePendingLayerEvents(rec);
           if (report) { report.loaded++; report.kinds.add(layerKind(layer) || "?"); }
         }

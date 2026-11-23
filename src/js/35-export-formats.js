@@ -235,11 +235,14 @@ function geometryKinds(geoms) {
 function kmlStyleXml(kinds, style, mstyle) {
   let x = "";
   if (kinds.point && mstyle && mstyle.color) {
+    /* The Leaflet pin is a PNG that cannot take a colour: writing its default
+       blue would make a re-import turn every pin into a blue circle. */
+    const tint = mstyle.icon === LEAFLET_PIN ? "" : `<color>${cssToKmlColor(mstyle.color)}</color>`;
     /* «Ninguno» (NO_ICON = "none", 41-selection.js, que carga después): en KML un
        icono de escala 0 no se dibuja y el nombre sigue a la vista */
     const scale = mstyle.icon === "none" ? "<scale>0</scale>"
       : Number.isFinite(mstyle.size) ? `<scale>${+(mstyle.size / 41).toFixed(2)}</scale>` : "";
-    x += `<IconStyle><color>${cssToKmlColor(mstyle.color)}</color>${scale}</IconStyle>`;
+    x += `<IconStyle>${tint}${scale}</IconStyle>`;
   }
   if (kinds.line || kinds.poly) {
     const s = normalizePathStyle(style);

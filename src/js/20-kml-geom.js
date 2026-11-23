@@ -144,13 +144,19 @@ function parseStyleElement(styleEl) {
 const STYLE_HOPS = 8;
 
 function buildStyleIndex(doc) {
-  const own = {};      /* id -> opciones propias del <Style> */
-  const links = {};    /* id -> id al que apunta el <StyleMap> "normal" */
-  let external = 0;    /* referencias a otros archivos, no resolubles */
+  const own = {};       /* id -> path options of the <Style> */
+  const ownMarker = {}; /* id -> marker part of the <Style> (IconStyle/LabelStyle), only if it has one */
+  const links = {};     /* id -> id al que apunta el <StyleMap> "normal" */
+  const externalSeen = new Set(); /* referencias a otros archivos, no resolubles */
 
+  const addStyle = (id, el) => {
+    own[id] = parseStyleElement(el);
+    const marker = parseMarkerStyleElement(el);
+    if (marker) ownMarker[id] = marker; else delete ownMarker[id];
+  };
   for (const el of elsByTag(doc, "Style")) {
     const id = el.getAttribute("id");
-    if (id) own["#" + id] = parseStyleElement(el);
+    if (id) addStyle("#" + id, el);
   }
   for (const el of elsByTag(doc, "StyleMap")) {
     const id = el.getAttribute("id");
@@ -161,29 +167,38 @@ function buildStyleIndex(doc) {
       if (url) links["#" + id] = url.trim();
       /* <Pair> con <Style> incrustado en vez de <styleUrl> */
       const inline = childrenByTag(pair, "Style")[0];
-      if (inline) own["#" + id] = parseStyleElement(inline);
+      if (inline) addStyle("#" + id, inline);
     }
   }
 
-  const cache = {};
-  const resolve = url => {
-    if (!url) return null;
-    url = url.trim();
-    if (url in cache) return cache[url];
-    cache[url] = null; /* corta los ciclos: una referencia en curso no resuelve */
-    if (!url.startsWith("#")) { external++; return (cache[url] = null); }
-    let cur = url, out = null;
-    for (let hop = 0; hop < STYLE_HOPS; hop++) {
-      if (own[cur]) { out = own[cur]; break; }
-      if (!links[cur]) break;
-      const next = links[cur].startsWith("#") ? links[cur] : null;
-      if (!next) { external++; break; }
-      if (next === cur) break;
-      cur = next;
-    }
-    return (cache[url] = out);
+  /* One resolver per table: the path styles and the marker styles follow the
+     same chain, hop cap and cycle cut, and an external reference is counted
+     once however many resolvers meet it. */
+  const makeResolver = table => {
+    const cache = {};
+    return url => {
+      if (!url) return null;
+      url = url.trim();
+      if (url in cache) return cache[url];
+      cache[url] = null; /* corta los ciclos: una referencia en curso no resuelve */
+      if (!url.startsWith("#")) { externalSeen.add(url); return (cache[url] = null); }
+      let cur = url, out = null;
+      for (let hop = 0; hop < STYLE_HOPS; hop++) {
+        if (table[cur]) { out = table[cur]; break; }
+        if (!links[cur]) break;
+        const next = links[cur].startsWith("#") ? links[cur] : null;
+        if (!next) { externalSeen.add(url); break; }
+        if (next === cur) break;
+        cur = next;
+      }
+      return (cache[url] = out);
+    };
   };
-  return { resolve, get externalRefs() { return external; } };
+  return {
+    resolve: makeResolver(own),
+    resolveMarker: makeResolver(ownMarker),
+    get externalRefs() { return externalSeen.size; }
+  };
 }
 
 /* Estilo efectivo de un placemark: styleUrl referenciado o <Style> inline */
@@ -194,6 +209,78 @@ function placemarkStyle(pm, styleIndex) {
     style = { ...style, ...parseStyleElement(child) };
   }
   return { ...defaults, ...style };
+}
+
+/* ---------- Marker style (IconStyle / LabelStyle) ----------
+   Kept apart from parseStyleElement: those are Leaflet PATH options that end up
+   saved as `rec.style`; a marker's look is `mstyle` (see kmlMarkerToMstyle).
+   The <Icon><href> image is NEVER fetched (CSP img-src is https only and the
+   server is the file author's): only its file name picks one of our own icons. */
+function parseMarkerStyleElement(styleEl) {
+  const out = {};
+  const icon = firstByTag(styleEl, "IconStyle");
+  if (icon) {
+    const c = kmlColor(text(icon, "color"));
+    if (c) out.color = c.color; /* alpha ignored: a marker has no opacity */
+    const scale = parseFloat(text(icon, "scale"));
+    if (isFinite(scale) && scale >= 0) out.scale = scale;
+    const href = text(icon, "href");
+    if (href) out.href = href;
+  }
+  const label = firstByTag(styleEl, "LabelStyle");
+  if (label) {
+    const scale = parseFloat(text(label, "scale"));
+    if (isFinite(scale) && scale >= 0) out.labelScale = scale;
+  }
+  return Object.keys(out).length ? out : null;
+}
+
+/* The marker style of a placemark, field by field: the shared <Style>/<StyleMap>
+   first, then any inline <Style> over it (as placemarkStyle does). */
+function placemarkMarkerStyle(pm, styleIndex) {
+  let style = styleIndex.resolveMarker(text(pm, "styleUrl"));
+  for (const child of childrenByTag(pm, "Style")) {
+    const inline = parseMarkerStyleElement(child);
+    if (inline) style = { ...style, ...inline };
+  }
+  return style || null;
+}
+
+/* Which of our icons an IconStyle image stands for, by its FILE NAME only
+   (Google's shapes: shaded_dot.png, square.png, star.png, triangle.png, …).
+   null when it is not one we know. */
+const KML_ICON_BY_NAME = [[/dot|circle/, "circle"], [/square/, "square"], [/star/, "star"], [/triangle/, "triangle"]];
+function kmlIconName(href) {
+  const file = String(href).split(/[?#]/)[0].split("/").pop().toLowerCase();
+  for (const [re, icon] of KML_ICON_BY_NAME) if (re.test(file)) return icon;
+  return null;
+}
+
+/* IconStyle/LabelStyle -> KITE's `mstyle`, or null when the style says nothing
+   about the marker (it keeps today's default). `unknownHrefs` (a Set) collects
+   the images with no equivalent so the import can name them in a notice. */
+const KML_MARKER_SIZE_MIN = 12, KML_MARKER_SIZE_MAX = 64; /* the style dialog's bounds */
+function kmlMarkerToMstyle(k, unknownHrefs) {
+  if (!k) return null;
+  const hasColor = !!k.color;
+  let icon;
+  if (k.scale === 0) icon = NO_ICON;
+  else {
+    icon = k.href ? kmlIconName(k.href) : null;
+    if (k.href && !icon && unknownHrefs) unknownHrefs.add(k.href);
+    /* Not a shape we know: the Leaflet pin is a PNG and cannot take the colour,
+       so with a colour a circle is the faithful stand-in. */
+    if (!icon) icon = hasColor ? "circle" : LEAFLET_PIN;
+  }
+  /* scale 0 is «Ninguno»: it draws nothing, so its size stays the default (not the clamp's floor) */
+  const size = !k.scale ? DEFAULT_MARKER_STYLE.size
+    : Math.min(KML_MARKER_SIZE_MAX, Math.max(KML_MARKER_SIZE_MIN, Math.round(k.scale * DEFAULT_MARKER_STYLE.size)));
+  const style = { ...DEFAULT_MARKER_STYLE, icon, size };
+  if (hasColor) style.color = k.color;
+  /* «Ninguno» normally turns the permanent text on (nothing else would show);
+     an explicit LabelStyle scale 0 means the author wants no label at all. */
+  style.textAlways = icon === NO_ICON && k.labelScale !== 0;
+  return style;
 }
 
 

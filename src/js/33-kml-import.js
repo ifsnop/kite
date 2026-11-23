@@ -360,6 +360,16 @@ async function addFileNode(name, kind, content, insertBefore = null, dropTargetU
       if (styleIndex.externalRefs) {
         report.note(tr("{externalRefs} estilo(s) en archivos externos, no aplicados", { externalRefs: styleIndex.externalRefs }));
       }
+      /* Images with no equivalent are drawn as a circle (or the pin); their
+         addresses go in the notice so someone can look at them. Never fetched. */
+      if (report.iconHrefs.size) {
+        const hrefs = [...report.iconHrefs];
+        const shown = hrefs.slice(0, ICON_HREFS_SHOWN).join(", ") + (hrefs.length > ICON_HREFS_SHOWN ? ", \u2026" : "");
+        report.note(trn(hrefs.length,
+          "{n} icono de KML sin equivalente, dibujado como c\u00EDrculo o como la gota: {urls}",
+          "{n} iconos de KML sin equivalente, dibujados como c\u00EDrculo o como la gota: {urls}",
+          { n: hrefs.length, urls: shown }));
+      }
       /* UN aviso por archivo, no uno por polígono: un KML puede traer miles */
       if (report.seaFloor) {
         report.note(trn(report.seaFloor,

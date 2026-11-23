@@ -240,6 +240,7 @@ registerLang("en", "English", {
   "{removed} placemark(s) duplicado(s) fusionado(s)": "{removed} duplicate placemark(s) merged",
   "Construyendo capas de {name}… ({d}/{total})": "Building layers for {name}… ({d}/{total})",
   "{externalRefs} estilo(s) en archivos externos, no aplicados": "{externalRefs} style(s) in external files, not applied",
+  "{n} iconos de KML sin equivalente, dibujados como círculo o como la gota: {urls}": { one: "{n} KML icon with no equivalent, drawn as a circle or the pin: {urls}", other: "{n} KML icons with no equivalent, drawn as a circle or the pin: {urls}" },
   "{n} polígonos con altitud sobre el fondo marino: no servirán como obstáculo en un perfil": { one: "{n} polygon with altitude above the sea floor: it will not count as an obstacle in a profile", other: "{n} polygons with altitude above the sea floor: they will not count as obstacles in a profile" },
   "Procesando JSON de {name}…": "Processing JSON for {name}…",
   "etiquetas tipo HTML eliminadas de {n} propiedad(es)": "HTML-like tags removed from {n} property(ies)",
@@ -807,6 +808,7 @@ registerLang("en", "English", {
   "La vista es más grande de lo que Wikipedia permite buscar: se han buscado los artículos a menos de {distance} del punto.": "The view is larger than Wikipedia can search: articles were searched within {distance} of the point.",
   "No se pudo obtener el resumen de {n} artículo(s) ({reason}): solo llevan el enlace.": "Could not get the summary of {n} article(s) ({reason}): they only carry the link.",
   /* 68-whats-new.js */
+  "Los marcadores de un KML conservan el color, el tamaño y la forma (punto, cuadrado, estrella o triángulo) de su icono, y no enseñan su nombre si el KML lo oculta.": "Markers from a KML keep the colour, size and shape (dot, square, star or triangle) of their icon, and do not show their name when the KML hides it.",
   "El buscador del panel enseña lo que hay dentro de una carpeta que coincide, admite varias palabras (también las de las carpetas de arriba) y marca en cada nombre lo que has escrito.": "The panel search shows what is inside a folder that matches, accepts several words (also those of the folders above) and marks what you typed in each name.",
   "Al quitar la búsqueda, lo que hayas seleccionado entre los resultados se queda a la vista, con sus carpetas desplegadas.": "When you clear the search, what you selected among the results stays in view, with its folders unfolded.",
   "La lista de mapas base sigue abierta al añadir, modificar o borrar una capa propia, también al cancelar.": "The base-map list stays open when you add, edit or delete one of your own layers, also when you cancel.",

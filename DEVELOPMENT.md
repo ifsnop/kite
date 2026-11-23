@@ -14,7 +14,7 @@ This page is for people who work on the code: what is done and what is still ope
   `src/styles.css`, `src/sw.js` and 45 JavaScript files, concatenated into the
   shipped file by `build.js`. The single-file product is the output, not the
   source.
-- **There are automated tests.** 142 suites run against the shipped
+- **There are automated tests.** 143 suites run against the shipped
   file — most under Node, plus a set that drives a real headless browser —
   covering coordinate parsing and formatting, UTM, KML namespaces and
   styles, geometry conversion, serialization, tree navigation and

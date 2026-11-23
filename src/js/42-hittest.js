@@ -363,10 +363,9 @@ function applyMarkerText(li, offset) {
   each(layer);
 }
 
-/* Imported markers never keep their original KML icon: Google Earth
-   pushpins have no exact equivalent here and <IconStyle> images point at
-   URLs this viewer does not load. Every marker layer therefore starts
-   with the Leaflet drop pin in the default colour.                      */
+/* A marker with no style of its own (a KML point whose style has no IconStyle,
+   a GeoJSON point) starts with the Leaflet drop pin in the default colour.
+   KML points that do have one arrive with `mstyle` already (buildKmlRecords).  */
 function ensureMarkerDefaults(li) {
   if (li._mstyle || styleKind(li) !== "marker") return;
   li._mstyle = { ...DEFAULT_MARKER_STYLE };
