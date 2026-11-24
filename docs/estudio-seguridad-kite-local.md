@@ -5,10 +5,10 @@
 | | |
 |---|---|
 | **Documento** | Estudio de seguridad — KITE Local (KML Interactive Tree Explorer) |
-| **Versión del documento** | 1.15 |
-| **Fecha** | 21 de noviembre de 2026 |
+| **Versión del documento** | 1.16 |
+| **Fecha** | 24 de noviembre de 2026 |
 | **Preparado por** | Diego Torres |
-| **Versión de la aplicación auditada** | v2.8.0 (202611210202) |
+| **Versión de la aplicación auditada** | v2.8.1 (202611241249) |
 | **Repositorio público del código fuente** | https://github.com/ifsnop/kite |
 
 ---
@@ -218,6 +218,7 @@ En la fecha de este documento, la batería está compuesta por 143 conjuntos de 
 **Interpretación de archivos y formatos de origen**
 - Lectura de archivos KML, con independencia del prefijo de espacio de nombres que use cada archivo.
 - Reparación controlada de espacios de nombres mal declarados en un KML (ver apartado 5.2).
+- Estilo de un marcador de un KML (`IconStyle` y `LabelStyle`): color en el orden `aabbggrr`, tamaño limitado a lo que admite el diálogo de estilos, forma elegida solo por el nombre del archivo de la imagen y nunca descargada, imágenes sin equivalente dibujadas como círculo y anotadas en el aviso, referencias a un estilo con o sin la almohadilla (y una a otro archivo que no se resuelve), y que exportar y volver a importar conserva el color y el tamaño sin teñir de azul la gota por defecto.
 - Conversión del formato TopoJSON al formato GeoJSON equivalente.
 - Ortofotos COG: sistemas de coordenadas admitidos y lectura de los que declara la imagen, elección del nivel de detalle y de la ventana que se lee, muestreo de cada píxel sin mezclar colores (con máscara, valor sin dato y transparencia propia), qué copias del almacén ya no nombra nadie, validación de una referencia leída de fuera, y que una exportación las deja fuera; y, para los modelos de elevación, la rampa de color, el sombreado, el rango de altitudes válidas y que un píxel sin dato o fuera de la máscara queda transparente.
 - Comprobaciones estáticas sobre el propio archivo de la aplicación, entre ellas que ningún nombre de función o constante se declare dos veces (la segunda declaración anularía en silencio a la primera).
@@ -304,6 +305,7 @@ En la fecha de este documento, la batería está compuesta por 143 conjuntos de 
 - Copiar y pegar información entre dos instancias de la aplicación abiertas en orígenes distintos, usando el portapapeles real del sistema operativo.
 - Comportamiento correcto del filtrado de marcado HTML en propiedades de un GeoJSON, de principio a fin.
 - Redimensionado correcto de las ventanas de diálogo.
+- Los marcadores de un KML de principio a fin (con el ejemplo notificado, una chincheta con color, un punto sin estilo y un marcador sin icono): círculo MDI del color y el tamaño del KML, sin nombre fijo cuando la etiqueta tiene escala 0, la imagen del icono nunca se pide ni viola la política de contenido, el icono ya está en la capa de una carpeta que nunca se desplegó y todo sigue tras guardar y recargar; y que treinta avisos fijos seguidos no sacan el botón «Aceptar» de la ventana, porque la caja de avisos tiene tope y se desplaza.
 - Que unas coordenadas escritas en el buscador de lugares se reconocen (decimales, coma decimal, grados-minutos-segundos con letras de hemisferio) y llevan el mapa allí sin ninguna petición a Nominatim, y que lo que no son coordenadas (nombres, direcciones, latitudes imposibles) se sigue buscando como un lugar.
 - Que el menú contextual del visor ofrece todas las entradas de una capa (también «Mostrar perfil» de una ruta) cuando su carpeta se guardó colapsada y la página se recargó.
 - Que las secciones que crea la aplicación se distinguen de las del usuario y de una fila con el ratón encima, y que su marca guardada solo la acepta como `true` exacto en un archivo.

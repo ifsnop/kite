@@ -6000,14 +6000,14 @@ map.on("resize rotate", fitWorldMinZoom);
 
 /* Fecha de generación del código (versión): AÑOMESDIAHORAMINUTO.
    Actualizar en cada generación; se muestra junto al crédito de Leaflet. */
-const BUILD = "202611241212";
+const BUILD = "202611241249";
 /* Versión de release (la de package.json, horneada aquí por build.js
    al construir — ver «Versión y releases de GitHub» en CLAUDE.md): a
    diferencia de BUILD, que cambia en CADA generación, esta solo cambia
    al preparar un release, y debe coincidir con el tag de GitHub que se
    crea justo después del commit que la sube. Lo comprueba
    .github/workflows/release.yml antes de publicar el Release.        */
-const VERSION = "2.8.0";
+const VERSION = "2.8.1";
 /* The link to the repository goes next to the version, which is what makes
    knowing which build is running actionable: from there one reaches that
    version's code. `target="_blank"` on purpose —leaving the page in the same
@@ -30105,7 +30105,7 @@ async function queryWikipediaAt(latlng) {
      the new version (tests/whatsnew.js fails if package.json's version
      has no entry).                                                     */
 const WHATS_NEW = [
-  { version: "next", items: [
+  { version: "2.8.1", items: [
     N_("Los marcadores de un KML conservan el color, el tamaño y la forma (punto, cuadrado, estrella o triángulo) de su icono, y no enseñan su nombre si el KML lo oculta."),
     N_("Cuando se acumulan muchos avisos fijos, el botón «Aceptar» se queda siempre a la vista en vez de salirse de la pantalla.")
   ] },
