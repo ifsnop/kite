@@ -4,7 +4,7 @@
 
 Este documento reúne en un solo sitio lo que **está pendiente** en KITE Local y las **ideas** que se han propuesto para seguir desarrollándolo. Antes estaba repartido entre las reglas del proyecto, el README y notas de varias conversaciones; aquí es la única lista. Quien quiera saber qué hace hoy la aplicación debe leer el [manual de usuario](manual-usuario-kite-local.md); quien quiera saber en qué se apoya la confianza en sus datos, el [estudio de seguridad](estudio-seguridad-kite-local.md).
 
-- **Última revisión:** 21 de noviembre de 2026 (versión 2.8.0 de la aplicación).
+- **Última revisión:** 24 de noviembre de 2026 (versión 2.8.1 de la aplicación).
 - **Cómo se mantiene:** lo que se hace **se borra** de este documento en el mismo cambio que lo hace (y se cuenta en el manual y el README, si lo ve el usuario); una idea que se descarta pasa a «Descartado» con su motivo, para no volver a proponerla sin un caso nuevo. Una idea se convierte en pendiente cuando alguien decide hacerla. Ver `.claude/rules/docs-maintenance.md`.
 - **Qué NO es:** no es un compromiso de calendario. Hay ideas que quizá no se hagan nunca.
 
@@ -99,6 +99,10 @@ The info card's stack of recent cards (manual 6.5) keeps one tab per layer the p
 - **A short glance still closes.** A layer the pointer did not rest on (under ~0.4 s) leaves no tab, so its card closes 200 ms after the pointer leaves it, as before: its link is only reachable by resting on it, or with ℹ or «Mostrar atributos».
 - **Timings and caps are fixed** (intent 250 ms on the map, dwell 400 ms, 30 s, 6 unpinned rows and 6 pinned ones), not preferences.
 - **Many tabs scroll.** With the 6 recent cards and up to 6 pinned ones the strip can be wider than the card: it scrolls sideways (wheel and ← →) and long names are cut with an ellipsis (the whole name on hover). A tab out of sight is not brought into view on its own: doing it while the pointer is on the strip would move the tabs under it.
+
+### 1.14 Two browser suites depend on the live IGN service
+
+`tests/browser/dialogs.mjs` and `tests/browser/user-bases.mjs` open the base-layer panel, which asks `https://www.ign.es/wms/pnoa-historico?…GetCapabilities` for real: nothing simulates it. On 24 November 2026 both failed in the CI of PR #101 with «blocked by CORS policy» (an error answer from the IGN carries no `Access-Control-Allow-Origin`); the service answered 200 with the header minutes later, and re-running the failed job passed. Until those two routes are stubbed (`ctx.route`, as `tests/browser/_fakes.mjs` does for the elevation services), a red CI on a change that has nothing to do with base maps should be re-run before it is investigated.
 
 ## 2. Hecho a medias
 
