@@ -13,7 +13,12 @@
    3) Nothing is requested from the icons' server, and the CSP is silent.
    4) A marker in a folder that is never expanded already has its icon on the
       raw layer, and keeps it when the folder is switched on.
-   5) Saving and reloading keeps all of it.                                   */
+   5) Saving and reloading keeps all of it.
+   6) A styleUrl without the "#" (`<styleUrl>error_75</styleUrl>`, as in a real
+      file) names the local style: same look, and no «estilo en archivos
+      externos» notice.
+   7) Many sticky notices do not push «Aceptar» out of the panel: the notice box
+      scrolls inside a cap and the button stays in view and works.          */
 import { launch, serve, openApp, waitAppReady, reporter, READABLE } from "./_browser.mjs";
 
 const { ok, done } = reporter("BROWSER KML MARKER STYLE TESTS OK");
@@ -38,6 +43,7 @@ const kml = `<?xml version="1.0" encoding="UTF-8"?><kml xmlns="http://www.opengi
   ${pt("Chincheta roja", "<styleUrl>#pin</styleUrl>", 2)}
   ${pt("Sin estilo", "", 3)}
   ${pt("Sin icono", "<styleUrl>#hidden</styleUrl>", 4)}
+  ${pt("Sin almohadilla", "<styleUrl>error_75</styleUrl>", 6)}
 </Folder>
 <Folder><name>Cerrada</name><visibility>0</visibility>
   ${pt("Verde dentro", "<styleUrl>#error_75</styleUrl>", 5, "<visibility>0</visibility>")}
@@ -81,7 +87,12 @@ ok(bare.mstyle.icon === "leaflet-pin" && bare.isPin, "a point with no marker sty
 const none = await look("Sin icono");
 ok(none.mstyle.icon === "none" && none.mstyle.textAlways === false && !none.tooltip, "IconStyle scale 0 + LabelStyle scale 0: «Ninguno» with no name: " + JSON.stringify(none));
 
+const bareRef = await look("Sin almohadilla");
+ok(bareRef.mstyle.icon === "circle" && bareRef.mstyle.color === "#00ff00" && bareRef.mstyle.size === 21,
+  "a styleUrl without the # names the local style: " + JSON.stringify(bareRef.mstyle));
+
 const log = await page.evaluate(() => msgLog.map(m => m.text).join(" | "));
+ok(!/archivos externos/.test(log), "and it is not reported as a style in another file: " + log);
 ok(log.includes(PUSHPIN) && /sin equivalente/.test(log), "the notice names the pushpin address: " + log);
 ok(!log.includes(GREEN_DOT), "a shape we know is not reported");
 
@@ -97,7 +108,7 @@ await page.evaluate(() => {
   const li = [...document.querySelectorAll("#tree li")].find(x => x._name === "Cerrada");
   const chk = li.querySelector(":scope > .node-row > input[type=checkbox]"); chk.click();
 });
-await page.waitForFunction(() => rootGroup.getLayers().length === 5);
+await page.waitForFunction(() => rootGroup.getLayers().length === 6);
 const switched = await look("Verde dentro");
 ok(switched.mstyle.icon === "circle" && /mdi-pin/.test(switched.iconClass || ""), "switched on through the folder checkbox it is still the circle: " + JSON.stringify(switched));
 
@@ -106,8 +117,22 @@ await page.evaluate(() => saveTree());
 await page.reload(); await waitAppReady(page);
 const after = await page.evaluate(() => Object.fromEntries([...document.querySelectorAll("#tree li")]
   .filter(li => li._mstyle).map(li => [li._name, li._mstyle.icon + "/" + li._mstyle.color + "/" + li._mstyle.size])));
-ok(after["Punto verde"] === "circle/#00ff00/21" && after["Chincheta roja"] === "circle/#ff0000/41" && after["Sin icono"] === "none/#1b5e97/41",
+ok(after["Punto verde"] === "circle/#00ff00/21" && after["Chincheta roja"] === "circle/#ff0000/41" && after["Sin icono"] === "none/#1b5e97/41" && after["Sin almohadilla"] === "circle/#00ff00/21",
   "after saving and reloading the marker styles are the same: " + JSON.stringify(after));
+
+/* ---------- 7. Many sticky notices: «Aceptar» stays reachable ---------- */
+await page.evaluate(() => {
+  for (let i = 1; i <= 30; i++) navMessage(`«archivo-${i}.kml»: ${i} elemento(s) cargado(s); 3 omitido(s) por una causa larga que ocupa más de una línea del panel`, { sticky: true });
+});
+const pos = await page.evaluate(() => {
+  const ok = document.querySelector("#nav-msg .nav-msg-ok").getBoundingClientRect();
+  const box = document.getElementById("nav-msg");
+  return { top: ok.top, bottom: ok.bottom, vh: innerHeight, boxH: box.getBoundingClientRect().height, scrolls: box.scrollHeight > box.clientHeight };
+});
+ok(pos.top >= 0 && pos.bottom <= pos.vh, "with 30 sticky notices «Aceptar» is inside the window: " + JSON.stringify(pos));
+ok(pos.scrolls && pos.boxH < pos.vh / 2, "the notice box is capped and scrolls instead of growing: " + JSON.stringify(pos));
+await page.mouse.click((await page.locator("#nav-msg .nav-msg-ok").boundingBox()).x + 10, (await page.locator("#nav-msg .nav-msg-ok").boundingBox()).y + 8);
+ok(await page.evaluate(() => document.querySelectorAll("#nav-msg .nav-msg-line").length) === 0, "pressing «Aceptar» with the real mouse clears them all");
 
 ok(errors.length === 0, "no page errors: " + errors.join(" | "));
 await ctx.close(); await browser.close();

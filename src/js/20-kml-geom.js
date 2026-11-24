@@ -174,11 +174,19 @@ function buildStyleIndex(doc) {
   /* One resolver per table: the path styles and the marker styles follow the
      same chain, hop cap and cycle cut, and an external reference is counted
      once however many resolvers meet it. */
+  /* A styleUrl is a reference to "#id"; real files often write the bare id
+     ("error_75", seen in the field). With no "#" it would read as a style in
+     ANOTHER file, so a bare word naming a style of THIS document is taken as
+     local. Anything else (a path, a URL, a "#" inside) stays external. */
+  const localRef = u => {
+    if (u.startsWith("#")) return u;
+    return /^[^#\/\\:?]+$/.test(u) && (("#" + u) in own || ("#" + u) in links) ? "#" + u : u;
+  };
   const makeResolver = table => {
     const cache = {};
     return url => {
       if (!url) return null;
-      url = url.trim();
+      url = localRef(url.trim());
       if (url in cache) return cache[url];
       cache[url] = null; /* corta los ciclos: una referencia en curso no resuelve */
       if (!url.startsWith("#")) { externalSeen.add(url); return (cache[url] = null); }
@@ -186,7 +194,7 @@ function buildStyleIndex(doc) {
       for (let hop = 0; hop < STYLE_HOPS; hop++) {
         if (table[cur]) { out = table[cur]; break; }
         if (!links[cur]) break;
-        const next = links[cur].startsWith("#") ? links[cur] : null;
+        const next = localRef(links[cur]).startsWith("#") ? localRef(links[cur]) : null;
         if (!next) { externalSeen.add(url); break; }
         if (next === cur) break;
         cur = next;

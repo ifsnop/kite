@@ -231,7 +231,19 @@
     width: fit-content;
   }
   #offline-badge[hidden] { display: none; }
-  #nav-msg { font-size: 12px; min-height: 0; }
+  /* A sticky notice stays until it is accepted, so a run of them (a folder of
+     KML files, each with its own summary) grew this box without limit and pushed
+     «Aceptar» below the visible panel, where it could not be pressed. The box now
+     scrolls inside a cap and the button sticks to its bottom edge. The outline
+     in the panel colour hides the text scrolling under the button's margin. */
+  #nav-msg {
+    font-size: 12px; min-height: 0;
+    max-height: min(40vh, 18rem); overflow-y: auto; overscroll-behavior: contain;
+  }
+  #nav-msg .nav-msg-ok {
+    position: sticky; bottom: 0;
+    outline: 4px solid var(--panel);
+  }
   /* Solo hay DOS niveles de aviso: notificación (`info`) y alerta
      (`error`, el de por defecto). La notificación va en el color normal
      del texto, no en gris: en gris —que aquí es el color de lo
@@ -4087,6 +4099,7 @@ registerLang("en", "English", {
   "No se pudo obtener el resumen de {n} artículo(s) ({reason}): solo llevan el enlace.": "Could not get the summary of {n} article(s) ({reason}): they only carry the link.",
   /* 68-whats-new.js */
   "Los marcadores de un KML conservan el color, el tamaño y la forma (punto, cuadrado, estrella o triángulo) de su icono, y no enseñan su nombre si el KML lo oculta.": "Markers from a KML keep the colour, size and shape (dot, square, star or triangle) of their icon, and do not show their name when the KML hides it.",
+  "Cuando se acumulan muchos avisos fijos, el botón «Aceptar» se queda siempre a la vista en vez de salirse de la pantalla.": "When many sticky notices pile up, the “Accept” button now always stays in view instead of falling off the screen.",
   "El buscador del panel enseña lo que hay dentro de una carpeta que coincide, admite varias palabras (también las de las carpetas de arriba) y marca en cada nombre lo que has escrito.": "The panel search shows what is inside a folder that matches, accepts several words (also those of the folders above) and marks what you typed in each name.",
   "Al quitar la búsqueda, lo que hayas seleccionado entre los resultados se queda a la vista, con sus carpetas desplegadas.": "When you clear the search, what you selected among the results stays in view, with its folders unfolded.",
   "La lista de mapas base sigue abierta al añadir, modificar o borrar una capa propia, también al cancelar.": "The base-map list stays open when you add, edit or delete one of your own layers, also when you cancel.",
@@ -5987,7 +6000,7 @@ map.on("resize rotate", fitWorldMinZoom);
 
 /* Fecha de generación del código (versión): AÑOMESDIAHORAMINUTO.
    Actualizar en cada generación; se muestra junto al crédito de Leaflet. */
-const BUILD = "202611230044";
+const BUILD = "202611241212";
 /* Versión de release (la de package.json, horneada aquí por build.js
    al construir — ver «Versión y releases de GitHub» en CLAUDE.md): a
    diferencia de BUILD, que cambia en CADA generación, esta solo cambia
@@ -7638,11 +7651,19 @@ function buildStyleIndex(doc) {
   /* One resolver per table: the path styles and the marker styles follow the
      same chain, hop cap and cycle cut, and an external reference is counted
      once however many resolvers meet it. */
+  /* A styleUrl is a reference to "#id"; real files often write the bare id
+     ("error_75", seen in the field). With no "#" it would read as a style in
+     ANOTHER file, so a bare word naming a style of THIS document is taken as
+     local. Anything else (a path, a URL, a "#" inside) stays external. */
+  const localRef = u => {
+    if (u.startsWith("#")) return u;
+    return /^[^#\/\\:?]+$/.test(u) && (("#" + u) in own || ("#" + u) in links) ? "#" + u : u;
+  };
   const makeResolver = table => {
     const cache = {};
     return url => {
       if (!url) return null;
-      url = url.trim();
+      url = localRef(url.trim());
       if (url in cache) return cache[url];
       cache[url] = null; /* corta los ciclos: una referencia en curso no resuelve */
       if (!url.startsWith("#")) { externalSeen.add(url); return (cache[url] = null); }
@@ -7650,7 +7671,7 @@ function buildStyleIndex(doc) {
       for (let hop = 0; hop < STYLE_HOPS; hop++) {
         if (table[cur]) { out = table[cur]; break; }
         if (!links[cur]) break;
-        const next = links[cur].startsWith("#") ? links[cur] : null;
+        const next = localRef(links[cur]).startsWith("#") ? localRef(links[cur]) : null;
         if (!next) { externalSeen.add(url); break; }
         if (next === cur) break;
         cur = next;
@@ -30085,7 +30106,8 @@ async function queryWikipediaAt(latlng) {
      has no entry).                                                     */
 const WHATS_NEW = [
   { version: "next", items: [
-    N_("Los marcadores de un KML conservan el color, el tamaño y la forma (punto, cuadrado, estrella o triángulo) de su icono, y no enseñan su nombre si el KML lo oculta.")
+    N_("Los marcadores de un KML conservan el color, el tamaño y la forma (punto, cuadrado, estrella o triángulo) de su icono, y no enseñan su nombre si el KML lo oculta."),
+    N_("Cuando se acumulan muchos avisos fijos, el botón «Aceptar» se queda siempre a la vista en vez de salirse de la pantalla.")
   ] },
   { version: "2.8.0", items: [
     N_("El buscador del panel enseña lo que hay dentro de una carpeta que coincide, admite varias palabras (también las de las carpetas de arriba) y marca en cada nombre lo que has escrito."),

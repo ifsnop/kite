@@ -213,6 +213,23 @@ ok(kmlMarkerToMstyle({ scale: 0, labelScale: 0 }, null).textAlways === false, "u
 ok(kmlMarkerToMstyle({ scale: 0 }, new Set()).icon === "none", "scale 0 does not report its image");
 ok(kmlMarkerToMstyle({ scale: 0 }, null).size === DEFAULT_MARKER_STYLE.size, "«Ninguno» keeps the default size, not the clamp's floor");
 
+/* A styleUrl without the "#" (real file: <styleUrl>error_75</styleUrl>) is the local style when the document has it */
+const bareDoc = markerKml(`<StyleMap id="error_75"><Pair><key>normal</key><styleUrl>error_75_normal</styleUrl></Pair></StyleMap>
+  <Style id="error_75_normal"><IconStyle><color>ff00ff00</color><scale>0.5</scale></IconStyle></Style>
+  <Style id="a.b"><IconStyle><color>ff0000ff</color></IconStyle></Style>
+  <Placemark><name>E</name><styleUrl>error_75</styleUrl><Point><coordinates>1,1</coordinates></Point></Placemark>
+  <Placemark><name>F</name><styleUrl>a.b</styleUrl><Point><coordinates>1,1</coordinates></Point></Placemark>
+  <Placemark><name>G</name><styleUrl>otro.kml#x</styleUrl><Point><coordinates>1,1</coordinates></Point></Placemark>
+  <Placemark><name>H</name><styleUrl>no_existe</styleUrl><Point><coordinates>1,1</coordinates></Point></Placemark>`);
+const bIdx = buildStyleIndex(bareDoc);
+const be = kmlMarkerToMstyle(placemarkMarkerStyle(pmOf(bareDoc, "E"), bIdx), null);
+ok(be && be.color === "#00ff00" && be.size === 21, "a bare styleUrl names the local StyleMap (and its bare Pair styleUrl too): " + JSON.stringify(be));
+ok(placemarkMarkerStyle(pmOf(bareDoc, "F"), bIdx).color === "#ff0000", "an id with a dot is still local");
+ok(bIdx.externalRefs === 0, "neither counts as an external style: " + bIdx.externalRefs);
+ok(placemarkMarkerStyle(pmOf(bareDoc, "G"), bIdx) === null && placemarkMarkerStyle(pmOf(bareDoc, "H"), bIdx) === null, "a file reference or an id the document lacks resolves to nothing");
+ok(bIdx.externalRefs === 2, "and those two are counted as external: " + bIdx.externalRefs);
+ok(placemarkStyle(pmOf(bareDoc, "E"), bIdx).color === "#3388ff", "the path style of a bare reference resolves through the same chain");
+
 /* Foreign input: junk values are ignored, never thrown on */
 const junk = parseMarkerStyleElement(markerKml(`<Style><IconStyle><color>zz</color><scale>-3</scale><Icon><href>  </href></Icon></IconStyle>
   <LabelStyle><scale>abc</scale></LabelStyle></Style>`).getElementsByTagName("Style")[0]);

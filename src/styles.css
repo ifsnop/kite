@@ -150,7 +150,19 @@
     width: fit-content;
   }
   #offline-badge[hidden] { display: none; }
-  #nav-msg { font-size: 12px; min-height: 0; }
+  /* A sticky notice stays until it is accepted, so a run of them (a folder of
+     KML files, each with its own summary) grew this box without limit and pushed
+     «Aceptar» below the visible panel, where it could not be pressed. The box now
+     scrolls inside a cap and the button sticks to its bottom edge. The outline
+     in the panel colour hides the text scrolling under the button's margin. */
+  #nav-msg {
+    font-size: 12px; min-height: 0;
+    max-height: min(40vh, 18rem); overflow-y: auto; overscroll-behavior: contain;
+  }
+  #nav-msg .nav-msg-ok {
+    position: sticky; bottom: 0;
+    outline: 4px solid var(--panel);
+  }
   /* Solo hay DOS niveles de aviso: notificación (`info`) y alerta
      (`error`, el de por defecto). La notificación va en el color normal
      del texto, no en gris: en gris —que aquí es el color de lo
