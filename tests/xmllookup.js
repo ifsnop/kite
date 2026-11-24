@@ -1,4 +1,4 @@
-/* Búsquedas por nombre local en el XML de un KML (12-copernicus.js):
+/* Búsquedas por nombre local en el XML de un KML (20-kml-geom.js):
    `elsByTag`, `firstByTag` y `childrenByTag` se reescribieron para no
    copiar colecciones enteras ni repetir, en cada búsqueda vacía, un
    recorrido de todos los descendientes con una llamada por elemento.

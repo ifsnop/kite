@@ -1,3 +1,297 @@
+/* ================= Utilidades de estilo KML =================
+   Every lookup here is namespace-agnostic. Real-world KML often carries
+   prefixes (<kml:Placemark>, <gx:Track>…) or declares no namespace at
+   all, so nothing may depend on the literal tagName: `localName` and
+   `getElementsByTagNameNS("*", …)` match the element regardless of the
+   prefix or namespace it was written with.                            */
+
+/* Nombre sin prefijo. En un DOM con namespaces `localName` ya lo da; si
+   el documento se analizó sin ellos, se recorta a mano el "kml:".     */
+function bareName(el) {
+  const n = el.localName || el.nodeName || "";
+  const i = n.indexOf(":");
+  return i < 0 ? n : n.slice(i + 1);
+}
+
+/* ¿Puede existir un elemento que la consulta con comodín de namespace
+   NO encuentre y el filtrado a mano sí? Solo si alguno no tiene un
+   `localName` limpio (sin él, o con el prefijo dentro: un documento
+   analizado sin namespaces). Si TODOS lo tienen, `bareName` es su
+   `localName` y el filtrado a mano devuelve exactamente lo que la
+   consulta ya dio: repetirlo es trabajo perdido. Se averigua de una vez
+   por documento (un recorrido) y se recuerda; el documento no gana
+   elementos después de analizarse.
+
+   Medido (importar 10 000 marcadores): cada Placemark buscaba además
+   `Polygon` y `LineString`, que no tiene, y cada búsqueda vacía caía al
+   filtrado de TODOS sus descendientes con una llamada por elemento.   */
+const prefixFallbackByDoc = new WeakMap();
+function mayNeedPrefixFallback(root) {
+  const doc = root.ownerDocument || root;
+  let need = prefixFallbackByDoc.get(doc);
+  if (need === undefined) {
+    need = false;
+    for (const el of doc.getElementsByTagName("*")) {
+      const n = el.localName;
+      if (typeof n !== "string" || !n || n.includes(":")) { need = true; break; }
+    }
+    prefixFallbackByDoc.set(doc, need);
+  }
+  return need;
+}
+
+/* Búsqueda por nombre local. La vía rápida es la consulta con comodín de
+   namespace; si no devuelve nada (documento sin namespaces), se filtra a
+   mano. Con las dos, el parser funciona con KML con prefijo, sin él o
+   con namespaces por defecto.                                        */
+function elsByTag(root, name) {
+  if (!root || !root.getElementsByTagName) return [];
+  if (root.getElementsByTagNameNS) {
+    const found = [...root.getElementsByTagNameNS("*", name)];
+    if (found.length) return found;
+    if (!mayNeedPrefixFallback(root)) return [];
+  }
+  return [...root.getElementsByTagName("*")].filter(el => bareName(el) === name);
+}
+/* El primero, sin copiar la colección entera a un array para quedarse
+   con uno (la colección es «viva» y se detiene en el primer acierto).
+   Mismo resultado que `elsByTag(root, name)[0] || null`.             */
+function firstByTag(root, name) {
+  if (!root || !root.getElementsByTagName) return null;
+  if (root.getElementsByTagNameNS) {
+    const first = root.getElementsByTagNameNS("*", name)[0];
+    if (first) return first;
+    if (!mayNeedPrefixFallback(root)) return null;
+  }
+  for (const el of root.getElementsByTagName("*")) {
+    if (bareName(el) === name) return el;
+  }
+  return null;
+}
+function childrenByTag(parent, name) {
+  const out = [];
+  if (parent) for (const c of parent.children) if (bareName(c) === name) out.push(c);
+  return out;
+}
+
+/* KML usa color en formato aabbggrr; lo pasamos a {color:#rrggbb, opacity} */
+function kmlColor(hex) {
+  if (!hex) return null;
+  hex = hex.trim().replace(/^#/, "");
+  if (!/^[0-9a-f]{6,8}$/i.test(hex)) return null;
+  hex = hex.padStart(8, "0");
+  const a = parseInt(hex.slice(0, 2), 16) / 255;
+  const b = hex.slice(2, 4), g = hex.slice(4, 6), r = hex.slice(6, 8);
+  return { color: `#${r}${g}${b}`, opacity: a };
+}
+
+/* Texto del primer descendiente con ese nombre de etiqueta */
+function text(parent, tag) {
+  const el = firstByTag(parent, tag);
+  return el ? el.textContent.trim() : null;
+}
+
+/* Texto de un HIJO DIRECTO (importante para <visibility> y <open>) */
+function directChildText(parent, tag) {
+  const el = childrenByTag(parent, tag)[0];
+  return el ? el.textContent.trim() : null;
+}
+
+/* <visibility> del propio nodo: por defecto 1 según la especificación KML */
+function ownVisibility(el) {
+  return directChildText(el, "visibility") !== "0";
+}
+
+/* Lee <Style> y devuelve opciones de estilo para L.Polygon / L.Polyline */
+function parseStyleElement(styleEl) {
+  const style = {};
+  const line = firstByTag(styleEl, "LineStyle");
+  if (line) {
+    /* Solo el color: el contorno es siempre 100% opaco (se ignora el alfa) */
+    const c = kmlColor(text(line, "color"));
+    if (c) style.color = c.color;
+    const w = parseFloat(text(line, "width"));
+    if (isFinite(w)) {
+      if (w > 0) style.weight = w;
+      else style.stroke = false; /* width 0: a canvas lineWidth of 0 still
+        draws (the spec falls back to the previous width), so a real
+        outline needs stroke:false, not just weight left at 0 */
+    }
+  }
+  const poly = firstByTag(styleEl, "PolyStyle");
+  if (poly) {
+    const c = kmlColor(text(poly, "color"));
+    if (c) { style.fillColor = c.color; style.fillOpacity = c.opacity; }
+    if (text(poly, "fill") === "0") { style.fillOpacity = 0; style.fill = false; }
+    /* Only meaningful for an actual polygon: per the KML spec, PolyStyle
+       has no defined effect on a LineString. Kept apart from `stroke`
+       (which LineStyle's own width<=0 also sets) until
+       buildPlacemarkLayer knows whether this placemark has a Polygon at
+       all — folding it into `stroke` unconditionally used to also hide
+       a plain line whose shared <Style>/<StyleMap> happened to carry a
+       PolyStyle meant for an unrelated polygon (real KML observed: a
+       route line rendered invisible this way).                        */
+    if (text(poly, "outline") === "0") style.polyOutline = false;
+  }
+  return style;
+}
+
+/* Indexa <Style> y <StyleMap> por id y resuelve las referencias.
+   Un StyleMap puede apuntar a otro StyleMap y una cadena puede tener
+   ciclos, así que la resolución es perezosa, con memoria y con tope de
+   saltos. Los estilos externos ("archivo.kml#id") no se pueden resolver
+   sin descargar ese archivo: se ignoran y se cuentan como aviso.      */
+const STYLE_HOPS = 8;
+
+function buildStyleIndex(doc) {
+  const own = {};       /* id -> path options of the <Style> */
+  const ownMarker = {}; /* id -> marker part of the <Style> (IconStyle/LabelStyle), only if it has one */
+  const links = {};     /* id -> id al que apunta el <StyleMap> "normal" */
+  const externalSeen = new Set(); /* referencias a otros archivos, no resolubles */
+
+  const addStyle = (id, el) => {
+    own[id] = parseStyleElement(el);
+    const marker = parseMarkerStyleElement(el);
+    if (marker) ownMarker[id] = marker; else delete ownMarker[id];
+  };
+  for (const el of elsByTag(doc, "Style")) {
+    const id = el.getAttribute("id");
+    if (id) addStyle("#" + id, el);
+  }
+  for (const el of elsByTag(doc, "StyleMap")) {
+    const id = el.getAttribute("id");
+    if (!id) continue;
+    for (const pair of elsByTag(el, "Pair")) {
+      if (text(pair, "key") !== "normal") continue;
+      const url = text(pair, "styleUrl");
+      if (url) links["#" + id] = url.trim();
+      /* <Pair> con <Style> incrustado en vez de <styleUrl> */
+      const inline = childrenByTag(pair, "Style")[0];
+      if (inline) addStyle("#" + id, inline);
+    }
+  }
+
+  /* One resolver per table: the path styles and the marker styles follow the
+     same chain, hop cap and cycle cut, and an external reference is counted
+     once however many resolvers meet it. */
+  /* A styleUrl is a reference to "#id"; real files often write the bare id
+     ("error_75", seen in the field). With no "#" it would read as a style in
+     ANOTHER file, so a bare word naming a style of THIS document is taken as
+     local. Anything else (a path, a URL, a "#" inside) stays external. */
+  const localRef = u => {
+    if (u.startsWith("#")) return u;
+    return /^[^#\/\\:?]+$/.test(u) && (("#" + u) in own || ("#" + u) in links) ? "#" + u : u;
+  };
+  const makeResolver = table => {
+    const cache = {};
+    return url => {
+      if (!url) return null;
+      url = localRef(url.trim());
+      if (url in cache) return cache[url];
+      cache[url] = null; /* corta los ciclos: una referencia en curso no resuelve */
+      if (!url.startsWith("#")) { externalSeen.add(url); return (cache[url] = null); }
+      let cur = url, out = null;
+      for (let hop = 0; hop < STYLE_HOPS; hop++) {
+        if (table[cur]) { out = table[cur]; break; }
+        if (!links[cur]) break;
+        const next = localRef(links[cur]).startsWith("#") ? localRef(links[cur]) : null;
+        if (!next) { externalSeen.add(url); break; }
+        if (next === cur) break;
+        cur = next;
+      }
+      return (cache[url] = out);
+    };
+  };
+  return {
+    resolve: makeResolver(own),
+    resolveMarker: makeResolver(ownMarker),
+    get externalRefs() { return externalSeen.size; }
+  };
+}
+
+/* Estilo efectivo de un placemark: styleUrl referenciado o <Style> inline */
+function placemarkStyle(pm, styleIndex) {
+  const defaults = { color: "#3388ff", weight: 2, fillOpacity: 0.35 };
+  let style = styleIndex.resolve(text(pm, "styleUrl")) || {};
+  for (const child of childrenByTag(pm, "Style")) {
+    style = { ...style, ...parseStyleElement(child) };
+  }
+  return { ...defaults, ...style };
+}
+
+/* ---------- Marker style (IconStyle / LabelStyle) ----------
+   Kept apart from parseStyleElement: those are Leaflet PATH options that end up
+   saved as `rec.style`; a marker's look is `mstyle` (see kmlMarkerToMstyle).
+   The <Icon><href> image is NEVER fetched (CSP img-src is https only and the
+   server is the file author's): only its file name picks one of our own icons. */
+function parseMarkerStyleElement(styleEl) {
+  const out = {};
+  const icon = firstByTag(styleEl, "IconStyle");
+  if (icon) {
+    const c = kmlColor(text(icon, "color"));
+    if (c) out.color = c.color; /* alpha ignored: a marker has no opacity */
+    const scale = parseFloat(text(icon, "scale"));
+    if (isFinite(scale) && scale >= 0) out.scale = scale;
+    const href = text(icon, "href");
+    if (href) out.href = href;
+  }
+  const label = firstByTag(styleEl, "LabelStyle");
+  if (label) {
+    const scale = parseFloat(text(label, "scale"));
+    if (isFinite(scale) && scale >= 0) out.labelScale = scale;
+  }
+  return Object.keys(out).length ? out : null;
+}
+
+/* The marker style of a placemark, field by field: the shared <Style>/<StyleMap>
+   first, then any inline <Style> over it (as placemarkStyle does). */
+function placemarkMarkerStyle(pm, styleIndex) {
+  let style = styleIndex.resolveMarker(text(pm, "styleUrl"));
+  for (const child of childrenByTag(pm, "Style")) {
+    const inline = parseMarkerStyleElement(child);
+    if (inline) style = { ...style, ...inline };
+  }
+  return style || null;
+}
+
+/* Which of our icons an IconStyle image stands for, by its FILE NAME only
+   (Google's shapes: shaded_dot.png, square.png, star.png, triangle.png, …).
+   null when it is not one we know. */
+const KML_ICON_BY_NAME = [[/dot|circle/, "circle"], [/square/, "square"], [/star/, "star"], [/triangle/, "triangle"]];
+function kmlIconName(href) {
+  const file = String(href).split(/[?#]/)[0].split("/").pop().toLowerCase();
+  for (const [re, icon] of KML_ICON_BY_NAME) if (re.test(file)) return icon;
+  return null;
+}
+
+/* IconStyle/LabelStyle -> KITE's `mstyle`, or null when the style says nothing
+   about the marker (it keeps today's default). `unknownHrefs` (a Set) collects
+   the images with no equivalent so the import can name them in a notice. */
+const KML_MARKER_SIZE_MIN = 12, KML_MARKER_SIZE_MAX = 64; /* the style dialog's bounds */
+function kmlMarkerToMstyle(k, unknownHrefs) {
+  if (!k) return null;
+  const hasColor = !!k.color;
+  let icon;
+  if (k.scale === 0) icon = NO_ICON;
+  else {
+    icon = k.href ? kmlIconName(k.href) : null;
+    if (k.href && !icon && unknownHrefs) unknownHrefs.add(k.href);
+    /* Not a shape we know: the Leaflet pin is a PNG and cannot take the colour,
+       so with a colour a circle is the faithful stand-in. */
+    if (!icon) icon = hasColor ? "circle" : LEAFLET_PIN;
+  }
+  /* scale 0 is «Ninguno»: it draws nothing, so its size stays the default (not the clamp's floor) */
+  const size = !k.scale ? DEFAULT_MARKER_STYLE.size
+    : Math.min(KML_MARKER_SIZE_MAX, Math.max(KML_MARKER_SIZE_MIN, Math.round(k.scale * DEFAULT_MARKER_STYLE.size)));
+  const style = { ...DEFAULT_MARKER_STYLE, icon, size };
+  if (hasColor) style.color = k.color;
+  /* «Ninguno» normally turns the permanent text on (nothing else would show);
+     an explicit LabelStyle scale 0 means the author wants no label at all. */
+  style.textAlways = icon === NO_ICON && k.labelScale !== 0;
+  return style;
+}
+
+
 /* ================= Geometrías KML ================= */
 
 /* ---------- Coordenadas: rango con tolerancia ----------

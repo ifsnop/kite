@@ -147,6 +147,7 @@ que no, y por qué:
 | 4.5 Teclado y rueda | gestos sin efecto visual propio |
 | 7.4 Personalizar un marcador | remite a los diálogos del apartado 6.1 |
 | 7.7 Deshacer y rehacer | sin elemento visual propio |
+| 7.1 Estilo de los marcadores de un KML | comportamiento de importación sin elemento visual propio: el resultado es un marcador normal, ya capturado en el apartado 6.1 |
 | 7.14 Compartir una vista | la entrada del menú se ve en el submenú «Copiar» del apartado 5 |
 | 9 Qué se guarda y dónde | solo texto |
 

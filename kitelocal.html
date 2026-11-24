@@ -231,7 +231,19 @@
     width: fit-content;
   }
   #offline-badge[hidden] { display: none; }
-  #nav-msg { font-size: 12px; min-height: 0; }
+  /* A sticky notice stays until it is accepted, so a run of them (a folder of
+     KML files, each with its own summary) grew this box without limit and pushed
+     «Aceptar» below the visible panel, where it could not be pressed. The box now
+     scrolls inside a cap and the button sticks to its bottom edge. The outline
+     in the panel colour hides the text scrolling under the button's margin. */
+  #nav-msg {
+    font-size: 12px; min-height: 0;
+    max-height: min(40vh, 18rem); overflow-y: auto; overscroll-behavior: contain;
+  }
+  #nav-msg .nav-msg-ok {
+    position: sticky; bottom: 0;
+    outline: 4px solid var(--panel);
+  }
   /* Solo hay DOS niveles de aviso: notificación (`info`) y alerta
      (`error`, el de por defecto). La notificación va en el color normal
      del texto, no en gris: en gris —que aquí es el color de lo
@@ -3518,6 +3530,7 @@ registerLang("en", "English", {
   "{removed} placemark(s) duplicado(s) fusionado(s)": "{removed} duplicate placemark(s) merged",
   "Construyendo capas de {name}… ({d}/{total})": "Building layers for {name}… ({d}/{total})",
   "{externalRefs} estilo(s) en archivos externos, no aplicados": "{externalRefs} style(s) in external files, not applied",
+  "{n} iconos de KML sin equivalente, dibujados como círculo o como la gota: {urls}": { one: "{n} KML icon with no equivalent, drawn as a circle or the pin: {urls}", other: "{n} KML icons with no equivalent, drawn as a circle or the pin: {urls}" },
   "{n} polígonos con altitud sobre el fondo marino: no servirán como obstáculo en un perfil": { one: "{n} polygon with altitude above the sea floor: it will not count as an obstacle in a profile", other: "{n} polygons with altitude above the sea floor: they will not count as obstacles in a profile" },
   "Procesando JSON de {name}…": "Processing JSON for {name}…",
   "etiquetas tipo HTML eliminadas de {n} propiedad(es)": "HTML-like tags removed from {n} property(ies)",
@@ -4085,6 +4098,8 @@ registerLang("en", "English", {
   "La vista es más grande de lo que Wikipedia permite buscar: se han buscado los artículos a menos de {distance} del punto.": "The view is larger than Wikipedia can search: articles were searched within {distance} of the point.",
   "No se pudo obtener el resumen de {n} artículo(s) ({reason}): solo llevan el enlace.": "Could not get the summary of {n} article(s) ({reason}): they only carry the link.",
   /* 68-whats-new.js */
+  "Los marcadores de un KML conservan el color, el tamaño y la forma (punto, cuadrado, estrella o triángulo) de su icono, y no enseñan su nombre si el KML lo oculta.": "Markers from a KML keep the colour, size and shape (dot, square, star or triangle) of their icon, and do not show their name when the KML hides it.",
+  "Cuando se acumulan muchos avisos fijos, el botón «Aceptar» se queda siempre a la vista en vez de salirse de la pantalla.": "When many sticky notices pile up, the “Accept” button now always stays in view instead of falling off the screen.",
   "El buscador del panel enseña lo que hay dentro de una carpeta que coincide, admite varias palabras (también las de las carpetas de arriba) y marca en cada nombre lo que has escrito.": "The panel search shows what is inside a folder that matches, accepts several words (also those of the folders above) and marks what you typed in each name.",
   "Al quitar la búsqueda, lo que hayas seleccionado entre los resultados se queda a la vista, con sus carpetas desplegadas.": "When you clear the search, what you selected among the results stays in view, with its folders unfolded.",
   "La lista de mapas base sigue abierta al añadir, modificar o borrar una capa propia, también al cancelar.": "The base-map list stays open when you add, edit or delete one of your own layers, also when you cancel.",
@@ -5985,7 +6000,7 @@ map.on("resize rotate", fitWorldMinZoom);
 
 /* Fecha de generación del código (versión): AÑOMESDIAHORAMINUTO.
    Actualizar en cada generación; se muestra junto al crédito de Leaflet. */
-const BUILD = "202611210202";
+const BUILD = "202611241212";
 /* Versión de release (la de package.json, horneada aquí por build.js
    al construir — ver «Versión y releases de GitHub» en CLAUDE.md): a
    diferencia de BUILD, que cambia en CADA generación, esta solo cambia
@@ -7460,7 +7475,6 @@ function ensureDynamicCatalogs() {
 
 /* Grupo raíz del visor: cuelgan todas las capas de todos los archivos */
 const rootGroup = L.featureGroup().addTo(map);
-
 /* ================= Utilidades de estilo KML =================
    Every lookup here is namespace-agnostic. Real-world KML often carries
    prefixes (<kml:Placemark>, <gx:Track>…) or declares no namespace at
@@ -7607,13 +7621,19 @@ function parseStyleElement(styleEl) {
 const STYLE_HOPS = 8;
 
 function buildStyleIndex(doc) {
-  const own = {};      /* id -> opciones propias del <Style> */
-  const links = {};    /* id -> id al que apunta el <StyleMap> "normal" */
-  let external = 0;    /* referencias a otros archivos, no resolubles */
+  const own = {};       /* id -> path options of the <Style> */
+  const ownMarker = {}; /* id -> marker part of the <Style> (IconStyle/LabelStyle), only if it has one */
+  const links = {};     /* id -> id al que apunta el <StyleMap> "normal" */
+  const externalSeen = new Set(); /* referencias a otros archivos, no resolubles */
 
+  const addStyle = (id, el) => {
+    own[id] = parseStyleElement(el);
+    const marker = parseMarkerStyleElement(el);
+    if (marker) ownMarker[id] = marker; else delete ownMarker[id];
+  };
   for (const el of elsByTag(doc, "Style")) {
     const id = el.getAttribute("id");
-    if (id) own["#" + id] = parseStyleElement(el);
+    if (id) addStyle("#" + id, el);
   }
   for (const el of elsByTag(doc, "StyleMap")) {
     const id = el.getAttribute("id");
@@ -7624,29 +7644,46 @@ function buildStyleIndex(doc) {
       if (url) links["#" + id] = url.trim();
       /* <Pair> con <Style> incrustado en vez de <styleUrl> */
       const inline = childrenByTag(pair, "Style")[0];
-      if (inline) own["#" + id] = parseStyleElement(inline);
+      if (inline) addStyle("#" + id, inline);
     }
   }
 
-  const cache = {};
-  const resolve = url => {
-    if (!url) return null;
-    url = url.trim();
-    if (url in cache) return cache[url];
-    cache[url] = null; /* corta los ciclos: una referencia en curso no resuelve */
-    if (!url.startsWith("#")) { external++; return (cache[url] = null); }
-    let cur = url, out = null;
-    for (let hop = 0; hop < STYLE_HOPS; hop++) {
-      if (own[cur]) { out = own[cur]; break; }
-      if (!links[cur]) break;
-      const next = links[cur].startsWith("#") ? links[cur] : null;
-      if (!next) { external++; break; }
-      if (next === cur) break;
-      cur = next;
-    }
-    return (cache[url] = out);
+  /* One resolver per table: the path styles and the marker styles follow the
+     same chain, hop cap and cycle cut, and an external reference is counted
+     once however many resolvers meet it. */
+  /* A styleUrl is a reference to "#id"; real files often write the bare id
+     ("error_75", seen in the field). With no "#" it would read as a style in
+     ANOTHER file, so a bare word naming a style of THIS document is taken as
+     local. Anything else (a path, a URL, a "#" inside) stays external. */
+  const localRef = u => {
+    if (u.startsWith("#")) return u;
+    return /^[^#\/\\:?]+$/.test(u) && (("#" + u) in own || ("#" + u) in links) ? "#" + u : u;
   };
-  return { resolve, get externalRefs() { return external; } };
+  const makeResolver = table => {
+    const cache = {};
+    return url => {
+      if (!url) return null;
+      url = localRef(url.trim());
+      if (url in cache) return cache[url];
+      cache[url] = null; /* corta los ciclos: una referencia en curso no resuelve */
+      if (!url.startsWith("#")) { externalSeen.add(url); return (cache[url] = null); }
+      let cur = url, out = null;
+      for (let hop = 0; hop < STYLE_HOPS; hop++) {
+        if (table[cur]) { out = table[cur]; break; }
+        if (!links[cur]) break;
+        const next = localRef(links[cur]).startsWith("#") ? localRef(links[cur]) : null;
+        if (!next) { externalSeen.add(url); break; }
+        if (next === cur) break;
+        cur = next;
+      }
+      return (cache[url] = out);
+    };
+  };
+  return {
+    resolve: makeResolver(own),
+    resolveMarker: makeResolver(ownMarker),
+    get externalRefs() { return externalSeen.size; }
+  };
 }
 
 /* Estilo efectivo de un placemark: styleUrl referenciado o <Style> inline */
@@ -7658,6 +7695,79 @@ function placemarkStyle(pm, styleIndex) {
   }
   return { ...defaults, ...style };
 }
+
+/* ---------- Marker style (IconStyle / LabelStyle) ----------
+   Kept apart from parseStyleElement: those are Leaflet PATH options that end up
+   saved as `rec.style`; a marker's look is `mstyle` (see kmlMarkerToMstyle).
+   The <Icon><href> image is NEVER fetched (CSP img-src is https only and the
+   server is the file author's): only its file name picks one of our own icons. */
+function parseMarkerStyleElement(styleEl) {
+  const out = {};
+  const icon = firstByTag(styleEl, "IconStyle");
+  if (icon) {
+    const c = kmlColor(text(icon, "color"));
+    if (c) out.color = c.color; /* alpha ignored: a marker has no opacity */
+    const scale = parseFloat(text(icon, "scale"));
+    if (isFinite(scale) && scale >= 0) out.scale = scale;
+    const href = text(icon, "href");
+    if (href) out.href = href;
+  }
+  const label = firstByTag(styleEl, "LabelStyle");
+  if (label) {
+    const scale = parseFloat(text(label, "scale"));
+    if (isFinite(scale) && scale >= 0) out.labelScale = scale;
+  }
+  return Object.keys(out).length ? out : null;
+}
+
+/* The marker style of a placemark, field by field: the shared <Style>/<StyleMap>
+   first, then any inline <Style> over it (as placemarkStyle does). */
+function placemarkMarkerStyle(pm, styleIndex) {
+  let style = styleIndex.resolveMarker(text(pm, "styleUrl"));
+  for (const child of childrenByTag(pm, "Style")) {
+    const inline = parseMarkerStyleElement(child);
+    if (inline) style = { ...style, ...inline };
+  }
+  return style || null;
+}
+
+/* Which of our icons an IconStyle image stands for, by its FILE NAME only
+   (Google's shapes: shaded_dot.png, square.png, star.png, triangle.png, …).
+   null when it is not one we know. */
+const KML_ICON_BY_NAME = [[/dot|circle/, "circle"], [/square/, "square"], [/star/, "star"], [/triangle/, "triangle"]];
+function kmlIconName(href) {
+  const file = String(href).split(/[?#]/)[0].split("/").pop().toLowerCase();
+  for (const [re, icon] of KML_ICON_BY_NAME) if (re.test(file)) return icon;
+  return null;
+}
+
+/* IconStyle/LabelStyle -> KITE's `mstyle`, or null when the style says nothing
+   about the marker (it keeps today's default). `unknownHrefs` (a Set) collects
+   the images with no equivalent so the import can name them in a notice. */
+const KML_MARKER_SIZE_MIN = 12, KML_MARKER_SIZE_MAX = 64; /* the style dialog's bounds */
+function kmlMarkerToMstyle(k, unknownHrefs) {
+  if (!k) return null;
+  const hasColor = !!k.color;
+  let icon;
+  if (k.scale === 0) icon = NO_ICON;
+  else {
+    icon = k.href ? kmlIconName(k.href) : null;
+    if (k.href && !icon && unknownHrefs) unknownHrefs.add(k.href);
+    /* Not a shape we know: the Leaflet pin is a PNG and cannot take the colour,
+       so with a colour a circle is the faithful stand-in. */
+    if (!icon) icon = hasColor ? "circle" : LEAFLET_PIN;
+  }
+  /* scale 0 is «Ninguno»: it draws nothing, so its size stays the default (not the clamp's floor) */
+  const size = !k.scale ? DEFAULT_MARKER_STYLE.size
+    : Math.min(KML_MARKER_SIZE_MAX, Math.max(KML_MARKER_SIZE_MIN, Math.round(k.scale * DEFAULT_MARKER_STYLE.size)));
+  const style = { ...DEFAULT_MARKER_STYLE, icon, size };
+  if (hasColor) style.color = k.color;
+  /* «Ninguno» normally turns the permanent text on (nothing else would show);
+     an explicit LabelStyle scale 0 means the author wants no label at all. */
+  style.textAlways = icon === NO_ICON && k.labelScale !== 0;
+  return style;
+}
+
 
 /* ================= Geometrías KML ================= */
 
@@ -9699,6 +9809,7 @@ const CASCADE_BATCH = 300; /* casillas conmutadas entre cesiones del hilo en
    skipped, counted and described, and the rest of the file still loads.
    At the end the user gets a summary instead of a silent half-import.  */
 const MAX_REPORT_DETAIL = 3; /* distinct causes quoted in the summary */
+const ICON_HREFS_SHOWN = 5;  /* KML icon addresses quoted in the notice */
 
 function makeImportReport(fileName) {
   return {
@@ -9709,6 +9820,7 @@ function makeImportReport(fileName) {
     kinds: new Set(),
     notes: [],
     seaFloor: 0, /* polígonos KML con altitud sobre el fondo marino (aviso único) */
+    iconHrefs: new Set(), /* <IconStyle> images with no equivalent (one notice per file) */
     /* Una entidad que no ha entrado */
     warn(why) {
       this.skipped++;
@@ -9766,6 +9878,9 @@ async function buildKmlRecords(el, styleIndex, inheritedVisible, prog, report, z
         const style = placemarkStyle(child, styleIndex);
         const visible = inheritedVisible && ownVisibility(child);
         const els = placemarkGeomEls(child);
+        /* Marker look from IconStyle/LabelStyle (points only; never lazy) */
+        const mstyle = els.pointEls.length
+          ? kmlMarkerToMstyle(placemarkMarkerStyle(child, styleIndex), report && report.iconHrefs) : null;
         /* La ficha del placemark suele traer una tabla con los datos
            reales del elemento; se guarda para poder consultarla       */
         const desc = text(child, "description") || null;
@@ -9793,6 +9908,9 @@ async function buildKmlRecords(el, styleIndex, inheritedVisible, prog, report, z
           }
           if (visible) layer.addTo(rootGroup);
           rec = { t: "layer", name, checked: visible, style, desc, _layer: layer };
+          /* On the raw layer too: a marker in a folder that is never expanded
+             can be switched on without its row ever being built. */
+          if (mstyle) { rec.mstyle = mstyle; styleMarkerIcon(layer, mstyle, name); }
           wirePendingLayerEvents(rec);
           if (report) { report.loaded++; report.kinds.add(layerKind(layer) || "?"); }
         }
@@ -12796,6 +12914,16 @@ async function addFileNode(name, kind, content, insertBefore = null, dropTargetU
       if (styleIndex.externalRefs) {
         report.note(tr("{externalRefs} estilo(s) en archivos externos, no aplicados", { externalRefs: styleIndex.externalRefs }));
       }
+      /* Images with no equivalent are drawn as a circle (or the pin); their
+         addresses go in the notice so someone can look at them. Never fetched. */
+      if (report.iconHrefs.size) {
+        const hrefs = [...report.iconHrefs];
+        const shown = hrefs.slice(0, ICON_HREFS_SHOWN).join(", ") + (hrefs.length > ICON_HREFS_SHOWN ? ", \u2026" : "");
+        report.note(trn(hrefs.length,
+          "{n} icono de KML sin equivalente, dibujado como c\u00EDrculo o como la gota: {urls}",
+          "{n} iconos de KML sin equivalente, dibujados como c\u00EDrculo o como la gota: {urls}",
+          { n: hrefs.length, urls: shown }));
+      }
       /* UN aviso por archivo, no uno por polígono: un KML puede traer miles */
       if (report.seaFloor) {
         report.note(trn(report.seaFloor,
@@ -13827,11 +13955,14 @@ function geometryKinds(geoms) {
 function kmlStyleXml(kinds, style, mstyle) {
   let x = "";
   if (kinds.point && mstyle && mstyle.color) {
+    /* The Leaflet pin is a PNG that cannot take a colour: writing its default
+       blue would make a re-import turn every pin into a blue circle. */
+    const tint = mstyle.icon === LEAFLET_PIN ? "" : `<color>${cssToKmlColor(mstyle.color)}</color>`;
     /* «Ninguno» (NO_ICON = "none", 41-selection.js, que carga después): en KML un
        icono de escala 0 no se dibuja y el nombre sigue a la vista */
     const scale = mstyle.icon === "none" ? "<scale>0</scale>"
       : Number.isFinite(mstyle.size) ? `<scale>${+(mstyle.size / 41).toFixed(2)}</scale>` : "";
-    x += `<IconStyle><color>${cssToKmlColor(mstyle.color)}</color>${scale}</IconStyle>`;
+    x += `<IconStyle>${tint}${scale}</IconStyle>`;
   }
   if (kinds.line || kinds.poly) {
     const s = normalizePathStyle(style);
@@ -15166,9 +15297,10 @@ document.addEventListener("keydown", e => {
    selection rule guarantees they all share the same kind).               */
 
 /* The Leaflet drop pin. It is a raster image, not an SVG, so `color` has no
-   effect on it — it is offered as the neutral default because imported KML
-   icons cannot be honoured (Google Earth pushpins have no exact equivalent
-   here and <IconStyle> href images point at URLs we do not support).      */
+   effect on it. An imported KML marker keeps the colour, size and shape (dot,
+   square, star, triangle) of its <IconStyle> (kmlMarkerToMstyle); the image
+   itself is never loaded, so a Google Earth pushpin or any other picture
+   becomes a circle of its colour, or this pin when the style has no colour. */
 const LEAFLET_PIN = "leaflet-pin";
 const LEAFLET_PIN_URL = "https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon.png";
 const LEAFLET_PIN_SHADOW = "https://unpkg.com/leaflet@1.9.4/dist/images/marker-shadow.png";
@@ -15793,10 +15925,9 @@ function applyMarkerText(li, offset) {
   each(layer);
 }
 
-/* Imported markers never keep their original KML icon: Google Earth
-   pushpins have no exact equivalent here and <IconStyle> images point at
-   URLs this viewer does not load. Every marker layer therefore starts
-   with the Leaflet drop pin in the default colour.                      */
+/* A marker with no style of its own (a KML point whose style has no IconStyle,
+   a GeoJSON point) starts with the Leaflet drop pin in the default colour.
+   KML points that do have one arrive with `mstyle` already (buildKmlRecords).  */
 function ensureMarkerDefaults(li) {
   if (li._mstyle || styleKind(li) !== "marker") return;
   li._mstyle = { ...DEFAULT_MARKER_STYLE };
@@ -29974,6 +30105,10 @@ async function queryWikipediaAt(latlng) {
      the new version (tests/whatsnew.js fails if package.json's version
      has no entry).                                                     */
 const WHATS_NEW = [
+  { version: "next", items: [
+    N_("Los marcadores de un KML conservan el color, el tamaño y la forma (punto, cuadrado, estrella o triángulo) de su icono, y no enseñan su nombre si el KML lo oculta."),
+    N_("Cuando se acumulan muchos avisos fijos, el botón «Aceptar» se queda siempre a la vista en vez de salirse de la pantalla.")
+  ] },
   { version: "2.8.0", items: [
     N_("El buscador del panel enseña lo que hay dentro de una carpeta que coincide, admite varias palabras (también las de las carpetas de arriba) y marca en cada nombre lo que has escrito."),
     N_("Al quitar la búsqueda, lo que hayas seleccionado entre los resultados se queda a la vista, con sus carpetas desplegadas.")

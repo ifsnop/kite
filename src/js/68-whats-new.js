@@ -17,6 +17,10 @@
      the new version (tests/whatsnew.js fails if package.json's version
      has no entry).                                                     */
 const WHATS_NEW = [
+  { version: "next", items: [
+    N_("Los marcadores de un KML conservan el color, el tamaño y la forma (punto, cuadrado, estrella o triángulo) de su icono, y no enseñan su nombre si el KML lo oculta."),
+    N_("Cuando se acumulan muchos avisos fijos, el botón «Aceptar» se queda siempre a la vista en vez de salirse de la pantalla.")
+  ] },
   { version: "2.8.0", items: [
     N_("El buscador del panel enseña lo que hay dentro de una carpeta que coincide, admite varias palabras (también las de las carpetas de arriba) y marca en cada nombre lo que has escrito."),
     N_("Al quitar la búsqueda, lo que hayas seleccionado entre los resultados se queda a la vista, con sus carpetas desplegadas.")

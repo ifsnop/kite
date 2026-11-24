@@ -41,6 +41,9 @@ paths:
 2. **Parseo KML**: estilos (`aabbggrr`→color+opacidad, `StyleMap` par
    *normal*), `<visibility>`, `<open>`, geometrías (MultiGeometry,
    polígonos con agujeros). GeoJSON con estilos simplestyle.
+   Las utilidades de estilo KML (`buildStyleIndex`, `parseStyleElement`,
+   estilo de marcador…) abren `20-kml-geom.js`; estuvieron al final de
+   `12-copernicus.js` solo por el corte del archivo único original.
 2b. **Shapefile** (`34-shp-import.js`, detrás de la importación KML):
     agrupa las piezas soltadas (`groupShapefileParts`), lee con la
     librería `shapefile`, reproyecta con proj4 desde el `.prj` y entrega

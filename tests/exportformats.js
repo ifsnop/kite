@@ -7,7 +7,7 @@ const near = (a, b, tol) => Math.abs(a - b) <= tol;
 
 const L = { latLng: (lat, lng) => ({ lat, lng }) };
 const prelude = [constDecl("EARTH_R"), constDecl("toRad"), constDecl("toDeg"), fn("destPoint"), fn("arcPoints"),
-  fn("normalizePathStyle"), fn("stringifyPropValue"), constDecl("ALT_MODES"), constDecl("featureAltMode")].join("\n");
+  fn("normalizePathStyle"), fn("stringifyPropValue"), constDecl("ALT_MODES"), constDecl("featureAltMode"), constDecl("LEAFLET_PIN")].join("\n");
 const region = between("const EXPORT_PATH_SEP", "/* ---------- Descarga");
 const x = new Function("L", `${prelude}\n${region}\n${fn("skippedMessage")}
 return { haversineM, geoToFeatures, recordFeatures, exportRoot, simpleStyle, putProp, recordsToGeoJson,
@@ -15,8 +15,10 @@ return { haversineM, geoToFeatures, recordFeatures, exportRoot, simpleStyle, put
 
 /* El importador real, para la ida y vuelta */
 const coordsSrc = [constDecl("COORD_EPS"), "let coordClamped = 0;", fn("clampDeg"), fn("clampLatLng")].join("\n");
-const imp = new Function(between("/* Nombre sin prefijo", "/* Crea las capas Leaflet de un placemark")
-  + "\nreturn { elsByTag, text, directChildText, ownVisibility, buildStyleIndex, placemarkStyle, parseCoords, parsePolygon, kmlColor, parseExtendedData };")();
+const imp = new Function(constDecl("LEAFLET_PIN") + constDecl("NO_ICON") + constDecl("DEFAULT_MARKER_STYLE")
+  + between("/* Nombre sin prefijo", "/* Crea las capas Leaflet de un placemark")
+  + "\nreturn { elsByTag, text, directChildText, ownVisibility, buildStyleIndex, placemarkStyle, parseCoords, parsePolygon, kmlColor, parseExtendedData,"
+  + " placemarkMarkerStyle, kmlMarkerToMstyle };")();
 const gj = new Function(coordsSrc + "\n" + fn("geojsonStyle") + "\n"
   + between("const GEOJSON_TYPES = new Set(", "/* Convierte una topología TopoJSON")
   + "\nreturn { geojsonStyle, validGeometry };")();
@@ -230,3 +232,21 @@ ok(gjMode[0].kiteAlt === "agl" && !("kiteAlt" in gjMode[1]) && !("kiteAlt" in gj
 ok(!("kiteAlt" in gjMode[0].properties), "y no en properties (no es un atributo del usuario)");
 
 if (!process.exitCode) console.log("EXPORT FORMATS TESTS OK");
+
+/* The marker look makes the round trip too, and the Leaflet pin writes no colour: it is a PNG that cannot take one,
+   so its default blue would turn every pin into a blue circle on re-import. */
+{
+  const rec = (name, mstyle, x) => ({ t: "layer", name, checked: true, mstyle,
+    geo: { type: "FeatureCollection", features: [{ type: "Feature", properties: {}, geometry: { type: "Point", coordinates: [x, 40] } }] } });
+  const out = x.recordsToKml([{ t: "file", name: "f", checked: true, children: [
+    rec("Gota", { icon: "leaflet-pin", color: "#1b5e97", size: 41 }, 1),
+    rec("Circulo", { icon: "circle", color: "#00ff00", size: 21 }, 2),
+    rec("Sin icono", { icon: "none", color: "#1b5e97", size: 41 }, 3)] }]);
+  const { doc: d2 } = parseXml(out.text);
+  const idx2 = imp.buildStyleIndex(d2);
+  const look = n => imp.kmlMarkerToMstyle(imp.placemarkMarkerStyle(imp.elsByTag(d2, "Placemark").find(p => imp.text(p, "name") === n), idx2), null);
+  ok(look("Gota") && look("Gota").icon === "leaflet-pin" && look("Gota").color === "#1b5e97", "the pin writes no colour: it comes back as the pin in the default colour: " + JSON.stringify(look("Gota")));
+  const c = look("Circulo");
+  ok(c.icon === "circle" && c.color === "#00ff00" && c.size === 21, "a coloured circle keeps its colour and size on the way back: " + JSON.stringify(c));
+  ok(look("Sin icono").icon === "none", "«Ninguno» goes out as scale 0 and comes back as «Ninguno»");
+}

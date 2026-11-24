@@ -73,7 +73,7 @@ const JS = [
                              con tandas); parchea Canvas, ANTES del mapa      */
   "10-map.js",            /* mapa, capas de teselas, constantes globales */
   "11-base-panel.js",     /* panel de mapas base */
-  "12-copernicus.js",     /* Copernicus DEM vía Sentinel Hub */
+  "12-copernicus.js",     /* Copernicus DEM vía Sentinel Hub y grupo raíz del visor */
   "20-kml-geom.js",       /* coordenadas y geometrías KML */
   "30-tree-walk.js",      /* árbol: recorrido nodo a nodo */
   "31-tree-node.js",      /* árbol: fábrica de nodos */

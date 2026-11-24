@@ -1,8 +1,13 @@
 const { DOMParser } = require("@xmldom/xmldom");
-const { fn, between } = require("./_extract");
+const { fn, between, constDecl } = require("./_extract");
 const src = between("/* Nombre sin prefijo", "/* Crea las capas Leaflet de un placemark");
-const api = new Function(src + "\nreturn {elsByTag, text, directChildText, ownVisibility, buildStyleIndex, placemarkStyle, kmlColor, parseCoords, parsePolygon};")();
-const { elsByTag, text, directChildText, ownVisibility, buildStyleIndex, placemarkStyle, kmlColor, parsePolygon } = api;
+/* LEAFLET_PIN, NO_ICON and DEFAULT_MARKER_STYLE live in 41-selection.js and are only read when the
+   marker functions RUN, so the suite brings them from the delivered file. */
+const api = new Function(constDecl("LEAFLET_PIN") + constDecl("NO_ICON") + constDecl("DEFAULT_MARKER_STYLE")
+  + src + "\nreturn {elsByTag, text, directChildText, ownVisibility, buildStyleIndex, placemarkStyle, kmlColor, parseCoords, parsePolygon,"
+  + " parseMarkerStyleElement, placemarkMarkerStyle, kmlIconName, kmlMarkerToMstyle, DEFAULT_MARKER_STYLE};")();
+const { elsByTag, text, directChildText, ownVisibility, buildStyleIndex, placemarkStyle, kmlColor, parsePolygon,
+  parseMarkerStyleElement, placemarkMarkerStyle, kmlIconName, kmlMarkerToMstyle, DEFAULT_MARKER_STYLE } = api;
 
 /* geojsonStyle / normalizePathStyle / polygonModeOf viven fuera del rango
    extraído arriba (que se corta antes de "Crea las capas Leaflet"), así
@@ -137,3 +142,97 @@ ok(polygonModeOf({ stroke: true, fill: true }) === "both", "contorno y relleno")
 ok(polygonModeOf({ stroke: false, fill: false }) === "none", "ni contorno ni relleno: «Ninguno» (solo queda el nombre)");
 ok(polygonModeOf({}) === "both" && polygonModeOf({ stroke: true }) === "both", "sin booleanos, o con el contorno solo, el de siempre");
 if (!process.exitCode) console.log("POLYGON STROKE/FILL TESTS OK");
+
+{ /* its own scope: the names above (plain, sample…) are taken */
+/* ---- Marker style: IconStyle / LabelStyle -> mstyle ---- */
+const markerKml = body => new DOMParser().parseFromString(
+  `<kml xmlns="http://www.opengis.net/kml/2.2"><Document>${body}</Document></kml>`, "text/xml");
+const pmOf = (doc, name) => elsByTag(doc, "Placemark").find(p => text(p, "name") === name);
+
+/* The sample that was reported: a StyleMap whose "normal" Style is a green half-size dot, label scale 0 */
+const sample = markerKml(`
+  <StyleMap id="error_75"><Pair><key>normal</key><styleUrl>#error_75_normal</styleUrl></Pair>
+    <Pair><key>highlight</key><styleUrl>#error_75_highlight</styleUrl></Pair></StyleMap>
+  <Style id="error_75_normal"><IconStyle><color>ff00ff00</color><scale>0.5</scale>
+    <Icon><href>http://maps.google.com/mapfiles/kml/shapes/shaded_dot.png</href></Icon></IconStyle>
+    <LabelStyle><scale>0</scale></LabelStyle></Style>
+  <Style id="error_75_highlight"><IconStyle><hotSpot x="20" y="2" xunits="pixels" yunits="pixels"/>
+    <Icon><href>http://maps.google.com/mapfiles/kml/pushpin/grn-pushpin.png</href></Icon></IconStyle></Style>
+  <Placemark><name>A</name><styleUrl>#error_75</styleUrl><Point><coordinates>-3.7,40.4</coordinates></Point></Placemark>`);
+const sIdx = buildStyleIndex(sample);
+const unknown = new Set();
+const sm = kmlMarkerToMstyle(placemarkMarkerStyle(pmOf(sample, "A"), sIdx), unknown);
+ok(sm && sm.icon === "circle" && sm.color === "#00ff00", "StyleMap -> normal: shaded_dot is a circle, KML ff00ff00 (aabbggrr) is #00ff00: " + JSON.stringify(sm));
+ok(sm.size === 21, "scale 0.5 -> round(0.5 x 41) = 21 px: " + sm.size);
+ok(sm.textAlways === false, "LabelStyle scale 0: the name is not permanent");
+ok(unknown.size === 0, "a recognised shape is not reported: " + [...unknown]);
+ok(sIdx.externalRefs === 0, "resolving marker styles counts no external reference");
+ok(placemarkStyle(pmOf(sample, "A"), sIdx).color === "#3388ff", "the path style of that placemark is untouched (defaults)");
+
+/* No IconStyle/LabelStyle -> null: the marker keeps the default pin */
+const plain = markerKml(`<Style id="l"><LineStyle><color>ff0000ff</color></LineStyle></Style>
+  <Placemark><name>B</name><styleUrl>#l</styleUrl><Point><coordinates>1,1</coordinates></Point></Placemark>
+  <Placemark><name>C</name><Point><coordinates>1,1</coordinates></Point></Placemark>`);
+const pIdx = buildStyleIndex(plain);
+ok(placemarkMarkerStyle(pmOf(plain, "B"), pIdx) === null && placemarkMarkerStyle(pmOf(plain, "C"), pIdx) === null,
+  "a style with only LineStyle, or none at all, says nothing about the marker");
+ok(kmlMarkerToMstyle(null, null) === null, "no marker style -> no mstyle (default pin)");
+ok(placemarkStyle(pmOf(plain, "B"), pIdx).color === "#ff0000", "and the line colour still resolves as before");
+
+/* Inline <Style> over a shared one, field by field */
+const mix = markerKml(`<Style id="s"><IconStyle><color>ff0000ff</color><scale>2</scale>
+    <Icon><href>x/square.png</href></Icon></IconStyle></Style>
+  <Placemark><name>D</name><styleUrl>#s</styleUrl><Style><IconStyle><color>ffff0000</color></IconStyle></Style>
+    <Point><coordinates>1,1</coordinates></Point></Placemark>`);
+const mk = placemarkMarkerStyle(pmOf(mix, "D"), buildStyleIndex(mix));
+ok(mk.color === "#0000ff" && mk.scale === 2 && mk.href === "x/square.png", "inline colour wins, scale and href come from the shared style: " + JSON.stringify(mk));
+const mm = kmlMarkerToMstyle(mk, null);
+ok(mm.icon === "square" && mm.size === 64, "scale 2 -> 82 px clamped to the dialog's 64: " + JSON.stringify(mm));
+ok(kmlMarkerToMstyle({ scale: 0.1 }, null).size === 12, "a tiny scale is clamped to 12");
+ok(kmlMarkerToMstyle({ color: "#ff0000" }, null).size === DEFAULT_MARKER_STYLE.size, "no scale -> the default size");
+
+/* Shapes by file name; anything else is reported and drawn as a circle (with a colour) or the pin */
+const names = { "http://a/b/shaded_dot.png": "circle", "http://a/open-diamond.png": null, "http://a/STAR.PNG?x=1": "star",
+  "http://a/triangle.png": "triangle", "http://a/square.png#f": "square", "http://a/dot": "circle", "": null };
+for (const [h, want] of Object.entries(names)) ok(kmlIconName(h) === want, `kmlIconName(${JSON.stringify(h)}) = ${want}`);
+const seen = new Set();
+const pushpin = kmlMarkerToMstyle({ color: "#00ff00", href: "http://maps.google.com/mapfiles/kml/pushpin/grn-pushpin.png" }, seen);
+ok(pushpin.icon === "circle" && pushpin.color === "#00ff00" && seen.has("http://maps.google.com/mapfiles/kml/pushpin/grn-pushpin.png"),
+  "a pushpin with a colour -> coloured circle, and its address is reported");
+const seen2 = new Set();
+const bare = kmlMarkerToMstyle({ href: "http://x/y/paddle/blank.png" }, seen2);
+ok(bare.icon === "leaflet-pin" && bare.color === DEFAULT_MARKER_STYLE.color && seen2.size === 1,
+  "an unknown image without a colour keeps the Leaflet pin, reported: " + JSON.stringify(bare));
+ok(kmlMarkerToMstyle({ color: "#112233" }, null).icon === "circle", "a colour and no image: a circle");
+ok(kmlMarkerToMstyle({ labelScale: 1 }, null).icon === "leaflet-pin", "only a LabelStyle: still the pin");
+
+/* scale 0 -> no icon; the text shows unless LabelStyle also says 0 */
+ok(kmlMarkerToMstyle({ scale: 0, color: "#ff0000" }, null).icon === "none", "IconStyle scale 0 -> «Ninguno»");
+ok(kmlMarkerToMstyle({ scale: 0 }, null).textAlways === true, "«Ninguno» shows its name (nothing else would show)");
+ok(kmlMarkerToMstyle({ scale: 0, labelScale: 0 }, null).textAlways === false, "unless LabelStyle scale 0 asks for no label");
+ok(kmlMarkerToMstyle({ scale: 0 }, new Set()).icon === "none", "scale 0 does not report its image");
+ok(kmlMarkerToMstyle({ scale: 0 }, null).size === DEFAULT_MARKER_STYLE.size, "«Ninguno» keeps the default size, not the clamp's floor");
+
+/* A styleUrl without the "#" (real file: <styleUrl>error_75</styleUrl>) is the local style when the document has it */
+const bareDoc = markerKml(`<StyleMap id="error_75"><Pair><key>normal</key><styleUrl>error_75_normal</styleUrl></Pair></StyleMap>
+  <Style id="error_75_normal"><IconStyle><color>ff00ff00</color><scale>0.5</scale></IconStyle></Style>
+  <Style id="a.b"><IconStyle><color>ff0000ff</color></IconStyle></Style>
+  <Placemark><name>E</name><styleUrl>error_75</styleUrl><Point><coordinates>1,1</coordinates></Point></Placemark>
+  <Placemark><name>F</name><styleUrl>a.b</styleUrl><Point><coordinates>1,1</coordinates></Point></Placemark>
+  <Placemark><name>G</name><styleUrl>otro.kml#x</styleUrl><Point><coordinates>1,1</coordinates></Point></Placemark>
+  <Placemark><name>H</name><styleUrl>no_existe</styleUrl><Point><coordinates>1,1</coordinates></Point></Placemark>`);
+const bIdx = buildStyleIndex(bareDoc);
+const be = kmlMarkerToMstyle(placemarkMarkerStyle(pmOf(bareDoc, "E"), bIdx), null);
+ok(be && be.color === "#00ff00" && be.size === 21, "a bare styleUrl names the local StyleMap (and its bare Pair styleUrl too): " + JSON.stringify(be));
+ok(placemarkMarkerStyle(pmOf(bareDoc, "F"), bIdx).color === "#ff0000", "an id with a dot is still local");
+ok(bIdx.externalRefs === 0, "neither counts as an external style: " + bIdx.externalRefs);
+ok(placemarkMarkerStyle(pmOf(bareDoc, "G"), bIdx) === null && placemarkMarkerStyle(pmOf(bareDoc, "H"), bIdx) === null, "a file reference or an id the document lacks resolves to nothing");
+ok(bIdx.externalRefs === 2, "and those two are counted as external: " + bIdx.externalRefs);
+ok(placemarkStyle(pmOf(bareDoc, "E"), bIdx).color === "#3388ff", "the path style of a bare reference resolves through the same chain");
+
+/* Foreign input: junk values are ignored, never thrown on */
+const junk = parseMarkerStyleElement(markerKml(`<Style><IconStyle><color>zz</color><scale>-3</scale><Icon><href>  </href></Icon></IconStyle>
+  <LabelStyle><scale>abc</scale></LabelStyle></Style>`).getElementsByTagName("Style")[0]);
+ok(junk === null, "invalid colour, negative or text scale and an empty href are dropped: " + JSON.stringify(junk));
+}
+if (!process.exitCode) console.log("KML MARKER STYLE TESTS OK");

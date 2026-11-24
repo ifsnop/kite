@@ -144,7 +144,7 @@ Hoy se ignoran (un track de GPX sí entra, con sus horas). Un control de tiempo 
 
 ### 3.8 KML más completo
 
-Más allá de los atributos (`ExtendedData`, ya leídos y exportados): `NetworkLink` solo descargaría **una vez**, a petición, con la misma confirmación en dos pasos que el botón 🔗. El tiempo (`TimeSpan`, `TimeStamp`, `gx:Track`) está en la propuesta 3.6. Siguen fuera de alcance a propósito los modelos 3D, los tours y las superposiciones de pantalla.
+Más allá de los atributos (`ExtendedData`, ya leídos y exportados): `NetworkLink` solo descargaría **una vez**, a petición, con la misma confirmación en dos pasos que el botón 🔗. El tiempo (`TimeSpan`, `TimeStamp`, `gx:Track`) está en la propuesta 3.6. Del estilo de un marcador (`IconStyle`, ya leído: color, tamaño y forma por el nombre de la imagen, que nunca se descarga) falta que un `LabelStyle` con escala distinta de 0 muestre el nombre siempre, como hace Google Earth, y que se lean su color y su tamaño; y las imágenes sin equivalente (chinchetas, «paddles») salen como un círculo y se nombran en el aviso de la importación, a la espera de decidir cuáles merecen un icono propio. Siguen fuera de alcance a propósito los modelos 3D, los tours y las superposiciones de pantalla.
 
 ### 3.9 Operaciones geométricas
 
