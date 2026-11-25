@@ -104,6 +104,10 @@ The info card's stack of recent cards (manual 6.5) keeps one tab per layer the p
 
 `tests/browser/dialogs.mjs` and `tests/browser/user-bases.mjs` open the base-layer panel, which asks `https://www.ign.es/wms/pnoa-historico?…GetCapabilities` for real: nothing simulates it. On 24 November 2026 both failed in the CI of PR #101 with «blocked by CORS policy» (an error answer from the IGN carries no `Access-Control-Allow-Origin`); the service answered 200 with the header minutes later, and re-running the failed job passed. Until those two routes are stubbed (`ctx.route`, as `tests/browser/_fakes.mjs` does for the elevation services), a red CI on a change that has nothing to do with base maps should be re-run before it is investigated.
 
+### 1.15 A Node suite that waits on real timers, with about 55 ms of margin
+
+`tests/toolstest.js` checks the info card's stack of recent cards with real `setTimeout` waits (`await wait(ms)`). One check is tight: a row on a 200 ms lease is paused at ~100 ms for 150 ms, resumed, and after 10 + 150 ms more it must have expired when ~105 ms were left, so a late timer of about 55 ms makes it fail («and the row expires when the time it had left runs out, not after a fresh lease», line 287). It failed once, in the CI of the push to `main` after merging #101 (24 November 2026, run 45395418506): the next runs on the same code passed, and it could not be reproduced locally (18 runs, 12 of them with the CPU saturated). The hypothesis is a loaded runner; it is not proven. Left as it is on purpose: widening the waits (or a fake clock, which is a larger change to a suite that exercises the real `setTimeout` paths) is a change of its own. Until then, a red CI whose only failure is this line should be re-run, like 1.14, before it is investigated.
+
 ## 2. Hecho a medias
 
 No confundir con pendiente: está hecho lo principal y queda un cabo.
