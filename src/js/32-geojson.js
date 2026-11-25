@@ -2352,7 +2352,7 @@ function buildRecordLayer(rec) {
      la gota de Leaflet al activarlo tras recargar. Aplicarlo dos
      veces (otra vez en materializeRecords, si la fila sí llega a
      crearse) es inocuo: setIcon con el mismo icono no hace nada.  */
-  if (rec.mstyle) styleMarkerIcon(layer, rec.mstyle, typeof rec.name === "string" ? rec.name : "");
+  if (rec.mstyle) styleRawMarker(layer, rec.mstyle, rec.name);
   return layer;
 }
 

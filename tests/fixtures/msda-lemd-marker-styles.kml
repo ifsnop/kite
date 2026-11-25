@@ -1,0 +1,314 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<kml xmlns="http://www.opengis.net/kml/2.2">
+<Document>
+ <name>MSDA ✈ LEMD</name><description>Análisis según ED117 de LEMD</description>
+
+  <StyleMap id="pin"><Pair><key>normal</key><styleUrl>#sn_polygon</styleUrl></Pair><Pair><key>highlight</key><styleUrl>#sh_polygon</styleUrl></Pair></StyleMap>
+  <Style id="sh_polygon"><IconStyle><scale>1.4</scale><Icon><href>http://maps.google.com/mapfiles/kml/shapes/polygon.png</href></Icon></IconStyle>
+    <LabelStyle><color>ffffffaa</color><scale>0.9</scale></LabelStyle>
+  </Style>
+  <Style id="sn_polygon"><IconStyle><scale>1.2</scale><Icon><href>http://maps.google.com/mapfiles/kml/shapes/polygon.png</href></Icon></IconStyle>
+    <LabelStyle><color>ffffffaa</color><scale>0.9</scale></LabelStyle>
+  </Style>
+
+ <StyleMap id="diamond"><Pair><key>normal</key><styleUrl>#diamond_normal</styleUrl></Pair><Pair><key>highlight</key><styleUrl>#diamond_highlight</styleUrl></Pair></StyleMap>
+ <Style id="diamond_normal">
+    <IconStyle><color>ffffffff</color><scale>0.8</scale><Icon><href>http://maps.google.com/mapfiles/kml/shapes/open-diamond.png</href></Icon></IconStyle>
+    <LabelStyle><scale>0</scale></LabelStyle>
+ </Style>
+ <Style id="diamond_highlight">
+    <IconStyle><color>ffffffff</color><scale>0.9</scale><Icon><href>http://maps.google.com/mapfiles/kml/shapes/open-diamond.png</href></Icon></IconStyle>
+    <LabelStyle><scale>0.9</scale></LabelStyle>
+ </Style>
+ <StyleMap id="donut"><Pair><key>normal</key><styleUrl>#donut_normal</styleUrl></Pair><Pair><key>highlight</key><styleUrl>#donut_highlight</styleUrl></Pair></StyleMap>
+ <Style id="donut_normal">
+    <IconStyle><color>ff00ff00</color><scale>0.8</scale><Icon><href>http://maps.google.com/mapfiles/kml/shapes/donut.png</href></Icon></IconStyle>
+    <LabelStyle><scale>0</scale></LabelStyle>
+ </Style>
+ <Style id="donut_highlight">
+    <IconStyle><color>ff00ff00</color><scale>0.9</scale><Icon><href>http://maps.google.com/mapfiles/kml/shapes/donut.png</href></Icon></IconStyle>
+    <LabelStyle><scale>0.9</scale></LabelStyle>
+ </Style>
+ <StyleMap id="forbidden"><Pair><key>normal</key><styleUrl>#forbidden_normal</styleUrl></Pair><Pair><key>highlight</key><styleUrl>#forbidden_highlight</styleUrl></Pair></StyleMap>
+ <Style id="forbidden_normal">
+    <IconStyle><color>ff000000</color><scale>0.8</scale><Icon><href>http://maps.google.com/mapfiles/kml/shapes/forbidden.png</href></Icon></IconStyle>
+    <LabelStyle><scale>0</scale></LabelStyle>
+ </Style>
+ <Style id="forbidden_highlight">
+    <IconStyle><color>ff000000</color><scale>0.9</scale><Icon><href>http://maps.google.com/mapfiles/kml/shapes/forbidden.png</href></Icon></IconStyle>
+    <LabelStyle><scale>0.9</scale></LabelStyle>
+ </Style>
+
+ <StyleMap id="error_75">
+    <Pair><key>normal</key><styleUrl>#error_75_normal</styleUrl></Pair>
+    <Pair><key>highlight</key><styleUrl>#error_75_highlight</styleUrl></Pair>
+ </StyleMap>
+ <Style id="error_75_normal">
+    <IconStyle><color>ff00ff00</color><scale>0.5</scale><Icon><href>http://maps.google.com/mapfiles/kml/shapes/shaded_dot.png</href></Icon></IconStyle>
+    <LabelStyle><scale>0</scale></LabelStyle>
+ </Style>
+ <Style id="error_75_highlight">
+    <IconStyle>
+        <hotSpot x="20" y="2" xunits="pixels" yunits="pixels" />
+        <Icon><href>http://maps.google.com/mapfiles/kml/pushpin/grn-pushpin.png</href></Icon>
+    </IconStyle>
+ </Style>
+
+ <StyleMap id="error_120">
+    <Pair><key>normal</key><styleUrl>#error_120_normal</styleUrl></Pair>
+    <Pair><key>highlight</key><styleUrl>#error_120_highlight</styleUrl></Pair>
+ </StyleMap>
+ <Style id="error_120_normal">
+    <IconStyle><color>ffff0000</color><scale>0.5</scale><Icon><href>http://maps.google.com/mapfiles/kml/shapes/shaded_dot.png</href></Icon></IconStyle>
+    <LabelStyle><scale>0</scale></LabelStyle>
+ </Style>
+ <Style id="error_120_highlight">
+    <IconStyle>
+        <hotSpot x="20" y="2" xunits="pixels" yunits="pixels" />
+        <Icon><href>http://maps.google.com/mapfiles/kml/pushpin/blue-pushpin.png</href></Icon>
+    </IconStyle>
+ </Style>
+
+ <StyleMap id="error_200">
+    <Pair><key>normal</key><styleUrl>#error_200_normal</styleUrl></Pair>
+    <Pair><key>highlight</key><styleUrl>#error_200_highlight</styleUrl></Pair>
+ </StyleMap>
+ <Style id="error_200_normal">
+    <IconStyle><color>ff00ffff</color><scale>0.5</scale><Icon><href>http://maps.google.com/mapfiles/kml/shapes/shaded_dot.png</href></Icon></IconStyle>
+    <LabelStyle><scale>0</scale></LabelStyle>
+ </Style>
+ <Style id="error_200_highlight">
+    <IconStyle>
+        <hotSpot x="20" y="2" xunits="pixels" yunits="pixels" />
+        <Icon><href>http://maps.google.com/mapfiles/kml/pushpin/ylw-pushpin.png</href></Icon>
+    </IconStyle>
+ </Style>
+
+ <StyleMap id="error_400">
+    <Pair><key>normal</key><styleUrl>#error_400_normal</styleUrl></Pair>
+    <Pair><key>highlight</key><styleUrl>#error_400_highlight</styleUrl></Pair>
+ </StyleMap>
+ <Style id="error_400_normal">
+    <IconStyle><color>ff0000ff</color><scale>0.5</scale><Icon><href>http://maps.google.com/mapfiles/kml/shapes/shaded_dot.png</href></Icon></IconStyle>
+    <LabelStyle><scale>0</scale></LabelStyle>
+ </Style>
+ <Style id="error_400_highlight">
+    <IconStyle>
+        <hotSpot x="20" y="2" xunits="pixels" yunits="pixels" />
+        <Icon><href>http://maps.google.com/mapfiles/kml/pushpin/red-pushpin.png</href></Icon>
+    </IconStyle>
+ </Style>
+
+ <StyleMap id="error_999">
+    <Pair><key>normal</key><styleUrl>#error_999_normal</styleUrl></Pair>
+    <Pair><key>highlight</key><styleUrl>#error_999_highlight</styleUrl></Pair>
+ </StyleMap>
+ <Style id="error_999_normal">
+    <IconStyle><color>ff4f4f4f</color><scale>0.5</scale><Icon><href>http://maps.google.com/mapfiles/kml/shapes/shaded_dot.png</href></Icon></IconStyle>
+    <LabelStyle><scale>0</scale></LabelStyle>
+ </Style>
+ <Style id="error_999_highlight">
+    <IconStyle>
+        <hotSpot x="20" y="2" xunits="pixels" yunits="pixels" />
+        <color>00000000</color><Icon><href>http://maps.google.com/mapfiles/kml/pushpin/red-pushpin.png</href></Icon>
+    </IconStyle>
+ </Style>
+
+ <StyleMap id="banner"><Pair><key>normal</key><styleUrl>#banner_normal</styleUrl></Pair><Pair><key>highlight</key><styleUrl>#forbidden_banner</styleUrl></Pair></StyleMap>
+ <Style id="banner_normal">
+    <IconStyle><color>ffffffff</color><scale>0</scale><Icon></Icon></IconStyle>
+    <LabelStyle><color>ffffffff</color><scale>0.8</scale></LabelStyle>
+ </Style>
+ <Style id="banner_highlight">
+    <IconStyle><color>ff000000</color><scale>0.0</scale><Icon></Icon></IconStyle>
+    <LabelStyle><color>ff000000</color><scale>0.9</scale></LabelStyle>
+ </Style>
+
+ <Style id="gpsLinePoly"><LineStyle><color>ffffffff</color><width>3</width></LineStyle><PolyStyle><color>7fffffff</color></PolyStyle></Style>
+ <Style id="plotLinePoly"><LineStyle><color>ff00ff00</color><width>4</width></LineStyle><PolyStyle><color>7f00ff00</color></PolyStyle></Style>
+ <Style id="assocLinePoly"><LineStyle><color>ffc0c0c0</color><width>3</width></LineStyle></Style>
+  <Folder>
+    <name>RXTX31-342351</name>
+    <visibility>0</visibility>
+    <open>0</open>
+  <Placemark>
+    <name>0.20m</name>
+    <styleUrl>error_75</styleUrl>
+    <Point>
+      <altitudeMode>clampToGround</altitudeMode>
+      <coordinates>-3.590204,40.492233,669</coordinates>
+    </Point>
+  </Placemark>
+
+  <Placemark>
+    <name>1.14m</name>
+    <styleUrl>error_75</styleUrl>
+    <Point>
+      <altitudeMode>clampToGround</altitudeMode>
+      <coordinates>-3.590216,40.492233,669</coordinates>
+    </Point>
+  </Placemark>
+
+  <Placemark>
+    <name>1.17m</name>
+    <styleUrl>error_75</styleUrl>
+    <Point>
+      <altitudeMode>clampToGround</altitudeMode>
+      <coordinates>-3.590204,40.492224,669</coordinates>
+    </Point>
+  </Placemark>
+
+  <Placemark>
+    <name>1.62m</name>
+    <styleUrl>error_75</styleUrl>
+    <Point>
+      <altitudeMode>clampToGround</altitudeMode>
+      <coordinates>-3.590216,40.492224,669</coordinates>
+    </Point>
+  </Placemark>
+
+  <Placemark>
+    <name>2.13m</name>
+    <styleUrl>error_75</styleUrl>
+    <Point>
+      <altitudeMode>clampToGround</altitudeMode>
+      <coordinates>-3.590228,40.492233,669</coordinates>
+    </Point>
+  </Placemark>
+
+  <Placemark>
+    <name>2.16m</name>
+    <styleUrl>error_75</styleUrl>
+    <Point>
+      <altitudeMode>clampToGround</altitudeMode>
+      <coordinates>-3.590204,40.492215,669</coordinates>
+    </Point>
+  </Placemark>
+
+  <Placemark>
+    <name>2.42m</name>
+    <styleUrl>error_75</styleUrl>
+    <Point>
+      <altitudeMode>clampToGround</altitudeMode>
+      <coordinates>-3.590228,40.492224,669</coordinates>
+    </Point>
+  </Placemark>
+
+  <Placemark>
+    <name>2.44m</name>
+    <styleUrl>error_75</styleUrl>
+    <Point>
+      <altitudeMode>clampToGround</altitudeMode>
+      <coordinates>-3.590216,40.492215,669</coordinates>
+    </Point>
+  </Placemark>
+
+  <Placemark>
+    <name>3.03m</name>
+    <styleUrl>error_75</styleUrl>
+    <Point>
+      <altitudeMode>clampToGround</altitudeMode>
+      <coordinates>-3.590228,40.492215,669</coordinates>
+    </Point>
+  </Placemark>
+
+  <Placemark>
+    <name>3.13m</name>
+    <styleUrl>error_75</styleUrl>
+    <Point>
+      <altitudeMode>clampToGround</altitudeMode>
+      <coordinates>-3.59024,40.492233,669</coordinates>
+    </Point>
+  </Placemark>
+
+  <Placemark>
+    <name>3.33m</name>
+    <styleUrl>error_75</styleUrl>
+    <Point>
+      <altitudeMode>clampToGround</altitudeMode>
+      <coordinates>-3.590239,40.492224,669</coordinates>
+    </Point>
+  </Placemark>
+
+  <Placemark>
+    <name>3.80m</name>
+    <styleUrl>error_75</styleUrl>
+    <Point>
+      <altitudeMode>clampToGround</altitudeMode>
+      <coordinates>-3.590239,40.492215,669</coordinates>
+    </Point>
+  </Placemark>
+
+  <Placemark>
+    <name>RXTX31-342351</name>
+    <visibility>0</visibility>
+    <styleUrl>#pin</styleUrl>
+    <Point>
+      <extrude>0</extrude>
+      <tessellate>0</tessellate>
+      <altitudeMode>clampToGround</altitudeMode>
+      <coordinates> -3.5902054444444,40.492235972222 </coordinates>
+    </Point>
+  </Placemark>
+
+  <Placemark>
+    <name>P95≤7.5m</name>
+    <visibility>0</visibility>
+    <description></description>
+    <styleUrl>#gpsLinePoly</styleUrl>
+    <LineString>
+      <extrude>0</extrude>
+      <tessellate>0</tessellate>
+      <altitudeMode>clampToGround</altitudeMode>
+      <coordinates>
+      -3.5901167532468,40.492235972222 -3.5901184574233,40.492249130893 -3.5901235044622,40.492261783883 -3.5901317004087,40.492273444946 -3.5901427302972,40.492283665953 -3.5901561702551,40.492292054116 -3.5901715037925,40.492298287084 -3.5901881416501,40.492302125327 -3.5902054444444,40.492303421343 -3.5902227472387,40.492302125327 -3.5902393850964,40.492298287084 -3.5902547186338,40.492292054116 -3.5902681585917,40.492283665953 -3.5902791884801,40.492273444946 -3.5902873844266,40.492261783883 -3.5902924314656,40.492249130893 -3.5902941356421,40.492235972222 -3.5902924314656,40.492222813552 -3.5902873844266,40.492210160561 -3.5902791884801,40.492198499499 -3.5902681585917,40.492188278492 -3.5902547186338,40.492179890328 -3.5902393850964,40.49217365736 -3.5902227472387,40.492169819118 -3.5902054444444,40.492168523102 -3.5901881416501,40.492169819118 -3.5901715037925,40.49217365736 -3.5901561702551,40.492179890328 -3.5901427302972,40.492188278492 -3.5901317004087,40.492198499499 -3.5901235044622,40.492210160561 -3.5901184574233,40.492222813552 -3.5901167532468,40.492235972222
+      </coordinates>
+    </LineString>
+    <Style><LineStyle><color>ff00ff00</color></LineStyle></Style>
+  </Placemark>
+
+  <Placemark>
+    <name>P95≤7.5m</name>
+    <visibility>0</visibility>
+    <styleUrl>#banner</styleUrl>
+    <Point>
+      <extrude>0</extrude>
+      <tessellate>0</tessellate>
+      <altitudeMode>clampToGround</altitudeMode>
+      <coordinates> -3.5901167532468,40.492235972222 </coordinates>
+    </Point>
+  </Placemark>
+
+  <Placemark>
+    <name>P99≤12m</name>
+    <visibility>0</visibility>
+    <description></description>
+    <styleUrl>#gpsLinePoly</styleUrl>
+    <LineString>
+      <extrude>0</extrude>
+      <tessellate>0</tessellate>
+      <altitudeMode>clampToGround</altitudeMode>
+      <coordinates>
+      -3.5900635385283,40.492235972222 -3.5900662652106,40.492257026095 -3.5900743404729,40.49227727088 -3.5900874539873,40.49229592858 -3.5901051018088,40.492312282191 -3.5901266057415,40.492325703253 -3.5901511394014,40.492335676001 -3.5901777599736,40.492341817189 -3.5902054444444,40.492343890815 -3.5902331289153,40.492341817189 -3.5902597494875,40.492335676001 -3.5902842831474,40.492325703253 -3.5903057870801,40.492312282191 -3.5903234349016,40.49229592858 -3.590336548416,40.49227727088 -3.5903446236782,40.492257026095 -3.5903473503606,40.492235972222 -3.5903446236782,40.492214918349 -3.590336548416,40.492194673565 -3.5903234349016,40.492176015865 -3.5903057870801,40.492159662254 -3.5902842831474,40.492146241192 -3.5902597494875,40.492136268443 -3.5902331289153,40.492130127255 -3.5902054444444,40.49212805363 -3.5901777599736,40.492130127255 -3.5901511394014,40.492136268443 -3.5901266057415,40.492146241192 -3.5901051018088,40.492159662254 -3.5900874539873,40.492176015865 -3.5900743404729,40.492194673565 -3.5900662652106,40.492214918349 -3.5900635385283,40.492235972222
+      </coordinates>
+    </LineString>
+    <Style><LineStyle><color>ffff0000</color></LineStyle></Style>
+  </Placemark>
+
+  <Placemark>
+    <name>P99≤12m</name>
+    <visibility>0</visibility>
+    <styleUrl>#banner</styleUrl>
+    <Point>
+      <extrude>0</extrude>
+      <tessellate>0</tessellate>
+      <altitudeMode>clampToGround</altitudeMode>
+      <coordinates> -3.5903473503606,40.492235972222 </coordinates>
+    </Point>
+  </Placemark>
+
+
+ </Folder>
+
+ </Document>
+</kml>

@@ -333,7 +333,12 @@ function applyMarkerText(li, offset) {
   const s = li._mstyle;
   const layer = nodeLayer(li);
   if (!s || !layer) return;
-  const html = `<span style="font-size:${s.textSize}px;color:${s.textColor}">${escapeHtml(li._name)}</span>`;
+  bindMarkerText(layer, s, li._name, offset);
+}
+
+/* The same binding on a layer with no row: `name` replaces `li._name`. */
+function bindMarkerText(layer, s, name, offset) {
+  const html = `<span style="font-size:${s.textSize}px;color:${s.textColor}">${escapeHtml(name)}</span>`;
   if (!offset) offset = buildMarkerIcon(s, null).textOffset;
   /* Sin icono el nombre va CENTRADO en el punto; el globo, sobre su caja */
   const noIcon = s.icon === NO_ICON;
@@ -346,7 +351,7 @@ function applyMarkerText(li, offset) {
   layer.unbindPopup(); /* drop the group-level popup bound at creation */
   const each = l => {
     if (l instanceof L.Marker) {
-      nameMarkerIcon(l, li._name);
+      if (name) nameMarkerIcon(l, name);
       if (s.textAlways) l.closePopup();
       l.unbindPopup();
       l.unbindTooltip();
@@ -361,6 +366,16 @@ function applyMarkerText(li, offset) {
     if (l.eachLayer) l.eachLayer(each);
   };
   each(layer);
+}
+
+/* Icon AND text on a RAW layer, before any row exists. A marker in a folder
+   that is never expanded is drawn without ever getting a row, and a row is
+   what used to bind the text: a «Ninguno» marker whose name is its whole
+   content (a label-only KML point) showed nothing at all until the folder was
+   opened. Binding again when the row is built is harmless (it unbinds first). */
+function styleRawMarker(layer, s, name) {
+  const offset = styleMarkerIcon(layer, s, name);
+  bindMarkerText(layer, s, typeof name === "string" ? name : "", offset);
 }
 
 /* A marker with no style of its own (a KML point whose style has no IconStyle,

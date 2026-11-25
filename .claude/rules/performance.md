@@ -198,6 +198,7 @@ paths:
     sola tarea), el primer guardado (3,3 s de clon síncrono de un segmento de
     0,6 GB), la lectura al arrancar (2,5 s) y encender de golpe las 62 673
     capas (las construye todas).
+- **Marcadores de un KML con `IconStyle`** (`kmlMarkerToMstyle`, `styleRawMarker`): cada uno recibe su propio icono (`divIcon` con el SVG empotrado) en vez de compartir el de Leaflet. Medido (Chromium sin GPU, 5 000 puntos en una carpeta, importar): 0,55-0,57 s sin estilo y 0,93-1,03 s con él, unos 0,4 s más (≈ 80 µs por marcador, +0,7 s con 10 000); de eso, enlazar el texto en la capa cruda son ~60 ms (6 %) y el resto es crear el icono. `serializeTree` pasa de 4-5 a 6-7 ms. Es el coste de cualquier marcador con estilo propio, no se optimizó.
 - **Búsquedas por nombre local en el XML** (`elsByTag`, `firstByTag`,
   `childrenByTag`, `20-kml-geom.js`): `firstByTag` copiaba la colección
   entera a un array para quedarse con el primero, y cada búsqueda VACÍA
