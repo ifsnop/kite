@@ -110,6 +110,49 @@ const where = await page.evaluate(() => ({ inSources: !!document.querySelector("
   url: document.getElementById("props-ors-url").textContent }));
 ok(where.inSources && !where.inPrefs && where.url === "https://api.heigit.org/openrouteservice/v2/directions",
   "la clave y la dirección del servicio están en «Fuentes de datos», nada en Preferencias: " + JSON.stringify(where));
+/* The key is hidden, an eye shows it whole, and a line under it always tells how it ends */
+const keyState = () => page.evaluate(() => {
+  const i = document.getElementById("props-ors-key"), b = document.getElementById("props-ors-key-eye");
+  return { type: i.type, value: i.value, pressed: b.getAttribute("aria-pressed"), label: b.getAttribute("aria-label"),
+    title: b.title, hint: document.getElementById("props-ors-key-tail").textContent, focused: document.activeElement === i };
+});
+const clickEye = async () => { const r = await page.locator("#props-ors-key-eye").boundingBox(); await page.mouse.click(r.x + r.width / 2, r.y + r.height / 2); };
+let k = await keyState();
+ok(k.type === "password" && k.pressed === "false" && k.label === "Mostrar la clave" && k.hint === "", "empty: hidden, eye off, no line: " + JSON.stringify(k));
+await page.fill("#props-ors-key", KEY);
+k = await keyState();
+ok(k.type === "password" && k.hint === "Termina en …5678 · 56 caracteres", "typing a key tells how it ends WITHOUT showing it: " + JSON.stringify(k));
+await clickEye();
+k = await keyState();
+ok(k.type === "text" && k.value === KEY && k.pressed === "true" && k.label === "Ocultar la clave" && k.title === "Ocultar la clave" && k.focused,
+  "the eye shows the key whole, says it will hide it, and leaves the focus in the field: " + JSON.stringify(k));
+await clickEye();
+k = await keyState();
+ok(k.type === "password" && k.pressed === "false" && k.label === "Mostrar la clave", "and the same eye hides it again: " + JSON.stringify(k));
+await page.fill("#props-ors-key", "abc");
+ok((await keyState()).hint === "3 caracteres", "a short value says only its length, not its end");
+await page.fill("#props-ors-key", KEY.slice(0, -1) + "9");
+ok((await keyState()).hint === "Termina en …5679 · 56 caracteres", "the line follows what is typed, key by key");
+await page.fill("#props-ors-key", "");
+ok((await keyState()).hint === "", "emptied: no line");
+await page.fill("#props-ors-key", KEY);
+await clickEye();
+ok((await keyState()).type === "text", "revealed again before closing");
+await page.click("#props-cancel");
+await openPrefs();
+k = await keyState();
+ok(k.type === "password" && k.pressed === "false" && k.value === "", "a key left on view does not outlive the dialog: it opens hidden again: " + JSON.stringify(k));
+/* Keyboard: the eye is a real button reachable with Tab and pressed with Space */
+await page.focus("#props-ors-key");
+await page.keyboard.press("Tab");
+ok(await page.evaluate(() => document.activeElement && document.activeElement.id === "props-ors-key-eye"), "Tab goes from the field to the eye");
+await page.keyboard.press("Space");
+ok((await keyState()).type === "text", "Space on the eye shows the key");
+await page.keyboard.press("Space");
+ok((await keyState()).type === "password", "and Space again hides it");
+ok((await keyState()).value === "", "and no space was typed into the key");
+await page.click("#props-cancel");
+await openPrefs();
 await setKey(KEY);
 await page.click("#props-cancel");
 ok(await page.evaluate(async () => orsKey === null && await dbLoadOrsKey() === null), "Cancelar no se queda con la clave");

@@ -332,6 +332,8 @@ scenario("propiedades-fuentes.png", "2.1", async out => {
   await page.click("#props-tab-btn-sources");
   /* taller, to show the itineraries' block (key and address) under the elevation sources */
   await page.evaluate(() => { document.querySelector("#props-dialog .dlg-box").style.height = "720px"; });
+  /* a key of the right shape that is not real: the field stays hidden and the line under it tells how it ends */
+  await page.fill("#props-ors-key", "5b3ce3597851110001cf6248abcdefabcdefabcdefabcdef12345678");
   await page.waitForTimeout(200);
   await dialog(page, out, "props-dialog");
   await ctx.close();

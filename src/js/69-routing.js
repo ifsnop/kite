@@ -49,6 +49,21 @@ function validOrsKey(k) {
   return typeof k === "string" && /^[A-Za-z0-9_=.\-]{20,512}$/.test(k);
 }
 
+/* What the key field says under itself, always: how the key ends and how long
+   it is, so the user can tell it is the right one without showing it whole.
+   Only for a key long enough that its last characters are a small part of it
+   (a short value says just its length), and a character that cannot be in a
+   key shows as "?" (it points at a stray character from a bad paste). */
+const ORS_KEY_TAIL = 4, ORS_KEY_TAIL_MIN = 12;
+function orsKeyHint(value) {
+  const k = typeof value === "string" ? value.trim() : "";
+  if (!k) return "";
+  const n = [...k].length;
+  if (n < ORS_KEY_TAIL_MIN) return trn(n, "{n} carácter", "{n} caracteres", { n });
+  const tail = [...k].slice(-ORS_KEY_TAIL).join("").replace(/[^A-Za-z0-9_=.\-]/g, "?");
+  return tr("Termina en …{tail} · {n} caracteres", { tail, n });
+}
+
 /* The request. `from`/`to` are { lat, lng }; GeoJSON order (lon,lat) and six
    decimals (~0.1 m). Refuses an unknown profile or a point out of range, so
    nothing malformed reaches the service. */
