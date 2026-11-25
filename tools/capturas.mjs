@@ -332,6 +332,8 @@ scenario("propiedades-fuentes.png", "2.1", async out => {
   await page.click("#props-tab-btn-sources");
   /* taller, to show the itineraries' block (key and address) under the elevation sources */
   await page.evaluate(() => { document.querySelector("#props-dialog .dlg-box").style.height = "720px"; });
+  /* a key of the right shape that is not real: the field stays hidden and the line under it tells how it ends */
+  await page.fill("#props-ors-key", "5b3ce3597851110001cf6248abcdefabcdefabcdefabcdef12345678");
   await page.waitForTimeout(200);
   await dialog(page, out, "props-dialog");
   await ctx.close();
@@ -1066,7 +1068,7 @@ const ORS_ROUTE = { type: "FeatureCollection", features: [{ type: "Feature",
   properties: { summary: { distance: 1124.6, duration: 809.7 }, way_points: [0, 6] },
   geometry: { type: "LineString", coordinates: [[-3.70379, 40.416775], [-3.70275, 40.41705], [-3.7019, 40.4175], [-3.6995, 40.4183],
     [-3.6968, 40.4189], [-3.6948, 40.41905], [-3.6931, 40.4192]] } }] };
-const orsRoute = page => page.route(/api\.openrouteservice\.org/, route => route.fulfill({ status: 200, contentType: "application/json",
+const orsRoute = page => page.route(/api\.heigit\.org/, route => route.fulfill({ status: 200, contentType: "application/json",
   body: JSON.stringify(ORS_ROUTE), headers: { "access-control-allow-origin": "*" } }));
 scenario("itinerario.png", "7.18", async out => {
   const { ctx, page } = await openApp({ route: orsRoute });

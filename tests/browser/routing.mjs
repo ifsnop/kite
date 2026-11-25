@@ -36,7 +36,10 @@ const { ctx, page, errors } = await openApp(browser, srv.url, { viewport: { widt
 /* ---------- Fake openrouteservice ---------- */
 const seen = [];
 let mode = "ok"; /* ok | 403 | 2009 | 429 | 503once | hang */
-await page.route(/api\.openrouteservice\.org/, async route => {
+/* Every request the page makes, to prove none goes to the old host (api.openrouteservice.org answers 410) */
+const everyUrl = [];
+page.on("request", r => everyUrl.push(r.url()));
+await page.route(/api\.heigit\.org/, async route => {
   const req = route.request();
   seen.push({ url: new URL(req.url()), headers: req.headers(), method: req.method() });
   const json = (status, body) => route.fulfill({ status, contentType: "application/json", body: typeof body === "string" ? body : JSON.stringify(body),
@@ -105,8 +108,56 @@ await openPrefs();
 const where = await page.evaluate(() => ({ inSources: !!document.querySelector("#props-tab-sources #props-ors-key"),
   inPrefs: !!document.querySelector("#props-tab-prefs #props-ors-key") || /openrouteservice/.test(document.getElementById("props-tab-prefs").textContent),
   url: document.getElementById("props-ors-url").textContent }));
-ok(where.inSources && !where.inPrefs && where.url === "https://api.openrouteservice.org/v2/directions",
+ok(where.inSources && !where.inPrefs && where.url === "https://api.heigit.org/openrouteservice/v2/directions",
   "la clave y la dirección del servicio están en «Fuentes de datos», nada en Preferencias: " + JSON.stringify(where));
+/* The key is hidden, an eye shows it whole, and a line under it always tells how it ends */
+const keyState = () => page.evaluate(() => {
+  const i = document.getElementById("props-ors-key"), b = document.getElementById("props-ors-key-eye");
+  return { type: i.type, value: i.value, pressed: b.getAttribute("aria-pressed"), label: b.getAttribute("aria-label"),
+    title: b.title, hint: document.getElementById("props-ors-key-tail").textContent, focused: document.activeElement === i };
+});
+const keyBox = () => page.evaluate(() => { const r = document.getElementById("props-ors-key").getBoundingClientRect(); return [Math.round(r.width * 10) / 10, Math.round(r.height * 10) / 10]; });
+const clickEye = async () => { const r = await page.locator("#props-ors-key-eye").boundingBox(); await page.mouse.click(r.x + r.width / 2, r.y + r.height / 2); };
+let k = await keyState();
+ok(k.type === "password" && k.pressed === "false" && k.label === "Mostrar la clave" && k.hint === "", "empty: hidden, eye off, no line: " + JSON.stringify(k));
+await page.fill("#props-ors-key", KEY);
+k = await keyState();
+ok(k.type === "password" && k.hint === "Termina en …5678 · 56 caracteres", "typing a key tells how it ends WITHOUT showing it: " + JSON.stringify(k));
+const boxHidden = await keyBox();
+await clickEye();
+const boxShown = await keyBox();
+ok(boxHidden[0] > 300 && JSON.stringify(boxHidden) === JSON.stringify(boxShown),
+  "the field keeps its size when the eye shows the key (the generic text-field cap of 190px must not apply): " + JSON.stringify({ boxHidden, boxShown }));
+k = await keyState();
+ok(k.type === "text" && k.value === KEY && k.pressed === "true" && k.label === "Ocultar la clave" && k.title === "Ocultar la clave" && k.focused,
+  "the eye shows the key whole, says it will hide it, and leaves the focus in the field: " + JSON.stringify(k));
+await clickEye();
+k = await keyState();
+ok(k.type === "password" && k.pressed === "false" && k.label === "Mostrar la clave", "and the same eye hides it again: " + JSON.stringify(k));
+await page.fill("#props-ors-key", "abc");
+ok((await keyState()).hint === "3 caracteres", "a short value says only its length, not its end");
+await page.fill("#props-ors-key", KEY.slice(0, -1) + "9");
+ok((await keyState()).hint === "Termina en …5679 · 56 caracteres", "the line follows what is typed, key by key");
+await page.fill("#props-ors-key", "");
+ok((await keyState()).hint === "", "emptied: no line");
+await page.fill("#props-ors-key", KEY);
+await clickEye();
+ok((await keyState()).type === "text", "revealed again before closing");
+await page.click("#props-cancel");
+await openPrefs();
+k = await keyState();
+ok(k.type === "password" && k.pressed === "false" && k.value === "", "a key left on view does not outlive the dialog: it opens hidden again: " + JSON.stringify(k));
+/* Keyboard: the eye is a real button reachable with Tab and pressed with Space */
+await page.focus("#props-ors-key");
+await page.keyboard.press("Tab");
+ok(await page.evaluate(() => document.activeElement && document.activeElement.id === "props-ors-key-eye"), "Tab goes from the field to the eye");
+await page.keyboard.press("Space");
+ok((await keyState()).type === "text", "Space on the eye shows the key");
+await page.keyboard.press("Space");
+ok((await keyState()).type === "password", "and Space again hides it");
+ok((await keyState()).value === "", "and no space was typed into the key");
+await page.click("#props-cancel");
+await openPrefs();
 await setKey(KEY);
 await page.click("#props-cancel");
 ok(await page.evaluate(async () => orsKey === null && await dbLoadOrsKey() === null), "Cancelar no se queda con la clave");
@@ -176,7 +227,7 @@ ok(r.rows.length === 1 && /^Itinerario 1 — A pie · 0\.\d\d NM · 2 min$/.test
 ok(!r.viewMoved, "la vista no se mueve");
 ok(r.log.some(t => /Itinerario añadido en «Itinerarios»/.test(t)), "un aviso dice dónde está: " + r.log.join(" | "));
 const q = seen[seen.length - 1];
-ok(seen.length === 1 && q.method === "GET" && q.url.pathname === "/v2/directions/foot-walking"
+ok(seen.length === 1 && q.method === "GET" && q.url.host === "api.heigit.org" && q.url.pathname === "/openrouteservice/v2/directions/foot-walking"
   && q.url.searchParams.get("api_key") === KEY && q.url.searchParams.get("start") === "-3.703790,40.416775"
   && q.url.searchParams.get("end") === "-3.693100,40.419200",
   "UNA petición con la clave, origen y destino en lon,lat y el modo: " + q.url.search);
@@ -236,6 +287,8 @@ ok(await page.evaluate(async () => orsKey === null && await dbLoadOrsKey() === n
 const realErrors = errors.filter(e => !/status of (503|403|404|429)/.test(e));
 ok(realErrors.length === 0, "sin errores de página: " + realErrors.join(" | "));
 ok((await page.evaluate(() => window.__csp)).length === 0, "sin violaciones de la CSP");
+ok(!everyUrl.some(u => u.includes("api.openrouteservice.org")), "ninguna petición fue al servidor antiguo (responde 410): " + everyUrl.filter(u => u.includes("openrouteservice")).join(" "));
+ok(everyUrl.some(u => u.startsWith("https://api.heigit.org/openrouteservice/v2/directions/")), "y sí al nuevo");
 await ctx.close();
 await browser.close();
 srv.close();

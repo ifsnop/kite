@@ -1841,7 +1841,30 @@
   /* The itineraries' block of «Fuentes de datos»: a heading of its own under
      the elevation sources, and the key field as wide as the selectors. */
   .props-src-head { margin: 16px 0 0; padding-top: 10px; border-top: 1px solid var(--border); font-size: 13px; }
-  #props-tab-sources .dlg-row > input#props-ors-key { max-width: none; width: 100%; }
+  /* A secret field (the openrouteservice key): hidden by default, an eye shows
+     it whole, and a line under it always tells how it ends and how long it is.
+     The wrapper is what the row stretches; the button sits inside the field. */
+  .secret-field { position: relative; display: flex; align-items: center; width: 100%; }
+  #props-tab-sources .secret-field > input {
+    flex: 1; min-width: 0; width: 100%; padding: 3px 34px 3px 6px;
+    /* the generic `.dlg-row input[type="text"]` caps a text field at 190px, and
+       the field turns into one when the eye shows the key: without this the
+       field shrank from the row's width to 190px on every press */
+    max-width: none;
+    border: 1px solid var(--border); border-radius: 5px; font: inherit;
+  }
+  .secret-toggle {
+    position: absolute; right: 3px; top: 50%; transform: translateY(-50%);
+    width: 26px; height: 24px; padding: 0; display: grid; place-items: center;
+    border: 0; border-radius: 4px; background: transparent; color: var(--muted); cursor: pointer;
+  }
+  .secret-toggle:hover { color: var(--text); background: var(--bg); }
+  .secret-toggle:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+  .secret-toggle svg { width: 17px; height: 17px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+  .secret-toggle .eye-off { display: none; }
+  .secret-toggle[aria-pressed="true"] .eye-off { display: block; }
+  .secret-toggle[aria-pressed="true"] .eye-on { display: none; }
+  .secret-tail { margin: -2px 0 6px; min-height: 1.3em; font-variant-numeric: tabular-nums; }
   /* Same trap as .dlg-row[hidden]/.color-field[hidden]: an author
      "display: flex" beats the UA "[hidden] { display: none }" rule
      regardless of specificity, so the inactive tab stayed visible

@@ -1859,7 +1859,27 @@ propsOrsKeyInput.addEventListener("change", () => {
     return;
   }
   syncRouteCalc();
+  refreshOrsKeyHint();
 });
+/* The line under the key (always on) and the eye that shows the key whole. The
+   field goes back to hidden every time the dialog opens: a revealed key must
+   not outlive the moment it was being checked. */
+const propsOrsKeyEye = document.getElementById("props-ors-key-eye");
+const propsOrsKeyTail = document.getElementById("props-ors-key-tail");
+function refreshOrsKeyHint() { propsOrsKeyTail.textContent = orsKeyHint(propsOrsKeyInput.value); }
+function showOrsKey(shown) {
+  propsOrsKeyInput.type = shown ? "text" : "password";
+  propsOrsKeyEye.setAttribute("aria-pressed", String(shown));
+  const label = shown ? tr("Ocultar la clave") : tr("Mostrar la clave");
+  propsOrsKeyEye.title = label;
+  propsOrsKeyEye.setAttribute("aria-label", label);
+}
+propsOrsKeyInput.addEventListener("input", refreshOrsKeyHint);
+/* The focus never moves: a mouse press on the eye must not take it from the
+   field (mousedown), and a key press leaves it on the eye, so Space twice
+   shows and hides instead of typing a space into the key. */
+propsOrsKeyEye.addEventListener("mousedown", e => e.preventDefault());
+propsOrsKeyEye.addEventListener("click", () => showOrsKey(propsOrsKeyInput.type === "password"));
 function applyAdvancedPrefs(on) {
   advancedPrefs = on;
   propsAdvancedInput.checked = on;
@@ -2120,6 +2140,8 @@ async function togglePropsDialog() {
                     arcSegments, kmzMaxUncompressedMB, elevSources, tunables: { ...CFG }, advancedPrefs, orsKey };
   applyAdvancedPrefs(advancedPrefs);
   propsOrsKeyInput.value = orsKey || "";
+  showOrsKey(false);
+  refreshOrsKeyHint();
   renderGnpEditor();
   renderPropsPrefsTab();
   renderTunables();

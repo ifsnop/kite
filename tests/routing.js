@@ -18,21 +18,36 @@ const path = require("path");
 const { fn, constDecl, between } = require("./_extract");
 const ok = (c, m) => { if (!c) { console.error("FAIL: " + m); process.exitCode = 1; } };
 
-const src = between("const ORS_HOST", "/* A key as HeiGIT") + "\n"
-  + ["validOrsKey", "orsDirectionsUrl", "parseOrsRoute", "orsErrorText", "fmtDuration", "routeEndLabel",
+const src = between("const ORS_HOST", "/* A key as HeiGIT") + "\n" + constDecl("ORS_KEY_TAIL") + "\n"
+  + ["validOrsKey", "orsKeyHint", "orsDirectionsUrl", "parseOrsRoute", "orsErrorText", "fmtDuration", "routeEndLabel",
     "routeSummaryText", "routeProps", "routeFeature", "routesInRecords"].map(fn).join("\n");
 const describeHttp = s => `HTTP ${s}`;
 const formatCoord = (v, isLat, mode) => mode === "dms" ? `${v}${isLat ? "N" : "E"}` : v.toFixed(6);
 const fmtUnitDist = (m, unit) => `${(m / 1000).toFixed(2)} ${unit}`;
 const api = new Function("describeHttp", "formatCoord", "fmtUnitDist", src
-  + "\nreturn { ORS_PROFILES, ORS_MAX_VERTICES, ORS_SRC, validOrsKey, orsDirectionsUrl, parseOrsRoute, orsErrorText, fmtDuration,"
+  + "\nreturn { ORS_PROFILES, ORS_MAX_VERTICES, ORS_SRC, validOrsKey, orsKeyHint, orsDirectionsUrl, parseOrsRoute, orsErrorText, fmtDuration,"
   + " routeEndLabel, routeSummaryText, routeProps, routeFeature, routesInRecords };")(describeHttp, formatCoord, fmtUnitDist);
 const KEY = "5b3ce3597851110001cf6248abcdefabcdefabcdefabcdef12345678";
 const throws = f => { try { f(); } catch (e) { return e.message; } return null; };
 
+/* ---------- 0. What the key field says under itself ---------- */
+{
+  const h = api.orsKeyHint;
+  ok(h(KEY) === "Termina en …5678 · 56 caracteres", "a key: how it ends and how long it is: " + h(KEY));
+  ok(h("  " + KEY + "\n") === h(KEY), "the spaces around a pasted key do not count (they are not saved either)");
+  ok(h("") === "" && h("   ") === "" && h(null) === "" && h(undefined) === "", "no key, no line");
+  ok(h("abcdefghijk") === "11 caracteres" && !/abc|ijk/.test(h("abcdefghijk")), "a short value says only its length: its end would be a big part of it: " + h("abcdefghijk"));
+  ok(h("a") === "1 carácter", "singular");
+  ok(h("abcdefghijkl") === "Termina en …ijkl · 12 caracteres", "twelve is the first that shows its end: " + h("abcdefghijkl"));
+  ok(h("x".repeat(40) + "ab cd") === "Termina en …b?cd · 45 caracteres", "a character that cannot be in a key shows as ?: " + h("x".repeat(40) + "ab cd"));
+  ok(h("x".repeat(30) + "ab\u202Ecd") === "Termina en …b?cd · 35 caracteres", "a direction-changing character never reaches the line as itself: " + JSON.stringify(h("x".repeat(30) + "ab\u202Ecd")));
+  ok(!h(KEY).includes(KEY.slice(0, 8)), "the line never repeats the start of the key");
+}
+
 /* ---------- 1. The request ---------- */
 const url = new URL(api.orsDirectionsUrl("foot-walking", { lat: 40.4167754, lng: -3.7037902 }, { lat: 40.42, lng: -3.7 }, KEY));
-ok(url.origin === "https://api.openrouteservice.org" && url.pathname === "/v2/directions/foot-walking", "servidor y ruta: " + url.origin + url.pathname);
+ok(url.origin === "https://api.heigit.org" && url.pathname === "/openrouteservice/v2/directions/foot-walking", "servidor y ruta: " + url.origin + url.pathname);
+ok(!url.href.includes("api.openrouteservice.org"), "ninguna dirección del servidor antiguo, que responde 410");
 ok(url.searchParams.get("start") === "-3.703790,40.416775" && url.searchParams.get("end") === "-3.700000,40.420000",
   "start y end en orden lon,lat con seis decimales: " + url.search);
 ok(url.searchParams.get("api_key") === KEY, "la clave va en api_key");

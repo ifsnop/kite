@@ -582,7 +582,15 @@
       <h3 class="props-src-head">Itinerarios (openrouteservice, HeiGIT)</h3>
       <p class="dlg-hint">Clave de la API de openrouteservice (HeiGIT) para calcular itinerarios entre dos puntos desde el menú del botón derecho. Se guarda solo en este navegador y únicamente se envía a la dirección de abajo. Sin clave, el cálculo de itinerarios está deshabilitado; vacíe el campo para borrarla.</p>
       <div class="dlg-row"><label for="props-ors-key">Clave de openrouteservice</label>
-        <input type="password" id="props-ors-key" autocomplete="off" spellcheck="false"></div>
+        <span class="secret-field">
+          <input type="password" id="props-ors-key" autocomplete="off" spellcheck="false" aria-describedby="props-ors-key-tail">
+          <button type="button" class="secret-toggle" id="props-ors-key-eye" aria-pressed="false" aria-controls="props-ors-key" title="Mostrar la clave" aria-label="Mostrar la clave">
+            <svg class="eye-on" viewBox="0 0 24 24" aria-hidden="true"><path d="M1.5 12S5.5 5 12 5s10.5 7 10.5 7-4 7-10.5 7S1.5 12 1.5 12z"/><circle cx="12" cy="12" r="3"/></svg>
+            <svg class="eye-off" viewBox="0 0 24 24" aria-hidden="true"><path d="M1.5 12S5.5 5 12 5s10.5 7 10.5 7-4 7-10.5 7S1.5 12 1.5 12z"/><circle cx="12" cy="12" r="3"/><path d="M3 3l18 18"/></svg>
+          </button>
+        </span></div>
+      <!-- How the key ends and how long it is, always told (filled by orsKeyHint) -->
+      <p class="dlg-hint secret-tail" id="props-ors-key-tail" aria-live="polite"></p>
       <p class="dlg-hint props-src-url" id="props-ors-url"></p>
     </div>
     <div id="props-tab-freq" class="dlg-tabpanel" hidden role="tabpanel">

@@ -49,12 +49,25 @@ time, mode, origin, destination; no turn-by-turn instructions); **three modes**
   field is `.bad` and the end empty. ⇅ swaps. The mode is remembered for the
   session only.
 
+### The key field: hidden, an eye, and its last characters always told
+(`props-ors-key`, the only `type="password"` input of the application.) Requested: be able to check the key is the right one. Decided with the user: the field stays hidden; an **eye** button (`props-ors-key-eye`, `aria-pressed`, label «Mostrar la clave»/«Ocultar la clave») shows it whole; and a line under it (`props-ors-key-tail`, `aria-live="polite"`) ALWAYS says how it ends and how long it is, from the pure `orsKeyHint`: «Termina en …5678 · 56 caracteres» (the last `ORS_KEY_TAIL` = 4 characters; a value under `ORS_KEY_TAIL_MIN` = 12 says only its length, since its end would be a large part of it; a character that cannot be in a key shows as «?», which also keeps a direction-changing one from reaching the line). Ruled out: painting the dots and the last characters INSIDE the field (a custom overlay: caret, selection and password managers get fragile). Things that are not obvious: **the focus never moves**: `mousedown` on the eye is `preventDefault`ed and the click handler does not call `focus()`, so Space twice shows and hides instead of typing a space into the key (a first version focused the field and did exactly that); the field goes back to hidden every time the dialog opens (`showOrsKey(false)` in the opening code) so a revealed key does not outlive the check; the line is written with `textContent`. The tail is only ever on screen: never saved, logged or exported. `keepFocusOnClick` (`44-dialogs.js`) is NOT used because that file loads after `43-points-editor.js`. Tested in `tests/routing.js` (the hint) and `tests/browser/routing.mjs` (section 2: real mouse, keyboard, reopening).
+
 ### The request
-- ONE `GET https://api.openrouteservice.org/v2/directions/{profile}?api_key=…&start=lon,lat&end=lon,lat`
+- ONE `GET https://api.heigit.org/openrouteservice/v2/directions/{profile}?api_key=…&start=lon,lat&end=lon,lat`
   per «Calcular». A SIMPLE request (`credentials: "omit"`, no headers of our
   own: no preflight, see `url-import.md`); the key goes in the query to the
-  only server that receives it. **Checked by the user against the real service
-  with their key (2026-11-17): it works.** `tests/fixtures/ors-route.json`
+  only server that receives it. **The host moved** (2026-11-25): HeiGIT
+  deprecated `api.openrouteservice.org`, which now answers 410 «Deprecated
+  HeiGIT API URL» with no CORS header (a browser sees only a network failure),
+  in favour of `api.heigit.org/openrouteservice/…` (the path under it is the
+  service's own). **Checked by the user against the OLD host with their key
+  (2026-11-17): it worked.** Against the new one it has been checked from the
+  browser WITHOUT a valid key: a real request reaches it with
+  `access-control-allow-origin: *`, and a bad key comes back as 403 with
+  `{"error":"Access to this API has been disallowed"}`, which `orsErrorText`
+  turns into the usual «la clave … no es válida». **The maintainer then
+  validated a route with their own valid key on the new host (2026-11-25): it
+  works**, so the old host's check of 2026-11-17 and this one cover both. `tests/fixtures/ors-route.json`
   is still synthetic (shaped like the documented format): replace it with a
   captured response when a key is at hand in a session.
 - `withElevRetries` with `AbortSignal.timeout(CFG.ORS_TIMEOUT)` per attempt,
@@ -91,7 +104,7 @@ time, mode, origin, destination; no turn-by-turn instructions); **three modes**
   the boot add the attribution. No `TREE_SCHEMA` change.
 - Attribution once per session (`ensureRouteAttribution`): «© openrouteservice.org
   by HeiGIT · © OpenStreetMap contributors», with a link to `openrouteservice.org`
-  (Annex A.3 of the security study; `api.openrouteservice.org` is in A.1).
+  (Annex A.3 of the security study; `api.heigit.org` is in A.1).
 
 ### Tests
 `tests/routing.js` (the pure part, hostile responses, error texts) and

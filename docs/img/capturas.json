@@ -189,10 +189,10 @@
       "build": "202611241212"
     },
     "itinerario.png": {
-      "sha256": "cab959d0bd559cea9ff37d9d591bd4d7866f052cc7295ec23c0f12f10f5e73c6",
+      "sha256": "af8132ce8a6009d795e82b60cec646cd2dbac0614c9cf8fafc108401fffa7e8b",
       "section": "7.18",
       "version": "2.8.1",
-      "build": "202611241212"
+      "build": "202611250035"
     },
     "mapa-girado.png": {
       "sha256": "757b71b716f1df94298fe9096bd5f8deb6e28184797e8fb653ab4b15672cb1a5",
@@ -310,10 +310,10 @@
       "build": "202611241212"
     },
     "propiedades-fuentes.png": {
-      "sha256": "77d638a9a28b93ad4155a468b9680410571d74ad74c595c16a1ba0da12566924",
+      "sha256": "714113f8ff37963a0c45d9423501b17edab7975abacca3f790082bfb99d606c0",
       "section": "2.1",
       "version": "2.8.1",
-      "build": "202611241212"
+      "build": "202611251955"
     },
     "propiedades-preferencias.png": {
       "sha256": "d961a06137983280a0f8db1af3aa594f5fe65c8c2a49f9265e60946599e949d6",
