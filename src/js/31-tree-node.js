@@ -898,7 +898,7 @@ async function buildKmlRecords(el, styleIndex, inheritedVisible, prog, report, z
           rec = { t: "layer", name, checked: visible, style, desc, _layer: layer };
           /* On the raw layer too: a marker in a folder that is never expanded
              can be switched on without its row ever being built. */
-          if (mstyle) { rec.mstyle = mstyle; styleMarkerIcon(layer, mstyle, name); }
+          if (mstyle) { rec.mstyle = mstyle; styleRawMarker(layer, mstyle, name); }
           wirePendingLayerEvents(rec);
           if (report) { report.loaded++; report.kinds.add(layerKind(layer) || "?"); }
         }

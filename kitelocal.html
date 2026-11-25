@@ -4098,6 +4098,7 @@ registerLang("en", "English", {
   "La vista es más grande de lo que Wikipedia permite buscar: se han buscado los artículos a menos de {distance} del punto.": "The view is larger than Wikipedia can search: articles were searched within {distance} of the point.",
   "No se pudo obtener el resumen de {n} artículo(s) ({reason}): solo llevan el enlace.": "Could not get the summary of {n} article(s) ({reason}): they only carry the link.",
   /* 68-whats-new.js */
+  "Los rótulos de un KML (puntos sin icono, solo con su nombre) se ven aunque su carpeta esté plegada, también al recargar.": "KML labels (points with no icon, only their name) show even when their folder is folded, also after reloading.",
   "Los marcadores de un KML conservan el color, el tamaño y la forma (punto, cuadrado, estrella o triángulo) de su icono, y no enseñan su nombre si el KML lo oculta.": "Markers from a KML keep the colour, size and shape (dot, square, star or triangle) of their icon, and do not show their name when the KML hides it.",
   "Cuando se acumulan muchos avisos fijos, el botón «Aceptar» se queda siempre a la vista en vez de salirse de la pantalla.": "When many sticky notices pile up, the “Accept” button now always stays in view instead of falling off the screen.",
   "El buscador del panel enseña lo que hay dentro de una carpeta que coincide, admite varias palabras (también las de las carpetas de arriba) y marca en cada nombre lo que has escrito.": "The panel search shows what is inside a folder that matches, accepts several words (also those of the folders above) and marks what you typed in each name.",
@@ -6000,7 +6001,7 @@ map.on("resize rotate", fitWorldMinZoom);
 
 /* Fecha de generación del código (versión): AÑOMESDIAHORAMINUTO.
    Actualizar en cada generación; se muestra junto al crédito de Leaflet. */
-const BUILD = "202611241249";
+const BUILD = "202611250035";
 /* Versión de release (la de package.json, horneada aquí por build.js
    al construir — ver «Versión y releases de GitHub» en CLAUDE.md): a
    diferencia de BUILD, que cambia en CADA generación, esta solo cambia
@@ -9910,7 +9911,7 @@ async function buildKmlRecords(el, styleIndex, inheritedVisible, prog, report, z
           rec = { t: "layer", name, checked: visible, style, desc, _layer: layer };
           /* On the raw layer too: a marker in a folder that is never expanded
              can be switched on without its row ever being built. */
-          if (mstyle) { rec.mstyle = mstyle; styleMarkerIcon(layer, mstyle, name); }
+          if (mstyle) { rec.mstyle = mstyle; styleRawMarker(layer, mstyle, name); }
           wirePendingLayerEvents(rec);
           if (report) { report.loaded++; report.kinds.add(layerKind(layer) || "?"); }
         }
@@ -12317,7 +12318,7 @@ function buildRecordLayer(rec) {
      la gota de Leaflet al activarlo tras recargar. Aplicarlo dos
      veces (otra vez en materializeRecords, si la fila sí llega a
      crearse) es inocuo: setIcon con el mismo icono no hace nada.  */
-  if (rec.mstyle) styleMarkerIcon(layer, rec.mstyle, typeof rec.name === "string" ? rec.name : "");
+  if (rec.mstyle) styleRawMarker(layer, rec.mstyle, rec.name);
   return layer;
 }
 
@@ -15895,7 +15896,12 @@ function applyMarkerText(li, offset) {
   const s = li._mstyle;
   const layer = nodeLayer(li);
   if (!s || !layer) return;
-  const html = `<span style="font-size:${s.textSize}px;color:${s.textColor}">${escapeHtml(li._name)}</span>`;
+  bindMarkerText(layer, s, li._name, offset);
+}
+
+/* The same binding on a layer with no row: `name` replaces `li._name`. */
+function bindMarkerText(layer, s, name, offset) {
+  const html = `<span style="font-size:${s.textSize}px;color:${s.textColor}">${escapeHtml(name)}</span>`;
   if (!offset) offset = buildMarkerIcon(s, null).textOffset;
   /* Sin icono el nombre va CENTRADO en el punto; el globo, sobre su caja */
   const noIcon = s.icon === NO_ICON;
@@ -15908,7 +15914,7 @@ function applyMarkerText(li, offset) {
   layer.unbindPopup(); /* drop the group-level popup bound at creation */
   const each = l => {
     if (l instanceof L.Marker) {
-      nameMarkerIcon(l, li._name);
+      if (name) nameMarkerIcon(l, name);
       if (s.textAlways) l.closePopup();
       l.unbindPopup();
       l.unbindTooltip();
@@ -15923,6 +15929,16 @@ function applyMarkerText(li, offset) {
     if (l.eachLayer) l.eachLayer(each);
   };
   each(layer);
+}
+
+/* Icon AND text on a RAW layer, before any row exists. A marker in a folder
+   that is never expanded is drawn without ever getting a row, and a row is
+   what used to bind the text: a «Ninguno» marker whose name is its whole
+   content (a label-only KML point) showed nothing at all until the folder was
+   opened. Binding again when the row is built is harmless (it unbinds first). */
+function styleRawMarker(layer, s, name) {
+  const offset = styleMarkerIcon(layer, s, name);
+  bindMarkerText(layer, s, typeof name === "string" ? name : "", offset);
 }
 
 /* A marker with no style of its own (a KML point whose style has no IconStyle,
@@ -30105,6 +30121,9 @@ async function queryWikipediaAt(latlng) {
      the new version (tests/whatsnew.js fails if package.json's version
      has no entry).                                                     */
 const WHATS_NEW = [
+  { version: "next", items: [
+    N_("Los rótulos de un KML (puntos sin icono, solo con su nombre) se ven aunque su carpeta esté plegada, también al recargar.")
+  ] },
   { version: "2.8.1", items: [
     N_("Los marcadores de un KML conservan el color, el tamaño y la forma (punto, cuadrado, estrella o triángulo) de su icono, y no enseñan su nombre si el KML lo oculta."),
     N_("Cuando se acumulan muchos avisos fijos, el botón «Aceptar» se queda siempre a la vista en vez de salirse de la pantalla.")

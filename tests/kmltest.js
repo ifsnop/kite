@@ -224,7 +224,7 @@ const bareDoc = markerKml(`<StyleMap id="error_75"><Pair><key>normal</key><style
 const bIdx = buildStyleIndex(bareDoc);
 const be = kmlMarkerToMstyle(placemarkMarkerStyle(pmOf(bareDoc, "E"), bIdx), null);
 ok(be && be.color === "#00ff00" && be.size === 21, "a bare styleUrl names the local StyleMap (and its bare Pair styleUrl too): " + JSON.stringify(be));
-ok(placemarkMarkerStyle(pmOf(bareDoc, "F"), bIdx).color === "#ff0000", "an id with a dot is still local");
+ok((placemarkMarkerStyle(pmOf(bareDoc, "F"), bIdx) || {}).color === "#ff0000", "an id with a dot is still local");
 ok(bIdx.externalRefs === 0, "neither counts as an external style: " + bIdx.externalRefs);
 ok(placemarkMarkerStyle(pmOf(bareDoc, "G"), bIdx) === null && placemarkMarkerStyle(pmOf(bareDoc, "H"), bIdx) === null, "a file reference or an id the document lacks resolves to nothing");
 ok(bIdx.externalRefs === 2, "and those two are counted as external: " + bIdx.externalRefs);
@@ -234,5 +234,53 @@ ok(placemarkStyle(pmOf(bareDoc, "E"), bIdx).color === "#3388ff", "the path style
 const junk = parseMarkerStyleElement(markerKml(`<Style><IconStyle><color>zz</color><scale>-3</scale><Icon><href>  </href></Icon></IconStyle>
   <LabelStyle><scale>abc</scale></LabelStyle></Style>`).getElementsByTagName("Style")[0]);
 ok(junk === null, "invalid colour, negative or text scale and an empty href are dropped: " + JSON.stringify(junk));
+}
+/* ---- A real file: tests/fixtures/msda-lemd-marker-styles.kml (the user's test.kml, byte for byte) ----
+   It has what the synthetic cases above do not have together: 12 points whose <styleUrl> lacks the "#",
+   a StyleMap onto an image we have no equivalent for (polygon.png, scale 1.2, no colour), two banners
+   with an EMPTY <Icon></Icon> at scale 0 and a label of scale 0.8, a "highlight" pair that points at a
+   style the file does not have, and two lines whose inline <Style> overrides a shared one. */
+{
+  const real = new DOMParser().parseFromString(require("fs").readFileSync(
+    require("path").join(__dirname, "fixtures", "msda-lemd-marker-styles.kml"), "utf8"), "text/xml");
+  const rIdx = buildStyleIndex(real);
+  const pms = elsByTag(real, "Placemark");
+  ok(pms.length === 17, "the file has 17 placemarks: " + pms.length);
+  const hrefs = new Set();
+  const marker = pm => kmlMarkerToMstyle(placemarkMarkerStyle(pm, rIdx), hrefs);
+  const isPoint = pm => elsByTag(pm, "Point").length > 0;
+  const points = pms.filter(isPoint), lines = pms.filter(pm => !isPoint(pm));
+  ok(points.length === 15 && lines.length === 2, "15 points and 2 lines: " + points.length + "/" + lines.length);
+
+  /* the 12 measurements: the bare styleUrl "error_75" -> StyleMap -> a green dot at half size, no label */
+  const dots = points.filter(pm => /^\d\.\d\dm$/.test(text(pm, "name")));
+  ok(dots.length === 12, "12 measurement points: " + dots.length);
+  for (const pm of dots) {
+    const m = marker(pm);
+    ok(m && m.icon === "circle" && m.color === "#00ff00" && m.size === 21 && m.textAlways === false,
+      text(pm, "name") + " is a green circle of 21 px with no permanent name: " + JSON.stringify(m));
+  }
+  ok(hrefs.size === 0 || [...hrefs].every(h => /polygon\.png$/.test(h)), "no measurement point reports an image: " + [...hrefs]);
+
+  /* the centre: StyleMap -> sn_polygon, an image we do not know, scale 1.2 and no colour -> the pin, 49 px, reported */
+  const centre = marker(pms.find(pm => text(pm, "name") === "RXTX31-342351"));
+  ok(centre.icon === "leaflet-pin" && centre.size === 49 && centre.color === DEFAULT_MARKER_STYLE.color,
+    "the centre keeps the Leaflet pin at 1.2 x: " + JSON.stringify(centre));
+  ok(hrefs.size === 1 && [...hrefs][0] === "http://maps.google.com/mapfiles/kml/shapes/polygon.png",
+    "exactly one image is reported, the one with no equivalent: " + [...hrefs]);
+
+  /* the banners: an empty <Icon></Icon> at scale 0 is «Ninguno»; the label at 0.8 keeps the name on */
+  const banners = points.filter(pm => /^P9[59]/.test(text(pm, "name")));
+  ok(banners.length === 2 && banners.every(pm => { const m = marker(pm); return m.icon === "none" && m.textAlways === true; }),
+    "both banners are «Ninguno» with their name shown");
+
+  /* the lines: path styles are untouched by the marker work, and the inline LineStyle wins over the shared one */
+  const line = n => placemarkStyle(lines.find(pm => text(pm, "name") === n), rIdx);
+  ok(line("P95≤7.5m").color === "#00ff00" && line("P99≤12m").color === "#0000ff" && line("P95≤7.5m").weight === 3,
+    "inline LineStyle colours (aabbggrr) over the shared 3 px style: " + JSON.stringify([line("P95≤7.5m"), line("P99≤12m")]));
+  ok(lines.every(pm => placemarkMarkerStyle(pm, rIdx) === null), "a line has no marker style");
+
+  /* nothing in the file counts as a style in another file (the "highlight" pair is never followed) */
+  ok(rIdx.externalRefs === 0, "no external style references: " + rIdx.externalRefs);
 }
 if (!process.exitCode) console.log("KML MARKER STYLE TESTS OK");
