@@ -65,8 +65,9 @@ time, mode, origin, destination; no turn-by-turn instructions); **three modes**
   browser WITHOUT a valid key: a real request reaches it with
   `access-control-allow-origin: *`, and a bad key comes back as 403 with
   `{"error":"Access to this API has been disallowed"}`, which `orsErrorText`
-  turns into the usual «la clave … no es válida». A route with a valid key on
-  the new host has not been confirmed by us. `tests/fixtures/ors-route.json`
+  turns into the usual «la clave … no es válida». **The maintainer then
+  validated a route with their own valid key on the new host (2026-11-25): it
+  works**, so the old host's check of 2026-11-17 and this one cover both. `tests/fixtures/ors-route.json`
   is still synthetic (shaped like the documented format): replace it with a
   captured response when a key is at hand in a session.
 - `withElevRetries` with `AbortSignal.timeout(CFG.ORS_TIMEOUT)` per attempt,

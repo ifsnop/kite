@@ -1928,6 +1928,10 @@
   .secret-field { position: relative; display: flex; align-items: center; width: 100%; }
   #props-tab-sources .secret-field > input {
     flex: 1; min-width: 0; width: 100%; padding: 3px 34px 3px 6px;
+    /* the generic `.dlg-row input[type="text"]` caps a text field at 190px, and
+       the field turns into one when the eye shows the key: without this the
+       field shrank from the row's width to 190px on every press */
+    max-width: none;
     border: 1px solid var(--border); border-radius: 5px; font: inherit;
   }
   .secret-toggle {
@@ -6034,7 +6038,7 @@ map.on("resize rotate", fitWorldMinZoom);
 
 /* Fecha de generación del código (versión): AÑOMESDIAHORAMINUTO.
    Actualizar en cada generación; se muestra junto al crédito de Leaflet. */
-const BUILD = "202611252044";
+const BUILD = "202611252333";
 /* Versión de release (la de package.json, horneada aquí por build.js
    al construir — ver «Versión y releases de GitHub» en CLAUDE.md): a
    diferencia de BUILD, que cambia en CADA generación, esta solo cambia

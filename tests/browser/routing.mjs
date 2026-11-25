@@ -116,13 +116,18 @@ const keyState = () => page.evaluate(() => {
   return { type: i.type, value: i.value, pressed: b.getAttribute("aria-pressed"), label: b.getAttribute("aria-label"),
     title: b.title, hint: document.getElementById("props-ors-key-tail").textContent, focused: document.activeElement === i };
 });
+const keyBox = () => page.evaluate(() => { const r = document.getElementById("props-ors-key").getBoundingClientRect(); return [Math.round(r.width * 10) / 10, Math.round(r.height * 10) / 10]; });
 const clickEye = async () => { const r = await page.locator("#props-ors-key-eye").boundingBox(); await page.mouse.click(r.x + r.width / 2, r.y + r.height / 2); };
 let k = await keyState();
 ok(k.type === "password" && k.pressed === "false" && k.label === "Mostrar la clave" && k.hint === "", "empty: hidden, eye off, no line: " + JSON.stringify(k));
 await page.fill("#props-ors-key", KEY);
 k = await keyState();
 ok(k.type === "password" && k.hint === "Termina en …5678 · 56 caracteres", "typing a key tells how it ends WITHOUT showing it: " + JSON.stringify(k));
+const boxHidden = await keyBox();
 await clickEye();
+const boxShown = await keyBox();
+ok(boxHidden[0] > 300 && JSON.stringify(boxHidden) === JSON.stringify(boxShown),
+  "the field keeps its size when the eye shows the key (the generic text-field cap of 190px must not apply): " + JSON.stringify({ boxHidden, boxShown }));
 k = await keyState();
 ok(k.type === "text" && k.value === KEY && k.pressed === "true" && k.label === "Ocultar la clave" && k.title === "Ocultar la clave" && k.focused,
   "the eye shows the key whole, says it will hide it, and leaves the focus in the field: " + JSON.stringify(k));
