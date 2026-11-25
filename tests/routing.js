@@ -32,7 +32,8 @@ const throws = f => { try { f(); } catch (e) { return e.message; } return null; 
 
 /* ---------- 1. The request ---------- */
 const url = new URL(api.orsDirectionsUrl("foot-walking", { lat: 40.4167754, lng: -3.7037902 }, { lat: 40.42, lng: -3.7 }, KEY));
-ok(url.origin === "https://api.openrouteservice.org" && url.pathname === "/v2/directions/foot-walking", "servidor y ruta: " + url.origin + url.pathname);
+ok(url.origin === "https://api.heigit.org" && url.pathname === "/openrouteservice/v2/directions/foot-walking", "servidor y ruta: " + url.origin + url.pathname);
+ok(!url.href.includes("api.openrouteservice.org"), "ninguna dirección del servidor antiguo, que responde 410");
 ok(url.searchParams.get("start") === "-3.703790,40.416775" && url.searchParams.get("end") === "-3.700000,40.420000",
   "start y end en orden lon,lat con seis decimales: " + url.search);
 ok(url.searchParams.get("api_key") === KEY, "la clave va en api_key");

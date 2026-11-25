@@ -4099,6 +4099,7 @@ registerLang("en", "English", {
   "No se pudo obtener el resumen de {n} artículo(s) ({reason}): solo llevan el enlace.": "Could not get the summary of {n} article(s) ({reason}): they only carry the link.",
   /* 68-whats-new.js */
   "Los rótulos de un KML (puntos sin icono, solo con su nombre) se ven aunque su carpeta esté plegada, también al recargar.": "KML labels (points with no icon, only their name) show even when their folder is folded, also after reloading.",
+  "Los itinerarios vuelven a funcionar: openrouteservice ha cambiado su dirección y KITE usa ya la nueva.": "Itineraries work again: openrouteservice changed its address and KITE now uses the new one.",
   "Los marcadores de un KML conservan el color, el tamaño y la forma (punto, cuadrado, estrella o triángulo) de su icono, y no enseñan su nombre si el KML lo oculta.": "Markers from a KML keep the colour, size and shape (dot, square, star or triangle) of their icon, and do not show their name when the KML hides it.",
   "Cuando se acumulan muchos avisos fijos, el botón «Aceptar» se queda siempre a la vista en vez de salirse de la pantalla.": "When many sticky notices pile up, the “Accept” button now always stays in view instead of falling off the screen.",
   "El buscador del panel enseña lo que hay dentro de una carpeta que coincide, admite varias palabras (también las de las carpetas de arriba) y marca en cada nombre lo que has escrito.": "The panel search shows what is inside a folder that matches, accepts several words (also those of the folders above) and marks what you typed in each name.",
@@ -6001,7 +6002,7 @@ map.on("resize rotate", fitWorldMinZoom);
 
 /* Fecha de generación del código (versión): AÑOMESDIAHORAMINUTO.
    Actualizar en cada generación; se muestra junto al crédito de Leaflet. */
-const BUILD = "202611250035";
+const BUILD = "202611251955";
 /* Versión de release (la de package.json, horneada aquí por build.js
    al construir — ver «Versión y releases de GitHub» en CLAUDE.md): a
    diferencia de BUILD, que cambia en CADA generación, esta solo cambia
@@ -30122,7 +30123,8 @@ async function queryWikipediaAt(latlng) {
      has no entry).                                                     */
 const WHATS_NEW = [
   { version: "next", items: [
-    N_("Los rótulos de un KML (puntos sin icono, solo con su nombre) se ven aunque su carpeta esté plegada, también al recargar.")
+    N_("Los rótulos de un KML (puntos sin icono, solo con su nombre) se ven aunque su carpeta esté plegada, también al recargar."),
+    N_("Los itinerarios vuelven a funcionar: openrouteservice ha cambiado su dirección y KITE usa ya la nueva.")
   ] },
   { version: "2.8.1", items: [
     N_("Los marcadores de un KML conservan el color, el tamaño y la forma (punto, cuadrado, estrella o triángulo) de su icono, y no enseñan su nombre si el KML lo oculta."),
@@ -30309,7 +30311,7 @@ async function showWhatsNewAtBoot() {
    modes.
 
    - ONE request per calculation, only when the user presses «Calcular»:
-     `GET https://api.openrouteservice.org/v2/directions/{profile}` with
+     `GET https://api.heigit.org/openrouteservice/v2/directions/{profile}` with
      `api_key`, `start` and `end` (lon,lat) in the query. A SIMPLE request
      (`credentials: "omit"`, no headers of our own: no preflight, see
      url-import.md); the key travels only to that server.
@@ -30322,7 +30324,12 @@ async function showWhatsNewAtBoot() {
      attribution when the saved tree holds one.
    Pure functions first (tested in tests/routing.js), then network, dialog and
    tree (DOM bound the first time the dialog opens). */
-const ORS_HOST = "https://api.openrouteservice.org";
+/* HeiGIT moved its APIs to one pattern, api.heigit.org/<service>/<version>/, and
+   the old api.openrouteservice.org now answers 410 «Deprecated HeiGIT API URL»
+   (checked 25 November 2026), with no CORS header, so a browser sees a network
+   failure. The new host sends `access-control-allow-origin: *` and answers 403
+   with a JSON body to a bad key. The path under it is the service's own. */
+const ORS_HOST = "https://api.heigit.org/openrouteservice";
 const ORS_PROFILES = {
   "driving-car": { label: N_("Coche"), color: "#1565c0" },
   "cycling-regular": { label: N_("Bicicleta"), color: "#2e7d32" },

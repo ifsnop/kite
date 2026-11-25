@@ -227,7 +227,7 @@ The current build is not fully offline and makes external requests:
   only when you ask for them from the context menu: the coordinates of the
   click and the radius of the current view (10 m to 10 km), then the ids of the
   articles found;
-- an itinerary is requested from `api.openrouteservice.org` (HeiGIT) only when
+- an itinerary is requested from `api.heigit.org` (HeiGIT) only when
   you press «Calcular»: your own API key (kept only in your browser, never in
   an export), the mode and the coordinates of the origin and the destination;
 - an ArcGIS map service you add is asked for its layer list once, and then for

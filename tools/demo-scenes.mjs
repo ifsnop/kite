@@ -248,7 +248,7 @@ const CIBELES = { lat: 40.4192, lng: -3.6931 };
 async function wikipedia({ page, R, settle }) {
   await installCursor(page);
   if (!ORS_KEY) {
-    await page.route(/api\.openrouteservice\.org/, route => route.fulfill({ status: 200, contentType: "application/json",
+    await page.route(/api\.heigit\.org/, route => route.fulfill({ status: 200, contentType: "application/json",
       body: JSON.stringify(ORS_STAND_IN), headers: { "access-control-allow-origin": "*" } }));
   }
   /* the application only offers itineraries with a key in Properties: put one in directly */

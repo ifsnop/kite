@@ -9,7 +9,7 @@
    modes.
 
    - ONE request per calculation, only when the user presses «Calcular»:
-     `GET https://api.openrouteservice.org/v2/directions/{profile}` with
+     `GET https://api.heigit.org/openrouteservice/v2/directions/{profile}` with
      `api_key`, `start` and `end` (lon,lat) in the query. A SIMPLE request
      (`credentials: "omit"`, no headers of our own: no preflight, see
      url-import.md); the key travels only to that server.
@@ -22,7 +22,12 @@
      attribution when the saved tree holds one.
    Pure functions first (tested in tests/routing.js), then network, dialog and
    tree (DOM bound the first time the dialog opens). */
-const ORS_HOST = "https://api.openrouteservice.org";
+/* HeiGIT moved its APIs to one pattern, api.heigit.org/<service>/<version>/, and
+   the old api.openrouteservice.org now answers 410 «Deprecated HeiGIT API URL»
+   (checked 25 November 2026), with no CORS header, so a browser sees a network
+   failure. The new host sends `access-control-allow-origin: *` and answers 403
+   with a JSON body to a bad key. The path under it is the service's own. */
+const ORS_HOST = "https://api.heigit.org/openrouteservice";
 const ORS_PROFILES = {
   "driving-car": { label: N_("Coche"), color: "#1565c0" },
   "cycling-regular": { label: N_("Bicicleta"), color: "#2e7d32" },

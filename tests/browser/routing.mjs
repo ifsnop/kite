@@ -36,7 +36,10 @@ const { ctx, page, errors } = await openApp(browser, srv.url, { viewport: { widt
 /* ---------- Fake openrouteservice ---------- */
 const seen = [];
 let mode = "ok"; /* ok | 403 | 2009 | 429 | 503once | hang */
-await page.route(/api\.openrouteservice\.org/, async route => {
+/* Every request the page makes, to prove none goes to the old host (api.openrouteservice.org answers 410) */
+const everyUrl = [];
+page.on("request", r => everyUrl.push(r.url()));
+await page.route(/api\.heigit\.org/, async route => {
   const req = route.request();
   seen.push({ url: new URL(req.url()), headers: req.headers(), method: req.method() });
   const json = (status, body) => route.fulfill({ status, contentType: "application/json", body: typeof body === "string" ? body : JSON.stringify(body),
@@ -105,7 +108,7 @@ await openPrefs();
 const where = await page.evaluate(() => ({ inSources: !!document.querySelector("#props-tab-sources #props-ors-key"),
   inPrefs: !!document.querySelector("#props-tab-prefs #props-ors-key") || /openrouteservice/.test(document.getElementById("props-tab-prefs").textContent),
   url: document.getElementById("props-ors-url").textContent }));
-ok(where.inSources && !where.inPrefs && where.url === "https://api.openrouteservice.org/v2/directions",
+ok(where.inSources && !where.inPrefs && where.url === "https://api.heigit.org/openrouteservice/v2/directions",
   "la clave y la dirección del servicio están en «Fuentes de datos», nada en Preferencias: " + JSON.stringify(where));
 await setKey(KEY);
 await page.click("#props-cancel");
@@ -176,7 +179,7 @@ ok(r.rows.length === 1 && /^Itinerario 1 — A pie · 0\.\d\d NM · 2 min$/.test
 ok(!r.viewMoved, "la vista no se mueve");
 ok(r.log.some(t => /Itinerario añadido en «Itinerarios»/.test(t)), "un aviso dice dónde está: " + r.log.join(" | "));
 const q = seen[seen.length - 1];
-ok(seen.length === 1 && q.method === "GET" && q.url.pathname === "/v2/directions/foot-walking"
+ok(seen.length === 1 && q.method === "GET" && q.url.host === "api.heigit.org" && q.url.pathname === "/openrouteservice/v2/directions/foot-walking"
   && q.url.searchParams.get("api_key") === KEY && q.url.searchParams.get("start") === "-3.703790,40.416775"
   && q.url.searchParams.get("end") === "-3.693100,40.419200",
   "UNA petición con la clave, origen y destino en lon,lat y el modo: " + q.url.search);
@@ -236,6 +239,8 @@ ok(await page.evaluate(async () => orsKey === null && await dbLoadOrsKey() === n
 const realErrors = errors.filter(e => !/status of (503|403|404|429)/.test(e));
 ok(realErrors.length === 0, "sin errores de página: " + realErrors.join(" | "));
 ok((await page.evaluate(() => window.__csp)).length === 0, "sin violaciones de la CSP");
+ok(!everyUrl.some(u => u.includes("api.openrouteservice.org")), "ninguna petición fue al servidor antiguo (responde 410): " + everyUrl.filter(u => u.includes("openrouteservice")).join(" "));
+ok(everyUrl.some(u => u.startsWith("https://api.heigit.org/openrouteservice/v2/directions/")), "y sí al nuevo");
 await ctx.close();
 await browser.close();
 srv.close();

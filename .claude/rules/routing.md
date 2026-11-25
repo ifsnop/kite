@@ -50,11 +50,20 @@ time, mode, origin, destination; no turn-by-turn instructions); **three modes**
   session only.
 
 ### The request
-- ONE `GET https://api.openrouteservice.org/v2/directions/{profile}?api_key=…&start=lon,lat&end=lon,lat`
+- ONE `GET https://api.heigit.org/openrouteservice/v2/directions/{profile}?api_key=…&start=lon,lat&end=lon,lat`
   per «Calcular». A SIMPLE request (`credentials: "omit"`, no headers of our
   own: no preflight, see `url-import.md`); the key goes in the query to the
-  only server that receives it. **Checked by the user against the real service
-  with their key (2026-11-17): it works.** `tests/fixtures/ors-route.json`
+  only server that receives it. **The host moved** (2026-11-25): HeiGIT
+  deprecated `api.openrouteservice.org`, which now answers 410 «Deprecated
+  HeiGIT API URL» with no CORS header (a browser sees only a network failure),
+  in favour of `api.heigit.org/openrouteservice/…` (the path under it is the
+  service's own). **Checked by the user against the OLD host with their key
+  (2026-11-17): it worked.** Against the new one it has been checked from the
+  browser WITHOUT a valid key: a real request reaches it with
+  `access-control-allow-origin: *`, and a bad key comes back as 403 with
+  `{"error":"Access to this API has been disallowed"}`, which `orsErrorText`
+  turns into the usual «la clave … no es válida». A route with a valid key on
+  the new host has not been confirmed by us. `tests/fixtures/ors-route.json`
   is still synthetic (shaped like the documented format): replace it with a
   captured response when a key is at hand in a session.
 - `withElevRetries` with `AbortSignal.timeout(CFG.ORS_TIMEOUT)` per attempt,
@@ -91,7 +100,7 @@ time, mode, origin, destination; no turn-by-turn instructions); **three modes**
   the boot add the attribution. No `TREE_SCHEMA` change.
 - Attribution once per session (`ensureRouteAttribution`): «© openrouteservice.org
   by HeiGIT · © OpenStreetMap contributors», with a link to `openrouteservice.org`
-  (Annex A.3 of the security study; `api.openrouteservice.org` is in A.1).
+  (Annex A.3 of the security study; `api.heigit.org` is in A.1).
 
 ### Tests
 `tests/routing.js` (the pure part, hostile responses, error texts) and
