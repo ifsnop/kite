@@ -40,6 +40,27 @@ ok(K.keyPanSpeed(K.KEY_PAN_ACCEL_MS + K.KEY_PAN_RAMP_MS) === K.KEY_PAN_MAX_SPEED
 ok(K.keyPanSpeed(60000) === K.KEY_PAN_MAX_SPEED, "y no pasa del tope");
 ok(K.keyPanSpeed(-5) === K.KEY_PAN_SPEED, "un tiempo negativo (marca de fotograma anterior al keydown) no frena");
 
+/* The distance a held key covers is the INTEGRAL of that profile. The browser
+   test (tests/browser/keyboard-nav.mjs) holds a key for a second on a virtual
+   clock and expects what this gives, so its bounds come from the model and not
+   from a number picked by eye (it used to ask for more than 500 px and failed
+   with the machine busy, when frames came late and the per-frame step cap of
+   0.1 s took distance away). */
+const dist = ms => { let d = 0; for (let t = 0; t < ms; t++) d += K.keyPanSpeed(t + 0.5) / 1000; return d; };
+ok(near(dist(500), 200, 0.5), "medio segundo mantenida: 200 px (400 px/s constantes): " + dist(500));
+ok(near(dist(1000), 550, 0.5), "un segundo: 550 px (200 + la mitad de la rampa, de 400 a 1000 px/s): " + dist(1000));
+ok(near(dist(1500), 1200, 0.5), "segundo y medio, al final de la rampa: 1200 px: " + dist(1500));
+ok(dist(1000) > 6 * 80, "mantener un segundo recorre más de seis pasos de un toque: el comportamiento antiguo daba uno");
+
+/* A maximum set BELOW the base speed never slows the key: the base is the floor */
+{
+  const saved = CFG.KEY_PAN_MAX_SPEED;
+  CFG.KEY_PAN_MAX_SPEED = 100; /* below the 400 px/s base */
+  const slowTop = [0, 500, 1000, 1500, 60000].map(t => K.keyPanSpeed(t));
+  CFG.KEY_PAN_MAX_SPEED = saved;
+  ok(slowTop.every(v => v === K.KEY_PAN_SPEED), "con un máximo por debajo de la velocidad base, nunca baja de la base: " + JSON.stringify(slowTop));
+}
+
 /* ================= 2. Dirección combinada ================= */
 let v = K.keyPanVector([["ArrowRight", 100]], false);
 ok(v.x === 100 && v.y === 0, "→ mueve la vista a la derecha (x positiva): " + JSON.stringify(v));
