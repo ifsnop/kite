@@ -137,7 +137,8 @@ The viewer handles the core structures used by many conventional KML files:
 - `Polygon`, including inner rings
 - `MultiGeometry`
 - node `visibility` and folder/document `open`
-- shared and inline `Style` for basic line and polygon appearance
+- shared and inline `Style` for basic line and polygon appearance, and for a point's
+  `IconStyle` (colour, size and shape) and `LabelStyle` scale 0 (no permanent name)
 - resolvable `StyleMap` normal-style references
 - `GroundOverlay` georeferenced images, including those bundled in a KMZ
   (axis-aligned `LatLonBox` only: a `rotation` is read and reported, but
@@ -145,7 +146,9 @@ The viewer handles the core structures used by many conventional KML files:
 
 KML is a broad specification. The following are not fully supported or are intentionally simplified:
 
-- Google Earth icon styles and arbitrary remote/local icon resources
+- icon images: they are never downloaded (an `Icon` address only picks a shape by its file
+  name: dot or circle, square, star, triangle; any other image is drawn as a circle of the
+  style's colour and named in the import notice), and a label's colour and size are not read
 - altitude rendering and altitude modes
 - extrusions and 3D geometry
 - screen overlays
@@ -157,7 +160,7 @@ KML is a broad specification. The following are not fully supported or are inten
 - all KML namespaces and extensions
 - exact Google Earth rendering parity
 
-Imported marker icons are replaced by the viewer's default marker unless the user selects another icon.
+A point keeps the colour, size and shape of its `IconStyle`; one with no icon style gets the viewer's default marker. Either way, the user can select another icon.
 
 ## GeoJSON styling
 
