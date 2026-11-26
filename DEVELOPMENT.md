@@ -64,6 +64,16 @@ This page is for people who work on the code: what is done and what is still ope
 - **Recent cards**: the information card no longer flickers or vanishes while
   the mouse sweeps across many markers; the ones the pointer rested on stay as
   tabs that can be looked at again, outlined on the map, and pinned.
+- **KML marker styles**: a point keeps the colour, size and shape of its `IconStyle`
+  (the image itself is never downloaded; one with no equivalent becomes a circle and
+  is named in the import notice), `LabelStyle` scale 0 hides the name, and a `styleUrl`
+  written without the `#` names the local style. Tested with a real file
+  (`tests/fixtures/msda-lemd-marker-styles.kml`).
+- **Timing in the tests**: nothing waits a fixed time and asserts what happened by
+  then. The extracted code gets a manual clock (`makeClock`, `tests/toolstest.js`) and
+  the checks that need real timers poll a condition; the race this exposed in the info
+  card's expiry (two reads of the clock in one cycle) is fixed. See *El tiempo en las
+  pruebas* in `tests/README.md`.
 
 ### Still open
 

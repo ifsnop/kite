@@ -17,10 +17,10 @@
      the new version (tests/whatsnew.js fails if package.json's version
      has no entry).                                                     */
 const WHATS_NEW = [
-  { version: "next", items: [
-    N_("Los rótulos de un KML (puntos sin icono, solo con su nombre) se ven aunque su carpeta esté plegada, también al recargar."),
+  { version: "2.8.2", items: [
     N_("Los itinerarios vuelven a funcionar: openrouteservice ha cambiado su dirección y KITE usa ya la nueva."),
-    N_("La clave de openrouteservice tiene un ojo para verla entera y, debajo, una línea que dice cómo termina y cuántos caracteres tiene.")
+    N_("La clave de openrouteservice tiene un ojo para verla entera y, debajo, una línea que dice cómo termina y cuántos caracteres tiene."),
+    N_("Los rótulos de un KML (puntos sin icono, solo con su nombre) se ven aunque su carpeta esté plegada, también al recargar.")
   ] },
   { version: "2.8.1", items: [
     N_("Los marcadores de un KML conservan el color, el tamaño y la forma (punto, cuadrado, estrella o triángulo) de su icono, y no enseñan su nombre si el KML lo oculta."),

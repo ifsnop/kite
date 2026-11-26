@@ -6038,14 +6038,14 @@ map.on("resize rotate", fitWorldMinZoom);
 
 /* Fecha de generación del código (versión): AÑOMESDIAHORAMINUTO.
    Actualizar en cada generación; se muestra junto al crédito de Leaflet. */
-const BUILD = "202611260013";
+const BUILD = "202611260032";
 /* Versión de release (la de package.json, horneada aquí por build.js
    al construir — ver «Versión y releases de GitHub» en CLAUDE.md): a
    diferencia de BUILD, que cambia en CADA generación, esta solo cambia
    al preparar un release, y debe coincidir con el tag de GitHub que se
    crea justo después del commit que la sube. Lo comprueba
    .github/workflows/release.yml antes de publicar el Release.        */
-const VERSION = "2.8.1";
+const VERSION = "2.8.2";
 /* The link to the repository goes next to the version, which is what makes
    knowing which build is running actionable: from there one reaches that
    version's code. `target="_blank"` on purpose —leaving the page in the same
@@ -30191,10 +30191,10 @@ async function queryWikipediaAt(latlng) {
      the new version (tests/whatsnew.js fails if package.json's version
      has no entry).                                                     */
 const WHATS_NEW = [
-  { version: "next", items: [
-    N_("Los rótulos de un KML (puntos sin icono, solo con su nombre) se ven aunque su carpeta esté plegada, también al recargar."),
+  { version: "2.8.2", items: [
     N_("Los itinerarios vuelven a funcionar: openrouteservice ha cambiado su dirección y KITE usa ya la nueva."),
-    N_("La clave de openrouteservice tiene un ojo para verla entera y, debajo, una línea que dice cómo termina y cuántos caracteres tiene.")
+    N_("La clave de openrouteservice tiene un ojo para verla entera y, debajo, una línea que dice cómo termina y cuántos caracteres tiene."),
+    N_("Los rótulos de un KML (puntos sin icono, solo con su nombre) se ven aunque su carpeta esté plegada, también al recargar.")
   ] },
   { version: "2.8.1", items: [
     N_("Los marcadores de un KML conservan el color, el tamaño y la forma (punto, cuadrado, estrella o triángulo) de su icono, y no enseñan su nombre si el KML lo oculta."),
