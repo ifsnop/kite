@@ -1,18 +1,71 @@
 const { fn } = require("./_extract");
 
 const ok = (c, m) => { if (!c) { console.error("FAIL: " + m); process.exitCode = 1; } };
-const wait = ms => new Promise(r => setTimeout(r, ms));
+const sleep = ms => new Promise(r => setTimeout(r, ms));
+
+/* A MANUAL clock for the extracted code. These cases used to wait real
+   milliseconds (`await wait(150)`) and assert what had happened by then; under
+   load a timer arrives tens of milliseconds late, or up to a millisecond EARLY
+   against Date.now(), and a case sitting on that edge failed about one run in
+   eight. Here `Date.now`, `setTimeout` and `clearTimeout` are the clock's, handed
+   to the extracted code as parameters (like every other stub), and
+   `advance(ms)` runs the timers that fall due, in order, the clock standing at
+   each one's moment. Nothing waits, and the answer does not depend on the
+   machine.
+   - `early`: a timer fires that many ms BEFORE the clock reaches its moment
+     (what Node and the browsers can do), so Date.now() reads earlier than the
+     time asked for.
+   - `step`: every read of Date.now() moves the clock on by that many ms, the
+     worst case of two reads that straddle a millisecond. */
+function makeClock({ start = 1e9, early = 0, step = 0 } = {}) {
+  let now = start, seq = 0;
+  const timers = new Map();
+  const clock = {
+    step,
+    Date: { now: () => { const v = now; now += clock.step; return v; } },
+    setTimeout(fn, ms = 0, ...args) { const id = ++seq; timers.set(id, { id, fn, args, at: now + Math.max(0, +ms || 0) }); return id; },
+    clearTimeout(id) { timers.delete(id); },
+    advance(ms) {
+      const end = now + ms;
+      for (;;) {
+        let next = null;
+        for (const t of timers.values()) {
+          const due = t.at - early;
+          if (due <= end && (!next || due < next.due || (due === next.due && t.id < next.t.id))) next = { t, due };
+        }
+        if (!next) break;
+        timers.delete(next.t.id);
+        now = Math.max(now, next.due);
+        next.t.fn(...next.t.args);
+      }
+      now = Math.max(now, end);
+    },
+    pending: () => timers.size,
+    time: () => now
+  };
+  return clock;
+}
+
+/* For the checks that must see the REAL setTimeout: poll a condition up to a
+   generous bound instead of sleeping a fixed time. A slow machine only makes
+   the answer arrive later; it cannot turn a pass into a failure. */
+async function waitUntil(cond, ms = 3000) {
+  const end = Date.now() + ms;
+  while (!cond()) { if (Date.now() > end) return false; await sleep(2); }
+  return true;
+}
 
 /* Fresh, isolated instance of showLayerInfo/setTool/the hide-timer pair and
-   the stack of recent cards, with tiny real delays (ms) so the tests stay
-   fast while still exercising genuine setTimeout scheduling — not fake
-   timers. `dwell` defaults to "never" so the older cases (which predate the
-   stack) still see the card close when the pointer leaves. */
+   the stack of recent cards. Its clock is a manual one (`makeClock`, returned as
+   `clock`) unless `real` asks for the real timers. `dwell` defaults to "never"
+   so the older cases (which predate the stack) still see the card close when
+   the pointer leaves. */
 const STACK_FNS = ["cancelHoverIntent", "infoStackWith", "infoStackTrim", "infoStackPinned", "infoStackResumed", "infoStackAlive", "infoStackExpiring",
   "infoStackNextEvent", "scheduleInfoStackTick", "pauseInfoStack", "refreshInfoStack", "retireLiveInfo",
   "collapseLayerInfo", "toggleInfoPin", "pinLiveLayerInfo", "paintLayerInfo", "setLiveInfo", "infoCardLocked", "settleHoverCandidate"];
 /* ttl = Infinity arms no expiry timer at all (a long real one would keep Node alive) */
-function buildApi({ hideDelay = 5, guardMs = 5, intent = 2, dwell = Infinity, ttl = Infinity, warn = 1, max = 6, maxPinned = 6 } = {}) {
+function buildApi({ hideDelay = 5, guardMs = 5, intent = 2, dwell = Infinity, ttl = Infinity, warn = 1, max = 6, maxPinned = 6, real = false, early = 0, step = 0 } = {}) {
+  const clock = real ? null : makeClock({ early, step });
   const src = `
     const document = { activeElement: null };
     let drawing = null, polyDraft = null, activeTool = null, layerInfoDismissed = false;
@@ -84,11 +137,11 @@ function buildApi({ hideDelay = 5, guardMs = 5, intent = 2, dwell = Infinity, tt
     "CFG", "TOOL_EXIT_HOVER_GUARD_MS", "descDialog", "styleDialog", "descBox",
     "descTitle", "descBody", "toolButtons", "rootGroup", "map", "placeInfoBox", "focusDialog",
     "infoHtmlFor", "baseInfoHtml", "applyPropsSplit", "releaseFocus", "refreshDoubleClickZoom",
-    "descEditBtn", "STYLE_EDITABLE_KINDS", "styleKind", "renderInfoStack", "clearInfoPeek", "setInfoHalo", "infoSelectionInCard", "infoStackActive", "navMessage",
+    "descEditBtn", "STYLE_EDITABLE_KINDS", "styleKind", "renderInfoStack", "clearInfoPeek", "setInfoHalo", "infoSelectionInCard", "infoStackActive", "navMessage", "Date", "setTimeout", "clearTimeout",
     "let descLayer = null;\n" + src + `
       return {
         showLayerInfo, setTool, scheduleLayerInfoHide, cancelLayerInfoHide, hideLayerInfo,
-        toggleInfoPin, pinLiveLayerInfo, pauseInfoStack, refreshInfoStack,
+        toggleInfoPin, pinLiveLayerInfo, pauseInfoStack, refreshInfoStack, scheduleInfoStackTick,
         infoStackWith, infoStackTrim, infoStackPinned, infoStackResumed, infoStackAlive, infoStackNextEvent, infoStackExpiring,
         stack: () => infoStack, live: () => liveInfo && liveInfo.li,
         activeToolNow: () => activeTool, dialogHidden: () => descDialog.hidden,
@@ -96,9 +149,10 @@ function buildApi({ hideDelay = 5, guardMs = 5, intent = 2, dwell = Infinity, tt
     `
   )(CFG, guardMs, descDialog, styleDialog, descBox, descTitle, descBody, toolButtons,
     rootGroup, map, placeInfoBox, focusDialog, infoHtmlFor, baseInfoHtml, applyPropsSplit, releaseFocus,
-    refreshDoubleClickZoom, descEditBtn, STYLE_EDITABLE_KINDS, styleKind, renderInfoStack, clearInfoPeek, setInfoHalo, infoSelectionInCard, infoStackActive, navMessage);
+    refreshDoubleClickZoom, descEditBtn, STYLE_EDITABLE_KINDS, styleKind, renderInfoStack, clearInfoPeek, setInfoHalo, infoSelectionInCard, infoStackActive, navMessage,
+    real ? Date : clock.Date, real ? setTimeout : clock.setTimeout, real ? clearTimeout : clock.clearTimeout);
 
-  return { api, focusState, descDialog, styleDialog, descTitle, descBody, infoState, releaseFocusCalls, messages };
+  return { api, clock, focusState, descDialog, styleDialog, descTitle, descBody, infoState, releaseFocusCalls, messages };
 }
 
 const li = { _name: "capa A" };
@@ -151,10 +205,11 @@ for (const tool of ["route", "circle"]) {
 // 5. Autoexpiración: sin ningún hover de por medio, la guarda no debe
 //    seguir viva para siempre
 (async () => {
-  const { api } = buildApi({ guardMs: 5 });
+  const b5 = buildApi({ guardMs: 5 });
+  const api = b5.api;
   api.setTool("polygon");
   api.setTool(null);
-  await wait(20);
+  b5.clock.advance(20);
   api.showLayerInfo(li, { focus: false });
   ok(api.dialogHidden() === false, "pasado el plazo sin hover, la guarda ya no bloquea uno posterior");
 
@@ -163,7 +218,7 @@ for (const tool of ["route", "circle"]) {
   b6.api.showLayerInfo(li, { focus: false });
   ok(b6.api.dialogHidden() === false, "abierto antes de programar el cierre");
   b6.api.scheduleLayerInfoHide();
-  await wait(20);
+  b6.clock.advance(20);
   ok(b6.api.dialogHidden() === true, "y cerrado tras el retardo");
 
   // 7. El siguiente hover cancela el cierre diferido (pasar de una capa
@@ -172,14 +227,14 @@ for (const tool of ["route", "circle"]) {
   b7.api.showLayerInfo(li, { focus: false });
   b7.api.scheduleLayerInfoHide();
   b7.api.showLayerInfo(otherLi, { focus: false });
-  await wait(20);
+  b7.clock.advance(20);
   ok(b7.api.dialogHidden() === false, "sigue abierto: el hover en otra capa cancela el cierre programado");
   ok(b7.descTitle.textContent === "capa B", "y muestra ya el contenido de la nueva capa: " + b7.descTitle.textContent);
 
   // 8. No-op si ya está cerrado
   const b8 = buildApi();
   b8.api.scheduleLayerInfoHide();
-  await wait(10);
+  b8.clock.advance(10);
   ok(b8.api.dialogHidden() === true, "programar el cierre con el panel ya cerrado no lanza ni reabre nada");
 
   // 9. Un panel con foco explícito no se autocierra
@@ -187,7 +242,7 @@ for (const tool of ["route", "circle"]) {
   b9.focusState.insideDesc = true;
   b9.api.showLayerInfo(li, { focus: true });
   b9.api.scheduleLayerInfoHide();
-  await wait(20);
+  b9.clock.advance(20);
   ok(b9.api.dialogHidden() === false, "con el foco de teclado dentro del panel, el cierre diferido no actúa");
 
   // 10. El puntero sobre la propia ficha la mantiene abierta (puede abrirse justo
@@ -196,11 +251,11 @@ for (const tool of ["route", "circle"]) {
   b10.api.showLayerInfo(li, { focus: false });
   b10.focusState.pointerOver = true;
   b10.api.scheduleLayerInfoHide();
-  await wait(20);
+  b10.clock.advance(20);
   ok(b10.api.dialogHidden() === false, "con el puntero sobre la ficha, el cierre diferido no la cierra");
   b10.focusState.pointerOver = false;
   b10.api.scheduleLayerInfoHide();
-  await wait(20);
+  b10.clock.advance(20);
   ok(b10.api.dialogHidden() === true, "y al salir el puntero, se cierra como siempre");
 
   // 11. Hover intent: with the card showing a layer, merely crossing another
@@ -209,15 +264,15 @@ for (const tool of ["route", "circle"]) {
   b11.api.showLayerInfo(li, { focus: false });
   b11.api.showLayerInfo(otherLi, { focus: false });
   b11.api.scheduleLayerInfoHide(); /* the pointer left B before the intent */
-  await wait(15);
+  b11.clock.advance(15);
   ok(b11.descTitle.textContent === "capa A", "crossing B without resting on it does not rewrite the card: " + b11.descTitle.textContent);
-  await wait(40);
+  b11.clock.advance(40);
   ok(b11.api.dialogHidden() === true && b11.descTitle.textContent === "capa A", "and B never shows, even after the intent delay");
   const b12 = buildApi({ intent: 10 });
   b12.api.showLayerInfo(li, { focus: false });
   b12.api.showLayerInfo(otherLi, { focus: false });
   ok(b12.descTitle.textContent === "capa A", "B does not take over at once");
-  await wait(30);
+  b12.clock.advance(30);
   ok(b12.descTitle.textContent === "capa B" && b12.api.live() === otherLi, "resting on B takes the card over: " + b12.descTitle.textContent);
 
   // 12. The layer the pointer rested on joins the stack, and the card shrinks
@@ -225,7 +280,7 @@ for (const tool of ["route", "circle"]) {
   const b13 = buildApi({ hideDelay: 5, dwell: 0 });
   b13.api.showLayerInfo(li, { focus: false });
   b13.api.scheduleLayerInfoHide();
-  await wait(20);
+  b13.clock.advance(20);
   ok(b13.api.dialogHidden() === false, "with a row in the stack the card stays");
   ok(b13.api.stack().length === 1 && b13.api.stack()[0].li === li, "the rested-on layer is in the stack");
   ok(b13.descTitle.textContent === "Fichas recientes" && b13.descBody.hidden === true, "compact: the title names the stack and the body is hidden: " + b13.descTitle.textContent);
@@ -259,32 +314,93 @@ for (const tool of ["route", "circle"]) {
   const b16 = buildApi({ hideDelay: 5, dwell: 0, ttl: 40, warn: 10 });
   b16.api.showLayerInfo(li, { focus: false });
   b16.api.scheduleLayerInfoHide();
-  await wait(20);
+  b16.clock.advance(20);
   ok(b16.api.dialogHidden() === false && b16.api.stack().length === 1, "compact with one row");
-  await wait(60);
+  b16.clock.advance(60);
   ok(b16.api.stack().length === 0 && b16.api.dialogHidden() === true, "the row expired and the empty card closed");
   const b17 = buildApi({ hideDelay: 5, dwell: 0, ttl: 40, warn: 10 });
   b17.api.showLayerInfo(li, { focus: false });
   b17.api.pinLiveLayerInfo();
   b17.api.scheduleLayerInfoHide();
-  await wait(80);
+  b17.clock.advance(80);
   ok(b17.api.stack().length === 1 && b17.api.dialogHidden() === false, "a pinned row does not expire");
   /* The clocks stop while the pointer is on the card and go on from where they
-     were: a row ~95 ms into a 200 ms lease, paused 150 ms, still has ~105 ms
-     left after the pause (not 0, which would drop it at once on leaving, nor
-     a fresh 200 ms) */
+     were: a row 95 ms into a 200 ms lease (it was stamped 5 ms after the start),
+     paused 150 ms, still has 105 ms left after the pause (not 0, which would
+     drop it at once on leaving, nor a fresh 200 ms). With the manual clock these
+     are exact. */
   const b18 = buildApi({ hideDelay: 5, dwell: 0, ttl: 200, warn: 20 });
   b18.api.showLayerInfo(li, { focus: false });
   b18.api.scheduleLayerInfoHide();
-  await wait(100);
+  b18.clock.advance(100);
+  ok(b18.api.stack().length === 1 && b18.api.stack()[0].t === b18.clock.time() - 95, "the row was stamped 5 ms after the start, so it is 95 ms into its lease");
   b18.api.pauseInfoStack(true); /* the pointer is on the card */
-  await wait(150);
+  b18.clock.advance(150);
   ok(b18.api.stack().length === 1, "nothing expires while the pointer is on the card");
   b18.api.pauseInfoStack(false);
-  await wait(10);
+  b18.clock.advance(10);
   ok(b18.api.stack().length === 1, "leaving the card does not drop rows whose time ran out while paused: their clock was stopped");
-  await wait(150);
-  ok(b18.api.stack().length === 0, "and the row expires when the time it had left runs out, not after a fresh lease");
+  b18.clock.advance(90); /* 100 ms after leaving; it has 105 */
+  ok(b18.api.stack().length === 1, "and the row is still there before the time it had left runs out");
+  b18.clock.advance(30); /* 130 ms after leaving: its time plus the timer's own 20 ms of slack */
+  ok(b18.api.stack().length === 0, "and it expires once that time runs out, long before a fresh 200 ms lease would");
+
+  // 15a. The edge the case above sits on: with a warning of 20 ms (the timer's
+  //      own slack) the first re-check lands on the very moment the row expires.
+  //      A timer can fire a little EARLY against Date.now() and the clock can
+  //      tick between the two reads of one cycle; a row must still never be left
+  //      listed with nobody looking at it.
+  for (const early of [0, 1, 3]) {
+    const e = buildApi({ hideDelay: 5, dwell: 0, ttl: 200, warn: 20, early });
+    e.api.showLayerInfo(li, { focus: false });
+    e.api.scheduleLayerInfoHide();
+    e.clock.advance(100);
+    e.api.pauseInfoStack(true);
+    e.clock.advance(150);
+    e.api.pauseInfoStack(false);
+    e.clock.advance(135);
+    ok(e.api.stack().length === 0, `timers firing ${early} ms early: the row still expires (stack: ${e.api.stack().length})`);
+  }
+  {
+    /* the clock ticks between the two reads of one cycle: alive at 199 ms into
+       the lease, expired at 200 by the time the next check is planned */
+    const t = buildApi({ hideDelay: 5, dwell: 0, ttl: 200, warn: 20 });
+    t.api.showLayerInfo(li, { focus: false });
+    t.api.scheduleLayerInfoHide();
+    t.clock.advance(10);
+    const stamped = t.api.stack()[0].t;
+    t.clock.advance(stamped + 199 - t.clock.time()); /* the timers that fall due before that run as usual */
+    ok(t.api.stack().length === 1, "still listed 199 ms into a 200 ms lease");
+    t.clock.step = 1; /* every read of the clock now moves it on by 1 ms */
+    t.api.refreshInfoStack();
+    t.clock.step = 0;
+    t.clock.advance(30);
+    ok(t.api.stack().length === 0, "a clock that ticks between the check and the planning of the next one does not leave the row listed for ever");
+  }
+  {
+    /* a row already past its lifetime and still listed (nobody filtered it) is
+       an event that is due: planning looks at it at once instead of waiting for
+       something else to refresh the card */
+    const o = buildApi({ hideDelay: 5, dwell: 0, ttl: 200, warn: 20 });
+    o.api.showLayerInfo(li, { focus: false });
+    o.api.scheduleLayerInfoHide();
+    o.clock.advance(10);
+    o.api.stack().push({ li: { isConnected: true }, pinned: false, t: o.clock.time() - 500, q: 99 });
+    o.api.scheduleInfoStackTick();
+    o.clock.advance(30);
+    ok(o.api.stack().length === 1 && o.api.stack()[0].li === li, "an expired row left in the list is taken out by its own timer (the live row stays)");
+  }
+  {
+    /* the same wiring with the REAL timers, as a smoke test: the row goes by
+       itself, and not before half its life */
+    const r = buildApi({ hideDelay: 5, dwell: 0, ttl: 80, warn: 10, real: true });
+    r.api.showLayerInfo(li, { focus: false });
+    r.api.scheduleLayerInfoHide();
+    ok(await waitUntil(() => r.api.stack().length === 1), "with real timers the row joins the stack when the pointer leaves");
+    const born = r.api.stack()[0].t;
+    ok(await waitUntil(() => r.api.stack().length === 0), "and it expires on its own");
+    ok(Date.now() - born >= 40, "and not before half its life: " + (Date.now() - born) + " ms");
+  }
 
   // 15b. Reported bug: after an explicit open (focus in the card) the last layer
   //      hovered stayed on screen for ever, its tabs expiring around it. The
@@ -293,13 +409,13 @@ for (const tool of ["route", "circle"]) {
   b21.focusState.insideDesc = true;
   b21.api.showLayerInfo(li, { focus: true });          /* ℹ: explicit, focus in the card */
   b21.api.scheduleLayerInfoHide();
-  await wait(20);
+  b21.clock.advance(20);
   ok(b21.descTitle.textContent === "capa A" && b21.api.dialogHidden() === false, "the explicitly opened card stays with the focus in it");
   b21.api.showLayerInfo(otherLi, { focus: false });    /* the pointer rests on another layer */
-  await wait(15);
+  b21.clock.advance(15);
   ok(b21.descTitle.textContent === "capa B", "a hovered layer takes the card over");
   b21.api.scheduleLayerInfoHide();                     /* and the pointer leaves it */
-  await wait(20);
+  b21.clock.advance(20);
   ok(b21.descTitle.textContent === "Fichas recientes", "once it is a hover card, leaving shrinks it even with the focus still inside: " + b21.descTitle.textContent);
 
   // 15c. A pinned card on screen is locked: hovering other layers does not
@@ -310,10 +426,10 @@ for (const tool of ["route", "circle"]) {
   b22.api.showLayerInfo(li, { focus: false });
   b22.api.pinLiveLayerInfo();                          /* A pinned: the card is locked on it */
   b22.api.showLayerInfo(otherLi, { focus: false });    /* the pointer rests on B */
-  await wait(15);
+  b22.clock.advance(15);
   ok(b22.descTitle.textContent === "capa A", "locked: hovering B does not change the card: " + b22.descTitle.textContent);
   b22.api.scheduleLayerInfoHide();                     /* and leaves it */
-  await wait(20);
+  b22.clock.advance(20);
   ok(b22.descTitle.textContent === "capa A" && b22.api.dialogHidden() === false, "locked: leaving every layer does not shrink or close the card");
   ok(b22.api.stack().some(r => r.li === otherLi && !r.pinned), "B, rested on, joined the stack as a tab without being shown");
   const C = { _name: "capa C" };
@@ -324,7 +440,7 @@ for (const tool of ["route", "circle"]) {
   b22.api.toggleInfoPin(li);                           /* A unpinned: unlocked */
   const D = { _name: "capa D" };
   b22.api.showLayerInfo(D, { focus: false });
-  await wait(15);
+  b22.clock.advance(15);
   ok(b22.descTitle.textContent === "capa D", "unpinned, the card follows the pointer again: " + b22.descTitle.textContent);
 
   // 16. The pure helpers: rows never move, first in first out over the
@@ -373,7 +489,7 @@ for (const tool of ["route", "circle"]) {
   b19.api.showLayerInfo(li, { focus: false });
   b19.focusState.selection = true;
   b19.api.scheduleLayerInfoHide();
-  await wait(20);
+  b19.clock.advance(20);
   ok(b19.api.dialogHidden() === false && b19.descTitle.textContent === "capa A", "with text selected in the card, it does not close or change under the selection");
 
   // 18. While paused, an unpinned row past the cap waits; leaving trims it

@@ -734,13 +734,23 @@ function infoStackNextEvent(rows, now, ttl = CFG.INFO_STACK_TTL_MS, warn = CFG.I
   return next;
 }
 
-/* One timer for the whole stack, armed for its next event only. */
-function scheduleInfoStackTick() {
+/* One timer for the whole stack, armed for its next event only. `now` is the
+   instant the caller already decided by: a cycle reads the clock ONCE
+   (refreshInfoStack passes it on). It used to read it again here, and when the
+   millisecond turned between the two reads a row that was alive for the first
+   was past its end for the second, so no event was left to plan and nobody
+   looked at the row again until something else refreshed the card. A timer can
+   also fire a little EARLY against Date.now(), which makes that edge easy to hit
+   (found by a timing test that failed about one run in eight). */
+function scheduleInfoStackTick(now = Date.now()) {
   clearTimeout(infoStackTimer);
   infoStackTimer = null;
   if (infoStackPaused) return;
-  const now = Date.now();
-  const next = infoStackNextEvent(infoStack, now);
+  let next = infoStackNextEvent(infoStack, now);
+  /* A row past its lifetime that is still listed (nobody has filtered it yet) is
+     an event that is already due: look again at once, never leave it unwatched. */
+  const ttl = CFG.INFO_STACK_TTL_MS;
+  if (infoStack.some(r => !r.pinned && now >= r.t + ttl)) next = now;
   if (next !== Infinity) infoStackTimer = setTimeout(refreshInfoStack, next - now + 20);
 }
 /* While the pointer is on the card the user is reading the rows: their clocks
@@ -764,7 +774,8 @@ function pauseInfoStack(paused) {
    layer is reflected at once (a handful of rows to look at). */
 function refreshInfoStack() {
   if (!infoStack.length && !liveInfo) return;
-  infoStack = infoStackAlive(infoStack, infoStackClock(), CFG.INFO_STACK_TTL_MS, infoStackPaused);
+  const now = infoStackClock(); /* the one read of this cycle: the filter and the next timer both use it */
+  infoStack = infoStackAlive(infoStack, now, CFG.INFO_STACK_TTL_MS, infoStackPaused);
   if (liveInfo && liveInfo.li.isConnected === false) liveInfo = null;
   if (infoPeek && !infoStack.some(r => r.li === infoPeek)) { infoPeek = null; setInfoHalo(null); }
   if (!descDialog.hidden) {
@@ -772,7 +783,7 @@ function refreshInfoStack() {
     if (!shown && !infoStack.length) hideLayerInfo();
     else paintLayerInfo(shown || null);
   }
-  scheduleInfoStackTick();
+  scheduleInfoStackTick(now);
 }
 
 /* The card stops showing the layer under the pointer: it joins the stack if

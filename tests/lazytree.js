@@ -168,6 +168,15 @@ const folderRec = (name, collapsed, children) => ({ t: "folder", name, checked: 
 
 (async () => {
   const sleep = ms => new Promise(r => setTimeout(r, ms));
+  /* Wait for a CONDITION, up to a generous bound, never a fixed time: a slow
+     machine only makes the answer arrive later. The blink used to be checked
+     after a fixed 38 ms, which failed about one run in five with the machine
+     busy (its four steps are four chained timers). */
+  const waitFor = async (cond, ms = 3000) => {
+    const end = Date.now() + ms;
+    while (!cond()) { if (Date.now() > end) return false; await sleep(2); }
+    return true;
+  };
 
   /* ---------- test diferencial: el formato serializado no cambia ----------
      El mismo árbol construido dos veces: una vez con TODO abierto (ruta
@@ -368,14 +377,17 @@ const folderRec = (name, collapsed, children) => ({ t: "folder", name, checked: 
   clearSelection();
 
   /* ---------- blinkLayer: parpadeo de identificación ---------- */
-  const BLINK_WAIT = 4 /* BLINK_STEPS pasado arriba */ * 2 /* BLINK_INTERVAL_MS pasado arriba */ + 30;
+  /* Only for the NEGATIVE check (no second sequence overlaps): waiting longer can
+     reveal more calls, never produce a false failure. */
+  const BLINK_GRACE = 25;
+  const blinkDone = li => () => !li._blinkTimer;
 
   const blinkTag = { tag: "blink1" };
   const blinkLi = makeNode({ name: "blink-target", checked: true, layer: blinkTag });
   rootGroup.addLayer(blinkTag); /* como si ya estuviera visible (hit-testeada) */
   calls = [];
   blinkLayer(blinkLi);
-  await sleep(BLINK_WAIT);
+  ok(await waitFor(blinkDone(blinkLi)), "el parpadeo termina");
   const blinkCalls = calls.filter(c => c[1] === "blink1").map(c => c[0]);
   ok(blinkCalls.join(",") === "remove,add,remove,add",
      "oculta/muestra dos veces, en orden: " + blinkCalls.join(","));
@@ -385,14 +397,15 @@ const folderRec = (name, collapsed, children) => ({ t: "folder", name, checked: 
   calls = [];
   blinkLayer(blinkLi);
   blinkLayer(blinkLi); /* cancela la anterior y empieza de cero */
-  await sleep(BLINK_WAIT);
+  ok(await waitFor(blinkDone(blinkLi)), "el parpadeo repetido termina");
+  await sleep(BLINK_GRACE);
   const restartCalls = calls.filter(c => c[1] === "blink1");
   ok(restartCalls.length === 4, "un parpadeo repetido cancela el anterior en vez de solaparse: " + restartCalls.length);
 
   /* si el checkbox cambia mientras parpadea, el estado final es el suyo, no "visible" a ciegas */
   blinkLayer(blinkLi);
   blinkLi.querySelector(":scope > .node-row > input").checked = false;
-  await sleep(BLINK_WAIT);
+  ok(await waitFor(blinkDone(blinkLi)), "el parpadeo con el checkbox cambiado termina");
   ok(!rootGroup.hasLayer(blinkTag),
      "si se desactiva el checkbox mientras parpadea, termina oculta (el estado real), no visible a la fuerza");
 
