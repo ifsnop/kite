@@ -97,12 +97,32 @@ ok(s.users.filter(u => u.url === URL_A).length === 1 && s.users.find(u => u.url 
   "cargarlo otra vez reutiliza el servidor, sin duplicarlo, y como ya se usaba aquí sigue la activación del archivo");
 
 /* ---------- 4. Reload ---------- */
-await page.evaluate(() => new Promise(r => setTimeout(r, 700))); /* past the save delay of the bases */
+/* Wait until what is on disk IS the state in memory, instead of sleeping
+   past the save delay: the bases are saved 500 ms after the last change
+   and then written asynchronously, so a fixed 700 ms sleep failed on a
+   loaded CI runner (the reload came before the write). */
+const persisted = await page.evaluate(async () => {
+  const deadline = performance.now() + 10000;
+  const matches = async () => {
+    const [bases, users, bg] = await Promise.all([dbLoadBases(), dbLoadUserBases(), dbLoadMapBackground()]);
+    if (!bases || bases.order.join() !== [...baseState.keys()].join() || bg !== mapBgColor) return false;
+    if (users.map(u => u.id).join() !== userBaseStates().map(st => st.def.id).join()) return false;
+    return [...baseState].every(([id, st]) => bases.bases[id] && bases.bases[id].on === st.on && bases.bases[id].opacity === st.opacity);
+  };
+  while (performance.now() < deadline) {
+    if (await matches()) return true;
+    await new Promise(r => setTimeout(r, 50));
+  }
+  return false;
+});
+ok(persisted, "lo guardado en IndexedDB llega a ser lo que hay en memoria");
 await page.reload();
 await waitAppReady(page);
 const after = await state();
 ok(after.order.join() === s.order.join() && after.on.osm === true && after.opacity.pnoa === 0.4 && after.bg === "#112233"
-  && after.users.length === 2, "tras recargar todo sigue igual");
+  && after.users.length === 2, "tras recargar todo sigue igual: " + JSON.stringify({
+  order: [after.order.join() === s.order.join(), after.order, s.order], osm: after.on.osm, pnoa: after.opacity.pnoa,
+  bg: after.bg, users: after.users.length }));
 
 ok(errors.length === 0, "sin errores de página: " + errors.join(" | "));
 ok((await page.evaluate(() => window.__csp)).length === 0, "sin violaciones de la CSP");
