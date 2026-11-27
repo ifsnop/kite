@@ -28,7 +28,21 @@
       siguiente; Ctrl+rueda no amplía la página; sobre un control, nada.
    7) Foco: clicar un marcador o crear una ruta (su diálogo se abre al
       segundo punto) lo deja en el visor; un guardado del árbol no se
-      lo quita a un marcador enfocado con Tab.                         */
+      lo quita a un marcador enfocado con Tab.
+
+   EL TIEMPO ES VIRTUAL. Todo lo de esta suite depende del tiempo que
+   una tecla está pulsada o de cuánto pasa entre dos gestos, y con
+   esperas reales (`waitForTimeout`) dependía además de que la máquina
+   mantuviera el ritmo de fotogramas: con la máquina cargada fallaban
+   seis comprobaciones distintas y mantener una flecha un segundo
+   recorría 472 px en vez de los ~550 que da la curva de velocidad (el
+   código acota `dt` a 0,1 s por fotograma, a propósito). `page.clock`
+   da a la página un Date, unos temporizadores, un requestAnimationFrame
+   y un performance.now FALSOS, y `pauseAt` los CONGELA (solo con
+   `install` el reloj falso sigue corriendo a velocidad real y entra
+   tiempo de verdad): `tick(ms)` hace pasar ese tiempo, un fotograma de
+   16,7 ms tras otro, y el resultado no depende de la máquina. Playwright no autorrepite una tecla, así que «mantener» es
+   `down`, `tick`, `up`. El teclado y el ratón siguen siendo reales.   */
 import { launch, serve, openApp, reporter, READABLE } from "./_browser.mjs";
 
 const { ok, done } = reporter("BROWSER KEYBOARD NAV TESTS OK");
@@ -52,9 +66,18 @@ const refShift = () => page.evaluate(() => {
   const p = map.latLngToContainerPoint(REF), h = map.getSize().divideBy(2);
   return { x: p.x - h.x, y: p.y - h.y };
 });
+/* Virtual time (see the header): from here on the page's clock moves only
+   with tick(), a frame of 16.7 ms after another. `install` alone is NOT
+   enough: it leaves the fake clock running at real speed, so under load tens
+   of real milliseconds crept into the "virtual" time while a wheel event was
+   still on its way (two checks failed in twelve runs). `pauseAt` freezes it. */
+const T0 = Date.now();
+await page.clock.install({ time: T0 });
+await page.clock.pauseAt(T0 + 1000);
+const tick = ms => page.clock.runFor(ms);
 const hold = async (key, ms) => {
   await page.keyboard.down(key);
-  await page.waitForTimeout(ms);
+  await tick(ms);
   await page.keyboard.up(key);
 };
 
@@ -65,44 +88,46 @@ await page.mouse.click(box.x + P.x, box.y + P.y);
 /* ---------- 1. Flechas ---------- */
 await markRef();
 await page.keyboard.press("ArrowRight");
-await page.waitForTimeout(400);
+await tick(400);
 let s = await refShift();
 ok(Math.abs(s.x + 80) <= 2 && Math.abs(s.y) <= 1, "un toque de → desplaza 80 px: " + JSON.stringify(s));
 
 await markRef();
 await page.keyboard.down("ArrowRight");
-await page.waitForTimeout(100);
+await tick(100);
 s = await refShift();
 ok(s.x < -20, "manteniendo, a los 100 ms ya se ha movido (sin esperar a la repetición): " + JSON.stringify(s));
-await page.waitForTimeout(900);
+await tick(900);
 await page.keyboard.up("ArrowRight");
-await page.waitForTimeout(100);
+await tick(100);
 s = await refShift();
-ok(s.x < -500, "mantener → un segundo pasa de 500 px (antes: un paso de 80): " + JSON.stringify(s));
+/* 1 s held = 400 px/s for 0.5 s, then 400 -> 1600 px/s over the next second:
+   550 px, give or take the frame phase (about 13 px). Deterministic now. */
+ok(s.x < -520 && s.x > -600, "mantener → un segundo recorre ~550 px, no un paso de 80: " + JSON.stringify(s));
 const settled = await refShift();
-await page.waitForTimeout(300);
+await tick(300);
 const later = await refShift();
 ok(Math.abs(later.x - settled.x) <= 1, "al soltar se para, sin seguir ni rebotar: " + JSON.stringify([settled, later]));
 
 await markRef();
 await page.keyboard.down("ArrowRight");
 await page.keyboard.down("ArrowDown");
-await page.waitForTimeout(300);
+await tick(300);
 await page.keyboard.up("ArrowRight");
 await page.keyboard.up("ArrowDown");
-await page.waitForTimeout(100);
+await tick(100);
 s = await refShift();
 ok(s.x < -60 && s.y < -60 && Math.abs(s.x - s.y) <= 12, "→ y ↓ a la vez: diagonal: " + JSON.stringify(s));
 
 await markRef();
 await hold("ArrowLeft", 300);
-await page.waitForTimeout(100);
+await tick(100);
 const plain = (await refShift()).x;
 await markRef();
 await page.keyboard.down("Shift");
 await hold("ArrowLeft", 300);
 await page.keyboard.up("Shift");
-await page.waitForTimeout(100);
+await tick(100);
 const fast = (await refShift()).x;
 ok(fast > plain * 2.2, "con Mayús, más rápido: " + JSON.stringify({ plain, fast }));
 
@@ -110,10 +135,10 @@ ok(fast > plain * 2.2, "con Mayús, más rápido: " + JSON.stringify({ plain, fa
 await view(80, 0, 5);
 await page.mouse.move(box.x + P.x, box.y + P.y);
 await hold("ArrowUp", 800);
-await page.waitForTimeout(100);
+await tick(100);
 const top = () => page.evaluate(() => map.containerPointToLatLng([map.getSize().x / 2, 0]).lat);
 const t1 = await top();
-await page.waitForTimeout(300);
+await tick(300);
 const t2 = await top();
 ok(t1 <= 85.06 && Math.abs(t1 - t2) < 1e-6, "contra el borde norte la vista se queda dentro del mundo y quieta: " + JSON.stringify([t1, t2]));
 
@@ -123,7 +148,7 @@ await view(40, -3, 6);
 await page.evaluate(() => map.setBearing(90));
 await markRef();
 await page.keyboard.press("ArrowUp");
-await page.waitForTimeout(400);
+await tick(400);
 s = await refShift();
 ok(Math.abs(s.y - 80) <= 2 && Math.abs(s.x) <= 2, "a 90°, ↑ desplaza 80 px hacia arriba de la pantalla: " + JSON.stringify(s));
 await page.evaluate(() => map.setBearing(0));
@@ -132,7 +157,7 @@ await page.evaluate(() => map.setBearing(0));
 await view(40, -3, 6);
 await page.mouse.move(box.x + P.x, box.y + P.y);
 await hold("ArrowDown", 400);
-await page.waitForTimeout(100);
+await tick(100);
 const under = await page.evaluate(() => map.latLngToContainerPoint(coordsPending));
 ok(Math.hypot(under.x - P.x, under.y - P.y) <= 2,
   "tras desplazar sin mover el ratón, las coordenadas son las del punto bajo el cursor: " + JSON.stringify(under));
@@ -141,29 +166,29 @@ ok(Math.hypot(under.x - P.x, under.y - P.y) <= 2,
 await view(40, -3, 6);
 await page.mouse.move(box.x + P.x, box.y + P.y);
 await page.keyboard.press("PageUp");
-await page.waitForTimeout(600);
+await tick(600);
 ok(await page.evaluate(() => map.getZoom()) === 7, "un toque de Re Pág acerca exactamente un nivel");
 await page.keyboard.press("PageDown");
-await page.waitForTimeout(600);
+await tick(600);
 ok(await page.evaluate(() => map.getZoom()) === 6, "y uno de Av Pág aleja uno");
 
 const anchor = await page.evaluate(p => map.containerPointToLatLng([p.x, p.y]), P);
 await page.keyboard.down("PageUp");
-await page.waitForTimeout(350);
+await tick(350);
 const zMid = await page.evaluate(() => map.getZoom());
 ok(zMid > 6.3 && zMid !== Math.round(zMid), "manteniendo, el zoom sube de forma continua (fraccionario a medias): " + zMid);
-await page.waitForTimeout(650);
+await tick(650);
 await page.keyboard.up("PageUp");
-await page.waitForTimeout(600);
+await tick(600);
 const zEnd = await page.evaluate(() => map.getZoom());
 ok(zEnd >= 8 && Number.isInteger(zEnd), "un segundo pulsada sube más de dos niveles y al soltar queda en uno entero: " + zEnd);
 const ap = await page.evaluate(a => map.latLngToContainerPoint(a), anchor);
 ok(Math.hypot(ap.x - P.x, ap.y - P.y) <= 3, "el punto bajo el cursor no se mueve: " + JSON.stringify(ap));
 
 const zMin = await page.evaluate(() => { map.setZoom(map.getMinZoom(), { animate: false }); return map.getMinZoom(); });
-await page.waitForTimeout(100);
+await tick(100);
 await hold("PageDown", 300);
-await page.waitForTimeout(600);
+await tick(600);
 ok(await page.evaluate(() => map.getZoom()) === zMin, "en el zoom mínimo, Av Pág no baja de él");
 
 /* ---------- 4. Con el foco en el buscador no se toca el mapa ---------- */
@@ -172,7 +197,7 @@ await markRef();
 await page.click("#search-box");
 await page.keyboard.press("ArrowRight");
 await page.keyboard.press("PageUp");
-await page.waitForTimeout(400);
+await tick(400);
 s = await refShift();
 ok(Math.abs(s.x) < 1 && Math.abs(s.y) < 1 && await page.evaluate(() => map.getZoom()) === 6,
   "flechas y Re Pág en el buscador no mueven el mapa: " + JSON.stringify(s));
@@ -188,27 +213,27 @@ await view(40, -3, 6);
 await page.mouse.move(box.x + P.x, box.y + P.y);
 const wAnchor = await page.evaluate(p => map.containerPointToLatLng([p.x, p.y]), P);
 await page.mouse.wheel(0, -100);
-await page.waitForTimeout(80);
+await tick(80);
 const wMid = await page.evaluate(() => map.getZoom());
 ok(wMid > 6 && wMid < 7, "una muesca: a los 80 ms el zoom va a medias, fraccionario (no salta): " + wMid);
-await page.waitForTimeout(600);
+await tick(600);
 ok(await page.evaluate(() => map.getZoom()) === 7, "y se asienta exactamente un nivel más arriba");
 const wp = await page.evaluate(a => map.latLngToContainerPoint(a), wAnchor);
 ok(Math.hypot(wp.x - P.x, wp.y - P.y) <= 2, "el punto bajo el cursor no se mueve: " + JSON.stringify(wp));
 
 await view(40, -3, 6);
-for (let i = 0; i < 3; i++) { await page.mouse.wheel(0, -100); await page.waitForTimeout(50); }
-await page.waitForTimeout(700);
+for (let i = 0; i < 3; i++) { await page.mouse.wheel(0, -100); await tick(50); }
+await tick(700);
 ok(await page.evaluate(() => map.getZoom()) === 9, "tres muescas seguidas, tres niveles");
 
 await view(40, -3, 6);
-for (let i = 0; i < 5; i++) { await page.mouse.wheel(0, -10); await page.waitForTimeout(16); }
-await page.waitForTimeout(800);
+for (let i = 0; i < 5; i++) { await page.mouse.wheel(0, -10); await tick(16); }
+await tick(800);
 ok(await page.evaluate(() => map.getZoom()) === 7, "deltas pequeños (panel táctil) que suman medio nivel: al entero siguiente");
 
 await view(40, -3, 6);
 await page.mouse.wheel(0, 100);
-await page.waitForTimeout(700);
+await tick(700);
 ok(await page.evaluate(() => map.getZoom()) === 5, "hacia abajo aleja un nivel");
 
 const prevented = await page.evaluate(p => {
@@ -219,13 +244,13 @@ const prevented = await page.evaluate(p => {
   return ev.defaultPrevented;
 }, P);
 ok(prevented, "Ctrl+rueda (pellizco del panel táctil) se queda en el mapa: sin ampliar la página");
-await page.waitForTimeout(600);
+await tick(600);
 
 await view(40, -3, 6);
 const bb = await page.evaluate(() => { const r = document.querySelector(".base-box").getBoundingClientRect(); return { x: r.left + r.width / 2, y: r.top + r.height / 2 }; });
 await page.mouse.move(bb.x, bb.y);
 await page.mouse.wheel(0, -100);
-await page.waitForTimeout(600);
+await tick(600);
 ok(await page.evaluate(() => map.getZoom()) === 6, "la rueda sobre un control no hace zoom");
 
 /* ---------- 7. El foco se queda en el visor ----------
@@ -247,14 +272,14 @@ const pins = await page.evaluate(() => {
   return out;
 });
 await page.mouse.click(box.x + pins[0].x, box.y + pins[0].y);
-await page.waitForTimeout(200);
+await tick(200);
 ok(await page.evaluate(() => document.activeElement === map.getContainer()),
   "clicar un marcador deja el foco en el visor, no en su icono: " + await page.evaluate(() => document.activeElement.className));
 ok(await page.evaluate(() => selCursor && selCursor._name) === "Pin foco A", "y aun así va a su nodo en el árbol");
 await page.evaluate(() => { scheduleSave(); });
-await page.waitForTimeout(150);
+await tick(150);
 await page.keyboard.press("PageUp");
-await page.waitForTimeout(600);
+await tick(600);
 ok(await page.evaluate(() => map.getZoom()) === 9 && await page.evaluate(() => selCursor._name) === "Pin foco A",
   "tras un guardado del árbol, Re Pág sigue siendo zoom del visor (no mueve el cursor del árbol)");
 await page.evaluate(() => map.setBearing(30));
@@ -269,14 +294,14 @@ ok(await page.evaluate(() => document.activeElement.classList.contains("leaflet-
 await view(40, -3, 8);
 await page.evaluate(() => setTool("route"));
 await page.mouse.click(box.x + 200, box.y + 300);
-await page.waitForTimeout(300);
+await tick(300);
 await page.mouse.click(box.x + 400, box.y + 320);
-await page.waitForTimeout(300);
+await tick(300);
 ok(await page.evaluate(() => !styleDialog.hidden), "al segundo punto la ruta abre su diálogo de propiedades");
 ok(await page.evaluate(() => document.activeElement === map.getContainer()),
   "pero el foco sigue en el visor: " + await page.evaluate(() => document.activeElement.id || document.activeElement.className));
 await page.keyboard.press("PageUp");
-await page.waitForTimeout(600);
+await tick(600);
 ok(await page.evaluate(() => map.getZoom()) === 9, "y Re Pág hace zoom a mitad de la ruta");
 await page.keyboard.press("Escape");
 await page.evaluate(() => { if (!styleDialog.hidden) closeStyleDialog(false); setTool(null); });

@@ -116,7 +116,7 @@ saltos: se notaba dibujando una ruta). Todo en `70-view-controls.js`.
   desplazamiento pedido tal cual.
 - **Trampa del primer fotograma**: la marca de tiempo de rAF es la del
   INICIO del fotograma, anterior al keydown → `dt` negativo → un paso
-  hacia atrás (medido: −5 px). Se acota a ≥ 0 (y a 0,1 s tras pausas).
+  hacia atrás (medido: −5 px). Se acota a ≥ 0 (y a 0,1 s tras pausas). **Consecuencia medida**: el recorrido es la integral del perfil de velocidad, 200 px a los 500 ms, **550 px a 1 s** y 1200 px a 1,5 s, SOLO si los fotogramas llegan a tiempo; con la máquina muy cargada (huecos de hasta 250 ms entre fotogramas) el tope de 0,1 s por fotograma quita recorrido y mantener 1 s dio 472 px. Es a propósito (evita un salto enorme tras una pausa) y no se toca; por eso las pruebas usan tiempo virtual.
 - **Zoom continuo por el camino del pellizco táctil** (`_moveStart` +
   `_move(…, {pinch: true})`, 3 niveles/s): solo transforma por CSS
   teselas y lienzo, sin redibujar por fotograma. Centro desde el estado
